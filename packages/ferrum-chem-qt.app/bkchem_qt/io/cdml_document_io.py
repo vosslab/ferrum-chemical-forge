@@ -707,11 +707,20 @@ def _presentation_from_description(
 		record: oasa.cdml_document.CDMLPresentationRecord,
 		) -> bkchem_qt.models.document_object.PresentationObject:
 	"""Create a disposable presentation model from OASA's plain projection facts."""
+	# OASA owns the accepted CDML.  Its supported ftext runs are the typed
+	# backend projection facts, so reconstruct the frontend-only fragment from
+	# them rather than reading or mutating a Qt text item.  Preservation-only
+	# ftext remains ``None`` and is display-only by contract.
+	xml_ftext = (
+		bkchem_qt.bridge.oasa_bridge.encode_authored_ftext_runs(record.ftext_runs)
+		if record.ftext_runs is not None else None
+	)
 	return bkchem_qt.models.document_object.PresentationObject(
 		kind=record.kind,
 		attributes=dict(record.attributes),
 		points=list(record.points),
 		bounds=record.bounds,
+		xml_ftext=xml_ftext,
 		formatted_text_runs=record.ftext_runs,
 		display_text=record.display_text,
 		font_attributes=dict(record.font_attributes),

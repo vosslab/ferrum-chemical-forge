@@ -1,0 +1,3 @@
+PySide6  # Ferrum-Qt production UI
+shiboken6  # Qt object-lifetime integration used directly by Ferrum-Qt
+pyyaml  # Ferrum-Qt resource and theme parsing

@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 56585a013fd3501178f6e1dd11294a768bdbe88f96036342fb1573af691eacb1 # shrinks to charge = None, isotope = None, hydrogens = None, valence = None, multiplicity = None, free_sites = None, order = None, style = None, aromatic = None
+cc 4bf59ead9b94a2174d68410d37770f49cb6fbcdad2379eed750b686b755a8471 # shrinks to charge = Some(0), isotope = Some(1), hydrogens = Some(0), valence = Some(0), multiplicity = Some(1), free_sites = Some(0), order = Some(Other(0)), style = Some(Other("custom")), aromatic = Some(false)

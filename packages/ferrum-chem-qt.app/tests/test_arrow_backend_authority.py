@@ -331,9 +331,6 @@ def test_captured_non_mode_capability_uses_its_original_registered_session(
 
 	assert outcome.status == "accepted"
 	assert main_window._active_session.backend_snapshot.revision == 0
-	original.document.mark_clean()
-	main_window.close_session_at(main_window._sessions.index(main_window._active_session))
-	main_window.close_session_at(main_window._sessions.index(original))
 
 
 #============================================

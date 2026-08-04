@@ -10,6 +10,7 @@ import pytest
 
 # local repo modules
 import bkchem_qt.bridge.release_metadata
+import bkchem_qt.versioning
 
 
 _QT_PACKAGE_ROOT = pathlib.Path(__file__).parents[1] / "bkchem_qt"
@@ -93,6 +94,23 @@ def test_missing_installed_metadata_reports_the_typed_boundary_failure(
 		match="BKChem-Qt package metadata is unavailable",
 	):
 		bkchem_qt.bridge.release_metadata.installed_display_version("bkchem-qt")
+
+
+#============================================
+def test_installed_application_version_uses_the_ferrum_distribution_identity(
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""The retained Python namespace looks up the renamed wheel distribution."""
+	distribution_names: list[str] = []
+	monkeypatch.setattr(bkchem_qt.versioning, "_source_tree_version", lambda: None)
+	monkeypatch.setattr(
+		bkchem_qt.versioning.bkchem_qt.bridge.release_metadata,
+		"installed_display_version",
+		lambda name: distribution_names.append(name) or "26.08",
+	)
+
+	assert bkchem_qt.versioning.application_version() == "26.08"
+	assert distribution_names == ["ferrum-qt"]
 
 
 #============================================

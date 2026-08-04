@@ -3,26 +3,28 @@ requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bkchem-qt"
+name = "ferrum-qt"
 version = "26.08"
-description = "BKChem Qt frontend - 2D molecular structure editor"
-readme = {text = "BKChem Qt frontend built with PySide6.", content-type = "text/markdown"}
+description = "Ferrum-Qt - 2D molecular structure editor"
+readme = {text = "Ferrum-Qt is a PySide6 2D molecular structure editor.", content-type = "text/markdown"}
 requires-python = ">=3.10"
-license = "GPL-2.0-only"
+license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{name = "Neil Voss"}]
 dependencies = [
     "PySide6>=6.7",
+    "shiboken6>=6.7",
     "pyyaml",
+    # Temporary migration dependency; remove at M22 with its Python RDKit dependency.
     "oasa>=26.08",
 ]
 
 [project.urls]
-Homepage = "https://github.com/vosslab/bkchem"
-Issues = "https://github.com/vosslab/bkchem/issues"
+Homepage = "https://github.com/vosslab/ferrum-chemical-forge"
+Issues = "https://github.com/vosslab/ferrum-chemical-forge/issues"
 
 [project.scripts]
-bkchem-qt = "bkchem_qt.cli:main"
+ferrum-qt = "bkchem_qt.cli:main"
 
 [tool.setuptools]
 include-package-data = true

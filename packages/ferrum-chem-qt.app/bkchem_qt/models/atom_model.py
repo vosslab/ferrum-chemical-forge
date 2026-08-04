@@ -138,7 +138,7 @@ class AtomModel(PySide6.QtCore.QObject):
 	@property
 	def backend_durable_id(self) -> str | None:
 		"""Return the backend address only while it agrees with this scalar ID."""
-		if self._backend_durable_id == self._atom_id:
+		if self._backend_durable_id == self.atom_id:
 			return self._backend_durable_id
 		return None
 

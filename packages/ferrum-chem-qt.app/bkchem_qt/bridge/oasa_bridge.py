@@ -178,6 +178,31 @@ def decode_authored_ftext_runs(
 
 
 #============================================
+def encode_authored_ftext_runs(
+		runs: tuple[tuple[str, tuple[str, ...]], ...],
+		) -> str:
+	"""Encode backend-described authored runs as one CDML ftext fragment.
+
+	The synchronized presentation description deliberately crosses the OASA/Qt
+	boundary as immutable scalar runs.  Re-encoding those backend facts gives a
+	disposable Qt projection the same authored ftext representation without
+	retaining an OASA object or consulting a Qt text item.
+	"""
+	if type(runs) is not tuple:
+		raise TypeError("Authored ftext runs must be an exact tuple")
+	backend_runs = []
+	for run in runs:
+		if type(run) is not tuple or len(run) != 2:
+			raise TypeError("Authored ftext runs must contain text/style pairs")
+		text, styles = run
+		backend_runs.append(oasa.cdml_ftext.CDMLFTextRun(text, styles))
+	try:
+		return oasa.cdml_ftext.encode(tuple(backend_runs))
+	except oasa.cdml_ftext.CDMLFTextCodecError as exc:
+		raise ValueError("Authored ftext runs are invalid: %s" % exc) from exc
+
+
+#============================================
 def paper_catalog() -> dict[str, list[float] | None]:
 	"""Return OASA's plain CDML paper catalog for Qt display adapters."""
 	return oasa.cdml_document.paper_catalog()

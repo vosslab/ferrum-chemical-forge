@@ -1,0 +1,160 @@
+{
+  "capability": "ordered-molecule-core-carrier-v1",
+  "commands": {
+    "ferrum": [
+      "cargo",
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "packages/ferrum-rust/Cargo.toml",
+      "--package",
+      "ferrum-core",
+      "--example",
+      "oracle_molecule_core"
+    ],
+    "oasa": [
+      "/Users/vosslab/nsh/ferrum-chemical-forge/tests/e2e/oracle/.venv/bin/python",
+      "/Users/vosslab/nsh/ferrum-chemical-forge/tests/e2e/oracle/e2e_oasa_molecule_core_child.py"
+    ]
+  },
+  "comparison_rule": "Exact equality: all compared fields are discrete.",
+  "facts": {
+    "ferrum": {
+      "crate_version": "0.1.0",
+      "rust_version_floor": "1.85"
+    },
+    "oasa": {
+      "oasa_version": "26.2a1",
+      "python_version": "3.12.13",
+      "rdkit_version": "2026.03.4"
+    }
+  },
+  "field_comparison": [],
+  "intentional_mutation": false,
+  "normalized_outputs": {
+    "ferrum": {
+      "atoms": [
+        {
+          "element": "C",
+          "explicit_hydrogens": 2,
+          "formal_charge": 0,
+          "index": 0
+        },
+        {
+          "element": "O",
+          "explicit_hydrogens": 0,
+          "formal_charge": 0,
+          "index": 1
+        },
+        {
+          "element": "N",
+          "explicit_hydrogens": 1,
+          "formal_charge": 1,
+          "index": 2
+        }
+      ],
+      "bonds": [
+        {
+          "end": 1,
+          "order": 2,
+          "start": 0,
+          "type": "n"
+        },
+        {
+          "end": 0,
+          "order": 1,
+          "start": 2,
+          "type": "w"
+        }
+      ],
+      "capability": "ordered-molecule-core-carrier-v1"
+    },
+    "oasa": {
+      "atoms": [
+        {
+          "element": "C",
+          "explicit_hydrogens": 2,
+          "formal_charge": 0,
+          "index": 0
+        },
+        {
+          "element": "O",
+          "explicit_hydrogens": 0,
+          "formal_charge": 0,
+          "index": 1
+        },
+        {
+          "element": "N",
+          "explicit_hydrogens": 1,
+          "formal_charge": 1,
+          "index": 2
+        }
+      ],
+      "bonds": [
+        {
+          "end": 1,
+          "order": 2,
+          "start": 0,
+          "type": "n"
+        },
+        {
+          "end": 0,
+          "order": 1,
+          "start": 2,
+          "type": "w"
+        }
+      ],
+      "capability": "ordered-molecule-core-carrier-v1"
+    }
+  },
+  "oracle": {
+    "commit": "c6876626386e3e739c8e8a9f45c4348b2cdb926a",
+    "tag": "26.02a1"
+  },
+  "request": {
+    "atoms": [
+      {
+        "element": "C",
+        "explicit_hydrogens": 2,
+        "formal_charge": 0
+      },
+      {
+        "element": "O",
+        "explicit_hydrogens": 0,
+        "formal_charge": 0
+      },
+      {
+        "element": "N",
+        "explicit_hydrogens": 1,
+        "formal_charge": 1
+      }
+    ],
+    "bonds": [
+      {
+        "end": 1,
+        "order": 2,
+        "start": 0,
+        "type": "n"
+      },
+      {
+        "end": 0,
+        "order": 1,
+        "start": 2,
+        "type": "w"
+      }
+    ],
+    "capability": "ordered-molecule-core-carrier-v1"
+  },
+  "request_sha256": "b405208c14f2c2efc8d5bd196758291fc29194061be68dfae24c583b06621d51",
+  "scope_exclusions": [
+    "CDML parsing, serialization, and opaque extension preservation",
+    "coordinates, identifiers, isotope, valence, multiplicity, and free sites",
+    "non-atom vertices, perceived/default chemistry, aromatic flags, and depiction",
+    "OASA graph-set iteration order; comparison preserves request sequence only"
+  ],
+  "source_hierarchy": {
+    "basis": "OASA observed construction behavior for this narrow carrier",
+    "classification": "required-compatibility"
+  },
+  "status": "match"
+}

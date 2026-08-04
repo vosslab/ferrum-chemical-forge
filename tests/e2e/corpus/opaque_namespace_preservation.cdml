@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Source classification: required compatibility. Origin: original compact probe derived from
+the documented preservation rules and conformance-manifest opaque cases. License/provenance
+treatment: no manifest XML or OASA production code is copied; the central M1 documentation owner
+records the final provenance and redistribution disposition. -->
+<?before retain?>
+<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" xmlns:v="urn:vendor" xmlns:q="urn:qname" version="26.07">
+  <!-- persistent comment -->
+  <molecule id="m1" v:state="literal"><atom id="a1" name="C" q:label="q:token"><point x="0cm" y="0cm"/></atom></molecule>
+  <v:extension id="vendor-1" q:kind="q:widget">before<v:item id="vendor-child"/>after</v:extension>
+  <external-data v:mode="keep"><v:item q:kind="q:literal">opaque</v:item></external-data>
+  <?inside retain?>
+</cdml>

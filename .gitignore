@@ -13,4 +13,7 @@ sdist/
 *.egg
 *.egg-info/
 site/
-
+__pycache__/
+*.pyc
+packages/ferrum-rust/target/
+tests/e2e/oracle/.venv/

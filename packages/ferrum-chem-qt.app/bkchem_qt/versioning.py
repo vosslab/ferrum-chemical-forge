@@ -29,4 +29,4 @@ def application_version() -> str:
 	source_version = _source_tree_version()
 	if source_version is not None:
 		return source_version
-	return bkchem_qt.bridge.release_metadata.installed_display_version("bkchem-qt")
+	return bkchem_qt.bridge.release_metadata.installed_display_version("ferrum-qt")

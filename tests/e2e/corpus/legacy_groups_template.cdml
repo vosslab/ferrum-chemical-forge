@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Source classification: required compatibility. Origin: reduced, original re-expression of
+the shipped groups.cdml template. License/provenance treatment: no verbatim template block or
+OASA production code is copied; the upstream BKChem application license is GPL-2.0-or-later.
+The central M1 documentation owner records the final redistribution disposition. -->
+<cdml version="0.8" xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">
+  <info><author_program version="0.2.0">BKchem</author_program></info>
+  <viewport viewport="0.000000 0.000000 640.000000 480.000000"/>
+  <molecule id="NO2" name="NO2">
+    <template atom="a182"/>
+    <atom id="a182" name="C"><point x="185.0" y="90.0" z="0.0"/></atom>
+    <atom id="a184" name="N" pos="center-first"><point x="211.0" y="75.0" z="0.0"/></atom>
+    <atom id="a187" name="O" pos="center-first"><point x="237.0" y="90.0" z="0.0"/></atom>
+    <bond end="a184" start="a182" type="s" width="1.0"/>
+    <bond center="yes" distance="-6.0" end="a187" start="a184" type="d" width="1.0"/>
+  </molecule>
+</cdml>

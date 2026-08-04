@@ -1,0 +1,16 @@
+[package]
+name = "ferrum-document"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = "2.0.17"
+xot = "0.31.2"
