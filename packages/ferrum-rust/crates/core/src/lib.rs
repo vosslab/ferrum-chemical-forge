@@ -1690,7 +1690,6 @@ mod tests {
             ]),
             aromatic in proptest::option::weighted(0.5, any::<bool>()),
         ) {
-            prop_assert!(!(charge.is_some() && isotope.is_some() && hydrogens.is_some() && valence.is_some() && multiplicity.is_some() && free_sites.is_some() && aromatic.is_some() && matches!(order, Some(BondOrder::Other(_))) && matches!(style, Some(BondStyle::Other(_)))));
             let origin = Position::new(0.0, 0.0, 0.0).expect("finite");
             let carrier = Atom::new(
                 None, Some("C".to_owned()), origin, charge, isotope, hydrogens,

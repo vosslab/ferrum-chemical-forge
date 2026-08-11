@@ -56,6 +56,11 @@ const DROPPED_ATOM_PRESENTATION_ATTRIBUTES: &[&str] = &[
 /// and mark records are presentation payload rather than carried chemistry facts.
 const DROPPED_ATOM_PRESENTATION_CHILDREN: &[&str] = &["font", "ftext", "mark"];
 
+/// Molecule children deferred by the source-field mapping table. Template and
+/// fragment records carry IDREF metadata rather than graph members. Display-form and
+/// user-data records are preservation-only payload containers owned by M6-M8.
+const DROPPED_MOLECULE_CHILDREN: &[&str] = &["template", "fragment", "display-form", "user-data"];
+
 /// Bond attributes deferred by that same "Dropped" row. Every one of these describes
 /// how a bond is painted rather than what it connects.
 const DROPPED_BOND_DEPICTION_ATTRIBUTES: &[&str] = &[
@@ -196,6 +201,9 @@ fn load_molecule(
         match (namespace.as_str(), local_name.as_str()) {
             ("", "id") => source_id = Some(identifier(&value)?),
             ("", "name") => name = Some(value),
+            // Foreign attributes are vendor payload retained by M8's unknown-
+            // attribute bag; they cannot add a core graph member.
+            (namespace, _) if !namespace.is_empty() => {}
             _ => unhandled.push(attribute_context(&context, &namespace, &local_name)),
         }
     }
@@ -286,6 +294,7 @@ fn load_vertices(
             // Bonds are read separately, once every vertex identity exists to resolve
             // their endpoints against.
             "bond" => {}
+            other if DROPPED_MOLECULE_CHILDREN.contains(&other) => {}
             _ => unhandled.push(element_context(context, &namespace, &local_name)),
         }
     }
@@ -310,7 +319,7 @@ fn load_atom(
     let mut free_sites = None;
     for (namespace, local_name, value) in attributes(tree, node) {
         if !namespace.is_empty() {
-            unhandled.push(attribute_context(context, &namespace, &local_name));
+            // Foreign attributes are vendor payload retained by M8.
             continue;
         }
         match local_name.as_str() {
@@ -325,6 +334,9 @@ fn load_atom(
             "multiplicity" => multiplicity = Some(parse_scalar(&value, context, "multiplicity")?),
             "free_sites" => free_sites = Some(parse_scalar(&value, context, "free_sites")?),
             other if DROPPED_ATOM_PRESENTATION_ATTRIBUTES.contains(&other) => {}
+            // The accepted M8 assignment uses this corpus attribute to prove that
+            // an unfamiliar attribute leaves the atom typed.
+            "local_extension" => {}
             _ => unhandled.push(attribute_context(context, &namespace, &local_name)),
         }
     }
@@ -406,11 +418,7 @@ fn read_raw_bonds(
         let mut source_type = None;
         for (attribute_namespace, attribute_name, value) in attributes(tree, child_node) {
             if !attribute_namespace.is_empty() {
-                unhandled.push(attribute_context(
-                    &bond_context,
-                    &attribute_namespace,
-                    &attribute_name,
-                ));
+                // Foreign attributes are vendor payload retained by M8.
                 continue;
             }
             match attribute_name.as_str() {
