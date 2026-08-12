@@ -12,8 +12,8 @@ import oasa.cdml_document
 import oasa.cdml_writer
 import oasa.safe_xml
 
-import bkchem_qt.bridge.oasa_bridge
-import bkchem_qt.canvas.items.bond_item
+import ferrum_qt.bridge.oasa_bridge
+import ferrum_qt.canvas.items.bond_item
 
 
 #============================================
@@ -28,7 +28,7 @@ def _accepted_oasa_molecule(cdml_text: str) -> object:
 #============================================
 def test_new_oxygen_uses_its_periodic_table_valency() -> None:
 	"""New scalar heteroatoms retain their element's chemistry default."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	assert molecule.create_atom("O").valency == 2
 
 
@@ -48,10 +48,10 @@ def test_cdml_bond_display_fields_survive_oasa_qt_oasa_bridge() -> None:
 	</cdml>
 	""")
 
-	qt_molecule = bkchem_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
+	qt_molecule = ferrum_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
 		oasa_molecule, bond_length_pt=None,
 	)
-	roundtrip_molecule = bkchem_qt.bridge.oasa_bridge.qt_mol_to_oasa_mol(qt_molecule)
+	roundtrip_molecule = ferrum_qt.bridge.oasa_bridge.qt_mol_to_oasa_mol(qt_molecule)
 	roundtrip_element = oasa.cdml_writer.write_cdml_molecule_element(roundtrip_molecule)
 	roundtrip_bond = roundtrip_element.getElementsByTagName("bond")[0]
 	assert (
@@ -79,10 +79,10 @@ def test_cdml_atom_display_fields_survive_oasa_qt_oasa_bridge() -> None:
 	</cdml>
 	""")
 
-	qt_molecule = bkchem_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
+	qt_molecule = ferrum_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
 		oasa_molecule, bond_length_pt=None,
 	)
-	roundtrip_molecule = bkchem_qt.bridge.oasa_bridge.qt_mol_to_oasa_mol(qt_molecule)
+	roundtrip_molecule = ferrum_qt.bridge.oasa_bridge.qt_mol_to_oasa_mol(qt_molecule)
 	roundtrip_element = oasa.cdml_writer.write_cdml_molecule_element(roundtrip_molecule)
 	atom_elements = {
 		atom_element.getAttribute("id"): atom_element
@@ -119,12 +119,12 @@ def test_styled_values_reach_composed_qt_render_edge(qapp: object) -> None:
 		</molecule>
 	</cdml>
 	""")
-	qt_molecule = bkchem_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
+	qt_molecule = ferrum_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
 		oasa_molecule, bond_length_pt=None,
 	)
 	bond_model = qt_molecule.bonds[0]
-	materialized = bkchem_qt.bridge.oasa_bridge.materialize_oasa_bond(bond_model)
-	item = bkchem_qt.canvas.items.bond_item.BondItem(bond_model)
+	materialized = ferrum_qt.bridge.oasa_bridge.materialize_oasa_bond(bond_model)
+	item = ferrum_qt.canvas.items.bond_item.BondItem(bond_model)
 	paths = [op for op in item._ops if op.kind == "path"]
 	lengths = sorted(
 		abs(path.commands[-1][1][0] - path.commands[0][1][0])
@@ -150,12 +150,12 @@ def test_absent_simple_double_stays_absent_through_qt_projection(
 		</molecule>
 	</cdml>
 	""")
-	qt_molecule = bkchem_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
+	qt_molecule = ferrum_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(
 		oasa_molecule, bond_length_pt=None,
 	)
 	bond_model = qt_molecule.bonds[0]
-	item = bkchem_qt.canvas.items.bond_item.BondItem(bond_model)
-	roundtrip = bkchem_qt.bridge.oasa_bridge.qt_mol_to_oasa_mol(qt_molecule)
+	item = ferrum_qt.canvas.items.bond_item.BondItem(bond_model)
+	roundtrip = ferrum_qt.bridge.oasa_bridge.qt_mol_to_oasa_mol(qt_molecule)
 	roundtrip_element = oasa.cdml_writer.write_cdml_molecule_element(roundtrip)
 	roundtrip_bond = roundtrip_element.getElementsByTagName("bond")[0]
 	path_lengths = [
@@ -172,14 +172,14 @@ def test_legacy_bond_render_error_leaves_scalar_projection_usable(
 		) -> None:
 	"""A failed temporary bridge render does not poison the scalar projection."""
 	del qapp
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	first = molecule.create_atom()
 	second = molecule.create_atom()
 	molecule.add_atom(first)
 	molecule.add_atom(second)
 	bond = molecule.create_bond()
 	molecule.add_bond(first, second, bond)
-	item = bkchem_qt.canvas.items.bond_item.BondItem(bond)
+	item = ferrum_qt.canvas.items.bond_item.BondItem(bond)
 	def raise_render_error(*unused_args: object, **unused_kwargs: object) -> list:
 		raise RuntimeError("render failure")
 	monkeypatch.setattr(

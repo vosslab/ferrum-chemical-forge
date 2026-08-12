@@ -8,11 +8,11 @@ not parse or preserve CDML XML, call RDKit, render, hold PySide6 objects, or def
 wire ABI. Its Serde implementation is internal persistence/testing only; M17 owns the
 versioned external DTO and operation protocol.
 
-M2 remains in progress. The M1d oracle harness has landed: `tests/e2e/e2e_oracle_molecule_core.py`
-runs a separate-process comparison against pinned OASA 26.2a1 and RDKit 2026.03.4 and reports
-`"status": "match"`. Corpus loading and pinned OASA field comparison across the corpus still do
-not exist. The remainder is no longer M1d's; it is scheduled as six atomic M2 steps in
-[../audits/m2_exit_gap.md](../audits/m2_exit_gap.md), which tracks the remaining work.
+M2 is complete. The dev-only projection loads every committed corpus molecule, and the
+separate-process comparison reports 81 exact source-fact agreements, 29 classified
+differences, and zero unexpected differences. The comparison, classifications, and
+intentional mutation proof are recorded in
+`docs/active_plans/reports/corpus_molecule_parity.md`.
 
 ## Structural identity
 
@@ -59,6 +59,11 @@ document-node anchor, but cannot invent semantic distinction absent from source 
 
 ## Graph and mutation invariants
 
+- `Molecule::graph()` builds an immutable analysis view whose `petgraph` indexes stay
+  private. Public results contain stable Ferrum identities and owned errors.
+- Components, paths, bridges, articulation points, matching, Dijkstra distances,
+  Floyd-Warshall distances, diameter, cycle rank, and a deterministic fundamental-cycle
+  basis are implemented. `deterministic_graph_analysis.md` owns their ordering policy.
 - `VertexRef` is `Atom`, `Group`, molecule-local `Text`, or `Query`. Construction,
   validation, and deserialization reject a variant whose `RecordId.kind` disagrees.
   Bond endpoints preserve their type and order; chemistry code can explicitly require
@@ -101,3 +106,12 @@ document-node anchor, but cannot invent semantic distinction absent from source 
   absent bond type/order/style; prove child-set/reorder stability for idless molecules;
   retain exact duplicate idless occurrences in a session; and exercise typed
   endpoint/source-absence round trips.
+- One property varies every carried optional atom scalar plus bond order, style, and
+  aromatic presence through internal serialization without collapsing absence into a
+  default.
+- The M2 dev loader reads all three committed documents, assigns idless occurrences,
+  converts coordinate units, resolves all four vertex kinds, applies versioned bond
+  semantics, and rejects unassigned molecule content.
+- The corpus gate catches an intentional atom-element mutation. Exact shared source
+  facts agree; source-default, non-atom, style/aromatic, and legacy `d` differences are
+  classified in the parity report rather than hidden by normalization.

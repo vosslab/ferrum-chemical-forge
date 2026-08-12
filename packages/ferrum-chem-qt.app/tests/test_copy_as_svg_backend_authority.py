@@ -5,10 +5,10 @@ import PySide6.QtWidgets
 import lxml.etree
 
 # local repo modules
-import bkchem_qt.canvas.graphics_retirement
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
+import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
 import oasa.cdml_render
 
 
@@ -20,9 +20,9 @@ _CDML = """<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="26
 
 
 #============================================
-def _native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Install one native projection with separated durable drawable roots."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -33,7 +33,7 @@ def _native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
 #============================================
 def _clear_selection(session: object) -> None:
 	"""Clear only items obtained through the safe captured-scene helper."""
-	for item in bkchem_qt.canvas.graphics_retirement.selected_items_from_captured_scene(
+	for item in ferrum_qt.canvas.graphics_retirement.selected_items_from_captured_scene(
 		session.scene,
 	):
 		item.setSelected(False)
@@ -44,7 +44,7 @@ def _atom_item(session: object, identifier: str) -> object:
 	"""Return one projected atom wrapper by its durable backend identifier."""
 	for item in session.scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == identifier
 		):
 			return item
@@ -62,7 +62,7 @@ def _arrow_item(session: object) -> object:
 
 
 #============================================
-def _clipboard_view_box(main_window: bkchem_qt.main_window.MainWindow) -> tuple[float, ...]:
+def _clipboard_view_box(main_window: ferrum_qt.main_window.MainWindow) -> tuple[float, ...]:
 	"""Run the registered action and read its SVG bounds through hardened lxml."""
 	main_window._registry.get("edit.selected_to_svg").handler()
 	payload = bytes(
@@ -92,7 +92,7 @@ def _clipboard_text() -> str:
 
 #============================================
 def test_copy_as_svg_uses_registered_current_selection_and_backend_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Selected atom exports its molecule while the arrow joins no distant molecule."""
 	session = _native_session(main_window)
@@ -120,7 +120,7 @@ def test_copy_as_svg_uses_registered_current_selection_and_backend_snapshot(
 
 #============================================
 def test_selection_export_requires_reprojection_after_backend_acceptance(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Page export remains snapshot-available when selection projection is stale."""
 	session = _native_session(main_window)
@@ -148,7 +148,7 @@ def test_selection_export_requires_reprojection_after_backend_acceptance(
 
 #============================================
 def test_stale_selection_export_preserves_existing_clipboard(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An accepted backend change makes old selected wrappers ineligible to publish."""
 	session = _native_session(main_window)
@@ -174,7 +174,7 @@ def test_stale_selection_export_preserves_existing_clipboard(
 
 #============================================
 def test_foreign_selection_export_preserves_existing_clipboard(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A foreign scene item has no authority to publish a visual artifact."""
 	session = _native_session(main_window)
@@ -199,7 +199,7 @@ def test_foreign_selection_export_preserves_existing_clipboard(
 
 #============================================
 def test_unmappable_registered_selection_preserves_existing_clipboard(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A current registered wrapper still needs a durable CDML render key."""
 	session = _native_session(main_window)

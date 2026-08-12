@@ -8,13 +8,13 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.models.document_object
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.edit_mode
-import bkchem_qt.undo.commands
+import ferrum_qt.main_window
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.models.document_object
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.edit_mode
+import ferrum_qt.undo.commands
 import oasa.cdml_document
 
 
@@ -43,9 +43,9 @@ class _MouseEvent:
 
 
 #============================================
-def _native_session(main_window: bkchem_qt.main_window.MainWindow, cdml: str = _CDML) -> object:
+def _native_session(main_window: ferrum_qt.main_window.MainWindow, cdml: str = _CDML) -> object:
 	"""Install one native session containing a durable presentation root."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -63,18 +63,18 @@ def _presentation_item(session: object) -> object:
 
 
 #============================================
-def _edit_mode(session: object) -> bkchem_qt.modes.edit_mode.EditMode:
+def _edit_mode(session: object) -> ferrum_qt.modes.edit_mode.EditMode:
 	"""Activate and return the session-owned EditMode instance."""
 	session.mode_manager.set_mode("edit")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.edit_mode.EditMode):
+	if not isinstance(mode, ferrum_qt.modes.edit_mode.EditMode):
 		raise TypeError("Edit mode unavailable")
 	return mode
 
 
 #============================================
 def _drag(
-		mode: bkchem_qt.modes.edit_mode.EditMode, item: object,
+		mode: ferrum_qt.modes.edit_mode.EditMode, item: object,
 		delta: tuple[float, float],
 		) -> None:
 	"""Dispatch one complete presentation-only drag at a durable item point."""
@@ -104,7 +104,7 @@ def _first_point(snapshot: object, identifier: str) -> tuple[float, float]:
 
 #============================================
 def test_presentation_drag_uses_backend_history_and_reprojects_selection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A native presentation drag commits canonical CDML without Qt undo state."""
 	session = _native_session(main_window)
@@ -149,7 +149,7 @@ def test_presentation_drag_uses_backend_history_and_reprojects_selection(
 
 #============================================
 def test_unavailable_and_idless_presentation_drags_restore_preview_without_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Unaddressable synchronized presentation drags remain inert."""
 	session = _native_session(main_window)
@@ -183,7 +183,7 @@ def test_unavailable_and_idless_presentation_drags_restore_preview_without_undo(
 
 #============================================
 def test_presentation_drag_stays_with_its_originating_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A mode callback moves its own tab after another tab becomes active."""
 	first_session = _native_session(main_window)
@@ -207,7 +207,7 @@ def test_presentation_drag_stays_with_its_originating_session(
 
 #============================================
 def test_presentation_drag_recovery_reprojects_without_resubmission(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Accepted presentation movement remains final when projection installation fails."""
 	session = _native_session(main_window)
@@ -221,9 +221,9 @@ def test_presentation_drag_recovery_reprojects_without_resubmission(
 
 		def unavailable(_snapshot: object) -> object:
 			"""Report one post-acceptance projection installation failure."""
-			return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+			return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 			)
 
 		session._backend_session.apply_top_level_transform = record
@@ -252,21 +252,21 @@ def test_presentation_drag_recovery_reprojects_without_resubmission(
 
 #============================================
 def test_presentation_drag_retains_local_move_for_a_legacy_isolated_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A real local edit retains the existing isolated presentation undo route."""
 	session = _native_session(main_window)
 	try:
-		legacy_model = bkchem_qt.models.document_object.PresentationObject(
+		legacy_model = ferrum_qt.models.document_object.PresentationObject(
 			"polyline", points=[(1.0, 1.0, None), (2.0, 2.0, None)],
 		)
-		legacy_item = bkchem_qt.canvas.document_projection.create_presentation_item(
+		legacy_item = ferrum_qt.canvas.document_projection.create_presentation_item(
 			legacy_model,
 		)
 		if legacy_item is None:
 			raise RuntimeError("Legacy presentation test item is unavailable")
 		session.document.undo_stack.push(
-			bkchem_qt.undo.commands.AddPresentationObjectCommand(
+			ferrum_qt.undo.commands.AddPresentationObjectCommand(
 				session.document, session.scene, legacy_model, legacy_item,
 			),
 		)

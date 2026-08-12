@@ -5,10 +5,10 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.context_menu
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.context_menu
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
 
 
 _CDML = (
@@ -21,9 +21,9 @@ _CDML = (
 
 
 #============================================
-def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _install_native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Register one active projected native-CDML session for a menu interaction."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -35,7 +35,7 @@ def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> ob
 def _bond_item(session: object) -> object:
 	"""Return the one live projected durable bond item."""
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem):
+		if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem):
 			return item
 	raise AssertionError("Projected CDML did not produce a BondItem")
 
@@ -55,20 +55,20 @@ def _selected_bond_ids(session: object) -> set[str]:
 	return {
 		item.bond_model.backend_durable_id
 		for item in session.scene.selectedItems()
-		if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+		if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 		and item.bond_model.backend_durable_id is not None
 	}
 
 
 #============================================
 def test_retained_set_order_action_uses_durable_ids_after_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained Double action commits through durable IDs after its item is stale."""
 	session = _install_native_session(main_window)
 	menu = None
 	try:
-		menu = bkchem_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
+		menu = ferrum_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
 		order_menu = next(
 			(child for child in menu.findChildren(PySide6.QtWidgets.QMenu)
 				if child.title() == "Set Order"),
@@ -99,13 +99,13 @@ def test_retained_set_order_action_uses_durable_ids_after_reprojection(
 
 #============================================
 def test_retained_set_type_action_uses_durable_ids_backend_history_and_noop(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained Hashed wedge action remains authoritative after projection replacement."""
 	session = _install_native_session(main_window)
 	menu = None
 	try:
-		menu = bkchem_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
+		menu = ferrum_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
 		type_menu = next(
 			(child for child in menu.findChildren(PySide6.QtWidgets.QMenu)
 				if child.title() == "Set Type"),

@@ -11,8 +11,8 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.canvas.graphics_retirement
+import ferrum_qt.main_window
+import ferrum_qt.canvas.graphics_retirement
 
 
 FULL_DOCUMENT_CDML = """<?xml version="1.0" encoding="utf-8"?>
@@ -60,7 +60,7 @@ def _drain_deferred_deletes(app: PySide6.QtWidgets.QApplication) -> None:
 
 #============================================
 def test_removing_session_invalidates_document_projection_wrappers(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
 		) -> None:
@@ -94,7 +94,7 @@ def test_removing_session_invalidates_document_projection_wrappers(
 
 #============================================
 def test_graphics_rich_session_close_uses_the_reaper_protocol(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
 		) -> None:
@@ -127,7 +127,7 @@ def test_graphics_rich_session_close_uses_the_reaper_protocol(
 	session.document.mark_clean()
 	main_window._on_new()
 	assert main_window._remove_session(session)
-	assert bkchem_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+	assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
 
 	assert not main_window._pending_session_deletions
 	assert not any(
@@ -138,7 +138,7 @@ def test_graphics_rich_session_close_uses_the_reaper_protocol(
 
 #============================================
 def test_failed_detached_graphics_retirement_stays_with_the_session_reaper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
@@ -158,7 +158,7 @@ def test_failed_detached_graphics_retirement_stays_with_the_session_reaper(
 		real_delete(item)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.shiboken6,
+		ferrum_qt.canvas.graphics_retirement.shiboken6,
 		"delete", fail_only_the_detached_root,
 	)
 	session.document.mark_clean()
@@ -171,5 +171,5 @@ def test_failed_detached_graphics_retirement_stays_with_the_session_reaper(
 	assert undo_item in retained.roots and retained.diagnostics
 
 	monkeypatch.undo()
-	assert bkchem_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+	assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
 	assert not shiboken6.isValid(undo_item)

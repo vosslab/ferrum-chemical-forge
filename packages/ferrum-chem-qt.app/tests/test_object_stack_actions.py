@@ -8,8 +8,8 @@ import pytest
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
 import oasa.cdml_document
 
 
@@ -29,7 +29,7 @@ _STACK_CDML = (
 
 #============================================
 def _install_stack_document(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> object:
 	"""Open one complete authoritative snapshot through the normal tab path."""
 	source = tmp_path / "presentation-stack.cdml"
@@ -56,7 +56,7 @@ def _item_for(session: object, identifier: str) -> PySide6.QtWidgets.QGraphicsIt
 
 #============================================
 def test_bring_to_front_uses_backend_history_and_canonical_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""One real Object action changes only authoritative presentation order."""
 	session = _install_stack_document(main_window, tmp_path)
@@ -80,7 +80,7 @@ def test_bring_to_front_uses_backend_history_and_canonical_reprojection(
 #============================================
 @pytest.mark.parametrize("invalid_kind", ("mixed", "child", "idless", "forged"))
 def test_invalid_or_forged_stack_selection_is_inert(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		invalid_kind: str,
 		) -> None:
 	"""Each unsupported selected graphics route leaves backend state untouched."""
@@ -113,12 +113,12 @@ def test_invalid_or_forged_stack_selection_is_inert(
 
 #============================================
 def test_stale_and_already_front_stack_requests_are_atomic_noops(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Revision conflicts and semantic no-ops retain installed state and history."""
 	session = _install_stack_document(main_window, tmp_path)
 	before = session.backend_snapshot
-	stale = bkchem_qt.models.document_session.build_presentation_stack_request(
+	stale = ferrum_qt.models.document_session.build_presentation_stack_request(
 		before.revision, "send-back", ("arrow-1",),
 	)
 	_item_for(session, "arrow-1").setSelected(True)

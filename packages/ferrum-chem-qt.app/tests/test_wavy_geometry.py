@@ -8,13 +8,13 @@ import numbers
 import pytest
 
 # local repo modules
-import bkchem_qt.wavy_geometry
+import ferrum_qt.wavy_geometry
 
 
 #============================================
 def test_wavy_points_retain_exact_endpoints() -> None:
 	"""Normal geometry preserves its completed gesture endpoints."""
-	points = bkchem_qt.wavy_geometry.wavy_points((0, 0), (24, 0))
+	points = ferrum_qt.wavy_geometry.wavy_points((0, 0), (24, 0))
 
 	assert (points[0], points[-1]) == ((0.0, 0.0), (24.0, 0.0))
 
@@ -22,7 +22,7 @@ def test_wavy_points_retain_exact_endpoints() -> None:
 #============================================
 def test_wavy_points_alternate_along_the_drag_normal() -> None:
 	"""A short horizontal gesture has the expected first zigzag offset."""
-	points = bkchem_qt.wavy_geometry.wavy_points((0, 0), (24, 0))
+	points = ferrum_qt.wavy_geometry.wavy_points((0, 0), (24, 0))
 
 	assert points[1] == (12.0, 4.0)
 
@@ -30,7 +30,7 @@ def test_wavy_points_alternate_along_the_drag_normal() -> None:
 #============================================
 def test_wavy_points_zero_length_is_a_no_op() -> None:
 	"""An unchanged finite gesture creates no persistent geometry."""
-	points = bkchem_qt.wavy_geometry.wavy_points((2, 3), (2, 3))
+	points = ferrum_qt.wavy_geometry.wavy_points((2, 3), (2, 3))
 
 	assert points == ()
 
@@ -50,4 +50,4 @@ def test_wavy_points_reject_invalid_or_unbounded_geometry(
 		) -> None:
 	"""Malformed, nonfinite, extreme, and oversized inputs fail before output."""
 	with pytest.raises(ValueError):
-		bkchem_qt.wavy_geometry.wavy_points(start, end)
+		ferrum_qt.wavy_geometry.wavy_points(start, end)

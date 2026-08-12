@@ -4,7 +4,7 @@
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.modes.template_mode
+import ferrum_qt.modes.template_mode
 
 
 #============================================
@@ -19,7 +19,7 @@ def test_template_placement_undo_restores_the_prior_backend_snapshot(
 	before = session.backend_snapshot
 	session.mode_manager.set_mode("template")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.template_mode.TemplateMode):
+	if not isinstance(mode, ferrum_qt.modes.template_mode.TemplateMode):
 		raise AssertionError("Template mode did not activate for the active session")
 	mode.mouse_press(PySide6.QtCore.QPointF(180.0, 220.0), None)
 	undo = session.undo_backend()

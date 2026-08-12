@@ -5,11 +5,11 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.context_menu
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.modes.atom_mode
-import bkchem_qt.modes.draw_mode
+import ferrum_qt.actions.context_menu
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.modes.atom_mode
+import ferrum_qt.modes.draw_mode
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -45,21 +45,21 @@ def _atom_elements(complete_cdml: str) -> dict[str, str]:
 
 
 #============================================
-def _draw_mode(session: object) -> bkchem_qt.modes.draw_mode.DrawMode:
+def _draw_mode(session: object) -> ferrum_qt.modes.draw_mode.DrawMode:
 	"""Activate and return the session-owned Draw mode."""
 	session.mode_manager.set_mode("draw")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.draw_mode.DrawMode):
+	if not isinstance(mode, ferrum_qt.modes.draw_mode.DrawMode):
 		raise AssertionError("DrawMode did not activate")
 	return mode
 
 
 #============================================
-def _atom_mode(session: object) -> bkchem_qt.modes.atom_mode.AtomMode:
+def _atom_mode(session: object) -> ferrum_qt.modes.atom_mode.AtomMode:
 	"""Activate and return the session-owned Atom mode."""
 	session.mode_manager.set_mode("atom")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.atom_mode.AtomMode):
+	if not isinstance(mode, ferrum_qt.modes.atom_mode.AtomMode):
 		raise AssertionError("AtomMode did not activate")
 	return mode
 
@@ -83,7 +83,7 @@ def _atom_item(scene: object, atom_id: str) -> object:
 	"""Return the live projected item for one durable atom ID."""
 	for item in scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.atom_id == atom_id
 		):
 			return item
@@ -112,7 +112,7 @@ def test_atom_mode_replaces_any_supported_core_atom_through_backend_cdml(
 	_click_atom(mode, _atom_item(session.scene, atom_id))
 
 	selected_keys = {
-		bkchem_qt.canvas.document_projection.persistent_selection_key(item)
+		ferrum_qt.canvas.document_projection.persistent_selection_key(item)
 		for item in session.scene.selectedItems()
 	}
 	assert (
@@ -155,10 +155,10 @@ def test_context_element_edit_updates_backend_cdml_and_uses_backend_undo(
 	item = _atom_item(session.scene, atom_id)
 	atom_model = item.atom_model
 	del item
-	bkchem_qt.actions.context_menu._set_atom_symbol(session.view, atom_model, "O")
+	ferrum_qt.actions.context_menu._set_atom_symbol(session.view, atom_model, "O")
 	changed = session.backend_snapshot
 	selected_keys = {
-		bkchem_qt.canvas.document_projection.persistent_selection_key(item)
+		ferrum_qt.canvas.document_projection.persistent_selection_key(item)
 		for item in session.scene.selectedItems()
 	}
 	undo = session.undo_backend()
@@ -184,10 +184,10 @@ def test_context_element_noop_or_inactive_view_leaves_backend_unchanged(
 	atom_model = item.atom_model
 	del item
 	before = session.backend_snapshot
-	bkchem_qt.actions.context_menu._set_atom_symbol(session.view, atom_model, "C")
+	ferrum_qt.actions.context_menu._set_atom_symbol(session.view, atom_model, "C")
 	inactive_session = main_window._create_session(activate=False)
 	try:
-		bkchem_qt.actions.context_menu._set_atom_symbol(
+		ferrum_qt.actions.context_menu._set_atom_symbol(
 			inactive_session.view, atom_model, "O",
 		)
 	finally:

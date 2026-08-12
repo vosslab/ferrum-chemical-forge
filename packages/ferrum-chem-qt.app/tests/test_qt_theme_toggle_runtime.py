@@ -4,7 +4,7 @@ Verifies that apply_theme changes the QPalette Window color to match the
 YAML gui.background value for each theme.
 
 Usage:
-	source source_me.sh && python -m pytest packages/bkchem-qt.app/tests/test_qt_theme_toggle_runtime.py -v
+	source source_me.sh && python -m pytest packages/ferrum-qt.app/tests/test_qt_theme_toggle_runtime.py -v
 """
 
 # PIP3 modules

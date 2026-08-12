@@ -10,10 +10,10 @@ import pytest
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.file_actions
-import bkchem_qt.bridge.oasa_bridge
-import bkchem_qt.canvas.view
-import bkchem_qt.widgets.zoom_controls
+import ferrum_qt.actions.file_actions
+import ferrum_qt.bridge.oasa_bridge
+import ferrum_qt.canvas.view
+import ferrum_qt.widgets.zoom_controls
 
 _CHOLESTEROL_SMILES = (
 	"CC(C)CCCC(C)C1CCC2C3CC=C4C[C@H](O)CC[C@]4(C)C3CC[C@]12C"
@@ -38,10 +38,10 @@ def _viewport_center_scene(view: object) -> object:
 def _import_cholesterol_from_smiles(main_window: object) -> object:
 	"""Import cholesterol via SMILES into the Qt document/scene."""
 	smiles_file = io.StringIO(_CHOLESTEROL_SMILES + "\n")
-	molecules = bkchem_qt.bridge.oasa_bridge.read_codec_file("smiles", smiles_file)
+	molecules = ferrum_qt.bridge.oasa_bridge.read_codec_file("smiles", smiles_file)
 	if not molecules:
 		raise AssertionError("Failed to parse cholesterol SMILES in zoom-controls test.")
-	bkchem_qt.actions.file_actions._add_molecules_to_scene(main_window, molecules)
+	ferrum_qt.actions.file_actions._add_molecules_to_scene(main_window, molecules)
 	_flush_events()
 	return molecules[0]
 
@@ -356,7 +356,7 @@ def test_zoom_to_fit_no_crash(main_window: object) -> None:
 	main_window.on_zoom_to_fit()
 	assert any(
 		abs(main_window.view.zoom_percent - level) < 1e-6
-		for level in bkchem_qt.canvas.view.ZOOM_SNAP_LEVELS
+		for level in ferrum_qt.canvas.view.ZOOM_SNAP_LEVELS
 	), (
 		"zoom_to_fit should land on snap ladder; "
 		f"got {main_window.view.zoom_percent:.4f}"
@@ -422,7 +422,7 @@ def test_zoom_controls_widget_exists(main_window: object) -> None:
 	assert hasattr(main_window, "_zoom_controls")
 	assert isinstance(
 		main_window._zoom_controls,
-		bkchem_qt.widgets.zoom_controls.ZoomControls,
+		ferrum_qt.widgets.zoom_controls.ZoomControls,
 	)
 
 
@@ -444,17 +444,17 @@ def test_zoom_diagnostic_with_cholesterol(main_window: object) -> None:
 	snapshots = [_snapshot_zoom_state(main_window, "0: zoom_to_content")]
 	base_zoom = main_window.view.zoom_percent
 	assert base_zoom > 0.0
-	assert base_zoom <= bkchem_qt.canvas.view.ZOOM_MAX_PERCENT
+	assert base_zoom <= ferrum_qt.canvas.view.ZOOM_MAX_PERCENT
 	assert any(
 		abs(base_zoom - level) < 1e-6
-		for level in bkchem_qt.canvas.view.ZOOM_SNAP_LEVELS
+		for level in ferrum_qt.canvas.view.ZOOM_SNAP_LEVELS
 	), (
 		f"zoom_to_content should snap to configured zoom ladder, got {base_zoom:.4f}"
 	)
 	roundtrip_start_zoom = base_zoom
 	min_roundtrip_zoom = (
-		bkchem_qt.canvas.view.ZOOM_MIN_PERCENT
-		* (bkchem_qt.canvas.view.ZOOM_FACTOR_PER_NOTCH ** 3)
+		ferrum_qt.canvas.view.ZOOM_MIN_PERCENT
+		* (ferrum_qt.canvas.view.ZOOM_FACTOR_PER_NOTCH ** 3)
 	)
 	if roundtrip_start_zoom <= min_roundtrip_zoom:
 		main_window.on_reset_zoom()
@@ -509,7 +509,7 @@ def test_zoom_model_coords_stable_with_cholesterol(main_window: object) -> None:
 		main_window.on_zoom_in()
 	_flush_events()
 	assert main_window.view.zoom_percent == pytest.approx(
-		bkchem_qt.canvas.view.ZOOM_MAX_PERCENT,
+		ferrum_qt.canvas.view.ZOOM_MAX_PERCENT,
 		abs=0.01,
 	)
 	coords_after_max = _capture_model_coords(molecule)
@@ -518,7 +518,7 @@ def test_zoom_model_coords_stable_with_cholesterol(main_window: object) -> None:
 		main_window.on_zoom_out()
 	_flush_events()
 	assert main_window.view.zoom_percent == pytest.approx(
-		bkchem_qt.canvas.view.ZOOM_MIN_PERCENT,
+		ferrum_qt.canvas.view.ZOOM_MIN_PERCENT,
 		abs=0.01,
 	)
 	coords_after_min = _capture_model_coords(molecule)
@@ -556,7 +556,7 @@ def test_zoom_roundtrip_symmetry_with_cholesterol(main_window: object) -> None:
 
 	start_zoom = main_window.view.zoom_percent
 	start_center = _viewport_center_scene(main_window.view)
-	assert start_zoom == pytest.approx(bkchem_qt.canvas.view.ZOOM_MAX_PERCENT, abs=0.01)
+	assert start_zoom == pytest.approx(ferrum_qt.canvas.view.ZOOM_MAX_PERCENT, abs=0.01)
 
 	steps = 0
 	while main_window.view.zoom_percent > 250.0 and steps < 80:
@@ -588,7 +588,7 @@ def test_zoom_sweep_25_to_400_and_400_to_25_no_inversion(main_window: object) ->
 	main_window.on_zoom_to_content()
 	_flush_events()
 	assert any(
-		level not in bkchem_qt.canvas.view.ZOOM_SNAP_LEVELS
+		level not in ferrum_qt.canvas.view.ZOOM_SNAP_LEVELS
 		for level in _SWEEP_PERCENT_LEVELS
 	), "Sweep levels must include non-snapped values."
 	up_percents = list(_SWEEP_PERCENT_LEVELS)

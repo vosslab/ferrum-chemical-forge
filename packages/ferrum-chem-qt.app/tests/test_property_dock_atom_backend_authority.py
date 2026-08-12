@@ -5,13 +5,13 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.main_window
-import bkchem_qt.models.atom_model
-import bkchem_qt.models.document
-import bkchem_qt.models.document_session
-import bkchem_qt.models.molecule_model
-import bkchem_qt.widgets.property_dock
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.main_window
+import ferrum_qt.models.atom_model
+import ferrum_qt.models.document
+import ferrum_qt.models.document_session
+import ferrum_qt.models.molecule_model
+import ferrum_qt.widgets.property_dock
 import tests.graphics_test_retirement
 
 
@@ -23,9 +23,9 @@ _CDML = (
 
 
 #============================================
-def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _install_native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Register one native CDML session with a direct durable atom."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -37,7 +37,7 @@ def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> ob
 def _atom_item(session: object) -> object:
 	"""Return this session's direct-core atom projection."""
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			return item
 	raise AssertionError("Projected CDML did not produce an AtomItem")
 
@@ -71,7 +71,7 @@ def _apply_atom_control(dock: object, control: str) -> None:
 	(("symbol", 'name="O"'), ("charge", 'charge="1"'), ("show", 'show="no"')),
 )
 def test_property_dock_atom_control_commits_authoritative_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		control: str, expected_cdml: str,
 		) -> None:
 	"""Each concrete atom control creates one backend-owned replacement edit."""
@@ -95,7 +95,7 @@ def test_property_dock_atom_control_commits_authoritative_snapshot(
 		assert {
 			item.atom_model.backend_durable_id
 			for item in session.scene.selectedItems()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		} == {"a1"}
 	finally:
 		if session in main_window.sessions:
@@ -104,7 +104,7 @@ def test_property_dock_atom_control_commits_authoritative_snapshot(
 
 #============================================
 def test_property_dock_atom_capability_stays_with_its_original_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A captured dock callback cannot redirect after another tab activates."""
 	first = _install_native_session(main_window)
@@ -125,7 +125,7 @@ def test_property_dock_atom_capability_stays_with_its_original_tab(
 
 #============================================
 def test_property_dock_captures_a_fresh_revision_for_each_control(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Two controls commit sequentially rather than reusing the bind revision."""
 	session = _install_native_session(main_window)
@@ -144,7 +144,7 @@ def test_property_dock_captures_a_fresh_revision_for_each_control(
 
 #============================================
 def test_property_dock_stale_event_refreshes_without_local_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A revision changed between dock capture and submit rejects atomically."""
@@ -198,7 +198,7 @@ def test_property_dock_stale_event_refreshes_without_local_undo(
 			and main_window._property_dock._atom_charge_spin.value() == 2
 			and {
 				item.atom_model.backend_durable_id for item in session.scene.selectedItems()
-				if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+				if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			} == {"a1"}
 		)
 	finally:
@@ -208,7 +208,7 @@ def test_property_dock_stale_event_refreshes_without_local_undo(
 
 #============================================
 def test_property_dock_idless_synchronized_atom_is_inert(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An ID-less synchronized target cannot fall through to local mutation."""
 	session = _install_native_session(main_window)
@@ -228,7 +228,7 @@ def test_property_dock_idless_synchronized_atom_is_inert(
 
 #============================================
 def test_property_dock_rejected_symbol_refreshes_authoritative_value(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A rejected synchronized request restores the authoritative atom display."""
 	session = _install_native_session(main_window)
@@ -250,17 +250,17 @@ def test_isolated_property_dock_atom_symbol_uses_local_undo(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A standalone dock retains its deliberately isolated local edit behavior."""
-	document = bkchem_qt.models.document.Document()
+	document = ferrum_qt.models.document.Document()
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
-	atom = bkchem_qt.models.atom_model.AtomModel(symbol="C")
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
+	atom = ferrum_qt.models.atom_model.AtomModel(symbol="C")
 	molecule.add_atom(atom)
-	dock = bkchem_qt.widgets.property_dock.PropertyDock(document)
+	dock = ferrum_qt.widgets.property_dock.PropertyDock(document)
 	with tests.graphics_test_retirement.bare_document_scene_retirement(qapp, document, scene):
 		try:
 			document.add_molecule(molecule, mark_dirty=False)
-			atom_item = bkchem_qt.canvas.items.atom_item.AtomItem(atom)
+			atom_item = ferrum_qt.canvas.items.atom_item.AtomItem(atom)
 			scene.addItem(atom_item)
 			atom_item.setSelected(True)
 			dock.update_from_selection()
@@ -271,4 +271,4 @@ def test_isolated_property_dock_atom_symbol_uses_local_undo(
 		finally:
 			dock.set_document(None)
 			dock.close()
-			assert bkchem_qt.main_window.delete_qobject_and_wait(qapp, dock)
+			assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, dock)

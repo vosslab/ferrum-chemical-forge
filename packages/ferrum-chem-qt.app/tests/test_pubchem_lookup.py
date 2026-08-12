@@ -9,11 +9,11 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.pubchem_actions
-import bkchem_qt.bridge.chemistry_preparation
-import bkchem_qt.bridge.worker
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.actions.pubchem_actions
+import ferrum_qt.bridge.chemistry_preparation
+import ferrum_qt.bridge.worker
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_xml
 import oasa.cdml_document
 import oasa.cdml
@@ -25,16 +25,16 @@ import oasa.safe_xml
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
@@ -97,7 +97,7 @@ def _undo_and_close(main_window: object, session: object) -> None:
 #============================================
 def _prepared(session: object, token: int) -> object:
 	"""Build one deterministic prepared PubChem result without a Qt worker."""
-	return bkchem_qt.bridge.chemistry_preparation.prepare_pubchem_lookup(
+	return ferrum_qt.bridge.chemistry_preparation.prepare_pubchem_lookup(
 		"Name", "methane", _pubchem_transport, session.backend_snapshot.revision,
 		"pubchem-r%s-i%s" % (session.backend_snapshot.revision, token),
 		40.0, (2000.0, 1500.0),
@@ -154,7 +154,7 @@ def test_blank_pubchem_query_starts_no_request(
 		qapp: PySide6.QtWidgets.QApplication, main_window: object,
 		) -> None:
 	"""Blank input remains a non-mutating validation state."""
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	try:
@@ -174,8 +174,8 @@ def test_pubchem_worker_returns_frozen_plain_display_and_proposal(
 		qtbot: object,
 		) -> None:
 	"""The worker emits display facts and CDML, never a live molecule graph."""
-	worker = bkchem_qt.bridge.worker.OasaWorker(
-		bkchem_qt.bridge.chemistry_preparation.prepare_pubchem_lookup,
+	worker = ferrum_qt.bridge.worker.OasaWorker(
+		ferrum_qt.bridge.chemistry_preparation.prepare_pubchem_lookup,
 		"Name", "methane", _pubchem_transport, 7, "pubchem-r7-i1",
 		40.0, (2000.0, 1500.0),
 	)
@@ -201,7 +201,7 @@ def test_pubchem_worker_returns_frozen_plain_display_and_proposal(
 def test_pubchem_preparation_preserves_oasa_transport_failure_type() -> None:
 	"""The bridge retains OASA's typed offline outcome for worker delivery."""
 	with pytest.raises(oasa.pubchem.PubChemTransportError):
-		bkchem_qt.bridge.chemistry_preparation.prepare_pubchem_lookup(
+		ferrum_qt.bridge.chemistry_preparation.prepare_pubchem_lookup(
 			"Name", "methane", _offline_pubchem_transport, 7, "pubchem-r7-i1",
 			40.0, (2000.0, 1500.0),
 		)
@@ -218,7 +218,7 @@ def test_pubchem_lookup_start_passes_plain_captured_placement_to_worker(
 		def set_lookup_error(self, _message: object) -> None:
 			raise RuntimeError("Unexpected placement capture error")
 
-	worker = bkchem_qt.actions.pubchem_actions._create_pubchem_lookup_worker(
+	worker = ferrum_qt.actions.pubchem_actions._create_pubchem_lookup_worker(
 		main_window, _Dialog(), "Name", "methane", _pubchem_transport,
 	)
 	if worker is None:
@@ -243,7 +243,7 @@ def test_pubchem_preparation_persists_captured_cco_geometry() -> None:
 			result["PropertyTable"]["Properties"][0]["SMILES"] = "CCO"
 		return result
 
-	prepared = bkchem_qt.bridge.chemistry_preparation.prepare_pubchem_lookup(
+	prepared = ferrum_qt.bridge.chemistry_preparation.prepare_pubchem_lookup(
 		"Name", "ethanol", ethanol_transport, 0, "pubchem-geometry", 30.0,
 		(123.0, 456.0),
 	)
@@ -264,7 +264,7 @@ def test_pubchem_insert_changes_only_captured_origin_backend(
 		) -> None:
 	"""Explicit Insert commits once to its lookup origin, not the active tab."""
 	origin = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	other = _new_session(main_window)
@@ -274,7 +274,7 @@ def test_pubchem_insert_changes_only_captured_origin_backend(
 		dialog.set_lookup_result(_prepared(origin, token), origin, token)
 		origin_start = origin.backend_snapshot.revision
 		other_start = other.backend_snapshot
-		inserted = bkchem_qt.actions.pubchem_actions._insert_dialog_result(
+		inserted = ferrum_qt.actions.pubchem_actions._insert_dialog_result(
 			main_window, dialog,
 		)
 		origin_delta = origin.backend_snapshot.revision - origin_start
@@ -294,13 +294,13 @@ def test_pubchem_insert_uses_backend_history_not_qt_undo(
 		) -> None:
 	"""A committed lookup is dirty and undoable through backend history only."""
 	session = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	try:
 		token = session.begin_import_request()
 		dialog.set_lookup_result(_prepared(session, token), session, token)
-		bkchem_qt.actions.pubchem_actions._insert_dialog_result(main_window, dialog)
+		ferrum_qt.actions.pubchem_actions._insert_dialog_result(main_window, dialog)
 		backend_state = (session.backend_snapshot.is_dirty, session.can_undo_backend)
 		qt_undo_empty = not session.document.undo_stack.canUndo()
 	finally:
@@ -317,13 +317,13 @@ def test_pubchem_backend_undo_redo_restores_canonical_methane(
 		) -> None:
 	"""Backend undo and redo remove and restore the accepted molecule snapshot."""
 	session = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	try:
 		token = session.begin_import_request()
 		dialog.set_lookup_result(_prepared(session, token), session, token)
-		bkchem_qt.actions.pubchem_actions._insert_dialog_result(main_window, dialog)
+		ferrum_qt.actions.pubchem_actions._insert_dialog_result(main_window, dialog)
 		session.undo_backend()
 		undone = not _methane_in_cdml(session.backend_snapshot.cdml)
 		session.redo_backend()
@@ -342,7 +342,7 @@ def test_stale_pubchem_result_is_inert(
 		) -> None:
 	"""A superseded result cannot submit a candidate or change backend state."""
 	session = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	try:
@@ -350,7 +350,7 @@ def test_stale_pubchem_result_is_inert(
 		dialog.set_lookup_result(_prepared(session, token), session, token)
 		before = session.backend_snapshot
 		session.begin_import_request()
-		inserted = bkchem_qt.actions.pubchem_actions._insert_dialog_result(
+		inserted = ferrum_qt.actions.pubchem_actions._insert_dialog_result(
 			main_window, dialog,
 		)
 		unchanged = session.backend_snapshot == before
@@ -368,7 +368,7 @@ def test_stale_pubchem_revision_is_inert(
 		) -> None:
 	"""A current token with an obsolete proposal revision cannot rebase itself."""
 	session = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	try:
@@ -384,7 +384,7 @@ def test_stale_pubchem_revision_is_inert(
 		current_token = session.begin_import_request()
 		dialog.set_lookup_result(prepared, session, current_token)
 		before = session.backend_snapshot
-		inserted = bkchem_qt.actions.pubchem_actions._insert_dialog_result(
+		inserted = ferrum_qt.actions.pubchem_actions._insert_dialog_result(
 			main_window, dialog,
 		)
 		unchanged = session.backend_snapshot == before
@@ -402,13 +402,13 @@ def test_malformed_pubchem_delivery_is_inert(
 		) -> None:
 	"""A malformed queued worker value never becomes an insertable result."""
 	session = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
-	worker = bkchem_qt.bridge.worker.OasaWorker(lambda: None)
+	worker = ferrum_qt.bridge.worker.OasaWorker(lambda: None)
 	try:
 		token = session.begin_import_request()
-		relay = bkchem_qt.actions.pubchem_actions._PubChemLookupRelay(
+		relay = ferrum_qt.actions.pubchem_actions._PubChemLookupRelay(
 			main_window, dialog, session, token, worker,
 		)
 		before = session.backend_snapshot
@@ -429,13 +429,13 @@ def test_pubchem_worker_error_is_inert(
 		) -> None:
 	"""A current worker error reports inline without creating document state."""
 	session = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
-	worker = bkchem_qt.bridge.worker.OasaWorker(lambda: None)
+	worker = ferrum_qt.bridge.worker.OasaWorker(lambda: None)
 	try:
 		token = session.begin_import_request()
-		relay = bkchem_qt.actions.pubchem_actions._PubChemLookupRelay(
+		relay = ferrum_qt.actions.pubchem_actions._PubChemLookupRelay(
 			main_window, dialog, session, token, worker,
 		)
 		before = session.backend_snapshot
@@ -456,7 +456,7 @@ def test_closed_pubchem_source_cannot_insert_ready_proposal(
 		) -> None:
 	"""A closed origin cannot redirect its ready proposal into a live tab."""
 	origin = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	survivor = _new_session(main_window)
@@ -466,7 +466,7 @@ def test_closed_pubchem_source_cannot_insert_ready_proposal(
 		before = survivor.backend_snapshot
 		_close_clean_session(main_window, origin)
 		qapp.processEvents()
-		inserted = bkchem_qt.actions.pubchem_actions._insert_dialog_result(
+		inserted = ferrum_qt.actions.pubchem_actions._insert_dialog_result(
 			main_window, dialog,
 		)
 		unchanged = survivor.backend_snapshot == before
@@ -485,13 +485,13 @@ def test_pubchem_worker_terminal_delivery_skips_closed_source_session(
 		) -> None:
 	"""Queued lookup completion cannot revisit a source session after tab close."""
 	origin = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	survivor = _new_session(main_window)
 	origin_identity = id(origin)
 	release_calls = []
-	original_release = bkchem_qt.models.document_session.DocumentSession.release_import_worker
+	original_release = ferrum_qt.models.document_session.DocumentSession.release_import_worker
 
 	def record_direct_origin_release(session: object, worker: object) -> None:
 		"""Record a legacy terminal callback without dereferencing its wrapper."""
@@ -501,7 +501,7 @@ def test_pubchem_worker_terminal_delivery_skips_closed_source_session(
 		original_release(session, worker)
 
 	monkeypatch.setattr(
-		bkchem_qt.models.document_session.DocumentSession,
+		ferrum_qt.models.document_session.DocumentSession,
 		"release_import_worker",
 		record_direct_origin_release,
 	)
@@ -538,7 +538,7 @@ def test_accepted_unprojectable_pubchem_result_is_consumed_once(
 		) -> None:
 	"""Projection recovery reuses only the accepted snapshot, never the proposal."""
 	session = _new_session(main_window)
-	dialog = bkchem_qt.actions.pubchem_actions.open_pubchem_lookup(
+	dialog = ferrum_qt.actions.pubchem_actions.open_pubchem_lookup(
 		main_window, _pubchem_transport,
 	)
 	live_session = _new_session(main_window)
@@ -547,11 +547,11 @@ def test_accepted_unprojectable_pubchem_result_is_consumed_once(
 		dialog.set_lookup_result(_prepared(session, token), session, token)
 		start_revision = session.backend_snapshot.revision
 		_install_projection_port(session, _projection_unavailable)
-		inserted = bkchem_qt.actions.pubchem_actions._insert_dialog_result(
+		inserted = ferrum_qt.actions.pubchem_actions._insert_dialog_result(
 			main_window, dialog,
 		)
 		revision_delta = session.backend_snapshot.revision - start_revision
-		resubmitted = bkchem_qt.actions.pubchem_actions._insert_dialog_result(
+		resubmitted = ferrum_qt.actions.pubchem_actions._insert_dialog_result(
 			main_window, dialog,
 		)
 		_install_projection_port(session, session.replace_projection_from_backend_snapshot)

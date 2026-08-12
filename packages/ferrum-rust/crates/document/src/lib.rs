@@ -1,9 +1,23 @@
 //! CDML document storage and structural preservation services.
 //!
-//! This crate deliberately stores XML without assigning CDML chemistry meaning.
-//! M7 indexes persistent document identity and direct-child order, while typed CDML
-//! records, reference interpretation, and the session API remain later work. The
-//! stored tree retains XML structure, not original source spelling.
+//! One `xot` tree owns structural preservation. A document index records persistent
+//! identity and direct-child order over that tree; a content-independent typed overlay
+//! projects molecule persistence facts into `ferrum-core`. Reference validation,
+//! mutation transactions, and the session API remain later work. The stored tree
+//! retains XML structure, not original source spelling.
+
+mod core_projection;
+mod typed;
+
+pub use core_projection::{CoreProjection, CoreProjectionError};
+pub use typed::{
+    ExpandedName, NamespaceBinding, TypedChild, TypedClass, TypedDiagnostic, TypedDiagnosticKind,
+    TypedDocument, TypedDocumentError, TypedRecord, TypedText, UnknownAttribute, UnrecognizedChild,
+    UnrecognizedNode,
+};
+
+#[cfg(test)]
+mod typed_tests;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -142,8 +156,8 @@ impl ResolvedId {
 
 /// An ordered direct child of the CDML root.
 ///
-/// M7 intentionally does not classify the XML into typed record variants. The record
-/// simply fixes the persistent direct-child sequence M8 will later interpret.
+/// The identity index intentionally does not classify XML into typed record variants.
+/// This record fixes the persistent direct-child sequence for later interpretation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentRecord {
     source_order: SourceOrder,
@@ -222,6 +236,14 @@ pub enum IndexedDocumentError {
     Identity(#[from] DocumentIdentityError),
 }
 
+/// Structural XML serialization failed.
+///
+/// This wrapper keeps the XML parser implementation out of downstream public error
+/// contracts while retaining the original error as a source.
+#[derive(Debug, Error)]
+#[error("XML serialization error: {0}")]
+pub struct XmlSerializationError(#[from] xot::Error);
+
 /// An XML document retained as an opaque, editable tree.
 ///
 /// The tree carries every element, attribute, namespace identity, child order, text,
@@ -249,18 +271,21 @@ impl XmlDocument {
     /// The result is structurally equivalent XML. XML declaration spelling, CDATA
     /// boundaries, entity spelling, prefixes, and attribute order are lexical details
     /// that a tree parser may normalize.
-    pub fn to_xml(&self) -> Result<String, xot::Error> {
-        self.tree.to_string(self.document)
+    pub fn to_xml(&self) -> Result<String, XmlSerializationError> {
+        self.tree
+            .to_string(self.document)
+            .map_err(XmlSerializationError::from)
     }
 }
 
 /// An opaque CDML document accompanied by its stable identity and order index.
 ///
-/// Parsing never rewrites XML attributes or text. The index reserves every
-/// unqualified `id` attribute found in an element, including IDs inside foreign or
-/// otherwise opaque subtrees, so later persistent identity allocation cannot collide
-/// with unknown content. It does not interpret references such as `idref`, `start`,
-/// or free text.
+/// Parsing never rewrites XML attributes or text. The index reserves declaration
+/// `id` attributes and every unqualified `id` inside foreign or otherwise opaque
+/// subtrees, so later persistent identity allocation cannot collide with unknown
+/// content. The two context-defined fragment `id` reference fields are not indexed as
+/// declarations. Other references such as `idref`, `start`, and free text are never
+/// interpreted here.
 #[derive(Debug)]
 pub struct IndexedDocument {
     xml: XmlDocument,
@@ -300,6 +325,7 @@ impl IndexedDocument {
         index_element(
             &xml.tree,
             root,
+            None,
             &mut root_path,
             None,
             &mut id_index,
@@ -391,7 +417,14 @@ fn element_name(tree: &Xot, node: Node) -> Option<(String, String)> {
     Some((local_name.to_string(), namespace.to_string()))
 }
 
-fn persistent_id(tree: &Xot, node: Node) -> Result<Option<PersistentId>, DocumentIdentityError> {
+fn persistent_id(
+    tree: &Xot,
+    node: Node,
+    parent: Option<Node>,
+) -> Result<Option<PersistentId>, DocumentIdentityError> {
+    if is_fragment_id_reference(tree, node, parent) {
+        return Ok(None);
+    }
     let identifier = tree.attributes(node).iter().find_map(|(name, value)| {
         let (local_name, namespace) = tree.name_ns_str(name);
         (local_name == "id" && namespace.is_empty()).then(|| value.clone())
@@ -399,16 +432,34 @@ fn persistent_id(tree: &Xot, node: Node) -> Result<Option<PersistentId>, Documen
     identifier.map(PersistentId::new).transpose()
 }
 
+fn is_fragment_id_reference(tree: &Xot, node: Node, parent: Option<Node>) -> bool {
+    let Some(parent) = parent else {
+        return false;
+    };
+    let Some((local_name, namespace)) = element_name(tree, node) else {
+        return false;
+    };
+    let Some((parent_name, parent_namespace)) = element_name(tree, parent) else {
+        return false;
+    };
+    let core_namespace = |namespace: &str| namespace.is_empty() || namespace == CDML_NAMESPACE;
+    core_namespace(&namespace)
+        && core_namespace(&parent_namespace)
+        && parent_name == "fragment"
+        && matches!(local_name.as_str(), "bond" | "vertex")
+}
+
 fn index_element(
     tree: &Xot,
     node: Node,
+    parent: Option<Node>,
     path: &mut Vec<u32>,
     source_order: Option<SourceOrder>,
     id_index: &mut BTreeMap<PersistentId, ResolvedId>,
     records: &mut Vec<DocumentRecord>,
 ) -> Result<(), DocumentIdentityError> {
     let element_path = ElementPath(path.clone());
-    if let Some(identifier) = persistent_id(tree, node)? {
+    if let Some(identifier) = persistent_id(tree, node, parent)? {
         let resolved = ResolvedId {
             identifier: identifier.clone(),
             path: element_path.clone(),
@@ -438,11 +489,19 @@ fn index_element(
         if path.len() == 1 {
             records.push(DocumentRecord {
                 source_order: child_order.expect("direct child receives source order"),
-                identifier: persistent_id(tree, child)?,
+                identifier: persistent_id(tree, child, Some(node))?,
                 path: ElementPath(path.clone()),
             });
         }
-        index_element(tree, child, path, child_order, id_index, records)?;
+        index_element(
+            tree,
+            child,
+            Some(node),
+            path,
+            child_order,
+            id_index,
+            records,
+        )?;
         path.pop();
         element_child_index += 1;
     }
@@ -721,5 +780,19 @@ mod tests {
         assert!(serialized.contains("idref=\"m1\""));
         assert!(serialized.contains("start=\"m1\""));
         assert!(serialized.contains("reference m1"));
+    }
+
+    #[test]
+    fn fragment_id_references_do_not_collide_with_their_declarations() {
+        let source = r#"<cdml><molecule id="m1"><atom id="a1"/><bond id="b1"/>
+<fragment id="f1"><bond id="b1"/><vertex id="a1"/></fragment></molecule></cdml>"#;
+        let document = IndexedDocument::parse(source).expect("fragment references are not ids");
+
+        assert_eq!(document.persistent_id_count(), 4);
+        let bond = PersistentId::new("b1").expect("nonblank id");
+        assert_eq!(
+            document.resolve_id(&bond).unwrap().path().components(),
+            &[0, 1]
+        );
     }
 }

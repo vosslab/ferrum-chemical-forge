@@ -5,10 +5,10 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.models.document_session
 
 
 _CDML = """<cdml><molecule id="m1"><atom id="a1" name="C"><point x="0cm" y="0cm"/></atom><atom id="a2" name="O"><point x="1cm" y="0cm"/></atom><bond id="b1" start="a1" end="a2" type="n1"/></molecule></cdml>"""
@@ -17,7 +17,7 @@ _CDML = """<cdml><molecule id="m1"><atom id="a1" name="C"><point x="0cm" y="0cm"
 #============================================
 def _native_session(main_window: object) -> object:
 	"""Register one ordinary projected molecule session."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._register_session(
 		main_window._construct_session(prepared_native_cdml=prepared), activate=True,
 	)
@@ -39,14 +39,14 @@ def _item(session: object, item_type: type, durable_id: str) -> object:
 #============================================
 def test_synchronized_fragment_metadata_uses_backend_history(main_window: object) -> None:
 	"""Create and delete reproject one backend-owned fragment without Qt undo."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._register_session(
 		main_window._construct_session(prepared_native_cdml=prepared), activate=True,
 	)
 	try:
 		assert main_window._replace_session_projection(session, session.backend_snapshot)
 		created = session.submit_persistent_operation(
-			bkchem_qt.models.document_session.build_fragment_create_request(
+			ferrum_qt.models.document_session.build_fragment_create_request(
 				session.backend_snapshot.revision, "m1", "pair", "explicit",
 				("a1", "a2"), ("b1",),
 			),
@@ -57,7 +57,7 @@ def test_synchronized_fragment_metadata_uses_backend_history(main_window: object
 			for fragment in molecule.fragments if fragment.name == "pair"
 		)
 		deleted = session.submit_persistent_operation(
-			bkchem_qt.models.document_session.build_fragment_delete_request(
+			ferrum_qt.models.document_session.build_fragment_delete_request(
 				session.backend_snapshot.revision, "m1", fragment_id,
 			),
 		)
@@ -75,8 +75,8 @@ def test_create_fragment_uses_origin_tab_and_authoritative_member_order(
 	origin = _native_session(main_window)
 	other = None
 	try:
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
-		_item(origin, bkchem_qt.canvas.items.bond_item.BondItem, "b1").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.bond_item.BondItem, "b1").setSelected(True)
 
 		def choose_name(*_args: object, **_kwargs: object) -> tuple[str, bool]:
 			"""Switch tabs while the captured action awaits its name."""
@@ -88,7 +88,7 @@ def test_create_fragment_uses_origin_tab_and_authoritative_member_order(
 			PySide6.QtWidgets.QInputDialog, "getItem",
 			lambda *_args, **_kwargs: ("explicit", True),
 		)
-		bkchem_qt.actions.chemistry_actions._create_fragment(main_window)
+		ferrum_qt.actions.chemistry_actions._create_fragment(main_window)
 		other = next(session for session in main_window.sessions if session is not origin)
 
 		assert origin.backend_snapshot.cdml.index('<vertex id="a1"') < origin.backend_snapshot.cdml.index('<vertex id="a2"')
@@ -109,7 +109,7 @@ def test_view_fragments_delete_stays_with_its_captured_tab(
 	other = None
 	try:
 		created = origin.submit_persistent_operation(
-			bkchem_qt.models.document_session.build_fragment_create_request(
+			ferrum_qt.models.document_session.build_fragment_create_request(
 				origin.backend_snapshot.revision, "m1", "pair", "explicit",
 				("a1", "a2"), ("b1",),
 			),
@@ -123,7 +123,7 @@ def test_view_fragments_delete_stays_with_its_captured_tab(
 			return args[3][1], True
 
 		monkeypatch.setattr(PySide6.QtWidgets.QInputDialog, "getItem", choose_fragment)
-		bkchem_qt.actions.chemistry_actions._view_fragments(main_window)
+		ferrum_qt.actions.chemistry_actions._view_fragments(main_window)
 		other = next(session for session in main_window.sessions if session is not origin)
 
 		assert "fragment" not in origin.backend_snapshot.cdml
@@ -147,7 +147,7 @@ def test_native_synchronized_staging_uses_plain_fragment_facts_only(
 		'<v:fragment id="foreign"><name>extension</name></v:fragment>'
 		"</molecule>",
 	).replace("<cdml>", '<cdml xmlns:v="urn:vendor">')
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(text)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(text)
 	session = main_window._register_session(
 		main_window._construct_session(prepared_native_cdml=prepared), activate=True,
 	)

@@ -1,1 +1,1 @@
-"""Tests for bkchem_qt."""
+"""Tests for ferrum_qt."""

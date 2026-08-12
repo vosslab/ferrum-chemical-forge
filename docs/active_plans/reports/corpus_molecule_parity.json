@@ -1,0 +1,836 @@
+{
+  "capability": "corpus-molecule-core",
+  "comparison_rule": "Oracle-comparable facts and direct-CDML non-atom facts must agree; source-absence defaults, oracle-unrepresented fields, and higher-authority format corrections are classified separately.",
+  "corpus": [
+    "tests/e2e/corpus/authored_document_forms.cdml",
+    "tests/e2e/corpus/legacy_groups_template.cdml",
+    "tests/e2e/corpus/opaque_namespace_preservation.cdml"
+  ],
+  "ferrum_mutation": null,
+  "oracle_setup": [
+    "python3",
+    "-m",
+    "pip",
+    "install",
+    "-r",
+    "tests/e2e/oracle/pip_requirements.txt"
+  ],
+  "results": [
+    {
+      "agreements": [
+        "projection.capability",
+        "projection.coordinate_unit",
+        "projection.corpus_path",
+        "projection.molecules.length",
+        "projection.molecules.source_length",
+        "projection.molecules[0].index",
+        "projection.molecules[0].id",
+        "projection.molecules[0].name",
+        "projection.molecules[0].atoms.length",
+        "projection.molecules[0].atoms[0].index",
+        "projection.molecules[0].atoms[0].id",
+        "projection.molecules[0].atoms[0].symbol",
+        "projection.molecules[0].atoms[0].element",
+        "projection.molecules[0].atoms[0].x",
+        "projection.molecules[0].atoms[0].y",
+        "projection.molecules[0].atoms[0].z",
+        "projection.molecules[0].atoms[0].formal_charge",
+        "projection.molecules[0].atoms[0].explicit_hydrogens",
+        "projection.molecules[0].atoms[0].isotope",
+        "projection.molecules[0].atoms[0].valence",
+        "projection.molecules[0].atoms[0].multiplicity",
+        "projection.molecules[0].atoms[0].free_sites",
+        "projection.molecules[0].atom_only_bonds.length",
+        "projection.molecules[0].typed_non_atom_bonds.source",
+        "projection.molecules[0].groups.source",
+        "projection.molecules[0].texts.source",
+        "projection.molecules[0].queries.source"
+      ],
+      "classified_differences": [
+        {
+          "basis": "direct CDML facts verify records that the historical chemistry reader drops",
+          "classification": "intended-core-scope",
+          "ferrum": [
+            {
+              "aromatic": null,
+              "end": 0,
+              "end_kind": "group",
+              "id": "b1",
+              "order": 1,
+              "start": 0,
+              "start_kind": "atom",
+              "style": "wedge",
+              "type": "w1"
+            },
+            {
+              "aromatic": null,
+              "end": 0,
+              "end_kind": "text",
+              "id": "b2",
+              "order": 1,
+              "start": 0,
+              "start_kind": "group",
+              "style": "haworth_front",
+              "type": "q1"
+            },
+            {
+              "aromatic": null,
+              "end": 0,
+              "end_kind": "query",
+              "id": "b3",
+              "order": 1,
+              "start": 0,
+              "start_kind": "text",
+              "style": "normal",
+              "type": "n1"
+            }
+          ],
+          "oracle": [],
+          "path": "projection.molecules[0].typed_non_atom_bonds"
+        },
+        {
+          "basis": "direct CDML facts verify the vertex; the historical reader has no corresponding class",
+          "classification": "unverifiable-oracle-field",
+          "ferrum": [
+            {
+              "id": "g1",
+              "index": 0
+            }
+          ],
+          "oracle": [],
+          "path": "projection.molecules[0].groups"
+        },
+        {
+          "basis": "direct CDML facts verify the vertex; the historical reader has no corresponding class",
+          "classification": "unverifiable-oracle-field",
+          "ferrum": [
+            {
+              "id": "tatom",
+              "index": 0
+            }
+          ],
+          "oracle": [],
+          "path": "projection.molecules[0].texts"
+        },
+        {
+          "basis": "direct CDML facts verify the vertex; the historical reader has no corresponding class",
+          "classification": "unverifiable-oracle-field",
+          "ferrum": [
+            {
+              "id": "q1",
+              "index": 0
+            }
+          ],
+          "oracle": [],
+          "path": "projection.molecules[0].queries"
+        }
+      ],
+      "corpus_path": "tests/e2e/corpus/authored_document_forms.cdml",
+      "facts": {
+        "ferrum": {
+          "crate_version": "26.8.0",
+          "rust_version_floor": "1.85"
+        },
+        "oracle": {
+          "oasa_version": "26.8",
+          "python_version": "3.12.13",
+          "rdkit_version": "2026.03.5"
+        }
+      },
+      "normalized_outputs": {
+        "ferrum": {
+          "capability": "corpus-molecule-core",
+          "coordinate_unit": "postscript_point",
+          "corpus_path": "tests/e2e/corpus/authored_document_forms.cdml",
+          "document_version": "26.07",
+          "molecules": [
+            {
+              "atoms": [
+                {
+                  "element": "C",
+                  "explicit_hydrogens": 1,
+                  "formal_charge": 1,
+                  "free_sites": 1,
+                  "id": "a1",
+                  "index": 0,
+                  "isotope": 13,
+                  "multiplicity": 2,
+                  "symbol": "C",
+                  "valence": 4,
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                }
+              ],
+              "bonds": [
+                {
+                  "aromatic": null,
+                  "end": 0,
+                  "end_kind": "group",
+                  "id": "b1",
+                  "order": 1,
+                  "start": 0,
+                  "start_kind": "atom",
+                  "style": "wedge",
+                  "type": "w1"
+                },
+                {
+                  "aromatic": null,
+                  "end": 0,
+                  "end_kind": "text",
+                  "id": "b2",
+                  "order": 1,
+                  "start": 0,
+                  "start_kind": "group",
+                  "style": "haworth_front",
+                  "type": "q1"
+                },
+                {
+                  "aromatic": null,
+                  "end": 0,
+                  "end_kind": "query",
+                  "id": "b3",
+                  "order": 1,
+                  "start": 0,
+                  "start_kind": "text",
+                  "style": "normal",
+                  "type": "n1"
+                }
+              ],
+              "groups": [
+                {
+                  "id": "g1",
+                  "index": 0
+                }
+              ],
+              "id": "m1",
+              "index": 0,
+              "name": "probe",
+              "queries": [
+                {
+                  "id": "q1",
+                  "index": 0
+                }
+              ],
+              "texts": [
+                {
+                  "id": "tatom",
+                  "index": 0
+                }
+              ]
+            }
+          ]
+        },
+        "oracle": {
+          "capability": "corpus-molecule-core",
+          "coordinate_unit": "postscript_point",
+          "corpus_path": "tests/e2e/corpus/authored_document_forms.cdml",
+          "molecules": [
+            {
+              "atoms": [
+                {
+                  "element": "C",
+                  "explicit_hydrogens": 1,
+                  "formal_charge": 1,
+                  "free_sites": 1,
+                  "id": "a1",
+                  "index": 0,
+                  "isotope": 13,
+                  "multiplicity": 2,
+                  "symbol": "C",
+                  "valence": 4,
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                }
+              ],
+              "bonds": [],
+              "id": "m1",
+              "index": 0,
+              "name": "probe"
+            }
+          ]
+        }
+      },
+      "source_non_atom_facts": [
+        {
+          "groups": [
+            {
+              "id": "g1",
+              "index": 0
+            }
+          ],
+          "queries": [
+            {
+              "id": "q1",
+              "index": 0
+            }
+          ],
+          "texts": [
+            {
+              "id": "tatom",
+              "index": 0
+            }
+          ],
+          "typed_non_atom_bonds": [
+            {
+              "end": 0,
+              "end_kind": "group",
+              "id": "b1",
+              "start": 0,
+              "start_kind": "atom",
+              "type": "w1"
+            },
+            {
+              "end": 0,
+              "end_kind": "text",
+              "id": "b2",
+              "start": 0,
+              "start_kind": "group",
+              "type": "q1"
+            },
+            {
+              "end": 0,
+              "end_kind": "query",
+              "id": "b3",
+              "start": 0,
+              "start_kind": "text",
+              "type": "n1"
+            }
+          ]
+        }
+      ],
+      "unexpected_differences": []
+    },
+    {
+      "agreements": [
+        "projection.capability",
+        "projection.coordinate_unit",
+        "projection.corpus_path",
+        "projection.molecules.length",
+        "projection.molecules.source_length",
+        "projection.molecules[0].index",
+        "projection.molecules[0].id",
+        "projection.molecules[0].name",
+        "projection.molecules[0].atoms.length",
+        "projection.molecules[0].atoms[0].index",
+        "projection.molecules[0].atoms[0].id",
+        "projection.molecules[0].atoms[0].symbol",
+        "projection.molecules[0].atoms[0].element",
+        "projection.molecules[0].atoms[0].x",
+        "projection.molecules[0].atoms[0].y",
+        "projection.molecules[0].atoms[0].z",
+        "projection.molecules[0].atoms[0].isotope",
+        "projection.molecules[0].atoms[1].index",
+        "projection.molecules[0].atoms[1].id",
+        "projection.molecules[0].atoms[1].symbol",
+        "projection.molecules[0].atoms[1].element",
+        "projection.molecules[0].atoms[1].x",
+        "projection.molecules[0].atoms[1].y",
+        "projection.molecules[0].atoms[1].z",
+        "projection.molecules[0].atoms[1].isotope",
+        "projection.molecules[0].atoms[2].index",
+        "projection.molecules[0].atoms[2].id",
+        "projection.molecules[0].atoms[2].symbol",
+        "projection.molecules[0].atoms[2].element",
+        "projection.molecules[0].atoms[2].x",
+        "projection.molecules[0].atoms[2].y",
+        "projection.molecules[0].atoms[2].z",
+        "projection.molecules[0].atoms[2].isotope",
+        "projection.molecules[0].atom_only_bonds.length",
+        "projection.molecules[0].atom_only_bonds[0].id",
+        "projection.molecules[0].atom_only_bonds[0].start",
+        "projection.molecules[0].atom_only_bonds[0].end",
+        "projection.molecules[0].atom_only_bonds[0].type",
+        "projection.molecules[0].atom_only_bonds[0].order",
+        "projection.molecules[0].atom_only_bonds[1].id",
+        "projection.molecules[0].atom_only_bonds[1].start",
+        "projection.molecules[0].atom_only_bonds[1].end",
+        "projection.molecules[0].atom_only_bonds[1].type",
+        "projection.molecules[0].typed_non_atom_bonds.source",
+        "projection.molecules[0].groups.source",
+        "projection.molecules[0].texts.source",
+        "projection.molecules[0].queries.source"
+      ],
+      "classified_differences": [
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[0].formal_charge"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[0].explicit_hydrogens"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 4,
+          "path": "projection.molecules[0].atoms[0].valence"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 1,
+          "path": "projection.molecules[0].atoms[0].multiplicity"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[0].free_sites"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[1].formal_charge"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[1].explicit_hydrogens"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 3,
+          "path": "projection.molecules[0].atoms[1].valence"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 1,
+          "path": "projection.molecules[0].atoms[1].multiplicity"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[1].free_sites"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[2].formal_charge"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[2].explicit_hydrogens"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 2,
+          "path": "projection.molecules[0].atoms[2].valence"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 1,
+          "path": "projection.molecules[0].atoms[2].multiplicity"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[2].free_sites"
+        },
+        {
+          "basis": "the historical projection exposes no independent Ferrum bond-style enum",
+          "classification": "unverifiable-oracle-field",
+          "ferrum": "normal",
+          "oracle": null,
+          "path": "projection.molecules[0].atom_only_bonds[0].style"
+        },
+        {
+          "basis": "the historical CDML reader carries no aromatic source-presence flag",
+          "classification": "unverifiable-oracle-field",
+          "ferrum": null,
+          "oracle": null,
+          "path": "projection.molecules[0].atom_only_bonds[0].aromatic"
+        },
+        {
+          "basis": "CDML 0.8 uses single-letter d as normal double, above current reader behavior",
+          "classification": "intended-format-correction",
+          "ferrum": 2,
+          "oracle": 1,
+          "path": "projection.molecules[0].atom_only_bonds[1].order"
+        },
+        {
+          "basis": "the historical projection exposes no independent Ferrum bond-style enum",
+          "classification": "unverifiable-oracle-field",
+          "ferrum": "normal",
+          "oracle": null,
+          "path": "projection.molecules[0].atom_only_bonds[1].style"
+        },
+        {
+          "basis": "the historical CDML reader carries no aromatic source-presence flag",
+          "classification": "unverifiable-oracle-field",
+          "ferrum": null,
+          "oracle": null,
+          "path": "projection.molecules[0].atom_only_bonds[1].aromatic"
+        }
+      ],
+      "corpus_path": "tests/e2e/corpus/legacy_groups_template.cdml",
+      "facts": {
+        "ferrum": {
+          "crate_version": "26.8.0",
+          "rust_version_floor": "1.85"
+        },
+        "oracle": {
+          "oasa_version": "26.8",
+          "python_version": "3.12.13",
+          "rdkit_version": "2026.03.5"
+        }
+      },
+      "normalized_outputs": {
+        "ferrum": {
+          "capability": "corpus-molecule-core",
+          "coordinate_unit": "postscript_point",
+          "corpus_path": "tests/e2e/corpus/legacy_groups_template.cdml",
+          "document_version": "0.8",
+          "molecules": [
+            {
+              "atoms": [
+                {
+                  "element": "C",
+                  "explicit_hydrogens": null,
+                  "formal_charge": null,
+                  "free_sites": null,
+                  "id": "a182",
+                  "index": 0,
+                  "isotope": null,
+                  "multiplicity": null,
+                  "symbol": "C",
+                  "valence": null,
+                  "x": 185.0,
+                  "y": 90.0,
+                  "z": 0.0
+                },
+                {
+                  "element": "N",
+                  "explicit_hydrogens": null,
+                  "formal_charge": null,
+                  "free_sites": null,
+                  "id": "a184",
+                  "index": 1,
+                  "isotope": null,
+                  "multiplicity": null,
+                  "symbol": "N",
+                  "valence": null,
+                  "x": 211.0,
+                  "y": 75.0,
+                  "z": 0.0
+                },
+                {
+                  "element": "O",
+                  "explicit_hydrogens": null,
+                  "formal_charge": null,
+                  "free_sites": null,
+                  "id": "a187",
+                  "index": 2,
+                  "isotope": null,
+                  "multiplicity": null,
+                  "symbol": "O",
+                  "valence": null,
+                  "x": 237.0,
+                  "y": 90.0,
+                  "z": 0.0
+                }
+              ],
+              "bonds": [
+                {
+                  "aromatic": null,
+                  "end": 1,
+                  "end_kind": "atom",
+                  "id": null,
+                  "order": 1,
+                  "start": 0,
+                  "start_kind": "atom",
+                  "style": "normal",
+                  "type": "s"
+                },
+                {
+                  "aromatic": null,
+                  "end": 2,
+                  "end_kind": "atom",
+                  "id": null,
+                  "order": 2,
+                  "start": 1,
+                  "start_kind": "atom",
+                  "style": "normal",
+                  "type": "d"
+                }
+              ],
+              "groups": [],
+              "id": "NO2",
+              "index": 0,
+              "name": "NO2",
+              "queries": [],
+              "texts": []
+            }
+          ]
+        },
+        "oracle": {
+          "capability": "corpus-molecule-core",
+          "coordinate_unit": "postscript_point",
+          "corpus_path": "tests/e2e/corpus/legacy_groups_template.cdml",
+          "molecules": [
+            {
+              "atoms": [
+                {
+                  "element": "C",
+                  "explicit_hydrogens": 0,
+                  "formal_charge": 0,
+                  "free_sites": 0,
+                  "id": "a182",
+                  "index": 0,
+                  "isotope": null,
+                  "multiplicity": 1,
+                  "symbol": "C",
+                  "valence": 4,
+                  "x": 185.0,
+                  "y": 90.0,
+                  "z": 0.0
+                },
+                {
+                  "element": "N",
+                  "explicit_hydrogens": 0,
+                  "formal_charge": 0,
+                  "free_sites": 0,
+                  "id": "a184",
+                  "index": 1,
+                  "isotope": null,
+                  "multiplicity": 1,
+                  "symbol": "N",
+                  "valence": 3,
+                  "x": 211.0,
+                  "y": 75.0,
+                  "z": 0.0
+                },
+                {
+                  "element": "O",
+                  "explicit_hydrogens": 0,
+                  "formal_charge": 0,
+                  "free_sites": 0,
+                  "id": "a187",
+                  "index": 2,
+                  "isotope": null,
+                  "multiplicity": 1,
+                  "symbol": "O",
+                  "valence": 2,
+                  "x": 237.0,
+                  "y": 90.0,
+                  "z": 0.0
+                }
+              ],
+              "bonds": [
+                {
+                  "end": 1,
+                  "id": null,
+                  "order": 1,
+                  "start": 0,
+                  "type": "s"
+                },
+                {
+                  "end": 2,
+                  "id": null,
+                  "order": 1,
+                  "start": 1,
+                  "type": "d"
+                }
+              ],
+              "id": "NO2",
+              "index": 0,
+              "name": "NO2"
+            }
+          ]
+        }
+      },
+      "source_non_atom_facts": [
+        {
+          "groups": [],
+          "queries": [],
+          "texts": [],
+          "typed_non_atom_bonds": []
+        }
+      ],
+      "unexpected_differences": []
+    },
+    {
+      "agreements": [
+        "projection.capability",
+        "projection.coordinate_unit",
+        "projection.corpus_path",
+        "projection.molecules.length",
+        "projection.molecules.source_length",
+        "projection.molecules[0].index",
+        "projection.molecules[0].id",
+        "projection.molecules[0].name",
+        "projection.molecules[0].atoms.length",
+        "projection.molecules[0].atoms[0].index",
+        "projection.molecules[0].atoms[0].id",
+        "projection.molecules[0].atoms[0].symbol",
+        "projection.molecules[0].atoms[0].element",
+        "projection.molecules[0].atoms[0].x",
+        "projection.molecules[0].atoms[0].y",
+        "projection.molecules[0].atoms[0].z",
+        "projection.molecules[0].atoms[0].isotope",
+        "projection.molecules[0].atom_only_bonds.length",
+        "projection.molecules[0].typed_non_atom_bonds.source",
+        "projection.molecules[0].groups.source",
+        "projection.molecules[0].texts.source",
+        "projection.molecules[0].queries.source"
+      ],
+      "classified_differences": [
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[0].formal_charge"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[0].explicit_hydrogens"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 4,
+          "path": "projection.molecules[0].atoms[0].valence"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 1,
+          "path": "projection.molecules[0].atoms[0].multiplicity"
+        },
+        {
+          "basis": "CDML omitted the field; Ferrum preserves absence while the oracle computes a default",
+          "classification": "intended-source-presence",
+          "ferrum": null,
+          "oracle": 0,
+          "path": "projection.molecules[0].atoms[0].free_sites"
+        }
+      ],
+      "corpus_path": "tests/e2e/corpus/opaque_namespace_preservation.cdml",
+      "facts": {
+        "ferrum": {
+          "crate_version": "26.8.0",
+          "rust_version_floor": "1.85"
+        },
+        "oracle": {
+          "oasa_version": "26.8",
+          "python_version": "3.12.13",
+          "rdkit_version": "2026.03.5"
+        }
+      },
+      "normalized_outputs": {
+        "ferrum": {
+          "capability": "corpus-molecule-core",
+          "coordinate_unit": "postscript_point",
+          "corpus_path": "tests/e2e/corpus/opaque_namespace_preservation.cdml",
+          "document_version": "26.07",
+          "molecules": [
+            {
+              "atoms": [
+                {
+                  "element": "C",
+                  "explicit_hydrogens": null,
+                  "formal_charge": null,
+                  "free_sites": null,
+                  "id": "a1",
+                  "index": 0,
+                  "isotope": null,
+                  "multiplicity": null,
+                  "symbol": "C",
+                  "valence": null,
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                }
+              ],
+              "bonds": [],
+              "groups": [],
+              "id": "m1",
+              "index": 0,
+              "name": null,
+              "queries": [],
+              "texts": []
+            }
+          ]
+        },
+        "oracle": {
+          "capability": "corpus-molecule-core",
+          "coordinate_unit": "postscript_point",
+          "corpus_path": "tests/e2e/corpus/opaque_namespace_preservation.cdml",
+          "molecules": [
+            {
+              "atoms": [
+                {
+                  "element": "C",
+                  "explicit_hydrogens": 0,
+                  "formal_charge": 0,
+                  "free_sites": 0,
+                  "id": "a1",
+                  "index": 0,
+                  "isotope": null,
+                  "multiplicity": 1,
+                  "symbol": "C",
+                  "valence": 4,
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                }
+              ],
+              "bonds": [],
+              "id": "m1",
+              "index": 0,
+              "name": null
+            }
+          ]
+        }
+      },
+      "source_non_atom_facts": [
+        {
+          "groups": [],
+          "queries": [],
+          "texts": [],
+          "typed_non_atom_bonds": []
+        }
+      ],
+      "unexpected_differences": []
+    }
+  ],
+  "status": "match-with-classified-differences",
+  "unexpected_difference_count": 0
+}

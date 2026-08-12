@@ -7,9 +7,9 @@ import pathlib
 import pytest
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.io.clipboard_manager
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.io.clipboard_manager
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -35,7 +35,7 @@ def _open(main_window: object, tmp_path: pathlib.Path, name: str, cdml: str = _C
 #============================================
 def _item(session: object, item_type: type, durable_id: str) -> object:
 	"""Return one live projected atom or bond by durable identity."""
-	attribute = "atom_model" if item_type is bkchem_qt.canvas.items.atom_item.AtomItem else "bond_model"
+	attribute = "atom_model" if item_type is ferrum_qt.canvas.items.atom_item.AtomItem else "bond_model"
 	item = next(
 		candidate for candidate in session.scene.items()
 		if isinstance(candidate, item_type)
@@ -47,7 +47,7 @@ def _item(session: object, item_type: type, durable_id: str) -> object:
 #============================================
 def _clipboard_fragment() -> str:
 	"""Return the public raw CDML currently owned by the native clipboard."""
-	status, fragment = bkchem_qt.io.clipboard_manager.ClipboardManager().read_fragment()
+	status, fragment = ferrum_qt.io.clipboard_manager.ClipboardManager().read_fragment()
 	assert status == "ok" and fragment is not None
 	return fragment
 
@@ -76,8 +76,8 @@ def _records(fragment: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
 @pytest.mark.parametrize(
 	("item_type", "durable_id", "expected"),
 	(
-		(bkchem_qt.canvas.items.atom_item.AtomItem, "a2", (("a2",), ())),
-		(bkchem_qt.canvas.items.bond_item.BondItem, "b1", (("a1", "a2"), ("b1",))),
+		(ferrum_qt.canvas.items.atom_item.AtomItem, "a2", (("a2",), ())),
+		(ferrum_qt.canvas.items.bond_item.BondItem, "b1", (("a1", "a2"), ("b1",))),
 	),
 )
 def test_partial_copy_extracts_authoritative_atoms_and_bond_closure_without_mutation(
@@ -114,20 +114,20 @@ def test_invalid_structural_copy_preserves_the_existing_clipboard(
 	try:
 		main_window._clipboard_manager.publish_fragment(prior_fragment)
 		before = session.backend_snapshot
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a1").setSelected(True)
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a3").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a1").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a3").setSelected(True)
 		main_window.on_copy()
 		disconnected_fragment = _clipboard_fragment()
 		for item in session.scene.selectedItems():
 			item.setSelected(False)
-		idless = _item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a2")
+		idless = _item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a2")
 		idless.atom_model.bind_backend_durable_id(None)
 		idless.setSelected(True)
 		main_window.on_copy()
 		idless_fragment = _clipboard_fragment()
 		idless.setSelected(False)
-		foreign = bkchem_qt.canvas.items.atom_item.AtomItem(
-			_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a1").atom_model,
+		foreign = ferrum_qt.canvas.items.atom_item.AtomItem(
+			_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a1").atom_model,
 		)
 		session.scene.addItem(foreign)
 		foreign.setSelected(True)
@@ -155,7 +155,7 @@ def test_mixed_structural_and_presentation_copy_keeps_existing_root_behavior(
 	session = _open(main_window, tmp_path, "mixed-copy.cdml", cdml)
 	try:
 		before = session.backend_snapshot
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 		plus = next(
 			item for item in session.scene.items()
 			if getattr(getattr(item, "document_object_model", None), "object_id", None) == "plus1"
@@ -186,8 +186,8 @@ def test_multi_molecule_structural_copy_keeps_existing_whole_root_behavior(
 	session = _open(main_window, tmp_path, "multi-root-copy.cdml", cdml)
 	try:
 		before = session.backend_snapshot
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "m2a1").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "m2a1").setSelected(True)
 		main_window.on_copy()
 		fragment = _clipboard_fragment()
 		after = session.backend_snapshot
@@ -217,8 +217,8 @@ def test_multi_molecule_copy_rejects_invalid_durable_root_identity(
 		first = next(molecule for molecule in session.document.molecules if molecule.mol_id == "m1")
 		second = next(molecule for molecule in session.document.molecules if molecule.mol_id == "m2")
 		second.mol_id = first.mol_id if duplicate_root_id else ""
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "m2a1").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "m2a1").setSelected(True)
 		main_window.on_copy()
 		fragment = _clipboard_fragment()
 	finally:
@@ -236,10 +236,10 @@ def test_partial_copy_releases_the_origin_before_clipboard_callbacks_close_its_t
 	"""Native clipboard callbacks may close the origin after read-only extraction."""
 	origin = _open(main_window, tmp_path, "closing-copy.cdml")
 	other = _open(main_window, tmp_path, "other-copy.cdml", "<cdml/>")
-	original_publish = bkchem_qt.io.clipboard_manager.ClipboardManager.publish_fragment
+	original_publish = ferrum_qt.io.clipboard_manager.ClipboardManager.publish_fragment
 	try:
 		assert main_window.open_file_path(str(tmp_path / "closing-copy.cdml"))
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 
 		def publish_then_close(manager: object, fragment: str) -> None:
 			"""Publish raw text, then retire the originating tab synchronously."""
@@ -247,7 +247,7 @@ def test_partial_copy_releases_the_origin_before_clipboard_callbacks_close_its_t
 			assert main_window.close_session_at(main_window.sessions.index(origin))
 
 		monkeypatch.setattr(
-			bkchem_qt.io.clipboard_manager.ClipboardManager,
+			ferrum_qt.io.clipboard_manager.ClipboardManager,
 			"publish_fragment", publish_then_close,
 		)
 		main_window.on_copy()
@@ -268,12 +268,12 @@ def test_legacy_copy_keeps_its_whole_root_when_clipboard_callbacks_activate_anot
 	origin = _open(main_window, tmp_path, "legacy-closing-copy.cdml")
 	other = _open(main_window, tmp_path, "legacy-other-copy.cdml", "<cdml/>")
 	other_before = other.backend_snapshot
-	original_publish = bkchem_qt.io.clipboard_manager.ClipboardManager.publish_fragment
+	original_publish = ferrum_qt.io.clipboard_manager.ClipboardManager.publish_fragment
 	try:
 		assert main_window.open_file_path(str(tmp_path / "legacy-closing-copy.cdml"))
 		origin.document.mark_dirty()
 		origin.document.molecules[0].compatibility_source_xml = "<molecule/>"
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 
 		def publish_then_activate(manager: object, fragment: str) -> None:
 			"""Publish raw text, then activate the already-open other tab."""
@@ -281,7 +281,7 @@ def test_legacy_copy_keeps_its_whole_root_when_clipboard_callbacks_activate_anot
 			assert main_window.open_file_path(str(tmp_path / "legacy-other-copy.cdml"))
 
 		monkeypatch.setattr(
-			bkchem_qt.io.clipboard_manager.ClipboardManager,
+			ferrum_qt.io.clipboard_manager.ClipboardManager,
 			"publish_fragment", publish_then_activate,
 		)
 		main_window.on_copy()

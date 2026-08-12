@@ -8,9 +8,9 @@ import pytest
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.io.cdml_candidate
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
+import ferrum_qt.io.cdml_candidate
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
 import oasa.cdml_document
 import oasa.cdml_writer
 import oasa.safe_xml
@@ -63,12 +63,12 @@ def _direct_text(element: xml.dom.minidom.Element) -> str:
 
 #============================================
 def _submit_rejected_plus_request(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		payload: tuple[tuple[str, object], ...],
 		) -> str:
 	"""Return the public rejection route for one malformed Plus payload."""
 	try:
-		request = bkchem_qt.models.document_session.PersistentOperationRequest(
+		request = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"plus.add", "Plus", payload,
 		)
 	except TypeError:
@@ -82,7 +82,7 @@ def test_plus_candidate_preserves_mixed_cdml_and_uses_backend_identity() -> None
 	"""A Plus candidate preserves old semantics and appends one durable record."""
 	token = "__bkchem_new__plus-r0-1"
 	session = oasa.cdml_document.CDMLDocumentSession.load(_MIXED_CDML)
-	candidate = bkchem_qt.io.cdml_candidate.append_plus_candidate(
+	candidate = ferrum_qt.io.cdml_candidate.append_plus_candidate(
 		session.snapshot().cdml, token, (72.0, 36.0),
 	)
 	commit = session.commit(expected_revision=0, complete_cdml=candidate)
@@ -143,7 +143,7 @@ def test_plus_candidate_preserves_mixed_cdml_and_uses_backend_identity() -> None
 	((), "rejected"),
 ))
 def test_plus_request_rejects_malformed_payload_without_backend_mutation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		payload: tuple[tuple[str, object], ...], expected_rejection: str,
 		) -> None:
 	"""Malformed Plus payloads leave authority, history, and projection unchanged."""
@@ -172,7 +172,7 @@ def test_plus_request_rejects_malformed_payload_without_backend_mutation(
 
 #============================================
 def test_plus_mode_click_projects_backend_plus_without_qt_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""One normal Plus click projects its canonical backend-owned glyph."""
 	main_window._on_new()

@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for bkchem-qt tests."""
+"""Shared pytest fixtures for ferrum-qt tests."""
 
 # Standard Library
 import os
@@ -26,8 +26,8 @@ import PySide6.QtWidgets
 import PySide6.QtTest
 
 # local repo modules
-import bkchem_qt.themes.theme_manager
-import bkchem_qt.main_window
+import ferrum_qt.themes.theme_manager
+import ferrum_qt.main_window
 import tests.graphics_test_retirement
 
 
@@ -57,10 +57,10 @@ VISUAL_HOLD_MS = max(0, _env_int("BKCHEM_QT_TEST_VISUAL_HOLD_MS", 0))
 #============================================
 def _drain_deferred_deletes(
 		app: PySide6.QtWidgets.QApplication,
-		window: bkchem_qt.main_window.MainWindow = None,
+		window: ferrum_qt.main_window.MainWindow = None,
 		) -> bool:
 	"""Deliver deferred deletion through the production bounded reaper drain."""
-	return bkchem_qt.main_window.drain_pending_session_deletions(app, window)
+	return ferrum_qt.main_window.drain_pending_session_deletions(app, window)
 
 
 #============================================
@@ -106,7 +106,7 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 @pytest.fixture(scope="session")
 def theme_manager(
 		qapp: PySide6.QtWidgets.QApplication,
-		) -> bkchem_qt.themes.theme_manager.ThemeManager:
+		) -> ferrum_qt.themes.theme_manager.ThemeManager:
 	"""Return a ThemeManager bound to the QApplication.
 
 	Args:
@@ -115,7 +115,7 @@ def theme_manager(
 	Returns:
 		ThemeManager: The theme manager instance.
 	"""
-	tm = bkchem_qt.themes.theme_manager.ThemeManager(qapp)
+	tm = ferrum_qt.themes.theme_manager.ThemeManager(qapp)
 	return tm
 
 
@@ -123,9 +123,9 @@ def theme_manager(
 @pytest.fixture(scope="module")
 def main_window(
 		qapp: PySide6.QtWidgets.QApplication,
-		theme_manager: bkchem_qt.themes.theme_manager.ThemeManager,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		request: pytest.FixtureRequest,
-		) -> bkchem_qt.main_window.MainWindow:
+		) -> ferrum_qt.main_window.MainWindow:
 	"""Return a MainWindow shared across tests in the same module.
 
 	Module scope avoids creating 45+ MainWindow instances during the
@@ -139,7 +139,7 @@ def main_window(
 	Yields:
 		MainWindow: The main window instance.
 	"""
-	mw = bkchem_qt.main_window.MainWindow(theme_manager)
+	mw = ferrum_qt.main_window.MainWindow(theme_manager)
 	if _should_show_windows(request):
 		mw.show()
 		mw.raise_()
@@ -149,11 +149,11 @@ def main_window(
 	_normalize_main_window(mw)
 	mw.close()
 	assert _drain_deferred_deletes(qapp, mw)
-	assert bkchem_qt.main_window.delete_qobject_and_wait(qapp, mw)
+	assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, mw)
 
 
 #============================================
-def _normalize_main_window(main_window: bkchem_qt.main_window.MainWindow) -> None:
+def _normalize_main_window(main_window: ferrum_qt.main_window.MainWindow) -> None:
 	"""Install one fresh blank backend session through normal session disposal.
 
 	A shared MainWindow cannot clear its current Qt document to reset test state:

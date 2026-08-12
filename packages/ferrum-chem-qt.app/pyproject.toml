@@ -24,17 +24,17 @@ Homepage = "https://github.com/vosslab/ferrum-chemical-forge"
 Issues = "https://github.com/vosslab/ferrum-chemical-forge/issues"
 
 [project.scripts]
-ferrum-qt = "bkchem_qt.cli:main"
+ferrum-qt = "ferrum_qt.cli:main"
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["bkchem_qt*"]
+include = ["ferrum_qt*"]
 
 [tool.setuptools.package-data]
-bkchem_qt = [
+ferrum_qt = [
     "resources/*.yaml",
     "resources/themes/*.yaml",
     "resources/pixmaps/png/*.png",

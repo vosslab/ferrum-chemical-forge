@@ -5,10 +5,10 @@ import PySide6.QtWidgets
 import shiboken6
 
 # local repo modules
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 
 
 _CDML = (
@@ -21,11 +21,11 @@ _CDML = (
 )
 _IDLESS_ROOT_CDML = _CDML.replace('arrow id="arrow1"', 'arrow')
 #============================================
-def _new_session(main_window: bkchem_qt.main_window.MainWindow,
+def _new_session(main_window: ferrum_qt.main_window.MainWindow,
 		cdml: str = _CDML) -> object:
 	"""Return one standalone session loaded through the native CDML boundary."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
-	return bkchem_qt.models.document_session.DocumentSession(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
+	return ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
@@ -37,7 +37,7 @@ def _install(session: object, deliver: object = None) -> None:
 	if deliver is None:
 		deliver = session.replace_projection_from_backend_snapshot
 	session.install_projection_lifecycle_port(
-		bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver),
+		ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver),
 	)
 
 
@@ -77,7 +77,7 @@ def test_transform_selection_uses_current_projection_membership(main_window: obj
 		_item(session.scene, "arrow1").setSelected(True)
 		_item(session.scene, "a1").setSelected(True)
 		_item(session.scene, "b1").setSelected(True)
-		assert bkchem_qt.canvas.document_projection.selected_top_level_transform_keys(
+		assert ferrum_qt.canvas.document_projection.selected_top_level_transform_keys(
 			session.document, session.scene,
 		) == (("molecule", "m1"), ("presentation", "arrow1"))
 	finally:
@@ -96,7 +96,7 @@ def test_transform_selection_rejects_copied_current_model_metadata(main_window: 
 		lookalike.setFlag(PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
 		session.scene.addItem(lookalike)
 		lookalike.setSelected(True)
-		assert not bkchem_qt.canvas.document_projection.selected_top_level_transform_keys(
+		assert not ferrum_qt.canvas.document_projection.selected_top_level_transform_keys(
 			session.document, session.scene,
 		)
 	finally:
@@ -111,7 +111,7 @@ def test_transform_selection_rejects_idless_persistent_root(main_window: object)
 	assert session.replace_projection_from_backend_snapshot(session.backend_snapshot)
 	try:
 		_presentation_item(session.scene).setSelected(True)
-		assert not bkchem_qt.canvas.document_projection.selected_top_level_transform_keys(
+		assert not ferrum_qt.canvas.document_projection.selected_top_level_transform_keys(
 			session.document, session.scene,
 		)
 	finally:
@@ -147,7 +147,7 @@ def test_transform_rejects_valid_id_with_wrong_root_kind(main_window: object) ->
 #============================================
 def test_current_projection_membership_rejects_retired_wrapper(main_window: object) -> None:
 	"""A retired graphics wrapper returns false without crossing ``item.scene()``."""
-	document = bkchem_qt.models.document.Document(main_window)
+	document = ferrum_qt.models.document.Document(main_window)
 	scene = PySide6.QtWidgets.QGraphicsScene(main_window)
 	item = PySide6.QtWidgets.QGraphicsRectItem(0.0, 0.0, 1.0, 1.0)
 	document.set_scene(scene)
@@ -169,7 +169,7 @@ def test_transform_changed_acceptance_uses_backend_history(main_window: object) 
 			(("molecule", "m1"), ("presentation", "arrow1")),
 		)
 		assert outcome.status == "accepted" and session.can_undo_backend
-		assert bkchem_qt.canvas.document_projection.selected_top_level_transform_keys(
+		assert ferrum_qt.canvas.document_projection.selected_top_level_transform_keys(
 			session.document, session.scene,
 		) == (("molecule", "m1"), ("presentation", "arrow1"))
 		assert session.undo_backend().status == "accepted" and session.redo_backend().status == "accepted"
@@ -215,9 +215,9 @@ def test_transform_recovery_reprojects_accepted_snapshot_once(main_window: objec
 
 	def unavailable(snapshot: object) -> object:
 		"""Report an installation failure after backend acceptance."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	session._backend_session.apply_top_level_transform = count

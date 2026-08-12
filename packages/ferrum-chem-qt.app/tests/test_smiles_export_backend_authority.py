@@ -9,14 +9,14 @@ import PySide6.QtCore
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.actions.context_menu
-import bkchem_qt.canvas.items.arrow_item
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.models.document_session
-import bkchem_qt.models.document_object
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.actions.context_menu
+import ferrum_qt.canvas.items.arrow_item
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.models.document_session
+import ferrum_qt.models.document_object
 import oasa.cdml_document
 
 
@@ -52,7 +52,7 @@ def _draw_root_pair(session: object) -> None:
 #============================================
 def _install_native_cdml_session(main_window: object, cdml: str) -> object:
 	"""Install one native backend snapshot as the active production session."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	session = main_window._register_session(session, activate=True)
 	if session.retry_current_backend_projection().status != "accepted":
@@ -64,7 +64,7 @@ def _install_native_cdml_session(main_window: object, cdml: str) -> object:
 def _select_one_atom(session: object) -> object:
 	"""Select one live atom so Document resolves its durable root molecule."""
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			item.setSelected(True)
 			return item
 	raise AssertionError("Draw route did not project an atom")
@@ -93,7 +93,7 @@ def _idless_atom_item(session: object) -> object:
 	"""Return the displayed anonymous atom from one legacy root projection."""
 	for item in session.scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id is None
 		):
 			return item
@@ -124,7 +124,7 @@ def test_smiles_export_reads_authoritative_cdml_without_mutation(
 	before_undo_count = session.document.undo_stack.count()
 	dialogs = _capture_dialogs(monkeypatch)
 
-	bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+	ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 
 	assert (
 		PySide6.QtWidgets.QApplication.clipboard().text() == "CC"
@@ -160,7 +160,7 @@ def test_selected_bond_resolves_its_durable_direct_root_molecule(
 	_draw_root_pair(session)
 	bond_item = next(
 		item for item in session.scene.items()
-		if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+		if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 	)
 	bond_item.setSelected(True)
 
@@ -178,10 +178,10 @@ def test_selected_attached_mark_resolves_its_durable_direct_root_molecule(
 	_draw_root_pair(session)
 	atom_item = _select_one_atom(session)
 	atom_item.setSelected(False)
-	mark_model = bkchem_qt.models.document_object.AtomMarkModel(
+	mark_model = ferrum_qt.models.document_object.AtomMarkModel(
 		atom_item.atom_model, {"type": "plus"},
 	)
-	mark_item = bkchem_qt.canvas.document_projection.create_mark_item(
+	mark_item = ferrum_qt.canvas.document_projection.create_mark_item(
 		mark_model, atom_item,
 	)
 	assert mark_item is not None
@@ -222,13 +222,13 @@ def test_idless_legacy_children_observe_only_their_durable_root(
 	idless_mark.setSelected(True)
 
 	assert (
-		bkchem_qt.canvas.document_projection.persistent_selection_key(idless_mark) is None
+		ferrum_qt.canvas.document_projection.persistent_selection_key(idless_mark) is None
 		and session.document.selected_direct_root_molecule_ids == ("legacy-molecule",)
 	)
-	bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+	ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 
 	# This remains a child-addressed operation, so the idless atom is inert.
-	bkchem_qt.actions.context_menu._set_atom_symbol(
+	ferrum_qt.actions.context_menu._set_atom_symbol(
 		session.view, idless_atom.atom_model, "N",
 	)
 	recovered = session.retry_current_backend_projection()
@@ -258,7 +258,7 @@ def test_backend_issued_internal_ids_remain_usable_query_targets(main_window: ob
 
 	assert (
 		atom_item.atom_model.backend_durable_id == "a1"
-		and bkchem_qt.canvas.document_projection.persistent_selection_key(atom_item) == ("atom", "a1")
+		and ferrum_qt.canvas.document_projection.persistent_selection_key(atom_item) == ("atom", "a1")
 		and session.document.selected_direct_root_molecule_ids == ("m1",)
 	)
 
@@ -278,7 +278,7 @@ def test_smiles_export_rejects_no_mixed_and_multiple_selection_without_query(
 		raise AssertionError("unsupported selection queried OASA")
 
 	monkeypatch.setattr(session, "query_molecule_smiles", query_must_not_run)
-	bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+	ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 	assert not called
 
 	_draw_root_pair(session)
@@ -287,11 +287,11 @@ def test_smiles_export_rejects_no_mixed_and_multiple_selection_without_query(
 	atom_item = _select_one_atom(session)
 	arrow_item = next(
 		item for item in session.scene.items()
-		if isinstance(item, bkchem_qt.canvas.items.arrow_item.ArrowItem)
+		if isinstance(item, ferrum_qt.canvas.items.arrow_item.ArrowItem)
 	)
 	atom_item.setSelected(True)
 	arrow_item.setSelected(True)
-	bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+	ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 	assert session.document.selected_direct_root_molecule_ids == ()
 	assert not called
 
@@ -302,13 +302,13 @@ def test_smiles_export_rejects_no_mixed_and_multiple_selection_without_query(
 	_draw_root_pair(session)
 	molecule_items = {}
 	for item in session.scene.items():
-		if not isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if not isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			continue
 		molecule = session.document.molecule_for_graphics_item(item)
 		molecule_items.setdefault(molecule.mol_id, item)
 	for item in molecule_items.values():
 		item.setSelected(True)
-	bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+	ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 
 	assert len(session.document.selected_direct_root_molecule_ids) == 2
 	assert not called and len(dialogs) == 3
@@ -345,7 +345,7 @@ def test_smiles_export_rejects_unregistered_active_session_alias_without_query(
 	main_window._active_session = false_alias
 	try:
 		assert not main_window._registry.is_enabled("chemistry.gen_smiles", main_window)
-		bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+		ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 	finally:
 		main_window._active_session = session
 
@@ -380,7 +380,7 @@ def test_smiles_export_rejects_unsynchronized_projection_without_query(
 
 	monkeypatch.setattr(session, "query_molecule_smiles", query_must_not_run)
 	session._backend_projection_synchronized = False
-	bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+	ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 
 	assert (
 		not called
@@ -413,7 +413,7 @@ def test_smiles_export_reports_typed_backend_failures_without_mutation(
 		raise error_type("typed query failure")
 
 	monkeypatch.setattr(session, "query_molecule_smiles", raise_typed_failure)
-	bkchem_qt.actions.chemistry_actions._gen_smiles(main_window)
+	ferrum_qt.actions.chemistry_actions._gen_smiles(main_window)
 
 	assert (
 		session.backend_snapshot == before_snapshot

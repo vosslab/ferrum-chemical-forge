@@ -6,14 +6,14 @@ import PySide6.QtWidgets
 import shiboken6
 
 # local repo modules
-import bkchem_qt.actions.context_menu
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.main_window
-import bkchem_qt.models.bond_model
-import bkchem_qt.models.document
-import bkchem_qt.dialogs.bond_dialog
-import bkchem_qt.widgets.property_dock
-import bkchem_qt.widgets.edit_ribbon
+import ferrum_qt.actions.context_menu
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.main_window
+import ferrum_qt.models.bond_model
+import ferrum_qt.models.document
+import ferrum_qt.dialogs.bond_dialog
+import ferrum_qt.widgets.property_dock
+import ferrum_qt.widgets.edit_ribbon
 
 
 _ORDINARY_CODES = ('n','w','h','a','b','d','o','s')
@@ -34,7 +34,7 @@ def _delete_qobject(
 		target: PySide6.QtCore.QObject,
 		) -> None:
 	"""Retire one independently-owned Qt wrapper through deferred deletion."""
-	assert bkchem_qt.main_window.delete_qobject_and_wait(qapp, target)
+	assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, target)
 
 
 #============================================
@@ -48,7 +48,7 @@ def _bond_item(main_window: object) -> object:
 	draw_mode.mouse_press(position, None)
 	draw_mode.mouse_release(position, None)
 	for item in main_window.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem):
+		if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem):
 			return item
 	raise AssertionError("Draw gesture did not produce a projected BondItem")
 
@@ -67,15 +67,15 @@ def test_generic_bond_surfaces_offer_only_ordinary_styles(
 		main_window: object, qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""Editor, dialog, dock, and real context menu agree on generic bond choices."""
-	ribbon = bkchem_qt.widgets.edit_ribbon.EditRibbon()
-	model = bkchem_qt.models.bond_model.BondModel(bond_type="n")
-	dialog = bkchem_qt.dialogs.bond_dialog.BondDialog(model)
-	document = bkchem_qt.models.document.Document()
-	dock = bkchem_qt.widgets.property_dock.PropertyDock(document)
+	ribbon = ferrum_qt.widgets.edit_ribbon.EditRibbon()
+	model = ferrum_qt.models.bond_model.BondModel(bond_type="n")
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
+	document = ferrum_qt.models.document.Document()
+	dock = ferrum_qt.widgets.property_dock.PropertyDock(document)
 	menu = None
 	try:
 		bond_item = _bond_item(main_window)
-		menu = bkchem_qt.actions.context_menu._bond_context_menu(
+		menu = ferrum_qt.actions.context_menu._bond_context_menu(
 			bond_item, main_window.view,
 		)
 		type_menu = _submenu(menu, "Set Type")
@@ -104,10 +104,10 @@ def test_existing_haworth_bond_is_accurately_displayed(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""Existing q bonds retain their visible code and Haworth label in edit surfaces."""
-	model = bkchem_qt.models.bond_model.BondModel(bond_type="q")
-	dialog = bkchem_qt.dialogs.bond_dialog.BondDialog(model)
-	document = bkchem_qt.models.document.Document()
-	dock = bkchem_qt.widgets.property_dock.PropertyDock(document)
+	model = ferrum_qt.models.bond_model.BondModel(bond_type="q")
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
+	document = ferrum_qt.models.document.Document()
+	dock = ferrum_qt.widgets.property_dock.PropertyDock(document)
 	try:
 		dock._set_bond_type_choices("q")
 		haworth_choices = (
@@ -152,7 +152,7 @@ def test_show_context_menu_retires_transient_menu_tree(
 		popup.close()
 
 	PySide6.QtCore.QTimer.singleShot(0, close_popup)
-	bkchem_qt.actions.context_menu.show_context_menu(
+	ferrum_qt.actions.context_menu.show_context_menu(
 		main_window.view, scene_position, screen_position,
 	)
 	PySide6.QtCore.QCoreApplication.sendPostedEvents(

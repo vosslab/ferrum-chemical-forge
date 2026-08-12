@@ -6,14 +6,14 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.context_menu
-import bkchem_qt.actions.object_actions
-import bkchem_qt.actions.property_editing
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.dialogs.atom_dialog
-import bkchem_qt.main_window
-import bkchem_qt.modes.draw_mode
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.context_menu
+import ferrum_qt.actions.object_actions
+import ferrum_qt.actions.property_editing
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.dialogs.atom_dialog
+import ferrum_qt.main_window
+import ferrum_qt.modes.draw_mode
+import ferrum_qt.models.document_session
 
 
 _CDML = (
@@ -34,21 +34,21 @@ def _draw_atom(session: object) -> object:
 	"""Create one synchronized atom and return its live projected model."""
 	session.mode_manager.set_mode("draw")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.draw_mode.DrawMode):
+	if not isinstance(mode, ferrum_qt.modes.draw_mode.DrawMode):
 		raise AssertionError("Draw mode unavailable")
 	position = PySide6.QtCore.QPointF(100.0, 100.0)
 	mode.mouse_press(position, None)
 	mode.mouse_release(position, None)
 	return next(
 		item.atom_model for item in session.scene.items()
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 	)
 
 
 #============================================
-def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _install_native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Register one native CDML session with a durable atom target."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -60,7 +60,7 @@ def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> ob
 def _atom_item(session: object) -> object:
 	"""Return the session's one direct-core atom projection."""
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			return item
 	raise AssertionError("Projected CDML did not produce an AtomItem")
 
@@ -94,7 +94,7 @@ def _selected_atom_ids(session: object) -> set[str]:
 	return {
 		item.atom_model.backend_durable_id
 		for item in session.scene.selectedItems()
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		and item.atom_model.backend_durable_id is not None
 	}
 
@@ -110,8 +110,8 @@ def _accept_changes(monkeypatch: pytest.MonkeyPatch, changes: tuple[tuple[str, o
 		"""Return exactly the caller-provided plain operation fields."""
 		return changes
 
-	monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec", accept)
-	monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "changes", returned_changes)
+	monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec", accept)
+	monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "changes", returned_changes)
 
 
 #============================================
@@ -128,7 +128,7 @@ def test_atom_dialog_detaches_from_model_after_initialization(qtbot: object) -> 
 		font_size = 12
 		line_color = "#000000"
 
-	dialog = bkchem_qt.dialogs.atom_dialog.AtomDialog(Atom())
+	dialog = ferrum_qt.dialogs.atom_dialog.AtomDialog(Atom())
 	qtbot.addWidget(dialog)
 
 	assert not hasattr(dialog, "_atom_model") and dialog.changes() == ()
@@ -149,8 +149,8 @@ def test_atom_properties_use_exact_backend_session_and_no_qt_undo(
 		dialog._charge_spin.setValue(1)
 		return PySide6.QtWidgets.QDialog.DialogCode.Accepted
 
-	monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec", accept_with_charge)
-	changed = bkchem_qt.actions.property_editing.edit_atom_properties(
+	monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec", accept_with_charge)
+	changed = ferrum_qt.actions.property_editing.edit_atom_properties(
 		atom, session.view, session.document.undo_stack,
 	)
 
@@ -164,7 +164,7 @@ def test_atom_properties_use_exact_backend_session_and_no_qt_undo(
 
 #============================================
 def test_atom_properties_session_outcome_unwraps_the_accepted_commit(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Session results expose the accepted commit, not the backend result wrapper."""
 	session = _install_native_session(main_window)
@@ -181,7 +181,7 @@ def test_atom_properties_session_outcome_unwraps_the_accepted_commit(
 
 #============================================
 def test_atom_properties_validation_failure_has_a_plain_kind(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An invalid property scalar exposes validation without backend mutation."""
 	session = _install_native_session(main_window)
@@ -202,7 +202,7 @@ def test_atom_properties_validation_failure_has_a_plain_kind(
 
 #============================================
 def test_atom_dialog_rejects_a_revision_changed_while_modal(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A modal atom intent cannot silently apply to a newer backend snapshot."""
 	session = _install_native_session(main_window)
@@ -235,12 +235,12 @@ def test_atom_dialog_rejects_a_revision_changed_while_modal(
 			"""Return the stale atom intent after the intervening commit."""
 			return (("charge", 1),)
 
-		monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec", accept_after_intervening_commit)
+		monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec", accept_after_intervening_commit)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.atom_dialog.AtomDialog, "changes",
+			ferrum_qt.dialogs.atom_dialog.AtomDialog, "changes",
 			returned_changes,
 		)
-		changed = bkchem_qt.actions.property_editing.edit_atom_properties(
+		changed = ferrum_qt.actions.property_editing.edit_atom_properties(
 			atom_item.atom_model, session.view, session.document.undo_stack,
 		)
 		post_intervening_snapshot = outcomes[0].commit.snapshot
@@ -264,7 +264,7 @@ def test_atom_dialog_rejects_a_revision_changed_while_modal(
 
 #============================================
 def test_stale_atom_patch_rejects_before_property_executor(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Session rejects a stale plain atom request before calling OASA's patch executor."""
 	session = _install_native_session(main_window)
@@ -304,7 +304,7 @@ def test_stale_atom_patch_rejects_before_property_executor(
 #============================================
 @pytest.mark.parametrize("route", ("object-configure", "edit-double-click"))
 def test_public_atom_properties_routes_commit_only_their_own_session(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		route: str,
 		) -> None:
 	"""Every public atom Properties route commits the captured tab once."""
@@ -317,7 +317,7 @@ def test_public_atom_properties_routes_commit_only_their_own_session(
 		_accept_changes(monkeypatch, (("charge", 1),))
 		if route == "object-configure":
 			main_window._activate_session(first)
-			bkchem_qt.actions.object_actions.handle_configure(main_window)
+			ferrum_qt.actions.object_actions.handle_configure(main_window)
 		else:
 			first.mode_manager.set_mode("edit")
 			first.mode_manager.current_mode.mouse_double_click(atom_item.scenePos(), None)
@@ -339,13 +339,13 @@ def test_public_atom_properties_routes_commit_only_their_own_session(
 
 #============================================
 def test_context_atom_properties_reacquires_the_current_projection(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A retained active-tab Properties action resolves a fresh model by durable ID."""
 	session = _install_native_session(main_window)
 	menu = None
 	try:
-		menu = bkchem_qt.actions.context_menu._atom_context_menu(
+		menu = ferrum_qt.actions.context_menu._atom_context_menu(
 			_atom_item(session), session.view,
 		)
 		old_document = session.document
@@ -371,14 +371,14 @@ def test_context_atom_properties_reacquires_the_current_projection(
 
 #============================================
 def test_context_atom_properties_are_inert_after_tab_switch(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A retained Properties action cannot retarget after its tab loses activation."""
 	first = _install_native_session(main_window)
 	second = None
 	menu = None
 	try:
-		menu = bkchem_qt.actions.context_menu._atom_context_menu(
+		menu = ferrum_qt.actions.context_menu._atom_context_menu(
 			_atom_item(first), first.view,
 		)
 		first_before = first.backend_snapshot
@@ -389,7 +389,7 @@ def test_context_atom_properties_are_inert_after_tab_switch(
 			"""Expose any stale menu callback that opens a dialog after tab replacement."""
 			raise AssertionError("inactive context Properties opened a dialog")
 
-		monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec", fail_dialog)
+		monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec", fail_dialog)
 		_properties_action(menu).trigger()
 
 		assert first.backend_snapshot == first_before and second.backend_snapshot == second_before
@@ -404,13 +404,13 @@ def test_context_atom_properties_are_inert_after_tab_switch(
 
 #============================================
 def test_context_set_element_reacquires_the_current_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained Set Element action resolves its active current atom by durable ID."""
 	session = _install_native_session(main_window)
 	menu = None
 	try:
-		menu = bkchem_qt.actions.context_menu._atom_context_menu(
+		menu = ferrum_qt.actions.context_menu._atom_context_menu(
 			_atom_item(session), session.view,
 		)
 		old_document = session.document
@@ -435,14 +435,14 @@ def test_context_set_element_reacquires_the_current_projection(
 
 #============================================
 def test_atom_properties_projection_retry_reuses_accepted_snapshot_once(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An accepted atom patch recovers by reprojection without a second commit."""
 	session = _install_native_session(main_window)
 	menu = None
 	try:
 		atom_item = _atom_item(session)
-		menu = bkchem_qt.actions.context_menu._atom_context_menu(atom_item, session.view)
+		menu = ferrum_qt.actions.context_menu._atom_context_menu(atom_item, session.view)
 		_accept_changes(monkeypatch, (("charge", 1),))
 		backend_patch = session._backend_session.patch_atom_properties
 		install_projection = session._install_prepared_projection
@@ -485,7 +485,7 @@ def test_atom_properties_projection_retry_reuses_accepted_snapshot_once(
 
 #============================================
 def test_synchronized_idless_atom_properties_are_inert(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An ID-less synchronized target remains inert instead of using Qt fallback."""
 	session = _install_native_session(main_window)
@@ -498,8 +498,8 @@ def test_synchronized_idless_atom_properties_are_inert(
 			"""Expose an accidental fallback that would open a local dialog."""
 			raise AssertionError("synchronized ID-less target opened a local dialog")
 
-		monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec", fail_dialog)
-		changed = bkchem_qt.actions.property_editing.edit_atom_properties(
+		monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec", fail_dialog)
+		changed = ferrum_qt.actions.property_editing.edit_atom_properties(
 			atom, session.view, session.document.undo_stack,
 		)
 
@@ -512,7 +512,7 @@ def test_synchronized_idless_atom_properties_are_inert(
 
 #============================================
 def test_retained_unregistered_view_is_inert_while_another_tab_is_active(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A retained context callback cannot become an isolated local edit."""
 	first = _install_native_session(main_window)
@@ -520,7 +520,7 @@ def test_retained_unregistered_view_is_inert_while_another_tab_is_active(
 	menu = None
 	try:
 		atom_item = _atom_item(first)
-		menu = bkchem_qt.actions.context_menu._atom_context_menu(atom_item, first.view)
+		menu = ferrum_qt.actions.context_menu._atom_context_menu(atom_item, first.view)
 		first_before = first.backend_snapshot
 		second_before = second.backend_snapshot
 		removed = main_window._sessions_by_view.pop(first.view)
@@ -530,7 +530,7 @@ def test_retained_unregistered_view_is_inert_while_another_tab_is_active(
 			raise AssertionError("unregistered synchronized view opened local fallback")
 
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.atom_dialog.AtomDialog, "edit_atom", fail_local_fallback,
+			ferrum_qt.dialogs.atom_dialog.AtomDialog, "edit_atom", fail_local_fallback,
 		)
 		_properties_action(menu).trigger()
 

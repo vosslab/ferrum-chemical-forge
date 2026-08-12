@@ -8,11 +8,11 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.draw_mode
-import bkchem_qt.modes.template_mode
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.draw_mode
+import ferrum_qt.modes.template_mode
 import oasa.cdml_document
 import oasa.safe_xml
 import oasa.template_placement
@@ -80,22 +80,22 @@ def _coordinate_points(value: str) -> float:
 
 
 #============================================
-def _template_mode(session: object) -> bkchem_qt.modes.template_mode.TemplateMode:
+def _template_mode(session: object) -> ferrum_qt.modes.template_mode.TemplateMode:
 	"""Activate and return the session-owned Template mode."""
 	session.mode_manager.set_mode("template")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.template_mode.TemplateMode):
+	if not isinstance(mode, ferrum_qt.modes.template_mode.TemplateMode):
 		raise AssertionError("TemplateMode did not activate")
 	mode.set_template("Me")
 	return mode
 
 
 #============================================
-def _draw_mode(session: object) -> bkchem_qt.modes.draw_mode.DrawMode:
+def _draw_mode(session: object) -> ferrum_qt.modes.draw_mode.DrawMode:
 	"""Activate and return the session-owned Draw mode."""
 	session.mode_manager.set_mode("draw")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.draw_mode.DrawMode):
+	if not isinstance(mode, ferrum_qt.modes.draw_mode.DrawMode):
 		raise AssertionError("DrawMode did not activate")
 	return mode
 
@@ -119,7 +119,7 @@ def _atom_item(scene: object, atom_id: str) -> object:
 	"""Return the current projected item for one durable atom ID."""
 	for item in scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.atom_id == atom_id
 		):
 			return item
@@ -208,24 +208,24 @@ def test_template_projection_failure_retries_the_accepted_snapshot_only(
 		main_window: object, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A public retry restores an accepted template snapshot without resubmission."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		'<cdml version="26.07"></cdml>',
 	)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
 
 	def unavailable(_snapshot: object) -> object:
 		"""Return a typed projection delivery failure after backend acceptance."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	try:
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 		)
 		outcome = session.submit_system_template("Me", (80.0, 95.0))
 		if outcome.commit is None:
@@ -247,7 +247,7 @@ def test_template_projection_failure_retries_the_accepted_snapshot_only(
 			oasa.template_placement, "prepare_template_molecule_insertion", preparation_must_not_run,
 		)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)

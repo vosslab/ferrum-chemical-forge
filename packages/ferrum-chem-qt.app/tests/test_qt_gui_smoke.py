@@ -1,11 +1,11 @@
-"""Qt GUI smoke tests for BKChem-Qt.
+"""Qt GUI smoke tests for Ferrum-Qt.
 
 Tests use shared fixtures from conftest.py (qapp, theme_manager, main_window)
 instead of subprocess isolation. Screenshots are saved to output_smoke/ for
 human review. Dark mode tests also verify pixel colors.
 
 Usage:
-	source source_me.sh && python -m pytest packages/bkchem-qt.app/tests/test_qt_gui_smoke.py -v
+	source source_me.sh && python -m pytest packages/ferrum-qt.app/tests/test_qt_gui_smoke.py -v
 """
 
 # Standard Library
@@ -18,7 +18,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.main_window
+import ferrum_qt.main_window
 
 # output directory for screenshots (reused per REPO_STYLE.md)
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output_smoke")
@@ -126,7 +126,7 @@ def test_qt_window_icon_uses_standard_file_icon(qapp: object, main_window: objec
 #============================================
 def test_default_main_window_width_is_1280(qapp: object, theme_manager: object) -> None:
 	"""New windows should start with a 1280px default width."""
-	window = bkchem_qt.main_window.MainWindow(theme_manager)
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
 	try:
 		qapp.processEvents()
 		assert window.width() == 1280, (
@@ -246,12 +246,12 @@ def test_qt_status_bar_coords_smoke(qapp: object, main_window: object) -> None:
 def test_qt_draw_benzene_smoke(qapp: object, main_window: object) -> None:
 	"""Verify programmatic benzene ring construction on the canvas."""
 	# local repo modules
-	import bkchem_qt.models.molecule_model
-	import bkchem_qt.canvas.items.atom_item
-	import bkchem_qt.canvas.items.bond_item
+	import ferrum_qt.models.molecule_model
+	import ferrum_qt.canvas.items.atom_item
+	import ferrum_qt.canvas.items.bond_item
 
 	# create a molecule model
-	mol = bkchem_qt.models.molecule_model.MoleculeModel()
+	mol = ferrum_qt.models.molecule_model.MoleculeModel()
 	# compute hexagonal positions for 6 carbon atoms
 	hex_pts = _hex_points(2000, 1500, 40)
 	# create 6 carbon atoms with coordinates on both model and OASA layers
@@ -271,11 +271,11 @@ def test_qt_draw_benzene_smoke(qapp: object, main_window: object) -> None:
 		bond_models.append(bond)
 	# add AtomItem graphics objects to the scene
 	for atom_model in atom_models:
-		atom_item = bkchem_qt.canvas.items.atom_item.AtomItem(atom_model)
+		atom_item = ferrum_qt.canvas.items.atom_item.AtomItem(atom_model)
 		main_window._scene.addItem(atom_item)
 	# add BondItem graphics objects to the scene
 	for bond_model in bond_models:
-		bond_item = bkchem_qt.canvas.items.bond_item.BondItem(bond_model)
+		bond_item = ferrum_qt.canvas.items.bond_item.BondItem(bond_model)
 		main_window._scene.addItem(bond_item)
 	# verify counts
 	assert len(mol.atoms) == 6, f"expected 6 atoms, got {len(mol.atoms)}"
@@ -324,7 +324,7 @@ def test_qt_zoom_smoke(qapp: object, main_window: object) -> None:
 def test_qt_import_cholesterol_smoke(qapp: object, main_window: object) -> None:
 	"""Verify SMILES import of cholesterol populates the document."""
 	# local repo modules
-	import bkchem_qt.bridge.oasa_bridge
+	import ferrum_qt.bridge.oasa_bridge
 
 	# write cholesterol SMILES to a temporary file
 	cholesterol_smiles = "CC(C)CCCC(C)C1CCC2C3CC=C4C[C@H](O)CC[C@]4(C)C3CC[C@]12C"
@@ -333,7 +333,7 @@ def test_qt_import_cholesterol_smoke(qapp: object, main_window: object) -> None:
 		f.write(cholesterol_smiles + "\n")
 	# use the bridge to parse the SMILES file into MoleculeModel objects
 	with open(smi_path, "r") as f:
-		molecules = bkchem_qt.bridge.oasa_bridge.read_codec_file("smiles", f)
+		molecules = ferrum_qt.bridge.oasa_bridge.read_codec_file("smiles", f)
 	# clean up the temp file
 	os.unlink(smi_path)
 	# verify that at least one molecule was parsed

@@ -14,16 +14,15 @@ open questions converted to milestone entry decisions.
 ## Context
 
 Ferrum is a CDML chemical drawing platform in two parts. **Ferrum-Qt** is the
-PySide6 application at `packages/ferrum-chem-qt.app/`, which is `bkchem_qt`
-renamed -- the user's own code, carried forward wholesale and advanced.
+PySide6 application at `packages/ferrum-chem-qt.app/ferrum_qt/`, renamed from
+`bkchem_qt` -- the user's own code, carried forward wholesale and advanced.
 **Ferrum-Chem** is a new Rust engine that replaces OASA, the Python chemistry
 backend Ferrum does not carry forward.
 
 That distinction is the whole plan. Ferrum-Qt is a rename. Ferrum-Chem is a
 rewrite. Prior drafts blurred the two into a single "no production-code overlap"
-claim, which the working tree contradicts: `packages/ferrum-chem-qt.app/bkchem_qt/`
-is byte-identical to `OTHER_REPOS/bkchem-oasa/packages/bkchem-qt.app/bkchem_qt/`
-across 505 tracked files. Treating the Qt app as new code made a mechanical rename
+claim, which the pre-rename baseline contradicted: the 505 tracked frontend files
+were byte-identical to the reference tree before Ferrum-specific changes. Treating the Qt app as new code made a mechanical rename
 look like an authorship question and left M1 unactionable.
 
 Three revisions distinguish v3 from v2.
@@ -185,20 +184,22 @@ records the decision in the milestone's changelog entry. A divergence classified
 
 | Area | State |
 | --- | --- |
-| `packages/ferrum-chem-qt.app/` | 505 tracked files, byte-identical copy of `bkchem-qt.app`. Metadata identifies Ferrum-Qt; the Python namespace remains `bkchem_qt` until M1b. |
-| `pyproject.toml` (Qt app) | `name = "ferrum-qt"`, `license = "AGPL-3.0-only"`, correct Ferrum GitHub URLs, a temporary `ferrum-qt` entry target, and migration-only `oasa>=26.08` |
+| `packages/ferrum-chem-qt.app/` | Retained frontend now uses the `ferrum_qt` namespace and Ferrum-Qt product identity. Migration-only OASA calls remain until their Rust replacements land. |
+| `pyproject.toml` (Qt app) | `name = "ferrum-qt"`, `license = "AGPL-3.0-only"`, correct Ferrum GitHub URLs, and the intentional installed `ferrum-qt` console entry point. The application remains a migration preview with `oasa>=26.08` until its replacement work lands. |
 | OASA coupling | 445 `oasa` tokens in 18 production files; 64 direct imports in 16 files. The production tree has zero direct Tk/Tkinter imports and 29 historical Tk/Tcl text hits. |
-| `packages/ferrum-rust/` | Seven-crate workspace skeleton (api, chemistry, core, document, domain, geometry, render); its scoped `target/` output is ignored |
+| `packages/ferrum-rust/` | Seven-crate workspace (api, chemistry, core, document, domain, geometry, render) with a runnable `ferrum` CDML inspection/rewrite CLI; its scoped `target/` output is ignored |
 | `bkchem_data` symlink | Removed through an escalated, staged `git rm`; package-owned resources resolve without the obsolete link |
 | Licensing | Complete canonical offline AGPL v3 and LGPL v3 texts and `docs/PROVENANCE.md` record the intended component boundary; this is not legal advice |
 | Scaffolding | `README.md`, `docs/CHANGELOG.md`, and split production/development dependency manifests are populated |
 | Hygiene tests | Root suite initially reported 2,967 passed and 200 M1a-scoped failures from empty README/manifests; after accepted metadata, README, and license fixes it reported 3,167 passed; final M1a suite reported 3,186 passed |
-| M1b capability evidence | `docs/active_plans/audits/ferrum_qt_capability_matrix.md` supplies 25 stable rows, including all seven export codecs, durable edits, numbering, and marks; namespace migration and start/open gates remain |
-| M1d preservation evidence | `docs/active_plans/audits/cdml_preservation_coverage.md` and three compact CDML fixtures are accepted as the content baseline; M1d still needs a separate-process oracle harness and divergence report |
+| M1b capability evidence | `docs/active_plans/audits/ferrum_qt_capability_matrix.md` supplies 25 stable rows, including all seven export codecs, durable edits, numbering, and marks. An installed `ferrum-qt` process now starts offscreen, opens `authored_document_forms.cdml` through the existing Qt/OASA-backed native CDML route, writes the controlled receipt, and exits without a traceback. This proves M1b rename/start/open behavior, not Rust-backend adoption or worker-format completion. |
+| M1e exclusion evidence | `tests/test_migration_import_exclusion.py` uses the positive Ferrum production selector with an empty active capability set. It excludes `OTHER_REPOS`, proves seeded OASA and Tk imports fail after activation, and does not claim unreplaced migration paths are clean. |
+| M4a packaging evidence | Repository audit found no tracked native shared libraries and also found the required tracked source recipe and clean-environment loader/relink E2E absent. Ignored local wheel/build outputs are non-deliverable diagnostic context, not milestone evidence; M4a remains not started. |
+| M1d preservation evidence | `docs/active_plans/audits/cdml_preservation_coverage.md`, three compact CDML fixtures, and separate-process comparison evidence are established. M1d remains open for real user documents plus no-namespace, future-version, alternate-prefix, and CD-SVG coverage. |
 | M6 XML storage | `ferrum-document` stores opaque CDML in `xot` 0.31.2. A one-time three-fixture probe establishes structural, not lexical, retention; DTD input is rejected without an external resolver, and raw source-slice fallback is not adopted. |
-| M7 identity and ordering | `IndexedDocument` derives direct-child records in source order, a document-wide `id_index` over every unqualified `id` including opaque content, root-relative element paths, and single-consumption provisional tokens. It never rewrites `idref`, endpoint attributes, or text. See `docs/active_plans/decisions/m7_document_identity_ordering.md`. |
-| M2 core model | `ferrum-core` implements atoms, bonds, molecules, identifiers, and error types, and `docs/active_plans/decisions/ferrum_core_model.md` is the accepted specification. `docs/active_plans/audits/m2_exit_gap.md` keeps the milestone open: no CDML-to-`Molecule` path exists, six carried fields have no public read accessor, and the oracle compares 6 of 19 carried fields. It rules the remaining work a one-way M2-scoped projection, not a circular dependency on M8. |
-| M8 typed records | `docs/active_plans/decisions/m8_typed_record_assignment.md` is the accepted typed-versus-opaque assignment table. It keys typed classes by parent context plus expanded name, records bracket artwork as `polyline` and vector graphics as the six shape rows, and fixes the unknown-attribute bag, unrecognized-child list, and additive-promotion rules. |
+| M7 identity and ordering | `IndexedDocument` derives direct-child records in source order, a declaration `id_index` that also reserves opaque IDs, root-relative element paths, and single-consumption provisional tokens. Fragment bond/vertex `id` references are excluded from declarations and never rewritten. See `docs/active_plans/decisions/document_identity_ordering.md`. |
+| M2 core model | `ferrum-core` implements the accepted immutable model, accessors, and presence-sensitive properties. The authoritative M8 document projection now reads every corpus molecule with versioned bond semantics. `docs/active_plans/reports/corpus_molecule_parity.md` records the accepted exact agreements, classified differences, zero unexpected differences, and two independent mutation proofs. |
+| M8 typed records | `ferrum-document` implements the accepted assignment as a single-tree typed overlay with context-qualified classes, named lexical fields, unknown-attribute bags, ordered opaque children, and non-demoting diagnostics. It is the sole production CDML reader and projects typed molecules into `ferrum-core`; evidence is in `docs/active_plans/reports/typed_document_records.md`. |
 | Reference material | `OTHER_REPOS/bkchem-oasa/` (gitignored) holds OASA, Tk BKChem, `docs/cdml_conformance/`, `docs/reference_outputs/`, and the contract docs; `OTHER_REPOS/rdkit/` (gitignored) holds the RDKit source for the M4 chemistry-adapter chain |
 
 ## Architecture boundaries and ownership
@@ -246,12 +247,12 @@ current -- it is the project's status tracker.
 | M | Title | Summary | Goal | Status | Owner |
 | --- | --- | --- | --- | --- | --- |
 | M1a | Identity and licensing | Two LICENSE files, metadata, scaffolding, symlink repair | Repository states what it is | done | `maintainer` |
-| M1b | Ferrum-Qt rename and capability matrix | Namespace rename plus an inventory of what the app does | App starts under new name; capabilities enumerated | in progress | `coder` |
+| M1b | Ferrum-Qt rename and capability matrix | Namespace rename plus an inventory of what the app does | App starts under new name; capabilities enumerated | done | `coder` |
 | M1c | Rust workspace skeleton | Crate layout matching the final architecture | `cargo build` succeeds | done | `coder` |
 | M1d | Oracle harness and preservation inventory | Pinned OASA harness plus CDML coverage inventory | Harness compares one capability; coverage known | in progress | `tester` |
-| M1e | Exclusion checks | Per-capability `oasa`/Tk import guard | Guard runs with an empty capability list | not started | `tester` |
-| M2 | Core model | Atoms, bonds, molecules, identifiers, errors | Corpus molecules load, fields agree with oracle | in progress | `coder` |
-| M3 | Graph and deterministic cycles | `petgraph` plus a project cycle basis | Graph parity green, cycle choice deterministic | not started | `coder` |
+| M1e | Exclusion checks | Per-capability `oasa`/Tk import guard | Guard runs with an empty capability list | done | `tester` |
+| M2 | Core model | Atoms, bonds, molecules, identifiers, errors | Corpus molecules load, fields agree with oracle | done | `coder` |
+| M3 | Graph and deterministic cycles | `petgraph` plus a project cycle basis | Graph parity green, cycle choice deterministic | done | `coder` |
 | M4a | Build and packaging viability | Pinned source build, dependency detection, loadable wheel | The distribution model is proven, not assumed | not started | `maintainer` |
 | M4b | Adapter semantics | C ABI surface, `ChemEngine`, stated defaults, kekulization | Chemistry reachable through one narrow trait | not started | `expert_coder` |
 | M4c | Coordinate parity and tolerance | Noise-floor measurement, then the parity gate | A justified coordinate tolerance exists | not started | `tester` |
@@ -259,7 +260,7 @@ current -- it is the project's status tracker.
 | M5 | Chemistry codecs | SMILES, SMARTS, molblock, SDF, InChI | Codec parity green | not started | `expert_coder` |
 | M6 | XML storage and opaque retention | `xot` layer, opaque subtrees | Structural preservation proven | done | `coder` |
 | M7 | Identity, ordering, references | Stable ids, canonical order, `id_index` | Ids and order survive round trips | done | `coder` |
-| M8 | Typed document records | Typed payloads plus unknown-attribute bags | Every class assigned and typed | not started | `coder` |
+| M8 | Typed document records | Typed payloads plus unknown-attribute bags | Every class assigned and typed | done | `coder` |
 | M8a | Early document session adoption | Narrow load/save session used by Ferrum-Qt | Thin workflow runs end to end | not started | `expert_coder` |
 | M9 | Document-core semantics | Atomicity, revisions, baseline, Recovery Export | Contract semantics implemented once | not started | `expert_coder` |
 | M10 | Full-corpus preservation | Integration of the document chain | Preservation gate green over the inventory | not started | `tester` |
@@ -329,14 +330,23 @@ regression, caught by the M1e exclusion check once the chemistry capability is l
 - Deliverables: `git mv` of the package directory and every import rewritten;
   resource and data paths updated; entry point renamed. Plus
   `docs/active_plans/audits/ferrum_qt_capability_matrix.md`, enumerating what the
-  application does today -- derived from `bkchem_qt/actions/`, `modes/`, `dialogs/`,
-  `io/export.py`, and the menu registry -- with a column per capability for its
-  owning milestone, its validation artifact, and its classification (supported,
-  known defect, unsupported path).
+  application does today -- originally derived from the pre-rename
+  `bkchem_qt/actions/`, `modes/`, `dialogs/`, `io/export.py`, and menu registry, now
+  located under `ferrum_qt/` -- with a column per capability for its owning
+  milestone, its validation artifact, and its classification (supported, known
+  defect, unsupported path).
 - Entry criteria: M1a metadata landed.
 - Exit criteria: the application starts and opens a CDML document; the hygiene suite
   passes over the renamed tree; every enumerated capability is classified and mapped
   to a milestone.
+- Exit evidence: an installed `ferrum-qt` process starts offscreen, opens
+  `tests/e2e/corpus/authored_document_forms.cdml` through the existing
+  Qt/OASA-backed native CDML route, dismisses warnings only inside the controlled
+  smoke fence, writes the fixed receipt, and exits cleanly without a traceback. This
+  proves M1b rename/start/open behavior, not Rust-backend adoption or worker-format
+  completion. The focused lifecycle and CLI suite reports 21 passing tests; the
+  package suite reports 918 passed and 1 skipped. Worker-routed non-CDML imports
+  remain a later capability-replacement risk, not an M1b failure.
 - Parallel-plan ready: yes -- the rename and the matrix are separable, though the
   matrix should be written before the rename obscures the original names.
 
@@ -395,6 +405,10 @@ assumption into a checkable claim.
   origin accurately.
 - Exit criteria: the guard passes with an empty capability list and fails a seeded
   violation.
+- Exit evidence: `tests/test_migration_import_exclusion.py` selects only Ferrum
+  production sources with `file_utils.discover_files`, excludes `OTHER_REPOS`, passes
+  with its empty active-capability set, and rejects seeded OASA and Tk imports after
+  the respective capability activates (4 passing focused tests).
 - Parallel-plan ready: no.
 
 ### Milestone: M2 core model
@@ -403,10 +417,11 @@ assumption into a checkable claim.
 - Deliverables: atoms, bonds, molecules, stable identifiers, error types; a model
   specification recording which fields are carried, which are computed, and the
   identifier stability guarantee; `proptest` round-trip properties.
-- Exit criteria: every corpus molecule loads, and each field Ferrum carries agrees
-  with the oracle. Fields Ferrum deliberately drops are listed in the model spec
-  with a reason. *Chemistry semantics outrank implementation fidelity* -- a field
-  OASA carried for bookkeeping may be dropped once the corpus comparison passes.
+- Exit criteria: every corpus molecule loads; each field agrees exactly where the
+  oracle is comparable, while direct source facts verify fields it cannot represent.
+  Source-absence defaults, dropped fields, and corrections are classified in the model
+  spec and report. *Chemistry semantics outrank implementation fidelity* -- an OASA
+  bookkeeping field may be dropped once the corpus comparison passes.
 - Parallel-plan ready: yes.
 
 ### Milestone: M3 graph and deterministic cycles
@@ -415,11 +430,11 @@ assumption into a checkable claim.
 - Deliverables: `petgraph` for bridges, articulation points, maximum matching,
   connected components, Dijkstra, Floyd-Warshall, and path connectivity, plus a
   project cycle basis over a spanning tree with fundamental cycles.
-- Exit criteria: graph parity green, and cycle selection returns the same basis
-  across repeated runs. Where the deterministic basis differs from OASA's
-  `rustworkx`-derived one, the divergence is classified **intended change** under
-  level 4 of the source-of-truth hierarchy, with the run-to-run instability of the
-  historical path recorded as the justification.
+- Implementation evidence: graph parity is green and exact cycle and matching outputs
+  repeat across 100 calls per fixture. The current reference cycle path was stable in
+  this probe. Ferrum's shorter bridged basis is an **intended change** under level 4;
+  `docs/active_plans/reports/graph_analysis_parity.md` corrects the older instability
+  assumption. The M2 prerequisite and M3 implementation are both green.
 - Parallel-plan ready: yes.
 
 ### Milestone: M4a build and packaging viability
@@ -508,18 +523,17 @@ not the chemistry.
 ### Milestone: M8 typed document records
 
 - Depends on: M7, M2.
-- Entry criteria: the M2 harness loader
-  `packages/ferrum-rust/crates/core/examples/m2_corpus_cdml_loader.rs` is scheduled for
-  deletion inside this milestone. M8 does not exit while two CDML readers exist:
-  `tests/test_cdml_reader_inventory.py` must pass with the M2 loader removed from both
-  the tree and the allowlist, and `xot` removed from `crates/core/Cargo.toml`
+- Entry evidence: the disposable M2 harness reader was deleted during this milestone.
+  The corpus comparison now consumes `ferrum-document`'s typed projection, so there is
+  one CDML reader. `tests/test_cdml_reader_inventory.py` passes with only the document
+  crate allowed, and `xot` is absent from `crates/core/Cargo.toml`
   `[dev-dependencies]`.
 - Deliverables: typed payloads for every class present in CDML today -- molecule,
   reaction, arrow, text, plus sign, the six vector-graphic shapes (`rect`, `square`,
   `oval`, `circle`, `polygon`, `polyline`), and the molecule-scoped `group` vertex --
   each with an unknown-attribute bag and an unrecognized-child list; the
   typed-versus-opaque assignment table, accepted as
-  `docs/active_plans/decisions/m8_typed_record_assignment.md`. Bracket and vector
+  `docs/active_plans/decisions/typed_record_assignment.md`. Bracket and vector
   capabilities keep round-tripping without a class of their own: CDML has no
   `<bracket>` or `<vector>` element, the bracket tool persists its artwork as
   direct-root `<polyline>` records, and vector-graphic content is the six shape
@@ -646,6 +660,10 @@ semantics stay owned by M9, and full adoption stays at M16. What it buys is feed
 ### Milestone: M18 Python module and CLI
 
 - Depends on: M17.
+- Pre-milestone proof: the self-contained `ferrum cdml inspect` and
+  `ferrum cdml rewrite` shell interface is implemented and tested. This proves that
+  the Rust backend is directly runnable, but remains non-frozen until M17; it neither
+  starts formal M18 delivery nor satisfies the still-pending Python binding work.
 - Deliverables: bindings, generated `.pyi` stubs, and a CLI contract fixing
   subcommands, flags, exit codes, and stream behavior, derived from the Qt app's
   existing batch and export capabilities in the M1b matrix.
@@ -823,7 +841,7 @@ rather than filled with a placeholder number.
 | Render ops | Exact after the rounding documented at M12 | Declarative data with stated precision |
 | Raster output | Perceptual threshold with the algorithm and value derived at M13, pinned font environment | Anti-aliasing differs across backends |
 | Straighten port | Within tolerance derived at M11, both `minimizeRotation` branches | Floating-point trigonometry |
-| Cycle basis | Deterministic across runs; divergence from OASA classified intended change | The historical path varies by run |
+| Cycle basis | Deterministic across runs; divergence from OASA classified intended change | The current historical reference was stable in the 100-call probe; Ferrum owns a deterministic shorter-basis policy independent of dependency traversal |
 
 ### Performance expectations
 

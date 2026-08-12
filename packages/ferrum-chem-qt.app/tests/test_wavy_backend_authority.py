@@ -9,10 +9,10 @@ import pytest
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.io.cdml_candidate
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.modes.misc_mode
+import ferrum_qt.io.cdml_candidate
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.modes.misc_mode
 import oasa.cdml_document
 import oasa.cdml_writer
 import oasa.safe_xml
@@ -105,7 +105,7 @@ def _mixed_candidate() -> tuple[str, str]:
 	session = oasa.cdml_document.CDMLDocumentSession.load(_MIXED_CDML)
 	commit = session.commit(
 		expected_revision=0,
-		complete_cdml=bkchem_qt.io.cdml_candidate.append_wavy_candidate(
+		complete_cdml=ferrum_qt.io.cdml_candidate.append_wavy_candidate(
 			session.snapshot().cdml, token, ((0.0, 0.0), (36.0, 4.0), (72.0, 0.0)),
 		),
 	)
@@ -164,16 +164,16 @@ def _projected_wavy_semantics(
 
 #============================================
 def _live_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Return the live public session that owns the window's public document."""
 	return next(session for session in main_window.sessions if session.document is main_window.document)
 
 
 #============================================
 def _new_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Open and return one public fresh session."""
 	if not main_window.on_new():
 		raise RuntimeError("Public New did not create a Wavy test session")
@@ -182,8 +182,8 @@ def _new_session(
 
 #============================================
 def _close_clean_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		session: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Close one already-clean fresh session through the public tab API."""
 	if not main_window.close_session_at(main_window.sessions.index(session)):
@@ -192,12 +192,12 @@ def _close_clean_session(
 
 #============================================
 def _select_wavy(
-		session: bkchem_qt.models.document_session.DocumentSession,
-		) -> bkchem_qt.modes.misc_mode.MiscMode:
+		session: ferrum_qt.models.document_session.DocumentSession,
+		) -> ferrum_qt.modes.misc_mode.MiscMode:
 	"""Select the Wavy submode through the public session mode manager."""
 	session.mode_manager.set_mode("misc")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.misc_mode.MiscMode):
+	if not isinstance(mode, ferrum_qt.modes.misc_mode.MiscMode):
 		raise TypeError("Misc selection did not install MiscMode")
 	mode.set_submode("wavy")
 	return mode
@@ -205,7 +205,7 @@ def _select_wavy(
 
 #============================================
 def _drag_wavy(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		start: PySide6.QtCore.QPointF, end: PySide6.QtCore.QPointF,
 		) -> None:
 	"""Dispatch one normal Wavy drag through the public mode manager."""
@@ -225,13 +225,13 @@ def _projected_wavy_id(document: object) -> str:
 
 #============================================
 def _submit_status(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		payload: tuple[tuple[str, object], ...],
 		target_keys: frozenset[tuple[str, str]] = frozenset(),
 		) -> str:
 	"""Return the public rejection status for one Wavy payload."""
 	try:
-		request = bkchem_qt.models.document_session.PersistentOperationRequest(
+		request = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"wavy.add", "Wavy", payload, target_keys,
 		)
 	except TypeError:
@@ -300,7 +300,7 @@ def test_wavy_candidate_preserves_requested_geometry() -> None:
 	((('start', [0.0, 0.0]), ('end', (1.0, 0.0))), "construction-rejected"),
 ))
 def test_wavy_rejections_preserve_registered_backend(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		payload: tuple[tuple[str, object], ...], expected: str,
 		) -> None:
 	"""Invalid Wavy requests report rejection without changing public backend authority."""
@@ -313,7 +313,7 @@ def test_wavy_rejections_preserve_registered_backend(
 
 #============================================
 def test_wavy_targeted_creation_request_preserves_registered_authority(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A creation-only Wavy request rejects a durable target without mutation."""
 	session = _live_session(main_window)
@@ -328,13 +328,13 @@ def test_wavy_targeted_creation_request_preserves_registered_authority(
 
 #============================================
 def test_wavy_validation_precedes_candidate_building(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Invalid Wavy geometry reaches no candidate builder."""
 	session = _live_session(main_window)
 	builder_called = False
-	original = bkchem_qt.io.cdml_candidate.append_wavy_candidate
+	original = ferrum_qt.io.cdml_candidate.append_wavy_candidate
 
 	def capture(
 			complete_cdml: str, provisional_id: str,
@@ -345,7 +345,7 @@ def test_wavy_validation_precedes_candidate_building(
 		builder_called = True
 		return original(complete_cdml, provisional_id, points)
 
-	monkeypatch.setattr(bkchem_qt.io.cdml_candidate, "append_wavy_candidate", capture)
+	monkeypatch.setattr(ferrum_qt.io.cdml_candidate, "append_wavy_candidate", capture)
 
 	assert _submit_status(session, (("start", (-1e308, 0.0)), ("end", (1e308, 0.0)))) == "rejected"
 	assert builder_called is False
@@ -353,7 +353,7 @@ def test_wavy_validation_precedes_candidate_building(
 
 #============================================
 def test_registered_wavy_drag_matches_canonical_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A normal Wavy drag projects the canonical record selected by durable ID."""
 	session = _new_session(main_window)
@@ -372,7 +372,7 @@ def test_registered_wavy_drag_matches_canonical_projection(
 
 #============================================
 def test_registered_wavy_drag_has_requested_endpoints_and_bend(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A normal Wavy drag preserves its endpoints and includes a visible bend."""
 	session = _new_session(main_window)
@@ -395,7 +395,7 @@ def test_registered_wavy_drag_has_requested_endpoints_and_bend(
 
 #============================================
 def test_registered_wavy_drag_uses_backend_history_not_qt_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A registered Wavy uses backend history while the Qt stack remains empty."""
 	session = _new_session(main_window)
@@ -413,7 +413,7 @@ def test_registered_wavy_drag_uses_backend_history_not_qt_undo(
 
 #============================================
 def test_registered_wavy_public_undo_redo_reprojects_state(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Public backend undo and redo remove then restore canonical and projected Wavy."""
 	session = _new_session(main_window)
@@ -441,7 +441,7 @@ def test_registered_wavy_public_undo_redo_reprojects_state(
 
 #============================================
 def test_registered_wavy_authoritative_save_publishes_clean_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Authoritative Save publishes the canonical Wavy and resets its backend baseline."""
 	session = _new_session(main_window)

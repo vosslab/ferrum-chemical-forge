@@ -8,14 +8,14 @@ import pytest
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
 
 
 #============================================
 def _force_projection_unavailable(
-		main_window: bkchem_qt.main_window.MainWindow,
-		session: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Enter typed projection-unavailable through the production replacement path."""
@@ -38,7 +38,7 @@ def _force_projection_unavailable(
 
 #============================================
 def test_recovery_export_cancellation_blocks_ineligible_tab_close(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Cancelling the required recovery choice leaves its local tab intact."""
@@ -59,14 +59,14 @@ def test_recovery_export_cancellation_blocks_ineligible_tab_close(
 		lambda _message: "discard",
 	)
 	assert main_window.close_current_tab()
-	assert bkchem_qt.main_window.drain_pending_session_deletions(
+	assert ferrum_qt.main_window.drain_pending_session_deletions(
 		PySide6.QtWidgets.QApplication.instance(), main_window,
 	)
 
 
 #============================================
 def test_recovery_export_action_rejects_a_switched_captured_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Recovery Export never retargets a newly active tab after its path prompt."""
@@ -94,7 +94,7 @@ def test_recovery_export_action_rejects_a_switched_captured_session(
 
 #============================================
 def test_recovery_export_rejects_a_backend_snapshot_failure_at_the_close_boundary(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A malformed backend rejects action and close eligibility without escaping."""
@@ -116,7 +116,7 @@ def test_recovery_export_rejects_a_backend_snapshot_failure_at_the_close_boundar
 
 #============================================
 def test_recovery_export_close_dialog_queues_explicit_cleanup(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""The close prompt returns its choice and queues its owned dialog once."""
@@ -168,7 +168,7 @@ def test_recovery_export_close_dialog_queues_explicit_cleanup(
 
 #============================================
 def test_projection_unavailable_recovery_export_close_removes_exact_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A successful inactive close exports only its captured unavailable session."""
@@ -198,7 +198,7 @@ def test_projection_unavailable_recovery_export_close_removes_exact_session(
 
 #============================================
 def test_recovery_export_action_is_enabled_without_projection_and_disabled_on_disposal(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""The File action follows session liveness, not Qt projection availability."""
@@ -214,14 +214,14 @@ def test_recovery_export_action_is_enabled_without_projection_and_disabled_on_di
 	finally:
 		if session in main_window.sessions:
 			main_window._remove_session(session)
-		assert bkchem_qt.main_window.drain_pending_session_deletions(
+		assert ferrum_qt.main_window.drain_pending_session_deletions(
 			PySide6.QtWidgets.QApplication.instance(), main_window,
 		)
 
 
 #============================================
 def test_legacy_close_discloses_excluded_qt_local_edits_without_a_modal_loop(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Legacy close uses the injectable choice seam and direct Discard disposal."""
@@ -252,7 +252,7 @@ def test_legacy_close_discloses_excluded_qt_local_edits_without_a_modal_loop(
 
 #============================================
 def test_post_replace_recovery_export_failure_keeps_the_tab_open(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An unconfirmed replacement reports export facts and blocks close."""
@@ -265,7 +265,7 @@ def test_post_replace_recovery_export_failure_keeps_the_tab_open(
 
 	def fail_after_replace(_path: str) -> object:
 		"""Model the atomic writer's post-replacement durability failure."""
-		raise bkchem_qt.models.document_session.BackendSnapshotPublicationError(
+		raise ferrum_qt.models.document_session.BackendSnapshotPublicationError(
 			"directory durability failed",
 		)
 
@@ -304,7 +304,7 @@ def test_post_replace_recovery_export_failure_keeps_the_tab_open(
 
 #============================================
 def test_projection_unavailable_recovery_failure_retains_the_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed Recovery Export blocks close even without a live Qt document."""

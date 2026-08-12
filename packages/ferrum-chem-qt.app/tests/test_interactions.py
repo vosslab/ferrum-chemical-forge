@@ -10,18 +10,18 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.modes.draw_mode
-import bkchem_qt.models.atom_model
-import bkchem_qt.models.bond_model
-import bkchem_qt.models.molecule_model
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.actions.context_menu
+import ferrum_qt.modes.draw_mode
+import ferrum_qt.models.atom_model
+import ferrum_qt.models.bond_model
+import ferrum_qt.models.molecule_model
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.actions.context_menu
 
 
 #============================================
 def _complete_draw(
-		draw_mode: bkchem_qt.modes.draw_mode.DrawMode,
+		draw_mode: ferrum_qt.modes.draw_mode.DrawMode,
 		position: PySide6.QtCore.QPointF,
 		) -> None:
 	"""Commit one Draw click through the backend-owned session route."""
@@ -31,7 +31,7 @@ def _complete_draw(
 
 #============================================
 def _new_root_from_draw(
-		main_window: object, draw_mode: bkchem_qt.modes.draw_mode.DrawMode,
+		main_window: object, draw_mode: ferrum_qt.modes.draw_mode.DrawMode,
 		position: PySide6.QtCore.QPointF,
 		) -> object:
 	"""Commit a fresh root and return it across shared-session fixture resets."""
@@ -46,7 +46,7 @@ def _new_root_from_draw(
 #============================================
 def test_atom_dialog_applies_changes(qapp: object) -> None:
 	"""AtomDialog.edit_atom() can apply changes to an AtomModel."""
-	atom = bkchem_qt.models.atom_model.AtomModel(symbol="C")
+	atom = ferrum_qt.models.atom_model.AtomModel(symbol="C")
 	atom.set_xyz(0.0, 0.0, 0.0)
 	assert atom.symbol == "C", "should start as C"
 	# directly test property setting
@@ -61,7 +61,7 @@ def test_atom_dialog_applies_changes(qapp: object) -> None:
 #============================================
 def test_bond_dialog_applies_changes(qapp: object) -> None:
 	"""BondDialog.edit_bond() can apply changes to a BondModel."""
-	bond = bkchem_qt.models.bond_model.BondModel(order=1, bond_type="n")
+	bond = ferrum_qt.models.bond_model.BondModel(order=1, bond_type="n")
 	assert bond.order == 1, "should start as single"
 	assert bond.type == "n", "should start as normal"
 	# directly test property setting
@@ -83,23 +83,23 @@ def test_context_menu_delete_atom(main_window: object) -> None:
 	# verify atom exists
 	items = [
 		i for i in main_window.scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	]
 	assert len(items) == 1
 	# delete via context menu helper
-	bkchem_qt.actions.context_menu._delete_atom(
+	ferrum_qt.actions.context_menu._delete_atom(
 		main_window.view, atom_item
 	)
 	items = [
 		i for i in main_window.scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	]
 	assert len(items) == 0, "atom should be removed"
 	# undo should restore it
 	main_window.document.undo_stack.undo()
 	items = [
 		i for i in main_window.scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	]
 	assert len(items) == 1, "atom should be restored after undo"
 
@@ -135,7 +135,7 @@ def _count_atom_items(scene: object) -> int:
 	"""Count AtomItem instances in the scene."""
 	return sum(
 		1 for i in scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	)
 
 
@@ -144,7 +144,7 @@ def _count_bond_items(scene: object) -> int:
 	"""Count BondItem instances in the scene."""
 	return sum(
 		1 for i in scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.bond_item.BondItem)
+		if isinstance(i, ferrum_qt.canvas.items.bond_item.BondItem)
 	)
 
 
@@ -378,7 +378,7 @@ def test_find_place_zero_neighbors(main_window: object) -> None:
 #============================================
 def test_connected_display_atoms_returns_projection_neighbors_in_bond_order() -> None:
 	"""The public query exposes display neighbors and scalar bond orders only."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	center = molecule.create_atom()
 	first = molecule.create_atom()
 	second = molecule.create_atom()
@@ -396,14 +396,14 @@ def test_connected_display_atoms_returns_projection_neighbors_in_bond_order() ->
 #============================================
 def test_connected_display_atoms_rejects_foreign_atoms_and_invalid_endpoints() -> None:
 	"""The projection query fails loudly for cross-molecule and broken wrappers."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	first = molecule.create_atom()
 	second = molecule.create_atom()
 	for atom in (first, second):
 		molecule.add_atom(atom)
 	bond = molecule.create_bond()
 	molecule.add_bond(first, second, bond)
-	foreign = bkchem_qt.models.molecule_model.MoleculeModel().create_atom()
+	foreign = ferrum_qt.models.molecule_model.MoleculeModel().create_atom()
 	with pytest.raises(ValueError, match="does not belong"):
 		molecule.connected_display_atoms(foreign)
 	bond.atom2 = foreign
@@ -414,7 +414,7 @@ def test_connected_display_atoms_rejects_foreign_atoms_and_invalid_endpoints() -
 #============================================
 def test_molecule_topology_uses_qt_wrappers_for_cycles_and_removal() -> None:
 	"""A disposable projection reports wrapper cycles and retires wrappers."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	atoms = [molecule.create_atom() for unused_index in range(3)]
 	for atom in atoms:
 		molecule.add_atom(atom)
@@ -430,7 +430,7 @@ def test_molecule_topology_uses_qt_wrappers_for_cycles_and_removal() -> None:
 #============================================
 def test_molecule_model_owns_active_wrappers_and_releases_removed_ones() -> None:
 	"""Wrapper QObject ownership follows the disposable topology lifecycle."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	first = molecule.create_atom()
 	second = molecule.create_atom()
 	molecule.add_atom(first)
@@ -445,7 +445,7 @@ def test_molecule_model_owns_active_wrappers_and_releases_removed_ones() -> None
 #============================================
 def test_molecule_topology_rejects_nonchemical_self_and_parallel_edges() -> None:
 	"""One bond order, rather than duplicate edges, represents one atom pair."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	first = molecule.create_atom()
 	second = molecule.create_atom()
 	molecule.add_atom(first)
@@ -460,8 +460,8 @@ def test_molecule_topology_rejects_nonchemical_self_and_parallel_edges() -> None
 #============================================
 def test_molecule_topology_handles_empty_and_disconnected_projections() -> None:
 	"""Projection connectivity has explicit empty and disconnected behavior."""
-	empty = bkchem_qt.models.molecule_model.MoleculeModel()
-	disconnected = bkchem_qt.models.molecule_model.MoleculeModel()
+	empty = ferrum_qt.models.molecule_model.MoleculeModel()
+	disconnected = ferrum_qt.models.molecule_model.MoleculeModel()
 	disconnected.add_atom(disconnected.create_atom())
 	disconnected.add_atom(disconnected.create_atom())
 	assert (empty.is_connected(), empty.contains_cycle()) == (False, False)
@@ -471,7 +471,7 @@ def test_molecule_topology_handles_empty_and_disconnected_projections() -> None:
 #============================================
 def test_molecule_model_source_has_no_oasa_import_boundary() -> None:
 	"""The projection topology module has no direct backend graph import."""
-	source_path = pathlib.Path(bkchem_qt.models.molecule_model.__file__)
+	source_path = pathlib.Path(ferrum_qt.models.molecule_model.__file__)
 	tree = ast.parse(source_path.read_text(encoding="utf-8"))
 	modules = [
 			alias.name
@@ -488,7 +488,7 @@ def test_molecule_model_source_has_no_oasa_import_boundary() -> None:
 #============================================
 def test_bond_model_source_has_no_oasa_import_boundary() -> None:
 	"""The scalar bond projection module has no backend import or construction."""
-	source_path = pathlib.Path(bkchem_qt.models.bond_model.__file__)
+	source_path = pathlib.Path(ferrum_qt.models.bond_model.__file__)
 	tree = ast.parse(source_path.read_text(encoding="utf-8"))
 	modules = [
 			alias.name
@@ -510,7 +510,7 @@ def test_bond_model_source_has_no_oasa_import_boundary() -> None:
 #============================================
 def test_atom_model_source_has_no_oasa_carrier_boundary() -> None:
 	"""The scalar atom projection neither imports nor constructs OASA atoms."""
-	source_path = pathlib.Path(bkchem_qt.models.atom_model.__file__)
+	source_path = pathlib.Path(ferrum_qt.models.atom_model.__file__)
 	tree = ast.parse(source_path.read_text(encoding="utf-8"))
 	modules = [
 			alias.name
@@ -645,8 +645,8 @@ def _make_bonded_items(
 	Uses MoleculeModel to properly wire the OASA graph connectivity
 	so edge.vertices returns the correct atoms for bond rendering.
 	"""
-	import bkchem_qt.models.molecule_model
-	mol_model = bkchem_qt.models.molecule_model.MoleculeModel()
+	import ferrum_qt.models.molecule_model
+	mol_model = ferrum_qt.models.molecule_model.MoleculeModel()
 	a1 = mol_model.create_atom(symbol=symbol1)
 	a2 = mol_model.create_atom(symbol=symbol2)
 	a1.set_xyz(x1, y1, 0.0)
@@ -655,7 +655,7 @@ def _make_bonded_items(
 	mol_model.add_atom(a2)
 	bond = mol_model.create_bond(order=1, bond_type="n")
 	mol_model.add_bond(a1, a2, bond)
-	bond_item = bkchem_qt.canvas.items.bond_item.BondItem(bond)
+	bond_item = ferrum_qt.canvas.items.bond_item.BondItem(bond)
 	return a1, a2, bond, bond_item
 
 

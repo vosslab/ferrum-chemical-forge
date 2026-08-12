@@ -5,8 +5,8 @@ import pytest
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.bridge.worker
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.bridge.worker
 import oasa.cdml
 import oasa.peptide_utils
 
@@ -30,7 +30,7 @@ def test_text_insertion_preparation_returns_a_plain_backend_proposal(
 		codec_name: str, source_text: str, label: str, expected_formula: str,
 		) -> None:
 	"""Both supported text codecs produce the same immutable insertion shape."""
-	prepared = bkchem_qt.bridge.worker._prepare_text_molecule_insertion(
+	prepared = ferrum_qt.bridge.worker._prepare_text_molecule_insertion(
 		codec_name, source_text, 4, "text-import", 35.0, (120.0, 240.0), label,
 	)
 
@@ -41,8 +41,8 @@ def test_text_insertion_preparation_returns_a_plain_backend_proposal(
 #============================================
 def test_peptide_text_validation_carries_its_dialog_stage() -> None:
 	"""Invalid peptide input keeps the parser-specific UI failure vocabulary."""
-	with pytest.raises(bkchem_qt.bridge.worker.TextImportPreparationError) as error:
-		bkchem_qt.bridge.worker._prepare_text_molecule_insertion(
+	with pytest.raises(ferrum_qt.bridge.worker.TextImportPreparationError) as error:
+		ferrum_qt.bridge.worker._prepare_text_molecule_insertion(
 			"peptide", "A?", 0, "invalid", 35.0, (0.0, 0.0), "Import peptide",
 		)
 
@@ -63,12 +63,12 @@ def test_text_insertion_commits_through_backend_history_only(
 	"""Accepted text insertion changes backend state and remains backend-undoable."""
 	target = main_window._active_session
 	request_token = target.begin_import_request()
-	prepared = bkchem_qt.bridge.worker._prepare_text_molecule_insertion(
+	prepared = ferrum_qt.bridge.worker._prepare_text_molecule_insertion(
 		codec_name, source_text, target.backend_snapshot.revision,
 		"accepted-%s" % codec_name,
 		35.0, (120.0, 240.0), label,
 	)
-	delivery = bkchem_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
+	delivery = ferrum_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
 		main_window, target, request_token, prepared.expected_revision,
 		codec_name, label, lambda _app, _message: None,
 	)
@@ -90,12 +90,12 @@ def test_stale_text_insertion_leaves_the_backend_snapshot_unchanged(
 		) -> None:
 	"""A stale text proposal is discarded before an authoritative commit begins."""
 	target = main_window._active_session
-	prepared = bkchem_qt.bridge.worker._prepare_text_molecule_insertion(
+	prepared = ferrum_qt.bridge.worker._prepare_text_molecule_insertion(
 		"inchi", "InChI=1S/CH4/h1H4", target.backend_snapshot.revision,
 		"stale", 35.0, (120.0, 240.0), "Imported InChI molecule",
 	)
 	request_token = target.begin_import_request()
-	delivery = bkchem_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
+	delivery = ferrum_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
 		main_window, target, request_token, prepared.expected_revision, "InChI",
 		prepared.label, lambda _app, _message: None,
 	)
@@ -120,11 +120,11 @@ def test_mismatched_text_revision_is_rejected_before_backend_mutation(
 		) -> None:
 	"""A delayed text proposal is never rebased onto a later session revision."""
 	target = main_window._active_session
-	prepared = bkchem_qt.bridge.worker._prepare_text_molecule_insertion(
+	prepared = ferrum_qt.bridge.worker._prepare_text_molecule_insertion(
 		codec_name, source_text, target.backend_snapshot.revision,
 		"mismatched-%s" % codec_name, 35.0, (120.0, 240.0), label,
 	)
-	delivery = bkchem_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
+	delivery = ferrum_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
 		main_window, target, target.begin_import_request(),
 		prepared.expected_revision + 1, codec_name, label, lambda _app, _message: None,
 	)
@@ -150,7 +150,7 @@ def test_text_action_uses_the_shared_plain_proposal_worker(
 		) -> None:
 	"""Every text route constructs the shared worker from plain scalar inputs."""
 	captured = []
-	original_init = bkchem_qt.bridge.worker.TextMoleculeInsertionWorker.__init__
+	original_init = ferrum_qt.bridge.worker.TextMoleculeInsertionWorker.__init__
 	def capture_init(
 			worker: object, worker_codec: str, worker_text: str,
 			expected_revision: int, token_stem: str, mean_bond_length: float,
@@ -165,16 +165,16 @@ def test_text_action_uses_the_shared_plain_proposal_worker(
 			mean_bond_length, insertion_anchor, worker_label,
 		)
 	monkeypatch.setattr(
-		bkchem_qt.bridge.worker.TextMoleculeInsertionWorker, "__init__", capture_init,
+		ferrum_qt.bridge.worker.TextMoleculeInsertionWorker, "__init__", capture_init,
 	)
 	monkeypatch.setattr(
-		bkchem_qt.bridge.worker.TextMoleculeInsertionWorker, "start", lambda _worker: None,
+		ferrum_qt.bridge.worker.TextMoleculeInsertionWorker, "start", lambda _worker: None,
 	)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText", lambda *_args: (source_text, True),
 	)
 	try:
-		getattr(bkchem_qt.actions.chemistry_actions, action_name)(main_window)
+		getattr(ferrum_qt.actions.chemistry_actions, action_name)(main_window)
 		status_message = main_window.statusBar().currentMessage()
 	finally:
 		for worker in tuple(main_window._active_session._import_workers):
@@ -197,19 +197,19 @@ def test_peptide_worker_preserves_validation_error_through_the_common_relay(
 		) -> None:
 	"""The generic worker still reports peptide validation with its existing label."""
 	reported = []
-	worker = bkchem_qt.bridge.worker.TextMoleculeInsertionWorker(
+	worker = ferrum_qt.bridge.worker.TextMoleculeInsertionWorker(
 		"peptide", "A?", 0, "invalid", 35.0, (0.0, 0.0), "Import peptide",
 	)
-	delivery = bkchem_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
+	delivery = ferrum_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
 		main_window, main_window._active_session,
 		main_window._active_session.begin_import_request(), 0, "Peptide Sequence",
-		"Import peptide", bkchem_qt.actions.chemistry_actions._show_peptide_import_error,
+		"Import peptide", ferrum_qt.actions.chemistry_actions._show_peptide_import_error,
 	)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QMessageBox, "warning",
 		lambda _app, title, body: reported.append((title, body)),
 	)
-	relay = bkchem_qt.actions.chemistry_actions._MoleculeInsertionResultRelay(
+	relay = ferrum_qt.actions.chemistry_actions._MoleculeInsertionResultRelay(
 		main_window._active_session, worker, delivery,
 	)
 	worker._result_relay = relay

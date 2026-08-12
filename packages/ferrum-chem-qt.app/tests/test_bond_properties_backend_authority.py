@@ -5,13 +5,13 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.context_menu
-import bkchem_qt.actions.object_actions
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.dialogs.bond_dialog
-import bkchem_qt.main_window
-import bkchem_qt.models.bond_model
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.context_menu
+import ferrum_qt.actions.object_actions
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.dialogs.bond_dialog
+import ferrum_qt.main_window
+import ferrum_qt.models.bond_model
+import ferrum_qt.models.document_session
 
 
 _CDML = (
@@ -24,9 +24,9 @@ _CDML = (
 
 
 #============================================
-def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _install_native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Register one projected native-CDML session for a Properties action."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	projection = registered.retry_current_backend_projection()
@@ -39,7 +39,7 @@ def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> ob
 def _bond_item(session: object) -> object:
 	"""Return the projected direct-core bond item."""
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem):
+		if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem):
 			return item
 	raise AssertionError("Projected CDML did not produce a BondItem")
 
@@ -59,7 +59,7 @@ def _selected_bond_ids(session: object) -> set[str]:
 	return {
 		item.bond_model.backend_durable_id
 		for item in session.scene.selectedItems()
-		if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+		if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 		and item.bond_model.backend_durable_id is not None
 	}
 
@@ -83,16 +83,16 @@ def _accept_changes(monkeypatch: pytest.MonkeyPatch, changes: tuple[tuple[str, o
 		"""Return the caller-owned immutable intent."""
 		return changes
 
-	monkeypatch.setattr(bkchem_qt.dialogs.bond_dialog.BondDialog, "exec", accept)
-	monkeypatch.setattr(bkchem_qt.dialogs.bond_dialog.BondDialog, "changes", returned_changes)
+	monkeypatch.setattr(ferrum_qt.dialogs.bond_dialog.BondDialog, "exec", accept)
+	monkeypatch.setattr(ferrum_qt.dialogs.bond_dialog.BondDialog, "changes", returned_changes)
 
 
 #============================================
 def test_bond_dialog_is_detached_and_absent_center_is_inert(qapp: object) -> None:
 	"""Opening, cancelling, or accepting no changes never touches the model."""
-	model = bkchem_qt.models.bond_model.BondModel()
+	model = ferrum_qt.models.bond_model.BondModel()
 	model.center = None
-	dialog = bkchem_qt.dialogs.bond_dialog.BondDialog(model)
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
 
 	assert not hasattr(dialog, "_bond_model") and not dialog._center_check.isChecked()
 	assert dialog.changes() == () and model.center is None
@@ -100,13 +100,13 @@ def test_bond_dialog_is_detached_and_absent_center_is_inert(qapp: object) -> Non
 
 #============================================
 def test_context_properties_commits_once_and_restores_fresh_selection(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Public Properties creates one backend revision and selects its fresh bond."""
 	session = _install_native_session(main_window)
 	menu = None
 	try:
-		menu = bkchem_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
+		menu = ferrum_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
 		_accept_changes(monkeypatch, (("type", "h"), ("color", "#112233")))
 		old_document = session.document
 		_properties_action(menu).trigger()
@@ -127,7 +127,7 @@ def test_context_properties_commits_once_and_restores_fresh_selection(
 
 #============================================
 def test_bond_dialog_rejects_a_revision_changed_while_modal(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A modal bond intent cannot apply after a newer backend commit."""
 	session = _install_native_session(main_window)
@@ -159,9 +159,9 @@ def test_bond_dialog_rejects_a_revision_changed_while_modal(
 			"""Return the stale bond intent after the intervening commit."""
 			return (("order", 3),)
 
-		monkeypatch.setattr(bkchem_qt.dialogs.bond_dialog.BondDialog, "exec", accept_after_intervening_commit)
-		monkeypatch.setattr(bkchem_qt.dialogs.bond_dialog.BondDialog, "changes", returned_changes)
-		changed = bkchem_qt.actions.property_editing.edit_bond_properties(
+		monkeypatch.setattr(ferrum_qt.dialogs.bond_dialog.BondDialog, "exec", accept_after_intervening_commit)
+		monkeypatch.setattr(ferrum_qt.dialogs.bond_dialog.BondDialog, "changes", returned_changes)
+		changed = ferrum_qt.actions.property_editing.edit_bond_properties(
 			bond_item.bond_model, session.view, session.document.undo_stack,
 		)
 		post_intervening_snapshot = outcomes[0].commit.snapshot
@@ -185,7 +185,7 @@ def test_bond_dialog_rejects_a_revision_changed_while_modal(
 
 #============================================
 def test_stale_bond_patch_rejects_before_property_executor(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Session rejects a stale plain bond request before calling OASA's patch executor."""
 	session = _install_native_session(main_window)
@@ -224,7 +224,7 @@ def test_stale_bond_patch_rejects_before_property_executor(
 
 #============================================
 def test_invalid_bond_patch_preserves_the_installed_qt_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An invalid bond intent leaves the complete projected session untouched."""
 	session = _install_native_session(main_window)
@@ -254,7 +254,7 @@ def test_invalid_bond_patch_preserves_the_installed_qt_session(
 #============================================
 @pytest.mark.parametrize("route", ("Object > Configure", "EditMode Properties"))
 def test_bond_property_dialog_routes_commit_authoritative_projection(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		route: str,
 		) -> None:
 	"""Object Configure and EditMode share the synchronized bond patch route."""
@@ -264,7 +264,7 @@ def test_bond_property_dialog_routes_commit_authoritative_projection(
 		_accept_changes(monkeypatch, (("color", "#112233"),))
 		old_document = session.document
 		if route == "Object > Configure":
-			bkchem_qt.actions.object_actions.handle_configure(main_window)
+			ferrum_qt.actions.object_actions.handle_configure(main_window)
 		else:
 			session.mode_manager.set_mode("edit")
 			session.mode_manager.current_mode._edit_bond_properties(bond_item)
@@ -282,13 +282,13 @@ def test_bond_property_dialog_routes_commit_authoritative_projection(
 
 #============================================
 def test_properties_projection_retry_never_resubmits_and_restores_selection(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A post-acceptance failure retries only the committed snapshot and selection."""
 	session = _install_native_session(main_window)
 	menu = None
 	try:
-		menu = bkchem_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
+		menu = ferrum_qt.actions.context_menu._bond_context_menu(_bond_item(session), session.view)
 		_accept_changes(monkeypatch, (("order", 2),))
 		install_projection = session._install_prepared_projection
 		backend_patch = session._backend_session.patch_bond_properties
@@ -333,7 +333,7 @@ def test_properties_projection_retry_never_resubmits_and_restores_selection(
 
 #============================================
 def test_property_dock_rebind_keeps_its_prior_tab_capability(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A dock callback captured before a tab switch cannot redirect to the new tab."""
 	first = _install_native_session(main_window)
@@ -360,7 +360,7 @@ def test_property_dock_rebind_keeps_its_prior_tab_capability(
 
 #============================================
 def test_property_dock_canonical_bond_noop_retains_its_originating_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A dock-provided same-value intent consumes no history in its original tab."""
 	first = _install_native_session(main_window)
@@ -395,7 +395,7 @@ def test_property_dock_canonical_bond_noop_retains_its_originating_session(
 
 #============================================
 def test_property_dock_combo_commits_its_synchronized_tab_only(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A dock control commits its bound tab before a later tab becomes active."""
 	first = _install_native_session(main_window)
@@ -426,7 +426,7 @@ def test_property_dock_combo_commits_its_synchronized_tab_only(
 
 #============================================
 def test_property_dock_bond_stale_event_refreshes_without_local_undo(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A stale dock event keeps the intervening bond snapshot authoritative."""
 	session = _install_native_session(main_window)
@@ -489,7 +489,7 @@ def test_property_dock_bond_stale_event_refreshes_without_local_undo(
 
 #============================================
 def test_active_session_recovery_rebinds_bond_properties_capability(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Activation recovery restores the dock with its exact session capability."""
 	first = _install_native_session(main_window)

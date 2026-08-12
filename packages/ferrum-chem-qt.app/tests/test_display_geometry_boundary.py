@@ -10,29 +10,29 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.bridge.display_geometry
-import bkchem_qt.config.geometry_units
-import bkchem_qt.widgets.periodic_table
+import ferrum_qt.bridge.display_geometry
+import ferrum_qt.config.geometry_units
+import ferrum_qt.widgets.periodic_table
 
 
 _CONSUMER_MODULES = (
-	"bkchem_qt/widgets/periodic_table.py",
-	"bkchem_qt/canvas/scene.py",
-	"bkchem_qt/config/geometry_units.py",
-	"bkchem_qt/canvas/items/render_ops_painter.py",
-	"bkchem_qt/canvas/items/atom_item.py",
-	"bkchem_qt/canvas/items/bond_item.py",
+	"ferrum_qt/widgets/periodic_table.py",
+	"ferrum_qt/canvas/scene.py",
+	"ferrum_qt/config/geometry_units.py",
+	"ferrum_qt/canvas/items/render_ops_painter.py",
+	"ferrum_qt/canvas/items/atom_item.py",
+	"ferrum_qt/canvas/items/bond_item.py",
 )
-_QT_PACKAGE_ROOT = pathlib.Path(__file__).parents[1] / "bkchem_qt"
+_QT_PACKAGE_ROOT = pathlib.Path(__file__).parents[1] / "ferrum_qt"
 
 
 #============================================
 def test_scalar_geometry_bridge_returns_immutable_finite_lattice_values() -> None:
 	"""A bounded grid request returns safe scalar facts instead of OASA containers."""
-	points = bkchem_qt.bridge.display_geometry.hex_grid_points(
+	points = ferrum_qt.bridge.display_geometry.hex_grid_points(
 		0.0, 0.0, 120.0, 90.0, 30.0,
 	)
-	edges = bkchem_qt.bridge.display_geometry.hex_grid_edges(
+	edges = ferrum_qt.bridge.display_geometry.hex_grid_edges(
 		0.0, 0.0, 120.0, 90.0, 30.0,
 	)
 
@@ -46,7 +46,7 @@ def test_scalar_geometry_bridge_returns_immutable_finite_lattice_values() -> Non
 def test_scalar_geometry_bridge_rejects_nonfinite_snap_input() -> None:
 	"""Invalid interaction coordinates receive the stable typed boundary error."""
 	with pytest.raises(ValueError, match="must be finite"):
-		bkchem_qt.bridge.display_geometry.snap_to_hex_grid(math.inf, 0.0, 40.0)
+		ferrum_qt.bridge.display_geometry.snap_to_hex_grid(math.inf, 0.0, 40.0)
 
 
 #============================================
@@ -76,7 +76,7 @@ def test_scene_spacing_commit_keeps_current_grid_when_bridge_build_fails(
 		raise ValueError("simulated display-geometry failure")
 
 	monkeypatch.setattr(
-		bkchem_qt.bridge.display_geometry, "hex_grid_edges", fail_grid_build,
+		ferrum_qt.bridge.display_geometry, "hex_grid_edges", fail_grid_build,
 	)
 	with pytest.raises(ValueError, match="simulated display-geometry failure"):
 		scene.set_grid_spacing_pt(52.0)
@@ -91,15 +91,15 @@ def test_scalar_geometry_bridge_rejects_non_numeric_coordinate_forms(
 		) -> None:
 	"""The boundary rejects values that cannot describe a CDML coordinate."""
 	with pytest.raises(ValueError):
-		bkchem_qt.bridge.display_geometry.cm_to_points(invalid_value)
+		ferrum_qt.bridge.display_geometry.cm_to_points(invalid_value)
 
 
 #============================================
 def test_geometry_units_round_trip_through_plain_bridge_scale() -> None:
 	"""Qt configuration preserves the backend CDML physical coordinate scale."""
 	centimetres = 2.54
-	converted = bkchem_qt.config.geometry_units.pt_to_cm(
-		bkchem_qt.config.geometry_units.cm_to_pt(centimetres)
+	converted = ferrum_qt.config.geometry_units.pt_to_cm(
+		ferrum_qt.config.geometry_units.cm_to_pt(centimetres)
 	)
 
 	assert converted == pytest.approx(centimetres)
@@ -111,12 +111,12 @@ def test_periodic_table_widget_projects_bridge_color(
 		) -> None:
 	"""A visible element button receives its normalized scalar bridge color."""
 	del qapp
-	dialog = bkchem_qt.widgets.periodic_table.PeriodicTablePopup()
+	dialog = ferrum_qt.widgets.periodic_table.PeriodicTablePopup()
 	carbon_button = next(
 		button for button in dialog.findChildren(PySide6.QtWidgets.QPushButton)
 		if button.text() == "C"
 	)
-	color = bkchem_qt.bridge.display_geometry.element_category_color("C")
+	color = ferrum_qt.bridge.display_geometry.element_category_color("C")
 	style_sheet = carbon_button.styleSheet()
 	dialog.close()
 	dialog.deleteLater()
@@ -129,7 +129,7 @@ def test_display_geometry_consumers_have_no_direct_oasa_imports() -> None:
 	"""Qt consumers receive OASA-derived display facts only through their bridge."""
 	violations = []
 	for relative_path in _CONSUMER_MODULES:
-		path = _QT_PACKAGE_ROOT / relative_path.removeprefix("bkchem_qt/")
+		path = _QT_PACKAGE_ROOT / relative_path.removeprefix("ferrum_qt/")
 		module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 		for node in ast.walk(module):
 			if isinstance(node, ast.Import):

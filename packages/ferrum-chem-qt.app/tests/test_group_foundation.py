@@ -4,10 +4,10 @@
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.action_registry
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.canvas.items.group_item
-import bkchem_qt.io.cdml_document_io
+import ferrum_qt.actions.action_registry
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.canvas.items.group_item
+import ferrum_qt.io.cdml_document_io
 import oasa.cdml_document
 import tests.graphics_test_retirement
 
@@ -33,16 +33,16 @@ def test_builtin_group_projection_keeps_expand_action_disabled(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A builtin group remains outside the narrow implicit expansion route."""
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string(_GROUP_CDML)
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string(_GROUP_CDML)
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
 	group = document.molecules[0].groups[0]
-	item = bkchem_qt.canvas.items.group_item.GroupItem(group)
+	item = ferrum_qt.canvas.items.group_item.GroupItem(group)
 	with tests.graphics_test_retirement.bare_document_scene_retirement(qapp, document, scene):
 		scene.addItem(item)
 		item.setSelected(True)
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
-		bkchem_qt.actions.chemistry_actions.register_chemistry_actions(
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
+		ferrum_qt.actions.chemistry_actions.register_chemistry_actions(
 				registry, _ActionApp(document),
 			)
 		assert document.groups_selected
@@ -57,7 +57,7 @@ def test_group_observation_keeps_nameless_partial_font_labels_selectable() -> No
 	)
 	backend = oasa.cdml_document.CDMLDocumentSession.load(cdml)
 	projection_snapshot = backend.projection_snapshot()
-	document = bkchem_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
+	document = ferrum_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
 		projection_snapshot,
 	)
 	group = document.molecules[0].groups[0]
@@ -72,7 +72,7 @@ def test_group_item_teardown_disconnects_before_scene_clear(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A group projection follows the session's explicit graphics disposal path."""
-	class GroupItemProbe(bkchem_qt.canvas.items.group_item.GroupItem):
+	class GroupItemProbe(ferrum_qt.canvas.items.group_item.GroupItem):
 		"""Capture disposal state before native scene retirement invalidates the wrapper."""
 
 		#============================================
@@ -87,7 +87,7 @@ def test_group_item_teardown_disconnects_before_scene_clear(
 			super().dispose()
 			self._disposal_state["connected_after_dispose"] = self._connected
 
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string(_GROUP_CDML)
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string(_GROUP_CDML)
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
 	disposal_state: dict[str, bool] = {}

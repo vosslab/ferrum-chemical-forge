@@ -4,8 +4,8 @@
 import PySide6.QtGui
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.models.document
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.models.document
 
 
 #============================================
@@ -36,7 +36,7 @@ def test_draw_mode_creates_atom(main_window: object) -> None:
 	# count items before
 	atom_items_before = [
 		i for i in main_window.scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	]
 	assert len(atom_items_before) == 0, "should start with no atoms"
 	# create an atom
@@ -45,7 +45,7 @@ def test_draw_mode_creates_atom(main_window: object) -> None:
 	# verify scene has the atom
 	atom_items_after = [
 		i for i in main_window.scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	]
 	assert len(atom_items_after) == 1, "should have 1 atom after creation"
 	# verify document has the molecule
@@ -66,14 +66,14 @@ def test_undo_removes_atom(main_window: object) -> None:
 	draw_mode._create_atom_at(100.0, 200.0, "C")
 	atom_items = [
 		i for i in main_window.scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	]
 	assert len(atom_items) == 1, "should have 1 atom"
 	# undo
 	main_window.document.undo_stack.undo()
 	atom_items = [
 		i for i in main_window.scene.items()
-		if isinstance(i, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(i, ferrum_qt.canvas.items.atom_item.AtomItem)
 	]
 	assert len(atom_items) == 0, "should have 0 atoms after undo"
 
@@ -83,7 +83,7 @@ def test_new_document_rewires_view(main_window: object) -> None:
 	"""set_document() on a new Document re-wires view.document."""
 	old_doc = main_window.document
 	# create a fresh document and wire it
-	new_doc = bkchem_qt.models.document.Document(main_window)
+	new_doc = ferrum_qt.models.document.Document(main_window)
 	main_window._view.set_document(new_doc)
 	assert main_window.view.document is new_doc, (
 		"view.document should point to new doc"

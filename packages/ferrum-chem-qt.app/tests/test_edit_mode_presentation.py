@@ -4,10 +4,10 @@
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.main_window
-import bkchem_qt.models.document_object
-import bkchem_qt.undo.commands
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.main_window
+import ferrum_qt.models.document_object
+import ferrum_qt.undo.commands
 
 
 #============================================
@@ -26,7 +26,7 @@ class _MouseEvent:
 
 
 #============================================
-def _edit_mode(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _edit_mode(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Activate and return the document's edit interaction mode."""
 	main_window._mode_manager.set_mode("edit")
 	mode = main_window._mode_manager.current_mode
@@ -35,17 +35,17 @@ def _edit_mode(main_window: bkchem_qt.main_window.MainWindow) -> object:
 
 
 #============================================
-def _add_presentation(main_window: bkchem_qt.main_window.MainWindow) -> tuple:
+def _add_presentation(main_window: ferrum_qt.main_window.MainWindow) -> tuple:
 	"""Add one persistent line and return its model and projection."""
-	model = bkchem_qt.models.document_object.PresentationObject(
+	model = ferrum_qt.models.document_object.PresentationObject(
 		"polyline",
 		attributes={"id": "editable-line"},
 		points=[(40.0, 20.0, None), (70.0, 20.0, None)],
 	)
-	item = bkchem_qt.canvas.document_projection.create_presentation_item(model)
+	item = ferrum_qt.canvas.document_projection.create_presentation_item(model)
 	assert item is not None
 	main_window.document.undo_stack.push(
-		bkchem_qt.undo.commands.AddPresentationObjectCommand(
+		ferrum_qt.undo.commands.AddPresentationObjectCommand(
 			main_window.document, main_window.scene, model, item,
 		),
 	)
@@ -53,7 +53,7 @@ def _add_presentation(main_window: bkchem_qt.main_window.MainWindow) -> tuple:
 
 
 #============================================
-def _add_atom(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _add_atom(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Draw and return one atom through the public draw-mode implementation."""
 	main_window._mode_manager.set_mode("draw")
 	draw_mode = main_window._mode_manager.current_mode
@@ -65,7 +65,7 @@ def _add_atom(main_window: bkchem_qt.main_window.MainWindow) -> object:
 
 #============================================
 def test_edit_mode_click_can_extend_atom_selection_to_presentation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Shift-click extends an atom selection to persistent artwork."""
 	atom_item = _add_atom(main_window)
@@ -83,7 +83,7 @@ def test_edit_mode_click_can_extend_atom_selection_to_presentation(
 
 #============================================
 def test_edit_mode_mixed_drag_undo_restores_atom_and_presentation_geometry(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""One undo restores both sides of an atom-and-artwork drag together."""
 	atom_item = _add_atom(main_window)
@@ -105,7 +105,7 @@ def test_edit_mode_mixed_drag_undo_restores_atom_and_presentation_geometry(
 
 #============================================
 def test_edit_mode_deactivate_cancels_mixed_drag_preview_without_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Mode deactivation restores every mixed transient preview before release."""
 	atom_item = _add_atom(main_window)
@@ -128,7 +128,7 @@ def test_edit_mode_deactivate_cancels_mixed_drag_preview_without_history(
 
 #============================================
 def test_edit_mode_delete_undo_restores_same_presentation_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Delete/undo retains the original artwork projection and its model."""
 	presentation, presentation_item = _add_presentation(main_window)

@@ -9,17 +9,17 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.canvas.items.render_ops_painter
-import bkchem_qt.models.molecule_model
-import bkchem_qt.themes.theme_loader
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.canvas.items.render_ops_painter
+import ferrum_qt.models.molecule_model
+import ferrum_qt.themes.theme_loader
 
 
 #============================================
 def _bond_with_explicit_carbon_label() -> tuple[object, object, object]:
 	"""Return a horizontal C--N bond whose endpoints both have labels."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	carbon = molecule.create_atom(symbol="C")
 	nitrogen = molecule.create_atom(symbol="N")
 	carbon.set_xyz(0.0, 0.0, 0.0)
@@ -29,7 +29,7 @@ def _bond_with_explicit_carbon_label() -> tuple[object, object, object]:
 	molecule.add_atom(nitrogen)
 	bond = molecule.create_bond(order=1, bond_type="n")
 	molecule.add_bond(carbon, nitrogen, bond)
-	return carbon, nitrogen, bkchem_qt.canvas.items.bond_item.BondItem(bond)
+	return carbon, nitrogen, ferrum_qt.canvas.items.bond_item.BondItem(bond)
 
 
 #============================================
@@ -123,12 +123,12 @@ def test_existing_atom_mask_tracks_dark_theme(
 	original_theme = main_window._theme_manager.current_theme
 	main_window._theme_manager.apply_theme("light")
 	try:
-		molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+		molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 		atom = molecule.create_atom(symbol="O")
 		molecule.add_atom(atom)
-		item = bkchem_qt.canvas.items.atom_item.AtomItem(atom)
+		item = ferrum_qt.canvas.items.atom_item.AtomItem(atom)
 		main_window._theme_manager.apply_theme("dark")
-		expected = bkchem_qt.themes.theme_loader.get_chemistry_colors("dark")["default_area"]
+		expected = ferrum_qt.themes.theme_loader.get_chemistry_colors("dark")["default_area"]
 
 		assert _atom_mask_color(item).name() == expected
 	finally:
@@ -141,10 +141,10 @@ def test_atom_label_mask_leaves_padded_corner_transparent(
 		) -> None:
 	"""The label mask is glyph-local while the padded item remains clickable."""
 	del qapp
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	atom = molecule.create_atom(symbol="O")
 	molecule.add_atom(atom)
-	item = bkchem_qt.canvas.items.atom_item.AtomItem(atom)
+	item = ferrum_qt.canvas.items.atom_item.AtomItem(atom)
 	image = _render_local_item(item)
 
 	assert image.pixelColor(1, 1).alpha() == 0 and item.shape().contains(PySide6.QtCore.QPointF(0.0, 0.0))

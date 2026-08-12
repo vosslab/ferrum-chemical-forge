@@ -1,4 +1,4 @@
-"""Tests for BKChem-Qt ActionRegistry and MenuAction.
+"""Tests for Ferrum-Qt ActionRegistry and MenuAction.
 
 Verifies the pure-Python menu action contract without requiring
 PySide6 or a running Qt application.
@@ -8,14 +8,14 @@ PySide6 or a running Qt application.
 import sys
 import pathlib
 
-# ensure the bkchem-qt.app package is importable
+# ensure the ferrum-qt.app package is importable
 _qt_app_dir = pathlib.Path(__file__).resolve().parent.parent
 if str(_qt_app_dir) not in sys.path:
 	sys.path.insert(0, str(_qt_app_dir))
 
 # local repo modules
-import bkchem_qt.actions.action_registry
-import bkchem_qt.actions.menu_builder
+import ferrum_qt.actions.action_registry
+import ferrum_qt.actions.menu_builder
 
 
 #============================================
@@ -26,7 +26,7 @@ def _make_action(
 	accelerator: str = None,
 	handler: object = None,
 	enabled_when: object = None,
-) -> bkchem_qt.actions.action_registry.MenuAction:
+) -> ferrum_qt.actions.action_registry.MenuAction:
 	"""Create a MenuAction with sensible defaults for testing.
 
 	Args:
@@ -40,7 +40,7 @@ def _make_action(
 	Returns:
 		A MenuAction instance.
 	"""
-	action = bkchem_qt.actions.action_registry.MenuAction(
+	action = ferrum_qt.actions.action_registry.MenuAction(
 		id=action_id,
 		label_key=label_key,
 		help_key=help_key,
@@ -106,7 +106,7 @@ class TestActionRegistry:
 
 	def test_register_and_get(self) -> None:
 		"""Registered actions are retrievable by ID."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(action_id="edit.undo")
 		registry.register(action)
 		retrieved = registry.get("edit.undo")
@@ -114,19 +114,19 @@ class TestActionRegistry:
 
 	def test_contains_registered_action(self) -> None:
 		"""__contains__ returns True for registered action IDs."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(action_id="edit.redo")
 		registry.register(action)
 		assert "edit.redo" in registry
 
 	def test_contains_missing_action(self) -> None:
 		"""__contains__ returns False for unregistered action IDs."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		assert "nonexistent.action" not in registry
 
 	def test_duplicate_id_raises_value_error(self) -> None:
 		"""Registering a duplicate ID raises ValueError."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action1 = _make_action(action_id="file.open")
 		action2 = _make_action(action_id="file.open")
 		registry.register(action1)
@@ -138,7 +138,7 @@ class TestActionRegistry:
 
 	def test_get_missing_raises_key_error(self) -> None:
 		"""Getting an unregistered ID raises KeyError."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		try:
 			registry.get("missing.action")
 			assert False, "Expected KeyError for missing ID"
@@ -147,7 +147,7 @@ class TestActionRegistry:
 
 	def test_all_actions_returns_copy(self) -> None:
 		"""all_actions() returns a shallow copy of all registered actions."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action1 = _make_action(action_id="file.new")
 		action2 = _make_action(action_id="file.save")
 		registry.register(action1)
@@ -162,7 +162,7 @@ class TestActionRegistry:
 
 	def test_multiple_registrations(self) -> None:
 		"""Multiple distinct actions can be registered and retrieved."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		ids = ["file.new", "file.open", "file.save", "edit.undo", "edit.redo"]
 		for action_id in ids:
 			registry.register(_make_action(action_id=action_id))
@@ -173,21 +173,21 @@ class TestActionRegistry:
 	def test_action_module_import_error_names_module(self, monkeypatch: object) -> None:
 		"""An action import failure identifies the module that failed."""
 		monkeypatch.setattr(
-			bkchem_qt.actions.action_registry,
+			ferrum_qt.actions.action_registry,
 			"ACTION_REGISTRAR_MODULES",
-			("bkchem_qt.actions.broken_actions",),
+			("ferrum_qt.actions.broken_actions",),
 		)
 		def raise_import_error(module_name: str) -> object:
 			raise ImportError("deliberate missing dependency")
 		monkeypatch.setattr(
-			bkchem_qt.actions.action_registry.importlib,
+			ferrum_qt.actions.action_registry.importlib,
 			"import_module", raise_import_error,
 		)
 		try:
-			bkchem_qt.actions.action_registry.register_all_actions(object())
+			ferrum_qt.actions.action_registry.register_all_actions(object())
 			assert False, "Expected action module import failure"
-		except bkchem_qt.actions.action_registry.ActionRegistrationError as exc:
-			assert "bkchem_qt.actions.broken_actions" in str(exc)
+		except ferrum_qt.actions.action_registry.ActionRegistrationError as exc:
+			assert "ferrum_qt.actions.broken_actions" in str(exc)
 
 	def test_registrar_failure_names_module_and_registrar(self, monkeypatch: object) -> None:
 		"""A registrar exception preserves its manifest module context."""
@@ -196,20 +196,20 @@ class TestActionRegistry:
 				raise ValueError("deliberate registration failure")
 
 		monkeypatch.setattr(
-			bkchem_qt.actions.action_registry,
+			ferrum_qt.actions.action_registry,
 			"ACTION_REGISTRAR_MODULES",
-			("bkchem_qt.actions.broken_actions",),
+			("ferrum_qt.actions.broken_actions",),
 		)
 		monkeypatch.setattr(
-			bkchem_qt.actions.action_registry.importlib,
+			ferrum_qt.actions.action_registry.importlib,
 			"import_module", lambda _module_name: _BrokenModule(),
 		)
 
 		try:
-			bkchem_qt.actions.action_registry.register_all_actions(object())
+			ferrum_qt.actions.action_registry.register_all_actions(object())
 			assert False, "Expected action registration failure"
-		except bkchem_qt.actions.action_registry.ActionRegistrationError as exc:
-			assert "bkchem_qt.actions.broken_actions" in str(exc)
+		except ferrum_qt.actions.action_registry.ActionRegistrationError as exc:
+			assert "ferrum_qt.actions.broken_actions" in str(exc)
 			assert "register_broken_actions" in str(exc)
 
 
@@ -246,8 +246,8 @@ def test_required_yaml_action_is_not_silently_omitted(tmp_path: pathlib.Path) ->
 		"    items:\n"
 		"      - action: file.typo\n",
 	)
-	registry = bkchem_qt.actions.action_registry.ActionRegistry()
-	builder = bkchem_qt.actions.menu_builder.MenuBuilder(
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	builder = ferrum_qt.actions.menu_builder.MenuBuilder(
 		str(menu_file), registry, _FakeMenuAdapter(),
 	)
 	try:
@@ -269,14 +269,14 @@ def test_preflight_reports_all_required_unregistered_actions(tmp_path: pathlib.P
 		"      - action: file.zeta\n"
 		"      - action: file.alpha\n",
 	)
-	registry = bkchem_qt.actions.action_registry.ActionRegistry()
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
 
 	try:
-		bkchem_qt.actions.menu_builder.preflight_required_menu_actions(
+		ferrum_qt.actions.menu_builder.preflight_required_menu_actions(
 			registry, str(menu_file),
 		)
 		assert False, "Expected required menu action preflight failure"
-	except bkchem_qt.actions.menu_builder.MenuActionPreflightError as exc:
+	except ferrum_qt.actions.menu_builder.MenuActionPreflightError as exc:
 		assert str(exc) == (
 			"Required menu actions are unregistered: file.alpha, file.zeta"
 		)
@@ -294,8 +294,8 @@ def test_optional_yaml_action_can_be_omitted(tmp_path: pathlib.Path) -> None:
 		"      - action: file.plugin_action\n"
 		"        optional: true\n",
 	)
-	registry = bkchem_qt.actions.action_registry.ActionRegistry()
-	builder = bkchem_qt.actions.menu_builder.MenuBuilder(
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	builder = ferrum_qt.actions.menu_builder.MenuBuilder(
 		str(menu_file), registry, _FakeMenuAdapter(),
 	)
 	builder.build_menus()
@@ -308,7 +308,7 @@ class TestIsEnabled:
 
 	def test_none_predicate_always_enabled(self) -> None:
 		"""An action with enabled_when=None is always enabled."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(action_id="always.on", enabled_when=None)
 		registry.register(action)
 		# context does not matter when predicate is None
@@ -317,7 +317,7 @@ class TestIsEnabled:
 
 	def test_callable_predicate_returns_true(self) -> None:
 		"""A callable predicate returning True enables the action."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(
 			action_id="callable.true",
 			enabled_when=lambda: True,
@@ -328,7 +328,7 @@ class TestIsEnabled:
 
 	def test_callable_predicate_returns_false(self) -> None:
 		"""A callable predicate returning False disables the action."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(
 			action_id="callable.false",
 			enabled_when=lambda: False,
@@ -339,7 +339,7 @@ class TestIsEnabled:
 
 	def test_callable_predicate_truthy_value(self) -> None:
 		"""A callable returning a truthy non-bool value enables the action."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(
 			action_id="callable.truthy",
 			enabled_when=lambda: "nonempty string",
@@ -350,7 +350,7 @@ class TestIsEnabled:
 
 	def test_string_predicate_attribute_true(self) -> None:
 		"""A string predicate checks the context attribute for truthiness."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(
 			action_id="string.true",
 			enabled_when="has_selection",
@@ -365,7 +365,7 @@ class TestIsEnabled:
 
 	def test_string_predicate_attribute_false(self) -> None:
 		"""A string predicate with falsy attribute disables the action."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(
 			action_id="string.false",
 			enabled_when="has_selection",
@@ -380,7 +380,7 @@ class TestIsEnabled:
 
 	def test_string_predicate_missing_attribute(self) -> None:
 		"""A string predicate with missing attribute defaults to disabled."""
-		registry = bkchem_qt.actions.action_registry.ActionRegistry()
+		registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		action = _make_action(
 			action_id="string.missing",
 			enabled_when="nonexistent_attr",

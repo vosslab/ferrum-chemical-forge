@@ -4,11 +4,11 @@
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.group_item
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.group_item
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -26,7 +26,7 @@ _CDML = (
 #============================================
 def _native_session(main_window: object) -> object:
 	"""Register one native session with its ordinary projection lifecycle."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._register_session(
 		main_window._construct_session(prepared_native_cdml=prepared), activate=True,
 	)
@@ -40,16 +40,16 @@ def _group_item(session: object) -> object:
 	"""Return the one current implicit group projection."""
 	return next(
 		item for item in session.scene.items()
-		if isinstance(item, bkchem_qt.canvas.items.group_item.GroupItem)
+		if isinstance(item, ferrum_qt.canvas.items.group_item.GroupItem)
 	)
 
 
 #============================================
 def _projection_unavailable(_snapshot: object) -> object:
 	"""Return one typed lifecycle failure without retaining a scene projection."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
@@ -113,10 +113,10 @@ def test_expand_groups_uses_one_plain_backend_request_and_restores_replacement_s
 
 		monkeypatch.setattr(session, "submit_implicit_group_expand", submit)
 		enabled_before = main_window._registry.is_enabled("chemistry.expand_groups", main_window)
-		bkchem_qt.actions.chemistry_actions._expand_groups(main_window)
+		ferrum_qt.actions.chemistry_actions._expand_groups(main_window)
 		selected_atom_ids = {
 			item.atom_model.backend_durable_id for item in session.scene.selectedItems()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		}
 
 		assert _accepted_projection_matches_intent(
@@ -136,7 +136,7 @@ def test_accepted_implicit_expansion_recovers_only_the_accepted_snapshot(
 	"""A projection failure leaves one accepted backend expansion available for retry."""
 	session = _native_session(main_window)
 	try:
-		failed_port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+		failed_port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 			session, _projection_unavailable,
 		)
 		session.install_projection_lifecycle_port(failed_port)
@@ -144,7 +144,7 @@ def test_accepted_implicit_expansion_recovers_only_the_accepted_snapshot(
 			session.backend_snapshot.revision, "m1", "g1",
 		)
 		accepted = session.backend_snapshot
-		recovery_port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+		recovery_port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 			session, session.replace_projection_from_backend_snapshot,
 		)
 		session.install_projection_lifecycle_port(recovery_port)
@@ -174,7 +174,7 @@ def test_expand_groups_rejects_legacy_isolated_projection_without_local_mutation
 		session.document.mark_dirty()
 
 		assert not main_window._registry.is_enabled("chemistry.expand_groups", main_window)
-		bkchem_qt.actions.chemistry_actions._expand_groups(main_window)
+		ferrum_qt.actions.chemistry_actions._expand_groups(main_window)
 		assert session.backend_snapshot == before and _has_durable_id(session.backend_snapshot.cdml, "g1")
 	finally:
 		if session in main_window.sessions:
@@ -190,13 +190,13 @@ def test_expand_groups_ignores_a_foreign_group_projection(main_window: object) -
 		current = _group_item(session)
 		model = current.group_model
 		current.setSelected(False)
-		foreign = bkchem_qt.canvas.items.group_item.GroupItem(model)
+		foreign = ferrum_qt.canvas.items.group_item.GroupItem(model)
 		session.scene.addItem(foreign)
 		foreign.setSelected(True)
 		before = session.backend_snapshot
 
 		assert not main_window._registry.is_enabled("chemistry.expand_groups", main_window)
-		bkchem_qt.actions.chemistry_actions._expand_groups(main_window)
+		ferrum_qt.actions.chemistry_actions._expand_groups(main_window)
 		assert session.backend_snapshot == before
 		foreign.setSelected(False)
 		foreign.dispose()

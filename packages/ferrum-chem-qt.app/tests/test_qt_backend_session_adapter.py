@@ -15,22 +15,22 @@ import PySide6.QtCore
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.canvas.graphics_retirement
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.io.cdml_document_io
-import bkchem_qt.actions.file_actions
-import bkchem_qt.actions.repair_actions
-import bkchem_qt.bridge.oasa_bridge
-import bkchem_qt.config.preferences
-import bkchem_qt.main_window
-import bkchem_qt.models.document
-import bkchem_qt.models.document_object
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.template_mode
-import bkchem_qt.setup.mode_setup
+import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.io.cdml_document_io
+import ferrum_qt.actions.file_actions
+import ferrum_qt.actions.repair_actions
+import ferrum_qt.bridge.oasa_bridge
+import ferrum_qt.config.preferences
+import ferrum_qt.main_window
+import ferrum_qt.models.document
+import ferrum_qt.models.document_object
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.template_mode
+import ferrum_qt.setup.mode_setup
 import oasa.cdml_document
 import oasa.template_placement
 import oasa.cdml_writer
@@ -101,7 +101,7 @@ _ALIGN_CDML = (
 	'</molecule></cdml>'
 )
 _MOLFILE = """Imported ethane
-  BKChem
+  Ferrum
 
   2  1  0  0  0  0  0  0  0  0999 V2000
     0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
@@ -110,7 +110,7 @@ _MOLFILE = """Imported ethane
 M  END
 """
 _MULTI_COMPONENT_SDF = _MOLFILE + "$$$$\n" + """Imported oxygen
-  BKChem
+  Ferrum
 
   1  0  0  0  0  0  0  0  0  0999 V2000
     4.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
@@ -123,25 +123,25 @@ $$$$
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
 #============================================
 def _projection_installed(snapshot: object) -> object:
 	"""Report an installed typed projection outcome without a real replacement."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLED,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.COMPLETE,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLED,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.COMPLETE,
 	)
 
 
@@ -152,8 +152,8 @@ def _arrow_candidate(identifier: str = _PROVISIONAL_ARROW) -> str:
 
 #============================================
 def _new_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Create one fresh tab without changing the module fixture's initial tab."""
 	main_window._on_new()
 	session = main_window.sessions[-1]
@@ -162,8 +162,8 @@ def _new_tab(
 
 #============================================
 def _close_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
-		session: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Dispose a temporary tab without entering a user-confirmation dialog."""
 	assert main_window._remove_session(session)
@@ -171,11 +171,11 @@ def _close_tab(
 
 #============================================
 def _new_synchronized_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		prepared_native_cdml: bkchem_qt.models.document_session.PreparedNativeCDML,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		prepared_native_cdml: ferrum_qt.models.document_session.PreparedNativeCDML,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Install one prepared native CDML transfer into a private session."""
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -187,10 +187,10 @@ def _new_synchronized_session(
 
 #============================================
 def _new_native_session(
-		main_window: bkchem_qt.main_window.MainWindow, cdml_text: str = _ARROW_CDML,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow, cdml_text: str = _ARROW_CDML,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Create an unregistered session projected from one backend CDML value."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		cdml_text,
 	)
 	return _new_synchronized_session(main_window, prepared)
@@ -199,8 +199,8 @@ def _new_native_session(
 #============================================
 def _wait_for_async_import_terminal(
 		qtbot: object,
-		main_window: bkchem_qt.main_window.MainWindow,
-		target: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		target: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Wait for the session-owned worker relay to finish without sleeps."""
 	qtbot.waitUntil(
@@ -247,38 +247,38 @@ def _backend_atom_coordinates(
 
 #============================================
 def _selected_atom_ids(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> set[str]:
 	"""Return durable atom identities selected by the current projection."""
 	return {
 		item.atom_model.backend_durable_id
 		for item in session.scene.selectedItems()
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		and item.atom_model.backend_durable_id is not None
 	}
 
 
 #============================================
 def _selected_bond_ids(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> set[str]:
 	"""Return durable bond identities selected by the current projection."""
 	return {
 		item.bond_model.backend_durable_id
 		for item in session.scene.selectedItems()
-		if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+		if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 		and item.bond_model.backend_durable_id is not None
 	}
 
 
 #============================================
 def _selected_persistent_keys(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> set[tuple[str, str]]:
 	"""Return every durable key selected by the current disposable projection."""
 	keys = set()
 	for item in session.scene.selectedItems():
-		key = bkchem_qt.canvas.document_projection.persistent_selection_key(item)
+		key = ferrum_qt.canvas.document_projection.persistent_selection_key(item)
 		if key is not None:
 			keys.add(key)
 	return keys
@@ -307,7 +307,7 @@ class _KeyEvent:
 #============================================
 #============================================
 def test_atom_align_public_mode_uses_backend_history_and_fresh_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""The parsed horizontal mode aligns durable atoms without Qt undo ownership."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -317,7 +317,7 @@ def test_atom_align_public_mode_uses_backend_history_and_fresh_projection(
 	session.mode_manager.set_mode("bondalign")
 	mode = session.mode_manager.current_mode
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			item.setSelected(True)
 	if not session.scene.selectedItems():
 		raise AssertionError("Projected CDML did not produce selectable AtomItems")
@@ -369,7 +369,7 @@ def test_atom_align_public_mode_uses_backend_history_and_fresh_projection(
 
 #============================================
 def test_edit_mode_nudge_uses_backend_history_and_reprojects_selected_atoms(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""One arrow key sends one backend atom translation with no Qt undo command."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -379,7 +379,7 @@ def test_edit_mode_nudge_uses_backend_history_and_reprojects_selected_atoms(
 	session.mode_manager.set_mode("edit")
 	mode = session.mode_manager.current_mode
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			item.setSelected(True)
 	before = session.backend_snapshot
 	before_document = session.document
@@ -427,7 +427,7 @@ def test_edit_mode_nudge_uses_backend_history_and_reprojects_selected_atoms(
 
 #============================================
 def test_atom_translation_projection_retry_does_not_resubmit_the_accepted_request(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A failed accepted projection retries its snapshot without another backend nudge."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -439,7 +439,7 @@ def test_atom_translation_projection_retry_does_not_resubmit_the_accepted_reques
 	executor = session._operation_commit_executors["atom-translate"]
 
 	def count_translate(
-			prepared: bkchem_qt.models.document_session._PreparedPersistentOperation,
+			prepared: ferrum_qt.models.document_session._PreparedPersistentOperation,
 			) -> oasa.cdml_document.CDMLAtomTranslateResult:
 		"""Record the sole backend translation executor call."""
 		executor_calls.append(prepared)
@@ -471,7 +471,7 @@ def test_atom_translation_projection_retry_does_not_resubmit_the_accepted_reques
 
 #============================================
 def test_atom_rotation_uses_backend_history_and_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A RotateMode gesture installs fresh backend-owned state without Qt undo."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -481,7 +481,7 @@ def test_atom_rotation_uses_backend_history_and_reprojection(
 	try:
 		old_item = next(
 			item for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == "a1"
 		)
 		old_item.setSelected(True)
@@ -510,7 +510,7 @@ def test_atom_rotation_uses_backend_history_and_reprojection(
 
 #============================================
 def test_rotate_mode_keeps_the_press_session_callback_after_rebind(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A tab rebind during a drag cannot redirect its already-captured intent."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -520,22 +520,22 @@ def test_rotate_mode_keeps_the_press_session_callback_after_rebind(
 	calls = []
 	def origin_callback(
 			targets: tuple[tuple[str, str], ...], center: tuple[float, float], angle: float,
-			) -> bkchem_qt.models.document_session.PersistentActionOutcome:
+			) -> ferrum_qt.models.document_session.PersistentActionOutcome:
 		"""Record the original session callback without changing backend state."""
 		calls.append(("origin", targets, center, angle))
-		return bkchem_qt.models.document_session.PersistentActionOutcome("accepted", "", None)
+		return ferrum_qt.models.document_session.PersistentActionOutcome("accepted", "", None)
 
 	def replacement_callback(
 			targets: tuple[tuple[str, str], ...], center: tuple[float, float], angle: float,
-			) -> bkchem_qt.models.document_session.PersistentActionOutcome:
+			) -> ferrum_qt.models.document_session.PersistentActionOutcome:
 		"""Expose any incorrect callback retargeting after the press event."""
 		calls.append(("replacement", targets, center, angle))
-		return bkchem_qt.models.document_session.PersistentActionOutcome("accepted", "", None)
+		return ferrum_qt.models.document_session.PersistentActionOutcome("accepted", "", None)
 
 	try:
 		atom = next(
 			item for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == "a1"
 		)
 		atom.setSelected(True)
@@ -556,7 +556,7 @@ def test_rotate_mode_keeps_the_press_session_callback_after_rebind(
 
 #============================================
 def test_rotate_mode_projection_retry_uses_only_the_accepted_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A failed RotateMode projection retries its final backend snapshot once."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -568,7 +568,7 @@ def test_rotate_mode_projection_retry_uses_only_the_accepted_snapshot(
 	executor = session._operation_commit_executors["atom-rotate"]
 
 	def count_rotate(
-			prepared: bkchem_qt.models.document_session._PreparedPersistentOperation,
+			prepared: ferrum_qt.models.document_session._PreparedPersistentOperation,
 			) -> oasa.cdml_document.CDMLAtomRotateResult:
 		"""Record the one accepted backend rotation."""
 		executor_calls.append(prepared)
@@ -586,7 +586,7 @@ def test_rotate_mode_projection_retry_uses_only_the_accepted_snapshot(
 	try:
 		atom = next(
 			item for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == "a1"
 		)
 		atom.setSelected(True)
@@ -607,7 +607,7 @@ def test_rotate_mode_projection_retry_uses_only_the_accepted_snapshot(
 
 #============================================
 def test_rotate_mode_unwraps_a_positive_branch_crossing(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A clockwise sweep across atan2's branch submits the short positive turn."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -617,16 +617,16 @@ def test_rotate_mode_unwraps_a_positive_branch_crossing(
 	angles = []
 	def capture(
 			targets: tuple[tuple[str, str], ...], center: tuple[float, float], angle: float,
-			) -> bkchem_qt.models.document_session.PersistentActionOutcome:
+			) -> ferrum_qt.models.document_session.PersistentActionOutcome:
 		"""Capture the normalised preview result without committing a fixture edit."""
 		del targets, center
 		angles.append(angle)
-		return bkchem_qt.models.document_session.PersistentActionOutcome("accepted", "", None)
+		return ferrum_qt.models.document_session.PersistentActionOutcome("accepted", "", None)
 
 	try:
 		atom = next(
 			item for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == "a1"
 		)
 		atom.setSelected(True)
@@ -646,7 +646,7 @@ def test_rotate_mode_unwraps_a_positive_branch_crossing(
 
 #============================================
 def test_edit_mode_unavailable_synchronized_route_is_inert(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A missing session route leaves a synchronized selected-atom nudge unchanged."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -656,7 +656,7 @@ def test_edit_mode_unavailable_synchronized_route_is_inert(
 	session.mode_manager.set_mode("edit")
 	mode = session.mode_manager.current_mode
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			item.setSelected(True)
 	before = session.backend_snapshot
 	document = session.document
@@ -673,13 +673,13 @@ def test_edit_mode_unavailable_synchronized_route_is_inert(
 
 #============================================
 def test_geometry_repair_uses_backend_history_and_exact_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A changed repair commits CDML once and backend undo restores its snapshot."""
 	session = _new_native_session(main_window, _REPAIR_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"geometry.repair", "Normalize bond lengths",
 		(
 			("expected_revision", before.revision),
@@ -701,14 +701,14 @@ def test_geometry_repair_uses_backend_history_and_exact_reprojection(
 
 #============================================
 def test_clean_geometry_uses_backend_history_and_fresh_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A deterministic clean commits only through OASA and replaces Qt projection."""
 	session = _new_native_session(main_window, _REPAIR_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
 	before_document = session.document
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"geometry.repair", "Clean up geometry",
 		(
 			("expected_revision", before.revision),
@@ -752,7 +752,7 @@ def test_clean_geometry_uses_backend_history_and_fresh_projection(
 
 #============================================
 def test_clean_geometry_action_submits_only_the_live_backend_session(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""The visible action uses durable model IDs, backend history, and no Qt undo."""
 	source = tmp_path / "backend-clean.cdml"
@@ -762,7 +762,7 @@ def test_clean_geometry_action_submits_only_the_live_backend_session(
 	before = session.backend_snapshot
 	before_document_id = id(session.document)
 	try:
-		bkchem_qt.actions.repair_actions._handle_clean_geometry(
+		ferrum_qt.actions.repair_actions._handle_clean_geometry(
 			main_window, target_molecule_id="m1",
 		)
 		accepted = session.backend_snapshot
@@ -791,7 +791,7 @@ def test_clean_geometry_action_submits_only_the_live_backend_session(
 
 #============================================
 def test_snap_hex_projection_failure_recovers_only_accepted_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An accepted Snap retry projects its one accepted snapshot and selection."""
 	session = _new_native_session(main_window, _REPAIR_CDML)
@@ -817,7 +817,7 @@ def test_snap_hex_projection_failure_recovers_only_accepted_snapshot(
 	atom_item.setSelected(True)
 	del atom_item
 	_install_projection_port(session, fail_then_reproject)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"geometry.repair", "Snap to hex grid",
 		(
 			("expected_revision", before.revision),
@@ -852,7 +852,7 @@ def test_snap_hex_projection_failure_recovers_only_accepted_snapshot(
 
 #============================================
 def test_ring_repair_projection_retry_uses_only_the_accepted_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A failed ring projection recovers the accepted snapshot without replaying intent."""
 	session = _new_native_session(main_window, _RING_REPAIR_CDML)
@@ -870,7 +870,7 @@ def test_ring_repair_projection_retry_uses_only_the_accepted_snapshot(
 	if not session.replace_projection_from_backend_snapshot(before):
 		raise AssertionError("Durable CDML projection is unavailable")
 	_install_projection_port(session, fail_then_reproject)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"geometry.repair", "Normalize ring structures",
 		(
 			("expected_revision", before.revision),
@@ -899,13 +899,13 @@ def test_ring_repair_projection_retry_uses_only_the_accepted_snapshot(
 
 #============================================
 def test_draw_structure_blank_pair_records_backend_history_and_reprojects(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A blank Draw gesture becomes one OASA revision and canonical projection."""
 	session = _new_native_session(main_window, '<cdml version="26.07"></cdml>')
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"draw.structure", "Draw bonded pair",
 		(
 			("expected_revision", before.revision),
@@ -933,12 +933,12 @@ def test_draw_structure_blank_pair_records_backend_history_and_reprojects(
 
 #============================================
 def test_draw_structure_exposes_plain_backend_durable_identity(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A Draw caller receives durable IDs without a Qt scene-object reference."""
 	session = _new_native_session(main_window, '<cdml version="26.07"></cdml>')
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"draw.structure", "Draw bonded pair",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -962,7 +962,7 @@ def test_draw_structure_exposes_plain_backend_durable_identity(
 
 #============================================
 def test_draw_structure_projection_recovery_never_resubmits_acceptance(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Projection recovery uses the accepted snapshot without replaying Draw intent."""
@@ -987,7 +987,7 @@ def test_draw_structure_projection_recovery_never_resubmits_acceptance(
 
 	monkeypatch.setattr(session._backend_session, "edit_structure", record_edit)
 	_install_projection_port(session, fail_then_reproject)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"draw.structure", "Draw bonded pair",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1013,13 +1013,13 @@ def test_draw_structure_projection_recovery_never_resubmits_acceptance(
 
 #============================================
 def test_draw_structure_rejection_keeps_backend_state_and_history_unchanged(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Malformed envelopes and rejected OASA edits preserve the current session."""
 	session = _new_native_session(main_window, '<cdml version="26.07"></cdml>')
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	malformed = bkchem_qt.models.document_session.PersistentOperationRequest(
+	malformed = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"draw.structure", "Draw bonded pair",
 		(
 			("expected_revision", before.revision),
@@ -1033,7 +1033,7 @@ def test_draw_structure_rejection_keeps_backend_state_and_history_unchanged(
 		),
 		frozenset({("molecule", "unexpected")}),
 	)
-	rejected_by_oasa = bkchem_qt.models.document_session.PersistentOperationRequest(
+	rejected_by_oasa = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"draw.structure", "Draw bonded pair",
 		(
 			("expected_revision", before.revision),
@@ -1056,7 +1056,7 @@ def test_draw_structure_rejection_keeps_backend_state_and_history_unchanged(
 
 #============================================
 def test_bond_order_set_uses_backend_history_reprojection_and_durable_selection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An exact bond order commit remains owned by OASA through undo and redo."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -1079,7 +1079,7 @@ def test_bond_order_set_uses_backend_history_reprojection_and_durable_selection(
 
 #============================================
 def test_bond_order_set_semantic_noop_retains_projection_and_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A matching order stays entirely within the current backend snapshot."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -1105,7 +1105,7 @@ def test_bond_order_set_semantic_noop_retains_projection_and_history(
 
 #============================================
 def test_bond_order_set_projection_retry_never_resubmits_acceptance(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A failed accepted bond projection retries only its exact backend snapshot."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -1146,7 +1146,7 @@ def test_bond_order_set_projection_retry_never_resubmits_acceptance(
 
 #============================================
 def test_bond_type_set_projection_retry_never_resubmits_acceptance(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A failed accepted type projection retries only its exact backend snapshot."""
 	session = _new_native_session(main_window, _ALIGN_CDML)
@@ -1187,13 +1187,13 @@ def test_bond_type_set_projection_retry_never_resubmits_acceptance(
 
 #============================================
 def test_atom_element_set_uses_backend_history_and_exact_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An AtomMode substitution commits once and backend navigation restores CDML."""
 	session = _new_native_session(main_window, _ELEMENT_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", before.revision),
@@ -1224,13 +1224,13 @@ def test_atom_element_set_uses_backend_history_and_exact_reprojection(
 
 #============================================
 def test_atom_element_set_rejections_leave_authoritative_state_unchanged(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Malformed envelopes and rejected elements keep the current backend snapshot."""
 	session = _new_native_session(main_window, _ELEMENT_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	malformed = bkchem_qt.models.document_session.PersistentOperationRequest(
+	malformed = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", before.revision),
@@ -1239,7 +1239,7 @@ def test_atom_element_set_rejections_leave_authoritative_state_unchanged(
 			("element", "N"),
 		),
 		frozenset({("molecule", "m1"), ("atom", "wrong")}))
-	rejected_by_oasa = bkchem_qt.models.document_session.PersistentOperationRequest(
+	rejected_by_oasa = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", before.revision),
@@ -1260,7 +1260,7 @@ def test_atom_element_set_rejections_leave_authoritative_state_unchanged(
 
 #============================================
 def test_atom_element_set_projection_recovery_never_resubmits_acceptance(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed projection recovers the accepted atom snapshot without a second edit."""
@@ -1276,7 +1276,7 @@ def test_atom_element_set_projection_recovery_never_resubmits_acceptance(
 		return _projection_installed(snapshot)
 
 	_install_projection_port(session, fail_then_reproject)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1300,7 +1300,7 @@ def test_atom_element_set_projection_recovery_never_resubmits_acceptance(
 
 #============================================
 def test_same_tab_projection_failure_retains_root_with_session_until_retry(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A replacement failure preserves its accepted snapshot and owned root."""
@@ -1324,10 +1324,10 @@ def test_same_tab_projection_failure_retains_root_with_session_until_retry(
 		real_delete(item)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.shiboken6,
+		ferrum_qt.canvas.graphics_retirement.shiboken6,
 		"delete", fail_one_old_atom_delete,
 	)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1361,7 +1361,7 @@ def test_same_tab_projection_failure_retains_root_with_session_until_retry(
 
 #============================================
 def test_session_close_transfers_failed_scene_transition_as_one_aggregate(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
@@ -1369,12 +1369,12 @@ def test_session_close_transfers_failed_scene_transition_as_one_aggregate(
 	session = _new_native_session(main_window, _ELEMENT_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	assert session.replace_projection_from_backend_snapshot(session.backend_snapshot)
-	real_remove = bkchem_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator._remove_scene_root
+	real_remove = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator._remove_scene_root
 	failed_roots = []
 
 	#============================================
 	def fail_old_scene_removal(
-			self: bkchem_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator,
+			self: ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator,
 			scene: PySide6.QtWidgets.QGraphicsScene,
 			root: PySide6.QtWidgets.QGraphicsItem,
 			) -> None:
@@ -1386,11 +1386,11 @@ def test_session_close_transfers_failed_scene_transition_as_one_aggregate(
 		real_remove(self, scene, root)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator,
+		ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator,
 		"_remove_scene_root", fail_old_scene_removal,
 	)
 	monkeypatch.setattr(session._projection_retirement_reaper, "drain", lambda: None)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1415,7 +1415,7 @@ def test_session_close_transfers_failed_scene_transition_as_one_aggregate(
 		)
 
 		monkeypatch.undo()
-		assert bkchem_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+		assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
 		assert not shiboken6.isValid(failed_roots[0])
 	finally:
 		monkeypatch.undo()
@@ -1423,7 +1423,7 @@ def test_session_close_transfers_failed_scene_transition_as_one_aggregate(
 
 #============================================
 def test_session_disposal_transfers_replacement_failure_to_window_reaper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
@@ -1446,10 +1446,10 @@ def test_session_disposal_transfers_replacement_failure_to_window_reaper(
 		real_delete(item)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.shiboken6,
+		ferrum_qt.canvas.graphics_retirement.shiboken6,
 		"delete", fail_old_atom_delete,
 	)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1469,7 +1469,7 @@ def test_session_disposal_transfers_replacement_failure_to_window_reaper(
 		)
 
 		monkeypatch.undo()
-		assert bkchem_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+		assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
 		assert not shiboken6.isValid(old_atom_item)
 	finally:
 		monkeypatch.undo()
@@ -1479,7 +1479,7 @@ def test_session_disposal_transfers_replacement_failure_to_window_reaper(
 
 #============================================
 def test_destroyed_session_retries_transient_graphics_failure_on_event_loop(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
@@ -1501,10 +1501,10 @@ def test_destroyed_session_retries_transient_graphics_failure_on_event_loop(
 		real_delete(item)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.shiboken6,
+		ferrum_qt.canvas.graphics_retirement.shiboken6,
 		"delete", fail_old_atom_delete,
 	)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1535,14 +1535,14 @@ def test_destroyed_session_retries_transient_graphics_failure_on_event_loop(
 
 #============================================
 def test_session_close_transfers_failed_scene_decoration_to_window_reaper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A close retains a failed paper root under its session-owned terminal path."""
 	session = _new_native_session(main_window, _ELEMENT_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.element.set", "Set atom element",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1563,7 +1563,7 @@ def test_session_close_transfers_failed_scene_decoration_to_window_reaper(
 		real_delete(item)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.shiboken6,
+		ferrum_qt.canvas.graphics_retirement.shiboken6,
 		"delete", fail_paper_delete,
 	)
 	try:
@@ -1582,12 +1582,12 @@ def test_session_close_transfers_failed_scene_decoration_to_window_reaper(
 			and "name=\"N\"" in accepted.commit.snapshot.cdml
 			and shiboken6.isValid(paper)
 			and paper in pending.retained_detached_graphics.roots
-			and not bkchem_qt.canvas.graphics_retirement
+			and not ferrum_qt.canvas.graphics_retirement
 			.detached_graphics_retirement_reaper.owns_detached_root(paper)
 		)
 
 		monkeypatch.undo()
-		assert bkchem_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+		assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
 		assert not shiboken6.isValid(paper)
 	finally:
 		monkeypatch.undo()
@@ -1595,13 +1595,13 @@ def test_session_close_transfers_failed_scene_decoration_to_window_reaper(
 
 #============================================
 def test_template_insertion_uses_backend_history_and_canonical_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A detached template placement commits through backend history and CDML."""
 	session = _new_native_session(main_window, '<cdml version="26.07"></cdml>')
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"template.insert", "Place template Me",
 		(
 			("expected_revision", before.revision),
@@ -1633,7 +1633,7 @@ def test_template_insertion_uses_backend_history_and_canonical_reprojection(
 
 #============================================
 def test_session_injects_plain_template_catalog_for_mode_submission(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""The session supplies OASA catalog values before TemplateMode submits one."""
@@ -1644,7 +1644,7 @@ def test_session_injects_plain_template_catalog_for_mode_submission(
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	session.mode_manager.set_mode("template")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.template_mode.TemplateMode):
+	if not isinstance(mode, ferrum_qt.modes.template_mode.TemplateMode):
 		raise AssertionError("Session did not install TemplateMode")
 	try:
 		mode.mouse_press(PySide6.QtCore.QPointF(120.0, 80.0), None)
@@ -1656,12 +1656,12 @@ def test_session_injects_plain_template_catalog_for_mode_submission(
 
 #============================================
 def test_template_insertion_selects_the_backend_mapped_root_molecule(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A template result selects only the root allocated by OASA acceptance."""
 	session = _new_native_session(main_window, '<cdml version="26.07"></cdml>')
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"template.insert", "Place template Me",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -1693,13 +1693,13 @@ def test_template_insertion_selects_the_backend_mapped_root_molecule(
 
 #============================================
 def test_template_insertion_rejects_invalid_plain_envelopes(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Invalid placement inputs leave the authoritative snapshot and history intact."""
 	session = _new_native_session(main_window, '<cdml version="26.07"></cdml>')
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	malformed_payload = bkchem_qt.models.document_session.PersistentOperationRequest(
+	malformed_payload = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"template.insert", "Place template Me",
 		(
 			("expected_revision", before.revision),
@@ -1707,7 +1707,7 @@ def test_template_insertion_rejects_invalid_plain_envelopes(
 			("anchor", (120.0,)),
 		),
 	)
-	invalid_target = bkchem_qt.models.document_session.PersistentOperationRequest(
+	invalid_target = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"template.insert", "Place template Me",
 		(
 			("expected_revision", before.revision),
@@ -1716,7 +1716,7 @@ def test_template_insertion_rejects_invalid_plain_envelopes(
 		),
 		frozenset({("molecule", "unexpected")}),
 	)
-	invalid_name = bkchem_qt.models.document_session.PersistentOperationRequest(
+	invalid_name = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"template.insert", "Place unknown template",
 		(
 			("expected_revision", before.revision),
@@ -1737,7 +1737,7 @@ def test_template_insertion_rejects_invalid_plain_envelopes(
 
 #============================================
 def test_template_insertion_rejects_stale_request_before_oasa_preparation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A stale request is rejected before template preparation can begin."""
@@ -1754,7 +1754,7 @@ def test_template_insertion_rejects_stale_request_before_oasa_preparation(
 		"prepare_template_molecule_insertion",
 		reject_unexpected_preparation,
 	)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"template.insert", "Place template Me",
 		(
 			("expected_revision", before.revision + 1),
@@ -1775,13 +1775,13 @@ def test_template_insertion_rejects_stale_request_before_oasa_preparation(
 
 #============================================
 def test_top_level_delete_uses_backend_history_and_exact_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A direct-root Delete commits only through backend revision history."""
 	session = _new_native_session(main_window, _DELETE_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
 	before = session.backend_snapshot
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"top-level.delete", "Delete",
 		(("expected_revision", before.revision), ("root_ids", ("arrow1",))),
 		frozenset({("presentation", "arrow1")}),
@@ -1799,7 +1799,7 @@ def test_top_level_delete_uses_backend_history_and_exact_reprojection(
 
 #============================================
 def test_edit_mode_delete_of_complete_presentation_root_uses_backend(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Edit Delete sends a selected durable arrow through the session operation."""
 	session = _new_native_session(main_window, _DELETE_CDML)
@@ -1824,7 +1824,7 @@ def test_edit_mode_delete_of_complete_presentation_root_uses_backend(
 
 #============================================
 def test_edit_mode_unavailable_complete_root_delete_keeps_backend_and_qt_unchanged(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A formed root-delete request never falls through to local mutation."""
 	session = _new_native_session(main_window, _DELETE_CDML)
@@ -1854,7 +1854,7 @@ def test_edit_mode_unavailable_complete_root_delete_keeps_backend_and_qt_unchang
 
 #============================================
 def test_edit_mode_partial_mixed_delete_is_inert_while_synchronized(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A synchronized atom/presentation selection does not enter local isolation."""
 	session = _new_native_session(main_window, _REPAIR_CDML)
@@ -1884,7 +1884,7 @@ def test_edit_mode_partial_mixed_delete_is_inert_while_synchronized(
 
 #============================================
 def test_edit_mode_delete_of_complete_molecule_uses_backend(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Edit Delete treats every selected primary item as one backend molecule root."""
 	session = _new_native_session(main_window, _DELETE_CDML)
@@ -1909,7 +1909,7 @@ def test_edit_mode_delete_of_complete_molecule_uses_backend(
 
 #============================================
 def test_normalize_length_menu_action_commits_backend_repair_and_reprojects(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""The registered Repair action uses backend history instead of local moves."""
 	source = tmp_path / "backend-repair.cdml"
@@ -1930,7 +1930,7 @@ def test_normalize_length_menu_action_commits_backend_repair_and_reprojects(
 
 #============================================
 def test_snap_hex_menu_action_uses_backend_history_and_preserves_selection(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Visible Snap replaces its projection and keeps its durable selection."""
 	source = tmp_path / "backend-snap.cdml"
@@ -1967,7 +1967,7 @@ def test_snap_hex_menu_action_uses_backend_history_and_preserves_selection(
 
 #============================================
 def test_normalize_angle_menu_action_uses_backend_history_and_reprojects(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Visible Angle repair replaces Qt state and restores accepted backend history."""
 	source = tmp_path / "backend-angle.cdml"
@@ -2015,7 +2015,7 @@ def test_normalize_angle_menu_action_uses_backend_history_and_reprojects(
 
 #============================================
 def test_straighten_menu_action_uses_backend_history_and_reprojects(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Visible Straighten replaces the projection without Qt-local undo."""
 	source = tmp_path / "backend-straighten.cdml"
@@ -2060,7 +2060,7 @@ def test_straighten_menu_action_uses_backend_history_and_reprojects(
 
 #============================================
 def test_straighten_menu_noop_keeps_authoritative_revision_and_projection(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""A canonical terminal bond has no history or projection replacement."""
 	source = tmp_path / "backend-straighten-noop.cdml"
@@ -2084,14 +2084,14 @@ def test_straighten_menu_noop_keeps_authoritative_revision_and_projection(
 #============================================
 def test_imported_cdml_session_is_pathless_dirty_and_saves_exact_snapshot(
 		qapp: PySide6.QtWidgets.QApplication,
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path,
 		) -> None:
 	"""External import state comes from the backend baseline, then Save publishes it."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_imported_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_imported_cdml(
 		_OPEN_ARROW_CDML,
 	)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -2109,7 +2109,7 @@ def test_imported_cdml_session_is_pathless_dirty_and_saves_exact_snapshot(
 
 #============================================
 def test_worker_mol_open_replaces_same_tab_with_backend_dirty_exact_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, qtbot: object,
 		) -> None:
 	"""A queued Molfile Open publishes only the staged backend snapshot on Save."""
@@ -2135,7 +2135,7 @@ def test_worker_mol_open_replaces_same_tab_with_backend_dirty_exact_snapshot(
 
 #============================================
 def test_worker_sdf_open_preserves_each_component_with_valid_durable_references(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, qtbot: object,
 		) -> None:
 	"""A queued multi-record SDF Open stages all disconnected components together."""
@@ -2160,7 +2160,7 @@ def test_worker_sdf_open_preserves_each_component_with_valid_durable_references(
 
 #============================================
 def test_worker_mol_open_projection_staging_failure_keeps_same_tab_authority(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qtbot: object,
 		) -> None:
 	"""A queued imported projection failure leaves the old tab aliases and snapshot live."""
@@ -2172,14 +2172,14 @@ def test_worker_mol_open_projection_staging_failure_keeps_same_tab_authority(
 	before = target.backend_snapshot
 
 	def fail_import_staging(
-			_cls: type[bkchem_qt.models.document_session.DocumentSession],
+			_cls: type[ferrum_qt.models.document_session.DocumentSession],
 			_cdml_text: str,
-			) -> bkchem_qt.models.document_session.PreparedImportedCDML:
+			) -> ferrum_qt.models.document_session.PreparedImportedCDML:
 		"""Model a Qt projection preparation error after worker canonicalization."""
 		raise ValueError("import projection staging failed")
 
 	monkeypatch.setattr(
-		bkchem_qt.models.document_session.DocumentSession,
+		ferrum_qt.models.document_session.DocumentSession,
 		"prepare_imported_cdml", classmethod(fail_import_staging),
 	)
 	assert main_window.open_file_path(str(source), replace_current=True)
@@ -2192,7 +2192,7 @@ def test_worker_mol_open_projection_staging_failure_keeps_same_tab_authority(
 
 #============================================
 def test_worker_mol_open_late_detach_failure_restores_same_tab_authority(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qtbot: object,
 		) -> None:
 	"""A late imported tab-detach failure rolls back aliases and backend ownership."""
@@ -2204,7 +2204,7 @@ def test_worker_mol_open_late_detach_failure_restores_same_tab_authority(
 	detach_tab_page = main_window._detach_tab_page
 
 	def fail_target_detach(
-			session: bkchem_qt.models.document_session.DocumentSession,
+			session: ferrum_qt.models.document_session.DocumentSession,
 			index: int,
 			) -> None:
 		"""Fail while the old tab still owns its original view and session."""
@@ -2224,7 +2224,7 @@ def test_worker_mol_open_late_detach_failure_restores_same_tab_authority(
 
 #============================================
 def test_stale_worker_mol_open_delivery_is_inert_after_token_invalidation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qtbot: object,
 		) -> None:
 	"""A stale queued worker result changes no tab, recent file, or dialog state."""
@@ -2233,23 +2233,23 @@ def test_stale_worker_mol_open_delivery_is_inert_after_token_invalidation(
 	warnings = _intercept_warnings(monkeypatch)
 	target = main_window._active_session
 	before = target.backend_snapshot
-	recent_before = bkchem_qt.config.preferences.Preferences.instance().value(
-		bkchem_qt.config.preferences.Preferences.KEY_RECENT_FILES,
+	recent_before = ferrum_qt.config.preferences.Preferences.instance().value(
+		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
 	)
 	assert main_window.open_file_path(str(source), replace_current=True)
 	target.invalidate_import_requests()
 	_wait_for_async_import_terminal(qtbot, main_window, target)
 	assert main_window._active_session is target
 	assert target.backend_snapshot == before
-	assert bkchem_qt.config.preferences.Preferences.instance().value(
-		bkchem_qt.config.preferences.Preferences.KEY_RECENT_FILES,
+	assert ferrum_qt.config.preferences.Preferences.instance().value(
+		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
 	) == recent_before
 	assert warnings == []
 
 
 #============================================
 def test_closed_worker_mol_open_delivery_is_inert_and_reaches_terminal_cleanup(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qtbot: object,
 		) -> None:
 	"""Closing a loading import tab suppresses its late result without touching peers."""
@@ -2258,8 +2258,8 @@ def test_closed_worker_mol_open_delivery_is_inert_and_reaches_terminal_cleanup(
 	warnings = _intercept_warnings(monkeypatch)
 	stable = main_window._active_session
 	before = stable.backend_snapshot
-	recent_before = bkchem_qt.config.preferences.Preferences.instance().value(
-		bkchem_qt.config.preferences.Preferences.KEY_RECENT_FILES,
+	recent_before = ferrum_qt.config.preferences.Preferences.instance().value(
+		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
 	)
 	assert main_window.open_file_path(str(source))
 	loading = main_window._active_session
@@ -2269,16 +2269,16 @@ def test_closed_worker_mol_open_delivery_is_inert_and_reaches_terminal_cleanup(
 	assert main_window.sessions == [stable]
 	assert main_window._active_session is stable
 	assert stable.backend_snapshot == before
-	assert bkchem_qt.config.preferences.Preferences.instance().value(
-		bkchem_qt.config.preferences.Preferences.KEY_RECENT_FILES,
+	assert ferrum_qt.config.preferences.Preferences.instance().value(
+		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
 	) == recent_before
 	assert warnings == []
 
 
 #============================================
 def _new_projected_selection_translate_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Create one disposable Qt projection for a mixed selection contract test."""
 	session = _new_native_session(main_window, _REPAIR_CDML)
 	_install_projection_port(session, session.replace_projection_from_backend_snapshot)
@@ -2300,7 +2300,7 @@ def test_selection_translate_request_rejects_malformed_boundary_keys(
 		) -> None:
 	"""The Qt boundary rejects malformed durable-key shapes before dispatch."""
 	with pytest.raises(ValueError):
-		bkchem_qt.models.document_session.build_selection_translate_request(
+		ferrum_qt.models.document_session.build_selection_translate_request(
 			0, atom_targets, presentation_root_keys, (1.0, 0.0),
 		)
 
@@ -2314,13 +2314,13 @@ def test_selection_translate_request_rejects_malformed_boundary_keys(
 	),
 )
 def test_selection_translate_requires_both_target_categories_before_dispatch(
-		main_window: bkchem_qt.main_window.MainWindow, atom_targets: tuple,
+		main_window: ferrum_qt.main_window.MainWindow, atom_targets: tuple,
 		presentation_root_ids: tuple, target_keys: frozenset[tuple[str, str]],
 		) -> None:
 	"""An incomplete mixed request leaves every local and backend history untouched."""
 	session = _new_projected_selection_translate_session(main_window)
 	backend_calls = []
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"selection.translate", "Move Selected",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -2333,7 +2333,7 @@ def test_selection_translate_requires_both_target_categories_before_dispatch(
 	executor = session._operation_commit_executors["selection-translate"]
 
 	def record_backend_call(
-			prepared: bkchem_qt.models.document_session._PreparedPersistentOperation,
+			prepared: ferrum_qt.models.document_session._PreparedPersistentOperation,
 			) -> oasa.cdml_document.CDMLSelectionTranslateResult:
 		"""Record any unexpected attempt to execute an incomplete request."""
 		backend_calls.append(prepared)
@@ -2344,7 +2344,7 @@ def test_selection_translate_requires_both_target_categories_before_dispatch(
 		before = session.backend_snapshot
 		outcome = session.submit_persistent_operation(request)
 		with pytest.raises(ValueError):
-			bkchem_qt.models.document_session.build_selection_translate_request(
+			ferrum_qt.models.document_session.build_selection_translate_request(
 				before.revision, atom_targets,
 				tuple(("presentation", identifier) for identifier in presentation_root_ids),
 				(1.0, 0.0),
@@ -2364,7 +2364,7 @@ def test_selection_translate_requires_both_target_categories_before_dispatch(
 
 #============================================
 def test_selection_translate_acceptance_uses_backend_history_not_qt_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""One accepted mixed move creates backend history and no Qt undo command."""
 	session = _new_projected_selection_translate_session(main_window)
@@ -2386,13 +2386,13 @@ def test_selection_translate_acceptance_uses_backend_history_not_qt_undo(
 
 #============================================
 def test_selection_translate_acceptance_reprojects_durable_mixed_selection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Canonical replacement restores the selected atom and presentation root."""
 	session = _new_projected_selection_translate_session(main_window)
 	try:
 		for item in session.scene.items():
-			key = bkchem_qt.canvas.document_projection.persistent_selection_key(item)
+			key = ferrum_qt.canvas.document_projection.persistent_selection_key(item)
 			if key in {("atom", "a1"), ("presentation", "arrow1")}:
 				item.setSelected(True)
 		before = session.backend_snapshot
@@ -2409,13 +2409,13 @@ def test_selection_translate_acceptance_reprojects_durable_mixed_selection(
 
 #============================================
 def test_selection_translate_rejects_mismatched_target_keys_without_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A request whose durable correlation is wrong cannot reach OASA."""
 	session = _new_projected_selection_translate_session(main_window)
 	try:
 		before = session.backend_snapshot
-		mismatched = bkchem_qt.models.document_session.PersistentOperationRequest(
+		mismatched = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"selection.translate", "Move Selected",
 			(
 				("expected_revision", before.revision),
@@ -2437,7 +2437,7 @@ def test_selection_translate_rejects_mismatched_target_keys_without_history(
 
 #============================================
 def test_selection_translate_zero_delta_is_an_accepted_noop(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A canonical zero movement preserves the current snapshot without history."""
 	session = _new_projected_selection_translate_session(main_window)
@@ -2457,7 +2457,7 @@ def test_selection_translate_zero_delta_is_an_accepted_noop(
 
 #============================================
 def test_selection_translate_stale_revision_cannot_add_backend_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A stale captured revision preserves the one already accepted snapshot."""
 	session = _new_projected_selection_translate_session(main_window)
@@ -2484,7 +2484,7 @@ def test_selection_translate_stale_revision_cannot_add_backend_history(
 
 #============================================
 def test_selection_translate_projection_retry_reuses_only_the_accepted_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Projection recovery never sends the accepted mixed request twice."""
 	session = _new_native_session(main_window, _REPAIR_CDML)
@@ -2496,7 +2496,7 @@ def test_selection_translate_projection_retry_reuses_only_the_accepted_snapshot(
 	executor = session._operation_commit_executors["selection-translate"]
 
 	def count_translate(
-			prepared: bkchem_qt.models.document_session._PreparedPersistentOperation,
+			prepared: ferrum_qt.models.document_session._PreparedPersistentOperation,
 			) -> oasa.cdml_document.CDMLSelectionTranslateResult:
 		"""Record the one backend call made for the accepted mixed operation."""
 		calls.append(prepared)
@@ -2528,11 +2528,11 @@ def test_selection_translate_projection_retry_reuses_only_the_accepted_snapshot(
 
 #============================================
 def _dispose_session(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Release a standalone session through its owning window's safe reaper."""
 	owner = session.parent()
-	if not isinstance(owner, bkchem_qt.main_window.MainWindow):
+	if not isinstance(owner, ferrum_qt.main_window.MainWindow):
 		raise TypeError("Standalone test session has no MainWindow lifetime owner")
 	owner._dispose_session_later(session)
 
@@ -2540,16 +2540,16 @@ def _dispose_session(
 #============================================
 def _drain_deferred_deletes(
 		app: PySide6.QtWidgets.QApplication,
-		main_window: bkchem_qt.main_window.MainWindow = None,
+		main_window: ferrum_qt.main_window.MainWindow = None,
 		) -> None:
 	"""Deliver queued QObject destruction before inspecting native wrappers."""
-	assert bkchem_qt.main_window.drain_pending_session_deletions(app, main_window)
+	assert ferrum_qt.main_window.drain_pending_session_deletions(app, main_window)
 
 
 #============================================
 def _restore_blank_anchor(
-		main_window: bkchem_qt.main_window.MainWindow,
-		opened_session: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		opened_session: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Leave the module fixture with a fresh synchronized blank session."""
 	main_window._on_new()
@@ -2573,8 +2573,8 @@ def _intercept_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 #============================================
 def _presentation_by_id(
-		document: bkchem_qt.models.document.Document, object_id: str,
-		) -> bkchem_qt.models.document_object.PresentationObject:
+		document: ferrum_qt.models.document.Document, object_id: str,
+		) -> ferrum_qt.models.document_object.PresentationObject:
 	"""Return one projected object by its durable CDML identifier."""
 	for presentation in document.presentation_objects:
 		if presentation.object_id == object_id:
@@ -2584,8 +2584,8 @@ def _presentation_by_id(
 
 #============================================
 def _failed_native_open_preserves_target(
-		main_window: bkchem_qt.main_window.MainWindow,
-		target: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		target: ferrum_qt.models.document_session.DocumentSession,
 		) -> bool:
 	"""Return whether a failed native Open left its target fully usable."""
 	target.set_display_name("Recovered native Open target")
@@ -2610,8 +2610,8 @@ def _failed_native_open_preserves_target(
 
 #============================================
 def _recover_target_after_forced_native_open_failure(
-		main_window: bkchem_qt.main_window.MainWindow,
-		target: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		target: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Restore the shared window after exercising a known-broken rollback."""
 	for session in tuple(main_window.sessions):
@@ -2636,7 +2636,7 @@ def _recover_target_after_forced_native_open_failure(
 
 #============================================
 def test_fresh_tabs_keep_backend_arrow_commits_isolated(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""One tab's complete-CDML commit cannot change another tab's backend state."""
 	first = _new_tab(main_window)
@@ -2652,7 +2652,7 @@ def test_fresh_tabs_keep_backend_arrow_commits_isolated(
 
 #============================================
 def test_fresh_tab_backend_has_canonical_blank_version(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A fresh backend declares the shared CDML version."""
 	session = _new_tab(main_window)
@@ -2664,7 +2664,7 @@ def test_fresh_tab_backend_has_canonical_blank_version(
 
 #============================================
 def test_fresh_tab_backend_has_canonical_blank_namespace(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A fresh backend declares the canonical CDML namespace."""
 	session = _new_tab(main_window)
@@ -2676,7 +2676,7 @@ def test_fresh_tab_backend_has_canonical_blank_namespace(
 
 #============================================
 def test_backend_commit_allocates_provisional_arrow_id(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A complete candidate receives its backend-owned persistent arrow ID."""
 	session = _new_tab(main_window)
@@ -2689,7 +2689,7 @@ def test_backend_commit_allocates_provisional_arrow_id(
 
 #============================================
 def test_backend_commit_does_not_mutate_qt_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A backend-only commit leaves the live Qt projection untouched."""
 	session = _new_tab(main_window)
@@ -2704,14 +2704,14 @@ def test_backend_commit_does_not_mutate_qt_projection(
 
 #============================================
 def test_stale_projection_refuses_backend_snapshot_write(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""A backend commit cannot save while its Qt projection is stale."""
 	session = _new_tab(main_window)
 	target = tmp_path / "stale.cdml"
 	try:
 		session.commit_complete_candidate(_arrow_candidate())
-		with pytest.raises(bkchem_qt.models.document_session.BackendProjectionOutOfSyncError):
+		with pytest.raises(ferrum_qt.models.document_session.BackendProjectionOutOfSyncError):
 			session.write_backend_snapshot(str(target))
 		assert not target.exists()
 	finally:
@@ -2720,7 +2720,7 @@ def test_stale_projection_refuses_backend_snapshot_write(
 
 #============================================
 def test_rejected_candidate_keeps_backend_revision(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Backend validation failure cannot advance the authoritative revision."""
 	session = _new_tab(main_window)
@@ -2737,7 +2737,7 @@ def test_rejected_candidate_keeps_backend_revision(
 
 #============================================
 def test_rejected_candidate_keeps_projection_synchronized(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Backend validation failure leaves the existing projection saveable."""
 	session = _new_tab(main_window)
@@ -2753,7 +2753,7 @@ def test_rejected_candidate_keeps_projection_synchronized(
 
 #============================================
 def test_legacy_qt_dirty_transition_blocks_backend_write_until_canonical_reprojection(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Legacy direct edits block saving until canonical CDML reprojection."""
 	session = _new_tab(main_window)
@@ -2761,7 +2761,7 @@ def test_legacy_qt_dirty_transition_blocks_backend_write_until_canonical_reproje
 	try:
 		session.document.mark_dirty()
 		session.document.mark_clean()
-		with pytest.raises(bkchem_qt.models.document_session.BackendProjectionOutOfSyncError):
+		with pytest.raises(ferrum_qt.models.document_session.BackendProjectionOutOfSyncError):
 			session.write_backend_snapshot(str(target))
 		assert not target.exists()
 	finally:
@@ -2770,10 +2770,10 @@ def test_legacy_qt_dirty_transition_blocks_backend_write_until_canonical_reproje
 
 #============================================
 def test_native_staging_installs_matching_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Native staging installs a Qt projection from canonical backend CDML."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_OPEN_ARROW_CDML,
 	)
 	session = _new_synchronized_session(main_window, prepared)
@@ -2787,10 +2787,10 @@ def test_native_staging_installs_matching_projection(
 
 #============================================
 def test_prepared_native_cdml_transfer_is_one_use_and_private(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained staging value cannot install a second mutable authority."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_ARROW_CDML,
 	)
 	first = _new_synchronized_session(main_window, prepared)
@@ -2804,14 +2804,14 @@ def test_prepared_native_cdml_transfer_is_one_use_and_private(
 
 #============================================
 def test_prepared_native_cdml_remains_retryable_after_setup_failure(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed receiving setup leaves the prepared transfer available to retry."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_ARROW_CDML,
 	)
-	real_setup_modes = bkchem_qt.setup.mode_setup.setup_modes
+	real_setup_modes = ferrum_qt.setup.mode_setup.setup_modes
 	failed_once = False
 
 	def fail_once_after_canvas(
@@ -2868,7 +2868,7 @@ def test_prepared_native_cdml_remains_retryable_after_setup_failure(
 			graphics_retirement_reaper=graphics_retirement_reaper,
 		)
 
-	monkeypatch.setattr(bkchem_qt.setup.mode_setup, "setup_modes", fail_once_after_canvas)
+	monkeypatch.setattr(ferrum_qt.setup.mode_setup, "setup_modes", fail_once_after_canvas)
 	with pytest.raises(RuntimeError, match="mode setup failed"):
 		_new_synchronized_session(main_window, prepared)
 	session = _new_synchronized_session(main_window, prepared)
@@ -2880,7 +2880,7 @@ def test_prepared_native_cdml_remains_retryable_after_setup_failure(
 
 #============================================
 def test_native_staging_decoder_failure_does_not_change_live_session(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Projection decoding failure remains detached from an already-live tab."""
 	session = _new_tab(main_window)
@@ -2889,16 +2889,16 @@ def test_native_staging_decoder_failure_does_not_change_live_session(
 
 	def fail_decode(
 			_projection_snapshot: object,
-			) -> bkchem_qt.models.document.Document:
+			) -> ferrum_qt.models.document.Document:
 		"""Model a projection decode failure after backend staging succeeds."""
 		raise ValueError("projection failed")
 
 	try:
 		monkeypatch.setattr(
-			bkchem_qt.io.cdml_document_io, "hydrate_synchronized_cdml_document", fail_decode,
+			ferrum_qt.io.cdml_document_io, "hydrate_synchronized_cdml_document", fail_decode,
 		)
 		with pytest.raises(ValueError, match="projection failed"):
-			bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+			ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 				_ARROW_CDML,
 			)
 		assert (session.document, session.backend_snapshot) == (
@@ -2921,7 +2921,7 @@ def test_core_projection_never_binds_a_bond_to_a_duplicate_atom_id() -> None:
 	projection_snapshot = oasa.cdml_document.CDMLDocument.projection_snapshot(
 		oasa.cdml_document.CDMLSnapshot(0, backend_document.serialize(), False),
 	)
-	document = bkchem_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
+	document = ferrum_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
 		projection_snapshot,
 	)
 	assert not document.molecules[0].bonds
@@ -2929,10 +2929,10 @@ def test_core_projection_never_binds_a_bond_to_a_duplicate_atom_id() -> None:
 
 #============================================
 def test_synchronized_clean_session_writes_exact_backend_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""A clean native session writes the exact immutable backend snapshot."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_ARROW_CDML,
 	)
 	session = _new_synchronized_session(main_window, prepared)
@@ -2947,11 +2947,11 @@ def test_synchronized_clean_session_writes_exact_backend_snapshot(
 
 #============================================
 def test_backend_write_failure_keeps_clean_snapshot_stable(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed backend write cannot change its clean authoritative snapshot."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_ARROW_CDML,
 	)
 	session = _new_synchronized_session(main_window, prepared)
@@ -2966,7 +2966,7 @@ def test_backend_write_failure_keeps_clean_snapshot_stable(
 
 	try:
 		monkeypatch.setattr(
-			bkchem_qt.models.document_session, "_write_backend_snapshot", fail_write,
+			ferrum_qt.models.document_session, "_write_backend_snapshot", fail_write,
 		)
 		with pytest.raises(OSError, match="disk unavailable"):
 			session.write_backend_snapshot(str(target))
@@ -2977,7 +2977,7 @@ def test_backend_write_failure_keeps_clean_snapshot_stable(
 
 #============================================
 def test_authoritative_snapshot_capability_is_total_for_unavailable_states(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Unavailable, replacing, detached, and disposed sessions are ineligible."""
 	session = _new_native_session(main_window)
@@ -2998,7 +2998,7 @@ def test_authoritative_snapshot_capability_is_total_for_unavailable_states(
 
 #============================================
 def test_authoritative_snapshot_bootstrap_tracks_backend_provenance(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Blank and native sessions qualify, while legacy-populated Qt state does not."""
 	blank = _new_native_session(main_window, '<cdml version="0.15"></cdml>')
@@ -3019,7 +3019,7 @@ def test_authoritative_snapshot_bootstrap_tracks_backend_provenance(
 
 #============================================
 def test_authoritative_save_routes_canonical_bytes_without_qt_serializer(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""An eligible Save publishes OASA CDML and establishes both clean points."""
 	session = _new_native_session(main_window)
@@ -3040,7 +3040,7 @@ def test_authoritative_save_routes_canonical_bytes_without_qt_serializer(
 
 #============================================
 def test_save_ineligible_session_requires_recovery_export_without_qt_serialization(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An isolated projection cannot Save, while Recovery Export preserves its snapshot."""
@@ -3073,9 +3073,9 @@ def test_save_ineligible_session_requires_recovery_export_without_qt_serializati
 
 #============================================
 def test_file_action_predicates_disable_save_but_keep_recovery_export_available(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
-	"""A local persistent edit exposes recovery instead of an unsafe Save action."""
+	"""A local edit exposes recovery without enabling unavailable file actions."""
 	session = main_window._active_session
 	assert main_window._registry.is_enabled("file.save", main_window)
 	try:
@@ -3085,14 +3085,14 @@ def test_file_action_predicates_disable_save_but_keep_recovery_export_available(
 			main_window._registry.is_enabled("file.save_as", main_window),
 			main_window._registry.is_enabled("file.recovery_export", main_window),
 			main_window._registry.is_enabled("file.save_as_template", main_window),
-		) == (False, False, True, True)
+		) == (False, False, True, False)
 	finally:
 		session._discard_legacy_and_retry_projection()
 
 
 #============================================
 def test_template_export_publishes_backend_canonical_content_without_session_mutation(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Template export uses the validated backend snapshot, never Qt serialization."""
 	session = _new_native_session(main_window)
@@ -3111,7 +3111,7 @@ def test_template_export_publishes_backend_canonical_content_without_session_mut
 
 #============================================
 def test_template_export_reports_unavailable_without_a_recovery_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Template export rejects an absent active backend snapshot before opening a dialog."""
@@ -3129,7 +3129,7 @@ def test_template_export_reports_unavailable_without_a_recovery_session(
 
 #============================================
 def test_authoritative_pre_replace_failure_preserves_old_file_and_memory_state(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed ordinary Save reports failure without publishing or cleaning state."""
@@ -3151,7 +3151,7 @@ def test_authoritative_pre_replace_failure_preserves_old_file_and_memory_state(
 
 	try:
 		monkeypatch.setattr(
-			bkchem_qt.models.document_session, "_write_backend_snapshot", fail_before_replace,
+			ferrum_qt.models.document_session, "_write_backend_snapshot", fail_before_replace,
 		)
 		monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", record_warning)
 		assert not main_window._save_session_to_path(session, str(target))
@@ -3167,7 +3167,7 @@ def test_authoritative_pre_replace_failure_preserves_old_file_and_memory_state(
 
 #============================================
 def test_authoritative_writer_follows_symlink_and_preserves_referent_mode(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""An existing native symlink retains its identity and referent permissions."""
 	session = _new_native_session(main_window)
@@ -3190,7 +3190,7 @@ def test_authoritative_writer_follows_symlink_and_preserves_referent_mode(
 
 #============================================
 def test_directory_fsync_failure_reports_partial_publication_and_cleans_stage(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A directory-sync error reports partial publication without a baseline update."""
@@ -3199,8 +3199,8 @@ def test_directory_fsync_failure_reports_partial_publication_and_cleans_stage(
 	captured = session.backend_snapshot
 	directory_descriptors = set()
 	mark_saved_calls = []
-	original_open = bkchem_qt.models.document_session.os.open
-	original_fsync = bkchem_qt.models.document_session.os.fsync
+	original_open = ferrum_qt.models.document_session.os.open
+	original_fsync = ferrum_qt.models.document_session.os.fsync
 
 	def capture_directory_open(path: str, flags: int, mode: int = 0o777) -> int:
 		"""Remember the descriptor used to durability-sync this test directory."""
@@ -3222,14 +3222,14 @@ def test_directory_fsync_failure_reports_partial_publication_and_cleans_stage(
 
 	try:
 		monkeypatch.setattr(
-			bkchem_qt.models.document_session.os, "open", capture_directory_open,
+			ferrum_qt.models.document_session.os, "open", capture_directory_open,
 		)
 		monkeypatch.setattr(
-			bkchem_qt.models.document_session.os, "fsync", fail_directory_fsync,
+			ferrum_qt.models.document_session.os, "fsync", fail_directory_fsync,
 		)
 		monkeypatch.setattr(session._backend_session, "mark_saved", record_mark_saved)
 		with pytest.raises(
-			bkchem_qt.models.document_session.BackendSnapshotPublicationError,
+			ferrum_qt.models.document_session.BackendSnapshotPublicationError,
 			match="publication durability is unconfirmed",
 		):
 			session.write_backend_snapshot(str(target))
@@ -3238,7 +3238,7 @@ def test_directory_fsync_failure_reports_partial_publication_and_cleans_stage(
 			mark_saved_calls,
 			session.backend_snapshot,
 			session.document.dirty,
-			any(tmp_path.glob(".durability.cdml.bkchem-*.tmp")),
+			any(tmp_path.glob(".durability.cdml.ferrum-*.tmp")),
 		) == (captured.cdml, [], captured, False, False)
 	finally:
 		_dispose_session(session)
@@ -3246,7 +3246,7 @@ def test_directory_fsync_failure_reports_partial_publication_and_cleans_stage(
 
 #============================================
 def test_recovery_export_writes_exact_snapshot_without_qt_or_baseline_mutation(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Recovery Export publishes backend bytes without reading the Qt projection."""
@@ -3284,7 +3284,7 @@ def test_recovery_export_writes_exact_snapshot_without_qt_or_baseline_mutation(
 
 #============================================
 def test_recovery_export_is_projection_independent_and_rejects_disposal(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""A missing projection remains exportable until terminal disposal begins."""
 	session = _new_native_session(main_window)
@@ -3311,7 +3311,7 @@ def test_recovery_export_is_projection_independent_and_rejects_disposal(
 
 #============================================
 def test_optional_recent_file_failure_cannot_revoke_successful_authoritative_save(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Presentation bookkeeping failure cannot turn completed persistence into false."""
@@ -3323,7 +3323,7 @@ def test_optional_recent_file_failure_cannot_revoke_successful_authoritative_sav
 		raise OSError("recent settings unavailable")
 
 	try:
-		monkeypatch.setattr(bkchem_qt.actions.file_actions, "_record_recent_file", fail_recent)
+		monkeypatch.setattr(ferrum_qt.actions.file_actions, "_record_recent_file", fail_recent)
 		assert main_window._save_session_to_path(session, str(target))
 	finally:
 		_dispose_session(session)
@@ -3331,10 +3331,10 @@ def test_optional_recent_file_failure_cannot_revoke_successful_authoritative_sav
 
 #============================================
 def test_disposed_session_rejects_backend_mutation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A disposed tab cannot accept a stale backend commit callback."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_ARROW_CDML,
 	)
 	session = _new_synchronized_session(main_window, prepared)
@@ -3348,10 +3348,10 @@ def test_disposed_session_rejects_backend_mutation(
 
 #============================================
 def test_disposed_session_rejects_backend_write(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""A disposed tab cannot write a stale backend save request."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_ARROW_CDML,
 	)
 	session = _new_synchronized_session(main_window, prepared)
@@ -3367,7 +3367,7 @@ def test_disposed_session_rejects_backend_write(
 
 #============================================
 def test_native_open_installs_canonical_backend_snapshot_projection(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Native Open projects the canonical backend snapshot without local reserialization."""
 	source = tmp_path / "backend-first.cdml"
@@ -3391,7 +3391,7 @@ def test_native_open_installs_canonical_backend_snapshot_projection(
 
 #============================================
 def test_native_open_projects_backend_canonical_arrow(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""The staged backend snapshot creates the durable arrow projection."""
 	source = tmp_path / "projected-arrow.cdml"
@@ -3407,7 +3407,7 @@ def test_native_open_projects_backend_canonical_arrow(
 
 #============================================
 def test_native_open_backend_staging_failure_keeps_active_aliases(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An invalid backend candidate cannot disturb the current tab projection."""
@@ -3425,7 +3425,7 @@ def test_native_open_backend_staging_failure_keeps_active_aliases(
 
 #============================================
 def test_native_open_projection_staging_failure_keeps_active_aliases(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed Qt projection decode cannot disturb the current backend tab."""
@@ -3437,13 +3437,13 @@ def test_native_open_projection_staging_failure_keeps_active_aliases(
 
 	def fail_projection(
 			_cdml_text: str, observations: object,
-		) -> bkchem_qt.models.document.Document:
+		) -> ferrum_qt.models.document.Document:
 		"""Model a decoder failure after backend canonicalization succeeds."""
 		del observations
 		raise ValueError("projection staging failed")
 
 	monkeypatch.setattr(
-		bkchem_qt.io.cdml_document_io, "hydrate_synchronized_cdml_document", fail_projection,
+		ferrum_qt.io.cdml_document_io, "hydrate_synchronized_cdml_document", fail_projection,
 	)
 	opened = main_window.open_file_path(str(source))
 	assert (opened, main_window._active_session, (
@@ -3454,13 +3454,13 @@ def test_native_open_projection_staging_failure_keeps_active_aliases(
 
 #============================================
 def test_same_tab_native_open_setup_failure_keeps_target_and_prepared_retryable(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A receiver-construction failure preserves both target and staging value."""
 	source = tmp_path / "same-tab-failure.cdml"
 	source.write_text(_OPEN_ARROW_CDML, encoding="utf-8")
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_OPEN_ARROW_CDML,
 	)
 	_intercept_warnings(monkeypatch)
@@ -3468,9 +3468,9 @@ def test_same_tab_native_open_setup_failure_keeps_target_and_prepared_retryable(
 	target_document = main_window.document
 
 	def return_prepared(
-			_cls: type[bkchem_qt.models.document_session.DocumentSession],
+			_cls: type[ferrum_qt.models.document_session.DocumentSession],
 			_cdml_text: str,
-			) -> bkchem_qt.models.document_session.PreparedNativeCDML:
+			) -> ferrum_qt.models.document_session.PreparedNativeCDML:
 		"""Return the retained value so construction is the failing stage."""
 		return prepared
 
@@ -3512,14 +3512,14 @@ def test_same_tab_native_open_setup_failure_keeps_target_and_prepared_retryable(
 		raise RuntimeError("mode setup failed")
 
 	monkeypatch.setattr(
-		bkchem_qt.models.document_session.DocumentSession,
+		ferrum_qt.models.document_session.DocumentSession,
 		"prepare_native_cdml",
 		classmethod(return_prepared),
 	)
 	try:
 		with monkeypatch.context() as setup_patch:
 			setup_patch.setattr(
-				bkchem_qt.setup.mode_setup, "setup_modes", fail_setup_modes,
+				ferrum_qt.setup.mode_setup, "setup_modes", fail_setup_modes,
 			)
 			opened = main_window.open_file_path(str(source), replace_current=True)
 		assert (opened, main_window._active_session, main_window.document) == (
@@ -3536,7 +3536,7 @@ def test_same_tab_native_open_setup_failure_keeps_target_and_prepared_retryable(
 
 #============================================
 def test_native_open_activation_failure_restores_existing_tab(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An activation exception cannot replace the live tab with a failed Open."""
@@ -3548,7 +3548,7 @@ def test_native_open_activation_failure_restores_existing_tab(
 	was_tab_change_blocked = main_window._tab_change_blocked
 
 	def activate_then_fail(
-			session: bkchem_qt.models.document_session.DocumentSession,
+			session: ferrum_qt.models.document_session.DocumentSession,
 			) -> None:
 		"""Change active state first, then model a late UI activation failure."""
 		activate_session(session)
@@ -3572,7 +3572,7 @@ def test_native_open_activation_failure_restores_existing_tab(
 
 #============================================
 def test_same_tab_native_open_detach_failure_restores_existing_tab(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A replacement detach exception cannot leave a staged tab registered."""
@@ -3583,7 +3583,7 @@ def test_same_tab_native_open_detach_failure_restores_existing_tab(
 	detach_tab_page = main_window._detach_tab_page
 
 	def fail_target_detach(
-			session: bkchem_qt.models.document_session.DocumentSession,
+			session: ferrum_qt.models.document_session.DocumentSession,
 			index: int,
 			) -> None:
 		"""Fail only while the old target remains recoverable in its tab."""
@@ -3606,7 +3606,7 @@ def test_same_tab_native_open_detach_failure_restores_existing_tab(
 
 #============================================
 def test_same_tab_native_open_releases_replaced_native_wrappers(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""A viable same-tab replacement disposes the old tab ownership graph."""

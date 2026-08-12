@@ -11,10 +11,10 @@ import pathlib
 import re
 
 # local repo modules
-import bkchem_qt.actions.action_registry
-import bkchem_qt.actions.menu_builder
-import bkchem_qt.actions.registrar_manifest
-import bkchem_qt.io.format_bridge
+import ferrum_qt.actions.action_registry
+import ferrum_qt.actions.menu_builder
+import ferrum_qt.actions.registrar_manifest
+import ferrum_qt.io.format_bridge
 
 # pattern: dotted lowercase, e.g. 'file.save', 'repair.clean_geometry'
 _KEY_PATTERN = re.compile(r'^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$')
@@ -161,7 +161,7 @@ class _FakeStatusBar:
 def _get_all_registered_keys() -> set:
 	"""Register all actions and return the set of action IDs."""
 	app = _FakeApp()
-	registry = bkchem_qt.actions.action_registry.register_all_actions(app)
+	registry = ferrum_qt.actions.action_registry.register_all_actions(app)
 	all_actions = registry.all_actions()
 	return set(all_actions.keys())
 
@@ -211,9 +211,9 @@ def test_known_keys_count() -> None:
 #============================================
 def test_qt_menu_exposes_smiles_without_inchi_export() -> None:
 	"""The shipped Qt menu exposes SMILES without an InChI export action."""
-	registry = bkchem_qt.actions.action_registry.register_all_actions(_FakeApp())
-	menu_path = bkchem_qt.resource_paths.get_resource_path("menus.yaml")
-	menu_action_ids = bkchem_qt.actions.menu_builder.required_menu_action_ids(
+	registry = ferrum_qt.actions.action_registry.register_all_actions(_FakeApp())
+	menu_path = ferrum_qt.resource_paths.get_resource_path("menus.yaml")
+	menu_action_ids = ferrum_qt.actions.menu_builder.required_menu_action_ids(
 		str(menu_path)
 	)
 
@@ -227,26 +227,26 @@ def test_qt_menu_exposes_smiles_without_inchi_export() -> None:
 #============================================
 def test_format_bridge_exposes_no_projection_derived_inchi_export() -> None:
 	"""The Qt format boundary provides no model-to-InChI export adapter."""
-	assert not hasattr(bkchem_qt.io.format_bridge, "export_inchi")
+	assert not hasattr(ferrum_qt.io.format_bridge, "export_inchi")
 
 
 #============================================
 def test_registrar_manifest_is_ordered_and_complete() -> None:
 	"""The frozen startup authority lists every current registrar in order."""
-	assert bkchem_qt.actions.registrar_manifest.ACTION_REGISTRAR_MODULES == (
-		"bkchem_qt.actions.align_actions",
-		"bkchem_qt.actions.chemistry_actions",
-		"bkchem_qt.actions.edit_actions",
-		"bkchem_qt.actions.file_actions",
-		"bkchem_qt.actions.haworth_actions",
-		"bkchem_qt.actions.help_actions",
-		"bkchem_qt.actions.insert_actions",
-		"bkchem_qt.actions.object_actions",
-		"bkchem_qt.actions.options_actions",
-		"bkchem_qt.actions.plugins_actions",
-		"bkchem_qt.actions.pubchem_actions",
-		"bkchem_qt.actions.repair_actions",
-		"bkchem_qt.actions.view_actions",
+	assert ferrum_qt.actions.registrar_manifest.ACTION_REGISTRAR_MODULES == (
+		"ferrum_qt.actions.align_actions",
+		"ferrum_qt.actions.chemistry_actions",
+		"ferrum_qt.actions.edit_actions",
+		"ferrum_qt.actions.file_actions",
+		"ferrum_qt.actions.haworth_actions",
+		"ferrum_qt.actions.help_actions",
+		"ferrum_qt.actions.insert_actions",
+		"ferrum_qt.actions.object_actions",
+		"ferrum_qt.actions.options_actions",
+		"ferrum_qt.actions.plugins_actions",
+		"ferrum_qt.actions.pubchem_actions",
+		"ferrum_qt.actions.repair_actions",
+		"ferrum_qt.actions.view_actions",
 	)
 
 
@@ -267,9 +267,9 @@ def test_manifest_registration_does_not_depend_on_source_file_discovery(
 #============================================
 def test_every_required_menu_action_has_a_manifest_registrar() -> None:
 	"""The shipped YAML menu has complete action coverage after manifest loading."""
-	registry = bkchem_qt.actions.action_registry.register_all_actions(_FakeApp())
-	menu_path = bkchem_qt.resource_paths.get_resource_path("menus.yaml")
+	registry = ferrum_qt.actions.action_registry.register_all_actions(_FakeApp())
+	menu_path = ferrum_qt.resource_paths.get_resource_path("menus.yaml")
 
-	bkchem_qt.actions.menu_builder.preflight_required_menu_actions(
+	ferrum_qt.actions.menu_builder.preflight_required_menu_actions(
 		registry, str(menu_path),
 	)

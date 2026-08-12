@@ -6,14 +6,14 @@ import pytest
 import shiboken6
 
 # local repo modules
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.models.document_object
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.edit_mode
-import bkchem_qt.undo.commands
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.models.document_object
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.edit_mode
+import ferrum_qt.undo.commands
 import oasa.cdml_document
 
 
@@ -36,9 +36,9 @@ class _MouseEvent:
 
 
 #============================================
-def _native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Install one native session containing one atom and one arrow root."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -51,7 +51,7 @@ def _projection_pair(session: object) -> tuple[object, object]:
 	"""Return the native atom and arrow wrappers from the current projection."""
 	atom = next(
 		item for item in session.scene.items()
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 	)
 	arrow = next(
 		item for item in session.scene.items()
@@ -70,11 +70,11 @@ def _selected_pair(session: object) -> tuple[object, object]:
 
 
 #============================================
-def _edit_mode(session: object) -> bkchem_qt.modes.edit_mode.EditMode:
+def _edit_mode(session: object) -> ferrum_qt.modes.edit_mode.EditMode:
 	"""Activate and return the session-owned edit interaction mode."""
 	session.mode_manager.set_mode("edit")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.edit_mode.EditMode):
+	if not isinstance(mode, ferrum_qt.modes.edit_mode.EditMode):
 		raise TypeError("Edit mode unavailable")
 	return mode
 
@@ -92,7 +92,7 @@ def _mixed_drag(mode: object, atom: object, delta: tuple[float, float]) -> None:
 
 #============================================
 def test_mixed_drag_commits_one_backend_revision_and_reprojects(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A native atom-and-arrow move has backend history and fresh wrappers."""
 	session = _native_session(main_window)
@@ -126,7 +126,7 @@ def test_mixed_drag_commits_one_backend_revision_and_reprojects(
 
 #============================================
 def test_mixed_drag_uses_the_press_session_after_tab_activation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A tab switch after press cannot redirect a frozen mixed-drag callback."""
 	first_session = _native_session(main_window)
@@ -156,7 +156,7 @@ def test_mixed_drag_uses_the_press_session_after_tab_activation(
 
 #============================================
 def test_unavailable_mixed_drag_restores_preview_without_local_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An unavailable synchronized mixed route is inert after preview recovery."""
 	session = _native_session(main_window)
@@ -180,7 +180,7 @@ def test_unavailable_mixed_drag_restores_preview_without_local_history(
 	"failure_kind", ("revision-conflict", "validation"),
 )
 def test_rejected_mixed_drag_restores_preview_without_history(
-		failure_kind: str, main_window: bkchem_qt.main_window.MainWindow,
+		failure_kind: str, main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Typed rejection preserves the pre-gesture document and preview geometry."""
 	session = _native_session(main_window)
@@ -190,10 +190,10 @@ def test_rejected_mixed_drag_restores_preview_without_history(
 		submissions = []
 		mode = _edit_mode(session)
 
-		def reject(*request: object) -> bkchem_qt.models.document_session.PersistentActionOutcome:
+		def reject(*request: object) -> ferrum_qt.models.document_session.PersistentActionOutcome:
 			"""Return one deterministic typed backend outcome through the press seam."""
 			submissions.append(request)
-			return bkchem_qt.models.document_session.PersistentActionOutcome(
+			return ferrum_qt.models.document_session.PersistentActionOutcome(
 				"rejected", "Move rejected", None, False, None, failure_kind,
 			)
 
@@ -214,7 +214,7 @@ def test_rejected_mixed_drag_restores_preview_without_history(
 
 #============================================
 def test_mixed_drag_recovery_uses_accepted_snapshot_without_resubmission(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Recovery installs one accepted move without repeating its backend intent."""
 	session = _native_session(main_window)
@@ -234,9 +234,9 @@ def test_mixed_drag_recovery_uses_accepted_snapshot_without_resubmission(
 
 		def unavailable(_snapshot: object) -> object:
 			"""Report the first accepted installation as unavailable."""
-			return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+			return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 			)
 
 		port = session._projection_lifecycle_port
@@ -285,7 +285,7 @@ def test_mixed_drag_recovery_uses_accepted_snapshot_without_resubmission(
 
 #============================================
 def test_lookalike_mixed_drag_restores_preview_without_backend_submission(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A selected unregistered wrapper for a real arrow is inert."""
 	session = _native_session(main_window)
@@ -293,7 +293,7 @@ def test_lookalike_mixed_drag_restores_preview_without_backend_submission(
 	try:
 		atom, arrow = _selected_pair(session)
 		arrow.setSelected(False)
-		lookalike = bkchem_qt.canvas.document_projection.create_presentation_item(
+		lookalike = ferrum_qt.canvas.document_projection.create_presentation_item(
 			arrow.document_object_model,
 		)
 		if lookalike is None:
@@ -333,7 +333,7 @@ def test_lookalike_mixed_drag_restores_preview_without_backend_submission(
 
 #============================================
 def test_unequal_mixed_drag_deltas_restore_preview_without_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A reshaped mixed preview cannot be reduced to one backend translation."""
 	session = _native_session(main_window)
@@ -360,19 +360,19 @@ def test_unequal_mixed_drag_deltas_restore_preview_without_history(
 
 #============================================
 def test_legacy_isolated_mixed_drag_uses_one_local_macro(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A real legacy mutation retains the one-macro local mixed-drag route."""
 	session = _native_session(main_window)
 	try:
-		legacy = bkchem_qt.models.document_object.PresentationObject(
+		legacy = ferrum_qt.models.document_object.PresentationObject(
 			"polyline", points=[(1.0, 1.0, None), (2.0, 2.0, None)],
 		)
-		legacy_item = bkchem_qt.canvas.document_projection.create_presentation_item(legacy)
+		legacy_item = ferrum_qt.canvas.document_projection.create_presentation_item(legacy)
 		if legacy_item is None:
 			raise RuntimeError("Legacy presentation test item is unavailable")
 		session.document.undo_stack.push(
-			bkchem_qt.undo.commands.AddPresentationObjectCommand(
+			ferrum_qt.undo.commands.AddPresentationObjectCommand(
 				session.document, session.scene, legacy, legacy_item,
 			),
 		)

@@ -9,7 +9,10 @@ This repo supports two distinct E2E execution models, each with its own folder:
 - `tests/playwright/` (and optional `tests/playwright/e2e/` sub-grouping) - **browser-based E2E**: full Playwright walkthroughs and browser-driven tests. TypeScript repos include `PLAYWRIGHT_USAGE.md` in their propagated `docs/` folder.
 - `tests/e2e/` - **non-browser E2E**: shell/Python orchestration for whole-system testing: CLIs, builds, services, multi-suite coordination. This doc focuses on the non-browser model.
 
-Both are excluded from `pytest tests/` via `collect_ignore = ["e2e", "playwright"]` in `tests/conftest.py`.
+Bare pytest is rooted at `tests/` by `pytest.ini`, which also prevents recursion into
+`OTHER_REPOS/`, build outputs, and environment directories. Within `tests/`, both E2E
+homes are excluded by `collect_ignore = ["e2e", "playwright"]` in
+`tests/conftest.py`.
 
 ## Test layout overview
 
@@ -28,11 +31,11 @@ they invoke real scripts, read and write real files, and may hit the network
 or external tools. Mixing them into `pytest tests/` makes the fast lane slow
 and discourages running it.
 
-Pytest's `collect_ignore = ["e2e", "playwright"]` in `tests/conftest.py` actively excludes
-both the `tests/e2e/` and `tests/playwright/` subtrees from pytest collection, regardless of filenames
-inside them. This is the primary safety mechanism. Additionally, `.mjs` and `.sh`
-files are invisible to pytest by extension, and Python orchestration scripts use
-the `e2e_*` prefix as a secondary, human-readable convention.
+Root `pytest.ini` constrains bare collection to `tests/` and excludes known external or
+generated directories. Then `tests/conftest.py` actively excludes both
+`tests/e2e/` and `tests/playwright/` regardless of filenames inside them. Additionally,
+`.mjs` and `.sh` files are invisible to pytest by extension, and Python orchestration
+scripts use the `e2e_*` prefix as a secondary, human-readable convention.
 
 ## Where non-browser E2E tests live
 

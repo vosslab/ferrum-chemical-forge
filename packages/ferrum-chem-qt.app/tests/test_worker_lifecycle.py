@@ -4,8 +4,8 @@
 import threading
 
 # local repo modules
-import bkchem_qt.actions.file_actions
-import bkchem_qt.bridge.worker
+import ferrum_qt.actions.file_actions
+import ferrum_qt.bridge.worker
 
 
 #============================================
@@ -31,7 +31,7 @@ def test_interruption_cancels_delivery_only_after_native_callable_returns(
 		release.wait()
 		return "prepared"
 
-	worker = bkchem_qt.bridge.worker.OasaWorker(controlled_call)
+	worker = ferrum_qt.bridge.worker.OasaWorker(controlled_call)
 	worker.result.connect(deliveries.append)
 	worker.start()
 	try:
@@ -40,7 +40,7 @@ def test_interruption_cancels_delivery_only_after_native_callable_returns(
 		with qtbot.waitSignal(worker.finished):
 			release.set()
 		qtbot.waitUntil(lambda: worker.outcome is not None)
-		assert worker.outcome is bkchem_qt.bridge.worker.WorkerTerminalOutcome.DELIVERY_CANCELLED
+		assert worker.outcome is ferrum_qt.bridge.worker.WorkerTerminalOutcome.DELIVERY_CANCELLED
 		assert deliveries == []
 	finally:
 		release.set()
@@ -55,20 +55,20 @@ def test_interruption_cancels_delivery_only_after_native_callable_returns(
 #============================================
 def test_worker_reports_completed_and_failed_delivery_outcomes(qtbot: object) -> None:
 	"""Normal result and exception paths expose distinct terminal semantics."""
-	completed = bkchem_qt.bridge.worker.OasaWorker(lambda: "prepared")
-	failed = bkchem_qt.bridge.worker.OasaWorker(
+	completed = ferrum_qt.bridge.worker.OasaWorker(lambda: "prepared")
+	failed = ferrum_qt.bridge.worker.OasaWorker(
 		lambda: (_ for _ in ()).throw(ValueError("bad input")),
 	)
 	for worker in (completed, failed):
 		with qtbot.waitSignal(worker.finished):
 			worker.start()
 	assert (completed.outcome, failed.outcome) == (
-		bkchem_qt.bridge.worker.WorkerTerminalOutcome.COMPLETED,
-		bkchem_qt.bridge.worker.WorkerTerminalOutcome.FAILED,
+		ferrum_qt.bridge.worker.WorkerTerminalOutcome.COMPLETED,
+		ferrum_qt.bridge.worker.WorkerTerminalOutcome.FAILED,
 	)
 	assert (completed.lifecycle_state, failed.lifecycle_state) == (
-		bkchem_qt.bridge.worker.WorkerLifecycleState.FINISHED,
-		bkchem_qt.bridge.worker.WorkerLifecycleState.FINISHED,
+		ferrum_qt.bridge.worker.WorkerLifecycleState.FINISHED,
+		ferrum_qt.bridge.worker.WorkerLifecycleState.FINISHED,
 	)
 	_delete_worker(completed)
 	_delete_worker(failed)
@@ -78,13 +78,13 @@ def test_worker_reports_completed_and_failed_delivery_outcomes(qtbot: object) ->
 def test_pre_start_invalidation_still_runs_native_work_without_delivery(qtbot: object) -> None:
 	"""Qt's advisory pre-start interruption cannot reopen the delivery fence."""
 	started = threading.Event()
-	worker = bkchem_qt.bridge.worker.OasaWorker(lambda: started.set())
+	worker = ferrum_qt.bridge.worker.OasaWorker(lambda: started.set())
 	worker.requestInterruption()
 	try:
 		with qtbot.waitSignal(worker.finished):
 			worker.start()
 		assert started.is_set()
-		assert worker.outcome is bkchem_qt.bridge.worker.WorkerTerminalOutcome.DELIVERY_CANCELLED
+		assert worker.outcome is ferrum_qt.bridge.worker.WorkerTerminalOutcome.DELIVERY_CANCELLED
 	finally:
 		if worker.isRunning():
 			worker.wait()
@@ -95,7 +95,7 @@ def test_pre_start_invalidation_still_runs_native_work_without_delivery(qtbot: o
 def test_direct_session_disposal_owns_running_worker_until_finished(
 		main_window: object, qtbot: object) -> None:
 	"""An unregistered session transfers a live worker to the orphan owner."""
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -111,25 +111,25 @@ def test_direct_session_disposal_owns_running_worker_until_finished(
 		release.wait()
 		return "prepared"
 
-	worker = bkchem_qt.bridge.worker.OasaWorker(controlled_call)
+	worker = ferrum_qt.bridge.worker.OasaWorker(controlled_call)
 	worker.result.connect(deliveries.append)
 	session.track_import_worker(worker)
 	worker.start()
 	try:
 		qtbot.waitUntil(started.is_set)
-		before = bkchem_qt.models.document_session.orphaned_import_worker_count()
+		before = ferrum_qt.models.document_session.orphaned_import_worker_count()
 		session.dispose()
 		assert (
 			session.is_disposed,
-			bkchem_qt.models.document_session.orphaned_import_worker_count(),
+			ferrum_qt.models.document_session.orphaned_import_worker_count(),
 		) == (True, before + 1)
 		with qtbot.waitSignal(worker.finished):
 			release.set()
 		qtbot.waitUntil(
-			lambda: bkchem_qt.models.document_session.orphaned_import_worker_count() == before,
+			lambda: ferrum_qt.models.document_session.orphaned_import_worker_count() == before,
 		)
 		assert (
-			bkchem_qt.models.document_session.orphaned_import_worker_count(), deliveries,
+			ferrum_qt.models.document_session.orphaned_import_worker_count(), deliveries,
 		) == (before, [])
 	finally:
 		release.set()
@@ -145,26 +145,26 @@ def test_direct_session_disposal_owns_running_worker_until_finished(
 def test_disposed_session_cancels_later_import_worker(
 		main_window: object, qtbot: object) -> None:
 	"""A disposed session retains and cancels a subsequently tracked worker."""
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
 		mode_host=main_window,
 	)
-	before = bkchem_qt.models.document_session.orphaned_import_worker_count()
+	before = ferrum_qt.models.document_session.orphaned_import_worker_count()
 	session.dispose()
 	started = threading.Event()
-	worker = bkchem_qt.bridge.worker.OasaWorker(started.set)
+	worker = ferrum_qt.bridge.worker.OasaWorker(started.set)
 	session.track_import_worker(worker)
 	try:
-		assert bkchem_qt.models.document_session.orphaned_import_worker_count() == before + 1
+		assert ferrum_qt.models.document_session.orphaned_import_worker_count() == before + 1
 		with qtbot.waitSignal(worker.finished):
 			worker.start()
 		qtbot.waitUntil(
-			lambda: bkchem_qt.models.document_session.orphaned_import_worker_count() == before,
+			lambda: ferrum_qt.models.document_session.orphaned_import_worker_count() == before,
 		)
 		assert (started.is_set(), worker.outcome) == (
-			True, bkchem_qt.bridge.worker.WorkerTerminalOutcome.DELIVERY_CANCELLED,
+			True, ferrum_qt.bridge.worker.WorkerTerminalOutcome.DELIVERY_CANCELLED,
 		)
 	finally:
 		if worker.isRunning():
@@ -187,7 +187,7 @@ def test_tab_close_transfers_blocked_worker_without_stale_delivery(
 		release.wait()
 		return "prepared"
 
-	worker = bkchem_qt.bridge.worker.OasaWorker(controlled_call)
+	worker = ferrum_qt.bridge.worker.OasaWorker(controlled_call)
 	worker.result.connect(deliveries.append)
 	worker.finished.connect(lambda: main_window._release_import_worker(worker))
 	session.track_import_worker(worker)
@@ -214,12 +214,12 @@ def test_tab_close_transfers_blocked_worker_without_stale_delivery(
 def test_import_relay_delivers_prepared_complete_cdml(main_window: object) -> None:
 	"""External document Open crosses the GUI boundary as plain complete CDML."""
 	deliveries = []
-	prepared = bkchem_qt.bridge.worker.PreparedCompleteCDML(
+	prepared = ferrum_qt.bridge.worker.PreparedCompleteCDML(
 		'<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07"></cdml>',
 		"sample.mol",
 	)
 
-	relay = bkchem_qt.actions.file_actions._ImportResultRelay(
+	relay = ferrum_qt.actions.file_actions._ImportResultRelay(
 		main_window, object(), "sample.mol",
 		on_loaded=deliveries.append,
 	)
@@ -231,7 +231,7 @@ def test_import_relay_delivers_prepared_complete_cdml(main_window: object) -> No
 def test_import_relay_reports_no_molecules_for_none(main_window: object) -> None:
 	"""The established empty import outcome reaches the session error path."""
 	errors = []
-	relay = bkchem_qt.actions.file_actions._ImportResultRelay(
+	relay = ferrum_qt.actions.file_actions._ImportResultRelay(
 		main_window, object(), "sample.mol", on_error=errors.append,
 	)
 	relay.on_result(None)
@@ -245,8 +245,8 @@ def test_import_relay_rejects_missing_delivery_without_session_mutation(
 	errors = []
 	target = main_window.sessions[0]
 	original_document = target.document
-	prepared = bkchem_qt.bridge.worker.PreparedCompleteCDML("<cdml />", "sample.mol")
-	relay = bkchem_qt.actions.file_actions._ImportResultRelay(
+	prepared = ferrum_qt.bridge.worker.PreparedCompleteCDML("<cdml />", "sample.mol")
+	relay = ferrum_qt.actions.file_actions._ImportResultRelay(
 		main_window, object(), "sample.mol", on_error=errors.append,
 	)
 	relay.on_result(prepared)
@@ -260,7 +260,7 @@ def test_import_relay_rejects_graph_shaped_result_without_session_mutation(
 	errors = []
 	target = main_window.sessions[0]
 	original_document = target.document
-	relay = bkchem_qt.actions.file_actions._ImportResultRelay(
+	relay = ferrum_qt.actions.file_actions._ImportResultRelay(
 		main_window, object(), "sample.mol", on_error=errors.append,
 	)
 	relay.on_result([object()])

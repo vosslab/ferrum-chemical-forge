@@ -4,14 +4,14 @@
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.main_window
-import bkchem_qt.models.atom_model
-import bkchem_qt.models.bond_model
-import bkchem_qt.models.document
-import bkchem_qt.models.molecule_model
-import bkchem_qt.widgets.property_dock
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.main_window
+import ferrum_qt.models.atom_model
+import ferrum_qt.models.bond_model
+import ferrum_qt.models.document
+import ferrum_qt.models.molecule_model
+import ferrum_qt.widgets.property_dock
 import tests.graphics_test_retirement
 
 
@@ -20,26 +20,26 @@ def test_bond_order_dock_edit_rebuilds_selected_bond_rendering(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A dock bond-order edit propagates through the selected canvas item."""
-	document = bkchem_qt.models.document.Document()
+	document = ferrum_qt.models.document.Document()
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
-	first = bkchem_qt.models.atom_model.AtomModel(symbol="C")
-	second = bkchem_qt.models.atom_model.AtomModel(symbol="C")
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
+	first = ferrum_qt.models.atom_model.AtomModel(symbol="C")
+	second = ferrum_qt.models.atom_model.AtomModel(symbol="C")
 	first.set_xyz(20.0, 40.0, 0.0)
 	second.set_xyz(120.0, 40.0, 0.0)
-	bond = bkchem_qt.models.bond_model.BondModel(order=1, bond_type="n")
+	bond = ferrum_qt.models.bond_model.BondModel(order=1, bond_type="n")
 	molecule.add_atom(first)
 	molecule.add_atom(second)
 	molecule.add_bond(first, second, bond)
-	bond_item = bkchem_qt.canvas.items.bond_item.BondItem(bond)
-	dock = bkchem_qt.widgets.property_dock.PropertyDock(document)
+	bond_item = ferrum_qt.canvas.items.bond_item.BondItem(bond)
+	dock = ferrum_qt.widgets.property_dock.PropertyDock(document)
 	with tests.graphics_test_retirement.bare_document_scene_retirement(qapp, document, scene):
 		try:
 			document.add_molecule(molecule, mark_dirty=False)
 			scene.addItem(bond_item)
-			scene.addItem(bkchem_qt.canvas.items.atom_item.AtomItem(first))
-			scene.addItem(bkchem_qt.canvas.items.atom_item.AtomItem(second))
+			scene.addItem(ferrum_qt.canvas.items.atom_item.AtomItem(first))
+			scene.addItem(ferrum_qt.canvas.items.atom_item.AtomItem(second))
 			bond_item.setSelected(True)
 			dock.update_from_selection()
 			initial_ops = bond_item._ops
@@ -48,4 +48,4 @@ def test_bond_order_dock_edit_rebuilds_selected_bond_rendering(
 		finally:
 			dock.set_document(None)
 			dock.close()
-			assert bkchem_qt.main_window.delete_qobject_and_wait(qapp, dock)
+			assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, dock)

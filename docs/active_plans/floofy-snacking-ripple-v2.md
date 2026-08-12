@@ -1,5 +1,9 @@
 # Plan: Ferrum, the CDML Chemical Forge
 
+> Historical draft only. This plan is superseded by
+> [ferrum-plan-v3.md](ferrum-plan-v3.md); its paths, commands, and status are not
+> current implementation instructions.
+
 ## Context
 
 Ferrum is a new CDML-compatible chemical drawing platform with no production-code

@@ -1,10 +1,10 @@
-"""Behavior tests for the BKChem-Qt shortcut authority."""
+"""Behavior tests for the Ferrum-Qt shortcut authority."""
 
 # PIP3 modules
 import pytest
 
 # local repo modules
-import bkchem_qt.config.keybindings
+import ferrum_qt.config.keybindings
 
 
 #============================================
@@ -28,6 +28,6 @@ def test_duplicate_shortcut_is_rejected_without_replacing_the_binding(
 	"""A conflicting preference fails loudly and leaves the live mapping intact."""
 	manager = main_window._keybinding_manager
 	original = manager.get_binding("file.new")
-	with pytest.raises(bkchem_qt.config.keybindings.KeybindingConflictError):
+	with pytest.raises(ferrum_qt.config.keybindings.KeybindingConflictError):
 		manager.set_binding("file.new", manager.get_binding("file.load"))
 	assert manager.get_binding("file.new") == original

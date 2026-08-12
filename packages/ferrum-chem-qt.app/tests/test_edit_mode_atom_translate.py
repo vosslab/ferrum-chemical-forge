@@ -1,10 +1,10 @@
 """Focused EditMode routing checks for backend-authoritative atom nudging."""
 
 # local repo modules
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.models.document_object
-import bkchem_qt.models.document_session
-import bkchem_qt.undo.commands
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.models.document_object
+import ferrum_qt.models.document_session
+import ferrum_qt.undo.commands
 
 
 #============================================
@@ -20,7 +20,7 @@ class _Receiver:
 	def submit(self, targets: tuple[tuple[str, str], ...], delta: tuple[float, float]) -> object:
 		"""Capture the plain immutable request and return the normal outcome shape."""
 		self.request = targets, delta
-		return bkchem_qt.models.document_session.PersistentActionOutcome(
+		return ferrum_qt.models.document_session.PersistentActionOutcome(
 			"accepted", "Nudge Selected Atoms accepted", None, True,
 		)
 
@@ -40,12 +40,12 @@ def _durable_atom(main_window: object, identifier: str) -> object:
 #============================================
 def _presentation(main_window: object) -> object:
 	"""Create one selected non-atom item that an atom nudge must ignore."""
-	model = bkchem_qt.models.document_object.PresentationObject(
+	model = ferrum_qt.models.document_object.PresentationObject(
 		"polyline", attributes={"id": "line1"}, points=[(40.0, 20.0, None), (70.0, 20.0, None)],
 	)
-	item = bkchem_qt.canvas.document_projection.create_presentation_item(model)
+	item = ferrum_qt.canvas.document_projection.create_presentation_item(model)
 	main_window.document.undo_stack.push(
-		bkchem_qt.undo.commands.AddPresentationObjectCommand(
+		ferrum_qt.undo.commands.AddPresentationObjectCommand(
 			main_window.document, main_window.scene, model, item,
 		),
 	)

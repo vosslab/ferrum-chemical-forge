@@ -21,3 +21,6 @@ site/
 **/target/
 **/*.rs.bk
 .rust_analyzer/
+/packages/ferrum-rust/native/stage/
+/packages/ferrum-rust/crates/api/python/ferrum_api/.libs/
+/tests/e2e/oracle/.venv/

@@ -8,9 +8,9 @@ import math
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.io.cdml_document_io
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.io.cdml_document_io
 import tests.graphics_test_retirement
 
 
@@ -29,11 +29,11 @@ _MARKS_CDML = """<cdml version="0.15">
 #============================================
 def _project_supported_marks() -> tuple:
 	"""Load CDML and return its atom-owned mark projections."""
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string(_MARKS_CDML)
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string(_MARKS_CDML)
 	atom = document.molecules[0].atoms[0]
-	atom_item = bkchem_qt.canvas.items.atom_item.AtomItem(atom)
+	atom_item = ferrum_qt.canvas.items.atom_item.AtomItem(atom)
 	items = tuple(
-		bkchem_qt.canvas.document_projection.create_mark_item(mark, atom_item)
+		ferrum_qt.canvas.document_projection.create_mark_item(mark, atom_item)
 		for mark in document.marks
 	)
 	return document, atom_item, items
@@ -124,7 +124,7 @@ def test_unsupported_mark_remains_retained_without_qt_projection(
 		'<mark type="pz_orbital" x="1cm" y="2cm" size="40"/>',
 		'<mark type="text_mark" text="retained" x="1cm" y="2cm"/>',
 	)
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string(cdml)
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string(cdml)
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
 	with tests.graphics_test_retirement.bare_document_scene_retirement(qapp, document, scene):

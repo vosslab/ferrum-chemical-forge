@@ -1,0 +1,5 @@
+# Manager-approved plan documents. Their long-form implementation history and
+# acceptance evidence are intentionally exempt from the source-file line limit.
+docs/active_plans/ferrum-plan-v3.md
+docs/active_plans/floofy-snacking-ripple-v2.md
+docs/active_plans/floofy-snacking-ripple.md

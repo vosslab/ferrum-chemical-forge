@@ -1,3 +1,114 @@
+## 2026-08-11
+
+### Additions and New Features
+
+- Added the self-contained `ferrum` Rust CLI with typed `cdml inspect` JSON output,
+  structural `cdml rewrite`, explicit stdin/stdout selection, stable exit behavior,
+  and command-level integration tests. The executable has no Python or `OTHER_REPOS`
+  dependency.
+- Added verified source-install and CLI usage guides for the Rust backend. Usage-facing
+  commands invoke `ferrum`; no Python module-launch route is documented or shipped.
+- Added M3's private-`petgraph` analysis view for components, connectivity, bridges,
+  articulation points, matching, shortest paths, all-pairs distances, diameter, and
+  cycle rank, plus a Ferrum-owned deterministic shortest fundamental-cycle basis.
+- Added the self-contained M2 corpus comparison runner, pinned isolated-oracle
+  requirements, machine-readable evidence, and classified parity report. All three
+  corpus documents load with zero unexpected source-fact differences.
+- Added M8's single-tree typed CDML overlay, covering every assigned class with named
+  lexical fields, unknown-attribute bags, ordered opaque children, and non-demoting
+  cardinality diagnostics. Molecule records project into validated `ferrum-core` data.
+- Renamed current decisions, audits, reports, and the corpus projection example by
+  durable capability so filenames no longer carry temporary milestone numbers.
+
+### Behavior or Interface Changes
+
+- Renamed the retained Qt Python namespace to `ferrum_qt`, updated package discovery,
+  imports, dynamic registrar paths, resource lookup, application display strings, and
+  the `ferrum-qt` console entry point. Removed the Python module-launch route;
+  user-facing execution is the installed console command.
+- Kept QSettings names, `~/.bkchem/templates`, clipboard ownership value, provisional
+  session tokens, and the smoke-receipt schema as explicit compatibility identifiers.
+  Ferrum branding changes product-facing names without orphaning existing preferences,
+  templates, document contracts, or integration protocols.
+
+### Fixes and Maintenance
+
+- Deferred command-line file loading until the primary Qt event loop begins and made
+  the existing controlled lifecycle callback retire an active modal before queuing
+  shutdown. Smoke success now also requires every requested launch file to finish
+  opening, so a callback failure cannot publish a false success receipt. Warnings
+  remain unchanged in ordinary application use.
+- Documented the contributor-preview Ferrum-Qt source install and its installed
+  `ferrum-qt` launch command, while keeping the temporary OASA dependency and pending
+  self-contained wheel explicit. Corrected stale pre-rename provenance and plan paths.
+- Marked both superseded Ferrum plans as historical-only drafts that must not be used
+  for current paths, commands, or status; v3 remains the active authority.
+- Exempted the three current implementation-plan documents from the 1,000-line
+  source-file gate through the manager-approved exact-path override list. Source
+  code and non-plan documentation remain subject to the existing limit.
+- Removed generated RDKit, Boost, ICU, compression, and Ferrum-Chem dylibs from source
+  and package directories. Both generation targets are now ignored; native closures
+  belong in build output and inside the produced wheel, not in Git.
+- Replaced the first raw edge-order cycle tree after parity exposed chemically
+  unhelpful long cycles. The general stable-BFS scoring policy selects shorter bases
+  without recognizing molecule names or special topologies.
+- Corrected the M2 loader's bond design: CDML 0.8 `s` and `d` are normal single and
+  double bonds, while current `s`, `q`, `l`, and `r` retain distinct depiction meaning.
+  The exact source token remains carried separately from its versioned interpretation.
+- Corrected the document identity index so fragment bond and vertex `id` references do
+  not collide with the declarations they name; opaque `id` values still reserve names.
+- Made bare pytest select the documented root `tests/` lane and added recursion
+  boundaries for `OTHER_REPOS` and ignored `output*/` build trees; the nested
+  `tests/conftest.py` cannot control top-level siblings.
+- Represented `external-data`, `display-form`, and `user-data` as typed opaque
+  containers. Their identity and document position are now typed facts while their
+  attributes and descendants remain uninterpreted preservation payload.
+- Strengthened corpus parity by deriving non-atom vertices and bonds independently
+  from CDML through `defusedxml`. Removed broad harness exception swallowing, renamed
+  the isolated manifest to `pip_requirements.txt`, and added separate atom and non-atom
+  mutation probes.
+- Removed projection errors made impossible by the document identity index and added
+  direct behavior coverage for missing geometry, malformed scalars, unresolved
+  endpoints, and core-model rejection.
+- Completed M1b with installed-command evidence: the offscreen `ferrum-qt` process
+  opens the authored CDML fixture through the existing Qt/OASA-backed native CDML
+  route, writes the controlled receipt, exits without a traceback, and leaves
+  worker-routed non-CDML imports as a later replacement risk. This proves the
+  rename/start/open path, not Rust-backend adoption or worker-format completion.
+- Completed M1e with a positive Ferrum production selector, an empty active-capability
+  policy, and seeded OASA/Tk rejection proofs. `OTHER_REPOS` is categorically outside
+  this production scan.
+
+### Developer Tests and Notes
+
+- The Rust workspace passes formatting, checking, Clippy with warnings denied, and
+  all-target tests on `aarch64-apple-darwin`: 3 API unit tests, 4 CLI integration
+  tests, 25 core tests, and 21 document tests. A disposable source install produced
+  `ferrum 26.8.0` and inspected a corpus document without Python or `OTHER_REPOS`.
+- The renamed Ferrum-Qt package reports 918 passed and 1 skipped tests. A disposable
+  no-dependency install produced the `ferrum-qt` console command and reported
+  `Ferrum-Qt 26.08`; no `python -m ferrum_qt` route is shipped.
+- An earlier pre-M1e root-hygiene run reported 3,066 passing tests when the two known
+  migration gates were selected separately. The undeclared-import gate still reports
+  the 64 migration-only OASA imports, and the line-limit gate now reports only the 11
+  pre-existing oversized code/test files after plan-document exemption.
+- The M1b focused lifecycle and CLI suite reports 21 passing tests; its independent
+  review was accepted. M1e's focused import-exclusion suite reports 4 passing tests,
+  and root hygiene reports 3,070 passing tests when the two known migration gates are
+  selected separately.
+- M4a's independent audit confirms that no `.dylib`, `.so`, or `.dll` is tracked. It
+  remains not started: the next bounded work is a tracked adapter stub, PyO3 package,
+  pinned source recipe, and clean-venv loader/relink E2E.
+- Twenty-five `ferrum-core` tests pass. Ten fixed topology fixtures match every
+  reference discrete graph result except one documented 5/6-to-5/5 bridged cycle-basis
+  improvement; exact Ferrum cycle and matching outputs repeat across 100 calls each.
+- The corpus comparison records 96 exact agreements, 29 classified differences, and
+  zero unexpected differences. Its atom and non-atom mutations each exit 1 with one
+  unexpected difference.
+- M2, M3, and M8 are complete. M8 deleted the disposable core reader, removed `xot`
+  from `ferrum-core`, and left `ferrum-document` as the sole production CDML
+  recognition authority.
+
 ## 2026-08-03
 
 ### Additions and New Features
@@ -14,19 +125,19 @@
   `docs/active_plans/audits/ferrum_qt_capability_matrix.md` with 25 stable
   capability rows.
 - Added opaque CDML storage with `xot` 0.31.2 and its decision record,
-  `docs/active_plans/decisions/m6_xml_storage_fidelity.md`.
+  `docs/active_plans/decisions/xml_storage_fidelity.md`.
 - Added the M7 identity and ordering index, `IndexedDocument`, with its decision record,
-  `docs/active_plans/decisions/m7_document_identity_ordering.md`. It derives direct-child
+  `docs/active_plans/decisions/document_identity_ordering.md`. It derives direct-child
   `DocumentRecord` entries in exact source order, a document-wide `id_index` over every
   unqualified XML `id` including opaque content, root-relative element paths for
   diagnostics, and document-local provisional tokens that consume exactly once.
 
 - Added the M8 typed-versus-opaque assignment table,
-  `docs/active_plans/decisions/m8_typed_record_assignment.md`. It assigns every CDML
+  `docs/active_plans/decisions/typed_record_assignment.md`. It assigns every CDML
   element class to typed, opaque payload container, or opaque, names the typed fields
   per class, and fixes the unknown-attribute bag, unrecognized-child list, and
   additive-promotion rules.
-- Added the M2 exit gap analysis, `docs/active_plans/audits/m2_exit_gap.md`, with a
+- Added the M2 exit gap analysis, `docs/active_plans/audits/corpus_parity_exit_gap.md`, with a
   per-deliverable status table, the four missing loader capabilities, an oracle
   coverage table over the carried fields, and six remaining atomic tasks.
 
@@ -59,7 +170,7 @@
   loading, pinned OASA field comparison, and a divergence report to M1d; the M1d
   oracle harness has landed and reports `"status": "match"`, and the remaining work
   is now scheduled as six atomic M2 steps tracked in
-  `docs/active_plans/audits/m2_exit_gap.md`.
+  `docs/active_plans/audits/corpus_parity_exit_gap.md`.
 - Fixed the pyflakes and shebang/executable-bit hygiene failures on
   `tests/e2e/e2e_oracle_molecule_core.py` and
   `tests/e2e/oracle/e2e_oasa_molecule_core_child.py`: removed the unused `sys`

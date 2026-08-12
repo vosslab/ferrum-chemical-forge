@@ -8,7 +8,7 @@ import pathlib
 import pytest
 
 # local repo modules
-import bkchem_qt.io.user_template_catalog
+import ferrum_qt.io.user_template_catalog
 
 
 _NAMED_TEMPLATE = (
@@ -31,7 +31,7 @@ def test_catalog_uses_backend_name_or_filename_and_preserves_exact_payload(
 	"""Accepted entries expose the backend label or stem with untouched CDML."""
 	(tmp_path / "fallback.cdml").write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
 	(tmp_path / "named.cdml").write_text(_NAMED_TEMPLATE, encoding="utf-8")
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	entries_by_label = {entry.label: entry for entry in snapshot.entries}
 	assert entries_by_label["Named molecule"].template_cdml == _NAMED_TEMPLATE
 	assert entries_by_label["fallback"].template_cdml == _UNNAMED_TEMPLATE
@@ -42,8 +42,8 @@ def test_catalog_scan_uses_stable_keys_and_filename_order(tmp_path: pathlib.Path
 	"""Directory-local filenames determine a repeatable opaque delivery order."""
 	(tmp_path / "zeta.cdml").write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
 	(tmp_path / "alpha.cdml").write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
-	first = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
-	second = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	first = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	second = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in first.entries) == ("alpha", "zeta")
 	assert tuple(entry.catalog_key for entry in first.entries) == tuple(
 		entry.catalog_key for entry in second.entries
@@ -53,7 +53,7 @@ def test_catalog_scan_uses_stable_keys_and_filename_order(tmp_path: pathlib.Path
 #============================================
 def test_missing_directory_has_an_empty_catalog_snapshot(tmp_path: pathlib.Path) -> None:
 	"""A not-yet-created configured directory is a normal empty user state."""
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(
 		tmp_path / "not-created",
 	)
 	assert snapshot.entries == ()
@@ -65,7 +65,7 @@ def test_bad_file_reports_failure_without_hiding_good_template(tmp_path: pathlib
 	"""Malformed files are isolated so neighboring eligible templates remain usable."""
 	(tmp_path / "broken.cdml").write_text("<cdml>", encoding="utf-8")
 	(tmp_path / "usable.cdml").write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in snapshot.entries) == ("usable",)
 	assert snapshot.failures[0].source_name == "broken.cdml"
 
@@ -77,7 +77,7 @@ def test_invalid_utf8_content_is_isolated_beside_a_good_template(
 	"""Unreadable CDML leaves an eligible neighboring template available."""
 	(tmp_path / "invalid.cdml").write_bytes(b"\xff")
 	(tmp_path / "usable.cdml").write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in snapshot.entries) == ("usable",)
 	assert snapshot.failures and snapshot.failures[0].source_name == "invalid.cdml"
 
@@ -87,7 +87,7 @@ def test_regular_file_directory_target_returns_a_scan_failure(tmp_path: pathlib.
 	"""A file passed as the configured directory remains a recoverable scan error."""
 	directory_target = tmp_path / "not-a-directory"
 	directory_target.write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(directory_target)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(directory_target)
 	assert snapshot.entries == ()
 	assert snapshot.failures
 
@@ -103,7 +103,7 @@ def test_nested_non_cdml_and_symlink_candidates_do_not_enter_catalog(
 	nested_directory.mkdir()
 	(nested_directory / "nested.cdml").write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
 	(tmp_path / "linked.cdml").symlink_to(tmp_path / "usable.cdml")
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in snapshot.entries) == ("usable",)
 
 
@@ -133,7 +133,7 @@ def test_catalog_rejects_candidate_replaced_by_symlink_at_open_boundary(
 		return file_descriptor
 
 	monkeypatch.setattr(os, "open", replace_before_candidate_open)
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in snapshot.entries) == ("usable",)
 	assert any(failure.source_name == "swapped.cdml" for failure in snapshot.failures)
 
@@ -149,7 +149,7 @@ def test_catalog_skips_fifo_without_waiting_for_a_writer(tmp_path: pathlib.Path)
 		os.mkfifo(fifo)
 	except OSError:
 		pytest.skip("temporary filesystem rejects FIFO creation")
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in snapshot.entries) == ("usable",)
 	assert any(failure.source_name == "stream.cdml" for failure in snapshot.failures)
 
@@ -161,7 +161,7 @@ def test_whitespace_only_backend_name_falls_back_to_filename_stem(
 	"""A nonblank label cannot be invented from whitespace-only molecule metadata."""
 	template = _UNNAMED_TEMPLATE.replace("<molecule>", '<molecule name=" ">')
 	(tmp_path / "fallback.cdml").write_text(template, encoding="utf-8")
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert snapshot.entries[0].label == "fallback"
 
 
@@ -172,10 +172,10 @@ def test_prior_catalog_snapshot_retains_payload_after_file_change(
 	"""A later explicit rescan cannot mutate an already returned snapshot value."""
 	template_path = tmp_path / "saved.cdml"
 	template_path.write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
-	prior_snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	prior_snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	updated_template = _NAMED_TEMPLATE
 	template_path.write_text(updated_template, encoding="utf-8")
-	current_snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	current_snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert prior_snapshot.entries[0].template_cdml == _UNNAMED_TEMPLATE
 	assert current_snapshot.entries[0].template_cdml == updated_template
 
@@ -193,6 +193,6 @@ def test_surrogate_cdml_filename_is_a_safe_failure_beside_a_good_template(
 		pytest.skip("temporary filesystem rejects raw-byte filenames")
 	with os.fdopen(file_descriptor, "wb") as raw_file:
 		raw_file.write(_UNNAMED_TEMPLATE.encode("utf-8"))
-	snapshot = bkchem_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
+	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in snapshot.entries) == ("usable",)
 	assert any(failure.source_name == "\\xff.cdml" for failure in snapshot.failures)

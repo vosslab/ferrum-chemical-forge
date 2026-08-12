@@ -1,12 +1,9 @@
-"""Boundary guard: keep the count of CDML readers in the Rust workspace known.
+"""Boundary guard: CDML is recognized only by Ferrum's document crate.
 
 A CDML reader is a Rust source file that names the CDML namespace URI, because
-reading CDML means recognizing that namespace. Two readers exist on purpose: the
-document crate stores CDML opaquely, and the M2 harness loader projects corpus
-molecules into ferrum-core. The M2 loader is disposable and M8 retires it, so this
-allowlist is where its removal is noticed rather than silently forgotten.
-
-A third reader appearing without a decision is the failure this test catches.
+reading CDML means recognizing that namespace. M8 retired the disposable M2 corpus
+loader; the comparison example now consumes the document crate's typed projection.
+Any additional reader is an accidental competing authority.
 """
 
 # local repo modules
@@ -17,7 +14,6 @@ CDML_NAMESPACE = "http://www.freesoftware.fsf.org/bkchem/cdml"
 # Repo-relative POSIX paths allowed to name the CDML namespace URI.
 ALLOWED_CDML_READERS = frozenset({
 	"packages/ferrum-rust/crates/document/src/lib.rs",
-	"packages/ferrum-rust/crates/core/examples/m2_corpus_cdml_loader.rs",
 })
 
 

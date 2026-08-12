@@ -1,5 +1,9 @@
 # Plan: Ferrum, the CDML Chemical Forge -- replace the Python OASA backend with Rust over a project-owned RDKit adapter
 
+> Historical draft only. This plan is superseded by
+> [ferrum-plan-v3.md](ferrum-plan-v3.md); its paths, commands, and status are not
+> current implementation instructions.
+
 ## Context
 
 OASA is the chemistry backend for this repository: 58 Python modules, roughly

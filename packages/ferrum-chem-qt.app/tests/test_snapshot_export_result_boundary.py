@@ -9,9 +9,9 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.edit_actions
-import bkchem_qt.io.export
-import bkchem_qt.main_window
+import ferrum_qt.actions.edit_actions
+import ferrum_qt.io.export
+import ferrum_qt.main_window
 import oasa.cdml_document
 import oasa.cdml_render
 
@@ -64,8 +64,8 @@ def _oasa_imports(module: object) -> tuple[str, ...]:
 #============================================
 def test_edit_action_and_main_window_keep_oasa_inside_named_adapters() -> None:
 	"""Ordinary UI modules consume only the export/session adapter outcome."""
-	violations = _oasa_imports(bkchem_qt.actions.edit_actions)
-	violations += _oasa_imports(bkchem_qt.main_window)
+	violations = _oasa_imports(ferrum_qt.actions.edit_actions)
+	violations += _oasa_imports(ferrum_qt.main_window)
 
 	assert not violations
 
@@ -76,7 +76,7 @@ def test_capture_failure_becomes_one_plain_frontend_outcome() -> None:
 	capture = oasa.cdml_render.CDMLRenderFailure(
 		"selection-unavailable", "Selection requires a current projection", 41,
 	)
-	outcome = bkchem_qt.io.export.render_session_snapshot(
+	outcome = ferrum_qt.io.export.render_session_snapshot(
 		_CapturedSession(capture), "svg", "selection",
 	)
 
@@ -90,44 +90,44 @@ def test_render_failure_and_empty_artifact_withhold_publication(
 	"""Render faults and empty bytes remain typed failures before Qt publication."""
 	capture = _request()
 	monkeypatch.setattr(
-		bkchem_qt.io.export.bkchem_qt.io.snapshot_render, "render_request",
+		ferrum_qt.io.export.ferrum_qt.io.snapshot_render, "render_request",
 		lambda _capture: oasa.cdml_render.CDMLRenderFailure(
 			"render-failed", "Injected render failure", 41,
 		),
 	)
-	failure = bkchem_qt.io.export.render_snapshot_capture(capture, "svg")
+	failure = ferrum_qt.io.export.render_snapshot_capture(capture, "svg")
 	monkeypatch.setattr(
-		bkchem_qt.io.export.bkchem_qt.io.snapshot_render, "render_request",
+		ferrum_qt.io.export.ferrum_qt.io.snapshot_render, "render_request",
 		lambda _capture: oasa.cdml_render.CDMLRenderResult(41, "svg", b""),
 	)
-	empty = bkchem_qt.io.export.render_snapshot_capture(capture, "svg")
+	empty = ferrum_qt.io.export.render_snapshot_capture(capture, "svg")
 
 	assert failure.error_code == "render-failed" and empty.error_code == "empty-artifact"
 
 
 #============================================
 def test_copy_as_svg_publishes_only_a_successful_nonempty_artifact(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Clipboard content remains intact until the explicit adapter returns SVG bytes."""
 	clipboard = PySide6.QtWidgets.QApplication.clipboard()
 	clipboard.setText("clipboard-before-export")
-	failed = bkchem_qt.io.export.SnapshotExportOutcome(
+	failed = ferrum_qt.io.export.SnapshotExportOutcome(
 		"failure", "render-failed", "Injected render failure", 41, "svg",
 	)
 	monkeypatch.setattr(
-		bkchem_qt.io.export, "render_session_snapshot", lambda *_args: failed,
+		ferrum_qt.io.export, "render_session_snapshot", lambda *_args: failed,
 	)
-	bkchem_qt.actions.edit_actions._selected_to_svg(main_window)
+	ferrum_qt.actions.edit_actions._selected_to_svg(main_window)
 	before_success = clipboard.text()
-	success = bkchem_qt.io.export.SnapshotExportOutcome(
+	success = ferrum_qt.io.export.SnapshotExportOutcome(
 		"success", None, "Snapshot rendered", 41, "svg", b"<svg/>"
 	)
 	monkeypatch.setattr(
-		bkchem_qt.io.export, "render_session_snapshot", lambda *_args: success,
+		ferrum_qt.io.export, "render_session_snapshot", lambda *_args: success,
 	)
-	bkchem_qt.actions.edit_actions._selected_to_svg(main_window)
+	ferrum_qt.actions.edit_actions._selected_to_svg(main_window)
 
 	assert before_success == "clipboard-before-export" and bytes(clipboard.mimeData().data("image/svg+xml"))
 
@@ -139,7 +139,7 @@ def test_path_write_failure_preserves_the_authoritative_snapshot(
 	"""Artifact path failure is typed and cannot mutate a captured backend snapshot."""
 	capture = _request()
 	before_snapshot = capture.snapshot
-	outcome = bkchem_qt.io.export.write_snapshot_artifact(capture, "svg", str(tmp_path))
+	outcome = ferrum_qt.io.export.write_snapshot_artifact(capture, "svg", str(tmp_path))
 
 	assert outcome.error_code == "artifact-write-failed" and capture.snapshot == before_snapshot
 
@@ -159,9 +159,9 @@ def test_failed_publication_preserves_an_existing_destination(
 	destination = tmp_path / "structure.svg"
 	destination.write_bytes(b"previous-export")
 	monkeypatch.setattr(
-		bkchem_qt.io.export.os, "replace",
+		ferrum_qt.io.export.os, "replace",
 		_raise_replace_failure,
 	)
-	outcome = bkchem_qt.io.export.write_snapshot_artifact(capture, "svg", str(destination))
+	outcome = ferrum_qt.io.export.write_snapshot_artifact(capture, "svg", str(destination))
 
 	assert outcome.error_code == "artifact-write-failed" and destination.read_bytes() == b"previous-export"

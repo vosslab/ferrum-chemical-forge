@@ -5,11 +5,11 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.object_actions
-import bkchem_qt.dialogs.wavy_dialog
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.actions.object_actions
+import ferrum_qt.dialogs.wavy_dialog
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 
 
 _CDML = (
@@ -20,9 +20,9 @@ _CDML = (
 
 
 #============================================
-def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _install_native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Register one projected native-CDML session with a durable plain Wavy."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -51,7 +51,7 @@ def _selected_wavy_ids(session: object) -> set[str]:
 
 #============================================
 def test_object_configure_uses_backend_history_and_restores_wavy_selection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Configure reprojects one accepted Wavy patch without local undo ownership."""
@@ -60,14 +60,14 @@ def test_object_configure_uses_backend_history_and_restores_wavy_selection(
 		old_document = session.document
 		_wavy_item(session).setSelected(True)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.wavy_dialog.WavyDialog, "exec",
+			ferrum_qt.dialogs.wavy_dialog.WavyDialog, "exec",
 			lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Accepted,
 		)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.wavy_dialog.WavyDialog, "changes",
+			ferrum_qt.dialogs.wavy_dialog.WavyDialog, "changes",
 			lambda _dialog: (("width", 2.5), ("line_color", "#AABBCC")),
 		)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 
 		assert "width=\"2.5\"" in session.backend_snapshot.cdml and session.can_undo_backend
 		assert (
@@ -81,7 +81,7 @@ def test_object_configure_uses_backend_history_and_restores_wavy_selection(
 
 #============================================
 def test_captured_wavy_action_is_unavailable_after_origin_close(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An origin-bound Wavy callback cannot mutate another tab after close."""
 	origin = _install_native_session(main_window)
@@ -101,7 +101,7 @@ def test_captured_wavy_action_is_unavailable_after_origin_close(
 
 #============================================
 def test_modal_wavy_configure_remains_bound_to_origin_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Activating another tab while WavyDialog is open cannot retarget intent."""
@@ -114,12 +114,12 @@ def test_modal_wavy_configure_remains_bound_to_origin_tab(
 			main_window.on_new()
 			return PySide6.QtWidgets.QDialog.DialogCode.Accepted
 
-		monkeypatch.setattr(bkchem_qt.dialogs.wavy_dialog.WavyDialog, "exec", activate_other)
+		monkeypatch.setattr(ferrum_qt.dialogs.wavy_dialog.WavyDialog, "exec", activate_other)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.wavy_dialog.WavyDialog, "changes",
+			ferrum_qt.dialogs.wavy_dialog.WavyDialog, "changes",
 			lambda _dialog: (("width", 2.5),),
 		)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		other = next(session for session in main_window.sessions if session is not origin)
 
 		assert 'width="2.5"' in origin.backend_snapshot.cdml
@@ -133,7 +133,7 @@ def test_modal_wavy_configure_remains_bound_to_origin_tab(
 
 #============================================
 def test_projection_retry_uses_only_the_accepted_wavy_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed Wavy projection recovers without resubmitting its patch intent."""
@@ -141,15 +141,15 @@ def test_projection_retry_uses_only_the_accepted_wavy_snapshot(
 
 	def unavailable(_snapshot: object) -> object:
 		"""Report one post-acceptance projection installation failure."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	try:
 		_wavy_item(session).setSelected(True)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 		)
 		outcome = session.submit_wavy_properties_patch(
 			session.backend_snapshot.revision, "w1", (("width", 3.0),),
@@ -164,7 +164,7 @@ def test_projection_retry_uses_only_the_accepted_wavy_snapshot(
 
 		monkeypatch.setattr(session, "submit_wavy_properties_patch", resubmission_must_not_run)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)

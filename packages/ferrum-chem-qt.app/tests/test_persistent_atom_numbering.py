@@ -5,11 +5,11 @@ import pytest
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.misc_mode
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.misc_mode
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -30,27 +30,27 @@ _NUMBER_CDML = (
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
 def _new_session(
-		main_window: bkchem_qt.main_window.MainWindow, cdml_text: str = _NUMBER_CDML,
+		main_window: ferrum_qt.main_window.MainWindow, cdml_text: str = _NUMBER_CDML,
 		) -> object:
 	"""Create one private synchronized session from complete CDML."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		cdml_text,
 	)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -68,7 +68,7 @@ def _new_session(
 def _dispose_session(session: object) -> None:
 	"""Release a private session through its MainWindow-owned safe reaper."""
 	owner = session.parent()
-	if not isinstance(owner, bkchem_qt.main_window.MainWindow):
+	if not isinstance(owner, ferrum_qt.main_window.MainWindow):
 		raise TypeError("Numbering test session has no MainWindow owner")
 	owner._dispose_session_later(session)
 
@@ -89,7 +89,7 @@ def _number_request(
 		session: object, atom_id: str, number: int | None, show_number: bool | None,
 		) -> object:
 	"""Build one exact plain atom-number request against the live revision."""
-	return bkchem_qt.models.document_session.PersistentOperationRequest(
+	return ferrum_qt.models.document_session.PersistentOperationRequest(
 		"atom.number.set", "Set atom number",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -101,11 +101,11 @@ def _number_request(
 
 
 #============================================
-def _misc_mode(session: object) -> bkchem_qt.modes.misc_mode.MiscMode:
+def _misc_mode(session: object) -> ferrum_qt.modes.misc_mode.MiscMode:
 	"""Activate and return the private session's Misc mode."""
 	session.mode_manager.set_mode("misc")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.misc_mode.MiscMode):
+	if not isinstance(mode, ferrum_qt.modes.misc_mode.MiscMode):
 		raise AssertionError("MiscMode did not activate")
 	return mode
 
@@ -115,7 +115,7 @@ def _atom_item(session: object, atom_id: str) -> object:
 	"""Find one current projection item before submitting a gesture."""
 	for item in session.scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.atom_id == atom_id
 		):
 			return item
@@ -124,7 +124,7 @@ def _atom_item(session: object, atom_id: str) -> object:
 
 #============================================
 def test_atom_number_operations_use_backend_history_for_assignment_clear_and_redo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Numbering and clearing mutate canonical CDML through backend history."""
 	session = _new_session(main_window)
@@ -155,7 +155,7 @@ def test_atom_number_operations_use_backend_history_for_assignment_clear_and_red
 
 #============================================
 def test_numbering_ribbon_uses_authoritative_hidden_number_for_its_candidate(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""The public numbering submode derives its next value from canonical CDML."""
 	session = _new_session(main_window)
@@ -175,7 +175,7 @@ def test_numbering_ribbon_uses_authoritative_hidden_number_for_its_candidate(
 
 #============================================
 def test_malformed_number_request_leaves_authoritative_snapshot_unchanged(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Mixed nullable values are rejected without a projection or history change."""
 	session = _new_session(main_window)
@@ -193,7 +193,7 @@ def test_malformed_number_request_leaves_authoritative_snapshot_unchanged(
 
 #============================================
 def test_clear_on_an_unnumbered_atom_is_a_visible_no_op(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Clear preserves its established no-op behavior when no number exists."""
 	session = _new_session(main_window)
@@ -213,7 +213,7 @@ def test_clear_on_an_unnumbered_atom_is_a_visible_no_op(
 
 #============================================
 def test_direct_legacy_number_mark_is_rejected_without_changing_the_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A targeted legacy number mark remains an atomic backend compatibility failure."""
 	legacy_cdml = (
@@ -236,13 +236,13 @@ def test_direct_legacy_number_mark_is_rejected_without_changing_the_snapshot(
 
 #============================================
 def test_stale_and_mismatched_atom_number_requests_leave_backend_navigation_unchanged(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Rejected atom-number envelopes do not publish a snapshot or history entry."""
 	session = _new_session(main_window)
 	before = session.backend_snapshot
 	try:
-		stale = bkchem_qt.models.document_session.PersistentOperationRequest(
+		stale = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"atom.number.set", "Set atom number",
 			(
 				("expected_revision", before.revision - 1),
@@ -251,7 +251,7 @@ def test_stale_and_mismatched_atom_number_requests_leave_backend_navigation_unch
 			),
 			frozenset({("molecule", "m1"), ("atom", "a1")}),
 		)
-		mismatched_target = bkchem_qt.models.document_session.PersistentOperationRequest(
+		mismatched_target = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"atom.number.set", "Set atom number",
 			(
 				("expected_revision", before.revision),
@@ -275,7 +275,7 @@ def test_stale_and_mismatched_atom_number_requests_leave_backend_navigation_unch
 
 #============================================
 def test_accepted_number_recovers_by_reprojecting_its_current_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed number projection recovers the accepted state without resubmission."""

@@ -8,10 +8,10 @@ import pytest
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.file_actions
-import bkchem_qt.dialogs.paper_properties_dialog
-import bkchem_qt.io.snapshot_render
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.file_actions
+import ferrum_qt.dialogs.paper_properties_dialog
+import ferrum_qt.io.snapshot_render
+import ferrum_qt.models.document_session
 import oasa.cdml_document
 import oasa.cdml_render
 import oasa.safe_xml
@@ -92,10 +92,10 @@ def test_cancelled_paper_properties_leave_document_unmodified(
 	session = main_window._active_session
 	before = session.backend_snapshot
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"exec", lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Rejected,
 	)
-	bkchem_qt.actions.file_actions._document_properties(main_window)
+	ferrum_qt.actions.file_actions._document_properties(main_window)
 	assert session.backend_snapshot == before
 
 
@@ -105,7 +105,7 @@ def test_invalid_custom_paper_dialog_does_not_accept_or_mutate_model(
 		) -> None:
 	"""A zero custom dimension remains in the dialog and is rejected in place."""
 	paper = _custom_paper()
-	dialog = bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
+	dialog = ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
 		paper, oasa.cdml_document.paper_catalog(),
 	)
 	try:
@@ -128,7 +128,7 @@ def test_malformed_or_large_retained_paper_values_survive_unrelated_edit(
 			"size_y": "999999999999999999999999999999999999999999999999999",
 			"crop_margin": "999999999999", "crop_svg": "0",
 	}
-	dialog = bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
+	dialog = ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
 		paper, oasa.cdml_document.paper_catalog(),
 	)
 	try:
@@ -144,7 +144,7 @@ def test_dialog_preserves_unsupported_type_until_a_valid_authoring_choice(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""An unsupported raw type creates no patch until a user chooses a catalog name."""
-	dialog = bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
+	dialog = ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
 		{"type": "legacy-sheet", "orientation": "sideways"},
 		oasa.cdml_document.paper_catalog(),
 	)
@@ -162,7 +162,7 @@ def test_dialog_leaves_raw_boolean_and_absent_paper_fields_out_of_its_patch(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""Unedited compatibility values stay backend-owned rather than normalized."""
-	dialog = bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
+	dialog = ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
 		{"type": "legacy-sheet", "crop_svg": "yes"},
 		oasa.cdml_document.paper_catalog(),
 	)
@@ -181,11 +181,11 @@ def test_accepted_file_properties_commit_reprojects_and_uses_backend_undo(
 	session = main_window._active_session
 	before = session.backend_snapshot
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"exec", lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Accepted,
 	)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"changes", lambda _dialog: (
 			("type", "custom"), ("dimensions", (100.0, 250.0)),
 			("orientation", "landscape"), ("crop_svg", True),
@@ -193,7 +193,7 @@ def test_accepted_file_properties_commit_reprojects_and_uses_backend_undo(
 			("replace_minus", True),
 		),
 	)
-	bkchem_qt.actions.file_actions._document_properties(main_window)
+	ferrum_qt.actions.file_actions._document_properties(main_window)
 	accepted = session.backend_snapshot
 	projected_type = session.document.paper.attributes["type"]
 	dirty_after_acceptance = session.document.dirty
@@ -229,14 +229,14 @@ def test_file_properties_invokes_the_backend_patch_not_a_complete_candidate(
 		session._operation_commit_executors, "complete-candidate", forbid_complete_candidate,
 	)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"exec", lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Accepted,
 	)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"changes", lambda _dialog: (("crop_svg", True),),
 	)
-	bkchem_qt.actions.file_actions._document_properties(main_window)
+	ferrum_qt.actions.file_actions._document_properties(main_window)
 
 	assert len(requests) == 1
 	assert (
@@ -255,7 +255,7 @@ def test_absent_paper_uses_backend_default_observation_and_explicit_field_patch(
 	_install_backend_snapshot(main_window, session, """\
 <cdml><standard paper_type="Letter" paper_orientation="landscape" /><viewport /></cdml>""")
 	context = session.paper_properties_context()
-	dialog = bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
+	dialog = ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog(
 		context["attributes"], session.paper_catalog(), context["default_type"],
 		context["default_orientation"],
 	)
@@ -267,14 +267,14 @@ def test_absent_paper_uses_backend_default_observation_and_explicit_field_patch(
 		dialog.deleteLater()
 		qapp.processEvents()
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"exec", lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Accepted,
 	)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"changes", lambda _dialog: (("crop_margin", 12),),
 	)
-	bkchem_qt.actions.file_actions._document_properties(main_window)
+	ferrum_qt.actions.file_actions._document_properties(main_window)
 	paper, = _direct_core_papers(session.backend_snapshot.cdml)
 	assert (
 		paper.getAttribute("type"), paper.getAttribute("orientation"),
@@ -296,14 +296,14 @@ def test_live_action_preserves_mixed_paper_envelope_at_direct_core_boundary(
 		"type": "legacy-sheet", "orientation": "portrait", "crop_svg": "yes", "v:raw": "keep",
 	}
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"exec", lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Accepted,
 	)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"changes", lambda _dialog: (("crop_margin", 17),),
 	)
-	bkchem_qt.actions.file_actions._document_properties(main_window)
+	ferrum_qt.actions.file_actions._document_properties(main_window)
 	after = session.backend_snapshot
 	first_after, second_after = _direct_core_papers(after.cdml)
 	after_children = tuple(child.toxml() for child in _direct_children(after.cdml))
@@ -338,7 +338,7 @@ def test_stale_changed_paper_patch_keeps_snapshot_history_and_projection(
 	session = main_window._active_session
 	stale_revision = session.backend_snapshot.revision
 	accepted = session.submit_persistent_operation(
-		bkchem_qt.models.document_session.build_paper_properties_request(
+		ferrum_qt.models.document_session.build_paper_properties_request(
 			stale_revision, (("crop_svg", True),),
 		),
 	)
@@ -346,7 +346,7 @@ def test_stale_changed_paper_patch_keeps_snapshot_history_and_projection(
 	document = session.document
 	history = session._backend_history
 	rejected = session.submit_persistent_operation(
-		bkchem_qt.models.document_session.build_paper_properties_request(
+		ferrum_qt.models.document_session.build_paper_properties_request(
 			stale_revision, (("crop_margin", 9),),
 		),
 	)
@@ -376,12 +376,12 @@ def test_live_scene_and_snapshot_render_share_backend_paper_semantics(
 		main_window, session, '<cdml><paper type="A4" orientation="portrait" /></cdml>',
 	)
 	outcome = session.submit_persistent_operation(
-		bkchem_qt.models.document_session.build_paper_properties_request(
+		ferrum_qt.models.document_session.build_paper_properties_request(
 			session.backend_snapshot.revision, changes,
 		),
 	)
 	page = session.scene.paper_rect
-	result = bkchem_qt.io.snapshot_render.render_request(
+	result = ferrum_qt.io.snapshot_render.render_request(
 		oasa.cdml_render.CDMLRenderRequest(session.backend_snapshot, "svg"),
 	)
 	assert isinstance(result, oasa.cdml_render.CDMLRenderResult)
@@ -405,7 +405,7 @@ def test_absent_paper_uses_backend_standard_defaults_for_live_and_snapshot_layou
 		'<cdml><standard paper_type="Letter" paper_orientation="landscape" /></cdml>',
 	)
 	page = session.scene.paper_rect
-	result = bkchem_qt.io.snapshot_render.render_request(
+	result = ferrum_qt.io.snapshot_render.render_request(
 		oasa.cdml_render.CDMLRenderRequest(session.backend_snapshot, "svg"),
 	)
 
@@ -425,7 +425,7 @@ def test_unchanged_paper_properties_leave_authoritative_state_intact(
 	"""Canonical paper no-op leaves revision, history, and projection untouched."""
 	session = main_window._active_session
 	initial = session.submit_persistent_operation(
-		bkchem_qt.models.document_session.build_paper_properties_request(
+		ferrum_qt.models.document_session.build_paper_properties_request(
 			session.backend_snapshot.revision, (),
 		),
 	)
@@ -433,14 +433,14 @@ def test_unchanged_paper_properties_leave_authoritative_state_intact(
 	document = session.document
 	history = session._backend_history
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"exec", lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Accepted,
 	)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog,
 		"changes", lambda _dialog: (),
 	)
-	bkchem_qt.actions.file_actions._document_properties(main_window)
+	ferrum_qt.actions.file_actions._document_properties(main_window)
 
 	assert initial.status == "accepted"
 	assert (
@@ -464,9 +464,9 @@ def test_replaced_session_after_dialog_acceptance_cannot_retarget_paper_edit(
 		return int(PySide6.QtWidgets.QDialog.DialogCode.Accepted)
 
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog, "exec", replace_tab,
+		ferrum_qt.dialogs.paper_properties_dialog.PaperPropertiesDialog, "exec", replace_tab,
 	)
-	bkchem_qt.actions.file_actions._document_properties(main_window)
+	ferrum_qt.actions.file_actions._document_properties(main_window)
 
 	assert source.backend_snapshot == before
 	assert main_window._active_session.backend_snapshot.revision == 0

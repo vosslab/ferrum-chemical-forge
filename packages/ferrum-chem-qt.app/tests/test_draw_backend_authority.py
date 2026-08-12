@@ -5,12 +5,12 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.draw_mode
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.draw_mode
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -27,16 +27,16 @@ _LEGACY_IDLESS_JOIN_TARGET_CDML = (
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
@@ -49,24 +49,24 @@ def _active_session(main_window: object) -> object:
 
 
 #============================================
-def _draw_mode(session: object) -> bkchem_qt.modes.draw_mode.DrawMode:
+def _draw_mode(session: object) -> ferrum_qt.modes.draw_mode.DrawMode:
 	"""Activate and return the session-owned Draw mode."""
 	session.mode_manager.set_mode("draw")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.draw_mode.DrawMode):
+	if not isinstance(mode, ferrum_qt.modes.draw_mode.DrawMode):
 		raise AssertionError("DrawMode did not activate")
 	return mode
 
 
 #============================================
 def _new_private_native_session(
-		main_window: bkchem_qt.main_window.MainWindow, cdml_text: str,
+		main_window: ferrum_qt.main_window.MainWindow, cdml_text: str,
 		) -> object:
 	"""Create one synchronized private session from inline complete CDML."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		cdml_text,
 	)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -84,7 +84,7 @@ def _new_private_native_session(
 def _dispose_private_session(session: object) -> None:
 	"""Transfer a private session to the MainWindow lifecycle reaper."""
 	owner = session.parent()
-	if not isinstance(owner, bkchem_qt.main_window.MainWindow):
+	if not isinstance(owner, ferrum_qt.main_window.MainWindow):
 		raise TypeError("Draw authority test session has no MainWindow owner")
 	owner._dispose_session_later(session)
 
@@ -145,7 +145,7 @@ def _atom_item_by_id(scene: object, atom_id: str) -> object:
 	"""Return the current projection item for one durable atom ID."""
 	for item in scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.atom_id == atom_id
 		):
 			return item
@@ -157,7 +157,7 @@ def _atom_item_by_backend_durable_id(scene: object, atom_id: str | None) -> obje
 	"""Return one live atom projection using only its backend-issued identity."""
 	for item in scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == atom_id
 		):
 			return item
@@ -169,7 +169,7 @@ def _bond_item_by_id(scene: object, bond_id: str) -> object:
 	"""Return the current projection item for one durable bond ID."""
 	for item in scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+			isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 			and item.bond_model.bond_id == bond_id
 		):
 			return item
@@ -275,7 +275,7 @@ def test_atom_extension_and_join_use_reprojected_backend_models(main_window: obj
 
 #============================================
 def test_join_target_without_backend_atom_id_is_inert(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A legacy projection ID never enters a persistent same-root join request."""
 	session = _new_private_native_session(main_window, _LEGACY_IDLESS_JOIN_TARGET_CDML)

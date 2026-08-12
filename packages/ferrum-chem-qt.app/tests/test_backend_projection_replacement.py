@@ -8,16 +8,16 @@ import PySide6.QtWidgets
 import shiboken6
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.canvas.items.mark_item
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.bridge.oasa_bridge
-import bkchem_qt.io.cdml_document_io
-import bkchem_qt.io.cdml_fragment_builder
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.canvas.items.mark_item
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.bridge.oasa_bridge
+import ferrum_qt.io.cdml_document_io
+import ferrum_qt.io.cdml_fragment_builder
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_document
 import tests.graphics_test_retirement
 
@@ -66,8 +66,8 @@ _INTERLEAVED_CDML = (
 
 #============================================
 def _new_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Create one isolated session for a backend projection test."""
 	main_window._on_new()
 	return main_window.sessions[-1]
@@ -75,8 +75,8 @@ def _new_tab(
 
 #============================================
 def _close_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
-		session: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Retire one test session without changing its backend saved baseline."""
 	assert main_window._remove_session(session)
@@ -94,7 +94,7 @@ def _projection_snapshot(
 
 #============================================
 def test_stale_or_foreign_snapshot_cannot_mutate_live_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Only the exact current snapshot may replace a session projection."""
 	session = _new_tab(main_window)
@@ -117,7 +117,7 @@ def test_stale_or_foreign_snapshot_cannot_mutate_live_projection(
 
 #============================================
 def test_first_accepted_candidate_installs_from_atomic_projection_envelope(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""The session lifecycle port installs an accepted first native arrow."""
 	session = _new_tab(main_window)
@@ -137,7 +137,7 @@ def test_synchronized_preparation_installs_portable_batches_for_all_projected_ch
 	"""One complete backend observation bundle gives every projected child paint facts."""
 	del qapp
 	document = oasa.cdml_document.CDMLDocument.parse(_TWO_ATOM_BOND_CDML, validation="strict")
-	prepared = bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+	prepared = ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 		_projection_snapshot(document),
 	)
 	try:
@@ -147,7 +147,7 @@ def test_synchronized_preparation_installs_portable_batches_for_all_projected_ch
 			for model in (*molecule.atoms, *molecule.bonds)
 		)
 	finally:
-		bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
+		ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
 
 
 #============================================
@@ -157,26 +157,26 @@ def test_synchronized_items_paint_portable_batches_without_compatibility_bridge(
 	"""Exact-revision batches keep scene installation out of legacy rendering."""
 	del qapp
 	document = oasa.cdml_document.CDMLDocument.parse(_TWO_ATOM_BOND_CDML, validation="strict")
-	prepared = bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+	prepared = ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 		_projection_snapshot(document),
 	)
 	def compatibility_called(*args: object, **kwargs: object) -> list[object]:
 		raise AssertionError("synchronized rendering reached the compatibility bridge")
-	monkeypatch.setattr(bkchem_qt.bridge.oasa_bridge, "legacy_atom_render_operations", compatibility_called)
-	monkeypatch.setattr(bkchem_qt.bridge.oasa_bridge, "legacy_bond_render_operations", compatibility_called)
+	monkeypatch.setattr(ferrum_qt.bridge.oasa_bridge, "legacy_atom_render_operations", compatibility_called)
+	monkeypatch.setattr(ferrum_qt.bridge.oasa_bridge, "legacy_bond_render_operations", compatibility_called)
 	atom_item = None
 	bond_item = None
 	try:
 		molecule, _items = prepared.molecule_projections[0]
-		atom_item = bkchem_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0])
-		bond_item = bkchem_qt.canvas.items.bond_item.BondItem(molecule.bonds[0])
+		atom_item = ferrum_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0])
+		bond_item = ferrum_qt.canvas.items.bond_item.BondItem(molecule.bonds[0])
 		assert not atom_item.boundingRect().isEmpty() and not bond_item.boundingRect().isEmpty()
 	finally:
 		if atom_item is not None:
 			atom_item.dispose()
 		if bond_item is not None:
 			bond_item.dispose()
-		bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
+		ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
 
 
 #============================================
@@ -203,7 +203,7 @@ def test_synchronized_hydration_requires_portable_render_coverage() -> None:
 		),
 	)
 	with pytest.raises(ValueError, match="coverage is incomplete"):
-		bkchem_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
+		ferrum_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
 			incomplete,
 		)
 
@@ -211,7 +211,7 @@ def test_synchronized_hydration_requires_portable_render_coverage() -> None:
 #============================================
 def test_named_compatibility_decoder_retains_standalone_molecule_loading() -> None:
 	"""Standalone CDML still uses its explicitly named compatibility decoder."""
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string(
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string(
 		_TWO_ATOM_BOND_CDML,
 	)
 	assert document.molecules[0].compatibility_source_xml is not None
@@ -223,18 +223,18 @@ def test_legacy_fragment_builder_refuses_synchronized_molecule_projection() -> N
 	backend_document = oasa.cdml_document.CDMLDocument.parse(
 		_TWO_ATOM_BOND_CDML, validation="strict",
 	)
-	document = bkchem_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
+	document = ferrum_qt.io.cdml_document_io.hydrate_synchronized_cdml_document(
 		_projection_snapshot(backend_document),
 	)
 	with pytest.raises(ValueError, match="compatibility-decoded molecule XML"):
-		bkchem_qt.io.cdml_fragment_builder.build_top_level_fragment(
+		ferrum_qt.io.cdml_fragment_builder.build_top_level_fragment(
 			document, [document.molecules[0]],
 		)
 
 
 #============================================
 def test_incomplete_synchronized_render_bundle_fails_before_live_replacement(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A missing portable batch leaves the existing scene projection untouched."""
@@ -260,9 +260,9 @@ def test_incomplete_synchronized_render_bundle_fails_before_live_replacement(
 		result = session.replace_projection_from_backend_snapshot(commit.snapshot)
 		assert (
 			result.status
-			== bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE
+			== ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE
 			and session.document is old_document
-			and isinstance(result.diagnostic, bkchem_qt.models.document_session.ProjectionReplacementError)
+			and isinstance(result.diagnostic, ferrum_qt.models.document_session.ProjectionReplacementError)
 			and isinstance(result.diagnostic.__cause__, ValueError)
 		)
 	finally:
@@ -279,7 +279,7 @@ def test_synchronized_preparation_rejects_duplicate_portable_batch(
 		render_observation, batches=(*render_observation.batches, render_observation.batches[0]),
 	)
 	with pytest.raises(ValueError, match="association is ambiguous"):
-		bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+		ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 			dataclasses.replace(
 				_projection_snapshot(document), molecule_render_observation=duplicate_observation,
 			),
@@ -297,7 +297,7 @@ def test_synchronized_preparation_rejects_wrong_kind_portable_batch(
 		render_observation, batches=(wrong_kind, *render_observation.batches[1:]),
 	)
 	with pytest.raises(ValueError, match="kind does not match"):
-		bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+		ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 			dataclasses.replace(
 				_projection_snapshot(document), molecule_render_observation=wrong_kind_observation,
 			),
@@ -315,7 +315,7 @@ def test_synchronized_preparation_rejects_foreign_molecule_portable_batch(
 		render_observation, batches=(foreign_batch, *render_observation.batches[1:]),
 	)
 	with pytest.raises(ValueError, match="belongs to no accepted molecule"):
-		bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+		ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 			dataclasses.replace(
 				_projection_snapshot(document), molecule_render_observation=foreign_observation,
 			),
@@ -335,18 +335,18 @@ def test_synchronized_preparation_does_not_require_batch_for_ambiguous_bond(
 		"<bond id='e' start='a' end='b' type='n1'/></molecule></cdml>"
 	)
 	document = oasa.cdml_document.CDMLDocument.parse(complete_cdml, validation="compat")
-	prepared = bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+	prepared = ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 		_projection_snapshot(document),
 	)
 	try:
 		assert not prepared.molecule_projections[0][0].bonds
 	finally:
-		bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
+		ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
 
 
 #============================================
 def test_backend_paper_layout_projection_retains_no_header_or_reaction_xml(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A live projection gets paper facts while OASA alone preserves its XML."""
 	session = _new_tab(main_window)
@@ -383,7 +383,7 @@ def test_document_graphics_disposal_exhausts_items_after_binding_failure(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An item disposal fault cannot retain its scene or signal connection."""
-	prepared = bkchem_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
+	prepared = ferrum_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
 	document = prepared.document
 	arrow_item = prepared.presentation_items[0]
 	scene = PySide6.QtWidgets.QGraphicsScene()
@@ -410,7 +410,7 @@ def test_detached_projection_disposal_exhausts_items_after_item_failure(
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A detached-item fault cannot retain graphics or document-owned models."""
-	prepared = bkchem_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
+	prepared = ferrum_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
 	arrow_item = prepared.presentation_items[0]
 	binding = arrow_item._projection_binding
 
@@ -421,7 +421,7 @@ def test_detached_projection_disposal_exhausts_items_after_item_failure(
 	monkeypatch.setattr(arrow_item, "dispose", fail_before_item_cleanup)
 	try:
 		with pytest.raises(RuntimeError, match="Prepared projection was released"):
-			bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
+			ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
 		assert not shiboken6.isValid(arrow_item) and binding._item is None
 	finally:
 		monkeypatch.undo()
@@ -432,9 +432,9 @@ def test_dispose_prepared_projection_disconnects_detached_graphics(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""Prepared detached artwork crosses explicit terminal retirement."""
-	prepared = bkchem_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
+	prepared = ferrum_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
 	arrow_item = prepared.presentation_items[0]
-	bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
+	ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
 	PySide6.QtCore.QCoreApplication.sendPostedEvents(
 		None, PySide6.QtCore.QEvent.Type.DeferredDelete,
 	)
@@ -446,10 +446,10 @@ def test_dispose_prepared_projection_disconnects_detached_graphics(
 def test_dispose_prepared_projection_releases_detached_binding(
 		) -> None:
 	"""Disposing a prepared bundle releases its temporary model callback."""
-	prepared = bkchem_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
+	prepared = ferrum_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
 	arrow_item = prepared.presentation_items[0]
 	binding = arrow_item._projection_binding
-	bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
+	ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
 	assert binding._item is None
 
 
@@ -459,7 +459,7 @@ def test_backend_description_rebuilds_interleaved_stack_without_opaque_xml(
 		) -> None:
 	"""Qt keeps source order while OASA alone retains an opaque direct root."""
 	backend_document = oasa.cdml_document.CDMLDocument.parse(_INTERLEAVED_CDML, validation="strict")
-	prepared = bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+	prepared = ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 		_projection_snapshot(backend_document),
 	)
 	try:
@@ -470,7 +470,7 @@ def test_backend_description_rebuilds_interleaved_stack_without_opaque_xml(
 		assert ordered_ids == ("molecule-1", "arrow-1", "molecule-2", "plus-1")
 		assert prepared.document.unsupported_content[0].raw_xml == ""
 	finally:
-		bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
+		ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared)
 
 
 #============================================
@@ -484,7 +484,7 @@ def test_display_only_presentation_renders_without_a_persistent_action_address(
 		'<vendor:metadata keep="yes"/></plus></cdml>'
 	)
 	backend_document = oasa.cdml_document.CDMLDocument.parse(cdml, validation="strict")
-	prepared = bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+	prepared = ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 		_projection_snapshot(backend_document),
 	)
 	document = prepared.document
@@ -507,9 +507,9 @@ def test_dispose_prepared_projection_uses_supplied_session_reaper(
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Prepared cleanup keeps an injected terminal failure with its caller."""
-	prepared = bkchem_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
+	prepared = ferrum_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_ARROW_CDML)
 	arrow_item = prepared.presentation_items[0]
-	reaper = bkchem_qt.canvas.graphics_retirement.DetachedGraphicsRetirementReaper()
+	reaper = ferrum_qt.canvas.graphics_retirement.DetachedGraphicsRetirementReaper()
 	real_delete = shiboken6.delete
 
 	#============================================
@@ -520,11 +520,11 @@ def test_dispose_prepared_projection_uses_supplied_session_reaper(
 		real_delete(item)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.shiboken6, "delete", fail_arrow_delete,
+		ferrum_qt.canvas.graphics_retirement.shiboken6, "delete", fail_arrow_delete,
 	)
 	try:
 		with pytest.raises(RuntimeError, match="Prepared projection was released"):
-			bkchem_qt.io.cdml_document_io.dispose_prepared_projection(prepared, reaper)
+			ferrum_qt.io.cdml_document_io.dispose_prepared_projection(prepared, reaper)
 		assert shiboken6.isValid(arrow_item) and reaper.owns_detached_root(arrow_item)
 		monkeypatch.undo()
 		reaper.drain()
@@ -538,11 +538,11 @@ def test_partial_detached_molecule_builder_releases_earlier_items(
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A later atom-construction failure disconnects earlier detached graphics."""
-	original_init = bkchem_qt.canvas.items.atom_item.AtomItem.__init__
+	original_init = ferrum_qt.canvas.items.atom_item.AtomItem.__init__
 	created = []
 
 	def fail_second_atom(
-			self: bkchem_qt.canvas.items.atom_item.AtomItem,
+			self: ferrum_qt.canvas.items.atom_item.AtomItem,
 			*args: object, **kwargs: object,
 			) -> None:
 		"""Keep the first item, then force the second constructor to fail."""
@@ -552,17 +552,17 @@ def test_partial_detached_molecule_builder_releases_earlier_items(
 		created.append(self)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.items.atom_item.AtomItem, "__init__", fail_second_atom,
+		ferrum_qt.canvas.items.atom_item.AtomItem, "__init__", fail_second_atom,
 	)
 	with pytest.raises(RuntimeError, match="later atom item failed"):
-		bkchem_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_TWO_ATOM_CDML)
+		ferrum_qt.io.cdml_document_io.prepare_compatibility_projection_from_cdml(_TWO_ATOM_CDML)
 	first_item = created[0]
 	assert not shiboken6.isValid(first_item)
 
 
 #============================================
 def test_invalid_prepared_mark_is_rejected_without_scene_ownership_probe(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Atom-owned marks never need a scene() probe during installation."""
@@ -572,13 +572,13 @@ def test_invalid_prepared_mark_is_rejected_without_scene_ownership_probe(
 		backend_document = oasa.cdml_document.CDMLDocument.parse(
 			commit.snapshot.cdml, validation="strict",
 		)
-		prepared = bkchem_qt.io.cdml_document_io.prepare_synchronized_projection(
+		prepared = ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 			_projection_snapshot(backend_document),
 		)
 		mark = prepared.mark_items[0]
 		shiboken6.delete(mark)
 		monkeypatch.setattr(
-			bkchem_qt.io.cdml_document_io,
+			ferrum_qt.io.cdml_document_io,
 			"prepare_synchronized_projection", lambda *_args, **_kwargs: prepared,
 		)
 		result = session.replace_projection_from_backend_snapshot(commit.snapshot)
@@ -589,14 +589,14 @@ def test_invalid_prepared_mark_is_rejected_without_scene_ownership_probe(
 
 #============================================
 def test_valid_prepared_mark_keeps_atom_parent_without_scene_probe(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A valid mark enters the session scene through its installed atom parent."""
 	session = _new_tab(main_window)
 	created_marks = []
-	original_create_mark = bkchem_qt.canvas.document_projection.create_mark_item
-	original_scene = bkchem_qt.canvas.items.mark_item.MarkItem.scene
+	original_create_mark = ferrum_qt.canvas.document_projection.create_mark_item
+	original_scene = ferrum_qt.canvas.items.mark_item.MarkItem.scene
 
 	def remember_mark(model: object, atom_item: object) -> object:
 		"""Capture the one detached mark produced by the prepared projection."""
@@ -612,15 +612,15 @@ def test_valid_prepared_mark_keeps_atom_parent_without_scene_probe(
 	try:
 		commit = session.commit_complete_candidate(_MARKED_ATOM_CDML)
 		monkeypatch.setattr(
-			bkchem_qt.canvas.document_projection, "create_mark_item", remember_mark,
+			ferrum_qt.canvas.document_projection, "create_mark_item", remember_mark,
 		)
 		monkeypatch.setattr(
-			bkchem_qt.canvas.items.mark_item.MarkItem, "scene", fail_mark_scene,
+			ferrum_qt.canvas.items.mark_item.MarkItem, "scene", fail_mark_scene,
 		)
 		assert session._projection_lifecycle_port.project(commit.snapshot)
 		mark = created_marks[0]
 		parent = mark.parentItem()
-		assert isinstance(parent, bkchem_qt.canvas.items.atom_item.AtomItem)
+		assert isinstance(parent, ferrum_qt.canvas.items.atom_item.AtomItem)
 		assert original_scene(mark) is session.scene
 		assert session.backend_projection_synchronized
 	finally:
@@ -630,7 +630,7 @@ def test_valid_prepared_mark_keeps_atom_parent_without_scene_probe(
 
 #============================================
 def test_failed_current_install_retries_only_accepted_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An accepted newer revision remains final after projection retirement."""
@@ -653,13 +653,13 @@ def test_failed_current_install_retries_only_accepted_snapshot(
 		)
 		monkeypatch.setattr(session, "_install_prepared_projection", install)
 		prepared_snapshots = []
-		prepare = bkchem_qt.io.cdml_document_io.prepare_synchronized_projection
+		prepare = ferrum_qt.io.cdml_document_io.prepare_synchronized_projection
 		def remember_prepare(projection_snapshot: object, reaper: object) -> object:
 			"""Record the exact backend snapshot prepared by explicit recovery."""
 			prepared_snapshots.append(projection_snapshot.snapshot)
 			return prepare(projection_snapshot, reaper)
 		monkeypatch.setattr(
-			bkchem_qt.io.cdml_document_io, "prepare_synchronized_projection", remember_prepare,
+			ferrum_qt.io.cdml_document_io, "prepare_synchronized_projection", remember_prepare,
 		)
 		retry = session.retry_current_backend_projection()
 		assert retry.status == "accepted" and prepared_snapshots == [accepted.snapshot]
@@ -669,7 +669,7 @@ def test_failed_current_install_retries_only_accepted_snapshot(
 
 #============================================
 def test_candidate_cleanup_failure_retains_primary_replacement_diagnostic(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Candidate cleanup cannot hide the post-retirement install failure."""
@@ -713,7 +713,7 @@ def test_candidate_cleanup_failure_retains_primary_replacement_diagnostic(
 
 #============================================
 def test_preparation_unavailable_keeps_only_view_aliases_bound(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A stale displayed projection remains view-only after preparation fails."""
@@ -730,7 +730,7 @@ def test_preparation_unavailable_keeps_only_view_aliases_bound(
 			raise RuntimeError("preparation fault")
 
 		monkeypatch.setattr(
-			bkchem_qt.io.cdml_document_io, "prepare_synchronized_projection", fail_prepare,
+			ferrum_qt.io.cdml_document_io, "prepare_synchronized_projection", fail_prepare,
 		)
 		result = session._projection_lifecycle_port.project(accepted.snapshot)
 		assert (
@@ -749,7 +749,7 @@ def test_preparation_unavailable_keeps_only_view_aliases_bound(
 
 #============================================
 def test_stale_session_port_is_inert_and_cannot_retarget_active_aliases(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained foreign port cannot change the active tab or its dock aliases."""
 	foreign = main_window.sessions[0]
@@ -774,7 +774,7 @@ def test_stale_session_port_is_inert_and_cannot_retarget_active_aliases(
 
 #============================================
 def test_delivery_that_clears_its_port_cannot_emit_a_stale_notice(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A synchronous delivery disposal leaves every active alias and dock inert."""
 	foreign = main_window.sessions[0]
@@ -784,12 +784,12 @@ def test_delivery_that_clears_its_port_cannot_emit_a_stale_notice(
 		def clear_port(_snapshot: object) -> object:
 			"""Invalidate this delivery seam while returning a computed result."""
 			foreign.clear_projection_lifecycle_port()
-			return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLED,
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.COMPLETE,
+			return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLED,
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.COMPLETE,
 			)
 
-		port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+		port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 			foreign, clear_port,
 			lambda _session, result: notices.append(result),
 		)

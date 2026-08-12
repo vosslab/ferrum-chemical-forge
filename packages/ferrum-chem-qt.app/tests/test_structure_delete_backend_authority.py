@@ -9,13 +9,13 @@ import PySide6.QtWidgets
 import shiboken6
 
 # local repo modules
-import bkchem_qt.actions.context_menu
-import bkchem_qt.canvas.items.arrow_item
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.actions.context_menu
+import ferrum_qt.canvas.items.arrow_item
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_document
 
 
@@ -40,14 +40,14 @@ _CHAIN_CDML = (
 
 #============================================
 def _new_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		cdml_text: str = _CHAIN_CDML,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Create and project one standalone native chain session."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		cdml_text,
 	)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -62,7 +62,7 @@ def _new_session(
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 		session, deliver,
 	)
 	session.install_projection_lifecycle_port(port)
@@ -71,9 +71,9 @@ def _install_projection_port(session: object, deliver: object) -> None:
 #============================================
 def _projection_unavailable(_snapshot: object) -> object:
 	"""Return one typed projection preparation failure."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
@@ -81,7 +81,7 @@ def _projection_unavailable(_snapshot: object) -> object:
 def _dispose_session(session: object) -> None:
 	"""Release one standalone session through its MainWindow reaper."""
 	owner = session.parent()
-	if not isinstance(owner, bkchem_qt.main_window.MainWindow):
+	if not isinstance(owner, ferrum_qt.main_window.MainWindow):
 		raise TypeError("Standalone test session requires a MainWindow owner")
 	owner._dispose_session_later(session)
 
@@ -92,7 +92,7 @@ def _atom_item(session: object, atom_id: str) -> object:
 	return next(
 		item for item in session.scene.items()
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == atom_id
 		)
 	)
@@ -104,7 +104,7 @@ def _bond_item(session: object, bond_id: str) -> object:
 	return next(
 		item for item in session.scene.items()
 		if (
-			isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+			isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 			and item.bond_model.backend_durable_id == bond_id
 		)
 	)
@@ -115,7 +115,7 @@ def _submit_ineligible_structure_delete(
 		edit_mode: object, document: object, items: tuple[object, ...],
 		) -> bool:
 	"""Prove one public classifier rejection consumes the synchronized gesture."""
-	assert bkchem_qt.canvas.document_projection.structure_delete_targets_for_items(
+	assert ferrum_qt.canvas.document_projection.structure_delete_targets_for_items(
 		document, items,
 	) is None
 	return edit_mode._submit_structure_delete(list(items))
@@ -127,7 +127,7 @@ def _submit_ineligible_structure_delete(
 	((("a2",), ()), ((), ("b3",)), (("a4",), ("b1",))),
 )
 def test_structure_delete_dispatches_plain_targets_once_without_qt_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		atom_ids: tuple[str, ...], bond_ids: tuple[str, ...],
 		) -> None:
@@ -135,7 +135,7 @@ def test_structure_delete_dispatches_plain_targets_once_without_qt_undo(
 	session = _new_session(main_window)
 	before = session.backend_snapshot
 	undo_count = session.document.undo_stack.count()
-	request = bkchem_qt.models.document_session.build_structure_delete_request(
+	request = ferrum_qt.models.document_session.build_structure_delete_request(
 		before.revision, "m1", atom_ids, bond_ids,
 	)
 	calls = []
@@ -166,7 +166,7 @@ def test_structure_delete_dispatches_plain_targets_once_without_qt_undo(
 
 #============================================
 def test_edit_mode_partial_delete_reprojects_canonical_components(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""EditMode deletes one durable atom and selects nothing in fresh components."""
 	session = _new_session(main_window)
@@ -177,7 +177,7 @@ def test_edit_mode_partial_delete_reprojects_canonical_components(
 		fresh_atom_ids = {
 			item.atom_model.backend_durable_id
 			for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		}
 		fresh_molecule_ids = {molecule.mol_id for molecule in session.document.molecules}
 		assert (
@@ -195,7 +195,7 @@ def test_edit_mode_partial_delete_reprojects_canonical_components(
 #============================================
 @pytest.mark.parametrize("case", ("stale", "validation"))
 def test_edit_mode_structure_delete_rejection_has_no_local_fallback(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		case: str,
 		) -> None:
 	"""Stale and typed backend rejection are final for one EditMode gesture."""
@@ -229,7 +229,7 @@ def test_edit_mode_structure_delete_rejection_has_no_local_fallback(
 
 #============================================
 def test_accepted_projection_failure_retries_snapshot_without_resubmission(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An accepted Delete records once and retry only installs backend_snapshot."""
@@ -244,7 +244,7 @@ def test_accepted_projection_failure_retries_snapshot_without_resubmission(
 
 	monkeypatch.setitem(session._operation_commit_executors, "structure-delete", execute)
 	_install_projection_port(session, _projection_unavailable)
-	request = bkchem_qt.models.document_session.build_structure_delete_request(
+	request = ferrum_qt.models.document_session.build_structure_delete_request(
 		session.backend_snapshot.revision, "m1", ("a2",), (),
 	)
 	try:
@@ -279,7 +279,7 @@ def test_accepted_projection_failure_retries_snapshot_without_resubmission(
 		),
 )
 def test_synchronized_ineligible_partial_delete_is_inert(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch, case: str,
 		) -> None:
 	"""Representative invalid synchronized selections never become Qt commands."""
@@ -304,7 +304,7 @@ def test_synchronized_ineligible_partial_delete_is_inert(
 		elif case == "mixed-mark":
 			first = next(
 				item for item in session.scene.items()
-				if isinstance(item, bkchem_qt.canvas.items.mark_item.MarkItem)
+				if isinstance(item, ferrum_qt.canvas.items.mark_item.MarkItem)
 			)
 			second = _atom_item(session, "a2")
 		elif case == "unavailable":
@@ -333,7 +333,7 @@ def test_synchronized_ineligible_partial_delete_is_inert(
 		"case", ("duplicate", "retired", "lookalike", "unsupported"),
 )
 def test_ineligible_structure_delete_classifier_consumes_without_local_fallback(
-		main_window: bkchem_qt.main_window.MainWindow, case: str,
+		main_window: ferrum_qt.main_window.MainWindow, case: str,
 		) -> None:
 	"""Invalid current-projection evidence leaves a synchronized Delete inert."""
 	session = _new_session(main_window)
@@ -364,7 +364,7 @@ def test_ineligible_structure_delete_classifier_consumes_without_local_fallback(
 		else:
 			unsupported = next(
 				item for item in session.scene.items()
-				if isinstance(item, bkchem_qt.canvas.items.arrow_item.ArrowItem)
+				if isinstance(item, ferrum_qt.canvas.items.arrow_item.ArrowItem)
 			)
 			assert session.document.is_current_projection_item(unsupported)
 			items = (unsupported,)
@@ -392,7 +392,7 @@ def test_ineligible_structure_delete_classifier_consumes_without_local_fallback(
 
 #============================================
 def test_context_menu_structure_delete_uses_one_backend_request_and_fresh_projection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch, qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""The production popup Delete submits once and retires before reprojection."""
@@ -429,7 +429,7 @@ def test_context_menu_structure_delete_uses_one_backend_request_and_fresh_projec
 		screen_position = session.view.mapToGlobal(view_position)
 		target = None
 		PySide6.QtCore.QTimer.singleShot(0, trigger_popup_delete)
-		bkchem_qt.actions.context_menu.show_context_menu(
+		ferrum_qt.actions.context_menu.show_context_menu(
 			session.view, scene_position, screen_position,
 		)
 		PySide6.QtCore.QCoreApplication.sendPostedEvents(
@@ -439,7 +439,7 @@ def test_context_menu_structure_delete_uses_one_backend_request_and_fresh_projec
 		fresh_bond_ids = {
 			item.bond_model.backend_durable_id
 			for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+			if isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 		}
 		assert (
 			len(calls) == 1
@@ -456,7 +456,7 @@ def test_context_menu_structure_delete_uses_one_backend_request_and_fresh_projec
 
 #============================================
 def test_legacy_context_delete_callback_holds_weak_item_reference_only(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Local Delete callbacks retain only the view and one weak item reference."""
 	session = _new_session(main_window)
@@ -465,7 +465,7 @@ def test_legacy_context_delete_callback_holds_weak_item_reference_only(
 	callback = None
 	try:
 		target = _atom_item(session, "a2")
-		callback = bkchem_qt.actions.context_menu._structure_delete_callback(
+		callback = ferrum_qt.actions.context_menu._structure_delete_callback(
 			session.view, target,
 		)
 		values = tuple(
@@ -485,7 +485,7 @@ def test_legacy_context_delete_callback_holds_weak_item_reference_only(
 
 #============================================
 def test_legacy_context_menu_delete_is_undoable_and_popup_retires(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A production legacy popup deletes locally, supports undo, and retires."""
@@ -518,7 +518,7 @@ def test_legacy_context_menu_delete_is_undoable_and_popup_retires(
 			del popup
 
 		PySide6.QtCore.QTimer.singleShot(0, trigger_popup_delete)
-		bkchem_qt.actions.context_menu.show_context_menu(
+		ferrum_qt.actions.context_menu.show_context_menu(
 			session.view, scene_position, screen_position,
 		)
 		PySide6.QtCore.QCoreApplication.sendPostedEvents(
@@ -528,7 +528,7 @@ def test_legacy_context_menu_delete_is_undoable_and_popup_retires(
 		assert (
 			session.document.undo_stack.count() == 1
 			and not any(
-				isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+				isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 				and item.atom_model.backend_durable_id == "a2"
 				for item in session.scene.items()
 			)
@@ -538,7 +538,7 @@ def test_legacy_context_menu_delete_is_undoable_and_popup_retires(
 		)
 		session.document.undo_stack.undo()
 		assert any(
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == "a2"
 			for item in session.scene.items()
 		)
@@ -549,7 +549,7 @@ def test_legacy_context_menu_delete_is_undoable_and_popup_retires(
 
 #============================================
 def test_retired_legacy_context_delete_target_is_inert(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A retired local target cannot enter the undo route after reprojection."""
@@ -559,7 +559,7 @@ def test_retired_legacy_context_delete_target_is_inert(
 	callback = None
 	try:
 		target = _atom_item(session, "a2")
-		callback = bkchem_qt.actions.context_menu._structure_delete_callback(
+		callback = ferrum_qt.actions.context_menu._structure_delete_callback(
 			session.view, target,
 		)
 		target = None

@@ -8,9 +8,9 @@ import PySide6.QtCore
 
 # local repo modules
 from oasa import cdml_document
-import bkchem_qt.actions.repair_actions
-import bkchem_qt.canvas.molecule_projection
-import bkchem_qt.models.molecule_model
+import ferrum_qt.actions.repair_actions
+import ferrum_qt.canvas.molecule_projection
+import ferrum_qt.models.molecule_model
 
 
 _TWO_REPAIR_MOLECULES_CDML = (
@@ -62,7 +62,7 @@ def _draw_repair_target(
 		main_window: object, x: float, y: float,
 		) -> tuple[object, object]:
 	"""Add one stretched two-atom molecule and return it with its bond."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
 	first = molecule.create_atom(symbol="C")
 	second = molecule.create_atom(symbol="C")
 	first.set_xyz(x, y, 0.0)
@@ -72,7 +72,7 @@ def _draw_repair_target(
 	bond = molecule.create_bond(order=1, bond_type="n")
 	molecule.add_bond(first, second, bond)
 	main_window.document.add_molecule(molecule, mark_dirty=False)
-	bkchem_qt.canvas.molecule_projection.project_molecules_to_scene(
+	ferrum_qt.canvas.molecule_projection.project_molecules_to_scene(
 		main_window.scene, [molecule],
 	)
 	return molecule, bond
@@ -106,7 +106,7 @@ def test_selected_bond_normalization_requires_a_backend_identified_molecule(
 		if getattr(item, "bond_model", None) is selected_bond:
 			item.setSelected(True)
 	before = (_coordinates(selected), _coordinates(other))
-	bkchem_qt.actions.repair_actions._handle_normalize_bond_lengths(main_window)
+	ferrum_qt.actions.repair_actions._handle_normalize_bond_lengths(main_window)
 
 	assert (_coordinates(selected), _coordinates(other)) == before
 
@@ -149,7 +149,7 @@ def test_clean_geometry_requires_a_backend_identified_molecule(
 	second, _second_bond = _draw_repair_target(main_window, 400.0, 100.0)
 	main_window.document.mark_clean()
 	before = (_coordinates(first), _coordinates(second))
-	bkchem_qt.actions.repair_actions._handle_clean_geometry(main_window)
+	ferrum_qt.actions.repair_actions._handle_clean_geometry(main_window)
 
 	assert (_coordinates(first), _coordinates(second), main_window.document.dirty) == (
 		before[0], before[1], False,
@@ -164,7 +164,7 @@ def test_clean_geometry_target_requires_a_backend_identified_molecule(
 	molecule, _bond = _draw_repair_target(main_window, 100.0, 100.0)
 	main_window.document.mark_clean()
 	before = _coordinates(molecule)
-	bkchem_qt.actions.repair_actions._handle_clean_geometry(
+	ferrum_qt.actions.repair_actions._handle_clean_geometry(
 		main_window, target_molecule=molecule,
 	)
 

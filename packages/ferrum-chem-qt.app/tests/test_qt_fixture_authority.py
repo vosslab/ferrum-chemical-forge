@@ -1,9 +1,9 @@
 """Regression coverage for shared Qt fixture authority reset."""
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.models.document
-import bkchem_qt.models.document_session
+import ferrum_qt.main_window
+import ferrum_qt.models.document
+import ferrum_qt.models.document_session
 import oasa.cdml_document
 
 # local test modules
@@ -12,10 +12,10 @@ import tests.conftest
 
 #============================================
 def _draw_pair_request(
-		session: bkchem_qt.models.document_session.DocumentSession, element: str,
-		) -> bkchem_qt.models.document_session.PersistentOperationRequest:
+		session: ferrum_qt.models.document_session.DocumentSession, element: str,
+		) -> ferrum_qt.models.document_session.PersistentOperationRequest:
 	"""Return one plain backend Draw request for a fresh bonded pair."""
-	return bkchem_qt.models.document_session.PersistentOperationRequest(
+	return ferrum_qt.models.document_session.PersistentOperationRequest(
 		"draw.structure", "Draw bonded pair",
 		(
 			("expected_revision", session.backend_snapshot.revision),
@@ -40,7 +40,7 @@ def _draw_result_ids(result: oasa.cdml_document.CDMLStructuralEditResult) -> fro
 
 
 #============================================
-def _projected_draw_ids(document: bkchem_qt.models.document.Document) -> frozenset[str]:
+def _projected_draw_ids(document: ferrum_qt.models.document.Document) -> frozenset[str]:
 	"""Return the Draw durable identifiers resolved by one live projection."""
 	identifiers = set()
 	for molecule in document.molecules:
@@ -51,7 +51,7 @@ def _projected_draw_ids(document: bkchem_qt.models.document.Document) -> frozens
 
 
 #============================================
-def _projected_atom_symbols(document: bkchem_qt.models.document.Document) -> frozenset[str]:
+def _projected_atom_symbols(document: ferrum_qt.models.document.Document) -> frozenset[str]:
 	"""Return the element symbols visible through one live Draw projection."""
 	return frozenset(
 		atom.symbol for molecule in document.molecules for atom in molecule.atoms
@@ -60,7 +60,7 @@ def _projected_atom_symbols(document: bkchem_qt.models.document.Document) -> fro
 
 #============================================
 def test_fixture_normalization_recreates_the_authoritative_blank_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A reset retires accepted state before the next backend Draw operation."""
 	first_session = main_window._active_session

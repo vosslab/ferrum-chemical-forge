@@ -9,14 +9,14 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.actions.context_menu
-import bkchem_qt.actions.file_actions
-import bkchem_qt.io.clipboard_manager
-import bkchem_qt.models.atom_model
-import bkchem_qt.models.bond_model
-import bkchem_qt.models.molecule_model
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.actions.context_menu
+import ferrum_qt.actions.file_actions
+import ferrum_qt.io.clipboard_manager
+import ferrum_qt.models.atom_model
+import ferrum_qt.models.bond_model
+import ferrum_qt.models.molecule_model
 import oasa.cdml_conformance
 import oasa.cdml_writer
 import oasa.safe_xml
@@ -40,39 +40,39 @@ _COPY_SOURCE = """<cdml version="26.07" xmlns="http://www.freesoftware.fsf.org/b
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
-def _molecule() -> bkchem_qt.models.molecule_model.MoleculeModel:
+def _molecule() -> ferrum_qt.models.molecule_model.MoleculeModel:
 	"""Build a small molecule whose whole-object selection is observable."""
-	molecule = bkchem_qt.models.molecule_model.MoleculeModel()
-	carbon = bkchem_qt.models.atom_model.AtomModel()
+	molecule = ferrum_qt.models.molecule_model.MoleculeModel()
+	carbon = ferrum_qt.models.atom_model.AtomModel()
 	carbon.set_xyz(10.0, 20.0)
-	oxygen = bkchem_qt.models.atom_model.AtomModel()
+	oxygen = ferrum_qt.models.atom_model.AtomModel()
 	oxygen.symbol = "O"
 	oxygen.set_xyz(40.0, 20.0)
 	molecule.add_atom(carbon)
 	molecule.add_atom(oxygen)
-	bond = bkchem_qt.models.bond_model.BondModel()
+	bond = ferrum_qt.models.bond_model.BondModel()
 	molecule.add_bond(carbon, oxygen, bond)
 	return molecule
 
 
 #============================================
-def _add_molecule(main_window: object) -> bkchem_qt.models.molecule_model.MoleculeModel:
+def _add_molecule(main_window: object) -> ferrum_qt.models.molecule_model.MoleculeModel:
 	"""Add a molecule to the active test document without creating undo history."""
 	molecule = _molecule()
-	bkchem_qt.actions.file_actions._add_molecules_to_scene(
+	ferrum_qt.actions.file_actions._add_molecules_to_scene(
 		main_window, [molecule], undoable=False,
 	)
 	return molecule
@@ -94,7 +94,7 @@ def _clipboard_fragment(qapp: object, fragment: str) -> None:
 	"""Install one raw complete CDML value using the custom MIME type."""
 	mime_data = PySide6.QtCore.QMimeData()
 	mime_data.setData(
-		bkchem_qt.io.clipboard_manager.CDML_MIME_TYPE,
+		ferrum_qt.io.clipboard_manager.CDML_MIME_TYPE,
 		PySide6.QtCore.QByteArray(fragment.encode("utf-8")),
 	)
 	qapp.clipboard().setMimeData(mime_data)
@@ -328,7 +328,7 @@ def test_synchronized_cut_failures_keep_the_document_inert_after_copy(
 		elif case == "rejected":
 			monkeypatch.setattr(
 				session, "submit_persistent_operation",
-				lambda _request: bkchem_qt.models.document_session.PersistentActionOutcome(
+				lambda _request: ferrum_qt.models.document_session.PersistentActionOutcome(
 					"rejected", "presentation Cut rejected", None, False,
 				),
 			)
@@ -622,15 +622,32 @@ def test_clipboard_reader_reports_no_data_and_invalid_utf8(
 		qapp: object,
 		) -> None:
 	"""The Qt adapter reports read states without parsing a CDML fragment."""
-	manager = bkchem_qt.io.clipboard_manager.ClipboardManager()
+	manager = ferrum_qt.io.clipboard_manager.ClipboardManager()
 	qapp.clipboard().clear()
 	no_data = manager.read_fragment()
 	mime_data = PySide6.QtCore.QMimeData()
-	mime_data.setData(bkchem_qt.io.clipboard_manager.CDML_MIME_TYPE, b"\xff")
+	mime_data.setData(ferrum_qt.io.clipboard_manager.CDML_MIME_TYPE, b"\xff")
 	qapp.clipboard().setMimeData(mime_data)
 	decode_error = manager.read_fragment()
 
 	assert (no_data, decode_error) == (("no_data", None), ("decode_error", None))
+
+
+#============================================
+def test_clipboard_reader_accepts_the_historical_cdml_mime_type(
+		qapp: object,
+		) -> None:
+	"""Existing clipboard producers remain compatible after Ferrum rebranding."""
+	mime_data = PySide6.QtCore.QMimeData()
+	mime_data.setData(
+		ferrum_qt.io.clipboard_manager.LEGACY_CDML_MIME_TYPE,
+		PySide6.QtCore.QByteArray(_MIXED_FRAGMENT.encode("utf-8")),
+	)
+	qapp.clipboard().setMimeData(mime_data)
+	manager = ferrum_qt.io.clipboard_manager.ClipboardManager()
+
+	assert manager.can_paste()
+	assert manager.read_fragment() == ("ok", _MIXED_FRAGMENT)
 
 
 #============================================
@@ -665,7 +682,7 @@ def test_unavailable_session_disables_paste_in_menu_and_context_menu(
 	try:
 		session.clear_projection_lifecycle_port()
 		main_window._refresh_document_actions()
-		context_menu = bkchem_qt.actions.context_menu._empty_context_menu(
+		context_menu = ferrum_qt.actions.context_menu._empty_context_menu(
 			main_window.view,
 		)
 		availability = (
@@ -700,7 +717,7 @@ def test_cut_keeps_legacy_isolated_paste_disabled_in_each_menu(
 		document.undo_stack.undo()
 		was_restored = molecule in document.molecules
 		main_window._refresh_document_actions()
-		context_menu = bkchem_qt.actions.context_menu._empty_context_menu(
+		context_menu = ferrum_qt.actions.context_menu._empty_context_menu(
 			main_window.view,
 		)
 		availability = (

@@ -5,12 +5,12 @@ import PySide6.QtCore
 import shiboken6
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.modes.arrow_mode
-import bkchem_qt.modes.bracket_mode
-import bkchem_qt.modes.edit_mode
-import bkchem_qt.modes.misc_mode
-import bkchem_qt.modes.vector_mode
+import ferrum_qt.main_window
+import ferrum_qt.modes.arrow_mode
+import ferrum_qt.modes.bracket_mode
+import ferrum_qt.modes.edit_mode
+import ferrum_qt.modes.misc_mode
+import ferrum_qt.modes.vector_mode
 
 
 #============================================
@@ -25,7 +25,7 @@ class _NoModifiersEvent:
 
 #============================================
 def test_session_modes_share_the_session_terminal_preview_owner(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Every transient-preview mode receives its tab's explicit reaper."""
 	session = main_window._active_session
@@ -39,10 +39,10 @@ def test_session_modes_share_the_session_terminal_preview_owner(
 
 #============================================
 def test_arrow_preview_deactivation_terminally_retires_native_wrapper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An interrupted Arrow gesture explicitly destroys its transient line."""
-	mode = bkchem_qt.modes.arrow_mode.ArrowMode(main_window.view)
+	mode = ferrum_qt.modes.arrow_mode.ArrowMode(main_window.view)
 	mode.mouse_press(PySide6.QtCore.QPointF(10.0, 10.0), object())
 	mode.mouse_move(PySide6.QtCore.QPointF(40.0, 10.0), object())
 	preview = mode._preview_line
@@ -53,10 +53,10 @@ def test_arrow_preview_deactivation_terminally_retires_native_wrapper(
 
 #============================================
 def test_vector_preview_deactivation_terminally_retires_native_wrapper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An interrupted Vector gesture explicitly destroys its transient shape."""
-	mode = bkchem_qt.modes.vector_mode.VectorMode(main_window.view)
+	mode = ferrum_qt.modes.vector_mode.VectorMode(main_window.view)
 	mode.mouse_press(PySide6.QtCore.QPointF(10.0, 10.0), object())
 	mode.mouse_move(PySide6.QtCore.QPointF(40.0, 25.0), object())
 	preview = mode._preview_item
@@ -67,10 +67,10 @@ def test_vector_preview_deactivation_terminally_retires_native_wrapper(
 
 #============================================
 def test_bracket_preview_deactivation_terminally_retires_native_wrapper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An interrupted Bracket gesture explicitly destroys its transient rectangle."""
-	mode = bkchem_qt.modes.bracket_mode.BracketMode(main_window.view)
+	mode = ferrum_qt.modes.bracket_mode.BracketMode(main_window.view)
 	mode.mouse_press(PySide6.QtCore.QPointF(10.0, 10.0), object())
 	mode.mouse_move(PySide6.QtCore.QPointF(40.0, 25.0), object())
 	preview = mode._preview_rect
@@ -81,10 +81,10 @@ def test_bracket_preview_deactivation_terminally_retires_native_wrapper(
 
 #============================================
 def test_wavy_preview_deactivation_terminally_retires_native_wrapper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An interrupted Wavy gesture destroys its transient path without scene probing."""
-	mode = bkchem_qt.modes.misc_mode.MiscMode(main_window.view)
+	mode = ferrum_qt.modes.misc_mode.MiscMode(main_window.view)
 	mode.on_submode_switch(0, "wavy")
 	mode.mouse_press(PySide6.QtCore.QPointF(10.0, 10.0), object())
 	mode.mouse_move(PySide6.QtCore.QPointF(80.0, 10.0), object())
@@ -96,10 +96,10 @@ def test_wavy_preview_deactivation_terminally_retires_native_wrapper(
 
 #============================================
 def test_edit_rubber_band_deactivation_terminally_retires_native_wrapper(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An interrupted selection drag explicitly destroys its transient rubber band."""
-	mode = bkchem_qt.modes.edit_mode.EditMode(main_window.view)
+	mode = ferrum_qt.modes.edit_mode.EditMode(main_window.view)
 	event = _NoModifiersEvent()
 	mode.mouse_press(PySide6.QtCore.QPointF(180.0, 180.0), event)
 	mode.mouse_move(PySide6.QtCore.QPointF(220.0, 210.0), event)

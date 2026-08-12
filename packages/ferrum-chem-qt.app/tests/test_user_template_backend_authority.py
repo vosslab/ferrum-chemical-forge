@@ -4,10 +4,10 @@
 import math
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.io.user_template_catalog
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.main_window
+import ferrum_qt.io.user_template_catalog
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -29,16 +29,16 @@ _POINTS_PER_CM = 72.0 / 2.54
 #============================================
 def _entry(key: str, cdml: str = _TEMPLATE_CDML) -> object:
 	"""Create one admitted immutable frontend delivery record."""
-	return bkchem_qt.io.user_template_catalog.UserTemplateCatalogEntry(
+	return ferrum_qt.io.user_template_catalog.UserTemplateCatalogEntry(
 		key, "Saved template", cdml,
 	)
 
 
 #============================================
-def _session(main_window: bkchem_qt.main_window.MainWindow, entries: tuple[object, ...]) -> object:
+def _session(main_window: ferrum_qt.main_window.MainWindow, entries: tuple[object, ...]) -> object:
 	"""Register one native session with explicit frozen user-template delivery."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_SOURCE_CDML)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_SOURCE_CDML)
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, view_parent=main_window,
 		prepared_native_cdml=prepared, user_template_catalog=entries,
@@ -73,7 +73,7 @@ def _molecule_centroids(snapshot: object) -> dict[str, tuple[float, float]]:
 
 #============================================
 def test_session_placement_inserts_frozen_template_at_anchor_and_backend_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A session-owned placement capability creates one detached OASA molecule and history."""
 	session = _session(main_window, (_entry("saved-a"),))
@@ -106,7 +106,7 @@ def test_session_placement_inserts_frozen_template_at_anchor_and_backend_undo(
 
 #============================================
 def test_catalog_replacement_is_session_neutral_and_removed_keys_reject_atomically(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A fresh session configuration changes delivery keys without document mutation."""
 	session = _session(main_window, (_entry("saved-a"),))
@@ -123,7 +123,7 @@ def test_catalog_replacement_is_session_neutral_and_removed_keys_reject_atomical
 
 #============================================
 def test_stale_user_template_request_rejects_before_catalog_resolution(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A stale request remains a revision conflict even with an unknown key."""
 	session = _session(main_window, (_entry("saved-a"),))
@@ -131,7 +131,7 @@ def test_stale_user_template_request_rejects_before_catalog_resolution(
 		captured_revision = session.backend_snapshot.revision
 		session.submit_user_template("saved-a", (0.0, 0.0))
 		after = session.backend_snapshot
-		request = bkchem_qt.models.document_session.build_user_template_insert_request(
+		request = ferrum_qt.models.document_session.build_user_template_insert_request(
 			captured_revision, "unknown-key", (0.0, 0.0),
 		)
 		outcome = session.submit_persistent_operation(request)
@@ -143,7 +143,7 @@ def test_stale_user_template_request_rejects_before_catalog_resolution(
 
 #============================================
 def test_retained_placement_capability_stays_bound_to_its_origin_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Activating tab B cannot redirect a retained tab-A placement capability."""
 	first = _session(main_window, (_entry("saved-a"),))
@@ -164,7 +164,7 @@ def test_retained_placement_capability_stays_bound_to_its_origin_tab(
 
 #============================================
 def test_retained_disposed_action_reports_typed_unavailability(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A previously captured session capability becomes a typed inert result on close."""
 	session = _session(main_window, (_entry("saved-a"),))
@@ -176,27 +176,27 @@ def test_retained_disposed_action_reports_typed_unavailability(
 
 #============================================
 def test_projection_retry_reuses_accepted_snapshot_after_catalog_replacement(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Recovery installs the accepted snapshot even after its source key is removed."""
 	session = _session(main_window, (_entry("saved-a"),))
 
 	def unavailable(_snapshot: object) -> object:
 		"""Return one typed frontend-only projection delivery failure."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	try:
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 		)
 		outcome = session.submit_user_template("saved-a", (90.0, 120.0))
 		accepted = session.backend_snapshot
 		session.replace_user_template_catalog(())
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)

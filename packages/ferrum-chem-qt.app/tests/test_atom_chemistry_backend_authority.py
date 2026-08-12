@@ -4,7 +4,7 @@ import ast
 import pathlib
 from types import SimpleNamespace
 
-from bkchem_qt.actions import chemistry_actions
+from ferrum_qt.actions import chemistry_actions
 from oasa import cdml_document
 
 

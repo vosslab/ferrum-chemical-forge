@@ -4,27 +4,27 @@
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.modes.misc_mode
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.modes.misc_mode
 
 
 #============================================
 def _live_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Return the public live session that owns the public active document."""
 	return next(session for session in main_window.sessions if session.document is main_window.document)
 
 
 #============================================
 def _select_wavy(
-		session: bkchem_qt.models.document_session.DocumentSession,
-		) -> bkchem_qt.modes.misc_mode.MiscMode:
+		session: ferrum_qt.models.document_session.DocumentSession,
+		) -> ferrum_qt.modes.misc_mode.MiscMode:
 	"""Select Wavy through the public session mode manager and BaseMode API."""
 	session.mode_manager.set_mode("misc")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.misc_mode.MiscMode):
+	if not isinstance(mode, ferrum_qt.modes.misc_mode.MiscMode):
 		raise TypeError("Misc selection did not install MiscMode")
 	mode.set_submode("wavy")
 	return mode
@@ -32,7 +32,7 @@ def _select_wavy(
 
 #============================================
 def _drag_wavy(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		start: PySide6.QtCore.QPointF, end: PySide6.QtCore.QPointF,
 		) -> None:
 	"""Dispatch one Wavy drag through public ModeManager mouse methods."""
@@ -42,7 +42,7 @@ def _drag_wavy(
 
 
 def test_zero_length_wavy_gesture_is_a_clean_no_op(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A press/release without displacement leaves backend authority unchanged."""
 	session = _live_session(main_window)
@@ -57,7 +57,7 @@ def test_zero_length_wavy_gesture_is_a_clean_no_op(
 
 #============================================
 def test_extreme_wavy_drag_leaves_public_document_unchanged(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An unrepresentable drag leaves backend authority and projection unchanged."""
 	session = _live_session(main_window)
@@ -71,7 +71,7 @@ def test_extreme_wavy_drag_leaves_public_document_unchanged(
 
 #============================================
 def test_absent_wavy_callback_leaves_state_clean_and_accepts_a_new_gesture(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An absent callback makes no edit, then a new gesture reaches an injected callback."""
 	session = _live_session(main_window)
@@ -82,11 +82,11 @@ def test_absent_wavy_callback_leaves_state_clean_and_accepts_a_new_gesture(
 	received: list[tuple[tuple[str, object], ...]] = []
 
 	def capture(
-			request: bkchem_qt.models.document_session.PersistentOperationRequest,
-			) -> bkchem_qt.models.document_session.PersistentActionOutcome:
+			request: ferrum_qt.models.document_session.PersistentOperationRequest,
+			) -> ferrum_qt.models.document_session.PersistentActionOutcome:
 		"""Record a second public request without accepting a local fallback."""
 		received.append(request.payload)
-		return bkchem_qt.models.document_session.PersistentActionOutcome(
+		return ferrum_qt.models.document_session.PersistentActionOutcome(
 			"rejected", "Wavy creation rejected", None,
 		)
 
@@ -99,7 +99,7 @@ def test_absent_wavy_callback_leaves_state_clean_and_accepts_a_new_gesture(
 
 #============================================
 def test_rejected_wavy_callback_leaves_state_clean_and_accepts_a_new_gesture(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A rejected callback makes no edit and receives each independent public drag."""
 	session = _live_session(main_window)
@@ -108,11 +108,11 @@ def test_rejected_wavy_callback_leaves_state_clean_and_accepts_a_new_gesture(
 	received: list[tuple[tuple[str, object], ...]] = []
 
 	def reject(
-			request: bkchem_qt.models.document_session.PersistentOperationRequest,
-			) -> bkchem_qt.models.document_session.PersistentActionOutcome:
+			request: ferrum_qt.models.document_session.PersistentOperationRequest,
+			) -> ferrum_qt.models.document_session.PersistentActionOutcome:
 		"""Record each request while returning a typed backend rejection."""
 		received.append(request.payload)
-		return bkchem_qt.models.document_session.PersistentActionOutcome(
+		return ferrum_qt.models.document_session.PersistentActionOutcome(
 			"rejected", "Wavy creation rejected", None,
 		)
 

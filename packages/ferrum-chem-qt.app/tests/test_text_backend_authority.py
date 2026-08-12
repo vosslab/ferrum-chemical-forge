@@ -7,10 +7,10 @@ import xml.dom.minidom
 import pytest
 
 # local repo modules
-import bkchem_qt.io.cdml_candidate
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.io.cdml_candidate
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_document
 import oasa.cdml_writer
 import oasa.safe_xml
@@ -27,16 +27,16 @@ id="text_1"><bk:ftext>yield</bk:ftext></bk:text><vendor:note keep="yes">opaque
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
@@ -70,7 +70,7 @@ def _text_value(element: xml.dom.minidom.Element) -> str:
 def test_text_candidate_preserves_existing_mixed_cdml() -> None:
 	"""A text candidate retains ordered typed and opaque sibling semantics."""
 	session = oasa.cdml_document.CDMLDocumentSession.load(_MIXED_CDML)
-	candidate = bkchem_qt.io.cdml_candidate.append_text_candidate(
+	candidate = ferrum_qt.io.cdml_candidate.append_text_candidate(
 		session.snapshot().cdml, "__bkchem_new__text-r0-1", (72.0, 36.0), "A & B",
 	)
 	commit = session.commit(expected_revision=0, complete_cdml=candidate)
@@ -113,7 +113,7 @@ def test_text_candidate_uses_backend_id_and_canonical_plain_defaults() -> None:
 	"""The accepted Text has a durable ID and semantic default presentation."""
 	token = "__bkchem_new__text-r0-1"
 	session = oasa.cdml_document.CDMLDocumentSession.load(_MIXED_CDML)
-	candidate = bkchem_qt.io.cdml_candidate.append_text_candidate(
+	candidate = ferrum_qt.io.cdml_candidate.append_text_candidate(
 		session.snapshot().cdml, token, (72.0, 36.0), "A & B",
 	)
 	commit = session.commit(expected_revision=0, complete_cdml=candidate)
@@ -145,19 +145,19 @@ def test_text_candidate_uses_backend_id_and_canonical_plain_defaults() -> None:
 
 #============================================
 def test_text_request_rejects_malformed_payload_without_backend_mutation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Text only accepts exactly one stripped string and finite tuple position."""
 	session = main_window._active_session
 	before_revision = session.backend_snapshot.revision
 	requests = (
-		bkchem_qt.models.document_session.PersistentOperationRequest(
+		ferrum_qt.models.document_session.PersistentOperationRequest(
 			"text.add", "Text", (("text", "plain"), ("position", (0.0, float("inf")))),
 		),
-		bkchem_qt.models.document_session.PersistentOperationRequest(
+		ferrum_qt.models.document_session.PersistentOperationRequest(
 			"text.add", "Text", (("text", " plain"), ("position", (0.0, 0.0))),
 		),
-		bkchem_qt.models.document_session.PersistentOperationRequest(
+		ferrum_qt.models.document_session.PersistentOperationRequest(
 			"text.add", "Text", (("text", "plain"), ("position", (0.0, 0.0)), ("extra", 1)),
 		),
 	)
@@ -169,7 +169,7 @@ def test_text_request_rejects_malformed_payload_without_backend_mutation(
 
 #============================================
 def test_accepted_text_projection_retry_uses_current_snapshot_once(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An accepted Text commit retries its canonical snapshot without resubmitting."""
@@ -177,7 +177,7 @@ def test_accepted_text_projection_retry_uses_current_snapshot_once(
 	session = main_window._active_session
 	restore_delivery = lambda snapshot: main_window._replace_session_projection(session, snapshot)
 	calls = []
-	original = bkchem_qt.io.cdml_candidate.append_text_candidate
+	original = ferrum_qt.io.cdml_candidate.append_text_candidate
 	removed = False
 
 	def capture_candidate(
@@ -190,10 +190,10 @@ def test_accepted_text_projection_retry_uses_current_snapshot_once(
 
 	try:
 		monkeypatch.setattr(
-			bkchem_qt.io.cdml_candidate, "append_text_candidate", capture_candidate,
+			ferrum_qt.io.cdml_candidate, "append_text_candidate", capture_candidate,
 		)
 		_install_projection_port(session, _projection_unavailable)
-		request = bkchem_qt.models.document_session.PersistentOperationRequest(
+		request = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"text.add", "Text", (("text", "Retry me"), ("position", (18.0, 24.0))),
 		)
 		accepted = session.submit_persistent_operation(request)

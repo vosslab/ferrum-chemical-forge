@@ -40,7 +40,11 @@ The optional `tests/playwright/e2e/` subfolder groups full-path browser walkthro
 
 ## How pytest stays fast
 
-`tests/conftest.py` declares `collect_ignore = ["e2e", "playwright"]`, so pytest never collects test functions from those subtrees, regardless of filename inside them. The filename conventions (`e2e_*` prefix in `tests/e2e/`, `test_*.mjs` for Playwright) are a readability layer on top of this active guard.
+Root `pytest.ini` makes `tests/` the bare-pytest collection root and excludes external,
+generated, and environment directories including `OTHER_REPOS/`. Inside this tree,
+`tests/conftest.py` declares `collect_ignore = ["e2e", "playwright"]`, so pytest never
+collects test functions from those subtrees. Filename conventions remain a readability
+layer on top of these active guards.
 
 Important: `collect_ignore` only affects pytest test collection. The repo's lint tests (ASCII compliance, whitespace, pyflakes, indentation, shebangs, etc.) enumerate files via `git ls-files` and still scan files inside `tests/playwright/` and `tests/e2e/`. A non-ASCII character in `tests/playwright/foo.mjs` will still fail the ASCII check - only execution as a pytest test is suppressed.
 

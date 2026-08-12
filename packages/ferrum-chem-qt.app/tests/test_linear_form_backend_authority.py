@@ -1,10 +1,10 @@
 """Focused Qt authority coverage for Convert to Linear Form."""
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.models.document_session
 
 
 _CDML = """<cdml><molecule id="m1"><atom id="a3" name="O"><point x="20" y="4"/></atom><atom id="a1" name="C"><point x="0" y="0"/></atom><atom id="a2" name="C"><point x="7" y="9"/></atom><bond id="b2" start="a2" end="a3" type="n1"/><bond id="b1" start="a1" end="a2" type="n1"/></molecule></cdml>"""
@@ -13,7 +13,7 @@ _CDML = """<cdml><molecule id="m1"><atom id="a3" name="O"><point x="20" y="4"/><
 #============================================
 def _session(main_window: object) -> object:
 	"""Install one native session with an editable durable path."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._register_session(
 		main_window._construct_session(prepared_native_cdml=prepared), activate=True,
 	)
@@ -39,12 +39,12 @@ def test_convert_to_linear_submits_plain_origin_intent_and_restores_atoms(
 	"""The real action expands a bond and uses backend history, never Qt undo."""
 	session = _session(main_window)
 	try:
-		_item(session, bkchem_qt.canvas.items.atom_item.AtomItem, "a3").setSelected(True)
-		_item(session, bkchem_qt.canvas.items.bond_item.BondItem, "b1").setSelected(True)
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(main_window)
+		_item(session, ferrum_qt.canvas.items.atom_item.AtomItem, "a3").setSelected(True)
+		_item(session, ferrum_qt.canvas.items.bond_item.BondItem, "b1").setSelected(True)
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(main_window)
 		selected = {
 			item.atom_model.backend_durable_id for item in session.scene.selectedItems()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		}
 		assert "<name>linear_form</name>" in session.backend_snapshot.cdml and not session.document.undo_stack.canUndo()
 		assert selected == {"a1", "a2", "a3"}
@@ -60,7 +60,7 @@ def test_retained_linear_form_capability_is_unavailable_after_close(main_window:
 	capability = main_window.persistent_operation_capability_for(session)
 	revision = session.backend_snapshot.revision
 	main_window.close_session_at(main_window.sessions.index(session))
-	outcome = capability(bkchem_qt.models.document_session.build_linear_form_convert_request(
+	outcome = capability(ferrum_qt.models.document_session.build_linear_form_convert_request(
 		revision, "m1", ("a1",),
 	))
 	assert outcome.status == "unavailable" and outcome.commit is None

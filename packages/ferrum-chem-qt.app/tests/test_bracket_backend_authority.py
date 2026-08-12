@@ -7,12 +7,12 @@ import PySide6.QtCore
 import pytest
 import shiboken6
 
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.io.cdml_candidate
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.bracket_mode
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.io.cdml_candidate
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.bracket_mode
 import oasa.cdml_document
 import oasa.cdml_writer
 import oasa.safe_xml
@@ -21,42 +21,42 @@ import oasa.safe_xml
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
-def _new_session(main_window: bkchem_qt.main_window.MainWindow) -> bkchem_qt.models.document_session.DocumentSession:
+def _new_session(main_window: ferrum_qt.main_window.MainWindow) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Create one public temporary session."""
 	if not main_window.on_new():
 		raise RuntimeError("Public New did not create a Bracket test session")
 	return next(session for session in main_window.sessions if session.document is main_window.document)
 
 
-def _close_clean(main_window: bkchem_qt.main_window.MainWindow, session: bkchem_qt.models.document_session.DocumentSession) -> None:
+def _close_clean(main_window: ferrum_qt.main_window.MainWindow, session: ferrum_qt.models.document_session.DocumentSession) -> None:
 	"""Close a final-backend-clean temporary session."""
 	if not main_window.close_session_at(main_window.sessions.index(session)):
 		raise RuntimeError("Public close did not remove Bracket test session")
 
 
-def _bracket_mode(session: bkchem_qt.models.document_session.DocumentSession) -> bkchem_qt.modes.bracket_mode.BracketMode:
+def _bracket_mode(session: ferrum_qt.models.document_session.DocumentSession) -> ferrum_qt.modes.bracket_mode.BracketMode:
 	"""Select the public rectangular Bracket mode."""
 	session.mode_manager.set_mode("bracket")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.bracket_mode.BracketMode):
+	if not isinstance(mode, ferrum_qt.modes.bracket_mode.BracketMode):
 		raise TypeError("Bracket selection did not install BracketMode")
 	return mode
 
 
-def _drag(mode: bkchem_qt.modes.bracket_mode.BracketMode, start: tuple[float, float], end: tuple[float, float]) -> None:
+def _drag(mode: ferrum_qt.modes.bracket_mode.BracketMode, start: tuple[float, float], end: tuple[float, float]) -> None:
 	"""Drive one public manual bracket gesture."""
 	begin = PySide6.QtCore.QPointF(*start)
 	finish = PySide6.QtCore.QPointF(*end)
@@ -93,7 +93,7 @@ def _points_match(actual: tuple[tuple[float, float], ...], expected: tuple[tuple
 	)
 
 
-def test_manual_bracket_uses_backend_history_and_fresh_projection(main_window: bkchem_qt.main_window.MainWindow) -> None:
+def test_manual_bracket_uses_backend_history_and_fresh_projection(main_window: ferrum_qt.main_window.MainWindow) -> None:
 	"""An accepted manual pair uses canonical backend undo/redo, not Qt undo."""
 	session = _new_session(main_window)
 	try:
@@ -131,7 +131,7 @@ def test_manual_bracket_uses_backend_history_and_fresh_projection(main_window: b
 	assert redone_document.undo_stack.count() == 0
 
 
-def test_bracket_threshold_and_invalid_request_are_atomic(main_window: bkchem_qt.main_window.MainWindow) -> None:
+def test_bracket_threshold_and_invalid_request_are_atomic(main_window: ferrum_qt.main_window.MainWindow) -> None:
 	"""Exact manual threshold and malformed bounds preserve backend state."""
 	session = _new_session(main_window)
 	try:
@@ -141,11 +141,11 @@ def test_bracket_threshold_and_invalid_request_are_atomic(main_window: bkchem_qt
 		width_threshold = session.backend_snapshot
 		_drag(mode, (10.0, 10.0), (40.0, 20.0))
 		height_threshold = session.backend_snapshot
-		nonfinite_request = bkchem_qt.models.document_session.PersistentOperationRequest(
+		nonfinite_request = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"bracket.add", "Add Brackets", (("bounds", (0.0, 0.0, math.nan, 10.0)),),
 		)
 		nonfinite_outcome = session.submit_persistent_operation(nonfinite_request)
-		reversed_request = bkchem_qt.models.document_session.PersistentOperationRequest(
+		reversed_request = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"bracket.add", "Add Brackets", (("bounds", (5.0, 0.0, 4.0, 10.0)),),
 		)
 		reversed_outcome = session.submit_persistent_operation(reversed_request)
@@ -167,7 +167,7 @@ def test_bracket_candidate_preserves_opaque_order_and_maps_both_issued_ids() -> 
 	tokens = ("__bkchem_new__bracket-r0-1-left", "__bkchem_new__bracket-r0-1-right")
 	commit = backend.commit(
 		expected_revision=before.revision,
-		complete_cdml=bkchem_qt.io.cdml_candidate.append_rectangular_bracket_candidate(
+		complete_cdml=ferrum_qt.io.cdml_candidate.append_rectangular_bracket_candidate(
 			before.cdml, tokens, (10.0, 20.0, 50.0, 70.0),
 		),
 	)
@@ -192,12 +192,12 @@ def test_bracket_candidate_stale_commit_leaves_current_snapshot_unchanged() -> N
 	source = '<cdml version="26.07"><text id="text_1"/></cdml>'
 	backend = oasa.cdml_document.CDMLDocumentSession.load(source)
 	before = backend.snapshot()
-	accepted_candidate = bkchem_qt.io.cdml_candidate.append_rectangular_bracket_candidate(
+	accepted_candidate = ferrum_qt.io.cdml_candidate.append_rectangular_bracket_candidate(
 		before.cdml,
 		("__bkchem_new__bracket-r0-1-left", "__bkchem_new__bracket-r0-1-right"),
 		(10.0, 20.0, 50.0, 70.0),
 	)
-	stale_candidate = bkchem_qt.io.cdml_candidate.append_rectangular_bracket_candidate(
+	stale_candidate = ferrum_qt.io.cdml_candidate.append_rectangular_bracket_candidate(
 		before.cdml,
 		("__bkchem_new__bracket-r0-2-left", "__bkchem_new__bracket-r0-2-right"),
 		(20.0, 30.0, 60.0, 80.0),
@@ -211,7 +211,7 @@ def test_bracket_candidate_stale_commit_leaves_current_snapshot_unchanged() -> N
 
 
 def test_selected_bracket_retires_interrupted_preview_before_operation_callback(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Selected-atom submission retires its old drag preview before backend work."""
 	cdml = (
@@ -219,8 +219,8 @@ def test_selected_bracket_retires_interrupted_preview_before_operation_callback(
 		'<atom id="a1" name="C"><point x="1cm" y="1cm"/></atom>'
 		'</molecule></cdml>'
 	)
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
@@ -234,17 +234,17 @@ def test_selected_bracket_retires_interrupted_preview_before_operation_callback(
 		preview = mode._preview_rect
 		atom = next(
 			item for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		)
 		atom.setSelected(True)
 		observed = {}
 
-		def submit(request: object) -> bkchem_qt.models.document_session.PersistentActionOutcome:
+		def submit(request: object) -> ferrum_qt.models.document_session.PersistentActionOutcome:
 			observed["request"] = request
 			observed["drag_start"] = mode._drag_start
 			observed["preview"] = mode._preview_rect
 			observed["preview_valid"] = shiboken6.isValid(preview)
-			return bkchem_qt.models.document_session.PersistentActionOutcome(
+			return ferrum_qt.models.document_session.PersistentActionOutcome(
 				"accepted", "Bracket accepted", None, True,
 			)
 
@@ -254,12 +254,12 @@ def test_selected_bracket_retires_interrupted_preview_before_operation_callback(
 		session.dispose()
 
 	assert preview is not None
-	assert isinstance(observed["request"], bkchem_qt.models.document_session.PersistentOperationRequest)
+	assert isinstance(observed["request"], ferrum_qt.models.document_session.PersistentOperationRequest)
 	assert observed["drag_start"] is None and observed["preview"] is None
 	assert not observed["preview_valid"]
 
 
-def test_selected_atoms_use_union_margin_and_restore_selection(main_window: bkchem_qt.main_window.MainWindow) -> None:
+def test_selected_atoms_use_union_margin_and_restore_selection(main_window: ferrum_qt.main_window.MainWindow) -> None:
 	"""Selected durable atoms create margin-expanded brackets and reselect by ID."""
 	cdml = (
 		'<cdml version="26.07"><molecule id="m1">'
@@ -268,8 +268,8 @@ def test_selected_atoms_use_union_margin_and_restore_selection(main_window: bkch
 		'<bond id="b1" start="a1" end="a2" type="n1"/>'
 		'</molecule></cdml>'
 	)
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
@@ -279,15 +279,15 @@ def test_selected_atoms_use_union_margin_and_restore_selection(main_window: bkch
 	try:
 		atoms = tuple(
 			item for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		)
 		for atom in atoms:
 			atom.setSelected(True)
-		selected_bounds = bkchem_qt.modes.bracket_mode._expanded_union_bounds(atoms)
+		selected_bounds = ferrum_qt.modes.bracket_mode._expanded_union_bounds(atoms)
 		_bracket_mode(session).mouse_press(PySide6.QtCore.QPointF(), object())
 		selected_ids = {
 			item.atom_model.backend_durable_id for item in session.scene.selectedItems()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		}
 		polylines = _polylines(session.backend_snapshot.cdml)
 	finally:

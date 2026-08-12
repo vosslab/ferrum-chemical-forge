@@ -16,6 +16,9 @@ The two components have deliberately different licenses:
 - Ferrum-Chem is LGPL-3.0-only. Its repository notice is `LICENSE.LGPL-3.0.md`.
 - RDKit is designated as a BSD-3-Clause dependency. It is not yet bundled or
   linked by this pre-alpha repository.
+- `petgraph` 0.8.3 is an MIT-or-Apache-2.0 Rust source dependency. Ferrum uses a
+  private graph and its standard algorithms while owning public ordering, errors,
+  identities, and fundamental-cycle selection.
 
 This document records the project's intended licensing boundary and development
 provenance. It is not legal advice. The complete applicable GNU license texts are in
@@ -26,8 +29,8 @@ this repository; distribution work must also include all required third-party no
 The current `packages/ferrum-chem-qt.app/` tree is the user's own PySide6
 frontend carried forward from the local BKChem-Qt reference tree. It is a
 frontend continuation, not a claim that the Qt application was rewritten from
-scratch. Package metadata now identifies Ferrum-Qt, while the Python namespace
-rename remains M1b work.
+scratch. Package metadata and the Python namespace now identify Ferrum-Qt. M1b
+remains open for its application-start and CDML-open acceptance evidence.
 
 The local reference document
 `OTHER_REPOS/bkchem-oasa/docs/GPL_FILE_PURPOSES.md` is the historical licensing
@@ -57,6 +60,10 @@ authority behind a project-owned adapter.
 
 No statement here establishes copyright ownership for external contributors,
 changes an upstream license, or replaces a file-by-file redistribution review.
+
+Generated native libraries are build artifacts, not repository sources. The native
+staging and Python-package `.libs` directories are ignored; future wheel tooling must
+assemble them under an ignored output tree or during packaging, never track host dylibs.
 
 ## Test infrastructure provenance
 

@@ -10,10 +10,10 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.bridge.worker
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.bridge.worker
 import oasa.cdml_writer
 import oasa.cdml
 import oasa.cdml_document
@@ -34,16 +34,16 @@ id="text_1"><bk:ftext>yield</bk:ftext></bk:text><vendor:note keep="yes">opaque
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
@@ -86,7 +86,7 @@ def _prepared_ethanol(session: object, token_stem: str) -> object:
 	proposal_cdml = oasa.cdml_writer.molecules_to_insertion_proposal(
 		[molecule], token_stem=token_stem,
 	)
-	return bkchem_qt.bridge.worker.PreparedMoleculeInsertion(
+	return ferrum_qt.bridge.worker.PreparedMoleculeInsertion(
 		proposal_cdml, session.backend_snapshot.revision,
 	)
 
@@ -178,9 +178,9 @@ def _projection_has_cco(document: object) -> bool:
 def _delivery(main_window: object, session: object) -> tuple[object, object]:
 	"""Create one current named SMILES delivery controller and proposal."""
 	token = session.begin_import_request()
-	delivery = bkchem_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
+	delivery = ferrum_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
 		main_window, session, token, session.backend_snapshot.revision, "SMILES",
-		"Imported SMILES molecule", bkchem_qt.actions.chemistry_actions._show_smiles_import_error,
+		"Imported SMILES molecule", ferrum_qt.actions.chemistry_actions._show_smiles_import_error,
 	)
 	return delivery, _prepared_ethanol(session, "smiles-r%s" % token)
 
@@ -206,7 +206,7 @@ def _opaque_presentation_survives(cdml: str) -> bool:
 #============================================
 def test_smiles_worker_prepares_frozen_plain_cco_proposal(qtbot: object) -> None:
 	"""The actual worker emits a plain positioned C-C-O proposal before delivery."""
-	worker = bkchem_qt.bridge.worker.TextMoleculeInsertionWorker(
+	worker = ferrum_qt.bridge.worker.TextMoleculeInsertionWorker(
 		"smiles", "CCO", 7, "worker", 40.0, (2000.0, 1500.0),
 		"Imported SMILES molecule",
 	)
@@ -231,7 +231,7 @@ def test_smiles_worker_prepares_frozen_plain_cco_proposal(qtbot: object) -> None
 #============================================
 def test_smiles_preparation_persists_captured_insertion_geometry() -> None:
 	"""The actual CCO proposal and accepted backend state retain scene geometry."""
-	prepared = bkchem_qt.bridge.worker._prepare_text_molecule_insertion(
+	prepared = ferrum_qt.bridge.worker._prepare_text_molecule_insertion(
 		"smiles", "CCO", 0, "smiles-geometry", 35.0, (321.0, 654.0),
 		"Imported SMILES molecule",
 	)
@@ -393,11 +393,11 @@ def test_stale_smiles_revision_does_not_change_current_snapshot(
 		current_delivery.deliver(current_prepared)
 		before = session.backend_snapshot
 		stale_token = session.begin_import_request()
-		stale_delivery = bkchem_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
+		stale_delivery = ferrum_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
 			main_window, session, stale_token, initial_revision, "SMILES",
-			"Imported SMILES molecule", bkchem_qt.actions.chemistry_actions._show_smiles_import_error,
+			"Imported SMILES molecule", ferrum_qt.actions.chemistry_actions._show_smiles_import_error,
 		)
-		stale_prepared = bkchem_qt.bridge.worker.PreparedMoleculeInsertion(
+		stale_prepared = ferrum_qt.bridge.worker.PreparedMoleculeInsertion(
 			_prepared_ethanol(session, "stale").proposal_cdml, initial_revision,
 		)
 		outcome = stale_delivery.deliver(stale_prepared)

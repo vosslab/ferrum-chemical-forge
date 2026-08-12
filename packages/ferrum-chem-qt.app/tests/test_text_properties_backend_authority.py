@@ -12,12 +12,12 @@ import shiboken6
 import oasa.cdml_document
 import oasa.safe_xml
 
-import bkchem_qt.actions.object_actions
-import bkchem_qt.canvas.items.text_item
-import bkchem_qt.dialogs.text_dialog
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.actions.object_actions
+import ferrum_qt.canvas.items.text_item
+import ferrum_qt.dialogs.text_dialog
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 
 
 _CDML = (
@@ -29,9 +29,9 @@ _CDML = (
 
 
 #============================================
-def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _install_native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Register one projected native-CDML session with a durable Text target."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -45,7 +45,7 @@ def _text_item(session: object) -> object:
 	for item in session.scene.items():
 		model = getattr(item, "document_object_model", None)
 		if (
-			isinstance(item, bkchem_qt.canvas.items.text_item.TextItem)
+			isinstance(item, ferrum_qt.canvas.items.text_item.TextItem)
 			and getattr(model, "kind", None) == "text"
 			and getattr(model, "object_id", None) == "text1"
 		):
@@ -119,8 +119,8 @@ def _accept_text_changes(
 		"""Return one caller-owned plain Text intent."""
 		return changes
 
-	monkeypatch.setattr(bkchem_qt.dialogs.text_dialog.TextDialog, "exec", accept)
-	monkeypatch.setattr(bkchem_qt.dialogs.text_dialog.TextDialog, "changes", returned_changes)
+	monkeypatch.setattr(ferrum_qt.dialogs.text_dialog.TextDialog, "exec", accept)
+	monkeypatch.setattr(ferrum_qt.dialogs.text_dialog.TextDialog, "changes", returned_changes)
 
 
 #============================================
@@ -128,8 +128,8 @@ def test_text_dialog_reports_only_values_changed_after_widget_initialization(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""Qt normalization is baseline state; a user edit reports only its field."""
-	dialog = bkchem_qt.dialogs.text_dialog.TextDialog(
-		"Initial", 999, font_family="Definitely Missing BKChem Test Font",
+	dialog = ferrum_qt.dialogs.text_dialog.TextDialog(
+		"Initial", 999, font_family="Definitely Missing Ferrum Test Font",
 	)
 	try:
 		untouched = dialog.changes()
@@ -138,12 +138,12 @@ def test_text_dialog_reports_only_values_changed_after_widget_initialization(
 		assert untouched == ()
 		assert dialog.changes() == (("text", "Changed"),)
 	finally:
-		assert bkchem_qt.main_window.delete_qobject_and_wait(qapp, dialog)
+		assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, dialog)
 
 
 #============================================
 def test_object_configure_projects_authoritative_text_values_and_selection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Public Configure submits dialog values and selects the fresh Text wrapper."""
@@ -157,7 +157,7 @@ def test_object_configure_projects_authoritative_text_values_and_selection(
 			("text", "Configured label"), ("font_family", "Courier"),
 			("font_size", 20), ("font_color", "#AABBCC"),
 		), observed)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		# The accepted candidate has returned.  Its projection survives collection
 		# because the installed Document owns active graphics wrappers explicitly.
 		gc.collect()
@@ -177,7 +177,7 @@ def test_object_configure_projects_authoritative_text_values_and_selection(
 
 #============================================
 def test_repeated_text_configure_keeps_the_installed_wrapper_alive_through_collection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Every accepted Configure replacement keeps its selected projection wrapper live."""
@@ -189,7 +189,7 @@ def test_repeated_text_configure_keeps_the_installed_wrapper_alive_through_colle
 	try:
 		_text_item(session).setSelected(True)
 		_accept_text_changes(monkeypatch, next(changes))
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		gc.collect()
 		first_item = _text_item(session)
 		first_is_current = (
@@ -198,7 +198,7 @@ def test_repeated_text_configure_keeps_the_installed_wrapper_alive_through_colle
 			and _selected_text_ids(session) == {"text1"}
 		)
 		_accept_text_changes(monkeypatch, next(changes))
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		gc.collect()
 		second_item = _text_item(session)
 
@@ -216,7 +216,7 @@ def test_repeated_text_configure_keeps_the_installed_wrapper_alive_through_colle
 
 #============================================
 def test_backend_undo_restores_exact_preconfigure_text_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Plain Configure uses backend history and undo restores exact complete CDML."""
@@ -225,7 +225,7 @@ def test_backend_undo_restores_exact_preconfigure_text_snapshot(
 		before = session.backend_snapshot
 		_text_item(session).setSelected(True)
 		_accept_text_changes(monkeypatch, (("text", "Changed"),))
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		undo = session.undo_backend()
 
 		assert undo.status == "accepted" and session.backend_snapshot.cdml == before.cdml
@@ -237,7 +237,7 @@ def test_backend_undo_restores_exact_preconfigure_text_snapshot(
 
 #============================================
 def test_modal_configure_remains_bound_to_origin_when_activation_changes(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A captured dialog intent cannot retarget to a newly active tab."""
@@ -252,7 +252,7 @@ def test_modal_configure_remains_bound_to_origin_when_activation_changes(
 		_accept_text_changes(
 			monkeypatch, (("text", "Origin only"),), activate=activate_other,
 		)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		other = next(session for session in main_window.sessions if session is not origin)
 
 		assert _text_facts(origin.backend_snapshot.cdml)[0] == "Origin only"
@@ -266,7 +266,7 @@ def test_modal_configure_remains_bound_to_origin_when_activation_changes(
 
 #============================================
 def test_captured_text_action_is_typed_unavailable_after_public_close(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained plain Text capability cannot act after its tab closes."""
 	origin = _install_native_session(main_window)
@@ -286,13 +286,13 @@ def test_captured_text_action_is_typed_unavailable_after_public_close(
 
 #============================================
 def test_session_rejects_text_payload_target_mismatch_before_backend_mutation(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""The public request grammar correlates its one durable Text target exactly."""
 	session = _install_native_session(main_window)
 	try:
 		before = session.backend_snapshot
-		request = bkchem_qt.models.document_session.PersistentOperationRequest(
+		request = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"text.properties.patch", "Edit Text Properties",
 			(
 				("expected_revision", before.revision), ("text_id", "text1"),
@@ -311,26 +311,26 @@ def test_session_rejects_text_payload_target_mismatch_before_backend_mutation(
 
 #============================================
 def test_projection_failure_retries_only_the_exact_accepted_text_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Accepted Text state survives projection failure and retry does not resubmit."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
 
 	def unavailable(_snapshot: object) -> object:
 		"""Report one post-acceptance projection installation failure."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	try:
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 		)
 		outcome = session.submit_text_properties_patch(
 			session.backend_snapshot.revision, "text1", (("text", "Accepted"),),
@@ -345,7 +345,7 @@ def test_projection_failure_retries_only_the_exact_accepted_text_snapshot(
 
 		monkeypatch.setattr(session, "submit_text_properties_patch", resubmission_must_not_run)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)

@@ -1,12 +1,12 @@
 """Object-menu Configure dialog persistence tests."""
 
 # local repo modules
-import bkchem_qt.actions.object_actions
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.dialogs.atom_dialog
-import bkchem_qt.dialogs.bond_dialog
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.object_actions
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.dialogs.atom_dialog
+import ferrum_qt.dialogs.bond_dialog
+import ferrum_qt.models.document_session
 
 
 _CDML = (
@@ -30,7 +30,7 @@ def _draw_atom(main_window: object, x: float, y: float) -> object:
 #============================================
 def _install_native_session(main_window: object) -> object:
 	"""Register one active native CDML session for Object Configure."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -53,7 +53,7 @@ def test_configure_atom_is_one_backend_history_dirty_edit(
 		) -> None:
 	"""Object Configure commits atom intent through backend history, not Qt undo."""
 	session = _install_native_session(main_window)
-	atom_item = _projected_item(session, bkchem_qt.canvas.items.atom_item.AtomItem)
+	atom_item = _projected_item(session, ferrum_qt.canvas.items.atom_item.AtomItem)
 	atom_item.setSelected(True)
 	atom_id = atom_item.atom_model.backend_durable_id
 	before = session.backend_snapshot
@@ -67,10 +67,10 @@ def test_configure_atom_is_one_backend_history_dirty_edit(
 		return (("element", "N"), ("font_size", 18))
 
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec", accept_atom,
+		ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec", accept_atom,
 	)
-	monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "changes", atom_changes)
-	bkchem_qt.actions.object_actions.handle_configure(main_window)
+	monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "changes", atom_changes)
+	ferrum_qt.actions.object_actions.handle_configure(main_window)
 
 	assert (
 		session.backend_snapshot.revision == before.revision + 1
@@ -87,7 +87,7 @@ def test_configure_bond_is_one_backend_history_dirty_edit(
 		) -> None:
 	"""Object Configure commits bond intent through backend history, not Qt undo."""
 	session = _install_native_session(main_window)
-	bond_item = _projected_item(session, bkchem_qt.canvas.items.bond_item.BondItem)
+	bond_item = _projected_item(session, ferrum_qt.canvas.items.bond_item.BondItem)
 	bond_item.setSelected(True)
 	bond_id = bond_item.bond_model.backend_durable_id
 	before = session.backend_snapshot
@@ -101,10 +101,10 @@ def test_configure_bond_is_one_backend_history_dirty_edit(
 		return (("line_width", 4.0),)
 
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.bond_dialog.BondDialog, "exec", accept_bond,
+		ferrum_qt.dialogs.bond_dialog.BondDialog, "exec", accept_bond,
 	)
-	monkeypatch.setattr(bkchem_qt.dialogs.bond_dialog.BondDialog, "changes", bond_changes)
-	bkchem_qt.actions.object_actions.handle_configure(main_window)
+	monkeypatch.setattr(ferrum_qt.dialogs.bond_dialog.BondDialog, "changes", bond_changes)
+	ferrum_qt.actions.object_actions.handle_configure(main_window)
 
 	assert (
 		session.backend_snapshot.revision == before.revision + 1
@@ -137,15 +137,15 @@ def test_configure_cancel_and_noop_leave_clean_document(
 		return ()
 
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec",
+		ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec",
 		accept_without_change,
 	)
-	monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "changes", no_changes)
-	bkchem_qt.actions.object_actions.handle_configure(main_window)
+	monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "changes", no_changes)
+	ferrum_qt.actions.object_actions.handle_configure(main_window)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.atom_dialog.AtomDialog, "exec", cancel_atom,
+		ferrum_qt.dialogs.atom_dialog.AtomDialog, "exec", cancel_atom,
 	)
-	bkchem_qt.actions.object_actions.handle_configure(main_window)
+	ferrum_qt.actions.object_actions.handle_configure(main_window)
 	assert not main_window.document.dirty
 
 
@@ -156,7 +156,7 @@ def test_configure_idless_synchronized_atom_is_inert(
 	"""Object Configure keeps an unaddressable synchronized atom unchanged."""
 	session = _install_native_session(main_window)
 	try:
-		atom_item = _projected_item(session, bkchem_qt.canvas.items.atom_item.AtomItem)
+		atom_item = _projected_item(session, ferrum_qt.canvas.items.atom_item.AtomItem)
 		atom_item.setSelected(True)
 		atom_model = atom_item.atom_model
 		atom_model.bind_backend_durable_id(None)
@@ -167,8 +167,8 @@ def test_configure_idless_synchronized_atom_is_inert(
 			"""Expose a forbidden local fallback from the synchronized window route."""
 			raise AssertionError("Object Configure opened the atom local fallback")
 
-		monkeypatch.setattr(bkchem_qt.dialogs.atom_dialog.AtomDialog, "edit_atom", fail_fallback)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		monkeypatch.setattr(ferrum_qt.dialogs.atom_dialog.AtomDialog, "edit_atom", fail_fallback)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 
 		assert (
 			session.backend_snapshot == before and atom_model.symbol == before_symbol
@@ -186,7 +186,7 @@ def test_configure_idless_synchronized_bond_is_inert(
 	"""Object Configure keeps an unaddressable synchronized bond unchanged."""
 	session = _install_native_session(main_window)
 	try:
-		bond_item = _projected_item(session, bkchem_qt.canvas.items.bond_item.BondItem)
+		bond_item = _projected_item(session, ferrum_qt.canvas.items.bond_item.BondItem)
 		bond_item.setSelected(True)
 		bond_model = bond_item.bond_model
 		bond_model.bind_backend_durable_id(None)
@@ -197,8 +197,8 @@ def test_configure_idless_synchronized_bond_is_inert(
 			"""Expose a forbidden local fallback from the synchronized window route."""
 			raise AssertionError("Object Configure opened the bond local fallback")
 
-		monkeypatch.setattr(bkchem_qt.dialogs.bond_dialog.BondDialog, "edit_bond", fail_fallback)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		monkeypatch.setattr(ferrum_qt.dialogs.bond_dialog.BondDialog, "edit_bond", fail_fallback)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 
 		assert (
 			session.backend_snapshot == before and bond_model.order == before_order

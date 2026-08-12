@@ -7,12 +7,12 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.object_actions
-import bkchem_qt.canvas.items.text_item
-import bkchem_qt.dialogs.rich_text_dialog
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.actions.object_actions
+import ferrum_qt.canvas.items.text_item
+import ferrum_qt.dialogs.rich_text_dialog
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 
 
 _AUTHORED_CDML = (
@@ -29,7 +29,7 @@ _PRESERVATION_CDML = (
 
 #============================================
 def _open_native_session(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path, source: str,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path, source: str,
 		) -> object:
 	"""Open one public native-CDML tab with a durable Text projection."""
 	path = tmp_path / "rich_text.cdml"
@@ -41,17 +41,17 @@ def _open_native_session(
 
 
 #============================================
-def _text_item(session: object) -> bkchem_qt.canvas.items.text_item.TextItem:
+def _text_item(session: object) -> ferrum_qt.canvas.items.text_item.TextItem:
 	"""Return the current durable Text item without retaining a retired wrapper."""
 	for item in session.scene.items():
 		model = getattr(item, "document_object_model", None)
-		if isinstance(item, bkchem_qt.canvas.items.text_item.TextItem) and model.object_id == "text1":
+		if isinstance(item, ferrum_qt.canvas.items.text_item.TextItem) and model.object_id == "text1":
 			return item
 	raise AssertionError("Projected Text item is unavailable")
 
 
 #============================================
-def _close_session(main_window: bkchem_qt.main_window.MainWindow, session: object) -> None:
+def _close_session(main_window: ferrum_qt.main_window.MainWindow, session: object) -> None:
 	"""Close one public tab without retaining any retired graphics wrapper."""
 	if session in main_window.sessions:
 		closed = main_window.close_session_at(main_window.sessions.index(session))
@@ -67,7 +67,7 @@ def _fail_if_rich_dialog_opens(_dialog: object) -> int:
 
 #============================================
 def test_authored_projection_uses_literal_cursor_formats(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Nested authored styles reach the live document without an HTML parser."""
 	session = _open_native_session(main_window, tmp_path, _AUTHORED_CDML)
@@ -89,15 +89,24 @@ def test_authored_projection_uses_literal_cursor_formats(
 
 #============================================
 def test_preservation_ftext_stays_plain_and_rich_action_is_inert(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Attributed or foreign ftext content remains safe display-only content."""
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QMessageBox, "warning",
+		lambda _parent, _title, _message: PySide6.QtWidgets.QMessageBox.StandardButton.Ok,
+	)
+	monkeypatch.setattr(
+		ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
+		_fail_if_rich_dialog_opens,
+	)
 	session = _open_native_session(main_window, tmp_path, _PRESERVATION_CDML)
 	try:
 		item = _text_item(session)
 		before = session.backend_snapshot
 		item.setSelected(True)
-		bkchem_qt.actions.object_actions.handle_edit_rich_text(main_window)
+		ferrum_qt.actions.object_actions.handle_edit_rich_text(main_window)
 
 		assert item.document().toPlainText() == "H2"
 		assert session.backend_snapshot == before
@@ -110,7 +119,7 @@ def test_rich_dialog_returns_plain_runs_and_excludes_opposite_baseline(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""The dialog exposes only immutable plain runs from its QTextDocument."""
-	dialog = bkchem_qt.dialogs.rich_text_dialog.RichTextDialog((
+	dialog = ferrum_qt.dialogs.rich_text_dialog.RichTextDialog((
 		("H", ("b",)), ("2", ("b", "sub")), ("\nO", ()),
 	))
 	try:
@@ -123,7 +132,7 @@ def test_rich_dialog_returns_plain_runs_and_excludes_opposite_baseline(
 
 #============================================
 def test_public_rich_action_commits_backend_runs_and_restores_selection(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""One accepted dialog result becomes one backend patch and fresh Text selection."""
@@ -133,18 +142,18 @@ def test_public_rich_action_commits_backend_runs_and_restores_selection(
 		old_item.setSelected(True)
 		del old_item
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
+			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
 			lambda _dialog: PySide6.QtWidgets.QDialog.DialogCode.Accepted,
 		)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.rich_text_dialog.RichTextDialog, "get_runs",
+			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "get_runs",
 			lambda _dialog: (("N", ("i",)), ("2", ("sub",))),
 		)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.rich_text_dialog.RichTextDialog, "changes",
+			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "changes",
 			lambda _dialog: (("font_size", 18), ("font_color", "#aabbcc")),
 		)
-		bkchem_qt.actions.object_actions.handle_edit_rich_text(main_window)
+		ferrum_qt.actions.object_actions.handle_edit_rich_text(main_window)
 		new_item = _text_item(session)
 		selected_ids = {
 			item.document_object_model.object_id for item in session.scene.selectedItems()
@@ -164,7 +173,7 @@ def test_public_rich_action_commits_backend_runs_and_restores_selection(
 #============================================
 def test_rich_projection_refresh_uses_the_current_root_font() -> None:
 	"""Styled runs inherit refreshed root values instead of retaining copied formats."""
-	item = bkchem_qt.canvas.items.text_item.TextItem()
+	item = ferrum_qt.canvas.items.text_item.TextItem()
 	try:
 		item.setFont(PySide6.QtGui.QFont("Courier", 13))
 		item.set_color("#112233")
@@ -202,13 +211,13 @@ def test_rich_projection_refresh_uses_the_current_root_font() -> None:
 
 #============================================
 def test_configure_directs_selected_rich_text_to_the_rich_action(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""Configure does not open the intentionally plain-only Text dialog for authored runs."""
 	session = _open_native_session(main_window, tmp_path, _AUTHORED_CDML)
 	try:
 		_text_item(session).setSelected(True)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 
 		assert "Edit Rich Text" in main_window.statusBar().currentMessage()
 	finally:
@@ -217,7 +226,7 @@ def test_configure_directs_selected_rich_text_to_the_rich_action(
 
 #============================================
 def test_malformed_root_font_leaves_rich_editing_unavailable(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Malformed persisted root font values do not enter the rich dialog."""
@@ -226,11 +235,11 @@ def test_malformed_root_font_leaves_rich_editing_unavailable(
 	)
 	try:
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
+			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
 			_fail_if_rich_dialog_opens,
 		)
 		_text_item(session).setSelected(True)
-		bkchem_qt.actions.object_actions.handle_edit_rich_text(main_window)
+		ferrum_qt.actions.object_actions.handle_edit_rich_text(main_window)
 
 		assert "unavailable" in main_window.statusBar().currentMessage().lower()
 	finally:
@@ -239,7 +248,7 @@ def test_malformed_root_font_leaves_rich_editing_unavailable(
 
 #============================================
 def test_named_root_font_color_leaves_rich_editing_unavailable(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A non-CDML named color remains visible but cannot enter rich editing."""
@@ -248,11 +257,11 @@ def test_named_root_font_color_leaves_rich_editing_unavailable(
 	)
 	try:
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
+			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
 			_fail_if_rich_dialog_opens,
 		)
 		_text_item(session).setSelected(True)
-		bkchem_qt.actions.object_actions.handle_edit_rich_text(main_window)
+		ferrum_qt.actions.object_actions.handle_edit_rich_text(main_window)
 
 		assert "unavailable" in main_window.statusBar().currentMessage().lower()
 	finally:
@@ -261,7 +270,7 @@ def test_named_root_font_color_leaves_rich_editing_unavailable(
 
 #============================================
 def test_rich_action_stays_bound_to_its_origin_tab(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Tab activation during the modal dialog cannot retarget a rich Text patch."""
@@ -276,13 +285,13 @@ def test_rich_action_stays_bound_to_its_origin_tab(
 			main_window.on_new()
 			return PySide6.QtWidgets.QDialog.DialogCode.Accepted
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.rich_text_dialog.RichTextDialog, "exec", accept_after_new_tab,
+			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec", accept_after_new_tab,
 		)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.rich_text_dialog.RichTextDialog, "get_runs",
+			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "get_runs",
 			lambda _dialog: (("Origin", ("b",)),),
 		)
-		bkchem_qt.actions.object_actions.handle_edit_rich_text(main_window)
+		ferrum_qt.actions.object_actions.handle_edit_rich_text(main_window)
 		other = next(session for session in main_window.sessions if session is not origin)
 
 		assert "&lt;b&gt;Origin&lt;/b&gt;" in origin.backend_snapshot.cdml
@@ -295,7 +304,7 @@ def test_rich_action_stays_bound_to_its_origin_tab(
 
 #============================================
 def test_captured_rich_callback_is_unavailable_after_its_tab_closes(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""A closed origin tab makes its captured rich callback typed and inert."""
 	origin = _open_native_session(main_window, tmp_path, _AUTHORED_CDML)
@@ -316,7 +325,7 @@ def test_captured_rich_callback_is_unavailable_after_its_tab_closes(
 
 #============================================
 def test_captured_rich_callback_reports_a_typed_stale_revision(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		) -> None:
 	"""A later accepted backend patch makes the earlier rich dialog intent stale."""
 	session = _open_native_session(main_window, tmp_path, _AUTHORED_CDML)
@@ -338,26 +347,26 @@ def test_captured_rich_callback_reports_a_typed_stale_revision(
 
 #============================================
 def test_rich_projection_retry_uses_only_the_accepted_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow, tmp_path: pathlib.Path,
+		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A failed delivery retries the accepted rich snapshot without resubmission."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 		_AUTHORED_CDML,
 	)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
 	try:
 		def unavailable(_snapshot: object) -> object:
 			"""Return one controlled post-acceptance projection failure."""
-			return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-				bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+			return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+				ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 			)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 		)
 		outcome = session.submit_rich_text_patch(
 			session.backend_snapshot.revision, "text1", (("Accepted", ("b",)),),
@@ -373,7 +382,7 @@ def test_rich_projection_retry_uses_only_the_accepted_snapshot(
 			resubmission_must_not_run,
 		)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)

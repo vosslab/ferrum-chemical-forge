@@ -6,21 +6,25 @@ This is the finite closure ledger for M19. It records the user-facing Ferrum-Qt
 capabilities present before the namespace rename and the replacement work that must
 close each capability. It is not an assertion that OASA has been removed.
 
-M1b remains in progress until the package is renamed, the application starts, a
-CDML document opens, and the applicable hygiene and package tests pass. M19 closes
-only when every row classified supported has its named validation artifact passing.
-Rows marked unsupported path need a recorded decision to reproduce, fix, or drop
-before closure.
+M1b is complete: the installed `ferrum-qt` command starts the renamed application
+offscreen, opens `tests/e2e/corpus/authored_document_forms.cdml` through the existing
+Qt/OASA-backed native CDML route, writes the fixed controlled-startup receipt, and
+exits cleanly without a traceback. This proves M1b rename/start/open behavior, not
+Rust-backend adoption or worker-format completion. The focused lifecycle and CLI suite
+reports 21 passing tests; the package suite reports 918 passed and 1 skipped. M19
+closes only when every row classified supported has its named validation artifact
+passing. Rows marked unsupported path need a recorded decision to reproduce, fix, or
+drop before closure.
 
 ## Scope and method
 
 The inventory was derived from the menu registry at
-`packages/ferrum-chem-qt.app/bkchem_qt/resources/menus.yaml`, the 13 registrar
+`packages/ferrum-chem-qt.app/ferrum_qt/resources/menus.yaml`, the 13 registrar
 modules named by `actions/registrar_manifest.py`, `actions/`, `modes/`, `dialogs/`,
 and `io/export.py`. It groups actions only when they have the same user workflow,
 current owner, OASA boundary, replacement workstream, and exit gate.
 
-The source-tree measurement covers 140 production Python files and 118 package test
+The pre-rename source-tree measurement covers 140 production Python files and 118 package test
 files. There are 64 direct OASA import statements in 16 production files; there are
 445 total `oasa` tokens in 18 production files, including uses, annotations,
 messages, comments, and imports. The production tree has zero direct Tk/Tkinter
@@ -37,14 +41,14 @@ forbids OASA in a row after that row's Ferrum replacement has landed.
 ## Identity and persistence decision
 
 M1b changes the product-facing package namespace from `bkchem_qt` to `ferrum_qt`,
-the module invocation, the console-script target, application display strings, and
+the console-script target, application display strings, and
 package-data metadata. It does not silently migrate user persistence identifiers.
 
 | Decision | M1b disposition | Reason and later gate |
 | --- | --- | --- |
-| QSettings organization/application names | Unresolved; recommend retain existing values in M1b | Retaining `BKChem` / `BKChem-Qt` preserves existing preferences. A later migration needs an explicit import/copy behavior test. |
-| User template directory `~/.bkchem/templates` | Unresolved; recommend retain in M1b | Existing user templates must remain discoverable. A new Ferrum location requires a migration decision and E2E coverage. |
-| Clipboard ownership marker and smoke receipt schema | Unresolved; recommend retain in M1b | These identifiers may be consumed by running integrations or existing smoke tooling. Change only with a documented compatibility boundary. |
+| QSettings organization/application names | Retain `BKChem` / `BKChem-Qt` | These are durable storage identifiers, not display branding. Retention preserves existing preferences without an incomplete platform-specific migration. |
+| User template directory `~/.bkchem/templates` | Retain | Existing user templates remain discoverable. A new Ferrum location requires a migration decision and E2E coverage. |
+| Clipboard ownership marker and smoke receipt schema | Retain existing protocol values | These compatibility identifiers may be consumed by running integrations or existing smoke tooling; Ferrum-named Python constants keep product-facing code current. |
 | Product display name, About box, CLI text, repository URL | Change in M1b | These are product identity, not persisted document state. The About box keeps a BKChem lineage acknowledgement while correcting license, repository, and backend claims. |
 | CDML labels and provenance references | Retain where historical | `BKChem CDML`, CDML document content, oracle configuration, and provenance describe lineage or a file format; they are not evidence of a live package namespace. |
 
@@ -52,10 +56,10 @@ package-data metadata. It does not silently migrate user persistence identifiers
 
 | ID | Capability | Current owning files | Current behavior / classification | OASA / Tk coupling | Replacement milestone / workstream | Present validation artifact | Required exit validation | Remaining decision or risk |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| FQ-001 | Start application and create tabs | `app.py`, `cli.py`, `main_window.py`, `models/document_session.py` | supported | OASA use through the session; Tk none | M1b WS-F, then M8a WS-D and M16 WS-F | `tests/test_application_shutdown.py`, `tests/test_cli_smoke_exit.py`, `tests/test_qt_gui_smoke.py` | `python -m ferrum_qt --version`, controlled offscreen startup, and a new native CDML tab | Rename must not make startup depend on an old namespace or hidden registrar string. |
+| FQ-001 | Start application and create tabs | `app.py`, `cli.py`, `main_window.py`, `models/document_session.py` | supported | OASA use through the session; Tk none | M1b WS-F, then M8a WS-D and M16 WS-F | `tests/test_application_shutdown.py`, `tests/test_cli_smoke_exit.py`, `tests/test_qt_gui_smoke.py` | M1b evidence passed: installed `ferrum-qt --version`, controlled offscreen start, and an existing Qt/OASA-backed native CDML tab from `authored_document_forms.cdml`; it does not prove Rust-backend adoption or worker-format completion | Rename no longer depends on an old namespace or hidden registrar string. |
 | FQ-002 | Native CDML open, save, Save As, close, and recovery export | `actions/file_actions.py`, `main_window.py`, `models/document_session.py`, `io/cdml_document_io.py` | supported | direct import and dominant OASA session use | M6-M10 WS-D, M8a WS-D, M16 WS-F | `tests/test_cdml_document_sessions.py`, `tests/test_document_sessions.py`, `tests/test_snapshot_export_result_boundary.py` | Thin workflow: open one-molecule CDML, render Ferrum operations, save without losing persistent objects | Current OASA session owns revisions, baseline, and serialization; M8a is deliberately narrower than full M16 adoption. |
 | FQ-003 | Native CDML typed projection and opaque preservation | `io/cdml_document_io.py`, `io/cdml_candidate.py`, `io/cdml_fragment_builder.py`, `io/cdml_inspection.py`, canvas projection files | supported | direct import and use of CDML/XML observations; Tk none | M6-M8 WS-D, M10 WS-G | `tests/test_backend_projection_replacement.py`, `tests/test_cdml_inspection_boundary.py` | Preservation gate against the M1d coverage inventory and corpus | Do not claim lexical fidelity until the M6 experiment selects structural or raw-slice retention. |
-| FQ-004 | Import chemistry files | `actions/file_actions.py`, `io/import_capabilities.py`, `io/format_bridge.py`, `bridge/worker.py` | supported: CDML, MOL, SDF, SMILES, CDXML, and CML routes are advertised | direct codec-registry import and use | M5 WS-B; M18 WS-F for batch/CLI surface | `tests/test_import_capabilities.py`, `tests/test_format_bridge.py`, `tests/test_smiles_import_worker.py` | One E2E round trip for each supported codec, with no new differential divergence | Advertisement is intentionally narrower than the historical registry; keep it truthful while codecs land. |
+| FQ-004 | Import chemistry files | `actions/file_actions.py`, `io/import_capabilities.py`, `io/format_bridge.py`, `bridge/worker.py` | supported: CDML, MOL, SDF, SMILES, CDXML, and CML routes are advertised | direct codec-registry import and use | M5 WS-B; M18 WS-F for batch/CLI surface | `tests/test_import_capabilities.py`, `tests/test_format_bridge.py`, `tests/test_smiles_import_worker.py` | One E2E round trip for each supported codec, with no new differential divergence | M1b validates only the existing Qt/OASA-backed native CDML route, not Rust-backend adoption or worker-format completion. Worker-routed non-CDML import completion remains a replacement risk. |
 | FQ-005 | Export molecule/document codec ledger | `actions/file_actions.py`, `io/format_bridge.py`, `bridge/oasa_bridge.py`, `models/document_session.py` | `.mol` and `.cdml`: supported by the present registry test. `.sdf`, `.smi`, `.cdxml`, `.cdsvg`, and `.inchi`: conditionally exposed only when the current OASA codec reports `writes_files`; no dedicated current validation establishes each. | direct codec-registry import and use | M5 WS-B for `.mol`, `.sdf`, `.smi`, `.cdxml`, and `.inchi`; M6-M8/M16 WS-D/WS-F for `.cdml`; M13 WS-C plus M16 WS-F for `.cdsvg`; M18 WS-F supplies retained CLI routes | `tests/test_format_bridge.py`, `tests/test_smiles_export_backend_authority.py` | `.mol`: codec differential plus CLI E2E. `.cdml`: preservation/thin-workflow save gate. `.sdf`, `.smi`, `.cdxml`, `.cdsvg`, `.inchi`: each gets a codec/render E2E if retained, otherwise an explicit unsupported-path/drop decision. | The finite source map is exactly `.mol`, `.sdf`, `.smi`, `.cdml`, `.cdxml`, `.cdsvg`, `.inchi`; do not advertise a map entry merely because a historical codec exists. Qt SVG/PNG/PDF output remains FQ-006. |
 | FQ-006 | Export SVG, PNG, and PDF from a snapshot | `actions/file_actions.py`, `io/export.py`, `io/snapshot_render.py`, `io/render_plan.py` | supported | direct OASA render import/use; Qt painting is also authoritative for legacy scene export | M12-M13 WS-C, M8a WS-D, M16 WS-F | `tests/test_export_render_plan.py`, `tests/test_snapshot_render.py`, `tests/test_copy_as_svg_backend_authority.py` | Render-operation snapshot test plus artifact E2E and visual acceptance at M13 | Keep snapshot revision/error boundaries; do not turn a failed backend capture into a stale scene export. |
 | FQ-007 | Draw atoms, bonds, rings, and bond presentation | `modes/atom_mode.py`, `modes/draw_mode.py`, `canvas/items/atom_item.py`, `canvas/items/bond_item.py`, `bridge/oasa_bridge.py` | supported | direct import/use for atom, bond, molecule, periodic-table, and render facts | M2-M3 WS-A, M4d WS-B, M12 WS-C | `tests/test_draw_backend_authority.py`, `tests/test_atom_chemistry_backend_authority.py`, `tests/test_bond_presentation.py` | Core/parity tests, then in-app generated-coordinate slice | Separate core molecule truth from Qt item editing and from rendering operations. |
@@ -82,12 +86,14 @@ package-data metadata. It does not silently migrate user persistence identifiers
 
 - Move the package directory with `git mv` and rewrite imports, annotations, dynamic module
   strings, package tests, console target, package discovery, and package-data keys together.
-- Start from the renamed package, open a native CDML document, and load the resource YAML and
-  icon directories from the installed package rather than the obsolete `bkchem_data` link.
+- Start from the renamed package, open a document through the existing Qt/OASA-backed native
+  CDML route, and load the resource YAML and icon directories from the installed package rather
+  than the obsolete `bkchem_data` link. This is rename/start/open evidence, not Rust-backend
+  adoption or worker-format completion.
 - Run the root hygiene suite and the package suite separately. Root `pytest tests/` does not
   directly collect the package's nested test suite.
-- Verify `python -m ferrum_qt --version`, a built-wheel `ferrum-qt --version`, and controlled
-  offscreen startup. Package `conftest.py` sets `QT_QPA_PLATFORM=offscreen`.
+- Verify a built-wheel `ferrum-qt --version` and controlled offscreen startup. Package
+  `conftest.py` sets `QT_QPA_PLATFORM=offscreen`.
 - Add the M1e exclusion test with an empty list and a seeded violation proof only after the
   namespace settles. Add real capability paths only when their named Ferrum replacement lands.
 

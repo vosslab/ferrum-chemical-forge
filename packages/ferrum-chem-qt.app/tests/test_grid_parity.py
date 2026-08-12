@@ -1,4 +1,4 @@
-"""Fast behavioral checks for the disposable BKChem Qt grid projection."""
+"""Fast behavioral checks for the disposable Ferrum-Qt grid projection."""
 
 # Standard Library
 import math

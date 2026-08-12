@@ -8,12 +8,12 @@ import pytest
 import oasa.cdml_document
 import oasa.safe_xml
 
-import bkchem_qt.actions.object_actions
-import bkchem_qt.canvas.items.text_item
-import bkchem_qt.dialogs.plus_dialog
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.actions.object_actions
+import ferrum_qt.canvas.items.text_item
+import ferrum_qt.dialogs.plus_dialog
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 
 
 _CDML = (
@@ -25,9 +25,9 @@ _CDML = (
 
 
 #============================================
-def _install_native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _install_native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Register one projected native-CDML session with a durable plain Plus."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -41,7 +41,7 @@ def _plus_item(session: object) -> object:
 	for item in session.scene.items():
 		model = getattr(item, "document_object_model", None)
 		if (
-			isinstance(item, bkchem_qt.canvas.items.text_item.TextItem)
+			isinstance(item, ferrum_qt.canvas.items.text_item.TextItem)
 			and getattr(model, "kind", None) == "plus"
 			and getattr(model, "object_id", None) == "plus1"
 		):
@@ -103,13 +103,13 @@ def _accept_plus_changes(
 		"""Return caller-owned plain Plus intent."""
 		return changes
 
-	monkeypatch.setattr(bkchem_qt.dialogs.plus_dialog.PlusDialog, "exec", accept)
-	monkeypatch.setattr(bkchem_qt.dialogs.plus_dialog.PlusDialog, "changes", returned_changes)
+	monkeypatch.setattr(ferrum_qt.dialogs.plus_dialog.PlusDialog, "exec", accept)
+	monkeypatch.setattr(ferrum_qt.dialogs.plus_dialog.PlusDialog, "changes", returned_changes)
 
 
 #============================================
 def test_object_configure_uses_backend_history_and_restores_plus_selection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Real Configure patches authority without Qt undo and selects the fresh Plus."""
@@ -122,7 +122,7 @@ def test_object_configure_uses_backend_history_and_restores_plus_selection(
 		_accept_plus_changes(
 			monkeypatch, (("font_size", 20), ("color", "#AABBCC")), observed,
 		)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		persistent_facts = {
 			"dialog": observed,
 			"backend": _plus_facts(session.backend_snapshot.cdml),
@@ -149,7 +149,7 @@ def test_object_configure_uses_backend_history_and_restores_plus_selection(
 
 #============================================
 def test_modal_plus_configure_remains_bound_to_origin_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Tab activation during the modal dialog cannot redirect accepted intent."""
@@ -165,7 +165,7 @@ def test_modal_plus_configure_remains_bound_to_origin_tab(
 			other_before["snapshot"] = active.backend_snapshot
 
 		_accept_plus_changes(monkeypatch, (("font_size", 21),), activate=activate_other)
-		bkchem_qt.actions.object_actions.handle_configure(main_window)
+		ferrum_qt.actions.object_actions.handle_configure(main_window)
 		other = next(session for session in main_window.sessions if session is not origin)
 
 		assert _plus_facts(origin.backend_snapshot.cdml)[0] == "21"
@@ -179,7 +179,7 @@ def test_modal_plus_configure_remains_bound_to_origin_tab(
 
 #============================================
 def test_captured_plus_action_is_typed_unavailable_after_close(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained origin capability cannot mutate another tab after close."""
 	origin = _install_native_session(main_window)
@@ -199,26 +199,26 @@ def test_captured_plus_action_is_typed_unavailable_after_close(
 
 #============================================
 def test_projection_failure_retries_only_accepted_plus_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Retry reprojects accepted state without replaying the Plus patch."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
 
 	def unavailable(_snapshot: object) -> object:
 		"""Report one post-acceptance projection installation failure."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	try:
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 		)
 		outcome = session.submit_plus_properties_patch(
 			session.backend_snapshot.revision, "plus1", (("font_size", 23),),
@@ -233,7 +233,7 @@ def test_projection_failure_retries_only_accepted_plus_snapshot(
 
 		monkeypatch.setattr(session, "submit_plus_properties_patch", resubmission_must_not_run)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)

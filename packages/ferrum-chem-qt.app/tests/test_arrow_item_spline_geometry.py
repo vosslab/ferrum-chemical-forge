@@ -6,12 +6,12 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.canvas.items.arrow_item
+import ferrum_qt.canvas.items.arrow_item
 
 
 #============================================
 def _render_arrow(
-		item: bkchem_qt.canvas.items.arrow_item.ArrowItem,
+		item: ferrum_qt.canvas.items.arrow_item.ArrowItem,
 		) -> PySide6.QtGui.QImage:
 	"""Render one item onto a transparent image in its local coordinates."""
 	image = PySide6.QtGui.QImage(
@@ -27,9 +27,9 @@ def _render_arrow(
 
 
 #============================================
-def _cubic_spline_arrow() -> bkchem_qt.canvas.items.arrow_item.ArrowItem:
+def _cubic_spline_arrow() -> ferrum_qt.canvas.items.arrow_item.ArrowItem:
 	"""Return one cubic arrow with a visibly curved center section."""
-	item = bkchem_qt.canvas.items.arrow_item.ArrowItem(
+	item = ferrum_qt.canvas.items.arrow_item.ArrowItem(
 		PySide6.QtCore.QPointF(0.0, 0.0),
 		PySide6.QtCore.QPointF(100.0, 0.0),
 	)
@@ -43,9 +43,9 @@ def _cubic_spline_arrow() -> bkchem_qt.canvas.items.arrow_item.ArrowItem:
 
 
 #============================================
-def _quadratic_spline_arrow() -> bkchem_qt.canvas.items.arrow_item.ArrowItem:
+def _quadratic_spline_arrow() -> ferrum_qt.canvas.items.arrow_item.ArrowItem:
 	"""Return the legacy one-control-point spline representation."""
-	item = bkchem_qt.canvas.items.arrow_item.ArrowItem(
+	item = ferrum_qt.canvas.items.arrow_item.ArrowItem(
 		PySide6.QtCore.QPointF(0.0, 0.0),
 		PySide6.QtCore.QPointF(100.0, 0.0),
 	)

@@ -12,16 +12,16 @@ import contextlib
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.canvas.graphics_retirement
-import bkchem_qt.main_window
-import bkchem_qt.models.document
+import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.main_window
+import ferrum_qt.models.document
 
 
 #============================================
 @contextlib.contextmanager
 def bare_document_scene_retirement(
 		app: PySide6.QtWidgets.QApplication,
-		document: bkchem_qt.models.document.Document,
+		document: ferrum_qt.models.document.Document,
 		scene: PySide6.QtWidgets.QGraphicsScene,
 		) -> object:
 	"""Retire one test-owned Document and standalone scene after its body.
@@ -58,23 +58,23 @@ def retire_terminal_top_level_widgets(
 	"""
 	targets = tuple(app.topLevelWidgets()) if widgets is None else widgets
 	for widget in targets:
-		if not bkchem_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
+		if not ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
 			continue
 		widget.close()
-		if not bkchem_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
+		if not ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
 			continue
-		if isinstance(widget, bkchem_qt.main_window.MainWindow):
-			if not bkchem_qt.main_window.drain_pending_session_deletions(app, widget):
+		if isinstance(widget, ferrum_qt.main_window.MainWindow):
+			if not ferrum_qt.main_window.drain_pending_session_deletions(app, widget):
 				raise RuntimeError("MainWindow session reaper did not drain")
-		if bkchem_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
-			if not bkchem_qt.main_window.delete_qobject_and_wait(app, widget):
+		if ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
+			if not ferrum_qt.main_window.delete_qobject_and_wait(app, widget):
 				raise RuntimeError("Top-level QObject deletion was not delivered")
 
 
 #============================================
 def _retire_document_scene(
 		app: PySide6.QtWidgets.QApplication,
-		document: bkchem_qt.models.document.Document,
+		document: ferrum_qt.models.document.Document,
 		scene: PySide6.QtWidgets.QGraphicsScene,
 		) -> RuntimeError | None:
 	"""Complete the bounded cleanup sequence and return its first diagnostic."""
@@ -86,7 +86,7 @@ def _retire_document_scene(
 		remaining_scene_items = list(scene.items())
 		remaining_ids = {id(item) for item in remaining_scene_items}
 		detached_items = [item for item in initial_items if id(item) not in remaining_ids]
-		reaper = bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
+		reaper = ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
 		record = reaper.retire(scene, remaining_scene_items, detached_items)
 		reaper.drain()
 		app.processEvents()
@@ -97,7 +97,7 @@ def _retire_document_scene(
 			cleanup_error = RuntimeError("Standalone scene retirement reported a diagnostic")
 			cleanup_error.__cause__ = record.diagnostics[0]
 			return cleanup_error
-		if not bkchem_qt.main_window.delete_qobject_and_wait(app, document):
+		if not ferrum_qt.main_window.delete_qobject_and_wait(app, document):
 			return RuntimeError("Standalone Document QObject deletion was not delivered")
 	except RuntimeError as exc:
 		cleanup_error = RuntimeError("Standalone scene cleanup failed")

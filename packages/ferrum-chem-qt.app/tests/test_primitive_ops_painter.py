@@ -4,8 +4,8 @@ import dataclasses
 
 import pytest
 
-import bkchem_qt.canvas.items.primitive_ops_painter
-import bkchem_qt.io.cdml_document_io
+import ferrum_qt.canvas.items.primitive_ops_painter
+import ferrum_qt.io.cdml_document_io
 import oasa.cdml_document
 
 
@@ -24,7 +24,7 @@ def _bond_batch() -> object:
 def test_portable_line_bounds_include_its_stroked_endpoints(qapp: object) -> None:
 	"""Qt bounds include the visible stroke rather than only its center line."""
 	batch = _bond_batch()
-	bounds = bkchem_qt.canvas.items.primitive_ops_painter.bounds(batch.operations, 0.0)
+	bounds = ferrum_qt.canvas.items.primitive_ops_painter.bounds(batch.operations, 0.0)
 	line = batch.operations[0]
 	assert bounds.contains(*line.points[0]) and bounds.contains(*line.points[1])
 	assert bounds.top() < line.points[0][1] < bounds.bottom()
@@ -36,7 +36,7 @@ def test_bond_drag_preview_follows_current_endpoints_without_mutating_batch(qapp
 	batch = _bond_batch()
 	original = batch.operations
 	line = dataclasses.replace(batch.operations[0], points=((0.0, 0.0), (10.0, 0.0)))
-	preview = bkchem_qt.canvas.items.primitive_ops_painter.transformed_operations(
+	preview = ferrum_qt.canvas.items.primitive_ops_painter.transformed_operations(
 		(line,), ((0.0, 0.0), (10.0, 0.0)), ((5.0, 5.0), (5.0, 25.0)),
 	)
 	assert preview[0].points == ((5.0, 5.0), (5.0, 25.0))
@@ -53,8 +53,8 @@ def test_portable_subscript_text_expands_the_local_label_bound(qapp: object) -> 
 		"normal", None, None, 0,
 	)
 	subscript = dataclasses.replace(base, text_runs=(("N", "base"), ("2", "sub")))
-	base_left, base_right = bkchem_qt.canvas.items.primitive_ops_painter.text_horizontal_bounds((base,))
-	subscript_left, subscript_right = bkchem_qt.canvas.items.primitive_ops_painter.text_horizontal_bounds((subscript,))
+	base_left, base_right = ferrum_qt.canvas.items.primitive_ops_painter.text_horizontal_bounds((base,))
+	subscript_left, subscript_right = ferrum_qt.canvas.items.primitive_ops_painter.text_horizontal_bounds((subscript,))
 
 	assert subscript_left == base_left and subscript_right > base_right
 

@@ -7,12 +7,12 @@ import pathlib
 import pytest
 
 # local repo modules
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.io.clipboard_manager
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.io.clipboard_manager
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -38,7 +38,7 @@ def _open(main_window: object, tmp_path: pathlib.Path, name: str, cdml: str = _C
 #============================================
 def _item(session: object, item_type: type, durable_id: str) -> object:
 	"""Find one current atom or bond item by its durable backend identity."""
-	attribute = "atom_model" if item_type is bkchem_qt.canvas.items.atom_item.AtomItem else "bond_model"
+	attribute = "atom_model" if item_type is ferrum_qt.canvas.items.atom_item.AtomItem else "bond_model"
 	return next(
 		item for item in session.scene.items()
 		if isinstance(item, item_type) and getattr(item, attribute).backend_durable_id == durable_id
@@ -68,7 +68,7 @@ def _fragment_records(fragment: str) -> tuple[tuple[str, ...], tuple[str, ...], 
 #============================================
 def _clipboard_fragment() -> str:
 	"""Return the public raw CDML payload currently owned by the clipboard."""
-	status, fragment = bkchem_qt.io.clipboard_manager.ClipboardManager().read_fragment()
+	status, fragment = ferrum_qt.io.clipboard_manager.ClipboardManager().read_fragment()
 	assert status == "ok" and fragment is not None
 	return fragment
 
@@ -92,13 +92,13 @@ def test_atom_and_bond_cut_publish_the_insertable_fragment_before_delete(
 	bond_origin = _open(main_window, tmp_path, "bond-cut-chain.cdml")
 	try:
 		assert main_window.open_file_path(str(tmp_path / "atom-cut-chain.cdml"))
-		_item(atom_origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(atom_origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 		qapp.processEvents()
 		main_window.on_cut()
 		atom_fragment = _fragment_records(_clipboard_fragment())
 		atom_snapshot = atom_origin.backend_snapshot
 		assert main_window.open_file_path(str(tmp_path / "bond-cut-chain.cdml"))
-		_item(bond_origin, bkchem_qt.canvas.items.bond_item.BondItem, "b1").setSelected(True)
+		_item(bond_origin, ferrum_qt.canvas.items.bond_item.BondItem, "b1").setSelected(True)
 		main_window.on_cut()
 		bond_fragment = _fragment_records(_clipboard_fragment())
 		bond_snapshot = bond_origin.backend_snapshot
@@ -120,16 +120,16 @@ def test_mixed_structure_and_presentation_cut_is_inert_but_presentation_cut_rema
 	qapp.clipboard().clear()
 	before = origin.backend_snapshot
 	try:
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 		plus = next(
 			item for item in origin.scene.items()
 			if getattr(getattr(item, "document_object_model", None), "object_id", None) == "plus1"
 		)
 		plus.setSelected(True)
 		main_window.on_cut()
-		mixed_status, _mixed_fragment = bkchem_qt.io.clipboard_manager.ClipboardManager().read_fragment()
+		mixed_status, _mixed_fragment = ferrum_qt.io.clipboard_manager.ClipboardManager().read_fragment()
 		mixed_snapshot = origin.backend_snapshot
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(False)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(False)
 		plus.setSelected(True)
 		main_window.on_cut()
 		presentation_fragment = _fragment_records(_clipboard_fragment())
@@ -148,9 +148,9 @@ def test_foreign_structural_wrapper_is_not_a_current_projection_target(
 	"""The public structural classifier rejects an unregistered lookalike wrapper."""
 	origin = _open(main_window, tmp_path, "stale-cut.cdml")
 	try:
-		current_atom = _item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2")
-		foreign_atom = bkchem_qt.canvas.items.atom_item.AtomItem(current_atom.atom_model)
-		targets = bkchem_qt.canvas.document_projection.structure_delete_targets_for_items(
+		current_atom = _item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2")
+		foreign_atom = ferrum_qt.canvas.items.atom_item.AtomItem(current_atom.atom_model)
+		targets = ferrum_qt.canvas.document_projection.structure_delete_targets_for_items(
 			origin.document, (foreign_atom,),
 		)
 		foreign_atom.dispose()
@@ -168,10 +168,10 @@ def test_clipboard_publish_keeps_cut_bound_to_its_origin_tab(
 	origin = _open(main_window, tmp_path, "origin-cut.cdml")
 	other = _open(main_window, tmp_path, "other-cut.cdml", "<cdml/>")
 	other_before = other.backend_snapshot
-	original_publish = bkchem_qt.io.clipboard_manager.ClipboardManager.publish_fragment
+	original_publish = ferrum_qt.io.clipboard_manager.ClipboardManager.publish_fragment
 	try:
 		assert main_window.open_file_path(str(tmp_path / "origin-cut.cdml"))
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 
 		def publish_then_activate(manager: object, fragment: str) -> None:
 			"""Publish raw text, then activate the already-open other tab."""
@@ -179,7 +179,7 @@ def test_clipboard_publish_keeps_cut_bound_to_its_origin_tab(
 			main_window.open_file_path(str(tmp_path / "other-cut.cdml"))
 
 		monkeypatch.setattr(
-			bkchem_qt.io.clipboard_manager.ClipboardManager,
+			ferrum_qt.io.clipboard_manager.ClipboardManager,
 			"publish_fragment", publish_then_activate,
 		)
 		main_window.on_cut()
@@ -198,10 +198,10 @@ def test_origin_close_during_fragment_publication_prevents_delete(
 	"""A disposed origin retains the published fragment but never receives Delete."""
 	origin = _open(main_window, tmp_path, "closing-cut.cdml")
 	other = _open(main_window, tmp_path, "remaining-cut.cdml", "<cdml/>")
-	original_publish = bkchem_qt.io.clipboard_manager.ClipboardManager.publish_fragment
+	original_publish = ferrum_qt.io.clipboard_manager.ClipboardManager.publish_fragment
 	try:
 		assert main_window.open_file_path(str(tmp_path / "closing-cut.cdml"))
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 
 		def publish_then_close(manager: object, fragment: str) -> None:
 			"""Deliver the fragment before closing the still-clean origin tab."""
@@ -209,7 +209,7 @@ def test_origin_close_during_fragment_publication_prevents_delete(
 			assert main_window.close_session_at(main_window.sessions.index(origin))
 
 		monkeypatch.setattr(
-			bkchem_qt.io.clipboard_manager.ClipboardManager,
+			ferrum_qt.io.clipboard_manager.ClipboardManager,
 			"publish_fragment", publish_then_close,
 		)
 		main_window.on_cut()
@@ -229,19 +229,19 @@ def test_projection_recovery_uses_the_accepted_cut_snapshot_without_resubmission
 	origin = _open(main_window, tmp_path, "retry-cut.cdml")
 	try:
 		origin.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				origin,
-				lambda _snapshot: bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-					bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-					bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+				lambda _snapshot: ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+					ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+					ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 				),
 			),
 		)
-		_item(origin, bkchem_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
+		_item(origin, ferrum_qt.canvas.items.atom_item.AtomItem, "a2").setSelected(True)
 		main_window.on_cut()
 		accepted_snapshot = origin.backend_snapshot
 		blocked_delete = origin.submit_persistent_operation(
-			bkchem_qt.models.document_session.build_structure_delete_request(
+			ferrum_qt.models.document_session.build_structure_delete_request(
 				accepted_snapshot.revision, "m1", ("a1",), (),
 			),
 		)
@@ -253,12 +253,12 @@ def test_projection_recovery_uses_the_accepted_cut_snapshot_without_resubmission
 
 		monkeypatch.setattr(origin, "extract_structure_fragment", raise_after_acceptance)
 		monkeypatch.setattr(
-			bkchem_qt.io.clipboard_manager.ClipboardManager,
+			ferrum_qt.io.clipboard_manager.ClipboardManager,
 			"publish_fragment", raise_after_acceptance,
 		)
 		monkeypatch.setattr(origin, "submit_persistent_operation", raise_after_acceptance)
 		origin.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				origin,
 				lambda snapshot: main_window._replace_session_projection(origin, snapshot),
 			),

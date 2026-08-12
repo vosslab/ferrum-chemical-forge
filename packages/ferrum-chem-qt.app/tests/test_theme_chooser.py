@@ -1,13 +1,13 @@
 """Tests for the ThemeChooserDialog and theme apply/cancel flows."""
 
 # local repo modules
-import bkchem_qt.dialogs.theme_chooser_dialog
+import ferrum_qt.dialogs.theme_chooser_dialog
 
 
 #============================================
 def test_theme_dialog_lists_themes(main_window: object) -> None:
 	"""Create a ThemeChooserDialog and verify themes are listed."""
-	dialog = bkchem_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog(
+	dialog = ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog(
 		"light", parent=main_window,
 	)
 	count = dialog._list_widget.count()
@@ -19,7 +19,7 @@ def test_theme_dialog_lists_themes(main_window: object) -> None:
 #============================================
 def test_theme_dialog_preselects_current(main_window: object) -> None:
 	"""Create dialog with current='light' and verify it is preselected."""
-	dialog = bkchem_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog(
+	dialog = ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog(
 		"light", parent=main_window,
 	)
 	current_item = dialog._list_widget.currentItem()
@@ -44,7 +44,7 @@ def test_theme_apply_changes_theme(main_window: object, monkeypatch: object) -> 
 
 	# monkeypatch the static choose_theme to return the target
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog,
+		ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog,
 		"choose_theme",
 		staticmethod(lambda parent, cur: target),
 	)
@@ -64,7 +64,7 @@ def test_theme_cancel_no_change(main_window: object, monkeypatch: object) -> Non
 
 	# monkeypatch the static choose_theme to return None (cancel)
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog,
+		ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog,
 		"choose_theme",
 		staticmethod(lambda parent, cur: None),
 	)

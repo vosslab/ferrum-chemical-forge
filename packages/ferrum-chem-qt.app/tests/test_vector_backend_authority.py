@@ -8,10 +8,10 @@ import xml.dom.minidom
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.io.cdml_candidate
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.modes.vector_mode
+import ferrum_qt.io.cdml_candidate
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.modes.vector_mode
 import oasa.cdml_document
 import oasa.cdml_writer
 import oasa.safe_xml
@@ -19,8 +19,8 @@ import oasa.safe_xml
 
 #============================================
 def _new_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Open and return one fresh public document session."""
 	if not main_window.on_new():
 		raise RuntimeError("Public New did not create a Vector test session")
@@ -29,8 +29,8 @@ def _new_session(
 
 #============================================
 def _close_clean_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		session: bkchem_qt.models.document_session.DocumentSession,
+		main_window: ferrum_qt.main_window.MainWindow,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Close one test session after its final backend undo."""
 	if not main_window.close_session_at(main_window.sessions.index(session)):
@@ -39,12 +39,12 @@ def _close_clean_session(
 
 #============================================
 def _select_vector(
-		session: bkchem_qt.models.document_session.DocumentSession, key: str,
-		) -> bkchem_qt.modes.vector_mode.VectorMode:
+		session: ferrum_qt.models.document_session.DocumentSession, key: str,
+		) -> ferrum_qt.modes.vector_mode.VectorMode:
 	"""Select one public Vector submode through the mode manager."""
 	session.mode_manager.set_mode("vector")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.vector_mode.VectorMode):
+	if not isinstance(mode, ferrum_qt.modes.vector_mode.VectorMode):
 		raise TypeError("Vector selection did not install VectorMode")
 	mode.set_submode(key)
 	return mode
@@ -52,7 +52,7 @@ def _select_vector(
 
 #============================================
 def _drag_vector(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		start: PySide6.QtCore.QPointF, end: PySide6.QtCore.QPointF,
 		) -> None:
 	"""Dispatch one normal Vector gesture through public mode routing."""
@@ -97,7 +97,7 @@ def _points_match(actual: tuple, expected: tuple) -> bool:
 
 #============================================
 def test_vector_modes_create_canonical_backend_records(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Rectangle, Oval, and Polyline gestures create canonical durable records."""
 	session = _new_session(main_window)
@@ -126,7 +126,7 @@ def test_vector_modes_create_canonical_backend_records(
 
 #============================================
 def test_vector_threshold_axis_is_accepted_and_uses_backend_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A box at the historical drag threshold is accepted outside Qt undo."""
 	session = _new_session(main_window)
@@ -161,7 +161,7 @@ def test_vector_threshold_axis_is_accepted_and_uses_backend_history(
 
 #============================================
 def test_vector_short_and_invalid_requests_are_atomic(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A short drag and invalid finite-coordinate request leave the session unchanged."""
 	session = _new_session(main_window)
@@ -170,7 +170,7 @@ def test_vector_short_and_invalid_requests_are_atomic(
 		before = session.backend_snapshot
 		_drag_vector(session, PySide6.QtCore.QPointF(10.0, 10.0), PySide6.QtCore.QPointF(14.0, 14.0))
 		short_after = session.backend_snapshot
-		request = bkchem_qt.models.document_session.PersistentOperationRequest(
+		request = ferrum_qt.models.document_session.PersistentOperationRequest(
 			"vector.add", "Vector", (("shape", "rect"), ("start", (0.0, 0.0)),
 			("end", (math.nan, 10.0))),
 		)
@@ -197,7 +197,7 @@ def test_vector_candidate_preserves_opaque_root_order_and_maps_issued_id() -> No
 	token = "__bkchem_new__vector-r0-1"
 	commit = backend.commit(
 		expected_revision=before.revision,
-		complete_cdml=bkchem_qt.io.cdml_candidate.append_vector_candidate(
+		complete_cdml=ferrum_qt.io.cdml_candidate.append_vector_candidate(
 			before.cdml, token, "rect", (0.0, 0.0), (36.0, 18.0),
 		),
 	)

@@ -14,12 +14,12 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.actions.haworth_actions
-import bkchem_qt.actions.pubchem_actions
-import bkchem_qt.bridge.chemistry_preparation
-import bkchem_qt.bridge.worker
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.actions.haworth_actions
+import ferrum_qt.actions.pubchem_actions
+import ferrum_qt.bridge.chemistry_preparation
+import ferrum_qt.bridge.worker
 import oasa.cdml
 import oasa.cdml_document
 
@@ -28,16 +28,16 @@ import oasa.cdml_document
 #============================================
 def _install_projection_port(session: object, deliver: object) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
 def _projection_unavailable(snapshot: object) -> object:
 	"""Report one deliberately unavailable typed projection outcome."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
@@ -66,7 +66,7 @@ def _undo_and_close(main_window: object, session: object) -> None:
 #============================================
 def _prepared(session: object, token_stem: str) -> object:
 	"""Build one deterministic detached Haworth proposal for delivery tests."""
-	return bkchem_qt.bridge.chemistry_preparation.prepare_haworth_insertion(
+	return ferrum_qt.bridge.chemistry_preparation.prepare_haworth_insertion(
 		"ARLRDM", "pyranose", "alpha", session.backend_snapshot.revision, token_stem,
 		40.0, (2000.0, 1500.0),
 	)
@@ -75,7 +75,7 @@ def _prepared(session: object, token_stem: str) -> object:
 #============================================
 def _prepared_verified_sucrose(session: object, token_stem: str) -> object:
 	"""Build the named backend-owned fixed preset for a delivery test."""
-	return bkchem_qt.bridge.chemistry_preparation.prepare_verified_sucrose_insertion(
+	return ferrum_qt.bridge.chemistry_preparation.prepare_verified_sucrose_insertion(
 		session.backend_snapshot.revision, token_stem, 40.0, (2000.0, 1500.0),
 	)
 
@@ -83,7 +83,7 @@ def _prepared_verified_sucrose(session: object, token_stem: str) -> object:
 #============================================
 def _prepared_direct_glycosidic(session: object, token_stem: str) -> object:
 	"""Build one offline non-sucrose direct-glycosidic proposal."""
-	return bkchem_qt.bridge.chemistry_preparation.prepare_direct_glycosidic_haworth_insertion(
+	return ferrum_qt.bridge.chemistry_preparation.prepare_direct_glycosidic_haworth_insertion(
 		"OCC1OC(OC2OC(CO)C(O)C(O)C2O)C(O)C(O)C1O",
 		session.backend_snapshot.revision,
 		token_stem,
@@ -96,7 +96,7 @@ def _prepared_direct_glycosidic(session: object, token_stem: str) -> object:
 def _delivery(main_window: object, session: object) -> tuple[object, object]:
 	"""Create one current origin-bound delivery controller and proposal."""
 	token = session.begin_import_request()
-	delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+	delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 		main_window, session, token, session.backend_snapshot.revision,
 	)
 	return delivery, _prepared(session, "haworth-r%s-i%s" % (session.backend_snapshot.revision, token))
@@ -159,7 +159,7 @@ def _visible_menu_action(menu_bar: object, label: str) -> object:
 def _enter_direct_glycosidic_smiles(smiles: str) -> None:
 	"""Enter one visible direct-glycosidic request and press its real OK button."""
 	dialog = PySide6.QtWidgets.QApplication.activeModalWidget()
-	if not isinstance(dialog, bkchem_qt.actions.haworth_actions.DirectGlycosidicHaworthDialog):
+	if not isinstance(dialog, ferrum_qt.actions.haworth_actions.DirectGlycosidicHaworthDialog):
 		raise RuntimeError("Direct glycosidic Haworth dialog did not become modal")
 	field = dialog.findChild(PySide6.QtWidgets.QLineEdit)
 	buttons = dialog.findChild(PySide6.QtWidgets.QDialogButtonBox)
@@ -176,8 +176,8 @@ def _enter_direct_glycosidic_smiles(smiles: str) -> None:
 #============================================
 def test_haworth_worker_returns_frozen_plain_proposal(qtbot: object) -> None:
 	"""The actual worker emits CDML data, never its mutable OASA graph."""
-	worker = bkchem_qt.bridge.worker.OasaWorker(
-		bkchem_qt.bridge.chemistry_preparation.prepare_haworth_insertion,
+	worker = ferrum_qt.bridge.worker.OasaWorker(
+		ferrum_qt.bridge.chemistry_preparation.prepare_haworth_insertion,
 		"ARLRDM", "pyranose", "alpha", 7, "haworth-r7-i1", 40.0, (2000.0, 1500.0),
 	)
 	values = []
@@ -249,7 +249,7 @@ def test_haworth_stale_token_and_revision_are_inert(
 		before_token = session.backend_snapshot
 		token_outcome = delivery.deliver(prepared)
 		current_token = session.begin_import_request()
-		stale_delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+		stale_delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 			main_window, session, current_token, session.backend_snapshot.revision - 1,
 		)
 		before_revision = session.backend_snapshot
@@ -291,7 +291,7 @@ def test_haworth_projection_retry_uses_accepted_backend_snapshot(
 #============================================
 def test_haworth_annotations_survive_proposal_commit_and_reload() -> None:
 	"""Front and back Haworth q/w/n semantics survive the OASA-only boundary."""
-	prepared = bkchem_qt.bridge.chemistry_preparation.prepare_haworth_insertion(
+	prepared = ferrum_qt.bridge.chemistry_preparation.prepare_haworth_insertion(
 		"ARLRDM", "pyranose", "alpha", 0, "haworth-persistence", 40.0, (2000.0, 1500.0),
 	)
 	session = oasa.cdml_document.CDMLDocumentSession.load("<cdml />")
@@ -311,7 +311,7 @@ def test_verified_sucrose_haworth_uses_the_existing_authoritative_delivery(
 	session = _new_session(main_window)
 	try:
 		token = session.begin_import_request()
-		delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+		delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 			main_window, session, token, session.backend_snapshot.revision,
 		)
 		prepared = _prepared_verified_sucrose(
@@ -339,7 +339,7 @@ def test_direct_glycosidic_haworth_commits_persists_and_reprojects(
 	path = tmp_path / "direct-glycosidic-haworth.cdml"
 	try:
 		token = session.begin_import_request()
-		delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+		delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 			main_window, session, token, session.backend_snapshot.revision,
 		)
 		prepared = _prepared_direct_glycosidic(
@@ -375,7 +375,7 @@ def test_direct_glycosidic_haworth_delivery_keeps_its_origin_tab(
 	other = _new_session(main_window)
 	try:
 		token = origin.begin_import_request()
-		delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+		delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 			main_window, origin, token, origin.backend_snapshot.revision,
 		)
 		prepared = _prepared_direct_glycosidic(origin, "direct-glycosidic-origin")
@@ -402,7 +402,7 @@ def test_closed_direct_glycosidic_haworth_result_is_inert(
 	survivor = _new_session(main_window)
 	try:
 		token = origin.begin_import_request()
-		delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+		delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 			main_window, origin, token, origin.backend_snapshot.revision,
 		)
 		prepared = _prepared_direct_glycosidic(origin, "direct-glycosidic-closed")
@@ -431,7 +431,7 @@ def test_direct_glycosidic_haworth_menu_cancel_is_inert(
 	session = main_window._active_session
 	before = session.backend_snapshot
 	monkeypatch.setattr(
-		bkchem_qt.actions.haworth_actions,
+		ferrum_qt.actions.haworth_actions,
 		"DirectGlycosidicHaworthDialog",
 		_CancelledDialog,
 	)
@@ -456,7 +456,7 @@ def test_visible_direct_glycosidic_action_commits_once_through_its_worker(
 	worker_threads = []
 	delivery_threads = []
 	main_thread = threading.get_ident()
-	prepare = bkchem_qt.bridge.chemistry_preparation.prepare_direct_glycosidic_haworth_insertion
+	prepare = ferrum_qt.bridge.chemistry_preparation.prepare_direct_glycosidic_haworth_insertion
 	submit = origin.submit_persistent_operation
 
 	def controlled_prepare(
@@ -475,7 +475,7 @@ def test_visible_direct_glycosidic_action_commits_once_through_its_worker(
 		return submit(request)
 
 	monkeypatch.setattr(
-		bkchem_qt.bridge.chemistry_preparation,
+		ferrum_qt.bridge.chemistry_preparation,
 		"prepare_direct_glycosidic_haworth_insertion",
 		controlled_prepare,
 	)
@@ -548,11 +548,11 @@ def test_direct_glycosidic_haworth_rejects_unsupported_topology_without_mutation
 	)
 	try:
 		token = session.begin_import_request()
-		delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+		delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 			main_window, session, token, session.backend_snapshot.revision,
 		)
 		with pytest.raises(ValueError):
-			bkchem_qt.bridge.chemistry_preparation.prepare_direct_glycosidic_haworth_insertion(
+			ferrum_qt.bridge.chemistry_preparation.prepare_direct_glycosidic_haworth_insertion(
 				"C1CCCCC1",
 				session.backend_snapshot.revision,
 				"invalid-direct-glycosidic",
@@ -575,10 +575,10 @@ def test_haworth_accepted_cdml_uses_captured_scene_geometry(
 		ring_type: str, main_window: object,
 		) -> None:
 	"""Both public forms persist usable scene-scale coordinates around the anchor."""
-	spacing, anchor = bkchem_qt.actions.haworth_actions._capture_haworth_geometry(
+	spacing, anchor = ferrum_qt.actions.haworth_actions._capture_haworth_geometry(
 		main_window._active_session,
 	)
-	prepared = bkchem_qt.bridge.chemistry_preparation.prepare_haworth_insertion(
+	prepared = ferrum_qt.bridge.chemistry_preparation.prepare_haworth_insertion(
 		"ARLRDM", ring_type, "alpha", 0, "haworth-%s-geometry" % ring_type,
 		spacing, anchor,
 	)
@@ -597,8 +597,8 @@ def test_haworth_accepted_cdml_uses_captured_scene_geometry(
 def test_haworth_and_pubchem_actions_use_the_bridge_chemistry_boundary() -> None:
 	"""Qt action sources leave OASA imports inside the named preparation bridge."""
 	modules = (
-		bkchem_qt.actions.haworth_actions,
-		bkchem_qt.actions.pubchem_actions,
+		ferrum_qt.actions.haworth_actions,
+		ferrum_qt.actions.pubchem_actions,
 	)
 	oasa_imports = []
 	for module in modules:
@@ -626,12 +626,12 @@ def test_haworth_action_captures_plain_scene_geometry(
 	session = _new_session(main_window)
 	captured = []
 	monkeypatch.setattr(
-		bkchem_qt.bridge.worker.OasaWorker,
+		ferrum_qt.bridge.worker.OasaWorker,
 		"start",
 		lambda worker: captured.append(worker._args),
 	)
 	try:
-		bkchem_qt.actions.haworth_actions._start_haworth_insert(
+		ferrum_qt.actions.haworth_actions._start_haworth_insert(
 			main_window, "ARLRDM", "pyranose", "alpha",
 		)
 		worker_args = captured[0]
@@ -654,10 +654,10 @@ def test_haworth_dialog_cancel_has_no_mutation(main_window: object, monkeypatch:
 		def exec(self) -> PySide6.QtWidgets.QDialog.DialogCode:
 			return PySide6.QtWidgets.QDialog.DialogCode.Rejected
 
-	monkeypatch.setattr(bkchem_qt.actions.haworth_actions, "HaworthInsertDialog", _CancelledDialog)
+	monkeypatch.setattr(ferrum_qt.actions.haworth_actions, "HaworthInsertDialog", _CancelledDialog)
 	session = main_window._active_session
 	before = session.backend_snapshot
-	bkchem_qt.actions.haworth_actions.insert_haworth(main_window, "pyranose")
+	ferrum_qt.actions.haworth_actions.insert_haworth(main_window, "pyranose")
 
 	assert session.backend_snapshot == before
 
@@ -674,7 +674,7 @@ def test_haworth_preparation_error_is_current_only(
 	)
 	try:
 		token = session.begin_import_request()
-		delivery = bkchem_qt.actions.haworth_actions.HaworthInsertionDelivery(
+		delivery = ferrum_qt.actions.haworth_actions.HaworthInsertionDelivery(
 			main_window, session, token, session.backend_snapshot.revision,
 		)
 		current = delivery.report_error("invalid sugar")

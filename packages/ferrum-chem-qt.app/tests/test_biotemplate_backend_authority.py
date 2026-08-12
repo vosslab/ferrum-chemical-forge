@@ -9,10 +9,10 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.main_window
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.modes.biotemplate_mode
+import ferrum_qt.main_window
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.modes.biotemplate_mode
 import oasa.biomolecule_template_placement
 import oasa.cdml_document
 import oasa.safe_xml
@@ -38,9 +38,9 @@ def _active_session(main_window: object) -> object:
 
 
 #============================================
-def _native_session(main_window: bkchem_qt.main_window.MainWindow, cdml: str) -> object:
+def _native_session(main_window: ferrum_qt.main_window.MainWindow, cdml: str) -> object:
 	"""Install one native backend session through the established test setup seam."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(cdml)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -49,11 +49,11 @@ def _native_session(main_window: bkchem_qt.main_window.MainWindow, cdml: str) ->
 
 
 #============================================
-def _mode(session: object) -> bkchem_qt.modes.biotemplate_mode.BioTemplateMode:
+def _mode(session: object) -> ferrum_qt.modes.biotemplate_mode.BioTemplateMode:
 	"""Activate and return this session's BioTemplate projection client."""
 	session.mode_manager.set_mode("biotemplate")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.biotemplate_mode.BioTemplateMode):
+	if not isinstance(mode, ferrum_qt.modes.biotemplate_mode.BioTemplateMode):
 		raise AssertionError("BioTemplateMode did not activate")
 	return mode
 
@@ -118,7 +118,7 @@ def test_mode_emits_exact_plain_catalog_key_and_scene_anchor(main_window: object
 
 #============================================
 def test_synchronized_click_preserves_source_and_opaque_content_as_detached_root(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An atom-area click anchors a detached root without changing source records."""
 	session = _native_session(main_window, _SOURCE_CDML)
@@ -165,7 +165,7 @@ def test_stale_biotemplate_request_rejects_before_oasa_preparation(
 		oasa.biomolecule_template_placement,
 		"prepare_biomolecule_template_insertion", count_preparation,
 	)
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"biotemplate.insert", "Place Biomolecule Template",
 		(("expected_revision", before.revision + 1), ("catalog_key", "carbs/rings/furanose_scaffold"), ("anchor", (0.0, 0.0))),
 	)
@@ -185,7 +185,7 @@ def test_invalid_or_unavailable_biotemplate_intents_leave_backend_unchanged(
 	mode.set_biotemplate_action(None)
 	mode.mouse_press(PySide6.QtCore.QPointF(10.0, 15.0), None)
 	invalid = session.submit_persistent_operation(
-		bkchem_qt.models.document_session.PersistentOperationRequest(
+		ferrum_qt.models.document_session.PersistentOperationRequest(
 			"biotemplate.insert", "Place Biomolecule Template",
 			(("expected_revision", before.revision), ("catalog_key", "unknown"), ("anchor", (0.0, 0.0))),
 		),
@@ -215,7 +215,7 @@ def test_two_biotemplate_placements_have_distinct_durable_ids_and_backend_undo_r
 
 #============================================
 def test_biotemplate_action_remains_bound_to_its_originating_tab(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained session-A mode acts on A after tab B becomes active."""
 	first_session = _native_session(main_window, _SOURCE_CDML)
@@ -237,7 +237,7 @@ def test_biotemplate_action_remains_bound_to_its_originating_tab(
 
 #============================================
 def test_disposed_biotemplate_action_reports_typed_unavailability(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A retained public placement action is inert after its tab's disposal begins."""
 	session = _native_session(main_window, _SOURCE_CDML)
@@ -250,25 +250,25 @@ def test_disposed_biotemplate_action_reports_typed_unavailability(
 
 #============================================
 def test_accepted_biotemplate_projection_retry_preserves_selection_without_resubmission(
-		main_window: bkchem_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
+		main_window: ferrum_qt.main_window.MainWindow, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Exact retry restores one accepted root without recreating its proposal."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_SOURCE_CDML)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_SOURCE_CDML)
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window, theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs, mode_host=main_window, prepared_native_cdml=prepared,
 	)
 
 	def unavailable(_snapshot: object) -> object:
 		"""Report one post-acceptance projection installation failure."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	try:
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)
@@ -282,7 +282,7 @@ def test_accepted_biotemplate_projection_retry_preserves_selection_without_resub
 			if record.local_name == "molecule" and record.identifier is not None
 		}
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 		)
 		outcome = session.submit_biomolecule_template(
 			"carbs/rings/furanose_scaffold", (280.0, 195.0),
@@ -308,7 +308,7 @@ def test_accepted_biotemplate_projection_retry_preserves_selection_without_resub
 			"prepare_biomolecule_template_insertion", preparation_must_not_run,
 		)
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)

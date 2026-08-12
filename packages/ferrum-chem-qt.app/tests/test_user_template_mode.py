@@ -8,7 +8,7 @@ import PySide6.QtCore
 import pytest
 
 # local repo modules
-import bkchem_qt.modes.user_template_mode
+import ferrum_qt.modes.user_template_mode
 
 
 @dataclasses.dataclass(frozen=True)
@@ -34,9 +34,9 @@ class _Outcome:
 #============================================
 def _mode(
 		qapp: object, catalog: tuple[object, ...] = (),
-		) -> bkchem_qt.modes.user_template_mode.UserTemplateMode:
+		) -> ferrum_qt.modes.user_template_mode.UserTemplateMode:
 	"""Create a QObject-owned mode without graphics wrappers."""
-	mode = bkchem_qt.modes.user_template_mode.UserTemplateMode(
+	mode = ferrum_qt.modes.user_template_mode.UserTemplateMode(
 		object(), parent=qapp, catalog=catalog,
 	)
 	return mode

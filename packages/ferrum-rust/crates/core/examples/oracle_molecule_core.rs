@@ -1,4 +1,4 @@
-//! Isolated M1d projection for the ordered molecule-core carrier.
+//! Isolated projection for comparing the ordered molecule-core carrier.
 
 use std::collections::HashMap;
 use std::env;

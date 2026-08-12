@@ -4,15 +4,15 @@
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.align_actions
-import bkchem_qt.actions.object_actions
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.dialogs.scale_dialog
-import bkchem_qt.main_window
-import bkchem_qt.models.document_object
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
-import bkchem_qt.undo.commands
+import ferrum_qt.actions.align_actions
+import ferrum_qt.actions.object_actions
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.dialogs.scale_dialog
+import ferrum_qt.main_window
+import ferrum_qt.models.document_object
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
+import ferrum_qt.undo.commands
 
 
 _CDML = (
@@ -26,9 +26,9 @@ _CDML = (
 
 
 #============================================
-def _native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Create one active synchronized session containing mixed durable roots."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -47,22 +47,22 @@ def _select_mixed_roots(session: object) -> None:
 			item.setSelected(True)
 		if getattr(object_model, "object_id", None) == "arrow1":
 			item.setSelected(True)
-	if not bkchem_qt.canvas.document_projection.selected_top_level_transform_keys(
+	if not ferrum_qt.canvas.document_projection.selected_top_level_transform_keys(
 			session.document, session.scene,
 		):
 		raise RuntimeError("Mixed transform roots were not selected")
 
 
 #============================================
-def _legacy_isolated_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _legacy_isolated_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Create one active isolated session with a selected local presentation root."""
 	session = _native_session(main_window)
-	model = bkchem_qt.models.document_object.PresentationObject(
+	model = ferrum_qt.models.document_object.PresentationObject(
 		"polyline", points=[(1.0, 1.0, None), (2.0, 2.0, None)],
 	)
-	item = bkchem_qt.canvas.document_projection.create_presentation_item(model)
+	item = ferrum_qt.canvas.document_projection.create_presentation_item(model)
 	session.document.undo_stack.push(
-		bkchem_qt.undo.commands.AddPresentationObjectCommand(
+		ferrum_qt.undo.commands.AddPresentationObjectCommand(
 			session.document, session.scene, model, item,
 		),
 	)
@@ -81,12 +81,12 @@ def _invoke(app: object, mode: str) -> None:
 			"align-right": "right", "align-center-x": "center_h",
 			"align-center-y": "center_v",
 		}[mode]
-		bkchem_qt.actions.align_actions._align_selection(app, direction)
+		ferrum_qt.actions.align_actions._align_selection(app, direction)
 		return
 	if mode == "mirror-vertical":
-		bkchem_qt.actions.object_actions.handle_vertical_mirror(app)
+		ferrum_qt.actions.object_actions.handle_vertical_mirror(app)
 		return
-	bkchem_qt.actions.object_actions.handle_horizontal_mirror(app)
+	ferrum_qt.actions.object_actions.handle_horizontal_mirror(app)
 
 
 #============================================
@@ -95,7 +95,7 @@ def _invoke(app: object, mode: str) -> None:
 	"align-center-y", "mirror-vertical", "mirror-horizontal",
 ))
 def test_visible_transform_actions_submit_their_documented_backend_mode(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch, mode: str,
 		) -> None:
 	"""Each non-modal menu action commits one plain session-bound transform."""
@@ -130,7 +130,7 @@ def test_visible_transform_actions_submit_their_documented_backend_mode(
 
 #============================================
 def test_scale_action_uses_backend_history_and_preserves_a_canonical_noop(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Scale accepts factors through the session and leaves a 1x1 scale unchanged."""
@@ -151,17 +151,17 @@ def test_scale_action_uses_backend_history_and_preserves_a_canonical_noop(
 	try:
 		_select_mixed_roots(session)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.scale_dialog.ScaleDialog,
+			ferrum_qt.dialogs.scale_dialog.ScaleDialog,
 			"get_scale_factors", lambda _parent: (0.5, 2.0),
 		)
-		bkchem_qt.actions.object_actions.handle_scale(main_window)
+		ferrum_qt.actions.object_actions.handle_scale(main_window)
 		changed = session.backend_snapshot
 		_select_mixed_roots(session)
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.scale_dialog.ScaleDialog,
+			ferrum_qt.dialogs.scale_dialog.ScaleDialog,
 			"get_scale_factors", lambda _parent: (1.0, 1.0),
 		)
-		bkchem_qt.actions.object_actions.handle_scale(main_window)
+		ferrum_qt.actions.object_actions.handle_scale(main_window)
 
 		assert (
 			dict(requests[0].payload)["mode"] == "scale"
@@ -178,7 +178,7 @@ def test_scale_action_uses_backend_history_and_preserves_a_canonical_noop(
 
 #============================================
 def test_scale_modal_uses_its_captured_revision_and_reports_stale_result(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An edit during Scale leaves its frozen request stale without Qt undo."""
@@ -195,11 +195,11 @@ def test_scale_modal_uses_its_captured_revision_and_reports_stale_result(
 			return (2.0, 2.0)
 
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.scale_dialog.ScaleDialog,
+			ferrum_qt.dialogs.scale_dialog.ScaleDialog,
 			"get_scale_factors", change_then_choose,
 		)
 		monkeypatch.setattr(main_window, "_show_persistent_action_outcome", outcomes.append)
-		bkchem_qt.actions.object_actions.handle_scale(main_window)
+		ferrum_qt.actions.object_actions.handle_scale(main_window)
 
 		assert (
 			session.backend_snapshot.revision == 1
@@ -213,7 +213,7 @@ def test_scale_modal_uses_its_captured_revision_and_reports_stale_result(
 
 #============================================
 def test_scale_modal_never_redirects_after_tab_switch_or_same_tab_replacement(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A modal Scale intent submits nowhere after tab switch or replacement."""
@@ -229,17 +229,17 @@ def test_scale_modal_never_redirects_after_tab_switch_or_same_tab_replacement(
 			return (2.0, 2.0)
 
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.scale_dialog.ScaleDialog,
+			ferrum_qt.dialogs.scale_dialog.ScaleDialog,
 			"get_scale_factors", switch_tab,
 		)
-		bkchem_qt.actions.object_actions.handle_scale(main_window)
+		ferrum_qt.actions.object_actions.handle_scale(main_window)
 		after_switch = (first.backend_snapshot.revision, second.backend_snapshot.revision)
 		main_window._activate_session(first)
 		_select_mixed_roots(first)
 		def replace_origin(_parent: object) -> tuple[float, float]:
 			"""Replace the exact originating tab before modal acceptance returns."""
 			nonlocal replacement
-			prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+			prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 				_CDML,
 			)
 			replacement = main_window._construct_session(prepared_native_cdml=prepared)
@@ -247,10 +247,10 @@ def test_scale_modal_never_redirects_after_tab_switch_or_same_tab_replacement(
 			return (2.0, 2.0)
 
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.scale_dialog.ScaleDialog,
+			ferrum_qt.dialogs.scale_dialog.ScaleDialog,
 			"get_scale_factors", replace_origin,
 		)
-		bkchem_qt.actions.object_actions.handle_scale(main_window)
+		ferrum_qt.actions.object_actions.handle_scale(main_window)
 
 		assert (
 			after_switch == (0, 0)
@@ -265,7 +265,7 @@ def test_scale_modal_never_redirects_after_tab_switch_or_same_tab_replacement(
 
 #============================================
 def test_isolated_scale_modal_tab_switch_preserves_both_documents(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An isolated Scale dialog cannot apply its old local data to another tab."""
@@ -283,10 +283,10 @@ def test_isolated_scale_modal_tab_switch_preserves_both_documents(
 			return (2.0, 2.0)
 
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.scale_dialog.ScaleDialog,
+			ferrum_qt.dialogs.scale_dialog.ScaleDialog,
 			"get_scale_factors", switch_tab,
 		)
-		bkchem_qt.actions.object_actions.handle_scale(main_window)
+		ferrum_qt.actions.object_actions.handle_scale(main_window)
 
 		assert before == (
 			first.backend_snapshot.revision, first.document.undo_stack.count(),
@@ -300,7 +300,7 @@ def test_isolated_scale_modal_tab_switch_preserves_both_documents(
 
 #============================================
 def test_isolated_scale_modal_replacement_preserves_origin_and_replacement(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An isolated Scale dialog cannot apply retained local data after replacement."""
@@ -311,7 +311,7 @@ def test_isolated_scale_modal_replacement_preserves_origin_and_replacement(
 		def replace_origin(_parent: object) -> tuple[float, float]:
 			"""Replace the local source tab before Scale returns its factors."""
 			nonlocal replacement
-			prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(
+			prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(
 				_CDML,
 			)
 			replacement = main_window._construct_session(prepared_native_cdml=prepared)
@@ -319,10 +319,10 @@ def test_isolated_scale_modal_replacement_preserves_origin_and_replacement(
 			return (2.0, 2.0)
 
 		monkeypatch.setattr(
-			bkchem_qt.dialogs.scale_dialog.ScaleDialog,
+			ferrum_qt.dialogs.scale_dialog.ScaleDialog,
 			"get_scale_factors", replace_origin,
 		)
-		bkchem_qt.actions.object_actions.handle_scale(main_window)
+		ferrum_qt.actions.object_actions.handle_scale(main_window)
 
 		assert (
 			origin.backend_snapshot.revision == origin_revision
@@ -337,7 +337,7 @@ def test_isolated_scale_modal_replacement_preserves_origin_and_replacement(
 
 #============================================
 def test_action_projection_recovery_reuses_the_accepted_snapshot_only(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A menu transform recovers its accepted snapshot without a second request."""
@@ -357,22 +357,22 @@ def test_action_projection_recovery_reuses_the_accepted_snapshot_only(
 
 	def unavailable(_snapshot: object) -> object:
 		"""Report one projection installation failure after backend acceptance."""
-		return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
-			bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
+		return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLATION_FAILED,
+			ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.INSTALLATION,
 		)
 
 	monkeypatch.setattr(main_window, "persistent_operation_capability_for", capture)
 	monkeypatch.setattr(main_window, "_show_persistent_action_outcome", outcomes.append)
 	session.install_projection_lifecycle_port(
-		bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
+		ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, unavailable),
 	)
 	try:
 		_select_mixed_roots(session)
-		bkchem_qt.actions.object_actions.handle_horizontal_mirror(main_window)
+		ferrum_qt.actions.object_actions.handle_horizontal_mirror(main_window)
 		accepted = session.backend_snapshot
 		session.install_projection_lifecycle_port(
-			bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
+			ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(
 				session, session.replace_projection_from_backend_snapshot,
 			),
 		)
@@ -391,25 +391,25 @@ def test_action_projection_recovery_reuses_the_accepted_snapshot_only(
 
 #============================================
 def test_isolated_session_keeps_the_existing_local_transform_undo_path(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A real local edit selects the isolated local mirror authority route."""
 	session = _native_session(main_window)
 	try:
-		legacy_model = bkchem_qt.models.document_object.PresentationObject(
+		legacy_model = ferrum_qt.models.document_object.PresentationObject(
 			"polyline", points=[(1.0, 1.0, None), (2.0, 2.0, None)],
 		)
-		legacy_item = bkchem_qt.canvas.document_projection.create_presentation_item(
+		legacy_item = ferrum_qt.canvas.document_projection.create_presentation_item(
 			legacy_model,
 		)
 		session.document.undo_stack.push(
-			bkchem_qt.undo.commands.AddPresentationObjectCommand(
+			ferrum_qt.undo.commands.AddPresentationObjectCommand(
 				session.document, session.scene, legacy_model, legacy_item,
 			),
 		)
 		_select_mixed_roots(session)
 		undo_count = session.document.undo_stack.count()
-		bkchem_qt.actions.object_actions.handle_vertical_mirror(main_window)
+		ferrum_qt.actions.object_actions.handle_vertical_mirror(main_window)
 
 		assert (
 			session.legacy_isolated

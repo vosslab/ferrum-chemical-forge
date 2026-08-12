@@ -5,21 +5,21 @@ import pytest
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.io.cdml_candidate
-import bkchem_qt.main_window
-import bkchem_qt.models.backend_revision_history
-import bkchem_qt.models.document_session
-import bkchem_qt.models.projection_lifecycle
+import ferrum_qt.io.cdml_candidate
+import ferrum_qt.main_window
+import ferrum_qt.models.backend_revision_history
+import ferrum_qt.models.document_session
+import ferrum_qt.models.projection_lifecycle
 import oasa.cdml_document
 import oasa.safe_xml
 
 
 #============================================
 def _standalone_session(
-		main_window: bkchem_qt.main_window.MainWindow,
-		) -> bkchem_qt.models.document_session.DocumentSession:
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> ferrum_qt.models.document_session.DocumentSession:
 	"""Return a live but deliberately unregistered backend-session client."""
-	return bkchem_qt.models.document_session.DocumentSession(
+	return ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -29,45 +29,45 @@ def _standalone_session(
 
 #============================================
 def _dispose_session(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		) -> None:
 	"""Release a standalone session through the production-safe reaper."""
 	owner = session.parent()
-	if not isinstance(owner, bkchem_qt.main_window.MainWindow):
+	if not isinstance(owner, ferrum_qt.main_window.MainWindow):
 		raise TypeError("Standalone session has no MainWindow owner")
 	owner._dispose_session_later(session)
 
 
 #============================================
 def _install_projection_port(
-		session: bkchem_qt.models.document_session.DocumentSession,
+		session: ferrum_qt.models.document_session.DocumentSession,
 		deliver: object,
 		) -> None:
 	"""Install one fresh typed projection lifecycle port for this session."""
-	port = bkchem_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
+	port = ferrum_qt.models.projection_lifecycle.SessionProjectionLifecyclePort(session, deliver)
 	session.install_projection_lifecycle_port(port)
 
 
 #============================================
-def _projection_unavailable(_snapshot: object) -> bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult:
+def _projection_unavailable(_snapshot: object) -> ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult:
 	"""Report a deliberately unavailable projection without claiming installation."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.PREPARATION_UNAVAILABLE,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.PREPARATION,
 	)
 
 
 #============================================
-def _projection_installed(_snapshot: object) -> bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult:
+def _projection_installed(_snapshot: object) -> ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult:
 	"""Model an installed projection where no real replacement is required."""
-	return bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult(
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLED,
-		bkchem_qt.models.projection_lifecycle.ProjectionLifecyclePhase.COMPLETE,
+	return ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult(
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecycleStatus.INSTALLED,
+		ferrum_qt.models.projection_lifecycle.ProjectionLifecyclePhase.COMPLETE,
 	)
 
 
 #============================================
-def _projection_raises(_snapshot: object) -> bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult:
+def _projection_raises(_snapshot: object) -> ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult:
 	"""Model a frontend projection callback that cannot install a snapshot."""
 	raise RuntimeError("projection unavailable")
 
@@ -85,7 +85,7 @@ def test_backend_commit_preserves_opaque_content_semantically() -> None:
 		'<c:cdml xmlns:c="http://www.freesoftware.fsf.org/bkchem/cdml" '
 		'xmlns:x="urn:extension" version="0.15"><x:note keep="yes"/></c:cdml>',
 	)
-	candidate = bkchem_qt.io.cdml_candidate.append_arrow_candidate(
+	candidate = ferrum_qt.io.cdml_candidate.append_arrow_candidate(
 		session.snapshot().cdml,
 		"__bkchem_new__arrow-r0-1", (0.0, 0.0), (72.0, 0.0),
 	)
@@ -99,12 +99,12 @@ def test_backend_commit_preserves_opaque_content_semantically() -> None:
 
 #============================================
 def test_registered_arrow_projection_uses_oasa_durable_id(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""The real projection receives OASA's mapped ID, never the Qt token."""
 	session = main_window._active_session
-	original_append = bkchem_qt.io.cdml_candidate.append_arrow_candidate
+	original_append = ferrum_qt.io.cdml_candidate.append_arrow_candidate
 	provisional_ids = []
 
 	def capture_candidate(
@@ -115,7 +115,7 @@ def test_registered_arrow_projection_uses_oasa_durable_id(
 		provisional_ids.append(provisional_id)
 		return original_append(complete_cdml, provisional_id, start, end)
 
-	monkeypatch.setattr(bkchem_qt.io.cdml_candidate, "append_arrow_candidate", capture_candidate)
+	monkeypatch.setattr(ferrum_qt.io.cdml_candidate, "append_arrow_candidate", capture_candidate)
 	outcome = session.commit_arrow((0.0, 0.0), (40.0, 0.0))
 	projected_arrow = session.document.presentation_objects[-1]
 
@@ -129,7 +129,7 @@ def test_registered_arrow_projection_uses_oasa_durable_id(
 
 #============================================
 def test_unregistered_session_cannot_commit_an_arrow(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A mode facade cannot mutate OASA before tab registration succeeds."""
 	session = _standalone_session(main_window)
@@ -143,7 +143,7 @@ def test_unregistered_session_cannot_commit_an_arrow(
 
 #============================================
 def test_arrow_mode_same_point_release_is_a_noop(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A release without any gesture displacement never mutates the backend."""
 	main_window._on_new()
@@ -159,7 +159,7 @@ def test_arrow_mode_same_point_release_is_a_noop(
 
 #============================================
 def test_typed_candidate_rejection_keeps_the_backend_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A rejected candidate leaves the visible projection and navigation intact."""
@@ -168,7 +168,7 @@ def test_typed_candidate_rejection_keeps_the_backend_snapshot(
 	accepted = session.commit_arrow((0.0, 0.0), (40.0, 0.0))
 	projected_arrow = session.document.presentation_objects[-1]
 	monkeypatch.setattr(
-		bkchem_qt.io.cdml_candidate, "append_arrow_candidate",
+		ferrum_qt.io.cdml_candidate, "append_arrow_candidate",
 		_invalid_arrow_candidate,
 	)
 	outcome = session.commit_arrow((40.0, 0.0), (80.0, 0.0))
@@ -182,7 +182,7 @@ def test_typed_candidate_rejection_keeps_the_backend_snapshot(
 
 #============================================
 def test_truthy_projection_callback_is_not_an_accepted_arrow(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Only literal True may claim that an accepted snapshot was projected."""
 	session = _standalone_session(main_window)
@@ -198,7 +198,7 @@ def test_truthy_projection_callback_is_not_an_accepted_arrow(
 
 #============================================
 def test_projection_false_retains_the_accepted_backend_arrow(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A failed replacement disables Save and backend navigation after acceptance."""
 	main_window._on_new()
@@ -214,7 +214,7 @@ def test_projection_false_retains_the_accepted_backend_arrow(
 
 #============================================
 def test_projection_exception_retains_the_accepted_backend_arrow(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A post-acceptance exception is unavailable, never a backend rollback."""
 	main_window._on_new()
@@ -230,19 +230,19 @@ def test_projection_exception_retains_the_accepted_backend_arrow(
 
 #============================================
 def test_retry_uses_the_exact_current_backend_snapshot(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Exact retry restores the unavailable session's Save and undo capabilities."""
 	main_window._on_new()
 	session = main_window._active_session
 	projected = []
 
-	def record_false(snapshot: object) -> bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult:
+	def record_false(snapshot: object) -> ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult:
 		"""Record the failed post-acceptance snapshot for comparison."""
 		projected.append(snapshot)
 		return _projection_unavailable(snapshot)
 
-	def record_true(snapshot: object) -> bkchem_qt.models.projection_lifecycle.ProjectionLifecycleResult:
+	def record_true(snapshot: object) -> ferrum_qt.models.projection_lifecycle.ProjectionLifecycleResult:
 		"""Record the retried snapshot and acknowledge literal projection success."""
 		projected.append(snapshot)
 		return main_window._replace_session_projection(session, snapshot)
@@ -260,7 +260,7 @@ def test_retry_uses_the_exact_current_backend_snapshot(
 
 #============================================
 def test_legacy_isolation_refuses_an_ordinary_backend_projection_retry(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A generic retry cannot silently replace a later Qt-local edit."""
 	session = _standalone_session(main_window)
@@ -276,7 +276,7 @@ def test_legacy_isolation_refuses_an_ordinary_backend_projection_retry(
 
 #============================================
 def test_arrow_adapter_records_acceptance_in_plain_revision_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""The real Arrow adapter appends through the Qt-free history boundary."""
 	main_window._on_new()
@@ -286,7 +286,7 @@ def test_arrow_adapter_records_acceptance_in_plain_revision_history(
 	assert accepted.status == "accepted"
 	assert isinstance(
 		session._backend_history,
-		bkchem_qt.models.backend_revision_history.BackendRevisionHistory,
+		ferrum_qt.models.backend_revision_history.BackendRevisionHistory,
 	)
 
 
@@ -294,14 +294,14 @@ def test_arrow_adapter_records_acceptance_in_plain_revision_history(
 def test_persistent_operation_request_rejects_mutable_payload_values() -> None:
 	"""The frontend/backend request boundary cannot retain mutable payload data."""
 	with pytest.raises(TypeError, match="immutable plain data"):
-		bkchem_qt.models.document_session.PersistentOperationRequest(
+		ferrum_qt.models.document_session.PersistentOperationRequest(
 			"arrow.add", "Arrow", (("start", [0.0, 0.0]),),
 		)
 
 
 #============================================
 def test_session_discovers_and_clears_persistent_mode_capabilities(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Construction and production close manage the discovered Arrow callback."""
 	main_window._on_new()
@@ -316,14 +316,14 @@ def test_session_discovers_and_clears_persistent_mode_capabilities(
 
 #============================================
 def test_captured_non_mode_capability_uses_its_original_registered_session(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A frozen capability does not retarget the active tab after tab creation."""
 	main_window._on_new()
 	original = main_window._active_session
 	capability = main_window.persistent_operation_capability_for(original)
 	main_window._on_new()
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"arrow.add", "Arrow",
 		(("start", (0.0, 0.0)), ("end", (40.0, 0.0))),
 	)
@@ -335,14 +335,14 @@ def test_captured_non_mode_capability_uses_its_original_registered_session(
 
 #============================================
 def test_closed_non_mode_capability_is_unavailable_before_submission(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A closed captured tab cannot retarget a later persistent submission."""
 	main_window._on_new()
 	session = main_window._active_session
 	capability = main_window.persistent_operation_capability_for(session)
 	main_window.close_session_at(main_window._sessions.index(session))
-	request = bkchem_qt.models.document_session.PersistentOperationRequest(
+	request = ferrum_qt.models.document_session.PersistentOperationRequest(
 		"arrow.add", "Arrow",
 		(("start", (0.0, 0.0)), ("end", (40.0, 0.0))),
 	)

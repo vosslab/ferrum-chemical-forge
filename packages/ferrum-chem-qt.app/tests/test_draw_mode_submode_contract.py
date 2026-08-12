@@ -7,8 +7,8 @@ import math
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
 import oasa.cdml_document
 import oasa.safe_xml
 
@@ -47,7 +47,7 @@ def _atom_item_by_durable_id(scene: object, atom_id: str) -> object:
 	"""Return one atom from the current projection by its backend-issued ID."""
 	for item in scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 			and item.atom_model.backend_durable_id == atom_id
 		):
 			return item
@@ -59,7 +59,7 @@ def _bond_item_by_durable_id(scene: object, bond_id: str) -> object:
 	"""Return one current bond projection using its backend-issued identity."""
 	for item in scene.items():
 		if (
-			isinstance(item, bkchem_qt.canvas.items.bond_item.BondItem)
+			isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem)
 			and item.bond_model.backend_durable_id == bond_id
 		):
 			return item
@@ -159,7 +159,7 @@ def test_fixed_submode_snaps_drag_to_the_selected_angle_and_length(
 	before_ids = {
 		item.atom_model.backend_durable_id
 		for item in session.scene.items()
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 	}
 	draw_mode.set_submode("6")
 	draw_mode.set_submode("fixed")
@@ -171,7 +171,7 @@ def test_fixed_submode_snaps_drag_to_the_selected_angle_and_length(
 	after_ids = {
 		item.atom_model.backend_durable_id
 		for item in session.scene.items()
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 	}
 	new_ids = after_ids - before_ids
 	if len(new_ids) != 1:

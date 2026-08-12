@@ -5,7 +5,7 @@ import pytest
 import PySide6.QtCore
 import PySide6.QtWidgets
 
-import bkchem_qt.main_window
+import ferrum_qt.main_window
 
 
 #============================================
@@ -20,7 +20,7 @@ def _text_input(
 
 #============================================
 def test_arrow_drag_projects_backend_issued_persistent_id(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A drawn arrow is projected from canonical backend CDML, not Qt undo."""
 	main_window._on_new()
@@ -44,7 +44,7 @@ def test_arrow_drag_projects_backend_issued_persistent_id(
 
 #============================================
 def test_text_mode_annotation_uses_backend_authority_without_qt_undo(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""One Text click projects OASA text without creating a Qt undo command."""

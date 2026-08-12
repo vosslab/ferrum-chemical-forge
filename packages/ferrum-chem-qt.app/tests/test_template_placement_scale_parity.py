@@ -7,7 +7,7 @@ import math
 import pytest
 
 # local repo modules
-import bkchem_qt.bridge.oasa_bridge
+import ferrum_qt.bridge.oasa_bridge
 import oasa.cdml_document
 import oasa.known_groups
 import oasa.safe_xml
@@ -88,7 +88,7 @@ def test_prepared_template_matches_current_model_scale_at_each_anchor(
 	)
 	if source_molecule is None:
 		raise AssertionError("Stable catalog template did not parse")
-	current_model = bkchem_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(source_molecule)
+	current_model = ferrum_qt.bridge.oasa_bridge.oasa_mol_to_qt_mol(source_molecule)
 	prepared = oasa.template_placement.prepare_template_molecule_insertion(
 		oasa.template_placement.CDMLTemplatePlacementRequest(
 			template_name="Ph", anchor=anchor, token_stem="scale-parity",

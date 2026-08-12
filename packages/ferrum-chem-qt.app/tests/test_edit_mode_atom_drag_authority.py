@@ -7,13 +7,13 @@ import re
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.main_window
-import bkchem_qt.models.document_object
-import bkchem_qt.models.document_session
-import bkchem_qt.modes.edit_mode
-import bkchem_qt.undo.commands
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.main_window
+import ferrum_qt.models.document_object
+import ferrum_qt.models.document_session
+import ferrum_qt.modes.edit_mode
+import ferrum_qt.undo.commands
 import oasa.cdml_document
 
 
@@ -41,9 +41,9 @@ class _MouseEvent:
 
 
 #============================================
-def _native_session(main_window: bkchem_qt.main_window.MainWindow) -> object:
+def _native_session(main_window: ferrum_qt.main_window.MainWindow) -> object:
 	"""Install one native backend session containing two durable atoms."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_native_cdml(_CDML)
 	session = main_window._construct_session(prepared_native_cdml=prepared)
 	registered = main_window._register_session(session, activate=True)
 	if not main_window._replace_session_projection(registered, registered.backend_snapshot):
@@ -57,7 +57,7 @@ def _atom_items(session: object) -> tuple[object, object]:
 	items = sorted(
 		(
 			item for item in session.scene.items()
-			if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+			if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 		),
 		key=lambda item: item.atom_model.backend_durable_id,
 	)
@@ -67,18 +67,18 @@ def _atom_items(session: object) -> tuple[object, object]:
 
 
 #============================================
-def _edit_mode(session: object) -> bkchem_qt.modes.edit_mode.EditMode:
+def _edit_mode(session: object) -> ferrum_qt.modes.edit_mode.EditMode:
 	"""Select the session-owned EditMode instance."""
 	session.mode_manager.set_mode("edit")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.edit_mode.EditMode):
+	if not isinstance(mode, ferrum_qt.modes.edit_mode.EditMode):
 		raise TypeError("Edit mode unavailable")
 	return mode
 
 
 #============================================
 def _drag(
-		mode: bkchem_qt.modes.edit_mode.EditMode, item: object,
+		mode: ferrum_qt.modes.edit_mode.EditMode, item: object,
 		delta: tuple[float, float], modifiers: PySide6.QtCore.Qt.KeyboardModifier,
 		) -> None:
 	"""Dispatch one complete atom drag from an item's current scene position."""
@@ -96,7 +96,7 @@ def _selected_ids(session: object) -> set[str]:
 	return {
 		item.atom_model.backend_durable_id
 		for item in session.scene.selectedItems()
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem)
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem)
 	}
 
 
@@ -118,7 +118,7 @@ def _accepted_coordinates(snapshot: object) -> dict[str, tuple[float, float]]:
 
 #============================================
 def test_atom_only_drag_commits_originating_backend_and_restores_selection(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""An axis-locked two-atom drag commits once and preserves unrelated CDML."""
 	session = _native_session(main_window)
@@ -168,7 +168,7 @@ def test_atom_only_drag_commits_originating_backend_and_restores_selection(
 
 #============================================
 def test_atom_drag_uses_its_own_tab_when_another_tab_is_active(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A callback captured by the first mode cannot redirect to the active tab."""
 	first_session = _native_session(main_window)
@@ -194,7 +194,7 @@ def test_atom_drag_uses_its_own_tab_when_another_tab_is_active(
 
 #============================================
 def test_unavailable_or_idless_atom_drag_restores_preview_without_local_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""Unavailable and unaddressable synchronized drags remain inert."""
 	session = _native_session(main_window)
@@ -226,7 +226,7 @@ def test_unavailable_or_idless_atom_drag_restores_preview_without_local_history(
 
 #============================================
 def test_rejected_atom_drag_restores_preview_without_local_history(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A typed session rejection cannot leave the responsive preview committed."""
 	session = _native_session(main_window)
@@ -238,7 +238,7 @@ def test_rejected_atom_drag_restores_preview_without_local_history(
 		start = (first.atom_model.x, first.atom_model.y)
 		mode = _edit_mode(session)
 		mode.set_atom_translate_operation(
-			lambda _targets, _delta: bkchem_qt.models.document_session.PersistentActionOutcome(
+			lambda _targets, _delta: ferrum_qt.models.document_session.PersistentActionOutcome(
 				"rejected", "Move rejected", None, False,
 			),
 		)
@@ -256,21 +256,21 @@ def test_rejected_atom_drag_restores_preview_without_local_history(
 
 #============================================
 def test_legacy_isolated_atom_drag_keeps_one_local_undoable_move(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
 	"""A real prior local edit selects the intended local drag authority."""
 	session = _native_session(main_window)
 	try:
 		first, _second = _atom_items(session)
 		session.scene.set_grid_snap_enabled(False)
-		legacy_model = bkchem_qt.models.document_object.PresentationObject(
+		legacy_model = ferrum_qt.models.document_object.PresentationObject(
 			"polyline", points=[(1.0, 1.0, None), (2.0, 2.0, None)],
 		)
-		legacy_item = bkchem_qt.canvas.document_projection.create_presentation_item(
+		legacy_item = ferrum_qt.canvas.document_projection.create_presentation_item(
 			legacy_model,
 		)
 		session.document.undo_stack.push(
-			bkchem_qt.undo.commands.AddPresentationObjectCommand(
+			ferrum_qt.undo.commands.AddPresentationObjectCommand(
 				session.document, session.scene, legacy_model, legacy_item,
 			),
 		)

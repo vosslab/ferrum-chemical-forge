@@ -15,7 +15,7 @@ CAPABILITY = "ordered-molecule-core-carrier-v1"
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 ORACLE_PYTHON = REPO_ROOT / "tests" / "e2e" / "oracle" / ".venv" / "bin" / "python"
 OASA_CHILD = REPO_ROOT / "tests" / "e2e" / "oracle" / "e2e_oasa_molecule_core_child.py"
-DEFAULT_REPORT = REPO_ROOT / "docs" / "active_plans" / "reports" / "m1d_oracle_molecule_core.json"
+DEFAULT_REPORT = REPO_ROOT / "docs" / "active_plans" / "reports" / "oracle_molecule_core.json"
 
 
 #============================================

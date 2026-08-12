@@ -6,11 +6,11 @@ import pytest
 import shiboken6
 
 # local repo modules
-import bkchem_qt.canvas.document_projection
-import bkchem_qt.canvas.graphics_retirement
-import bkchem_qt.main_window
-import bkchem_qt.models.document
-import bkchem_qt.models.document_object
+import ferrum_qt.canvas.document_projection
+import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.main_window
+import ferrum_qt.models.document
+import ferrum_qt.models.document_object
 import tests.graphics_test_retirement
 
 
@@ -20,14 +20,14 @@ def test_qapp_only_graphics_test_does_not_construct_main_window(
 		) -> None:
 	"""A bare Qt test keeps window/session ownership out of its fixture closure."""
 	assert not any(
-		isinstance(widget, bkchem_qt.main_window.MainWindow)
+		isinstance(widget, ferrum_qt.main_window.MainWindow)
 		for widget in qapp.topLevelWidgets()
 	)
 
 
 #============================================
 def test_terminal_cleanup_skips_reaped_session_view(
-		main_window: bkchem_qt.main_window.MainWindow,
+		main_window: ferrum_qt.main_window.MainWindow,
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A stale session view never crosses the terminal QObject boundary twice."""
@@ -36,7 +36,7 @@ def test_terminal_cleanup_skips_reaped_session_view(
 	view = session.view
 	main_window.on_new()
 	closed = main_window.close_session_at(main_window.sessions.index(session))
-	drained = bkchem_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+	drained = ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
 	tests.graphics_test_retirement.retire_terminal_top_level_widgets(qapp, (view,))
 	assert closed and drained and not shiboken6.isValid(view)
 
@@ -46,17 +46,17 @@ def test_bare_document_scene_retirement_retires_detached_and_scene_owned_roots(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""One terminal helper owns both document and unrelated standalone roots."""
-	document = bkchem_qt.models.document.Document()
+	document = ferrum_qt.models.document.Document()
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
-	presentation = bkchem_qt.models.document_object.PresentationObject(
+	presentation = ferrum_qt.models.document_object.PresentationObject(
 		"text", attributes={"id": "retirement-text"}, points=[(20.0, 20.0, None)],
 	)
 	document_item = None
 	foreign_root = None
 	with tests.graphics_test_retirement.bare_document_scene_retirement(qapp, document, scene):
 		document.add_presentation_object(presentation, mark_dirty=False)
-		bkchem_qt.canvas.document_projection.project_document_presentation(document, scene)
+		ferrum_qt.canvas.document_projection.project_document_presentation(document, scene)
 		document_item = next(iter(scene.items()))
 		foreign_root = PySide6.QtWidgets.QGraphicsRectItem(0.0, 0.0, 5.0, 5.0)
 		PySide6.QtWidgets.QGraphicsRectItem(1.0, 1.0, 2.0, 2.0, foreign_root)
@@ -69,10 +69,10 @@ def test_bare_scene_cleanup_error_chains_first_retirement_diagnostic(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A resolved retry still reports its original native-retirement diagnostic."""
-	document = bkchem_qt.models.document.Document()
+	document = ferrum_qt.models.document.Document()
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
-	presentation = bkchem_qt.models.document_object.PresentationObject(
+	presentation = ferrum_qt.models.document_object.PresentationObject(
 		"text", attributes={"id": "retirement-failure-text"}, points=[(20.0, 20.0, None)],
 	)
 	document_item = None
@@ -92,7 +92,7 @@ def test_bare_scene_cleanup_error_chains_first_retirement_diagnostic(
 	with pytest.raises(RuntimeError, match="Standalone scene cleanup") as failure:
 		with tests.graphics_test_retirement.bare_document_scene_retirement(qapp, document, scene):
 			document.add_presentation_object(presentation, mark_dirty=False)
-			bkchem_qt.canvas.document_projection.project_document_presentation(document, scene)
+			ferrum_qt.canvas.document_projection.project_document_presentation(document, scene)
 			document_item = next(iter(scene.items()))
 	diagnostic = failure.value
 	while diagnostic.__cause__ is not None:
@@ -105,10 +105,10 @@ def test_bare_scene_cleanup_failure_keeps_body_exception_primary(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A body failure receives cleanup context without losing its own traceback."""
-	document = bkchem_qt.models.document.Document()
+	document = ferrum_qt.models.document.Document()
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
-	presentation = bkchem_qt.models.document_object.PresentationObject(
+	presentation = ferrum_qt.models.document_object.PresentationObject(
 		"text", attributes={"id": "retirement-body-error-text"}, points=[(20.0, 20.0, None)],
 	)
 	document_item = None
@@ -128,7 +128,7 @@ def test_bare_scene_cleanup_failure_keeps_body_exception_primary(
 	with pytest.raises(AssertionError, match="body failure") as failure:
 		with tests.graphics_test_retirement.bare_document_scene_retirement(qapp, document, scene):
 			document.add_presentation_object(presentation, mark_dirty=False)
-			bkchem_qt.canvas.document_projection.project_document_presentation(document, scene)
+			ferrum_qt.canvas.document_projection.project_document_presentation(document, scene)
 			document_item = next(iter(scene.items()))
 			raise AssertionError("body failure")
 	assert any("Standalone scene cleanup also failed" in note for note in failure.value.__notes__)
@@ -141,7 +141,7 @@ def test_terminal_detached_failure_stays_reaper_owned_until_retry(
 	"""A failed terminal delete has one explicit reaper owner before retry."""
 	root = PySide6.QtWidgets.QGraphicsRectItem(0.0, 0.0, 5.0, 5.0)
 	child = PySide6.QtWidgets.QGraphicsRectItem(1.0, 1.0, 2.0, 2.0, root)
-	reaper = bkchem_qt.canvas.graphics_retirement.detached_graphics_retirement_reaper
+	reaper = ferrum_qt.canvas.graphics_retirement.detached_graphics_retirement_reaper
 	real_delete = shiboken6.delete
 
 	#============================================
@@ -152,10 +152,10 @@ def test_terminal_detached_failure_stays_reaper_owned_until_retry(
 		real_delete(item)
 
 	monkeypatch.setattr(
-		bkchem_qt.canvas.graphics_retirement.shiboken6,
+		ferrum_qt.canvas.graphics_retirement.shiboken6,
 		"delete", fail_root_delete,
 	)
-	coordinator = bkchem_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
+	coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
 	coordinator.retire_detached_projection_items([root])
 
 	assert (
@@ -181,7 +181,7 @@ def test_invalid_known_scene_retires_detached_projection_root(
 	scene.removeItem(root)
 	shiboken6.delete(scene)
 
-	coordinator = bkchem_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
+	coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
 	coordinator.retire_scene_projection_items(scene, [root])
 
 	assert not shiboken6.isValid(root) and not shiboken6.isValid(child)
@@ -196,8 +196,8 @@ def test_scene_removal_failure_transfers_roots_to_reaper_before_retry(
 	root = PySide6.QtWidgets.QGraphicsRectItem(0.0, 0.0, 5.0, 5.0)
 	child = PySide6.QtWidgets.QGraphicsRectItem(1.0, 1.0, 2.0, 2.0, root)
 	scene.addItem(root)
-	reaper = bkchem_qt.canvas.graphics_retirement.DetachedGraphicsRetirementReaper()
-	coordinator = bkchem_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
+	reaper = ferrum_qt.canvas.graphics_retirement.DetachedGraphicsRetirementReaper()
+	coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
 
 	#============================================
 	def fail_scene_removal(

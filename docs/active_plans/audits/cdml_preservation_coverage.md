@@ -2,12 +2,13 @@
 
 ## Purpose and status
 
-This is the M1d evidence baseline for the later M10 preservation gate. It states what the
-committed `tests/e2e/corpus/` represents; it does not declare the corpus complete. The
-separate-process oracle harness is a distinct M1d package and is not assessed here.
+This is the M1d evidence baseline for the later M10 preservation gate. It states what
+the committed `tests/e2e/corpus/` represents; it does not declare the corpus complete.
+The separate-process oracle and corpus comparison now exist as independent evidence.
 
-Status: inventory drafted and compact inputs established. M1d remains in progress pending the
-independent harness, divergence report, and its verification.
+Status: inventory, compact inputs, separate-process harness, and divergence report are
+established. M1d remains in progress because no real user documents are available and
+the no-namespace, future-version, alternate-prefix, and CD-SVG forms remain uncovered.
 
 ## Evidence and authority
 

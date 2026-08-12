@@ -4,7 +4,7 @@
 import PySide6.QtCore
 
 # local repo modules
-import bkchem_qt.models.document_session
+import ferrum_qt.models.document_session
 
 
 #============================================
@@ -37,7 +37,7 @@ class _Receiver:
 	def submit(self, axis: str, targets: tuple[tuple[str, str], ...]) -> object:
 		"""Record the Qt-safe data and return the normal success shape."""
 		self.request = (axis, targets)
-		return bkchem_qt.models.document_session.PersistentActionOutcome(
+		return ferrum_qt.models.document_session.PersistentActionOutcome(
 			"accepted", "Align Selected Atoms accepted", None, True,
 		)
 

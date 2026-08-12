@@ -5,12 +5,12 @@ import PySide6.QtCore
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.io.cdml_document_io
-import bkchem_qt.models.fragment_model
-import bkchem_qt.undo.commands
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.io.cdml_document_io
+import ferrum_qt.models.fragment_model
+import ferrum_qt.undo.commands
 
 
 #============================================
@@ -32,7 +32,7 @@ def _dispose(
 	scene.clearSelection()
 	document.clear()
 	document.set_scene(None)
-	bkchem_qt.undo.commands.dispose_undo_stack_graphics(document.undo_stack)
+	ferrum_qt.undo.commands.dispose_undo_stack_graphics(document.undo_stack)
 	document.undo_stack.clear()
 	scene.clear()
 	scene.deleteLater()
@@ -46,7 +46,7 @@ def _dispose(
 #============================================
 def _fragment_document() -> object:
 	"""Return an editable two-atom CDML molecule with durable source IDs."""
-	return bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string("""<cdml version="0.15"
+	return ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string("""<cdml version="0.15"
 		xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">
 		<molecule id="mol-1"><atom id="a1" name="C"><point x="1cm" y="1cm"/></atom>
 		<atom id="a2" name="O"><point x="2cm" y="1cm"/></atom>
@@ -89,8 +89,8 @@ def test_create_fragment_action_undoes_metadata_without_mutating_graph(
 	document.set_scene(scene)
 	molecule = document.molecules[0]
 	items = [
-		bkchem_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0]),
-		bkchem_qt.canvas.items.bond_item.BondItem(molecule.bonds[0]),
+		ferrum_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0]),
+		ferrum_qt.canvas.items.bond_item.BondItem(molecule.bonds[0]),
 	]
 	try:
 		for item in items:
@@ -98,7 +98,7 @@ def test_create_fragment_action_undoes_metadata_without_mutating_graph(
 			item.setSelected(True)
 		monkeypatch.setattr(PySide6.QtWidgets.QInputDialog, "getText", _fragment_input)
 		monkeypatch.setattr(PySide6.QtWidgets.QInputDialog, "getItem", _fragment_type)
-		bkchem_qt.actions.chemistry_actions._create_fragment(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._create_fragment(_ActionApp(document))
 		after_create = molecule.fragments[0]
 		document.undo_stack.undo()
 		assert (
@@ -117,17 +117,17 @@ def test_view_fragments_deletes_selected_document_wide_duplicate_label(
 		monkeypatch: object,
 		) -> None:
 	"""Document-wide choices include context so the requested duplicate is removed."""
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string("""<cdml version="0.15"
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string("""<cdml version="0.15"
 		xmlns="http://www.freesoftware.fsf.org/bkchem/cdml"><molecule id="m1">
 		<atom id="a1" name="C"><point x="1cm" y="1cm"/></atom></molecule><molecule id="m2">
 		<atom id="a2" name="O"><point x="2cm" y="1cm"/></atom></molecule></cdml>""")
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
 	first, second = document.molecules
-	first.add_fragment(bkchem_qt.models.fragment_model.FragmentModel(
+	first.add_fragment(ferrum_qt.models.fragment_model.FragmentModel(
 		fragment_id="first", fragment_type="explicit", name="same", atom_ids=("a1",), bond_ids=(),
 	))
-	second.add_fragment(bkchem_qt.models.fragment_model.FragmentModel(
+	second.add_fragment(ferrum_qt.models.fragment_model.FragmentModel(
 		fragment_id="second", fragment_type="explicit", name="same", atom_ids=("a2",), bond_ids=(),
 	))
 	second.retain_unsupported_fragment_xml("<fragment id=\"retained\" type=\"legacy\"/>")
@@ -136,7 +136,7 @@ def test_view_fragments_deletes_selected_document_wide_duplicate_label(
 			PySide6.QtWidgets.QInputDialog, "getItem",
 			lambda parent, title, label, items, current, editable: (items[-1], True),
 		)
-		bkchem_qt.actions.chemistry_actions._view_fragments(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._view_fragments(_ActionApp(document))
 		assert (
 			tuple(fragment.fragment_id for molecule in document.molecules for fragment in molecule.fragments),
 			second.unsupported_fragment_xml,
@@ -155,13 +155,13 @@ def test_cancelled_fragment_creation_leaves_missing_id_unchanged(
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
 	molecule = document.molecules[0]
-	item = bkchem_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0])
+	item = ferrum_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0])
 	try:
 		scene.addItem(item)
 		item.setSelected(True)
 		molecule.atoms[0].atom_id = None
 		monkeypatch.setattr(PySide6.QtWidgets.QInputDialog, "getText", _cancel_fragment_name)
-		bkchem_qt.actions.chemistry_actions._create_fragment(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._create_fragment(_ActionApp(document))
 		assert (molecule.atoms[0].atom_id, molecule.fragments) == (None, ())
 	finally:
 		_dispose(document, scene, qapp)

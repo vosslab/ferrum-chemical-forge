@@ -8,11 +8,11 @@ import PySide6.QtCore
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.canvas.items.bond_item
-import bkchem_qt.io.cdml_document_io
-import bkchem_qt.undo.commands
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.canvas.items.bond_item
+import ferrum_qt.io.cdml_document_io
+import ferrum_qt.undo.commands
 
 
 #============================================
@@ -49,7 +49,7 @@ def _dispose(
 	scene.clearSelection()
 	document.clear()
 	document.set_scene(None)
-	bkchem_qt.undo.commands.dispose_undo_stack_graphics(document.undo_stack)
+	ferrum_qt.undo.commands.dispose_undo_stack_graphics(document.undo_stack)
 	document.undo_stack.clear()
 	scene.clear()
 	scene.deleteLater()
@@ -66,7 +66,7 @@ def _document_from_xml(molecule_xml: str) -> object:
 	xml = """<cdml version="0.15" xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">"""
 	xml += molecule_xml
 	xml += "</cdml>"
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string(xml)
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string(xml)
 	return document
 
 
@@ -79,11 +79,11 @@ def _project_and_select(
 	molecule = document.molecules[0]
 	items_by_model = {}
 	for atom in molecule.atoms:
-		item = bkchem_qt.canvas.items.atom_item.AtomItem(atom)
+		item = ferrum_qt.canvas.items.atom_item.AtomItem(atom)
 		scene.addItem(item)
 		items_by_model[atom] = item
 	for bond in molecule.bonds:
-		item = bkchem_qt.canvas.items.bond_item.BondItem(bond)
+		item = ferrum_qt.canvas.items.bond_item.BondItem(bond)
 		scene.addItem(item)
 	for index in atom_indexes:
 		items_by_model[molecule.atoms[index]].setSelected(True)
@@ -129,7 +129,7 @@ def test_linear_form_conversion_records_metadata_and_round_trips_undo(
 		document.molecules[0].atoms[1].show_hydrogens = False
 		document.mark_clean()
 		before = _linear_snapshot(document)
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 		after = _linear_snapshot(document)
 		coordinates = tuple((atom.x, atom.y) for atom in document.molecules[0].atoms)
 		property_model = after[1][3][0]
@@ -167,7 +167,7 @@ def test_linear_form_rejects_no_selection_without_dirtying_document(
 	try:
 		monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", _ignore_warning)
 		document.mark_clean()
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 		assert (document.molecules[0].fragments, document.dirty, document.undo_stack.count()) == ((), False, 0)
 	finally:
 		_dispose(document, scene, qapp)
@@ -194,7 +194,7 @@ def test_linear_form_rejects_branched_component_without_mutation(
 		monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", _ignore_warning)
 		document.mark_clean()
 		before = _linear_snapshot(document)
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 		assert (_linear_snapshot(document), document.undo_stack.count()) == (before, 0)
 	finally:
 		_dispose(document, scene, qapp)
@@ -219,7 +219,7 @@ def test_linear_form_moves_a_uniquely_attached_external_branch(
 		_project_and_select(document, scene, (0, 1, 2))
 		middle_before = (document.molecules[0].atoms[1].x, document.molecules[0].atoms[1].y)
 		branch_before = (document.molecules[0].atoms[3].x, document.molecules[0].atoms[3].y)
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 		middle_after = (document.molecules[0].atoms[1].x, document.molecules[0].atoms[1].y)
 		branch_after = (document.molecules[0].atoms[3].x, document.molecules[0].atoms[3].y)
 		assert (
@@ -242,10 +242,10 @@ def test_linear_form_spacing_keeps_multiletter_glyphs_separate(
 	document.set_scene(scene)
 	try:
 		_project_and_select(document, scene, (0, 1))
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 		first, second = document.molecules[0].atoms
-		_first_left, first_right = bkchem_qt.actions.chemistry_actions._linear_label_bounds(first)
-		second_left, _second_right = bkchem_qt.actions.chemistry_actions._linear_label_bounds(second)
+		_first_left, first_right = ferrum_qt.actions.chemistry_actions._linear_label_bounds(first)
+		second_left, _second_right = ferrum_qt.actions.chemistry_actions._linear_label_bounds(second)
 		assert first.x + first_right < second.x + second_left
 	finally:
 		_dispose(document, scene, qapp)
@@ -277,7 +277,7 @@ def test_linear_form_rejects_ring_and_external_bridge_without_mutation(
 			_project_and_select(document, scene, selection)
 			document.mark_clean()
 			before = _linear_snapshot(document)
-			bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+			ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 			assert (_linear_snapshot(document), document.undo_stack.count()) == (before, 0)
 	finally:
 		for document, scene in resources:
@@ -290,19 +290,19 @@ def test_linear_form_rejects_multi_molecule_selection_without_mutation(
 		monkeypatch: object,
 		) -> None:
 	"""One conversion never joins independent document molecules."""
-	document = bkchem_qt.io.cdml_document_io.decode_compatibility_cdml_string("""<cdml version="0.15"
+	document = ferrum_qt.io.cdml_document_io.decode_compatibility_cdml_string("""<cdml version="0.15"
 		xmlns="http://www.freesoftware.fsf.org/bkchem/cdml"><molecule id="m1"><atom id="a1" name="C"><point x="1cm" y="1cm"/></atom></molecule>
 		<molecule id="m2"><atom id="a2" name="O"><point x="2cm" y="1cm"/></atom></molecule></cdml>""")
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	document.set_scene(scene)
 	try:
 		for molecule in document.molecules:
-			item = bkchem_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0])
+			item = ferrum_qt.canvas.items.atom_item.AtomItem(molecule.atoms[0])
 			scene.addItem(item)
 			item.setSelected(True)
 		monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", _ignore_warning)
 		document.mark_clean()
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 		assert (tuple(molecule.fragments for molecule in document.molecules), document.dirty) == (((), ()), False)
 	finally:
 		_dispose(document, scene, qapp)
@@ -320,11 +320,11 @@ def test_later_geometry_edit_removes_stale_linear_fragment_and_undo_restores_it(
 	document.set_scene(scene)
 	try:
 		_project_and_select(document, scene, (0, 1))
-		bkchem_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
+		ferrum_qt.actions.chemistry_actions._convert_to_linear(_ActionApp(document))
 		middle = document.molecules[0].atoms[1]
 		before = (middle.x, middle.y)
 		after = (middle.x, middle.y + 4.0)
-		document.undo_stack.push(bkchem_qt.undo.commands.TransformGeometryCommand(
+		document.undo_stack.push(ferrum_qt.undo.commands.TransformGeometryCommand(
 				[(middle, before, after)], [], "Bend Linear Form",
 		))
 		after_bend = document.molecules[0].fragments

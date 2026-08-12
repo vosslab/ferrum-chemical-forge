@@ -9,10 +9,10 @@ import PySide6.QtCore
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.chemistry_actions
-import bkchem_qt.canvas.items.atom_item
-import bkchem_qt.modes.draw_mode
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.chemistry_actions
+import ferrum_qt.canvas.items.atom_item
+import ferrum_qt.modes.draw_mode
+import ferrum_qt.models.document_session
 import oasa.cdml_document
 
 
@@ -30,7 +30,7 @@ def _draw_one_molecule(session: object) -> str:
 	"""Create one authoritative direct-root molecule and return its durable ID."""
 	session.mode_manager.set_mode("draw")
 	mode = session.mode_manager.current_mode
-	if not isinstance(mode, bkchem_qt.modes.draw_mode.DrawMode):
+	if not isinstance(mode, ferrum_qt.modes.draw_mode.DrawMode):
 		raise AssertionError("DrawMode did not activate")
 	position = PySide6.QtCore.QPointF(120.0, 160.0)
 	mode.mouse_press(position, None)
@@ -45,7 +45,7 @@ def _draw_one_molecule(session: object) -> str:
 def _select_one_atom(session: object) -> object:
 	"""Select one live child atom for its owning direct-root molecule."""
 	for item in session.scene.items():
-		if isinstance(item, bkchem_qt.canvas.items.atom_item.AtomItem):
+		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
 			item.setSelected(True)
 			return item
 	raise AssertionError("Draw did not project an atom")
@@ -81,7 +81,7 @@ def test_molecule_name_operation_uses_backend_undo_redo_and_reprojection(
 	session = _active_session(main_window)
 	molecule_id = _draw_one_molecule(session)
 	before_document = session.document
-	request = bkchem_qt.models.document_session.build_molecule_name_request(
+	request = ferrum_qt.models.document_session.build_molecule_name_request(
 		session.backend_snapshot.revision, molecule_id, "Product A",
 	)
 	outcome = session.submit_persistent_operation(request)
@@ -109,7 +109,7 @@ def test_molecule_name_same_value_is_an_authoritative_session_noop(
 	before_generation = session.document.persistent_generation
 	before_dirty = session.document.dirty
 	before_save_eligibility = session.can_write_authoritative_snapshot
-	request = bkchem_qt.models.document_session.build_molecule_name_request(
+	request = ferrum_qt.models.document_session.build_molecule_name_request(
 		before_snapshot.revision, molecule_id, "",
 	)
 	outcome = session.submit_persistent_operation(request)
@@ -140,7 +140,7 @@ def test_set_molecule_name_action_commits_child_selection_through_backend_histor
 		PySide6.QtWidgets.QInputDialog, "getText",
 		lambda *_args, **_kwargs: ("Product A", True),
 	)
-	bkchem_qt.actions.chemistry_actions._set_name(main_window)
+	ferrum_qt.actions.chemistry_actions._set_name(main_window)
 	undo = session.undo_backend()
 	redo = session.redo_backend()
 
@@ -167,7 +167,7 @@ def test_set_molecule_name_action_same_input_is_a_noop(
 		PySide6.QtWidgets.QInputDialog, "getText",
 		lambda *_args, **_kwargs: ("", True),
 	)
-	bkchem_qt.actions.chemistry_actions._set_name(main_window)
+	ferrum_qt.actions.chemistry_actions._set_name(main_window)
 
 	assert (
 		session.backend_snapshot == before_snapshot
@@ -195,7 +195,7 @@ def test_set_molecule_name_cancel_preserves_the_authoritative_projection(
 		PySide6.QtWidgets.QInputDialog, "getText",
 		lambda *_args, **_kwargs: ("ignored", False),
 	)
-	bkchem_qt.actions.chemistry_actions._set_name(main_window)
+	ferrum_qt.actions.chemistry_actions._set_name(main_window)
 
 	assert (
 		session.backend_snapshot == before_snapshot
@@ -231,7 +231,7 @@ def test_set_molecule_name_rejects_an_unregistered_active_session_alias(
 	monkeypatch.setattr(PySide6.QtWidgets.QInputDialog, "getText", dialog_must_not_open)
 	main_window._active_session = false_alias
 	try:
-		bkchem_qt.actions.chemistry_actions._set_name(main_window)
+		ferrum_qt.actions.chemistry_actions._set_name(main_window)
 	finally:
 		main_window._active_session = session
 
@@ -276,7 +276,7 @@ def test_set_molecule_name_typed_backend_failure_preserves_local_state(
 		lambda *_args, **_kwargs: ("blocked", True),
 	)
 	monkeypatch.setattr(session._backend_session, "set_molecule_name", raise_backend_failure)
-	bkchem_qt.actions.chemistry_actions._set_name(main_window)
+	ferrum_qt.actions.chemistry_actions._set_name(main_window)
 
 	assert (
 		session.backend_snapshot == before_snapshot
@@ -295,7 +295,7 @@ def test_molecule_name_operation_rejects_unsynchronized_session(
 	molecule_id = _draw_one_molecule(session)
 	before = session.backend_snapshot
 	session._backend_projection_synchronized = False
-	request = bkchem_qt.models.document_session.build_molecule_name_request(
+	request = ferrum_qt.models.document_session.build_molecule_name_request(
 		before.revision, molecule_id, "blocked",
 	)
 	outcome = session.submit_persistent_operation(request)

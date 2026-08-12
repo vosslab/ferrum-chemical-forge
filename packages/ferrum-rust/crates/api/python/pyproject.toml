@@ -1,0 +1,22 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ferrum-api"
+version = "26.8.0"
+description = "Ferrum-Chem native wheel packaging probe"
+requires-python = ">=3.12,<3.13"
+license = { text = "LGPL-3.0-only" }
+classifiers = [
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: Implementation :: CPython",
+	"Operating System :: MacOS :: MacOS X",
+]
+
+[tool.maturin]
+module-name = "ferrum_api._native"
+python-source = "."
+bindings = "pyo3"
+strip = false
+include = ["ferrum_api/.libs/*.dylib"]

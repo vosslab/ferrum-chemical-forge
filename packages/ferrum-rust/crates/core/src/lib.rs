@@ -1,7 +1,9 @@
 //! Shared, chemistry-independent Ferrum molecule types.
 //!
 //! This crate owns validated record identity and graph shape. Serde here is
-//! internal persistence/testing only, not the M17 wire ABI.
+//! internal persistence and testing only, not the public wire ABI.
+
+pub mod graph;
 
 use std::collections::HashSet;
 use std::fmt;
@@ -819,8 +821,6 @@ impl Bond {
         Ok(bond)
     }
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     fn make_identity(
         source_id: &Option<Identifier>,
         start: &VertexRef,
@@ -1057,7 +1057,7 @@ pub struct Molecule {
     legacy_occurrence: Option<u32>,
 }
 impl Molecule {
-    /// Construct a complete validated graph. M2 deliberately provides no edit API.
+    /// Construct a complete validated graph without exposing an edit API.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_id: Option<Identifier>,

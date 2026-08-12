@@ -9,10 +9,10 @@ import pathlib
 import PySide6.QtWidgets
 
 # local repo modules
-import bkchem_qt.actions.file_actions
-import bkchem_qt.actions.options_actions
-import bkchem_qt.config.preferences
-import bkchem_qt.dialogs.preferences_dialog
+import ferrum_qt.actions.file_actions
+import ferrum_qt.actions.options_actions
+import ferrum_qt.config.preferences
+import ferrum_qt.dialogs.preferences_dialog
 
 
 #============================================
@@ -66,18 +66,25 @@ def test_enumerated_menu_action_toggles_grid(
 #============================================
 def test_recent_file_menu_entry_opens_selected_document(
 		main_window: object, qapp: object, tmp_path: pathlib.Path,
+		monkeypatch: object,
 		) -> None:
 	"""A refreshed visible Recent Files entry opens its selected CDML file."""
 	source = tmp_path / "recent-document.cdml"
 	source.write_text(
-		'<cdml version="0.15"><arrow id="arrow-1"/></cdml>', encoding="utf-8",
+		'<cdml version="26.07"><molecule id="m1"><atom id="a1" name="C">'
+		'<point x="1cm" y="1cm"/></atom></molecule></cdml>', encoding="utf-8",
 	)
-	prefs = bkchem_qt.config.preferences.Preferences.instance()
+	warnings = []
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QMessageBox, "warning",
+		lambda _parent, title, text: warnings.append((title, text)),
+	)
+	prefs = ferrum_qt.config.preferences.Preferences.instance()
 	previous = prefs.value(
-		bkchem_qt.config.preferences.Preferences.KEY_RECENT_FILES,
+		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
 	)
 	try:
-		bkchem_qt.actions.file_actions.push_recent_file(str(source))
+		ferrum_qt.actions.file_actions.push_recent_file(str(source))
 		main_window.refresh_recent_files_menu()
 		entry = _menu_action(_menu_tree_actions(main_window.menuBar()), source.name)
 		entry.trigger()
@@ -86,9 +93,10 @@ def test_recent_file_menu_entry_opens_selected_document(
 			session.document.file_path == str(source)
 			for session in main_window.sessions
 		)
+		assert not warnings
 	finally:
 		prefs.set_value(
-			bkchem_qt.config.preferences.Preferences.KEY_RECENT_FILES, previous,
+			ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES, previous,
 		)
 		main_window.refresh_recent_files_menu()
 
@@ -108,9 +116,9 @@ def test_options_menu_applies_only_delivered_preferences(
 		"Standard", "Language", "InChI program path",
 	}.intersection(labels)
 
-	prefs = bkchem_qt.config.preferences.Preferences.instance()
+	prefs = ferrum_qt.config.preferences.Preferences.instance()
 	previous_preference = prefs.value(
-		bkchem_qt.config.preferences.Preferences.KEY_LOGGING_LEVEL,
+		ferrum_qt.config.preferences.Preferences.KEY_LOGGING_LEVEL,
 	)
 	previous_level = logging.getLogger().level
 	monkeypatch.setattr(
@@ -122,17 +130,17 @@ def test_options_menu_applies_only_delivered_preferences(
 		_menu_action(menu_actions, "Logging Level...").trigger()
 		qapp.processEvents()
 		logging.getLogger().setLevel(logging.ERROR)
-		bkchem_qt.actions.options_actions.apply_saved_logging_level(prefs)
+		ferrum_qt.actions.options_actions.apply_saved_logging_level(prefs)
 		assert (
 			logging.getLogger().level == logging.DEBUG
 			and prefs.value(
-				bkchem_qt.config.preferences.Preferences.KEY_LOGGING_LEVEL,
+				ferrum_qt.config.preferences.Preferences.KEY_LOGGING_LEVEL,
 			) == "Debug"
-			and "future BKChem launches" in main_window.statusBar().currentMessage()
+			and "future Ferrum launches" in main_window.statusBar().currentMessage()
 		)
 	finally:
 		prefs.set_value(
-			bkchem_qt.config.preferences.Preferences.KEY_LOGGING_LEVEL,
+			ferrum_qt.config.preferences.Preferences.KEY_LOGGING_LEVEL,
 			previous_preference,
 		)
 		logging.getLogger().setLevel(previous_level)
@@ -143,11 +151,11 @@ def test_preferences_action_applies_supported_display_settings(
 		main_window: object, qapp: object, monkeypatch: object,
 		) -> None:
 	"""The visible Preferences action applies accepted display settings now."""
-	prefs = bkchem_qt.config.preferences.Preferences.instance()
+	prefs = ferrum_qt.config.preferences.Preferences.instance()
 	keys = (
-		bkchem_qt.config.preferences.Preferences.KEY_GRID_VISIBLE,
-		bkchem_qt.config.preferences.Preferences.KEY_GRID_SNAP_ENABLED,
-		bkchem_qt.config.preferences.Preferences.KEY_BOND_LENGTH_PT,
+		ferrum_qt.config.preferences.Preferences.KEY_GRID_VISIBLE,
+		ferrum_qt.config.preferences.Preferences.KEY_GRID_SNAP_ENABLED,
+		ferrum_qt.config.preferences.Preferences.KEY_BOND_LENGTH_PT,
 	)
 	previous = tuple(prefs.value(key) for key in keys)
 
@@ -159,7 +167,7 @@ def test_preferences_action_applies_supported_display_settings(
 		return True
 
 	monkeypatch.setattr(
-		bkchem_qt.dialogs.preferences_dialog.PreferencesDialog,
+		ferrum_qt.dialogs.preferences_dialog.PreferencesDialog,
 		"show_preferences",
 		staticmethod(accept_with_supported_values),
 	)
@@ -185,8 +193,8 @@ def test_preferences_rejects_conflicting_shortcut_before_persisting(
 		main_window: object, qapp: object, monkeypatch: object,
 		) -> None:
 	"""A visible Preferences Apply rejects a shortcut that would break startup."""
-	dialog = bkchem_qt.dialogs.preferences_dialog.PreferencesDialog(main_window)
-	prefs = bkchem_qt.config.preferences.Preferences.instance()
+	dialog = ferrum_qt.dialogs.preferences_dialog.PreferencesDialog(main_window)
+	prefs = ferrum_qt.config.preferences.Preferences.instance()
 	previous_draw = prefs.value("keybindings/mode.draw")
 	table = dialog.findChild(PySide6.QtWidgets.QTableWidget)
 	if table is None:
@@ -225,6 +233,6 @@ def test_preferences_explains_when_shortcut_edits_apply(
 		main_window: object,
 		) -> None:
 	"""Preferences presents the delivered next-launch shortcut timing."""
-	dialog = bkchem_qt.dialogs.preferences_dialog.PreferencesDialog(main_window)
+	dialog = ferrum_qt.dialogs.preferences_dialog.PreferencesDialog(main_window)
 	labels = dialog.findChildren(PySide6.QtWidgets.QLabel)
-	assert any("next time you start BKChem" in label.text() for label in labels)
+	assert any("next time you start Ferrum" in label.text() for label in labels)

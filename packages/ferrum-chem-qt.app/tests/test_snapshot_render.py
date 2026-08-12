@@ -8,8 +8,8 @@ import shiboken6
 # local repo modules
 import oasa.cdml_document
 import oasa.cdml_render
-import bkchem_qt.canvas.graphics_retirement
-import bkchem_qt.io.snapshot_render
+import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.io.snapshot_render
 
 
 _CDML = """<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07">
@@ -31,11 +31,11 @@ def test_snapshot_render_returns_each_requested_artifact(
 	request = oasa.cdml_render.CDMLRenderRequest(
 		oasa.cdml_document.CDMLSnapshot(11, _CDML, True), format_name,
 	)
-	result = bkchem_qt.io.snapshot_render.render_request(request)
+	result = ferrum_qt.io.snapshot_render.render_request(request)
 	assert isinstance(result, oasa.cdml_render.CDMLRenderResult)
 	assert result.artifact is not None and result.artifact.startswith(prefix)
 	assert any(warning.code == "unsupported-persistent-object" for warning in result.warnings)
-	bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
+	ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
 
 
 #============================================
@@ -47,10 +47,10 @@ def test_selection_render_resolves_durable_molecule_identity(
 		oasa.cdml_document.CDMLSnapshot(12, _CDML, False), "svg", "selection",
 		(oasa.cdml_render.CDMLRenderSelectionKey("molecule", "m1"),),
 	)
-	result = bkchem_qt.io.snapshot_render.render_request(request)
+	result = ferrum_qt.io.snapshot_render.render_request(request)
 	assert isinstance(result, oasa.cdml_render.CDMLRenderResult)
 	assert result.artifact is not None and b"<svg" in result.artifact
-	bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
+	ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
 
 
 #============================================
@@ -61,7 +61,7 @@ def test_snapshot_render_retires_actual_installed_scene_roots(
 	request = oasa.cdml_render.CDMLRenderRequest(
 		oasa.cdml_document.CDMLSnapshot(121, _CDML, False), "svg",
 	)
-	reaper = bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
+	reaper = ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
 	retire = reaper.retire
 	captured_items = []
 
@@ -75,7 +75,7 @@ def test_snapshot_render_retires_actual_installed_scene_roots(
 		return retire(scene, scene_items, detached_items)
 
 	monkeypatch.setattr(reaper, "retire", record_installed_roots)
-	result = bkchem_qt.io.snapshot_render.render_request(request)
+	result = ferrum_qt.io.snapshot_render.render_request(request)
 
 	assert (
 		isinstance(result, oasa.cdml_render.CDMLRenderResult)
@@ -92,11 +92,11 @@ def test_cropped_svg_uses_snapshot_paper_metadata(
 	request = oasa.cdml_render.CDMLRenderRequest(
 		oasa.cdml_document.CDMLSnapshot(13, _CDML, False), "svg",
 	)
-	result = bkchem_qt.io.snapshot_render.render_request(request)
+	result = ferrum_qt.io.snapshot_render.render_request(request)
 	assert isinstance(result, oasa.cdml_render.CDMLRenderResult)
 	assert result.artifact is not None and b'width="' in result.artifact
 	assert b'width="595' not in result.artifact
-	bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
+	ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
 
 
 #============================================
@@ -104,7 +104,7 @@ def test_snapshot_render_uses_the_backend_paper_catalog_beyond_legacy_a_sizes(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A broad CDML catalog type supplies the page dimensions for snapshot rendering."""
-	page = bkchem_qt.io.snapshot_render._paper_rect({"type": "C10"})
+	page = ferrum_qt.io.snapshot_render._paper_rect({"type": "C10"})
 
 	assert page.width() == pytest.approx(28.0 * 72.0 / 25.4)
 
@@ -121,10 +121,10 @@ def test_snapshot_projection_failure_has_typed_nonmutating_outcome(
 		"""Inject a detached snapshot decoder failure."""
 		raise RuntimeError("injected snapshot projection failure")
 	monkeypatch.setattr(
-		bkchem_qt.io.snapshot_render.bkchem_qt.io.cdml_document_io,
+		ferrum_qt.io.snapshot_render.ferrum_qt.io.cdml_document_io,
 		"prepare_synchronized_projection", fail_projection,
 	)
-	result = bkchem_qt.io.snapshot_render.render_request(request)
+	result = ferrum_qt.io.snapshot_render.render_request(request)
 	assert (
 		isinstance(result, oasa.cdml_render.CDMLRenderFailure)
 		and result.code == "render-failed"
@@ -148,7 +148,7 @@ def test_snapshot_render_cleanup_failure_withholds_success_artifact(
 		tuple(session.scene.selectedItems()), session.document, session.scene,
 		session._projected_backend_snapshot,
 	)
-	reaper = bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
+	reaper = ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
 	retire = reaper.retire
 	def retire_with_diagnostic(
 			scene: object, scene_items: list[object], detached_items: list[object],
@@ -158,7 +158,7 @@ def test_snapshot_render_cleanup_failure_withholds_success_artifact(
 		record.diagnostics.append(RuntimeError("injected temporary reaper failure"))
 		return record
 	monkeypatch.setattr(reaper, "retire", retire_with_diagnostic)
-	result = bkchem_qt.io.snapshot_render.render_request(request)
+	result = ferrum_qt.io.snapshot_render.render_request(request)
 	assert (
 		isinstance(result, oasa.cdml_render.CDMLRenderFailure)
 		and result.code == "render-cleanup-failed"
@@ -174,7 +174,7 @@ def test_snapshot_render_cleanup_failure_withholds_success_artifact(
 		session._projected_backend_snapshot,
 	)
 	assert after_state == before_state
-	bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
+	ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
 
 
 #============================================
@@ -193,7 +193,7 @@ def test_snapshot_render_keeps_primary_failure_when_cleanup_also_fails(
 		tuple(session.scene.selectedItems()), session.document, session.scene,
 		session._projected_backend_snapshot,
 	)
-	reaper = bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
+	reaper = ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper
 	retire = reaper.retire
 	def fail_render(
 			scene: object, plan: object, format_name: str,
@@ -207,12 +207,12 @@ def test_snapshot_render_keeps_primary_failure_when_cleanup_also_fails(
 		record = retire(scene, scene_items, detached_items)
 		record.diagnostics.append(RuntimeError("injected temporary reaper failure"))
 		return record
-	monkeypatch.setattr(bkchem_qt.io.snapshot_render, "_render_bytes", fail_render)
+	monkeypatch.setattr(ferrum_qt.io.snapshot_render, "_render_bytes", fail_render)
 	monkeypatch.setattr(
 		reaper,
 		"retire", retire_with_diagnostic,
 	)
-	result = bkchem_qt.io.snapshot_render.render_request(request)
+	result = ferrum_qt.io.snapshot_render.render_request(request)
 	assert (
 		isinstance(result, oasa.cdml_render.CDMLRenderFailure)
 		and result.code == "render-failed"
@@ -228,4 +228,4 @@ def test_snapshot_render_keeps_primary_failure_when_cleanup_also_fails(
 		session._projected_backend_snapshot,
 	)
 	assert after_state == before_state
-	bkchem_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()
+	ferrum_qt.canvas.graphics_retirement.temporary_scene_retirement_reaper.drain()

@@ -7,10 +7,10 @@ import pathlib
 import pytest
 
 # local repo modules
-import bkchem_qt.actions.file_actions
-import bkchem_qt.bridge.worker
-import bkchem_qt.io.import_capabilities
-import bkchem_qt.models.document_session
+import ferrum_qt.actions.file_actions
+import ferrum_qt.bridge.worker
+import ferrum_qt.io.import_capabilities
+import ferrum_qt.models.document_session
 import oasa.cdml
 
 
@@ -32,10 +32,10 @@ class _SessionAwareHost:
 #============================================
 def _staged_structure_signature(main_window: object, prepared_cdml: str) -> tuple:
 	"""Stage complete CDML, then summarize its authoritative chemistry."""
-	prepared = bkchem_qt.models.document_session.DocumentSession.prepare_imported_cdml(
+	prepared = ferrum_qt.models.document_session.DocumentSession.prepare_imported_cdml(
 		prepared_cdml,
 	)
-	session = bkchem_qt.models.document_session.DocumentSession(
+	session = ferrum_qt.models.document_session.DocumentSession(
 		parent=main_window,
 		theme_manager=main_window._theme_manager,
 		prefs=main_window._prefs,
@@ -71,13 +71,13 @@ def test_import_chooser_delegates_to_the_session_loader(
 		return ("example.smi", "")
 
 	monkeypatch.setattr(
-		bkchem_qt.actions.file_actions.PySide6.QtWidgets.QFileDialog,
+		ferrum_qt.actions.file_actions.PySide6.QtWidgets.QFileDialog,
 		"getOpenFileName",
 		choose_file,
 	)
 	host = _SessionAwareHost()
-	capability = bkchem_qt.io.import_capabilities.capability_for_extension(".smi")
-	bkchem_qt.actions.file_actions.import_capability(host, capability)
+	capability = ferrum_qt.io.import_capabilities.capability_for_extension(".smi")
+	ferrum_qt.actions.file_actions.import_capability(host, capability)
 	assert host.paths == ["example.smi"]
 
 
@@ -94,13 +94,13 @@ def test_cdxml_import_capability_stages_a_dirty_authoritative_snapshot(
 		"</fragment></page></CDXML>",
 		encoding="utf-8",
 	)
-	capability = bkchem_qt.io.import_capabilities.capability_for_extension(
+	capability = ferrum_qt.io.import_capabilities.capability_for_extension(
 		".cdxml",
 	)
-	prepared = bkchem_qt.bridge.worker._read_and_prepare_import(
+	prepared = ferrum_qt.bridge.worker._read_and_prepare_import(
 		capability.codec_name, str(cdxml_path),
 	)
-	assert isinstance(prepared, bkchem_qt.bridge.worker.PreparedCompleteCDML)
+	assert isinstance(prepared, ferrum_qt.bridge.worker.PreparedCompleteCDML)
 	assert _staged_structure_signature(main_window, prepared.complete_cdml) == (True, (
 		(("C", "O"), ((0, 1, 2),)),
 	))
@@ -121,13 +121,13 @@ def test_cml_import_capability_stages_a_dirty_authoritative_snapshot(
 		"</bondArray></molecule></cml>",
 		encoding="utf-8",
 	)
-	capability = bkchem_qt.io.import_capabilities.capability_for_extension(
+	capability = ferrum_qt.io.import_capabilities.capability_for_extension(
 		".cml",
 	)
-	prepared = bkchem_qt.bridge.worker._read_and_prepare_import(
+	prepared = ferrum_qt.bridge.worker._read_and_prepare_import(
 		capability.codec_name, str(cml_path),
 	)
-	assert isinstance(prepared, bkchem_qt.bridge.worker.PreparedCompleteCDML)
+	assert isinstance(prepared, ferrum_qt.bridge.worker.PreparedCompleteCDML)
 	assert _staged_structure_signature(main_window, prepared.complete_cdml) == (True, (
 		(("C", "N"), ((0, 1, 3),)),
 	))
@@ -137,4 +137,4 @@ def test_cml_import_capability_stages_a_dirty_authoritative_snapshot(
 def test_xml_extension_is_not_a_qt_import_capability() -> None:
 	"""Generic XML remains out of the UI despite OASA's legacy CML alias."""
 	with pytest.raises(ValueError, match="Unsupported chemistry import extension"):
-		bkchem_qt.io.import_capabilities.capability_for_extension(".xml")
+		ferrum_qt.io.import_capabilities.capability_for_extension(".xml")

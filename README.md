@@ -1,10 +1,13 @@
 # Ferrum Chemical Forge
 
-A pre-alpha CDML chemical drawing platform for scientists and educators that combines a retained PySide6 desktop editor with a planned Rust chemistry backend for durable document ownership.
+A pre-alpha CDML chemical drawing platform for scientists and educators that combines
+a retained PySide6 desktop editor with a Rust document and chemistry backend under
+active migration.
 
-> Status: pre-alpha. The Rust backend, the Ferrum-Qt namespace rename, and the
-> frontend-to-backend integration are not complete. The present Qt frontend still
-> depends on OASA, so this checkout has no supported newcomer install-and-run path.
+> Status: pre-alpha. The Rust backend can inspect and structurally rewrite CDML from
+> the shell, and the Qt package now uses the `ferrum_qt` namespace. The
+> frontend-to-backend integration is not complete, and the present Qt frontend still
+> has migration-only OASA dependencies.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
 <!-- screenshots:end -->
@@ -28,11 +31,20 @@ losing persistent objects.
 
 ## Current status
 
-This repository is at migration milestone M1. The checked-in Qt package is a retained
-frontend scaffold; its package metadata identifies Ferrum-Qt, but its Python namespace
-still uses the pre-rename name. The seven-crate Rust skeleton is populated and builds,
-but it has no functional backend yet. These facts make any installation guide
-premature, so the project does not present an unverified command as a quick start.
+The Rust workspace now owns validated molecule records, deterministic graph analysis,
+structural CDML storage, persistent identity/order, and a typed CDML-to-core projection.
+Its corpus comparison has no unexpected differences, and permanent Rust builds and
+tests do not use `OTHER_REPOS/`. The `ferrum` executable provides a self-contained
+Rust path for CDML inspection and structural rewrite. Ferrum-Qt now uses the
+`ferrum_qt` namespace, while its live document path still depends on migration-only
+OASA behavior. The desktop application therefore remains a contributor preview, not
+a completed Ferrum release.
+
+## Command-line tools
+
+The Rust backend installs the `ferrum` executable. It reads CDML without Python or
+`OTHER_REPOS/`; `docs/INSTALL.md` and `docs/USAGE.md` contain the verified build and
+command examples.
 
 ## First success target
 
