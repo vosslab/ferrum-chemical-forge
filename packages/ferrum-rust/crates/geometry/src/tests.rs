@@ -1,0 +1,236 @@
+use super::*;
+
+fn point(x: f64, y: f64) -> Point2 {
+    Point2::new(x, y).expect("test coordinates are finite")
+}
+
+#[test]
+fn explicit_library_conversions_reject_nonfinite_external_points() {
+    assert_eq!(
+        Point2::try_from(kurbo::Point::new(f64::NAN, 0.0)),
+        Err(GeometryError::NonFiniteCoordinate)
+    );
+    let original = point(1.5, -2.0);
+    assert_eq!(Point2::try_from(original.to_kurbo()), Ok(original));
+    assert_eq!(Point2::try_from(original.to_nalgebra()), Ok(original));
+}
+
+#[test]
+fn transform_composition_has_explicit_order() {
+    let move_right = Transform2::translation(2.0, 0.0).expect("finite");
+    let turn = Transform2::rotation(std::f64::consts::FRAC_PI_2).expect("finite");
+    let result = turn
+        .after(move_right)
+        .expect("finite")
+        .apply(point(1.0, 0.0))
+        .expect("finite");
+    assert!(result.x().abs() < 1e-12);
+    assert!((result.y() - 3.0).abs() < 1e-12);
+}
+
+#[test]
+fn wedge_expands_from_tip_to_base() {
+    let wedge =
+        WedgeGeometry::new(point(0.0, 0.0), point(10.0, 0.0), 4.0, 0.0).expect("valid wedge");
+    assert_eq!(wedge.wide_left, point(10.0, 2.0));
+    assert_eq!(wedge.wide_right, point(10.0, -2.0));
+    assert_eq!(wedge.area, 20.0);
+}
+
+#[test]
+fn hex_grid_uses_euclidean_nearest_vertex_and_deterministic_ties() {
+    let grid = HexGrid::new(2.0, point(0.0, 0.0)).expect("valid grid");
+    assert_eq!(
+        grid.point(HexIndex { n: 1, m: 0 }).expect("finite"),
+        point(3_f64.sqrt(), 1.0)
+    );
+    assert_eq!(
+        grid.nearest_index(point(3_f64.sqrt() / 2.0, 0.5))
+            .expect("finite"),
+        HexIndex { n: 0, m: 0 }
+    );
+    assert_eq!(
+        grid.snap(point(1.72, 1.1)).expect("finite"),
+        point(3_f64.sqrt(), 1.0)
+    );
+}
+
+#[test]
+fn hex_grid_generates_bounded_overlay_geometry() {
+    let grid = HexGrid::new(1.0, point(0.0, 0.0)).expect("valid grid");
+    let minimum = point(0.0, 0.0);
+    let maximum = point(3.0, 3.0);
+    let points = grid
+        .points_in_rect(minimum, maximum)
+        .expect("finite bounds")
+        .expect("small overlay");
+    let edges = grid
+        .honeycomb_edges_in_rect(minimum, maximum)
+        .expect("finite bounds")
+        .expect("small overlay");
+    assert!(
+        points
+            .iter()
+            .all(|candidate| candidate.x() >= 0.0 && candidate.y() >= 0.0)
+    );
+    assert!(!edges.is_empty());
+}
+
+#[test]
+fn hex_grid_rejects_unrepresentable_extreme_rectangles_without_panicking() {
+    let grid = HexGrid::new(f64::MIN_POSITIVE, point(0.0, 0.0)).expect("valid grid");
+    let result = grid.points_in_rect(point(-1.0, -1.0), point(1.0, 1.0));
+    assert_eq!(result, Err(GeometryError::GridIndexUnrepresentable));
+    let result = grid.honeycomb_edges_in_rect(point(-1.0, -1.0), point(1.0, 1.0));
+    assert_eq!(result, Err(GeometryError::GridIndexUnrepresentable));
+}
+
+#[test]
+fn hex_grid_nearest_index_handles_exact_i64_float_boundaries_without_saturation() {
+    let grid = HexGrid::new(1.0, point(0.0, 0.0)).expect("valid grid");
+    let positive_limit = i64::MAX as f64;
+    let negative_limit = i64::MIN as f64;
+    let horizontal_step = 3_f64.sqrt() / 2.0;
+
+    assert_eq!(
+        grid.nearest_index(point(positive_limit * horizontal_step, 0.0)),
+        Err(GeometryError::GridIndexUnrepresentable)
+    );
+    assert_eq!(
+        grid.snap(point(positive_limit * horizontal_step, 0.0)),
+        Err(GeometryError::GridIndexUnrepresentable)
+    );
+    assert_eq!(
+        grid.nearest_index(point(0.0, positive_limit)),
+        Err(GeometryError::GridIndexUnrepresentable)
+    );
+    assert_eq!(
+        grid.snap(point(0.0, positive_limit)),
+        Err(GeometryError::GridIndexUnrepresentable)
+    );
+    assert_eq!(
+        grid.nearest_index(point(
+            negative_limit * horizontal_step,
+            negative_limit / 2.0,
+        )),
+        Ok(HexIndex { n: i64::MIN, m: 0 })
+    );
+    assert_eq!(
+        grid.snap(point(
+            negative_limit * horizontal_step,
+            negative_limit / 2.0,
+        )),
+        Ok(point(
+            negative_limit * horizontal_step,
+            negative_limit / 2.0,
+        ))
+    );
+    assert_eq!(
+        grid.nearest_index(point(0.0, negative_limit)),
+        Ok(HexIndex { n: 0, m: i64::MIN })
+    );
+    assert_eq!(
+        grid.snap(point(0.0, negative_limit)),
+        Ok(point(0.0, negative_limit))
+    );
+}
+
+#[test]
+fn hex_grid_accepts_the_adjacent_representable_float_index_below_the_upper_boundary() {
+    let grid = HexGrid::new(1.0, point(0.0, 0.0)).expect("valid grid");
+    let upper_boundary = i64::MAX as f64;
+    let adjacent = f64::from_bits(upper_boundary.to_bits() - 1);
+
+    assert!(
+        grid.nearest_index(point(adjacent * 3_f64.sqrt() / 2.0, adjacent / 2.0))
+            .is_ok()
+    );
+    assert!(grid.snap(point(0.0, adjacent)).is_ok());
+}
+
+#[test]
+fn hex_grid_rectangle_boundary_returns_a_typed_error_without_range_overflow() {
+    let grid = HexGrid::new(1.0, point(0.0, 0.0)).expect("valid grid");
+    let boundary = i64::MAX as f64 * 3_f64.sqrt() / 2.0;
+    let result = grid.points_in_rect(point(boundary, 0.0), point(boundary, 1.0));
+    assert_eq!(result, Err(GeometryError::GridIndexUnrepresentable));
+}
+
+#[test]
+fn hex_grid_distinguishes_invalid_bounds_from_a_bounded_display_omission() {
+    let grid = HexGrid::new(1.0, point(-10.0, -10.0)).expect("valid grid");
+    assert_eq!(
+        grid.points_in_rect(point(2.0, 0.0), point(-2.0, 0.0)),
+        Err(GeometryError::InvalidBounds)
+    );
+    assert_eq!(
+        grid.points_in_rect(point(-1_000.0, -1_000.0), point(1_000.0, 1_000.0)),
+        Ok(None)
+    );
+}
+
+#[test]
+fn straighten_default_branch_prefers_chemical_orientation() {
+    let angle = 10_f64.to_radians();
+    let output = straighten_depiction(
+        &[point(0.0, 0.0), point(angle.cos(), angle.sin())],
+        &[(0, 1)],
+        false,
+    )
+    .expect("valid bond");
+    assert!((output.rotation_radians + angle).abs() < 1e-12);
+    assert!((output.coordinates[1].x() - 1.0).abs() < 1e-12);
+    assert!(output.coordinates[1].y().abs() < 1e-12);
+}
+
+#[test]
+fn straighten_minimize_rotation_preserves_already_horizontal_orientation() {
+    let output = straighten_depiction(&[point(0.0, 0.0), point(1.0, 0.0)], &[(0, 1)], true)
+        .expect("valid bond");
+    assert_eq!(output.rotation_radians, 0.0);
+    assert_eq!(output.coordinates, vec![point(0.0, 0.0), point(1.0, 0.0)]);
+}
+
+#[test]
+fn straighten_zero_length_bond_uses_the_documented_rdkit_normalization() {
+    let coordinates = vec![point(2.0, -3.0), point(2.0, -3.0)];
+    let output = straighten_depiction(&coordinates, &[(0, 1)], false)
+        .expect("zero-length bonds are normalized by the RDKit-compatible policy");
+    assert_eq!(output.rotation_radians, 0.0);
+    assert_eq!(output.coordinates, coordinates);
+}
+
+#[test]
+fn straighten_handles_increment_and_half_increment_angle_boundaries() {
+    let thirty_degrees = 30_f64.to_radians();
+    let exact_increment = straighten_depiction(
+        &[
+            point(0.0, 0.0),
+            point(thirty_degrees.cos(), thirty_degrees.sin()),
+        ],
+        &[(0, 1)],
+        true,
+    )
+    .expect("valid bond");
+    assert!(exact_increment.rotation_radians.abs() < 1e-12);
+
+    let fifteen_degrees = 15_f64.to_radians();
+    let half_increment = straighten_depiction(
+        &[
+            point(0.0, 0.0),
+            point(fifteen_degrees.cos(), fifteen_degrees.sin()),
+        ],
+        &[(0, 1)],
+        false,
+    )
+    .expect("valid bond");
+    assert!((half_increment.rotation_radians.abs() - fifteen_degrees).abs() < 1e-12);
+}
+
+#[test]
+fn straighten_rejects_missing_bond_endpoint() {
+    assert_eq!(
+        straighten_depiction(&[point(0.0, 0.0)], &[(0, 1)], false),
+        Err(GeometryError::BondIndexOutOfBounds { index: 1, len: 1 })
+    );
+}

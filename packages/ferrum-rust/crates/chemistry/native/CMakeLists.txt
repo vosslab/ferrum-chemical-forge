@@ -13,6 +13,8 @@ set(FERRUM_CHEM_RDKIT_GRAPHMOL "" CACHE FILEPATH
     "Explicit libRDKitGraphMol dylib for Ferrum's private adapter")
 set(FERRUM_CHEM_RDKIT_RDGENERAL "" CACHE FILEPATH
     "Explicit libRDKitRDGeneral dylib for Ferrum's private adapter")
+set(FERRUM_CHEM_RDKIT_DEPICTOR "" CACHE FILEPATH
+    "Optional libRDKitDepictor dylib enabling M4c coordinate generation")
 
 foreach(required_input IN ITEMS FERRUM_CHEM_RDKIT_INCLUDE_DIR FERRUM_CHEM_BOOST_INCLUDE_DIR
 		FERRUM_CHEM_RDKIT_GRAPHMOL FERRUM_CHEM_RDKIT_RDGENERAL)
@@ -23,6 +25,9 @@ foreach(required_input IN ITEMS FERRUM_CHEM_RDKIT_INCLUDE_DIR FERRUM_CHEM_BOOST_
 		message(FATAL_ERROR "${required_input} does not exist: ${${required_input}}")
 	endif()
 endforeach()
+if(FERRUM_CHEM_RDKIT_DEPICTOR AND NOT EXISTS "${FERRUM_CHEM_RDKIT_DEPICTOR}")
+	message(FATAL_ERROR "FERRUM_CHEM_RDKIT_DEPICTOR does not exist: ${FERRUM_CHEM_RDKIT_DEPICTOR}")
+endif()
 if(NOT EXISTS "${FERRUM_CHEM_RDKIT_INCLUDE_DIR}/GraphMol/MolOps.h")
 	message(FATAL_ERROR "FERRUM_CHEM_RDKIT_INCLUDE_DIR lacks GraphMol/MolOps.h")
 endif()
@@ -40,6 +45,10 @@ target_include_directories(ferrum_chem
 target_link_libraries(ferrum_chem PRIVATE
 	"${FERRUM_CHEM_RDKIT_GRAPHMOL}"
 	"${FERRUM_CHEM_RDKIT_RDGENERAL}")
+if(FERRUM_CHEM_RDKIT_DEPICTOR)
+	target_compile_definitions(ferrum_chem PRIVATE FERRUM_CHEM_ENABLE_DEPICTOR=1)
+	target_link_libraries(ferrum_chem PRIVATE "${FERRUM_CHEM_RDKIT_DEPICTOR}")
+endif()
 target_link_options(ferrum_chem PRIVATE "-Wl,-rpath,@loader_path")
 set_target_properties(ferrum_chem PROPERTIES
 	OUTPUT_NAME ferrum_chem

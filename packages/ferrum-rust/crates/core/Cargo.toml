@@ -12,10 +12,10 @@ documentation.workspace = true
 workspace = true
 
 [dependencies]
-petgraph = "0.8.3"
-serde = { version = "1.0", features = ["derive"] }
-thiserror = "2.0"
+petgraph = { version = "*" }
+serde = { version = "*", features = ["derive"] }
+thiserror = { version = "*" }
 
 [dev-dependencies]
-proptest = "1.6"
-serde_json = "1.0"
+proptest = { version = "*" }
+serde_json = { version = "*" }

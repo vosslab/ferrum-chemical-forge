@@ -8,7 +8,7 @@ eventually ship.
 ## Rust CLI requirements
 
 - A checkout of this repository.
-- Rust 1.85 or newer, matching `packages/ferrum-rust/Cargo.toml`.
+- Rust 1.97.1 or newer, matching `packages/ferrum-rust/Cargo.toml`.
 - Cargo with the `aarch64-apple-darwin` target for the currently verified macOS arm64
   build.
 - Network access for Cargo's first dependency download; later locked builds use the

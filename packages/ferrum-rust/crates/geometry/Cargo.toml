@@ -10,3 +10,11 @@ documentation.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+# Geometry is deliberately expressed in Ferrum's own finite Point2 type.  These
+# maintained libraries are adapters at the rendering and linear-algebra edges,
+# not a second public geometry model.
+kurbo = "*"
+nalgebra = "*"
+thiserror = "*"

@@ -8,24 +8,27 @@ use std::path::Path;
 use ferrum_chemistry_sys::{AdapterError, ChemistryAdapter};
 
 use crate::{
-    AtomicNumber, BondOrder, ChemEngine, ChemistryError, FERRUM_CHEM_KEKULIZE_ATOM_BYTES,
-    FERRUM_CHEM_KEKULIZE_BOND_BYTES, FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED, FERRUM_CHEM_KEKULIZE_FACT_EXPLICIT_HYDROGENS,
-    FERRUM_CHEM_KEKULIZE_FACT_FORMAL_CHARGE, FERRUM_CHEM_KEKULIZE_FACT_ISOTOPE,
-    FERRUM_CHEM_KEKULIZE_MAX_ATOMS, FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS,
-    FERRUM_CHEM_KEKULIZE_MAX_BONDS, FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES,
-    FERRUM_CHEM_KEKULIZE_OPTION_CANONICAL, FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS,
-    FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES,
-    FERRUM_CHEM_KEKULIZE_WIRE_VERSION, FERRUM_CHEM_RESULT_INTERNAL_FAILURE,
-    FERRUM_CHEM_RESULT_INVALID_MOLECULE, FERRUM_CHEM_RESULT_KEKULIZE_FAILURE,
-    FERRUM_CHEM_RESULT_MALFORMED_REQUEST, FERRUM_CHEM_RESULT_OK, KekulizeOptions, MolAtom, MolBond,
-    MolGraph,
+    AtomicNumber, BondOrder, ChemEngine, ChemistryError, Coordinates,
+    FERRUM_CHEM_KEKULIZE_ATOM_BYTES, FERRUM_CHEM_KEKULIZE_BOND_BYTES,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC, FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED,
+    FERRUM_CHEM_KEKULIZE_FACT_EXPLICIT_HYDROGENS, FERRUM_CHEM_KEKULIZE_FACT_FORMAL_CHARGE,
+    FERRUM_CHEM_KEKULIZE_FACT_ISOTOPE, FERRUM_CHEM_KEKULIZE_MAX_ATOMS,
+    FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS, FERRUM_CHEM_KEKULIZE_MAX_BONDS,
+    FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES, FERRUM_CHEM_KEKULIZE_OPTION_CANONICAL,
+    FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS, FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES,
+    FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_WIRE_VERSION,
+    FERRUM_CHEM_RESULT_INTERNAL_FAILURE, FERRUM_CHEM_RESULT_INVALID_MOLECULE,
+    FERRUM_CHEM_RESULT_KEKULIZE_FAILURE, FERRUM_CHEM_RESULT_MALFORMED_REQUEST,
+    FERRUM_CHEM_RESULT_OK, KekulizeOptions, MolAtom, MolBond, MolGraph, Point2,
 };
 
 const REQUEST_MAGIC: [u8; 4] = *b"FCK1";
 const RESPONSE_MAGIC: [u8; 4] = *b"FCR1";
+const COORDINATE_RESPONSE_MAGIC: [u8; 4] = *b"FCL1";
+const COORDINATE_RESPONSE_HEADER_LENGTH: usize = 20;
+const COORDINATE_BYTES: usize = 16;
 const REQUEST_HEADER_LENGTH: usize = FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES;
 const RESPONSE_HEADER_LENGTH: usize = FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES;
 const ATOM_LENGTH: usize = FERRUM_CHEM_KEKULIZE_ATOM_BYTES;
@@ -56,6 +59,12 @@ impl NativeChemEngine {
 }
 
 impl ChemEngine for NativeChemEngine {
+    fn generate_2d_coordinates(&self, molecule: &MolGraph) -> Result<Coordinates, ChemistryError> {
+        let request = encode_request(molecule, KekulizeOptions::default())?;
+        let response = self.adapter.generate_2d(&request).map_err(adapter_error)?;
+        decode_coordinate_response(&response, molecule.atoms().len())
+    }
+
     fn kekulize(
         &self,
         molecule: &MolGraph,
@@ -73,7 +82,99 @@ impl ChemEngine for NativeChemEngine {
     }
 }
 
+fn decode_coordinate_response(
+    response: &[u8],
+    expected_atom_count: usize,
+) -> Result<Coordinates, ChemistryError> {
+    if response.len() < COORDINATE_RESPONSE_HEADER_LENGTH {
+        return Err(ChemistryError::TruncatedNativeResponse);
+    }
+    let mut reader = Reader::new(response);
+    if reader.take(4).map_err(decode_error)? != COORDINATE_RESPONSE_MAGIC {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "coordinate response magic is not FCL1".to_owned(),
+        });
+    }
+    if reader.u32().map_err(decode_error)? != 1 {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "unsupported coordinate response wire version".to_owned(),
+        });
+    }
+    let status = reader.u32().map_err(decode_error)?;
+    if !matches!(
+        status,
+        FERRUM_CHEM_RESULT_OK
+            | FERRUM_CHEM_RESULT_MALFORMED_REQUEST
+            | FERRUM_CHEM_RESULT_INVALID_MOLECULE
+            | FERRUM_CHEM_RESULT_INTERNAL_FAILURE
+    ) {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "unknown or inapplicable coordinate response result status".to_owned(),
+        });
+    }
+    let detail_length =
+        usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
+    let atom_count = usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
+    let detail =
+        std::str::from_utf8(reader.take(detail_length).map_err(decode_error)?).map_err(|_| {
+            ChemistryError::MalformedNativeResponse {
+                reason: "coordinate response detail is not UTF-8".to_owned(),
+            }
+        })?;
+    if status != FERRUM_CHEM_RESULT_OK {
+        if atom_count != 0 || !reader.is_empty() {
+            return Err(ChemistryError::MalformedNativeResponse {
+                reason: "failed coordinate response contains coordinate records".to_owned(),
+            });
+        }
+        return Err(ChemistryError::CoordinateGenerationFailed {
+            reason: detail.to_owned(),
+        });
+    }
+    if !detail.is_empty() || atom_count != expected_atom_count {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "coordinate response does not match the input atom order".to_owned(),
+        });
+    }
+    let expected_bytes = atom_count.checked_mul(COORDINATE_BYTES).ok_or_else(|| {
+        ChemistryError::MalformedNativeResponse {
+            reason: "coordinate response length overflows this platform".to_owned(),
+        }
+    })?;
+    if response.len().saturating_sub(reader.cursor) != expected_bytes {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "coordinate response has truncated or trailing records".to_owned(),
+        });
+    }
+    let mut points = Vec::with_capacity(atom_count);
+    for _ in 0..atom_count {
+        let x = f64::from_le_bytes(
+            reader
+                .take(8)
+                .map_err(decode_error)?
+                .try_into()
+                .expect("fixed"),
+        );
+        let y = f64::from_le_bytes(
+            reader
+                .take(8)
+                .map_err(decode_error)?
+                .try_into()
+                .expect("fixed"),
+        );
+        points.push(
+            Point2::new(x, y).map_err(|_| ChemistryError::MalformedNativeResponse {
+                reason: "coordinate response contains a non-finite point".to_owned(),
+            })?,
+        );
+    }
+    Ok(Coordinates::new(points))
+}
+
 fn adapter_error(error: AdapterError) -> ChemistryError {
+    if let AdapterError::OperationUnavailable { operation } = error {
+        return ChemistryError::OperationUnavailable { operation };
+    }
     ChemistryError::NativeBoundary {
         reason: error.to_string(),
     }
@@ -701,6 +802,16 @@ mod tests {
     }
 
     #[test]
+    fn coordinate_response_rejects_an_unknown_result_status() {
+        let response = coordinate_error_response(u32::MAX, "unrecognized status");
+
+        assert!(matches!(
+            decode_coordinate_response(&response, graph().atoms().len()),
+            Err(ChemistryError::MalformedNativeResponse { .. })
+        ));
+    }
+
+    #[test]
     fn response_semantics_reject_aromatic_contract_mutations() {
         let input = graph();
         let options = KekulizeOptions::default();
@@ -798,6 +909,20 @@ mod tests {
         put_u32(&mut response, 0);
         put_u32(&mut response, 0);
         put_u32(&mut response, 0);
+        put_u32(&mut response, 0);
+        response.extend_from_slice(detail.as_bytes());
+        response
+    }
+
+    fn coordinate_error_response(status: u32, detail: &str) -> Vec<u8> {
+        let mut response = Vec::new();
+        response.extend_from_slice(&COORDINATE_RESPONSE_MAGIC);
+        put_u32(&mut response, 1);
+        put_u32(&mut response, status);
+        put_u32(
+            &mut response,
+            u32::try_from(detail.len()).expect("detail count"),
+        );
         put_u32(&mut response, 0);
         response.extend_from_slice(detail.as_bytes());
         response

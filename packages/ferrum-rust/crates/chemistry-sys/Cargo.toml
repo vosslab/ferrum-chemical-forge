@@ -15,5 +15,5 @@ unsafe_code = "allow"
 all = { level = "warn", priority = -1 }
 
 [dependencies]
-libloading = "0.8"
-thiserror = "2.0.17"
+libloading = { version = "*" }
+thiserror = { version = "*" }

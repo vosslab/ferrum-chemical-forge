@@ -2,7 +2,7 @@
 name = "ferrum-api-python-native"
 version = "26.8.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.97.1"
 license = "LGPL-3.0-only"
 publish = false
 
@@ -13,6 +13,18 @@ publish = false
 [lib]
 name = "_native"
 crate-type = ["cdylib"]
+# An extension module intentionally leaves CPython symbols for its importing
+# interpreter. Rust's libtest binary is an embedding executable, so it cannot
+# link this target without a platform-specific libpython path. Keep its pure
+# contract tests in `tests/`, where they do not link the extension.
+test = false
 
 [dependencies]
-pyo3 = { version = "0.29", features = ["extension-module"] }
+# Keep the binding on the newest registry PyO3 release. Cargo records the selected
+# reproducible release in Cargo.lock for each build.
+pyo3 = { version = "*", features = ["extension-module"] }
+
+[build-dependencies]
+# PyO3 0.29 requires extension-module linker arguments to be emitted by this
+# package's build script on macOS.
+pyo3-build-config = { version = "*", features = ["extension-module"] }

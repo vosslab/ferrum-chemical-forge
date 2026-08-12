@@ -20,6 +20,14 @@ The two components have deliberately different licenses:
 - `petgraph` 0.8.3 is an MIT-or-Apache-2.0 Rust source dependency. Ferrum uses a
   private graph and its standard algorithms while owning public ordering, errors,
   identities, and fundamental-cycle selection.
+- Ferrum's `ferrum-geometry::straighten_depiction` is an arithmetic-only derived
+  implementation of RDKit's `straightenDepiction` algorithm, consulted from
+  `Code/GraphMol/Depictor/RDDepictor.cpp` at revision
+  `d1f7d6a59d712ddaf732b60173fd6223b3cd5003`. RDKit is BSD-3-Clause licensed.
+  Ferrum does not copy or link the RDKit implementation: it independently expresses
+  the algorithm over Ferrum's `Point2` and records differential evidence against a
+  separately launched local RDKit process. This attribution records the source,
+  purpose, and license context; it is not legal advice.
 
 This document records the project's intended licensing boundary and development
 provenance. It is not legal advice. The complete applicable GNU license texts are in

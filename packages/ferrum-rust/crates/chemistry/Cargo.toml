@@ -13,4 +13,4 @@ workspace = true
 
 [dependencies]
 ferrum-chemistry-sys = { path = "../chemistry-sys" }
-thiserror = "2.0"
+thiserror = { version = "*" }

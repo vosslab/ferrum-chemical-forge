@@ -60,17 +60,19 @@ def test_portable_subscript_text_expands_the_local_label_bound(qapp: object) -> 
 
 
 #============================================
-def test_direct_hydration_rejects_mixed_observation_revisions(qapp: object) -> None:
-	"""Every public hydration entry point rejects cross-revision backend facts."""
+def test_projection_plan_rejects_mixed_observation_revisions() -> None:
+	"""A projection plan rejects an observation from another backend revision."""
 	document = oasa.cdml_document.CDMLDocument.parse(
 		"<cdml><molecule id='m'><atom id='a' name='C'><point x='0cm' y='0cm'/></atom>"
 		"<atom id='b' name='O'><point x='1cm' y='0cm'/></atom><bond id='e' start='a' end='b' type='n1'/></molecule></cdml>", validation="compat",
 	)
+	projection_snapshot = document.projection_snapshot(
+		oasa.cdml_document.CDMLSnapshot(0, document.serialize(), False),
+	)
 	with pytest.raises(ValueError):
-		oasa.cdml_document.CDMLProjectionSnapshot(
-			oasa.cdml_document.CDMLSnapshot(0, document.serialize(), False),
-			document.presentation_description(0), document.paper_layout(0),
-			document.fragment_metadata(0), document.atom_mark_observation(0),
-			document.group_observation(0), document.molecule_core_observation(0),
-			dataclasses.replace(document.molecule_render_observation(0), revision=1),
+		dataclasses.replace(
+			projection_snapshot.plan,
+			molecule_render_observation=dataclasses.replace(
+				projection_snapshot.plan.molecule_render_observation, revision=1,
+			),
 		)

@@ -13,6 +13,7 @@ use libloading::Library;
 
 type AbiVersionFn = unsafe extern "C" fn() -> u32;
 type KekulizeFn = unsafe extern "C" fn(*const u8, u64, *mut FerrumChemOwnedBuffer) -> u32;
+type Generate2dFn = unsafe extern "C" fn(*const u8, u64, *mut FerrumChemOwnedBuffer) -> u32;
 type BufferFreeFn = unsafe extern "C" fn(*mut FerrumChemOwnedBuffer);
 
 #[repr(C)]
@@ -31,6 +32,7 @@ pub struct ChemistryAdapter {
     _library: Library,
     abi_version: AbiVersionFn,
     kekulize: KekulizeFn,
+    generate_2d: Option<Generate2dFn>,
     buffer_free: BufferFreeFn,
     _not_thread_safe: PhantomData<Rc<()>>,
 }
@@ -61,6 +63,10 @@ pub enum AdapterError {
     /// The adapter returned a non-zero protocol status.
     #[error("Ferrum chemistry adapter execution failed with status {status}")]
     NativeStatus { status: u32 },
+
+    /// The loaded adapter predates an optional chemistry operation.
+    #[error("Ferrum chemistry adapter does not provide operation: {operation}")]
+    OperationUnavailable { operation: &'static str },
 }
 
 impl ChemistryAdapter {
@@ -75,6 +81,14 @@ impl ChemistryAdapter {
         let library = unsafe { Library::new(library_path) }?;
         let abi_version: AbiVersionFn = load_symbol(&library, b"ferrum_chem_abi_version\0")?;
         let kekulize: KekulizeFn = load_symbol(&library, b"ferrum_chem_kekulize_v1\0")?;
+        // ABI 2 predates the optional M4c entry point. Retain a loadable
+        // kekulization engine while reporting coordinate support explicitly.
+        let generate_2d = unsafe {
+            library
+                .get::<Generate2dFn>(b"ferrum_chem_generate_2d_v1\0")
+                .ok()
+                .map(|symbol| *symbol)
+        };
         let buffer_free: BufferFreeFn =
             load_symbol(&library, b"ferrum_chem_owned_buffer_free_v1\0")?;
 
@@ -92,6 +106,7 @@ impl ChemistryAdapter {
             _library: library,
             abi_version,
             kekulize,
+            generate_2d,
             buffer_free,
             _not_thread_safe: PhantomData,
         })
@@ -105,12 +120,34 @@ impl ChemistryAdapter {
         unsafe { (self.abi_version)() }
     }
 
+    /// Whether this adapter dynamically provides the optional ABI-2 depiction operation.
+    ///
+    /// ABI 2 requires the kekulization symbols only. Callers must check this
+    /// capability, or handle [`AdapterError::OperationUnavailable`], before
+    /// requesting two-dimensional coordinates.
+    #[must_use]
+    pub fn supports_generate_2d(&self) -> bool {
+        self.generate_2d.is_some()
+    }
+
     /// Kekulizes an opaque version-one request and returns its owned response bytes.
     ///
     /// A native result buffer is always released through
     /// `ferrum_chem_owned_buffer_free_v1`,
     /// including when copying it into Rust allocation fails validation.
     pub fn kekulize(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
+        self.call(self.kekulize, input)
+    }
+
+    /// Generates an opaque version-one two-dimensional coordinate response.
+    pub fn generate_2d(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
+        let operation = self.generate_2d.ok_or(AdapterError::OperationUnavailable {
+            operation: "generate_2d_coordinates",
+        })?;
+        self.call(operation, input)
+    }
+
+    fn call(&self, operation: Generate2dFn, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
         let input_length = u64::try_from(input.len())
             .map_err(|_| AdapterError::BufferTooLarge { length: u64::MAX })?;
         let mut output = FerrumChemOwnedBuffer {
@@ -121,7 +158,7 @@ impl ChemistryAdapter {
         // SAFETY: `input` remains borrowed for the call; the two output locations
         // is a valid writable stack slot; function pointer and ABI were validated
         // at construction and the library remains retained by `self`.
-        let status = unsafe { (self.kekulize)(input.as_ptr(), input_length, &mut output) };
+        let status = unsafe { operation(input.as_ptr(), input_length, &mut output) };
 
         finish_call(status, output, self.buffer_free)
     }

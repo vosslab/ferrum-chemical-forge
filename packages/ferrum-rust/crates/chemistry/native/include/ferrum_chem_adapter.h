@@ -107,6 +107,28 @@ uint32_t ferrum_chem_kekulize_v1(
 	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 
+/*
+ * OPTIONAL ABI-2 EXTENSION. ABI 2 requires ferrum_chem_abi_version,
+ * ferrum_chem_kekulize_v1, and ferrum_chem_owned_buffer_free_v1 only.
+ * ferrum_chem_generate_2d_v1 is present only in an adapter built with the
+ * Ferrum Depictor capability. Consumers must discover it by dynamic symbol
+ * lookup and report an unavailable operation when it is absent; static callers
+ * must not link against or assume this symbol. A later ABI revision may make a
+ * depiction capability mandatory, but ABI 2 will not.
+ *
+ * Generate-2D v1 receives the same strict graph request vocabulary as
+ * Kekulize v1. It calls RDKit's built-in depicter with canonOrient=true,
+ * forceRDKit=true, clearConfs=true, no random samples, and no templates.
+ *
+ * Response: "FCL1", wire_version:u32 (1), result_status:u32,
+ * detail_length:u32, atom_count:u32, UTF-8 detail, then atom_count records of
+ * x:f64,y:f64 little-endian. Success has an empty detail and preserves input
+ * atom order. Failure has atom_count zero and no coordinate records.
+ */
+uint32_t ferrum_chem_generate_2d_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	FERRUM_CHEM_NOEXCEPT;
+
 /* Idempotently releases a response owner and writes both fields to zero. */
 void ferrum_chem_owned_buffer_free_v1(ferrum_chem_owned_buffer *owner)
 	FERRUM_CHEM_NOEXCEPT;

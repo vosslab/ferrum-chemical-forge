@@ -15,6 +15,10 @@ fn adapter_abi_version() -> u32 {
 }
 
 fn main() {
+    // A Python extension resolves CPython symbols from the importing interpreter
+    // on macOS instead of linking an embedded interpreter into the module.
+    pyo3_build_config::add_extension_module_link_args();
+
     let library_directory = env::var("FERRUM_CHEM_LIB_DIR")
         .expect("FERRUM_CHEM_LIB_DIR must name the directory containing libferrum_chem.dylib");
     if !Path::new(&library_directory)

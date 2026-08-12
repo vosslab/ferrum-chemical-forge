@@ -2,11 +2,19 @@
 
 #include <GraphMol/Atom.h>
 #include <GraphMol/Bond.h>
+#ifdef FERRUM_CHEM_ENABLE_DEPICTOR
+#include <GraphMol/Conformer.h>
+#include <GraphMol/Depictor/RDDepictor.h>
+#endif
 #include <GraphMol/MolOps.h>
 #include <GraphMol/RWMol.h>
 #include <GraphMol/SanitException.h>
 
 #include <algorithm>
+#ifdef FERRUM_CHEM_ENABLE_DEPICTOR
+#include <bit>
+#include <cmath>
+#endif
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -362,6 +370,94 @@ bool encode_response(uint32_t status, std::string_view detail, const WireMolecul
 	}
 }
 
+#ifdef FERRUM_CHEM_ENABLE_DEPICTOR
+bool encode_coordinate_response(uint32_t status, std::string_view detail,
+		const WireMolecule *molecule, const RDKit::Conformer *conformer,
+		ferrum_chem_owned_buffer *response) {
+	try {
+		const uint64_t detail_len = std::min(detail.size(), static_cast<size_t>(kMaximumDetailBytes));
+		const uint64_t atom_count = conformer == nullptr ? 0 : molecule->atoms.size();
+		if (atom_count > kMaximumAtoms ||
+			detail_len > std::numeric_limits<uint64_t>::max() - 20U ||
+			atom_count > (std::numeric_limits<uint64_t>::max() - 20U - detail_len) / 16U) {
+			return false;
+		}
+		const uint64_t response_len = 20U + detail_len + atom_count * 16U;
+		if (response_len > std::numeric_limits<size_t>::max()) {
+			return false;
+		}
+		std::vector<uint8_t> bytes;
+		bytes.reserve(static_cast<size_t>(response_len));
+		bytes.insert(bytes.end(), {'F', 'C', 'L', '1'});
+		append_u32(bytes, 1U);
+		append_u32(bytes, status);
+		append_u32(bytes, static_cast<uint32_t>(detail_len));
+		append_u32(bytes, static_cast<uint32_t>(atom_count));
+		bytes.insert(bytes.end(), detail.begin(), detail.begin() + detail_len);
+		if (conformer != nullptr) {
+			for (uint32_t index = 0; index < atom_count; ++index) {
+				const RDGeom::Point3D &point = conformer->getAtomPos(index);
+				const uint64_t x = std::bit_cast<uint64_t>(point.x);
+				const uint64_t y = std::bit_cast<uint64_t>(point.y);
+				for (unsigned int byte = 0; byte < 8; ++byte) {
+					bytes.push_back(static_cast<uint8_t>(x >> (byte * 8U)));
+				}
+				for (unsigned int byte = 0; byte < 8; ++byte) {
+					bytes.push_back(static_cast<uint8_t>(y >> (byte * 8U)));
+				}
+			}
+		}
+		if (bytes.size() != response_len) {
+			return false;
+		}
+		response->data = new uint8_t[bytes.size()];
+		std::memcpy(response->data, bytes.data(), bytes.size());
+		response->len = bytes.size();
+		return true;
+	} catch (...) {
+		return false;
+	}
+}
+
+bool generate_2d(const WireMolecule &input, ferrum_chem_owned_buffer *response) {
+	RDKit::RWMol molecule;
+	for (const WireAtom &atom : input.atoms) {
+		auto *rdkit_atom = new RDKit::Atom(atom.atomic_number);
+		rdkit_atom->setIsAromatic(atom.aromatic);
+		if ((atom.presence_flags & kFormalChargePresent) != 0) {
+			rdkit_atom->setFormalCharge(atom.formal_charge);
+		}
+		if ((atom.presence_flags & kIsotopePresent) != 0) {
+			rdkit_atom->setIsotope(atom.isotope);
+		}
+		if ((atom.presence_flags & kExplicitHydrogensPresent) != 0) {
+			rdkit_atom->setNumExplicitHs(atom.explicit_hydrogens);
+		}
+		molecule.addAtom(rdkit_atom, true, true);
+	}
+	for (const WireBond &bond : input.bonds) {
+		molecule.addBond(bond.begin_atom, bond.end_atom, bond.type);
+		molecule.getBondBetweenAtoms(bond.begin_atom, bond.end_atom)->setIsAromatic(bond.aromatic);
+	}
+	RDDepict::Compute2DCoordParameters parameters;
+	parameters.canonOrient = true;
+	parameters.clearConfs = true;
+	parameters.forceRDKit = true;
+	parameters.nFlipsPerSample = 0;
+	parameters.nSamples = 0;
+	parameters.useRingTemplates = false;
+	const unsigned int conformer_id = RDDepict::compute2DCoords(molecule, parameters);
+	const RDKit::Conformer &conformer = molecule.getConformer(conformer_id);
+	for (uint32_t index = 0; index < molecule.getNumAtoms(); ++index) {
+		const RDGeom::Point3D &point = conformer.getAtomPos(index);
+		if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) {
+			throw std::runtime_error("RDKit generated a non-finite coordinate");
+		}
+	}
+	return encode_coordinate_response(FERRUM_CHEM_RESULT_OK, "", &input, &conformer, response);
+}
+#endif
+
 uint32_t emit_error(uint32_t result_status, std::string_view detail,
 		ferrum_chem_owned_buffer *response) {
 	return encode_response(result_status, detail, nullptr, response) ?
@@ -404,6 +500,40 @@ extern "C" uint32_t ferrum_chem_kekulize_v1(
 		return emit_error(FERRUM_CHEM_RESULT_INTERNAL_FAILURE, "unknown native failure", response);
 	}
 }
+
+#ifdef FERRUM_CHEM_ENABLE_DEPICTOR
+extern "C" uint32_t ferrum_chem_generate_2d_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response) noexcept {
+	if (response == nullptr) {
+		return FERRUM_CHEM_CALL_INVALID_ARGUMENT;
+	}
+	response->data = nullptr;
+	response->len = 0;
+	try {
+		WireMolecule input;
+		std::string error;
+		if (!parse_request(request, request_len, &input, &error)) {
+			return encode_coordinate_response(
+				FERRUM_CHEM_RESULT_MALFORMED_REQUEST, error, nullptr, nullptr, response) ?
+				FERRUM_CHEM_CALL_OK : FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
+		}
+		return generate_2d(input, response) ? FERRUM_CHEM_CALL_OK :
+			FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
+	} catch (const RDDepict::DepictException &error) {
+		return encode_coordinate_response(
+			FERRUM_CHEM_RESULT_INVALID_MOLECULE, error.what(), nullptr, nullptr, response) ?
+			FERRUM_CHEM_CALL_OK : FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
+	} catch (const std::exception &error) {
+		return encode_coordinate_response(
+			FERRUM_CHEM_RESULT_INTERNAL_FAILURE, error.what(), nullptr, nullptr, response) ?
+			FERRUM_CHEM_CALL_OK : FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
+	} catch (...) {
+		return encode_coordinate_response(
+			FERRUM_CHEM_RESULT_INTERNAL_FAILURE, "unknown native failure", nullptr, nullptr, response) ?
+			FERRUM_CHEM_CALL_OK : FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
+	}
+}
+#endif
 
 extern "C" void ferrum_chem_owned_buffer_free_v1(ferrum_chem_owned_buffer *owner) noexcept {
 	if (owner == nullptr) {

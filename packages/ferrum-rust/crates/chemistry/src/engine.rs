@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::MolGraph;
+use crate::{Coordinates, MolGraph};
 
 /// Options that define one kekulization request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,6 +64,12 @@ impl Default for KekulizeOptions {
 /// Implementations may use a native toolkit, a WASM implementation, or another
 /// engine. They must never expose that implementation's graph or handle types.
 pub trait ChemEngine {
+    /// Generate an owned, atom-index-aligned 2D depiction.
+    ///
+    /// The reference request explicitly selects RDKit canonical orientation and
+    /// never imports pre-existing graph coordinates into the depiction engine.
+    fn generate_2d_coordinates(&self, molecule: &MolGraph) -> Result<Coordinates, ChemistryError>;
+
     /// Return a new graph with Kekule orders assigned under `options`.
     fn kekulize(
         &self,
@@ -77,6 +83,12 @@ pub trait ChemEngine {
 pub struct UnavailableChemEngine;
 
 impl ChemEngine for UnavailableChemEngine {
+    fn generate_2d_coordinates(&self, _molecule: &MolGraph) -> Result<Coordinates, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "generate_2d_coordinates",
+        })
+    }
+
     fn kekulize(
         &self,
         _molecule: &MolGraph,
@@ -100,6 +112,12 @@ pub enum ChemistryError {
     /// The graph is valid but cannot be kekulized under the supplied options.
     #[error("kekulization failed: {reason}")]
     KekulizationFailed {
+        /// Engine-independent explanation suitable for users and logs.
+        reason: String,
+    },
+    /// The graph is valid but the native depiction engine rejected it.
+    #[error("2D coordinate generation failed: {reason}")]
+    CoordinateGenerationFailed {
         /// Engine-independent explanation suitable for users and logs.
         reason: String,
     },

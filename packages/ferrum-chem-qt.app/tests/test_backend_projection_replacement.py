@@ -183,9 +183,10 @@ def test_synchronized_items_paint_portable_batches_without_compatibility_bridge(
 def test_backend_projection_envelope_rejects_missing_backend_fact() -> None:
 	"""A synchronized route rejects an incomplete backend envelope."""
 	backend_document = oasa.cdml_document.CDMLDocument.parse(_ARROW_CDML, validation="strict")
-	with pytest.raises(ValueError, match="seven exact backend facts"):
+	with pytest.raises(ValueError, match="facts must be exact immutable observations"):
 		dataclasses.replace(
-			_projection_snapshot(backend_document), molecule_render_observation=None,
+			_projection_snapshot(backend_document).plan,
+			molecule_render_observation=None,
 		)
 
 
@@ -198,8 +199,11 @@ def test_synchronized_hydration_requires_portable_render_coverage() -> None:
 	projection_snapshot = _projection_snapshot(backend_document)
 	incomplete = dataclasses.replace(
 		projection_snapshot,
-		molecule_render_observation=dataclasses.replace(
-			projection_snapshot.molecule_render_observation, batches=(),
+		plan=dataclasses.replace(
+			projection_snapshot.plan,
+			molecule_render_observation=dataclasses.replace(
+				projection_snapshot.plan.molecule_render_observation, batches=(),
+			),
 		),
 	)
 	with pytest.raises(ValueError, match="coverage is incomplete"):
@@ -249,8 +253,11 @@ def test_incomplete_synchronized_render_bundle_fails_before_live_replacement(
 			projection_snapshot = original_projection_snapshot()
 			return dataclasses.replace(
 				projection_snapshot,
-				molecule_render_observation=dataclasses.replace(
-					projection_snapshot.molecule_render_observation, batches=(),
+				plan=dataclasses.replace(
+					projection_snapshot.plan,
+					molecule_render_observation=dataclasses.replace(
+						projection_snapshot.plan.molecule_render_observation, batches=(),
+					),
 				),
 			)
 
@@ -278,10 +285,15 @@ def test_synchronized_preparation_rejects_duplicate_portable_batch(
 	duplicate_observation = dataclasses.replace(
 		render_observation, batches=(*render_observation.batches, render_observation.batches[0]),
 	)
+	projection_snapshot = _projection_snapshot(document)
 	with pytest.raises(ValueError, match="association is ambiguous"):
 		ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 			dataclasses.replace(
-				_projection_snapshot(document), molecule_render_observation=duplicate_observation,
+				projection_snapshot,
+				plan=dataclasses.replace(
+					projection_snapshot.plan,
+					molecule_render_observation=duplicate_observation,
+				),
 			),
 		)
 
@@ -296,10 +308,15 @@ def test_synchronized_preparation_rejects_wrong_kind_portable_batch(
 	wrong_kind_observation = dataclasses.replace(
 		render_observation, batches=(wrong_kind, *render_observation.batches[1:]),
 	)
+	projection_snapshot = _projection_snapshot(document)
 	with pytest.raises(ValueError, match="kind does not match"):
 		ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 			dataclasses.replace(
-				_projection_snapshot(document), molecule_render_observation=wrong_kind_observation,
+				projection_snapshot,
+				plan=dataclasses.replace(
+					projection_snapshot.plan,
+					molecule_render_observation=wrong_kind_observation,
+				),
 			),
 		)
 
@@ -314,10 +331,15 @@ def test_synchronized_preparation_rejects_foreign_molecule_portable_batch(
 	foreign_observation = dataclasses.replace(
 		render_observation, batches=(foreign_batch, *render_observation.batches[1:]),
 	)
+	projection_snapshot = _projection_snapshot(document)
 	with pytest.raises(ValueError, match="belongs to no accepted molecule"):
 		ferrum_qt.io.cdml_document_io.prepare_synchronized_projection(
 			dataclasses.replace(
-				_projection_snapshot(document), molecule_render_observation=foreign_observation,
+				projection_snapshot,
+				plan=dataclasses.replace(
+					projection_snapshot.plan,
+					molecule_render_observation=foreign_observation,
+				),
 			),
 		)
 
