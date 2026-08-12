@@ -1,7 +1,7 @@
-# Plan: Ferrum v3, a Rust chemistry backend for the renamed BKChem-Qt frontend
+# Plan: Ferrum v3, a Rust chemistry backend for Ferrum-Qt
 
 <!--
-Publication target: docs/active_plans/active/ferrum_forge_plan_v3.md
+Authority: this file is the active implementation plan.
 Supersedes: docs/active_plans/floofy-snacking-ripple.md (v1),
             docs/active_plans/floofy-snacking-ripple-v2.md (v2)
 Revision r2 incorporates external reviewer feedback: first usable increment,
@@ -194,13 +194,14 @@ records the decision in the milestone's changelog entry. A divergence classified
 | Hygiene tests | Root suite initially reported 2,967 passed and 200 M1a-scoped failures from empty README/manifests; after accepted metadata, README, and license fixes it reported 3,167 passed; final M1a suite reported 3,186 passed |
 | M1b capability evidence | `docs/active_plans/audits/ferrum_qt_capability_matrix.md` supplies 25 stable rows, including all seven export codecs, durable edits, numbering, and marks. An installed `ferrum-qt` process now starts offscreen, opens `authored_document_forms.cdml` through the existing Qt/OASA-backed native CDML route, writes the controlled receipt, and exits without a traceback. This proves M1b rename/start/open behavior, not Rust-backend adoption or worker-format completion. |
 | M1e exclusion evidence | `tests/test_migration_import_exclusion.py` uses the positive Ferrum production selector with an empty active capability set. It excludes `OTHER_REPOS`, proves seeded OASA and Tk imports fail after activation, and does not claim unreplaced migration paths are clean. |
-| M4a packaging evidence | Repository audit found no tracked native shared libraries and also found the required tracked source recipe and clean-environment loader/relink E2E absent. Ignored local wheel/build outputs are non-deliverable diagnostic context, not milestone evidence; M4a remains not started. |
+| M4a packaging evidence | The macOS arm64 native-wheel E2E source-builds the declared RDKit profile with a controlled CMake/LLVM/Rustup environment, installs a minimal wheel into a scrubbed environment, and loads it. The historical M4a stub proved a two-library closure and replacement mechanism. `docs/active_plans/reports/native_wheel_packaging.md` retains that mechanism evidence without confusing it with the later chemistry adapter. |
+| M4b adapter evidence | The macOS arm64 source E2E built the GraphMol-only `ferrum-rdkit-graphmol-kekulize-v1` profile into a Ferrum-owned sealed stage, installed ABI 2 and the exact five-library chemistry closure, and ran an aromatic benzene kekulization probe in fresh Rust processes before and after a verified package-relative replacement copy. It deliberately replaces the `Release` wheel adapter with distinct-byte `RelWithDebInfo` output. Both results preserve supplied atom facts and topology and produce alternating single/double bonds. The sealed `ferrum-native-inputs-v2` manifest validates the replacement inputs. `docs/active_plans/reports/native_kekulization.md` records the receipt facts and narrow limits. |
 | M1d preservation evidence | `docs/active_plans/audits/cdml_preservation_coverage.md`, three compact CDML fixtures, and separate-process comparison evidence are established. M1d remains open for real user documents plus no-namespace, future-version, alternate-prefix, and CD-SVG coverage. |
 | M6 XML storage | `ferrum-document` stores opaque CDML in `xot` 0.31.2. A one-time three-fixture probe establishes structural, not lexical, retention; DTD input is rejected without an external resolver, and raw source-slice fallback is not adopted. |
 | M7 identity and ordering | `IndexedDocument` derives direct-child records in source order, a declaration `id_index` that also reserves opaque IDs, root-relative element paths, and single-consumption provisional tokens. Fragment bond/vertex `id` references are excluded from declarations and never rewritten. See `docs/active_plans/decisions/document_identity_ordering.md`. |
 | M2 core model | `ferrum-core` implements the accepted immutable model, accessors, and presence-sensitive properties. The authoritative M8 document projection now reads every corpus molecule with versioned bond semantics. `docs/active_plans/reports/corpus_molecule_parity.md` records the accepted exact agreements, classified differences, zero unexpected differences, and two independent mutation proofs. |
 | M8 typed records | `ferrum-document` implements the accepted assignment as a single-tree typed overlay with context-qualified classes, named lexical fields, unknown-attribute bags, ordered opaque children, and non-demoting diagnostics. It is the sole production CDML reader and projects typed molecules into `ferrum-core`; evidence is in `docs/active_plans/reports/typed_document_records.md`. |
-| Reference material | `OTHER_REPOS/bkchem-oasa/` (gitignored) holds OASA, Tk BKChem, `docs/cdml_conformance/`, `docs/reference_outputs/`, and the contract docs; `OTHER_REPOS/rdkit/` (gitignored) holds the RDKit source for the M4 chemistry-adapter chain |
+| Reference material | `OTHER_REPOS/` is gitignored, reference-only material that may be removed at any time. It can inform historical contracts and isolated oracle comparisons, but no Ferrum build, test, runtime, or release path may read it. The chemistry-adapter chain obtains RDKit only from the declared hash-verified upstream source profile. |
 
 ## Architecture boundaries and ownership
 
@@ -253,8 +254,8 @@ current -- it is the project's status tracker.
 | M1e | Exclusion checks | Per-capability `oasa`/Tk import guard | Guard runs with an empty capability list | done | `tester` |
 | M2 | Core model | Atoms, bonds, molecules, identifiers, errors | Corpus molecules load, fields agree with oracle | done | `coder` |
 | M3 | Graph and deterministic cycles | `petgraph` plus a project cycle basis | Graph parity green, cycle choice deterministic | done | `coder` |
-| M4a | Build and packaging viability | Pinned source build, dependency detection, loadable wheel | The distribution model is proven, not assumed | not started | `maintainer` |
-| M4b | Adapter semantics | C ABI surface, `ChemEngine`, stated defaults, kekulization | Chemistry reachable through one narrow trait | not started | `expert_coder` |
+| M4a | Build and packaging viability | Pinned source build, dependency detection, loadable wheel | The distribution model is proven, not assumed | done | `maintainer` |
+| M4b | Adapter semantics | C ABI surface, `ChemEngine`, stated defaults, kekulization | Chemistry reachable through one narrow trait | done | `expert_coder` |
 | M4c | Coordinate parity and tolerance | Noise-floor measurement, then the parity gate | A justified coordinate tolerance exists | not started | `tester` |
 | M4d | Qt chemistry slice | Ferrum-Qt parses SMILES through Ferrum | Frontend consumes the adapter | not started | `coder` |
 | M5 | Chemistry codecs | SMILES, SMARTS, molblock, SDF, InChI | Codec parity green | not started | `expert_coder` |
@@ -317,8 +318,9 @@ and the manifests must say so or it will quietly become architectural:
 
 | Manifest | Contents | Removed at |
 | --- | --- | --- |
-| `pip_requirements.txt` (production) | PySide6, pyyaml. During the migration window only: `oasa` and, transitively, Python `rdkit`, both marked with a comment naming M22 as the removal gate | M22 |
-| `pip_requirements-dev.txt` | pytest, pyflakes, Python `rdkit` for the oracle harness, and the pinned OASA used by the harness | never |
+| `pip_requirements.txt` (production) | PySide6, shiboken6, and pyyaml for the retained Qt preview. It has no Python RDKit dependency. | M22 governs removal of the Qt package's temporary OASA dependency. |
+| `pip_requirements-dev.txt` | pytest, pyflakes, Maturin, and development tooling. The native-wheel builder records the installed, unpinned Maturin version in its receipt. | never |
+| `tests/e2e/oracle/pip_requirements.txt` | Pinned OASA and Python RDKit for the isolated historical-oracle process only. | M1d/M22, as applicable |
 
 After M22, production chemistry reaches RDKit only through the bundled native
 adapter. Any patch adding Python `rdkit` to a production import path is a design
@@ -450,6 +452,16 @@ assumption into a checkable claim.
 - Exit criteria: the stub wheel installs into a scrubbed environment and runs; the
   bundled Ferrum-Chem library can be replaced with a rebuilt copy and the wheel still
   works, proving the LGPL relink route on the development platform.
+- Historical exit evidence: `tests/e2e/e2e_native_wheel.py` passed on macOS arm64
+  against the `ferrum-rdkit-cpp-coordgen-inchi-v1` profile. The installed ABI-1 stub
+  wheel loaded before and after replacement of `libferrum_chem.dylib`. Its historical
+  two-library closure was
+  `libferrum_chem.dylib` and `libRDKitRDGeneral.1.dylib`. See
+  `docs/active_plans/reports/native_wheel_packaging.md` for that run's sources,
+  toolchain, and limits. M4b has since completed the narrow ABI-2 native
+  kekulization operation on the same packaging foundation. M4c, M4d, M20, and M22
+  remain open for coordinate parity, Qt use, platform coverage, and removal of the
+  migration dependency.
 - Parallel-plan ready: no -- one owner, one toolchain.
 
 This milestone exists because packaging shapes the C ABI, the wheel layout, the build
@@ -467,6 +479,20 @@ not the chemistry.
 - Exit criteria: kekulization reaches the state `Kekulize(clearAromaticFlags=False)`
   produces; every entry point documents which reference default it reproduces;
   `MolGraph` is the only structural output type, so no RDKit representation leaks.
+- Exit evidence: ABI 2, Ferrum-owned `MolGraph`, safe `ChemEngine`, strict
+  kekulization records, and the sealed `ferrum-native-inputs-v2` manifest passed the
+  GraphMol-only source E2E before and after replacing `libferrum_chem.dylib` with
+  deliberate distinct-byte `RelWithDebInfo` output. The explicit defaults are
+  `clear_aromatic_flags=false`, `canonical=true`, and `max_backtracks=100`. The receipt
+  proves the exact five-library macOS closure, alternating benzene bond orders,
+  topology preservation, and supplied atom-fact preservation. See
+  `reports/native_kekulization.md` and `decisions/chemistry_engine_boundary.md`.
+  The one-time orientation evidence is
+  [`reports/rdkit_layout_orientation.json`](reports/rdkit_layout_orientation.json),
+  generated outside pytest by
+  [`devel/rdkit_layout_orientation.py`](../../devel/rdkit_layout_orientation.py).
+  M4b is limited to this native operation. M4c remains responsible for coordinate
+  implementation, tolerance derivation, and coordinate parity.
 - Parallel-plan ready: yes -- one work package per entry-point group.
 
 ### Milestone: M4c coordinate parity and tolerance derivation
@@ -1015,9 +1041,9 @@ on-disk format does not change.
   `CDML_BACKEND_TO_FRONTEND_CONTRACT.md`, `QT_CONTRACT.md`, `CDML_FORMAT_SPEC.md`,
   rewritten implementation-neutral.
 - Migration documentation for users opening historical documents.
-- Plan file hygiene at publication: `git mv` this plan to
-  `docs/active_plans/active/ferrum_forge_plan_v3.md`, and `git mv` both superseded
-  drafts to `docs/archive/`.
+- Plan file hygiene: this file remains the active authority. The two superseded drafts
+  are retained in place as explicitly historical records until a separate archival
+  cleanup is authorized.
 
 ## Open questions and decisions needed
 

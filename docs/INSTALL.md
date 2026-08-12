@@ -56,6 +56,8 @@ The current source reports `Ferrum-Qt 26.08`.
 
 ## Current installation gaps
 
+- The native-wheel proof has passed only on macOS arm64. It proves a minimal
+  clean-environment install and LGPL relink route, not a supported consumer package.
 - Qualify and document platforms other than macOS arm64 before claiming support.
 - Add the self-contained Ferrum-Qt wheel after its Rust backend cutover; the preview
   install above still resolves the temporary OASA dependency.

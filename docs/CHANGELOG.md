@@ -2,6 +2,58 @@
 
 ### Additions and New Features
 
+- Narrowed the native RDKit policy to the implemented GraphMol kekulization ABI. It
+  retains only pinned RDKit, configure-time Catch2, Better Enums required for a
+  generated GraphMol header, and header-only Boost. InChI, CoordGen, and MAEParser are
+  explicitly disabled and no longer downloaded, materialized, or passed to CMake. The
+  fresh source E2E passed with the GraphMol-only profile, a Ferrum-owned sealed stage,
+  and the exact five-library closure recorded in its receipt.
+- Removed the test-only native build-marker export from Ferrum-Chem before release.
+  The ABI-2 surface now contains only its version, chemistry operation, and owned
+  response lifecycle. The relink E2E proves replacement through the stable library
+  role and package-relative copy, distinct `Release` and `RelWithDebInfo` adapter
+  hashes, closure validation, fresh ABI loads, and safe Rust kekulization before and
+  after replacement.
+- Made the public Ferrum-Chem header the sole numeric authority for bond wire values
+  as well as the ABI constants. Rust derives its private wire constants from that
+  header, preventing independently maintained C++ and Rust bond encodings.
+- Documented the native kekulization boundary: a safe Rust `ChemEngine`,
+  Ferrum-owned graph records, the version-2 C ABI, explicit operation defaults, sealed
+  native inputs, and semantic relink validation. The durable decision and status
+  documents distinguish this narrow completed operation from the later
+  coordinate-tolerance milestone.
+- Completed the narrow native kekulization milestone on macOS arm64. The source E2E
+  installed ABI 2 with its exact five-library closure, then verified alternating
+  benzene bond orders, topology, and optional atom facts in fresh Rust processes
+  before and after replacing `libferrum_chem.dylib` from a sealed manifest-v2 input
+  tree. This does not claim Qt adoption, CDML integration, coordinate parity, broader
+  RDKit APIs, cross-platform support, or a release.
+- Recorded the one-time isolated RDKit orientation measurement on an asymmetric
+  molecule. Explicit `canonOrient=false` and `canonOrient=true` diverge; future
+  Ferrum layout will select `true` explicitly. The measurement establishes neither
+  a Ferrum layout implementation nor the M4c coordinate-tolerance/parity gate. Its
+  reproducible maintainer tool is
+  [`devel/rdkit_layout_orientation.py`](../devel/rdkit_layout_orientation.py), outside
+  pytest's collection tree.
+
+- Declared CMake and upstream LLVM in the root `Brewfile` so `brew bundle`
+  installs the native Ferrum-Chem/RDKit build system and FOSS compiler frontend
+  instead of relying on ambient CMake or Apple Clang.
+- Declared unpinned Maturin in the root development requirements because the
+  native-wheel builder invokes its command directly; compatibility is established
+  by the build gate and recorded tool version rather than an installation pin.
+- Selected current Boost 1.91.0 headers for the reproducible native profile. Ferrum
+  neither builds nor bundles compiled Boost libraries; the source digest prevents
+  ambient dependency drift without freezing the developer's installed tools.
+- Completed the macOS arm64 native-wheel packaging and LGPL relink proof. The
+  hash-verified source build installs a minimal wheel in a scrubbed environment,
+  then loads a replacement `libferrum_chem.dylib`; the closure is exactly
+  `libferrum_chem.dylib` plus `libRDKitRDGeneral.1.dylib`. The durable status report
+  is `docs/active_plans/reports/native_wheel_packaging.md`.
+- Added JSON-only native-wheel evidence recording source hashes, CMake/LLVM/Rustup
+  provenance, the Apple SDK platform boundary, actual unpinned Maturin version, wheel
+  digest, closure, and replacement probe. Successful tests retain no wheel or dylib
+  in the repository.
 - Added the self-contained `ferrum` Rust CLI with typed `cdml inspect` JSON output,
   structural `cdml rewrite`, explicit stdin/stdout selection, stable exit behavior,
   and command-level integration tests. The executable has no Python or `OTHER_REPOS`
@@ -22,6 +74,12 @@
 
 ### Behavior or Interface Changes
 
+- Removed Python RDKit from the root development environment. The Rust backend uses
+  the pinned C++ source build, while Python RDKit remains isolated with the
+  historical oracle under `tests/e2e/oracle/pip_requirements.txt`.
+- Made Ferrum the sole owner of the packaged Mach-O closure: Maturin packages without
+  repairing native libraries, then Ferrum extracts the wheel and enforces the exact
+  extension dependency, loader path, library identities, and bundled closure.
 - Renamed the retained Qt Python namespace to `ferrum_qt`, updated package discovery,
   imports, dynamic registrar paths, resource lookup, application display strings, and
   the `ferrum-qt` console entry point. Removed the Python module-launch route;
@@ -32,6 +90,43 @@
   templates, document contracts, or integration protocols.
 
 ### Fixes and Maintenance
+
+- Sealed reusable native RDKit inputs to the complete canonical Ferrum policy,
+  including target closure and all CMake/forbidden-fragment choices, rather than
+  accepting a matching profile name. The versioned manifest now fingerprints
+  deterministic, fail-closed full trees for the installed RDKit and pinned Boost
+  headers, so an adapter rebuild rejects transitive header drift, unsupported file
+  types, and escaping or dangling library aliases.
+- Corrected the native RDKit header-root contract to use the installed
+  `rdkit-install/include/rdkit` directory. The builder, immutable input manifest,
+  fixture checks, and CMake adapter now agree on the directory that contains
+  `GraphMol/` and `RDGeneral/`, preventing a completed private RDKit build from
+  failing during adapter configuration.
+
+- Made the public Ferrum-Chem header the single adapter ABI-version authority. The
+  C++ implementation uses that macro, the native-wheel builder derives and passes it,
+  and the Rust extension includes a generated constant after build-time validation.
+- Split Mach-O discovery, rewriting, and exact closure validation into a focused
+  native-wheel module. The long E2E now streams compiler diagnostics while retaining
+  one strict, additive-compatible JSON artifact record on standard output.
+- Hardened native build provenance by removing every inherited `CMAKE_*` variable and
+  supplying required compiler, SDK, and source facts explicitly. Retained evidence
+  replaces discarded output-root paths with `${OUTPUT_ROOT}`, rejects ambiguous or
+  non-JSON values, and records no transient wheel or source-archive path.
+- Aligned the native builder and direct E2E with repository execution policy by
+  invoking both through Python 3.12 without executable-script shebangs. Kept the
+  package initializer declarative and exercised the private native submodule directly.
+- Replaced permissive ZIP extraction with component-bounded regular-file extraction,
+  stripped privileged archive mode bits, and rejected duplicate TAR targets before
+  extraction. A custom redirect handler validates every hop as credential-free HTTPS
+  before the next request, followed by digest verification of the completed download.
+- Corrected the native CMake provenance parser so CMake punctuation that normalizes
+  to the filesystem root is not treated as a host dependency. All concrete absolute
+  paths remain subject to the existing fail-closed allowlist.
+- Constrained native CMake and Maturin/Cargo program lookup to the declared CMake,
+  LLVM, Rustup, and macOS system-tool directories. The provenance audit now checks
+  configured CMake values and selected programs rather than harmless candidate paths
+  in CMake's exploratory search log; undeclared selected paths still fail closed.
 
 - Deferred command-line file loading until the primary Qt event loop begins and made
   the existing controlled lifecycle callback retire an active modal before queuing
@@ -81,6 +176,11 @@
 
 ### Developer Tests and Notes
 
+- The historical M4a native-wheel E2E rebuilt the hash-verified profile after the
+  download, extraction, package-init, and ABI hardening. A clean isolated process
+  loaded ABI 1 before relinking, and a fresh process loaded ABI 1 after relinking;
+  its retained wheel digest is recorded in the packaging report. The later ABI-2
+  semantic E2E is the final M4b evidence.
 - The Rust workspace passes formatting, checking, Clippy with warnings denied, and
   all-target tests on `aarch64-apple-darwin`: 3 API unit tests, 4 CLI integration
   tests, 25 core tests, and 21 document tests. A disposable source install produced
@@ -96,9 +196,8 @@
   review was accepted. M1e's focused import-exclusion suite reports 4 passing tests,
   and root hygiene reports 3,070 passing tests when the two known migration gates are
   selected separately.
-- M4a's independent audit confirms that no `.dylib`, `.so`, or `.dll` is tracked. It
-  remains not started: the next bounded work is a tracked adapter stub, PyO3 package,
-  pinned source recipe, and clean-venv loader/relink E2E.
+- The native-wheel audit confirms that no `.dylib`, `.so`, or `.dll` is tracked; its
+  completion evidence is the macOS arm64 packaging and relinking proof recorded above.
 - Twenty-five `ferrum-core` tests pass. Ten fixed topology fixtures match every
   reference discrete graph result except one documented 5/6-to-5/5 bridged cycle-basis
   improvement; exact Ferrum cycle and matching outputs repeat across 100 calls each.

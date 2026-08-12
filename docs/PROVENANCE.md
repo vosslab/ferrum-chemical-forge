@@ -14,8 +14,9 @@ The two components have deliberately different licenses:
 - Ferrum-Qt is AGPL-3.0-only. Its repository notice is `LICENSE.AGPL-3.0.md`,
   and its distributable package notice is `packages/ferrum-chem-qt.app/LICENSE`.
 - Ferrum-Chem is LGPL-3.0-only. Its repository notice is `LICENSE.LGPL-3.0.md`.
-- RDKit is designated as a BSD-3-Clause dependency. It is not yet bundled or
-  linked by this pre-alpha repository.
+- RDKit is designated as a BSD-3-Clause dependency. A macOS arm64 packaging proof
+  source-builds its declared profile and bundles it only in an ephemeral test wheel;
+  Ferrum does not yet ship a desktop distribution.
 - `petgraph` 0.8.3 is an MIT-or-Apache-2.0 Rust source dependency. Ferrum uses a
   private graph and its standard algorithms while owning public ordering, errors,
   identities, and fundamental-cycle selection.
@@ -30,7 +31,10 @@ The current `packages/ferrum-chem-qt.app/` tree is the user's own PySide6
 frontend carried forward from the local BKChem-Qt reference tree. It is a
 frontend continuation, not a claim that the Qt application was rewritten from
 scratch. Package metadata and the Python namespace now identify Ferrum-Qt. M1b
-remains open for its application-start and CDML-open acceptance evidence.
+is complete for the installed-command rename, application-start, and authored-CDML
+open evidence: the offscreen `ferrum-qt` process writes its controlled receipt and
+exits without a traceback. That proof does not cover worker-routed non-CDML imports,
+Rust-backend adoption, or the remaining migration-preview formats.
 
 The local reference document
 `OTHER_REPOS/bkchem-oasa/docs/GPL_FILE_PURPOSES.md` is the historical licensing
@@ -45,10 +49,14 @@ Ferrum-Chem is a new Rust backend. It replaces the OASA backend rather than
 copying it into this repository. During migration, OASA can remain an external
 oracle for behavior comparisons; it is not Ferrum-Chem production code.
 
-The planned boundary keeps Ferrum-Chem separately replaceable so downstream
-recipients can relink against a modified LGPL library. The build and packaging
-mechanism is not implemented yet; M4a proves it and M20 verifies it on each
-supported platform.
+The boundary keeps Ferrum-Chem separately replaceable so downstream recipients can
+relink against a modified LGPL library. The historical macOS arm64 M4a proof first
+established that mechanism with a stub wheel. M4b then installed the ABI 2 chemistry
+adapter, replaced `libferrum_chem.dylib`, and ran the same native kekulization result
+in fresh Rust processes before and after a deliberate distinct-byte `RelWithDebInfo`
+replacement for the wheel's `Release` adapter. The proof is recorded in
+[active_plans/reports/native_kekulization.md](active_plans/reports/native_kekulization.md).
+M20 still verifies the full distribution route on every supported platform.
 
 ## Evidence and limits
 
@@ -64,6 +72,18 @@ changes an upstream license, or replaces a file-by-file redistribution review.
 Generated native libraries are build artifacts, not repository sources. The native
 staging and Python-package `.libs` directories are ignored; future wheel tooling must
 assemble them under an ignored output tree or during packaging, never track host dylibs.
+
+The native build proof uses upstream CMake, LLVM/Clang, and Rustup tooling, with the
+Apple SDK and system linker recorded as macOS platform inputs. It builds from
+hash-verified sources, uses Boost headers without compiled Boost libraries, and turns
+off Python RDKit and SWIG wrappers. Maturin remains unpinned; the receipt records the
+actual version used. The successful E2E publishes JSON evidence only, not a wheel or
+native binary. Its current profile builds only GraphMol into a Ferrum-owned sealed
+stage and uses RDKit, configure-time Catch2, Better Enums, and header-only Boost;
+InChI, CoordGen, and MAEParser are excluded. Its scope includes ABI 2 kekulization
+semantics and a distinct-byte LGPL relinking proof, but not CDML parity, Qt adoption,
+broader chemistry APIs, coordinate parity, cross-platform support, or a desktop
+release.
 
 ## Test infrastructure provenance
 

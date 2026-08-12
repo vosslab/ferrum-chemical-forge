@@ -2,6 +2,7 @@
 members = [
     "crates/api",
     "crates/chemistry",
+    "crates/chemistry-sys",
     "crates/core",
     "crates/document",
     "crates/domain",

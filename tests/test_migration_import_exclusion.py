@@ -6,6 +6,7 @@ milestone adds an owning capability only when its replacement has landed.
 """
 
 import ast
+from pathlib import Path
 
 # local repo modules
 import file_utils
@@ -125,7 +126,7 @@ def test_active_capability_imports_are_excluded() -> None:
 
 
 #============================================
-def test_seeded_oasa_import_is_rejected_after_chemistry_activation(tmp_path) -> None:
+def test_seeded_oasa_import_is_rejected_after_chemistry_activation(tmp_path: Path) -> None:
 	"""A chemistry replacement prevents OASA from returning in its owned path."""
 	path = tmp_path / "packages/ferrum-chem-qt.app/ferrum_qt/chemistry.py"
 	path.parent.mkdir(parents=True)
@@ -135,7 +136,7 @@ def test_seeded_oasa_import_is_rejected_after_chemistry_activation(tmp_path) -> 
 
 
 #============================================
-def test_seeded_tk_import_is_rejected_after_desktop_activation(tmp_path) -> None:
+def test_seeded_tk_import_is_rejected_after_desktop_activation(tmp_path: Path) -> None:
 	"""A desktop replacement prevents Tk from returning in its owned path."""
 	path = tmp_path / "packages/ferrum-chem-qt.app/ferrum_qt/window.py"
 	path.parent.mkdir(parents=True)

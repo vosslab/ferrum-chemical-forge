@@ -6,5 +6,4 @@ pyflakes  # static analysis lint checks
 pytest  # automated test runner
 rich  # formatted terminal output in developer tools
 lxml  # package-test XML assertions
-# Oracle-harness-only chemistry dependencies; not part of the shipped runtime.
-rdkit
+maturin  # build the Ferrum-Chem PyO3 native wheel

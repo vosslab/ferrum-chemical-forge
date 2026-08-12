@@ -1,0 +1,111 @@
+{
+  "capability": "rdkit-layout-orientation-v1",
+  "coordinates": {
+    "canon_orient_false": [
+      {
+        "index": 0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      {
+        "index": 1,
+        "x": 1.299038105676658,
+        "y": 0.7499999999999998,
+        "z": 0.0
+      },
+      {
+        "index": 2,
+        "x": 1.299038105676658,
+        "y": 2.25,
+        "z": 0.0
+      },
+      {
+        "index": 3,
+        "x": 2.598076211353316,
+        "y": -6.661338147750939e-16,
+        "z": 0.0
+      },
+      {
+        "index": 4,
+        "x": 3.897114317029974,
+        "y": 0.7499999999999993,
+        "z": 0.0
+      },
+      {
+        "index": 5,
+        "x": 5.196152422706632,
+        "y": -9.992007221626409e-16,
+        "z": 0.0
+      },
+      {
+        "index": 6,
+        "x": 6.49519052838329,
+        "y": 0.749999999999999,
+        "z": 0.0
+      }
+    ],
+    "canon_orient_true": [
+      {
+        "index": 0,
+        "x": 2.9273947537359852,
+        "y": 0.8123741702772954,
+        "z": 0.0
+      },
+      {
+        "index": 1,
+        "x": 1.6735886800110844,
+        "y": -0.011015366631298143,
+        "z": 0.0
+      },
+      {
+        "index": 2,
+        "x": 1.759761899321781,
+        "y": -1.5085380463505842,
+        "z": 0.0
+      },
+      {
+        "index": 3,
+        "x": 0.333609386975487,
+        "y": 0.6631177761793944,
+        "z": 0.0
+      },
+      {
+        "index": 4,
+        "x": -0.920196686749414,
+        "y": -0.16027176072919946,
+        "z": 0.0
+      },
+      {
+        "index": 5,
+        "x": -2.260175979785011,
+        "y": 0.5138613820814929,
+        "z": 0.0
+      },
+      {
+        "index": 6,
+        "x": -3.5139820535099124,
+        "y": -0.3095281548271009,
+        "z": 0.0
+      }
+    ]
+  },
+  "decision": "Future Ferrum layout selects the reference-wrapper behavior by passing canonOrient=True explicitly.",
+  "facts": {
+    "atom_count": 7,
+    "python_version": "3.12.13",
+    "rdkit_version": "2026.03.5",
+    "smiles": "CC(=O)NCCCl"
+  },
+  "generator_command": "source source_me.sh && python3 devel/rdkit_layout_orientation.py",
+  "generator_script": "devel/rdkit_layout_orientation.py",
+  "oracle_command": [
+    "/Users/vosslab/nsh/ferrum-chemical-forge/tests/e2e/oracle/.venv/bin/python",
+    "/Users/vosslab/nsh/ferrum-chemical-forge/devel/rdkit_layout_orientation_child.py"
+  ],
+  "oracle_requirements": "tests/e2e/oracle/pip_requirements.txt",
+  "orientations_diverge": true,
+  "same_oracle_process": true,
+  "scope": "Isolated RDKit oracle measurement only; it does not implement Ferrum layout or establish a coordinate tolerance.",
+  "status": "measured"
+}

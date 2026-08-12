@@ -1,34 +1,19 @@
-use std::ffi::CStr;
-use std::os::raw::c_char;
-
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
-const SUPPORTED_ADAPTER_ABI_VERSION: u32 = 1;
+include!(concat!(env!("OUT_DIR"), "/ferrum_chem_adapter_abi.rs"));
 
 #[link(name = "ferrum_chem")]
 unsafe extern "C" {
     fn ferrum_chem_abi_version() -> u32;
-    fn ferrum_chem_build_marker() -> *const c_char;
 }
 
-fn adapter_probe() -> PyResult<(u32, String)> {
-    // The C header promises scalar output and static, NUL-terminated marker storage.
+fn adapter_probe() -> PyResult<u32> {
+    // ABI version is the sole PyO3 loader-contract probe. Chemistry operations
+    // remain on the Rust boundary rather than growing test-only C exports.
     let abi_version = unsafe { ferrum_chem_abi_version() };
     ensure_supported_abi_version(abi_version)?;
-    let marker = unsafe { ferrum_chem_build_marker() };
-    if marker.is_null() {
-        return Err(PyRuntimeError::new_err(
-            "Ferrum-Chem returned a null build marker",
-        ));
-    }
-    let marker = unsafe { CStr::from_ptr(marker) }
-        .to_str()
-        .map_err(|error| {
-            PyRuntimeError::new_err(format!("Ferrum-Chem marker is not UTF-8: {error}"))
-        })?
-        .to_owned();
-    Ok((abi_version, marker))
+    Ok(abi_version)
 }
 
 fn ensure_supported_abi_version(abi_version: u32) -> PyResult<()> {
@@ -41,7 +26,7 @@ fn ensure_supported_abi_version(abi_version: u32) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn probe() -> PyResult<(u32, String)> {
+fn probe() -> PyResult<u32> {
     adapter_probe()
 }
 
@@ -55,16 +40,19 @@ mod tests {
     use super::{SUPPORTED_ADAPTER_ABI_VERSION, adapter_probe, ensure_supported_abi_version};
 
     #[test]
-    fn probe_exposes_the_adapter_contract() {
-        let (abi_version, marker) = adapter_probe().expect("adapter probe succeeds");
-        assert_eq!(abi_version, 1);
-        assert!(!marker.is_empty());
+    fn probe_exposes_the_adapter_abi_contract() {
+        let abi_version = adapter_probe().expect("adapter probe succeeds");
+        assert_eq!(abi_version, SUPPORTED_ADAPTER_ABI_VERSION);
     }
 
     #[test]
-    fn unsupported_adapter_abi_is_rejected_before_marker_use() {
-        let error = ensure_supported_abi_version(SUPPORTED_ADAPTER_ABI_VERSION + 1)
+    fn unsupported_adapter_abi_is_rejected() {
+        let deliberately_different_version = SUPPORTED_ADAPTER_ABI_VERSION
+            .checked_add(1)
+            .expect("supported adapter ABI permits a distinct test version");
+        let error = ensure_supported_abi_version(deliberately_different_version)
             .expect_err("future adapter ABI must be rejected");
-        assert!(error.to_string().contains("requires ABI 1"));
+        let required_abi = format!("requires ABI {SUPPORTED_ADAPTER_ABI_VERSION}");
+        assert!(error.to_string().contains(&required_abi));
     }
 }

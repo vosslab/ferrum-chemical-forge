@@ -69,6 +69,23 @@ ferrum-qt
 Ferrum-Qt remains under backend migration. The command starts the retained PySide6
 application; it does not imply that the self-contained Rust cutover is complete.
 
+## Native-wheel packaging evidence
+
+On macOS arm64, run the native-wheel packaging and relinking proof from the repository
+root:
+
+```bash
+source source_me.sh && PYTHONDONTWRITEBYTECODE=1 python3 tests/e2e/e2e_native_wheel.py --target aarch64-apple-darwin
+```
+
+The test writes its result JSON to standard output and, on success, retains only the
+ignored local evidence record at
+`output_native_wheel/evidence/native-wheel-e2e-receipt.json`. The record captures
+the hash-verified source inputs, actual toolchain versions, wheel digest, native
+closure, and the before/after relinking probes. It is development evidence, not a
+wheel or desktop release artifact; the temporary wheel and native libraries are
+removed after the test.
+
 ## Current usage gaps
 
 - Add chemistry conversion and rendering commands only as their Rust implementations

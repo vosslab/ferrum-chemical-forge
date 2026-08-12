@@ -28,6 +28,8 @@ appropriate repo root or package.
 | [query_changelog.py](query_changelog.py) | Search active and archived changelog entries. |
 | [rotate_changelog.py](rotate_changelog.py) | Move old changelog day blocks into archive files. |
 | [flatten_broken_md_links.py](flatten_broken_md_links.py) | Repair or flatten broken Markdown links. |
+| [rdkit_layout_orientation.py](rdkit_layout_orientation.py) | Record the one-time isolated RDKit layout-orientation decision. |
+| [rdkit_layout_orientation_child.py](rdkit_layout_orientation_child.py) | Child process for the isolated layout-orientation measurement. |
 | [dist_clean.sh](dist_clean.sh) | Remove build artifacts, caches, and dependency installs. |
 
 ## Propagated devel scripts
