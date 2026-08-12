@@ -6,29 +6,40 @@ rewrite CDML without depending on Python or `OTHER_REPOS/`.
 
 ## Rust CLI quick start
 
-Inspect the checked-in authored corpus document:
+From the repository root, inspect the checked-in authored corpus document:
 
 ```bash
 ferrum cdml inspect tests/e2e/corpus/authored_document_forms.cdml
 ```
 
 The command writes one compact JSON object to standard output. The object uses the
-`ferrum-cdml-inspection-v1` schema and reports document identity, typed record counts,
-diagnostics, and per-molecule atom, non-atom vertex, and bond counts.
+preview `ferrum-cdml-inspection-v1` schema and reports document identity, typed record
+counts, diagnostics, and per-molecule atom, non-atom vertex, and bond counts.
 
 ## Rust command-line interface
 
 The available command groups and flags are:
 
-- `ferrum cdml inspect INPUT` validates and summarizes one CDML document.
+- `ferrum cdml inspect INPUT [--format json|text]` requires Ferrum's current core
+  projection and summarizes one CDML document.
+- `ferrum cdml validate INPUT [--typed] [--format json|text]` validates retained CDML
+  structure and identity. `--typed` additionally requires the current core projection.
 - `ferrum cdml rewrite INPUT --output OUTPUT` parses and structurally re-emits CDML.
+- `ferrum cdml rewrite INPUT --check` serializes, reparses, and verifies the documented
+  structural-preservation contract without writing a document.
+- `ferrum cdml extract-cdsvg INPUT --output OUTPUT` extracts the single canonical CDML
+  payload from decoded CD-SVG, verifies its structural serialization transaction, and publishes it.
 - `-` selects standard input where `INPUT` appears.
-- `--output -` selects standard output for rewritten CDML.
+- `--output -` selects standard output for rewritten or extracted CDML.
 - `--help` and `--version` describe the installed executable.
 
-Argument errors exit with status 2. Accepted commands that cannot read, process, or
-write data exit with status 1 and send the error to standard error. Successful data
-stays on standard output.
+All JSON reports are newline-terminated preview schemas: inspection uses
+`ferrum-cdml-inspection-v1`, validation uses `ferrum-cdml-validation-v1`, and rewrite
+checking uses `ferrum-cdml-rewrite-check-v1`. JSON is the default; deterministic text
+output is for people and is not a parsing contract. Argument errors exit with status 2.
+Accepted commands that cannot read, process, validate, or write data exit with status 1
+and send the error to standard error. Success exits with status 0 and keeps standard
+error empty.
 
 ## Rust CLI examples
 
@@ -50,12 +61,38 @@ Rewrite through a pipeline:
 ferrum cdml rewrite - --output - < drawing.cdml > rewritten.cdml
 ```
 
+Extract a canonical CDML payload from CD-SVG without an intermediate file:
+
+```bash
+ferrum cdml extract-cdsvg - --output - < drawing.svg > extracted.cdml
+```
+
+Check that a rewrite would retain the documented structural facts, without
+creating an output file:
+
+```bash
+ferrum cdml rewrite drawing.cdml --check
+```
+
+Validate only retained CDML structure, including opaque XML Ferrum can preserve:
+
+```bash
+ferrum cdml validate drawing.cdml
+```
+
 ## Rust inputs and outputs
 
-`inspect` and `rewrite` currently accept UTF-8 CDML. `rewrite` preserves parsed XML
-structure, including opaque elements, namespaces, comments, processing instructions,
-and mixed content. Tree serialization may normalize lexical details such as prefix
-choice, attribute order, CDATA boundaries, entity spelling, or XML declarations.
+The CDML commands accept UTF-8 input. `rewrite` preserves parsed XML structure,
+including opaque elements, namespaces, comments, processing instructions, and mixed
+content. File rewrites serialize and validate before atomically replacing their target
+for concurrent readers. They do not make a crash-durability claim for a successful rename.
+Tree serialization may normalize lexical details such as prefix choice, attribute order,
+CDATA boundaries, entity spelling, or XML declarations. `--check` verifies structure;
+it does not promise byte-for-byte or lexical identity.
+
+`extract-cdsvg` accepts decoded UTF-8 XML with an SVG root and exactly one canonical CDML
+payload. It writes verified CDML through the same atomic file-output boundary as `rewrite`.
+Compressed `.svgz` input is not accepted by this command.
 
 ## Launch the Qt preview
 
@@ -89,5 +126,5 @@ removed after the test.
 ## Current usage gaps
 
 - Add chemistry conversion and rendering commands only as their Rust implementations
-  become available; the CLI does not claim OASA's current Haworth renderer.
+  become available; the CLI does not yet provide a Haworth renderer.
 - Add packaged Ferrum-Qt workflows after the desktop application uses this backend.

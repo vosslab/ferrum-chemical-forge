@@ -28,6 +28,14 @@ The two components have deliberately different licenses:
   the algorithm over Ferrum's `Point2` and records differential evidence against a
   separately launched local RDKit process. This attribution records the source,
   purpose, and license context; it is not legal advice.
+- Ferrum's molecule-label face is the byte-verified Telex Regular font copied from
+  RDKit `Release_2026_03_4/Data/Fonts/Telex-Regular.ttf`: 38,940 bytes and SHA-256
+  `eeaa2d17d105b6b46e5368ecd990f5b19c50131ff922dbf79bfb9bb45c249871`.
+  Ferrum distributes it at `crates/render/assets/fonts/Telex-Regular.ttf` with the
+  upstream SIL Open Font License 1.1 notice at
+  `crates/render/assets/licenses/Telex-OFL-1.1.txt`. The observed FreeType metadata
+  is family `Telex` and PostScript name `Telex-Regular`. This is an exact-face
+  resource for Ferrum rendering, not a system-family lookup.
 
 This document records the project's intended licensing boundary and development
 provenance. It is not legal advice. The complete applicable GNU license texts are in
@@ -92,6 +100,26 @@ InChI, CoordGen, and MAEParser are excluded. Its scope includes ABI 2 kekulizati
 semantics and a distinct-byte LGPL relinking proof, but not CDML parity, Qt adoption,
 broader chemistry APIs, coordinate parity, cross-platform support, or a desktop
 release.
+
+## Haworth projection terminology
+
+The first `ferrum-domain::haworth` slice was independently designed from the
+following IUPAC nomenclature references, retrieved 2026-08-12:
+
+- IUPAC, *Nomenclature of Carbohydrates: Recommendations 1996*, Pure and
+  Applied Chemistry 68(10), 1919-2008, PDF at
+  <https://publications.iupac.org/pac/1996/pdf/6810x1919.pdf>.
+- IUPAC carbohydrate nomenclature web guidance, sections 2-Carb-5,
+  <https://iupac.qmul.ac.uk/2carb/05.html>, and 2-Carb-6/7,
+  <https://iupac.qmul.ac.uk/2carb/06n07.html>.
+
+Those public nomenclature sources establish the terminology used by the module:
+five-membered furanose and six-membered pyranose Haworth representations, and
+the distinct, explicitly supplied alpha/beta and D/L semantic facts. Ferrum's
+new Rust module does not reproduce source code, coordinate tables, tests, or
+rendering decisions from OASA. It accepts a caller-selected C/O cycle and emits
+an independently designed deterministic projection plan; it does not reconstruct
+stereochemistry from a drawing or legacy display facts.
 
 ## Test infrastructure provenance
 

@@ -3,83 +3,38 @@
 Run from the repository root with:
     source source_me.sh && python3 devel/measure_straighten_depiction.py
 
-This is intentionally a maintainer experiment, not pytest coverage.  It loads
-RDKit only in this Python process; Ferrum's Rust geometry crate never links to
-or calls it.  The emitted JSON records repeatability for both API branches.
+This is intentionally a maintainer experiment, not pytest coverage. It invokes
+the dedicated child through the isolated oracle environment; Ferrum's Rust
+geometry crate never links to or calls Python RDKit. The emitted JSON records
+repeatability for both API branches.
 """
 
 import json
-import math
 import pathlib
 import subprocess
 
-from rdkit import Chem
-from rdkit.Chem import AllChem
-
-
-CASES = {
-	"ten_degree_bond": ((0.0, 0.0), (math.cos(math.radians(10.0)), math.sin(math.radians(10.0)))),
-	"fifteen_degree_boundary": ((0.0, 0.0), (math.cos(math.radians(15.0)), math.sin(math.radians(15.0)))),
-	"thirty_degree_boundary": ((0.0, 0.0), (math.cos(math.radians(30.0)), math.sin(math.radians(30.0)))),
-	"asymmetric_three_bond": ((0.0, 0.0), (1.0, 0.2), (1.7, 1.1), (2.4, 1.35)),
-}
-REPEATS = 25
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 RUST_WORKSPACE = REPOSITORY_ROOT / "packages" / "ferrum-rust"
-
-
-def _applied_rotation(
-	original: tuple[tuple[float, float], ...],
-	rotated: list[list[float]],
-) -> float:
-	"""Derive the origin-centered rotation from all non-zero input coordinates."""
-	dot_product = sum(
-		x * rotated[index][0] + y * rotated[index][1]
-		for index, (x, y) in enumerate(original)
-	)
-	cross_product = sum(
-		x * rotated[index][1] - y * rotated[index][0]
-		for index, (x, y) in enumerate(original)
-	)
-	if dot_product == 0.0 and cross_product == 0.0:
-		raise ValueError("cannot derive rotation from coordinates all located at the origin")
-	angle = math.atan2(cross_product, dot_product)
-	return angle
-
-
-def _run_case(points: tuple[tuple[float, float], ...], minimize_rotation: bool) -> dict:
-	"""Run RDKit on a simple chain with supplied 2-D coordinates."""
-	molecule = Chem.MolFromSmiles("C" * len(points))
-	conformer = Chem.Conformer(len(points))
-	for index, (x, y) in enumerate(points):
-		conformer.SetAtomPosition(index, (x, y, 0.0))
-	molecule.RemoveAllConformers()
-	molecule.AddConformer(conformer, assignId=True)
-	AllChem.StraightenDepiction(molecule, minimizeRotation=minimize_rotation)
-	result = molecule.GetConformer()
-	coordinates = []
-	for index in range(len(points)):
-		position = result.GetAtomPosition(index)
-		coordinates.append([position.x, position.y])
-	rotation_radians = _applied_rotation(points, coordinates)
-	return {"coordinates": coordinates, "rotation_radians": rotation_radians}
-
-
-def _maximum_coordinate_variation(runs: list[dict]) -> float:
-	"""Return the maximum component spread across repeated oracle output."""
-	first = runs[0]["coordinates"]
-	return max(
-		abs(value - first[atom_index][axis])
-		for run in runs
-		for atom_index, coordinate in enumerate(run["coordinates"])
-		for axis, value in enumerate(coordinate)
-	)
+ORACLE_PYTHON = REPOSITORY_ROOT / "tests" / "e2e" / "oracle" / ".venv" / "bin" / "python"
+ORACLE_CHILD = REPOSITORY_ROOT / "devel" / "straighten_depiction_oracle_child.py"
 
 
 def _run_ferrum_probe() -> dict:
 	"""Run the Rust probe in a separate process and decode its shared cases."""
 	command = ["cargo", "run", "--quiet", "-p", "ferrum-geometry", "--example", "straighten_probe"]
 	completed = subprocess.run(command, cwd=RUST_WORKSPACE, check=True, text=True, capture_output=True)
+	return json.loads(completed.stdout)
+
+
+def _run_oracle_probe() -> dict:
+	"""Run the RDKit measurement in its isolated historical-oracle environment."""
+	if not ORACLE_PYTHON.is_file():
+		raise RuntimeError(
+			"RDKit oracle environment is unavailable; run devel/setup_oracle_env.sh first"
+		)
+	# The oracle venv is intentionally isolated from the developer shell.
+	command = [str(ORACLE_PYTHON), "-B", str(ORACLE_CHILD)]
+	completed = subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, text=True, capture_output=True)
 	return json.loads(completed.stdout)
 
 
@@ -118,19 +73,15 @@ def _maximum_ferrum_difference(oracle: dict, ferrum: dict) -> dict:
 
 def main() -> None:
 	"""Emit reproducible measurement data on standard output."""
-	measurements = {}
-	for name, points in CASES.items():
-		branches = {}
-		for minimize_rotation in (False, True):
-			runs = [_run_case(points, minimize_rotation) for _ in range(REPEATS)]
-			branches[str(minimize_rotation).lower()] = {
-				"first": runs[0],
-				"maximum_repeat_coordinate_variation": _maximum_coordinate_variation(runs),
-			}
-		measurements[name] = branches
+	oracle = _run_oracle_probe()
+	measurements = oracle["measurements"]
 	ferrum = _run_ferrum_probe()
 	comparison = _maximum_ferrum_difference(measurements, ferrum)
-	report = {"repeats": REPEATS, "measurements": measurements, "ferrum_comparison": comparison}
+	report = {
+		"repeats": oracle["repeats"],
+		"measurements": measurements,
+		"ferrum_comparison": comparison,
+	}
 	print(json.dumps(report, indent=2, sort_keys=True))
 
 

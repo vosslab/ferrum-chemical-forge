@@ -200,13 +200,13 @@ class WindowSessionActiveMixin:
 	def _on_tab_close_requested(self, index: int) -> None:
 		"""Close the requested tab through its save guard."""
 		self.close_session_at(index)
-	@PySide6.QtCore.Slot(str)
-	def _on_session_title_changed(self, title: str) -> None:
-		"""Update the tab belonging to the session that emitted a title."""
-		session = self.sender()
-		if not isinstance(
-			session, ferrum_qt.models.document_session.DocumentSession,
-		):
+	def _update_session_tab_title(
+			self,
+			session: ferrum_qt.models.document_session.DocumentSession,
+			title: str,
+			) -> None:
+		"""Update one registered session's tab through its owned title relay."""
+		if session not in self._sessions or session.is_disposed:
 			return
 		index = self._tab_widget.indexOf(session.view)
 		if index >= 0:

@@ -46,7 +46,8 @@ def parse_args() -> argparse.Namespace:
 #============================================
 def child_result(oracle_python: pathlib.Path) -> dict:
 	"""Run one oracle process and validate its exactly-one-object protocol."""
-	command = [str(oracle_python), str(ORACLE_CHILD)]
+	# The oracle venv does not rely on the caller's bytecode environment flags.
+	command = [str(oracle_python), "-B", str(ORACLE_CHILD)]
 	result = subprocess.run(
 		command,
 		cwd=REPO_ROOT,

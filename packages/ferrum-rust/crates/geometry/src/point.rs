@@ -154,6 +154,9 @@ pub enum GeometryError {
     /// A public coordinate, extent, or transform parameter was not finite.
     #[error("geometry values must be finite")]
     NonFiniteCoordinate,
+    /// Finite inputs produced a result that cannot be represented as finite geometry.
+    #[error("geometry calculation is not representable as finite f64 values")]
+    UnrepresentableGeometry,
     /// An operation requiring a direction received coincident points.
     #[error("geometry requires a non-zero-length vector")]
     ZeroLengthVector,

@@ -5,11 +5,9 @@ import PySide6.QtCore
 
 
 #============================================
-# These values identify the existing preference store; they are not display branding.
-# Keeping them stable makes the Ferrum-Qt rename preserve user settings without a
-# platform-specific copy-on-first-run migration.
-SETTINGS_ORGANIZATION = "BKChem"
-SETTINGS_APPLICATION = "BKChem-Qt"
+# Keep persistent preferences under the same product identity that users see.
+SETTINGS_ORGANIZATION = "Ferrum"
+SETTINGS_APPLICATION = "Ferrum-Qt"
 
 
 #============================================

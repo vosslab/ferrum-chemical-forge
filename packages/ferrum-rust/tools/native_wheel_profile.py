@@ -18,6 +18,13 @@ BETTER_ENUMS_URL = f"https://github.com/aantron/better-enums/archive/{BETTER_ENU
 BOOST_VERSION = "1.91.0"
 BOOST_SHA256 = "5734305f40a76c30f951c9abd409a45a2a19fb546efe4162119250bbe4d3a463"
 BOOST_URL = f"https://archives.boost.io/release/{BOOST_VERSION}/source/boost_1_91_0.tar.gz"
+INCHI_VERSION = "1.07.3"
+INCHI_SHA256 = "b42d828b5d645bd60bc43df7e0516215808d92e5a46c28e12b1f4f75dfaae333"
+# This archive location is deliberately part of the sealed input declaration.
+INCHI_URL = "https://github.com/IUPAC-InChI/InChI/releases/download/v1.07.3/INCHI-1-SRC.zip"
+COORDGEN_VERSION = "3.0.2"
+COORDGEN_SHA256 = "f67697434f7fec03bca150a6d84ea0e8409f6ec49d5aab43badc5833098ff4e3"
+COORDGEN_URL = "https://github.com/schrodinger/coordgenlibs/archive/refs/tags/v3.0.2.tar.gz"
 TARGET = "aarch64-apple-darwin"
 MACHINE_RESULT_SCHEMA = "ferrum-native-wheel-artifact-v1"
 
@@ -59,7 +66,7 @@ class MacosArm64NativeClosure:
 # Immutable profile declarations
 
 FERRUM_RDKIT_PROFILE = RdkitCapabilityProfile(
-	name="ferrum-rdkit-graphmol-kekulize-v1",
+	name="ferrum-rdkit-codecs-v1",
 	rdkit=PinnedSource(
 		"rdkit", RDKIT_TAG, RDKIT_URL, RDKIT_SHA256, f"rdkit-{RDKIT_TAG}.tar.gz",
 	),
@@ -79,6 +86,11 @@ FERRUM_RDKIT_PROFILE = RdkitCapabilityProfile(
 			"boost-headers", BOOST_VERSION, BOOST_URL, BOOST_SHA256,
 			"boost-headers.tar.gz",
 		),
+		PinnedSource("inchi", INCHI_VERSION, INCHI_URL, INCHI_SHA256, "INCHI-1-SRC.zip"),
+		PinnedSource(
+			"coordgen", COORDGEN_VERSION, COORDGEN_URL, COORDGEN_SHA256,
+			"coordgenlibs-3.0.2.tar.gz",
+		),
 	),
 	cmake_options=(
 		"-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_CXX_STANDARD=20",
@@ -92,7 +104,8 @@ FERRUM_RDKIT_PROFILE = RdkitCapabilityProfile(
 		"-DRDK_INSTALL_PYTHON_TESTS=OFF", "-DRDK_USE_FLEXBISON=OFF",
 		"-DRDK_BUILD_THREADSAFE_SSS=ON", "-DRDK_BUILD_FREETYPE_SUPPORT=OFF",
 		"-DRDK_BUILD_QT_SUPPORT=OFF", "-DRDK_BUILD_CAIRO_SUPPORT=OFF",
-		"-DRDK_BUILD_INCHI_SUPPORT=OFF", "-DRDK_BUILD_COORDGEN_SUPPORT=OFF",
+		"-DRDK_BUILD_INCHI_SUPPORT=ON", "-DRDK_BUILD_COORDGEN_SUPPORT=ON",
+		"-DCOORDGEN_FORCE_BUILD=ON",
 		"-DRDK_BUILD_MAEPARSER_SUPPORT=OFF",
 		"-DRDK_USE_BOOST_SERIALIZATION=OFF",
 		"-DRDK_USE_BOOST_IOSTREAMS=OFF", "-DRDK_BUILD_CHEMDRAW_SUPPORT=OFF",
@@ -131,9 +144,28 @@ FERRUM_RDKIT_PROFILE = RdkitCapabilityProfile(
 MACOS_ARM64_NATIVE_CLOSURE = MacosArm64NativeClosure(
 	allowed_non_system_names=frozenset({
 		"libferrum_chem.dylib",
+		"libRDKitAlignment.1.dylib",
+		"libRDKitChemTransforms.1.dylib",
 		"libRDKitGraphMol.1.dylib",
 		"libRDKitRDGeometryLib.1.dylib",
 		"libRDKitDataStructs.1.dylib",
 		"libRDKitRDGeneral.1.dylib",
+		"libRDKitSmilesParse.1.dylib",
+		"libRDKitFileParsers.1.dylib",
+		"libRDKitRDInchiLib.1.dylib",
+		"libRDKitInchi.1.dylib",
+		"libRDKitDepictor.1.dylib",
+		"libRDKitcoordgen.1.dylib",
+		"libRDKitEigenSolvers.1.dylib",
+		"libRDKitGenericGroups.1.dylib",
+		"libRDKitMolAlign.1.dylib",
+		"libRDKitMolTransforms.1.dylib",
+		"libRDKitSubstructMatch.1.dylib",
 	}),
 )
+
+
+RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES = tuple(sorted(
+	name for name in MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names
+	if name != "libferrum_chem.dylib"
+))

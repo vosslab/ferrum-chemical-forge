@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 /* The public header is the sole source of truth for the adapter ABI version. */
-#define FERRUM_CHEM_ADAPTER_ABI_VERSION 2U
+#define FERRUM_CHEM_ADAPTER_ABI_VERSION 3U
 
 #ifdef __cplusplus
 #define FERRUM_CHEM_NOEXCEPT noexcept
@@ -25,6 +25,18 @@ extern "C" {
 #define FERRUM_CHEM_RESULT_KEKULIZE_FAILURE 3U
 #define FERRUM_CHEM_RESULT_INTERNAL_FAILURE 4U
 
+/* ABI-3 capability bits. Each adapter exports its supported subset. */
+#define FERRUM_CHEM_CAPABILITY_KEKULIZE 0x0000000000000001ULL
+#define FERRUM_CHEM_CAPABILITY_SMILES 0x0000000000000002ULL
+#define FERRUM_CHEM_CAPABILITY_GENERATE_2D 0x0000000000000004ULL
+#define FERRUM_CHEM_CAPABILITY_SMARTS 0x0000000000000008ULL
+#define FERRUM_CHEM_CAPABILITY_MOLFILE 0x0000000000000010ULL
+#define FERRUM_CHEM_CAPABILITY_SDF 0x0000000000000020ULL
+#define FERRUM_CHEM_CAPABILITY_INCHI 0x0000000000000040ULL
+
+/* Every adapter-owned result must fit this bound before a consumer reads it. */
+#define FERRUM_CHEM_MAX_RESPONSE_BYTES 40000000U
+
 /* Canonical Kekulize wire constants shared by C++ and generated Rust code. */
 #define FERRUM_CHEM_KEKULIZE_WIRE_VERSION 1U
 #define FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS 0x00000001U
@@ -40,6 +52,11 @@ extern "C" {
 #define FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES 32U
 #define FERRUM_CHEM_KEKULIZE_ATOM_BYTES 12U
 #define FERRUM_CHEM_KEKULIZE_BOND_BYTES 12U
+
+/* FCS1 limits are independently validated by its Rust decoder. */
+#define FERRUM_CHEM_SMILES_MAX_BYTES 1048576U
+#define FERRUM_CHEM_SMILES_RESPONSE_HEADER_BYTES 24U
+#define FERRUM_CHEM_COORDINATE_BYTES 16U
 
 /*
  * Bond-type byte values are wire values, not RDKit enum values.  UNSPECIFIED
@@ -102,22 +119,21 @@ typedef struct ferrum_chem_owned_buffer {
 
 uint32_t ferrum_chem_abi_version(void) FERRUM_CHEM_NOEXCEPT;
 
+/* Returns the explicitly compiled ABI-3 operation set. */
+uint64_t ferrum_chem_capabilities_v1(void) FERRUM_CHEM_NOEXCEPT;
+
 /* A zero call status always returns a structured response, including errors. */
 uint32_t ferrum_chem_kekulize_v1(
 	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * OPTIONAL ABI-2 EXTENSION. ABI 2 requires ferrum_chem_abi_version,
- * ferrum_chem_kekulize_v1, and ferrum_chem_owned_buffer_free_v1 only.
- * ferrum_chem_generate_2d_v1 is present only in an adapter built with the
- * Ferrum Depictor capability. Consumers must discover it by dynamic symbol
- * lookup and report an unavailable operation when it is absent; static callers
- * must not link against or assume this symbol. A later ABI revision may make a
- * depiction capability mandatory, but ABI 2 will not.
+ * ABI-3 generates a deterministic 2D depiction from the strict graph request.
  *
- * Generate-2D v1 receives the same strict graph request vocabulary as
- * Kekulize v1. It calls RDKit's built-in depicter with canonOrient=true,
+ * Generate-2D v1 receives the same strict graph record vocabulary as
+ * Kekulize v1. Its request always has option bits zero and max_backtracks one:
+ * those fields are a graph-envelope parser sentinel, not Kekulize controls.
+ * It calls RDKit's built-in depicter with canonOrient=true,
  * forceRDKit=true, clearConfs=true, no random samples, and no templates.
  *
  * Response: "FCL1", wire_version:u32 (1), result_status:u32,
@@ -126,6 +142,20 @@ uint32_t ferrum_chem_kekulize_v1(
  * atom order. Failure has atom_count zero and no coordinate records.
  */
 uint32_t ferrum_chem_generate_2d_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	FERRUM_CHEM_NOEXCEPT;
+
+/*
+ * ABI-3 SMILES vertical slice. Request is non-empty UTF-8 SMILES with no NUL
+ * bytes and a maximum of FERRUM_CHEM_SMILES_MAX_BYTES. Response is "FCS1",
+ * wire_version:u32 (1), result_status:u32,
+ * detail_length:u32, smiles_length:u32, atom_count:u32, UTF-8 detail,
+ * canonical UTF-8 SMILES, then atom_count x:f64,y:f64 records. Success has
+ * empty detail and coordinates in RDKit atom order. The envelope is deliberately
+ * extensible: SMARTS, mol/SDF, and InChI operations use distinct entry points
+ * and response magics rather than overloading this record.
+ */
+uint32_t ferrum_chem_smiles_to_2d_v1(
 	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 

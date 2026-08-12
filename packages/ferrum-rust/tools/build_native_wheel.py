@@ -31,6 +31,11 @@ from pathlib import Path
 # Local builder self-test fixture
 import native_wheel_builder_self_test
 
+# Local adapter ABI reader.
+from native_wheel_adapter_abi import adapter_abi_version_from_header
+from native_wheel_download import HttpsOnlyRedirectHandler, validated_https_url
+from native_wheel_codec_sources import stage_codec_sources
+
 # Local native-wheel closure
 from native_wheel_macho import (
 	NativeMachoError,
@@ -62,6 +67,7 @@ from native_wheel_profile import (
 	PinnedSource,
 	RDKIT_SHA256,
 	RDKIT_TAG,
+	RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES,
 	RDKIT_URL,
 	RdkitCapabilityProfile,
 	TARGET,
@@ -76,79 +82,20 @@ from native_wheel_receipt import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+RUST_PACKAGE_SOURCE = Path(__file__).resolve().parents[1]
 NATIVE_SOURCE = REPO_ROOT / "packages/ferrum-rust/crates/chemistry/native"
-PYTHON_SOURCE = REPO_ROOT / "packages/ferrum-rust/crates/api/python"
 DOWNLOAD_ATTEMPTS = 3
 ADAPTER_BUILD_TYPES = ("Release", "RelWithDebInfo")
 ADAPTER_HEADER = NATIVE_SOURCE / "include/ferrum_chem_adapter.h"
-ADAPTER_ABI_PATTERN = re.compile(
-	r"^\s*#define\s+FERRUM_CHEM_ADAPTER_ABI_VERSION\s+([1-9][0-9]*)U\s*$",
-	flags=re.MULTILINE,
-)
-KEKULIZE_RDKIT_LIBRARIES = (
-	"libRDKitGraphMol.1.dylib",
-	"libRDKitRDGeometryLib.1.dylib",
-	"libRDKitDataStructs.1.dylib",
-	"libRDKitRDGeneral.1.dylib",
-)
-
-
 class NativeBuildError(RuntimeError):
 	"""An actionable failure in the build or closure contract."""
 
 
 #============================================
-def validated_https_url(url: str, label: str) -> str:
-	"""Accept one credential-free HTTPS URL before any request can use it."""
-	parsed_url = urllib.parse.urlsplit(url)
-	if parsed_url.scheme != "https" or not parsed_url.hostname:
-		raise NativeBuildError(f"{label} URL must use HTTPS with a host: {url}")
-	if parsed_url.username or parsed_url.password or parsed_url.fragment:
-		raise NativeBuildError(f"{label} URL must not contain credentials or a fragment")
-	return url
-
-
-class HttpsOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
-	"""Reject every unsafe redirect before urllib constructs its next request."""
-
-	def redirect_request(
-		self,
-		request: urllib.request.Request,
-		file_pointer: object,
-		code: int,
-		message: str,
-		headers: object,
-		new_url: str,
-	) -> urllib.request.Request | None:
-		validated_https_url(new_url, "redirect")
-		redirect = super().redirect_request(
-			request,
-			file_pointer,
-			code,
-			message,
-			headers,
-			new_url,
-		)
-		return redirect
-
-
-#============================================
-def adapter_abi_version_from_header() -> int:
-	"""Read the one public ABI authority without interpreting C++ implementation."""
-	try:
-		header = ADAPTER_HEADER.read_text(encoding="utf-8")
-	except OSError as error:
-		raise NativeBuildError(f"cannot read Ferrum-Chem ABI header: {ADAPTER_HEADER}") from error
-	versions = ADAPTER_ABI_PATTERN.findall(header)
-	if len(versions) != 1:
-		raise NativeBuildError(
-			"Ferrum-Chem ABI header must define exactly one positive "
-			"FERRUM_CHEM_ADAPTER_ABI_VERSION macro"
-		)
-	return int(versions[0])
-
-
-ADAPTER_ABI_VERSION = adapter_abi_version_from_header()
+try:
+	ADAPTER_ABI_VERSION = adapter_abi_version_from_header(ADAPTER_HEADER)
+except RuntimeError as error:
+	raise NativeBuildError(str(error)) from error
 
 
 @dataclass(frozen=True)
@@ -159,6 +106,11 @@ class RdkitLayout:
 	boost_include_dir: Path
 	graphmol_library: Path
 	rdgeneral_library: Path
+	depictor_library: Path
+	smilesparse_library: Path
+	fileparsers_library: Path
+	rdinchilibrary: Path
+	inchi_library: Path
 	cmake_options: tuple[str, ...]
 	toolchain: dict[str, str]
 	provenance_audit: dict[str, object]
@@ -274,6 +226,11 @@ def rdkit_layout_from_output_root(input_root: Path) -> RdkitLayout:
 	rdgeneral_library = validate_materialized_alias(
 		root / str(paths["rdgeneral_library"]), root, "RDKit RDGeneral library"
 	)
+	depictor_library = required_rdkit_library(lib_dir := graphmol_library.parent, "libRDKitDepictor.1.dylib", root)
+	smilesparse_library = required_rdkit_library(lib_dir, "libRDKitSmilesParse.1.dylib", root)
+	fileparsers_library = required_rdkit_library(lib_dir, "libRDKitFileParsers.1.dylib", root)
+	rdinchilibrary = required_rdkit_library(lib_dir, "libRDKitRDInchiLib.1.dylib", root)
+	inchi_library = required_rdkit_library(lib_dir, "libRDKitInchi.1.dylib", root)
 	boost_include_dir = validate_materialized_source(
 		root / str(paths["boost_include_dir"]), root, "Boost include"
 	)
@@ -291,6 +248,11 @@ def rdkit_layout_from_output_root(input_root: Path) -> RdkitLayout:
 		boost_include_dir=boost_include_dir,
 		graphmol_library=graphmol_library,
 		rdgeneral_library=rdgeneral_library,
+		depictor_library=depictor_library,
+		smilesparse_library=smilesparse_library,
+		fileparsers_library=fileparsers_library,
+		rdinchilibrary=rdinchilibrary,
+		inchi_library=inchi_library,
 		cmake_options=(),
 		toolchain={},
 		provenance_audit={},
@@ -370,7 +332,7 @@ def download_verified_archive(destination: Path, url: str, digest: str, label: s
 			verified_archive(temporary, digest, label)
 			temporary.replace(destination)
 			return destination
-		except (OSError, NativeBuildError) as error:
+		except (OSError, ValueError, NativeBuildError) as error:
 			temporary.unlink(missing_ok=True)
 			if attempt == DOWNLOAD_ATTEMPTS:
 				raise NativeBuildError(
@@ -503,13 +465,16 @@ def prepare_source(output_root: Path, archive_argument: str | None) -> Path:
 	return validate_materialized_source(source, output_root, "RDKit source")
 
 #============================================
-def materialize_retained_rdkit_inputs(output_root: Path) -> tuple[Path, Path, Path]:
-	"""Supply only configure-time sources required by the kekulize profile."""
+def materialize_retained_rdkit_inputs(output_root: Path) -> tuple[Path, Path, Path, Path, Path]:
+	"""Supply every hash-pinned, offline configure input for the ABI-3 profile."""
 	inputs = {item.name: item for item in FERRUM_RDKIT_PROFILE.dependencies}
 	catch2 = download_dependency(output_root, inputs["catch2"])
 	better_enums = download_dependency(output_root, inputs["better-enums"])
 	boost_headers = download_dependency(output_root, inputs["boost-headers"])
-	return catch2, better_enums, boost_headers
+	inchi = download_dependency(output_root, inputs["inchi"])
+	coordgen = download_dependency(output_root, inputs["coordgen"])
+	return catch2, better_enums, boost_headers, inchi, coordgen
+
 
 #============================================
 def materialize_boost_headers_config(output_root: Path, boost_headers: Path) -> Path:
@@ -578,36 +543,49 @@ def copy_rdkit_headers(source_root: Path, destination: Path) -> None:
 
 #============================================
 def stage_kekulize_rdkit_inputs(output_root: Path, source: Path, build: Path) -> Path:
-	"""Create the exact private headers and four dylibs required by kekulization."""
+	"""Create private headers and direct ABI-3 adapter libraries for measurement."""
 	stage = output_root / "rdkit-install"
 	if stage.exists():
 		raise NativeBuildError(f"refusing to overwrite RDKit stage: {stage}")
-	include = stage / "include" / "rdkit"
-	copy_rdkit_headers(source, include)
-	# CMake configures headers below build/Code. Add that distinct generated set
-	# after source headers, but reject a path collision rather than letting either
-	# tree silently change the other's file.
-	generated = build / "Code"
-	if not generated.is_dir():
-		raise NativeBuildError(f"RDKit GraphMol build lacks generated-header root: {generated}")
-	copy_rdkit_headers(build, stage / "include" / "rdkit")
-	lib_dir = stage / "lib"
-	lib_dir.mkdir(parents=True)
-	for library_name in KEKULIZE_RDKIT_LIBRARIES:
-		built_library = build / "lib" / library_name
-		if not built_library.is_file():
-			raise NativeBuildError(
-				"GraphMol target did not produce required kekulize library: "
-				f"{built_library}"
-			)
-		shutil.copy2(built_library, lib_dir / library_name)
+	staging = output_root / f".rdkit-install-{uuid.uuid4().hex}.staging"
+	try:
+		include = staging / "include" / "rdkit"
+		copy_rdkit_headers(source, include)
+		# CMake configures headers below build/Code. Add that distinct generated set
+		# after source headers, but reject a path collision rather than letting either
+		# tree silently change the other's file.
+		generated = build / "Code"
+		if not generated.is_dir():
+			raise NativeBuildError(f"RDKit GraphMol build lacks generated-header root: {generated}")
+		copy_rdkit_headers(build, include)
+		lib_dir = staging / "lib"
+		lib_dir.mkdir(parents=True)
+		for library_name in RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES:
+			stem = library_name.removesuffix(".1.dylib")
+			candidates = sorted({candidate.resolve() for candidate in (build / "lib").glob(f"{stem}.*.dylib")})
+			if len(candidates) != 1:
+				raise NativeBuildError(
+					"GraphMol profile did not produce exactly one required library for "
+					f"{library_name}: {candidates}"
+				)
+			shutil.copy2(candidates[0], lib_dir / library_name)
+		staging.replace(stage)
+	except OSError as error:
+		shutil.rmtree(staging, ignore_errors=True)
+		raise NativeBuildError(f"could not atomically stage native RDKit inputs: {error}") from error
+	except NativeBuildError:
+		shutil.rmtree(staging, ignore_errors=True)
+		raise
 	return stage
 
 
 #============================================
 def build_rdkit(output_root: Path, archive_argument: str | None) -> RdkitLayout:
 	source = prepare_source(output_root, archive_argument)
-	catch2_source, better_enums_source, boost_headers = materialize_retained_rdkit_inputs(output_root)
+	catch2_source, better_enums_source, boost_headers, inchi_source, coordgen_source = (
+		materialize_retained_rdkit_inputs(output_root)
+	)
+	stage_codec_sources(source, inchi_source, coordgen_source)
 	boost_config = materialize_boost_headers_config(output_root, boost_headers)
 	build = output_root / "rdkit-build"
 	install = output_root / "rdkit-install"
@@ -632,7 +610,7 @@ def build_rdkit(output_root: Path, archive_argument: str | None) -> RdkitLayout:
 	except NativePolicyError as error:
 		raise NativeBuildError(str(error)) from error
 	run(
-		str(cmake), "--build", str(build), "--target", "GraphMol", "--parallel",
+		str(cmake), "--build", str(build), "--target", "FileParsers", "RDInchiLib", "Depictor", "--parallel",
 		env=native_tool_environment(llvm_root, cmake),
 	)
 	stage_kekulize_rdkit_inputs(output_root, source, build)
@@ -645,6 +623,11 @@ def build_rdkit(output_root: Path, archive_argument: str | None) -> RdkitLayout:
 		boost_include_dir=layout.boost_include_dir,
 		graphmol_library=layout.graphmol_library,
 		rdgeneral_library=layout.rdgeneral_library,
+		depictor_library=layout.depictor_library,
+		smilesparse_library=layout.smilesparse_library,
+		fileparsers_library=layout.fileparsers_library,
+		rdinchilibrary=layout.rdinchilibrary,
+		inchi_library=layout.inchi_library,
 		cmake_options=tuple(options),
 		toolchain=toolchain_receipt(llvm_root, cmake, sdk_root),
 		provenance_audit=provenance_audit,
@@ -656,7 +639,7 @@ def validate_rdkit_configuration(options: list[str], output_root: Path | None = 
 	values = {option.split("=", 1)[0]: option.split("=", 1)[1] for option in options if "=" in option}
 	required = {
 		"-DRDK_BUILD_PYTHON_WRAPPERS": "OFF", "-DRDK_BUILD_SWIG_WRAPPERS": "OFF",
-		"-DRDK_BUILD_INCHI_SUPPORT": "OFF", "-DRDK_BUILD_COORDGEN_SUPPORT": "OFF",
+		"-DRDK_BUILD_INCHI_SUPPORT": "ON", "-DRDK_BUILD_COORDGEN_SUPPORT": "ON",
 		"-DRDK_BUILD_MAEPARSER_SUPPORT": "OFF", "-DRDK_USE_BOOST_SERIALIZATION": "OFF",
 		"-DRDK_USE_BOOST_IOSTREAMS": "OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Python": "ON",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Python3": "ON", "-DCMAKE_DISABLE_FIND_PACKAGE_Eigen3": "ON",
@@ -674,9 +657,8 @@ def validate_rdkit_configuration(options: list[str], output_root: Path | None = 
 		if values.get(option) != expected:
 			raise NativeBuildError(f"Ferrum RDKit profile requires {option}={expected}")
 	for forbidden in (
-		"-DINCHI_INCLUDE_DIR", "-DINCHI_LIBRARY",
-		"-DMAEPARSER_DIR", "-DCOORDGEN_DIR", "-DMAEPARSER_FORCE_BUILD",
-		"-DCOORDGEN_FORCE_BUILD",
+		"-DINCHI_INCLUDE_DIR", "-DINCHI_LIBRARY", "-DMAEPARSER_DIR", "-DCOORDGEN_DIR",
+		"-DMAEPARSER_FORCE_BUILD",
 	):
 		if forbidden in values:
 			raise NativeBuildError(
@@ -715,6 +697,11 @@ def configure_adapter(
 		f"-DFERRUM_CHEM_BOOST_INCLUDE_DIR={layout.boost_include_dir}",
 		f"-DFERRUM_CHEM_RDKIT_GRAPHMOL={layout.graphmol_library}",
 		f"-DFERRUM_CHEM_RDKIT_RDGENERAL={layout.rdgeneral_library}",
+		f"-DFERRUM_CHEM_RDKIT_DEPICTOR={layout.depictor_library}",
+		f"-DFERRUM_CHEM_RDKIT_SMILESPARSE={layout.smilesparse_library}",
+		f"-DFERRUM_CHEM_RDKIT_FILEPARSERS={layout.fileparsers_library}",
+		f"-DFERRUM_CHEM_RDKIT_RDINCHILIB={layout.rdinchilibrary}",
+		f"-DFERRUM_CHEM_RDKIT_INCHI={layout.inchi_library}",
 	]
 	command.extend(cmake_toolchain_options(llvm_root, sdk_root))
 	run(*command, env=native_tool_environment(llvm_root, cmake))
@@ -731,7 +718,11 @@ def configure_adapter(
 	if not adapter.is_file():
 		raise NativeBuildError(f"adapter build did not produce {adapter}")
 	linked_names = {Path(item).name for item in otool_dependencies(adapter)}
-	for library in (layout.graphmol_library, layout.rdgeneral_library):
+	for library in (
+		layout.graphmol_library, layout.rdgeneral_library, layout.depictor_library,
+		layout.smilesparse_library, layout.fileparsers_library, layout.rdinchilibrary,
+		layout.inchi_library,
+	):
 		if library.name not in linked_names:
 			raise NativeBuildError(
 				"adapter did not retain its declared RDKit loader dependency; "
@@ -759,17 +750,17 @@ def tool_version(command: str) -> str:
 
 #============================================
 def stage_python_project(output_root: Path) -> Path:
-	"""Copy the tracked maturin project below output_root before adding build artifacts."""
+	"""Copy the Rust workspace below output_root before adding wheel artifacts."""
 	output_root = output_root.resolve()
 	stage = output_root / "maturin-project"
 	if stage.exists():
 		raise NativeBuildError(f"refusing to overwrite staged maturin project: {stage}")
 	shutil.copytree(
-		PYTHON_SOURCE,
+		RUST_PACKAGE_SOURCE,
 		stage,
 		ignore=shutil.ignore_patterns(".libs", "target", "__pycache__", "*.pyc"),
 	)
-	return stage
+	return stage / "crates" / "api" / "python"
 
 #============================================
 def validate_wheel_members(

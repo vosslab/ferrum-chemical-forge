@@ -7,12 +7,16 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
+publish.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
 ferrum-core = { path = "../core" }
+getrandom = { version = "*" }
+rustix = { version = "*", features = ["fs"] }
+sha2 = { version = "*" }
 thiserror = { version = "*" }
 xot = { version = "*" }
 

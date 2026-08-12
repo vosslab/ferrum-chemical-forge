@@ -29,6 +29,8 @@ pub struct HexEdge {
 pub struct HexGrid {
     spacing: f64,
     origin: Point2,
+    basis_n: Point2,
+    basis_m: Point2,
 }
 
 impl HexGrid {
@@ -40,34 +42,38 @@ impl HexGrid {
         if spacing <= 0.0 {
             return Err(GeometryError::NonPositiveExtent);
         }
-        Ok(Self { spacing, origin })
+        let basis_n = Point2::new(spacing * HALF_SQRT_3, spacing / 2.0)
+            .map_err(|_| GeometryError::UnrepresentableGeometry)?;
+        let basis_m =
+            Point2::new(0.0, spacing).map_err(|_| GeometryError::UnrepresentableGeometry)?;
+        Ok(Self {
+            spacing,
+            origin,
+            basis_n,
+            basis_m,
+        })
     }
 
     /// Returns the two grid basis vectors as points relative to the origin.
     pub fn basis_vectors(self) -> (Point2, Point2) {
-        // Construction uses finite spacing, and this simple multiplication remains
-        // finite for valid practical canvas spacing.
-        (
-            Point2::new(self.spacing * HALF_SQRT_3, self.spacing / 2.0).expect("finite grid basis"),
-            Point2::new(0.0, self.spacing).expect("finite grid basis"),
-        )
+        (self.basis_n, self.basis_m)
     }
 
     /// Converts a grid index into Cartesian coordinates.
     pub fn point(self, index: HexIndex) -> Result<Point2, GeometryError> {
         Point2::new(
-            self.origin.x() + (index.n as f64) * self.spacing * HALF_SQRT_3,
+            self.origin.x() + (index.n as f64) * self.basis_n.x(),
             self.origin.y()
-                + (index.n as f64) * self.spacing / 2.0
-                + (index.m as f64) * self.spacing,
+                + (index.n as f64) * self.basis_n.y()
+                + (index.m as f64) * self.basis_m.y(),
         )
     }
 
     /// Returns the deterministic Euclidean-nearest lattice index.
     pub fn nearest_index(self, point: Point2) -> Result<HexIndex, GeometryError> {
-        let n_fraction = (point.x() - self.origin.x()) / (self.spacing * HALF_SQRT_3);
+        let n_fraction = (point.x() - self.origin.x()) / self.basis_n.x();
         let m_fraction =
-            (point.y() - self.origin.y() - n_fraction * self.spacing / 2.0) / self.spacing;
+            (point.y() - self.origin.y() - n_fraction * self.basis_n.y()) / self.basis_m.y();
         if !n_fraction.is_finite() || !m_fraction.is_finite() {
             return Err(GeometryError::NonFiniteCoordinate);
         }

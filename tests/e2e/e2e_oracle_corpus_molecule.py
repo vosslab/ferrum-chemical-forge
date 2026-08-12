@@ -467,7 +467,7 @@ def main() -> None:
 	for corpus_path in corpus_paths():
 		request_text = oracle_request(corpus_path)
 		oracle_output = child_result(
-			[str(args.oracle_python), str(ORACLE_CHILD)], request_text,
+			[str(args.oracle_python), "-B", str(ORACLE_CHILD)], request_text,
 		)
 		ferrum_output = child_result(rust_command(corpus_path))
 		molecules = ferrum_output["projection"]["molecules"]

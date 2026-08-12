@@ -81,12 +81,6 @@ class AboutDialog(PySide6.QtWidgets.QDialog):
 		license_label.setAlignment(PySide6.QtCore.Qt.AlignmentFlag.AlignCenter)
 		layout.addWidget(license_label)
 
-		lineage_label = PySide6.QtWidgets.QLabel(
-			self.tr("Continues the BKChem and OASA CDML lineage")
-		)
-		lineage_label.setAlignment(PySide6.QtCore.Qt.AlignmentFlag.AlignCenter)
-		layout.addWidget(lineage_label)
-
 		# link
 		link_label = PySide6.QtWidgets.QLabel(
 			'<a href="https://github.com/vosslab/ferrum-chemical-forge">'

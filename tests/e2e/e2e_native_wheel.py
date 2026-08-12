@@ -205,7 +205,10 @@ def scrubbed_environment() -> dict[str, str]:
 #============================================
 def probe(python: Path) -> dict[str, object]:
 	output = run(
-		str(python), "-I", "-c",
+		# `-I` deliberately ignores environment variables, including
+		# PYTHONDONTWRITEBYTECODE. Keep the clean-wheel probe isolated while
+		# explicitly prohibiting bytecode output.
+		str(python), "-I", "-B", "-c",
 		"import json, ferrum_api._native; "
 		"print(json.dumps({'abi_version': ferrum_api._native.probe()}))",
 		env=scrubbed_environment(),
@@ -626,7 +629,7 @@ def main() -> int:
 	with tempfile.TemporaryDirectory(prefix="e2e-native-wheel-", dir=output_parent) as temporary:
 		output_root = Path(temporary)
 		build_command = [
-			sys.executable,
+			sys.executable, "-B",
 			str(BUILD_TOOL),
 			"build",
 			"--output-root",
@@ -644,9 +647,9 @@ def main() -> int:
 		)
 		builder_receipt = read_build_receipt(output_root)
 		venv = output_root / "clean-venv"
-		run(sys.executable, "-m", "venv", str(venv))
+		run(sys.executable, "-B", "-m", "venv", str(venv))
 		python = venv / "bin" / "python"
-		run(str(python), "-m", "pip", "install", "--no-deps", str(wheel), env=scrubbed_environment())
+		run(str(python), "-B", "-m", "pip", "install", "--no-deps", str(wheel), env=scrubbed_environment())
 		before = probe(python)
 		if before != {"abi_version": contract.adapter_abi_version}:
 			raise E2eError(f"initial isolated probe was not the wheel ABI: {before}")
@@ -661,7 +664,7 @@ def main() -> int:
 		replacement_root = output_root / "replacement-output"
 		replacement = parse_artifact_result(
 			run(
-				sys.executable,
+				sys.executable, "-B",
 				str(BUILD_TOOL),
 				"adapter",
 				"--output-root",

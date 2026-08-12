@@ -20,3 +20,18 @@ def test_closed_tab_releases_its_detached_native_ownership_graph(
 
 	assert closed
 	assert drained
+
+
+#============================================
+def test_tab_title_binding_retires_with_its_session(
+		main_window: ferrum_qt.main_window.MainWindow,
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""A session title reaches its tab and cleanly retires when the tab closes."""
+	assert main_window._on_new()
+	session = main_window.sessions[1]
+	session.title_changed.emit("Named document")
+
+	assert main_window._tab_widget.tabText(1) == "Named document"
+	assert main_window.close_session_at(1)
+	assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)

@@ -387,12 +387,7 @@ class WindowViewMixin:
 			self._tab_widget.blockSignals(previous_block)
 
 		for session in sessions:
-			try:
-				session.title_changed.disconnect(
-					self._on_session_title_changed
-				)
-			except (RuntimeError, TypeError):
-				pass
+			self._disconnect_session_title(session)
 			self._shutdown_sessions_pending_disposal.append(session)
 		self._emit_worker_retirement_drained()
 		return True

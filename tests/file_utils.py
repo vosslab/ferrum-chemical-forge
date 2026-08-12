@@ -456,7 +456,9 @@ def run_fixer_script(script_name: str, target: str) -> tuple[int, str]:
 		)
 	# Run the fixer in the repo root so its own path resolution is consistent.
 	# Build the command first so the try body stays a single line per style.
-	command = ["python3", script_path, "-i", target]
+	# A subprocess may not inherit the caller's sourced shell environment.
+	# `-B` therefore makes the no-bytecode hygiene contract explicit.
+	command = ["python3", "-B", script_path, "-i", target]
 	try:
 		result = subprocess.run(command, capture_output=True, text=True, cwd=root)
 	except FileNotFoundError as exc:

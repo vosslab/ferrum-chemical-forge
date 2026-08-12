@@ -9,9 +9,7 @@ import ferrum_qt.io.cdml_fragment_builder
 import ferrum_qt.io.clipboard_mime
 
 
-# Ferrum publishes its own type and the historical type for clipboard compatibility.
 CDML_MIME_TYPE = "application/x-ferrum-cdml"
-LEGACY_CDML_MIME_TYPE = "application/x-bkchem-cdml"
 
 #============================================
 class ClipboardManager:
@@ -50,7 +48,6 @@ class ClipboardManager:
 		mime_data = PySide6.QtCore.QMimeData()
 		encoded = PySide6.QtCore.QByteArray(cdml_text.encode("utf-8"))
 		mime_data.setData(CDML_MIME_TYPE, encoded)
-		mime_data.setData(LEGACY_CDML_MIME_TYPE, encoded)
 		mime_data.setText(cdml_text)
 		mime_data.setProperty(
 			ferrum_qt.io.clipboard_mime.FERRUM_OWNED_MIME_PROPERTY, True,
@@ -69,10 +66,7 @@ class ClipboardManager:
 		mime_data = clipboard.mimeData()
 		if mime_data is None:
 			return False
-		if any(
-			mime_data.hasFormat(mime_type)
-			for mime_type in (CDML_MIME_TYPE, LEGACY_CDML_MIME_TYPE)
-		):
+		if mime_data.hasFormat(CDML_MIME_TYPE):
 			return True
 		if mime_data.hasText():
 			text = mime_data.text()
@@ -87,10 +81,8 @@ def _read_cdml_from_clipboard() -> tuple[str, str | None]:
 	mime_data = clipboard.mimeData()
 	if mime_data is None:
 		return ("no_data", None)
-	for mime_type in (CDML_MIME_TYPE, LEGACY_CDML_MIME_TYPE):
-		if not mime_data.hasFormat(mime_type):
-			continue
-		raw = mime_data.data(mime_type)
+	if mime_data.hasFormat(CDML_MIME_TYPE):
+		raw = mime_data.data(CDML_MIME_TYPE)
 		try:
 			cdml_text = bytes(raw).decode("utf-8")
 		except UnicodeDecodeError:

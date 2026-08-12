@@ -210,6 +210,38 @@ impl Coordinates {
     }
 }
 
+/// Canonical SMILES and a complete atom-order-aligned native 2D depiction.
+///
+/// The value owns only Ferrum data.  It never exposes an RDKit molecule,
+/// parser, or foreign allocation to callers.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SmilesDepiction {
+    canonical_smiles: String,
+    coordinates: Coordinates,
+}
+
+impl SmilesDepiction {
+    /// Create a decoded native SMILES depiction.
+    pub(crate) fn new(canonical_smiles: String, coordinates: Coordinates) -> Self {
+        Self {
+            canonical_smiles,
+            coordinates,
+        }
+    }
+
+    /// Return the canonical SMILES written by the selected native profile.
+    #[must_use]
+    pub fn canonical_smiles(&self) -> &str {
+        &self.canonical_smiles
+    }
+
+    /// Return finite coordinates in the native molecule's atom order.
+    #[must_use]
+    pub fn coordinates(&self) -> &Coordinates {
+        &self.coordinates
+    }
+}
+
 /// An immutable, validated molecular graph.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MolGraph {

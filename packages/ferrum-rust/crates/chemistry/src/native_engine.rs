@@ -8,7 +8,7 @@ use std::path::Path;
 use ferrum_chemistry_sys::{AdapterError, ChemistryAdapter};
 
 use crate::{
-    AtomicNumber, BondOrder, ChemEngine, ChemistryError, Coordinates,
+    AtomicNumber, BondOrder, ChemEngine, ChemistryError, Coordinates, FERRUM_CHEM_COORDINATE_BYTES,
     FERRUM_CHEM_KEKULIZE_ATOM_BYTES, FERRUM_CHEM_KEKULIZE_BOND_BYTES,
     FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC, FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE,
     FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE,
@@ -21,14 +21,17 @@ use crate::{
     FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_WIRE_VERSION,
     FERRUM_CHEM_RESULT_INTERNAL_FAILURE, FERRUM_CHEM_RESULT_INVALID_MOLECULE,
     FERRUM_CHEM_RESULT_KEKULIZE_FAILURE, FERRUM_CHEM_RESULT_MALFORMED_REQUEST,
-    FERRUM_CHEM_RESULT_OK, KekulizeOptions, MolAtom, MolBond, MolGraph, Point2,
+    FERRUM_CHEM_RESULT_OK, FERRUM_CHEM_SMILES_MAX_BYTES, FERRUM_CHEM_SMILES_RESPONSE_HEADER_BYTES,
+    KekulizeOptions, MolAtom, MolBond, MolGraph, Point2, SmilesDepiction,
 };
 
 const REQUEST_MAGIC: [u8; 4] = *b"FCK1";
 const RESPONSE_MAGIC: [u8; 4] = *b"FCR1";
 const COORDINATE_RESPONSE_MAGIC: [u8; 4] = *b"FCL1";
 const COORDINATE_RESPONSE_HEADER_LENGTH: usize = 20;
-const COORDINATE_BYTES: usize = 16;
+const COORDINATE_BYTES: usize = FERRUM_CHEM_COORDINATE_BYTES;
+const SMILES_RESPONSE_MAGIC: [u8; 4] = *b"FCS1";
+const SMILES_RESPONSE_HEADER_LENGTH: usize = FERRUM_CHEM_SMILES_RESPONSE_HEADER_BYTES;
 const REQUEST_HEADER_LENGTH: usize = FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES;
 const RESPONSE_HEADER_LENGTH: usize = FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES;
 const ATOM_LENGTH: usize = FERRUM_CHEM_KEKULIZE_ATOM_BYTES;
@@ -38,6 +41,23 @@ const OPTION_MASK: u32 =
 const FACT_MASK: u32 = FERRUM_CHEM_KEKULIZE_FACT_FORMAL_CHARGE
     | FERRUM_CHEM_KEKULIZE_FACT_ISOTOPE
     | FERRUM_CHEM_KEKULIZE_FACT_EXPLICIT_HYDROGENS;
+
+/// Fixed wire policy for deterministic 2D depictions.
+///
+/// The graph envelope is shared with Kekulize, but this policy never exposes
+/// or accepts Kekulize's bond-form or search-budget controls.
+#[derive(Clone, Copy)]
+struct DepictionRequestOptions;
+
+impl DepictionRequestOptions {
+    const fn option_bits(self) -> u32 {
+        0
+    }
+
+    const fn parser_backtrack_sentinel(self) -> u32 {
+        1
+    }
+}
 
 /// A safe, dynamically loaded native chemistry engine.
 ///
@@ -56,11 +76,162 @@ impl NativeChemEngine {
             .map(|adapter| Self { adapter })
             .map_err(adapter_error)
     }
+
+    /// Parse SMILES and produce canonical SMILES with deterministic 2D coordinates.
+    pub fn smiles_to_2d(&self, smiles: &str) -> Result<SmilesDepiction, ChemistryError> {
+        validate_smiles_input(smiles)?;
+        let response = self
+            .adapter
+            .smiles_to_2d(smiles.as_bytes())
+            .map_err(adapter_error)?;
+        decode_smiles_response(&response)
+    }
+}
+
+fn validate_smiles_input(smiles: &str) -> Result<(), ChemistryError> {
+    if smiles.is_empty() {
+        return Err(invalid_smiles_input("must not be empty"));
+    }
+    if smiles.as_bytes().contains(&0) {
+        return Err(invalid_smiles_input("must not contain NUL bytes"));
+    }
+    if smiles.len() > FERRUM_CHEM_SMILES_MAX_BYTES {
+        return Err(invalid_smiles_input(&format!(
+            "has {} bytes, above the {FERRUM_CHEM_SMILES_MAX_BYTES}-byte ABI limit",
+            smiles.len()
+        )));
+    }
+    Ok(())
+}
+
+fn invalid_smiles_input(reason: &str) -> ChemistryError {
+    ChemistryError::InvalidSmilesInput {
+        reason: reason.to_owned(),
+    }
+}
+
+fn decode_smiles_response(response: &[u8]) -> Result<SmilesDepiction, ChemistryError> {
+    if response.len() < SMILES_RESPONSE_HEADER_LENGTH {
+        return Err(ChemistryError::TruncatedNativeResponse);
+    }
+    let mut reader = Reader::new(response);
+    if reader.take(4).map_err(decode_error)? != SMILES_RESPONSE_MAGIC {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "SMILES response magic is not FCS1".to_owned(),
+        });
+    }
+    if reader.u32().map_err(decode_error)? != 1 {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "unsupported SMILES response wire version".to_owned(),
+        });
+    }
+    let status = reader.u32().map_err(decode_error)?;
+    let detail_length =
+        usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
+    let smiles_length =
+        usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
+    let atom_count = usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
+    if detail_length > FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "SMILES response detail exceeds the ABI limit".to_owned(),
+        });
+    }
+    if smiles_length > FERRUM_CHEM_SMILES_MAX_BYTES {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "SMILES response canonical string exceeds the ABI limit".to_owned(),
+        });
+    }
+    if atom_count > FERRUM_CHEM_KEKULIZE_MAX_ATOMS as usize {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "SMILES response atom count exceeds the ABI limit".to_owned(),
+        });
+    }
+    let detail = decode_smiles_text(
+        reader.take(detail_length).map_err(decode_error)?,
+        "SMILES response detail",
+    )?;
+    let canonical_smiles = decode_smiles_text(
+        reader.take(smiles_length).map_err(decode_error)?,
+        "SMILES response canonical string",
+    )?;
+    if !matches!(
+        status,
+        FERRUM_CHEM_RESULT_OK
+            | FERRUM_CHEM_RESULT_MALFORMED_REQUEST
+            | FERRUM_CHEM_RESULT_INVALID_MOLECULE
+            | FERRUM_CHEM_RESULT_INTERNAL_FAILURE
+    ) {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "unknown or inapplicable SMILES response result status".to_owned(),
+        });
+    }
+    if status != FERRUM_CHEM_RESULT_OK {
+        if !canonical_smiles.is_empty() || atom_count != 0 || !reader.is_empty() {
+            return Err(ChemistryError::MalformedNativeResponse {
+                reason: "failed SMILES response contains molecule payload".to_owned(),
+            });
+        }
+        return Err(ChemistryError::CoordinateGenerationFailed {
+            reason: detail.to_owned(),
+        });
+    }
+    if !detail.is_empty() || canonical_smiles.is_empty() {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "successful SMILES response has invalid textual payload".to_owned(),
+        });
+    }
+    let coordinate_bytes = atom_count.checked_mul(COORDINATE_BYTES).ok_or_else(|| {
+        ChemistryError::MalformedNativeResponse {
+            reason: "SMILES coordinate response length overflows this platform".to_owned(),
+        }
+    })?;
+    if response.len().saturating_sub(reader.cursor) != coordinate_bytes {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "SMILES response has truncated or trailing coordinate records".to_owned(),
+        });
+    }
+    let mut points = Vec::with_capacity(atom_count);
+    for _ in 0..atom_count {
+        let x = f64::from_le_bytes(
+            reader
+                .take(8)
+                .map_err(decode_error)?
+                .try_into()
+                .expect("fixed"),
+        );
+        let y = f64::from_le_bytes(
+            reader
+                .take(8)
+                .map_err(decode_error)?
+                .try_into()
+                .expect("fixed"),
+        );
+        points.push(
+            Point2::new(x, y).map_err(|_| ChemistryError::MalformedNativeResponse {
+                reason: "SMILES response contains a non-finite coordinate".to_owned(),
+            })?,
+        );
+    }
+    Ok(SmilesDepiction::new(
+        canonical_smiles.to_owned(),
+        Coordinates::new(points),
+    ))
+}
+
+fn decode_smiles_text<'a>(bytes: &'a [u8], field: &str) -> Result<&'a str, ChemistryError> {
+    if bytes.contains(&0) {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: format!("{field} contains a NUL byte"),
+        });
+    }
+    std::str::from_utf8(bytes).map_err(|_| ChemistryError::MalformedNativeResponse {
+        reason: format!("{field} is not UTF-8"),
+    })
 }
 
 impl ChemEngine for NativeChemEngine {
     fn generate_2d_coordinates(&self, molecule: &MolGraph) -> Result<Coordinates, ChemistryError> {
-        let request = encode_request(molecule, KekulizeOptions::default())?;
+        let request = encode_depiction_request(molecule)?;
         let response = self.adapter.generate_2d(&request).map_err(adapter_error)?;
         decode_coordinate_response(&response, molecule.atoms().len())
     }
@@ -75,7 +246,7 @@ impl ChemEngine for NativeChemEngine {
                 reason: error.to_string(),
             }
         })?;
-        let request = encode_request(molecule, options)?;
+        let request = encode_kekulize_request(molecule, options)?;
         let response = self.adapter.kekulize(&request).map_err(adapter_error)?;
         let decoded = decode_response(&response).map_err(decode_error)?;
         finish_response(molecule, options, decoded)
@@ -180,9 +351,26 @@ fn adapter_error(error: AdapterError) -> ChemistryError {
     }
 }
 
-fn encode_request(
+fn encode_kekulize_request(
     molecule: &MolGraph,
     options: KekulizeOptions,
+) -> Result<Vec<u8>, ChemistryError> {
+    encode_graph_request(molecule, options_bits(options), options.max_backtracks())
+}
+
+fn encode_depiction_request(molecule: &MolGraph) -> Result<Vec<u8>, ChemistryError> {
+    let policy = DepictionRequestOptions;
+    encode_graph_request(
+        molecule,
+        policy.option_bits(),
+        policy.parser_backtrack_sentinel(),
+    )
+}
+
+fn encode_graph_request(
+    molecule: &MolGraph,
+    option_bits: u32,
+    max_backtracks: u32,
 ) -> Result<Vec<u8>, ChemistryError> {
     let atom_count = checked_count(
         molecule.atoms().len(),
@@ -194,11 +382,11 @@ fn encode_request(
         FERRUM_CHEM_KEKULIZE_MAX_BONDS,
         "bond count",
     )?;
-    if options.max_backtracks() > FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS {
+    if max_backtracks == 0 || max_backtracks > FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS {
         return Err(ChemistryError::UnsupportedNativeRequest {
             reason: format!(
                 "max_backtracks {} exceeds {FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS}",
-                options.max_backtracks()
+                max_backtracks
             ),
         });
     }
@@ -214,8 +402,8 @@ fn encode_request(
     let mut output = Vec::with_capacity(capacity);
     output.extend_from_slice(&REQUEST_MAGIC);
     put_u32(&mut output, FERRUM_CHEM_KEKULIZE_WIRE_VERSION);
-    put_u32(&mut output, options_bits(options));
-    put_u32(&mut output, options.max_backtracks());
+    put_u32(&mut output, option_bits);
+    put_u32(&mut output, max_backtracks);
     put_u32(&mut output, atom_count);
     put_u32(&mut output, bond_count);
     debug_assert_eq!(output.len(), REQUEST_HEADER_LENGTH);
@@ -705,226 +893,4 @@ fn put_i32(output: &mut Vec<u8>, value: i32) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{Coordinates, Point2};
-
-    fn aromatic_carbon() -> MolAtom {
-        MolAtom::new(
-            AtomicNumber::try_from(6).expect("carbon"),
-            Some(-1),
-            Some(13),
-            Some(1),
-            true,
-        )
-        .expect("valid atom")
-    }
-
-    fn graph() -> MolGraph {
-        MolGraph::new(
-            vec![aromatic_carbon(), aromatic_carbon()],
-            vec![MolBond::new(0, 1, BondOrder::Aromatic, true)],
-            Some(Coordinates::new(vec![
-                Point2::new(1.0, 2.0).expect("finite"),
-                Point2::new(-3.0, 4.0).expect("finite"),
-            ])),
-        )
-        .expect("valid graph")
-    }
-
-    #[test]
-    fn request_codec_has_a_stable_golden_layout() {
-        let bytes = encode_request(&graph(), KekulizeOptions::default()).expect("encodes");
-        let expected = [
-            b'F', b'C', b'K', b'1', 1, 0, 0, 0, 2, 0, 0, 0, 100, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0,
-            6, 1, 7, 0, 255, 255, 255, 255, 13, 0, 1, 0, 6, 1, 7, 0, 255, 255, 255, 255, 13, 0, 1,
-            0, 0, 0, 0, 0, 1, 0, 0, 0, 4, 1, 0, 0,
-        ];
-        assert_eq!(bytes, expected);
-    }
-
-    #[test]
-    fn bond_type_constants_preserve_the_v1_wire_vocabulary() {
-        assert_eq!(FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED, 0);
-        assert_eq!(FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE, 1);
-        assert_eq!(FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE, 2);
-        assert_eq!(FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE, 3);
-        assert_eq!(FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC, 4);
-        assert_eq!(FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE, 5);
-    }
-
-    #[test]
-    fn response_codec_rejects_truncated_and_trailing_bytes() {
-        assert!(matches!(
-            decode_response(&[0; 3]),
-            Err(DecodeFailure::Truncated)
-        ));
-        let mut response = success_response(&graph(), KekulizeOptions::default());
-        response.push(0);
-        assert!(matches!(
-            decode_response(&response),
-            Err(DecodeFailure::Trailing)
-        ));
-    }
-
-    #[test]
-    fn response_codec_preflights_declared_records_before_allocating() {
-        let mut response = success_response(&graph(), KekulizeOptions::default());
-        response[24..28].copy_from_slice(&FERRUM_CHEM_KEKULIZE_MAX_ATOMS.to_le_bytes());
-        assert!(matches!(
-            decode_response(&response),
-            Err(DecodeFailure::Truncated)
-        ));
-    }
-
-    #[test]
-    fn response_identity_validation_preserves_coordinates_and_optional_facts() {
-        let input = graph();
-        let decoded = decode_response(&success_response(&input, KekulizeOptions::default()))
-            .expect("decode success");
-        let output = finish_response(&input, KekulizeOptions::default(), decoded).expect("accept");
-        assert_eq!(output.coordinates(), input.coordinates());
-        assert_eq!(output.atoms()[0].formal_charge(), Some(-1));
-        assert_eq!(output.atoms()[0].isotope(), Some(13));
-        assert_eq!(output.atoms()[0].explicit_hydrogens(), Some(1));
-    }
-
-    #[test]
-    fn kekulize_failure_is_typed() {
-        let response = error_response(FERRUM_CHEM_RESULT_KEKULIZE_FAILURE, "cannot assign bonds");
-        let decoded = decode_response(&response).expect("decode error response");
-        assert_eq!(
-            finish_response(&graph(), KekulizeOptions::default(), decoded),
-            Err(ChemistryError::KekulizationFailed {
-                reason: "cannot assign bonds".to_owned(),
-            })
-        );
-    }
-
-    #[test]
-    fn coordinate_response_rejects_an_unknown_result_status() {
-        let response = coordinate_error_response(u32::MAX, "unrecognized status");
-
-        assert!(matches!(
-            decode_coordinate_response(&response, graph().atoms().len()),
-            Err(ChemistryError::MalformedNativeResponse { .. })
-        ));
-    }
-
-    #[test]
-    fn response_semantics_reject_aromatic_contract_mutations() {
-        let input = graph();
-        let options = KekulizeOptions::default();
-        let mut wrong_order = success_response(&input, options);
-        let bond_offset = RESPONSE_HEADER_LENGTH + input.atoms().len() * ATOM_LENGTH;
-        wrong_order[bond_offset + 8] = wire_bond_type(FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC);
-        let decoded = decode_response(&wrong_order).expect("decode structurally valid response");
-        assert!(matches!(
-            finish_response(&input, options, decoded),
-            Err(ChemistryError::MalformedNativeResponse { .. })
-        ));
-
-        let mut wrong_atom_flag = success_response(&input, options);
-        wrong_atom_flag[RESPONSE_HEADER_LENGTH + 1] = 0;
-        let decoded =
-            decode_response(&wrong_atom_flag).expect("decode structurally valid response");
-        assert!(matches!(
-            finish_response(&input, options, decoded),
-            Err(ChemistryError::MalformedNativeResponse { .. })
-        ));
-    }
-
-    #[test]
-    fn clear_aromatic_flags_requires_cleared_atom_and_bond_flags() {
-        let input = graph();
-        let options = KekulizeOptions::new(true, true, 100).expect("valid options");
-        let response = success_response(&input, options);
-        let decoded = decode_response(&response).expect("decode cleared response");
-        assert!(finish_response(&input, options, decoded).is_ok());
-
-        let mut wrong_bond_flag = success_response(&input, options);
-        let bond_offset = RESPONSE_HEADER_LENGTH + input.atoms().len() * ATOM_LENGTH;
-        wrong_bond_flag[bond_offset + 9] = 1;
-        let decoded =
-            decode_response(&wrong_bond_flag).expect("decode structurally valid response");
-        assert!(matches!(
-            finish_response(&input, options, decoded),
-            Err(ChemistryError::MalformedNativeResponse { .. })
-        ));
-    }
-
-    fn success_response(graph: &MolGraph, options: KekulizeOptions) -> Vec<u8> {
-        let request = encode_request(graph, options).expect("request");
-        let mut response = Vec::new();
-        response.extend_from_slice(&RESPONSE_MAGIC);
-        put_u32(&mut response, FERRUM_CHEM_KEKULIZE_WIRE_VERSION);
-        put_u32(&mut response, FERRUM_CHEM_RESULT_OK);
-        put_u32(&mut response, 0);
-        put_u32(&mut response, options_bits(options));
-        put_u32(&mut response, options.max_backtracks());
-        put_u32(
-            &mut response,
-            u32::try_from(graph.atoms().len()).expect("count"),
-        );
-        put_u32(
-            &mut response,
-            u32::try_from(graph.bonds().len()).expect("count"),
-        );
-        response.extend_from_slice(&request[REQUEST_HEADER_LENGTH..]);
-        for index in 0..graph.bonds().len() {
-            if graph.bonds()[index].order() == BondOrder::Aromatic {
-                let bond_type_offset = RESPONSE_HEADER_LENGTH
-                    + graph.atoms().len() * ATOM_LENGTH
-                    + index * BOND_LENGTH
-                    + 8;
-                response[bond_type_offset] = wire_bond_type(FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE);
-            }
-        }
-        if options.clear_aromatic_flags() {
-            for index in 0..graph.atoms().len() {
-                response[RESPONSE_HEADER_LENGTH + index * ATOM_LENGTH + 1] = 0;
-            }
-            for index in 0..graph.bonds().len() {
-                if graph.bonds()[index].order() == BondOrder::Aromatic {
-                    let aromatic_offset = RESPONSE_HEADER_LENGTH
-                        + graph.atoms().len() * ATOM_LENGTH
-                        + index * BOND_LENGTH
-                        + 9;
-                    response[aromatic_offset] = 0;
-                }
-            }
-        }
-        response
-    }
-
-    fn error_response(status: u32, detail: &str) -> Vec<u8> {
-        let mut response = Vec::new();
-        response.extend_from_slice(&RESPONSE_MAGIC);
-        put_u32(&mut response, FERRUM_CHEM_KEKULIZE_WIRE_VERSION);
-        put_u32(&mut response, status);
-        put_u32(
-            &mut response,
-            u32::try_from(detail.len()).expect("detail count"),
-        );
-        put_u32(&mut response, 0);
-        put_u32(&mut response, 0);
-        put_u32(&mut response, 0);
-        put_u32(&mut response, 0);
-        response.extend_from_slice(detail.as_bytes());
-        response
-    }
-
-    fn coordinate_error_response(status: u32, detail: &str) -> Vec<u8> {
-        let mut response = Vec::new();
-        response.extend_from_slice(&COORDINATE_RESPONSE_MAGIC);
-        put_u32(&mut response, 1);
-        put_u32(&mut response, status);
-        put_u32(
-            &mut response,
-            u32::try_from(detail.len()).expect("detail count"),
-        );
-        put_u32(&mut response, 0);
-        response.extend_from_slice(detail.as_bytes());
-        response
-    }
-}
+mod native_engine_tests;

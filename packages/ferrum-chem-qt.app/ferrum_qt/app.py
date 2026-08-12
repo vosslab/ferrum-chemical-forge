@@ -22,19 +22,13 @@ import ferrum_qt.versioning
 # application metadata
 APP_NAME = "Ferrum-Qt"
 APP_ORG = "Ferrum"
-# Existing smoke coordinators consume this versioned protocol identifier. It is a
-# compatibility key, not product display branding.
-SMOKE_RECEIPT_SCHEMA = "bkchem-smoke-1"
+SMOKE_RECEIPT_SCHEMA = "ferrum-smoke-1"
 
 
 #============================================
 def default_user_template_directory() -> pathlib.Path:
-	"""Return the existing frontend-owned user-template directory.
-
-	The historical path is persistent user data rather than product display branding.
-	Changing it requires an explicit migration that discovers existing templates.
-	"""
-	return pathlib.Path.home() / ".bkchem" / "templates"
+	"""Return Ferrum-Qt's frontend-owned user-template directory."""
+	return pathlib.Path.home() / ".ferrum" / "templates"
 
 
 #============================================

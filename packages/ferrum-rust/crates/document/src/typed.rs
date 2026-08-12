@@ -6,7 +6,12 @@ use thiserror::Error;
 use xot::xmlname::NameStrInfo;
 use xot::{Node, Value, Xot};
 
-use super::{CDML_NAMESPACE, ElementPath, IndexedDocument, IndexedDocumentError};
+use super::{
+    CDML_NAMESPACE, ElementPath, IndexedDocument, IndexedDocumentError, PersistentId,
+    ProvisionalToken,
+};
+
+pub use super::typed_class::TypedClass;
 
 /// An expanded XML name independent of any source prefix spelling.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -82,161 +87,6 @@ impl UnknownAttribute {
     #[must_use]
     pub fn namespace_context(&self) -> &[NamespaceBinding] {
         &self.namespace_context
-    }
-}
-
-/// Every CDML record class assigned a typed representation by the context table.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum TypedClass {
-    /// The document root.
-    Cdml,
-    /// Root information container.
-    Info,
-    /// Authoring program information.
-    AuthorProgram,
-    /// Author text.
-    Author,
-    /// Document note text.
-    Note,
-    /// Metadata container.
-    Metadata,
-    /// Metadata discovery document.
-    MetadataDocument,
-    /// Drawing defaults container.
-    Standard,
-    /// Default bond settings.
-    StandardBond,
-    /// Default arrow settings.
-    StandardArrow,
-    /// Default atom settings.
-    StandardAtom,
-    /// Paper settings.
-    Paper,
-    /// Canvas viewport.
-    Viewport,
-    /// Chemical molecule.
-    Molecule,
-    /// Direct-root arrow.
-    CanvasArrow,
-    /// Direct-root plus sign.
-    CanvasPlus,
-    /// Direct-root text label.
-    CanvasText,
-    /// Rectangle vector graphic.
-    Rectangle,
-    /// Square vector graphic.
-    Square,
-    /// Oval vector graphic.
-    Oval,
-    /// Circle vector graphic.
-    Circle,
-    /// Polygon vector graphic.
-    Polygon,
-    /// Polyline vector graphic, including persisted bracket artwork.
-    Polyline,
-    /// Reaction container.
-    Reaction,
-    /// Reaction reactant role.
-    ReactionReactant,
-    /// Reaction product role.
-    ReactionProduct,
-    /// Reaction arrow role.
-    ReactionArrow,
-    /// Reaction condition role.
-    ReactionCondition,
-    /// Reaction plus role.
-    ReactionPlus,
-    /// Root-level opaque external payload container.
-    ExternalData,
-    /// Molecule-local atom.
-    Atom,
-    /// Molecule-local group vertex.
-    Group,
-    /// Molecule-local text vertex.
-    MoleculeText,
-    /// Molecule-local query vertex.
-    Query,
-    /// Molecule-local bond.
-    Bond,
-    /// Molecule attachment template.
-    Template,
-    /// Molecule fragment.
-    Fragment,
-    /// Molecule-local opaque display payload container.
-    DisplayForm,
-    /// Molecule-local opaque user payload container.
-    UserData,
-    /// Fragment name text.
-    FragmentName,
-    /// Fragment bond reference.
-    FragmentBond,
-    /// Fragment vertex reference.
-    FragmentVertex,
-    /// Fragment property.
-    FragmentProperty,
-    /// Shared point record.
-    Point,
-    /// Shared font record.
-    Font,
-    /// Shared formatted-text payload.
-    FormattedText,
-    /// Atom mark.
-    Mark,
-}
-
-impl TypedClass {
-    /// Return the context-qualified stable class name used in diagnostics.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Cdml => "cdml",
-            Self::Info => "cdml/info",
-            Self::AuthorProgram => "info/author_program",
-            Self::Author => "info/author",
-            Self::Note => "info/note",
-            Self::Metadata => "cdml/metadata",
-            Self::MetadataDocument => "metadata/doc",
-            Self::Standard => "cdml/standard",
-            Self::StandardBond => "standard/bond",
-            Self::StandardArrow => "standard/arrow",
-            Self::StandardAtom => "standard/atom",
-            Self::Paper => "cdml/paper",
-            Self::Viewport => "cdml/viewport",
-            Self::Molecule => "cdml/molecule",
-            Self::CanvasArrow => "cdml/arrow",
-            Self::CanvasPlus => "cdml/plus",
-            Self::CanvasText => "cdml/text",
-            Self::Rectangle => "cdml/rect",
-            Self::Square => "cdml/square",
-            Self::Oval => "cdml/oval",
-            Self::Circle => "cdml/circle",
-            Self::Polygon => "cdml/polygon",
-            Self::Polyline => "cdml/polyline",
-            Self::Reaction => "cdml/reaction",
-            Self::ReactionReactant => "reaction/reactant",
-            Self::ReactionProduct => "reaction/product",
-            Self::ReactionArrow => "reaction/arrow",
-            Self::ReactionCondition => "reaction/condition",
-            Self::ReactionPlus => "reaction/plus",
-            Self::ExternalData => "cdml/external-data",
-            Self::Atom => "molecule/atom",
-            Self::Group => "molecule/group",
-            Self::MoleculeText => "molecule/text",
-            Self::Query => "molecule/query",
-            Self::Bond => "molecule/bond",
-            Self::Template => "molecule/template",
-            Self::Fragment => "molecule/fragment",
-            Self::DisplayForm => "molecule/display-form",
-            Self::UserData => "molecule/user-data",
-            Self::FragmentName => "fragment/name",
-            Self::FragmentBond => "fragment/bond",
-            Self::FragmentVertex => "fragment/vertex",
-            Self::FragmentProperty => "fragment/property",
-            Self::Point => "shared/point",
-            Self::Font => "shared/font",
-            Self::FormattedText => "shared/ftext",
-            Self::Mark => "atom/mark",
-        }
     }
 }
 
@@ -461,6 +311,21 @@ pub enum TypedDocumentError {
     /// A namespaced unknown attribute had no usable in-scope prefix.
     #[error("cannot retain an unknown CDML attribute name: {0}")]
     AttributeName(#[source] xot::Error),
+    /// A retained tree could not be structurally serialized for a typed mutation.
+    #[error("cannot serialize retained CDML: {0}")]
+    Serialize(#[from] super::XmlSerializationError),
+    /// A typed atom element spelling is blank or contains non-letter characters.
+    #[error("atom element must be a nonblank plain element spelling")]
+    InvalidAtomElement,
+    /// The requested molecule does not occur in the retained document.
+    #[error("typed molecule does not exist: {0}")]
+    UnknownMolecule(PersistentId),
+    /// The requested atom ID is already reserved by retained document content.
+    #[error("persistent atom ID already exists: {0}")]
+    DuplicateAtomId(PersistentId),
+    /// A structured XML mutation could not be applied to the retained tree.
+    #[error("cannot mutate retained CDML: {0}")]
+    Mutation(#[source] xot::Error),
 }
 
 /// A single retained CDML tree plus its immutable typed record overlay.
@@ -497,6 +362,151 @@ impl TypedDocument {
     /// Serialize the single retained tree under the structural-fidelity contract.
     pub fn to_xml(&self) -> Result<String, super::XmlSerializationError> {
         self.indexed.xml.to_xml()
+    }
+
+    /// Return a detached document with one typed atom's element spelling replaced.
+    ///
+    /// This deliberately narrow primitive is owned by the typed CDML layer rather
+    /// than accepting caller-authored XML. It re-parses after mutation so the
+    /// identity index and typed overlay always describe the resulting retained tree.
+    pub(crate) fn with_atom_element(
+        &self,
+        identifier: &PersistentId,
+        element: &str,
+    ) -> Result<Option<Self>, TypedDocumentError> {
+        let source = self.to_xml()?;
+        let mut candidate = Self::parse(&source)?;
+        let id_name = candidate.indexed.xml.tree.add_name("id");
+        let element_name = candidate.indexed.xml.tree.add_name("name");
+        let root = candidate
+            .indexed
+            .xml
+            .tree
+            .document_element(candidate.indexed.xml.document)
+            .expect("a parsed CDML document has a document element");
+        let target = candidate.indexed.xml.tree.descendants(root).find(|node| {
+            let Some((local_name, namespace)) =
+                super::element_name(&candidate.indexed.xml.tree, *node)
+            else {
+                return false;
+            };
+            local_name == "atom"
+                && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+                && candidate.indexed.xml.tree.get_attribute(*node, id_name)
+                    == Some(identifier.as_str())
+        });
+        let Some(target) = target else {
+            return Ok(None);
+        };
+        if candidate
+            .indexed
+            .xml
+            .tree
+            .get_attribute(target, element_name)
+            == Some(element)
+        {
+            return Ok(Some(candidate));
+        }
+        candidate
+            .indexed
+            .xml
+            .tree
+            .set_attribute(target, element_name, element);
+        let serialized = candidate.to_xml()?;
+        Self::parse(&serialized).map(Some)
+    }
+
+    /// Build a detached, fully indexed candidate containing one new typed atom.
+    ///
+    /// The caller supplies validated persistent identities rather than XML. The
+    /// candidate is reparsed after mutation, preserving the single-tree contract and
+    /// rejecting a duplicate identity before any session token is issued.
+    pub(crate) fn with_insert_atom(
+        &self,
+        molecule_id: &PersistentId,
+        atom_id: &PersistentId,
+        element: &str,
+    ) -> Result<Self, TypedDocumentError> {
+        if element.trim().is_empty()
+            || element
+                .chars()
+                .any(|character| !character.is_ascii_alphabetic())
+        {
+            return Err(TypedDocumentError::InvalidAtomElement);
+        }
+        if self.indexed.resolve_id(atom_id).is_some() {
+            return Err(TypedDocumentError::DuplicateAtomId(atom_id.clone()));
+        }
+        let source = self.to_xml()?;
+        let mut candidate = Self::parse(&source)?;
+        let id_name = candidate.indexed.xml.tree.add_name("id");
+        let element_name = candidate.indexed.xml.tree.add_name("name");
+        let root = candidate
+            .indexed
+            .xml
+            .tree
+            .document_element(candidate.indexed.xml.document)
+            .expect("a parsed CDML document has a document element");
+        let molecule = candidate
+            .indexed
+            .xml
+            .tree
+            .descendants(root)
+            .find_map(|node| {
+                let (local_name, namespace) =
+                    super::element_name(&candidate.indexed.xml.tree, node)?;
+                (local_name == "molecule"
+                    && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+                    && candidate.indexed.xml.tree.get_attribute(node, id_name)
+                        == Some(molecule_id.as_str()))
+                .then_some((node, namespace))
+            });
+        let Some((molecule, molecule_namespace)) = molecule else {
+            return Err(TypedDocumentError::UnknownMolecule(molecule_id.clone()));
+        };
+        let atom_name = if molecule_namespace.is_empty() {
+            candidate.indexed.xml.tree.add_name("atom")
+        } else {
+            let namespace = candidate
+                .indexed
+                .xml
+                .tree
+                .add_namespace(&molecule_namespace);
+            candidate.indexed.xml.tree.add_name_ns("atom", namespace)
+        };
+        let atom = candidate.indexed.xml.tree.new_element(atom_name);
+        candidate
+            .indexed
+            .xml
+            .tree
+            .set_attribute(atom, id_name, atom_id.as_str());
+        candidate
+            .indexed
+            .xml
+            .tree
+            .set_attribute(atom, element_name, element);
+        candidate
+            .indexed
+            .xml
+            .tree
+            .append(molecule, atom)
+            .map_err(TypedDocumentError::Mutation)?;
+        let serialized = candidate.to_xml()?;
+        Self::parse(&serialized)
+    }
+
+    pub(crate) fn issue_provisional_token(&mut self) -> ProvisionalToken {
+        self.indexed.issue_provisional_token()
+    }
+
+    pub(crate) fn consume_provisional_token(
+        &mut self,
+        token: ProvisionalToken,
+    ) -> Result<(), TypedDocumentError> {
+        self.indexed
+            .consume_provisional_token(token)
+            .map_err(IndexedDocumentError::from)
+            .map_err(TypedDocumentError::from)
     }
 }
 

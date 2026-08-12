@@ -39,22 +39,58 @@ impl WedgeGeometry {
         if wide_width <= 0.0 || narrow_width < 0.0 {
             return Err(GeometryError::NonPositiveExtent);
         }
-        let centerline = base - tip;
-        let length = centerline.length();
+        let centerline = finite_vector(base.x() - tip.x(), base.y() - tip.y())?;
+        let length = finite_scalar(centerline.length())?;
         let unit = centerline.normalized()?;
         let normal: Vector2 = unit.perpendicular_left();
-        let narrow_half = narrow_width / 2.0;
-        let wide_half = wide_width / 2.0;
+        let narrow_half = finite_scalar(narrow_width / 2.0)?;
+        let wide_half = finite_scalar(wide_width / 2.0)?;
+        let narrow_offset = finite_vector(normal.x() * narrow_half, normal.y() * narrow_half)?;
+        let wide_offset = finite_vector(normal.x() * wide_half, normal.y() * wide_half)?;
+        let narrow_left = translated_point(tip, narrow_offset)?;
+        let narrow_right = translated_point(tip, negate(narrow_offset)?)?;
+        let wide_left = translated_point(base, wide_offset)?;
+        let wide_right = translated_point(base, negate(wide_offset)?)?;
+        let angle = finite_scalar(centerline.y().atan2(centerline.x()))?;
+        // Halving each width before summing retains valid large finite trapezoids
+        // that would overflow in `(narrow_width + wide_width) / 2.0`.
+        let half_width_sum = finite_scalar(narrow_half + wide_half)?;
+        let area = finite_scalar(length * half_width_sum)?;
         Ok(Self {
             tip,
             base,
-            narrow_left: tip.offset(normal, narrow_half)?,
-            narrow_right: tip.offset(normal, -narrow_half)?,
-            wide_left: base.offset(normal, wide_half)?,
-            wide_right: base.offset(normal, -wide_half)?,
+            narrow_left,
+            narrow_right,
+            wide_left,
+            wide_right,
             length,
-            angle: centerline.y().atan2(centerline.x()),
-            area: length * (narrow_width + wide_width) / 2.0,
+            angle,
+            area,
         })
     }
+}
+
+fn finite_scalar(value: f64) -> Result<f64, GeometryError> {
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(GeometryError::UnrepresentableGeometry)
+    }
+}
+
+fn finite_vector(x: f64, y: f64) -> Result<Vector2, GeometryError> {
+    if x.is_finite() && y.is_finite() {
+        Vector2::new(x, y)
+    } else {
+        Err(GeometryError::UnrepresentableGeometry)
+    }
+}
+
+fn negate(vector: Vector2) -> Result<Vector2, GeometryError> {
+    finite_vector(-vector.x(), -vector.y())
+}
+
+fn translated_point(point: Point2, offset: Vector2) -> Result<Point2, GeometryError> {
+    Point2::new(point.x() + offset.x(), point.y() + offset.y())
+        .map_err(|_| GeometryError::UnrepresentableGeometry)
 }

@@ -1,6 +1,7 @@
 """Main application window for Ferrum-Qt."""
 
 # Standard Library
+import functools
 
 # PIP3 modules
 import PySide6.QtCore
@@ -40,6 +41,36 @@ ShutdownState = ferrum_qt.window_shared.ShutdownState
 #============================================
 class WindowSessionSetupMixin:
 	"""One cohesive MainWindow session responsibility."""
+
+	def _connect_session_title(
+			self, session: ferrum_qt.models.document_session.DocumentSession,
+			) -> None:
+		"""Install MainWindow's one title subscription for a registered session."""
+		connection_key = id(session)
+		connection = self._session_title_connections.get(connection_key)
+		if connection is not None and connection[0] is session:
+			return
+		if connection is not None:
+			raise RuntimeError("A different session reused a live title connection key")
+		# PySide creates a new Python bound-method wrapper for every attribute
+		# lookup. Retain the exact relay passed to connect() so this owner can
+		# later disconnect that same subscription.
+		slot = functools.partial(self._update_session_tab_title, session)
+		session.title_changed.connect(slot)
+		self._session_title_connections[connection_key] = (session, slot)
+
+	def _disconnect_session_title(
+			self, session: ferrum_qt.models.document_session.DocumentSession,
+			) -> None:
+		"""Retire MainWindow's title subscription once, before session disposal."""
+		connection_key = id(session)
+		connection = self._session_title_connections.pop(connection_key, None)
+		if connection is None:
+			return
+		connected_session, slot = connection
+		if connected_session is not session:
+			raise RuntimeError("Title connection registry no longer owns this session")
+		session.title_changed.disconnect(slot)
 
 	def _setup_canvas(self) -> None:
 		"""Create the tab host and its initial independent document session."""
@@ -98,7 +129,7 @@ class WindowSessionSetupMixin:
 			self._sessions.insert(index, session)
 			self._sessions_by_view[session.view] = session
 			self._tab_widget.insertTab(index, session.view, session.title)
-			session.title_changed.connect(self._on_session_title_changed)
+			self._connect_session_title(session)
 			title_connected = True
 			if activate:
 				self._tab_widget.setCurrentIndex(index)

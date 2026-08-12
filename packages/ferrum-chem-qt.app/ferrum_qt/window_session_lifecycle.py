@@ -192,10 +192,7 @@ class WindowSessionLifecycleMixin:
 		if session in self._sessions:
 			self._sessions.remove(session)
 		if title_connected:
-			try:
-				session.title_changed.disconnect(self._on_session_title_changed)
-			except (RuntimeError, TypeError):
-				pass
+			self._disconnect_session_title(session)
 	def _restore_active_session(
 			self,
 			session: ferrum_qt.models.document_session.DocumentSession,
@@ -344,10 +341,7 @@ class WindowSessionLifecycleMixin:
 			self._scene = None
 			self._view = None
 			self._mode_manager = None
-		try:
-			session.title_changed.disconnect(self._on_session_title_changed)
-		except (RuntimeError, TypeError):
-			pass
+		self._disconnect_session_title(session)
 		session.clear_projection_lifecycle_port()
 
 		previous_block = self._tab_widget.blockSignals(True)
@@ -413,11 +407,8 @@ class WindowSessionLifecycleMixin:
 				active_index = self._tab_widget.indexOf(active_target.view)
 				self._tab_widget.setCurrentIndex(active_index)
 				self._activate_session(active_target)
-			try:
-				session.title_changed.disconnect(self._on_session_title_changed)
-				old_title_disconnected = True
-			except (RuntimeError, TypeError):
-				pass
+			self._disconnect_session_title(session)
+			old_title_disconnected = True
 			self._detach_tab_page(session, index + 1)
 			self._sessions.pop(index + 1)
 			self._sessions_by_view.pop(session.view, None)
@@ -425,7 +416,7 @@ class WindowSessionLifecycleMixin:
 			if session in self._sessions:
 				self._ensure_session_tab_attached(session, index + 1)
 				if old_title_disconnected:
-					session.title_changed.connect(self._on_session_title_changed)
+					self._connect_session_title(session)
 			if was_active and session in self._sessions:
 				old_index = self._tab_widget.indexOf(session.view)
 				self._restore_active_session(session, old_index)

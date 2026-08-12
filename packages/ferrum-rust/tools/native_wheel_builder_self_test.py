@@ -55,7 +55,7 @@ def _reject(
 	"""
 	try:
 		action()
-	except (api.NativeBuildError, NativeMachoError, argparse.ArgumentTypeError):
+	except (api.NativeBuildError, NativeMachoError, argparse.ArgumentTypeError, ValueError):
 		return
 	raise api.NativeBuildError(f"native profile self-test accepted {label}")
 
@@ -133,8 +133,8 @@ def _run_profile_configuration_fixtures(api: types.ModuleType) -> None:
 		"-DCMAKE_CXX_STANDARD=20",
 		"-DRDK_INSTALL_INTREE=OFF",
 		"-DRDK_INSTALL_STATIC_LIBS=OFF",
-		"-DRDK_BUILD_INCHI_SUPPORT=OFF",
-		"-DRDK_BUILD_COORDGEN_SUPPORT=OFF",
+		"-DRDK_BUILD_INCHI_SUPPORT=ON",
+		"-DRDK_BUILD_COORDGEN_SUPPORT=ON",
 		"-DRDK_BUILD_MAEPARSER_SUPPORT=OFF",
 		"-DFETCHCONTENT_FULLY_DISCONNECTED=ON",
 		"-DRDK_BUILD_CHEMDRAW_SUPPORT=OFF",
@@ -173,11 +173,6 @@ def _run_profile_configuration_fixtures(api: types.ModuleType) -> None:
 		),
 		"host CMake prefix",
 	)
-	_reject(
-		api,
-		lambda: api.validate_rdkit_configuration([*options, "-DINCHI_LIBRARY=Inchi"]),
-		"future InChI input",
-	)
 
 
 #============================================
@@ -209,6 +204,13 @@ def _write_private_native_inputs(private_input: Path) -> RdkitCapabilityProfile:
 	library_aliases = {
 		"libRDKitGraphMol.1.dylib": "libRDKitGraphMol.2026.03.4.dylib",
 		"libRDKitRDGeneral.1.dylib": "libRDKitRDGeneral.2026.03.4.dylib",
+		"libRDKitRDGeometryLib.1.dylib": "libRDKitRDGeometryLib.2026.03.4.dylib",
+		"libRDKitDataStructs.1.dylib": "libRDKitDataStructs.2026.03.4.dylib",
+		"libRDKitSmilesParse.1.dylib": "libRDKitSmilesParse.2026.03.4.dylib",
+		"libRDKitFileParsers.1.dylib": "libRDKitFileParsers.2026.03.4.dylib",
+		"libRDKitRDInchiLib.1.dylib": "libRDKitRDInchiLib.2026.03.4.dylib",
+		"libRDKitInchi.1.dylib": "libRDKitInchi.2026.03.4.dylib",
+		"libRDKitDepictor.1.dylib": "libRDKitDepictor.2026.03.4.dylib",
 	}
 	for alias_name, target_name in library_aliases.items():
 		target = private_input / "rdkit-install" / "lib" / target_name
@@ -552,7 +554,7 @@ def _run_wheel_member_fixtures(api: types.ModuleType) -> None:
 
 #============================================
 def _run_graphmol_stage_fixture(api: types.ModuleType, root: Path) -> None:
-	"""Verify target-only staging preserves headers and exactly four dylib aliases."""
+	"""Verify closure staging preserves headers and every declared dylib alias."""
 	source = root / "source"
 	(source / "Code" / "GraphMol").mkdir(parents=True)
 	(source / "Code" / "RDGeneral").mkdir()
@@ -565,14 +567,16 @@ def _run_graphmol_stage_fixture(api: types.ModuleType, root: Path) -> None:
 	)
 	lib_dir = build / "lib"
 	lib_dir.mkdir()
-	for name in api.KEKULIZE_RDKIT_LIBRARIES:
+	for name in api.RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES:
 		(lib_dir / name).write_bytes(name.encode("ascii"))
 	stage = api.stage_kekulize_rdkit_inputs(root, source, build)
 	if (stage / "include" / "rdkit" / "GraphMol" / "MolOps.h").read_text(encoding="utf-8") != "source":
 		raise api.NativeBuildError("GraphMol stage fixture lost source header")
 	if (stage / "include" / "rdkit" / "RDGeneral" / "RDKitBuildInfo.h").read_text(encoding="utf-8") != "generated":
 		raise api.NativeBuildError("GraphMol stage fixture lost generated header")
-	if {path.name for path in (stage / "lib").iterdir()} != set(api.KEKULIZE_RDKIT_LIBRARIES):
+	if {path.name for path in (stage / "lib").iterdir()} != set(
+		api.RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES
+	):
 		raise api.NativeBuildError("GraphMol stage fixture retained an unexpected native library")
 	with tempfile.TemporaryDirectory() as temporary:
 		conflicting_root = Path(temporary) / "output-conflicting-stage"
@@ -585,7 +589,7 @@ def _run_graphmol_stage_fixture(api: types.ModuleType, root: Path) -> None:
 		(conflicting_build / "Code" / "GraphMol" / "Duplicate.h").touch()
 		conflicting_libraries = conflicting_build / "lib"
 		conflicting_libraries.mkdir()
-		for name in api.KEKULIZE_RDKIT_LIBRARIES:
+		for name in api.RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES:
 			(conflicting_libraries / name).touch()
 		_reject(
 			api,

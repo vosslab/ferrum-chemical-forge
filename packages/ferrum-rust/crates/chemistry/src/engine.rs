@@ -121,6 +121,12 @@ pub enum ChemistryError {
         /// Engine-independent explanation suitable for users and logs.
         reason: String,
     },
+    /// SMILES text violates the ABI-3 input contract before a native call.
+    #[error("SMILES input is invalid: {reason}")]
+    InvalidSmilesInput {
+        /// Stable description of the rejected input invariant.
+        reason: String,
+    },
     /// The adapter could not be loaded or did not complete the C ABI call.
     #[error("Ferrum chemistry adapter boundary failure: {reason}")]
     NativeBoundary {

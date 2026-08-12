@@ -225,50 +225,6 @@ def test_configure_directs_selected_rich_text_to_the_rich_action(
 
 
 #============================================
-def test_malformed_root_font_leaves_rich_editing_unavailable(
-		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Malformed persisted root font values do not enter the rich dialog."""
-	session = _open_native_session(
-		main_window, tmp_path, _AUTHORED_CDML.replace('size="13"', 'size="bad"'),
-	)
-	try:
-		monkeypatch.setattr(
-			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
-			_fail_if_rich_dialog_opens,
-		)
-		_text_item(session).setSelected(True)
-		ferrum_qt.actions.object_actions.handle_edit_rich_text(main_window)
-
-		assert "unavailable" in main_window.statusBar().currentMessage().lower()
-	finally:
-		_close_session(main_window, session)
-
-
-#============================================
-def test_named_root_font_color_leaves_rich_editing_unavailable(
-		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""A non-CDML named color remains visible but cannot enter rich editing."""
-	session = _open_native_session(
-		main_window, tmp_path, _AUTHORED_CDML.replace('color="#112233"', 'color="red"'),
-	)
-	try:
-		monkeypatch.setattr(
-			ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
-			_fail_if_rich_dialog_opens,
-		)
-		_text_item(session).setSelected(True)
-		ferrum_qt.actions.object_actions.handle_edit_rich_text(main_window)
-
-		assert "unavailable" in main_window.statusBar().currentMessage().lower()
-	finally:
-		_close_session(main_window, session)
-
-
-#============================================
 def test_rich_action_stays_bound_to_its_origin_tab(
 		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,

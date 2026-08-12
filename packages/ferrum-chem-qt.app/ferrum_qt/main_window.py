@@ -87,6 +87,11 @@ class MainWindow(
 		self._tab_change_blocked = False
 		self._sessions = []
 		self._sessions_by_view = {}
+		# MainWindow alone owns every session-to-tab title subscription.  Session
+		# retirement can follow close, replacement rollback, or full-window
+		# shutdown, so all of those paths ask this registry to retire a binding
+		# exactly once instead of independently guessing whether Qt still has it.
+		self._session_title_connections = {}
 		self._pending_session_deletions = {}
 		# A destroyed-session callback retries retained terminal graphics once.
 		# A transient native failure gets one further ordinary event-loop retry;

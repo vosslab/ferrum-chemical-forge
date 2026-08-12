@@ -56,18 +56,21 @@ its measured variation rather than add a guessed epsilon.
 ## Rust validation
 
 ```text
-cargo test -p ferrum-geometry        12 passed
+cargo test -p ferrum-geometry        17 passed
 cargo check -p ferrum-geometry       passed
 cargo clippy -p ferrum-geometry -- -D warnings  passed
 cargo fmt --check                    passed
 ```
 
 The unit suite covers conversion rejection, transform composition, wedge direction
-and area, deterministic Euclidean hex-grid ties, bounded and invalid overlays,
+and area, finite-input wedge overflow rejection and a representable `f64::MAX`
+boundary, deterministic Euclidean hex-grid ties, bounded and invalid overlays,
 unrepresentable finite lattice requests, invalid bond endpoints, both straighten
-branches, increment boundaries, and the documented zero-length-bond policy. The
-nearest-grid tie is lexicographic by `HexIndex`; the test asserts its selected
-coordinate, not an incidental collection count.
+branches, increment boundaries, and the documented zero-length-bond policy. A wedge
+returns `GeometryError::UnrepresentableGeometry` if finite inputs would create a
+non-finite centerline, perpendicular offset, corner, angle, or area. The nearest-grid
+tie is lexicographic by `HexIndex`; the test asserts its selected coordinate, not an
+incidental collection count.
 
 ## Design boundary
 

@@ -11,6 +11,7 @@ import ferrum_qt.canvas.items.bond_item
 import ferrum_qt.modes.base_mode
 import ferrum_qt.modes.edit_delete
 import ferrum_qt.modes.edit_drag
+import ferrum_qt.modes.edit_item_interaction
 import ferrum_qt.modes.edit_selection
 import ferrum_qt.undo.commands
 
@@ -421,18 +422,12 @@ class EditMode(
 	def mouse_double_click(
 			self, scene_pos: PySide6.QtCore.QPointF, event: object,
 			) -> None:
-		"""Open a detached property dialog for an eligible item under the cursor.
+		"""Route an eligible projected item to its detached public editor.
 
-		Eligible atoms open AtomDialog and eligible bonds open BondDialog. An
-		ineligible durable ID or unavailable synchronized capability is inert before
-		dialog or commit routing. After the dialog captures its target and
-		capability, a revision that becomes stale reaches the backend as a typed
-		atomic rejection and leaves the authoritative snapshot, projection, history,
-		and dirty state unchanged. A changed accepted synchronized edit submits one
-		exact-session backend patch and installs its canonical reprojection; backend
-		history owns undo and dirty state. An accepted canonical no-op creates no
-		history and keeps the installed projection. Intentionally isolated documents
-		retain local ChangePropertyCommand undo.
+		Atom and bond actions keep their existing session-bound operation boundary.
+		A Text action is re-resolved from the selected durable projection by the
+		public action before opening a modal dialog, so no Qt wrapper crosses a
+		potential backend reprojection.
 
 		Args:
 			scene_pos: Position in scene coordinates.
@@ -441,10 +436,10 @@ class EditMode(
 		item = self._item_at(scene_pos)
 		if item is None:
 			return
-		if isinstance(item, ferrum_qt.canvas.items.atom_item.AtomItem):
-			self._edit_atom_properties(item)
-		elif isinstance(item, ferrum_qt.canvas.items.bond_item.BondItem):
-			self._edit_bond_properties(item)
+		ferrum_qt.modes.edit_item_interaction.open_item_editor(
+			item, self._edit_atom_properties, self._edit_bond_properties,
+			self._env.scene, self._env.window,
+		)
 
 	# ------------------------------------------------------------------
 	# Keyboard event handlers

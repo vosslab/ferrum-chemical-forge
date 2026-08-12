@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, VecDeque};
 use petgraph::graph::{EdgeIndex, NodeIndex};
 use petgraph::visit::EdgeRef;
 
-use super::AnalysisGraph;
+use super::model::AnalysisGraph;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct IndexedCycle {

@@ -133,7 +133,7 @@ def make_report_base(request: dict, request_text: str, args: argparse.Namespace)
 		"request": request,
 		"request_sha256": hashlib.sha256(request_text.encode("ascii")).hexdigest(),
 		"commands": {
-			"oasa": [str(args.oracle_python), str(OASA_CHILD)],
+			"oasa": [str(args.oracle_python), "-B", str(OASA_CHILD)],
 			"ferrum": [
 				"cargo",
 				"run",

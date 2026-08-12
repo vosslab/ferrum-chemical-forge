@@ -46,3 +46,10 @@ def test_shutdown_cleanup_leaves_unmarked_clipboard_data_unchanged(
 	clipboard.setMimeData(mime_data)
 	ferrum_qt.app._clear_application_clipboard(qapp)
 	assert clipboard.text() == "unrelated clipboard text"
+
+
+#============================================
+def test_ferrum_mime_ownership_property_uses_the_product_namespace() -> None:
+	"""Ferrum-owned clipboard data carries Ferrum's internal identifier."""
+	property_name = ferrum_qt.io.clipboard_mime.FERRUM_OWNED_MIME_PROPERTY
+	assert property_name == "ferrum_qt_owned_mime_data"

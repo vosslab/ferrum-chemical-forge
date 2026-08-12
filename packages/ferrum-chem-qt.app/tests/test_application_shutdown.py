@@ -1,6 +1,7 @@
 """Focused application event-loop shutdown coverage."""
 
 # Standard Library
+import json
 import pathlib
 import threading
 
@@ -119,7 +120,9 @@ def test_successful_smoke_receipt_is_published_atomically_after_timer_success(
 
 	ferrum_qt.app._write_smoke_receipt(receipt_path, 0, timer_fired=True)
 
-	assert receipt_path.read_text(encoding="utf-8") == '{"exit_code":0,"schema":"bkchem-smoke-1"}'
+	receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+	assert receipt["exit_code"] == 0
+	assert receipt["schema"] == ferrum_qt.app.SMOKE_RECEIPT_SCHEMA
 
 
 #============================================
@@ -186,7 +189,9 @@ def test_timer_fired_clean_exit_publishes_a_smoke_receipt(
 	)
 
 	assert completed == 0
-	assert receipt_path.read_text(encoding="utf-8") == '{"exit_code":0,"schema":"bkchem-smoke-1"}'
+	receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+	assert receipt["exit_code"] == 0
+	assert receipt["schema"] == ferrum_qt.app.SMOKE_RECEIPT_SCHEMA
 
 
 #============================================
@@ -214,7 +219,9 @@ def test_scheduled_smoke_callback_records_delivery_before_quit_and_publishes_rec
 	)
 
 	assert application.delivery_before_quit and completed == 0
-	assert receipt_path.read_text(encoding="utf-8") == '{"exit_code":0,"schema":"bkchem-smoke-1"}'
+	receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+	assert receipt["exit_code"] == 0
+	assert receipt["schema"] == ferrum_qt.app.SMOKE_RECEIPT_SCHEMA
 
 
 #============================================

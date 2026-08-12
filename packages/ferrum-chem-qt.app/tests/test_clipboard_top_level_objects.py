@@ -634,23 +634,6 @@ def test_clipboard_reader_reports_no_data_and_invalid_utf8(
 
 
 #============================================
-def test_clipboard_reader_accepts_the_historical_cdml_mime_type(
-		qapp: object,
-		) -> None:
-	"""Existing clipboard producers remain compatible after Ferrum rebranding."""
-	mime_data = PySide6.QtCore.QMimeData()
-	mime_data.setData(
-		ferrum_qt.io.clipboard_manager.LEGACY_CDML_MIME_TYPE,
-		PySide6.QtCore.QByteArray(_MIXED_FRAGMENT.encode("utf-8")),
-	)
-	qapp.clipboard().setMimeData(mime_data)
-	manager = ferrum_qt.io.clipboard_manager.ClipboardManager()
-
-	assert manager.can_paste()
-	assert manager.read_fragment() == ("ok", _MIXED_FRAGMENT)
-
-
-#============================================
 def test_paste_action_tracks_clipboard_changes_without_manual_refresh(
 		main_window: object, qapp: object,
 		) -> None:
