@@ -4,15 +4,10 @@
 import dataclasses
 import os
 import pathlib
-import typing
 
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
-
-
-if typing.TYPE_CHECKING:
-	import ferrum_qt.native.ferrum_native_document_tab
 
 
 _RECOVERY_CDML_FILTER = "Ferrum CDML (*.cdml);;All Files (*)"

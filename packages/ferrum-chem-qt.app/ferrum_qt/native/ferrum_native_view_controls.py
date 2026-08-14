@@ -6,6 +6,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.native.ferrum_native_graphics_view
 import ferrum_qt.native.ferrum_native_statusbar_view_controls
 
 
@@ -27,6 +28,7 @@ class FerrumNativeViewControlsMixin:
 	def _build_view_controls_actions(self) -> None:
 		"""Install the compact native View menu without legacy view ownership."""
 		menu = self.menuBar().addMenu(self.tr("View"))
+		self._view_menu = menu
 		self._zoom_in_action = PySide6.QtGui.QAction(self.tr("Zoom In"), self)
 		self._zoom_in_action.setShortcut(PySide6.QtGui.QKeySequence(self.tr("Ctrl++")))
 		self._zoom_in_action.triggered.connect(self._zoom_in_active_view)
@@ -57,6 +59,9 @@ class FerrumNativeViewControlsMixin:
 				self._zoom_page_action, self._zoom_content_action, self.statusBar(),
 			)
 		)
+		self._native_view_status_controls.zoom_percent_requested.connect(
+			self._set_active_view_zoom_percent,
+		)
 		self.statusBar().addPermanentWidget(self._native_view_status_controls)
 
 	#============================================
@@ -65,7 +70,9 @@ class FerrumNativeViewControlsMixin:
 		self._native_view_status_controls.refresh(self._active_native_view())
 
 	#============================================
-	def _active_native_view(self) -> PySide6.QtWidgets.QGraphicsView | None:
+	def _active_native_view(
+			self,
+			) -> ferrum_qt.native.ferrum_native_graphics_view.FerrumNativeGraphicsView | None:
 		"""Return only the live graphics view owned by the current registered tab."""
 		if self._view_controls_closing:
 			return None
@@ -73,7 +80,15 @@ class FerrumNativeViewControlsMixin:
 		if tab is None or tab not in self._native_tabs_by_page or tab._disposed:
 			return None
 		view = tab.view
-		return view if view.scene() is not None else None
+		if (
+			not isinstance(
+				view,
+				ferrum_qt.native.ferrum_native_graphics_view.FerrumNativeGraphicsView,
+			)
+			or view.scene() is None
+		):
+			return None
+		return view
 
 	#============================================
 	def _refresh_view_controls_actions(self) -> None:
@@ -98,19 +113,27 @@ class FerrumNativeViewControlsMixin:
 
 	#============================================
 	def _scale_active_view(self, factor: float) -> None:
-		"""Apply one uniform display scale about the viewport-center scene point."""
+		"""Request one bounded center-preserving relative display zoom."""
 		view = self._active_native_view()
-		if view is None:
+		if view is not None:
+			view.zoom_by_factor(factor)
+
+	#============================================
+	@PySide6.QtCore.Slot(int)
+	def _set_active_view_zoom_percent(self, percent: int) -> None:
+		"""Set one supported active view to an exact bounded uniform percentage."""
+		if (
+			type(percent) is not int
+			or not ferrum_qt.native.ferrum_native_graphics_view.
+			ZOOM_PERCENT_MINIMUM <= percent <= (
+				ferrum_qt.native.ferrum_native_graphics_view.
+				ZOOM_PERCENT_MAXIMUM
+			)
+		):
 			return
-		center = view.mapToScene(view.viewport().rect().center())
-		anchor = view.transformationAnchor()
-		view.setTransformationAnchor(
-			PySide6.QtWidgets.QGraphicsView.ViewportAnchor.AnchorViewCenter,
-		)
-		view.scale(factor, factor)
-		view.setTransformationAnchor(anchor)
-		view.centerOn(center)
-		self._refresh_native_view_status()
+		view = self._active_native_view()
+		if view is not None:
+			view.set_zoom_percent(percent)
 
 	#============================================
 	def _reset_active_view_zoom(self) -> None:
@@ -118,10 +141,7 @@ class FerrumNativeViewControlsMixin:
 		view = self._active_native_view()
 		if view is None:
 			return
-		center = view.mapToScene(view.viewport().rect().center())
-		view.resetTransform()
-		view.centerOn(center)
-		self._refresh_native_view_status()
+		view.reset_zoom()
 
 	#============================================
 	def _fit_active_view_to_page(self) -> None:
@@ -143,17 +163,17 @@ class FerrumNativeViewControlsMixin:
 			self._fit_view_to_page(view)
 			self._refresh_native_view_status()
 			return
-		view.fitInView(bounds, PySide6.QtCore.Qt.AspectRatioMode.KeepAspectRatio)
-		self._refresh_native_view_status()
+		view.fit_display_bounds(bounds)
 
 	#============================================
-	def _fit_view_to_page(self, view: PySide6.QtWidgets.QGraphicsView) -> None:
+	def _fit_view_to_page(
+			self,
+			view: ferrum_qt.native.ferrum_native_graphics_view.FerrumNativeGraphicsView,
+			) -> None:
 		"""Frame one live view's renderer-owned page rectangle exactly."""
 		scene = view.scene()
 		if scene is not None:
-			view.fitInView(
-				scene.sceneRect(), PySide6.QtCore.Qt.AspectRatioMode.KeepAspectRatio,
-			)
+			view.fit_display_bounds(scene.sceneRect())
 
 	#============================================
 	def _on_native_view_tab_changed(self) -> None:

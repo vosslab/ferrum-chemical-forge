@@ -26,6 +26,7 @@ import ferrum_qt.native.ferrum_native_coordinate_generation
 import ferrum_qt.native.ferrum_native_geometric_properties as native_geometric_properties
 import ferrum_qt.native.ferrum_native_geometry_actions
 import ferrum_qt.native.ferrum_native_line_tools
+import ferrum_qt.native.ferrum_native_linear_form
 import ferrum_qt.native.ferrum_native_molecule_imports
 import ferrum_qt.native.ferrum_native_molecule_exports
 import ferrum_qt.native.ferrum_native_molfile_export
@@ -34,8 +35,10 @@ import ferrum_qt.native.ferrum_native_molecule_inspection
 import ferrum_qt.native.ferrum_native_molecule_name
 import ferrum_qt.native.ferrum_native_snapshot_export
 import ferrum_qt.native.ferrum_native_recovery_export
+import ferrum_qt.native.ferrum_native_selection_svg
 import ferrum_qt.native.ferrum_native_view_controls
 import ferrum_qt.native.ferrum_native_presentation_properties
+import ferrum_qt.native.ferrum_native_property_dock
 import ferrum_qt.native.ferrum_native_paper_properties as native_paper_properties
 import ferrum_qt.native.ferrum_native_wavy_properties as native_wavy_properties
 import ferrum_qt.dialogs.atom_dialog
@@ -102,6 +105,7 @@ class _NativeOnlyFileFallback:
 #============================================
 class FerrumNativeMainWindow(
 		ferrum_qt.native.ferrum_native_view_controls.FerrumNativeViewControlsMixin,
+		ferrum_qt.native.ferrum_native_selection_svg.FerrumNativeSelectionSvgWindowMixin,
 		ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardWindowMixin,
 		ferrum_qt.native.ferrum_native_cdml_open.FerrumNativeCdmlOpenMixin,
 		ferrum_qt.window_native_files.WindowNativeFileMixin,
@@ -114,6 +118,7 @@ class FerrumNativeMainWindow(
 		ferrum_qt.native.ferrum_native_molecule_exports.FerrumNativeMoleculeExportsMixin,
 		ferrum_qt.native.ferrum_native_molecule_inspection.FerrumNativeMoleculeInspectionMixin,
 		ferrum_qt.native.ferrum_native_molecule_name.FerrumNativeMoleculeNameWindowMixin,
+		ferrum_qt.native.ferrum_native_linear_form.FerrumNativeLinearFormWindowMixin,
 		ferrum_qt.native.ferrum_native_coordinate_generation.
 		FerrumNativeCoordinateGenerationWindowMixin,
 		ferrum_qt.native.ferrum_native_geometry_actions.FerrumNativeGeometryActionsMixin,
@@ -155,6 +160,11 @@ class FerrumNativeMainWindow(
 		self.setWindowTitle(self.tr("Ferrum-Qt Native"))
 		self.resize(1000, 700)
 		self._build_actions()
+		self._native_property_dock = (
+			ferrum_qt.native.ferrum_native_property_dock.install_native_property_dock(
+				self, self._edit_atom_properties_action, self._edit_bond_properties_action,
+			)
+		)
 		self.statusBar()
 		self._install_native_view_status_controls()
 		self._refresh_actions()
@@ -163,6 +173,7 @@ class FerrumNativeMainWindow(
 	def _build_actions(self) -> None:
 		"""Create native file and bounded Rust edit actions without legacy routing."""
 		menu = self.menuBar().addMenu(self.tr("File"))
+		self._file_menu = menu
 		self._open_action = PySide6.QtGui.QAction(self.tr("Open"), self)
 		self._open_action.triggered.connect(self._on_open)
 		menu.addAction(self._open_action)
@@ -312,6 +323,7 @@ class FerrumNativeMainWindow(
 		self._build_molecule_export_actions(chemistry_menu)
 		self._build_molecule_inspection_actions(chemistry_menu)
 		self._build_molecule_name_action(chemistry_menu)
+		self._build_linear_form_action(chemistry_menu)
 		self._build_coordinate_generation_actions(chemistry_menu)
 		self._build_view_controls_actions()
 
@@ -716,7 +728,7 @@ class FerrumNativeMainWindow(
 			return
 		if self._molecule_inspection_blocks_tab_close(tab):
 			return
-		if self._clipboard_copy_blocks_tab_close(tab):
+		if self._clipboard_operation_blocks_tab_close(tab):
 			return
 		if self._coordinate_generation_blocks_tab_close(tab):
 			return
@@ -776,9 +788,11 @@ class FerrumNativeMainWindow(
 		busy_import = self._molecule_import_busy()
 		busy_export = self._molecule_export_busy()
 		busy_inspection = self._molecule_inspection_busy()
-		busy_copy = self._clipboard_copy_busy()
+		busy_clipboard = self._clipboard_busy()
 		busy_coordinates = self._coordinate_generation_intent is not None
-		busy = busy_import or busy_export or busy_inspection or busy_copy or busy_coordinates
+		busy = (
+			busy_import or busy_export or busy_inspection or busy_clipboard or busy_coordinates
+		)
 		if self._atom_insertion_intent is not None and (
 			not active or self._atom_insertion_intent.tab is not tab or busy
 		):
@@ -852,24 +866,29 @@ class FerrumNativeMainWindow(
 		self._undo_action.setEnabled(active and not pending and not busy)
 		self._redo_action.setEnabled(active and not pending and not busy)
 		self._refresh_action.setEnabled(pending)
-		self._refresh_molecule_import_actions(active, pending, busy_coordinates or busy_copy)
+		self._refresh_molecule_import_actions(
+			active, pending, busy_coordinates or busy_clipboard,
+		)
 		self._refresh_molfile_export_actions(
-			active, pending, busy_import or busy_coordinates or busy_copy,
+			active, pending, busy_import or busy_coordinates or busy_clipboard,
 		)
 		self._refresh_sdf_export_actions(
-			active, pending, busy_import or busy_coordinates or busy_copy,
+			active, pending, busy_import or busy_coordinates or busy_clipboard,
 		)
 		self._refresh_molecule_export_actions(
-			active, pending, busy_import or busy_coordinates or busy_copy,
+			active, pending, busy_import or busy_coordinates or busy_clipboard,
 		)
 		self._refresh_molecule_inspection_actions(
-			active, pending, busy_import or busy_export or busy_coordinates or busy_copy,
+			active,
+			pending,
+			busy_import or busy_export or busy_coordinates or busy_clipboard,
 		)
 		self._refresh_native_clipboard_actions(
 			active, pending,
 			busy_import or busy_export or busy_inspection or busy_coordinates,
 		)
 		self._refresh_molecule_name_action(active, pending, busy)
+		self._refresh_linear_form_action(active, pending, busy)
 		self._generate_coordinates_action.setEnabled(
 			active and not pending and not busy and bool(tab.durable_molecule_choices()),
 		)
@@ -878,6 +897,7 @@ class FerrumNativeMainWindow(
 			and not self._coordinate_generation_intent.worker.delivery_cancelled,
 		)
 		self._refresh_view_controls_actions()
+		self._native_property_dock.refresh(tab)
 
 	#============================================
 	def _show_native_file_warning(self, title: str, message: str) -> None:
@@ -903,7 +923,7 @@ class FerrumNativeMainWindow(
 		if self._cancel_molecule_inspection_for_close():
 			event.ignore()
 			return
-		if self._cancel_clipboard_copy_for_close():
+		if self._cancel_clipboard_operations_for_close():
 			event.ignore()
 			return
 		if self._coordinate_generation_intent is not None:

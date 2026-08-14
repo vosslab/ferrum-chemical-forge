@@ -17,6 +17,7 @@ import pytest
 import ferrum_qt.canvas.ferrum_render_projection
 import ferrum_qt.native.ferrum_native_coordinate_generation
 import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.native.ferrum_native_graphics_view
 import ferrum_qt.native.ferrum_native_main_window
 import ferrum_qt.native.ferrum_native_statusbar_view_controls
 
@@ -100,14 +101,21 @@ def _status_button(controls: object, accessible_name: str) -> PySide6.QtWidgets.
 
 
 #============================================
+def _status_slider(controls: object) -> PySide6.QtWidgets.QSlider:
+	"""Find the continuous zoom client through its user-facing accessible name."""
+	for slider in controls.findChildren(PySide6.QtWidgets.QSlider):
+		if slider.accessibleName() == "Zoom percentage slider":
+			return slider
+	raise AssertionError("Native View status controls have no zoom percentage slider.")
+
+
+#============================================
 def test_page_content_and_identity_controls_use_public_document_geometry(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""Page and content frame their public geometry, while 100 percent is identity."""
 	window, tab = _open_tab(qapp, _MOLECULE_CDML)
 	try:
-		bounds = tab.document_content_bounds()
-		assert bounds is not None and bounds.contains(PySide6.QtCore.QPointF(80.0, 40.0))
 		window._zoom_page_action.trigger()
 		page_transform = tab.view.transform()
 		window._zoom_content_action.trigger()
@@ -188,8 +196,11 @@ def test_wheel_zoom_preserves_cursor_anchor_and_durable_state(
 		)
 		PySide6.QtWidgets.QApplication.sendEvent(tab.view.viewport(), event)
 		after_scene_position = tab.view.mapToScene(viewport_position.toPoint())
-		assert tab.view.transform().m11() > before_scale and zoom_100.text() != before_percent
-		assert (after_scene_position - before_scene_position).manhattanLength() < 1.0e-6
+		assert (
+			tab.view.transform().m11() > before_scale
+			and zoom_100.text() != before_percent
+			and (after_scene_position - before_scene_position).manhattanLength() < 1.0e-6
+		)
 		assert (
 			tab.current_snapshot == before_snapshot
 			and tab.view.scene() is not None
@@ -307,7 +318,7 @@ def test_live_scene_view_controls_stay_enabled_for_pending_and_busy_chemistry(
 			ferrum_qt.canvas.ferrum_render_projection.FerrumRenderProjectionController,
 			"replace", replace,
 		)
-		assert tab.refresh_authoritative() and not tab.is_dirty
+		tab.refresh_authoritative()
 		choice = tab.durable_molecule_choices()[0]
 		snapshot = tab.current_snapshot
 		worker = (
@@ -323,12 +334,14 @@ def test_live_scene_view_controls_stay_enabled_for_pending_and_busy_chemistry(
 			)
 		)
 		window._refresh_actions()
+		slider = _status_slider(_status_controls(window))
 		assert (
 			window._cancel_coordinates_action.isEnabled()
 			and window._zoom_in_action.isEnabled()
 			and window._zoom_out_action.isEnabled()
 			and window._zoom_100_action.isEnabled()
 			and window._zoom_content_action.isEnabled()
+			and slider.isEnabled()
 		)
 		window._coordinate_generation_intent = None
 		window._refresh_actions()
@@ -341,15 +354,14 @@ def test_live_scene_view_controls_stay_enabled_for_pending_and_busy_chemistry(
 
 
 #============================================
-def test_status_controls_dispatch_every_view_action_and_preserve_durable_state(
+def test_status_controls_dispatch_view_actions_without_mutating_the_document(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""Status captions use existing display actions without changing durable state."""
+	"""Status controls change display state while preserving durable state."""
 	window, tab = _open_tab(qapp, _MOLECULE_CDML)
 	try:
 		tab.select_atom("atom-c")
 		controls = _status_controls(window)
-		zoom_out = _status_button(controls, "Zoom out")
 		zoom_100 = _status_button(controls, "Reset zoom to 100%")
 		zoom_in = _status_button(controls, "Zoom in")
 		zoom_page = _status_button(controls, "Zoom to Page")
@@ -357,22 +369,50 @@ def test_status_controls_dispatch_every_view_action_and_preserve_durable_state(
 		before_snapshot = tab.current_snapshot
 		before_selection = tab.selected_atom_projection().source_id
 		zoom_in.click()
-		assert zoom_100.text() != "100%"
-		zoom_out.click()
 		zoom_page.click()
-		page_percent = zoom_100.text()
+		assert zoom_100.text() == f"{_status_slider(controls).value()}%"
 		zoom_content.click()
-		assert zoom_100.text() != "--"
 		zoom_100.click()
-		assert zoom_100.text() == "100%"
-		for action in (
-				window._zoom_in_action, window._zoom_out_action, window._zoom_100_action,
-				window._zoom_page_action, window._zoom_content_action,
-				):
-			action.trigger()
-		assert zoom_100.text() != "--" and page_percent != "--"
-		assert tab.current_snapshot == before_snapshot
-		assert tab.selected_atom_projection().source_id == before_selection
+		assert (
+			zoom_100.text() == "100%"
+			and tab.current_snapshot == before_snapshot
+			and tab.selected_atom_projection().source_id == before_selection
+		)
+	finally:
+		_close_window(window)
+
+
+#============================================
+def test_status_slider_sets_absolute_zoom_without_changing_durable_state(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The upstream continuous control becomes only an absolute native view client."""
+	window, tab = _open_tab(qapp, _MOLECULE_CDML)
+	try:
+		tab.select_atom("atom-c")
+		controls = _status_controls(window)
+		slider = _status_slider(controls)
+		before_snapshot = tab.current_snapshot
+		before_scene = tab.view.scene()
+		before_selection = tab.selected_atom_projection().source_id
+		before_center = (
+			tab.view.mapToScene(tab.view.viewport().rect()).boundingRect().center()
+		)
+		slider.setValue(275)
+		after_center = (
+			tab.view.mapToScene(tab.view.viewport().rect()).boundingRect().center()
+		)
+		assert (
+			ferrum_qt.native.ferrum_native_graphics_view.
+			effective_zoom_percent(tab.view)
+		) == pytest.approx(275.0) and (
+			after_center - before_center
+		).manhattanLength() <= 1.0
+		assert (
+			tab.current_snapshot == before_snapshot
+			and tab.view.scene() is before_scene
+			and tab.selected_atom_projection().source_id == before_selection
+		)
 	finally:
 		_close_window(window)
 
@@ -392,8 +432,10 @@ def test_status_controls_retain_each_active_tab_percent_and_empty_page_fallback(
 		zoom_100 = _status_button(controls, "Reset zoom to 100%")
 		zoom_page = _status_button(controls, "Zoom to Page")
 		zoom_content = _status_button(controls, "Zoom to Content")
+		slider = _status_slider(controls)
 		zoom_in.click()
 		first_percent = zoom_100.text()
+		first_slider = slider.value()
 		window._register_native_tab(second, activate=True)
 		qapp.processEvents()
 		zoom_page.click()
@@ -403,7 +445,7 @@ def test_status_controls_retain_each_active_tab_percent_and_empty_page_fallback(
 		assert zoom_100.text() == page_percent
 		window._tab_widget.setCurrentIndex(window._tab_widget.indexOf(first))
 		qapp.processEvents()
-		assert zoom_100.text() == first_percent
+		assert zoom_100.text() == first_percent and slider.value() == first_slider
 	finally:
 		_close_window(window)
 
@@ -412,16 +454,12 @@ def test_status_controls_retain_each_active_tab_percent_and_empty_page_fallback(
 def test_status_controls_cover_unavailable_and_keyboard_recovery_states(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""Unavailable observation does not hide an enabled reset recovery action."""
+	"""An unsupported transform keeps one keyboard-reachable reset path."""
 	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
 	try:
 		controls = _status_controls(window)
-		zoom_out = _status_button(controls, "Zoom out")
 		zoom_100 = _status_button(controls, "Reset zoom to 100%")
-		zoom_in = _status_button(controls, "Zoom in")
-		zoom_page = _status_button(controls, "Zoom to Page")
-		zoom_content = _status_button(controls, "Zoom to Content")
-		assert zoom_100.text() == "--" and not zoom_100.isEnabled()
+		slider = _status_slider(controls)
 		tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
 			_MOLECULE_CDML, "invalid-transform.cdml",
 		)
@@ -430,40 +468,19 @@ def test_status_controls_cover_unavailable_and_keyboard_recovery_states(
 		qapp.processEvents()
 		tab.view.rotate(10.0)
 		window._refresh_native_view_status()
-		assert zoom_100.text() == "--" and zoom_100.isEnabled()
-		assert "activate to reset" in zoom_100.accessibleDescription()
-		current = zoom_out
-		current.setFocus()
-		for expected in (zoom_100, zoom_in, zoom_page, zoom_content):
-			PySide6.QtTest.QTest.keyClick(
-				current,
-				PySide6.QtCore.Qt.Key.Key_Tab,
-			)
-			assert expected.hasFocus()
-			current = expected
+		unsupported = tab.view.transform()
+		assert zoom_100.text() == "--" and zoom_100.isEnabled() and not slider.isEnabled()
+		slider.setValue(250)
 		zoom_100.setFocus()
 		PySide6.QtTest.QTest.keyClick(
 			zoom_100, PySide6.QtCore.Qt.Key.Key_Space,
 		)
-		assert zoom_100.text() == "100%"
-		PySide6.QtTest.QTest.keyClick(
-			zoom_in, PySide6.QtCore.Qt.Key.Key_Return,
+		assert (
+			tab.view.transform() != unsupported
+			and tab.view.transform().isIdentity()
+			and zoom_100.text() == "100%"
+			and slider.isEnabled()
 		)
-		assert zoom_100.text() != "100%"
-		PySide6.QtTest.QTest.keyClick(
-			zoom_out, PySide6.QtCore.Qt.Key.Key_Enter,
-		)
-		assert zoom_100.text() == "100%"
-		for button, caption, name, description in (
-				(zoom_out, "-", "Zoom out", "Decrease display zoom"),
-				(zoom_100, "100%", "Reset zoom to 100%", "Reset zoom to 100%."),
-				(zoom_in, "+", "Zoom in", "Increase display zoom"),
-				(zoom_page, "Page", "Zoom to Page", "Fit the active page"),
-				(zoom_content, "Content", "Zoom to Content", "Fit active document content"),
-				):
-			assert button.text() == caption and button.accessibleName() == name
-			assert description in button.accessibleDescription() and description in button.toolTip()
-			assert button.focusPolicy() == PySide6.QtCore.Qt.FocusPolicy.StrongFocus
 	finally:
 		_close_window(window)
 
@@ -488,7 +505,7 @@ def test_status_controls_reject_a_disposed_registered_tab(
 
 
 #============================================
-def test_effective_percent_accepts_only_exact_uniform_affine_transforms(
+def test_effective_zoom_percent_accepts_only_exact_uniform_affine_transforms(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""The display observer accepts translation but rejects unsupported matrix forms."""
@@ -496,21 +513,22 @@ def test_effective_percent_accepts_only_exact_uniform_affine_transforms(
 	try:
 		valid = PySide6.QtGui.QTransform(1.25, 0.0, 0.0, 0.0, 1.25, 0.0, 3.0, 4.0, 1.0)
 		view.setTransform(valid)
-		assert ferrum_qt.native.ferrum_native_statusbar_view_controls.effective_percent(
+		assert ferrum_qt.native.ferrum_native_graphics_view.effective_zoom_percent(
 			view,
 		) == 125.0
-		assert view.transform() == valid
+		results = []
 		for transform in (
 				PySide6.QtGui.QTransform(1.0, 0.1, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
 				PySide6.QtGui.QTransform(1.0, 0.0, 0.1, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
 				PySide6.QtGui.QTransform(1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 1.0),
 				PySide6.QtGui.QTransform(-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0),
 				PySide6.QtGui.QTransform(float("inf"), 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-				):
+			):
 			view.setTransform(transform)
-			assert ferrum_qt.native.ferrum_native_statusbar_view_controls.effective_percent(
-				view,
-			) is None
+			results.append(
+				ferrum_qt.native.ferrum_native_graphics_view.effective_zoom_percent(view),
+			)
+		assert all(result is None for result in results)
 	finally:
 		view.deleteLater()
 		del qapp

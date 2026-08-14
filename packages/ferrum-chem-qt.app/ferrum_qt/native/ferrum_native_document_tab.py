@@ -11,14 +11,18 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
 import ferrum_qt.native.ferrum_native_bracket_creation as native_bracket_creation
+import ferrum_qt.native.ferrum_native_clipboard_paste_tab as native_clipboard_paste_tab
+import ferrum_qt.native.ferrum_native_clipboard_cut_tab as native_clipboard_cut_tab
 import ferrum_qt.native.ferrum_native_document_tab_construction as native_tab_construction
 import ferrum_qt.native.ferrum_native_geometric_properties as native_geometric_properties
 import ferrum_qt.native.ferrum_native_geometry_repair as native_geometry_repair
 import ferrum_qt.native.ferrum_native_graphics_view
+import ferrum_qt.native.ferrum_native_linear_form as native_linear_form
 import ferrum_qt.native.ferrum_native_molecule_name as native_molecule_name
 import ferrum_qt.native.ferrum_native_paper_properties as native_paper_properties
 import ferrum_qt.native.ferrum_native_presentation_deletion as native_presentation_deletion
 import ferrum_qt.native.ferrum_native_presentation_stack as native_presentation_stack
+import ferrum_qt.native.ferrum_native_property_observation as native_property_observation
 import ferrum_qt.native.ferrum_native_rotation as native_rotation
 import ferrum_qt.native.ferrum_native_snapshot_export as native_snapshot_export
 import ferrum_qt.native.ferrum_native_sdf_insertion as native_sdf_insertion
@@ -42,17 +46,9 @@ FerrumNativeDocumentTabSavePresentationError = (
 
 
 #============================================
-class FerrumNativeDocumentTabMutationPresentationError(FerrumNativeDocumentTabError):
-	"""A Rust-accepted edit whose authoritative render is pending refresh."""
-
-	#============================================
-	def __init__(self, result: object) -> None:
-		"""Retain the accepted Rust result without pretending the old scene is current."""
-		self.result = result
-		super().__init__(
-			"Rust accepted the native edit, but its authoritative render could not be "
-			"installed; refresh before saving or editing again",
-		)
+FerrumNativeDocumentTabMutationPresentationError = (
+	native_document_tab_errors.FerrumNativeDocumentTabMutationPresentationError
+)
 
 
 #============================================
@@ -68,7 +64,11 @@ class FerrumNativeMoleculeChoice:
 #============================================
 class FerrumNativeDocumentTab(
 		native_publication.FerrumNativeDocumentTabPublicationMixin,
+		native_property_observation.FerrumNativePropertyObservationMixin,
+		native_clipboard_cut_tab.FerrumNativeClipboardCutTabMixin,
+		native_clipboard_paste_tab.FerrumNativeClipboardPasteTabMixin,
 		native_drawing_standard.FerrumNativeDrawingStandardTabMixin,
+		native_linear_form.FerrumNativeLinearFormTabMixin,
 		native_molecule_name.FerrumNativeMoleculeNameTabMixin,
 		native_sdf_insertion.FerrumNativeSdfInsertionTabMixin,
 		native_bracket_creation.FerrumNativeBracketCreationMixin,
@@ -199,11 +199,18 @@ class FerrumNativeDocumentTab(
 	def requires_refresh(self) -> bool:
 		"""Return whether Rust is ahead of the installed disposable Qt projection."""
 		return self._pending_result is not None
+
+	#============================================
+	@property
+	def is_disposed(self) -> bool:
+		"""Return whether this tab has terminally retired its projection boundary."""
+		return self._disposed
 	#============================================
 	@property
 	def file_path(self) -> pathlib.Path | None:
 		"""Return the loaded origin or confirmed publication destination, if known."""
 		return self._file_path
+
 	#============================================
 	def _adopt_loaded_origin_path(self, path: str | pathlib.Path) -> None:
 		"""Record a successfully loaded CDML origin without changing Rust state.

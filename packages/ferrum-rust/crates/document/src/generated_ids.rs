@@ -10,6 +10,7 @@ pub(super) struct GeneratedIdSequences {
     bond: Option<u64>,
     presentation: Option<u64>,
     fragment: Option<u64>,
+    clipboard: Option<u64>,
 }
 
 impl GeneratedIdSequences {
@@ -20,6 +21,7 @@ impl GeneratedIdSequences {
             bond: Some(0),
             presentation: Some(0),
             fragment: Some(0),
+            clipboard: Some(0),
         }
     }
 
@@ -47,6 +49,7 @@ impl GeneratedIdSequences {
                 bond,
                 presentation: self.presentation,
                 fragment: self.fragment,
+                clipboard: self.clipboard,
             },
         ))
     }
@@ -127,6 +130,16 @@ impl GeneratedIdSequences {
         Ok((identifier, Self { fragment, ..self }))
     }
 
+    pub(super) fn reserve_clipboard(
+        self,
+        indexed: &IndexedDocument,
+        count: usize,
+    ) -> Result<(Vec<PersistentId>, Self), SessionOperationError> {
+        let (identifiers, clipboard) =
+            allocate(indexed, GeneratedIdKind::Clipboard, self.clipboard, count)?;
+        Ok((identifiers, Self { clipboard, ..self }))
+    }
+
     pub(super) fn reserve_presentations<const N: usize>(
         self,
         indexed: &IndexedDocument,
@@ -159,6 +172,11 @@ impl GeneratedIdSequences {
     fn with_fragment_sequence(self, fragment: Option<u64>) -> Self {
         Self { fragment, ..self }
     }
+
+    #[cfg(test)]
+    fn with_clipboard_sequence(self, clipboard: Option<u64>) -> Self {
+        Self { clipboard, ..self }
+    }
 }
 
 pub(super) struct GeneratedMoleculeIdentities {
@@ -180,6 +198,7 @@ enum GeneratedIdKind {
     Presentation,
     #[cfg_attr(not(test), allow(dead_code))]
     Fragment,
+    Clipboard,
 }
 
 impl GeneratedIdKind {
@@ -190,6 +209,7 @@ impl GeneratedIdKind {
             Self::Bond => "ferrum-bond-v1-",
             Self::Presentation => "ferrum-presentation-v1-",
             Self::Fragment => "ferrum-fragment-v1-",
+            Self::Clipboard => "ferrum-paste-v1-",
         }
     }
 
@@ -200,6 +220,7 @@ impl GeneratedIdKind {
             Self::Bond => SessionOperationError::BondIdentifierExhausted,
             Self::Presentation => SessionOperationError::PresentationIdentifierExhausted,
             Self::Fragment => SessionOperationError::FragmentIdentifierExhausted,
+            Self::Clipboard => SessionOperationError::ClipboardIdentifierExhausted,
         }
     }
 }
@@ -336,5 +357,49 @@ mod tests {
         assert_eq!(first.as_str(), "ferrum-fragment-v1-0");
         assert_eq!(repeated.as_str(), "ferrum-fragment-v1-0");
         assert_eq!(next.as_str(), "ferrum-fragment-v1-1");
+    }
+
+    #[test]
+    fn clipboard_exhaustion_has_its_own_typed_error() {
+        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let exhausted = GeneratedIdSequences::initial().with_clipboard_sequence(None);
+
+        assert!(matches!(
+            exhausted.reserve_clipboard(&indexed, 1),
+            Err(SessionOperationError::ClipboardIdentifierExhausted)
+        ));
+    }
+
+    #[test]
+    fn clipboard_allocation_skips_opaque_declarations() {
+        let indexed =
+            IndexedDocument::parse("<cdml><info><vendor id=\"ferrum-paste-v1-0\"/></info></cdml>")
+                .expect("valid opaque declaration");
+
+        let (identifiers, _) = GeneratedIdSequences::initial()
+            .reserve_clipboard(&indexed, 1)
+            .expect("clipboard identity");
+
+        assert_eq!(identifiers[0].as_str(), "ferrum-paste-v1-1");
+    }
+
+    #[test]
+    fn clipboard_reservation_is_tentative_until_its_sequence_is_installed() {
+        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let original = GeneratedIdSequences::initial();
+
+        let (first, tentative) = original
+            .reserve_clipboard(&indexed, 1)
+            .expect("first clipboard identity");
+        let (repeated, _) = original
+            .reserve_clipboard(&indexed, 1)
+            .expect("uninstalled sequence remains unchanged");
+        let (next, _) = tentative
+            .reserve_clipboard(&indexed, 1)
+            .expect("installed tentative sequence advances");
+
+        assert_eq!(first[0].as_str(), "ferrum-paste-v1-0");
+        assert_eq!(repeated[0].as_str(), "ferrum-paste-v1-0");
+        assert_eq!(next[0].as_str(), "ferrum-paste-v1-1");
     }
 }

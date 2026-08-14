@@ -7,6 +7,7 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.config.preferences
 import ferrum_qt.dialogs.theme_chooser_dialog
+import ferrum_qt.native.ferrum_native_action_toolbar
 import ferrum_qt.native.ferrum_native_document_tab
 import ferrum_qt.native.ferrum_native_main_window
 
@@ -38,15 +39,57 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 		self._action_open = self._open_action
 		self._action_new = self._add_new_document_action()
 		self._theme_action = self._add_theme_action()
+		self._native_action_toolbar = self._add_native_action_toolbar()
 		self._on_new()
 
 	#============================================
 	def _add_new_document_action(self) -> PySide6.QtGui.QAction:
 		"""Install a window-level native New action without a legacy menu owner."""
 		action = PySide6.QtGui.QAction(self.tr("New"), self)
+		action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.New)
+		action.setToolTip(self.tr("Create a new empty Rust-owned Ferrum document"))
 		action.triggered.connect(self._on_new)
-		self.addAction(action)
+		self._file_menu.insertAction(self._open_action, action)
 		return action
+
+	#============================================
+	def _add_native_action_toolbar(
+			self,
+			) -> ferrum_qt.native.ferrum_native_action_toolbar.FerrumNativeActionToolbar:
+		"""Expose frequent commands through one responsive shared-action client."""
+		standard = PySide6.QtWidgets.QStyle.StandardPixmap
+		self._open_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Open)
+		self._save_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Save)
+		self._undo_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Undo)
+		self._redo_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Redo)
+		cut_icon = PySide6.QtGui.QIcon.fromTheme("edit-cut")
+		if not cut_icon.isNull():
+			self._cut_action.setIcon(cut_icon)
+		groups = (
+			(
+				(self._action_new, standard.SP_FileIcon),
+				(self._open_action, standard.SP_DialogOpenButton),
+				(self._save_action, standard.SP_DialogSaveButton),
+			),
+			(
+				(self._undo_action, standard.SP_ArrowBack),
+				(self._redo_action, standard.SP_ArrowForward),
+			),
+			(
+				(self._cut_action, standard.SP_TrashIcon),
+				(self._copy_action, standard.SP_FileDialogDetailedView),
+				(self._paste_action, standard.SP_FileDialogListView),
+			),
+			(
+				(self._zoom_out_action, standard.SP_ArrowDown),
+				(self._zoom_100_action, standard.SP_BrowserReload),
+				(self._zoom_in_action, standard.SP_ArrowUp),
+			),
+		)
+		return (
+			ferrum_qt.native.ferrum_native_action_toolbar.
+			install_native_action_toolbar(self, groups)
+		)
 
 	#============================================
 	def _add_theme_action(self) -> PySide6.QtGui.QAction:

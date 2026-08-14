@@ -74,7 +74,8 @@ impl From<DocumentSnapshot> for PyDocumentSnapshot {
 ///
 /// `observation` owns the one authoritative post-operation snapshot and projection.
 #[pyclass(frozen, name = "SessionOperationResultV1", skip_from_py_object)]
-struct PySessionOperationResultV1 {
+#[derive(Clone)]
+pub(crate) struct PySessionOperationResultV1 {
     #[pyo3(get)]
     observation: PySessionDocumentObservationV1,
 }
@@ -399,6 +400,40 @@ impl PyDocumentSession {
             selected_atom_ids,
         )
         .map(Into::into)
+    }
+
+    /// Apply one worker-prepared clipboard fragment to this exact installed state.
+    fn apply_clipboard_paste_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest: &Bound<'_, pyo3::types::PyString>,
+        prepared: PyRef<'_, crate::clipboard_paste_binding::PyDocumentClipboardPastePlanV1>,
+    ) -> PyResult<crate::clipboard_paste_binding::PyDocumentClipboardPasteResultV1> {
+        crate::clipboard_paste_binding::apply_clipboard_paste_v1_binding(
+            py,
+            &mut self.session,
+            expected_revision,
+            expected_digest,
+            prepared,
+        )
+    }
+
+    /// Apply one worker-prepared Cut plan to this exact installed state.
+    fn apply_clipboard_cut_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest: &Bound<'_, pyo3::types::PyString>,
+        prepared: PyRef<'_, crate::clipboard_cut_binding::PyDocumentClipboardCutPlanV1>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        crate::clipboard_cut_binding::apply_clipboard_cut_v1_binding(
+            py,
+            &mut self.session,
+            expected_revision,
+            expected_digest,
+            prepared,
+        )
     }
 
     /// Accept one worker-prepared complete coordinate update at its source revision.
@@ -769,27 +804,7 @@ fn hex_digest(digest: &[u8; 32]) -> String {
 /// Register Ferrum-Chem's public Python API in its extension module.
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("FerrumError", module.py().get_type::<FerrumError>())?;
-    crate::chemistry_binding::initialize(module)?;
-    crate::clipboard_fragment_binding::initialize(module)?;
-    crate::document_linear_form_binding::initialize(module)?;
-    crate::document_molecule_inchi_binding::initialize(module)?;
-    crate::document_molecule_information_binding::initialize(module)?;
-    crate::document_molecule_inspection_binding::initialize(module)?;
-    crate::document_molecule_molblock_binding::initialize(module)?;
-    crate::document_molecule_sdf_binding::initialize(module)?;
-    crate::document_molecule_name_binding::initialize(module)?;
-    crate::document_molecule_smiles_binding::initialize(module)?;
-    crate::drawing_standard_binding::initialize(module)?;
-    crate::geometry_binding::initialize(module)?;
-    crate::molecule_coordinate_binding::initialize(module)?;
-    crate::paper_properties_binding::initialize(module)?;
-    crate::paper_size_binding::initialize(module)?;
-    crate::periodic_display_binding::initialize(module)?;
-    crate::smiles_insertion_binding::initialize(module)?;
-    crate::peptide_template_insertion_binding::initialize(module)?;
-    crate::inchi_insertion_binding::initialize(module)?;
-    crate::molblock_insertion_binding::initialize(module)?;
-    crate::sdf_insertion_binding::initialize(module)?;
+    crate::binding_feature_registration::initialize(module)?;
     module.add("DocumentError", module.py().get_type::<DocumentError>())?;
     module.add(
         "DocumentInputError",

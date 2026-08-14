@@ -30,7 +30,7 @@ def _facts(snapshot: object) -> tuple[str, int, str, bool]:
 	return snapshot.cdml, snapshot.revision, snapshot.digest, snapshot.is_dirty
 
 
-def test_private_linear_form_converts_source_order_and_preserves_history() -> None:
+def test_private_linear_form_converts_source_order() -> None:
 	"""The installed binding returns the authoritative changed receipt."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation, molecule_id, atom_ids = _address(session)
@@ -38,17 +38,32 @@ def test_private_linear_form_converts_source_order_and_preserves_history() -> No
 		0, observation.snapshot.digest, molecule_id, atom_ids,
 	)
 	changed_cdml = changed.observation.snapshot.cdml
+
+	assert changed.observation.snapshot.revision == 1
+	assert all(
+		marker in changed_cdml
+		for marker in (
+			'id="late" name="C" show_hydrogens="on"',
+			'id="early" name="O" show_hydrogens="on"',
+			'type="linear_form"',
+		)
+	)
+
+
+def test_private_linear_form_history_reopens_the_changed_document() -> None:
+	"""Undo, redo, and reopen retain the binding's authoritative document."""
+	session = ferrum_chem.DocumentSession.load(_SOURCE)
+	before_cdml = session.snapshot().cdml
+	observation, molecule_id, atom_ids = _address(session)
+	changed = session.convert_linear_form_v1(
+		0, observation.snapshot.digest, molecule_id, atom_ids,
+	)
 	undone = session.undo(1)
 	redone = session.redo(2)
 	reopened = ferrum_chem.DocumentSession.load(redone.observation.snapshot.cdml)
 
-	assert changed.observation.snapshot.revision == 1
-	assert 'id="late" name="C" show_hydrogens="on"' in changed_cdml
-	assert 'id="early" name="O" show_hydrogens="on"' in changed_cdml
-	assert 'type="linear_form"' in changed_cdml
-	assert undone.observation.snapshot.revision == 2
-	assert redone.observation.snapshot.revision == 3
-	assert reopened.observe(0).projection.molecules[0].atoms[0].id is not None
+	assert undone.observation.snapshot.cdml == before_cdml
+	assert reopened.snapshot().cdml == changed.observation.snapshot.cdml
 
 
 def test_private_linear_form_canonical_repeat_is_history_free() -> None:
@@ -116,9 +131,8 @@ def test_private_linear_form_rejects_wrong_container_and_python_text(atoms: obje
 
 def test_private_linear_form_name_is_runtime_only() -> None:
 	"""The Qt-only method and exception remain outside the published wheel stub."""
-	assert hasattr(ferrum_chem.DocumentSession, "convert_linear_form_v1")
-	assert "DocumentLinearFormError" in dir(ferrum_chem)
 	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
 	stub = stub_path.read_text(encoding="utf-8")
-	assert "convert_linear_form_v1" not in stub
-	assert "DocumentLinearFormError" not in stub
+
+	assert hasattr(ferrum_chem.DocumentSession, "convert_linear_form_v1")
+	assert all(name not in stub for name in ("convert_linear_form_v1", "DocumentLinearFormError"))

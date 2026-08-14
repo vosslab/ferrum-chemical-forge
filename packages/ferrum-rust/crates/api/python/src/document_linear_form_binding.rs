@@ -60,11 +60,11 @@ pub(crate) fn convert_linear_form_v1(
         Err(DocumentLinearFormErrorV1::Observation(error)) => {
             Err(linear_form_error(py, error.to_string())?)
         }
-        Err(DocumentLinearFormErrorV1::Session(DocumentSessionError::Operation(
-            error @ (SessionOperationError::EmptyLinearFormSelection
-            | SessionOperationError::LinearFormPlan(_)
-            | SessionOperationError::Candidate(_)),
-        ))) => Err(selection_error(py, error)?),
+        Err(DocumentLinearFormErrorV1::Session(DocumentSessionError::Operation(error)))
+            if is_linear_form_operation_error(&error) =>
+        {
+            Err(selection_error(py, error)?)
+        }
         Err(DocumentLinearFormErrorV1::Session(error)) => Err(
             crate::document_error_binding::map_document_error(py, error)?,
         ),
@@ -101,6 +101,18 @@ fn atom_ids(py: Python<'_>, values: &Bound<'_, PyAny>) -> PyResult<Vec<Persisten
 
 fn selection_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyErr> {
     linear_form_error(py, error.to_string())
+}
+
+fn is_linear_form_operation_error(error: &SessionOperationError) -> bool {
+    matches!(
+        error,
+        SessionOperationError::EmptyLinearFormSelection
+            | SessionOperationError::LinearFormPlan(_)
+            | SessionOperationError::HistoryResourceExhausted
+            | SessionOperationError::FragmentIdentifierExhausted
+            | SessionOperationError::GeneratedIdentifierAllocationFailed
+            | SessionOperationError::Candidate(_)
+    )
 }
 
 fn parse_digest(py: Python<'_>, value: &str) -> PyResult<[u8; 32]> {
@@ -159,4 +171,20 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module.py().get_type::<DocumentLinearFormError>(),
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linear_form_resource_failures_keep_the_private_error_route() {
+        for error in [
+            SessionOperationError::HistoryResourceExhausted,
+            SessionOperationError::FragmentIdentifierExhausted,
+            SessionOperationError::GeneratedIdentifierAllocationFailed,
+        ] {
+            assert!(is_linear_form_operation_error(&error), "{error}");
+        }
+    }
 }

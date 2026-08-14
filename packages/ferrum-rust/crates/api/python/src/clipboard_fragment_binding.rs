@@ -1,7 +1,7 @@
 //! Private PyO3 boundary for revision-bound native clipboard Copy.
 //!
 //! This unsupported entry point belongs only to the bundled Ferrum-Qt route. It
-//! deliberately has no wheel stub, CLI, serde, Paste, or wire-format commitment.
+//! deliberately has no wheel stub, CLI, serde, or wire-format commitment.
 
 use ferrum_api::{
     DocumentClipboardFragmentKindV1, DocumentClipboardFragmentV1, DocumentClipboardSelectionV1,
@@ -60,12 +60,23 @@ fn extract_document_clipboard_fragment_v1_binding(
     observation: PyRef<'_, PySessionDocumentObservationV1>,
     object_ids: &Bound<'_, PyAny>,
 ) -> PyResult<PyDocumentClipboardFragmentV1> {
+    let selection = parse_clipboard_selection(py, observation.observation(), object_ids)?;
+    let receipt = extract_document_clipboard_fragment_v1(observation.observation(), selection)
+        .map_err(|error| clipboard_error(py, error.to_string()))?;
+    receipt_to_python(py, &receipt)
+}
+
+pub(crate) fn parse_clipboard_selection(
+    py: Python<'_>,
+    observation: &ferrum_document::SessionDocumentObservationV1,
+    object_ids: &Bound<'_, PyAny>,
+) -> PyResult<DocumentClipboardSelectionV1> {
     if !object_ids.is_exact_instance_of::<PyTuple>() {
         return Err(clipboard_error(py, SELECTION_SHAPE_REASON));
     }
     let object_ids = object_ids.cast::<PyTuple>()?;
-    let maximum = selectable_object_count(observation.observation())
-        .ok_or_else(|| clipboard_error(py, RESOURCE_REASON))?;
+    let maximum =
+        selectable_object_count(observation).ok_or_else(|| clipboard_error(py, RESOURCE_REASON))?;
     if object_ids.is_empty() || object_ids.len() > maximum {
         return Err(clipboard_error(py, SELECTION_SHAPE_REASON));
     }
@@ -86,11 +97,8 @@ fn extract_document_clipboard_fragment_v1_binding(
             .map_err(|error| clipboard_error(py, error.to_string()))?;
         selectors.push(selector);
     }
-    let selection = DocumentClipboardSelectionV1::new(selectors)
-        .map_err(|error| clipboard_error(py, error.to_string()))?;
-    let receipt = extract_document_clipboard_fragment_v1(observation.observation(), selection)
-        .map_err(|error| clipboard_error(py, error.to_string()))?;
-    receipt_to_python(py, &receipt)
+    DocumentClipboardSelectionV1::new(selectors)
+        .map_err(|error| clipboard_error(py, error.to_string()))
 }
 
 fn selectable_object_count(
@@ -131,7 +139,7 @@ fn receipt_to_python(
     })
 }
 
-fn object_tuple(py: Python<'_>, values: &[DocumentObjectIdV1]) -> PyResult<Py<PyTuple>> {
+pub(crate) fn object_tuple(py: Python<'_>, values: &[DocumentObjectIdV1]) -> PyResult<Py<PyTuple>> {
     let mut objects = Vec::new();
     objects
         .try_reserve_exact(values.len())
@@ -151,7 +159,7 @@ fn copied(py: Python<'_>, value: &str) -> PyResult<String> {
     Ok(result)
 }
 
-fn hex_digest(py: Python<'_>, digest: &[u8; 32]) -> PyResult<String> {
+pub(crate) fn hex_digest(py: Python<'_>, digest: &[u8; 32]) -> PyResult<String> {
     let mut value = String::new();
     value
         .try_reserve_exact(64)

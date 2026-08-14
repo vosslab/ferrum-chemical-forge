@@ -1,34 +1,12 @@
 """Accessible status-bar clients for window-owned native View actions."""
 
-# Standard Library
-import math
-
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
-
-#============================================
-def effective_percent(view: PySide6.QtWidgets.QGraphicsView | None) -> float | None:
-	"""Return an exactly-supported uniform display scale without changing *view*."""
-	if view is None:
-		return None
-	transform = view.transform()
-	values = (
-		transform.m11(), transform.m12(), transform.m13(), transform.m21(),
-		transform.m22(), transform.m23(), transform.m31(), transform.m32(),
-		transform.m33(),
-	)
-	if not all(math.isfinite(value) for value in values):
-		return None
-	if (
-		transform.m13() != 0.0 or transform.m23() != 0.0 or transform.m33() != 1.0
-		or transform.m12() != 0.0 or transform.m21() != 0.0
-		or transform.m11() != transform.m22() or transform.m11() <= 0.0
-	):
-		return None
-	return transform.m11() * 100.0
+# local repo modules
+import ferrum_qt.native.ferrum_native_graphics_view
 
 
 #============================================
@@ -50,7 +28,9 @@ class _CaptionToolButton(PySide6.QtWidgets.QToolButton):
 
 #============================================
 class FerrumNativeStatusBarViewControls(PySide6.QtWidgets.QWidget):
-	"""Present five existing View actions without owning their display state."""
+	"""Project five View actions and one absolute-scale request without owning state."""
+
+	zoom_percent_requested = PySide6.QtCore.Signal(int)
 
 	#============================================
 	def __init__(
@@ -74,6 +54,31 @@ class FerrumNativeStatusBarViewControls(PySide6.QtWidgets.QWidget):
 			"--", "Reset zoom to 100%", "Current zoom percentage unavailable; reset zoom unavailable.",
 		)
 		self._zoom_in_button = self._make_button("+", "Zoom in", "Increase display zoom")
+		self._zoom_slider = PySide6.QtWidgets.QSlider(
+			PySide6.QtCore.Qt.Orientation.Horizontal, self,
+		)
+		self._zoom_slider.setRange(
+			ferrum_qt.native.ferrum_native_graphics_view.ZOOM_PERCENT_MINIMUM,
+			ferrum_qt.native.ferrum_native_graphics_view.ZOOM_PERCENT_MAXIMUM,
+		)
+		self._zoom_slider.setSingleStep(
+			ferrum_qt.native.ferrum_native_graphics_view.ZOOM_PERCENT_STEP,
+		)
+		self._zoom_slider.setPageStep(25)
+		self._zoom_slider.setValue(100)
+		self._zoom_slider.setMinimumWidth(48)
+		self._zoom_slider.setMaximumWidth(120)
+		self._zoom_slider.setSizePolicy(
+			PySide6.QtWidgets.QSizePolicy.Policy.MinimumExpanding,
+			PySide6.QtWidgets.QSizePolicy.Policy.Fixed,
+		)
+		self._zoom_slider.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
+		self._zoom_slider.setAccessibleName(self.tr("Zoom percentage slider"))
+		self._zoom_slider.setAccessibleDescription(self.tr(
+			"Set active display zoom from 10% to 1000%",
+		))
+		self._zoom_slider.setToolTip(self.tr("Drag to set active display zoom"))
+		self._zoom_slider.valueChanged.connect(self.zoom_percent_requested.emit)
 		self._zoom_page_button = self._make_button("Page", "Zoom to Page", "Fit the active page")
 		self._zoom_content_button = self._make_button(
 			"Content", "Zoom to Content", "Fit active document content",
@@ -93,7 +98,7 @@ class FerrumNativeStatusBarViewControls(PySide6.QtWidgets.QWidget):
 		layout.setSpacing(2)
 		for button in (
 				self._zoom_out_button, self._zoom_100_button, self._zoom_in_button,
-				self._zoom_page_button, self._zoom_content_button,
+				self._zoom_slider, self._zoom_page_button, self._zoom_content_button,
 				):
 			layout.addWidget(button)
 		self._mirror_zoom_out_enabled()
@@ -182,16 +187,28 @@ class FerrumNativeStatusBarViewControls(PySide6.QtWidgets.QWidget):
 	#============================================
 	def refresh(self, view: PySide6.QtWidgets.QGraphicsView | None) -> None:
 		"""Refresh only the observed active-view percentage and recovery wording."""
-		percent = effective_percent(view)
+		percent = ferrum_qt.native.ferrum_native_graphics_view.effective_zoom_percent(view)
 		if percent is None:
 			self._zoom_100_button.setText(self.tr("--"))
+			self._zoom_slider.setEnabled(False)
 			if self._zoom_100_action.isEnabled():
 				description = "Current zoom unavailable; activate to reset zoom to 100%."
 			else:
 				description = "Current zoom percentage unavailable; reset zoom unavailable."
 		else:
-			text = f"{percent:g}%"
+			bounded = min(
+				ferrum_qt.native.ferrum_native_graphics_view.ZOOM_PERCENT_MAXIMUM,
+				max(
+					ferrum_qt.native.ferrum_native_graphics_view.ZOOM_PERCENT_MINIMUM,
+					round(percent),
+					),
+				)
+			text = f"{bounded}%"
 			self._zoom_100_button.setText(text)
+			blocked = self._zoom_slider.blockSignals(True)
+			self._zoom_slider.setValue(bounded)
+			self._zoom_slider.blockSignals(blocked)
+			self._zoom_slider.setEnabled(self._zoom_100_action.isEnabled())
 			description = f"Current zoom is {text}. Reset zoom to 100%."
 		self._zoom_100_button.setMinimumWidth(0)
 		self._zoom_100_button.setMinimumWidth(self._zoom_100_button.sizeHint().width())

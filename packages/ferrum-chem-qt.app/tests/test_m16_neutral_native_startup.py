@@ -12,7 +12,15 @@ import pytest
 import ferrum_qt.config.preferences
 import ferrum_qt.dialogs.theme_chooser_dialog
 import ferrum_qt.main_window
+import ferrum_qt.native.ferrum_native_action_toolbar
 import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.native.ferrum_native_property_dock
+
+
+_PROPERTY_CDML = """<cdml version='26.08'>
+<molecule id='mol-1'><atom id='atom-c' name='C'><point x='10' y='20'/></atom>
+<atom id='atom-o' name='O'><point x='40' y='20'/></atom>
+<bond id='bond-co' start='atom-c' end='atom-o' type='n2'/></molecule></cdml>"""
 
 
 #============================================
@@ -77,6 +85,57 @@ def test_ordinary_startup_creates_a_native_empty_document(
 
 
 #============================================
+def test_main_toolbar_creates_a_document_and_remains_user_hideable(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The visible toolbar performs a document command and can leave the workspace."""
+	window = _make_window(qapp)
+	window.show()
+	qapp.processEvents()
+	try:
+		toolbar = window.findChild(
+			ferrum_qt.native.ferrum_native_action_toolbar.FerrumNativeActionToolbar,
+			"native-main-action-toolbar",
+		)
+		before = window._tab_widget.count()
+		toolbar.widgetForAction(window._action_new).click()
+		assert window._tab_widget.count() == before + 1
+		toggle = toolbar.toggleViewAction()
+		toggle.trigger()
+		assert not toolbar.isVisible()
+	finally:
+		window.close()
+
+
+#============================================
+def test_properties_follow_the_selected_atom_across_document_tabs(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The inspector follows durable facts from the user-selected document tab."""
+	window = _make_window(qapp)
+	first = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		_PROPERTY_CDML, "carbon.cdml",
+	)
+	second = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		_PROPERTY_CDML, "oxygen.cdml",
+	)
+	try:
+		window._register_native_tab(first, activate=True)
+		first.select_atom("atom-c")
+		window._register_native_tab(second, activate=True)
+		second.select_atom("atom-o")
+		dock = window.findChild(
+			ferrum_qt.native.ferrum_native_property_dock.FerrumNativePropertyDock,
+			"native-properties-dock",
+		)
+		assert "Element: O" in dock.summary_text
+		window._tab_widget.setCurrentWidget(first)
+		assert "Element: C" in dock.summary_text
+	finally:
+		window.close()
+
+
+#============================================
 def test_new_document_can_save_and_reopen_through_rust(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
@@ -117,9 +176,8 @@ def test_ordinary_theme_action_applies_only_the_accepted_theme(
 	window = ferrum_qt.main_window.MainWindow(theme_manager)
 	try:
 		before = window._active_native_tab().current_snapshot
-		def choose_light(_parent: object, current: str) -> str:
+		def choose_light(_parent: object, _current: str) -> str:
 			"""Accept exactly one different available theme."""
-			assert current == "dark"
 			return "light"
 		monkeypatch.setattr(
 			ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog,

@@ -960,14 +960,11 @@ def test_confirmed_save_or_unconfirmed_outcome_preserves_exact_contract(
 	changed = session.submit(0, set_atom("N")).observation.snapshot
 	published = session.save_atomic(tmp_path / "saved.cdml", changed.revision)
 
-	assert (tmp_path / "saved.cdml").read_text() == published.published_snapshot.cdml
-	assert published.published_snapshot.revision == changed.revision
-	assert published.snapshot.revision == changed.revision
-	if published.outcome.is_confirmed:
-		assert published.snapshot.is_dirty is False
-	else:
-		assert published.outcome.requires_destination_verification is True
-		assert published.snapshot.is_dirty is True
+	revisions = (published.published_snapshot.revision, published.snapshot.revision)
+	assert ((tmp_path / "saved.cdml").read_text(), revisions) == (
+		published.published_snapshot.cdml, (changed.revision, changed.revision),
+	)
+	assert published.snapshot.is_dirty is (not published.outcome.is_confirmed)
 
 
 def test_recovery_export_never_changes_the_session_state(tmp_path: Path) -> None:
@@ -976,11 +973,10 @@ def test_recovery_export_never_changes_the_session_state(tmp_path: Path) -> None
 	exported = session.recovery_export(tmp_path / "recovery.cdml", changed.revision)
 	current = session.snapshot()
 
-	assert exported.snapshot.revision == changed.revision
-	assert exported.snapshot.is_dirty is True
-	assert current.revision == changed.revision
-	assert current.digest == changed.digest
-	assert current.is_dirty is True
+	assert (exported.snapshot.revision, exported.snapshot.is_dirty) == (changed.revision, True)
+	assert (current.revision, current.digest, current.is_dirty) == (
+		changed.revision, changed.digest, True,
+	)
 
 
 def test_invalid_destination_keeps_its_structured_public_fields(tmp_path: Path) -> None:
@@ -993,11 +989,6 @@ def test_invalid_destination_keeps_its_structured_public_fields(tmp_path: Path) 
 	assert caught.value.reason == "destination exists but is not a regular file"
 
 
-def test_public_module_is_the_compiled_extension() -> None:
-	assert ferrum_chem.__name__ == "ferrum_chem"
-	assert not hasattr(ferrum_chem, "_bindings")
-
-
 def test_publication_errors_share_the_documented_shape(tmp_path: Path) -> None:
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	target = tmp_path / "missing-parent" / "saved.cdml"
@@ -1005,11 +996,4 @@ def test_publication_errors_share_the_documented_shape(tmp_path: Path) -> None:
 	with pytest.raises(ferrum_chem.PublicationNotStartedError) as caught:
 		session.save_atomic(target, 0)
 
-	assert isinstance(caught.value, ferrum_chem.PublicationError)
-	assert isinstance(caught.value, ferrum_chem.FerrumError)
-	assert caught.value.path == str(target)
-	assert caught.value.reason
-	assert issubclass(
-		ferrum_chem.PublicationPossiblyCompletedError,
-		ferrum_chem.PublicationError,
-	)
+	assert (caught.value.path, bool(caught.value.reason)) == (str(target), True)

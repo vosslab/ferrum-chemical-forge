@@ -35,6 +35,7 @@ mod direct_draw_stream_v1;
 mod direct_glycosidic_haworth;
 mod document_artifact_v1;
 mod document_bond_replacement_v1;
+mod document_content_bounds_v1;
 mod document_plan_v1;
 mod document_vector_v1;
 mod draw_stream_molecule_v1;
@@ -81,6 +82,10 @@ pub use document_artifact_v1::{DocumentRenderArtifactV1, DocumentRenderReportV1}
 /// Checked in-process selective replacement of one molecule's bond outcomes.
 pub use document_bond_replacement_v1::{
     DocumentBondReplacementErrorV1, DocumentRenderCompositeV1, compose_document_bond_replacement_v1,
+};
+/// Conservative content fitting over the shared lowered document draw stream.
+pub use document_content_bounds_v1::{
+    DocumentContentBoundsErrorV1, fit_document_render_plan_to_content_v1,
 };
 /// Renderer-neutral whole-page document composition model.
 pub use document_plan_v1::{

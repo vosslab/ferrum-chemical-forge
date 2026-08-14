@@ -27,6 +27,8 @@ use super::{
 };
 
 mod bracket;
+mod clipboard;
+mod clipboard_cut;
 mod construction;
 mod direct_haworth;
 mod linear_form;
@@ -35,6 +37,7 @@ mod sdf;
 mod straighten;
 mod wavy;
 pub use bracket::PendingCreateBracket;
+pub use clipboard::DocumentClipboardPasteResultV1;
 pub use direct_haworth::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, PendingDirectHaworthV1,
 };
@@ -270,6 +273,12 @@ pub enum DocumentSessionError {
     /// The supplied text did not produce a valid retained CDML document.
     #[error("cannot load CDML document: {0}")]
     Load(#[source] TypedDocumentError),
+    /// A bounded native clipboard fragment was not insertion-valid for this session.
+    #[error(transparent)]
+    ClipboardPaste(#[from] super::DocumentClipboardPasteErrorV1),
+    /// A prepared native Cut was invalid for this exact session state.
+    #[error(transparent)]
+    ClipboardCut(#[from] super::DocumentClipboardCutErrorV1),
     /// The retained tree could not be structurally serialized.
     #[error("cannot serialize CDML document: {0}")]
     Serialize(#[source] XmlSerializationError),

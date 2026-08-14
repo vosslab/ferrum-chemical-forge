@@ -19,7 +19,9 @@ mod bracket_pair_projection_v1;
 mod bracket_properties_patch_v1;
 mod cdsvg;
 mod clean_geometry_update_v1;
+mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
+mod clipboard_paste_v1;
 mod core_projection;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
@@ -119,10 +121,19 @@ pub use cdsvg::{
 pub use clean_geometry_update_v1::{
     CleanGeometryMoleculeV1, CleanGeometryUpdateV1, CleanGeometryUpdateV1Error,
 };
+pub use clipboard_cut_v1::{
+    DOCUMENT_CLIPBOARD_CUT_SCHEMA_V1, DocumentClipboardCutErrorV1, DocumentClipboardCutPlanV1,
+    prepare_document_clipboard_cut_v1,
+};
 pub use clipboard_fragment_v1::{
     DOCUMENT_CLIPBOARD_FRAGMENT_SCHEMA_V1, DocumentClipboardFragmentErrorV1,
     DocumentClipboardFragmentKindV1, DocumentClipboardFragmentV1, DocumentClipboardSelectionV1,
     extract_document_clipboard_fragment_v1,
+};
+pub use clipboard_paste_v1::{
+    DOCUMENT_CLIPBOARD_PASTE_SCHEMA_V1, DocumentClipboardPasteErrorV1,
+    DocumentClipboardPastePlanV1, DocumentClipboardPasteRootV1, DocumentClipboardPastedRootV1,
+    prepare_document_clipboard_paste_v1,
 };
 pub use core_projection::{CoreProjection, CoreProjectionError};
 pub use direct_haworth_insertion_v1::{
@@ -212,8 +223,8 @@ pub use sdf_record_metadata_v1::{
     observe_sdf_record_metadata_v1,
 };
 pub use session::{
-    CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, DocumentSession,
-    DocumentSessionError, DocumentSnapshot, PendingCreateAtom, PendingCreateBond,
+    CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, DocumentClipboardPasteResultV1,
+    DocumentSession, DocumentSessionError, DocumentSnapshot, PendingCreateAtom, PendingCreateBond,
     PendingCreateBondedAtom, PendingCreateBracket, PendingCreateMolecule, PendingCreateSdfRecords,
     PendingCreateWavy, PendingDirectHaworthV1, PendingLinearFormConvertV1,
     PreparedLinearFormConvertResultV1, Publication, SaveOutcome,
@@ -261,6 +272,12 @@ mod cdsvg_tests;
 
 #[cfg(test)]
 mod clipboard_fragment_v1_tests;
+
+#[cfg(test)]
+mod clipboard_cut_v1_tests;
+
+#[cfg(test)]
+mod clipboard_paste_v1_tests;
 
 #[cfg(test)]
 mod identity_index_tests;

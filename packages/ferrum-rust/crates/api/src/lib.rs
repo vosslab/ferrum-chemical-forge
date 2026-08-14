@@ -10,6 +10,8 @@ mod depiction_profile_v1;
 mod direct_haworth_document_composition_v1;
 mod direct_haworth_reobservation_composition_v1;
 mod direct_haworth_smiles_v1;
+mod document_clipboard_cut_v1;
+mod document_clipboard_paste_v1;
 mod document_complete_render_plan_v1;
 mod document_ingress_v1;
 mod document_linear_form_v1;
@@ -30,6 +32,7 @@ mod document_pdf_artifact_v1;
 mod document_png_artifact_v1;
 mod document_render_cli;
 mod document_render_plan_v1;
+mod document_selection_svg_v1;
 mod document_svg_artifact_v1;
 mod errors;
 mod explicit_adapter;
@@ -103,6 +106,9 @@ mod document_molecule_smiles_v1_tests;
 mod document_render_plan_v1_tests;
 
 #[cfg(test)]
+mod document_selection_svg_v1_tests;
+
+#[cfg(test)]
 mod document_svg_artifact_v1_tests;
 
 #[cfg(test)]
@@ -157,6 +163,14 @@ pub use direct_haworth_reobservation_composition_v1::compose_reobserved_direct_h
 pub use direct_haworth_smiles_v1::{
     DirectHaworthFromSmilesBuildErrorV1, PreparedDirectHaworthFromSmilesV1,
     build_direct_haworth_from_smiles_v1,
+};
+pub use document_clipboard_cut_v1::{
+    DocumentClipboardCutApplyErrorV1, apply_clipboard_cut_v1, prepare_clipboard_cut_v1,
+};
+pub use document_clipboard_paste_v1::{
+    DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1, DOCUMENT_CLIPBOARD_PASTE_TRANSLATION_V1,
+    DocumentClipboardPasteApplyErrorV1, apply_clipboard_paste_v1,
+    document_clipboard_paste_budget_v1, prepare_clipboard_paste_v1,
 };
 pub use document_complete_render_plan_v1::{
     CompleteDocumentRenderPlanErrorV1, compose_complete_document_render_plan_v1,
@@ -228,21 +242,33 @@ pub use document_png_artifact_v1::{DocumentPngArtifactErrorV1, render_document_s
 pub use document_render_plan_v1::{
     DocumentRenderPlanCompositionError, compose_document_render_plan_v1,
 };
+pub use document_selection_svg_v1::{
+    DOCUMENT_SELECTION_SVG_SCHEMA_V1, DocumentSelectionSvgErrorV1, DocumentSelectionSvgRootV1,
+    DocumentSelectionSvgV1, DocumentSvgSelectionV1, render_document_selection_to_svg_v1,
+};
 pub use document_svg_artifact_v1::{DocumentSvgArtifactErrorV1, render_document_session_to_svg_v1};
 pub use errors::{CdmlError, CdsvgError, CliError};
 pub use explicit_adapter::ExplicitAdapterError;
 pub use ferrum_core::{RecordId, RecordKind, RecordOrigin};
 pub use ferrum_document::{
+    DOCUMENT_CLIPBOARD_CUT_SCHEMA_V1, DocumentClipboardCutErrorV1, DocumentClipboardCutPlanV1,
+};
+pub use ferrum_document::{
     DOCUMENT_CLIPBOARD_FRAGMENT_SCHEMA_V1, DocumentClipboardFragmentErrorV1,
     DocumentClipboardFragmentKindV1, DocumentClipboardFragmentV1, DocumentClipboardSelectionV1,
     extract_document_clipboard_fragment_v1,
 };
+pub use ferrum_document::{
+    DOCUMENT_CLIPBOARD_PASTE_SCHEMA_V1, DocumentClipboardPasteErrorV1,
+    DocumentClipboardPastePlanV1, DocumentClipboardPasteResultV1, DocumentClipboardPasteRootV1,
+    DocumentClipboardPastedRootV1,
+};
 pub use ferrum_geometry::{MoleculePlacementV1, Point2 as MoleculePlacementPointV1};
 pub use ferrum_render::{
-    BatchSpace, FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, LineOp, MaskOp,
-    MoleculeRenderPlan, PresentationGlyphRun, PresentationTextOp, PresentationTextSourceRun,
-    RenderBatch, RenderIssue, RenderIssueKind, RenderOp, RenderPoint, RenderTarget, TextOp,
-    TextRun, TextScript,
+    BatchSpace, DocumentRenderIdentityV1, FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement,
+    LineOp, MaskOp, MoleculeRenderPlan, PresentationGlyphRun, PresentationTextOp,
+    PresentationTextSourceRun, RenderBatch, RenderIssue, RenderIssueKind, RenderOp, RenderPoint,
+    RenderTarget, SvgOutputBudgetV1, TextOp, TextRun, TextScript,
 };
 pub use haworth_observation_v1::{
     DocumentHaworthObservationErrorV1, DocumentHaworthObservationRequestV1,

@@ -357,6 +357,10 @@ impl IndexedDocument {
         self.id_index.len()
     }
 
+    pub(crate) fn persistent_ids(&self) -> impl Iterator<Item = &PersistentId> {
+        self.id_index.keys()
+    }
+
     /// Fallibly reserve both token registries before issuing one token.
     ///
     /// Every issued token reserves its later consumed-set entry, so a successful

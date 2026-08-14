@@ -2,14 +2,9 @@
 
 # Standard Library
 import pathlib
-import typing
 
 # local repo modules
 import ferrum_qt.native.ferrum_native_document_tab_errors
-
-
-if typing.TYPE_CHECKING:
-	import ferrum_qt.native.ferrum_native_document_tab
 
 
 #============================================

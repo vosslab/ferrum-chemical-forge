@@ -86,6 +86,12 @@ pub(crate) fn map_document_error(py: Python<'_>, error: DocumentSessionError) ->
         DocumentSessionError::Serialize(error) => {
             DocumentSerializationError::new_err(error.to_string())
         }
+        DocumentSessionError::ClipboardPaste(error) => {
+            operation_validation_error(py, error.to_string())
+        }
+        DocumentSessionError::ClipboardCut(error) => {
+            operation_validation_error(py, error.to_string())
+        }
         DocumentSessionError::RevisionConflict { expected, actual } => {
             revision_conflict_error(py, expected, actual)?
         }
@@ -391,7 +397,8 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::AtomIdentifierExhausted
         | SessionOperationError::MoleculeIdentifierExhausted
         | SessionOperationError::BondIdentifierExhausted
-        | SessionOperationError::PresentationIdentifierExhausted => {
+        | SessionOperationError::PresentationIdentifierExhausted
+        | SessionOperationError::ClipboardIdentifierExhausted => {
             Ok(OperationValidationError::new_err(error.to_string()))
         }
         SessionOperationError::Candidate(TypedDocumentError::UnknownTopLevelTransformRoot(

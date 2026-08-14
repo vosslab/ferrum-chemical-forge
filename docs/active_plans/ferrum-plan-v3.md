@@ -988,6 +988,23 @@ comparison or frontend reconstruction. See
   revision/digest-fenced insertion; it neither changes the pure-domain 19-residue
   compatibility profile nor claims generic peptide or OASA parity. H/W remain
   excluded until a future aromatic/explicit-H contract is designed.
+- The accepted linear-form slice is the pure
+  `ferrum_domain::linear_form::plan_linear_form_v1` planner plus one Rust-owned
+  document/session/API transaction and an ordinary-native Qt action. Its named
+  `linear-form-direction-v1` contract deliberately starts a multi-atom path at the
+  lower durable direct-child source-order endpoint, rather than reproducing OASA's
+  process-local coordinate/object-identity tie break. Rust alone owns the induced
+  simple-path decision, fixed 10-point replacements, uniquely anchored exterior
+  translations, explicit hydrogen visibility, exact generated fragment grammar,
+  allocation, atomic history, no-op classification, and later semantic retirement.
+  Qt maps current durable atoms/bonds to one opaque direct root, expands bond endpoints,
+  submits the source-ordered atom tuple synchronously, installs only a changed
+  authoritative observation, and restores accepted atom selection. The private PyO3
+  seam and typed error remain absent from `.pyi`, CLI, serde, and wire contracts.
+  Compact domain/document/API/binding/Qt semantic tests and a disposable OASA direction
+  oracle establish the contract. This retires the ordinary native linear-form gap only;
+  known-group expansion, substructure search data, broader chemistry checks, and the
+  explicit compatibility-host route remain open, so M15 is still in progress.
 - Permanent evidence is compact offline Cargo semantic testing of inspection facts,
   template grammar, distinctive residue behavior, typed syntax/profile failures, and
   the bounded native operation. A small read-only OASA comparison plus current-artifact
@@ -1416,8 +1433,23 @@ exactly, including whitespace; empty input removes `molecule@name`, and an uncha
 creates neither history nor a Qt reprojection. Opaque XML and ordinary Undo/Redo,
 Save/reopen behavior remain intact. Its private runtime PyO3 operation stays absent from
 `.pyi`; there is no OASA fallback, name generation or normalization, CLI, wire, or stable
-Python contract. FQ-010 and M16 remain partial because chemistry checks, oxidation,
-groups/fragments, generated names, and linear forms are still legacy or open.
+Python contract.
+The ordinary OASA-free native root now also owns `Chemistry -> Convert selection to
+linear form`. It accepts only a current nonempty durable atom/bond selection that maps
+globally and unambiguously to one direct projection root. Selected bonds contribute both
+projected atom endpoints; Qt deduplicates and orders the final atom IDs by direct child
+source order, then reauthenticates the active tab, revision, digest, opaque root, and exact
+expanded selection immediately before its synchronous private PyO3 call. Rust applies
+`linear-form-direction-v1`, whose lower source-order endpoint deliberately replaces the
+legacy coordinate/object-identity direction rule, and owns path refusal, fixed 10-point
+geometry, one-anchor exterior translation, hydrogen visibility, exact generated metadata,
+allocation, one history entry, and no-op classification. A changed result installs one
+authoritative observation before restoring atom selection; a canonical repeat leaves the
+scene and selection untouched. Typed refusal is visible and nonmutating. This route has no
+worker, dialog, local Qt undo, OASA fallback, stable Python stub, CLI, serde, or wire surface.
+The explicit compatibility host retains its legacy action until its separate cutover.
+FQ-010 and M16 remain partial because chemistry checks, oxidation, groups/fragments, and
+generated names are still legacy or open.
 The ordinary OASA-free native root now also has a bounded FQ-020 View menu with Zoom In,
 Zoom Out, Zoom to 100%, Zoom to Page, and Zoom to Content. Page uses the renderer-owned
 paper `sceneRect`; Content derives finite positive bounds from installed projection roots
@@ -1430,10 +1462,17 @@ The controls remain display-only and available while a registered active scene e
 including pending rendering or chemistry work. They do not read or mutate the document,
 session, selection, projection ownership, or worker state. Tab and accepted-window teardown
 cancel pending frames before disposal. A permanent right-side status client reuses those exact
-five actions through visible `-`, current percentage/reset, `+`, Page, and Content buttons.
-It mirrors action reachability one way, accepts only a finite exact uniform affine transform
-for percentage display, and leaves reset keyboard-reachable when the observed transform is
-unsupported. Compact permanent behavior tests and adjacent native integration checks provide
+five actions through visible `-`, current percentage/reset, `+`, Page, and Content buttons and
+adds an accessible continuous 10%-1000% absolute-zoom slider adopted from the newer BKChem-Qt
+interface. The status widget only projects action/view state and emits requests; the tab-owned
+native graphics view owns exact uniform-transform observation, the bounded zoom contract,
+center preservation, and transform-change notification. Consecutive slider changes retain one
+stable scene-center anchor without cumulative quantization drift, while real scrolling, resize,
+scene replacement, wheel or action zoom, fit, and reset rebase it. Unsupported transforms
+disable the slider but leave reset keyboard-reachable. Its visible percentage is rounded to the
+same whole value as the integer slider rather than presenting false extra precision. Compact
+permanent behavior tests and
+adjacent native integration checks provide
 semantic evidence without making their counts thresholds. One offscreen widget-tree,
 accessibility, and visual run is disposable implementation evidence, not a pixel or timing
 gate. The tab-owned native graphics view also adopts the retained vertical-wheel behavior:
@@ -1441,17 +1480,42 @@ one standard notch changes scale by 1.15 within the existing 10%-1000% display r
 keeps the cursor's scene point fixed when scroll ranges permit it, and refreshes the same
 status client. The existing Zoom In, Zoom Out, and Zoom to 100% actions also own the retained
 `Ctrl++`, `Ctrl+-`, and `Ctrl+0` accelerators. Unsupported transforms refuse the wheel change.
-This does not revive `WindowViewMixin`, `ChemView`, legacy toolbar/slider controls, or legacy
-view ownership. FQ-020 and M16 remain partial: Preferences, toolbar/slider, and window-state
+The ordinary window also adopts the newer BKChem-Qt frequent-action toolbar as an interface
+improvement and keeps command/document ownership in the existing native actions. One non-movable top
+toolbar projects the already-owned New, Open, Save, Undo, Redo, Cut, Copy, Paste, Zoom Out, Zoom to
+100%, and Zoom In actions with visible labels, platform icons and standard file/history
+shortcuts. It adds no command callback, history, selection, document, or enabled-state owner;
+menu, worker, session, and view owners continue to drive the same shared actions. Qt's native
+overflow handles narrow windows without an invented breakpoint, and `View -> Main Toolbar`
+lets the user hide the client. Permanent coverage exercises a real New command and visibility
+choice. Exact action/icon lists, direct shortcut-property inspection, and the wide/narrow
+offscreen screenshots were disposable implementation checks rather than permanent wiring,
+pixel, width, or timing gates.
+The newer BKChem-Qt Properties dock is likewise adopted as an interface improvement without
+its OASA document model, direct mutations, or local undo stack. A native tab exposes one
+frozen current-revision inspection receipt containing the installed Rust document projection
+and its disposable selection under matching revision/digest through the dedicated
+`ferrum_native_property_observation.py` boundary. The dock derives readable empty,
+document, atom, bond, mixed-selection, drawing, and refresh-required views from that receipt.
+Its atom and bond buttons are only clients of the existing window-owned native edit actions,
+so their established validators, Rust transactions, enabled state, selection restoration, and
+history remain authoritative. The dock is movable, hideable through `View -> Properties`, and
+adds no fixed-width requirement. One permanent test checks that inspected durable atom facts
+follow the active document tab. Literal field lists, action identity, panel indices, widget
+counts, widths, and the wide/narrow offscreen screenshots remain disposable implementation
+evidence rather than suite gates.
+This does not revive `WindowViewMixin`, `ChemView`, legacy toolbar controls, or legacy
+view ownership. FQ-020 and M16 remain partial: Preferences, editing ribbons, and broader window-state
 behavior still need their own source-backed adoption. The ordinary product window now exposes
 `Options -> Theme`: it reuses the retained OASA-free chooser and application `ThemeManager`,
 applies one accepted different theme, and treats cancel or the current theme as a no-op. It does
 not expose the retained Preferences dialog because that surface still advertises grid, drawing,
 and shortcut owners the native tab cannot yet apply honestly. A fully accepted ordinary shutdown
 now persists the exact window geometry that startup already restores; a refused close does not.
-Broader toolbar/window state remains open. There is no retained Ferrum-Qt or current read-only
+Broader editing-ribbon/window state remains open. There is no retained Ferrum-Qt or current read-only
 upstream full-screen action to adopt.
-The ordinary native root now also owns a bounded FQ-019 `Edit -> Copy` slice. For an
+The ordinary native root now also owns bounded FQ-019 `Edit -> Copy`, `Edit -> Cut`, and
+`Edit -> Paste` slices. For an
 exact current same-molecule atom/bond selection, Rust emits one connected structural
 fragment and closes every selected bond over both endpoint atoms; source molecule
 metadata and its exact generated linear form remain complete-root facts and are not
@@ -1463,9 +1527,53 @@ runtime PyO3 seam stays absent from `.pyi`. Qt owns only literal-scene-to-opaque
 mapping, cancellable worker scheduling, exact tab/revision/digest/selection delivery
 fences, and publication of the Ferrum CDML MIME type plus plain text with the retained
 ownership marker. Failure, cancellation, inactive-tab delivery, and teardown preserve
-the old clipboard and document. This does not adopt Cut, Paste, selected-SVG copy, a
-public Python/CLI/wire contract, or an insertion-valid fragment grammar; FQ-019 and M16
-remain partial.
+the old clipboard and document. Paste gives persistent meaning to that copied envelope:
+`ferrum-document-clipboard-paste-v1` admits only a closed set of durable direct roots
+under the same named local-CDML resource profile, allocates fresh collision-safe IDs for
+every persistent declaration, remaps exact attribute references to declared IDs, applies
+one explicit scene-space translation to the whole inserted group, validates the complete
+candidate, and commits it as one authenticated history entry. Its private PyO3 boundary
+prepares an immutable handle-free plan off the Qt event thread and returns only the
+committed observation plus inserted-root identity receipts. Qt captures preferred custom
+MIME or plausible complete-CDML plain text once, fences delivery by the active destination
+revision and digest, installs the authoritative result, and selects inserted artwork or
+the durable children of inserted molecules. Malformed, unsupported, undecodable, stale,
+cancelled, or resource-failed input is nonmutating; any failure after Rust accepts the edit
+enters the existing authoritative-refresh state. Acceptance is semantic--fresh identities,
+preserved exact references and opaque content, one group translation, atomic history,
+selection, Undo/Redo, and reopen--not XML-byte, coordinate-spelling, pixel, timing, or
+arbitrary-count equivalence. Cut reuses the same insertion-valid extraction grammar and adds
+one source-revision deletion plan. Rust validates the full candidate during worker preparation,
+then reauthenticates the current revision, digest, selectors, topology, and projection while
+committing one history transition. A structural Cut removes selected bonds and selected atoms
+with their incident bonds, retires invalid exact generated-linear-form metadata, and removes the
+complete copied molecule root when every atom is selected. A presentation Cut removes complete
+selected direct roots, including bracket-pair completeness through the established Rust deletion
+contract. Mixed presentation/structure and multiple-molecule selections retain their complete-root
+Copy meaning and receive a clear Cut refusal because partial child deletion would disagree with
+the copied roots. Qt publishes the admitted fragment before requesting the deletion. A commit
+refusal therefore leaves the source unchanged and the fragment available as a usable Copy result;
+an accepted edit whose scene installation fails enters authoritative refresh. Permanent coverage
+keeps the Rust transaction/refusal semantics, private installed-binding contract, successful public
+action, and Copy-fallback safety case. The current temporary wheel is disposable rebuild evidence,
+not a shipping artifact or byte, pixel, timing, action-count, or worker-wiring gate.
+Selected-SVG copy now has its own read-only Rust contract rather than reusing fragment
+extraction or Qt scene cropping. Exact durable atom, bond, or molecule selection retains
+the complete authenticated molecule render root; presentation selection retains exact direct
+roots. Rust filters one final render plan, refuses any selected profile exclusion, measures
+conservative content bounds from the same lowered paths, verified glyph outlines, masks,
+ellipses, transforms, and stroke profiles consumed by the artifact sinks, and emits a bounded
+content-fitted SVG receipt with revision, digest, canonical selected objects, and retained-root
+identity. Unrelated excluded roots do not prevent copying a complete selected subset. The private
+PyO3 boundary performs native rendering off the UI thread and remains outside `.pyi`, CLI, serde,
+and wire contracts. Qt owns current scene selection mapping, cancellable scheduling,
+tab/revision/digest/selection delivery fences, and final `image/svg+xml` plus plain-text clipboard
+publication with the existing ownership marker. Failure and stale delivery preserve the existing
+clipboard and document. Permanent checks use semantic root/provenance/nonmutation and relative
+content-range assertions; the installed wheel rebuild is one-time evidence rather than a byte,
+pixel, exact-viewport, timing, or count gate. FQ-019 and M16 remain partial for the explicit
+compatibility-host clipboard cutover; a broader public Python/CLI/wire surface is an M18 decision,
+not a prerequisite for the ordinary product action.
 The ordinary native root now also owns document drawing defaults for the seven fields
 the current Ferrum renderer consumes: line width, atom-label size, line/text color,
 label background, multiple-bond spacing, wedge width, and heteroatom-hydrogen
@@ -1536,8 +1644,10 @@ atom deletion with native Undo restoration, public-action bond deletion with ret
 atoms and native Undo restoration, and the accepted/cancelled/lossless native-bond route.
 Current-extension ordinary-window interactions are disposable implementation proof,
 not byte, pixel, timing, network, or private-wiring gates. The default ordinary Open route
-is Rust-owned; the legacy property dock/actions still import and host OASA paths, and the
-complete session/action cutover remains open M16 work.
+is Rust-owned. Its Properties dock now reads only the installed Rust projection and reuses
+existing native actions; the explicit compatibility host's separate property dock/actions
+still import and host OASA paths, and the complete session/action cutover remains open M16
+work.
 
 ### Milestone: M17 operation protocol and boundary freeze
 

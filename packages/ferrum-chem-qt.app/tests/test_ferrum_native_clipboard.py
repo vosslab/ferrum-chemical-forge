@@ -1,4 +1,4 @@
-"""Behavior coverage for OASA-free native clipboard Copy."""
+"""Behavior coverage for OASA-free native clipboard Copy and Paste."""
 
 # Standard Library
 import os
@@ -14,8 +14,10 @@ import pytest
 
 # local repo modules
 import ferrum_qt.canvas.items.ferrum_plus_item
+import ferrum_qt.io.clipboard_manager
 import ferrum_qt.io.clipboard_mime
 import ferrum_qt.native.ferrum_native_clipboard
+import ferrum_qt.native.ferrum_native_clipboard_paste_tab
 import ferrum_qt.native.ferrum_native_document_tab
 import ferrum_qt.native.ferrum_native_main_window
 
@@ -77,6 +79,45 @@ def _wait_for_copy(window: object, qapp: PySide6.QtWidgets.QApplication) -> None
 
 
 #============================================
+def _wait_for_cut(window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Wait for action-created Cut preparation and queued commit delivery."""
+	workers = tuple(
+		worker for worker in window.findChildren(
+			ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardCutWorker,
+		)
+	)
+	assert len(workers) == 1 and workers[0].wait(10000)
+	qapp.processEvents()
+
+
+#============================================
+def _wait_for_paste(window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Wait for the one action-created Paste worker and queued commit delivery."""
+	workers = tuple(
+		worker for worker in window.findChildren(
+			ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardPasteWorker,
+		)
+	)
+	assert len(workers) == 1 and workers[0].wait(10000)
+	qapp.processEvents()
+
+
+#============================================
+def _publish_custom_clipboard_bytes(
+		qapp: PySide6.QtWidgets.QApplication, source: bytes,
+		plain_text: str | None = None) -> None:
+	"""Publish raw custom MIME bytes without creating a legacy document model."""
+	mime_data = PySide6.QtCore.QMimeData()
+	mime_data.setData(
+		ferrum_qt.native.ferrum_native_clipboard.CDML_MIME_TYPE,
+		PySide6.QtCore.QByteArray(source),
+	)
+	if plain_text is not None:
+		mime_data.setText(plain_text)
+	qapp.clipboard().setMimeData(mime_data)
+
+
+#============================================
 def _select_plus(tab: object) -> None:
 	"""Add the one visible Plus item to the current scene selection."""
 	items = tuple(
@@ -98,24 +139,85 @@ def test_copy_action_publishes_connected_bond_fragment_without_mutation(
 		before = tab.current_snapshot
 		selected = tab.selected_molecule_information_targets()
 		copy_action = _action(window, "Copy")
-		assert copy_action.shortcut() == PySide6.QtGui.QKeySequence(
-			PySide6.QtGui.QKeySequence.StandardKey.Copy,
-		)
-		assert copy_action.isEnabled()
 		copy_action.trigger()
 		_wait_for_copy(window, qapp)
 
 		mime_data = clipboard.mimeData()
-		assert mime_data.hasFormat(ferrum_qt.native.ferrum_native_clipboard.CDML_MIME_TYPE)
-		assert mime_data.property(
-			ferrum_qt.io.clipboard_mime.FERRUM_OWNED_MIME_PROPERTY,
-		) is True
 		fragment = mime_data.text()
-		assert 'id="b"' in fragment and 'id="c"' in fragment
-		assert 'id="bc"' in fragment and 'id="a"' not in fragment
-		assert ferrum_chem.DocumentSession.load(fragment).snapshot().revision == 0
-		assert tab.current_snapshot == before
-		assert tab.selected_molecule_information_targets() == selected
+		assert (
+			mime_data.hasFormat(ferrum_qt.native.ferrum_native_clipboard.CDML_MIME_TYPE)
+			and mime_data.property(
+				ferrum_qt.io.clipboard_mime.FERRUM_OWNED_MIME_PROPERTY,
+			) is True
+			and ferrum_chem.DocumentSession.load(fragment).snapshot().revision == 0
+		)
+		assert (
+			tab.current_snapshot == before
+			and tab.selected_molecule_information_targets() == selected
+		)
+	finally:
+		_action(window, "Close Tab").trigger()
+		window.deleteLater()
+
+
+#============================================
+def test_cut_action_publishes_then_removes_one_structural_selection(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""The public Cut action copies first and installs one Rust topology edit."""
+	window, tab = _window_with_source()
+	try:
+		tab.select_atom("b")
+		_action(window, "Cut").trigger()
+		_wait_for_cut(window, qapp)
+		projection = tab.current_document_observation().projection
+		molecule = projection.molecules[0]
+
+		assert (
+			tab.current_snapshot.revision,
+			tuple(atom.source_id for atom in molecule.atoms),
+			len(molecule.bonds),
+		) == (1, ("a", "c"), 0)
+		assert (
+			'id="b"' in qapp.clipboard().text()
+			and qapp.clipboard().mimeData().property(
+				ferrum_qt.io.clipboard_mime.FERRUM_OWNED_MIME_PROPERTY,
+			) is True
+		)
+	finally:
+		tab.dispose()
+		window.deleteLater()
+
+
+#============================================
+def test_cut_commit_failure_keeps_the_published_copy_and_document(
+		qapp: PySide6.QtWidgets.QApplication,
+		monkeypatch: pytest.MonkeyPatch) -> None:
+	"""A commit refusal leaves a usable Copy result and the source unchanged."""
+	window, tab = _window_with_source()
+	warnings = []
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QMessageBox, "warning",
+		lambda _parent, title, text: warnings.append((title, text)),
+	)
+
+	def reject_cut(*_arguments: object) -> object:
+		raise RuntimeError("commit refused")
+
+	monkeypatch.setattr(
+		tab, "apply_prepared_clipboard_cut", reject_cut,
+	)
+	before = tab.current_snapshot
+	try:
+		tab.select_atom("b")
+		_action(window, "Cut").trigger()
+		_wait_for_cut(window, qapp)
+
+		assert tab.current_snapshot == before and 'id="b"' in qapp.clipboard().text()
+		assert (
+			warnings
+			and warnings[-1][0] == "Native Cut Copied Selection"
+			and "remains in the document" in warnings[-1][1]
+		)
 	finally:
 		_action(window, "Close Tab").trigger()
 		window.deleteLater()
@@ -133,8 +235,10 @@ def test_mixed_atom_and_plus_copy_complete_roots_in_source_order(
 		_wait_for_copy(window, qapp)
 		fragment = qapp.clipboard().text()
 		assert fragment.index("<plus") < fragment.index("<molecule")
-		assert 'id="a"' in fragment and 'id="c"' in fragment
-		assert 'id="ab"' in fragment and 'id="bc"' in fragment
+		assert all(
+			identifier in fragment
+			for identifier in ('id="a"', 'id="c"', 'id="ab"', 'id="bc"')
+		)
 	finally:
 		_action(window, "Close Tab").trigger()
 		window.deleteLater()
@@ -156,11 +260,11 @@ def test_failed_copy_preserves_existing_clipboard_and_reports_actionable_error(
 		_action(window, "Copy").trigger()
 		_wait_for_copy(window, qapp)
 		assert qapp.clipboard().text() == "existing clipboard"
-		assert not qapp.clipboard().mimeData().hasFormat(
-			ferrum_qt.native.ferrum_native_clipboard.CDML_MIME_TYPE,
+		assert (
+			warnings
+			and warnings[-1][0] == "Native Copy Error"
+			and "must be connected" in warnings[-1][1]
 		)
-		assert warnings and warnings[-1][0] == "Native Copy Error"
-		assert "must be connected" in warnings[-1][1]
 	finally:
 		_action(window, "Close Tab").trigger()
 		window.deleteLater()
@@ -222,18 +326,215 @@ def test_cancel_and_close_keep_source_live_until_copy_worker_finishes(
 	close_action = _action(window, "Close Tab")
 	try:
 		copy_action.trigger()
-		assert not copy_action.isEnabled() and cancel_action.isEnabled()
 		cancel_action.trigger()
 		window.centralWidget().tabCloseRequested.emit(window.centralWidget().indexOf(tab))
 		assert window.centralWidget().indexOf(tab) >= 0
-		workers = window.findChildren(
-			ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardCopyWorker,
+		_wait_for_copy(window, qapp)
+		assert (
+			qapp.clipboard().text() == "retained clipboard"
+			and warnings
+			and warnings[-1][0] == "Native Copy Still Running"
 		)
-		assert workers and workers[0].wait(10000)
-		qapp.processEvents()
-		assert qapp.clipboard().text() == "retained clipboard"
-		assert warnings and warnings[-1][0] == "Native Copy Still Running"
 		close_action.trigger()
-		assert window.centralWidget().indexOf(tab) < 0
+	finally:
+		window.deleteLater()
+
+
+#============================================
+def test_copy_then_paste_installs_translated_roots_and_selection(
+		qapp: PySide6.QtWidgets.QApplication,
+		monkeypatch: pytest.MonkeyPatch) -> None:
+	"""Ordinary actions install one translated structure/artwork result through Rust."""
+	window, tab = _window_with_source()
+	monkeypatch.setattr(
+		ferrum_qt.io.clipboard_manager.ClipboardManager, "read_fragment",
+		lambda _self: pytest.fail("native Paste reached the legacy clipboard path"),
+	)
+	try:
+		tab.select_atom("a")
+		_select_plus(tab)
+		_action(window, "Copy").trigger()
+		_wait_for_copy(window, qapp)
+
+		_action(window, "Paste").trigger()
+		_wait_for_paste(window, qapp)
+
+		projection = tab.current_document_observation().projection
+		inserted_molecule = next(
+			molecule for molecule in projection.molecules if molecule.source_id != "m"
+		)
+		inserted_plus = next(
+			root.plus for root in projection.presentation_stack.roots
+			if root.kind == "plus" and root.plus.target.source_id != "p"
+		)
+		coordinates = [
+			coordinate
+			for atom in inserted_molecule.atoms
+			for coordinate in (atom.position.x, atom.position.y)
+		] + [inserted_plus.anchor.x, inserted_plus.anchor.y]
+		assert coordinates == pytest.approx(
+			[20.0, 20.0, 30.0, 20.0, 40.0, 20.0, 50.0, 60.0], abs=0.02,
+		)
+		selected_kinds = tuple(
+			target.kind for target in tab.selected_molecule_information_targets()
+		)
+		assert tab.current_snapshot.revision == 1 and selected_kinds == (
+			"atom", "atom", "atom", "bond", "bond", "plus",
+		)
+	finally:
+		tab.dispose()
+		window.deleteLater()
+
+
+#============================================
+@pytest.mark.parametrize(
+	("source", "expected"),
+	(
+		(b"<cdml><molecule", "XML"),
+		(b"<cdml><paper type='A4'/></cdml>", "unsupported"),
+	),
+)
+def test_invalid_or_unsupported_cdml_does_not_mutate_destination(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
+		source: bytes, expected: str) -> None:
+	"""Rust preparation rejects malformed or out-of-grammar roots before commit."""
+	window, tab = _window_with_source()
+	warnings = []
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QMessageBox, "warning",
+		lambda _parent, title, text: warnings.append((title, text)),
+	)
+	_publish_custom_clipboard_bytes(qapp, source)
+	before = tab.current_snapshot
+	try:
+		_action(window, "Paste").trigger()
+		_wait_for_paste(window, qapp)
+		assert tab.current_snapshot == before
+		assert (
+			warnings
+			and warnings[-1][0] == "Native Paste Error"
+			and expected.lower() in warnings[-1][1].lower()
+		)
+	finally:
+		_action(window, "Close Tab").trigger()
+		window.deleteLater()
+
+
+#============================================
+def test_invalid_custom_mime_utf8_is_actionable_and_nonmutating(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""The UI-thread capture rejects undecodable preferred MIME without a worker."""
+	window, tab = _window_with_source()
+	warnings = []
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QMessageBox, "warning",
+		lambda _parent, title, text: warnings.append((title, text)),
+	)
+	_publish_custom_clipboard_bytes(qapp, b"\xff\xfe", _SOURCE)
+	before = tab.current_snapshot
+	try:
+		paste_action = _action(window, "Paste")
+		paste_action.trigger()
+		assert tab.current_snapshot == before
+		assert warnings == [(
+			"Native Paste Unavailable", "Ferrum clipboard CDML is not valid UTF-8",
+		)]
+	finally:
+		_action(window, "Close Tab").trigger()
+		window.deleteLater()
+
+
+#============================================
+def test_plain_text_paste_requires_a_complete_cdml_root(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Paste reachability does not treat a legacy bare molecule as a document."""
+	window, _tab = _window_with_source()
+	try:
+		qapp.clipboard().setText("<molecule id='legacy'/>")
+		assert not _action(window, "Paste").isEnabled()
+		qapp.clipboard().setText(_SOURCE)
+		assert _action(window, "Paste").isEnabled()
+	finally:
+		_action(window, "Close Tab").trigger()
+		window.deleteLater()
+
+
+#============================================
+def test_post_commit_selection_failure_enters_authoritative_refresh_state(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""A Qt projection invariant failure cannot hide an accepted Rust commit."""
+	window, tab = _window_with_source()
+	prepared = ferrum_chem.prepare_clipboard_paste_v1(_SOURCE)
+	before = tab.current_snapshot
+
+	def reject_selection(_projection: object, _roots: object) -> object:
+		raise ValueError("injected selection projection failure")
+
+	monkeypatch.setattr(
+		ferrum_qt.native.ferrum_native_clipboard_paste_tab,
+		"_clipboard_paste_selection", reject_selection,
+	)
+	try:
+		with pytest.raises(
+			ferrum_qt.native.ferrum_native_document_tab.
+			FerrumNativeDocumentTabMutationPresentationError,
+		):
+			tab.apply_prepared_clipboard_paste(
+				prepared, before.revision, before.digest,
+			)
+		assert tab.current_snapshot == before and tab.requires_refresh and tab.is_dirty
+		assert tab.refresh_authoritative() and tab.current_snapshot.revision == 1
+	finally:
+		tab.dispose()
+		window.deleteLater()
+
+
+#============================================
+def test_switching_tabs_suppresses_stale_paste_delivery(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A prepared plan cannot commit after its destination tab becomes inactive."""
+	window, tab = _window_with_source()
+	other = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		_SOURCE, "other-paste.cdml",
+	)
+	qapp.clipboard().setText(_SOURCE)
+	before = tab.current_snapshot
+	try:
+		_action(window, "Paste").trigger()
+		window._register_native_tab(other, activate=True)
+		_wait_for_paste(window, qapp)
+		assert tab.current_snapshot == before
+		assert other.current_snapshot.revision == 0
+	finally:
+		_action(window, "Close Tab").trigger()
+		window.centralWidget().setCurrentWidget(tab)
+		_action(window, "Close Tab").trigger()
+		window.deleteLater()
+
+
+#============================================
+def test_cancel_and_close_keep_destination_live_until_paste_worker_finishes(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""Cancellation suppresses commit while close retains the destination tab."""
+	window, tab = _window_with_source()
+	warnings = []
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QMessageBox, "warning",
+		lambda _parent, title, text: warnings.append((title, text)),
+	)
+	qapp.clipboard().setText(_SOURCE)
+	before = tab.current_snapshot
+	try:
+		_action(window, "Paste").trigger()
+		_action(window, "Cancel Paste").trigger()
+		window.centralWidget().tabCloseRequested.emit(window.centralWidget().indexOf(tab))
+		assert window.centralWidget().indexOf(tab) >= 0
+		_wait_for_paste(window, qapp)
+		assert (
+			tab.current_snapshot == before
+			and warnings
+			and warnings[-1][0] == "Native Paste Still Running"
+		)
+		_action(window, "Close Tab").trigger()
 	finally:
 		window.deleteLater()

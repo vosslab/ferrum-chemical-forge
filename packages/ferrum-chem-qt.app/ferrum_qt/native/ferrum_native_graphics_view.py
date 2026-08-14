@@ -8,21 +8,163 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
-# local repo modules
-import ferrum_qt.native.ferrum_native_statusbar_view_controls
-
-
-_MINIMUM_SCALE = 0.10
-_MAXIMUM_SCALE = 10.0
+ZOOM_PERCENT_MINIMUM = 10
+ZOOM_PERCENT_MAXIMUM = 1000
+ZOOM_PERCENT_STEP = 5
 _ZOOM_FACTOR_PER_NOTCH = 1.15
 _WHEEL_UNITS_PER_NOTCH = 120.0
 
 
 #============================================
+def effective_zoom_percent(
+		view: PySide6.QtWidgets.QGraphicsView | None,
+		) -> float | None:
+	"""Return an exactly-supported uniform display scale without changing *view*."""
+	if view is None:
+		return None
+	transform = view.transform()
+	values = (
+		transform.m11(), transform.m12(), transform.m13(), transform.m21(),
+		transform.m22(), transform.m23(), transform.m31(), transform.m32(),
+		transform.m33(),
+	)
+	if not all(math.isfinite(value) for value in values):
+		return None
+	if (
+		transform.m13() != 0.0 or transform.m23() != 0.0 or transform.m33() != 1.0
+		or transform.m12() != 0.0 or transform.m21() != 0.0
+		or transform.m11() != transform.m22() or transform.m11() <= 0.0
+	):
+		return None
+	return transform.m11() * 100.0
+
+
+#============================================
 class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
-	"""Keep native document wheel zoom local to disposable view state."""
+	"""Own disposable native-document display transforms and their notification."""
 
 	display_transform_changed = PySide6.QtCore.Signal()
+
+	#============================================
+	def __init__(
+			self, parent: PySide6.QtWidgets.QWidget | None = None,
+			) -> None:
+		"""Initialize one view with no retained direct-zoom sequence anchor."""
+		super().__init__(parent)
+		self._direct_zoom_anchor_scene: PySide6.QtCore.QPointF | None = None
+		self._direct_zoom_change_in_progress = False
+		self.horizontalScrollBar().valueChanged.connect(
+			self._invalidate_direct_zoom_anchor,
+		)
+		self.verticalScrollBar().valueChanged.connect(
+			self._invalidate_direct_zoom_anchor,
+		)
+
+	#============================================
+	def setScene(self, scene: PySide6.QtWidgets.QGraphicsScene | None) -> None:
+		"""Install a projection scene and rebase later direct zoom around that scene."""
+		self._invalidate_direct_zoom_anchor()
+		super().setScene(scene)
+
+	#============================================
+	def resizeEvent(self, event: PySide6.QtGui.QResizeEvent) -> None:
+		"""Rebase absolute zoom after the viewport geometry changes."""
+		super().resizeEvent(event)
+		self._invalidate_direct_zoom_anchor()
+
+	#============================================
+	def _viewport_center_scene_precise(self) -> PySide6.QtCore.QPointF:
+		"""Return the viewport center in scene coordinates without integer-center loss."""
+		return self.mapToScene(self.viewport().rect()).boundingRect().center()
+
+	#============================================
+	def _recenter_with_correction(
+			self, target: PySide6.QtCore.QPointF,
+			) -> None:
+		"""Center on one scene point with a residual scrollbar-quantization correction."""
+		self.centerOn(target)
+		current = self._viewport_center_scene_precise()
+		delta = target - current
+		if abs(delta.x()) <= 1.0e-9 and abs(delta.y()) <= 1.0e-9:
+			return
+		self.centerOn(target + delta)
+
+	#============================================
+	def _invalidate_direct_zoom_anchor(self) -> None:
+		"""Start the next absolute-zoom sequence from the then-current center."""
+		if not self._direct_zoom_change_in_progress:
+			self._direct_zoom_anchor_scene = None
+
+	#============================================
+	def _resolve_direct_zoom_anchor(self) -> PySide6.QtCore.QPointF:
+		"""Keep consecutive absolute slider changes on one stable scene center."""
+		current = self._viewport_center_scene_precise()
+		if self._direct_zoom_anchor_scene is None:
+			self._direct_zoom_anchor_scene = PySide6.QtCore.QPointF(current)
+		return PySide6.QtCore.QPointF(self._direct_zoom_anchor_scene)
+
+	#============================================
+	def zoom_by_factor(self, factor: float) -> bool:
+		"""Apply one bounded relative zoom while preserving the viewport center."""
+		current = effective_zoom_percent(self)
+		if current is None or not math.isfinite(factor) or factor <= 0.0:
+			return False
+		target = min(
+			float(ZOOM_PERCENT_MAXIMUM),
+			max(float(ZOOM_PERCENT_MINIMUM), current * factor),
+		)
+		if abs(target - current) <= 1.0e-12:
+			return False
+		center = self._viewport_center_scene_precise()
+		anchor = self.transformationAnchor()
+		self.setTransformationAnchor(
+			PySide6.QtWidgets.QGraphicsView.ViewportAnchor.AnchorViewCenter,
+		)
+		self.scale(target / current, target / current)
+		self.setTransformationAnchor(anchor)
+		self._recenter_with_correction(center)
+		self._invalidate_direct_zoom_anchor()
+		self.display_transform_changed.emit()
+		return True
+
+	#============================================
+	def set_zoom_percent(self, percent: int) -> bool:
+		"""Set one exact, bounded integer percentage through an absolute transform."""
+		if (
+			type(percent) is not int
+			or not ZOOM_PERCENT_MINIMUM <= percent <= ZOOM_PERCENT_MAXIMUM
+			or effective_zoom_percent(self) is None
+		):
+			return False
+		center = self._resolve_direct_zoom_anchor()
+		self._direct_zoom_change_in_progress = True
+		try:
+			self.resetTransform()
+			self.scale(float(percent) / 100.0, float(percent) / 100.0)
+			self._recenter_with_correction(center)
+		finally:
+			self._direct_zoom_change_in_progress = False
+		self.display_transform_changed.emit()
+		return True
+
+	#============================================
+	def reset_zoom(self) -> None:
+		"""Restore an upright identity transform without moving the scene center."""
+		center = self._viewport_center_scene_precise()
+		self.resetTransform()
+		self._recenter_with_correction(center)
+		self._invalidate_direct_zoom_anchor()
+		self.display_transform_changed.emit()
+
+	#============================================
+	def fit_display_bounds(self, bounds: PySide6.QtCore.QRectF) -> bool:
+		"""Fit one caller-owned semantic rectangle as disposable view state."""
+		if not bounds.isValid() or bounds.isEmpty():
+			return False
+		self.fitInView(bounds, PySide6.QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+		self._invalidate_direct_zoom_anchor()
+		self.display_transform_changed.emit()
+		return True
 
 	#============================================
 	def wheelEvent(self, event: PySide6.QtGui.QWheelEvent) -> None:
@@ -31,24 +173,22 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		if vertical_delta == 0:
 			event.accept()
 			return
-		percent = (
-			ferrum_qt.native.ferrum_native_statusbar_view_controls.
-			effective_percent(self)
-		)
+		percent = effective_zoom_percent(self)
 		if percent is None:
 			event.ignore()
 			return
 		current_scale = percent / 100.0
 		if (
-			(vertical_delta > 0 and current_scale >= _MAXIMUM_SCALE)
-			or (vertical_delta < 0 and current_scale <= _MINIMUM_SCALE)
+			(vertical_delta > 0 and percent >= ZOOM_PERCENT_MAXIMUM)
+			or (vertical_delta < 0 and percent <= ZOOM_PERCENT_MINIMUM)
 		):
 			event.accept()
 			return
 		notches = vertical_delta / _WHEEL_UNITS_PER_NOTCH
 		log_target = math.log(current_scale) + notches * math.log(_ZOOM_FACTOR_PER_NOTCH)
 		bounded_log_target = min(
-			math.log(_MAXIMUM_SCALE), max(math.log(_MINIMUM_SCALE), log_target),
+			math.log(ZOOM_PERCENT_MAXIMUM / 100.0),
+			max(math.log(ZOOM_PERCENT_MINIMUM / 100.0), log_target),
 		)
 		target_scale = math.exp(bounded_log_target)
 		factor = target_scale / current_scale
@@ -66,5 +206,6 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		correction = shifted_scene_position - anchored_scene_position
 		self.translate(correction.x(), correction.y())
 		self.setTransformationAnchor(original_anchor)
+		self._invalidate_direct_zoom_anchor()
 		self.display_transform_changed.emit()
 		event.accept()

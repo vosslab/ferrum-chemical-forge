@@ -1,4 +1,4 @@
-"""OASA-free, revision-bound Copy for selected Rust-native document objects."""
+"""OASA-free, revision-bound Copy and Paste for Rust-native documents."""
 
 # Standard Library
 import dataclasses
@@ -11,6 +11,7 @@ import ferrum_chem
 
 # local repo modules
 import ferrum_qt.io.clipboard_mime
+import ferrum_qt.native.ferrum_native_document_tab_errors as native_document_tab_errors
 
 
 CDML_MIME_TYPE = "application/x-ferrum-cdml"
@@ -45,8 +46,47 @@ class _ClipboardCopyIntent:
 
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
+class _ClipboardCutIntent:
+	"""One source tab and immutable corroborators for a running Cut preparation."""
+
+	tab: object
+	revision: int
+	digest: str
+	object_ids: tuple[str, ...]
+	worker: object
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class _ClipboardPasteIntent:
+	"""One destination tab and immutable corroborators for a running Paste."""
+
+	tab: object
+	revision: int
+	digest: str
+	worker: object
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
 class FerrumNativeClipboardCopyFailure:
 	"""Plain terminal worker failure facts safe for the Qt event thread."""
+
+	message: str
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumNativeClipboardCutFailure:
+	"""Plain terminal Cut preparation failure safe for the Qt event thread."""
+
+	message: str
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumNativeClipboardPasteFailure:
+	"""Plain terminal preparation failure facts safe for the Qt event thread."""
 
 	message: str
 
@@ -192,6 +232,89 @@ class FerrumNativeClipboardCopyWorker(PySide6.QtCore.QThread):
 
 
 #============================================
+class FerrumNativeClipboardCutWorker(PySide6.QtCore.QThread):
+	"""Prepare one immutable fragment and deletion plan off the Qt event thread."""
+
+	prepared = PySide6.QtCore.Signal(object)
+	failed = PySide6.QtCore.Signal(object)
+
+	#============================================
+	def __init__(self, observation: object, object_ids: tuple[str, ...],
+			parent: PySide6.QtCore.QObject) -> None:
+		"""Capture only immutable Rust input and exact durable selectors."""
+		if type(observation) is not ferrum_chem.SessionDocumentObservationV1:
+			raise TypeError("native Cut requires an exact Ferrum observation")
+		if type(object_ids) is not tuple or not object_ids:
+			raise TypeError("native Cut requires a nonempty exact selector tuple")
+		super().__init__(parent)
+		self._arguments = (observation, object_ids)
+		self._delivery_cancelled = False
+
+	#============================================
+	@property
+	def delivery_cancelled(self) -> bool:
+		"""Return whether result delivery has been invalidated."""
+		return self._delivery_cancelled
+
+	#============================================
+	def cancel_delivery(self) -> None:
+		"""Suppress delivery while native preparation finishes normally."""
+		self._delivery_cancelled = True
+
+	#============================================
+	def run(self) -> None:
+		"""Prepare one Cut plan and emit only a detached terminal value."""
+		try:
+			result = ferrum_chem.prepare_document_clipboard_cut_v1(*self._arguments)
+		except Exception as exc:
+			if not self._delivery_cancelled:
+				self.failed.emit(FerrumNativeClipboardCutFailure(str(exc)))
+			return
+		if not self._delivery_cancelled:
+			self.prepared.emit(result)
+
+
+#============================================
+class FerrumNativeClipboardPasteWorker(PySide6.QtCore.QThread):
+	"""Prepare one captured clipboard string without borrowing a document session."""
+
+	prepared = PySide6.QtCore.Signal(object)
+	failed = PySide6.QtCore.Signal(object)
+
+	#============================================
+	def __init__(self, source: str, parent: PySide6.QtCore.QObject) -> None:
+		"""Capture one exact owned source value for worker-safe Rust admission."""
+		if type(source) is not str:
+			raise TypeError("native Paste requires an exact clipboard string")
+		super().__init__(parent)
+		self._source = source
+		self._delivery_cancelled = False
+
+	#============================================
+	@property
+	def delivery_cancelled(self) -> bool:
+		"""Return whether result delivery has been invalidated."""
+		return self._delivery_cancelled
+
+	#============================================
+	def cancel_delivery(self) -> None:
+		"""Suppress delivery without unsafely terminating native work."""
+		self._delivery_cancelled = True
+
+	#============================================
+	def run(self) -> None:
+		"""Prepare one fragment and emit only a detached immutable plan."""
+		try:
+			result = ferrum_chem.prepare_clipboard_paste_v1(self._source)
+		except Exception as exc:
+			if not self._delivery_cancelled:
+				self.failed.emit(FerrumNativeClipboardPasteFailure(str(exc)))
+			return
+		if not self._delivery_cancelled:
+			self.prepared.emit(result)
+
+
+#============================================
 class _ClipboardCopyDeliveryRelay(PySide6.QtCore.QObject):
 	"""Deliver worker signals back to the owning ordinary native window."""
 
@@ -221,6 +344,64 @@ class _ClipboardCopyDeliveryRelay(PySide6.QtCore.QObject):
 
 
 #============================================
+class _ClipboardCutDeliveryRelay(PySide6.QtCore.QObject):
+	"""Deliver Cut preparation back to the owning ordinary native window."""
+
+	#============================================
+	def __init__(self, owner: object) -> None:
+		"""Retain the window responsible for the one Cut intent."""
+		super().__init__(owner)
+		self._owner = owner
+
+	#============================================
+	@PySide6.QtCore.Slot(object)
+	def on_prepared(self, result: object) -> None:
+		"""Forward a plan with the exact emitting worker identity."""
+		self._owner._on_native_clipboard_cut_prepared(self.sender(), result)
+
+	#============================================
+	@PySide6.QtCore.Slot(object)
+	def on_failed(self, failure: object) -> None:
+		"""Forward a failure with the exact emitting worker identity."""
+		self._owner._on_native_clipboard_cut_failed(self.sender(), failure)
+
+	#============================================
+	@PySide6.QtCore.Slot()
+	def on_finished(self) -> None:
+		"""Release the stopped Cut worker owned by this window."""
+		self._owner._on_native_clipboard_cut_finished(self.sender())
+
+
+#============================================
+class _ClipboardPasteDeliveryRelay(PySide6.QtCore.QObject):
+	"""Deliver Paste preparation back to the owning ordinary native window."""
+
+	#============================================
+	def __init__(self, owner: object) -> None:
+		"""Retain the window responsible for the one Paste intent."""
+		super().__init__(owner)
+		self._owner = owner
+
+	#============================================
+	@PySide6.QtCore.Slot(object)
+	def on_prepared(self, prepared: object) -> None:
+		"""Forward a plan with the exact emitting worker identity."""
+		self._owner._on_native_clipboard_paste_prepared(self.sender(), prepared)
+
+	#============================================
+	@PySide6.QtCore.Slot(object)
+	def on_failed(self, failure: object) -> None:
+		"""Forward a preparation failure with exact worker identity."""
+		self._owner._on_native_clipboard_paste_failed(self.sender(), failure)
+
+	#============================================
+	@PySide6.QtCore.Slot()
+	def on_finished(self) -> None:
+		"""Release the stopped Paste worker owned by this window."""
+		self._owner._on_native_clipboard_paste_finished(self.sender())
+
+
+#============================================
 def publish_native_clipboard_fragment(fragment_cdml: str) -> None:
 	"""Publish one already-authenticated CDML fragment in Ferrum MIME formats."""
 	if type(fragment_cdml) is not str or not fragment_cdml:
@@ -236,18 +417,65 @@ def publish_native_clipboard_fragment(fragment_cdml: str) -> None:
 
 
 #============================================
+def native_clipboard_has_paste_candidate() -> bool:
+	"""Return whether the UI clipboard advertises plausible Ferrum CDML."""
+	mime_data = PySide6.QtWidgets.QApplication.clipboard().mimeData()
+	if mime_data is None:
+		return False
+	if mime_data.hasFormat(CDML_MIME_TYPE):
+		return True
+	if not mime_data.hasText():
+		return False
+	return mime_data.text().lstrip().startswith("<cdml")
+
+
+#============================================
+def read_native_clipboard_source() -> str:
+	"""Capture one preferred custom-MIME or plausible plain-text CDML value."""
+	mime_data = PySide6.QtWidgets.QApplication.clipboard().mimeData()
+	if mime_data is None:
+		raise ValueError("Clipboard does not contain Ferrum CDML")
+	if mime_data.hasFormat(CDML_MIME_TYPE):
+		encoded = bytes(mime_data.data(CDML_MIME_TYPE))
+		try:
+			return encoded.decode("utf-8")
+		except UnicodeDecodeError as exc:
+			raise ValueError("Ferrum clipboard CDML is not valid UTF-8") from exc
+	if mime_data.hasText():
+		source = mime_data.text()
+		if source.lstrip().startswith("<cdml"):
+			return source
+		raise ValueError("Clipboard text is not a complete CDML document")
+	raise ValueError("Clipboard does not contain Ferrum CDML")
+
+
+#============================================
 class FerrumNativeClipboardWindowMixin:
-	"""Own the cancellable selected-object Copy action and delivery fence."""
+	"""Own cancellable native Copy/Paste actions and their delivery fences."""
 
 	#============================================
 	def _initialize_native_clipboard(self) -> None:
-		"""Initialize the one Copy intent and Qt-thread relay."""
+		"""Initialize mutually exclusive clipboard intents and Qt relays."""
 		self._clipboard_copy_intent: _ClipboardCopyIntent | None = None
+		self._clipboard_cut_intent: _ClipboardCutIntent | None = None
+		self._clipboard_paste_intent: _ClipboardPasteIntent | None = None
 		self._clipboard_copy_relay = _ClipboardCopyDeliveryRelay(self)
+		self._clipboard_cut_relay = _ClipboardCutDeliveryRelay(self)
+		self._clipboard_paste_relay = _ClipboardPasteDeliveryRelay(self)
+		PySide6.QtWidgets.QApplication.clipboard().dataChanged.connect(
+			self._on_native_clipboard_data_changed,
+		)
 
 	#============================================
 	def _build_native_clipboard_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add Copy and explicit cancellation to the ordinary native Edit menu."""
+		"""Add Cut, Copy, Paste, and explicit cancellation to the native Edit menu."""
+		self._cut_action = PySide6.QtGui.QAction(self.tr("Cut"), self)
+		self._cut_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Cut)
+		self._cut_action.setToolTip(self.tr(
+			"Copy the exact selection, then remove it through one Rust transaction",
+		))
+		self._cut_action.triggered.connect(self._start_native_clipboard_cut)
+		menu.addAction(self._cut_action)
 		self._copy_action = PySide6.QtGui.QAction(self.tr("Copy"), self)
 		self._copy_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Copy)
 		self._copy_action.setToolTip(self.tr(
@@ -255,20 +483,37 @@ class FerrumNativeClipboardWindowMixin:
 		))
 		self._copy_action.triggered.connect(self._start_native_clipboard_copy)
 		menu.addAction(self._copy_action)
+		self._paste_action = PySide6.QtGui.QAction(self.tr("Paste"), self)
+		self._paste_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Paste)
+		self._paste_action.setToolTip(self.tr(
+			"Paste Ferrum CDML through the authenticated Rust document session",
+		))
+		self._paste_action.triggered.connect(self._start_native_clipboard_paste)
+		menu.addAction(self._paste_action)
 		self._cancel_copy_action = PySide6.QtGui.QAction(self.tr("Cancel Copy"), self)
 		self._cancel_copy_action.triggered.connect(self._cancel_native_clipboard_copy)
 		menu.addAction(self._cancel_copy_action)
+		self._cancel_cut_action = PySide6.QtGui.QAction(self.tr("Cancel Cut"), self)
+		self._cancel_cut_action.triggered.connect(self._cancel_native_clipboard_cut)
+		menu.addAction(self._cancel_cut_action)
+		self._cancel_paste_action = PySide6.QtGui.QAction(self.tr("Cancel Paste"), self)
+		self._cancel_paste_action.triggered.connect(self._cancel_native_clipboard_paste)
+		menu.addAction(self._cancel_paste_action)
 
 	#============================================
-	def _clipboard_copy_busy(self) -> bool:
-		"""Return whether a clipboard extraction worker remains live."""
-		return self._clipboard_copy_intent is not None
+	def _clipboard_busy(self) -> bool:
+		"""Return whether any native clipboard worker remains live."""
+		return (
+			self._clipboard_copy_intent is not None
+			or self._clipboard_cut_intent is not None
+			or self._clipboard_paste_intent is not None
+		)
 
 	#============================================
 	def _start_native_clipboard_copy(self) -> bool:
 		"""Begin Copy only for one exact current durable selection."""
 		if (
-			self._clipboard_copy_busy()
+			self._clipboard_busy()
 			or self._molecule_import_busy()
 			or self._molecule_export_busy()
 			or self._molecule_inspection_busy()
@@ -294,6 +539,73 @@ class FerrumNativeClipboardWindowMixin:
 		worker.failed.connect(self._clipboard_copy_relay.on_failed, connection)
 		worker.finished.connect(self._clipboard_copy_relay.on_finished, connection)
 		self.statusBar().showMessage(self.tr("Copying selected objects with Ferrum Rust..."), 0)
+		self._refresh_actions()
+		worker.start()
+		return True
+
+	#============================================
+	def _start_native_clipboard_cut(self) -> bool:
+		"""Prepare Cut only for one exact current durable selection."""
+		if (
+			self._clipboard_busy()
+			or self._molecule_import_busy()
+			or self._molecule_export_busy()
+			or self._molecule_inspection_busy()
+			or self._coordinate_generation_intent is not None
+		):
+			return False
+		tab = self._active_native_tab()
+		object_ids = None if tab is None else selected_durable_clipboard_object_ids(tab)
+		if tab is None or object_ids is None:
+			return False
+		try:
+			observation = tab.current_document_observation()
+			snapshot = tab.current_snapshot
+			worker = FerrumNativeClipboardCutWorker(observation, object_ids, self)
+		except Exception as exc:
+			self._show_native_file_warning("Native Cut Unavailable", str(exc))
+			return False
+		self._clipboard_cut_intent = _ClipboardCutIntent(
+			tab, snapshot.revision, snapshot.digest, object_ids, worker,
+		)
+		connection = PySide6.QtCore.Qt.ConnectionType.QueuedConnection
+		worker.prepared.connect(self._clipboard_cut_relay.on_prepared, connection)
+		worker.failed.connect(self._clipboard_cut_relay.on_failed, connection)
+		worker.finished.connect(self._clipboard_cut_relay.on_finished, connection)
+		self.statusBar().showMessage(self.tr("Preparing selected objects for Cut..."), 0)
+		self._refresh_actions()
+		worker.start()
+		return True
+
+	#============================================
+	def _start_native_clipboard_paste(self) -> bool:
+		"""Capture and prepare one clipboard fragment for the current document."""
+		if (
+			self._clipboard_busy()
+			or self._molecule_import_busy()
+			or self._molecule_export_busy()
+			or self._molecule_inspection_busy()
+			or self._coordinate_generation_intent is not None
+		):
+			return False
+		tab = self._active_native_tab()
+		if tab is None or tab.requires_refresh:
+			return False
+		try:
+			source = read_native_clipboard_source()
+			snapshot = tab.current_snapshot
+			worker = FerrumNativeClipboardPasteWorker(source, self)
+		except Exception as exc:
+			self._show_native_file_warning("Native Paste Unavailable", str(exc))
+			return False
+		self._clipboard_paste_intent = _ClipboardPasteIntent(
+			tab, snapshot.revision, snapshot.digest, worker,
+		)
+		connection = PySide6.QtCore.Qt.ConnectionType.QueuedConnection
+		worker.prepared.connect(self._clipboard_paste_relay.on_prepared, connection)
+		worker.failed.connect(self._clipboard_paste_relay.on_failed, connection)
+		worker.finished.connect(self._clipboard_paste_relay.on_finished, connection)
+		self.statusBar().showMessage(self.tr("Preparing clipboard CDML with Ferrum Rust..."), 0)
 		self._refresh_actions()
 		worker.start()
 		return True
@@ -358,6 +670,136 @@ class FerrumNativeClipboardWindowMixin:
 		self._refresh_actions()
 
 	#============================================
+	def _on_native_clipboard_cut_prepared(self, worker: object, result: object) -> None:
+		"""Publish the admitted fragment, then commit its exact deletion plan."""
+		intent = self._current_clipboard_cut_intent(worker)
+		if intent is None:
+			return
+		if (
+			type(result) is not ferrum_chem.DocumentClipboardCutPlanV1
+			or result.source_revision != intent.revision
+			or result.source_digest != intent.digest
+			or result.selected_objects != intent.object_ids
+		):
+			self.statusBar().showMessage(self.tr("Document changed; cut again."), 5000)
+			return
+		try:
+			publish_native_clipboard_fragment(result.fragment_cdml)
+		except Exception as exc:
+			self._show_native_file_warning("Native Cut Error", str(exc))
+			return
+		try:
+			intent.tab.apply_prepared_clipboard_cut(
+				result, intent.revision, intent.digest,
+			)
+		except native_document_tab_errors.FerrumNativeDocumentTabMutationPresentationError as exc:
+			self._show_native_file_warning("Native Cut Needs Refresh", str(exc))
+			return
+		except Exception as exc:
+			self._show_native_file_warning(
+				"Native Cut Copied Selection",
+				f"The selection is on the clipboard and remains in the document: {exc}",
+			)
+			return
+		self.statusBar().showMessage(self.tr("Cut selected Ferrum objects."), 5000)
+
+	#============================================
+	def _on_native_clipboard_cut_failed(self, worker: object,
+			failure: FerrumNativeClipboardCutFailure) -> None:
+		"""Show one current planning failure while retaining document and clipboard."""
+		if self._current_clipboard_cut_intent(worker) is None:
+			return
+		self._show_native_file_warning("Native Cut Error", failure.message)
+
+	#============================================
+	def _current_clipboard_cut_intent(self, worker: object) -> _ClipboardCutIntent | None:
+		"""Return the exact Cut intent while its source and selection remain current."""
+		intent = self._clipboard_cut_intent
+		if intent is None or worker is not intent.worker or worker.delivery_cancelled:
+			return None
+		tab = intent.tab
+		if (
+			tab not in self._native_tabs_by_page
+			or self._active_native_tab() is not tab
+			or tab.requires_refresh
+			or selected_durable_clipboard_object_ids(tab) != intent.object_ids
+		):
+			return None
+		snapshot = tab.current_snapshot
+		if snapshot.revision != intent.revision or snapshot.digest != intent.digest:
+			return None
+		return intent
+
+	#============================================
+	def _on_native_clipboard_cut_finished(self, worker: object) -> None:
+		"""Release one exact stopped Cut worker and restore action reachability."""
+		intent = self._clipboard_cut_intent
+		if intent is None or worker is not intent.worker:
+			return
+		self._clipboard_cut_intent = None
+		worker.deleteLater()
+		self._refresh_actions()
+
+	#============================================
+	def _on_native_clipboard_paste_prepared(self, worker: object,
+			prepared: object) -> None:
+		"""Commit only an exact plan authenticated to the current destination."""
+		intent = self._current_clipboard_paste_intent(worker)
+		if intent is None:
+			return
+		if type(prepared) is not ferrum_chem.DocumentClipboardPastePlanV1:
+			self._show_native_file_warning(
+				"Native Paste Error", "Ferrum returned an invalid clipboard Paste plan.",
+			)
+			return
+		try:
+			intent.tab.apply_prepared_clipboard_paste(
+				prepared, intent.revision, intent.digest,
+			)
+		except Exception as exc:
+			self._show_native_file_warning("Native Paste Error", str(exc))
+			return
+		self.statusBar().showMessage(
+			self.tr("Pasted clipboard CDML with Ferrum Rust."), 5000,
+		)
+
+	#============================================
+	def _on_native_clipboard_paste_failed(self, worker: object,
+			failure: FerrumNativeClipboardPasteFailure) -> None:
+		"""Show one current preparation failure without mutating the document."""
+		if self._current_clipboard_paste_intent(worker) is None:
+			return
+		self._show_native_file_warning("Native Paste Error", failure.message)
+
+	#============================================
+	def _current_clipboard_paste_intent(self, worker: object) -> _ClipboardPasteIntent | None:
+		"""Return only the exact worker intent whose destination remains current."""
+		intent = self._clipboard_paste_intent
+		if intent is None or worker is not intent.worker or worker.delivery_cancelled:
+			return None
+		tab = intent.tab
+		if (
+			tab not in self._native_tabs_by_page
+			or self._active_native_tab() is not tab
+			or tab.requires_refresh
+		):
+			return None
+		snapshot = tab.current_snapshot
+		if snapshot.revision != intent.revision or snapshot.digest != intent.digest:
+			return None
+		return intent
+
+	#============================================
+	def _on_native_clipboard_paste_finished(self, worker: object) -> None:
+		"""Release one exact stopped worker and restore action reachability."""
+		intent = self._clipboard_paste_intent
+		if intent is None or worker is not intent.worker:
+			return
+		self._clipboard_paste_intent = None
+		worker.deleteLater()
+		self._refresh_actions()
+
+	#============================================
 	def _cancel_native_clipboard_copy(self) -> None:
 		"""Suppress delivery while Rust extraction finishes normally."""
 		intent = self._clipboard_copy_intent
@@ -368,43 +810,108 @@ class FerrumNativeClipboardWindowMixin:
 		self._refresh_actions()
 
 	#============================================
+	def _cancel_native_clipboard_cut(self) -> None:
+		"""Suppress Cut delivery while Rust preparation finishes normally."""
+		intent = self._clipboard_cut_intent
+		if intent is None or intent.worker.delivery_cancelled:
+			return
+		intent.worker.cancel_delivery()
+		self.statusBar().showMessage(self.tr("Cancelling Cut delivery..."), 0)
+		self._refresh_actions()
+
+	#============================================
+	def _cancel_native_clipboard_paste(self) -> None:
+		"""Suppress prepared-plan delivery while Rust preparation finishes."""
+		intent = self._clipboard_paste_intent
+		if intent is None or intent.worker.delivery_cancelled:
+			return
+		intent.worker.cancel_delivery()
+		self.statusBar().showMessage(self.tr("Cancelling Paste delivery..."), 0)
+		self._refresh_actions()
+
+	#============================================
+	@PySide6.QtCore.Slot()
+	def _on_native_clipboard_data_changed(self) -> None:
+		"""Refresh Paste reachability when the desktop clipboard changes."""
+		if hasattr(self, "_paste_action"):
+			self._refresh_actions()
+
+	#============================================
 	def _refresh_native_clipboard_actions(self, active: bool, pending: bool,
 			busy_elsewhere: bool) -> None:
-		"""Apply selection and lifecycle reachability to Copy actions."""
+		"""Apply clipboard, selection, and lifecycle reachability to actions."""
 		tab = self._active_native_tab() if active and not pending else None
 		object_ids = None if tab is None else selected_durable_clipboard_object_ids(tab)
 		self._copy_action.setEnabled(
 			active
 			and not pending
 			and not busy_elsewhere
-			and not self._clipboard_copy_busy()
+			and not self._clipboard_busy()
 			and object_ids is not None
+		)
+		self._cut_action.setEnabled(
+			active
+			and not pending
+			and not busy_elsewhere
+			and not self._clipboard_busy()
+			and object_ids is not None
+		)
+		self._paste_action.setEnabled(
+			active
+			and not pending
+			and not busy_elsewhere
+			and not self._clipboard_busy()
+			and native_clipboard_has_paste_candidate()
 		)
 		self._cancel_copy_action.setEnabled(
 			self._clipboard_copy_intent is not None
 			and not self._clipboard_copy_intent.worker.delivery_cancelled,
 		)
+		self._cancel_cut_action.setEnabled(
+			self._clipboard_cut_intent is not None
+			and not self._clipboard_cut_intent.worker.delivery_cancelled,
+		)
+		self._cancel_paste_action.setEnabled(
+			self._clipboard_paste_intent is not None
+			and not self._clipboard_paste_intent.worker.delivery_cancelled,
+		)
 
 	#============================================
-	def _clipboard_copy_blocks_tab_close(self, tab: object) -> bool:
-		"""Keep the Copy source tab alive through worker teardown."""
-		intent = self._clipboard_copy_intent
-		if intent is None or intent.tab is not tab:
+	def _clipboard_operation_blocks_tab_close(self, tab: object) -> bool:
+		"""Keep any clipboard worker's source/destination tab alive through teardown."""
+		copy_intent = self._clipboard_copy_intent
+		cut_intent = self._clipboard_cut_intent
+		paste_intent = self._clipboard_paste_intent
+		if (
+			(copy_intent is None or copy_intent.tab is not tab)
+			and (cut_intent is None or cut_intent.tab is not tab)
+			and (paste_intent is None or paste_intent.tab is not tab)
+		):
 			return False
+		operation = "Copy"
+		if cut_intent is not None:
+			operation = "Cut"
+		elif copy_intent is None:
+			operation = "Paste"
 		self._show_native_file_warning(
-			"Native Copy Still Running",
-			"Cancel Copy and wait for native work before closing this tab.",
+			f"Native {operation} Still Running",
+			f"Cancel {operation} and wait for native work before closing this tab.",
 		)
 		return True
 
 	#============================================
-	def _cancel_clipboard_copy_for_close(self) -> bool:
-		"""Cancel delivery and retain the source tab until a later close attempt."""
-		if self._clipboard_copy_intent is None:
+	def _cancel_clipboard_operations_for_close(self) -> bool:
+		"""Cancel clipboard deliveries and require a later close attempt."""
+		if not self._clipboard_busy():
 			return False
-		self._cancel_native_clipboard_copy()
+		if self._clipboard_copy_intent is not None:
+			self._cancel_native_clipboard_copy()
+		if self._clipboard_cut_intent is not None:
+			self._cancel_native_clipboard_cut()
+		if self._clipboard_paste_intent is not None:
+			self._cancel_native_clipboard_paste()
 		self._show_native_file_warning(
-			"Native Copy Still Running",
+			"Native Clipboard Work Still Running",
 			"Ferrum cancelled delivery; close again after native work finishes.",
 		)
 		return True

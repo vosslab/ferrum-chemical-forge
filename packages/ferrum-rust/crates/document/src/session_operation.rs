@@ -312,6 +312,9 @@ pub enum SessionOperationError {
     /// The session cannot issue another generated fragment identity.
     #[error("generated fragment identifier space is exhausted")]
     FragmentIdentifierExhausted,
+    /// The session cannot issue another generated clipboard-Paste identity.
+    #[error("generated clipboard Paste identifier space is exhausted")]
+    ClipboardIdentifierExhausted,
     /// Storage needed to allocate generated persistent identities was unavailable.
     #[error("generated identifier allocation failed")]
     GeneratedIdentifierAllocationFailed,
