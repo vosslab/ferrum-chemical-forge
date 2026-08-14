@@ -4,6 +4,7 @@
 //! only owned [`MolGraph`] values and typed [`ChemistryError`] variants.
 
 mod codec_support;
+mod composition_wire;
 mod fcm1;
 mod graph_wire;
 mod inchi_wire;
@@ -13,45 +14,61 @@ mod sdf_import;
 mod sdf_wire;
 mod text_response;
 
+#[cfg(test)]
+mod smiles_write_tests;
+
 use codec_support::{Reader, put_i32, put_u16, put_u32};
 
 use std::path::Path;
 
-use ferrum_chemistry_sys::{AdapterError, ChemistryAdapter};
+use ferrum_chemistry_sys::{AdapterError, ChemistryAdapter, FERRUM_CHEM_CALL_ALLOCATION_FAILURE};
 
 use crate::{
     AtomChirality, AtomicNumber, BondDirection, BondOrder, BondStereo, ChemEngine, ChemistryError,
-    Coordinates, FERRUM_CHEM_COORDINATE_BYTES, FERRUM_CHEM_GRAPH_ATOM_BYTES,
-    FERRUM_CHEM_GRAPH_BOND_BYTES, FERRUM_CHEM_GRAPH_FLAGS_NONE,
-    FERRUM_CHEM_GRAPH_REQUEST_HEADER_BYTES, FERRUM_CHEM_GRAPH_WIRE_VERSION,
-    FERRUM_CHEM_INCHI_MAX_BYTES, FERRUM_CHEM_KEKULIZE_ATOM_BYTES, FERRUM_CHEM_KEKULIZE_BOND_BYTES,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC, FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED,
-    FERRUM_CHEM_KEKULIZE_FACT_EXPLICIT_HYDROGENS, FERRUM_CHEM_KEKULIZE_FACT_FORMAL_CHARGE,
-    FERRUM_CHEM_KEKULIZE_FACT_ISOTOPE, FERRUM_CHEM_KEKULIZE_MAX_ATOMS,
-    FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS, FERRUM_CHEM_KEKULIZE_MAX_BONDS,
-    FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES, FERRUM_CHEM_KEKULIZE_OPTION_CANONICAL,
-    FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS, FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES,
-    FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_WIRE_VERSION,
-    FERRUM_CHEM_MAX_RESPONSE_BYTES, FERRUM_CHEM_MOLBLOCK_FLAGS_NONE,
-    FERRUM_CHEM_MOLBLOCK_FORMAT_V2000, FERRUM_CHEM_MOLBLOCK_FORMAT_V3000,
-    FERRUM_CHEM_MOLBLOCK_REQUEST_HEADER_BYTES, FERRUM_CHEM_MOLBLOCK_WIRE_VERSION,
-    FERRUM_CHEM_MOLECULE_ATOM_BYTES, FERRUM_CHEM_MOLECULE_BOND_BYTES,
-    FERRUM_CHEM_MOLECULE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_RESULT_DEPICTION_FAILURE,
-    FERRUM_CHEM_RESULT_INTERNAL_FAILURE, FERRUM_CHEM_RESULT_INVALID_MOLECULE,
-    FERRUM_CHEM_RESULT_MALFORMED_REQUEST, FERRUM_CHEM_RESULT_OK, FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
+    Coordinates, FERRUM_CHEM_COMPOSITION_ENTRY_BYTES, FERRUM_CHEM_COMPOSITION_FLAGS_NONE,
+    FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES, FERRUM_CHEM_COMPOSITION_MAX_FORMULA_BYTES,
+    FERRUM_CHEM_COMPOSITION_RESPONSE_HEADER_BYTES, FERRUM_CHEM_COMPOSITION_WIRE_VERSION,
+    FERRUM_CHEM_COORDINATE_BYTES, FERRUM_CHEM_GRAPH_ATOM_BYTES, FERRUM_CHEM_GRAPH_BOND_BYTES,
+    FERRUM_CHEM_GRAPH_FLAGS_NONE, FERRUM_CHEM_GRAPH_REQUEST_HEADER_BYTES,
+    FERRUM_CHEM_GRAPH_WIRE_VERSION, FERRUM_CHEM_INCHI_MAX_BYTES, FERRUM_CHEM_KEKULIZE_ATOM_BYTES,
+    FERRUM_CHEM_KEKULIZE_BOND_BYTES, FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED, FERRUM_CHEM_KEKULIZE_FACT_EXPLICIT_HYDROGENS,
+    FERRUM_CHEM_KEKULIZE_FACT_FORMAL_CHARGE, FERRUM_CHEM_KEKULIZE_FACT_ISOTOPE,
+    FERRUM_CHEM_KEKULIZE_MAX_ATOMS, FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS,
+    FERRUM_CHEM_KEKULIZE_MAX_BONDS, FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES,
+    FERRUM_CHEM_KEKULIZE_OPTION_CANONICAL, FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS,
+    FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES,
+    FERRUM_CHEM_KEKULIZE_WIRE_VERSION, FERRUM_CHEM_MAX_RESPONSE_BYTES,
+    FERRUM_CHEM_MOLBLOCK_FLAGS_NONE, FERRUM_CHEM_MOLBLOCK_FORMAT_V2000,
+    FERRUM_CHEM_MOLBLOCK_FORMAT_V3000, FERRUM_CHEM_MOLBLOCK_REQUEST_HEADER_BYTES,
+    FERRUM_CHEM_MOLBLOCK_WIRE_VERSION, FERRUM_CHEM_MOLECULE_ATOM_BYTES,
+    FERRUM_CHEM_MOLECULE_BOND_BYTES, FERRUM_CHEM_MOLECULE_RESPONSE_HEADER_BYTES,
+    FERRUM_CHEM_RESULT_DEPICTION_FAILURE, FERRUM_CHEM_RESULT_INTERNAL_FAILURE,
+    FERRUM_CHEM_RESULT_INVALID_MOLECULE, FERRUM_CHEM_RESULT_MALFORMED_REQUEST,
+    FERRUM_CHEM_RESULT_OK, FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
     FERRUM_CHEM_RESULT_UNSUPPORTED_MOLECULE, FERRUM_CHEM_SDF_FLAGS_NONE,
     FERRUM_CHEM_SDF_MAX_PROPERTIES, FERRUM_CHEM_SDF_MAX_RECORDS,
     FERRUM_CHEM_SDF_PROPERTY_HEADER_BYTES, FERRUM_CHEM_SDF_RECORD_HEADER_BYTES,
     FERRUM_CHEM_SDF_REQUEST_HEADER_BYTES, FERRUM_CHEM_SDF_RESPONSE_HEADER_BYTES,
-    FERRUM_CHEM_SDF_WIRE_VERSION, FERRUM_CHEM_SMILES_MAX_BYTES, FERRUM_CHEM_TEXT_FLAGS_NONE,
-    FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES, FERRUM_CHEM_TEXT_WIRE_VERSION, ImportedSdfRecord,
-    InchiMode, KekulizeOptions, MolAtom, MolBond, MolGraph, MolblockVersion, Point2, SdfProperty,
+    FERRUM_CHEM_SDF_WIRE_VERSION, FERRUM_CHEM_SMILES_MAX_BYTES, FERRUM_CHEM_SMILES_WRITE_MAX_BYTES,
+    FERRUM_CHEM_TEXT_FLAGS_NONE, FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES,
+    FERRUM_CHEM_TEXT_WIRE_VERSION, FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES,
+    FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION, ImportedSdfRecord, InchiMode, KekulizeOptions,
+    MolAtom, MolBond, MolGraph, MolblockVersion, MoleculeComposition, Point2, SdfProperty,
     SdfRecord, SmilesMolecule,
 };
 
 const REQUEST_MAGIC: [u8; 4] = *b"FCK1";
+
+/// Maximum UTF-8 SMILES bytes accepted by the loaded Ferrum-Chem adapter.
+///
+/// Higher-level ingress policies may derive smaller, grammar-specific budgets
+/// from this adapter boundary.
+pub const NATIVE_SMILES_MAX_INPUT_BYTES: usize = FERRUM_CHEM_SMILES_MAX_BYTES;
+/// Maximum printable ASCII bytes returned by canonical native SMILES export.
+pub const NATIVE_SMILES_MAX_OUTPUT_BYTES: usize = FERRUM_CHEM_SMILES_WRITE_MAX_BYTES;
 const RESPONSE_MAGIC: [u8; 4] = *b"FCR1";
 const COORDINATE_RESPONSE_MAGIC: [u8; 4] = *b"FCL1";
 const COORDINATE_RESPONSE_HEADER_LENGTH: usize = 20;
@@ -113,6 +130,19 @@ impl NativeChemEngine {
         <Self as ChemEngine>::molecule_to_smarts(self, molecule)
     }
 
+    /// Export a complete graph as canonical isomeric SMILES.
+    pub fn molecule_to_smiles(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::molecule_to_smiles(self, molecule)
+    }
+
+    /// Calculate isotope-aware formula, counts, charge, and masses.
+    pub fn molecule_composition(
+        &self,
+        molecule: &MolGraph,
+    ) -> Result<MoleculeComposition, ChemistryError> {
+        <Self as ChemEngine>::molecule_composition(self, molecule)
+    }
+
     /// Export a complete coordinate-bearing graph as explicit molblock syntax.
     pub fn molecule_to_molblock(
         &self,
@@ -120,6 +150,16 @@ impl NativeChemEngine {
         version: MolblockVersion,
     ) -> Result<String, ChemistryError> {
         <Self as ChemEngine>::molecule_to_molblock(self, molecule, version)
+    }
+
+    /// Export a coordinate-bearing graph with an exact first-line title.
+    pub fn molecule_to_molblock_with_title(
+        &self,
+        molecule: &MolGraph,
+        version: MolblockVersion,
+        title: &str,
+    ) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::molecule_to_molblock_with_title(self, molecule, version, title)
     }
 
     /// Import one bounded V2000 or V3000 molblock into an owned molecule.
@@ -197,6 +237,11 @@ pub fn validate_molblock_input(input: &str) -> Result<(), ChemistryError> {
     molblock_import::validate_input(input)
 }
 
+/// Validate an exact first-line Molfile title before loading a native adapter.
+pub fn validate_molblock_title(title: &str) -> Result<(), ChemistryError> {
+    molblock_wire::validate_title(title)
+}
+
 /// Validate one InChI line before loading or calling a native adapter.
 pub fn validate_inchi_input(input: &str) -> Result<(), ChemistryError> {
     inchi_wire::validate_input(input)
@@ -227,6 +272,27 @@ impl ChemEngine for NativeChemEngine {
         text_response::decode(&response, "SMARTS")
     }
 
+    fn molecule_to_smiles(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
+        let request = graph_wire::encode(molecule)?;
+        let response = self
+            .adapter
+            .molecule_to_smiles(&request)
+            .map_err(adapter_error)?;
+        text_response::decode_smiles(&response)
+    }
+
+    fn molecule_composition(
+        &self,
+        molecule: &MolGraph,
+    ) -> Result<MoleculeComposition, ChemistryError> {
+        let request = graph_wire::encode(molecule)?;
+        let response = self
+            .adapter
+            .molecule_composition(&request)
+            .map_err(adapter_error)?;
+        composition_wire::decode(&response, molecule.atoms().len())
+    }
+
     fn molecule_to_molblock(
         &self,
         molecule: &MolGraph,
@@ -238,6 +304,22 @@ impl ChemEngine for NativeChemEngine {
             .molecule_to_molblock(&request)
             .map_err(adapter_error)?;
         text_response::decode_multiline(&response, "molblock")
+    }
+
+    fn molecule_to_molblock_with_title(
+        &self,
+        molecule: &MolGraph,
+        version: MolblockVersion,
+        title: &str,
+    ) -> Result<String, ChemistryError> {
+        let request = molblock_wire::encode_titled(molecule, version, title)?;
+        let response = self
+            .adapter
+            .molecule_to_molblock_with_title(&request)
+            .map_err(adapter_error)?;
+        let output = text_response::decode_multiline(&response, "molblock")?;
+        molblock_wire::validate_output_title(&output, title)?;
+        Ok(output)
     }
 
     fn molblock_to_molecule(&self, molblock: &str) -> Result<SmilesMolecule, ChemistryError> {
@@ -414,6 +496,15 @@ fn decode_coordinate_response(
 }
 
 fn adapter_error(error: AdapterError) -> ChemistryError {
+    if matches!(
+        error,
+        AdapterError::NativeStatus { status }
+            if u64::from(status) == FERRUM_CHEM_CALL_ALLOCATION_FAILURE
+    ) {
+        return ChemistryError::ResourceExhausted {
+            operation: "native adapter response",
+        };
+    }
     if let AdapterError::OperationUnavailable { operation } = error {
         return ChemistryError::OperationUnavailable { operation };
     }

@@ -19,6 +19,7 @@ use crate::binding::PyDocumentBondOrderV1;
 use crate::binding::PyDocumentSnapshot;
 use crate::bond_properties_binding::PyDocumentBondStyleV1;
 use crate::bracket_binding::PyBracketPairProjectionV1;
+use crate::drawing_standard_binding::PyDrawingStandardV1;
 use crate::paper_properties_binding::PyPaperLayoutProjectionV1;
 use crate::presentation_root_binding::PyPresentationRootProjectionV1;
 
@@ -385,6 +386,8 @@ pub(crate) struct PyDocumentProjectionV1 {
     #[pyo3(get)]
     pub(crate) paper_layout: PyPaperLayoutProjectionV1,
     #[pyo3(get)]
+    pub(crate) drawing_standard: Option<PyDrawingStandardV1>,
+    #[pyo3(get)]
     pub(crate) molecules: Vec<PyMoleculeProjectionV1>,
     #[pyo3(get)]
     pub(crate) presentation_stack: PyPresentationStackProjectionV1,
@@ -400,6 +403,7 @@ impl From<&DocumentProjectionV1> for PyDocumentProjectionV1 {
             digest: value.digest().iter().map(|b| format!("{b:02x}")).collect(),
             is_dirty: value.is_dirty(),
             paper_layout: value.paper_layout().into(),
+            drawing_standard: value.drawing_standard().map(Into::into),
             molecules: value.molecules().iter().map(Into::into).collect(),
             presentation_stack: value.presentation_stack().into(),
             issues: value.issues().iter().map(Into::into).collect(),

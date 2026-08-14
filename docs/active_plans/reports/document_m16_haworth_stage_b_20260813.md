@@ -1,4 +1,4 @@
-# M16 Haworth Stage B documentation closure
+# M16 Haworth Stage B and re-observation boundary
 
 Date: 2026-08-13
 
@@ -14,6 +14,14 @@ from a session re-observation. It authenticates source `PersistentId` through
 the exact projection `DocumentObjectId` and root order before using the
 established whole-document plan.
 
+The durable follow-on accepts an expected revision and one explicitly selected
+durable molecule. After save and reopen, it accepts only the strict raw persisted
+C/O profile with exact atoms-before-bonds child order and one closed 5/5, 5/6,
+6/5, or 6/6 ring form. It reconstructs the canonical durable facts before using
+the same authenticated selective Rust composition. An equivalent hand-authored
+valid profile is accepted, so the result cannot prove historical A2b authorship.
+No persistent marker is added; M17 owns one only if later required.
+
 The opaque non-serde composite suppresses only selected bond outcomes. It
 preserves atom masks and labels, nonselected bonds, and issues. Its private
 recording-sink traversal injects the direct ordinary, q1, and w1 drawing once.
@@ -25,8 +33,10 @@ only when that fact is absent.
 
 Compact offline Cargo semantic tests permanently cover accepted commit facts,
 receipt/projection authentication, selective preservation, one direct injection
-point, and typed sink refusal. These are behavior checks; they use no network,
-timing, pixel, byte, forced-allocation, or GUI-wiring requirement.
+point, typed sink refusal, save/reopen reconstruction, every accepted closed form,
+strict-profile mutations, and stale/foreign/non-molecule non-mutation. These are
+behavior checks; they use no network, timing, pixel, byte, forced-allocation, or
+GUI-wiring requirement.
 
 No one-time visual check is required for this accepted in-process seam. Earlier
 renderer artifact inspection remains implementation evidence for its own output
@@ -34,11 +44,11 @@ backends, not a gate for Stage B.
 
 ## Remaining boundary
 
-M16 remains in progress. The accepted seam has no public SVG, PNG, or PDF
-overload and no PyO3, Qt, CLI, or wire route. It makes no sucrose, stereo,
-collision avoidance, reflow, or generic substituent claim. External CDML Open
-remains closed until a human reviews consented representative measurements and
-records a grounded Rust resource policy.
+M16 remains in progress. The accepted seam adds no PyO3, Qt, CLI, wire, or
+artifact route. Existing global `InvalidPresentationFact` suppression remains
+unchanged. External CDML Open remains disabled until a human approves a measured
+five-dimensional ingress policy from representative coverage and records a
+grounded Rust resource policy.
 
 ## Sources
 

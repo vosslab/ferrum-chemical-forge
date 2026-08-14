@@ -462,22 +462,26 @@ pub(crate) fn result(
 ) -> PyResult<PyRenderObservationV1> {
     match value {
         Ok(render_observation) => observation(py, render_observation),
-        Err(ApiRenderObservationError::Document(error)) => Err(map_document_error(py, error)?),
-        Err(ApiRenderObservationError::Depiction(error)) => {
-            Err(RenderDepictionError::new_err(error.to_string()))
+        Err(error) => Err(error_result(py, error)?),
+    }
+}
+
+pub(crate) fn error_result(py: Python<'_>, error: ApiRenderObservationError) -> PyResult<PyErr> {
+    match error {
+        ApiRenderObservationError::Document(error) => map_document_error(py, error),
+        ApiRenderObservationError::Depiction(error) => {
+            Ok(RenderDepictionError::new_err(error.to_string()))
         }
-        Err(ApiRenderObservationError::ProvenanceMismatch) => Err(RenderProvenanceError::new_err(
+        ApiRenderObservationError::ProvenanceMismatch => Ok(RenderProvenanceError::new_err(
             "render observation provenance did not match its authoritative document",
         )),
-        Err(ApiRenderObservationError::MoleculeRootMismatch) => {
-            Err(RenderProvenanceError::new_err(
-                "render molecule roots did not match the authoritative document projection",
-            ))
-        }
-        Err(ApiRenderObservationError::PlusRootMismatch) => Err(RenderProvenanceError::new_err(
+        ApiRenderObservationError::MoleculeRootMismatch => Ok(RenderProvenanceError::new_err(
+            "render molecule roots did not match the authoritative document projection",
+        )),
+        ApiRenderObservationError::PlusRootMismatch => Ok(RenderProvenanceError::new_err(
             "render plus roots did not match the authoritative document projection",
         )),
-        Err(ApiRenderObservationError::TextRootMismatch) => Err(RenderProvenanceError::new_err(
+        ApiRenderObservationError::TextRootMismatch => Ok(RenderProvenanceError::new_err(
             "render Text roots did not match the authoritative document projection",
         )),
     }

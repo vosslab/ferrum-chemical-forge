@@ -9,11 +9,12 @@ use libloading::Library;
 use crate::buffer::{FerrumChemOwnedBuffer, finish_call};
 use crate::contract::{
     AbiVersionFn, AdapterError, BufferFreeFn, CapabilitiesFn, FERRUM_CHEM_ALL_KNOWN_CAPABILITIES,
-    FERRUM_CHEM_CAPABILITY_GENERATE_2D, FERRUM_CHEM_CAPABILITY_INCHI,
-    FERRUM_CHEM_CAPABILITY_KEKULIZE, FERRUM_CHEM_CAPABILITY_MOLFILE,
-    FERRUM_CHEM_CAPABILITY_MOLFILE_READ, FERRUM_CHEM_CAPABILITY_SDF_READ,
-    FERRUM_CHEM_CAPABILITY_SDF_WRITE, FERRUM_CHEM_CAPABILITY_SMARTS,
-    FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE, OperationFn,
+    FERRUM_CHEM_CAPABILITY_COMPOSITION, FERRUM_CHEM_CAPABILITY_GENERATE_2D,
+    FERRUM_CHEM_CAPABILITY_INCHI, FERRUM_CHEM_CAPABILITY_KEKULIZE, FERRUM_CHEM_CAPABILITY_MOLFILE,
+    FERRUM_CHEM_CAPABILITY_MOLFILE_READ, FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE,
+    FERRUM_CHEM_CAPABILITY_SDF_READ, FERRUM_CHEM_CAPABILITY_SDF_WRITE,
+    FERRUM_CHEM_CAPABILITY_SMARTS, FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE,
+    FERRUM_CHEM_CAPABILITY_SMILES_WRITE, OperationFn,
 };
 
 /// A loaded adapter whose native result buffers are released by this crate.
@@ -30,13 +31,16 @@ pub struct ChemistryAdapter {
     generate_2d: Option<OperationFn>,
     smiles_to_molecule: Option<OperationFn>,
     molecule_to_smarts: Option<OperationFn>,
+    molecule_to_smiles: Option<OperationFn>,
     molecule_to_molblock: Option<OperationFn>,
+    molecule_to_molblock_with_title: Option<OperationFn>,
     records_to_sdf: Option<OperationFn>,
     sdf_to_records: Option<OperationFn>,
     molblock_to_molecule: Option<OperationFn>,
     inchi_to_molecule: Option<OperationFn>,
     molecule_to_inchi: Option<OperationFn>,
     inchi_to_inchi_key: Option<OperationFn>,
+    molecule_composition: Option<OperationFn>,
     buffer_free: BufferFreeFn,
     not_thread_safe: PhantomData<Rc<()>>,
 }
@@ -97,11 +101,23 @@ impl ChemistryAdapter {
             FERRUM_CHEM_CAPABILITY_SMARTS,
             b"ferrum_chem_molecule_to_smarts_v1\0",
         )?;
+        let molecule_to_smiles = load_operation(
+            &library,
+            capability_bits,
+            FERRUM_CHEM_CAPABILITY_SMILES_WRITE,
+            b"ferrum_chem_molecule_to_smiles_v1\0",
+        )?;
         let molecule_to_molblock = load_operation(
             &library,
             capability_bits,
             FERRUM_CHEM_CAPABILITY_MOLFILE,
             b"ferrum_chem_molecule_to_molblock_v1\0",
+        )?;
+        let molecule_to_molblock_with_title = load_operation(
+            &library,
+            capability_bits,
+            FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE,
+            b"ferrum_chem_molecule_to_molblock_with_title_v1\0",
         )?;
         let records_to_sdf = load_operation(
             &library,
@@ -139,6 +155,12 @@ impl ChemistryAdapter {
             FERRUM_CHEM_CAPABILITY_INCHI,
             b"ferrum_chem_inchi_to_inchi_key_v1\0",
         )?;
+        let molecule_composition = load_operation(
+            &library,
+            capability_bits,
+            FERRUM_CHEM_CAPABILITY_COMPOSITION,
+            b"ferrum_chem_molecule_composition_v1\0",
+        )?;
 
         Ok(Self {
             _library: library,
@@ -148,13 +170,16 @@ impl ChemistryAdapter {
             generate_2d,
             smiles_to_molecule,
             molecule_to_smarts,
+            molecule_to_smiles,
             molecule_to_molblock,
+            molecule_to_molblock_with_title,
             records_to_sdf,
             sdf_to_records,
             molblock_to_molecule,
             inchi_to_molecule,
             molecule_to_inchi,
             inchi_to_inchi_key,
+            molecule_composition,
             buffer_free,
             not_thread_safe: PhantomData,
         })
@@ -200,9 +225,23 @@ impl ChemistryAdapter {
         self.call_required(self.molecule_to_smarts, "molecule_to_smarts", input)
     }
 
+    /// Exports a complete graph request as canonical isomeric SMILES text.
+    pub fn molecule_to_smiles(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
+        self.call_required(self.molecule_to_smiles, "molecule_to_smiles", input)
+    }
+
     /// Exports a coordinate-bearing graph request as V2000 or V3000 molblock text.
     pub fn molecule_to_molblock(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
         self.call_required(self.molecule_to_molblock, "molecule_to_molblock", input)
+    }
+
+    /// Exports a titled coordinate-bearing graph as V2000 or V3000 molblock text.
+    pub fn molecule_to_molblock_with_title(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
+        self.call_required(
+            self.molecule_to_molblock_with_title,
+            "molecule_to_molblock_with_title",
+            input,
+        )
     }
 
     /// Exports ordered coordinate-bearing records through RDKit's SD writer.
@@ -233,6 +272,11 @@ impl ChemistryAdapter {
     /// Derives an official InChIKey from one bounded InChI line.
     pub fn inchi_to_inchi_key(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
         self.call_required(self.inchi_to_inchi_key, "inchi_to_inchi_key", input)
+    }
+
+    /// Calculates isotope-aware composition for one complete graph request.
+    pub fn molecule_composition(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
+        self.call_required(self.molecule_composition, "molecule_composition", input)
     }
 
     fn call_required(

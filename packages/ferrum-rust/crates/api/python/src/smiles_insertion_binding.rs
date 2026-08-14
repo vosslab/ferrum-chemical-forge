@@ -98,7 +98,7 @@ pub(crate) fn prepare_smiles_molecule_v1(
     }
 }
 
-fn map_build_error(
+pub(crate) fn map_build_error(
     py: Python<'_>,
     library_path: &std::path::Path,
     error: SmilesMoleculeBuildError,

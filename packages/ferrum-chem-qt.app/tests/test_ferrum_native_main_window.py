@@ -97,30 +97,33 @@ def _empty_viewport_point(
 #============================================
 def test_public_native_window_routes_cdml_to_rust_without_a_legacy_session(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""The standalone window reaches its native controller, not a fallback base."""
 	del qapp
 	source = tmp_path / "source.cdml"
 	source.write_text("<cdml/>", encoding="utf-8")
 	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	called = []
-	warnings = []
+	loop = PySide6.QtCore.QEventLoop()
+	outcomes = []
 
-	def create_tab(cdml: str, title: str) -> object:
-		"""Record that the public host delegated the complete source to Rust tab creation."""
-		called.append((cdml, title))
-		raise RuntimeError("fixture stops before requiring the installed wheel")
+	def finish(success: bool) -> None:
+		"""Capture the complete admission result and stop the local event loop."""
+		outcomes.append(success)
+		loop.quit()
 
-	monkeypatch.setattr(window, "_create_native_tab", create_tab)
-	monkeypatch.setattr(
-		window, "_show_native_file_warning",
-		lambda title, message: warnings.append((title, message)),
-	)
-	assert not window.open_file_path(str(source))
-	assert called == [("<cdml/>", source.name)]
-	assert warnings[-1][0] == "File Read Error"
-	window.deleteLater()
+	window.local_cdml_open_queue_drained.connect(finish)
+	try:
+		assert window.open_file_path(str(source))
+		loop.exec()
+		tab_widget = window.centralWidget()
+		assert outcomes == [True] and isinstance(tab_widget, PySide6.QtWidgets.QTabWidget)
+		tab = tab_widget.currentWidget()
+		assert isinstance(
+			tab, ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+		)
+		assert tab.file_path == source and not tab.current_snapshot.is_dirty
+	finally:
+		window.close()
 
 
 #============================================

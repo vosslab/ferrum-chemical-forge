@@ -125,6 +125,9 @@ pub enum MoleculeCoordinateBuildError {
     /// The chemistry graph cannot silently discard a typed non-atom vertex.
     #[error("coordinate generation does not yet support {count} {kind} vertices")]
     UnsupportedVertex { kind: &'static str, count: usize },
+    /// The retained graph unexpectedly repeated an atom identity.
+    #[error("atom {atom_index} repeats an earlier durable identity")]
+    DuplicateAtomIdentity { atom_index: usize },
     /// An atom omitted its required chemical element.
     #[error("atom {atom_index} has no element for coordinate generation")]
     MissingElement { atom_index: usize },
@@ -169,6 +172,9 @@ pub enum MoleculeCoordinateBuildError {
     /// The complete update rejected its own shape.
     #[error(transparent)]
     Update(#[from] MoleculeCoordinateUpdateV1Error),
+    /// Exact owned graph conversion storage could not be allocated.
+    #[error("coordinate-generation graph could not reserve owned storage")]
+    ResourceAllocation,
 }
 
 impl From<DocumentMoleculeGraphError> for MoleculeCoordinateBuildError {
@@ -177,6 +183,9 @@ impl From<DocumentMoleculeGraphError> for MoleculeCoordinateBuildError {
             DocumentMoleculeGraphError::EmptyMolecule => Self::EmptyMolecule,
             DocumentMoleculeGraphError::UnsupportedVertex { kind, count } => {
                 Self::UnsupportedVertex { kind, count }
+            }
+            DocumentMoleculeGraphError::DuplicateAtomIdentity { atom_index } => {
+                Self::DuplicateAtomIdentity { atom_index }
             }
             DocumentMoleculeGraphError::MissingElement { atom_index } => {
                 Self::MissingElement { atom_index }
@@ -203,6 +212,7 @@ impl From<DocumentMoleculeGraphError> for MoleculeCoordinateBuildError {
                 Self::UnsupportedBondOrder { bond_index }
             }
             DocumentMoleculeGraphError::Graph(source) => Self::Graph(source),
+            DocumentMoleculeGraphError::ResourceAllocation => Self::ResourceAllocation,
         }
     }
 }

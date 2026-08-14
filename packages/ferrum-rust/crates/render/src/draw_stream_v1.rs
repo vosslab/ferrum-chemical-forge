@@ -13,12 +13,14 @@ use crate::authored_direct_glycosidic_haworth::{
     AuthoredDirectGlycosidicHaworthDrawOpV1, AuthoredDirectGlycosidicHaworthRenderPlanV1,
 };
 use crate::direct_glycosidic_haworth::DirectGlycosidicHaworthPathCommandV1;
+use crate::draw_stream_molecule_v1::{lower_molecule_batch, lower_molecule_plan};
+use crate::verified_telex_glyph_metrics::is_verified_outlineless_whitespace_glyph;
 use crate::{
     BatchSpace, DocumentRenderContentV1, DocumentRenderOutcomeV1, DocumentRenderPlanV1,
-    DocumentTextLayoutV1, DocumentTextOpV1, DocumentVectorOpV1, DocumentVectorRootV1, EllipseOp,
-    FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, LineOp, MaskOp, MoleculeRenderPlan,
-    Paint, PathCommandV1, PositiveFinite, PresentationGlyphRun, PresentationTextOp, RenderOp,
-    RenderPoint, RenderViewportV1, StrokeV1, TextOp, TextRun, VectorFillRuleV1,
+    DocumentTextLayoutV1, DocumentTextOpV1, DocumentVectorOpV1, DocumentVectorRootV1,
+    FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, MoleculeRenderPlan, Paint,
+    PathCommandV1, PositiveFinite, PresentationGlyphRun, PresentationTextOp, RenderPoint,
+    RenderTarget, RenderViewportV1, StrokeV1, TextOp, TextRun, VectorFillRuleV1,
     VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
 };
 
@@ -28,13 +30,38 @@ pub(crate) trait DrawSinkV1 {
 
     fn begin_page(&mut self, page: RenderViewportV1) -> Result<(), Self::Error>;
     fn begin_root(&mut self, source_order: u32, identity: &str) -> Result<(), Self::Error>;
+    fn begin_root_with_kind(
+        &mut self,
+        source_order: u32,
+        identity: &str,
+        _: DrawRootKindV1,
+    ) -> Result<(), Self::Error> {
+        self.begin_root(source_order, identity)
+    }
     fn end_root(&mut self) -> Result<(), Self::Error>;
     fn begin_molecule_batch(
         &mut self,
         source_order: u32,
         space: BatchSpace,
     ) -> Result<(), Self::Error>;
+    fn begin_molecule_target_group(
+        &mut self,
+        target: &RenderTarget,
+        space: BatchSpace,
+    ) -> Result<(), Self::Error> {
+        self.begin_molecule_batch(target.source_order(), space)
+    }
     fn end_molecule_batch(&mut self) -> Result<(), Self::Error>;
+    fn begin_direct_target_group(
+        &mut self,
+        _: &ferrum_core::RecordId,
+        _: u32,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn end_direct_target_group(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn begin_document_text(&mut self) -> Result<(), Self::Error>;
     fn end_document_text(&mut self) -> Result<(), Self::Error>;
     fn begin_text_operation(&mut self, z: i32, paint: &Paint) -> Result<(), Self::Error>;
@@ -61,6 +88,22 @@ pub(crate) trait DrawSinkV1 {
         metadata: DrawMetadataV1,
     ) -> Result<(), Self::Error>;
     fn finish_page(&mut self) -> Result<(), Self::Error>;
+}
+
+/// Private source context issued only by document-plan lowering.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DrawRootKindV1 {
+    Molecule,
+    Text,
+    Vector,
+}
+
+fn root_kind(content: &DocumentRenderContentV1) -> DrawRootKindV1 {
+    match content {
+        DocumentRenderContentV1::Molecule(_) => DrawRootKindV1::Molecule,
+        DocumentRenderContentV1::Text(_) => DrawRootKindV1::Text,
+        DocumentRenderContentV1::Vector(_) => DrawRootKindV1::Vector,
+    }
 }
 
 /// A finite rectangle whose extent is positive.
@@ -186,8 +229,12 @@ pub(crate) fn lower_document_plan_to_sink_v1<S: DrawSinkV1>(
         let DocumentRenderOutcomeV1::Root(root) = outcome else {
             continue;
         };
-        sink.begin_root(root.source_order(), root.identity().as_str())
-            .map_err(DrawStreamErrorV1::Sink)?;
+        sink.begin_root_with_kind(
+            root.source_order(),
+            root.identity().as_str(),
+            root_kind(root.content()),
+        )
+        .map_err(DrawStreamErrorV1::Sink)?;
         match root.content() {
             DocumentRenderContentV1::Molecule(plan) => lower_molecule_plan(plan, &face, sink)?,
             DocumentRenderContentV1::Text(text) => lower_document_text(text, &face, sink)?,
@@ -236,8 +283,12 @@ pub(crate) fn lower_document_render_composite_to_sink_v1<S: DrawSinkV1>(
         let DocumentRenderOutcomeV1::Root(root) = outcome else {
             continue;
         };
-        sink.begin_root(root.source_order(), root.identity().as_str())
-            .map_err(DrawStreamErrorV1::Sink)?;
+        sink.begin_root_with_kind(
+            root.source_order(),
+            root.identity().as_str(),
+            root_kind(root.content()),
+        )
+        .map_err(DrawStreamErrorV1::Sink)?;
         if root.identity() == replacement.root_identity()
             && root.source_order() == replacement.root_order()
         {
@@ -331,6 +382,8 @@ fn lower_authored_direct_operations_to_sink_v1<S: DrawSinkV1>(
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
     for operation in plan.operations() {
+        sink.begin_direct_target_group(operation.bond(), operation.authored_child_order())
+            .map_err(DrawStreamErrorV1::Sink)?;
         match operation {
             AuthoredDirectGlycosidicHaworthDrawOpV1::OrdinaryLine {
                 endpoints, width, ..
@@ -374,6 +427,8 @@ fn lower_authored_direct_operations_to_sink_v1<S: DrawSinkV1>(
                 .map_err(DrawStreamErrorV1::Sink)?;
             }
         }
+        sink.end_direct_target_group()
+            .map_err(DrawStreamErrorV1::Sink)?;
     }
     Ok(())
 }
@@ -426,128 +481,6 @@ pub(crate) fn direct_command(command: DirectGlycosidicHaworthPathCommandV1) -> D
         },
         DirectGlycosidicHaworthPathCommandV1::Close => DrawPathCommandV1::Close,
     }
-}
-
-fn lower_molecule_plan<S: DrawSinkV1>(
-    plan: &MoleculeRenderPlan,
-    face: &Face<'_>,
-    sink: &mut S,
-) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    for batch in plan.batches() {
-        lower_molecule_batch(batch, face, sink)?;
-    }
-    Ok(())
-}
-
-fn lower_molecule_batch<S: DrawSinkV1>(
-    batch: &crate::RenderBatch,
-    face: &Face<'_>,
-    sink: &mut S,
-) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    sink.begin_molecule_batch(
-        batch.target().source_order(),
-        batch.coordinate_space().clone(),
-    )
-    .map_err(DrawStreamErrorV1::Sink)?;
-    if let BatchSpace::AtomLocal { anchor } = batch.coordinate_space() {
-        scoped_translate(*anchor, sink, |sink| {
-            lower_molecule_operations(batch.operations(), face, sink)
-        })?;
-    } else {
-        lower_molecule_operations(batch.operations(), face, sink)?;
-    }
-    sink.end_molecule_batch().map_err(DrawStreamErrorV1::Sink)?;
-    Ok(())
-}
-
-fn lower_molecule_operations<S: DrawSinkV1>(
-    operations: &[RenderOp],
-    face: &Face<'_>,
-    sink: &mut S,
-) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    for operation in operations {
-        match operation {
-            RenderOp::Line(line) => lower_line(line, sink)?,
-            RenderOp::Mask(mask) => lower_mask(mask, sink)?,
-            RenderOp::Ellipse(ellipse) => lower_ellipse(ellipse, sink)?,
-            RenderOp::Text(text) => lower_text(text, face, sink)?,
-        }
-    }
-    Ok(())
-}
-
-fn lower_line<S: DrawSinkV1>(
-    line: &LineOp,
-    sink: &mut S,
-) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    let path = DrawPathV1 {
-        commands: vec![
-            DrawPathCommandV1::MoveTo(line.start()),
-            DrawPathCommandV1::LineTo(line.end()),
-        ],
-    };
-    sink.draw_path(
-        &path,
-        DrawStyleV1 {
-            fill: None,
-            stroke: Some(DrawStrokeV1 {
-                paint: line.paint(),
-                width: line.width(),
-                line_cap: DrawLineCapV1::Butt,
-                line_join: VectorStrokeLineJoinV1::v1(),
-                miter_limit: VectorStrokeLineJoinV1::v1().miter_limit(),
-            }),
-            fill_rule: None,
-        },
-        DrawMetadataV1::MoleculeLine { z: line.z() },
-    )
-    .map_err(DrawStreamErrorV1::Sink)
-}
-
-fn lower_mask<S: DrawSinkV1>(
-    mask: &MaskOp,
-    sink: &mut S,
-) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    sink.fill_rect(
-        DrawRectV1 {
-            origin: mask.origin(),
-            width: mask.width(),
-            height: mask.height(),
-        },
-        mask.paint(),
-        DrawMetadataV1::MoleculeMask { z: mask.z() },
-    )
-    .map_err(DrawStreamErrorV1::Sink)
-}
-
-fn lower_ellipse<S: DrawSinkV1>(
-    ellipse: &EllipseOp,
-    sink: &mut S,
-) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    sink.draw_ellipse(
-        DrawEllipseV1 {
-            center: ellipse.center(),
-            radius_x: ellipse.radius_x(),
-            radius_y: ellipse.radius_y(),
-            rotation_degrees: ellipse.rotation_degrees(),
-        },
-        DrawStyleV1 {
-            fill: ellipse.fill_paint(),
-            stroke: ellipse
-                .stroke_paint()
-                .zip(ellipse.stroke_width())
-                .map(|(paint, width)| DrawStrokeV1 {
-                    paint,
-                    width,
-                    line_cap: DrawLineCapV1::Butt,
-                    line_join: VectorStrokeLineJoinV1::v1(),
-                    miter_limit: VectorStrokeLineJoinV1::v1().miter_limit(),
-                }),
-            fill_rule: None,
-        },
-        DrawMetadataV1::MoleculeEllipse { z: ellipse.z() },
-    )
-    .map_err(DrawStreamErrorV1::Sink)
 }
 
 fn lower_document_text<S: DrawSinkV1>(
@@ -665,7 +598,7 @@ fn vector_style<'a>(
     }
 }
 
-fn lower_text<S: DrawSinkV1>(
+pub(crate) fn lower_text<S: DrawSinkV1>(
     text: &TextOp,
     face: &Face<'_>,
     sink: &mut S,
@@ -686,7 +619,7 @@ fn lower_presentation_text<S: DrawSinkV1>(
     face: &Face<'_>,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    lower_text_runs(
+    lower_presentation_text_runs(
         text.z(),
         text.paint(),
         text.size().get(),
@@ -704,18 +637,6 @@ trait TextRunV1 {
 }
 
 impl TextRunV1 for TextRun {
-    fn origin(&self) -> RenderPoint {
-        self.origin()
-    }
-    fn scale(&self) -> f64 {
-        self.scale().get()
-    }
-    fn glyphs(&self) -> &[GlyphPlacement] {
-        self.glyphs()
-    }
-}
-
-impl TextRunV1 for PresentationGlyphRun {
     fn origin(&self) -> RenderPoint {
         self.origin()
     }
@@ -787,7 +708,68 @@ fn lower_text_runs<S: DrawSinkV1, R: TextRunV1>(
     sink.end_text_operation().map_err(DrawStreamErrorV1::Sink)
 }
 
-fn scoped_translate<S: DrawSinkV1, F>(
+fn lower_presentation_text_runs<S: DrawSinkV1>(
+    z: i32,
+    paint: &Paint,
+    size: f64,
+    operation_origin: RenderPoint,
+    runs: &[PresentationGlyphRun],
+    face: &Face<'_>,
+    sink: &mut S,
+) -> Result<(), DrawStreamErrorV1<S::Error>> {
+    let units_per_em = f64::from(face.units_per_em());
+    if !units_per_em.is_finite() || units_per_em <= 0.0 {
+        return Err(DrawStreamErrorV1::Font(
+            "Telex units-per-em is invalid".to_owned(),
+        ));
+    }
+    sink.begin_text_operation(z, paint)
+        .map_err(DrawStreamErrorV1::Sink)?;
+    for run in runs {
+        let run_origin = add_points(operation_origin, run.origin())?;
+        let multiplier = checked_product(size, run.scale().get())? / units_per_em;
+        if !multiplier.is_finite() || multiplier <= 0.0 {
+            return Err(DrawStreamErrorV1::NonFiniteGeometry);
+        }
+        for (scalar, glyph) in run.text().chars().zip(run.glyphs()) {
+            let origin = add_points(run_origin, glyph.origin())?;
+            let mut builder = OutlinePathBuilder::new(origin, multiplier);
+            let glyph_id = u16::try_from(glyph.glyph_index()).map_err(|_| {
+                DrawStreamErrorV1::MissingGlyphOutline {
+                    glyph_index: glyph.glyph_index(),
+                }
+            })?;
+            let outlined = face.outline_glyph(GlyphId(glyph_id), &mut builder);
+            if let Some(error) = builder.error.take() {
+                return Err(error);
+            }
+            if outlined.is_none() || !builder.segments {
+                if is_verified_outlineless_whitespace_glyph(face, scalar, glyph.glyph_index()) {
+                    continue;
+                }
+                return Err(DrawStreamErrorV1::MissingGlyphOutline {
+                    glyph_index: glyph.glyph_index(),
+                });
+            }
+            let path = DrawPathV1 {
+                commands: builder.commands,
+            };
+            sink.draw_path(
+                &path,
+                DrawStyleV1 {
+                    fill: Some(paint),
+                    stroke: None,
+                    fill_rule: None,
+                },
+                DrawMetadataV1::MoleculeText { z },
+            )
+            .map_err(DrawStreamErrorV1::Sink)?;
+        }
+    }
+    sink.end_text_operation().map_err(DrawStreamErrorV1::Sink)
+}
+
+pub(crate) fn scoped_translate<S: DrawSinkV1, F>(
     anchor: RenderPoint,
     sink: &mut S,
     lower: F,

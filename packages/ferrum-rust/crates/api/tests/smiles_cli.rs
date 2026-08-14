@@ -30,6 +30,18 @@ fn smiles_to_smarts_requires_an_explicit_adapter_option() {
 }
 
 #[test]
+fn smiles_canonicalize_requires_an_explicit_adapter_option() {
+    let output = Command::new(env!("CARGO_BIN_EXE_ferrum"))
+        .args(["smiles", "canonicalize", "C(C)O"])
+        .output()
+        .expect("run ferrum CLI");
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--adapter"));
+}
+
+#[test]
 fn smiles_to_molblock_requires_adapter_and_explicit_format() {
     let missing_adapter = Command::new(env!("CARGO_BIN_EXE_ferrum"))
         .args(["smiles", "to-molblock", "--format", "v2000", "CCO"])
@@ -129,6 +141,24 @@ fn smiles_to_smarts_rejects_relative_adapter_before_loading() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("adapter path must be absolute"));
 }
 
+#[test]
+fn smiles_canonicalize_rejects_relative_adapter_before_loading() {
+    let output = Command::new(env!("CARGO_BIN_EXE_ferrum"))
+        .args([
+            "smiles",
+            "canonicalize",
+            "--adapter",
+            "adapter.dylib",
+            "C(C)O",
+        ])
+        .output()
+        .expect("run ferrum CLI");
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("adapter path must be absolute"));
+}
+
 #[cfg(unix)]
 #[test]
 fn smiles_inspect_rejects_a_symbolic_link_adapter_before_loading() {
@@ -192,6 +222,21 @@ fn smiles_commands_verified_adapter_e2e_cover_inspection_smarts_molblocks_and_sd
     assert_eq!(report["bonds"][0]["order"], "single");
     assert_eq!(report["bonds"][0]["stereo"], "none");
     assert_eq!(report["bonds"][0]["direction"], "none");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_ferrum"))
+        .args([
+            "smiles",
+            "canonicalize",
+            "--adapter",
+            adapter.to_str().expect("adapter path is UTF-8"),
+            "C(C)O",
+        ])
+        .output()
+        .expect("run ferrum CLI");
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert_eq!(output.stdout, b"CCO\n");
 
     let output = Command::new(env!("CARGO_BIN_EXE_ferrum"))
         .args([

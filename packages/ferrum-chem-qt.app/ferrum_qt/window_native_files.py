@@ -53,7 +53,7 @@ class WindowNativeFileMixin:
 
 	#============================================
 	def _open_native_cdml(self, absolute_path: str, replace_current: bool) -> bool:
-		"""Load one complete UTF-8 CDML source into a fresh Rust-owned page."""
+		"""Load one local CDML file through Rust's named V1 resource profile."""
 		existing = self._native_tab_for_path(absolute_path)
 		if existing is not None:
 			self._tab_widget.setCurrentIndex(self._tab_widget.indexOf(existing))
@@ -66,9 +66,10 @@ class WindowNativeFileMixin:
 			)
 			return False
 		try:
-			with open(absolute_path, encoding="utf-8") as source:
-				cdml = source.read()
-			tab = self._create_native_tab(cdml, pathlib.Path(absolute_path).name)
+			admission = self._prepare_local_cdml_admission(absolute_path)
+			tab = self._create_native_tab_from_admission(
+				admission, pathlib.Path(absolute_path).name,
+			)
 			tab._adopt_loaded_origin_path(absolute_path)
 		except Exception as exc:
 			self._show_native_file_warning(
@@ -87,12 +88,23 @@ class WindowNativeFileMixin:
 		return True
 
 	#============================================
-	def _create_native_tab(
-			self, cdml: str, title: str,
+	def _prepare_local_cdml_admission(self, absolute_path: str) -> tuple[object, object]:
+		"""Synchronously consume one complete compatibility-host admission."""
+		import ferrum_chem
+		prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(absolute_path)
+		return prepared.take_admission_v1()
+
+	#============================================
+	def _create_native_tab_from_admission(
+			self, admission: tuple[object, object], title: str,
 			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-		"""Create the sole production native CDML page type."""
-		return ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
-			cdml, title,
+		"""Create the sole native page type without repeating Rust observation."""
+		session, observation = admission
+		return (
+			ferrum_qt.native.ferrum_native_document_tab.
+			FerrumNativeDocumentTab.from_admitted_local_open(
+				session, title, observation,
+			)
 		)
 
 	#============================================

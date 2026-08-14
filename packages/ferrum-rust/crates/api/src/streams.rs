@@ -104,7 +104,7 @@ pub(crate) fn write_rewrite(
     Ok(())
 }
 
-fn is_standard_stream(path: &Path) -> bool {
+pub(crate) fn is_standard_stream(path: &Path) -> bool {
     path == Path::new("-")
 }
 

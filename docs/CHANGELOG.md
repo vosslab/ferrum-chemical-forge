@@ -1,6 +1,306 @@
-## 2026-08-13
+## 2026-08-14
+
+### Documentation
+
+- Added a repository-local account-switch handoff for the active migration run, including accepted
+  linear-form layers, the unaccepted PyO3 checkpoint, fixed architecture decisions, and the exact
+  restart sequence. This records status only and does not claim M15, M16, M17, or M18 completion.
+
+- Reconciled current Ferrum identity documentation: ordinary `ferrum-qt` is native first,
+  QSettings use `Ferrum` / `Ferrum-Qt`, and templates use `~/.ferrum/templates` without a
+  legacy BKChem migration or compatibility promise. Historical provenance and internal
+  compatibility identifiers remain distinct from product identity.
 
 ### Additions and New Features
+
+- Added provisional `ferrum cdml render {svg,pdf,png}` commands under one
+  extensible render namespace rather than a format-specific `render-svg` verb.
+  The command admits only uncompressed CDML through the versioned Rust-owned
+  `ferrum-local-cdml-ingress-v1` five-dimensional resource profile, observes
+  revision zero, composes one shared authenticated complete-page plan, refuses
+  any root exclusion, and lowers through the selected native sink. SVG enforces
+  a completed-text cap; direct vector PDF performs structural preflight and a
+  completed-output check; direct raster PNG requires exact dimensions and an
+  explicit background, then checks raw RGBA allocation and encoded output.
+  File input retains the exact opened regular descriptor through the shared
+  descriptor-relative publisher, so the source path or an observed hard-link
+  alias cannot become the artifact destination. Directory-entry-unconfirmed
+  publication succeeds with an explicit standard-error warning rather than
+  silently discarding the publisher receipt. Standard streams remain bounded
+  through `-`. PDF is not SVG embedded in a PDF container. Each backend owns a
+  versioned format-specific resource policy, while all three share input,
+  complete-plan admission, and safe publication. The local policy decision is
+  recorded in `active_plans/reports/local_cdml_render_profile_v1.md`.
+  The ordinary OASA-free Ferrum window now uses that same named profile for
+  interactive, programmatic, and launch-file Open. A private pre-M18 PyO3
+  receipt transfers one Rust-owned session plus its authenticated render
+  observation exactly once from an asynchronous worker; Python never reads the
+  file, chooses numeric limits, or reparses it. Open queues multiple launch
+  paths, invalidates delivery on cancellation/close without claiming native
+  preemption, verifies the session/observation pair before scene installation,
+  and reports typed source, resource, text, and document failures without an
+  OASA fallback. The compatibility host also consumes the same complete receipt
+  instead of repeating observation. CD-SVG, compression, same-tab replacement,
+  recent-file routing, wire, stable Python, and a frozen public CLI promise
+  remain outside this slice.
+
+- Added ordinary OASA-free `Chemistry -> Export Molfile V2000...` and `Export
+  Molfile V3000...` for selected atoms or bonds that resolve globally to one
+  durable direct-root molecule. Rust authenticates the immutable observation,
+  rejects graph facts the native codec cannot preserve before adapter loading,
+  and converts CDML/Qt downward-positive y coordinates to the chemistry and
+  Molfile upward-positive convention. The immutable receipt retains revision,
+  digest, root, explicit syntax, coordinate profile, and the exact native writer
+  result; the descriptor-relative artifact publisher writes those bytes without
+  path adoption or document mutation. The private PyO3 seam and cancellable Qt
+  worker reauthenticate tab, selection, provenance, syntax, and receipt before
+  publication. An additional optional ABI-4 capability now carries an authored
+  UTF-8 molecule name into the native RDKit writer before serialization, so
+  V2000 and V3000 retain that exact first title line without text
+  postprocessing. Unnamed molecules continue through the older Molfile
+  capability; older ABI-4 adapters remain loadable and report only the optional
+  title operation unavailable. This adds no SDF, CLI, wire, stable Python,
+  stereo inference, compatibility-host replacement, or OASA fallback.
+
+- Added ordinary OASA-free `Chemistry -> Export SDF Record V2000...` and
+  `Export SDF Record V3000...` for one selected durable direct-root molecule.
+  Rust authenticates the immutable observation, recovers exact imported SDF
+  metadata from the retained typed document, and preserves blank or exact
+  titles plus ordered duplicate properties. For an ordinary molecule without
+  imported metadata, its authored name becomes the title or the title remains
+  blank. The native adapter writes only the titled structural Molfile; Rust
+  owns the stable one-record SDF envelope, property blocks, and `$$$$`
+  terminator. Ambiguous property names or values are rejected rather than
+  serialized lossily. The private PyO3 seam and cancellable Qt worker retain
+  revision, digest, root, syntax, selection, and publication fences, and the
+  descriptor-relative publisher writes the exact frozen receipt without
+  adopting the path or mutating the document. This adds no multi-record export,
+  public CLI/wire/stable Python contract, compatibility-host replacement, or
+  OASA fallback.
+
+- Added ordinary OASA-free `Edit -> Document Drawing Defaults...` for the seven
+  document defaults the current Ferrum renderer consumes: line width, atom-label
+  size, line/text color, label background, multiple-bond spacing, wedge width,
+  and heteroatom-hydrogen visibility. Rust now owns one unique-field atomic
+  drawing-standard patch, creation of an absent canonical `<standard>`, exact
+  opaque-content preservation, history, save/reopen behavior, and projection of
+  the retained `standard/bond@double-ratio` fact. The private PyO3 and Qt layers
+  expose no generic XML or mapping mutation and preserve current selection while
+  reinstalling the accepted render observation. Authored font-family mutation and
+  double-ratio editing remain outside the ordinary action until the verified-font
+  and double-bond render profiles can honor them; personal defaults and applying
+  overrides to existing objects also remain open M16 work.
+
+- Added ordinary OASA-free `Edit -> Copy` for the current Rust-native selection.
+  A same-molecule atom/bond selection becomes one connected structural fragment;
+  selected bonds close over both endpoints, while complete-root metadata stays out
+  of that partial fragment. Mixed presentation/structure or multiple-molecule
+  selections instead copy complete selected direct roots in document order. Rust
+  authenticates the immutable document observation and returns source-bounded
+  normalized CDML. A private runtime PyO3 seam and cancellable Qt worker preserve
+  revision, digest, tab, selection, and close fences before publishing both the
+  Ferrum CDML MIME type and plain text with the retained ownership marker. Failure,
+  cancellation, or stale delivery leaves the clipboard and document unchanged.
+  Native Cut, Paste, selected-SVG copy, CLI, wire, and stable Python remain open.
+
+- Added ordinary OASA-free `Options -> Theme` to the native-first product
+  window. It reuses the retained Ferrum theme chooser and application-owned
+  `ThemeManager`; an accepted different theme applies immediately, while cancel
+  or reselecting the current theme is a no-op. This does not expose legacy grid,
+  drawing-default, shortcut-preference, canvas, toolbar, or session ownership.
+  The same ordinary lifecycle now saves window geometry only after every native
+  tab actually retires; startup already restores that exact Ferrum preference,
+  while a refused dirty or busy close does not publish a completed shutdown.
+
+- Added retained mouse-wheel and keyboard zoom to ordinary Rust-native document tabs. A
+  tab-owned `QGraphicsView` subclass applies the existing 1.15-per-notch
+  behavior within the retained 10%-1000% display range, preserves the scene
+  point under the cursor when scroll ranges permit it, and refreshes the
+  existing percentage/status client. The existing View actions now own their
+  retained `Ctrl++`, `Ctrl+-`, and `Ctrl+0` accelerators. Unsupported transforms
+  refuse the wheel change. These inputs remain disposable display state:
+  document, session, history, selection, scene ownership, Rust, PyO3, wire, and
+  OASA behavior do not change.
+
+- Added ordinary OASA-free `Export Standard InChI File...` and `Export Fixed-H
+  InChI File...`. Rust now returns the existing exact-observation identifier as
+  one owned receipt after proving the selected projection root before core graph
+  lookup. The private binding retains that receipt, maps invalid Python text into
+  the typed InChI error contract, and publishes exactly one newline-terminated
+  `.inchi` record through the descriptor-relative Rust artifact writer. Qt
+  freezes the chosen root and tab provenance across the destination dialog,
+  reauthenticates the delivered receipt, and reports confirmed, unconfirmed,
+  rejected, not-started, and possibly-completed outcomes distinctly. The actions
+  never adopt the path, change the clipboard, or mutate document state. Existing
+  clipboard export and the public InChI DTO/stub contract remain unchanged; the
+  file publisher stays runtime-private with no CLI, wire, or OASA fallback.
+
+- Added provisional `ferrum smiles canonicalize --adapter LIBRARY SMILES` so the
+  runnable Rust CLI can parse and re-emit one complete graph through the same
+  optional canonical-isomeric ABI-4 writer used by native document export. It
+  writes exactly one printable SMILES line, requires an explicit safe adapter
+  path, and never falls back to OASA or adapter discovery. M17/M18 still own the
+  frozen CLI contract.
+
+- Added ordinary OASA-free `Chemistry -> Export SMILES` and `Export SMILES
+  File...` for selected atoms or bonds that resolve globally to exactly one
+  durable direct-root molecule. Rust
+  authenticates the frozen document observation and root before resolving native
+  code, converts only the complete supported graph, and uses an optional ABI-4
+  RDKit writer capability with the closed canonical-isomeric profile. The immutable
+  receipt retains exact revision, digest, root, schema, profile, and one printable
+  ASCII SMILES line. Qt shares the existing molecule-export worker owner with
+  InChI, reauthenticates the active tab, selection, revision, digest, and receipt
+  before copying the result, and shows selectable text; stale, switched, cancelled,
+  and unsupported drawing-style outcomes never reach the clipboard. The file action
+  reauthenticates the same selection after its destination dialog, then gives the
+  immutable receipt to the Rust descriptor-relative artifact publisher. It writes
+  exactly one newline-terminated `.smi` record through a private 0600 temporary,
+  reports confirmed, unconfirmed, rejected, not-started, and possibly-completed
+  outcomes distinctly, and never adopts the path or changes document state. Older ABI-4
+  adapters remain loadable and report the optional operation unavailable. The
+  runtime-only PyO3 seams stay absent from `.pyi`; this adds no CLI, wire, public
+  Python, depiction-stereo inference, multi-record `.smi`, or OASA fallback.
+
+- Added ordinary OASA-free `Chemistry -> Set Molecule Name...` for one direct
+  durable molecule selected through any of its atoms or bonds. Qt resolves the
+  complete literal child selection to exactly one root and fences the prompt
+  against tab, revision, digest, root, and selection changes. Rust authenticates
+  that opaque direct root and commits the exact entered text as one transaction;
+  whitespace is retained, empty input removes the attribute, and an unchanged
+  value adds no history or display refresh. Opaque content, Undo/Redo, Save, and
+  reopen remain authoritative. The private runtime PyO3 method stays absent from
+  `.pyi`; this adds no generated-name, normalization, OASA fallback, CLI, wire,
+  or stable Python contract.
+
+- Completed the native `Chemistry -> Molecule Information...` vertical for one
+  or more selected durable atoms or bonds. An optional ABI-4 capability calculates
+  isotope- and charge-aware formula, nonduplicating implicit/physical hydrogen
+  counts, net charge, average molecular weight, exact mass, and element mass
+  contributions with the sealed RDKit engine. Rust authenticates the exact
+  observation and direct roots, freezes every graph before adapter use, and returns
+  all-or-nothing records in document order plus a checked combined selection. The
+  private runtime-only PyO3 seam remains absent from `.pyi`; the ordinary OASA-free
+  window owns cancellable worker and stale/close delivery fences and displays a
+  selectable, accessible read-only dialog. A fresh RDKit 2026.03.5 wheel and its
+  independently rebuilt ABI-4 adapter passed installed-extension, Qt, closure, and
+  relink checks; its direct native proof also fixes RDKit's non-obvious ordering
+  of multiple labelled non-carbon isotopes. Existing ABI-4 adapters remain
+  loadable and report the optional
+  operation unavailable. This adds no mutation, OASA fallback, CLI, wire, or stable
+  Python contract.
+
+- Added compact native status-bar View controls as accessible clients of the
+  existing OASA-free View actions. The visible `-`, current percentage/reset,
+  `+`, Page, and Content buttons preserve active-tab display ownership, mirror
+  action availability, and show `--` only when display observation is unavailable.
+  Percentage observation accepts only exact finite uniform affine transforms;
+  it never changes a transform. The reset button remains a keyboard recovery
+  action for an unsupported observed transform. This adds no legacy slider,
+  wheel or shortcut behavior, document/session/history mutation, Rust, PyO3,
+  wire, CDML, backend, or OASA route.
+
+- Added native `File -> Recovery Export Backend CDML...` for an exact current
+  Rust backend snapshot. The action stays reachable for a live registered tab
+  while its display is pending or native work is busy, freezes tab/revision/digest
+  before the destination dialog, and reauthenticates all three before calling the
+  existing revision-gated recovery publisher. Both returned snapshot provenances
+  must match before feedback. This export never adopts a path, saves, cleans,
+  retitles, changes history or selection, refreshes a scene, or changes worker
+  state; confirmed, unconfirmed, rejected, not-started, and possibly-completed
+  outcomes remain truthfully distinct. No Rust, PyO3, wire, CLI, ingress, or OASA
+  route was added.
+
+- Added Rust-only `ferrum_document::artifact_publication_v1`, a generic completed-owned-byte,
+  descriptor-relative publisher. An optional retained live regular-source guard refuses
+  aliases observed at both final checks only in a trusted, non-mutating destination directory.
+  It retains no-follow parent descriptors, creates a private 0600 same-directory temporary,
+  writes and file-syncs it, renames it, then directory-syncs it. Its explicit taxonomy
+  distinguishes confirmed durability, directory-entry-unconfirmed durability, and
+  possibly-published post-rename failure, plus destination-rejection and I/O cleanup
+  uncertainty. The existing CDML save route remains an exact adapter, preserving session
+  errors and saved-baseline behavior. The generic surface adds no CLI, public Python,
+  wire, renderer, ingress, stdout, size-limit, or old-metadata-preservation policy;
+  the private M16 `.smi` adapter now consumes it only for an authenticated completed
+  SMILES receipt. The later local-CDML V1 policy and native SVG command compose this
+  publisher explicitly; the generic publisher itself still chooses no format or
+  resource policy.
+
+- Added the ordinary OASA-free native View menu: Zoom In, Zoom Out, Zoom to
+  100%, Zoom to Page, and Zoom to Content. Paper framing uses the renderer's
+  authoritative scene rectangle; content framing unions installed projection
+  roots while excluding the exact paper root. Each Rust-owned tab retains its
+  own transform and scroll position. One guarded, retryable initial Page frame
+  runs only after a live tab/view/scene passes window, registration, current-tab,
+  visibility, and teardown fences. The display-only controls remain available
+  while chemistry or rendering is busy and never mutate document, session,
+  selection, or scene ownership. This does not adopt legacy `WindowViewMixin` or
+  `ChemView`, toolbar/status zoom widgets, mouse-wheel semantics, or a
+  pixel/timing gate.
+
+### Fixes and Maintenance
+
+- Restored `RDK_BUILD_THREADSAFE_SSS=ON` to the immutable native-wheel profile and
+  preflight validator. The plan and resolved CMake audit already required this fact;
+  making it explicit restores exact agreement with the sealed-input manifest instead
+  of relying on RDKit's upstream default.
+
+- Fixed verified Telex presentation whitespace to retain its authored advance while
+  lowering as an outline-free paint across the private draw stream and SVG, PNG,
+  PDF, and composite sinks. Every visible or mismatched scalar still requires its
+  exact usable outline; no public DTO, wire, Python, Qt, or API surface changed.
+
+## 2026-08-13
+
+- Added the ordinary native `Chemistry -> Inspect Selected Molecule` slice. For
+  exactly one selected durable atom or bond, Qt maps the literal child source ID
+  and source order to exactly one direct-root opaque molecule ID, then sends its
+  frozen observation to Rust on a cancellable worker. Delivery authenticates the
+  worker/tab lifecycle, revision, digest, root ID, projection key, root source ID,
+  and root order before a read-only dialog reports only source-backed authored
+  name, source ID, atom and bond counts, lexical element inventory, complete-only
+  formal charge, and normalized x/y bounds in points. Element inventory is not a
+  formula. The private discoverable PyO3 entry remains unsupported and absent from
+  the `.pyi`; this adds no molecular formula, mass, valence, oxidation, group,
+  fragment, name-generation, linear-form, check, engine, OASA, clipboard,
+  mutation, CLI, wire, or stable-Python behavior.
+
+### Additions and New Features
+
+- Added an in-process, paint-only recorder for the opaque authenticated
+  whole-document direct-Haworth composite. It retains source-ordered roots,
+  actual ordinary and authenticated direct target groups, explicit transforms,
+  text/vector paint, styles, and monotonic paint order without emitting issues
+  or exclusions. The caller supplies every structural limit, including checked
+  fallible copies of root, target, and paint identity text; no default policy,
+  API, PyO3, Qt, CLI, wire, or artifact route is introduced.
+
+- Added a Rust-only, detached native-SMILES prepared-builder for the first
+  closed direct-glycosidic Haworth profile. It accepts only two vertex-disjoint
+  five- or six-member C/O cycles and one unique exterior oxygen bridge, rejects
+  unsupported returned adapter facts and every extra/fused/spiro/ambiguous
+  topology without normalization, and preserves ordinary placement centroid
+  semantics through a receipt-local translation. The result is handle-free and
+  does not allocate a session identity, mutate a document, or add PyO3, Qt,
+  CLI, wire, renderer, or artifact behavior. A bridge may meet any selected
+  ring carbon; the deterministic canonical layout vertex is not a biochemical
+  anomeric claim. The UI/composite projection remains a separately reviewed
+  dependent slice.
+
+- Added the bounded native-17 peptide-template insertion route to the ordinary
+  Ferrum-Qt Rust-owned tab. `Import Supported Peptide Sequence...` submits the
+  exact accepted uppercase, no-space text through an API-owned 33,824-byte
+  ingress budget to the concrete authenticated `NativeChemEngine`, then commits
+  only a still-current prepared insertion through the existing revision/digest
+  fence, Rust history, save, and reopen path. The native profile is exactly
+  `ACDEFGIKLMNQRSTVY`; H, P, and W produce typed profile errors before native
+  library loading, and there is no OASA fallback. The pure-domain historical
+  template remains the separate 19-residue `ACDEFGHIKLMNQRSTVWY` profile with P
+  rejected. This is neither generic peptide nor OASA parity, and it adds no
+  public CLI, wire, or stable Python promise. The native-17 singleton/mixed and
+  ANKLE current-artifact checks are disposable implementation evidence, not
+  permanent count, timing, or CI thresholds; H/W require a future
+  aromatic/explicit-H contract.
 
 - Added M16 Stage A2b's closed direct-Haworth document insertion and Stage B's
   authenticated in-process composition. A1 receipts translate only through one
@@ -17,6 +317,14 @@
   is absent. The composite is opaque and non-serde: no public SVG, PNG, or PDF
   overload, nor PyO3, Qt, CLI, or wire route, is added. Sucrose, stereo,
   collision avoidance, and reflow remain unclaimed.
+  The same native-only boundary can now re-observe one explicitly selected durable
+  molecule at an expected revision after save and reopen. It accepts only the strict
+  raw persisted C/O profile, its exact atoms-before-bonds child order, and one of the
+  closed 5/5, 5/6, 6/5, or 6/6 ring forms; it reconstructs canonical durable facts and
+  composes through the existing authenticated selective Rust path. A hand-authored
+  equivalent valid profile is also accepted, so this is not proof of historical A2b
+  authorship. No persistent marker is added; M17 owns one only if later required.
+  Global `InvalidPresentationFact` suppression remains unchanged.
 
 - Added M16 A2a's read-only Haworth bond-depth projection. Typed CDML bonds now
   expose exact `front` or `back` `haworth_position` facts through the Rust and
@@ -101,8 +409,8 @@
   create an empty Ferrum-Chem document without importing the retained legacy
   editor. The complete OASA-backed session/canvas/template/worker lifecycle is
   explicit in `LegacyCompatibilityMainWindow`; generic QObject retirement is
-  separately OASA-free. Ordinary external CDML Open remains visibly deferred
-  rather than falling back to the old whole-file Python route. The redundant
+  separately OASA-free. Ordinary external CDML Open now uses the shared direct
+  Rust profile described above rather than the old whole-file Python route. The redundant
   `--native` selector was removed because the normal product route is native
   first. OASA remains packaged for the explicit compatibility host, so M22 is
   not claimed and M16 remains open. A one-time current-source Qt integration
@@ -201,8 +509,8 @@
   Rust-native tab. It is enabled only for one selected durable bond and asks the
   revision-bound Rust session to delete that bond as one undoable operation; both
   endpoint atoms remain. The replacement projection clears selection, and typed
-  failures remain visible with no OASA or local-scene fallback. Default Open and
-  legacy tabs remain unchanged, so M16 remains open.
+  failures remain visible with no OASA or local-scene fallback. Same-tab/recent-file
+  Open and legacy tabs remain unchanged, so M16 remains open.
 
 - Added checked renderer-neutral direct-root vector operations for M13. Paths
   retain issued MoveTo, LineTo, CubicTo, and Close commands, including repeated
@@ -231,8 +539,8 @@
   and asks the revision-bound Rust session to delete that atom with its
   incident typed bonds as one undoable operation. Selection clears after a
   successful replacement projection; typed failures remain visible and do not
-  fall back to OASA or a local scene edit. Default Open and every legacy tab
-  remain unchanged, so M16 is still open.
+  fall back to OASA or a local scene edit. Same-tab/recent-file Open and every
+  legacy tab remain unchanged, so M16 is still open.
 
 - Added the M13 API composition boundary for one final `RenderObservationV1`.
   It derives the finite physical page from the authoritative paper fact, carries
@@ -269,8 +577,8 @@
 - Added Edit > Clear Atom Number with Ferrum to the ordinary window's explicit
   Rust-native tab. It is available only for one durable selected atom with an
   authored number and removes the complete number/show-number pair through one
-  revision-bound Rust operation. Default Open and legacy-tab handling remain
-  unchanged and OASA-backed.
+  revision-bound Rust operation. Same-tab/recent-file Open and legacy-tab
+  handling remain unchanged and OASA-backed.
 
 - Added the first bounded M13 backend slice: `ferrum-render` can now lower one
   validated molecule render plan and an explicit finite viewport to owned,
@@ -321,18 +629,19 @@
   The latter sends a closed, revision-bound Rust patch for representable properties;
   fractional or otherwise unrepresentable source facts fail visibly before mutation,
   and cancelling the dialog is a no-op. Save, Save As, and close stay on the
-  Rust-native session. The default Open `.cdml` route and legacy property dock/actions
-  remain OASA-backed, so the ordinary window is not OASA-free and full M16 remains
-  open. Permanent behavior tests cover route selection, selection-sensitive action
-  state, lossless failure containment, Rust publication, and lifecycle; a real
+  Rust-native session. The later native-first cutover supersedes this bridge: default
+  `.cdml` Open is now Rust-owned, while the legacy property dock/actions remain in the
+  explicit compatibility host and full M16 remains open. Permanent behavior tests cover
+  route selection, selection-sensitive action state, lossless failure containment, Rust
+  publication, and lifecycle; a real
   current-wheel ordinary-window exercise was disposable implementation evidence.
 
 - Added Edit > Undo with Ferrum and Edit > Redo with Ferrum to that same explicit
   Rust-native tab. Each action asks the revision-checked Rust session to navigate
   its own history and installs the returned authoritative projection. Empty history
   reports the typed native failure without mutation. Switching to a legacy tab
-  disables the Ferrum controls and restores the legacy Undo/Redo policy. The default
-  Open route and existing legacy Edit actions remain unchanged. Permanent offline
+  disables the Ferrum controls and restores the legacy Undo/Redo policy. Same-tab and
+  recent-file Open plus existing legacy Edit actions remain unchanged. Permanent offline
   tests cover real element-change history, page transition, and empty-history
   containment; any current-wheel proof remains disposable.
 
@@ -340,7 +649,7 @@
   Exactly one selected durable atom can receive a positive number and explicit
   show-number state through one typed Rust mutation; cancelling the dialog leaves
   the session unchanged. The action does not call or fall back to OASA, while the
-  default Open route and every ordinary legacy-tab action remain unchanged. Permanent
+  same-tab/recent-file Open routes and every ordinary legacy-tab action remain unchanged. Permanent
   offline behavior tests cover the selection gate, accepted number/visibility update,
   and cancellation; any current-wheel exercise is disposable implementation evidence,
   not a pixel, byte, timing, or private-wiring gate. M16 remains open.
@@ -352,8 +661,8 @@
   and centering combinations. Unsupported source facts fail visibly before mutation,
   cancellation remains a no-op, and accepted work retains the durable selection.
   Permanent offline behavior tests cover the route; a current-extension exercise is
-  disposable implementation evidence. The default Open route and legacy property
-  actions remain OASA-backed; M16 remains open.
+  disposable implementation evidence. Same-tab/recent-file Open and legacy property
+  actions remain open or OASA-backed; M16 remains open.
 
 - Completed M5 chemistry-codec parity without expanding the reference contract.
   OASA's registry explicitly defines SMARTS as export-only, so Ferrum does not invent

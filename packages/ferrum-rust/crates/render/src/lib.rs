@@ -30,12 +30,14 @@
 
 mod atom_bond;
 mod authored_direct_glycosidic_haworth;
+mod composite_recording_v1;
 mod direct_draw_stream_v1;
 mod direct_glycosidic_haworth;
 mod document_artifact_v1;
 mod document_bond_replacement_v1;
 mod document_plan_v1;
 mod document_vector_v1;
+mod draw_stream_molecule_v1;
 mod draw_stream_v1;
 mod error;
 mod font_environment;
@@ -60,6 +62,14 @@ pub use atom_bond::{
 pub use authored_direct_glycosidic_haworth::{
     AuthoredDirectGlycosidicHaworthRenderPlanV1, AuthoredDirectGlycosidicHaworthRenderRequestV1,
     lower_authored_direct_glycosidic_haworth_v1,
+};
+/// Internal desktop paint recording of an authenticated whole-document composite.
+pub use composite_recording_v1::{
+    CompositeFillRuleV1, CompositeFillV1, CompositeLineCapV1, CompositeLineJoinV1,
+    CompositePaintKindV1, CompositePathCommandV1, CompositeRecordingBudgetV1,
+    CompositeRecordingErrorV1, CompositeRecordingEventV1, CompositeRecordingResourceV1,
+    CompositeRecordingV1, CompositeRootKindV1, CompositeStrokeV1, CompositeStyleV1,
+    record_document_render_composite_v1,
 };
 /// In-process-only renderer profile for accepted direct glycosidic Haworth facts.
 pub use direct_glycosidic_haworth::{
@@ -118,8 +128,9 @@ pub use standalone_text::{
 };
 /// In-memory SVG V1 lowering for one validated molecule render plan.
 pub use svg_backend::{
-    SvgDocumentV1, SvgRenderError, SvgViewportV1, render_direct_glycosidic_haworth_to_svg_v1,
-    render_document_plan_to_svg_v1, render_plan_to_svg_v1,
+    SvgDocumentV1, SvgOutputBudgetV1, SvgRenderError, SvgViewportV1,
+    render_direct_glycosidic_haworth_to_svg_v1, render_document_plan_to_svg_v1,
+    render_document_plan_to_svg_with_budget_v1, render_plan_to_svg_v1,
 };
 /// Pure-Rust TrueType design metrics using the verified Telex face.
 pub use verified_telex_glyph_metrics::{

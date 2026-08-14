@@ -178,6 +178,39 @@ def test_file_admission_accepts_exact_string_and_rejects_directory_and_symlink(
     )
 
 
+def test_local_profile_prepares_one_worker_safe_session(
+		tmp_path: Path,
+		) -> None:
+	"""The named profile owns admission before one UI-thread session handoff."""
+	source = tmp_path / "product-open.cdml"
+	source.write_bytes(CDML)
+	prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(source))
+	session, observation = prepared.take_admission_v1()
+	assert session.snapshot().revision == 0 and not session.snapshot().is_dirty
+	assert observation.document.snapshot.digest == session.snapshot().digest
+	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
+		prepared.take_admission_v1()
+
+
+def test_local_profile_rejects_symlink_before_preparing_a_session(tmp_path: Path) -> None:
+	"""The named profile preserves the ordinary local-file source policy."""
+	source = tmp_path / "product-open.cdml"
+	source.write_bytes(CDML)
+	link = tmp_path / "product-open-link.cdml"
+	link.symlink_to(source)
+	with pytest.raises(ferrum_chem.DocumentInputError) as link_error:
+		ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(link))
+	assert link_error.value.origin == "file" and link_error.value.stage == "source_policy"
+
+
+def test_local_profile_maps_unpaired_surrogate_to_typed_path_error() -> None:
+	"""Python text encoding failure cannot bypass the product input taxonomy."""
+	invalid_path = "\ud800"
+	with pytest.raises(ferrum_chem.DocumentInputError) as path_error:
+		ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(invalid_path)
+	assert path_error.value.origin == "file" and path_error.value.stage == "path"
+
+
 def test_maximum_usize_budget_is_a_typed_source_policy_failure() -> None:
     # This is not a deployment limit. It exercises the impossible sentinel configuration.
     maximum = (sys.maxsize * 2) + 1

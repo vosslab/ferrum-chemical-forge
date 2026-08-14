@@ -186,6 +186,11 @@ pub struct RecordId {
     pub(crate) origin: RecordOrigin,
 }
 
+/// Failure to make an owned identity copy without relying on infallible allocation.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[error("could not allocate an owned record identity")]
+pub struct RecordIdCloneError;
+
 #[derive(Deserialize)]
 struct WireRecordId {
     kind: RecordKind,
@@ -248,6 +253,38 @@ impl RecordId {
         &self.origin
     }
 
+    /// Return the exact bytes owned by this identity's source or legacy spelling.
+    ///
+    /// A record identity owns exactly one variable-length spelling, so this
+    /// count cannot overflow and excludes fixed enum and occurrence storage.
+    #[must_use]
+    pub fn owned_string_bytes(&self) -> usize {
+        match &self.origin {
+            RecordOrigin::Source(identifier) => identifier.0.len(),
+            RecordOrigin::Legacy { fingerprint, .. } => fingerprint.0.len(),
+        }
+    }
+
+    /// Fallibly copy the exact private identity spelling without exposing it.
+    pub fn try_clone(&self) -> Result<Self, RecordIdCloneError> {
+        let origin = match &self.origin {
+            RecordOrigin::Source(identifier) => {
+                RecordOrigin::Source(Identifier(fallible_copy(&identifier.0)?))
+            }
+            RecordOrigin::Legacy {
+                fingerprint,
+                occurrence,
+            } => RecordOrigin::Legacy {
+                fingerprint: LegacyFingerprint(fallible_copy(&fingerprint.0)?),
+                occurrence: *occurrence,
+            },
+        };
+        Ok(Self {
+            kind: self.kind,
+            origin,
+        })
+    }
+
     pub(crate) fn canonical(&self) -> String {
         match &self.origin {
             RecordOrigin::Source(id) => {
@@ -264,6 +301,37 @@ impl RecordId {
                     fingerprint.0
                 ) + &format!(":{occurrence}")
             }
+        }
+    }
+}
+
+fn fallible_copy(value: &str) -> Result<String, RecordIdCloneError> {
+    let mut copied = String::new();
+    copied
+        .try_reserve_exact(value.len())
+        .map_err(|_| RecordIdCloneError)?;
+    copied.push_str(value);
+    Ok(copied)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn record_id_owned_bytes_and_fallible_clone_keep_source_and_legacy_identity() {
+        let source = RecordId::from_source(
+            RecordKind::Bond,
+            &Identifier::new("source-id").expect("identifier"),
+        );
+        let legacy = RecordId::from_legacy(
+            RecordKind::Atom,
+            LegacyFingerprint::test_encoding(RecordKind::Atom, &vec!["a".to_owned(); 9]),
+            2,
+        );
+        for identity in [&source, &legacy] {
+            assert_eq!(identity.try_clone().expect("copy"), *identity);
+            assert!(identity.owned_string_bytes() > 0);
         }
     }
 }

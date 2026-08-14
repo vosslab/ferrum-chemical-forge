@@ -138,7 +138,7 @@ fn text_layout_preserves_lines_scripts_spaces_and_exact_verified_glyphs() {
     );
     let mut forged: Value = serde_json::from_str(&encoded).expect("JSON");
     let glyph = &mut forged["text_renders"][0]["operation"]["runs"][0]["glyphs"][0]["glyph_index"];
-    *glyph = Value::from(glyph.as_u64().expect("glyph") + 1);
+    *glyph = Value::from(3);
     assert!(RenderObservationWireV1::from_json(&forged.to_string()).is_err());
 }
 

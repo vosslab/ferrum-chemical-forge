@@ -29,6 +29,8 @@ use super::{
 mod bracket;
 mod construction;
 mod direct_haworth;
+mod linear_form;
+mod prepared;
 mod sdf;
 mod straighten;
 mod wavy;
@@ -36,6 +38,7 @@ pub use bracket::PendingCreateBracket;
 pub use direct_haworth::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, PendingDirectHaworthV1,
 };
+pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
 pub use sdf::PendingCreateSdfRecords;
 pub use wavy::PendingCreateWavy;
 /// An owned structural serialization of the authoritative CDML tree.
@@ -512,11 +515,7 @@ impl DocumentSession {
         let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
         SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
             .map_err(DocumentSessionError::Projection)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .issue_provisional_token();
+        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
         Ok(PendingCreateAtom {
             revision: expected_revision,
             token,
@@ -609,11 +608,7 @@ impl DocumentSession {
         let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
         SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
             .map_err(DocumentSessionError::Projection)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .issue_provisional_token();
+        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
         self.generated_ids = generated_ids;
         Ok(PendingCreateBond {
             revision: expected_revision,
@@ -682,11 +677,7 @@ impl DocumentSession {
         let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
         SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
             .map_err(DocumentSessionError::Projection)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .issue_provisional_token();
+        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
         self.generated_ids = generated_ids;
         Ok(PendingCreateBondedAtom {
             revision: expected_revision,
@@ -836,11 +827,7 @@ impl DocumentSession {
         let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
         SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
             .map_err(DocumentSessionError::Projection)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .issue_provisional_token();
+        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
         self.generated_ids = generated_ids;
         Ok(PendingCreateMolecule {
             revision: expected_revision,
@@ -886,16 +873,11 @@ impl DocumentSession {
             .current()
             .document()
             .verify_provisional_token(token)
-            .map_err(|error| match error {
-                TypedDocumentError::Indexed(super::IndexedDocumentError::Identity(
-                    super::DocumentIdentityError::UnknownProvisionalToken { .. },
-                )) => DocumentSessionError::PreparedOperationForeignSession,
-                other => DocumentSessionError::Operation(SessionOperationError::Candidate(other)),
-            })?;
+            .map_err(prepared::map_prepared_token_error)?;
         self.history
             .current_mut()
             .document_mut()
-            .consume_provisional_token(token.clone())
+            .consume_provisional_token(token)
             .map_err(SessionOperationError::Candidate)?;
         let state = candidate
             .take()

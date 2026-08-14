@@ -37,6 +37,9 @@ extern "C" {
 #define FERRUM_CHEM_CAPABILITY_INCHI 0x0000000000000040ULL
 #define FERRUM_CHEM_CAPABILITY_SDF_READ 0x0000000000000080ULL
 #define FERRUM_CHEM_CAPABILITY_MOLFILE_READ 0x0000000000000100ULL
+#define FERRUM_CHEM_CAPABILITY_COMPOSITION 0x0000000000000200ULL
+#define FERRUM_CHEM_CAPABILITY_SMILES_WRITE 0x0000000000000400ULL
+#define FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE 0x0000000000000800ULL
 
 /* Every adapter-owned result must fit this bound before a consumer reads it. */
 #define FERRUM_CHEM_MAX_RESPONSE_BYTES 40000000U
@@ -77,6 +80,15 @@ extern "C" {
 #define FERRUM_CHEM_TEXT_WIRE_VERSION 1U
 #define FERRUM_CHEM_TEXT_FLAGS_NONE 0U
 #define FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES 24U
+#define FERRUM_CHEM_SMILES_WRITE_MAX_BYTES 39999976U
+
+/* Bounded isotope-aware molecule composition response. */
+#define FERRUM_CHEM_COMPOSITION_WIRE_VERSION 1U
+#define FERRUM_CHEM_COMPOSITION_FLAGS_NONE 0U
+#define FERRUM_CHEM_COMPOSITION_RESPONSE_HEADER_BYTES 56U
+#define FERRUM_CHEM_COMPOSITION_ENTRY_BYTES 24U
+#define FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES 4096U
+#define FERRUM_CHEM_COMPOSITION_MAX_FORMULA_BYTES 16000000U
 
 /* Closed InChI export request around one complete FCG1 graph. */
 #define FERRUM_CHEM_INCHI_WIRE_VERSION 1U
@@ -93,6 +105,8 @@ extern "C" {
 #define FERRUM_CHEM_MOLBLOCK_FORMAT_V3000 2U
 #define FERRUM_CHEM_MOLBLOCK_FLAGS_NONE 0U
 #define FERRUM_CHEM_MOLBLOCK_REQUEST_HEADER_BYTES 24U
+#define FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION 1U
+#define FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES 16U
 
 /* Ordered multi-record SDF export embeds one FCB1 request per record. */
 #define FERRUM_CHEM_SDF_WIRE_VERSION 1U
@@ -245,6 +259,32 @@ uint32_t ferrum_chem_molecule_to_smarts_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
+ * ABI-4 canonical-isomeric SMILES export receives one complete FCG1 graph.
+ * The adapter sanitizes its private molecule and invokes the pinned writer with
+ * isomeric=true, Kekule=false, canonical=true, cleanStereo=true, ordinary
+ * implicit bond/hydrogen spelling, random=false, rootedAtAtom=-1, dative bonds
+ * enabled, and atom-map numbers included in canonicalization. FCT1 returns one
+ * nonempty printable ASCII line of at most FERRUM_CHEM_SMILES_WRITE_MAX_BYTES.
+ */
+uint32_t ferrum_chem_molecule_to_smiles_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	FERRUM_CHEM_NOEXCEPT;
+
+/*
+ * ABI-4 molecule composition receives one complete FCG1 graph and sanitizes a
+ * private RDKit molecule. FCS1 has a 56-byte little-endian header: magic,
+ * wire_version, result_status, detail_length, formula_length, entry_count,
+ * flags, reserved, net_charge:i64, average_mass:f64, exact_mass:f64. It is
+ * followed by UTF-8 detail, UTF-8 isotope-aware charged formula, and 24-byte
+ * entries: atomic_number:u8, isotope_present:u8, reserved:u16, isotope:u16,
+ * reserved:u16, count:u64, average_mass_contribution:f64. Success has empty
+ * detail and nonempty formula/entries; failure has only nonempty detail.
+ */
+uint32_t ferrum_chem_molecule_composition_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	FERRUM_CHEM_NOEXCEPT;
+
+/*
  * ABI-4 molblock export receives FCB1, a coordinate-bearing complete graph.
  * Its 24-byte little-endian header contains magic, wire_version, format,
  * atom_count, bond_count, and zero flags. Atom and bond records use FCG1's
@@ -253,6 +293,17 @@ uint32_t ferrum_chem_molecule_to_smarts_v1(
  * requested V2000 result. FCT1 returns the multiline UTF-8 molblock text.
  */
 uint32_t ferrum_chem_molecule_to_molblock_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	FERRUM_CHEM_NOEXCEPT;
+
+/*
+ * Optional ABI-4 titled molblock export receives FBT1. Its 16-byte header
+ * contains magic, wire_version, embedded_FCB1_length, and UTF-8 title length,
+ * followed by exactly those two byte sequences. The title may be empty but
+ * must contain no NUL or line-break bytes. FCT1 returns the molblock with that
+ * exact title as its first line.
+ */
+uint32_t ferrum_chem_molecule_to_molblock_with_title_v1(
 	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 

@@ -13,6 +13,7 @@ import ferrum_qt.bridge.insertion_placement
 import ferrum_qt.native.ferrum_native_document_tab
 import ferrum_qt.native.ferrum_native_inchi_import
 import ferrum_qt.native.ferrum_native_molblock_import
+import ferrum_qt.native.ferrum_native_peptide_import
 import ferrum_qt.native.ferrum_native_sdf_import
 import ferrum_qt.native.ferrum_native_smiles_import
 
@@ -64,6 +65,12 @@ class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 
 	#============================================
 	@PySide6.QtCore.Slot(object)
+	def on_peptide_prepared(self, molecule: object) -> None:
+		"""Forward one peptide-template result with its exact emitting worker."""
+		self._owner._on_peptide_prepared(self.sender(), molecule)
+
+	#============================================
+	@PySide6.QtCore.Slot(object)
 	def on_smiles_failed(self, failure: object) -> None:
 		"""Forward one SMILES failure with its exact emitting worker."""
 		self._owner._on_smiles_failed(self.sender(), failure)
@@ -85,6 +92,12 @@ class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 	def on_sdf_failed(self, failure: object) -> None:
 		"""Forward one SDF failure with its exact emitting worker."""
 		self._owner._on_sdf_failed(self.sender(), failure)
+
+	#============================================
+	@PySide6.QtCore.Slot(object)
+	def on_peptide_failed(self, failure: object) -> None:
+		"""Forward one peptide-template failure with its exact emitting worker."""
+		self._owner._on_peptide_failed(self.sender(), failure)
 
 	#============================================
 	@PySide6.QtCore.Slot()
@@ -110,6 +123,12 @@ class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 		"""Release the exact SDF worker that has stopped."""
 		self._owner._finish_import("sdf", self.sender())
 
+	#============================================
+	@PySide6.QtCore.Slot()
+	def on_peptide_finished(self) -> None:
+		"""Release the exact peptide-template worker that has stopped."""
+		self._owner._finish_import("peptide", self.sender())
+
 
 #============================================
 class FerrumNativeMoleculeImportsMixin:
@@ -127,6 +146,7 @@ class FerrumNativeMoleculeImportsMixin:
 		self._inchi_import_intent: _MoleculeImportIntent | None = None
 		self._molblock_import_intent: _MoleculeImportIntent | None = None
 		self._sdf_import_intent: _MoleculeImportIntent | None = None
+		self._peptide_import_intent: _MoleculeImportIntent | None = None
 		self._molecule_import_relay = _MoleculeImportDeliveryRelay(self)
 
 	#============================================
@@ -149,6 +169,11 @@ class FerrumNativeMoleculeImportsMixin:
 		)
 		self._import_sdf_action.triggered.connect(self._on_import_sdf)
 		menu.addAction(self._import_sdf_action)
+		self._import_peptide_action = PySide6.QtGui.QAction(
+			self.tr("Import Supported Peptide Sequence..."), self,
+		)
+		self._import_peptide_action.triggered.connect(self._on_import_peptide)
+		menu.addAction(self._import_peptide_action)
 		self._cancel_smiles_action = PySide6.QtGui.QAction(
 			self.tr("Cancel SMILES Import"), self,
 		)
@@ -169,15 +194,21 @@ class FerrumNativeMoleculeImportsMixin:
 		)
 		self._cancel_sdf_action.triggered.connect(self._cancel_sdf_import)
 		menu.addAction(self._cancel_sdf_action)
+		self._cancel_peptide_action = PySide6.QtGui.QAction(
+			self.tr("Cancel Peptide Template Import"), self,
+		)
+		self._cancel_peptide_action.triggered.connect(self._cancel_peptide_import)
+		menu.addAction(self._cancel_peptide_action)
 
 	#============================================
 	def _molecule_import_busy(self) -> bool:
-		"""Return whether either parser has a live worker intent."""
+		"""Return whether any native import has a live worker intent."""
 		return any(intent is not None for intent in (
 			self._smiles_import_intent,
 			self._inchi_import_intent,
 			self._molblock_import_intent,
 			self._sdf_import_intent,
+			self._peptide_import_intent,
 		))
 
 	#============================================
@@ -389,6 +420,69 @@ class FerrumNativeMoleculeImportsMixin:
 		return True
 
 	#============================================
+	def _on_import_peptide(self) -> None:
+		"""Collect strict template text without trimming or normalizing it."""
+		sequence, accepted = PySide6.QtWidgets.QInputDialog.getText(
+			self,
+			self.tr("Import Supported Peptide Sequence"),
+			self.tr(
+				"Uppercase, no spaces; supported: ACDEFGIKLMNQRSTVY; H/P/W unsupported:",
+			),
+		)
+		if accepted:
+			self.start_supported_peptide_import(sequence)
+
+	#============================================
+	def start_supported_peptide_import(self, sequence: str) -> bool:
+		"""Start strict native peptide-template preparation for the active document."""
+		if type(sequence) is not str:
+			raise TypeError("native peptide import requires exact text")
+		if (
+			self._molecule_import_busy()
+			or getattr(self, "_molecule_export_intent", None) is not None
+			or self._coordinate_generation_intent is not None
+		):
+			return False
+		tab = self._active_native_tab()
+		if tab is None or tab.requires_refresh:
+			return False
+		try:
+			placement = ferrum_qt.bridge.insertion_placement.capture_insertion_placement_v1(tab)
+			worker = self._create_peptide_preparation_worker(sequence, placement)
+		except Exception as exc:
+			self._show_native_file_warning("Native Peptide Template Error", str(exc))
+			return False
+		self._peptide_import_intent = self._start_import_intent(tab, worker)
+		worker.prepared.connect(
+			self._molecule_import_relay.on_peptide_prepared,
+			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
+		)
+		worker.failed.connect(
+			self._molecule_import_relay.on_peptide_failed,
+			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
+		)
+		worker.finished.connect(
+			self._molecule_import_relay.on_peptide_finished,
+			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
+		)
+		self.statusBar().showMessage(
+			self.tr("Preparing supported peptide template with Ferrum Rust..."), 0,
+		)
+		self._refresh_actions()
+		worker.start()
+		return True
+
+	#============================================
+	def _create_peptide_preparation_worker(self, sequence: str,
+			placement: object) -> PySide6.QtCore.QThread:
+		"""Create the one strict-template worker without interpreting its inputs."""
+		worker = (
+			ferrum_qt.native.ferrum_native_peptide_import.
+			FerrumNativePeptidePreparationWorker(sequence, placement)
+		)
+		return worker
+
+	#============================================
 	def _start_import_intent(self, tab: object,
 			worker: PySide6.QtCore.QThread) -> _MoleculeImportIntent:
 		"""Capture one exact tab generation before a worker starts."""
@@ -421,6 +515,13 @@ class FerrumNativeMoleculeImportsMixin:
 		"""Commit one still-current complete SDF batch."""
 		self._commit_prepared_import(
 			self._sdf_import_intent, worker, batch, "SDF",
+		)
+
+	#============================================
+	def _on_peptide_prepared(self, worker: object, molecule: object) -> None:
+		"""Commit one still-current strict peptide-template result."""
+		self._commit_prepared_import(
+			self._peptide_import_intent, worker, molecule, "Peptide Template",
 		)
 
 	#============================================
@@ -488,6 +589,13 @@ class FerrumNativeMoleculeImportsMixin:
 		self._show_import_failure(self._sdf_import_intent, worker, failure, "SDF")
 
 	#============================================
+	def _on_peptide_failed(self, worker: object, failure: object) -> None:
+		"""Present one current strict peptide-template preparation failure."""
+		self._show_import_failure(
+			self._peptide_import_intent, worker, failure, "Peptide Template",
+		)
+
+	#============================================
 	def _show_import_failure(self, intent: _MoleculeImportIntent | None,
 			worker: object, failure: object, label: str) -> None:
 		"""Show one failure only for its current noncancelled worker."""
@@ -531,6 +639,11 @@ class FerrumNativeMoleculeImportsMixin:
 		self._cancel_import(self._sdf_import_intent, "SDF")
 
 	#============================================
+	def _cancel_peptide_import(self) -> None:
+		"""Invalidate pending strict peptide-template delivery."""
+		self._cancel_import(self._peptide_import_intent, "Peptide Template")
+
+	#============================================
 	def _cancel_import(self, intent: _MoleculeImportIntent | None, label: str) -> None:
 		"""Invalidate one delivery while native teardown finishes normally."""
 		if intent is None or intent.worker.delivery_cancelled:
@@ -552,6 +665,7 @@ class FerrumNativeMoleculeImportsMixin:
 		self._import_inchi_action.setEnabled(can_start)
 		self._import_molblock_action.setEnabled(can_start)
 		self._import_sdf_action.setEnabled(can_start)
+		self._import_peptide_action.setEnabled(can_start)
 		self._cancel_smiles_action.setEnabled(
 			self._smiles_import_intent is not None
 			and not self._smiles_import_intent.worker.delivery_cancelled,
@@ -568,15 +682,20 @@ class FerrumNativeMoleculeImportsMixin:
 			self._sdf_import_intent is not None
 			and not self._sdf_import_intent.worker.delivery_cancelled,
 		)
+		self._cancel_peptide_action.setEnabled(
+			self._peptide_import_intent is not None
+			and not self._peptide_import_intent.worker.delivery_cancelled,
+		)
 
 	#============================================
 	def _molecule_import_blocks_tab_close(self, tab: object) -> bool:
-		"""Keep a tab alive while either native parser still owns delivery."""
+		"""Keep a tab alive while any native import still owns delivery."""
 		for label, intent in (
 			("SMILES", self._smiles_import_intent),
 			("InChI", self._inchi_import_intent),
 			("Molfile", self._molblock_import_intent),
 			("SDF", self._sdf_import_intent),
+			("Peptide Template", self._peptide_import_intent),
 		):
 			if intent is not None and intent.tab is tab:
 				self._show_native_file_warning(
@@ -594,6 +713,7 @@ class FerrumNativeMoleculeImportsMixin:
 			("InChI", self._inchi_import_intent, self._cancel_inchi_import),
 			("Molfile", self._molblock_import_intent, self._cancel_molblock_import),
 			("SDF", self._sdf_import_intent, self._cancel_sdf_import),
+			("Peptide Template", self._peptide_import_intent, self._cancel_peptide_import),
 		):
 			if intent is not None:
 				cancel()

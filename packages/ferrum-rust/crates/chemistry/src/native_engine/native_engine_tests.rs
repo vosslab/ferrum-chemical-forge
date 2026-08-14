@@ -126,6 +126,46 @@ fn molblock_request_binds_explicit_format_and_atom_aligned_coordinates() {
 }
 
 #[test]
+fn titled_molblock_request_wraps_exact_graph_and_validated_utf8_title() {
+    let title = "authored \u{03b2}-lactam";
+    let molecule = molblock_wire::encode(&graph(), MolblockVersion::V2000)
+        .expect("plain molecule request encodes");
+    let request = molblock_wire::encode_titled(&graph(), MolblockVersion::V2000, title)
+        .expect("titled molecule request encodes");
+
+    assert_eq!(&request[..4], b"FBT1");
+    assert_eq!(
+        &request[4..8],
+        &FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION.to_le_bytes()
+    );
+    assert_eq!(&request[8..12], &(molecule.len() as u32).to_le_bytes());
+    assert_eq!(&request[12..16], &(title.len() as u32).to_le_bytes());
+    assert_eq!(
+        &request[FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES
+            ..FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES + molecule.len()],
+        molecule
+    );
+    assert_eq!(&request[request.len() - title.len()..], title.as_bytes());
+    molblock_wire::validate_output_title("authored \u{03b2}-lactam\nbody\n", title)
+        .expect("exact returned title is accepted");
+    molblock_wire::validate_output_title("\nbody\n", "")
+        .expect("an exact returned empty title is accepted");
+    assert!(matches!(
+        molblock_wire::validate_output_title("substituted\nbody\n", title),
+        Err(ChemistryError::MalformedNativeResponse { .. })
+    ));
+    for invalid in ["nul\0title", "two\nlines", "carriage\rreturn"] {
+        assert!(matches!(
+            molblock_wire::encode_titled(&graph(), MolblockVersion::V2000, invalid),
+            Err(ChemistryError::CodecFailed {
+                codec: "molblock",
+                ..
+            })
+        ));
+    }
+}
+
+#[test]
 fn molblock_request_rejects_a_graph_without_complete_coordinates() {
     let molecule = MolGraph::new(vec![aromatic_carbon()], vec![], None).expect("valid graph");
 

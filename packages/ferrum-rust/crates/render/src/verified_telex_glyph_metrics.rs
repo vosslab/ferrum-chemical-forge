@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use ttf_parser::Face;
+use ttf_parser::{Face, GlyphId};
 
 use crate::glyph_metrics::LaidOutAtomLabel;
 use crate::{
@@ -21,6 +21,23 @@ pub struct GlyphRunMetrics {
     height: f64,
     x_advance: f64,
     y_advance: f64,
+}
+
+/// Return whether an outline-less placement is Telex's exact non-drawing whitespace.
+///
+/// Presentation layout retains the advance for supported whitespace, but a missing
+/// outline is safe to omit only when this exact scalar maps back to the supplied
+/// glyph ID. Newlines never reach a presentation glyph run, controls are rejected
+/// during layout, and visible scalars must continue to have usable outlines.
+pub(crate) fn is_verified_outlineless_whitespace_glyph(
+    face: &Face<'_>,
+    scalar: char,
+    glyph_index: u32,
+) -> bool {
+    let Ok(glyph_id) = u16::try_from(glyph_index) else {
+        return false;
+    };
+    scalar.is_whitespace() && face.glyph_index(scalar) == Some(GlyphId(glyph_id))
 }
 
 impl GlyphRunMetrics {

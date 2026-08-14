@@ -276,6 +276,18 @@ impl PyDocumentSession {
         crate::document_ingress_binding::load_file_with_budget(py, path, budget)
     }
 
+    /// Prepare one ordinary local CDML file through Rust's immutable V1 profile.
+    ///
+    /// The returned one-use value is safe to deliver from a worker to the UI
+    /// thread. It publishes no stable Python API before the M18 contract freeze.
+    #[staticmethod]
+    fn prepare_local_cdml_file_v1(
+        py: Python<'_>,
+        path: &Bound<'_, pyo3::types::PyAny>,
+    ) -> PyResult<crate::document_ingress_binding::PyPreparedLocalCdmlOpenV1> {
+        crate::document_ingress_binding::prepare_local_cdml_file_v1(py, path)
+    }
+
     /// Admit exact built-in bytes as CD-SVG under independent wrapper and payload budgets.
     #[staticmethod]
     fn load_cdsvg_utf8_bytes_with_budget(
@@ -345,6 +357,46 @@ impl PyDocumentSession {
             py,
             self.session
                 .submit(expected_revision, operation.operation.clone()),
+        )
+        .map(Into::into)
+    }
+
+    /// Replace or clear one authenticated direct-root molecule name.
+    fn set_document_molecule_name_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest: &Bound<'_, pyo3::types::PyString>,
+        molecule_id: &Bound<'_, pyo3::types::PyString>,
+        name: &Bound<'_, pyo3::types::PyString>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        crate::document_molecule_name_binding::set_document_molecule_name_v1(
+            py,
+            &mut self.session,
+            expected_revision,
+            expected_digest,
+            molecule_id,
+            name,
+        )
+        .map(Into::into)
+    }
+
+    /// Convert one authenticated ordered direct-atom path to its linear form.
+    fn convert_linear_form_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest: &Bound<'_, pyo3::types::PyString>,
+        molecule_id: &Bound<'_, pyo3::types::PyString>,
+        selected_atom_ids: &Bound<'_, pyo3::types::PyAny>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        crate::document_linear_form_binding::convert_linear_form_v1(
+            py,
+            &mut self.session,
+            expected_revision,
+            expected_digest,
+            molecule_id,
+            selected_atom_ids,
         )
         .map(Into::into)
     }
@@ -718,13 +770,23 @@ fn hex_digest(digest: &[u8; 32]) -> String {
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("FerrumError", module.py().get_type::<FerrumError>())?;
     crate::chemistry_binding::initialize(module)?;
+    crate::clipboard_fragment_binding::initialize(module)?;
+    crate::document_linear_form_binding::initialize(module)?;
     crate::document_molecule_inchi_binding::initialize(module)?;
+    crate::document_molecule_information_binding::initialize(module)?;
+    crate::document_molecule_inspection_binding::initialize(module)?;
+    crate::document_molecule_molblock_binding::initialize(module)?;
+    crate::document_molecule_sdf_binding::initialize(module)?;
+    crate::document_molecule_name_binding::initialize(module)?;
+    crate::document_molecule_smiles_binding::initialize(module)?;
+    crate::drawing_standard_binding::initialize(module)?;
     crate::geometry_binding::initialize(module)?;
     crate::molecule_coordinate_binding::initialize(module)?;
     crate::paper_properties_binding::initialize(module)?;
     crate::paper_size_binding::initialize(module)?;
     crate::periodic_display_binding::initialize(module)?;
     crate::smiles_insertion_binding::initialize(module)?;
+    crate::peptide_template_insertion_binding::initialize(module)?;
     crate::inchi_insertion_binding::initialize(module)?;
     crate::molblock_insertion_binding::initialize(module)?;
     crate::sdf_insertion_binding::initialize(module)?;
@@ -802,6 +864,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     module.add_class::<PyDocumentSession>()?;
     module.add_class::<crate::document_ingress_binding::PyXmlInputBudgetV1>()?;
+    module.add_class::<crate::document_ingress_binding::PyPreparedLocalCdmlOpenV1>()?;
     module.add_class::<PyDocumentSnapshot>()?;
     module.add_class::<PySessionDocumentObservationV1>()?;
     module.add_class::<PyDocumentProjectionV1>()?;

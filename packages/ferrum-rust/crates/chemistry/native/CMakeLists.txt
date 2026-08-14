@@ -42,10 +42,11 @@ if(NOT EXISTS "${FERRUM_CHEM_BOOST_INCLUDE_DIR}/boost/config.hpp")
 endif()
 
 add_library(ferrum_chem SHARED
-	ferrum_chem_adapter.cpp ferrum_chem_smarts.cpp ferrum_chem_molblock.cpp
+	ferrum_chem_adapter.cpp ferrum_chem_smarts.cpp ferrum_chem_smiles.cpp
+	ferrum_chem_molblock.cpp
 	ferrum_chem_molblock_import.cpp ferrum_chem_sdf.cpp ferrum_chem_sdf_import.cpp
 	ferrum_chem_molecule_response.cpp
-	ferrum_chem_text_response.cpp ferrum_chem_inchi.cpp)
+	ferrum_chem_text_response.cpp ferrum_chem_inchi.cpp ferrum_chem_composition.cpp)
 target_include_directories(ferrum_chem
 	PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 	PRIVATE "${FERRUM_CHEM_RDKIT_INCLUDE_DIR}" "${FERRUM_CHEM_BOOST_INCLUDE_DIR}")

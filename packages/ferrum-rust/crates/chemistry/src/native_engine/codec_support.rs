@@ -40,6 +40,21 @@ impl<'a> Reader<'a> {
             self.take(4)?.try_into().expect("fixed length"),
         ))
     }
+    pub(super) fn u64(&mut self) -> Result<u64, DecodeFailure> {
+        Ok(u64::from_le_bytes(
+            self.take(8)?.try_into().expect("fixed length"),
+        ))
+    }
+    pub(super) fn i64(&mut self) -> Result<i64, DecodeFailure> {
+        Ok(i64::from_le_bytes(
+            self.take(8)?.try_into().expect("fixed length"),
+        ))
+    }
+    pub(super) fn f64(&mut self) -> Result<f64, DecodeFailure> {
+        Ok(f64::from_le_bytes(
+            self.take(8)?.try_into().expect("fixed length"),
+        ))
+    }
     pub(super) fn is_empty(&self) -> bool {
         self.cursor == self.bytes.len()
     }

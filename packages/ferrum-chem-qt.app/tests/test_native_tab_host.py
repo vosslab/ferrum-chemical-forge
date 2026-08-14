@@ -163,16 +163,15 @@ def test_ordinary_cdml_open_keeps_legacy_file_controller_by_default(
 
 #============================================
 def test_explicit_native_open_registers_a_rust_tab_without_replacing_legacy(
-		main_window: object, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path,
+		main_window: object, tmp_path: pathlib.Path,
 		) -> None:
 	"""The explicit action's route owns a separate Rust page beside the legacy tab."""
 	source = tmp_path / "native.cdml"
-	source.write_text("<svg/>", encoding="utf-8")
-	tab, _controller = _native_tab(False)
-	monkeypatch.setattr(main_window, "_create_native_tab", lambda _cdml, _title: tab)
+	source.write_text("<cdml/>", encoding="utf-8")
 
 	assert main_window.open_native_cdml_path(str(source))
-	assert main_window._active_native_tab() is tab
+	tab = main_window._active_native_tab()
+	assert tab is not None and tab.file_path == source
 	assert main_window.close_session_at(main_window._tab_widget.indexOf(tab))
 
 

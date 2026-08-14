@@ -2,6 +2,8 @@
 
 #[path = "tests/atom_bond_layout.rs"]
 mod atom_bond_layout;
+#[path = "tests/composite_recording_v1.rs"]
+mod composite_recording_v1;
 #[path = "tests/direct_glycosidic_haworth.rs"]
 mod direct_glycosidic_haworth;
 #[path = "tests/document_artifact_v1.rs"]

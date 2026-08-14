@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 const REQUIRED_MACROS: &[&str] = &[
     "FERRUM_CHEM_ADAPTER_ABI_VERSION",
+    "FERRUM_CHEM_CALL_ALLOCATION_FAILURE",
     "FERRUM_CHEM_MAX_RESPONSE_BYTES",
 ];
 

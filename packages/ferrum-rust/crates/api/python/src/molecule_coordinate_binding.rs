@@ -263,7 +263,9 @@ fn map_build_error(
         }
         MoleculeCoordinateBuildError::Document(_)
         | MoleculeCoordinateBuildError::CoreProjection(_)
+        | MoleculeCoordinateBuildError::DuplicateAtomIdentity { .. }
         | MoleculeCoordinateBuildError::Graph(_)
+        | MoleculeCoordinateBuildError::ResourceAllocation
         | MoleculeCoordinateBuildError::Update(_) => {
             structured_error(py, MoleculeCoordinateError::new_err, error)
         }

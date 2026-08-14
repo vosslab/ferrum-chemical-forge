@@ -31,12 +31,47 @@ const C_TERMINUS: &str = "(C(=O)[O-])";
 pub fn build_legacy_peptide_template_smiles_v1(
     sequence: &PeptideSequence,
 ) -> Result<LegacyPeptideTemplateSmilesV1, LegacyPeptideTemplateSmilesErrorV1> {
-    let mut side_chains = Vec::with_capacity(sequence.len());
+    let output_len = legacy_peptide_template_smiles_output_bytes_v1(sequence)?;
+
+    let link_count = sequence.len() - 1;
+    let mut smiles = String::new();
+    smiles
+        .try_reserve(output_len)
+        .map_err(|_| LegacyPeptideTemplateSmilesErrorV1::AllocationFailed)?;
+    smiles.push_str(N_TERMINUS);
+    for (index, residue) in sequence.residues().iter().copied().enumerate() {
+        let side_chain = side_chain_v1(residue).ok_or(
+            LegacyPeptideTemplateSmilesErrorV1::UnsupportedTemplateResidue {
+                position: index + 1,
+                residue,
+            },
+        )?;
+        smiles.push_str(side_chain);
+        if index < link_count {
+            smiles.push_str(NEXT_RESIDUE);
+        }
+    }
+    smiles.push_str(C_TERMINUS);
+    for _ in 0..link_count {
+        smiles.push(')');
+    }
+
+    Ok(LegacyPeptideTemplateSmilesV1 {
+        sequence: sequence
+            .try_clone()
+            .map_err(|_| LegacyPeptideTemplateSmilesErrorV1::AllocationFailed)?,
+        smiles,
+    })
+}
+
+/// Calculate this profile's exact SMILES output length without allocating it.
+fn legacy_peptide_template_smiles_output_bytes_v1(
+    sequence: &PeptideSequence,
+) -> Result<usize, LegacyPeptideTemplateSmilesErrorV1> {
     let mut output_len = N_TERMINUS
         .len()
         .checked_add(C_TERMINUS.len())
         .ok_or(LegacyPeptideTemplateSmilesErrorV1::OutputSizeOverflow)?;
-
     for (index, residue) in sequence.residues().iter().copied().enumerate() {
         let side_chain = side_chain_v1(residue).ok_or(
             LegacyPeptideTemplateSmilesErrorV1::UnsupportedTemplateResidue {
@@ -47,9 +82,7 @@ pub fn build_legacy_peptide_template_smiles_v1(
         output_len = output_len
             .checked_add(side_chain.len())
             .ok_or(LegacyPeptideTemplateSmilesErrorV1::OutputSizeOverflow)?;
-        side_chains.push(side_chain);
     }
-
     let link_count = sequence.len() - 1;
     let link_len = NEXT_RESIDUE
         .len()
@@ -62,24 +95,7 @@ pub fn build_legacy_peptide_template_smiles_v1(
                 .ok_or(LegacyPeptideTemplateSmilesErrorV1::OutputSizeOverflow)?,
         )
         .ok_or(LegacyPeptideTemplateSmilesErrorV1::OutputSizeOverflow)?;
-
-    let mut smiles = String::with_capacity(output_len);
-    smiles.push_str(N_TERMINUS);
-    for (index, side_chain) in side_chains.iter().enumerate() {
-        smiles.push_str(side_chain);
-        if index < link_count {
-            smiles.push_str(NEXT_RESIDUE);
-        }
-    }
-    smiles.push_str(C_TERMINUS);
-    for _ in 0..link_count {
-        smiles.push(')');
-    }
-
-    Ok(LegacyPeptideTemplateSmilesV1 {
-        sequence: sequence.clone(),
-        smiles,
-    })
+    Ok(output_len)
 }
 
 /// Owned facts produced by the fixed legacy peptide-template profile.
@@ -114,6 +130,12 @@ impl LegacyPeptideTemplateSmilesV1 {
         &self.smiles
     }
 
+    /// Consume this receipt and return its already-reserved template storage.
+    #[must_use]
+    pub fn into_smiles(self) -> String {
+        self.smiles
+    }
+
     /// Return the complete one-letter alphabet supported by this profile.
     #[must_use]
     pub const fn supported_alphabet(&self) -> &'static str {
@@ -138,6 +160,9 @@ pub enum LegacyPeptideTemplateSmilesErrorV1 {
     /// The required output length cannot be represented on this platform.
     #[error("legacy peptide-template SMILES output size overflow")]
     OutputSizeOverflow,
+    /// The bounded template builder could not reserve output storage.
+    #[error("legacy peptide-template SMILES could not reserve output storage")]
+    AllocationFailed,
 }
 
 const fn side_chain_v1(residue: ResidueCode) -> Option<&'static str> {

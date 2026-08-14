@@ -73,6 +73,24 @@ fn ample_request() -> PdfRenderRequestV1 {
     }
 }
 
+fn presentation_text_plan(
+    operation: PresentationTextOp,
+    bounds: GlyphBounds,
+) -> DocumentRenderPlanV1 {
+    let text = DocumentTextOpV1::presentation(point(10.0, 20.0), operation, bounds, None)
+        .expect("presentation text");
+    DocumentRenderPlanV1::new(
+        provenance(19),
+        RenderViewportV1::new(0.0, 0.0, 120.0, 80.0).expect("page"),
+        vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            1,
+            DocumentRenderIdentityV1::projection_local("pdf-presentation").expect("identity"),
+            DocumentRenderContentV1::Text(text),
+        ))],
+    )
+    .expect("document plan")
+}
+
 #[test]
 fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics() {
     let source = provenance(8);
@@ -158,6 +176,36 @@ fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics()
     );
     assert!(!source.contains(" Tf"));
     assert!(!source.contains(" Tj"));
+}
+
+#[test]
+fn pdf_preflight_accepts_verified_space_and_rejects_a_visible_space_glyph_forgery() {
+    let metrics =
+        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
+            .expect("Telex metrics");
+    let layout = metrics
+        .layout_presentation_text(
+            &[PresentationTextSourceRun::new("L L", TextScript::Baseline).expect("source")],
+            width(18.0),
+            paint("123456"),
+        )
+        .expect("presentation layout");
+    render_document_plan_to_pdf_v1(
+        &presentation_text_plan(layout.operation().clone(), layout.bounds()),
+        ample_request(),
+    )
+    .expect("verified space requires no PDF outline commands");
+
+    let mut wire = serde_json::to_value(layout.operation()).expect("presentation wire");
+    wire["runs"][0]["glyphs"][0]["glyph_index"] = serde_json::Value::from(3);
+    let forged: PresentationTextOp = serde_json::from_value(wire).expect("render-level plan");
+    assert!(matches!(
+        render_document_plan_to_pdf_v1(
+            &presentation_text_plan(forged, layout.bounds()),
+            ample_request(),
+        ),
+        Err(PdfRenderError::MissingGlyphOutline { glyph_index: 3 })
+    ));
 }
 
 #[test]

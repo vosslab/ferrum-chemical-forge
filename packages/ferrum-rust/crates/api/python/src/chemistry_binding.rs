@@ -119,9 +119,25 @@ enum PySmilesBondDirectionV1 {
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-enum PyMolblockVersionV1 {
+pub(crate) enum PyMolblockVersionV1 {
     V2000,
     V3000,
+}
+
+impl PyMolblockVersionV1 {
+    pub(crate) const fn into_rust(self) -> MolblockVersion {
+        match self {
+            Self::V2000 => MolblockVersion::V2000,
+            Self::V3000 => MolblockVersion::V3000,
+        }
+    }
+
+    pub(crate) const fn from_rust(version: MolblockVersion) -> Self {
+        match version {
+            MolblockVersion::V2000 => Self::V2000,
+            MolblockVersion::V3000 => Self::V3000,
+        }
+    }
 }
 
 /// Closed InChI serialization vocabulary.
@@ -145,6 +161,13 @@ impl PyInchiModeV1 {
         match self {
             Self::Standard => InchiMode::Standard,
             Self::FixedHydrogen => InchiMode::FixedHydrogen,
+        }
+    }
+
+    pub(crate) const fn from_rust(value: InchiMode) -> Self {
+        match value {
+            InchiMode::Standard => Self::Standard,
+            InchiMode::FixedHydrogen => Self::FixedHydrogen,
         }
     }
 }
@@ -378,10 +401,7 @@ fn molecule_to_molblock(
     version: PyRef<'_, PyMolblockVersionV1>,
 ) -> PyResult<String> {
     let (engine, library_path) = packaged_native_engine(py, "molecule_to_molblock")?;
-    let version = match *version {
-        PyMolblockVersionV1::V2000 => MolblockVersion::V2000,
-        PyMolblockVersionV1::V3000 => MolblockVersion::V3000,
-    };
+    let version = version.into_rust();
     match engine.molecule_to_molblock(molecule.molecule.molecule(), version) {
         Ok(molblock) => Ok(molblock),
         Err(error) => Err(map_packaged_operation_error(
@@ -485,10 +505,7 @@ fn records_to_sdf(
         }
         rust_records.push(item.extract::<PyRef<'_, PySdfRecordV1>>()?.record.clone());
     }
-    let version = match *version {
-        PyMolblockVersionV1::V2000 => MolblockVersion::V2000,
-        PyMolblockVersionV1::V3000 => MolblockVersion::V3000,
-    };
+    let version = version.into_rust();
     let (engine, library_path) = packaged_native_engine(py, "records_to_sdf")?;
     match engine.records_to_sdf(&rust_records, version) {
         Ok(sdf) => Ok(sdf),
@@ -737,6 +754,13 @@ pub(crate) fn map_chemistry_error(py: Python<'_>, error: RustChemistryError) -> 
             py,
             ChemistryUnavailable::new_err,
             format!("chemistry operation is unavailable: {operation}"),
+            Some(operation),
+            None,
+        ),
+        RustChemistryError::ResourceExhausted { operation } => structured_error(
+            py,
+            ChemistryBoundary::new_err,
+            format!("chemistry operation exhausted memory while producing {operation}"),
             Some(operation),
             None,
         ),

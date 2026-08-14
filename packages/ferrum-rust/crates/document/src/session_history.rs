@@ -36,6 +36,18 @@ impl SessionHistory {
         }
     }
 
+    /// Reserve storage for one later append while the caller can still report a
+    /// recoverable preparation failure. `append_reserved` then performs only
+    /// truncation, moves, and bounded eviction.
+    pub(super) fn try_reserve_append(&mut self) -> Result<(), std::collections::TryReserveError> {
+        self.entries.try_reserve(1)
+    }
+
+    pub(super) fn append_reserved(&mut self, state: RevisionState) {
+        debug_assert!(self.entries.capacity() > self.entries.len());
+        self.append(state);
+    }
+
     pub(super) fn undo_target(&self) -> Option<&RevisionState> {
         self.cursor.checked_sub(1).map(|index| &self.entries[index])
     }

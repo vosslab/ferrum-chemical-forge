@@ -1,10 +1,10 @@
 # Ferrum Chemical Forge
 
 A pre-alpha chemical drawing platform for scientists and educators, pairing a Rust CDML
-engine with a PySide6 interface and an OASA-free bounded native CDML editor.
+engine with a native-first PySide6 interface.
 
-> Status: pre-alpha. The standalone `ferrum-qt --native` route is an accepted macOS arm64
-> bounded editor: it opens, renders, changes an atom element, adds one free-standing atom,
+> Status: pre-alpha. Ordinary `ferrum-qt` is an accepted macOS arm64 bounded editor: it
+> opens, renders, changes an atom element, adds one free-standing atom,
 > edits all nine supported authored atom properties in one Rust-owned operation,
 > connects two existing atoms with a revision-bound Rust-owned single-bond drag, extends an
 > atom into empty space with one carbon and bond, moves an atom by dragging its rendered
@@ -12,10 +12,8 @@ engine with a PySide6 interface and an OASA-free bounded native CDML editor.
 > changes one selected normal bond among single, double, and triple order, imports bounded
 > SMILES, regenerates one existing molecule's 2D coordinates while retaining its current
 > centroid and mean bond length, applies Rust undo/redo, and saves/reopens through Ferrum-Chem
-> without importing OASA.
-> It does not yet provide general bond-style tools or a complete native editing workflow. The
-> retained full
-> `ferrum-qt` editor is still an OASA-backed migration preview.
+> without importing OASA. It does not yet provide general bond-style tools or a complete
+> native editing workflow.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
 <!-- screenshots:end -->
@@ -28,35 +26,29 @@ surface plus a testable CDML document engine with explicit preservation boundari
 
 - Run Rust-only CDML inspection, validation, structural rewrite, CD-SVG extraction, and
   render-observation reports from the `ferrum` command.
-- Open and make bounded atom edits in the standalone OASA-free Qt route with
-  `ferrum-qt --native`.
+- Open and make bounded atom edits in the ordinary native-first Qt route with `ferrum-qt`.
 - Keep unknown XML and persistent document identity through Ferrum's structural CDML path.
 - Inspect SMILES through a deliberately named ABI-4 native adapter instead of implicit library
   discovery.
 
-## Two current desktop routes
+## Native-first desktop route
 
-The project deliberately exposes its migration boundary rather than hiding it.
+Ordinary `ferrum-qt drawing.cdml` starts the Rust-owned Ferrum-Chem route. On the verified
+macOS arm64 configuration, it opens, renders, changes an atom element, adds one free-standing
+atom, edits all nine supported authored atom properties as one Rust-owned revision, connects two
+existing atoms with a single-bond drag, extends an atom into empty space with one carbon and
+bond, moves an atom with exact Rust-owned coordinates, deletes a durable atom with its typed
+incident bonds or deletes one durable bond while preserving its endpoint atoms, changes one
+selected normal bond among single, double, and triple order, imports bounded SMILES, regenerates
+one durable molecule's coordinates off the Qt thread while preserving its current placement,
+applies Rust undo/redo, and saves/reopens CDML without OASA. Use it for the completed bounded
+native document slice.
 
-- `ferrum-qt --native drawing.cdml` is the standalone Ferrum-Chem route. On the verified macOS
-  arm64 configuration, it opens, renders, changes an atom element, adds one free-standing
-  atom, edits all nine supported authored atom properties as one Rust-owned revision, connects
-  two existing atoms with a single-bond drag, extends an atom into empty space
-  with one carbon and bond, moves an atom with exact Rust-owned coordinates, deletes a durable
-  atom with its typed incident bonds or deletes one durable bond while preserving its endpoint
-  atoms, changes one selected normal bond among single, double, and triple order, imports bounded
-  SMILES, regenerates one durable molecule's coordinates off the Qt thread while preserving its
-  current placement, applies Rust undo/redo, and saves/reopens CDML without OASA. Use it for the
-  completed bounded native document slice.
-- `ferrum-qt drawing.cdml` is the retained full PySide6 editor. It remains useful for its legacy
-  interactive drawing workflow, but still depends on OASA and is not evidence of a completed
-  Rust cutover.
-
-The native route does not yet choose a non-carbon element or bond order during the bond gesture,
+The ordinary route does not yet choose a non-carbon element or bond order during the bond gesture,
 edit wedge, hashed, dashed, aromatic, or ring-side depiction styles, delete other object classes,
 regenerate styled or non-ordinary molecule graphs, import arbitrary chemistry, or make a
-cross-platform packaging
-claim. This is a clean pre-production migration boundary, not a compatibility shim.
+cross-platform packaging claim. Retained legacy modules are an internal migration boundary; they
+do not change the ordinary command or create a user-facing compatibility promise.
 
 ## Quick start: inspect a real document
 

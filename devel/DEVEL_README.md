@@ -84,6 +84,8 @@ cargo run -p ferrum-api --example measure_cdml_manifest -- \
   participant-chosen aliases, declared format/stratum/producer metadata,
   measurements, and stable failure codes. It does not publish source paths,
   filenames, document text, snippets, or hashes.
-- A receipt is evidence for a later human review of input coverage and Rust
-  resource policy. It chooses no admission budget, so external Open remains
-  unavailable until that review records a policy at the Rust boundary.
+- A receipt is optional evidence for later review of input coverage. It never
+  chooses a product budget. The ordinary local-CDML V1 operational envelope is
+  now recorded separately in
+  `docs/active_plans/reports/local_cdml_render_profile_v1.md`; external Qt Open
+  remains unavailable until its controller adopts that Rust profile directly.

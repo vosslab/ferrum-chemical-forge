@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{Coordinates, MolGraph, SdfRecord, SmilesMolecule};
+use crate::{Coordinates, MolGraph, MoleculeComposition, SdfRecord, SmilesMolecule};
 
 /// Explicit molfile syntax selected for one export operation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,6 +98,23 @@ pub trait ChemEngine {
         })
     }
 
+    /// Export one complete graph as canonical isomeric SMILES.
+    fn molecule_to_smiles(&self, _molecule: &MolGraph) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_smiles",
+        })
+    }
+
+    /// Calculate isotope-aware formula, counts, charge, and masses.
+    fn molecule_composition(
+        &self,
+        _molecule: &MolGraph,
+    ) -> Result<MoleculeComposition, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_composition",
+        })
+    }
+
     /// Export one coordinate-bearing graph as an explicit molblock version.
     fn molecule_to_molblock(
         &self,
@@ -106,6 +123,18 @@ pub trait ChemEngine {
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_molblock",
+        })
+    }
+
+    /// Export one coordinate-bearing graph with an exact first-line title.
+    fn molecule_to_molblock_with_title(
+        &self,
+        _molecule: &MolGraph,
+        _version: MolblockVersion,
+        _title: &str,
+    ) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_molblock_with_title",
         })
     }
 
@@ -249,6 +278,12 @@ pub enum ChemistryError {
     #[error("chemistry operation is unavailable: {operation}")]
     OperationUnavailable {
         /// Stable operation name.
+        operation: &'static str,
+    },
+    /// A checked owned result could not be allocated.
+    #[error("chemistry operation exhausted memory while producing {operation}")]
+    ResourceExhausted {
+        /// Stable operation whose owned result could not be completed.
         operation: &'static str,
     },
     /// The graph is valid but cannot be kekulized under the supplied options.

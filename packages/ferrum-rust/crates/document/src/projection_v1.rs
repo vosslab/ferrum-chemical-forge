@@ -705,12 +705,33 @@ fn drawing_standard(
             .map(|bond| optional_positive(bond, "wedge-width", issues))
             .transpose()?
             .flatten(),
+        bond_standard
+            .map(|bond| optional_ratio(bond, "double-ratio", issues))
+            .transpose()?
+            .flatten(),
         optional_positive(record, "font_size", issues)?,
         record.attribute("font_family").map(str::to_owned),
         optional_color(record, "line_color", issues)?,
         atom_standard.and_then(|atom| optional_visibility(atom, "show_hydrogens", issues)),
         optional_transparent_color(record, "area_color", issues)?,
     ))
+}
+
+fn optional_ratio(
+    record: &TypedRecord,
+    field: &'static str,
+    issues: &mut Vec<ProjectionIssueV1>,
+) -> Result<Option<PositiveFiniteV1>, ProjectionError> {
+    let value = optional_positive(record, field, issues)?;
+    if value.is_some_and(|value| value.value() > 1.0) {
+        issues.push(ProjectionIssueV1::new(
+            ProjectionIssueCodeV1::InvalidPresentationFact,
+            record,
+            format!("{field} must be at most 1"),
+        ));
+        return Ok(None);
+    }
+    Ok(value)
 }
 
 fn optional_signed_spacing(

@@ -14,6 +14,33 @@ fn width(value: f64) -> PositiveFinite {
     PositiveFinite::new(value).expect("positive test width")
 }
 
+fn presentation_text() -> DocumentTextOpV1 {
+    let metrics =
+        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
+            .expect("Telex metrics");
+    let source_runs = vec![
+        PresentationTextSourceRun::new("Line one\nH", TextScript::Baseline)
+            .expect("baseline source"),
+        PresentationTextSourceRun::new("2", TextScript::Subscript).expect("subscript source"),
+        PresentationTextSourceRun::new("O", TextScript::Baseline).expect("baseline source"),
+    ];
+    let layout = metrics
+        .layout_presentation_text(&source_runs, width(18.0), paint("123456"))
+        .expect("presentation layout");
+    let first_line = &layout.operation().runs()[0];
+    assert!(
+        first_line.glyphs()[5].origin().x() > first_line.glyphs()[4].origin().x(),
+        "the visible glyph after the space retains its supplied origin"
+    );
+    DocumentTextOpV1::presentation(
+        point(10.0, 20.0),
+        layout.operation().clone(),
+        layout.bounds(),
+        None,
+    )
+    .expect("presentation text")
+}
+
 fn plan() -> DocumentRenderPlanV1 {
     let vector = DocumentVectorRootV1::new(vec![
         DocumentVectorOpV1::path(
@@ -35,6 +62,11 @@ fn plan() -> DocumentRenderPlanV1 {
                 2,
                 DocumentRenderIdentityV1::projection_local("painted").expect("identity"),
                 DocumentRenderContentV1::Vector(vector),
+            )),
+            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                3,
+                DocumentRenderIdentityV1::projection_local("mixed-text").expect("identity"),
+                DocumentRenderContentV1::Text(presentation_text()),
             )),
             DocumentRenderOutcomeV1::Exclusion(
                 DocumentRenderExclusionV1::new(
@@ -92,4 +124,39 @@ fn whole_document_sinks_issue_the_same_plan_coverage_receipt() {
         svg.report().exclusions()[0].feature(),
         "profile_excluded:unsupported-root"
     );
+}
+
+#[test]
+fn svg_completed_artifact_budget_accepts_the_result_or_withholds_it() {
+    let plan = plan();
+    let completed = render_document_plan_to_svg_v1(&plan).expect("SVG lowering");
+    let exact_length = completed.artifact().as_str().len();
+
+    let admitted = render_document_plan_to_svg_with_budget_v1(
+        &plan,
+        SvgOutputBudgetV1::new(exact_length).expect("exact output budget"),
+    )
+    .expect("exact completed length must be admitted");
+    assert_eq!(admitted.report(), completed.report());
+
+    let error = render_document_plan_to_svg_with_budget_v1(
+        &plan,
+        SvgOutputBudgetV1::new(exact_length - 1).expect("smaller output budget"),
+    )
+    .expect_err("oversized completed SVG must be withheld");
+    assert!(matches!(
+        error,
+        SvgRenderError::OutputBudgetExceeded {
+            limit,
+            attempted
+        } if limit + 1 == attempted
+    ));
+}
+
+#[test]
+fn svg_completed_artifact_budget_must_be_nonzero() {
+    assert!(matches!(
+        SvgOutputBudgetV1::new(0),
+        Err(SvgRenderError::InvalidOutputBudget)
+    ));
 }

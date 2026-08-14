@@ -32,6 +32,19 @@ Produce one complete render observation for a CDML file:
 ferrum cdml render-observation drawing.cdml
 ```
 
+Render one complete admitted CDML document through the native SVG backend:
+
+```bash
+ferrum cdml render svg drawing.cdml --output drawing.svg
+```
+
+Render through the direct vector PDF or raster PNG backend:
+
+```bash
+ferrum cdml render pdf drawing.cdml --output drawing.pdf
+ferrum cdml render png drawing.cdml --output drawing.png --width 800 --height 1131
+```
+
 Start Ferrum-Qt after completing the setup in [INSTALL.md](INSTALL.md):
 
 ```bash
@@ -39,8 +52,9 @@ ferrum-qt
 ```
 
 It creates a new empty Rust-owned document. External CDML Open, including a command-line
-file argument, is deliberately unavailable until Ferrum has a measured Rust-owned
-admission profile for that untrusted-input boundary.
+file argument, admits an uncompressed `.cdml` file through the same Rust-owned local-CDML
+V1 profile used by the native render command. Parsing and render observation run outside
+the Qt thread; Python does not read the file or select its numeric resource limits.
 
 ## Ordinary-window native document
 
@@ -49,6 +63,24 @@ empty Rust-owned document; closing the last tab leaves a supported zero-page she
 does not create or register a legacy document session. The retained OASA-backed migration
 editor is the explicit internal `LegacyCompatibilityMainWindow`, not the ordinary command
 path. OASA remains a dependency until the M22 migration is complete.
+
+File > Open accepts one uncompressed local `.cdml` document. Each accepted path opens in a
+new Rust-native tab; multiple startup paths queue through the same asynchronous admission
+boundary. A duplicate exact origin activates its existing tab. Cancel Open and window close
+invalidate delivery while a native read already in progress finishes safely. CD-SVG,
+compressed input, same-tab replacement, and recent-file routing remain separate work.
+
+Select one or more durable atoms or bonds and choose Chemistry > Molecule Information...
+to inspect every owning direct-root molecule. Ferrum keeps the accepted authored source
+facts beside RDKit-perceived isotope/charge-aware formula, atom counts, net formal charge,
+average molecular weight, monoisotopic mass, and average-mass element percentages. Multiple
+roots are shown in document order with one checked combined selection. The dialog is
+read-only and selectable; closing or changing the source tab discards stale worker delivery.
+
+To edit an authored molecule label, select one or more durable atoms or bonds from exactly
+one molecule and choose Chemistry > Set Molecule Name.... Ferrum stores the entered text
+exactly, including surrounding whitespace; submit an empty value to remove the name. An
+unchanged value is a no-op. The change participates in Undo/Redo and ordinary Save/reopen.
 
 In a native document, select exactly one durable atom to use Edit > Change Element with
 Ferrum or Edit > Edit Atom Properties with Ferrum. The property action sends only a closed
@@ -82,8 +114,7 @@ centering combinations. Unrepresentable facts fail visibly before mutation, and 
 does nothing.
 
 This is an M16 adoption slice, not a claim that every legacy capability has moved to Ferrum.
-The complete session/action cutover and the measured external-CDML admission policy remain
-open.
+The complete retained session/action cutover remains open.
 
 ## CDML commands
 
@@ -97,12 +128,51 @@ open.
   payload from decoded CD-SVG.
 - `ferrum cdml render-observation INPUT` emits one complete V1 render-observation
   JSON object.
+- `ferrum cdml render svg INPUT --output OUTPUT` renders a complete document
+  through the native SVG backend.
+- `ferrum cdml render pdf INPUT --output OUTPUT` renders a complete document
+  through the native vector PDF backend.
+- `ferrum cdml render png INPUT --output OUTPUT --width WIDTH --height HEIGHT`
+  renders a complete document through the native raster PNG backend.
 - `ferrum cdml generate-coordinates --adapter LIBRARY --molecule-id ID INPUT
   --output OUTPUT` regenerates one existing ordinary durable molecule.
 
 Use `-` as an input path for standard input. For rewrite and extraction, use
-`--output -` for standard output. `--help` describes the installed CLI and
+`--output -` for standard output; all three native artifact commands support
+both stream positions too. `--help` describes the installed CLI and
 `--version` reports the installed Ferrum version.
+
+## Native document artifacts
+
+Every `cdml render` format admits uncompressed CDML with the versioned
+`ferrum-local-cdml-ingress-v1` five-dimensional resource profile. It observes
+revision zero, composes one authenticated page, refuses any excluded root, and
+then lowers through exactly one native backend. SVG enforces its completed-text
+cap while appending; PDF performs structural preflight plus a completed-output
+check; PNG checks raw RGBA allocation before rasterization and encoded bytes
+afterward.
+For file output, Ferrum retains the exact opened source descriptor and refuses
+the source path or an observed hard-link alias as the destination.
+Confirmed publication is silent. If the platform cannot confirm directory-entry
+durability after replacement, the command succeeds and writes a warning to
+standard error; failures that may have published remain errors with that fact in
+their diagnostic.
+
+```bash
+ferrum cdml render svg - --output result.svg < drawing.cdml
+ferrum cdml render pdf - --output result.pdf < drawing.cdml
+ferrum cdml render png - --output result.png --width 800 --height 1131 \
+  < drawing.cdml
+```
+
+Use `--max-output-bytes` to select a completed-artifact cap. PDF also exposes
+`--max-plan-items` and `--max-path-commands`. PNG requires exact nonzero
+dimensions, defaults to a white background, accepts `--background transparent`
+or six hexadecimal RGB digits without `#`, and exposes `--max-raw-bytes`.
+Defaults are recorded in
+`docs/active_plans/reports/local_cdml_render_profile_v1.md`.
+PDF is produced directly from Ferrum's vector draw stream; it never contains an
+SVG document merely wrapped in a PDF container.
 
 ## Render observation
 
@@ -151,6 +221,17 @@ ferrum smiles inspect --adapter /absolute/path/libferrum_chem.dylib CCO
 
 Success writes one newline-terminated `ferrum-smiles-inspection-v1` JSON object with
 the canonical SMILES value, atom and bond facts, and atom-aligned coordinates.
+
+To parse one SMILES value and re-emit its complete graph through the optional canonical
+SMILES writer:
+
+```bash
+ferrum smiles canonicalize --adapter /absolute/path/libferrum_chem.dylib 'C(C)O'
+```
+
+Success writes exactly one printable canonical-isomeric SMILES line (`CCO` in this
+example). The command never searches for an adapter and does not use OASA. This remains
+a provisional pre-M18 CLI operation rather than a frozen shell contract.
 
 ## Bounded SDF inspection
 
@@ -209,14 +290,21 @@ byte-for-byte or lexical identity. Compressed `.svgz` input is not accepted by
 ## Native bounded editor
 
 `ferrum-qt` starts the OASA-free Rust-native product root with a new empty document. It
-exposes native file actions, except that external CDML Open remains deferred pending the
-measured admission profile. Its bounded Edit menu can:
+opens uncompressed local `.cdml` files through the approved Rust-owned local-CDML V1
+profile and saves through the Rust publication boundary. Its bounded Edit menu can:
 
 - import one SMILES or representable InChI string in a native worker, or import
   one bounded local V2000/V3000 Molfile, then commit the complete handle-free
   molecule only if the source document revision and digest remain current.
   Unsupported stereochemistry and other document facts fail visibly rather than
   being removed;
+- choose `Edit > Import Supported Peptide Sequence...` to insert one strict native
+  peptide template. Enter uppercase one-letter text with no spaces, using only
+  `ACDEFGIKLMNQRSTVY`; the exact accepted text is sent unchanged. H, P, and W are
+  currently unsupported and fail visibly before native library loading. A successful
+  import is one ordinary Rust-owned history entry and can be undone/redone, saved, and
+  reopened. This is a bounded native profile, not generic peptide construction or a
+  legacy OASA fallback;
 - import every supported 2D record from one bounded UTF-8 `.sdf` or `.sd` file as a
   single undoable Rust transaction. Records are placed in a horizontal row at the
   current insertion anchor, with one requested bond length between adjacent bounds.
@@ -226,6 +314,29 @@ measured admission profile. Its bounded Edit menu can:
   the complete projected graph and exact document provenance before packaged native
   work; a still-current result is copied to the clipboard without changing the
   document;
+- export one selected durable molecule through `Chemistry > Export Molfile V2000...`
+  or `Export Molfile V3000...`. Rust preserves supported atom, bond, and coordinate
+  facts, converts the document's downward-positive y axis to Molfile's
+  upward-positive convention, and publishes the exact native result as `.mol`
+  without changing the document or adopting the destination path. An authored
+  molecule name is passed into the optional native title-aware writer and
+  retained as the exact first Molfile line;
+- export one selected durable molecule through
+  `Chemistry > Export SDF Record V2000...` or
+  `Export SDF Record V3000...`. Imported SDF metadata remains authoritative:
+  blank or exact titles, property order, duplicate property names, and
+  multiline values are recovered from the retained typed document. An
+  ordinary molecule uses its authored name as the title or a blank title when
+  unnamed. Rust writes the one-record SDF envelope and publishes the exact
+  `.sdf` receipt without changing the document or adopting the destination
+  path. This is not a multi-record selection, public Python, CLI, or wire
+  interface;
+- inspect one or more molecules through `Chemistry > Molecule Information...` by
+  selecting durable atoms or bonds. The read-only result combines exact authored source
+  facts with native formula, charge, mass, isotope-aware counts, and mass percentages;
+- set or clear the exact authored name of one molecule through
+  `Chemistry > Set Molecule Name...` after selecting one or more of its durable atoms or
+  bonds. Empty input clears the attribute; unchanged input adds no history;
 
 - change the element of one durably selected atom;
 - edit one durably selected atom's authored element, formal charge, valence,

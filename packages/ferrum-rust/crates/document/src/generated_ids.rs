@@ -1,6 +1,7 @@
 //! Collision-safe session-owned persistent identity allocation.
 
 use super::{IndexedDocument, PersistentId, SessionOperationError};
+use std::fmt::Write;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct GeneratedIdSequences {
@@ -8,6 +9,7 @@ pub(super) struct GeneratedIdSequences {
     atom: Option<u64>,
     bond: Option<u64>,
     presentation: Option<u64>,
+    fragment: Option<u64>,
 }
 
 impl GeneratedIdSequences {
@@ -17,6 +19,7 @@ impl GeneratedIdSequences {
             atom: Some(0),
             bond: Some(0),
             presentation: Some(0),
+            fragment: Some(0),
         }
     }
 
@@ -43,6 +46,7 @@ impl GeneratedIdSequences {
                 atom,
                 bond,
                 presentation: self.presentation,
+                fragment: self.fragment,
             },
         ))
     }
@@ -108,6 +112,21 @@ impl GeneratedIdSequences {
         ))
     }
 
+    /// Reserve one opaque-safe generated fragment identity without installing the
+    /// returned sequence. Prepared operations carry the returned state until their
+    /// authenticated commit succeeds.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) fn reserve_fragment(
+        self,
+        indexed: &IndexedDocument,
+    ) -> Result<(PersistentId, Self), SessionOperationError> {
+        let (fragments, fragment) = allocate(indexed, GeneratedIdKind::Fragment, self.fragment, 1)?;
+        let [identifier] = fragments
+            .try_into()
+            .expect("one requested fragment identity produces one result");
+        Ok((identifier, Self { fragment, ..self }))
+    }
+
     pub(super) fn reserve_presentations<const N: usize>(
         self,
         indexed: &IndexedDocument,
@@ -135,6 +154,11 @@ impl GeneratedIdSequences {
     pub(super) fn with_bond_sequence(self, bond: Option<u64>) -> Self {
         Self { bond, ..self }
     }
+
+    #[cfg(test)]
+    fn with_fragment_sequence(self, fragment: Option<u64>) -> Self {
+        Self { fragment, ..self }
+    }
 }
 
 pub(super) struct GeneratedMoleculeIdentities {
@@ -154,6 +178,8 @@ enum GeneratedIdKind {
     Atom,
     Bond,
     Presentation,
+    #[cfg_attr(not(test), allow(dead_code))]
+    Fragment,
 }
 
 impl GeneratedIdKind {
@@ -163,6 +189,7 @@ impl GeneratedIdKind {
             Self::Atom => "ferrum-atom-v1-",
             Self::Bond => "ferrum-bond-v1-",
             Self::Presentation => "ferrum-presentation-v1-",
+            Self::Fragment => "ferrum-fragment-v1-",
         }
     }
 
@@ -172,6 +199,7 @@ impl GeneratedIdKind {
             Self::Atom => SessionOperationError::AtomIdentifierExhausted,
             Self::Bond => SessionOperationError::BondIdentifierExhausted,
             Self::Presentation => SessionOperationError::PresentationIdentifierExhausted,
+            Self::Fragment => SessionOperationError::FragmentIdentifierExhausted,
         }
     }
 }
@@ -183,15 +211,130 @@ fn allocate(
     count: usize,
 ) -> Result<(Vec<PersistentId>, Option<u64>), SessionOperationError> {
     let mut sequence = start;
-    let mut identifiers = Vec::with_capacity(count);
+    let mut identifiers = Vec::new();
+    identifiers
+        .try_reserve_exact(count)
+        .map_err(|_| SessionOperationError::GeneratedIdentifierAllocationFailed)?;
     while identifiers.len() < count {
         let current = sequence.ok_or_else(|| kind.exhausted())?;
-        let identifier = PersistentId::new(format!("{}{current}", kind.prefix()))
-            .map_err(|_| kind.exhausted())?;
+        let identifier = generated_identifier(kind, current)?;
         sequence = current.checked_add(1);
         if indexed.resolve_id(&identifier).is_none() {
             identifiers.push(identifier);
         }
     }
     Ok((identifiers, sequence))
+}
+
+fn generated_identifier(
+    kind: GeneratedIdKind,
+    sequence: u64,
+) -> Result<PersistentId, SessionOperationError> {
+    let prefix = kind.prefix();
+    let digits = decimal_digits(sequence);
+    let capacity = prefix
+        .len()
+        .checked_add(digits)
+        .ok_or_else(|| kind.exhausted())?;
+    let mut spelling = String::new();
+    spelling
+        .try_reserve_exact(capacity)
+        .map_err(|_| SessionOperationError::GeneratedIdentifierAllocationFailed)?;
+    spelling.push_str(prefix);
+    write!(&mut spelling, "{sequence}").map_err(|_| kind.exhausted())?;
+    PersistentId::new(spelling).map_err(|_| kind.exhausted())
+}
+
+const fn decimal_digits(value: u64) -> usize {
+    if value < 10 {
+        1
+    } else if value < 100 {
+        2
+    } else if value < 1_000 {
+        3
+    } else if value < 10_000 {
+        4
+    } else if value < 100_000 {
+        5
+    } else if value < 1_000_000 {
+        6
+    } else if value < 10_000_000 {
+        7
+    } else if value < 100_000_000 {
+        8
+    } else if value < 1_000_000_000 {
+        9
+    } else if value < 10_000_000_000 {
+        10
+    } else if value < 100_000_000_000 {
+        11
+    } else if value < 1_000_000_000_000 {
+        12
+    } else if value < 10_000_000_000_000 {
+        13
+    } else if value < 100_000_000_000_000 {
+        14
+    } else if value < 1_000_000_000_000_000 {
+        15
+    } else if value < 10_000_000_000_000_000 {
+        16
+    } else if value < 100_000_000_000_000_000 {
+        17
+    } else if value < 1_000_000_000_000_000_000 {
+        18
+    } else if value < 10_000_000_000_000_000_000 {
+        19
+    } else {
+        20
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fragment_exhaustion_has_its_own_typed_error() {
+        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let exhausted = GeneratedIdSequences::initial().with_fragment_sequence(None);
+
+        assert!(matches!(
+            exhausted.reserve_fragment(&indexed),
+            Err(SessionOperationError::FragmentIdentifierExhausted)
+        ));
+    }
+
+    #[test]
+    fn fragment_allocation_skips_opaque_declarations() {
+        let indexed = IndexedDocument::parse(
+            "<cdml><molecule id=\"m\"><vendor id=\"ferrum-fragment-v1-0\"/></molecule></cdml>",
+        )
+        .expect("valid opaque declaration");
+
+        let (identifier, _) = GeneratedIdSequences::initial()
+            .reserve_fragment(&indexed)
+            .expect("fragment identity");
+
+        assert_eq!(identifier.as_str(), "ferrum-fragment-v1-1");
+    }
+
+    #[test]
+    fn fragment_reservation_is_tentative_until_its_returned_sequence_is_installed() {
+        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let original = GeneratedIdSequences::initial();
+
+        let (first, tentative) = original
+            .reserve_fragment(&indexed)
+            .expect("first fragment identity");
+        let (repeated, _) = original
+            .reserve_fragment(&indexed)
+            .expect("uninstalled sequence remains unchanged");
+        let (next, _) = tentative
+            .reserve_fragment(&indexed)
+            .expect("installed tentative sequence advances");
+
+        assert_eq!(first.as_str(), "ferrum-fragment-v1-0");
+        assert_eq!(repeated.as_str(), "ferrum-fragment-v1-0");
+        assert_eq!(next.as_str(), "ferrum-fragment-v1-1");
+    }
 }

@@ -7,6 +7,24 @@ use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
 /// Parse or typed-projection failure.
 #[derive(Debug, Error)]
 pub enum TypedDocumentError {
+    /// A linear-form adapter allocation could not be reserved from admitted source size.
+    #[error("typed linear-form conversion exhausted available resources")]
+    LinearFormResourceExhausted,
+    /// A linear-form request did not name one direct typed molecule.
+    #[error("typed linear-form molecule selector is not one direct molecule")]
+    InvalidLinearFormMolecule,
+    /// A linear-form request named an atom outside its selected direct molecule.
+    #[error("typed linear-form atom selector is not one direct atom: {0}")]
+    InvalidLinearFormAtom(PersistentId),
+    /// A direct molecule contains an unsupported linear-form atom, bond, or mark fact.
+    #[error("typed linear-form source has unsupported content: {0}")]
+    InvalidLinearFormSource(PersistentId),
+    /// More than one exact generated linear form owns the requested members.
+    #[error("typed linear-form ownership is ambiguous")]
+    AmbiguousLinearFormOwnership,
+    /// The supplied generated fragment identity is already reserved.
+    #[error("typed linear-form fragment identifier is already reserved: {0}")]
+    DuplicateLinearFormFragment(PersistentId),
     /// XML admission failed before the retained tree was built.
     #[error(transparent)]
     XmlInput(#[from] super::XmlInputError),

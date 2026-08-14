@@ -6,6 +6,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.config.preferences
+import ferrum_qt.dialogs.theme_chooser_dialog
 import ferrum_qt.native.ferrum_native_document_tab
 import ferrum_qt.native.ferrum_native_main_window
 
@@ -15,9 +16,9 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 	"""Start the product host with one empty Rust-owned document.
 
 	The historical OASA session graph lives only in
-	``ferrum_qt.legacy.compatibility_main_window``.  In particular, external
-	CDML open remains unavailable here until the measured Rust admission policy
-	is ready; it must not fall back to the compatibility host.
+	``ferrum_qt.legacy.compatibility_main_window``. External uncompressed CDML
+	uses the same Rust-owned local V1 profile as the native render CLI and never
+	loads document bytes through Python or a compatibility fallback.
 	"""
 
 	#============================================
@@ -35,11 +36,8 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 		self.setWindowTitle(self.tr("Ferrum-Qt"))
 		self.resize(1280, 800)
 		self._action_open = self._open_action
-		self._action_open.setEnabled(False)
-		self._action_open.setToolTip(self.tr(
-			"External CDML Open is deferred until its admission policy is approved.",
-		))
 		self._action_new = self._add_new_document_action()
+		self._theme_action = self._add_theme_action()
 		self._on_new()
 
 	#============================================
@@ -51,7 +49,28 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 		return action
 
 	#============================================
-	def _create_empty_native_tab(self) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
+	def _add_theme_action(self) -> PySide6.QtGui.QAction:
+		"""Expose the retained application-theme choice without legacy view ownership."""
+		menu = self.menuBar().addMenu(self.tr("Options"))
+		action = PySide6.QtGui.QAction(self.tr("Theme"), self)
+		action.triggered.connect(self._on_choose_theme)
+		menu.addAction(action)
+		return action
+
+	#============================================
+	def _on_choose_theme(self) -> None:
+		"""Apply one accepted theme choice through the existing application manager."""
+		current = self._theme_manager.current_theme
+		chosen = ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog.choose_theme(
+			self, current,
+		)
+		if chosen is not None and chosen != current:
+			self._theme_manager.apply_theme(chosen)
+
+	#============================================
+	def _create_empty_native_tab(
+			self,
+			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
 		"""Create a revision-zero Rust document without a legacy session."""
 		import ferrum_chem
 		session = ferrum_chem.DocumentSession.create_empty_document_v1()
@@ -83,26 +102,6 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 		return super()._register_native_tab(tab, activate=activate)
 
 	#============================================
-	def _on_open(self) -> bool:
-		"""Refuse external input until native admission limits are authoritative."""
-		self.statusBar().showMessage(
-			self.tr("Open is deferred until Ferrum-Qt owns an external-input policy."), 5000,
-		)
-		return False
-
-	#============================================
-	def open_file_path(self, file_path: str, replace_current: bool = False) -> bool:
-		"""Keep programmatic launch-file handling on the same unavailable route."""
-		del file_path, replace_current
-		return self._on_open()
-
-	#============================================
-	def open_native_cdml_path(self, file_path: str) -> bool:
-		"""Refuse the old whole-file Python CDML loader in the ordinary host."""
-		del file_path
-		return self._on_open()
-
-	#============================================
 	def _close_native_tab_at(self, index: int) -> bool:
 		"""Close one clean native page and report whether it was disposed."""
 		tab = self._native_tabs_by_page.get(self._tab_widget.widget(index))
@@ -132,6 +131,8 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 		"""Retire clean native pages before the generic QObject finalizer runs."""
 		if self._shutdown_prepared:
 			return True
+		if self._cancel_local_cdml_open_for_close():
+			return False
 		if any(tab.requires_refresh or tab.is_dirty for tab in self._native_tabs_by_page.values()):
 			return False
 		for tab in tuple(self._native_tabs_by_page.values()):
@@ -139,6 +140,11 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 			if index >= 0:
 				self._close_tab_at(index)
 		self._shutdown_prepared = not self._native_tabs_by_page
+		if self._shutdown_prepared:
+			self._prefs.set_value(
+				ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY,
+				self.saveGeometry(),
+			)
 		return self._shutdown_prepared
 
 	#============================================

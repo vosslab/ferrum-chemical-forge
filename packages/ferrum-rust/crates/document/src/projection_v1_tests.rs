@@ -8,7 +8,7 @@ use serde_json::Value;
 const DOCUMENT: &str = concat!(
     r##"<c:cdml xmlns:c="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07">
 <c:standard line_width="1.5" font_size="12" font_family="Fira Sans" "##,
-    r##"line_color="#AABBCC"><c:bond width="6" wedge-width="5px"/>"##,
+    r##"line_color="#AABBCC"><c:bond width="6" wedge-width="5px" double-ratio="0.6"/>"##,
     r##"<c:atom show_hydrogens="yes"/></c:standard>
 "##,
     r##"<c:molecule id="m1" name="first"><c:atom id="a1" name="C" charge="-1" explicit_hydrogens="2" show="no" hydrogens="yes"><c:point x="1cm" y="2cm"/><c:font family="Arial" size="13" color="#112233"/><c:ftext> C label </c:ftext></c:atom><c:group id="g1"/><c:atom id="a2" name="O"><c:point x="3" y="4"/></c:atom><c:bond id="b1" start="a1" end="a2" type="n1" line_width="2" bond_width="-8px" color="#445566"/><c:bond id="b2" start="a1" end="g1" type="n1"/></c:molecule>
@@ -102,6 +102,15 @@ fn projection_has_stable_wire_ids_order_positions_and_presentation_after_reparse
             .unwrap()
             .value(),
         5.0
+    );
+    assert_eq!(
+        first
+            .drawing_standard()
+            .unwrap()
+            .double_ratio()
+            .unwrap()
+            .value(),
+        0.6
     );
     assert_eq!(molecule.bonds()[0].bond_width().unwrap().value(), -8.0);
     assert!(

@@ -2,6 +2,7 @@
 #include "ferrum_chem_complete_graph.h"
 #include "ferrum_chem_molblock_request.h"
 #include "ferrum_chem_text_response.h"
+#include "ferrum_chem_utf8.h"
 
 #include <Geometry/point.h>
 #include <GraphMol/Conformer.h>
@@ -22,6 +23,7 @@
 namespace {
 
 constexpr uint8_t kMolblockMagic[] = {'F', 'C', 'B', '1'};
+constexpr uint8_t kTitledMolblockMagic[] = {'F', 'B', 'T', '1'};
 constexpr uint8_t kGraphMagic[] = {'F', 'C', 'G', '1'};
 
 uint32_t read_u32(const uint8_t *bytes) {
@@ -54,6 +56,62 @@ bool checked_length(uint64_t atom_count, uint64_t bond_count, uint64_t *records,
 	*coordinates = atom_count * FERRUM_CHEM_COORDINATE_BYTES;
 	return *records <= std::numeric_limits<uint64_t>::max() - *coordinates -
 		FERRUM_CHEM_MOLBLOCK_REQUEST_HEADER_BYTES;
+}
+
+bool valid_title(const std::string &title) {
+	return title.find('\0') == std::string::npos &&
+		title.find('\r') == std::string::npos && title.find('\n') == std::string::npos &&
+		ferrum_chem::is_valid_utf8(title);
+}
+
+uint32_t write_molblock(RDKit::RWMol &molecule, uint32_t format,
+		ferrum_chem_owned_buffer *response) {
+	RDKit::MolWriterParams parameters;
+	parameters.includeStereo = true;
+	parameters.kekulize = true;
+	const std::string output = format == FERRUM_CHEM_MOLBLOCK_FORMAT_V2000 ?
+		RDKit::MolToV2KMolBlock(molecule, parameters) :
+		RDKit::MolToV3KMolBlock(molecule, parameters);
+	if (output.empty()) {
+		return ferrum_chem::emit_text_response(FERRUM_CHEM_RESULT_INVALID_MOLECULE,
+			"RDKit could not generate the requested molblock", "", response);
+	}
+	return ferrum_chem::emit_text_response(FERRUM_CHEM_RESULT_OK, "", output, response);
+}
+
+bool parse_titled_molblock_request(const uint8_t *request, uint64_t request_len,
+		RDKit::RWMol *molecule, uint32_t *format, std::string *error) {
+	if (request == nullptr ||
+		request_len < FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES) {
+		*error = "titled molblock request is missing or truncated";
+		return false;
+	}
+	if (std::memcmp(request, kTitledMolblockMagic, sizeof(kTitledMolblockMagic)) != 0 ||
+		read_u32(request + 4) != FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION) {
+		*error = "titled molblock request has invalid magic or version";
+		return false;
+	}
+	const uint32_t molecule_length = read_u32(request + 8);
+	const uint32_t title_length = read_u32(request + 12);
+	const uint64_t payload_length = static_cast<uint64_t>(molecule_length) + title_length;
+	if (request_len != FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES + payload_length) {
+		*error = "titled molblock request is truncated or has trailing bytes";
+		return false;
+	}
+	const uint8_t *molecule_bytes =
+		request + FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES;
+	if (!ferrum_chem::parse_molblock_request(
+			molecule_bytes, molecule_length, molecule, format, error)) {
+		return false;
+	}
+	const uint8_t *title_bytes = molecule_bytes + molecule_length;
+	const std::string title(reinterpret_cast<const char *>(title_bytes), title_length);
+	if (!valid_title(title)) {
+		*error = "molblock title is invalid UTF-8 or contains NUL or a line break";
+		return false;
+	}
+	molecule->setProp(RDKit::common_properties::_Name, title);
+	return true;
 }
 
 }  // namespace
@@ -134,17 +192,36 @@ extern "C" uint32_t ferrum_chem_molecule_to_molblock_v1(
 			return ferrum_chem::emit_text_response(
 				FERRUM_CHEM_RESULT_MALFORMED_REQUEST, error, "", response);
 		}
-		RDKit::MolWriterParams parameters;
-		parameters.includeStereo = true;
-		parameters.kekulize = true;
-		const std::string output = format == FERRUM_CHEM_MOLBLOCK_FORMAT_V2000 ?
-			RDKit::MolToV2KMolBlock(molecule, parameters) :
-			RDKit::MolToV3KMolBlock(molecule, parameters);
-		if (output.empty()) {
-			return ferrum_chem::emit_text_response(FERRUM_CHEM_RESULT_INVALID_MOLECULE,
-				"RDKit could not generate the requested molblock", "", response);
+		return write_molblock(molecule, format, response);
+	} catch (const std::bad_alloc &) {
+		return FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
+	} catch (const std::exception &error) {
+		return ferrum_chem::emit_text_response(
+			FERRUM_CHEM_RESULT_INVALID_MOLECULE, error.what(), "", response);
+	} catch (...) {
+		return ferrum_chem::emit_text_response(
+			FERRUM_CHEM_RESULT_INTERNAL_FAILURE, "unknown native failure", "", response);
+	}
+}
+
+extern "C" uint32_t ferrum_chem_molecule_to_molblock_with_title_v1(
+		const uint8_t *request, uint64_t request_len,
+		ferrum_chem_owned_buffer *response) noexcept {
+	if (response == nullptr) {
+		return FERRUM_CHEM_CALL_INVALID_ARGUMENT;
+	}
+	response->data = nullptr;
+	response->len = 0;
+	try {
+		RDKit::RWMol molecule;
+		uint32_t format = 0;
+		std::string error;
+		if (!parse_titled_molblock_request(
+				request, request_len, &molecule, &format, &error)) {
+			return ferrum_chem::emit_text_response(
+				FERRUM_CHEM_RESULT_MALFORMED_REQUEST, error, "", response);
 		}
-		return ferrum_chem::emit_text_response(FERRUM_CHEM_RESULT_OK, "", output, response);
+		return write_molblock(molecule, format, response);
 	} catch (const std::bad_alloc &) {
 		return FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 	} catch (const std::exception &error) {

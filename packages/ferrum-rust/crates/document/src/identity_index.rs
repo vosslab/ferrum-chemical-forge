@@ -1,7 +1,8 @@
 //! Opaque XML retention and persistent identity indexing for CDML documents.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
+use std::fmt::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use thiserror::Error;
@@ -157,6 +158,12 @@ impl DocumentRecord {
 /// Identity and ordering failures found while indexing opaque XML.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum DocumentIdentityError {
+    /// Storage for a provisional-token registry could not be reserved.
+    #[error("provisional token registry allocation failed")]
+    ProvisionalTokenAllocationFailed,
+    /// The monotonic provisional-token sequence cannot advance further.
+    #[error("provisional token sequence is exhausted")]
+    ProvisionalTokenExhausted,
     /// The root is not a CDML element in the canonical or legacy namespace form.
     #[error("expected a CDML root element, found {root_name} in namespace {namespace:?}")]
     NotCdmlRoot {
@@ -275,8 +282,8 @@ pub struct IndexedDocument {
     pub(crate) xml: XmlDocument,
     records: Vec<DocumentRecord>,
     id_index: BTreeMap<PersistentId, ResolvedId>,
-    issued_tokens: BTreeSet<ProvisionalToken>,
-    consumed_tokens: BTreeSet<ProvisionalToken>,
+    issued_tokens: HashSet<u64>,
+    consumed_tokens: HashSet<u64>,
     document_instance: u64,
     next_token: u64,
 }
@@ -319,8 +326,8 @@ impl IndexedDocument {
             xml,
             records,
             id_index,
-            issued_tokens: BTreeSet::new(),
-            consumed_tokens: BTreeSet::new(),
+            issued_tokens: HashSet::new(),
+            consumed_tokens: HashSet::new(),
             document_instance: NEXT_DOCUMENT_INSTANCE.fetch_add(1, Ordering::Relaxed),
             next_token: 0,
         })
@@ -350,41 +357,65 @@ impl IndexedDocument {
         self.id_index.len()
     }
 
-    /// Issue a fresh, document-local provisional token.
-    pub(crate) fn issue_provisional_token(&mut self) -> ProvisionalToken {
+    /// Fallibly reserve both token registries before issuing one token.
+    ///
+    /// Every issued token reserves its later consumed-set entry, so a successful
+    /// `consume_provisional_token` only probes and inserts into existing capacity.
+    pub(crate) fn try_issue_provisional_token(
+        &mut self,
+    ) -> Result<ProvisionalToken, DocumentIdentityError> {
+        self.issued_tokens
+            .try_reserve(1)
+            .map_err(|_| DocumentIdentityError::ProvisionalTokenAllocationFailed)?;
+        self.consumed_tokens
+            .try_reserve(1)
+            .map_err(|_| DocumentIdentityError::ProvisionalTokenAllocationFailed)?;
         let sequence = self.next_token;
+        let next_token = sequence
+            .checked_add(1)
+            .ok_or(DocumentIdentityError::ProvisionalTokenExhausted)?;
+        let mut spelling = String::new();
+        spelling
+            .try_reserve("ferrum-provisional-".len() + 40)
+            .map_err(|_| DocumentIdentityError::ProvisionalTokenAllocationFailed)?;
+        write!(
+            spelling,
+            "ferrum-provisional-{}-{sequence}",
+            self.document_instance
+        )
+        .expect("writing to a reserved String is infallible");
         let token = ProvisionalToken {
             document_instance: self.document_instance,
             sequence,
-            spelling: format!("ferrum-provisional-{}-{sequence}", self.document_instance),
+            spelling,
         };
-        self.next_token += 1;
-        let inserted = self.issued_tokens.insert(token.clone());
+        self.next_token = next_token;
+        let inserted = self.issued_tokens.insert(sequence);
         debug_assert!(inserted, "monotonic provisional tokens are unique");
-        token
+        Ok(token)
     }
 
     /// Consume a token exactly once after its candidate has been accepted.
     pub(crate) fn consume_provisional_token(
         &mut self,
-        token: ProvisionalToken,
+        token: &ProvisionalToken,
     ) -> Result<(), DocumentIdentityError> {
         if token.document_instance != self.document_instance {
             return Err(DocumentIdentityError::UnknownProvisionalToken {
-                token: token.spelling,
+                token: token.spelling.clone(),
             });
         }
-        if self.consumed_tokens.contains(&token) {
+        if self.consumed_tokens.contains(&token.sequence) {
             return Err(DocumentIdentityError::ConsumedProvisionalToken {
-                token: token.spelling,
+                token: token.spelling.clone(),
             });
         }
-        if !self.issued_tokens.contains(&token) {
+        if !self.issued_tokens.contains(&token.sequence) {
             return Err(DocumentIdentityError::UnknownProvisionalToken {
-                token: token.spelling,
+                token: token.spelling.clone(),
             });
         }
-        let inserted = self.consumed_tokens.insert(token);
+        let inserted = self.consumed_tokens.insert(token.sequence);
         debug_assert!(inserted, "the consumed-token check established uniqueness");
         Ok(())
     }
@@ -394,13 +425,14 @@ impl IndexedDocument {
         &self,
         token: &ProvisionalToken,
     ) -> Result<(), DocumentIdentityError> {
-        if token.document_instance != self.document_instance || !self.issued_tokens.contains(token)
+        if token.document_instance != self.document_instance
+            || !self.issued_tokens.contains(&token.sequence)
         {
             return Err(DocumentIdentityError::UnknownProvisionalToken {
                 token: token.spelling.clone(),
             });
         }
-        if self.consumed_tokens.contains(token) {
+        if self.consumed_tokens.contains(&token.sequence) {
             return Err(DocumentIdentityError::ConsumedProvisionalToken {
                 token: token.spelling.clone(),
             });

@@ -8,6 +8,8 @@ mod generated {
 
 /// The ABI version required when loading a Ferrum chemistry adapter.
 pub const FERRUM_CHEM_ADAPTER_ABI_VERSION: u64 = generated::FERRUM_CHEM_ADAPTER_ABI_VERSION;
+/// Native call status used when the adapter could not allocate its response.
+pub const FERRUM_CHEM_CALL_ALLOCATION_FAILURE: u64 = generated::FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 /// Capability bit for the mandatory Kekulize operation.
 pub const FERRUM_CHEM_CAPABILITY_KEKULIZE: u64 = generated::FERRUM_CHEM_CAPABILITY_KEKULIZE;
 /// Capability bit for the optional SMILES-to-coordinate operation.
@@ -27,6 +29,13 @@ pub const FERRUM_CHEM_CAPABILITY_INCHI: u64 = generated::FERRUM_CHEM_CAPABILITY_
 pub const FERRUM_CHEM_CAPABILITY_SDF_READ: u64 = generated::FERRUM_CHEM_CAPABILITY_SDF_READ;
 /// Capability bit for bounded single-molblock import.
 pub const FERRUM_CHEM_CAPABILITY_MOLFILE_READ: u64 = generated::FERRUM_CHEM_CAPABILITY_MOLFILE_READ;
+/// Capability bit for isotope-aware molecular composition.
+pub const FERRUM_CHEM_CAPABILITY_COMPOSITION: u64 = generated::FERRUM_CHEM_CAPABILITY_COMPOSITION;
+/// Capability bit for canonical-isomeric complete-graph SMILES export.
+pub const FERRUM_CHEM_CAPABILITY_SMILES_WRITE: u64 = generated::FERRUM_CHEM_CAPABILITY_SMILES_WRITE;
+/// Capability bit for coordinate-bearing Molfile export with an exact title.
+pub const FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE: u64 =
+    generated::FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE;
 /// Bitmask containing every ABI-4 capability currently named by the public C header.
 ///
 /// The loader rejects advertised bits outside this mask. Each operation is

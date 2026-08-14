@@ -10,6 +10,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use ferrum_document::artifact_publication_v1::{
+    RetainedSourceFileGuardV1, RetainedSourceIdentityErrorV1, retain_regular_source_file_v1,
+};
 use ferrum_document::{
     CdsvgExtractionError, DocumentSession, DocumentSessionError, TypedDocument, TypedDocumentError,
     XmlInputBudgetV1, XmlInputError, extract_cdml_from_svg_with_budget,
@@ -141,6 +144,30 @@ pub enum DocumentIngressErrorV1 {
     },
 }
 
+/// One admitted local document and the exact source descriptor kept for publication.
+///
+/// The retained source lets a later artifact publisher reject the original file
+/// or an observed hard-link alias as an output destination. It is created from
+/// the same descriptor that supplied the admitted bytes.
+pub struct AdmittedDocumentFileV1 {
+    session: DocumentSession,
+    retained_source: RetainedSourceFileGuardV1,
+}
+
+impl AdmittedDocumentFileV1 {
+    /// Borrow the initialized revision-zero session.
+    #[must_use]
+    pub const fn session(&self) -> &DocumentSession {
+        &self.session
+    }
+
+    /// Consume the admission into its session and retained source descriptor.
+    #[must_use]
+    pub fn into_parts(self) -> (DocumentSession, RetainedSourceFileGuardV1) {
+        (self.session, self.retained_source)
+    }
+}
+
 /// Admit one caller-owned UTF-8 byte slice as CDML or CD-SVG under an explicit budget.
 pub fn load_document_utf8_bytes_with_budget(
     source: &[u8],
@@ -180,17 +207,44 @@ pub fn load_document_file_with_budget(
     format: DocumentIngressFormatV1,
 ) -> Result<DocumentSession, DocumentIngressErrorV1> {
     let origin = DocumentIngressOriginV1::File(path.to_path_buf());
+    let mut file = open_regular_file(path, &origin)?;
+    load_document_reader_with_budget(&mut file, origin, format)
+}
+
+/// Admit one local document and retain the exact opened source for artifact publication.
+///
+/// This route exists for one-shot converters. Ordinary editors should use
+/// [`load_document_file_with_budget`] and own their separate save baseline.
+pub fn load_document_file_for_publication_with_budget(
+    path: &Path,
+    format: DocumentIngressFormatV1,
+) -> Result<AdmittedDocumentFileV1, DocumentIngressErrorV1> {
+    let origin = DocumentIngressOriginV1::File(path.to_path_buf());
+    let mut file = open_regular_file(path, &origin)?;
+    let session = load_document_reader_with_budget(&mut file, origin.clone(), format)?;
+    let retained_source = retain_regular_source_file_v1(file)
+        .map_err(|error| retained_source_error(origin, error))?;
+    Ok(AdmittedDocumentFileV1 {
+        session,
+        retained_source,
+    })
+}
+
+fn open_regular_file(
+    path: &Path,
+    origin: &DocumentIngressOriginV1,
+) -> Result<File, DocumentIngressErrorV1> {
     let metadata = fs::symlink_metadata(path).map_err(|source| DocumentIngressErrorV1::Read {
         origin: origin.clone(),
         source,
     })?;
     if metadata.file_type().is_symlink() {
         return Err(DocumentIngressErrorV1::SourcePolicy {
-            origin,
+            origin: origin.clone(),
             reason: SourcePolicyErrorV1::Symlink,
         });
     }
-    let mut file = File::open(path).map_err(|source| DocumentIngressErrorV1::Read {
+    let file = File::open(path).map_err(|source| DocumentIngressErrorV1::Read {
         origin: origin.clone(),
         source,
     })?;
@@ -202,11 +256,26 @@ pub fn load_document_file_with_budget(
         })?;
     if !opened.file_type().is_file() {
         return Err(DocumentIngressErrorV1::SourcePolicy {
-            origin,
+            origin: origin.clone(),
             reason: SourcePolicyErrorV1::NonRegularFile,
         });
     }
-    load_document_reader_with_budget(&mut file, origin, format)
+    Ok(file)
+}
+
+fn retained_source_error(
+    origin: DocumentIngressOriginV1,
+    error: RetainedSourceIdentityErrorV1,
+) -> DocumentIngressErrorV1 {
+    match error {
+        RetainedSourceIdentityErrorV1::Inspect { source } => {
+            DocumentIngressErrorV1::Read { origin, source }
+        }
+        RetainedSourceIdentityErrorV1::NonRegular => DocumentIngressErrorV1::SourcePolicy {
+            origin,
+            reason: SourcePolicyErrorV1::NonRegularFile,
+        },
+    }
 }
 
 fn load_document_bytes_from_origin(

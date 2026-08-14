@@ -5,12 +5,17 @@
 //! of foreign handles, borrowed buffers, and toolkit-specific representations.
 
 mod adapter_contract;
+mod composition;
 mod element;
 mod engine;
 mod model;
 mod native_engine;
 mod sdf;
 
+pub use crate::composition::{
+    CompositionAggregationError, CompositionBuildError, CompositionElementKey, ElementCount,
+    ElementMassPercentage, MoleculeComposition, MoleculeCompositionEntry,
+};
 pub use crate::engine::{
     ChemEngine, ChemistryError, InchiMode, KekulizeOptions, KekulizeOptionsError, MolblockVersion,
     UnavailableChemEngine,
@@ -20,13 +25,17 @@ pub use crate::model::{
     MolBond, MolGraph, MolGraphError, Point2, SmilesMolecule,
 };
 pub use crate::native_engine::{
-    INCHI_MAX_INPUT_BYTES, MOLBLOCK_MAX_INPUT_BYTES, NativeChemEngine, SDF_MAX_INPUT_BYTES,
-    validate_inchi_input, validate_molblock_input, validate_sdf_input, validate_smiles_input,
+    INCHI_MAX_INPUT_BYTES, MOLBLOCK_MAX_INPUT_BYTES, NATIVE_SMILES_MAX_INPUT_BYTES,
+    NATIVE_SMILES_MAX_OUTPUT_BYTES, NativeChemEngine, SDF_MAX_INPUT_BYTES, validate_inchi_input,
+    validate_molblock_input, validate_molblock_title, validate_sdf_input, validate_smiles_input,
 };
-pub use crate::sdf::{ImportedSdfRecord, SdfError, SdfProperty, SdfRecord};
+pub use crate::sdf::{ImportedSdfRecord, SdfError, SdfProperty, SdfRecord, compose_sdf_record};
 
 pub use crate::adapter_contract::ADAPTER_ABI_VERSION;
 pub(crate) use crate::adapter_contract::{
+    FERRUM_CHEM_COMPOSITION_ENTRY_BYTES, FERRUM_CHEM_COMPOSITION_FLAGS_NONE,
+    FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES, FERRUM_CHEM_COMPOSITION_MAX_FORMULA_BYTES,
+    FERRUM_CHEM_COMPOSITION_RESPONSE_HEADER_BYTES, FERRUM_CHEM_COMPOSITION_WIRE_VERSION,
     FERRUM_CHEM_COORDINATE_BYTES, FERRUM_CHEM_GRAPH_ATOM_BYTES, FERRUM_CHEM_GRAPH_BOND_BYTES,
     FERRUM_CHEM_GRAPH_FLAGS_NONE, FERRUM_CHEM_GRAPH_REQUEST_HEADER_BYTES,
     FERRUM_CHEM_GRAPH_WIRE_VERSION, FERRUM_CHEM_INCHI_FLAGS_NONE, FERRUM_CHEM_INCHI_KEY_BYTES,
@@ -54,6 +63,8 @@ pub(crate) use crate::adapter_contract::{
     FERRUM_CHEM_SDF_MAX_PROPERTIES, FERRUM_CHEM_SDF_MAX_RECORDS,
     FERRUM_CHEM_SDF_PROPERTY_HEADER_BYTES, FERRUM_CHEM_SDF_RECORD_HEADER_BYTES,
     FERRUM_CHEM_SDF_REQUEST_HEADER_BYTES, FERRUM_CHEM_SDF_RESPONSE_HEADER_BYTES,
-    FERRUM_CHEM_SDF_WIRE_VERSION, FERRUM_CHEM_SMILES_MAX_BYTES, FERRUM_CHEM_TEXT_FLAGS_NONE,
-    FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES, FERRUM_CHEM_TEXT_WIRE_VERSION,
+    FERRUM_CHEM_SDF_WIRE_VERSION, FERRUM_CHEM_SMILES_MAX_BYTES, FERRUM_CHEM_SMILES_WRITE_MAX_BYTES,
+    FERRUM_CHEM_TEXT_FLAGS_NONE, FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES,
+    FERRUM_CHEM_TEXT_WIRE_VERSION, FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES,
+    FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION,
 };

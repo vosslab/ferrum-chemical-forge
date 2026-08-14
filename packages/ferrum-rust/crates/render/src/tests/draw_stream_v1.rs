@@ -236,6 +236,8 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
                 )
                 .expect("exclusion"),
             ),
+            mixed_plan().outcomes()[2].clone(),
+            mixed_plan().outcomes()[3].clone(),
         ],
     )
     .expect("established plan");
@@ -281,10 +283,114 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
     .expect("composite")
 }
 
+fn recording_budget() -> CompositeRecordingBudgetV1 {
+    CompositeRecordingBudgetV1 {
+        max_roots: 32,
+        max_target_groups: 64,
+        max_events: 4096,
+        max_path_commands: 4096,
+        max_transform_depth: 32,
+        max_text_scopes: 64,
+        max_copied_string_bytes: 65_536,
+    }
+}
+
+fn presentation_plan(operation: PresentationTextOp, bounds: GlyphBounds) -> DocumentRenderPlanV1 {
+    let text = DocumentTextOpV1::presentation(point(10.0, 20.0), operation, bounds, None)
+        .expect("presentation text");
+    DocumentRenderPlanV1::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [61; 32]),
+        RenderViewportV1::new(0.0, 0.0, 120.0, 80.0).expect("page"),
+        vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            1,
+            DocumentRenderIdentityV1::projection_local("presentation").expect("identity"),
+            DocumentRenderContentV1::Text(text),
+        ))],
+    )
+    .expect("document plan")
+}
+
+fn laid_out_presentation(text: &str) -> PresentationTextLayout {
+    let environment = FerrumFontEnvironmentV1::load().expect("verified Telex");
+    let metrics = VerifiedTelexGlyphMetrics::new(&environment).expect("Telex metrics");
+    metrics
+        .layout_presentation_text(
+            &[PresentationTextSourceRun::new(text, TextScript::Baseline).expect("source")],
+            size(18.0),
+            paint("123456"),
+        )
+        .expect("presentation layout")
+}
+
+#[test]
+fn composite_recording_retains_whole_page_paint_and_authenticated_direct_groups() {
+    let recording = record_document_render_composite_v1(&composite_plan(), recording_budget())
+        .expect("recording");
+    let events = recording.events();
+    assert!(events.iter().any(|event| matches!(
+        event,
+        CompositeRecordingEventV1::Path {
+            kind: CompositePaintKindV1::DirectGlycosidicQ1,
+            style,
+            ..
+        } if matches!(style.stroke().map(CompositeStrokeV1::cap), Some(CompositeLineCapV1::Round))
+    )));
+    assert!(events.windows(2).any(|pair| matches!(
+        pair,
+        [
+            CompositeRecordingEventV1::RootBegin {
+                kind: CompositeRootKindV1::Text,
+                ..
+            },
+            CompositeRecordingEventV1::DocumentTextBegin
+        ]
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        CompositeRecordingEventV1::FillRect {
+            kind: CompositePaintKindV1::DocumentTextBackground,
+            ..
+        }
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        CompositeRecordingEventV1::Path {
+            kind: CompositePaintKindV1::DocumentVectorPath,
+            style,
+            ..
+        }
+            if matches!(style.fill().map(CompositeFillV1::rule), Some(CompositeFillRuleV1::EvenOdd))
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        CompositeRecordingEventV1::TargetBegin { direct: true, .. }
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        CompositeRecordingEventV1::FillRect {
+            kind: CompositePaintKindV1::MoleculeMask { .. },
+            ..
+        }
+    )));
+}
+
+#[test]
+fn composite_recording_budget_rejects_a_required_structural_resource() {
+    let mut budget = recording_budget();
+    budget.max_target_groups = 0;
+    assert_eq!(
+        record_document_render_composite_v1(&composite_plan(), budget),
+        Err(CompositeRecordingErrorV1::BudgetExceeded {
+            resource: CompositeRecordingResourceV1::TargetGroups,
+        })
+    );
+}
+
 #[derive(Default)]
 struct RecordingSink {
     events: Vec<String>,
     direct_events: Vec<DirectDrawEvent>,
+    empty_path_published: bool,
     refuse_paths: bool,
     refuse_concat: bool,
     refuse_ellipses: bool,
@@ -375,6 +481,7 @@ impl DrawSinkV1 for RecordingSink {
         if self.refuse_paths {
             return Err(RecordingError::Refused);
         }
+        self.empty_path_published |= path.commands.is_empty();
         let cubic = path
             .commands
             .iter()
@@ -418,6 +525,44 @@ impl DrawSinkV1 for RecordingSink {
         self.events.push("finish".to_owned());
         Ok(())
     }
+}
+
+#[test]
+fn private_stream_skips_only_verified_outline_less_whitespace() {
+    let layout = laid_out_presentation("L L");
+    let run = &layout.operation().runs()[0];
+    let space = &run.glyphs()[1];
+    let trailing_visible = &run.glyphs()[2];
+    assert_eq!(space.glyph_index(), 3);
+    assert!(trailing_visible.origin().x() > space.origin().x());
+
+    let mut sink = RecordingSink::default();
+    lower_document_plan_to_sink_v1(
+        &presentation_plan(layout.operation().clone(), layout.bounds()),
+        &mut sink,
+    )
+    .expect("verified whitespace lowers without an outline");
+    assert!(
+        !sink.empty_path_published,
+        "whitespace never publishes a blank path"
+    );
+}
+
+#[test]
+fn private_stream_rejects_a_visible_scalar_forged_to_the_space_glyph() {
+    let layout = laid_out_presentation("L");
+    let mut wire = serde_json::to_value(layout.operation()).expect("presentation wire");
+    wire["runs"][0]["glyphs"][0]["glyph_index"] = serde_json::Value::from(3);
+    let forged: PresentationTextOp = serde_json::from_value(wire).expect("render-level plan");
+
+    let result = lower_document_plan_to_sink_v1(
+        &presentation_plan(forged, layout.bounds()),
+        &mut RecordingSink::default(),
+    );
+    assert!(matches!(
+        result,
+        Err(DrawStreamErrorV1::MissingGlyphOutline { glyph_index: 3 })
+    ));
 }
 
 #[test]

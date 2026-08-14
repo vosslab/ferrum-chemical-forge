@@ -159,19 +159,23 @@ fn duplicate_and_blank_persistent_ids_fail_with_locations() {
 fn provisional_tokens_are_distinct_from_persistent_ids_and_consumed_once() {
     let mut document =
         IndexedDocument::parse(r#"<cdml><molecule id="m1"/></cdml>"#).expect("valid CDML index");
-    let token = document.issue_provisional_token();
+    let token = document
+        .try_issue_provisional_token()
+        .expect("token registry reserves");
     let replay = token.clone();
     document
-        .consume_provisional_token(token)
+        .consume_provisional_token(&token)
         .expect("first consumption succeeds");
     assert!(matches!(
-        document.consume_provisional_token(replay),
+        document.consume_provisional_token(&replay),
         Err(DocumentIdentityError::ConsumedProvisionalToken { .. })
     ));
     let mut foreign_document = IndexedDocument::parse("<cdml/>").expect("valid foreign document");
-    let foreign = foreign_document.issue_provisional_token();
+    let foreign = foreign_document
+        .try_issue_provisional_token()
+        .expect("token registry reserves");
     assert!(matches!(
-        document.consume_provisional_token(foreign),
+        document.consume_provisional_token(&foreign),
         Err(DocumentIdentityError::UnknownProvisionalToken { .. })
     ));
     let durable = PersistentId::new("m1").expect("nonblank persistent id");
@@ -182,18 +186,22 @@ fn provisional_tokens_are_distinct_from_persistent_ids_and_consumed_once() {
 fn provisional_tokens_with_matching_sequences_cannot_cross_documents() {
     let mut first = IndexedDocument::parse("<cdml/>").expect("first valid CDML index");
     let mut second = IndexedDocument::parse("<cdml/>").expect("second valid CDML index");
-    let first_token = first.issue_provisional_token();
-    let second_token = second.issue_provisional_token();
+    let first_token = first
+        .try_issue_provisional_token()
+        .expect("registry reserves");
+    let second_token = second
+        .try_issue_provisional_token()
+        .expect("registry reserves");
     assert_ne!(first_token, second_token);
     assert!(matches!(
-        second.consume_provisional_token(first_token.clone()),
+        second.consume_provisional_token(&first_token),
         Err(DocumentIdentityError::UnknownProvisionalToken { .. })
     ));
     second
-        .consume_provisional_token(second_token)
+        .consume_provisional_token(&second_token)
         .expect("own token is consumable");
     first
-        .consume_provisional_token(first_token)
+        .consume_provisional_token(&first_token)
         .expect("own token remains consumable");
 }
 

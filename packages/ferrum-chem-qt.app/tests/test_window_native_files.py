@@ -143,7 +143,7 @@ class _NativeFileHost(ferrum_qt.window_native_files.WindowNativeFileMixin):
 		self._sessions = []
 		self._status_bar = _StatusBar()
 		self.warnings = []
-		self.created_cdml = []
+		self.loaded_paths = []
 		self.next_confirmed = True
 		self.next_replacements = (True, True)
 
@@ -158,16 +158,23 @@ class _NativeFileHost(ferrum_qt.window_native_files.WindowNativeFileMixin):
 		return self._status_bar
 
 	#============================================
-	def _create_native_tab(
-			self, cdml: str, title: str,
-			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-		"""Use the exact tab type through its explicitly private fixture seam."""
-		self.created_cdml.append(cdml)
+	def _prepare_local_cdml_admission(
+			self, absolute_path: str,
+			) -> tuple[_Session, object]:
+		"""Record one profile-owned compatibility admission without reading in Python."""
+		self.loaded_paths.append(absolute_path)
 		current = _Snapshot(9, "a" * 64, True)
 		saved = _Snapshot(9, "b" * 64, False)
+		return _Session(current, saved, self.next_confirmed), object()
+
+	#============================================
+	def _create_native_tab_from_admission(
+			self, admission: tuple[object, object], title: str,
+			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
+		"""Use the exact tab type through its explicitly private fixture seam."""
+		session, _observation = admission
 		tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab._from_fixture(
-			title, _Session(current, saved, self.next_confirmed),
-			_Controller(self.next_replacements),
+			title, session, _Controller(self.next_replacements),
 		)
 		return tab
 
@@ -198,7 +205,7 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 
 #============================================
-def test_native_cdml_open_reads_once_sets_origin(
+def test_native_cdml_open_uses_one_profile_admission_and_sets_origin(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""A CDML source becomes one Rust-native tab with its true origin location."""
@@ -211,7 +218,7 @@ def test_native_cdml_open_reads_once_sets_origin(
 	assert host.open_file_path(str(source))
 	tab = host._active_native_tab()
 	assert tab is not None and tab.file_path == source and tab.title == source.name
-	assert host.created_cdml == [cdml]
+	assert host.loaded_paths == [str(source.resolve())]
 	assert host._status_bar.message.endswith(str(source))
 	tab.dispose()
 
@@ -228,7 +235,8 @@ def test_native_cdml_duplicate_activates_existing_page_without_reloading(
 	assert host.open_file_path(str(source))
 	first = host._active_native_tab()
 	assert host.open_file_path(str(source))
-	assert host._active_native_tab() is first and host.created_cdml == ["<svg/>"]
+	assert host._active_native_tab() is first
+	assert host.loaded_paths == [str(source.resolve())]
 	first.dispose()
 
 
@@ -242,7 +250,7 @@ def test_native_cdml_refuses_same_tab_replacement_before_reading_source(
 	source.write_text("<svg/>", encoding="utf-8")
 	host = _NativeFileHost()
 	assert not host.open_file_path(str(source), replace_current=True)
-	assert not host.created_cdml
+	assert not host.loaded_paths
 	assert host.warnings[-1][0] == "Open in Current Tab Unavailable"
 
 

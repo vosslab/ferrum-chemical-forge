@@ -152,6 +152,7 @@ def _run_profile_configuration_fixtures(api: types.ModuleType) -> None:
 		"-DINCHI_LIBRARIES=Inchi",
 		"-DCATCH_BUILD_TESTING=OFF",
 		"-DRDK_BUILD_FREETYPE_SUPPORT=OFF",
+		"-DRDK_BUILD_THREADSAFE_SSS=ON",
 	)
 	for required in required_options:
 		if required not in options:
@@ -618,9 +619,11 @@ def _run_smiles_depict_stage_fixture(api: types.ModuleType, root: Path) -> None:
 	for name in api.RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES:
 		(lib_dir / name).write_bytes(name.encode("ascii"))
 	stage = api.stage_rdkit_inputs(root, source, build)
-	if (stage / "include" / "rdkit" / "GraphMol" / "MolOps.h").read_text(encoding="utf-8") != "source":
+	graphmol_header = stage / "include" / "rdkit" / "GraphMol" / "MolOps.h"
+	if graphmol_header.read_text(encoding="utf-8") != "source":
 		raise api.NativeBuildError("GraphMol stage fixture lost source header")
-	if (stage / "include" / "rdkit" / "RDGeneral" / "RDKitBuildInfo.h").read_text(encoding="utf-8") != "generated":
+	build_info = stage / "include" / "rdkit" / "RDGeneral" / "RDKitBuildInfo.h"
+	if build_info.read_text(encoding="utf-8") != "generated":
 		raise api.NativeBuildError("GraphMol stage fixture lost generated header")
 	if (stage / "include" / "rdkit" / "RingDecomposerLib.h").read_text(
 		encoding="utf-8"

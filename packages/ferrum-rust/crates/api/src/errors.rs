@@ -1,11 +1,13 @@
 use std::io;
 
+use ferrum_document::artifact_publication_v1::ArtifactPublicationErrorV1;
 use ferrum_document::{
     CdsvgExtractionError, CoreProjectionError, DocumentSessionError, TypedDocumentError,
     XmlSerializationError,
 };
 use thiserror::Error;
 
+use crate::canonical_smiles::CanonicalSmilesError;
 use crate::inchi_codec::{InchiExportError, InchiInspectionError};
 use crate::molblock_export::MolblockExportError;
 use crate::molblock_inspection::MolblockInspectionError;
@@ -15,6 +17,10 @@ use crate::sdf_export::SdfExportError;
 use crate::sdf_inspection::SdfInspectionError;
 use crate::smarts_export::SmartsExportError;
 use crate::smiles_inspection::SmilesInspectionError;
+use crate::{
+    DocumentIngressErrorV1, DocumentPdfArtifactErrorV1, DocumentPngArtifactErrorV1,
+    DocumentSvgArtifactErrorV1,
+};
 
 /// A CDML library operation failed.
 #[derive(Debug, Error)]
@@ -62,6 +68,21 @@ pub enum CliError {
         #[source]
         source: io::Error,
     },
+    /// A local file or bounded standard-input document was not admitted.
+    #[error("could not admit document input: {0}")]
+    DocumentIngress(#[from] DocumentIngressErrorV1),
+    /// An admitted document could not produce one complete native SVG artifact.
+    #[error("could not render complete SVG: {0}")]
+    DocumentSvgArtifact(#[from] DocumentSvgArtifactErrorV1),
+    /// An admitted document could not produce one complete native vector PDF artifact.
+    #[error("could not render complete PDF: {0}")]
+    DocumentPdfArtifact(#[from] DocumentPdfArtifactErrorV1),
+    /// An admitted document could not produce one complete native raster PNG artifact.
+    #[error("could not render complete PNG: {0}")]
+    DocumentPngArtifact(#[from] DocumentPngArtifactErrorV1),
+    /// Safe generic artifact publication rejected or could not finish the output.
+    #[error("could not publish rendered artifact: {0}")]
+    ArtifactPublication(#[from] ArtifactPublicationErrorV1),
     /// CDML processing failed.
     #[error("could not process {input}: {source}")]
     Cdml {
@@ -101,6 +122,9 @@ pub enum CliError {
     /// The requested SMILES value could not be inspected through the named adapter.
     #[error("could not inspect SMILES: {0}")]
     SmilesInspection(#[from] SmilesInspectionError),
+    /// The requested SMILES value could not be serialized canonically.
+    #[error("could not canonicalize SMILES: {0}")]
+    CanonicalSmiles(#[from] CanonicalSmilesError),
     /// The requested SMILES molecule could not be exported as InChI.
     #[error("could not export InChI: {0}")]
     InchiExport(#[from] InchiExportError),

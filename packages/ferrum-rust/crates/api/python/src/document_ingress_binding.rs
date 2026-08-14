@@ -4,18 +4,62 @@ use std::path::PathBuf;
 
 use ferrum_api::{
     CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1, DocumentIngressErrorV1,
-    DocumentIngressFormatV1, DocumentIngressOriginV1, SourcePolicyErrorV1,
-    load_document_file_with_budget, load_document_utf8_bytes_with_budget,
+    DocumentIngressFormatV1, DocumentIngressOriginV1, RenderObservationError, RenderObservationV1,
+    SourcePolicyErrorV1, load_document_file_with_budget, load_document_utf8_bytes_with_budget,
+    load_local_cdml_file_v1, observe_render_v1,
 };
 use ferrum_document::{
-    CdsvgExtractionError, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1, XmlInputError,
+    CdsvgExtractionError, DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1,
+    XmlInputError,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyInt, PyString};
 
 use crate::binding::PyDocumentSession;
-use crate::document_error_binding::{DocumentInputError, DocumentLoadError};
+use crate::document_error_binding::{
+    DocumentInputError, DocumentLoadError, PreparedOperationConsumedError,
+};
+
+/// One worker-safe, one-use local-CDML admission ready for UI-thread ownership.
+///
+/// The session is created entirely in Rust on the calling worker thread. Python
+/// cannot inspect or mutate it until `take_admission_v1` transfers the session
+/// and its authenticated observation exactly once.
+#[pyclass(
+    module = "ferrum_chem",
+    name = "PreparedLocalCdmlOpenV1",
+    skip_from_py_object
+)]
+pub(crate) struct PyPreparedLocalCdmlOpenV1 {
+    session: Option<DocumentSession>,
+    observation: Option<crate::render_binding::PyRenderObservationV1>,
+}
+
+#[pymethods]
+impl PyPreparedLocalCdmlOpenV1 {
+    /// Consume this admission and establish one thread-affine document session.
+    fn take_admission_v1(
+        &mut self,
+    ) -> PyResult<(
+        PyDocumentSession,
+        crate::render_binding::PyRenderObservationV1,
+    )> {
+        match (self.session.take(), self.observation.take()) {
+            (Some(session), Some(observation)) => {
+                Ok((PyDocumentSession::from_session(session), observation))
+            }
+            _ => Err(PreparedOperationConsumedError::new_err(
+                "local CDML admission receipt was already consumed",
+            )),
+        }
+    }
+}
+
+enum LocalCdmlOpenPreparationError {
+    Ingress(DocumentIngressErrorV1),
+    Render(RenderObservationError),
+}
 
 /// One complete caller-owned XML resource budget.
 ///
@@ -95,7 +139,7 @@ pub(crate) fn load_file_with_budget(
     path: &Bound<'_, PyAny>,
     budget: &Bound<'_, PyAny>,
 ) -> PyResult<PyDocumentSession> {
-    let path = exact_path(path)?;
+    let path = exact_path(py, path)?;
     let budget = exact_budget(budget)?;
     // File I/O and Rust parsing are synchronous. This path owns no Python input after the
     // exact string check, so it releases the GIL while the local-file policy is enforced.
@@ -106,6 +150,33 @@ pub(crate) fn load_file_with_budget(
         )
     });
     ingress_result(py, result)
+}
+
+pub(crate) fn prepare_local_cdml_file_v1(
+    py: Python<'_>,
+    path: &Bound<'_, PyAny>,
+) -> PyResult<PyPreparedLocalCdmlOpenV1> {
+    let path = exact_path(py, path)?;
+    let result = py.detach(move || {
+        let session =
+            load_local_cdml_file_v1(&path).map_err(LocalCdmlOpenPreparationError::Ingress)?;
+        let observation =
+            observe_render_v1(&session, 0).map_err(LocalCdmlOpenPreparationError::Render)?;
+        Ok::<(DocumentSession, RenderObservationV1), LocalCdmlOpenPreparationError>((
+            session,
+            observation,
+        ))
+    });
+    match result {
+        Ok((session, observation)) => Ok(PyPreparedLocalCdmlOpenV1 {
+            session: Some(session),
+            observation: Some(crate::render_binding::observation(py, observation)?),
+        }),
+        Err(LocalCdmlOpenPreparationError::Ingress(error)) => Err(map_ingress_error(py, error)?),
+        Err(LocalCdmlOpenPreparationError::Render(error)) => {
+            Err(crate::render_binding::error_result(py, error)?)
+        }
+    }
 }
 
 pub(crate) fn load_cdsvg_utf8_bytes_with_budget(
@@ -131,7 +202,7 @@ pub(crate) fn load_cdsvg_file_with_budget(
     wrapper_budget: &Bound<'_, PyAny>,
     payload_budget: &Bound<'_, PyAny>,
 ) -> PyResult<PyDocumentSession> {
-    let path = exact_path(path)?;
+    let path = exact_path(py, path)?;
     let wrapper = exact_budget(wrapper_budget)?;
     let payload = exact_budget(payload_budget)?;
     // The owned path and copied budgets let this synchronous local-file route release the GIL.
@@ -161,13 +232,38 @@ fn exact_bytes<'py>(source: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyBytes>>
     source.clone().cast_into::<PyBytes>().map_err(Into::into)
 }
 
-fn exact_path(path: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
+fn exact_path(py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
     if !path.is_exact_instance_of::<PyString>() {
         return Err(PyTypeError::new_err(
             "document file path must be an exact built-in str",
         ));
     }
-    Ok(PathBuf::from(path.cast::<PyString>()?.to_str()?))
+    let path = match path.cast::<PyString>()?.to_str() {
+        Ok(path) => path,
+        Err(_) => {
+            return Err(input_error(
+                py,
+                DocumentIngressOriginV1::File(PathBuf::new()),
+                "path",
+                None,
+                None,
+                None,
+            )?);
+        }
+    };
+    let mut owned = String::new();
+    if owned.try_reserve_exact(path.len()).is_err() {
+        return Err(input_error(
+            py,
+            DocumentIngressOriginV1::File(PathBuf::new()),
+            "resource",
+            None,
+            None,
+            None,
+        )?);
+    }
+    owned.push_str(path);
+    Ok(PathBuf::from(owned))
 }
 
 fn exact_budget(value: &Bound<'_, PyAny>) -> PyResult<XmlInputBudgetV1> {

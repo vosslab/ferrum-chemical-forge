@@ -141,6 +141,28 @@ class MoleculeInsertionError(FerrumError):
 	reason: str
 
 
+class PeptideTemplateInsertionError(FerrumError):
+	reason: str
+
+
+class PeptideTemplateSyntaxError(PeptideTemplateInsertionError):
+	position: int | None
+	found: str | None
+	alphabet: str | None
+
+
+class UnsupportedPeptideTemplateProfileError(PeptideTemplateInsertionError):
+	position: int
+	residue: str
+	profile: str
+	supported_alphabet: str
+
+
+class PeptideTemplateResourceError(PeptideTemplateInsertionError):
+	submitted_bytes: int
+	max_submitted_bytes: int
+
+
 class UnsupportedMoleculeInsertionError(MoleculeInsertionError): ...
 
 
@@ -168,6 +190,14 @@ def prepare_smiles_molecule_v1(
 	smiles: str,
 	placement: InsertionPlacementV1,
 ) -> MoleculeInsertionV1: ...
+
+
+def prepare_supported_peptide_template_molecule_v1(
+	sequence: str,
+	placement: InsertionPlacementV1,
+) -> MoleculeInsertionV1:
+	"""Experimental internal Ferrum-Qt strict native-17 template insertion."""
+	...
 
 
 def prepare_inchi_molecule_v1(

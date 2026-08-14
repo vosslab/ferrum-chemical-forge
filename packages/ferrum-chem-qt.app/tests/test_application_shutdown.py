@@ -244,6 +244,10 @@ def test_launch_file_delivery_requires_every_requested_file_to_open(
 			"""Reject the second controlled path."""
 			return path == "opens.cdml"
 
+		def has_pending_local_cdml_open(self) -> bool:
+			"""Report that neither controlled result owns asynchronous work."""
+			return False
+
 	monkeypatch.setattr(
 		PySide6.QtCore.QTimer, "singleShot",
 		lambda _milliseconds, callback: callbacks.append(callback),
@@ -254,6 +258,48 @@ def test_launch_file_delivery_requires_every_requested_file_to_open(
 	assert not delivery.launch_files_completed
 	callbacks[0]()
 	assert not delivery.launch_files_completed and not delivery.launch_files_pending
+
+
+#============================================
+def test_launch_file_delivery_waits_for_the_complete_async_open_batch(
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Accepted startup paths become complete only after Rust admission drains."""
+	delivery = ferrum_qt.app._SmokeTimerDelivery()
+	application = _ControlledTimerApplication(delivery)
+	callbacks = []
+
+	class ControlledWindow(PySide6.QtCore.QObject):
+		"""Expose only the public asynchronous Open lifecycle used by startup."""
+
+		local_cdml_open_queue_drained = PySide6.QtCore.Signal(bool)
+
+		def __init__(self) -> None:
+			"""Start with one accepted path whose native work is still pending."""
+			super().__init__()
+			self.pending = True
+
+		def open_file_path(self, _path: str) -> bool:
+			"""Accept the path into the controlled asynchronous batch."""
+			return True
+
+		def has_pending_local_cdml_open(self) -> bool:
+			"""Report the controlled batch state through the product predicate."""
+			return self.pending
+
+	window = ControlledWindow()
+	monkeypatch.setattr(
+		PySide6.QtCore.QTimer, "singleShot",
+		lambda _milliseconds, callback: callbacks.append(callback),
+	)
+	ferrum_qt.app._schedule_launch_files(
+		application, window, ["opens-async.cdml"], delivery,
+	)
+	callbacks[0]()
+	assert delivery.launch_files_pending and not delivery.launch_files_completed
+	window.pending = False
+	window.local_cdml_open_queue_drained.emit(True)
+	assert delivery.launch_files_completed and not delivery.launch_files_pending
 
 
 #============================================

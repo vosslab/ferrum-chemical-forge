@@ -4,6 +4,10 @@ use ferrum_domain::haworth::{
     DirectGlycosidicHaworthTopologyV1, HaworthTopologyBuilder, HaworthVertex, RingForm,
     direct_glycosidic_haworth_authoring_receipt_v1,
 };
+use ferrum_render::{
+    CompositeRecordingBudgetV1, CompositeRecordingEventV1, CompositeRootKindV1,
+    record_document_render_composite_v1,
+};
 
 use super::{
     DepictionProfileV1, compose_committed_direct_haworth_document_v1,
@@ -114,7 +118,10 @@ fn authoring_receipt() -> ferrum_domain::haworth::DirectGlycosidicHaworthAuthori
 fn committed_direct_haworth_composes_from_its_accepted_observation() {
     let mut session = DocumentSession::load(concat!(
         "<cdml><standard line_color=\"#123456\" ",
-        "line_width=\"2px\"><bond wedge-width=\"7px\"/></standard></cdml>",
+        "line_width=\"2px\"><bond wedge-width=\"7px\"/></standard>",
+        "<text id=\"label\" background-color=\"#abcdef\"><point x=\"10\" y=\"20\"/>",
+        "<font size=\"18\" color=\"#123456\"/><ftext>Line one\nH&lt;sub&gt;2&lt;/sub&gt;O",
+        "</ftext></text></cdml>",
     ))
     .expect("document standard");
     let receipt = authoring_receipt();
@@ -180,4 +187,33 @@ fn committed_direct_haworth_composes_from_its_accepted_observation() {
         reobserved_composite.provenance().digest(),
         *reobserved.observation().snapshot().digest()
     );
+
+    let recording = record_document_render_composite_v1(
+        &composite,
+        CompositeRecordingBudgetV1 {
+            max_roots: usize::MAX,
+            max_target_groups: usize::MAX,
+            max_events: usize::MAX,
+            max_path_commands: usize::MAX,
+            max_transform_depth: usize::MAX,
+            max_text_scopes: usize::MAX,
+            max_copied_string_bytes: usize::MAX,
+        },
+    )
+    .expect("authenticated mixed-text composite records");
+    assert!(recording.events().iter().any(|event| matches!(
+        event,
+        CompositeRecordingEventV1::RootBegin {
+            kind: CompositeRootKindV1::Text,
+            ..
+        }
+    )));
+    assert!(recording.events().iter().any(|event| matches!(
+        event,
+        CompositeRecordingEventV1::TargetBegin { direct: true, .. }
+    )));
+    assert!(recording.events().iter().all(|event| match event {
+        CompositeRecordingEventV1::Path { commands, .. } => !commands.is_empty(),
+        _ => true,
+    }));
 }

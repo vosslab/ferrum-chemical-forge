@@ -15,6 +15,7 @@ use crate::draw_stream_v1::{
     DrawEllipseV1, DrawPathCommandV1, DrawPathV1, DrawRectV1, DrawSinkV1, DrawStreamErrorV1,
     DrawStyleV1, lower_document_plan_to_sink_v1,
 };
+use crate::verified_telex_glyph_metrics::is_verified_outlineless_whitespace_glyph;
 use crate::{
     DocumentRenderArtifactV1, DocumentRenderContentV1, DocumentRenderOutcomeV1,
     DocumentRenderPlanV1, DocumentRenderReportV1, DocumentTextLayoutV1, DocumentVectorOpV1,
@@ -318,7 +319,9 @@ fn measure_document_text(
 ) -> Result<(), PdfRenderError> {
     match text {
         DocumentTextLayoutV1::Fixed(text) => measure_text_runs(text.runs(), face, counter),
-        DocumentTextLayoutV1::Presentation(text) => measure_text_runs(text.runs(), face, counter),
+        DocumentTextLayoutV1::Presentation(text) => {
+            measure_presentation_text_runs(text.runs(), face, counter)
+        }
     }
 }
 
@@ -327,12 +330,6 @@ trait MeasuredTextRunV1 {
 }
 
 impl MeasuredTextRunV1 for crate::TextRun {
-    fn glyphs(&self) -> &[crate::GlyphPlacement] {
-        self.glyphs()
-    }
-}
-
-impl MeasuredTextRunV1 for crate::PresentationGlyphRun {
     fn glyphs(&self) -> &[crate::GlyphPlacement] {
         self.glyphs()
     }
@@ -362,6 +359,42 @@ fn measure_text_runs<R: MeasuredTextRunV1>(
                 return Err(error);
             }
             if outlined.is_none() || !builder.segments {
+                return Err(PdfRenderError::MissingGlyphOutline {
+                    glyph_index: glyph.glyph_index(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn measure_presentation_text_runs(
+    runs: &[crate::PresentationGlyphRun],
+    face: &Face<'_>,
+    counter: &mut PdfComplexityCounterV1,
+) -> Result<(), PdfRenderError> {
+    for run in runs {
+        counter.add(PdfComplexityResourceV1::PlanItems, 1)?;
+        for (scalar, glyph) in run.text().chars().zip(run.glyphs()) {
+            counter.add(PdfComplexityResourceV1::PlanItems, 1)?;
+            let glyph_id = u16::try_from(glyph.glyph_index()).map_err(|_| {
+                PdfRenderError::MissingGlyphOutline {
+                    glyph_index: glyph.glyph_index(),
+                }
+            })?;
+            let mut builder = CountingOutlineBuilderV1 {
+                counter,
+                segments: false,
+                error: None,
+            };
+            let outlined = face.outline_glyph(GlyphId(glyph_id), &mut builder);
+            if let Some(error) = builder.error {
+                return Err(error);
+            }
+            if outlined.is_none() || !builder.segments {
+                if is_verified_outlineless_whitespace_glyph(face, scalar, glyph.glyph_index()) {
+                    continue;
+                }
                 return Err(PdfRenderError::MissingGlyphOutline {
                     glyph_index: glyph.glyph_index(),
                 });

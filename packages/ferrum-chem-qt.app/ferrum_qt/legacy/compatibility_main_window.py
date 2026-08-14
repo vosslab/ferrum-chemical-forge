@@ -298,7 +298,7 @@ class LegacyCompatibilityMainWindow(
 		if not self._neutral_native_shell:
 			return super()._on_open()
 		self.statusBar().showMessage(
-			self.tr("Open is deferred until Ferrum-Qt owns an external-input policy."),
+			self.tr("Open is unavailable in an incomplete compatibility initialization."),
 			5000,
 		)
 		return False
@@ -324,12 +324,12 @@ class LegacyCompatibilityMainWindow(
 
 	#============================================
 	def open_native_cdml_path(self, file_path: str) -> bool:
-		"""Refuse unbudgeted external CDML until its admission policy is approved."""
+		"""Refuse Open until the compatibility host finishes initialization."""
 		if not self._neutral_native_shell:
 			return super().open_native_cdml_path(file_path)
 		del file_path
 		self.statusBar().showMessage(
-			self.tr("External CDML Open is deferred until its admission policy is approved."),
+			self.tr("External CDML Open requires a complete compatibility host."),
 			5000,
 		)
 		return False

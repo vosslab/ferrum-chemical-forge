@@ -197,6 +197,7 @@ pub struct DrawingStandardV1 {
     line_width: Option<PositiveFiniteV1>,
     bond_width: Option<PositiveFiniteV1>,
     wedge_width: Option<PositiveFiniteV1>,
+    double_ratio: Option<PositiveFiniteV1>,
     font_size: Option<PositiveFiniteV1>,
     font_family: Option<String>,
     line_color: Option<Rgb24V1>,
@@ -215,6 +216,7 @@ impl DrawingStandardV1 {
         line_width: Option<PositiveFiniteV1>,
         bond_width: Option<PositiveFiniteV1>,
         wedge_width: Option<PositiveFiniteV1>,
+        double_ratio: Option<PositiveFiniteV1>,
         font_size: Option<PositiveFiniteV1>,
         font_family: Option<String>,
         line_color: Option<Rgb24V1>,
@@ -225,6 +227,7 @@ impl DrawingStandardV1 {
             line_width,
             bond_width,
             wedge_width,
+            double_ratio,
             font_size,
             font_family,
             line_color,
@@ -247,6 +250,11 @@ impl DrawingStandardV1 {
     #[must_use]
     pub fn wedge_width(&self) -> Option<PositiveFiniteV1> {
         self.wedge_width
+    }
+    /// Return the persisted shorter double-bond line ratio.
+    #[must_use]
+    pub fn double_ratio(&self) -> Option<PositiveFiniteV1> {
+        self.double_ratio
     }
     /// Return the persisted standard font size.
     #[must_use]

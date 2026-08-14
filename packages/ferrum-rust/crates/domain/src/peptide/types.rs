@@ -181,6 +181,16 @@ impl PeptideSequence {
         crate::peptide::validate::parse_one_letter_sequence(input)
     }
 
+    /// Fallibly duplicate this sequence for a receipt that requires ownership.
+    pub(crate) fn try_clone(&self) -> Result<Self, PeptideSyntaxError> {
+        let mut residues = Vec::new();
+        residues
+            .try_reserve(self.residues.len())
+            .map_err(|_| PeptideSyntaxError::AllocationFailed)?;
+        residues.extend_from_slice(&self.residues);
+        Ok(Self { residues })
+    }
+
     /// Return the sequence in N-to-C order.
     #[must_use]
     pub fn residues(&self) -> &[ResidueCode] {
@@ -259,7 +269,8 @@ pub enum PeptideSyntaxError {
     EmptySequence,
     /// An unsupported character occurred at a one-based scalar position.
     #[error(
-        "unsupported residue {found:?} at position {position}; supported alphabet is {supported_alphabet}"
+        "unsupported residue {found:?} at position {position}; supported alphabet is \
+         {supported_alphabet}"
     )]
     UnsupportedResidue {
         /// One-based Unicode scalar position in the submitted sequence.
@@ -269,4 +280,7 @@ pub enum PeptideSyntaxError {
         /// The complete accepted alphabet, retained on the error for callers.
         supported_alphabet: &'static str,
     },
+    /// The strict parser could not reserve its bounded result storage.
+    #[error("peptide sequence validation could not reserve result storage")]
+    AllocationFailed,
 }

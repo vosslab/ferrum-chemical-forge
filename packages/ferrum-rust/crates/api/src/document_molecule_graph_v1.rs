@@ -3,7 +3,8 @@
 use std::collections::HashMap;
 
 use ferrum_chemistry::{
-    AtomicNumber, BondOrder as ChemistryBondOrder, MolAtom, MolBond, MolGraph, MolGraphError,
+    AtomicNumber, BondOrder as ChemistryBondOrder, Coordinates, MolAtom, MolBond, MolGraph,
+    MolGraphError, Point2,
 };
 use ferrum_core::{BondOrder, BondStyle, Molecule, RecordId, VertexRef};
 use thiserror::Error;
@@ -22,6 +23,24 @@ impl DocumentMoleculeGraphV1 {
 pub(crate) fn document_molecule_graph_v1(
     molecule: &Molecule,
 ) -> Result<DocumentMoleculeGraphV1, DocumentMoleculeGraphError> {
+    document_molecule_graph(molecule, false)
+}
+
+/// Convert a document molecule while retaining its exact atom coordinates.
+///
+/// CDML and Qt use a downward-positive y axis. The chemistry ABI and molfile
+/// writer use an upward-positive y axis, so this boundary performs the inverse
+/// of Ferrum's chemistry-to-document placement transform.
+pub(crate) fn document_molecule_coordinate_graph_v1(
+    molecule: &Molecule,
+) -> Result<DocumentMoleculeGraphV1, DocumentMoleculeGraphError> {
+    document_molecule_graph(molecule, true)
+}
+
+fn document_molecule_graph(
+    molecule: &Molecule,
+    include_coordinates: bool,
+) -> Result<DocumentMoleculeGraphV1, DocumentMoleculeGraphError> {
     if molecule.atoms().is_empty() {
         return Err(DocumentMoleculeGraphError::EmptyMolecule);
     }
@@ -34,39 +53,47 @@ pub(crate) fn document_molecule_graph_v1(
             return Err(DocumentMoleculeGraphError::UnsupportedVertex { kind, count });
         }
     }
-    let atoms = molecule
-        .atoms()
-        .iter()
-        .enumerate()
-        .map(|(index, atom)| {
-            if atom.valence().is_some() {
+    let mut atoms = Vec::new();
+    atoms
+        .try_reserve_exact(molecule.atoms().len())
+        .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+    let mut atom_indices = HashMap::new();
+    atom_indices
+        .try_reserve(molecule.atoms().len())
+        .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+    let mut points = Vec::new();
+    if include_coordinates {
+        points
+            .try_reserve_exact(molecule.atoms().len())
+            .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+    }
+    for (index, atom) in molecule.atoms().iter().enumerate() {
+        for (fact, present) in [
+            ("authored valence", atom.valence().is_some()),
+            ("authored multiplicity", atom.multiplicity().is_some()),
+            ("authored free sites", atom.free_sites().is_some()),
+        ] {
+            if present {
                 return Err(DocumentMoleculeGraphError::UnsupportedAtomFact {
                     atom_index: index,
-                    fact: "authored valence",
+                    fact,
                 });
             }
-            if atom.multiplicity().is_some() {
-                return Err(DocumentMoleculeGraphError::UnsupportedAtomFact {
+        }
+        let element = atom
+            .element()
+            .ok_or(DocumentMoleculeGraphError::MissingElement { atom_index: index })?;
+        let atomic_number = match AtomicNumber::from_symbol(element) {
+            Ok(atomic_number) => atomic_number,
+            Err(source) => {
+                return Err(DocumentMoleculeGraphError::InvalidElement {
                     atom_index: index,
-                    fact: "authored multiplicity",
-                });
-            }
-            if atom.free_sites().is_some() {
-                return Err(DocumentMoleculeGraphError::UnsupportedAtomFact {
-                    atom_index: index,
-                    fact: "authored free sites",
-                });
-            }
-            let element = atom
-                .element()
-                .ok_or(DocumentMoleculeGraphError::MissingElement { atom_index: index })?;
-            let atomic_number = AtomicNumber::from_symbol(element).map_err(|source| {
-                DocumentMoleculeGraphError::InvalidElement {
-                    atom_index: index,
-                    element: element.to_owned(),
+                    element: copied(element)?,
                     source,
-                }
-            })?;
+                });
+            }
+        };
+        atoms.push(
             MolAtom::new(
                 atomic_number,
                 atom.formal_charge(),
@@ -74,17 +101,27 @@ pub(crate) fn document_molecule_graph_v1(
                 atom.explicit_hydrogens(),
                 false,
             )
-            .map_err(DocumentMoleculeGraphError::Graph)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let atom_indices = molecule
-        .atoms()
-        .iter()
-        .enumerate()
-        .map(|(index, atom)| (atom.identity().clone(), index))
-        .collect::<HashMap<RecordId, usize>>();
-    let mut bonds = Vec::with_capacity(molecule.bonds().len());
-    let mut edges = Vec::with_capacity(molecule.bonds().len());
+            .map_err(DocumentMoleculeGraphError::Graph)?,
+        );
+        let identity = atom
+            .identity()
+            .try_clone()
+            .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+        if atom_indices.insert(identity, index).is_some() {
+            return Err(DocumentMoleculeGraphError::DuplicateAtomIdentity { atom_index: index });
+        }
+        if include_coordinates {
+            points.push(Point2::new(atom.position().x(), -atom.position().y())?);
+        }
+    }
+    let mut bonds = Vec::new();
+    bonds
+        .try_reserve_exact(molecule.bonds().len())
+        .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+    let mut edges = Vec::new();
+    edges
+        .try_reserve_exact(molecule.bonds().len())
+        .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
     for (bond_index, bond) in molecule.bonds().iter().enumerate() {
         if bond
             .style()
@@ -105,10 +142,20 @@ pub(crate) fn document_molecule_graph_v1(
         bonds.push(MolBond::new(start, end, order, false));
         edges.push((start, end));
     }
+    let coordinates = include_coordinates.then(|| Coordinates::new(points));
     Ok(DocumentMoleculeGraphV1 {
-        graph: MolGraph::new(atoms, bonds, None)?,
+        graph: MolGraph::new(atoms, bonds, coordinates)?,
         edges,
     })
+}
+
+fn copied(value: &str) -> Result<String, DocumentMoleculeGraphError> {
+    let mut owned = String::new();
+    owned
+        .try_reserve_exact(value.len())
+        .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+    owned.push_str(value);
+    Ok(owned)
 }
 
 fn atom_endpoint(
@@ -134,6 +181,9 @@ pub enum DocumentMoleculeGraphError {
     /// The chemistry graph cannot silently discard a typed non-atom vertex.
     #[error("native chemistry does not yet support {count} {kind} vertices")]
     UnsupportedVertex { kind: &'static str, count: usize },
+    /// The retained core graph unexpectedly repeated an atom identity.
+    #[error("atom {atom_index} repeats an earlier durable identity")]
+    DuplicateAtomIdentity { atom_index: usize },
     /// An atom omitted its required chemical element.
     #[error("atom {atom_index} has no element for native chemistry")]
     MissingElement { atom_index: usize },
@@ -163,4 +213,7 @@ pub enum DocumentMoleculeGraphError {
     /// The selected graph facts violated chemistry invariants.
     #[error(transparent)]
     Graph(#[from] MolGraphError),
+    /// Exact owned conversion storage could not be allocated.
+    #[error("native chemistry graph could not reserve owned storage")]
+    ResourceAllocation,
 }

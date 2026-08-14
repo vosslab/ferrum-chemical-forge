@@ -3,6 +3,67 @@
 use super::*;
 
 const MAGIC: [u8; 4] = *b"FCB1";
+const TITLED_MAGIC: [u8; 4] = *b"FBT1";
+
+pub(crate) fn validate_title(title: &str) -> Result<(), ChemistryError> {
+    if title.contains(['\0', '\r', '\n']) {
+        return Err(ChemistryError::CodecFailed {
+            codec: "molblock",
+            reason: "molblock title cannot contain NUL or line-break characters".to_owned(),
+        });
+    }
+    u32::try_from(title.len()).map_err(|_| ChemistryError::UnsupportedNativeRequest {
+        reason: "molblock title length does not fit the native wire".to_owned(),
+    })?;
+    Ok(())
+}
+
+pub(super) fn validate_output_title(output: &str, expected: &str) -> Result<(), ChemistryError> {
+    if output.split_once('\n').map(|(title, _)| title) != Some(expected) {
+        return Err(ChemistryError::MalformedNativeResponse {
+            reason: "molblock response title does not match the requested title".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+pub(super) fn encode_titled(
+    molecule: &MolGraph,
+    version: MolblockVersion,
+    title: &str,
+) -> Result<Vec<u8>, ChemistryError> {
+    validate_title(title)?;
+    let molecule_request = encode(molecule, version)?;
+    let molecule_length = u32::try_from(molecule_request.len()).map_err(|_| {
+        ChemistryError::UnsupportedNativeRequest {
+            reason: "molblock request length does not fit the titled native wire".to_owned(),
+        }
+    })?;
+    let title_length =
+        u32::try_from(title.len()).map_err(|_| ChemistryError::UnsupportedNativeRequest {
+            reason: "molblock title length does not fit the native wire".to_owned(),
+        })?;
+    let capacity = FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES
+        .checked_add(molecule_request.len())
+        .and_then(|length| length.checked_add(title.len()))
+        .ok_or_else(|| ChemistryError::UnsupportedNativeRequest {
+            reason: "titled molblock request length overflows this platform".to_owned(),
+        })?;
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(capacity)
+        .map_err(|_| ChemistryError::ResourceExhausted {
+            operation: "molecule_to_molblock_with_title",
+        })?;
+    output.extend_from_slice(&TITLED_MAGIC);
+    put_u32(&mut output, FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION);
+    put_u32(&mut output, molecule_length);
+    put_u32(&mut output, title_length);
+    output.extend_from_slice(&molecule_request);
+    output.extend_from_slice(title.as_bytes());
+    debug_assert_eq!(output.len(), capacity);
+    Ok(output)
+}
 
 pub(super) fn encode(
     molecule: &MolGraph,
@@ -32,7 +93,12 @@ pub(super) fn encode(
             reason: "molblock request length overflows this platform".to_owned(),
         })?;
 
-    let mut output = Vec::with_capacity(capacity);
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(capacity)
+        .map_err(|_| ChemistryError::ResourceExhausted {
+            operation: "molecule_to_molblock",
+        })?;
     output.extend_from_slice(&MAGIC);
     put_u32(&mut output, FERRUM_CHEM_MOLBLOCK_WIRE_VERSION);
     put_u32(

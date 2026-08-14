@@ -1,11 +1,18 @@
 use std::io::{Read, Write};
+use std::num::NonZeroU32;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use ferrum_chemistry::{InchiMode, MOLBLOCK_MAX_INPUT_BYTES, MolblockVersion, SDF_MAX_INPUT_BYTES};
+use ferrum_render::{PngBackgroundV1, Rgb24};
 
+use crate::canonical_smiles::canonical_smiles_from_smiles;
 use crate::cdml::{inspect_cdml, rewrite_cdml, validate_cdml, verify_cdml_rewrite};
 use crate::cdsvg::extract_cdsvg;
+use crate::document_render_cli::{
+    PdfCliRenderPolicyV1, PngCliRenderPolicyV1, render_pdf, render_png, render_svg,
+};
 use crate::errors::CliError;
 use crate::inchi_codec::{inchi_from_smiles, inspect_inchi};
 use crate::molblock_export::molblock_from_smiles;
@@ -17,6 +24,10 @@ use crate::sdf_inspection::inspect_sdf;
 use crate::smarts_export::smarts_from_smiles;
 use crate::smiles_inspection::inspect_smiles;
 use crate::streams::{read_input, read_input_bounded, write_report, write_rewrite};
+use crate::{
+    LOCAL_PDF_COMPLETED_BYTES_V1, LOCAL_PDF_DRAW_PATH_COMMANDS_V1, LOCAL_PDF_PLAN_ITEMS_V1,
+    LOCAL_PNG_ENCODED_BYTES_V1, LOCAL_PNG_RAW_RGBA_BYTES_V1, LOCAL_SVG_COMPLETED_BYTES_V1,
+};
 
 /// Ferrum command-line arguments.
 #[derive(Debug, Parser)]
@@ -108,6 +119,11 @@ enum CdmlCommand {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Render an admitted CDML document through one native artifact backend.
+    Render {
+        #[command(subcommand)]
+        command: CdmlRenderCommand,
+    },
     /// Produce one complete verified render-observation JSON object for a CDML document.
     RenderObservation {
         /// Input CDML path, or `-` for standard input.
@@ -130,6 +146,90 @@ enum CdmlCommand {
 }
 
 #[derive(Debug, Subcommand)]
+enum CdmlRenderCommand {
+    /// Render one complete document as structurally validated SVG.
+    Svg {
+        /// Input uncompressed CDML path, or `-` for bounded standard input.
+        input: PathBuf,
+        /// Output SVG path, or `-` for standard output.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Maximum completed SVG bytes returned by the native backend.
+        #[arg(long, default_value_t = LOCAL_SVG_COMPLETED_BYTES_V1)]
+        max_output_bytes: usize,
+    },
+    /// Render one complete document as a one-page native vector PDF.
+    Pdf {
+        /// Input uncompressed CDML path, or `-` for bounded standard input.
+        input: PathBuf,
+        /// Output PDF path, or `-` for standard output.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Maximum completed PDF bytes returned by the native backend.
+        #[arg(long, default_value_t = LOCAL_PDF_COMPLETED_BYTES_V1)]
+        max_output_bytes: usize,
+        /// Maximum counted plan traversal items admitted before PDF allocation.
+        #[arg(long, default_value_t = LOCAL_PDF_PLAN_ITEMS_V1)]
+        max_plan_items: usize,
+        /// Maximum lowered vector path commands admitted before PDF allocation.
+        #[arg(long, default_value_t = LOCAL_PDF_DRAW_PATH_COMMANDS_V1)]
+        max_path_commands: usize,
+    },
+    /// Render one complete document as a caller-sized native raster PNG.
+    Png {
+        /// Input uncompressed CDML path, or `-` for bounded standard input.
+        input: PathBuf,
+        /// Output PNG path, or `-` for standard output.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Exact nonzero output width in device pixels.
+        #[arg(long)]
+        width: NonZeroU32,
+        /// Exact nonzero output height in device pixels.
+        #[arg(long)]
+        height: NonZeroU32,
+        /// `transparent` or a six-digit RGB canvas color without `#`.
+        #[arg(long, default_value = "ffffff")]
+        background: PngBackgroundArgument,
+        /// Maximum raw RGBA bytes admitted before pixmap allocation.
+        #[arg(long, default_value_t = LOCAL_PNG_RAW_RGBA_BYTES_V1)]
+        max_raw_bytes: usize,
+        /// Maximum completed encoded PNG bytes.
+        #[arg(long, default_value_t = LOCAL_PNG_ENCODED_BYTES_V1)]
+        max_output_bytes: usize,
+    },
+}
+
+#[derive(Clone, Debug)]
+enum PngBackgroundArgument {
+    Transparent,
+    Opaque(Rgb24),
+}
+
+impl PngBackgroundArgument {
+    fn into_render(self) -> PngBackgroundV1 {
+        match self {
+            Self::Transparent => PngBackgroundV1::Transparent,
+            Self::Opaque(color) => PngBackgroundV1::Opaque(color),
+        }
+    }
+}
+
+impl FromStr for PngBackgroundArgument {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value == "transparent" {
+            return Ok(Self::Transparent);
+        }
+        let color = value.to_ascii_lowercase();
+        Rgb24::new(color).map(Self::Opaque).map_err(|_| {
+            "PNG background must be `transparent` or six hexadecimal digits without `#`".to_owned()
+        })
+    }
+}
+
+#[derive(Debug, Subcommand)]
 enum SmilesCommand {
     /// Inspect one SMILES value with the explicitly named ABI-4 adapter library.
     Inspect {
@@ -137,6 +237,14 @@ enum SmilesCommand {
         #[arg(long)]
         adapter: PathBuf,
         /// SMILES input to parse and inspect.
+        smiles: String,
+    },
+    /// Parse and re-emit one canonical-isomeric SMILES value.
+    Canonicalize {
+        /// Absolute regular ABI-4 adapter library path.
+        #[arg(long)]
+        adapter: PathBuf,
+        /// SMILES input whose complete graph will be serialized canonically.
         smiles: String,
     },
     /// Export one parsed SMILES molecule using the selected adapter's SMARTS writer.
@@ -231,7 +339,12 @@ enum MolblockFormat {
 }
 
 /// Execute accepted CLI arguments with caller-owned standard streams.
-pub fn run(cli: Cli, stdin: &mut dyn Read, stdout: &mut dyn Write) -> Result<(), CliError> {
+pub fn run(
+    cli: Cli,
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> Result<(), CliError> {
     match cli.command {
         Command::Cdml { command } => match command {
             CdmlCommand::Inspect { input, format } => {
@@ -283,6 +396,53 @@ pub fn run(cli: Cli, stdin: &mut dyn Read, stdout: &mut dyn Write) -> Result<(),
                 })?;
                 write_rewrite(&output, &extracted, stdout)
             }
+            CdmlCommand::Render { command } => match command {
+                CdmlRenderCommand::Svg {
+                    input,
+                    output,
+                    max_output_bytes,
+                } => render_svg(&input, &output, max_output_bytes, stdin, stdout, stderr),
+                CdmlRenderCommand::Pdf {
+                    input,
+                    output,
+                    max_output_bytes,
+                    max_plan_items,
+                    max_path_commands,
+                } => render_pdf(
+                    &input,
+                    &output,
+                    PdfCliRenderPolicyV1 {
+                        max_output_bytes,
+                        max_plan_items,
+                        max_path_commands,
+                    },
+                    stdin,
+                    stdout,
+                    stderr,
+                ),
+                CdmlRenderCommand::Png {
+                    input,
+                    output,
+                    width,
+                    height,
+                    background,
+                    max_raw_bytes,
+                    max_output_bytes,
+                } => render_png(
+                    &input,
+                    &output,
+                    PngCliRenderPolicyV1 {
+                        width,
+                        height,
+                        background: background.into_render(),
+                        max_raw_rgba_bytes: max_raw_bytes,
+                        max_output_bytes,
+                    },
+                    stdin,
+                    stdout,
+                    stderr,
+                ),
+            },
             CdmlCommand::RenderObservation { input } => {
                 let (source, label) = read_input(&input, stdin)?;
                 let report = render_observation_json(&source).map_err(|source| {
@@ -313,6 +473,10 @@ pub fn run(cli: Cli, stdin: &mut dyn Read, stdout: &mut dyn Write) -> Result<(),
                 let report =
                     inspect_smiles(&adapter, &smiles).map_err(CliError::SmilesInspection)?;
                 write_report(&json_line(&report)?, stdout)
+            }
+            SmilesCommand::Canonicalize { adapter, smiles } => {
+                let canonical = canonical_smiles_from_smiles(&adapter, &smiles)?;
+                write_report(format!("{canonical}\n").as_bytes(), stdout)
             }
             SmilesCommand::ToSmarts { adapter, smiles } => {
                 let smarts = smarts_from_smiles(&adapter, &smiles)?;

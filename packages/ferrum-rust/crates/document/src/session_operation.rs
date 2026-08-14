@@ -5,12 +5,12 @@ use thiserror::Error;
 use super::{
     ArrowPropertiesPatchV1, AtomMarkActionV1, AtomMarkKindV1, AtomPropertiesPatchV1,
     AtomRotationV1, BondPropertiesPatchV1, BracketPropertiesPatchV1, CleanGeometryUpdateV1,
-    DocumentBondOrderV1, GeometricPropertiesPatchV1, GeometryRepairV1, MoleculeCoordinateUpdateV1,
-    PaperPropertiesPatchV1, PaperPropertyChangeV1, PersistentId, PlusPropertiesPatchV1, Point3V1,
-    PreparedStraightenDepictionsV1, PresentationRootDeletionSetV1, PresentationRootDeletionV1,
-    PresentationStackReorderV1, SessionDocumentObservationV1, TextPropertiesPatchV1,
-    TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError, WavyPropertiesPatchV1,
-    XmlSerializationError, atom_properties_patch_v1::valid_atom_element,
+    DocumentBondOrderV1, DrawingStandardPatchV1, GeometricPropertiesPatchV1, GeometryRepairV1,
+    MoleculeCoordinateUpdateV1, PaperPropertiesPatchV1, PaperPropertyChangeV1, PersistentId,
+    PlusPropertiesPatchV1, Point3V1, PreparedStraightenDepictionsV1, PresentationRootDeletionSetV1,
+    PresentationRootDeletionV1, PresentationStackReorderV1, SessionDocumentObservationV1,
+    TextPropertiesPatchV1, TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError,
+    WavyPropertiesPatchV1, XmlSerializationError, atom_properties_patch_v1::valid_atom_element,
 };
 
 /// Immutable result of one accepted session mutation or history transition.
@@ -62,6 +62,13 @@ pub enum SessionOperationV1 {
         number: Option<u64>,
         /// Explicit visibility, or `None` only for a clear.
         show_number: Option<bool>,
+    },
+    /// Replace or remove one direct-root molecule's exact authored name.
+    SetMoleculeName {
+        /// Opaque durable direct-root molecule selector.
+        molecule_id: super::DocumentObjectIdV1,
+        /// Exact name; `None` or an empty string removes the attribute.
+        name: Option<String>,
     },
     /// Add or remove one supported direct mark from one durable direct atom.
     ApplyAtomMark {
@@ -150,6 +157,11 @@ pub enum SessionOperationV1 {
         /// Complete document-global paper property intent.
         patch: PaperPropertiesPatchV1,
     },
+    /// Apply one validated unique-field document drawing-standard patch atomically.
+    SetDrawingStandard {
+        /// Complete document-global drawing-default intent.
+        patch: DrawingStandardPatchV1,
+    },
     /// Apply one validated unique-field direct-root Arrow properties patch atomically.
     SetArrowProperties {
         /// Complete validated source-ID-targeted property intent.
@@ -190,6 +202,15 @@ pub enum SessionOperationV1 {
 /// Typed operation failure before an accepted state transition.
 #[derive(Debug, Error)]
 pub enum SessionOperationError {
+    /// Native linear-form conversion requires one or more exact selected atoms.
+    #[error("linear-form conversion requires a nonempty exact atom selection")]
+    EmptyLinearFormSelection,
+    /// The native linear-form planner refused the authenticated graph facts.
+    #[error("linear-form planning refused: {0}")]
+    LinearFormPlan(#[source] ferrum_domain::linear_form::LinearFormPlanErrorV1),
+    /// Session history could not reserve storage for a prepared transition.
+    #[error("document history could not reserve storage for a prepared transition")]
+    HistoryResourceExhausted,
     /// A requested element spelling is empty or has invalid XML-like content.
     #[error("atom element must be a nonblank plain element spelling")]
     InvalidAtomElement,
@@ -217,6 +238,9 @@ pub enum SessionOperationError {
     /// The requested typed atom does not occur in the retained document.
     #[error("typed atom does not exist: {0}")]
     UnknownAtom(String),
+    /// The requested direct-root typed molecule does not occur in the retained document.
+    #[error("typed direct-root molecule does not exist")]
+    UnknownMolecule,
     /// The requested typed bond does not occur in the retained document.
     #[error("typed bond does not exist: {0}")]
     UnknownBond(String),
@@ -285,6 +309,12 @@ pub enum SessionOperationError {
     /// The session cannot issue another generated presentation identity.
     #[error("generated presentation identifier space is exhausted")]
     PresentationIdentifierExhausted,
+    /// The session cannot issue another generated fragment identity.
+    #[error("generated fragment identifier space is exhausted")]
+    FragmentIdentifierExhausted,
+    /// Storage needed to allocate generated persistent identities was unavailable.
+    #[error("generated identifier allocation failed")]
+    GeneratedIdentifierAllocationFailed,
     /// Candidate construction or retained-document validation failed.
     #[error("cannot prepare document candidate: {0}")]
     Candidate(#[from] TypedDocumentError),
@@ -354,6 +384,16 @@ impl SessionOperation {
                 let candidate = current.with_atom_number(&molecule, &atom, assignment)?;
                 let candidate =
                     candidate.ok_or_else(|| SessionOperationError::UnknownAtom(atom_id.clone()))?;
+                if candidate.to_xml()? == current.to_xml()? {
+                    Ok(Candidate::NoChange)
+                } else {
+                    Ok(Candidate::Changed(Box::new(candidate)))
+                }
+            }
+            Self::V1(SessionOperationV1::SetMoleculeName { molecule_id, name }) => {
+                let name = name.as_deref().filter(|value| !value.is_empty());
+                let candidate = current.with_molecule_name(molecule_id, name)?;
+                let candidate = candidate.ok_or(SessionOperationError::UnknownMolecule)?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)
                 } else {
@@ -538,6 +578,17 @@ impl SessionOperation {
                     return Err(SessionOperationError::PaperDimensionsRequireCustom);
                 }
                 let candidate = current.with_paper_properties(patch)?;
+                if candidate.to_xml()? == current.to_xml()? {
+                    Ok(Candidate::NoChange)
+                } else {
+                    Ok(Candidate::Changed(Box::new(candidate)))
+                }
+            }
+            Self::V1(SessionOperationV1::SetDrawingStandard { patch }) => {
+                if patch.changes().is_empty() {
+                    return Ok(Candidate::NoChange);
+                }
+                let candidate = current.with_drawing_standard(patch)?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)
                 } else {

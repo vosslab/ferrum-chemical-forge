@@ -12,7 +12,10 @@ pub fn parse_one_letter_sequence(input: &str) -> Result<PeptideSequence, Peptide
         return Err(PeptideSyntaxError::EmptySequence);
     }
 
-    let mut residues = Vec::with_capacity(input.chars().count());
+    let mut residues = Vec::new();
+    residues
+        .try_reserve(input.len())
+        .map_err(|_| PeptideSyntaxError::AllocationFailed)?;
     for (offset, code) in input.chars().enumerate() {
         let residue =
             ResidueCode::from_one_letter(code).ok_or(PeptideSyntaxError::UnsupportedResidue {

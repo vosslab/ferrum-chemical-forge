@@ -5,6 +5,9 @@ use std::path::PathBuf;
 use ferrum_document::{
     DocumentObjectIdV1, DocumentSessionError, ProjectionError as DocumentProjectionError,
     SessionOperationError, TypedDocumentError,
+    artifact_publication_v1::{
+        ArtifactDestinationRejectionV1, ArtifactPrepublicationPhaseV1, ArtifactPublicationErrorV1,
+    },
 };
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
@@ -147,6 +150,126 @@ pub(crate) fn map_document_error(py: Python<'_>, error: DocumentSessionError) ->
     })
 }
 
+pub(crate) fn map_artifact_publication_error(
+    py: Python<'_>,
+    error: ArtifactPublicationErrorV1,
+) -> PyResult<PyErr> {
+    Ok(match error {
+        ArtifactPublicationErrorV1::RejectedDestination {
+            destination,
+            reason,
+        } => publication_error(
+            py,
+            InvalidDestinationError::new_err,
+            destination,
+            artifact_destination_rejection(reason),
+        )?,
+        ArtifactPublicationErrorV1::NotPublished {
+            destination,
+            phase,
+            source,
+        } => publication_error(
+            py,
+            PublicationNotStartedError::new_err,
+            destination,
+            format!(
+                "publication stopped while {}: {source}",
+                artifact_phase(phase)
+            ),
+        )?,
+        ArtifactPublicationErrorV1::NotPublishedTemporaryMayRemain {
+            destination,
+            phase,
+            source,
+            cleanup,
+        } => publication_error(
+            py,
+            PublicationNotStartedError::new_err,
+            destination,
+            format!(
+                "publication stopped while {}: {source}; temporary cleanup failed: {cleanup}",
+                artifact_phase(phase)
+            ),
+        )?,
+        ArtifactPublicationErrorV1::RejectedDestinationTemporaryMayRemain {
+            destination,
+            reason,
+            cleanup,
+        } => publication_error(
+            py,
+            PublicationNotStartedError::new_err,
+            destination,
+            format!(
+                "{}; temporary cleanup failed: {cleanup}",
+                artifact_destination_rejection(reason)
+            ),
+        )?,
+        ArtifactPublicationErrorV1::TemporaryName {
+            destination,
+            source,
+        } => publication_error(py, PublicationNotStartedError::new_err, destination, source)?,
+        ArtifactPublicationErrorV1::TemporaryNameExhausted { destination } => publication_error(
+            py,
+            PublicationNotStartedError::new_err,
+            destination,
+            "could not reserve a unique temporary file",
+        )?,
+        ArtifactPublicationErrorV1::PossiblyPublished { receipt, source } => publication_error(
+            py,
+            PublicationPossiblyCompletedError::new_err,
+            receipt.into_destination(),
+            source,
+        )?,
+    })
+}
+
+const fn artifact_destination_rejection(reason: ArtifactDestinationRejectionV1) -> &'static str {
+    match reason {
+        ArtifactDestinationRejectionV1::MissingFileName => "destination must include a file name",
+        ArtifactDestinationRejectionV1::ParentTraversesSymlink => {
+            "destination parent path must not traverse a symbolic link"
+        }
+        ArtifactDestinationRejectionV1::ParentIsNotDirectory => {
+            "every destination parent component must be a directory"
+        }
+        ArtifactDestinationRejectionV1::FinalIsSymlink => {
+            "destination file must not be a symbolic link"
+        }
+        ArtifactDestinationRejectionV1::FinalIsNotRegular => {
+            "existing destination must be a regular file"
+        }
+        ArtifactDestinationRejectionV1::SourceAliasesDestination => {
+            "destination must not alias the retained source file"
+        }
+    }
+}
+
+const fn artifact_phase(phase: ArtifactPrepublicationPhaseV1) -> &'static str {
+    match phase {
+        ArtifactPrepublicationPhaseV1::OpenParent => "opening the destination parent",
+        ArtifactPrepublicationPhaseV1::ValidateBeforeTemporary => {
+            "validating the destination before temporary creation"
+        }
+        ArtifactPrepublicationPhaseV1::ReserveTemporary => "reserving a private temporary file",
+        ArtifactPrepublicationPhaseV1::ValidateTemporary => "validating the private temporary file",
+        ArtifactPrepublicationPhaseV1::WriteOrSyncTemporary => {
+            "writing or synchronizing the private temporary file"
+        }
+        ArtifactPrepublicationPhaseV1::ValidateBeforeRename => {
+            "revalidating the destination before replacement"
+        }
+        ArtifactPrepublicationPhaseV1::Rename => "replacing the destination",
+    }
+}
+
+pub(crate) fn publication_resource_error(
+    py: Python<'_>,
+    destination: PathBuf,
+    detail: &'static str,
+) -> PyResult<PyErr> {
+    publication_error(py, PublicationNotStartedError::new_err, destination, detail)
+}
+
 pub(crate) fn projection_error(py: Python<'_>, error: DocumentProjectionError) -> PyResult<PyErr> {
     let py_error = ProjectionError::new_err(error.to_string());
     let value = py_error.value(py);
@@ -172,6 +295,13 @@ fn revision_conflict_error(py: Python<'_>, expected: u64, actual: u64) -> PyResu
 
 fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyErr> {
     match error {
+        SessionOperationError::EmptyLinearFormSelection
+        | SessionOperationError::LinearFormPlan(_) => operation_validation_reason(py, error),
+        SessionOperationError::HistoryResourceExhausted
+        | SessionOperationError::FragmentIdentifierExhausted
+        | SessionOperationError::GeneratedIdentifierAllocationFailed => {
+            operation_validation_reason(py, error)
+        }
         SessionOperationError::InvalidAtomElement => {
             Ok(InvalidAtomElementError::new_err(error.to_string()))
         }
@@ -247,6 +377,7 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
             Ok(py_error)
         }
         SessionOperationError::InvalidCreateAtomTarget(_)
+        | SessionOperationError::UnknownMolecule
         | SessionOperationError::PaperDimensionsRequireCustom
         | SessionOperationError::InvalidCreateBondTarget(_)
         | SessionOperationError::InvalidMoleculeCoordinateTarget(_)
@@ -291,6 +422,13 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
             Ok(OperationValidationError::new_err(error.to_string()))
         }
     }
+}
+
+fn operation_validation_reason(py: Python<'_>, error: SessionOperationError) -> PyResult<PyErr> {
+    let reason = error.to_string();
+    let py_error = OperationValidationError::new_err(reason.clone());
+    py_error.value(py).setattr("reason", reason)?;
+    Ok(py_error)
 }
 
 fn publication_error(

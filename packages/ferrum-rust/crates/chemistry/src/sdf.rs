@@ -40,6 +40,74 @@ impl SdfProperty {
     }
 }
 
+/// Compose one exact SDF record around a validated native Molfile block.
+///
+/// Property blocks are emitted directly by Ferrum so repeated names retain
+/// their source order instead of passing through a map-valued chemistry API.
+///
+/// # Errors
+///
+/// Returns [`SdfError`] when the Molfile or property grammar is not exactly
+/// representable, the output size overflows, or output storage cannot be
+/// reserved.
+pub fn compose_sdf_record(molblock: &str, properties: &[SdfProperty]) -> Result<String, SdfError> {
+    if molblock.as_bytes().contains(&0)
+        || molblock.contains('\r')
+        || !molblock.ends_with("M  END\n")
+    {
+        return Err(SdfError::InvalidMolblockRecord);
+    }
+    let mut output_length = molblock
+        .len()
+        .checked_add("$$$$\n".len())
+        .ok_or(SdfError::OutputSizeOverflow)?;
+    for property in properties {
+        if !valid_record_property_name(property.name()) {
+            return Err(SdfError::InvalidPropertyName);
+        }
+        if !valid_record_property_value(property.value()) {
+            return Err(SdfError::InvalidPropertyValue);
+        }
+        let property_length = ">  <"
+            .len()
+            .checked_add(property.name().len())
+            .and_then(|length| length.checked_add(">\n".len()))
+            .and_then(|length| length.checked_add(property.value().len()))
+            .and_then(|length| length.checked_add("\n\n".len()))
+            .ok_or(SdfError::OutputSizeOverflow)?;
+        output_length = output_length
+            .checked_add(property_length)
+            .ok_or(SdfError::OutputSizeOverflow)?;
+    }
+
+    let mut output = String::new();
+    output
+        .try_reserve_exact(output_length)
+        .map_err(|_| SdfError::ResourceAllocation)?;
+    output.push_str(molblock);
+    for property in properties {
+        output.push_str(">  <");
+        output.push_str(property.name());
+        output.push_str(">\n");
+        output.push_str(property.value());
+        output.push_str("\n\n");
+    }
+    output.push_str("$$$$\n");
+    Ok(output)
+}
+
+fn valid_record_property_name(name: &str) -> bool {
+    !name.is_empty() && !name.contains(['\0', '\r', '\n', '<', '>'])
+}
+
+fn valid_record_property_value(value: &str) -> bool {
+    !value.as_bytes().contains(&0)
+        && !value.contains('\r')
+        && !value.contains("\n\n")
+        && !value.ends_with('\n')
+        && !value.lines().any(|line| line == "$$$$")
+}
+
 /// One molecule, title, and ordered property sequence for SDF export.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SdfRecord {
@@ -146,11 +214,20 @@ pub enum SdfError {
     #[error("SDF title contains NUL or a line break")]
     InvalidTitle,
     /// A property name is empty or would break its header line.
-    #[error("SDF property name is empty or contains NUL or a line break")]
+    #[error("SDF property name is empty or contains NUL, a line break, or an angle bracket")]
     InvalidPropertyName,
-    /// A property value contains NUL or an unrepresentable blank line.
-    #[error("SDF property value contains NUL or an unrepresentable blank line")]
+    /// A property value cannot be represented by the closed record grammar.
+    #[error("SDF property value is not representable by the exact one-record grammar")]
     InvalidPropertyValue,
+    /// A native Molfile record must be NUL-free LF text ending at `M  END`.
+    #[error("SDF composition requires one LF-terminated native Molfile record")]
+    InvalidMolblockRecord,
+    /// Exact SDF output length cannot be represented by this process.
+    #[error("SDF output size overflows addressable storage")]
+    OutputSizeOverflow,
+    /// Exact SDF output storage could not be reserved.
+    #[error("SDF output storage could not be reserved")]
+    ResourceAllocation,
     /// A property map cannot retain duplicate ordered names.
     #[error("SDF property name is duplicated: {name}")]
     DuplicatePropertyName {
@@ -216,5 +293,30 @@ mod tests {
                 name: "same".to_owned(),
             }),
         );
+
+        let repeated = [
+            SdfProperty::new("same", "one").expect("valid"),
+            SdfProperty::new("same", "two").expect("valid"),
+        ];
+        assert_eq!(
+            compose_sdf_record("title\nprogram\ncomment\nM  END\n", &repeated)
+                .expect("record grammar is exact"),
+            concat!(
+                "title\nprogram\ncomment\nM  END\n",
+                ">  <same>\none\n\n",
+                ">  <same>\ntwo\n\n",
+                "$$$$\n",
+            ),
+        );
+        for property in [
+            SdfProperty::new("bad>name", "value").expect("imported name remains retainable"),
+            SdfProperty::new("field", "value\n").expect("imported trailing LF remains retainable"),
+            SdfProperty::new("field", "$$$$").expect("imported terminator text remains retainable"),
+        ] {
+            assert!(matches!(
+                compose_sdf_record("title\nprogram\ncomment\nM  END\n", &[property]),
+                Err(SdfError::InvalidPropertyName | SdfError::InvalidPropertyValue),
+            ));
+        }
     }
 }

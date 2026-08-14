@@ -7,6 +7,7 @@
 //! independent from the private module tree.
 
 mod arrow_properties_patch_v1;
+pub mod artifact_publication_v1;
 mod atom_mark_projection;
 mod atom_mark_v1;
 mod atom_projection_v1;
@@ -18,13 +19,16 @@ mod bracket_pair_projection_v1;
 mod bracket_properties_patch_v1;
 mod cdsvg;
 mod clean_geometry_update_v1;
+mod clipboard_fragment_v1;
 mod core_projection;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
+mod drawing_standard_patch_v1;
 mod generated_ids;
 mod geometric_properties_patch_v1;
 mod geometry_repair_v1;
 mod identity_index;
+mod linear_form_convert_v1;
 mod molecule_coordinate_update_v1;
 mod molecule_insertion_v1;
 mod paper_properties_v1;
@@ -43,6 +47,7 @@ mod projection_identity_v1;
 mod projection_v1;
 mod publication;
 mod sdf_record_insertion_v1;
+mod sdf_record_metadata_v1;
 mod session;
 mod session_history;
 mod session_observation;
@@ -67,10 +72,12 @@ mod typed_class;
 mod typed_coordinate;
 mod typed_diagnostic;
 mod typed_document_error;
+mod typed_drawing_standard;
 mod typed_geometric_properties;
 mod typed_geometry_repair;
 mod typed_linear_form_metadata;
 mod typed_molecule_insertion;
+mod typed_molecule_name;
 mod typed_molecule_positions;
 mod typed_object_resolution;
 mod typed_paper_properties;
@@ -112,6 +119,11 @@ pub use cdsvg::{
 pub use clean_geometry_update_v1::{
     CleanGeometryMoleculeV1, CleanGeometryUpdateV1, CleanGeometryUpdateV1Error,
 };
+pub use clipboard_fragment_v1::{
+    DOCUMENT_CLIPBOARD_FRAGMENT_SCHEMA_V1, DocumentClipboardFragmentErrorV1,
+    DocumentClipboardFragmentKindV1, DocumentClipboardFragmentV1, DocumentClipboardSelectionV1,
+    extract_document_clipboard_fragment_v1,
+};
 pub use core_projection::{CoreProjection, CoreProjectionError};
 pub use direct_haworth_insertion_v1::{
     CommittedDirectHaworthBondFactV1, DocumentDirectHaworthBondRoleV1,
@@ -119,6 +131,11 @@ pub use direct_haworth_insertion_v1::{
 };
 pub use direct_haworth_reobservation_v1::{
     DirectHaworthReobservationErrorV1, ReobservedDirectHaworthBondFactV1, ReobservedDirectHaworthV1,
+};
+pub use drawing_standard_patch_v1::{
+    DrawingStandardPatchV1, DrawingStandardPatchV1Error, DrawingStandardPropertyChangeV1,
+    MAX_DRAWING_STANDARD_FONT_FAMILY_BYTES_V1, MAX_DRAWING_STANDARD_FONT_SIZE_V1,
+    MAX_DRAWING_STANDARD_WIDTH_V1, MIN_DRAWING_STANDARD_FONT_SIZE_V1,
 };
 pub use geometric_properties_patch_v1::{
     GeometricLineWidthV1, GeometricPropertiesPatchV1, GeometricPropertiesPatchV1Error,
@@ -190,11 +207,16 @@ pub use sdf_record_insertion_v1::{
     SDF_IMPORT_NAMESPACE_V1, SdfPropertyInsertionV1, SdfRecordBatchInsertionV1,
     SdfRecordInsertionV1, SdfRecordInsertionV1Error,
 };
+pub use sdf_record_metadata_v1::{
+    SdfPropertyMetadataV1, SdfRecordMetadataErrorV1, SdfRecordMetadataV1,
+    observe_sdf_record_metadata_v1,
+};
 pub use session::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, DocumentSession,
     DocumentSessionError, DocumentSnapshot, PendingCreateAtom, PendingCreateBond,
     PendingCreateBondedAtom, PendingCreateBracket, PendingCreateMolecule, PendingCreateSdfRecords,
-    PendingCreateWavy, PendingDirectHaworthV1, Publication, SaveOutcome,
+    PendingCreateWavy, PendingDirectHaworthV1, PendingLinearFormConvertV1,
+    PreparedLinearFormConvertResultV1, Publication, SaveOutcome,
 };
 pub use session_observation::SessionDocumentObservationV1;
 pub use session_operation::{
@@ -238,11 +260,16 @@ mod compatibility_tests;
 mod cdsvg_tests;
 
 #[cfg(test)]
+mod clipboard_fragment_v1_tests;
+
+#[cfg(test)]
 mod identity_index_tests;
 
 #[cfg(test)]
 mod session_tests;
 
+#[cfg(test)]
+mod artifact_publication_v1_tests;
 #[cfg(test)]
 mod publication_tests;
 
@@ -259,6 +286,8 @@ mod session_semantics_tests;
 mod molecule_insertion_v1_tests;
 #[cfg(test)]
 mod sdf_record_insertion_v1_tests;
+#[cfg(test)]
+mod sdf_record_metadata_v1_tests;
 
 #[cfg(test)]
 mod typed_tests;

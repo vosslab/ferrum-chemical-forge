@@ -112,6 +112,37 @@ pub(crate) fn validate_supported_inchi_complete_graph_facts_v1(
     validate_supported_complete_graph_facts_with_inchi_hydrogen_policy_v1(graph, true)
 }
 
+/// Validate the fixed legacy peptide-template graph representation.
+///
+/// This intentionally does not broaden generic SMILES insertion. The template
+/// source uses bracket-derived no-implicit and tetrahedral flags as native
+/// parser representation details; legacy OASA persisted the corresponding
+/// ordinary achiral CDML topology, charge, isotope, and explicit-H facts.
+pub(crate) fn validate_supported_peptide_template_complete_graph_facts_v1(
+    graph: &MolGraph,
+) -> Result<(), CompleteGraphMoleculeInsertionError> {
+    for (index, atom) in graph.atoms().iter().enumerate() {
+        let unsupported = if atom.chirality() == AtomChirality::Other {
+            Some("unrecognized chirality")
+        } else if atom.radical_electrons() != 0 {
+            Some("radical electrons")
+        } else if atom.no_implicit() && atom.explicit_hydrogens().is_none() {
+            Some("no-implicit-hydrogen policy without an explicit hydrogen count")
+        } else if atom.atom_map_number().is_some() {
+            Some("atom-map number")
+        } else {
+            None
+        };
+        if let Some(fact) = unsupported {
+            return Err(CompleteGraphMoleculeInsertionError::UnsupportedAtomFact {
+                atom_index: index,
+                fact,
+            });
+        }
+    }
+    validate_supported_complete_graph_bonds_v1(graph)
+}
+
 fn validate_supported_complete_graph_facts_with_inchi_hydrogen_policy_v1(
     graph: &MolGraph,
     inchi_hydrogens_are_complete: bool,
@@ -137,6 +168,12 @@ fn validate_supported_complete_graph_facts_with_inchi_hydrogen_policy_v1(
             });
         }
     }
+    validate_supported_complete_graph_bonds_v1(graph)
+}
+
+fn validate_supported_complete_graph_bonds_v1(
+    graph: &MolGraph,
+) -> Result<(), CompleteGraphMoleculeInsertionError> {
     for (index, bond) in graph.bonds().iter().enumerate() {
         let unsupported = if bond.stereo() != BondStereo::None {
             Some("stereochemistry")

@@ -5,20 +5,34 @@ use super::*;
 const MAGIC: [u8; 4] = *b"FCT1";
 
 pub(super) fn decode(response: &[u8], codec: &'static str) -> Result<String, ChemistryError> {
-    decode_with_line_policy(response, codec, false)
+    decode_with_line_policy(response, codec, false, None)
 }
 
 pub(super) fn decode_multiline(
     response: &[u8],
     codec: &'static str,
 ) -> Result<String, ChemistryError> {
-    decode_with_line_policy(response, codec, true)
+    decode_with_line_policy(response, codec, true, None)
+}
+
+pub(super) fn decode_smiles(response: &[u8]) -> Result<String, ChemistryError> {
+    let output = decode_with_line_policy(
+        response,
+        "canonical SMILES",
+        false,
+        Some(FERRUM_CHEM_SMILES_WRITE_MAX_BYTES),
+    )?;
+    if !output.bytes().all(|byte| (0x21..=0x7e).contains(&byte)) {
+        return malformed("canonical SMILES output is not printable ASCII without whitespace");
+    }
+    Ok(output)
 }
 
 fn decode_with_line_policy(
     response: &[u8],
     codec: &'static str,
     multiline: bool,
+    maximum_output_bytes: Option<usize>,
 ) -> Result<String, ChemistryError> {
     if response.len() < FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES {
         return Err(ChemistryError::TruncatedNativeResponse);
@@ -34,6 +48,9 @@ fn decode_with_line_policy(
     let detail_length =
         usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
     let text_length = usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
+    if maximum_output_bytes.is_some_and(|maximum| text_length > maximum) {
+        return malformed("FCT1 output exceeds the operation-specific limit");
+    }
     if reader.u32().map_err(decode_error)? != FERRUM_CHEM_TEXT_FLAGS_NONE {
         return malformed("FCT1 flags are nonzero");
     }

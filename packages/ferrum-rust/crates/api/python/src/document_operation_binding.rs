@@ -11,6 +11,7 @@ use crate::atom_mark_binding::{PyAtomMarkActionV1, PyAtomMarkKindV1};
 use crate::atom_properties_binding::PyDocumentAtomPropertyChangeV1;
 use crate::binding::{PyDocumentBondOrderV1, operation_validation_error, projection_error};
 use crate::bond_properties_binding::PyDocumentBondPropertyChangeV1;
+use crate::drawing_standard_binding;
 use crate::paper_properties_binding::{PyDocumentPaperPropertyChangeV1, validate_patch};
 
 /// Closed V1 operation grammar for authoritative session mutations.
@@ -103,6 +104,15 @@ impl PyDocumentOperationV1 {
         let patch = validate_patch(py, changes)?;
         Ok(Self {
             operation: SessionOperation::V1(SessionOperationV1::SetPaperProperties { patch }),
+        })
+    }
+
+    /// Build one complete unique-field document drawing-standard patch.
+    #[staticmethod]
+    fn set_drawing_standard(py: Python<'_>, changes: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        let patch = drawing_standard_binding::validate_patch(py, changes)?;
+        Ok(Self {
+            operation: SessionOperation::V1(SessionOperationV1::SetDrawingStandard { patch }),
         })
     }
 

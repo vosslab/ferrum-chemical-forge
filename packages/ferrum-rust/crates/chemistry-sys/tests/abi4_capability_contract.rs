@@ -7,10 +7,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use ferrum_chemistry_sys::{
     AdapterError, ChemistryAdapter, FERRUM_CHEM_ADAPTER_ABI_VERSION,
-    FERRUM_CHEM_ALL_KNOWN_CAPABILITIES, FERRUM_CHEM_CAPABILITY_INCHI,
-    FERRUM_CHEM_CAPABILITY_KEKULIZE, FERRUM_CHEM_CAPABILITY_MOLFILE,
-    FERRUM_CHEM_CAPABILITY_MOLFILE_READ, FERRUM_CHEM_CAPABILITY_SDF_READ,
-    FERRUM_CHEM_CAPABILITY_SDF_WRITE, FERRUM_CHEM_CAPABILITY_SMARTS,
+    FERRUM_CHEM_ALL_KNOWN_CAPABILITIES, FERRUM_CHEM_CAPABILITY_COMPOSITION,
+    FERRUM_CHEM_CAPABILITY_INCHI, FERRUM_CHEM_CAPABILITY_KEKULIZE, FERRUM_CHEM_CAPABILITY_MOLFILE,
+    FERRUM_CHEM_CAPABILITY_MOLFILE_READ, FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE,
+    FERRUM_CHEM_CAPABILITY_SDF_READ, FERRUM_CHEM_CAPABILITY_SDF_WRITE,
+    FERRUM_CHEM_CAPABILITY_SMARTS, FERRUM_CHEM_CAPABILITY_SMILES_WRITE,
     FERRUM_CHEM_MAX_RESPONSE_BYTES,
 };
 
@@ -49,9 +50,21 @@ fn abi4_adapter_loads_required_symbols_and_honors_capability_bits() {
         })
     ));
     assert!(matches!(
+        adapter.molecule_to_smiles(&[]),
+        Err(AdapterError::OperationUnavailable {
+            operation: "molecule_to_smiles"
+        })
+    ));
+    assert!(matches!(
         adapter.molecule_to_molblock(&[]),
         Err(AdapterError::OperationUnavailable {
             operation: "molecule_to_molblock"
+        })
+    ));
+    assert!(matches!(
+        adapter.molecule_to_molblock_with_title(&[]),
+        Err(AdapterError::OperationUnavailable {
+            operation: "molecule_to_molblock_with_title"
         })
     ));
     assert!(matches!(
@@ -82,6 +95,12 @@ fn abi4_adapter_loads_required_symbols_and_honors_capability_bits() {
         adapter.molecule_to_inchi(&[]),
         Err(AdapterError::OperationUnavailable {
             operation: "molecule_to_inchi"
+        })
+    ));
+    assert!(matches!(
+        adapter.molecule_composition(&[]),
+        Err(AdapterError::OperationUnavailable {
+            operation: "molecule_composition"
         })
     ));
 }
@@ -142,9 +161,37 @@ fn abi4_loader_requires_each_advertised_operation_symbol() {
 
 #[test]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
+fn abi4_loader_requires_the_advertised_smiles_writer_symbol() {
+    let fixture = SyntheticAdapter::build_with_capabilities(
+        FERRUM_CHEM_CAPABILITY_KEKULIZE | FERRUM_CHEM_CAPABILITY_SMILES_WRITE,
+    );
+    let result = ChemistryAdapter::load(
+        fixture.library_path(),
+        u32::try_from(FERRUM_CHEM_ADAPTER_ABI_VERSION).expect("header ABI fits u32"),
+    );
+
+    assert!(matches!(result, Err(AdapterError::Load(_))));
+}
+
+#[test]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn abi4_loader_requires_the_advertised_molfile_symbol() {
     let fixture = SyntheticAdapter::build_with_capabilities(
         FERRUM_CHEM_CAPABILITY_KEKULIZE | FERRUM_CHEM_CAPABILITY_MOLFILE,
+    );
+    let result = ChemistryAdapter::load(
+        fixture.library_path(),
+        u32::try_from(FERRUM_CHEM_ADAPTER_ABI_VERSION).expect("header ABI fits u32"),
+    );
+
+    assert!(matches!(result, Err(AdapterError::Load(_))));
+}
+
+#[test]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn abi4_loader_requires_the_advertised_titled_molfile_symbol() {
+    let fixture = SyntheticAdapter::build_with_capabilities(
+        FERRUM_CHEM_CAPABILITY_KEKULIZE | FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE,
     );
     let result = ChemistryAdapter::load(
         fixture.library_path(),
@@ -201,6 +248,20 @@ fn abi4_loader_requires_the_advertised_molfile_reader_symbol() {
 fn abi4_loader_requires_the_advertised_inchi_symbol_set() {
     let fixture = SyntheticAdapter::build_with_capabilities(
         FERRUM_CHEM_CAPABILITY_KEKULIZE | FERRUM_CHEM_CAPABILITY_INCHI,
+    );
+    let result = ChemistryAdapter::load(
+        fixture.library_path(),
+        u32::try_from(FERRUM_CHEM_ADAPTER_ABI_VERSION).expect("header ABI fits u32"),
+    );
+
+    assert!(matches!(result, Err(AdapterError::Load(_))));
+}
+
+#[test]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn abi4_loader_requires_the_advertised_composition_symbol() {
+    let fixture = SyntheticAdapter::build_with_capabilities(
+        FERRUM_CHEM_CAPABILITY_KEKULIZE | FERRUM_CHEM_CAPABILITY_COMPOSITION,
     );
     let result = ChemistryAdapter::load(
         fixture.library_path(),

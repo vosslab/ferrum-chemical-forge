@@ -22,7 +22,8 @@ pub use bond::{Bond, BondOrder, BondStyle};
 pub use error::ModelError;
 /// Stable identifiers and their validated provenance.
 pub use identity::{
-    Identifier, InvalidIdentifier, LegacyFingerprint, RecordId, RecordKind, RecordOrigin,
+    Identifier, InvalidIdentifier, LegacyFingerprint, RecordId, RecordIdCloneError, RecordKind,
+    RecordOrigin,
 };
 /// Immutable molecule records containing validated vertices and bonds.
 pub use molecule::Molecule;

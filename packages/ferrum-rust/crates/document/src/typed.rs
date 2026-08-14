@@ -492,13 +492,18 @@ impl TypedDocument {
         Self::parse(&serialized)
     }
 
-    pub(crate) fn issue_provisional_token(&mut self) -> ProvisionalToken {
-        self.indexed.issue_provisional_token()
+    pub(crate) fn try_issue_provisional_token(
+        &mut self,
+    ) -> Result<ProvisionalToken, TypedDocumentError> {
+        self.indexed
+            .try_issue_provisional_token()
+            .map_err(IndexedDocumentError::from)
+            .map_err(TypedDocumentError::from)
     }
 
     pub(crate) fn consume_provisional_token(
         &mut self,
-        token: ProvisionalToken,
+        token: &ProvisionalToken,
     ) -> Result<(), TypedDocumentError> {
         self.indexed
             .consume_provisional_token(token)

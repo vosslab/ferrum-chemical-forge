@@ -11,8 +11,11 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
 import ferrum_qt.native.ferrum_native_bracket_creation as native_bracket_creation
+import ferrum_qt.native.ferrum_native_document_tab_construction as native_tab_construction
 import ferrum_qt.native.ferrum_native_geometric_properties as native_geometric_properties
 import ferrum_qt.native.ferrum_native_geometry_repair as native_geometry_repair
+import ferrum_qt.native.ferrum_native_graphics_view
+import ferrum_qt.native.ferrum_native_molecule_name as native_molecule_name
 import ferrum_qt.native.ferrum_native_paper_properties as native_paper_properties
 import ferrum_qt.native.ferrum_native_presentation_deletion as native_presentation_deletion
 import ferrum_qt.native.ferrum_native_presentation_stack as native_presentation_stack
@@ -21,27 +24,21 @@ import ferrum_qt.native.ferrum_native_snapshot_export as native_snapshot_export
 import ferrum_qt.native.ferrum_native_sdf_insertion as native_sdf_insertion
 import ferrum_qt.native.ferrum_native_text_properties as native_text_properties
 import ferrum_qt.native.ferrum_native_top_level_transform as native_top_level_transform
+import ferrum_qt.native.ferrum_native_tab_view_state
 import ferrum_qt.native.ferrum_native_wavy_properties as native_wavy_properties
+import ferrum_qt.native.ferrum_native_document_tab_publication as native_publication
+import ferrum_qt.native.ferrum_native_document_tab_errors as native_document_tab_errors
+import ferrum_qt.native.ferrum_native_drawing_standard as native_drawing_standard
 
 
 #============================================
-class FerrumNativeDocumentTabError(RuntimeError):
-	"""Raised when a native tab cannot install its authoritative observation."""
+FerrumNativeDocumentTabError = native_document_tab_errors.FerrumNativeDocumentTabError
 
 
 #============================================
-class FerrumNativeDocumentTabSavePresentationError(FerrumNativeDocumentTabError):
-	"""A confirmed Rust save whose replacement projection could not be installed."""
-
-	#============================================
-	def __init__(self, path: str | pathlib.Path, publication: object) -> None:
-		"""Retain the confirmed publication for truthful caller recovery messaging."""
-		self.path = pathlib.Path(path)
-		self.publication = publication
-		super().__init__(
-			"Rust publication completed, but its replacement render observation "
-			"could not be installed",
-		)
+FerrumNativeDocumentTabSavePresentationError = (
+	native_publication.FerrumNativeDocumentTabSavePresentationError
+)
 
 
 #============================================
@@ -70,6 +67,9 @@ class FerrumNativeMoleculeChoice:
 
 #============================================
 class FerrumNativeDocumentTab(
+		native_publication.FerrumNativeDocumentTabPublicationMixin,
+		native_drawing_standard.FerrumNativeDrawingStandardTabMixin,
+		native_molecule_name.FerrumNativeMoleculeNameTabMixin,
 		native_sdf_insertion.FerrumNativeSdfInsertionTabMixin,
 		native_bracket_creation.FerrumNativeBracketCreationMixin,
 		native_paper_properties.FerrumNativePaperPropertiesMixin,
@@ -82,6 +82,7 @@ class FerrumNativeDocumentTab(
 		native_snapshot_export.FerrumNativeSnapshotExportTabMixin,
 		native_geometry_repair.FerrumNativeGeometryRepairTabMixin,
 		native_top_level_transform.FerrumNativeTopLevelTransformTabMixin,
+		ferrum_qt.native.ferrum_native_tab_view_state.FerrumNativeTabViewStateMixin,
 		PySide6.QtWidgets.QWidget,
 		):
 	"""One self-contained Rust document session and its disposable Qt view.
@@ -108,7 +109,7 @@ class FerrumNativeDocumentTab(
 				raise TypeError("native document tab requires CDML and title strings")
 			session = ferrum_chem.DocumentSession.load(cdml)
 			resource = ferrum_chem.verified_telex_regular()
-			view = PySide6.QtWidgets.QGraphicsView(self)
+			view = ferrum_qt.native.ferrum_native_graphics_view.FerrumNativeGraphicsView(self)
 			controller = ferrum_qt.canvas.ferrum_render_projection.FerrumRenderProjectionController(
 				view, resource,
 			)
@@ -122,22 +123,20 @@ class FerrumNativeDocumentTab(
 	@classmethod
 	def from_session(cls, session: object, title: str) -> "FerrumNativeDocumentTab":
 		"""Project one detached Rust-owned session without loading CDML in Qt."""
-		import ferrum_chem
-		if type(session) is not ferrum_chem.DocumentSession or type(title) is not str:
-			raise TypeError("native document tab requires a Rust session and title string")
-		tab = cls.__new__(cls)
-		PySide6.QtWidgets.QWidget.__init__(tab)
-		try:
-			view = PySide6.QtWidgets.QGraphicsView(tab)
-			resource = ferrum_chem.verified_telex_regular()
-			controller = ferrum_qt.canvas.ferrum_render_projection.FerrumRenderProjectionController(
-				view, resource,
-			)
-			tab._initialize(title, session, view, controller)
-			tab._refresh_from_current_revision()
-		except Exception:
-			tab._retire_partial_resources()
-			raise
+		tab = native_tab_construction.create_document_tab_from_session(
+			cls, session, title,
+		)
+		return tab
+
+	#============================================
+	@classmethod
+	def from_admitted_local_open(
+			cls, session: object, title: str, observation: object,
+			) -> "FerrumNativeDocumentTab":
+		"""Install one worker-prepared session and matching immutable observation."""
+		tab = native_tab_construction.create_admitted_local_document_tab(
+			cls, session, title, observation, FerrumNativeDocumentTabError,
+		)
 		return tab
 
 	#============================================
@@ -150,7 +149,7 @@ class FerrumNativeDocumentTab(
 		tab = cls.__new__(cls)
 		PySide6.QtWidgets.QWidget.__init__(tab)
 		try:
-			view = PySide6.QtWidgets.QGraphicsView(tab)
+			view = ferrum_qt.native.ferrum_native_graphics_view.FerrumNativeGraphicsView(tab)
 			tab._initialize(title, session, view, controller)
 			tab._refresh_from_current_revision()
 		except Exception:
@@ -202,12 +201,6 @@ class FerrumNativeDocumentTab(
 		return self._pending_result is not None
 	#============================================
 	@property
-	def view(self) -> PySide6.QtWidgets.QGraphicsView:
-		"""Return the tab-owned graphics view for projection-local interaction."""
-		return self._view
-
-	#============================================
-	@property
 	def file_path(self) -> pathlib.Path | None:
 		"""Return the loaded origin or confirmed publication destination, if known."""
 		return self._file_path
@@ -228,21 +221,6 @@ class FerrumNativeDocumentTab(
 			raise ValueError("native document origins must use the .cdml extension")
 		self._file_path = origin
 		self._title = origin.name
-	#============================================
-	def save_atomic(self, path: str | pathlib.Path) -> object:
-		"""Publish the current Rust revision and adopt only a confirmed saved state."""
-		self._require_live()
-		self._require_current_projection()
-		snapshot = self.current_snapshot
-		publication = self._session.save_atomic(path, snapshot.revision)
-		if not publication.outcome.is_confirmed:
-			return publication
-		observation = self._session.observe_render(publication.snapshot.revision)
-		if not self._install_observation(observation):
-			raise FerrumNativeDocumentTabSavePresentationError(path, publication)
-		self._file_path = pathlib.Path(path)
-		self._title = self._file_path.name
-		return publication
 	#============================================
 	def select_atom(self, atom_id: str) -> None:
 		"""Select one current durable atom by Rust identifier for native actions."""
@@ -335,6 +313,14 @@ class FerrumNativeDocumentTab(
 		if self._document_observation is None:
 			raise FerrumNativeDocumentTabError("native tab has no installed document projection")
 		return self._document_observation
+
+	#============================================
+	def selected_molecule_information_targets(self) -> tuple[object, ...]:
+		"""Return every selected target so unsupported artwork cannot disappear."""
+		if self._disposed or self.requires_refresh:
+			return ()
+		projection = self._controller.projection
+		return () if projection is None else tuple(projection.selected_targets())
 
 	#============================================
 	def apply_prepared_molecule_coordinates(self, prepared: object) -> object:

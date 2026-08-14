@@ -119,7 +119,8 @@ pub enum PeptideSequenceInspectionErrorV1 {
     EmptySequence,
     /// The first unsupported Unicode scalar in the submitted sequence.
     #[error(
-        "unsupported residue {found:?} at position {position}; supported alphabet is {supported_one_letter_alphabet}"
+        "unsupported residue {found:?} at position {position}; supported alphabet is \
+         {supported_one_letter_alphabet}"
     )]
     UnsupportedResidue {
         /// One-based Unicode scalar position.
@@ -129,6 +130,9 @@ pub enum PeptideSequenceInspectionErrorV1 {
         /// The complete accepted alphabet.
         supported_one_letter_alphabet: String,
     },
+    /// The bounded strict parser could not reserve its result storage.
+    #[error("peptide sequence inspection could not reserve result storage")]
+    ResourceAllocation,
 }
 
 fn map_syntax_error(error: PeptideSyntaxError) -> PeptideSequenceInspectionErrorV1 {
@@ -143,5 +147,8 @@ fn map_syntax_error(error: PeptideSyntaxError) -> PeptideSequenceInspectionError
             found,
             supported_one_letter_alphabet: supported_alphabet.to_owned(),
         },
+        PeptideSyntaxError::AllocationFailed => {
+            PeptideSequenceInspectionErrorV1::ResourceAllocation
+        }
     }
 }

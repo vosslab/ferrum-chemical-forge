@@ -107,7 +107,8 @@ impl DocumentSession {
             .history
             .current_mut()
             .document_mut()
-            .issue_provisional_token();
+            .try_issue_provisional_token()
+            .map_err(SessionOperationError::Candidate)?;
         self.generated_ids = generated_ids;
         Ok(PendingCreateSdfRecords {
             revision: expected_revision,
