@@ -161,7 +161,6 @@ fn provisional_tokens_are_distinct_from_persistent_ids_and_consumed_once() {
         IndexedDocument::parse(r#"<cdml><molecule id="m1"/></cdml>"#).expect("valid CDML index");
     let token = document.issue_provisional_token();
     let replay = token.clone();
-    assert_eq!(token.sequence(), 0);
     document
         .consume_provisional_token(token)
         .expect("first consumption succeeds");
@@ -185,9 +184,7 @@ fn provisional_tokens_with_matching_sequences_cannot_cross_documents() {
     let mut second = IndexedDocument::parse("<cdml/>").expect("second valid CDML index");
     let first_token = first.issue_provisional_token();
     let second_token = second.issue_provisional_token();
-    assert_eq!(first_token.sequence(), 0);
-    assert_eq!(second_token.sequence(), 0);
-    assert_ne!(first_token.as_str(), second_token.as_str());
+    assert_ne!(first_token, second_token);
     assert!(matches!(
         second.consume_provisional_token(first_token.clone()),
         Err(DocumentIdentityError::UnknownProvisionalToken { .. })

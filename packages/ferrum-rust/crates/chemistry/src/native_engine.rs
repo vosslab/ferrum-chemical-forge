@@ -3,13 +3,28 @@
 //! The byte protocol is deliberately private to this module.  All callers see
 //! only owned [`MolGraph`] values and typed [`ChemistryError`] variants.
 
+mod codec_support;
+mod fcm1;
+mod graph_wire;
+mod inchi_wire;
+mod molblock_import;
+mod molblock_wire;
+mod sdf_import;
+mod sdf_wire;
+mod text_response;
+
+use codec_support::{Reader, put_i32, put_u16, put_u32};
+
 use std::path::Path;
 
 use ferrum_chemistry_sys::{AdapterError, ChemistryAdapter};
 
 use crate::{
-    AtomicNumber, BondOrder, ChemEngine, ChemistryError, Coordinates, FERRUM_CHEM_COORDINATE_BYTES,
-    FERRUM_CHEM_KEKULIZE_ATOM_BYTES, FERRUM_CHEM_KEKULIZE_BOND_BYTES,
+    AtomChirality, AtomicNumber, BondDirection, BondOrder, BondStereo, ChemEngine, ChemistryError,
+    Coordinates, FERRUM_CHEM_COORDINATE_BYTES, FERRUM_CHEM_GRAPH_ATOM_BYTES,
+    FERRUM_CHEM_GRAPH_BOND_BYTES, FERRUM_CHEM_GRAPH_FLAGS_NONE,
+    FERRUM_CHEM_GRAPH_REQUEST_HEADER_BYTES, FERRUM_CHEM_GRAPH_WIRE_VERSION,
+    FERRUM_CHEM_INCHI_MAX_BYTES, FERRUM_CHEM_KEKULIZE_ATOM_BYTES, FERRUM_CHEM_KEKULIZE_BOND_BYTES,
     FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC, FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE,
     FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE,
     FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED,
@@ -19,10 +34,21 @@ use crate::{
     FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES, FERRUM_CHEM_KEKULIZE_OPTION_CANONICAL,
     FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS, FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES,
     FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_WIRE_VERSION,
+    FERRUM_CHEM_MAX_RESPONSE_BYTES, FERRUM_CHEM_MOLBLOCK_FLAGS_NONE,
+    FERRUM_CHEM_MOLBLOCK_FORMAT_V2000, FERRUM_CHEM_MOLBLOCK_FORMAT_V3000,
+    FERRUM_CHEM_MOLBLOCK_REQUEST_HEADER_BYTES, FERRUM_CHEM_MOLBLOCK_WIRE_VERSION,
+    FERRUM_CHEM_MOLECULE_ATOM_BYTES, FERRUM_CHEM_MOLECULE_BOND_BYTES,
+    FERRUM_CHEM_MOLECULE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_RESULT_DEPICTION_FAILURE,
     FERRUM_CHEM_RESULT_INTERNAL_FAILURE, FERRUM_CHEM_RESULT_INVALID_MOLECULE,
-    FERRUM_CHEM_RESULT_KEKULIZE_FAILURE, FERRUM_CHEM_RESULT_MALFORMED_REQUEST,
-    FERRUM_CHEM_RESULT_OK, FERRUM_CHEM_SMILES_MAX_BYTES, FERRUM_CHEM_SMILES_RESPONSE_HEADER_BYTES,
-    KekulizeOptions, MolAtom, MolBond, MolGraph, Point2, SmilesDepiction,
+    FERRUM_CHEM_RESULT_MALFORMED_REQUEST, FERRUM_CHEM_RESULT_OK, FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
+    FERRUM_CHEM_RESULT_UNSUPPORTED_MOLECULE, FERRUM_CHEM_SDF_FLAGS_NONE,
+    FERRUM_CHEM_SDF_MAX_PROPERTIES, FERRUM_CHEM_SDF_MAX_RECORDS,
+    FERRUM_CHEM_SDF_PROPERTY_HEADER_BYTES, FERRUM_CHEM_SDF_RECORD_HEADER_BYTES,
+    FERRUM_CHEM_SDF_REQUEST_HEADER_BYTES, FERRUM_CHEM_SDF_RESPONSE_HEADER_BYTES,
+    FERRUM_CHEM_SDF_WIRE_VERSION, FERRUM_CHEM_SMILES_MAX_BYTES, FERRUM_CHEM_TEXT_FLAGS_NONE,
+    FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES, FERRUM_CHEM_TEXT_WIRE_VERSION, ImportedSdfRecord,
+    InchiMode, KekulizeOptions, MolAtom, MolBond, MolGraph, MolblockVersion, Point2, SdfProperty,
+    SdfRecord, SmilesMolecule,
 };
 
 const REQUEST_MAGIC: [u8; 4] = *b"FCK1";
@@ -30,8 +56,8 @@ const RESPONSE_MAGIC: [u8; 4] = *b"FCR1";
 const COORDINATE_RESPONSE_MAGIC: [u8; 4] = *b"FCL1";
 const COORDINATE_RESPONSE_HEADER_LENGTH: usize = 20;
 const COORDINATE_BYTES: usize = FERRUM_CHEM_COORDINATE_BYTES;
-const SMILES_RESPONSE_MAGIC: [u8; 4] = *b"FCS1";
-const SMILES_RESPONSE_HEADER_LENGTH: usize = FERRUM_CHEM_SMILES_RESPONSE_HEADER_BYTES;
+const MOLECULE_RESPONSE_MAGIC: [u8; 4] = *b"FCM1";
+const MOLECULE_RESPONSE_HEADER_LENGTH: usize = FERRUM_CHEM_MOLECULE_RESPONSE_HEADER_BYTES;
 const REQUEST_HEADER_LENGTH: usize = FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES;
 const RESPONSE_HEADER_LENGTH: usize = FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES;
 const ATOM_LENGTH: usize = FERRUM_CHEM_KEKULIZE_ATOM_BYTES;
@@ -77,163 +103,208 @@ impl NativeChemEngine {
             .map_err(adapter_error)
     }
 
-    /// Parse SMILES and produce canonical SMILES with deterministic 2D coordinates.
-    pub fn smiles_to_2d(&self, smiles: &str) -> Result<SmilesDepiction, ChemistryError> {
-        validate_smiles_input(smiles)?;
+    /// Parse SMILES into a complete, atom-order-preserving native molecule.
+    pub fn smiles_to_molecule(&self, smiles: &str) -> Result<SmilesMolecule, ChemistryError> {
+        <Self as ChemEngine>::smiles_to_molecule(self, smiles)
+    }
+
+    /// Export a complete graph as canonical SMARTS through the loaded adapter build.
+    pub fn molecule_to_smarts(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::molecule_to_smarts(self, molecule)
+    }
+
+    /// Export a complete coordinate-bearing graph as explicit molblock syntax.
+    pub fn molecule_to_molblock(
+        &self,
+        molecule: &MolGraph,
+        version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::molecule_to_molblock(self, molecule, version)
+    }
+
+    /// Import one bounded V2000 or V3000 molblock into an owned molecule.
+    pub fn molblock_to_molecule(&self, molblock: &str) -> Result<SmilesMolecule, ChemistryError> {
+        <Self as ChemEngine>::molblock_to_molecule(self, molblock)
+    }
+
+    /// Import one standard or non-standard InChI into an owned 2D molecule.
+    pub fn inchi_to_molecule(&self, inchi: &str) -> Result<SmilesMolecule, ChemistryError> {
+        <Self as ChemEngine>::inchi_to_molecule(self, inchi)
+    }
+
+    /// Export one complete graph through the selected closed InChI mode.
+    pub fn molecule_to_inchi(
+        &self,
+        molecule: &MolGraph,
+        mode: InchiMode,
+    ) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::molecule_to_inchi(self, molecule, mode)
+    }
+
+    /// Derive the official InChIKey for one bounded InChI line.
+    pub fn inchi_to_inchi_key(&self, inchi: &str) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::inchi_to_inchi_key(self, inchi)
+    }
+
+    /// Export ordered records through the native RDKit SD writer.
+    pub fn records_to_sdf(
+        &self,
+        records: &[SdfRecord],
+        version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::records_to_sdf(self, records, version)
+    }
+
+    /// Import bounded UTF-8 SDF text into complete owned ordered records.
+    pub fn sdf_to_records(&self, input: &str) -> Result<Vec<ImportedSdfRecord>, ChemistryError> {
+        validate_sdf_input(input)?;
         let response = self
             .adapter
-            .smiles_to_2d(smiles.as_bytes())
+            .sdf_to_records(input.as_bytes())
             .map_err(adapter_error)?;
-        decode_smiles_response(&response)
+        sdf_import::decode(&response)
     }
 }
 
-fn validate_smiles_input(smiles: &str) -> Result<(), ChemistryError> {
-    if smiles.is_empty() {
-        return Err(invalid_smiles_input("must not be empty"));
-    }
-    if smiles.as_bytes().contains(&0) {
-        return Err(invalid_smiles_input("must not contain NUL bytes"));
-    }
-    if smiles.len() > FERRUM_CHEM_SMILES_MAX_BYTES {
-        return Err(invalid_smiles_input(&format!(
-            "has {} bytes, above the {FERRUM_CHEM_SMILES_MAX_BYTES}-byte ABI limit",
-            smiles.len()
-        )));
-    }
-    Ok(())
+/// Validate a SMILES request before it reaches the native adapter boundary.
+///
+/// This keeps the ABI-4 nonempty, NUL, and byte-length contract available to
+/// callers that must reject malformed text before loading an adapter.
+pub fn validate_smiles_input(smiles: &str) -> Result<(), ChemistryError> {
+    fcm1::validate_input(smiles)
 }
 
-fn invalid_smiles_input(reason: &str) -> ChemistryError {
-    ChemistryError::InvalidSmilesInput {
-        reason: reason.to_owned(),
-    }
+/// Maximum UTF-8 SDF input accepted by the ABI-4 import operation.
+pub const SDF_MAX_INPUT_BYTES: usize = FERRUM_CHEM_MAX_RESPONSE_BYTES;
+
+/// Maximum UTF-8 molblock input accepted by the ABI-4 import operation.
+pub const MOLBLOCK_MAX_INPUT_BYTES: usize = FERRUM_CHEM_MAX_RESPONSE_BYTES;
+
+/// Maximum ASCII InChI input accepted by the ABI-4 operation.
+pub const INCHI_MAX_INPUT_BYTES: usize = FERRUM_CHEM_INCHI_MAX_BYTES;
+
+/// Validate SDF text before it reaches the native adapter boundary.
+///
+/// This keeps the ABI-4 UTF-8, nonempty, NUL, and byte-length contract
+/// available to callers that must reject malformed text before loading an
+/// adapter.
+pub fn validate_sdf_input(input: &str) -> Result<(), ChemistryError> {
+    sdf_import::validate_input(input)
 }
 
-fn decode_smiles_response(response: &[u8]) -> Result<SmilesDepiction, ChemistryError> {
-    if response.len() < SMILES_RESPONSE_HEADER_LENGTH {
-        return Err(ChemistryError::TruncatedNativeResponse);
-    }
-    let mut reader = Reader::new(response);
-    if reader.take(4).map_err(decode_error)? != SMILES_RESPONSE_MAGIC {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "SMILES response magic is not FCS1".to_owned(),
-        });
-    }
-    if reader.u32().map_err(decode_error)? != 1 {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "unsupported SMILES response wire version".to_owned(),
-        });
-    }
-    let status = reader.u32().map_err(decode_error)?;
-    let detail_length =
-        usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
-    let smiles_length =
-        usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
-    let atom_count = usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
-    if detail_length > FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "SMILES response detail exceeds the ABI limit".to_owned(),
-        });
-    }
-    if smiles_length > FERRUM_CHEM_SMILES_MAX_BYTES {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "SMILES response canonical string exceeds the ABI limit".to_owned(),
-        });
-    }
-    if atom_count > FERRUM_CHEM_KEKULIZE_MAX_ATOMS as usize {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "SMILES response atom count exceeds the ABI limit".to_owned(),
-        });
-    }
-    let detail = decode_smiles_text(
-        reader.take(detail_length).map_err(decode_error)?,
-        "SMILES response detail",
-    )?;
-    let canonical_smiles = decode_smiles_text(
-        reader.take(smiles_length).map_err(decode_error)?,
-        "SMILES response canonical string",
-    )?;
-    if !matches!(
-        status,
-        FERRUM_CHEM_RESULT_OK
-            | FERRUM_CHEM_RESULT_MALFORMED_REQUEST
-            | FERRUM_CHEM_RESULT_INVALID_MOLECULE
-            | FERRUM_CHEM_RESULT_INTERNAL_FAILURE
-    ) {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "unknown or inapplicable SMILES response result status".to_owned(),
-        });
-    }
-    if status != FERRUM_CHEM_RESULT_OK {
-        if !canonical_smiles.is_empty() || atom_count != 0 || !reader.is_empty() {
-            return Err(ChemistryError::MalformedNativeResponse {
-                reason: "failed SMILES response contains molecule payload".to_owned(),
-            });
-        }
-        return Err(ChemistryError::CoordinateGenerationFailed {
-            reason: detail.to_owned(),
-        });
-    }
-    if !detail.is_empty() || canonical_smiles.is_empty() {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "successful SMILES response has invalid textual payload".to_owned(),
-        });
-    }
-    let coordinate_bytes = atom_count.checked_mul(COORDINATE_BYTES).ok_or_else(|| {
-        ChemistryError::MalformedNativeResponse {
-            reason: "SMILES coordinate response length overflows this platform".to_owned(),
-        }
-    })?;
-    if response.len().saturating_sub(reader.cursor) != coordinate_bytes {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: "SMILES response has truncated or trailing coordinate records".to_owned(),
-        });
-    }
-    let mut points = Vec::with_capacity(atom_count);
-    for _ in 0..atom_count {
-        let x = f64::from_le_bytes(
-            reader
-                .take(8)
-                .map_err(decode_error)?
-                .try_into()
-                .expect("fixed"),
-        );
-        let y = f64::from_le_bytes(
-            reader
-                .take(8)
-                .map_err(decode_error)?
-                .try_into()
-                .expect("fixed"),
-        );
-        points.push(
-            Point2::new(x, y).map_err(|_| ChemistryError::MalformedNativeResponse {
-                reason: "SMILES response contains a non-finite coordinate".to_owned(),
-            })?,
-        );
-    }
-    Ok(SmilesDepiction::new(
-        canonical_smiles.to_owned(),
-        Coordinates::new(points),
-    ))
+/// Validate one V2000 or V3000 molblock before loading a native adapter.
+pub fn validate_molblock_input(input: &str) -> Result<(), ChemistryError> {
+    molblock_import::validate_input(input)
 }
 
-fn decode_smiles_text<'a>(bytes: &'a [u8], field: &str) -> Result<&'a str, ChemistryError> {
-    if bytes.contains(&0) {
-        return Err(ChemistryError::MalformedNativeResponse {
-            reason: format!("{field} contains a NUL byte"),
-        });
-    }
-    std::str::from_utf8(bytes).map_err(|_| ChemistryError::MalformedNativeResponse {
-        reason: format!("{field} is not UTF-8"),
-    })
+/// Validate one InChI line before loading or calling a native adapter.
+pub fn validate_inchi_input(input: &str) -> Result<(), ChemistryError> {
+    inchi_wire::validate_input(input)
 }
 
 impl ChemEngine for NativeChemEngine {
+    fn smiles_to_molecule(&self, smiles: &str) -> Result<SmilesMolecule, ChemistryError> {
+        validate_smiles_input(smiles)?;
+        let response = self
+            .adapter
+            .smiles_to_molecule(smiles.as_bytes())
+            .map_err(adapter_error)?;
+        fcm1::decode(&response)
+    }
+
     fn generate_2d_coordinates(&self, molecule: &MolGraph) -> Result<Coordinates, ChemistryError> {
         let request = encode_depiction_request(molecule)?;
         let response = self.adapter.generate_2d(&request).map_err(adapter_error)?;
         decode_coordinate_response(&response, molecule.atoms().len())
+    }
+
+    fn molecule_to_smarts(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
+        let request = graph_wire::encode(molecule)?;
+        let response = self
+            .adapter
+            .molecule_to_smarts(&request)
+            .map_err(adapter_error)?;
+        text_response::decode(&response, "SMARTS")
+    }
+
+    fn molecule_to_molblock(
+        &self,
+        molecule: &MolGraph,
+        version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        let request = molblock_wire::encode(molecule, version)?;
+        let response = self
+            .adapter
+            .molecule_to_molblock(&request)
+            .map_err(adapter_error)?;
+        text_response::decode_multiline(&response, "molblock")
+    }
+
+    fn molblock_to_molecule(&self, molblock: &str) -> Result<SmilesMolecule, ChemistryError> {
+        validate_molblock_input(molblock)?;
+        let response = self
+            .adapter
+            .molblock_to_molecule(molblock.as_bytes())
+            .map_err(adapter_error)?;
+        fcm1::decode(&response)
+    }
+
+    fn inchi_to_molecule(&self, inchi: &str) -> Result<SmilesMolecule, ChemistryError> {
+        validate_inchi_input(inchi)?;
+        let response = self
+            .adapter
+            .inchi_to_molecule(inchi.as_bytes())
+            .map_err(adapter_error)?;
+        fcm1::decode(&response)
+    }
+
+    fn molecule_to_inchi(
+        &self,
+        molecule: &MolGraph,
+        mode: InchiMode,
+    ) -> Result<String, ChemistryError> {
+        let request = inchi_wire::encode(molecule, mode)?;
+        let response = self
+            .adapter
+            .molecule_to_inchi(&request)
+            .map_err(adapter_error)?;
+        let output = text_response::decode(&response, "InChI")?;
+        let valid_prefix = match mode {
+            InchiMode::Standard => output.starts_with("InChI=1S/"),
+            InchiMode::FixedHydrogen => {
+                output.starts_with("InChI=1/") && !output.starts_with("InChI=1S/")
+            }
+        };
+        if !valid_prefix {
+            return Err(ChemistryError::MalformedNativeResponse {
+                reason: "InChI response prefix does not match the requested mode".to_owned(),
+            });
+        }
+        Ok(output)
+    }
+
+    fn inchi_to_inchi_key(&self, inchi: &str) -> Result<String, ChemistryError> {
+        validate_inchi_input(inchi)?;
+        let response = self
+            .adapter
+            .inchi_to_inchi_key(inchi.as_bytes())
+            .map_err(adapter_error)?;
+        let key = text_response::decode(&response, "InChIKey")?;
+        inchi_wire::validate_key(inchi, &key)?;
+        Ok(key)
+    }
+
+    fn records_to_sdf(
+        &self,
+        records: &[SdfRecord],
+        version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        let request = sdf_wire::encode(records, version)?;
+        let response = self
+            .adapter
+            .records_to_sdf(&request)
+            .map_err(adapter_error)?;
+        text_response::decode_multiline(&response, "SDF")
     }
 
     fn kekulize(
@@ -515,7 +586,7 @@ fn decode_response(response: &[u8]) -> Result<DecodedResponse, DecodeFailure> {
         FERRUM_CHEM_RESULT_OK
             | FERRUM_CHEM_RESULT_MALFORMED_REQUEST
             | FERRUM_CHEM_RESULT_INVALID_MOLECULE
-            | FERRUM_CHEM_RESULT_KEKULIZE_FAILURE
+            | FERRUM_CHEM_RESULT_DEPICTION_FAILURE
             | FERRUM_CHEM_RESULT_INTERNAL_FAILURE
     ) {
         return Err(DecodeFailure::Malformed("unknown response result status"));
@@ -719,7 +790,7 @@ fn finish_response(
                 });
             }
         }
-        FERRUM_CHEM_RESULT_KEKULIZE_FAILURE => {
+        FERRUM_CHEM_RESULT_DEPICTION_FAILURE => {
             return Err(ChemistryError::KekulizationFailed {
                 reason: response.detail,
             });
@@ -832,65 +903,5 @@ enum DecodeFailure {
     Truncated,
     Trailing,
 }
-
-struct Reader<'a> {
-    bytes: &'a [u8],
-    cursor: usize,
-}
-
-impl<'a> Reader<'a> {
-    const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, cursor: 0 }
-    }
-
-    fn take(&mut self, length: usize) -> Result<&'a [u8], DecodeFailure> {
-        let end = self
-            .cursor
-            .checked_add(length)
-            .ok_or(DecodeFailure::Truncated)?;
-        let result = self
-            .bytes
-            .get(self.cursor..end)
-            .ok_or(DecodeFailure::Truncated)?;
-        self.cursor = end;
-        Ok(result)
-    }
-
-    fn u8(&mut self) -> Result<u8, DecodeFailure> {
-        Ok(self.take(1)?[0])
-    }
-
-    fn u16(&mut self) -> Result<u16, DecodeFailure> {
-        let bytes: [u8; 2] = self.take(2)?.try_into().expect("fixed length");
-        Ok(u16::from_le_bytes(bytes))
-    }
-
-    fn u32(&mut self) -> Result<u32, DecodeFailure> {
-        let bytes: [u8; 4] = self.take(4)?.try_into().expect("fixed length");
-        Ok(u32::from_le_bytes(bytes))
-    }
-
-    fn i32(&mut self) -> Result<i32, DecodeFailure> {
-        let bytes: [u8; 4] = self.take(4)?.try_into().expect("fixed length");
-        Ok(i32::from_le_bytes(bytes))
-    }
-
-    fn is_empty(&self) -> bool {
-        self.cursor == self.bytes.len()
-    }
-}
-
-fn put_u16(output: &mut Vec<u8>, value: u16) {
-    output.extend_from_slice(&value.to_le_bytes());
-}
-
-fn put_u32(output: &mut Vec<u8>, value: u32) {
-    output.extend_from_slice(&value.to_le_bytes());
-}
-
-fn put_i32(output: &mut Vec<u8>, value: i32) {
-    output.extend_from_slice(&value.to_le_bytes());
-}
-
 #[cfg(test)]
 mod native_engine_tests;

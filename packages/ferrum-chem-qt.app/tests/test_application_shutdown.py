@@ -13,8 +13,12 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.app
 import ferrum_qt.main_window
+import ferrum_qt.legacy.compatibility_lifecycle
+import ferrum_qt.legacy.compatibility_main_window
+import ferrum_qt.qt_lifecycle
 import ferrum_qt.themes.theme_manager
 import ferrum_qt.bridge.worker
+import ferrum_qt.window_shared
 
 
 #============================================
@@ -61,7 +65,7 @@ def test_programmatic_event_loop_exit_retires_live_session_through_window_bounda
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		) -> None:
 	"""A direct application quit still drains the window-owned session graph."""
-	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager)
 	session = window.sessions[0]
 	PySide6.QtCore.QTimer.singleShot(0, qapp.quit)
 
@@ -77,7 +81,7 @@ def test_shutdown_drains_retired_worker_through_a_nested_qt_event_loop(
 		qtbot: object,
 		) -> None:
 	"""Shutdown retains native work until its queued finished signal releases it."""
-	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager)
 	session = window.sessions[0]
 	started = threading.Event()
 	release = threading.Event()
@@ -95,11 +99,11 @@ def test_shutdown_drains_retired_worker_through_a_nested_qt_event_loop(
 	try:
 		qtbot.waitUntil(started.is_set)
 		assert window.prepare_application_shutdown()
-		assert window.shutdown_state is ferrum_qt.main_window.ShutdownState.DRAINING
+		assert window.shutdown_state is ferrum_qt.window_shared.ShutdownState.DRAINING
 		assert window.retiring_worker_count == 1 and not window.sessions
 		PySide6.QtCore.QTimer.singleShot(0, release.set)
-		assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, window)
-		assert window.shutdown_state is ferrum_qt.main_window.ShutdownState.READY
+		assert ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(qapp, window)
+		assert window.shutdown_state is ferrum_qt.window_shared.ShutdownState.READY
 		assert session.is_disposed
 	finally:
 		release.set()
@@ -108,7 +112,7 @@ def test_shutdown_drains_retired_worker_through_a_nested_qt_event_loop(
 				worker.wait()
 		except RuntimeError:
 			pass
-		ferrum_qt.main_window.delete_qobject_and_wait(qapp, window)
+		ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, window)
 
 
 #============================================

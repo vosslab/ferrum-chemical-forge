@@ -12,6 +12,7 @@ import PySide6.QtWidgets
 import ferrum_qt.canvas.items.arrow_item
 import ferrum_qt.canvas.items.graphics_item
 import ferrum_qt.canvas.items.text_item
+import ferrum_qt.canvas.graphics_callbacks
 import ferrum_qt.canvas.graphics_retirement
 
 
@@ -260,38 +261,7 @@ def _attach_binding(model: object, item: PySide6.QtWidgets.QGraphicsItem,
 
 
 #============================================
-def dispose_item_callbacks(item: PySide6.QtWidgets.QGraphicsItem) -> None:
-	"""Release one item's projection and native callbacks before retirement.
-
-	The item attribute is cleared while its Qt wrapper is still valid.  The
-	item-specific ``dispose`` implementation is looked up only for this call, so
-	no bound method or closure is retained on the graphics item.
-	"""
-	first_error = None
-	binding = getattr(item, "_projection_binding", None)
-	if binding is not None:
-		try:
-			binding.dispose()
-		except Exception as exc:
-			first_error = exc
-		finally:
-			try:
-				item._projection_binding = None
-			except Exception as exc:
-				# An already-retired wrapper cannot accept the attribute update, but
-				# its item-specific cleanup must still get a chance to release its
-				# own model callbacks before the caller completes retirement.
-				if first_error is None:
-					first_error = exc
-	try:
-		dispose = getattr(item, "dispose", None)
-		if callable(dispose):
-			dispose()
-	except Exception as exc:
-		if first_error is None:
-			first_error = exc
-	if first_error is not None:
-		raise first_error
+dispose_item_callbacks = ferrum_qt.canvas.graphics_callbacks.dispose_item_callbacks
 
 
 #============================================

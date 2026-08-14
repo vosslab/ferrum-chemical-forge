@@ -204,31 +204,6 @@ def _opaque_presentation_survives(cdml: str) -> bool:
 
 
 #============================================
-def test_smiles_worker_prepares_frozen_plain_cco_proposal(qtbot: object) -> None:
-	"""The actual worker emits a plain positioned C-C-O proposal before delivery."""
-	worker = ferrum_qt.bridge.worker.TextMoleculeInsertionWorker(
-		"smiles", "CCO", 7, "worker", 40.0, (2000.0, 1500.0),
-		"Imported SMILES molecule",
-	)
-	prepared_values = []
-	worker.result.connect(prepared_values.append)
-	worker.finished.connect(worker.deleteLater)
-	try:
-		with qtbot.waitSignal(worker.finished, timeout=1000):
-			worker.start()
-	finally:
-		if worker.isRunning():
-			worker.quit()
-			worker.wait(1000)
-	PySide6.QtCore.QCoreApplication.sendPostedEvents(
-		None, PySide6.QtCore.QEvent.Type.DeferredDelete,
-	)
-
-	assert prepared_values[0].expected_revision == 7
-	assert _canonical_has_cco(prepared_values[0].proposal_cdml)
-
-
-#============================================
 def test_smiles_preparation_persists_captured_insertion_geometry() -> None:
 	"""The actual CCO proposal and accepted backend state retain scene geometry."""
 	prepared = ferrum_qt.bridge.worker._prepare_text_molecule_insertion(

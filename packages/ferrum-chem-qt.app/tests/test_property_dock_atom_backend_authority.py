@@ -7,6 +7,8 @@ import pytest
 # local repo modules
 import ferrum_qt.canvas.items.atom_item
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 import ferrum_qt.models.atom_model
 import ferrum_qt.models.document
 import ferrum_qt.models.document_session
@@ -271,4 +273,4 @@ def test_isolated_property_dock_atom_symbol_uses_local_undo(
 		finally:
 			dock.set_document(None)
 			dock.close()
-			assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, dock)
+			assert ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, dock)

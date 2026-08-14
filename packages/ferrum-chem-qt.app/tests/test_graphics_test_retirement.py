@@ -9,6 +9,8 @@ import shiboken6
 import ferrum_qt.canvas.document_projection
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 import ferrum_qt.models.document
 import ferrum_qt.models.document_object
 import tests.graphics_test_retirement
@@ -20,7 +22,7 @@ def test_qapp_only_graphics_test_does_not_construct_main_window(
 		) -> None:
 	"""A bare Qt test keeps window/session ownership out of its fixture closure."""
 	assert not any(
-		isinstance(widget, ferrum_qt.main_window.MainWindow)
+		callable(getattr(widget, "_dispose_session_later", None))
 		for widget in qapp.topLevelWidgets()
 	)
 
@@ -36,7 +38,7 @@ def test_terminal_cleanup_skips_reaped_session_view(
 	view = session.view
 	main_window.on_new()
 	closed = main_window.close_session_at(main_window.sessions.index(session))
-	drained = ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+	drained = ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(qapp, main_window)
 	tests.graphics_test_retirement.retire_terminal_top_level_widgets(qapp, (view,))
 	assert closed and drained and not shiboken6.isValid(view)
 

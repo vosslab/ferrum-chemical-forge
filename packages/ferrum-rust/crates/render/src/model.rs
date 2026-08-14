@@ -39,19 +39,14 @@ impl<'de> Deserialize<'de> for RenderSchemaVersion {
     }
 }
 
-/// An explicit nonzero document projection revision.
+/// An explicit document projection revision, including the initial session revision zero.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct RenderRevision(u64);
 
 impl RenderRevision {
-    /// Construct a nonzero revision.
-    pub fn new(value: u64) -> Result<Self, RenderError> {
-        if value == 0 {
-            return Err(RenderError::InvalidRequest(
-                "render revision must be nonzero".to_owned(),
-            ));
-        }
+    /// Construct a revision supplied by the authoritative document session.
+    pub const fn new(value: u64) -> Result<Self, RenderError> {
         Ok(Self(value))
     }
 
@@ -68,6 +63,38 @@ impl<'de> Deserialize<'de> for RenderRevision {
         D: serde::Deserializer<'de>,
     {
         Self::new(u64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Exact document identity shared by every plan produced from one observation.
+///
+/// A revision alone cannot identify document content after independent sessions
+/// evolve. V1 therefore carries the authoritative structural digest beside it
+/// through construction and the strict wire grammar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RenderProvenance {
+    revision: RenderRevision,
+    digest: [u8; 32],
+}
+
+impl RenderProvenance {
+    /// Construct the exact document identity for one render-plan result.
+    #[must_use]
+    pub const fn new(revision: RenderRevision, digest: [u8; 32]) -> Self {
+        Self { revision, digest }
+    }
+
+    /// Return the exact document revision, including valid initial revision zero.
+    #[must_use]
+    pub const fn revision(self) -> RenderRevision {
+        self.revision
+    }
+
+    /// Return the exact structural document digest.
+    #[must_use]
+    pub const fn digest(self) -> [u8; 32] {
+        self.digest
     }
 }
 
@@ -200,21 +227,23 @@ impl<'de> Deserialize<'de> for Rgb24 {
     }
 }
 
-/// A closed semantic paint grammar.
+/// An explicit RGB paint with no toolkit or document-semantic fallback.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(
-    deny_unknown_fields,
-    tag = "kind",
-    content = "value",
-    rename_all = "snake_case"
-)]
-pub enum Paint {
-    /// The document's declared foreground color.
-    Foreground,
-    /// The document's declared background color.
-    DocumentBackground,
-    /// An explicit RGB color.
-    Rgb24(Rgb24),
+#[serde(transparent)]
+pub struct Paint(Rgb24);
+
+impl Paint {
+    /// Construct an explicit paint from a validated RGB value.
+    #[must_use]
+    pub const fn rgb24(value: Rgb24) -> Self {
+        Self(value)
+    }
+
+    /// Return the exact RGB value a renderer must paint.
+    #[must_use]
+    pub fn color(&self) -> &Rgb24 {
+        &self.0
+    }
 }
 
 /// The immutable identifier of the only face accepted by the V1 render grammar.
@@ -256,17 +285,7 @@ impl<'de> Deserialize<'de> for FontFace {
     }
 }
 
-/// Position of a text run in a structured atom label.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TextScript {
-    /// The primary element label.
-    Baseline,
-    /// A lowered script such as explicit hydrogen count.
-    Subscript,
-    /// A raised script such as a formal charge.
-    Superscript,
-}
+use crate::{GlyphPlacement, TextScript};
 
 /// One nonempty semantic portion of a text operation.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -275,15 +294,17 @@ pub struct TextRun {
     text: String,
     script: TextScript,
     origin: RenderPoint,
+    glyphs: Vec<GlyphPlacement>,
     scale: PositiveFinite,
 }
 
 impl TextRun {
     /// Construct a nonempty label run with fully explicit local layout.
-    pub fn new(
+    pub(crate) fn new(
         text: impl Into<String>,
         script: TextScript,
         origin: RenderPoint,
+        glyphs: Vec<GlyphPlacement>,
         scale: PositiveFinite,
     ) -> Result<Self, RenderError> {
         let text = text.into();
@@ -292,10 +313,17 @@ impl TextRun {
                 "text run must contain visible text and no control characters".to_owned(),
             ));
         }
+        if glyphs.len() != text.chars().count() {
+            return Err(RenderError::InvalidRequest(
+                "text run requires exactly one verified glyph placement per Unicode scalar"
+                    .to_owned(),
+            ));
+        }
         Ok(Self {
             text,
             script,
             origin,
+            glyphs,
             scale,
         })
     }
@@ -316,6 +344,14 @@ impl TextRun {
     pub const fn origin(&self) -> RenderPoint {
         self.origin
     }
+    /// Return exact Telex glyph IDs and run-local origins in scalar order.
+    ///
+    /// A consumer must neither shape nor advance this sequence.  It draws each
+    /// supplied glyph ID at `TextOp.origin + TextRun.origin + glyph.origin`.
+    #[must_use]
+    pub fn glyphs(&self) -> &[GlyphPlacement] {
+        &self.glyphs
+    }
     /// Return the explicit multiplier for the operation's exact font size.
     #[must_use]
     pub const fn scale(&self) -> PositiveFinite {
@@ -332,24 +368,6 @@ fn is_meaningful_text(value: &str) -> bool {
     !value.trim().is_empty() && !value.chars().any(char::is_control)
 }
 
-impl<'de> Deserialize<'de> for TextRun {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct WireTextRun {
-            text: String,
-            script: TextScript,
-            origin: RenderPoint,
-            scale: PositiveFinite,
-        }
-        let wire = WireTextRun::deserialize(deserializer)?;
-        Self::new(wire.text, wire.script, wire.origin, wire.scale).map_err(serde::de::Error::custom)
-    }
-}
-
 /// An atom-label draw operation with explicit presentation facts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -364,7 +382,7 @@ pub struct TextOp {
 
 impl TextOp {
     /// Construct a fully specified text operation.
-    pub fn new(
+    pub(crate) fn new(
         origin: RenderPoint,
         runs: Vec<TextRun>,
         face: FontFace,
@@ -376,6 +394,11 @@ impl TextOp {
             return Err(RenderError::InvalidRequest(
                 "text operation requires at least one run".to_owned(),
             ));
+        }
+        let environment = crate::FerrumFontEnvironmentV1::load()?;
+        let metrics = crate::VerifiedTelexGlyphMetrics::new(&environment)?;
+        for run in &runs {
+            metrics.validate_v1_run(run.text(), run.script(), size, run.scale(), run.glyphs())?;
         }
         Ok(Self {
             origin,
@@ -426,24 +449,32 @@ impl<'de> Deserialize<'de> for TextOp {
     {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
+        struct WireTextRun {
+            text: String,
+            script: TextScript,
+            origin: RenderPoint,
+            glyphs: Vec<GlyphPlacement>,
+            scale: PositiveFinite,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct WireTextOp {
             origin: RenderPoint,
-            runs: Vec<TextRun>,
+            runs: Vec<WireTextRun>,
             face: FontFace,
             size: PositiveFinite,
             paint: Paint,
             z: i32,
         }
         let wire = WireTextOp::deserialize(deserializer)?;
-        Self::new(
-            wire.origin,
-            wire.runs,
-            wire.face,
-            wire.size,
-            wire.paint,
-            wire.z,
-        )
-        .map_err(serde::de::Error::custom)
+        let runs = wire
+            .runs
+            .into_iter()
+            .map(|run| TextRun::new(run.text, run.script, run.origin, run.glyphs, run.scale))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(serde::de::Error::custom)?;
+        Self::new(wire.origin, runs, wire.face, wire.size, wire.paint, wire.z)
+            .map_err(serde::de::Error::custom)
     }
 }
 
@@ -456,6 +487,82 @@ pub struct LineOp {
     width: PositiveFinite,
     paint: Paint,
     z: i32,
+}
+
+/// An explicit atom-local rectangular label mask.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MaskOp {
+    origin: RenderPoint,
+    width: PositiveFinite,
+    height: PositiveFinite,
+    paint: Paint,
+    z: i32,
+}
+
+impl MaskOp {
+    /// Construct a fully specified opaque label mask.
+    pub fn new(
+        origin: RenderPoint,
+        width: PositiveFinite,
+        height: PositiveFinite,
+        paint: Paint,
+        z: i32,
+    ) -> Result<Self, RenderError> {
+        Ok(Self {
+            origin,
+            width,
+            height,
+            paint,
+            z,
+        })
+    }
+
+    /// Return the lower-left atom-local origin.
+    #[must_use]
+    pub const fn origin(&self) -> RenderPoint {
+        self.origin
+    }
+    /// Return explicit mask width.
+    #[must_use]
+    pub const fn width(&self) -> PositiveFinite {
+        self.width
+    }
+    /// Return explicit mask height.
+    #[must_use]
+    pub const fn height(&self) -> PositiveFinite {
+        self.height
+    }
+    /// Return explicit mask paint.
+    #[must_use]
+    pub fn paint(&self) -> &Paint {
+        &self.paint
+    }
+    /// Return fixed molecule-plane z-order.
+    #[must_use]
+    pub const fn z(&self) -> i32 {
+        self.z
+    }
+}
+
+impl<'de> Deserialize<'de> for MaskOp {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct WireMaskOp {
+            origin: RenderPoint,
+            width: PositiveFinite,
+            height: PositiveFinite,
+            paint: Paint,
+            z: i32,
+        }
+        let wire = WireMaskOp::deserialize(deserializer)?;
+        Self::new(wire.origin, wire.width, wire.height, wire.paint, wire.z)
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 impl LineOp {
@@ -541,6 +648,10 @@ pub enum RenderOp {
     Text(TextOp),
     /// A clipped normal bond.
     Line(LineOp),
+    /// An explicit opaque atom-label mask.
+    Mask(MaskOp),
+    /// An explicit atom-local outlined or filled ellipse.
+    Ellipse(crate::EllipseOp),
 }
 
 impl RenderOp {
@@ -548,6 +659,8 @@ impl RenderOp {
         match self {
             Self::Text(operation) => operation.z(),
             Self::Line(operation) => operation.z(),
+            Self::Mask(operation) => operation.z(),
+            Self::Ellipse(operation) => operation.z(),
         }
     }
 }
@@ -619,12 +732,20 @@ impl RenderBatch {
         }
         match (&coordinate_space, target.record_id.kind()) {
             (BatchSpace::AtomLocal { .. }, RecordKind::Atom)
-                if operations.iter().all(|op| matches!(op, RenderOp::Text(_))) => {}
+                if operations.iter().all(|op| {
+                    matches!(
+                        op,
+                        RenderOp::Text(_)
+                            | RenderOp::Mask(_)
+                            | RenderOp::Line(_)
+                            | RenderOp::Ellipse(_)
+                    )
+                }) => {}
             (BatchSpace::Scene, RecordKind::Bond)
                 if operations.iter().all(|op| matches!(op, RenderOp::Line(_))) => {}
             (BatchSpace::AtomLocal { .. }, _) => {
                 return Err(RenderError::InvalidRequest(
-                    "atom-local batch requires an atom target and text operations".to_owned(),
+                    "atom-local batch requires an atom target and annotation operations".to_owned(),
                 ));
             }
             (BatchSpace::Scene, _) => {
@@ -680,7 +801,7 @@ impl<'de> Deserialize<'de> for RenderBatch {
 #[serde(deny_unknown_fields)]
 pub struct MoleculeRenderPlan {
     schema: RenderSchemaVersion,
-    revision: RenderRevision,
+    provenance: RenderProvenance,
     batches: Vec<RenderBatch>,
     issues: Vec<RenderIssue>,
 }
@@ -693,7 +814,7 @@ impl MoleculeRenderPlan {
     /// is strictly source ordered, allowing consumers to merge them without
     /// inventing a tie breaker.
     pub fn new(
-        revision: RenderRevision,
+        provenance: RenderProvenance,
         batches: Vec<RenderBatch>,
         issues: Vec<RenderIssue>,
     ) -> Result<Self, RenderError> {
@@ -745,7 +866,7 @@ impl MoleculeRenderPlan {
         }
         Ok(Self {
             schema: RenderSchemaVersion::V1,
-            revision,
+            provenance,
             batches,
             issues,
         })
@@ -759,7 +880,12 @@ impl MoleculeRenderPlan {
     /// Return the exact source projection revision.
     #[must_use]
     pub const fn revision(&self) -> RenderRevision {
-        self.revision
+        self.provenance.revision()
+    }
+    /// Return the exact document revision and digest that produced this plan.
+    #[must_use]
+    pub const fn provenance(&self) -> RenderProvenance {
+        self.provenance
     }
     /// Return immutable target batches in source order.
     #[must_use]
@@ -790,7 +916,7 @@ impl<'de> Deserialize<'de> for MoleculeRenderPlan {
         #[serde(deny_unknown_fields)]
         struct WirePlan {
             schema: RenderSchemaVersion,
-            revision: RenderRevision,
+            provenance: RenderProvenance,
             batches: Vec<RenderBatch>,
             issues: Vec<RenderIssue>,
         }
@@ -798,6 +924,6 @@ impl<'de> Deserialize<'de> for MoleculeRenderPlan {
         if wire.schema != RenderSchemaVersion::V1 {
             return Err(serde::de::Error::custom("unsupported render-plan schema"));
         }
-        Self::new(wire.revision, wire.batches, wire.issues).map_err(serde::de::Error::custom)
+        Self::new(wire.provenance, wire.batches, wire.issues).map_err(serde::de::Error::custom)
     }
 }

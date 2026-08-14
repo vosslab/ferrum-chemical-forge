@@ -9,6 +9,8 @@ import shiboken6
 import ferrum_qt.actions.context_menu
 import ferrum_qt.canvas.items.bond_item
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 import ferrum_qt.models.bond_model
 import ferrum_qt.models.document
 import ferrum_qt.dialogs.bond_dialog
@@ -34,7 +36,7 @@ def _delete_qobject(
 		target: PySide6.QtCore.QObject,
 		) -> None:
 	"""Retire one independently-owned Qt wrapper through deferred deletion."""
-	assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, target)
+	assert ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, target)
 
 
 #============================================

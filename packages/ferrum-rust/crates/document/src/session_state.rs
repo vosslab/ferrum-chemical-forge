@@ -50,6 +50,10 @@ impl RevisionState {
     pub(super) fn canonical_cdml(&self) -> &str {
         &self.canonical_cdml
     }
+
+    pub(super) fn digest(&self) -> &[u8; 32] {
+        &self.digest
+    }
     pub(super) fn snapshot(&self, is_dirty: bool) -> DocumentSnapshot {
         DocumentSnapshot::new(
             self.revision,

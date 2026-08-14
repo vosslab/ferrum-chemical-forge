@@ -2,7 +2,6 @@
 
 # Standard Library
 import ast
-import dataclasses
 import inspect
 import pathlib
 import threading
@@ -171,25 +170,6 @@ def _enter_direct_glycosidic_smiles(smiles: str) -> None:
 	field.setFocus()
 	PySide6.QtTest.QTest.keyClicks(field, smiles)
 	PySide6.QtTest.QTest.mouseClick(button, PySide6.QtCore.Qt.MouseButton.LeftButton)
-
-
-#============================================
-def test_haworth_worker_returns_frozen_plain_proposal(qtbot: object) -> None:
-	"""The actual worker emits CDML data, never its mutable OASA graph."""
-	worker = ferrum_qt.bridge.worker.OasaWorker(
-		ferrum_qt.bridge.chemistry_preparation.prepare_haworth_insertion,
-		"ARLRDM", "pyranose", "alpha", 7, "haworth-r7-i1", 40.0, (2000.0, 1500.0),
-	)
-	values = []
-	worker.result.connect(values.append)
-	worker.finished.connect(worker.deleteLater)
-	with qtbot.waitSignal(worker.finished, timeout=1000):
-		worker.start()
-	prepared = values[0]
-	with pytest.raises(dataclasses.FrozenInstanceError):
-		prepared.expected_revision = 8
-
-	assert isinstance(prepared.proposal_cdml, str) and prepared.expected_revision == 7
 
 
 #============================================

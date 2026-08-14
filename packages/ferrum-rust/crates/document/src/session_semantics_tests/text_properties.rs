@@ -1,0 +1,159 @@
+//! Atomic durable direct-root Text properties behavior.
+
+use super::{
+    DocumentSession, DocumentSessionError, SessionOperation, SessionOperationError,
+    SessionOperationV1, TypedDocumentError,
+};
+use crate::{
+    PresentationFactProvenanceV1, PresentationRootProjectionV1, Rgb24V1, TextEditRunV1,
+    TextEditStyleV1, TextPropertiesPatchV1, TextPropertiesPatchV1Error, TextPropertyChangeV1,
+};
+
+const SOURCE: &str = concat!(
+    "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+    "xmlns:v=\"urn:vendor\"><c:text id=\"t\" background-color=\"#fff\" keep=\"yes\">",
+    "<c:point x=\"10\" y=\"20\"/><v:between retained=\"yes\"/>",
+    "<c:font family=\"Arial\" size=\"12\" color=\"#000\" v:font-keep=\"yes\">",
+    "<v:font-child/></c:font><c:ftext>old</c:ftext></c:text><v:root/></c:cdml>",
+);
+
+fn run(text: &str, styles: Vec<TextEditStyleV1>) -> TextEditRunV1 {
+    TextEditRunV1::new(text, styles).expect("valid Text edit run")
+}
+
+fn patch(changes: Vec<TextPropertyChangeV1>) -> SessionOperation {
+    SessionOperation::V1(SessionOperationV1::SetTextProperties {
+        patch: TextPropertiesPatchV1::new("t", changes).expect("valid Text patch"),
+    })
+}
+
+fn text(observation: &crate::SessionDocumentObservationV1) -> &crate::TextProjectionV1 {
+    let [PresentationRootProjectionV1::Text { text }] =
+        observation.projection().presentation_stack().roots()
+    else {
+        panic!("expected one direct-root Text");
+    };
+    text
+}
+
+#[test]
+fn text_properties_commit_semantic_runs_preserve_extensions_and_follow_history() {
+    let runs = vec![
+        run("H", vec![]),
+        run("2", vec![TextEditStyleV1::Subscript]),
+        run("O <&>", vec![]),
+    ];
+    let changes = vec![
+        TextPropertyChangeV1::Runs(runs),
+        TextPropertyChangeV1::FontFamily(None),
+        TextPropertyChangeV1::FontSize(18),
+        TextPropertyChangeV1::Color(Rgb24V1::new("#AbC").unwrap()),
+        TextPropertyChangeV1::BackgroundColor(None),
+    ];
+    let mut session = DocumentSession::load(SOURCE).expect("source must load");
+    let changed = session
+        .submit(0, patch(changes))
+        .expect("patch must commit");
+    let projected = text(changed.observation());
+    assert_eq!(changed.observation().snapshot().revision(), 1);
+    assert_eq!(projected.font().family(), None);
+    assert_eq!(projected.font().size().value(), 18.0);
+    assert_eq!(projected.font().color().as_str(), "#aabbcc");
+    assert_eq!(projected.background().color(), None);
+    assert_eq!(
+        projected.background().color_provenance(),
+        PresentationFactProvenanceV1::Root
+    );
+    assert_eq!(projected.runs().len(), 3);
+    assert_eq!(projected.runs()[0].text(), "H");
+    assert_eq!(
+        projected.runs()[1].styles(),
+        &[crate::PresentationTextStyleV1::Subscript]
+    );
+    assert_eq!(projected.runs()[2].text(), "O <&>");
+
+    let cdml = changed.observation().snapshot().cdml();
+    assert!(cdml.contains("keep=\"yes\""));
+    assert!(cdml.contains("retained=\"yes\""));
+    assert!(cdml.contains("font-keep=\"yes\""));
+    assert!(cdml.contains("<v:font-child"));
+    assert!(cdml.contains("<v:root"));
+
+    let undone = session.undo(1).expect("one patch must undo once");
+    assert_eq!(text(undone.observation()).runs()[0].text(), "old");
+    let redone = session.redo(2).expect("one patch must redo once");
+    assert_eq!(text(redone.observation()).runs()[2].text(), "O <&>");
+}
+
+#[test]
+fn text_properties_reject_invalid_intent_and_targets_without_mutation() {
+    assert_eq!(
+        TextEditRunV1::new(
+            "x",
+            vec![TextEditStyleV1::Subscript, TextEditStyleV1::Superscript]
+        ),
+        Err(TextPropertiesPatchV1Error::ConflictingScriptStyles)
+    );
+    assert_eq!(
+        TextPropertiesPatchV1::new(
+            "t",
+            vec![TextPropertyChangeV1::Runs(vec![run(" \n", vec![])])]
+        ),
+        Err(TextPropertiesPatchV1Error::BlankText)
+    );
+    assert_eq!(
+        TextPropertiesPatchV1::new("t", vec![TextPropertyChangeV1::FontSize(3)]),
+        Err(TextPropertiesPatchV1Error::FontSizeOutOfRange)
+    );
+
+    let mut session = DocumentSession::load(SOURCE).expect("source must load");
+    let before = session.snapshot().expect("snapshot");
+    let unknown = TextPropertiesPatchV1::new(
+        "missing",
+        vec![TextPropertyChangeV1::Runs(vec![run("new", vec![])])],
+    )
+    .unwrap();
+    assert!(matches!(
+        session.submit(
+            0,
+            SessionOperation::V1(SessionOperationV1::SetTextProperties { patch: unknown })
+        ),
+        Err(DocumentSessionError::Operation(
+            SessionOperationError::UnknownText(_)
+        ))
+    ));
+    assert_eq!(session.snapshot().expect("snapshot"), before);
+
+    let ambiguous_source =
+        SOURCE.replace("<c:ftext>old</c:ftext>", "<c:font/><c:ftext>old</c:ftext>");
+    let mut ambiguous = DocumentSession::load(&ambiguous_source).expect("source loads");
+    let before = ambiguous.snapshot().expect("snapshot");
+    assert!(matches!(
+        ambiguous.submit(0, patch(vec![TextPropertyChangeV1::FontSize(18)])),
+        Err(DocumentSessionError::Operation(
+            SessionOperationError::Candidate(TypedDocumentError::AmbiguousTextFonts(_))
+        ))
+    ));
+    assert_eq!(ambiguous.snapshot().expect("snapshot"), before);
+}
+
+#[test]
+fn stale_text_properties_patch_is_atomic_and_equal_intent_is_history_free() {
+    let mut session = DocumentSession::load(SOURCE).expect("source must load");
+    let equal = session
+        .submit(0, patch(vec![TextPropertyChangeV1::FontSize(12)]))
+        .expect("equal patch must be accepted");
+    assert_eq!(equal.observation().snapshot().revision(), 0);
+    session
+        .submit(0, patch(vec![TextPropertyChangeV1::FontSize(18)]))
+        .expect("first change must commit");
+    let before = session.snapshot().expect("snapshot");
+    assert!(matches!(
+        session.submit(0, patch(vec![TextPropertyChangeV1::FontSize(20)])),
+        Err(DocumentSessionError::RevisionConflict {
+            expected: 0,
+            actual: 1
+        })
+    ));
+    assert_eq!(session.snapshot().expect("snapshot"), before);
+}

@@ -17,13 +17,14 @@ class ArrowDialog(PySide6.QtWidgets.QDialog):
 		start_head: Whether the arrow has a head at the start.
 		end_head: Whether the arrow has a head at the end.
 		line_width: Line width in pixels.
+		spline: Whether the arrow uses spline interpolation.
 		color: Color string (hex format).
 	"""
 
 	#============================================
 	def __init__(self, parent: object | None = None, start_head: bool = False,
 			end_head: bool = True, line_width: float = 2.0,
-			color: str = "#000000") -> None:
+			spline: bool = False, color: str = "#000000") -> None:
 		"""Initialize the arrow properties dialog.
 
 		Args:
@@ -31,6 +32,7 @@ class ArrowDialog(PySide6.QtWidgets.QDialog):
 			start_head: Initial state for start arrowhead.
 			end_head: Initial state for end arrowhead.
 			line_width: Initial line width.
+			spline: Initial spline interpolation state.
 			color: Initial color in hex format.
 		"""
 		super().__init__(parent)
@@ -42,7 +44,9 @@ class ArrowDialog(PySide6.QtWidgets.QDialog):
 		self._start_head_check.setChecked(start_head)
 		self._end_head_check.setChecked(end_head)
 		self._line_width_spin.setValue(line_width)
+		self._spline_check.setChecked(spline)
 		self._update_color_button()
+		self._initial_values = self.get_values()
 
 	#============================================
 	def _build_ui(self) -> None:
@@ -105,7 +109,13 @@ class ArrowDialog(PySide6.QtWidgets.QDialog):
 		)
 
 	#============================================
-	def get_values(self) -> dict:
+	def set_spline_editable(self, editable: bool, explanation: str = "") -> None:
+		"""Expose or visibly disable spline editing for one host capability profile."""
+		self._spline_check.setEnabled(editable)
+		self._spline_check.setToolTip(explanation)
+
+	#============================================
+	def get_values(self) -> dict[str, object]:
 		"""Return dict of edited arrow property values.
 
 		Returns:
@@ -120,3 +130,12 @@ class ArrowDialog(PySide6.QtWidgets.QDialog):
 			"color": self._color,
 		}
 		return values
+
+	#============================================
+	def changes(self) -> tuple[tuple[str, object], ...]:
+		"""Return only explicit values changed after widget initialization."""
+		changes = tuple(
+			(name, value) for name, value in self.get_values().items()
+			if value != self._initial_values[name]
+		)
+		return changes

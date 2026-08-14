@@ -17,8 +17,14 @@ ferrum-core = { path = "../core" }
 ferrum-geometry = { path = "../geometry" }
 ferrum-domain = { path = "../domain" }
 serde = { version = "*", features = ["derive"] }
-serde_json = { version = "*" }
+serde_json = { version = "*", features = ["float_roundtrip"] }
 thiserror = { version = "*" }
-cairo-rs = { version = "*", default-features = false, features = ["freetype", "v1_18"] }
-freetype-rs = { version = "*" }
+ttf-parser = { version = "*" }
 sha2 = { version = "*" }
+xot = { version = "*" }
+tiny-skia = { version = "*", default-features = false, features = ["std"] }
+png = { version = "*" }
+pdf-writer = { version = "*" }
+
+[dev-dependencies]
+rustix = { version = "*", features = ["fs"] }

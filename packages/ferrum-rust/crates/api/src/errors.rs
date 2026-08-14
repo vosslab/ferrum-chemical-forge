@@ -6,6 +6,16 @@ use ferrum_document::{
 };
 use thiserror::Error;
 
+use crate::inchi_codec::{InchiExportError, InchiInspectionError};
+use crate::molblock_export::MolblockExportError;
+use crate::molblock_inspection::MolblockInspectionError;
+use crate::molecule_coordinate_cli::MoleculeCoordinateCliError;
+use crate::render_observation_cli::RenderObservationCliError;
+use crate::sdf_export::SdfExportError;
+use crate::sdf_inspection::SdfInspectionError;
+use crate::smarts_export::SmartsExportError;
+use crate::smiles_inspection::SmilesInspectionError;
+
 /// A CDML library operation failed.
 #[derive(Debug, Error)]
 pub enum CdmlError {
@@ -69,6 +79,60 @@ pub enum CliError {
         /// CD-SVG extraction failure.
         #[source]
         source: CdsvgError,
+    },
+    /// The loaded CDML could not produce a complete Ferrum render observation.
+    #[error("could not render-observe {input}: {source}")]
+    RenderObservation {
+        /// User-facing input label.
+        input: String,
+        /// Render-observation failure.
+        #[source]
+        source: RenderObservationCliError,
+    },
+    /// One existing CDML molecule could not be regenerated through the named adapter.
+    #[error("could not generate coordinates for {input}: {source}")]
+    MoleculeCoordinates {
+        /// User-facing CDML input label.
+        input: String,
+        /// Typed document, adapter, chemistry, or placement failure.
+        #[source]
+        source: MoleculeCoordinateCliError,
+    },
+    /// The requested SMILES value could not be inspected through the named adapter.
+    #[error("could not inspect SMILES: {0}")]
+    SmilesInspection(#[from] SmilesInspectionError),
+    /// The requested SMILES molecule could not be exported as InChI.
+    #[error("could not export InChI: {0}")]
+    InchiExport(#[from] InchiExportError),
+    /// The requested InChI could not be inspected through the named adapter.
+    #[error("could not inspect InChI: {0}")]
+    InchiInspection(#[from] InchiInspectionError),
+    /// The requested SMILES molecule could not be exported as SMARTS.
+    #[error("could not export SMARTS: {0}")]
+    SmartsExport(#[from] SmartsExportError),
+    /// The requested SMILES molecule could not be exported as a molblock.
+    #[error("could not export molblock: {0}")]
+    MolblockExport(#[from] MolblockExportError),
+    /// The requested SMILES molecule could not be exported as one SDF record.
+    #[error("could not export SDF: {0}")]
+    SdfExport(#[from] SdfExportError),
+    /// The requested SDF input could not be inspected through the named adapter.
+    #[error("could not inspect SDF from {input}: {source}")]
+    SdfInspection {
+        /// User-facing input label.
+        input: String,
+        /// Typed adapter or chemistry failure.
+        #[source]
+        source: SdfInspectionError,
+    },
+    /// The requested molblock could not be inspected through the named adapter.
+    #[error("could not inspect molblock from {input}: {source}")]
+    MolblockInspection {
+        /// User-facing input label.
+        input: String,
+        /// Typed adapter or chemistry failure.
+        #[source]
+        source: MolblockInspectionError,
     },
     /// A versioned JSON report could not be encoded.
     #[error("could not encode Ferrum JSON report: {0}")]

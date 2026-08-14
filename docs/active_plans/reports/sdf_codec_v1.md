@@ -1,0 +1,110 @@
+# SDF codec evidence
+
+## Result
+
+Ferrum's bounded SDF export and import slice passes semantic round trips through the
+current RDKit 2026.03.5 release and the previous 2026.03.4 release. Ferrum's own
+strict importer agrees with the current RDKit evaluator on every imported molecule.
+The source-bound machine receipt is [sdf_codec_v1.json](sdf_codec_v1.json).
+
+This is the completed bounded 2D SDF part of M5. The read-only OASA conversion copies
+only x/y coordinates and exposes plain SDF text/file operations, so three-dimensional
+coordinates and compressed suppliers are feature expansion rather than parity gates.
+Ferrum already retains more ordered string-property information than that reference
+path; arbitrary non-string field typing is outside the codec contract.
+
+## Public path
+
+The implemented value flow is:
+
+```text
+frozen SmilesMoleculeV1
+    -> frozen ordered SdfRecordV1 values
+    -> bounded FSD1 request
+    -> RDKit SDWriter
+    -> bounded FCT1 text response
+
+bounded UTF-8 SDF text
+    -> strict RDKit SDMolSupplier
+    -> bounded FSI1 records
+    -> safe Rust ImportedSdfRecord values
+    -> frozen ImportedSdfRecordV1 values
+```
+
+The same safe Rust operation is available through:
+
+- `ferrum_chem.prepare_sdf_record()` and `ferrum_chem.records_to_sdf()`;
+- `ferrum_chem.sdf_to_records()`;
+- `NativeChemEngine::{records_to_sdf,sdf_to_records}()`;
+- provisional `ferrum smiles to-sdf --adapter ABSOLUTE_LIBRARY` for one record; and
+- provisional `ferrum sdf inspect --adapter ABSOLUTE_LIBRARY INPUT` for bounded import.
+
+The CLI remains provisional until M17 and M18 freeze the boundary.
+
+## Comparison policy
+
+Acceptance checks chemical and document meaning:
+
+- strict SDF parsing and normal sanitization;
+- exact record order and title;
+- exact property order, names, and values;
+- exact discrete atom, bond, charge, isotope, chirality, and atom-map facts;
+- finite atom-aligned coordinates;
+- native import agreement with the current RDKit semantic evaluator;
+- explicitly requested V2000 or V3000 syntax in every record.
+
+SDF bytes, RDKit header spacing, program lines, and record annotations are not compared.
+RDKit can vary those without changing the file's meaning.
+
+## Corpus and versions
+
+The three-record corpus covers:
+
+- ethanol with an ordered property and a multiline value;
+- ammonium chloride with charge, a disconnected graph, and an empty value;
+- an isotope/chirality/atom-map molecule with two ordered properties.
+
+Both V2000 and V3000 pass under RDKit 2026.03.5 and 2026.03.4. The exact source tag
+and SHA in the native build receipt make this wheel reproducible; they are not a
+permanent compatibility ceiling. New native wheels should move to the current stable
+RDKit release while retaining the previous stable release as a compatibility check.
+The installed-wheel binding test separately proves that import retains repeated SDF
+property names as distinct ordered entries.
+
+## Wheel evidence
+
+The fresh macOS arm64 direct-extension wheel is:
+
+```text
+output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/
+ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl
+```
+
+Its SHA-256 is
+`13de57cf0d95dc3f1755f14a1ca36350fe4db7dca43e3ab8ead0e3d0e74b3eda`.
+The wheel is 3.3 MB. Its 15-library closure contains `libferrum_chem.dylib` and
+14 RDKit libraries, with no RDKit Python package, compiled Boost library, Cairo, or
+FreeType dependency.
+
+The installed writer and reader pass before and after replacement with a separately
+built `RelWithDebInfo` adapter. The retained receipt is
+`output_native_wheel/evidence/native-wheel-e2e-receipt.json`.
+
+## Reproduce
+
+Use three isolated Python 3.12 environments: one with the Ferrum wheel, one with the
+current RDKit release, and one with the previous RDKit release. Then run:
+
+```bash
+source source_me.sh
+python3 -B devel/measure_sdf_codec_parity.py \
+	--oracle-python CURRENT_RDKIT_PYTHON \
+	--cross-version-python PREVIOUS_RDKIT_PYTHON \
+	--ferrum-python FERRUM_WHEEL_PYTHON \
+	--wheel output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/\
+ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl \
+	--native-e2e-receipt output_native_wheel/evidence/native-wheel-e2e-receipt.json
+```
+
+The command performs process-isolated semantic comparisons. It does not impose a
+runtime threshold.

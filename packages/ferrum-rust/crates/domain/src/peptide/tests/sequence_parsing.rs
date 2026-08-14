@@ -29,12 +29,13 @@ fn parser_reports_the_first_invalid_one_based_position_and_alphabet() {
 
 #[test]
 fn parser_counts_unicode_scalars_when_reporting_invalid_input() {
-    let error = parse_one_letter_sequence("ACβD").expect_err("noncanonical character must fail");
+    let error =
+        parse_one_letter_sequence("AC\u{03b2}D").expect_err("noncanonical character must fail");
     assert_eq!(
         error,
         PeptideSyntaxError::UnsupportedResidue {
             position: 3,
-            found: 'β',
+            found: '\u{03b2}',
             supported_alphabet: ResidueCode::SUPPORTED_ONE_LETTER_ALPHABET,
         }
     );

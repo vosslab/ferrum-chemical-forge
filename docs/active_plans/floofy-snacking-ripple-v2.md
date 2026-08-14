@@ -268,8 +268,9 @@ becoming a competing representation of the document.
 
 **Whole-document exchange per committed command** was chosen over a fragment
 protocol because measurement showed a fragment protocol buys nothing inside the
-expected envelope: round-trip cost on real CDML files is 0.34 to 1.83 ms against a
-16 ms interactive budget, and the crossover sits near 300 to 600 KB, fifteen to
+expected envelope: round-trip cost on real CDML files is 0.34 to 1.83 ms, well within
+one measured frame interval on the test display. That observation is not a universal
+frame deadline. The crossover sits near 300 to 600 KB, fifteen to
 thirty times larger than documents this project produces. Revisit if real
 documents approach 300 KB.
 
@@ -378,7 +379,7 @@ Nine tracks with verdicts, measured on macOS arm64 with RDKit 2026.03.4, Python
 | D4 straighten port | Portable. `minimizeRotation=true` matches at ~5e-16; the `false` branch, which production uses, needs the verbatim C++ source |
 | D5 distribution | A pinned source build yields a self-contained relocatable bundle running under `env -i` |
 | D6 WASM | One project-level contract spans both platforms; a **project-built** WASM MinimalLib is required |
-| D7 CDML channel | Whole-document exchange, 0.34 to 1.83 ms on real files against a 16 ms budget |
+| D7 CDML channel | Whole-document exchange, measured at 0.34 to 1.83 ms on real files; compare against the target display's measured frame interval |
 | D8 parity rules | Comparison rule assigned per output class |
 | D9 dependencies | Adopt `xot` and `cairo-rs`; decline `sdfrust` and a Rust text stack; adopt `petgraph` plus a project cycle basis |
 

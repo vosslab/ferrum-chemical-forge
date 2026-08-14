@@ -10,6 +10,7 @@ import PySide6.QtWidgets
 import ferrum_qt.setup.canvas_setup
 import ferrum_qt.setup.mode_setup
 import ferrum_qt.canvas.document_projection
+import ferrum_qt.bridge.paper_catalog
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.io.cdml_candidate
 import ferrum_qt.io.user_template_catalog
@@ -337,9 +338,9 @@ class DocumentSession(
 
 	#============================================
 	def paper_catalog(self) -> dict[str, list[float] | None]:
-		"""Return the OASA-owned plain paper catalog for this live client session."""
+		"""Return Ferrum's plain CDML paper catalog for this live client session."""
 		self._require_live_persistent_operation()
-		return self._backend_session.paper_catalog()
+		return ferrum_qt.bridge.paper_catalog.paper_catalog_v1()
 
 	#============================================
 	def paper_properties_context(self) -> dict[str, object]:

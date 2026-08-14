@@ -14,6 +14,9 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 import shiboken6
 
+# local repo modules
+import ferrum_qt.canvas.graphics_callbacks
+
 
 #============================================
 def is_valid_native_wrapper(item: object) -> bool:
@@ -574,10 +577,17 @@ class GraphicsRetirementCoordinator:
 	def retire_detached_projection_items(
 			self, items: list[PySide6.QtWidgets.QGraphicsItem],
 			reaper: DetachedGraphicsRetirementReaper | None = None,
+			callbacks_already_disposed: bool = False,
 			) -> GraphicsRetirementReport:
-		"""Terminally retire detached projection trees in child-first order."""
+		"""Terminally retire detached projection trees in child-first order.
+
+		A replacement transaction may have already run every callback while its old
+		projection remained scene-owned.  That explicit flag prevents a second,
+		post-commit callback invocation before native deletion.
+		"""
 		ordered = self._child_first_unique(items)
-		self._dispose_callbacks(ordered)
+		if not callbacks_already_disposed:
+			self._dispose_callbacks(ordered)
 		self._detach_parent_links(ordered, destroy=True)
 		self._transfer_retained_detached_graphics(reaper)
 		return self.report
@@ -769,12 +779,11 @@ class GraphicsRetirementCoordinator:
 			self, items: list[PySide6.QtWidgets.QGraphicsItem],
 			) -> None:
 		"""Disconnect callbacks while each wrapper is known valid."""
-		from ferrum_qt.canvas.document_projection import dispose_item_callbacks
 		for item in items:
 			if not self._is_live(item):
 				continue
 			try:
-				dispose_item_callbacks(item)
+				ferrum_qt.canvas.graphics_callbacks.dispose_item_callbacks(item)
 			except Exception as exc:
 				self.report.callback_errors.append(exc)
 			finally:

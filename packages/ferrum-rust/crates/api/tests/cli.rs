@@ -80,6 +80,54 @@ fn malformed_input_fails_without_polluting_stdout() {
 }
 
 #[test]
+fn render_observation_from_stdin_emits_one_complete_canonical_json_line() {
+    let output = run_with_stdin(["cdml", "render-observation", "-"], SIMPLE_CDML.as_bytes());
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert_eq!(output.stdout.last(), Some(&b'\n'));
+    assert_eq!(
+        output.stdout.iter().filter(|byte| **byte == b'\n').count(),
+        1
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON report");
+    assert_eq!(report["schema"], "ferrum-render-observation-v1");
+    assert_eq!(report["document"]["revision"], 0);
+    assert!(report["suppression"].is_null());
+}
+
+#[test]
+fn render_observation_failures_keep_stdout_empty_and_use_ferrum_diagnostics() {
+    let malformed = run_with_stdin(["cdml", "render-observation", "-"], b"<cdml>");
+    let unprojectable = run_with_stdin(
+        ["cdml", "render-observation", "-"],
+        b"<cdml><molecule><atom name=\"C\"/></molecule></cdml>",
+    );
+    let suppressed = run_with_stdin(
+        ["cdml", "render-observation", "-"],
+        b"<cdml><standard line_color=\"blue\"/><molecule><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+    );
+
+    for output in [malformed, unprojectable, suppressed] {
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).starts_with("ferrum: "));
+    }
+}
+
+#[test]
+fn render_observation_rejects_uninvented_format_arguments_as_usage_errors() {
+    let output = Command::new(env!("CARGO_BIN_EXE_ferrum"))
+        .args(["cdml", "render-observation", "-", "--format", "json"])
+        .output()
+        .expect("run ferrum CLI");
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Usage:"));
+}
+
+#[test]
 fn rewrite_does_not_replace_destination_when_input_is_invalid() {
     let output_path = temporary_path("preserved.cdml");
     fs::write(&output_path, "original contents").expect("write initial destination");

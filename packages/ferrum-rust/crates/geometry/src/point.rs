@@ -169,7 +169,13 @@ pub enum GeometryError {
     /// A finite canvas coordinate cannot be represented in the integer grid basis.
     #[error("hex grid coordinate-to-spacing ratio is not representable")]
     GridIndexUnrepresentable,
+    /// A molecule placement request contained no atom coordinates.
+    #[error("molecule placement requires at least one atom coordinate")]
+    EmptyCoordinateSet,
     /// A bond refers to an atom position that was not supplied.
     #[error("bond endpoint {index} is outside the coordinate array of length {len}")]
     BondIndexOutOfBounds { index: usize, len: usize },
+    /// A depicted bond joins two coincident source coordinates.
+    #[error("molecule placement requires every depicted bond to have positive length")]
+    ZeroLengthBond,
 }

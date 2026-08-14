@@ -1,4 +1,4 @@
-//! ABI-3 declarations generated from the public native adapter header.
+//! ABI-4 declarations generated from the public native adapter header.
 
 use crate::buffer::FerrumChemOwnedBuffer;
 
@@ -11,10 +11,23 @@ pub const FERRUM_CHEM_ADAPTER_ABI_VERSION: u64 = generated::FERRUM_CHEM_ADAPTER_
 /// Capability bit for the mandatory Kekulize operation.
 pub const FERRUM_CHEM_CAPABILITY_KEKULIZE: u64 = generated::FERRUM_CHEM_CAPABILITY_KEKULIZE;
 /// Capability bit for the optional SMILES-to-coordinate operation.
-pub const FERRUM_CHEM_CAPABILITY_SMILES: u64 = generated::FERRUM_CHEM_CAPABILITY_SMILES;
+pub const FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE: u64 =
+    generated::FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE;
 /// Capability bit for the optional deterministic 2D depiction operation.
 pub const FERRUM_CHEM_CAPABILITY_GENERATE_2D: u64 = generated::FERRUM_CHEM_CAPABILITY_GENERATE_2D;
-/// Bitmask containing every ABI-3 capability currently named by the public C header.
+/// Capability bit for the optional complete-graph SMARTS export operation.
+pub const FERRUM_CHEM_CAPABILITY_SMARTS: u64 = generated::FERRUM_CHEM_CAPABILITY_SMARTS;
+/// Capability bit for the optional coordinate-bearing molblock export operation.
+pub const FERRUM_CHEM_CAPABILITY_MOLFILE: u64 = generated::FERRUM_CHEM_CAPABILITY_MOLFILE;
+/// Capability bit for ordered multi-record SDF export.
+pub const FERRUM_CHEM_CAPABILITY_SDF_WRITE: u64 = generated::FERRUM_CHEM_CAPABILITY_SDF_WRITE;
+/// Capability bit for bounded InChI import and closed-mode export.
+pub const FERRUM_CHEM_CAPABILITY_INCHI: u64 = generated::FERRUM_CHEM_CAPABILITY_INCHI;
+/// Capability bit for bounded ordered SDF import.
+pub const FERRUM_CHEM_CAPABILITY_SDF_READ: u64 = generated::FERRUM_CHEM_CAPABILITY_SDF_READ;
+/// Capability bit for bounded single-molblock import.
+pub const FERRUM_CHEM_CAPABILITY_MOLFILE_READ: u64 = generated::FERRUM_CHEM_CAPABILITY_MOLFILE_READ;
+/// Bitmask containing every ABI-4 capability currently named by the public C header.
 ///
 /// The loader rejects advertised bits outside this mask. Each operation is
 /// capability-gated, so an adapter may truthfully advertise its supported subset.
@@ -39,7 +52,7 @@ pub enum AdapterError {
     #[error("Ferrum chemistry ABI mismatch: expected {expected}, found {actual}")]
     AbiMismatch { expected: u32, actual: u32 },
 
-    /// The adapter advertised bits that the public ABI-3 header does not define.
+    /// The adapter advertised bits that the public ABI-4 header does not define.
     #[error("Ferrum chemistry adapter advertised unknown capability bits 0x{unknown:016x}")]
     UnknownCapabilities { unknown: u64 },
 
@@ -63,7 +76,7 @@ pub enum AdapterError {
     #[error("Ferrum chemistry adapter execution failed with status {status}")]
     NativeStatus { status: u32 },
 
-    /// The loaded adapter does not advertise a requested ABI-3 operation.
+    /// The loaded adapter does not advertise a requested ABI-4 operation.
     #[error("Ferrum chemistry adapter does not provide operation: {operation}")]
     OperationUnavailable { operation: &'static str },
 }

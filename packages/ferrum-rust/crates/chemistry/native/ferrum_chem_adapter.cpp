@@ -1,4 +1,6 @@
 #include "ferrum_chem_adapter.h"
+#include "ferrum_chem_molecule_response.h"
+#include "ferrum_chem_utf8.h"
 
 #include <GraphMol/Atom.h>
 #include <GraphMol/Bond.h>
@@ -10,7 +12,6 @@
 #include <GraphMol/RWMol.h>
 #include <GraphMol/SanitException.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
-#include <GraphMol/SmilesParse/SmilesWrite.h>
 
 #include <algorithm>
 #ifdef FERRUM_CHEM_ENABLE_DEPICTOR
@@ -55,7 +56,6 @@ constexpr uint64_t kAtomBytes = FERRUM_CHEM_KEKULIZE_ATOM_BYTES;
 constexpr uint64_t kBondBytes = FERRUM_CHEM_KEKULIZE_BOND_BYTES;
 constexpr uint64_t kMaximumSmilesBytes = FERRUM_CHEM_SMILES_MAX_BYTES;
 constexpr uint64_t kMaximumResponseBytes = FERRUM_CHEM_MAX_RESPONSE_BYTES;
-constexpr uint8_t kSmilesResponseMagic[] = {'F', 'C', 'S', '1'};
 
 struct KekulizeOptions {
 	bool clear_aromatic_flags;
@@ -118,47 +118,6 @@ void append_i32(std::vector<uint8_t> &bytes, int32_t value) {
 
 bool has_record_bytes(uint32_t count, uint64_t record_bytes, uint64_t remaining) {
 	return static_cast<uint64_t>(count) <= remaining / record_bytes;
-}
-
-bool is_valid_utf8(std::string_view text) {
-	for (size_t index = 0; index < text.size();) {
-		const uint8_t byte = static_cast<uint8_t>(text[index]);
-		if (byte <= 0x7fU) {
-			++index;
-			continue;
-		}
-		uint32_t code_point = 0;
-		size_t continuation_count = 0;
-		if (byte >= 0xc2U && byte <= 0xdfU) {
-			code_point = byte & 0x1fU;
-			continuation_count = 1;
-		} else if (byte >= 0xe0U && byte <= 0xefU) {
-			code_point = byte & 0x0fU;
-			continuation_count = 2;
-		} else if (byte >= 0xf0U && byte <= 0xf4U) {
-			code_point = byte & 0x07U;
-			continuation_count = 3;
-		} else {
-			return false;
-		}
-		if (continuation_count >= text.size() - index) {
-			return false;
-		}
-		for (size_t offset = 1; offset <= continuation_count; ++offset) {
-			const uint8_t continuation = static_cast<uint8_t>(text[index + offset]);
-			if ((continuation & 0xc0U) != 0x80U) {
-				return false;
-			}
-			code_point = (code_point << 6U) | (continuation & 0x3fU);
-		}
-		if ((continuation_count == 2 && code_point < 0x800U) ||
-			(continuation_count == 3 && code_point < 0x10000U) ||
-			(code_point >= 0xd800U && code_point <= 0xdfffU) || code_point > 0x10ffffU) {
-			return false;
-		}
-		index += continuation_count + 1;
-	}
-	return true;
 }
 
 bool decode_bond_type(uint8_t wire_type, RDKit::Bond::BondType *bond_type) {
@@ -509,86 +468,17 @@ bool generate_2d(const WireMolecule &input, ferrum_chem_owned_buffer *response) 
 }
 #endif
 
-bool encode_smiles_response(uint32_t result_status, std::string_view detail,
-	std::string_view smiles, const RDKit::Conformer *conformer,
-	ferrum_chem_owned_buffer *response) {
-	if (detail.size() > kMaximumDetailBytes || smiles.size() > kMaximumSmilesBytes ||
-		response == nullptr || (conformer == nullptr && !smiles.empty())) {
-		return false;
-	}
-	const uint32_t atom_count = conformer == nullptr ? 0U : conformer->getNumAtoms();
-	std::vector<uint8_t> bytes;
-	try {
-		const uint64_t coordinate_bytes = static_cast<uint64_t>(atom_count) *
-			FERRUM_CHEM_COORDINATE_BYTES;
-		const uint64_t response_bytes = FERRUM_CHEM_SMILES_RESPONSE_HEADER_BYTES + detail.size() +
-			smiles.size() + coordinate_bytes;
-		if (response_bytes > kMaximumResponseBytes ||
-			response_bytes > std::numeric_limits<size_t>::max()) {
-			return false;
-		}
-		bytes.reserve(static_cast<size_t>(response_bytes));
-		bytes.insert(bytes.end(), std::begin(kSmilesResponseMagic), std::end(kSmilesResponseMagic));
-		append_u32(bytes, 1U);
-		append_u32(bytes, result_status);
-		append_u32(bytes, static_cast<uint32_t>(detail.size()));
-		append_u32(bytes, static_cast<uint32_t>(smiles.size()));
-		append_u32(bytes, atom_count);
-		bytes.insert(bytes.end(), detail.begin(), detail.end());
-		bytes.insert(bytes.end(), smiles.begin(), smiles.end());
-		for (uint32_t index = 0; index < atom_count; ++index) {
-			const RDGeom::Point3D &point = conformer->getAtomPos(index);
-			if (!std::isfinite(point.x) || !std::isfinite(point.y)) {
-				return false;
-			}
-			const uint64_t x = std::bit_cast<uint64_t>(point.x);
-			const uint64_t y = std::bit_cast<uint64_t>(point.y);
-			for (unsigned int shift = 0; shift < 64U; shift += 8U) {
-				bytes.push_back(static_cast<uint8_t>(x >> shift));
-			}
-			for (unsigned int shift = 0; shift < 64U; shift += 8U) {
-				bytes.push_back(static_cast<uint8_t>(y >> shift));
-			}
-		}
-		if (bytes.size() != response_bytes) {
-			return false;
-		}
-		response->data = new uint8_t[bytes.size()];
-		std::copy(bytes.begin(), bytes.end(), response->data);
-		response->len = bytes.size();
-		return true;
-	} catch (const std::bad_alloc &) {
-		return false;
-	}
-}
-
-bool smiles_to_2d(const uint8_t *request, uint64_t request_len,
-		ferrum_chem_owned_buffer *response) {
-	if (request == nullptr || request_len == 0U || request_len > kMaximumSmilesBytes) {
-		return encode_smiles_response(FERRUM_CHEM_RESULT_MALFORMED_REQUEST,
-			"SMILES request must contain at most 1048576 UTF-8 bytes", "", nullptr, response);
-	}
+bool smiles_to_molecule(const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response) {
+	if (request == nullptr || request_len == 0U || request_len > kMaximumSmilesBytes)
+		return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_MALFORMED_REQUEST, "SMILES request must be non-empty UTF-8 text within the limit", nullptr, nullptr, response);
 	const std::string smiles(reinterpret_cast<const char *>(request), static_cast<size_t>(request_len));
-	if (smiles.find('\0') != std::string::npos || !is_valid_utf8(smiles)) {
-		return encode_smiles_response(FERRUM_CHEM_RESULT_MALFORMED_REQUEST,
-			"SMILES request must be UTF-8 text without NUL bytes", "", nullptr, response);
-	}
+	if (smiles.find('\0') != std::string::npos || !ferrum_chem::is_valid_utf8(smiles))
+		return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_MALFORMED_REQUEST, "SMILES request must be UTF-8 without NUL bytes", nullptr, nullptr, response);
 	std::unique_ptr<RDKit::ROMol> molecule(RDKit::SmilesToMol(smiles));
-	if (!molecule) {
-		return encode_smiles_response(FERRUM_CHEM_RESULT_INVALID_MOLECULE,
-			"RDKit could not parse SMILES", "", nullptr, response);
-	}
-	RDDepict::Compute2DCoordParameters parameters;
-	parameters.canonOrient = true;
-	parameters.clearConfs = true;
-	parameters.forceRDKit = true;
-	parameters.nFlipsPerSample = 0;
-	parameters.nSamples = 0;
-	parameters.useRingTemplates = false;
-	const unsigned int conformer_id = RDDepict::compute2DCoords(*molecule, parameters);
-	const RDKit::Conformer &conformer = molecule->getConformer(conformer_id);
-	return encode_smiles_response(FERRUM_CHEM_RESULT_OK, "", RDKit::MolToSmiles(*molecule),
-		&conformer, response);
+	if (!molecule) return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_INVALID_MOLECULE, "RDKit could not parse SMILES", nullptr, nullptr, response);
+	RDDepict::Compute2DCoordParameters parameters; parameters.canonOrient = true; parameters.clearConfs = true; parameters.forceRDKit = true; parameters.nFlipsPerSample = 0; parameters.nSamples = 0; parameters.useRingTemplates = false;
+	const unsigned int id = RDDepict::compute2DCoords(*molecule, parameters);
+	return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_OK, "", molecule.get(), &molecule->getConformer(id), response);
 }
 
 uint32_t emit_error(uint32_t result_status, std::string_view detail,
@@ -604,8 +494,11 @@ extern "C" uint32_t ferrum_chem_abi_version(void) noexcept {
 }
 
 extern "C" uint64_t ferrum_chem_capabilities_v1(void) noexcept {
-	return FERRUM_CHEM_CAPABILITY_KEKULIZE | FERRUM_CHEM_CAPABILITY_SMILES |
-		FERRUM_CHEM_CAPABILITY_GENERATE_2D;
+	return FERRUM_CHEM_CAPABILITY_KEKULIZE | FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE |
+		FERRUM_CHEM_CAPABILITY_GENERATE_2D | FERRUM_CHEM_CAPABILITY_SMARTS |
+		FERRUM_CHEM_CAPABILITY_MOLFILE | FERRUM_CHEM_CAPABILITY_SDF_WRITE |
+		FERRUM_CHEM_CAPABILITY_SDF_READ | FERRUM_CHEM_CAPABILITY_MOLFILE_READ |
+		FERRUM_CHEM_CAPABILITY_INCHI;
 }
 
 extern "C" uint32_t ferrum_chem_kekulize_v1(
@@ -626,7 +519,7 @@ extern "C" uint32_t ferrum_chem_kekulize_v1(
 			return encode_response(FERRUM_CHEM_RESULT_OK, "", &output, response) ?
 				FERRUM_CHEM_CALL_OK : FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 		} catch (const RDKit::KekulizeException &error) {
-			return emit_error(FERRUM_CHEM_RESULT_KEKULIZE_FAILURE, error.what(), response);
+			return emit_error(FERRUM_CHEM_RESULT_DEPICTION_FAILURE, error.what(), response);
 		} catch (const RDKit::MolSanitizeException &error) {
 			return emit_error(FERRUM_CHEM_RESULT_INVALID_MOLECULE, error.what(), response);
 		}
@@ -673,7 +566,7 @@ extern "C" uint32_t ferrum_chem_generate_2d_v1(
 }
 #endif
 
-extern "C" uint32_t ferrum_chem_smiles_to_2d_v1(
+extern "C" uint32_t ferrum_chem_smiles_to_molecule_v1(
 	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response) noexcept {
 	if (response == nullptr) {
 		return FERRUM_CHEM_CALL_INVALID_ARGUMENT;
@@ -681,15 +574,15 @@ extern "C" uint32_t ferrum_chem_smiles_to_2d_v1(
 	response->data = nullptr;
 	response->len = 0;
 	try {
-		return smiles_to_2d(request, request_len, response) ? FERRUM_CHEM_CALL_OK :
+		return smiles_to_molecule(request, request_len, response) ? FERRUM_CHEM_CALL_OK :
 			FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 	} catch (const std::bad_alloc &) {
 		return FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 	} catch (const std::exception &error) {
-		return encode_smiles_response(FERRUM_CHEM_RESULT_INTERNAL_FAILURE, error.what(), "", nullptr,
+		return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_INTERNAL_FAILURE, error.what(), nullptr, nullptr,
 			response) ? FERRUM_CHEM_CALL_OK : FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 	} catch (...) {
-		return encode_smiles_response(FERRUM_CHEM_RESULT_INTERNAL_FAILURE, "unknown native failure", "",
+		return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_INTERNAL_FAILURE, "unknown native failure", nullptr,
 			nullptr, response) ? FERRUM_CHEM_CALL_OK : FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 	}
 }

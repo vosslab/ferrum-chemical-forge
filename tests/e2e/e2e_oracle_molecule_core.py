@@ -23,14 +23,6 @@ def parse_args() -> argparse.Namespace:
 	"""Parse the small set of operational harness controls."""
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument(
-		"-p",
-		"--oracle-python",
-		dest="oracle_python",
-		type=pathlib.Path,
-		default=ORACLE_PYTHON,
-		help="Python executable inside the isolated OASA environment",
-	)
-	parser.add_argument(
 		"-r",
 		"--report",
 		dest="report_path",
@@ -133,7 +125,7 @@ def make_report_base(request: dict, request_text: str, args: argparse.Namespace)
 		"request": request,
 		"request_sha256": hashlib.sha256(request_text.encode("ascii")).hexdigest(),
 		"commands": {
-			"oasa": [str(args.oracle_python), "-B", str(OASA_CHILD)],
+			"oasa": [str(ORACLE_PYTHON), "-I", "-B", str(OASA_CHILD)],
 			"ferrum": [
 				"cargo",
 				"run",
@@ -177,7 +169,7 @@ def main() -> None:
 	request = make_request()
 	request_text = json.dumps(request, separators=(",", ":"), sort_keys=True)
 	report = make_report_base(request, request_text, args)
-	if not args.oracle_python.is_file():
+	if not ORACLE_PYTHON.is_file():
 		report["status"] = "harness-error"
 		report["error"] = "isolated OASA Python was not found"
 		write_report(args.report_path, report)

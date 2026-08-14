@@ -210,21 +210,6 @@ def test_rich_projection_refresh_uses_the_current_root_font() -> None:
 
 
 #============================================
-def test_configure_directs_selected_rich_text_to_the_rich_action(
-		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
-		) -> None:
-	"""Configure does not open the intentionally plain-only Text dialog for authored runs."""
-	session = _open_native_session(main_window, tmp_path, _AUTHORED_CDML)
-	try:
-		_text_item(session).setSelected(True)
-		ferrum_qt.actions.object_actions.handle_configure(main_window)
-
-		assert "Edit Rich Text" in main_window.statusBar().currentMessage()
-	finally:
-		_close_session(main_window, session)
-
-
-#============================================
 def test_rich_action_stays_bound_to_its_origin_tab(
 		main_window: ferrum_qt.main_window.MainWindow, tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,

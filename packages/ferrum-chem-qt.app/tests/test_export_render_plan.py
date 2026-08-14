@@ -17,6 +17,8 @@ import ferrum_qt.canvas.scene
 import ferrum_qt.io.export
 import ferrum_qt.io.render_plan
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 import ferrum_qt.models.document_object
 import ferrum_qt.models.molecule_model
 
@@ -32,7 +34,7 @@ def _content_scene(qapp: object) -> object:
 	finally:
 		_dispose_content_callbacks(scene)
 		scene.dispose_contents()
-		assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, scene)
+		assert ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, scene)
 
 
 #============================================

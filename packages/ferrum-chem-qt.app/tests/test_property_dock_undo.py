@@ -7,6 +7,8 @@ import PySide6.QtWidgets
 import ferrum_qt.canvas.items.atom_item
 import ferrum_qt.canvas.items.bond_item
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 import ferrum_qt.models.atom_model
 import ferrum_qt.models.bond_model
 import ferrum_qt.models.document
@@ -48,4 +50,4 @@ def test_bond_order_dock_edit_rebuilds_selected_bond_rendering(
 		finally:
 			dock.set_document(None)
 			dock.close()
-			assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, dock)
+			assert ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, dock)

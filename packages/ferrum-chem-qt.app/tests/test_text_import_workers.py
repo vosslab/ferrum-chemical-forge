@@ -2,13 +2,11 @@
 
 # PIP3 modules
 import pytest
-import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.actions.chemistry_actions
 import ferrum_qt.bridge.worker
 import oasa.cdml
-import oasa.peptide_utils
 
 
 #============================================
@@ -133,94 +131,3 @@ def test_mismatched_text_revision_is_rejected_before_backend_mutation(
 
 	assert outcome.status == "rejected"
 	assert target.backend_snapshot == before
-
-
-#============================================
-@pytest.mark.parametrize(
-	("action_name", "codec_name", "source_text", "source_label", "success_message"),
-	[
-		("_read_smiles", "smiles", "CCO", "SMILES", "Imported SMILES molecule"),
-		("_read_inchi", "inchi", "InChI=1S/CH4/h1H4", "InChI", "Imported InChI molecule"),
-		("_read_peptide", "peptide", "AN", "Peptide Sequence", "Imported peptide sequence 'AN'"),
-	],
-)
-def test_text_action_uses_the_shared_plain_proposal_worker(
-		main_window: object, monkeypatch: pytest.MonkeyPatch, action_name: str,
-		codec_name: str, source_text: str, source_label: str, success_message: str,
-		) -> None:
-	"""Every text route constructs the shared worker from plain scalar inputs."""
-	captured = []
-	original_init = ferrum_qt.bridge.worker.TextMoleculeInsertionWorker.__init__
-	def capture_init(
-			worker: object, worker_codec: str, worker_text: str,
-			expected_revision: int, token_stem: str, mean_bond_length: float,
-			insertion_anchor: tuple[float, float], worker_label: str,
-			) -> None:
-		captured.append((
-			worker_codec, worker_text, expected_revision, token_stem,
-			mean_bond_length, insertion_anchor, worker_label,
-		))
-		original_init(
-			worker, worker_codec, worker_text, expected_revision, token_stem,
-			mean_bond_length, insertion_anchor, worker_label,
-		)
-	monkeypatch.setattr(
-		ferrum_qt.bridge.worker.TextMoleculeInsertionWorker, "__init__", capture_init,
-	)
-	monkeypatch.setattr(
-		ferrum_qt.bridge.worker.TextMoleculeInsertionWorker, "start", lambda _worker: None,
-	)
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QInputDialog, "getText", lambda *_args: (source_text, True),
-	)
-	try:
-		getattr(ferrum_qt.actions.chemistry_actions, action_name)(main_window)
-		status_message = main_window.statusBar().currentMessage()
-	finally:
-		for worker in tuple(main_window._active_session._import_workers):
-			main_window._active_session.release_import_worker(worker)
-
-	worker_codec, worker_text, _revision, _token, mean_bond_length, anchor, worker_label = captured[0]
-	assert (worker_codec, worker_text, worker_label) == (
-		codec_name, source_text, success_message,
-	)
-	assert isinstance(mean_bond_length, float)
-	assert type(anchor) is tuple
-	assert tuple(type(value) for value in anchor) == (float, float)
-	assert status_message == "Loading %s..." % source_label
-
-
-#============================================
-def test_peptide_worker_preserves_validation_error_through_the_common_relay(
-		qapp: PySide6.QtWidgets.QApplication, main_window: object,
-		monkeypatch: pytest.MonkeyPatch, qtbot: object,
-		) -> None:
-	"""The generic worker still reports peptide validation with its existing label."""
-	reported = []
-	worker = ferrum_qt.bridge.worker.TextMoleculeInsertionWorker(
-		"peptide", "A?", 0, "invalid", 35.0, (0.0, 0.0), "Import peptide",
-	)
-	delivery = ferrum_qt.actions.chemistry_actions.MoleculeInsertionDelivery(
-		main_window, main_window._active_session,
-		main_window._active_session.begin_import_request(), 0, "Peptide Sequence",
-		"Import peptide", ferrum_qt.actions.chemistry_actions._show_peptide_import_error,
-	)
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _app, title, body: reported.append((title, body)),
-	)
-	relay = ferrum_qt.actions.chemistry_actions._MoleculeInsertionResultRelay(
-		main_window._active_session, worker, delivery,
-	)
-	worker._result_relay = relay
-	worker.error.connect(relay.on_error)
-	worker.finished.connect(relay.on_thread_finished)
-	main_window._active_session.track_import_worker(worker)
-	with qtbot.waitSignal(worker.finished, timeout=2000):
-		worker.start()
-	qapp.processEvents()
-
-	assert reported == [
-		("Peptide Sequence Error", "Unrecognized amino acid code(s): ?\n"
-		"Supported: " + ", ".join(sorted(oasa.peptide_utils.AMINO_ACID_SMILES))),
-	]

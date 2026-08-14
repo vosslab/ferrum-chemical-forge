@@ -33,9 +33,10 @@ def _dispose_session(
 		) -> None:
 	"""Release a standalone session through the production-safe reaper."""
 	owner = session.parent()
-	if not isinstance(owner, ferrum_qt.main_window.MainWindow):
-		raise TypeError("Standalone session has no MainWindow owner")
-	owner._dispose_session_later(session)
+	dispose_later = getattr(owner, "_dispose_session_later", None)
+	if not callable(dispose_later):
+		raise TypeError("Standalone session has no session-lifecycle owner")
+	dispose_later(session)
 
 
 #============================================

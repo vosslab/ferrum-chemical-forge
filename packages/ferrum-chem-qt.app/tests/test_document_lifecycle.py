@@ -9,6 +9,8 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 import ferrum_qt.models.document_session
 
 
@@ -59,7 +61,7 @@ def test_recovery_export_cancellation_blocks_ineligible_tab_close(
 		lambda _message: "discard",
 	)
 	assert main_window.close_current_tab()
-	assert ferrum_qt.main_window.drain_pending_session_deletions(
+	assert ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(
 		PySide6.QtWidgets.QApplication.instance(), main_window,
 	)
 
@@ -214,7 +216,7 @@ def test_recovery_export_action_is_enabled_without_projection_and_disabled_on_di
 	finally:
 		if session in main_window.sessions:
 			main_window._remove_session(session)
-		assert ferrum_qt.main_window.drain_pending_session_deletions(
+		assert ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(
 			PySide6.QtWidgets.QApplication.instance(), main_window,
 		)
 

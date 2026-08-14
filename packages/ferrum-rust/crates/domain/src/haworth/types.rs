@@ -376,4 +376,7 @@ pub enum HaworthError {
     /// Finite placement could not be represented.
     #[error("Haworth geometry is unplaceable: {0}")]
     Unplaceable(&'static str),
+    /// Required storage for a checked Haworth operation could not be reserved.
+    #[error("Haworth resource allocation failed")]
+    ResourceExhausted,
 }

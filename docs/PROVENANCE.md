@@ -36,6 +36,19 @@ The two components have deliberately different licenses:
   `crates/render/assets/licenses/Telex-OFL-1.1.txt`. The observed FreeType metadata
   is family `Telex` and PostScript name `Telex-Regular`. This is an exact-face
   resource for Ferrum rendering, not a system-family lookup.
+- M13's in-memory PNG and PDF sinks use locked pure-Rust source dependencies:
+  [`tiny-skia` 0.12.0](https://crates.io/crates/tiny-skia/0.12.0) and its
+  [`tiny-skia-path` 0.12.0](https://crates.io/crates/tiny-skia-path/0.12.0)
+  dependency are BSD-3-Clause; [`png` 0.18.1](https://crates.io/crates/png/0.18.1)
+  and [`pdf-writer` 0.15.0](https://crates.io/crates/pdf-writer/0.15.0) are MIT OR
+  Apache-2.0. Their locked sources are respectively
+  [linebender/tiny-skia](https://github.com/linebender/tiny-skia),
+  [image-rs/image-png](https://github.com/image-rs/image-png), and
+  [typst/pdf-writer](https://github.com/typst/pdf-writer). These packages have no
+  build scripts or native-graphics linkage in Ferrum's locked M13 sink surface.
+  They are an in-process Rust boundary, not a packaged native graphics closure.
+  `tiny-skia` and `tiny-skia-path` use Rust `unsafe` internally; Ferrum does not
+  claim that their use makes the renderer implementation entirely safe Rust.
 
 This document records the project's intended licensing boundary and development
 provenance. It is not legal advice. The complete applicable GNU license texts are in
@@ -65,6 +78,24 @@ Ferrum-Chem is a new Rust backend. It replaces the OASA backend rather than
 copying it into this repository. During migration, OASA can remain an external
 oracle for behavior comparisons; it is not Ferrum-Chem production code.
 
+## CDML reference contract
+
+Ferrum adopts the upstream historical
+[CDML_BACKEND_TO_FRONTEND_CONTRACT.md](CDML_BACKEND_TO_FRONTEND_CONTRACT.md) and
+[CDML_FORMAT_SPEC.md](CDML_FORMAT_SPEC.md) as explicit reference documents. They
+were copied from `vosslab/bkchem-oasa` commit
+`f3a6b2ffb354c63a5d87d2f76c12b43a07bac36c` (repository HEAD
+`f8fd0e6fbd67d40e48c4d6e38116524e85a6d8ed`). The original source SHA-256 values
+are `7cd02af29bff5ce4f004e25fa0c9884efc636c23e46417a24525cf3ee75ca097` for the
+contract and `defa534555fcfc20d223ef8341c66f8c1d6ff3fad4f6aa45f7f85212c071fbdb`
+for the specification.
+
+The copied text retains historical OASA/BKChem names. For Ferrum planning, they
+map respectively to the intended Ferrum-Chem backend and Ferrum-Qt frontend.
+These documents are compatibility and security reference boundaries, not a claim
+that every described operation is implemented. Any local divergence requires a
+deliberate reconciliation with the named upstream source rather than silent drift.
+
 The boundary keeps Ferrum-Chem separately replaceable so downstream recipients can
 relink against a modified LGPL library. The historical macOS arm64 M4a proof first
 established that mechanism with a stub wheel. M4b then installed the ABI 2 chemistry
@@ -93,13 +124,13 @@ The native build proof uses upstream CMake, LLVM/Clang, and Rustup tooling, with
 Apple SDK and system linker recorded as macOS platform inputs. It builds from
 hash-verified sources, uses Boost headers without compiled Boost libraries, and turns
 off Python RDKit and SWIG wrappers. Maturin remains unpinned; the receipt records the
-actual version used. The successful E2E publishes JSON evidence only, not a wheel or
-native binary. Its current profile builds only GraphMol into a Ferrum-owned sealed
-stage and uses RDKit, configure-time Catch2, Better Enums, and header-only Boost;
-InChI, CoordGen, and MAEParser are excluded. Its scope includes ABI 2 kekulization
-semantics and a distinct-byte LGPL relinking proof, but not CDML parity, Qt adoption,
-broader chemistry APIs, coordinate parity, cross-platform support, or a desktop
-release.
+actual version used. The current profile builds a narrow GraphMol/FileParsers closure
+into a Ferrum-owned sealed stage and uses RDKit, configure-time Catch2, Better Enums,
+and header-only Boost; InChI, CoordGen, and MAEParser are excluded. Each artifact
+records an exact official RDKit tag and archive digest, while new builds advance to
+the latest stable release and compare semantics with the previous stable release.
+The successful E2E proves direct-wheel load and distinct-byte LGPL relinking on macOS
+arm64, but not cross-platform support or a finished desktop release.
 
 ## Haworth projection terminology
 

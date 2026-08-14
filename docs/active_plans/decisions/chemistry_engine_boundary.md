@@ -21,9 +21,10 @@ The native layer converts the graph at the ABI boundary and returns a new
   the stable package-relative target, reloads the ABI in a fresh process, and reruns
   the safe Rust semantic operation. The E2E deliberately pairs a `Release` wheel
   adapter with a distinct-byte `RelWithDebInfo` replacement.
-- ABI version 2 uses owned request and response byte buffers. The native caller owns
-  the returned buffer until it releases it through the matching versioned free
-  function.
+- ABI version 4 uses owned request and response byte buffers. The native caller owns
+  each returned buffer until it releases it through the matching versioned free
+  function. FCM1 is the strict molecule response for SMILES, including canonical
+  text, complete atom and bond facts, and atom-order-aligned finite coordinates.
 - The Rust FFI crate loads an explicit library path, validates the adapter ABI before
   invoking an operation, and keeps the library handle and returned-buffer ownership
   local to the native engine.
@@ -33,7 +34,7 @@ The native layer converts the graph at the ABI boundary and returns a new
   semantically-invalid records at the boundary. It reports a structured failure;
   exceptions do not cross the C ABI.
 
-## First operation
+## Current operations
 
 The first native operation is kekulization. Its Ferrum default is stated explicitly:
 
@@ -53,24 +54,57 @@ This is a contract for the current operation, not a promise that every future RD
 entry point shares its defaults. Each new operation states its own defaults and
 validates its own output invariants.
 
+ABI 4 also supplies complete SMILES parsing, deterministic 2D generation, and bounded
+V2000/V3000 and SDF import/export. The
+adapter calls `SmilesToMol`, canonical `MolToSmiles`, and RDKit depiction with:
+
+| Option | Value |
+| --- | --- |
+| `canonOrient` | `true` |
+| `clearConfs` | `true` |
+| `forceRDKit` | `true` |
+| random samples | none |
+| ring templates | disabled |
+
+The adapter advertises only the implemented capability subset: kekulization, SMILES
+molecule parsing, 2D generation, SMARTS export, molblock import/export, and SDF
+import/export. The loader rejects unknown capability bits and checks the required bit
+before every call.
+
 ## Packaging boundary
 
-The native-wheel input manifest is version 2 and seals the specific installed RDKit
+The native-wheel input manifest is version 3 and seals the specific installed RDKit
 and Boost-header trees used to rebuild the adapter. It records the profile, source
 archive facts, required headers, and native-library aliases and digests. A replacement
 adapter build must validate that manifest before it reuses the native input tree.
 
-For the kekulization adapter, the expected packaged macOS closure is exactly:
+For the current ABI-4 chemistry adapter, the expected packaged macOS arm64 closure is
+exactly 15 libraries:
 
 - `libferrum_chem.dylib`
+- `libRDKitAlignment.1.dylib`
+- `libRDKitChemTransforms.1.dylib`
+- `libRDKitDepictor.1.dylib`
+- `libRDKitEigenSolvers.1.dylib`
+- `libRDKitFileParsers.1.dylib`
+- `libRDKitGenericGroups.1.dylib`
 - `libRDKitGraphMol.1.dylib`
+- `libRDKitMolAlign.1.dylib`
+- `libRDKitMolTransforms.1.dylib`
 - `libRDKitRDGeometryLib.1.dylib`
 - `libRDKitDataStructs.1.dylib`
 - `libRDKitRDGeneral.1.dylib`
+- `libRDKitSmilesParse.1.dylib`
+- `libRDKitSubstructMatch.1.dylib`
 
 Compiled Boost libraries, Python RDKit, SWIG, Boost.Python, NumPy, and every path
 under `OTHER_REPOS` are outside this product boundary. Boost headers are a controlled
 build input only; they are not a shipped dynamic dependency.
+
+The source version is rolling rather than a permanent compatibility pin. A release
+build selects the latest official stable RDKit tag, records that exact tag and archive
+SHA-256 for reproducibility, and compares codec semantics with the previous stable
+release. An older tag is not retained merely because a cached build exists.
 
 ## Consequences
 
@@ -79,8 +113,17 @@ surface. Adding a native operation requires an intentional ABI and `ChemEngine`
 design review, a stated default, wire validation, semantic tests, and package-closure
 review. It may not bypass the boundary for convenience.
 
-Coordinate generation is separate work. The recorded `canonOrient` measurement
-selects `true` for a future Ferrum layout operation, but it neither implements that
-operation nor establishes a coordinate tolerance. Its one-time isolated oracle tool
-is [`devel/rdkit_layout_orientation.py`](../../../devel/rdkit_layout_orientation.py),
+The native operation generates coordinates, and M4c now records exact same-platform
+parity plus a ULP-derived tolerance in `../reports/coordinate_parity_v1.md`. M20
+retains future platform expansion. The one-time orientation tool remains
+[`devel/rdkit_layout_orientation.py`](../../../devel/rdkit_layout_orientation.py),
 not a pytest case.
+
+The document insertion writer is narrower than the ABI molecule model. It stores
+elements, finite 2D points, nonzero formal charge, isotope, nonzero explicit hydrogen
+count, and single/double/triple bonds. Aromatic molecules are explicitly kekulized
+before persistence. Chirality, bond stereo and direction, radicals, no-implicit
+policy, atom maps, stereo references, unresolved aromaticity, and quadruple bonds
+are rejected before session mutation until their exact CDML mappings and round trips
+are proven. These are current writer-contract gaps, not claims that CDML itself is
+incapable of representing the concepts.

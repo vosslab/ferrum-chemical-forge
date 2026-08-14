@@ -40,7 +40,7 @@ ShutdownState = ferrum_qt.window_shared.ShutdownState
 
 #============================================
 class WindowSessionSetupMixin:
-	"""One cohesive MainWindow session responsibility."""
+	"""One cohesive legacy-session setup responsibility."""
 
 	def _connect_session_title(
 			self, session: ferrum_qt.models.document_session.DocumentSession,
@@ -92,6 +92,10 @@ class WindowSessionSetupMixin:
 			) = None,
 			) -> ferrum_qt.models.document_session.DocumentSession:
 		"""Build one detached session without changing the live tab graph."""
+		if self._neutral_native_shell:
+			raise RuntimeError(
+				"Legacy sessions require LegacyCompatibilityMainWindow, not MainWindow",
+			)
 		return ferrum_qt.models.document_session.DocumentSession(
 			parent=self,
 			theme_manager=self._theme_manager,
@@ -110,14 +114,24 @@ class WindowSessionSetupMixin:
 			*, index: int | None = None, activate: bool = True,
 			) -> ferrum_qt.models.document_session.DocumentSession:
 		"""Register one viable detached session without disturbing another tab."""
+		if self._neutral_native_shell:
+			raise RuntimeError(
+				"Legacy sessions require LegacyCompatibilityMainWindow, not MainWindow",
+			)
 		if session.is_disposed or session in self._sessions:
 			raise ValueError("Session must be live and unregistered")
 		if session.view in self._sessions_by_view:
 			raise ValueError("Session view is already registered")
 		if index is None:
 			index = self._tab_widget.count()
-		if index < 0 or index > len(self._sessions):
+		if index < 0 or index > self._tab_widget.count():
 			raise IndexError("Session insertion index is out of range")
+		# Native pages share the host but are not legacy-session entries.  The
+		# session sequence therefore has its own dense ordering.
+		session_index = sum(
+			1 for tab_index in range(index)
+			if self._tab_widget.widget(tab_index) in self._sessions_by_view
+		)
 
 		previous_session = self._active_session
 		previous_index = self._tab_widget.currentIndex()
@@ -126,7 +140,7 @@ class WindowSessionSetupMixin:
 		previous_tab_change_blocked = self._tab_change_blocked
 		self._tab_change_blocked = True
 		try:
-			self._sessions.insert(index, session)
+			self._sessions.insert(session_index, session)
 			self._sessions_by_view[session.view] = session
 			self._tab_widget.insertTab(index, session.view, session.title)
 			self._connect_session_title(session)
@@ -174,6 +188,10 @@ class WindowSessionSetupMixin:
 			display_name: str | None = None, origin_path: str | None = None,
 			) -> ferrum_qt.models.document_session.DocumentSession:
 		"""Create, register, and optionally activate one tab session."""
+		if self._neutral_native_shell:
+			raise RuntimeError(
+				"Legacy sessions require LegacyCompatibilityMainWindow, not MainWindow",
+			)
 		session = self._construct_session(
 			display_name=display_name,
 			origin_path=origin_path,
@@ -314,6 +332,7 @@ class WindowSessionSetupMixin:
 			"options.theme"
 		)
 		self._action_about = self._adapter.get_action_by_key("help.about")
+		self._install_explicit_native_actions()
 		# grid toggle is not in menus.yaml (it is a view feature)
 		# create it as a standalone checkable action
 		view_menu = self._adapter.get_menu_component("View")
@@ -357,6 +376,7 @@ class WindowSessionSetupMixin:
 		self._edit_ribbon = widgets["edit_ribbon"]
 		self._edit_ribbon_toolbar = widgets["edit_ribbon_toolbar"]
 		self._property_dock = widgets["property_dock"]
+		self._property_dock_summary_refresh = self._property_dock.update_from_selection
 		self._undo_action = widgets["undo_action"]
 		self._redo_action = widgets["redo_action"]
 	def _setup_status_bar(self) -> None:
@@ -368,10 +388,12 @@ class WindowSessionSetupMixin:
 		self._status_bar.addPermanentWidget(self._zoom_controls)
 	def _connect_signals(self) -> None:
 		"""Wire all signals between components."""
-		self._tab_widget.currentChanged.connect(self._on_tab_changed)
-		self._tab_widget.tabCloseRequested.connect(
-			self._on_tab_close_requested
-		)
+		if not getattr(self, "_host_tab_signals_connected", False):
+			self._tab_widget.currentChanged.connect(self._on_tab_changed)
+			self._tab_widget.tabCloseRequested.connect(
+				self._on_tab_close_requested
+			)
+			self._host_tab_signals_connected = True
 
 		# Global controls resolve the active session at invocation time.
 		self._mode_toolbar.mode_selected.connect(self._on_mode_selected)

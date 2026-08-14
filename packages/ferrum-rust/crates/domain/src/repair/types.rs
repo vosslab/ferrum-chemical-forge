@@ -1,6 +1,6 @@
 //! Immutable repair requests and durable depiction graph validation.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use ferrum_core::{RecordId, RecordKind};
 use ferrum_geometry::{GeometryError, Point2};
@@ -97,20 +97,20 @@ impl DepictionBond {
 pub struct DepictionGraph {
     vertices: BTreeMap<RecordId, Point2>,
     bonds: BTreeMap<RecordId, (RecordId, RecordId)>,
+    vertex_source_order: Vec<RecordId>,
+    bond_source_order: Vec<RecordId>,
 }
 
 impl DepictionGraph {
     /// Create a graph with unique durable identities and validated endpoints.
-    ///
-    /// The initial repair profile supports at most one independent cycle. Fused,
-    /// bridged, and multi-cycle layouts are deliberately rejected before an
-    /// operation can silently choose an arbitrary normalization.
     pub fn new(
         vertices: Vec<DepictionVertex>,
         bonds: Vec<DepictionBond>,
     ) -> Result<Self, RepairError> {
         let mut vertex_map = BTreeMap::new();
+        let mut vertex_source_order = Vec::with_capacity(vertices.len());
         for vertex in vertices {
+            vertex_source_order.push(vertex.atom_id.clone());
             if vertex_map
                 .insert(vertex.atom_id, vertex.coordinate)
                 .is_some()
@@ -123,7 +123,9 @@ impl DepictionGraph {
 
         let mut bond_map = BTreeMap::new();
         let mut endpoint_pairs = BTreeSet::new();
+        let mut bond_source_order = Vec::with_capacity(bonds.len());
         for bond in bonds {
+            bond_source_order.push(bond.bond_id.clone());
             if !vertex_map.contains_key(&bond.start) || !vertex_map.contains_key(&bond.end) {
                 return Err(RepairError::InvalidGraph(
                     "depiction bond endpoints must belong to the graph",
@@ -144,10 +146,11 @@ impl DepictionGraph {
                 ));
             }
         }
-        reject_multiple_cycles(&vertex_map, &bond_map)?;
         Ok(Self {
             vertices: vertex_map,
             bonds: bond_map,
+            vertex_source_order,
+            bond_source_order,
         })
     }
 
@@ -172,6 +175,17 @@ impl DepictionGraph {
     pub(crate) fn edges(&self) -> &BTreeMap<RecordId, (RecordId, RecordId)> {
         &self.bonds
     }
+
+    pub(crate) fn source_atom_order(&self) -> &[RecordId] {
+        &self.vertex_source_order
+    }
+
+    pub(crate) fn source_edges(&self) -> impl Iterator<Item = (&RecordId, &RecordId)> {
+        self.bond_source_order.iter().map(|bond_id| {
+            let (start, end) = &self.bonds[bond_id];
+            (start, end)
+        })
+    }
 }
 
 /// A supported coordinate-only repair operation.
@@ -188,6 +202,23 @@ pub enum RepairKind {
     Straighten {
         /// Preserve a near-grid orientation when M11's policy selects it.
         minimize_rotation: bool,
+    },
+    /// Snap only degree-one endpoints to canonical 30-degree directions.
+    StraightenTerminalBonds,
+    /// Set eligible non-ring bond lengths while preserving source directions.
+    NormalizeBondLengths {
+        /// Positive target length in the graph's drawing units.
+        spacing: f64,
+    },
+    /// Regularize one simple ring and translate its attached acyclic components.
+    NormalizeSingleRing {
+        /// Positive target side length in the graph's drawing units.
+        spacing: f64,
+    },
+    /// Snap movable non-ring outgoing bonds to distinct 60-degree slots.
+    NormalizeBondAngles {
+        /// Positive fallback length used only for coincident outgoing atoms.
+        spacing: f64,
     },
 }
 
@@ -215,6 +246,78 @@ impl RepairRequest {
     #[must_use]
     pub const fn kind(&self) -> RepairKind {
         self.kind
+    }
+}
+
+/// The complete result of one immutable coordinate-repair plan.
+///
+/// Every outcome retains the guarded sparse patch used by existing callers.
+/// Whole-depiction straightening additionally retains every calculated coordinate
+/// in durable-identity order and the exact y-up counter-clockwise rotation that
+/// produced them. Other repair kinds leave both straightening-specific results absent.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RepairOutcome {
+    patch: CoordinatePatch,
+    straightened_coordinates: Option<BTreeMap<RecordId, Point2>>,
+    applied_rotation_radians: Option<f64>,
+}
+
+impl RepairOutcome {
+    pub(crate) fn from_patch(patch: CoordinatePatch) -> Self {
+        Self {
+            patch,
+            straightened_coordinates: None,
+            applied_rotation_radians: None,
+        }
+    }
+
+    pub(crate) fn from_straightening(
+        original: &BTreeMap<RecordId, Point2>,
+        coordinates: BTreeMap<RecordId, Point2>,
+        applied_rotation_radians: f64,
+    ) -> Self {
+        let patch = CoordinatePatch::from_candidates(
+            original,
+            coordinates.iter().map(|(id, point)| (id.clone(), *point)),
+        );
+        Self {
+            patch,
+            straightened_coordinates: Some(coordinates),
+            applied_rotation_radians: Some(applied_rotation_radians),
+        }
+    }
+
+    pub(crate) fn into_patch(self) -> CoordinatePatch {
+        self.patch
+    }
+
+    /// Return the guarded sparse patch retained for compatibility with existing callers.
+    #[must_use]
+    pub const fn patch(&self) -> &CoordinatePatch {
+        &self.patch
+    }
+
+    /// Return complete whole-depiction coordinates in durable-identity order.
+    ///
+    /// Only [`RepairKind::Straighten`] produces this result. The coordinates are
+    /// retained before sparse patch filtering, so a no-rotation result remains
+    /// observable even when [`Self::patch`] is empty.
+    #[must_use]
+    pub fn straightened_coordinates(
+        &self,
+    ) -> Option<impl ExactSizeIterator<Item = (&RecordId, Point2)>> {
+        self.straightened_coordinates
+            .as_ref()
+            .map(|coordinates| coordinates.iter().map(|(id, point)| (id, *point)))
+    }
+
+    /// Return the exact y-up counter-clockwise rotation applied by straightening.
+    ///
+    /// Only [`RepairKind::Straighten`] produces an angle. A successful no-op
+    /// straightening reports `Some(0.0)` rather than absence.
+    #[must_use]
+    pub const fn applied_rotation_radians(&self) -> Option<f64> {
+        self.applied_rotation_radians
     }
 }
 
@@ -341,71 +444,5 @@ fn ordered_pair(first: RecordId, second: RecordId) -> (RecordId, RecordId) {
         (first, second)
     } else {
         (second, first)
-    }
-}
-
-fn reject_multiple_cycles(
-    vertices: &BTreeMap<RecordId, Point2>,
-    bonds: &BTreeMap<RecordId, (RecordId, RecordId)>,
-) -> Result<(), RepairError> {
-    let indices: HashMap<_, _> = vertices
-        .keys()
-        .enumerate()
-        .map(|(index, id)| (id.clone(), index))
-        .collect();
-    let mut components = DisjointSet::new(vertices.len());
-    let mut cycles = 0_usize;
-    for (start, end) in bonds.values() {
-        let start_index = indices[start];
-        let end_index = indices[end];
-        if !components.join(start_index, end_index) {
-            cycles += 1;
-            if cycles > 1 {
-                return Err(RepairError::UnsupportedTopology(
-                    "initial repair profile supports at most one independent cycle",
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-struct DisjointSet {
-    parents: Vec<usize>,
-    ranks: Vec<u8>,
-}
-
-impl DisjointSet {
-    fn new(size: usize) -> Self {
-        Self {
-            parents: (0..size).collect(),
-            ranks: vec![0; size],
-        }
-    }
-
-    fn find(&mut self, index: usize) -> usize {
-        if self.parents[index] != index {
-            let root = self.find(self.parents[index]);
-            self.parents[index] = root;
-        }
-        self.parents[index]
-    }
-
-    /// Return false if this edge closes a cycle.
-    fn join(&mut self, left: usize, right: usize) -> bool {
-        let left_root = self.find(left);
-        let right_root = self.find(right);
-        if left_root == right_root {
-            return false;
-        }
-        match self.ranks[left_root].cmp(&self.ranks[right_root]) {
-            std::cmp::Ordering::Less => self.parents[left_root] = right_root,
-            std::cmp::Ordering::Greater => self.parents[right_root] = left_root,
-            std::cmp::Ordering::Equal => {
-                self.parents[right_root] = left_root;
-                self.ranks[left_root] += 1;
-            }
-        }
-        true
     }
 }

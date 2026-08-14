@@ -16,7 +16,7 @@ From the repository root on macOS arm64, run:
 
 ```bash
 source source_me.sh && PYTHONDONTWRITEBYTECODE=1 \
-  python3 tests/e2e/e2e_native_wheel.py --target aarch64-apple-darwin
+  python3 tests/e2e/e2e_native_wheel.py
 ```
 
 On success, standard output is one JSON object with the initial and replacement

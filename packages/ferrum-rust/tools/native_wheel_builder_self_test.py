@@ -30,6 +30,7 @@ from native_wheel_profile import (
 	FERRUM_RDKIT_PROFILE,
 	MACOS_ARM64_NATIVE_CLOSURE,
 	PinnedSource,
+	RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES,
 	RdkitCapabilityProfile,
 )
 from native_wheel_receipt import (
@@ -117,7 +118,6 @@ def _run_tree_fixtures(api: types.ModuleType) -> None:
 def _minimal_rdkit_options(api: types.ModuleType) -> set[str]:
 	"""Return the production minimal RDKit options for fixture validation."""
 	options = api.minimal_rdkit_options(
-		Path("/install"),
 		Path("/catch2"),
 		Path("/better-enums"),
 		Path("/boost-config"),
@@ -130,26 +130,26 @@ def _run_profile_configuration_fixtures(api: types.ModuleType) -> None:
 	"""Verify the minimal profile retains required constraints and rejects drift."""
 	options = _minimal_rdkit_options(api)
 	required_options = (
-		"-DCMAKE_CXX_STANDARD=20",
-		"-DRDK_INSTALL_INTREE=OFF",
 		"-DRDK_INSTALL_STATIC_LIBS=OFF",
+		"-DRDK_BUILD_PYTHON_WRAPPERS=OFF",
+		"-DRDK_BUILD_CPP_TESTS=OFF",
 		"-DRDK_BUILD_INCHI_SUPPORT=ON",
-		"-DRDK_BUILD_COORDGEN_SUPPORT=ON",
+		"-DRDK_BUILD_COORDGEN_SUPPORT=OFF",
 		"-DRDK_BUILD_MAEPARSER_SUPPORT=OFF",
 		"-DFETCHCONTENT_FULLY_DISCONNECTED=ON",
 		"-DRDK_BUILD_CHEMDRAW_SUPPORT=OFF",
 		"-DRDK_BUILD_PUBCHEMSHAPE_SUPPORT=OFF",
 		"-DRDK_BUILD_DESCRIPTORS3D=OFF",
-		"-DRDK_USE_URF=OFF",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_Python=ON",
+		"-DRDK_BUILD_MOLINTERCHANGE_SUPPORT=OFF",
+		"-DRDK_BUILD_SLN_SUPPORT=OFF",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON",
-		"-DBoost_NO_SYSTEM_PATHS=ON",
 		"-DRDK_USE_BOOST_SERIALIZATION=OFF",
 		"-DRDK_USE_BOOST_IOSTREAMS=OFF",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Catch2=ON",
+		"-DCMAKE_DISABLE_FIND_PACKAGE_TBB=ON",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Inchi=ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_INCHI=ON",
+		"-DINCHI_LIBRARIES=Inchi",
 		"-DCATCH_BUILD_TESTING=OFF",
 		"-DRDK_BUILD_FREETYPE_SUPPORT=OFF",
 	)
@@ -173,6 +173,35 @@ def _run_profile_configuration_fixtures(api: types.ModuleType) -> None:
 		),
 		"host CMake prefix",
 	)
+	with tempfile.TemporaryDirectory() as temporary:
+		build = Path(temporary)
+		resolved = {
+			option.removeprefix("-D").split("=", 1)[0]: option.split("=", 1)[1]
+			for option in FERRUM_RDKIT_PROFILE.cmake_options
+		}
+		resolved.update({
+			"RDK_BUILD_SWIG_WRAPPERS": "OFF",
+			"RDK_BUILD_THREADSAFE_SSS": "ON",
+			"RDK_USE_FLEXBISON": "OFF",
+		})
+		resolved["CMAKE_INSTALL_PREFIX"] = str(build.parent / "rdkit-install")
+		(build / "CMakeCache.txt").write_text(
+			"".join(f"{key}:STRING={value}\n" for key, value in resolved.items()),
+			encoding="utf-8",
+		)
+		api.validate_resolved_rdkit_configuration(build)
+		(build / "CMakeCache.txt").write_text(
+			(build / "CMakeCache.txt").read_text(encoding="utf-8").replace(
+				"RDK_BUILD_SWIG_WRAPPERS:STRING=OFF",
+				"RDK_BUILD_SWIG_WRAPPERS:STRING=ON",
+			),
+			encoding="utf-8",
+		)
+		_reject(
+			api,
+			lambda: api.validate_resolved_rdkit_configuration(build),
+			"resolved SWIG wrapper support",
+		)
 
 
 #============================================
@@ -191,26 +220,24 @@ def _fixture_source(
 def _write_private_native_inputs(private_input: Path) -> RdkitCapabilityProfile:
 	"""Materialize the narrow native-input tree used by manifest fixtures."""
 	rdkit_include = private_input / "rdkit-install" / "include" / "rdkit"
-	(rdkit_include / "GraphMol").mkdir(parents=True)
+	(rdkit_include / "GraphMol" / "Depictor").mkdir(parents=True)
+	(rdkit_include / "GraphMol" / "SmilesParse").mkdir()
 	(rdkit_include / "RDGeneral").mkdir()
 	(private_input / "rdkit-install" / "lib").mkdir()
 	boost_include = private_input / "dependencies" / "boost-headers" / "boost_1_91_0" / "boost"
 	boost_include.mkdir(parents=True)
 	(rdkit_include / "GraphMol" / "MolOps.h").touch()
+	(rdkit_include / "GraphMol" / "Depictor" / "RDDepictor.h").touch()
+	(rdkit_include / "GraphMol" / "SmilesParse" / "SmilesParse.h").touch()
+	(rdkit_include / "GraphMol" / "SmilesParse" / "SmilesWrite.h").touch()
+	(rdkit_include / "GraphMol" / "inchi.h").touch()
 	(rdkit_include / "RDGeneral" / "types.h").touch()
 	(rdkit_include / "GraphMol" / "Transitive.h").write_bytes(b"transitive RDKit header")
 	(boost_include / "config.hpp").touch()
 	(boost_include / "version.hpp").write_bytes(b"transitive Boost header")
 	library_aliases = {
-		"libRDKitGraphMol.1.dylib": "libRDKitGraphMol.2026.03.4.dylib",
-		"libRDKitRDGeneral.1.dylib": "libRDKitRDGeneral.2026.03.4.dylib",
-		"libRDKitRDGeometryLib.1.dylib": "libRDKitRDGeometryLib.2026.03.4.dylib",
-		"libRDKitDataStructs.1.dylib": "libRDKitDataStructs.2026.03.4.dylib",
-		"libRDKitSmilesParse.1.dylib": "libRDKitSmilesParse.2026.03.4.dylib",
-		"libRDKitFileParsers.1.dylib": "libRDKitFileParsers.2026.03.4.dylib",
-		"libRDKitRDInchiLib.1.dylib": "libRDKitRDInchiLib.2026.03.4.dylib",
-		"libRDKitInchi.1.dylib": "libRDKitInchi.2026.03.4.dylib",
-		"libRDKitDepictor.1.dylib": "libRDKitDepictor.2026.03.4.dylib",
+		name: name.replace(".1.dylib", ".2026.03.4.dylib")
+		for name in RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES
 	}
 	for alias_name, target_name in library_aliases.items():
 		target = private_input / "rdkit-install" / "lib" / target_name
@@ -249,14 +276,22 @@ def _run_manifest_rejection_fixtures(
 		raise api.NativeBuildError("adapter input self-test did not retain pinned Boost headers")
 	manifest_path = private_input / "ferrum-native-inputs.json"
 	manifest_record = json.loads(manifest_path.read_text(encoding="utf-8"))
-	if manifest_record["schema"] != "ferrum-native-inputs-v2":
+	if manifest_record["schema"] != "ferrum-native-inputs-v3":
 		raise api.NativeBuildError("manifest self-test did not publish the sealed schema")
 	if len(manifest_record["policy_sha256"]) != 64:
 		raise api.NativeBuildError("manifest self-test did not fingerprint its full policy")
 	library_records = manifest_record["artifacts"]["libraries"]
-	if library_records[0]["alias_path"] != "rdkit-install/lib/libRDKitGraphMol.1.dylib":
+	graphmol_record = next(
+		(
+			record
+			for record in library_records
+			if record["alias_path"] == "rdkit-install/lib/libRDKitGraphMol.1.dylib"
+		),
+		None,
+	)
+	if graphmol_record is None:
 		raise api.NativeBuildError("manifest self-test did not retain GraphMol alias path")
-	if library_records[0]["resolved_target_path"] != (
+	if graphmol_record["resolved_target_path"] != (
 		"rdkit-install/lib/libRDKitGraphMol.2026.03.4.dylib"
 	):
 		raise api.NativeBuildError("manifest self-test did not record GraphMol resolved target")
@@ -511,14 +546,25 @@ def _run_archive_fixtures(api: types.ModuleType, root: Path) -> None:
 def _run_wheel_member_fixtures(api: types.ModuleType) -> None:
 	"""Verify wheel-member validation accepts only Ferrum's native closure."""
 	valid_wheel = [
-		"ferrum_api/__init__.py",
-		"ferrum_api/_native.cpython-312-darwin.so",
+		"ferrum_chem.cpython-312-darwin.so",
+		"ferrum_chem.pyi",
+		"py.typed",
 		*(
-			f"ferrum_api/.libs/{name}"
+			f".dylibs/{name}"
 			for name in sorted(MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names)
 		),
 	]
 	api.validate_wheel_members(valid_wheel)
+	_reject(
+		api,
+		lambda: api.validate_wheel_members([*valid_wheel, "ferrum_chem/__init__.py"]),
+		"nested Ferrum package shim",
+	)
+	_reject(
+		api,
+		lambda: api.validate_wheel_members([*valid_wheel, "unexpected.txt"]),
+		"unexpected wheel payload",
+	)
 	_reject(
 		api,
 		lambda: api.validate_wheel_members([*valid_wheel, "rdkit/Chem/__init__.py"]),
@@ -526,40 +572,42 @@ def _run_wheel_member_fixtures(api: types.ModuleType) -> None:
 	)
 	_reject(
 		api,
-		lambda: api.validate_wheel_members(
-			[*valid_wheel, "ferrum_api/.libs/libboost_python312.dylib"]
-		),
+		lambda: api.validate_wheel_members([*valid_wheel, ".dylibs/libboost_python312.dylib"]),
 		"Boost.Python wheel content",
 	)
 	_reject(
 		api,
-		lambda: api.validate_wheel_members(
-			[*valid_wheel, "ferrum_api/.libs/libunexpected.dylib"]
-		),
+		lambda: api.validate_wheel_members([*valid_wheel, ".dylibs/libunexpected.dylib"]),
 		"extra native closure member",
 	)
 	_reject(
 		api,
-		lambda: api.validate_wheel_members([*valid_wheel, "ferrum_api/helper.so"]),
+		lambda: api.validate_wheel_members([*valid_wheel, "ferrum_chem_helper.so"]),
 		"unexpected native extension",
 	)
 	_reject(
 		api,
-		lambda: api.validate_wheel_members(
-			[*valid_wheel, "ferrum_api/.libs/libRDKitRDGeneral.1.dylib/extra"]
-		),
+		lambda: api.validate_wheel_members([*valid_wheel, ".dylibs/libRDKitRDGeneral.1.dylib/extra"]),
 		"nested allowed-library prefix",
 	)
 
 
 #============================================
-def _run_graphmol_stage_fixture(api: types.ModuleType, root: Path) -> None:
+def _run_smiles_depict_stage_fixture(api: types.ModuleType, root: Path) -> None:
 	"""Verify closure staging preserves headers and every declared dylib alias."""
 	source = root / "source"
 	(source / "Code" / "GraphMol").mkdir(parents=True)
 	(source / "Code" / "RDGeneral").mkdir()
+	(source / "External" / "INCHI-API").mkdir(parents=True)
+	ring_source = (
+		source / "External" / "RingFamilies" / "RingDecomposerLib" / "src"
+		/ "RingDecomposerLib"
+	)
+	ring_source.mkdir(parents=True)
 	(source / "Code" / "GraphMol" / "MolOps.h").write_text("source", encoding="utf-8")
 	(source / "Code" / "RDGeneral" / "types.h").write_text("source", encoding="utf-8")
+	(source / "External" / "INCHI-API" / "inchi.h").write_text("inchi", encoding="utf-8")
+	(ring_source / "RingDecomposerLib.h").write_text("ring", encoding="utf-8")
 	build = root / "rdkit-build"
 	(build / "Code" / "RDGeneral").mkdir(parents=True)
 	(build / "Code" / "RDGeneral" / "RDKitBuildInfo.h").write_text(
@@ -569,11 +617,15 @@ def _run_graphmol_stage_fixture(api: types.ModuleType, root: Path) -> None:
 	lib_dir.mkdir()
 	for name in api.RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES:
 		(lib_dir / name).write_bytes(name.encode("ascii"))
-	stage = api.stage_kekulize_rdkit_inputs(root, source, build)
+	stage = api.stage_rdkit_inputs(root, source, build)
 	if (stage / "include" / "rdkit" / "GraphMol" / "MolOps.h").read_text(encoding="utf-8") != "source":
 		raise api.NativeBuildError("GraphMol stage fixture lost source header")
 	if (stage / "include" / "rdkit" / "RDGeneral" / "RDKitBuildInfo.h").read_text(encoding="utf-8") != "generated":
 		raise api.NativeBuildError("GraphMol stage fixture lost generated header")
+	if (stage / "include" / "rdkit" / "RingDecomposerLib.h").read_text(
+		encoding="utf-8"
+	) != "ring":
+		raise api.NativeBuildError("GraphMol stage fixture lost ring-decomposer header")
 	if {path.name for path in (stage / "lib").iterdir()} != set(
 		api.RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES
 	):
@@ -593,14 +645,14 @@ def _run_graphmol_stage_fixture(api: types.ModuleType, root: Path) -> None:
 			(conflicting_libraries / name).touch()
 		_reject(
 			api,
-			lambda: api.stage_kekulize_rdkit_inputs(
+			lambda: api.stage_rdkit_inputs(
 				conflicting_root, conflicting_source, conflicting_build
 			),
 			"source/generated RDKit header collision",
 		)
 	_reject(
 		api,
-		lambda: api.stage_kekulize_rdkit_inputs(root, source, build),
+		lambda: api.stage_rdkit_inputs(root, source, build),
 		"existing GraphMol stage",
 	)
 
@@ -623,5 +675,5 @@ def run(api: types.ModuleType) -> None:
 		_run_archive_fixtures(api, root)
 		stage_root = Path(temporary) / "output-stage"
 		stage_root.mkdir()
-		_run_graphmol_stage_fixture(api, stage_root)
+		_run_smiles_depict_stage_fixture(api, stage_root)
 	_run_wheel_member_fixtures(api)

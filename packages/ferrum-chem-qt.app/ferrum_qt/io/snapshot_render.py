@@ -15,7 +15,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import oasa.cdml_render
-import ferrum_qt.bridge.oasa_bridge
+import ferrum_qt.bridge.paper_catalog
 import ferrum_qt.canvas.document_projection
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.io.cdml_document_io
@@ -214,7 +214,7 @@ def _paper_rect(attributes: dict[str, str]) -> PySide6.QtCore.QRectF:
 	"""Map snapshot paper metadata to a page rectangle without a live ChemScene."""
 	sizes = {
 		name.lower(): dimensions
-		for name, dimensions in ferrum_qt.bridge.oasa_bridge.paper_catalog().items()
+		for name, dimensions in ferrum_qt.bridge.paper_catalog.paper_catalog_v1().items()
 		if dimensions is not None
 	}
 	paper_type = attributes.get("type", "").lower()

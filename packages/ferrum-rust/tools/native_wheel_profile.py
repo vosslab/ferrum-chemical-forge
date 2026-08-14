@@ -4,10 +4,15 @@ from __future__ import annotations
 
 # Standard library
 from dataclasses import dataclass
+from pathlib import Path
 
 
-RDKIT_TAG = "Release_2026_03_4"
-RDKIT_SHA256 = "a8bff65bdf13dd47a01f707f7759dd59124a8742f8c50952c2ceae9523b4fd2b"
+# This exact tag and archive digest make one wheel build reproducible. They are
+# not a permanent compatibility ceiling: new release builds move to RDKit's
+# current stable release and retain the previous stable release as a semantic
+# compatibility check.
+RDKIT_TAG = "Release_2026_03_5"
+RDKIT_SHA256 = "336b3ffd9b691e4bfcdf97d361c01e553de34d2ca85c64a941473e9e2f8b707e"
 RDKIT_URL = f"https://github.com/rdkit/rdkit/archive/refs/tags/{RDKIT_TAG}.tar.gz"
 CATCH2_TAG = "v3.4.0"
 CATCH2_SHA256 = "122928b814b75717316c71af69bd2b43387643ba076a6ec16e7882bfb2dfacbb"
@@ -20,11 +25,10 @@ BOOST_SHA256 = "5734305f40a76c30f951c9abd409a45a2a19fb546efe4162119250bbe4d3a463
 BOOST_URL = f"https://archives.boost.io/release/{BOOST_VERSION}/source/boost_1_91_0.tar.gz"
 INCHI_VERSION = "1.07.3"
 INCHI_SHA256 = "b42d828b5d645bd60bc43df7e0516215808d92e5a46c28e12b1f4f75dfaae333"
-# This archive location is deliberately part of the sealed input declaration.
-INCHI_URL = "https://github.com/IUPAC-InChI/InChI/releases/download/v1.07.3/INCHI-1-SRC.zip"
-COORDGEN_VERSION = "3.0.2"
-COORDGEN_SHA256 = "f67697434f7fec03bca150a6d84ea0e8409f6ec49d5aab43badc5833098ff4e3"
-COORDGEN_URL = "https://github.com/schrodinger/coordgenlibs/archive/refs/tags/v3.0.2.tar.gz"
+INCHI_URL = (
+	"https://github.com/IUPAC-InChI/InChI/releases/download/"
+	f"v{INCHI_VERSION}/INCHI-1-SRC.zip"
+)
 TARGET = "aarch64-apple-darwin"
 MACHINE_RESULT_SCHEMA = "ferrum-native-wheel-artifact-v1"
 
@@ -34,7 +38,7 @@ MACHINE_RESULT_SCHEMA = "ferrum-native-wheel-artifact-v1"
 
 @dataclass(frozen=True)
 class PinnedSource:
-	"""One immutable upstream input materialized under the output root."""
+	"""One immutable upstream input for a single reproducible artifact build."""
 
 	name: str
 	version: str
@@ -66,7 +70,7 @@ class MacosArm64NativeClosure:
 # Immutable profile declarations
 
 FERRUM_RDKIT_PROFILE = RdkitCapabilityProfile(
-	name="ferrum-rdkit-codecs-v1",
+	name="ferrum-rdkit-smiles-depict-fileparsers-inchi-fcm1-v2",
 	rdkit=PinnedSource(
 		"rdkit", RDKIT_TAG, RDKIT_URL, RDKIT_SHA256, f"rdkit-{RDKIT_TAG}.tar.gz",
 	),
@@ -86,80 +90,143 @@ FERRUM_RDKIT_PROFILE = RdkitCapabilityProfile(
 			"boost-headers", BOOST_VERSION, BOOST_URL, BOOST_SHA256,
 			"boost-headers.tar.gz",
 		),
-		PinnedSource("inchi", INCHI_VERSION, INCHI_URL, INCHI_SHA256, "INCHI-1-SRC.zip"),
+		# RDKit's InChI wrapper otherwise downloads this archive during CMake.
+		# Materialize the exact upstream release before configuration instead.
 		PinnedSource(
-			"coordgen", COORDGEN_VERSION, COORDGEN_URL, COORDGEN_SHA256,
-			"coordgenlibs-3.0.2.tar.gz",
+			"inchi-source", INCHI_VERSION, INCHI_URL, INCHI_SHA256,
+			"inchi-1.07.3-source.zip",
 		),
 	),
 	cmake_options=(
-		"-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_CXX_STANDARD=20",
-		"-DCMAKE_CXX_STANDARD_REQUIRED=ON",
-		"-DBUILD_SHARED_LIBS=ON", "-DRDK_INSTALL_INTREE=OFF", "-DRDK_INSTALL_STATIC_LIBS=OFF",
-		"-DRDK_BUILD_PYTHON_WRAPPERS=OFF", "-DRDK_BUILD_SWIG_WRAPPERS=OFF",
-		"-DRDK_BUILD_SWIG_JAVA_WRAPPER=OFF",
-		"-DRDK_BUILD_SWIG_CSHARP_WRAPPER=OFF",
-		"-DRDK_BUILD_DOTNET_CSHARP_TESTS=OFF",
+		# Build only the shared C++ libraries consumed by Ferrum.
+		"-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=ON",
+		"-DRDK_INSTALL_STATIC_LIBS=OFF", "-DRDK_BUILD_PYTHON_WRAPPERS=OFF",
 		"-DRDK_BUILD_CPP_TESTS=OFF",
-		"-DRDK_INSTALL_PYTHON_TESTS=OFF", "-DRDK_USE_FLEXBISON=OFF",
-		"-DRDK_BUILD_THREADSAFE_SSS=ON", "-DRDK_BUILD_FREETYPE_SUPPORT=OFF",
-		"-DRDK_BUILD_QT_SUPPORT=OFF", "-DRDK_BUILD_CAIRO_SUPPORT=OFF",
-		"-DRDK_BUILD_INCHI_SUPPORT=ON", "-DRDK_BUILD_COORDGEN_SUPPORT=ON",
-		"-DCOORDGEN_FORCE_BUILD=ON",
+		# Preserve the one required optional capability and disable unused drawing.
+		"-DRDK_BUILD_FREETYPE_SUPPORT=OFF",
+		"-DRDK_BUILD_INCHI_SUPPORT=ON", "-DRDK_BUILD_COORDGEN_SUPPORT=OFF",
 		"-DRDK_BUILD_MAEPARSER_SUPPORT=OFF",
+		# These upstream-default-on features change FileParsers or its closure.
 		"-DRDK_USE_BOOST_SERIALIZATION=OFF",
 		"-DRDK_USE_BOOST_IOSTREAMS=OFF", "-DRDK_BUILD_CHEMDRAW_SUPPORT=OFF",
 		"-DRDK_BUILD_PUBCHEMSHAPE_SUPPORT=OFF",
 		"-DRDK_BUILD_DESCRIPTORS3D=OFF",
-		"-DRDK_USE_URF=OFF", "-DRDK_BUILD_MOLINTERCHANGE_SUPPORT=OFF",
-		"-DRDK_BUILD_AVALON_SUPPORT=OFF", "-DRDK_BUILD_FREESASA_SUPPORT=OFF",
-		"-DRDK_BUILD_YAEHMOP_SUPPORT=OFF", "-DRDK_BUILD_XYZ2MOL_SUPPORT=OFF",
-		"-DRDK_BUILD_STRUCTCHECKER_SUPPORT=OFF", "-DRDK_BUILD_CONTRIB=OFF",
-		"-DRDK_BUILD_PGSQL=OFF", "-DRDK_BUILD_MINIMAL_LIB=OFF", "-DRDK_BUILD_CFFI_LIB=OFF",
-		"-DRDK_BUILD_FUZZ_TARGETS=OFF",
-		"-DRDK_BUILD_COMPRESSED_SUPPLIERS=OFF",
-		"-DRDK_BUILD_SLN_SUPPORT=OFF", "-DRDK_USE_BOOST_STACKTRACE=OFF",
-		"-DRDK_INSTALL_COMIC_FONTS=OFF",
+		"-DRDK_BUILD_MOLINTERCHANGE_SUPPORT=OFF", "-DRDK_BUILD_SLN_SUPPORT=OFF",
+		# Resolve only the pinned sources supplied by the builder.
 		"-DFETCHCONTENT_FULLY_DISCONNECTED=ON",
-		"-DFETCHCONTENT_UPDATES_DISCONNECTED=ON", "-DCMAKE_DISABLE_FIND_PACKAGE_Python=ON",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_Catch2=ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_Inchi=ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_INCHI=ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_maeparser=ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_coordgen=ON",
 		"-DCMAKE_DISABLE_FIND_PACKAGE_TBB=ON",
+		# The pinned source tree supplies the InChI target. Do not let RDKit's
+		# FindInchi module retain a Homebrew/system library in configured state.
+		"-DCMAKE_DISABLE_FIND_PACKAGE_Inchi=ON", "-DINCHI_LIBRARIES=Inchi",
 		"-DCMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE",
 		"-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=FALSE",
-		"-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON",
-		"-DBoost_NO_SYSTEM_PATHS=ON",
-		"-DBoost_USE_STATIC_LIBS=ON",
 	),
 	forbidden_wheel_fragments=("rdkit", "rdbase", "boost_python", "swig"),
 	forbidden_native_fragments=("boost", "python", "swig", "rdbase"),
 )
 
 
+def minimal_rdkit_options(
+	catch2_source: Path,
+	better_enums_source: Path,
+	boost_config: Path,
+) -> list[str]:
+	"""Return the normalized CMake interface for the immutable profile."""
+	options = list(FERRUM_RDKIT_PROFILE.cmake_options)
+	options.extend((
+		f"-DBoost_DIR={boost_config}",
+		f"-DFETCHCONTENT_SOURCE_DIR_CATCH2={catch2_source}",
+		f"-DFETCHCONTENT_SOURCE_DIR_BETTER_ENUMS={better_enums_source}",
+		"-DCATCH_BUILD_TESTING=OFF",
+	))
+	validate_rdkit_configuration(options)
+	return options
+
+
+def validate_rdkit_configuration(options: list[str]) -> None:
+	"""Reject a command that weakens the profile's dependency policy."""
+	values = {option.split("=", 1)[0]: option.split("=", 1)[1] for option in options if "=" in option}
+	required = {
+		"-DRDK_BUILD_PYTHON_WRAPPERS": "OFF",
+		"-DRDK_BUILD_INCHI_SUPPORT": "ON", "-DRDK_BUILD_COORDGEN_SUPPORT": "OFF",
+		"-DRDK_BUILD_MAEPARSER_SUPPORT": "OFF", "-DRDK_USE_BOOST_SERIALIZATION": "OFF",
+		"-DRDK_USE_BOOST_IOSTREAMS": "OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Python3": "ON",
+		"-DCMAKE_DISABLE_FIND_PACKAGE_Eigen3": "ON",
+		"-DCMAKE_DISABLE_FIND_PACKAGE_Catch2": "ON",
+		"-DCMAKE_DISABLE_FIND_PACKAGE_TBB": "ON",
+		"-DCMAKE_DISABLE_FIND_PACKAGE_Inchi": "ON", "-DINCHI_LIBRARIES": "Inchi",
+		"-DRDK_BUILD_FREETYPE_SUPPORT": "OFF",
+		"-DCATCH_BUILD_TESTING": "OFF", "-DFETCHCONTENT_FULLY_DISCONNECTED": "ON",
+		"-DCMAKE_FIND_USE_PACKAGE_REGISTRY": "FALSE",
+		"-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY": "FALSE",
+	}
+	for option, expected in required.items():
+		if values.get(option) != expected:
+			raise ValueError(f"Ferrum RDKit profile requires {option}={expected}")
+	for forbidden in (
+		"-DINCHI_INCLUDE_DIR", "-DINCHI_LIBRARY", "-DMAEPARSER_DIR", "-DCOORDGEN_DIR",
+		"-DMAEPARSER_FORCE_BUILD",
+	):
+		if forbidden in values:
+			raise ValueError(
+				f"Ferrum ABI-4 profile must not configure undeclared chemistry input: {forbidden}"
+			)
+	for option in options:
+		if "/opt/homebrew" in option or "OTHER_REPOS" in option:
+			raise ValueError(
+				f"Ferrum RDKit profile forbids host/reference path in CMake option: {option}"
+			)
+
+
+def validate_resolved_rdkit_configuration(build: Path) -> None:
+	"""Verify CMake honored the profile and relied-on pinned-source defaults."""
+	cache = build / "CMakeCache.txt"
+	if not cache.is_file():
+		raise ValueError(f"RDKit configure did not produce {cache}")
+	values = {
+		line.partition("=")[0].partition(":")[0]: line.partition("=")[2]
+		for line in cache.read_text(encoding="utf-8").splitlines()
+		if "=" in line and not line.startswith(("//", "#"))
+	}
+	expected = {
+		option.removeprefix("-D").split("=", 1)[0]: option.split("=", 1)[1]
+		for option in FERRUM_RDKIT_PROFILE.cmake_options
+	}
+	expected.update({
+		"RDK_BUILD_SWIG_WRAPPERS": "OFF",
+		"RDK_BUILD_THREADSAFE_SSS": "ON",
+		"RDK_USE_FLEXBISON": "OFF",
+	})
+	expected["CMAKE_INSTALL_PREFIX"] = str(build.parent / "rdkit-install")
+	for key, required in expected.items():
+		if values.get(key) != required:
+			raise ValueError(
+				f"resolved RDKit configuration requires {key}={required}, got {values.get(key)!r}"
+			)
+
+
 MACOS_ARM64_NATIVE_CLOSURE = MacosArm64NativeClosure(
 	allowed_non_system_names=frozenset({
 		"libferrum_chem.dylib",
 		"libRDKitAlignment.1.dylib",
-		"libRDKitChemTransforms.1.dylib",
 		"libRDKitGraphMol.1.dylib",
 		"libRDKitRDGeometryLib.1.dylib",
 		"libRDKitDataStructs.1.dylib",
 		"libRDKitRDGeneral.1.dylib",
 		"libRDKitSmilesParse.1.dylib",
+		"libRDKitDepictor.1.dylib",
+		"libRDKitChemTransforms.1.dylib",
 		"libRDKitFileParsers.1.dylib",
 		"libRDKitRDInchiLib.1.dylib",
 		"libRDKitInchi.1.dylib",
-		"libRDKitDepictor.1.dylib",
-		"libRDKitcoordgen.1.dylib",
 		"libRDKitEigenSolvers.1.dylib",
 		"libRDKitGenericGroups.1.dylib",
 		"libRDKitMolAlign.1.dylib",
 		"libRDKitMolTransforms.1.dylib",
+		"libRDKitRingDecomposerLib.1.dylib",
 		"libRDKitSubstructMatch.1.dylib",
 	}),
 )

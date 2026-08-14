@@ -203,12 +203,6 @@ def encode_authored_ftext_runs(
 
 
 #============================================
-def paper_catalog() -> dict[str, list[float] | None]:
-	"""Return OASA's plain CDML paper catalog for Qt display adapters."""
-	return oasa.cdml_document.paper_catalog()
-
-
-#============================================
 def oasa_mol_to_qt_mol(
 		mol: oasa.molecule_lib.Molecule,
 		bond_length_pt: float | None = DEFAULT_BOND_LENGTH_PT,

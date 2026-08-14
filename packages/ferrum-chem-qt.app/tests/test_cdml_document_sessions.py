@@ -12,6 +12,8 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 import ferrum_qt.canvas.graphics_retirement
 
 
@@ -127,7 +129,7 @@ def test_graphics_rich_session_close_uses_the_reaper_protocol(
 	session.document.mark_clean()
 	main_window._on_new()
 	assert main_window._remove_session(session)
-	assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+	assert ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(qapp, main_window)
 
 	assert not main_window._pending_session_deletions
 	assert not any(
@@ -171,5 +173,5 @@ def test_failed_detached_graphics_retirement_stays_with_the_session_reaper(
 	assert undo_item in retained.roots and retained.diagnostics
 
 	monkeypatch.undo()
-	assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+	assert ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(qapp, main_window)
 	assert not shiboken6.isValid(undo_item)

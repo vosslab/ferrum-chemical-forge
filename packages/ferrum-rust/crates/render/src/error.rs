@@ -93,4 +93,7 @@ pub enum RenderError {
     /// Serializing a valid plan failed unexpectedly.
     #[error("could not serialize render plan: {0}")]
     Serialization(String),
+    /// Allocating a caller-owned validated render structure failed.
+    #[error("could not allocate render structure")]
+    ResourceExhausted,
 }

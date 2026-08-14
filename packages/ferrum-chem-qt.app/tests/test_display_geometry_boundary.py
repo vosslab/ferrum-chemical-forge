@@ -8,6 +8,7 @@ import pathlib
 # PIP3 modules
 import PySide6.QtWidgets
 import pytest
+import ferrum_chem
 
 # local repo modules
 import ferrum_qt.bridge.display_geometry
@@ -45,7 +46,7 @@ def test_scalar_geometry_bridge_returns_immutable_finite_lattice_values() -> Non
 #============================================
 def test_scalar_geometry_bridge_rejects_nonfinite_snap_input() -> None:
 	"""Invalid interaction coordinates receive the stable typed boundary error."""
-	with pytest.raises(ValueError, match="must be finite"):
+	with pytest.raises(ferrum_chem.GeometryError, match="must be finite"):
 		ferrum_qt.bridge.display_geometry.snap_to_hex_grid(math.inf, 0.0, 40.0)
 
 
@@ -90,7 +91,7 @@ def test_scalar_geometry_bridge_rejects_non_numeric_coordinate_forms(
 		invalid_value: object,
 		) -> None:
 	"""The boundary rejects values that cannot describe a CDML coordinate."""
-	with pytest.raises(ValueError):
+	with pytest.raises(ferrum_chem.GeometryError):
 		ferrum_qt.bridge.display_geometry.cm_to_points(invalid_value)
 
 
@@ -125,6 +126,19 @@ def test_periodic_table_widget_projects_bridge_color(
 
 
 #============================================
+def test_periodic_table_symbols_are_exactly_the_ferrum_picker_catalog() -> None:
+	"""The Qt popup exposes every and only backend-supported picker symbol."""
+	widget_symbols = tuple(entry[0] for entry in ferrum_qt.widgets.periodic_table.ELEMENTS)
+	backend_entries = ferrum_chem.periodic_display_entries_v1()
+
+	assert widget_symbols == tuple(entry.symbol for entry in backend_entries)
+	assert all(
+		entry.color == ferrum_qt.bridge.display_geometry.element_category_color(entry.symbol)
+		for entry in backend_entries
+	)
+
+
+#============================================
 def test_display_geometry_consumers_have_no_direct_oasa_imports() -> None:
 	"""Qt consumers receive OASA-derived display facts only through their bridge."""
 	violations = []
@@ -141,3 +155,19 @@ def test_display_geometry_consumers_have_no_direct_oasa_imports() -> None:
 					violations.append(f"{relative_path}:{node.lineno}:{node.module}")
 
 	assert not violations, "direct OASA imports in Qt display consumers: " + ", ".join(violations)
+
+
+#============================================
+def test_display_geometry_has_no_oasa_color_catalog_residual() -> None:
+	"""The color bridge is now a direct typed Ferrum boundary."""
+	path = _QT_PACKAGE_ROOT / "bridge" / "display_geometry.py"
+	module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+	imports = [
+		alias.name
+		for node in ast.walk(module)
+		if isinstance(node, ast.Import)
+		for alias in node.names
+		if alias.name == "oasa" or alias.name.startswith("oasa.")
+	]
+
+	assert imports == []

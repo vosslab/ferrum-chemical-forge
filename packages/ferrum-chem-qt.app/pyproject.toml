@@ -7,7 +7,7 @@ name = "ferrum-qt"
 version = "26.08"
 description = "Ferrum-Qt - 2D molecular structure editor"
 readme = {text = "Ferrum-Qt is a PySide6 2D molecular structure editor.", content-type = "text/markdown"}
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{name = "Neil Voss"}]
@@ -15,6 +15,7 @@ dependencies = [
     "PySide6>=6.7",
     "shiboken6>=6.7",
     "pyyaml",
+    "ferrum-chem>=26.8",
     # Temporary migration dependency; remove at M22 with its Python RDKit dependency.
     "oasa>=26.08",
 ]

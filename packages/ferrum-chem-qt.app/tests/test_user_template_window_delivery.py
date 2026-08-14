@@ -10,6 +10,9 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.legacy.compatibility_lifecycle
+import ferrum_qt.legacy.compatibility_main_window
+import ferrum_qt.qt_lifecycle
 
 
 _TEMPLATE_CDML = (
@@ -52,9 +55,9 @@ def _retire_window(
 		) -> None:
 	"""Retire a test window through the product's controlled Qt lifecycle."""
 	window.close()
-	if not ferrum_qt.main_window.drain_pending_session_deletions(qapp, window):
+	if not ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(qapp, window):
 		raise RuntimeError("MainWindow session retirement did not drain")
-	if not ferrum_qt.main_window.delete_qobject_and_wait(qapp, window):
+	if not ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, window):
 		raise RuntimeError("MainWindow QObject deletion was not delivered")
 
 
@@ -77,7 +80,7 @@ def test_configured_catalog_reaches_initial_and_later_open_sessions(
 	_write_cdml(first_path, _TEMPLATE_CDML)
 	_write_cdml(later_path, _TEMPLATE_CDML)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "question", _discard_unsaved_changes)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		entry = window.user_template_catalog.entries[0]
 		_open_session(window, first_path)
@@ -105,7 +108,7 @@ def test_refresh_replaces_live_catalogs_and_active_template_ribbon(
 	_write_cdml(first_path, _TEMPLATE_CDML)
 	_write_cdml(later_path, _TEMPLATE_CDML)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "question", _discard_unsaved_changes)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		_open_session(window, first_path)
 		active = _open_session(window, later_path)
@@ -149,7 +152,7 @@ def test_refresh_action_reports_every_skip_and_keeps_valid_neighbor(
 
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "information", record_information)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "question", _discard_unsaved_changes)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		snapshot = window.refresh_user_templates()
 		entry = snapshot.entries[0]
@@ -167,7 +170,7 @@ def test_embedded_window_without_directory_disables_template_file_actions(
 		qapp: PySide6.QtWidgets.QApplication, theme_manager: object,
 		) -> None:
 	"""An embedded host can intentionally provide no template filesystem capability."""
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=None)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=None)
 	try:
 		assert not window.can_save_as_template() and not window.can_refresh_user_templates()
 	finally:
@@ -184,7 +187,7 @@ def test_ineligible_save_as_template_creates_no_directory(
 	path = tmp_path / "ineligible.cdml"
 	_write_cdml(path, _INELIGIBLE_CDML)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", lambda *_args: None)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		_open_session(window, path)
 		assert not window.save_as_template()
@@ -212,7 +215,7 @@ def test_save_as_template_accepts_only_direct_lowercase_catalog_children(
 		lambda *_args: (str(target), ""),
 	)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", lambda *_args: None)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		_open_session(window, path)
 		assert not window.save_as_template()
@@ -238,7 +241,7 @@ def test_save_as_template_publishes_exact_snapshot_without_session_mutation(
 		lambda *_args: (str(target), ""),
 	)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "question", _discard_unsaved_changes)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		session = _open_session(window, path)
 		before = session.backend_snapshot
@@ -276,7 +279,7 @@ def test_save_as_template_fences_tab_activation_during_native_dialog(
 
 	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_target)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", lambda *_args: None)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		_open_session(window, first_path)
 		assert not window.save_as_template() and not target.exists()
@@ -306,7 +309,7 @@ def test_save_as_template_fences_origin_snapshot_change_during_native_dialog(
 	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_target)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", lambda *_args: None)
 	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "question", _discard_unsaved_changes)
-	window = ferrum_qt.main_window.MainWindow(theme_manager, user_template_directory=directory)
+	window = ferrum_qt.legacy.compatibility_main_window.LegacyCompatibilityMainWindow(theme_manager, user_template_directory=directory)
 	try:
 		origin = _open_session(window, path)
 		saved = window.save_as_template()

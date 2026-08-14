@@ -1,0 +1,4 @@
+# Keep the standalone PyO3 workspace and the main workspace on one local cache.
+# Sealed wheel builds set CARGO_TARGET_DIR explicitly and remain isolated.
+[build]
+target-dir = "target"

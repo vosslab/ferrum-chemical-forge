@@ -1,6 +1,24 @@
 use thiserror::Error;
 
-use crate::{Coordinates, MolGraph};
+use crate::{Coordinates, MolGraph, SdfRecord, SmilesMolecule};
+
+/// Explicit molfile syntax selected for one export operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MolblockVersion {
+    /// MDL V2000 syntax with its inherent fixed-width limits and precision.
+    V2000,
+    /// MDL V3000 syntax.
+    V3000,
+}
+
+/// Closed InChI serialization profile exposed by Ferrum's engine boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InchiMode {
+    /// Standard InChI with the `InChI=1S/` prefix.
+    Standard,
+    /// Non-standard fixed-hydrogen InChI with the `InChI=1/` prefix.
+    FixedHydrogen,
+}
 
 /// Options that define one kekulization request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,11 +82,75 @@ impl Default for KekulizeOptions {
 /// Implementations may use a native toolkit, a WASM implementation, or another
 /// engine. They must never expose that implementation's graph or handle types.
 pub trait ChemEngine {
+    /// Parse SMILES into a complete owned graph with atom-aligned 2D coordinates.
+    fn smiles_to_molecule(&self, smiles: &str) -> Result<SmilesMolecule, ChemistryError>;
+
     /// Generate an owned, atom-index-aligned 2D depiction.
     ///
     /// The reference request explicitly selects RDKit canonical orientation and
     /// never imports pre-existing graph coordinates into the depiction engine.
     fn generate_2d_coordinates(&self, molecule: &MolGraph) -> Result<Coordinates, ChemistryError>;
+
+    /// Export one complete owned graph as canonical SMARTS for this engine build.
+    fn molecule_to_smarts(&self, _molecule: &MolGraph) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_smarts",
+        })
+    }
+
+    /// Export one coordinate-bearing graph as an explicit molblock version.
+    fn molecule_to_molblock(
+        &self,
+        _molecule: &MolGraph,
+        _version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_molblock",
+        })
+    }
+
+    /// Import one bounded V2000 or V3000 molblock into a complete owned molecule.
+    fn molblock_to_molecule(&self, _molblock: &str) -> Result<SmilesMolecule, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molblock_to_molecule",
+        })
+    }
+
+    /// Import one standard or non-standard InChI into an owned 2D molecule.
+    fn inchi_to_molecule(&self, _inchi: &str) -> Result<SmilesMolecule, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "inchi_to_molecule",
+        })
+    }
+
+    /// Export one complete graph using a closed InChI mode.
+    fn molecule_to_inchi(
+        &self,
+        _molecule: &MolGraph,
+        _mode: InchiMode,
+    ) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_inchi",
+        })
+    }
+
+    /// Derive the official InChIKey for one validated InChI line.
+    fn inchi_to_inchi_key(&self, _inchi: &str) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "inchi_to_inchi_key",
+        })
+    }
+
+    /// Export ordered coordinate-bearing records through RDKit's SD writer.
+    fn records_to_sdf(
+        &self,
+        _records: &[SdfRecord],
+        _version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "records_to_sdf",
+        })
+    }
 
     /// Return a new graph with Kekule orders assigned under `options`.
     fn kekulize(
@@ -83,9 +165,69 @@ pub trait ChemEngine {
 pub struct UnavailableChemEngine;
 
 impl ChemEngine for UnavailableChemEngine {
+    fn smiles_to_molecule(&self, _smiles: &str) -> Result<SmilesMolecule, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "smiles_to_molecule",
+        })
+    }
+
     fn generate_2d_coordinates(&self, _molecule: &MolGraph) -> Result<Coordinates, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "generate_2d_coordinates",
+        })
+    }
+
+    fn molecule_to_smarts(&self, _molecule: &MolGraph) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_smarts",
+        })
+    }
+
+    fn molecule_to_molblock(
+        &self,
+        _molecule: &MolGraph,
+        _version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_molblock",
+        })
+    }
+
+    fn molblock_to_molecule(&self, _molblock: &str) -> Result<SmilesMolecule, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molblock_to_molecule",
+        })
+    }
+
+    fn inchi_to_molecule(&self, _inchi: &str) -> Result<SmilesMolecule, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "inchi_to_molecule",
+        })
+    }
+
+    fn molecule_to_inchi(
+        &self,
+        _molecule: &MolGraph,
+        _mode: InchiMode,
+    ) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "molecule_to_inchi",
+        })
+    }
+
+    fn inchi_to_inchi_key(&self, _inchi: &str) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "inchi_to_inchi_key",
+        })
+    }
+
+    fn records_to_sdf(
+        &self,
+        _records: &[SdfRecord],
+        _version: MolblockVersion,
+    ) -> Result<String, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "records_to_sdf",
         })
     }
 
@@ -121,9 +263,35 @@ pub enum ChemistryError {
         /// Engine-independent explanation suitable for users and logs.
         reason: String,
     },
-    /// SMILES text violates the ABI-3 input contract before a native call.
+    /// A supported chemistry codec could not serialize the supplied graph.
+    #[error("{codec} export failed: {reason}")]
+    CodecFailed {
+        /// Stable codec name.
+        codec: &'static str,
+        /// Engine-independent explanation suitable for users and logs.
+        reason: String,
+    },
+    /// SMILES text violates the ABI-4 input contract before a native call.
     #[error("SMILES input is invalid: {reason}")]
     InvalidSmilesInput {
+        /// Stable description of the rejected input invariant.
+        reason: String,
+    },
+    /// SDF text violates the ABI-4 input contract before a native call.
+    #[error("SDF input is invalid: {reason}")]
+    InvalidSdfInput {
+        /// Stable description of the rejected input invariant.
+        reason: String,
+    },
+    /// Molblock text violates the ABI-4 input contract before a native call.
+    #[error("molblock input is invalid: {reason}")]
+    InvalidMolblockInput {
+        /// Stable description of the rejected input invariant.
+        reason: String,
+    },
+    /// InChI text violates the ABI-4 input contract before a native call.
+    #[error("InChI input is invalid: {reason}")]
+    InvalidInchiInput {
         /// Stable description of the rejected input invariant.
         reason: String,
     },

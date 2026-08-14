@@ -17,6 +17,7 @@ import PySide6.QtWidgets
 import ferrum_qt.themes.theme_manager
 import ferrum_qt.main_window
 import ferrum_qt.io.clipboard_mime
+import ferrum_qt.qt_lifecycle
 import ferrum_qt.versioning
 
 # application metadata
@@ -163,10 +164,8 @@ def _finalize_event_loop_exit(
 		return exit_code
 	if not window.prepare_application_shutdown():
 		return None
-	if not ferrum_qt.main_window.drain_pending_session_deletions(app, window):
-		return 1
 	_clear_application_clipboard(app)
-	if not ferrum_qt.main_window.delete_qobject_and_wait(app, window):
+	if not ferrum_qt.qt_lifecycle.delete_qobject_and_wait(app, window):
 		return 1
 	return exit_code
 
@@ -302,9 +301,7 @@ def main(
 	theme_mgr.restore_theme()
 
 	# create the main window
-	window = ferrum_qt.main_window.MainWindow(
-		theme_mgr, user_template_directory=default_user_template_directory(),
-	)
+	window = ferrum_qt.main_window.MainWindow(theme_mgr)
 	if not app_icon.isNull():
 		window.setWindowIcon(app_icon)
 	window.show()

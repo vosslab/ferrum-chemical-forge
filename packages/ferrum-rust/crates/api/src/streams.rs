@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 
@@ -25,6 +25,45 @@ pub(crate) fn read_input(path: &Path, stdin: &mut dyn Read) -> Result<(String, S
                 source,
             })
     }
+}
+
+pub(crate) fn read_input_bounded(
+    path: &Path,
+    stdin: &mut dyn Read,
+    maximum_bytes: usize,
+) -> Result<(String, String), CliError> {
+    let label = stream_label(path, "standard input");
+    let mut file;
+    let reader: &mut dyn Read = if is_standard_stream(path) {
+        stdin
+    } else {
+        file = File::open(path).map_err(|source| CliError::Read {
+            input: label.clone(),
+            source,
+        })?;
+        &mut file
+    };
+    let take_limit = u64::try_from(maximum_bytes)
+        .expect("usize fits u64 on Ferrum targets")
+        .saturating_add(1);
+    let mut source = String::new();
+    reader
+        .take(take_limit)
+        .read_to_string(&mut source)
+        .map_err(|source| CliError::Read {
+            input: label.clone(),
+            source,
+        })?;
+    if source.len() > maximum_bytes {
+        return Err(CliError::Read {
+            input: label,
+            source: std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("input exceeds the {maximum_bytes}-byte operation limit"),
+            ),
+        });
+    }
+    Ok((source, label))
 }
 
 pub(crate) fn write_report(contents: &[u8], stdout: &mut dyn Write) -> Result<(), CliError> {
@@ -76,3 +115,7 @@ fn stream_label(path: &Path, standard_stream: &str) -> String {
         path.display().to_string()
     }
 }
+
+#[cfg(test)]
+#[path = "streams_tests.rs"]
+mod tests;

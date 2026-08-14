@@ -4,7 +4,11 @@ from __future__ import annotations
 
 # Standard-library imports.
 import argparse
+import ast
+import base64
+import contextlib
 import hashlib
+import importlib.machinery
 import importlib.util
 import json
 import os
@@ -13,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -23,7 +28,7 @@ from types import ModuleType
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BUILD_TOOL = REPO_ROOT / "packages/ferrum-rust/tools/build_native_wheel.py"
 CHEMISTRY_MANIFEST = REPO_ROOT / "packages/ferrum-rust/crates/chemistry/Cargo.toml"
-CHEMISTRY_EXAMPLE = "native_kekulize"
+CHEMISTRY_EXAMPLE = "native_smiles_fcm1"
 AMBIENT_LIBRARY_VARIABLES = (
 	"DYLD_LIBRARY_PATH",
 	"DYLD_FALLBACK_LIBRARY_PATH",
@@ -100,7 +105,7 @@ def replacement_proof(
 		raise E2eError(f"replacement target must be the installed adapter library: {installed_adapter}")
 	return {
 		"library": "libferrum_chem.dylib",
-		"package_relative_path": "ferrum_api/.libs/libferrum_chem.dylib",
+		"package_relative_path": ".dylibs/libferrum_chem.dylib",
 		"abi_version": expected_abi_version,
 		"original_sha256": original_sha256,
 		"replacement_sha256": replacement_sha256,
@@ -113,12 +118,13 @@ def native_evidence(
 	builder_receipt: dict[str, object], wheel: Path, closure_names: list[str],
 	before: dict[str, object], after: dict[str, object], original_sha256: str,
 	replacement_sha256: str, installed_adapter: Path,
-	expected_abi_version: int, chemistry_before: dict[str, object],
-	chemistry_after: dict[str, object], replacement_build_type: str,
+	expected_abi_version: int, python_chemistry_before: dict[str, object],
+	python_chemistry_after: dict[str, object], rust_chemistry_before: dict[str, object],
+	rust_chemistry_after: dict[str, object], replacement_build_type: str,
 ) -> dict[str, object]:
 	"""Assemble the retained reproducibility record without retaining binaries."""
 	return {
-		"schema": "ferrum-native-wheel-e2e-evidence-v2",
+		"schema": "ferrum-native-wheel-e2e-evidence-v4",
 		"builder_receipt": builder_receipt,
 		"wheel": {"filename": wheel.name, "sha256": sha256(wheel)},
 		"closure": {"names": closure_names},
@@ -128,15 +134,21 @@ def native_evidence(
 			"after": after,
 		},
 		"chemistry": {
-			"before": chemistry_before,
-			"after": chemistry_after,
+			"python_extension_before": python_chemistry_before,
+			"python_extension_after": python_chemistry_after,
+			"rust_adapter_before": rust_chemistry_before,
+			"rust_adapter_after": rust_chemistry_after,
 		},
 		"replacement_proof": replacement_proof(
 			original_sha256, replacement_sha256, installed_adapter, expected_abi_version,
 			replacement_build_type,
 		),
 		"process_boundary": {
-			"python_probe": {"fresh_process": True, "scrubbed_loader": True},
+			"python_probe": {
+				"fresh_process": True,
+				"scrubbed_loader": True,
+				"direct_extension_chemistry": True,
+			},
 			"rust_semantic_probe": {
 				"fresh_process": True,
 				"explicit_adapter_path": True,
@@ -203,20 +215,29 @@ def scrubbed_environment() -> dict[str, str]:
 
 
 #============================================
-def probe(python: Path) -> dict[str, object]:
+def document_probe(python: Path) -> dict[str, object]:
+	"""Exercise Ferrum's public M9 document API in a clean wheel process."""
 	output = run(
 		# `-I` deliberately ignores environment variables, including
 		# PYTHONDONTWRITEBYTECODE. Keep the clean-wheel probe isolated while
 		# explicitly prohibiting bytecode output.
 		str(python), "-I", "-B", "-c",
-		"import json, ferrum_api._native; "
-		"print(json.dumps({'abi_version': ferrum_api._native.probe()}))",
+		"import importlib.machinery, json, sys, pathlib, ferrum_chem; "
+		"source='<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom></molecule></cdml>'; "
+		"session=ferrum_chem.DocumentSession.load(source); initial=session.snapshot(); "
+		"changed=session.submit(initial.revision, ferrum_chem.DocumentOperationV1.set_atom_element('a', 'N')).observation.snapshot; "
+		"path=pathlib.Path(sys.prefix)/'saved.cdml'; saved=session.save_atomic(path, changed.revision); "
+		"print(json.dumps({'revision': saved.snapshot.revision, 'dirty': saved.snapshot.is_dirty, 'outcome': saved.outcome.is_confirmed, 'saved': path.read_text()==saved.snapshot.cdml, 'native_file': ferrum_chem.__file__.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES)), 'extension_loader': isinstance(ferrum_chem.__spec__.loader, importlib.machinery.ExtensionFileLoader), 'package_shim': hasattr(ferrum_chem, '__path__'), 'bindings_alias': hasattr(ferrum_chem, '_bindings')}))",
 		env=scrubbed_environment(),
 	)
 	value = json.loads(output)
-	if not isinstance(value, dict) or type(value.get("abi_version")) is not int:
-		raise E2eError(f"native probe returned an invalid value: {value!r}")
-	return {"abi_version": value["abi_version"]}
+	if value != {
+		"revision": 1, "dirty": False, "outcome": True, "saved": True,
+		"native_file": True, "extension_loader": True, "package_shim": False,
+		"bindings_alias": False,
+	}:
+		raise E2eError(f"public document probe returned an invalid value: {value!r}")
+	return value
 
 
 #============================================
@@ -288,18 +309,22 @@ def expected_semantic_bonds(order_names: list[str]) -> list[dict[str, object]]:
 
 #============================================
 def semantic_probe_fixture(abi_version: int) -> dict[str, object]:
-	"""Build a pure-Python fixture for the semantic-protocol self-test."""
+	"""Build a pure-Python fixture for the ABI-4 FCM1 semantic self-test."""
 	return {
 		"abi_version": abi_version,
-		"input": {
-			"atoms": expected_semantic_atoms(),
-			"bonds": expected_semantic_bonds(["aromatic"] * 6),
-		},
-		"output": {
-			"atoms": expected_semantic_atoms(),
-			"bonds": expected_semantic_bonds(["single", "double"] * 3),
-		},
+		"canonical_smiles": "CCO",
+		"atom_count": 3,
+		"bond_count": 2,
+		"coordinate_count": 3,
 	}
+
+
+#============================================
+def assert_fcm1_probe(value: dict[str, object], expected_abi_version: int) -> None:
+	"""Require canonical SMILES and an atom-aligned complete FCM1 molecule."""
+	expected = semantic_probe_fixture(expected_abi_version)
+	if value != expected:
+		raise E2eError(f"FCM1 semantic probe returned an invalid value: {value!r}")
 
 
 #============================================
@@ -345,7 +370,132 @@ def assert_semantic_probe(value: dict[str, object], expected_abi_version: int) -
 
 
 #============================================
-def chemistry_probe(
+def direct_python_chemistry_probe(python: Path) -> dict[str, object]:
+	"""Prove the installed direct extension owns ABI-4 SMILES parsing."""
+	output = run(
+		str(python), "-I", "-B", "-c",
+		"import importlib.machinery, json, math, pathlib, ferrum_chem; "
+		"molecule=ferrum_chem.parse_smiles('CCO'); atoms=molecule.atoms; bonds=molecule.bonds; "
+		"standard_inchi=ferrum_chem.molecule_to_inchi(molecule, ferrum_chem.InchiModeV1.standard); "
+		"fixed_inchi=ferrum_chem.molecule_to_inchi(molecule, ferrum_chem.InchiModeV1.fixed_hydrogen); "
+		"inchi_molecule=ferrum_chem.parse_inchi(standard_inchi); "
+		"v2000=ferrum_chem.molecule_to_molblock(molecule, ferrum_chem.MolblockVersionV1.v2000); "
+		"v3000=ferrum_chem.molecule_to_molblock(molecule, ferrum_chem.MolblockVersionV1.v3000); "
+		"imported_v2000=ferrum_chem.molblock_to_molecule(v2000); imported_v3000=ferrum_chem.molblock_to_molecule(v3000); "
+		"record=ferrum_chem.prepare_sdf_record(molecule, 'ethanol', (('source', 'Ferrum'),)); "
+		"sdf=ferrum_chem.records_to_sdf((record,), ferrum_chem.MolblockVersionV1.v2000); "
+		"imported=ferrum_chem.sdf_to_records(sdf); "
+		"print(json.dumps({'module_origin': pathlib.Path(ferrum_chem.__file__).name, "
+		"'module_is_direct_extension': ferrum_chem.__file__.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES)), "
+		"'canonical_smiles': molecule.canonical_smiles, "
+		"'inchi': {'standard': standard_inchi, 'fixed_is_nonstandard': fixed_inchi.startswith('InChI=1/'), "
+		"'key': ferrum_chem.inchi_to_inchi_key(standard_inchi), "
+		"'round_trip_smiles': inchi_molecule.canonical_smiles}, "
+		"'smarts': ferrum_chem.molecule_to_smarts(molecule), 'atom_count': len(atoms), "
+		"'molblock_versions_explicit': 'V2000' in v2000 and 'M  V30 BEGIN CTAB' not in v2000 and 'V3000' in v3000 and 'M  V30 BEGIN CTAB' in v3000, "
+		"'molblocks_newline_terminated': v2000.endswith('\\n') and v3000.endswith('\\n'), "
+		"'molblock_import_semantics': imported_v2000.canonical_smiles == 'CCO' and imported_v3000.canonical_smiles == 'CCO' and len(imported_v2000.coordinates) == 3 and len(imported_v3000.coordinates) == 3, "
+		"'sdf_record_semantic_markers': sdf.startswith('ethanol\\n') and '<source>' in sdf and '\\nFerrum\\n' in sdf and sdf.endswith('$$$$\\n'), "
+		"'sdf_import_semantics': len(imported) == 1 and imported[0].title == 'ethanol' and imported[0].molecule.canonical_smiles == 'CCO' and tuple((item.name, item.value) for item in imported[0].properties) == (('source', 'Ferrum'),), "
+		"'bond_count': len(bonds), 'coordinate_count': len(molecule.coordinates), "
+		"'coordinates_are_finite': all(math.isfinite(point.x) and math.isfinite(point.y) for point in molecule.coordinates), "
+		"'coordinates_are_distinct': len({(point.x, point.y) for point in molecule.coordinates}) == len(molecule.coordinates), "
+		"'atom_facts': [{'atomic_number': atom.atomic_number, 'aromatic': atom.aromatic, "
+		"'formal_charge': atom.formal_charge, 'isotope': atom.isotope, 'explicit_hydrogens': atom.explicit_hydrogens, "
+		"'radical_electrons': atom.radical_electrons, 'no_implicit': atom.no_implicit, "
+		"'atom_map_number': atom.atom_map_number} for atom in atoms], "
+		"'closed_enums': {'atom_chirality_unspecified': all(type(atom.chirality) is ferrum_chem.SmilesAtomChiralityV1 and atom.chirality == ferrum_chem.SmilesAtomChiralityV1.unspecified for atom in atoms), "
+		"'bond_order_single': all(type(bond.order) is ferrum_chem.SmilesBondOrderV1 and bond.order == ferrum_chem.SmilesBondOrderV1.single for bond in bonds), "
+		"'bond_stereo_none': all(type(bond.stereo) is ferrum_chem.SmilesBondStereoV1 and bond.stereo == ferrum_chem.SmilesBondStereoV1.none for bond in bonds), "
+		"'bond_direction_none': all(type(bond.direction) is ferrum_chem.SmilesBondDirectionV1 and bond.direction == ferrum_chem.SmilesBondDirectionV1.none for bond in bonds)}}))",
+		env=scrubbed_environment(),
+	)
+	value = parse_json_object(output, "direct Python chemistry probe")
+	assert_direct_python_chemistry_probe(value)
+	return value
+
+
+#============================================
+def direct_python_chemistry_fixture() -> dict[str, object]:
+	"""Return fixed ABI-4 facts expected from the installed CCO DTO."""
+	return {
+		"module_is_direct_extension": True,
+		"canonical_smiles": "CCO",
+		"inchi": {
+			"standard": "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3",
+			"fixed_is_nonstandard": True,
+			"key": "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+			"round_trip_smiles": "CCO",
+		},
+		"smarts": "[#6]-[#6]-[#8]",
+		"molblock_versions_explicit": True,
+		"molblocks_newline_terminated": True,
+		"molblock_import_semantics": True,
+		"sdf_record_semantic_markers": True,
+		"sdf_import_semantics": True,
+		"atom_count": 3,
+		"bond_count": 2,
+		"coordinate_count": 3,
+		"coordinates_are_finite": True,
+		"coordinates_are_distinct": True,
+		"atom_facts": [
+			{
+				"atomic_number": 6,
+				"aromatic": False,
+				"formal_charge": 0,
+				"isotope": None,
+				"explicit_hydrogens": 0,
+				"radical_electrons": 0,
+				"no_implicit": False,
+				"atom_map_number": None,
+			},
+			{
+				"atomic_number": 6,
+				"aromatic": False,
+				"formal_charge": 0,
+				"isotope": None,
+				"explicit_hydrogens": 0,
+				"radical_electrons": 0,
+				"no_implicit": False,
+				"atom_map_number": None,
+			},
+			{
+				"atomic_number": 8,
+				"aromatic": False,
+				"formal_charge": 0,
+				"isotope": None,
+				"explicit_hydrogens": 0,
+				"radical_electrons": 0,
+				"no_implicit": False,
+				"atom_map_number": None,
+			},
+		],
+		"closed_enums": {
+			"atom_chirality_unspecified": True,
+			"bond_order_single": True,
+			"bond_stereo_none": True,
+			"bond_direction_none": True,
+		},
+	}
+
+
+#============================================
+def assert_direct_python_chemistry_probe(value: dict[str, object]) -> None:
+	"""Require direct extension SMILES facts and a direct extension origin."""
+	module_origin = value.pop("module_origin", None)
+	if (
+		not isinstance(module_origin, str)
+		or not re.fullmatch(r"ferrum_chem[^/]*\.so", module_origin)
+	):
+		raise E2eError(f"direct Python chemistry probe has an invalid module origin: {module_origin!r}")
+	expected = direct_python_chemistry_fixture()
+	if value != expected:
+		raise E2eError(f"direct Python chemistry probe returned an invalid DTO: {value!r}")
+	value["module_origin"] = module_origin
+
+
+#============================================
+def rust_chemistry_probe(
 	adapter: Path, output_root: Path, expected_abi_version: int,
 ) -> dict[str, object]:
 	"""Run the safe Rust engine in a fresh, loader-scrubbed process."""
@@ -369,7 +519,7 @@ def chemistry_probe(
 		),
 		"Rust native chemistry semantic probe",
 	)
-	assert_semantic_probe(value, expected_abi_version)
+	assert_fcm1_probe(value, expected_abi_version)
 	return value
 
 
@@ -473,24 +623,35 @@ def command_self_test() -> None:
 	"""Prove logs on stdout cannot be mistaken for the artifact result."""
 	builder = load_build_tool()
 	contract = build_contract()
-	semantic_fixture = semantic_probe_fixture(contract.adapter_abi_version)
-	assert_semantic_probe(semantic_fixture, contract.adapter_abi_version)
-	broken_semantic_fixture = semantic_probe_fixture(contract.adapter_abi_version)
-	broken_semantic_fixture["output"] = {
-		"atoms": expected_semantic_atoms(),
-		"bonds": expected_semantic_bonds(["single", "single", "double"] * 2),
+	direct_python_fixture = {
+		"module_origin": "ferrum_chem.cpython-312-darwin.so",
+		**direct_python_chemistry_fixture(),
 	}
+	assert_direct_python_chemistry_probe(direct_python_fixture)
+	broken_direct_python_fixture = direct_python_fixture.copy()
+	broken_direct_python_fixture["canonical_smiles"] = "OCC"
 	try:
-		assert_semantic_probe(broken_semantic_fixture, contract.adapter_abi_version)
+		assert_direct_python_chemistry_probe(broken_direct_python_fixture)
 	except E2eError:
 		pass
 	else:
-		raise E2eError("semantic probe self-test accepted non-alternating Kekule bonds")
+		raise E2eError("direct Python chemistry self-test accepted a noncanonical DTO")
+	semantic_fixture = semantic_probe_fixture(contract.adapter_abi_version)
+	assert_fcm1_probe(semantic_fixture, contract.adapter_abi_version)
+	broken_semantic_fixture = semantic_probe_fixture(contract.adapter_abi_version)
+	broken_semantic_fixture["canonical_smiles"] = "OCC"
+	try:
+		assert_fcm1_probe(broken_semantic_fixture, contract.adapter_abi_version)
+	except E2eError:
+		pass
+	else:
+		raise E2eError("semantic probe self-test accepted a noncanonical FCM1 result")
 	builder.validate_wheel_members([
-		"ferrum_api/__init__.py",
-		"ferrum_api/_native.cpython-312-darwin.so",
+		"ferrum_chem.cpython-312-darwin.so",
+		"ferrum_chem.pyi",
+		"py.typed",
 		*(
-			f"ferrum_api/.libs/{name}"
+			f".dylibs/{name}"
 			for name in sorted(builder.MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names)
 		),
 	])
@@ -523,7 +684,7 @@ def command_self_test() -> None:
 			raise E2eError("builder result parser self-test accepted noisy or invalid stdout")
 	with tempfile.TemporaryDirectory() as temporary:
 		directory = Path(temporary)
-		wheel = directory / "ferrum_api-test.whl"
+		wheel = directory / "ferrum_chem-test.whl"
 		wheel.write_bytes(b"wheel")
 		evidence = native_evidence(
 			{"profile": "self-test"}, wheel,
@@ -534,6 +695,8 @@ def command_self_test() -> None:
 			"b" * 64,
 			directory / "installed" / "libferrum_chem.dylib",
 			contract.adapter_abi_version,
+			direct_python_fixture,
+			direct_python_fixture,
 			semantic_fixture,
 			semantic_fixture,
 			"RelWithDebInfo",
@@ -572,18 +735,76 @@ def command_self_test() -> None:
 
 #============================================
 def assert_wheel_closure(site_packages: Path) -> Path:
-	package = site_packages / "ferrum_api"
-	extensions = list(package.glob("_native*.so"))
+	extensions = list(site_packages.glob("ferrum_chem*.so"))
 	if len(extensions) != 1:
-		raise E2eError(f"expected one native extension in {package}, found {extensions}")
-	libs = package / ".libs"
+		raise E2eError(f"expected one native extension in {site_packages}, found {extensions}")
+	libs = site_packages / ".dylibs"
 	if not (libs / "libferrum_chem.dylib").is_file():
-		raise E2eError("wheel does not contain separately replaceable .libs/libferrum_chem.dylib")
+		raise E2eError("wheel does not contain separately replaceable .dylibs/libferrum_chem.dylib")
 	try:
 		load_build_tool().assert_clean_closure(extensions[0], libs)
 	except RuntimeError as error:
 		raise E2eError(f"installed wheel fails the native loader closure policy: {error}") from error
 	return libs
+
+
+#============================================
+def assert_shipped_typing_metadata(site_packages: Path, python: Path) -> None:
+	"""Require the installed direct extension to expose every stubbed class."""
+	stub = site_packages / "ferrum_chem.pyi"
+	if not stub.is_file() or not (site_packages / "py.typed").is_file():
+		raise E2eError("shipping wheel omitted root typing metadata")
+	classes = [
+		node.name for node in ast.parse(stub.read_text(encoding="utf-8")).body
+		if isinstance(node, ast.ClassDef) and not node.name.startswith("_")
+	]
+	runtime_names = json.loads(run(
+		str(python), "-I", "-B", "-c",
+		"import json, ferrum_chem; print(json.dumps(sorted(dir(ferrum_chem))))",
+		env=scrubbed_environment(),
+	))
+	if not isinstance(runtime_names, list) or not all(isinstance(name, str) for name in runtime_names):
+		raise E2eError("native extension did not report its public names")
+	missing = [name for name in classes if name not in runtime_names]
+	if missing:
+		raise E2eError(f"stubbed public classes are missing from the native extension: {missing}")
+
+
+#============================================
+def assert_shipped_wheel_members(wheel: Path) -> None:
+	"""Require final wheel contents and RECORD to describe one direct extension."""
+	with zipfile.ZipFile(wheel) as archive:
+		members = archive.namelist()
+		if any(name.startswith("ferrum_chem/") for name in members):
+			raise E2eError("shipping wheel retained a nested ferrum_chem package")
+		extensions = [name for name in members if re.fullmatch(r"ferrum_chem[^/]*\.so", name)]
+		if len(extensions) != 1 or "ferrum_chem.pyi" not in members or "py.typed" not in members:
+			raise E2eError(f"shipping wheel lacks direct extension or typing metadata: {members}")
+		allowed = {
+			*extensions, "ferrum_chem.pyi", "py.typed",
+			*(name for name in members if ".dist-info/" in name),
+			*(f".dylibs/{name}" for name in load_build_tool().MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names),
+		}
+		unexpected = sorted(set(members).difference(allowed))
+		if unexpected:
+			raise E2eError(f"shipping wheel contains unexpected members: {unexpected}")
+		record = next((name for name in members if name.endswith(".dist-info/RECORD")), None)
+		if record is None:
+			raise E2eError("shipping wheel omitted RECORD")
+		records = [line.rsplit(",", 2) for line in archive.read(record).decode().splitlines()]
+		if any(len(entry) != 3 for entry in records) or len({entry[0] for entry in records}) != len(records):
+			raise E2eError("shipping wheel RECORD has malformed or duplicate paths")
+		expected = set(members)
+		if {entry[0] for entry in records} != expected:
+			raise E2eError("shipping wheel RECORD does not enumerate every member")
+		for name, digest, size in records:
+			if name == record:
+				if digest or size:
+					raise E2eError("shipping wheel RECORD hashes itself")
+				continue
+			actual = base64.urlsafe_b64encode(hashlib.sha256(archive.read(name)).digest()).rstrip(b"=").decode()
+			if digest != f"sha256={actual}" or size != str(len(archive.read(name))):
+				raise E2eError(f"shipping wheel RECORD is wrong for {name}")
 
 
 #============================================
@@ -602,10 +823,18 @@ def installed_site_packages(venv: Path) -> Path:
 def main() -> int:
 	contract = build_contract()
 	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument("--target", default=contract.target)
-	parser.add_argument(
-		"--rdkit-archive",
-		help="optional pinned archive; its digest is rechecked by the build tool",
+	build_source = parser.add_mutually_exclusive_group()
+	build_source.add_argument(
+		"--source-archive-root",
+		help="read-only directory containing every selected source archive for a disconnected build",
+	)
+	build_source.add_argument(
+		"--sealed-input-root",
+		help="previous builder-validated native inputs copied into this fresh E2E root",
+	)
+	build_source.add_argument(
+		"--existing-build-root",
+		help="existing current builder output to audit without rebuilding the wheel",
 	)
 	parser.add_argument(
 		"--self-test",
@@ -620,48 +849,61 @@ def main() -> int:
 			"status": "ok",
 		}, sort_keys=True))
 		return 0
-	if arguments.target != contract.target:
-		raise E2eError(
-			f"native-wheel proof supports only {contract.target}, not {arguments.target}"
-		)
 	output_parent = REPO_ROOT / "output_native_wheel"
 	output_parent.mkdir(exist_ok=True)
-	with tempfile.TemporaryDirectory(prefix="e2e-native-wheel-", dir=output_parent) as temporary:
-		output_root = Path(temporary)
-		build_command = [
-			sys.executable, "-B",
-			str(BUILD_TOOL),
-			"build",
-			"--output-root",
-			str(output_root),
-			"--target",
-			arguments.target,
-		]
-		if arguments.rdkit_archive:
-			build_command.extend(("--rdkit-archive", arguments.rdkit_archive))
-		wheel = parse_artifact_result(
-			run(*build_command, env=scrubbed_environment(), stream_stderr=True),
-			"wheel",
-			output_root,
-			contract,
-		)
+	with contextlib.ExitStack() as resources:
+		if arguments.existing_build_root:
+			output_root = Path(arguments.existing_build_root).resolve()
+			work_root = Path(resources.enter_context(tempfile.TemporaryDirectory(
+				prefix="e2e-native-wheel-proof-", dir=output_parent,
+			)))
+		else:
+			output_root = Path(resources.enter_context(tempfile.TemporaryDirectory(
+				prefix="e2e-native-wheel-", dir=output_parent,
+			)))
+			work_root = output_root
+		if arguments.existing_build_root:
+			wheels = sorted((output_root / "wheelhouse").glob("ferrum_chem-*.whl"))
+			if len(wheels) != 1:
+				raise E2eError(f"existing build must contain exactly one wheel: {wheels}")
+			wheel = wheels[0].resolve()
+		else:
+			build_command = [
+				sys.executable, "-B",
+				str(BUILD_TOOL),
+				"build",
+				"--output-root",
+				str(output_root),
+			]
+			if arguments.source_archive_root:
+				build_command.extend(("--source-archive-root", arguments.source_archive_root))
+			if arguments.sealed_input_root:
+				build_command.extend(("--sealed-input-root", arguments.sealed_input_root))
+			wheel = parse_artifact_result(
+				run(*build_command, env=scrubbed_environment(), stream_stderr=True),
+				"wheel",
+				output_root,
+				contract,
+			)
 		builder_receipt = read_build_receipt(output_root)
-		venv = output_root / "clean-venv"
+		assert_shipped_wheel_members(wheel)
+		venv = work_root / "clean-venv"
 		run(sys.executable, "-B", "-m", "venv", str(venv))
 		python = venv / "bin" / "python"
 		run(str(python), "-B", "-m", "pip", "install", "--no-deps", str(wheel), env=scrubbed_environment())
-		before = probe(python)
-		if before != {"abi_version": contract.adapter_abi_version}:
-			raise E2eError(f"initial isolated probe was not the wheel ABI: {before}")
-		libs = assert_wheel_closure(installed_site_packages(venv))
+		before = document_probe(python)
+		python_chemistry_before = direct_python_chemistry_probe(python)
+		site_packages = installed_site_packages(venv)
+		assert_shipped_typing_metadata(site_packages, python)
+		libs = assert_wheel_closure(site_packages)
 		closure_names = sorted(path.name for path in libs.glob("*.dylib"))
-		chemistry_before = chemistry_probe(
-			(libs / "libferrum_chem.dylib").resolve(), output_root,
+		rust_chemistry_before = rust_chemistry_probe(
+			(libs / "libferrum_chem.dylib").resolve(), work_root,
 			contract.adapter_abi_version,
 		)
 		installed_replacement = libs / "libferrum_chem.dylib"
 		original_sha256 = sha256(installed_replacement)
-		replacement_root = output_root / "replacement-output"
+		replacement_root = work_root / "replacement-output"
 		replacement = parse_artifact_result(
 			run(
 				sys.executable, "-B",
@@ -671,8 +913,6 @@ def main() -> int:
 				str(replacement_root),
 				"--rdkit-output-root",
 				str(output_root),
-				"--build-type",
-				"RelWithDebInfo",
 				env=scrubbed_environment(),
 				stream_stderr=True,
 			),
@@ -689,11 +929,10 @@ def main() -> int:
 		if sha256(installed_replacement) != replacement_sha256:
 			raise E2eError("replacement adapter copy did not preserve the verified library bytes")
 		assert_wheel_closure(installed_site_packages(venv))
-		after = probe(python)
-		if after != {"abi_version": contract.adapter_abi_version}:
-			raise E2eError(f"replaced library was not loaded in a fresh process: {after}")
-		chemistry_after = chemistry_probe(
-			installed_replacement.resolve(), output_root, contract.adapter_abi_version,
+		after = document_probe(python)
+		python_chemistry_after = direct_python_chemistry_probe(python)
+		rust_chemistry_after = rust_chemistry_probe(
+			installed_replacement.resolve(), work_root, contract.adapter_abi_version,
 		)
 		evidence = native_evidence(
 			builder_receipt,
@@ -705,16 +944,20 @@ def main() -> int:
 			replacement_sha256,
 			installed_replacement.resolve(),
 			contract.adapter_abi_version,
-			chemistry_before,
-			chemistry_after,
+			python_chemistry_before,
+			python_chemistry_after,
+			rust_chemistry_before,
+			rust_chemistry_after,
 			"RelWithDebInfo",
 		)
 		receipt = publish_evidence(output_parent, evidence)
 		print(json.dumps({
 			"after": after,
 			"before": before,
-			"chemistry_after": chemistry_after,
-			"chemistry_before": chemistry_before,
+			"python_chemistry_after": python_chemistry_after,
+			"python_chemistry_before": python_chemistry_before,
+			"rust_chemistry_after": rust_chemistry_after,
+			"rust_chemistry_before": rust_chemistry_before,
 			"receipt": str(receipt),
 		}, sort_keys=True))
 	return 0

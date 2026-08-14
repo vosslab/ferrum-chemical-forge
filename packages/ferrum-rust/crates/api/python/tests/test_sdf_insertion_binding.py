@@ -1,0 +1,76 @@
+"""Public boundary behavior for atomic multi-record SDF insertion."""
+
+# Standard Library
+import pathlib
+
+# PIP3 modules
+import ferrum_chem
+import pytest
+
+
+#============================================
+def _two_record_sdf() -> str:
+	"""Build two coordinate-bearing records through the packaged native adapter."""
+	first = ferrum_chem.prepare_sdf_record(
+		ferrum_chem.parse_smiles("CCO"),
+		"ethanol input",
+		(("SOURCE", "first\nline"),),
+	)
+	second = ferrum_chem.prepare_sdf_record(
+		ferrum_chem.parse_smiles("[Cl-]"), "", (),
+	)
+	sdf = ferrum_chem.records_to_sdf(
+		(first, second), ferrum_chem.MolblockVersionV1.v3000,
+	)
+	return sdf.replace(
+		"$$$$\n",
+		">  <SOURCE>\nsecond\n\n$$$$\n",
+		1,
+	)
+
+
+#============================================
+def test_sdf_batch_is_frozen_ordered_and_one_document_history_step(
+		tmp_path: pathlib.Path) -> None:
+	"""Retain every record/property while committing exactly one session revision."""
+	path = tmp_path / "records.sdf"
+	path.write_text(_two_record_sdf(), encoding="utf-8")
+	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
+	batch = ferrum_chem.prepare_sdf_file_v1(str(path), placement)
+	session = ferrum_chem.DocumentSession.load(
+		"<cdml><opaque payload=\"retained\"/></cdml>",
+	)
+	prepared = session.prepare_insert_sdf_records_v1(0, batch)
+	result = session.commit_create_sdf_records(0, prepared)
+
+	assert batch.record_count == 2
+	assert prepared.molecule_identifiers == (
+		"ferrum-molecule-v1-0", "ferrum-molecule-v1-1",
+	)
+	assert tuple(len(record) for record in prepared.atom_identifiers) == (3, 1)
+	assert result.observation.snapshot.revision == 1
+	assert tuple(
+		molecule.name for molecule in result.observation.projection.molecules
+	) == ("ethanol input", None)
+	assert "payload=\"retained\"" in result.observation.snapshot.cdml
+	assert "urn:ferrum-chemical-forge:sdf-import:v1" in result.observation.snapshot.cdml
+	assert "534f55524345" in result.observation.snapshot.cdml
+	assert session.undo(1).observation.projection.molecules == []
+	assert len(session.redo(2).observation.projection.molecules) == 2
+	with pytest.raises(AttributeError):
+		batch.record_count = 3
+
+
+#============================================
+def test_sdf_file_admission_reports_utf8_failure_before_native_parsing(
+		tmp_path: pathlib.Path) -> None:
+	"""Expose stable bounded-source facts without loading malformed text into RDKit."""
+	path = tmp_path / "invalid.sdf"
+	path.write_bytes(b"\xff")
+	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 0.0, 0.0)
+	with pytest.raises(ferrum_chem.SdfInputError) as caught:
+		ferrum_chem.prepare_sdf_file_v1(str(path), placement)
+	assert caught.value.stage == "utf8"
+	assert caught.value.path == str(path)
+	assert caught.value.limit is None
+	assert caught.value.observed_at_least is None

@@ -2,7 +2,6 @@
 """Record the isolated RDKit reference layout orientation decision."""
 
 # Standard Library
-import argparse
 import json
 import math
 import pathlib
@@ -20,34 +19,10 @@ DEFAULT_REPORT = (
 
 
 #============================================
-def parse_args() -> argparse.Namespace:
-	"""Parse the isolated interpreter and report destination controls."""
-	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument(
-		"-p",
-		"--oracle-python",
-		dest="oracle_python",
-		type=pathlib.Path,
-		default=ORACLE_PYTHON,
-		help="Python executable inside the isolated RDKit oracle environment",
-	)
-	parser.add_argument(
-		"-r",
-		"--report",
-		dest="report_path",
-		type=pathlib.Path,
-		default=DEFAULT_REPORT,
-		help="JSON report path",
-	)
-	args = parser.parse_args()
-	return args
-
-
-#============================================
-def child_result(oracle_python: pathlib.Path) -> dict:
+def child_result() -> dict:
 	"""Run one oracle process and validate its exactly-one-object protocol."""
-	# The oracle venv does not rely on the caller's bytecode environment flags.
-	command = [str(oracle_python), "-B", str(ORACLE_CHILD)]
+	# The oracle venv does not inherit caller imports or bytecode settings.
+	command = [str(ORACLE_PYTHON), "-I", "-B", str(ORACLE_CHILD)]
 	result = subprocess.run(
 		command,
 		cwd=REPO_ROOT,
@@ -139,7 +114,6 @@ def write_report(path: pathlib.Path, report: dict) -> None:
 #============================================
 def main() -> None:
 	"""Measure the two oracle layouts once and persist the verified decision input."""
-	args = parse_args()
 	report = {
 		"capability": CAPABILITY,
 		"decision": (
@@ -148,26 +122,26 @@ def main() -> None:
 		),
 		"generator_command": "source source_me.sh && python3 devel/rdkit_layout_orientation.py",
 		"generator_script": "devel/rdkit_layout_orientation.py",
-		"oracle_command": [str(args.oracle_python), str(ORACLE_CHILD)],
+		"oracle_command": [str(ORACLE_PYTHON), "-I", "-B", str(ORACLE_CHILD)],
 		"oracle_requirements": str(ORACLE_REQUIREMENTS),
 		"scope": (
 			"Isolated RDKit oracle measurement only; it does not implement Ferrum "
 			"layout or establish a coordinate tolerance."
 		),
 	}
-	if not args.oracle_python.is_file():
+	if not ORACLE_PYTHON.is_file():
 		report["status"] = "harness-error"
 		report["error"] = "isolated RDKit Python was not found"
-		write_report(args.report_path, report)
+		write_report(DEFAULT_REPORT, report)
 		print(json.dumps(report, sort_keys=True))
 		raise SystemExit(2)
 	try:
-		output = child_result(args.oracle_python)
+		output = child_result()
 		measurement = validate_measurement(output)
 	except (json.JSONDecodeError, OSError, RuntimeError) as error:
 		report["status"] = "harness-error"
 		report["error"] = str(error)
-		write_report(args.report_path, report)
+		write_report(DEFAULT_REPORT, report)
 		print(json.dumps(report, sort_keys=True))
 		raise SystemExit(2) from error
 	report["facts"] = measurement["facts"]
@@ -175,7 +149,7 @@ def main() -> None:
 	report["same_oracle_process"] = True
 	report["orientations_diverge"] = True
 	report["status"] = "measured"
-	write_report(args.report_path, report)
+	write_report(DEFAULT_REPORT, report)
 	print(json.dumps(report, sort_keys=True))
 
 

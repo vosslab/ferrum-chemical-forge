@@ -1,5 +1,8 @@
 """Bond properties dialog."""
 
+# Standard Library
+import dataclasses
+
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
@@ -16,6 +19,25 @@ _ORDER_LABELS = {
 }
 _ORDER_VALUES = {v: k for k, v in _ORDER_LABELS.items()}
 
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class BondDialogCapabilities:
+	"""Optional visual limits for a route with a smaller rendering vocabulary."""
+
+	normal_style_only: bool = False
+	wedge_width_available: bool = True
+	dynamic_native_widths: bool = False
+
+
+#============================================
+NATIVE_RENDER_CAPABILITIES = BondDialogCapabilities(
+	normal_style_only=True,
+	wedge_width_available=False,
+	dynamic_native_widths=True,
+)
+
+
 #============================================
 class BondDialog(PySide6.QtWidgets.QDialog):
 	"""Dialog for editing bond properties.
@@ -29,14 +51,20 @@ class BondDialog(PySide6.QtWidgets.QDialog):
 	"""
 
 	#============================================
-	def __init__(self, bond_model: object, parent: object | None = None) -> None:
+	def __init__(
+			self, bond_model: object, parent: object | None = None,
+			capabilities: BondDialogCapabilities | None = None,
+			) -> None:
 		"""Initialize a detached bond-properties value editor.
 
 		Args:
 			bond_model: The BondModel whose properties to edit.
 			parent: Optional parent widget.
+			capabilities: Optional route-specific visual limits.  Omitted preserves
+				the complete legacy form.
 		"""
 		super().__init__(parent)
+		self._capabilities = capabilities or BondDialogCapabilities()
 		# Copy every display scalar before constructing Qt controls.  The accepted
 		# backend patch can replace the projected BondModel while this dialog still
 		# exists, so it must never retain or later inspect that transient wrapper.
@@ -69,9 +97,7 @@ class BondDialog(PySide6.QtWidgets.QDialog):
 
 		# type
 		self._type_combo = PySide6.QtWidgets.QComboBox()
-		for type_char, label in ferrum_qt.bond_presentation.choices_for_display(
-				self._initial_values["type"],
-			):
+		for type_char, label in self._type_choices():
 			self._type_combo.addItem(label, type_char)
 		form.addRow("Type:", self._type_combo)
 
@@ -116,6 +142,56 @@ class BondDialog(PySide6.QtWidgets.QDialog):
 		button_box.accepted.connect(self.accept)
 		button_box.rejected.connect(self.reject)
 		layout.addWidget(button_box)
+		self._order_combo.currentIndexChanged.connect(self._refresh_capability_controls)
+		self._configure_static_capability_controls()
+
+	#============================================
+	def _type_choices(self) -> tuple[tuple[str, str], ...]:
+		"""Return only the bond-style choices available on this visual route."""
+		choices = ferrum_qt.bond_presentation.choices_for_display(
+			self._initial_values["type"],
+		)
+		if self._capabilities.normal_style_only:
+			return tuple(choice for choice in choices if choice[0] == "n")
+		return choices
+
+	#============================================
+	def _configure_static_capability_controls(self) -> None:
+		"""Make unsupported route features unavailable before the user submits."""
+		if self._capabilities.normal_style_only:
+			self._type_combo.setEnabled(False)
+			self._type_combo.setToolTip(
+				"Native rendering currently supports Normal bond style only.",
+			)
+		if not self._capabilities.wedge_width_available:
+			self._wedge_width_spin.setEnabled(False)
+			self._wedge_width_spin.setToolTip(
+				"Native wedge rendering is not available, so wedge width cannot be edited.",
+			)
+		self._refresh_capability_controls()
+
+	#============================================
+	def _refresh_capability_controls(self) -> None:
+		"""Keep order-dependent native controls honest as the user changes order."""
+		if not self._capabilities.dynamic_native_widths:
+			return
+		order = _ORDER_VALUES.get(self._order_combo.currentText(), 1)
+		center_available = order == 2
+		bond_width_available = order in (2, 3)
+		self._center_check.setEnabled(center_available)
+		self._bond_width_spin.setEnabled(bond_width_available)
+		if not center_available:
+			self._center_check.setToolTip(
+				"Native rendering supports centering only for a double bond.",
+			)
+		else:
+			self._center_check.setToolTip("")
+		if not bond_width_available:
+			self._bond_width_spin.setToolTip(
+				"Native rendering uses bond width only for double and triple bonds.",
+			)
+		else:
+			self._bond_width_spin.setToolTip("")
 
 	#============================================
 	def _populate_from_model(self) -> None:

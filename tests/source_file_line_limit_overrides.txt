@@ -3,3 +3,7 @@
 docs/active_plans/ferrum-plan-v3.md
 docs/active_plans/floofy-snacking-ripple-v2.md
 docs/active_plans/floofy-snacking-ripple.md
+
+# Adopted upstream normative CDML references retain their complete source bodies.
+docs/CDML_BACKEND_TO_FRONTEND_CONTRACT.md
+docs/CDML_FORMAT_SPEC.md

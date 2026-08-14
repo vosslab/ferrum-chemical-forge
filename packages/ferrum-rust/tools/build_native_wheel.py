@@ -1,4 +1,4 @@
-"""Build Ferrum's pinned, C++-only RDKit native-wheel packaging proof.
+"""Build Ferrum's source-verified, C++-only RDKit native-wheel packaging proof.
 
 The immutable capability profile below is the source of truth for what Ferrum
 asks RDKit to build.  It deliberately does not package RDKit Python, SWIG, or
@@ -18,7 +18,6 @@ import stat
 import shutil
 import subprocess
 import sys
-import sysconfig
 import tarfile
 import time
 import urllib.request
@@ -28,15 +27,17 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-# Local builder self-test fixture
 import native_wheel_builder_self_test
+from native_wheel_packaging import (
+	NativePackagingError,
+	find_maturin,
+	inject_root_metadata,
+	stage_python_project,
+	tool_version,
+)
 
-# Local adapter ABI reader.
 from native_wheel_adapter_abi import adapter_abi_version_from_header
 from native_wheel_download import HttpsOnlyRedirectHandler, validated_https_url
-from native_wheel_codec_sources import stage_codec_sources
-
-# Local native-wheel closure
 from native_wheel_macho import (
 	NativeMachoError,
 	assert_clean_closure,
@@ -46,11 +47,11 @@ from native_wheel_macho import (
 	otool_dependencies,
 )
 
-# Local native-wheel policy
 from native_wheel_policy import (
 	NativePolicyError,
 	apple_sdk,
 	audit_cmake_provenance,
+	cmake_cxx_toolchain_options,
 	cmake_toolchain_options,
 	homebrew_cmake,
 	homebrew_llvm,
@@ -71,6 +72,9 @@ from native_wheel_profile import (
 	RDKIT_URL,
 	RdkitCapabilityProfile,
 	TARGET,
+	minimal_rdkit_options as profile_rdkit_options,
+	validate_rdkit_configuration as validate_profile_configuration,
+	validate_resolved_rdkit_configuration as validate_profile_cache,
 )
 from native_wheel_receipt import (
 	NativeReceiptError,
@@ -89,9 +93,6 @@ ADAPTER_BUILD_TYPES = ("Release", "RelWithDebInfo")
 ADAPTER_HEADER = NATIVE_SOURCE / "include/ferrum_chem_adapter.h"
 class NativeBuildError(RuntimeError):
 	"""An actionable failure in the build or closure contract."""
-
-
-#============================================
 try:
 	ADAPTER_ABI_VERSION = adapter_abi_version_from_header(ADAPTER_HEADER)
 except RuntimeError as error:
@@ -109,14 +110,12 @@ class RdkitLayout:
 	depictor_library: Path
 	smilesparse_library: Path
 	fileparsers_library: Path
-	rdinchilibrary: Path
-	inchi_library: Path
+	rdinchi_library: Path
 	cmake_options: tuple[str, ...]
 	toolchain: dict[str, str]
 	provenance_audit: dict[str, object]
 
 
-#============================================
 def run(*command: str, cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
 	print("+", " ".join(command), file=sys.stderr)
 	try:
@@ -129,7 +128,6 @@ def run(*command: str, cwd: Path | None = None, env: dict[str, str] | None = Non
 	except subprocess.CalledProcessError as error:
 		raise NativeBuildError(f"command failed ({error.returncode}): {' '.join(command)}") from error
 
-#============================================
 def output_path(value: str) -> Path:
 	"""Return one resolved output path accepted by the command-line parser.
 
@@ -148,6 +146,15 @@ def output_path(value: str) -> Path:
 		raise argparse.ArgumentTypeError("--output-root must be inside this checkout") from error
 	if not relative.parts or not relative.parts[0].startswith("output"):
 		raise argparse.ArgumentTypeError("--output-root must be beneath a root ignored output* directory")
+	return path
+
+
+#============================================
+def archive_root_path(value: str) -> Path:
+	"""Accept one read-only directory of exact hash-pinned source archives."""
+	path = Path(value).expanduser().resolve()
+	if path.is_relative_to(REPO_ROOT / "OTHER_REPOS") or not path.is_dir():
+		raise argparse.ArgumentTypeError("--source-archive-root must be a directory outside OTHER_REPOS")
 	return path
 
 #============================================
@@ -220,25 +227,24 @@ def rdkit_layout_from_output_root(input_root: Path) -> RdkitLayout:
 	include_dir = validate_materialized_source(
 		root / str(paths["include_dir"]), root, "RDKit include"
 	)
-	graphmol_library = validate_materialized_alias(
-		root / str(paths["graphmol_library"]), root, "RDKit GraphMol library"
+	lib_dir = validate_materialized_source(
+		root / str(paths["rdkit_library_dir"]), root, "RDKit library"
 	)
-	rdgeneral_library = validate_materialized_alias(
-		root / str(paths["rdgeneral_library"]), root, "RDKit RDGeneral library"
-	)
-	depictor_library = required_rdkit_library(lib_dir := graphmol_library.parent, "libRDKitDepictor.1.dylib", root)
+	graphmol_library = required_rdkit_library(lib_dir, "libRDKitGraphMol.1.dylib", root)
+	rdgeneral_library = required_rdkit_library(lib_dir, "libRDKitRDGeneral.1.dylib", root)
+	depictor_library = required_rdkit_library(lib_dir, "libRDKitDepictor.1.dylib", root)
 	smilesparse_library = required_rdkit_library(lib_dir, "libRDKitSmilesParse.1.dylib", root)
 	fileparsers_library = required_rdkit_library(lib_dir, "libRDKitFileParsers.1.dylib", root)
-	rdinchilibrary = required_rdkit_library(lib_dir, "libRDKitRDInchiLib.1.dylib", root)
-	inchi_library = required_rdkit_library(lib_dir, "libRDKitInchi.1.dylib", root)
+	rdinchi_library = required_rdkit_library(lib_dir, "libRDKitRDInchiLib.1.dylib", root)
 	boost_include_dir = validate_materialized_source(
 		root / str(paths["boost_include_dir"]), root, "Boost include"
 	)
-	lib_dir = validate_materialized_source(graphmol_library.parent, root, "RDKit library")
 	if not (include_dir / "GraphMol" / "MolOps.h").is_file():
 		raise NativeBuildError(f"RDKit installation lacks GraphMol headers: {include_dir}")
 	if not (include_dir / "RDGeneral" / "types.h").is_file():
 		raise NativeBuildError(f"RDKit installation lacks RDGeneral headers: {include_dir}")
+	if not (include_dir / "GraphMol" / "inchi.h").is_file():
+		raise NativeBuildError(f"RDKit installation lacks its pinned InChI wrapper header: {include_dir}")
 	if not lib_dir.is_dir():
 		raise NativeBuildError(f"RDKit installation lacks library directory: {lib_dir}")
 	return RdkitLayout(
@@ -251,12 +257,36 @@ def rdkit_layout_from_output_root(input_root: Path) -> RdkitLayout:
 		depictor_library=depictor_library,
 		smilesparse_library=smilesparse_library,
 		fileparsers_library=fileparsers_library,
-		rdinchilibrary=rdinchilibrary,
-		inchi_library=inchi_library,
+		rdinchi_library=rdinchi_library,
 		cmake_options=(),
 		toolchain={},
 		provenance_audit={},
 	)
+
+
+#============================================
+def reuse_sealed_native_inputs(output_root: Path, sealed_root: Path) -> RdkitLayout:
+	"""Copy one manifest-validated native input set into a fresh output root."""
+	sealed_root = sealed_root.resolve()
+	if sealed_root.is_relative_to(REPO_ROOT / "OTHER_REPOS"):
+		raise NativeBuildError(f"sealed native input root must not be inside OTHER_REPOS: {sealed_root}")
+	if not sealed_root.is_dir():
+		raise NativeBuildError(f"sealed native input root does not exist: {sealed_root}")
+	try:
+		validate_native_input_manifest(sealed_root, FERRUM_RDKIT_PROFILE)
+	except NativeReceiptError as error:
+		raise NativeBuildError(f"sealed native input root is not reusable: {error}") from error
+	for relative in ("downloads", "rdkit-install", "dependencies/boost-headers"):
+		source = sealed_root / relative
+		destination = output_root / relative
+		if not source.is_dir() or destination.exists():
+			raise NativeBuildError(f"cannot materialize sealed native input: {relative}")
+		shutil.copytree(source, destination, symlinks=False)
+	manifest = sealed_root / "ferrum-native-inputs.json"
+	if not manifest.is_file():
+		raise NativeBuildError("sealed native input root has no manifest")
+	shutil.copy2(manifest, output_root / manifest.name)
+	return rdkit_layout_from_output_root(output_root)
 
 
 #============================================
@@ -274,8 +304,7 @@ def publish_native_input_manifest(output_root: Path) -> None:
 			FERRUM_RDKIT_PROFILE,
 			include_dir,
 			pinned_boost_headers(output_root),
-			required_rdkit_library(lib_dir, "libRDKitGraphMol.1.dylib", output_root),
-			required_rdkit_library(lib_dir, "libRDKitRDGeneral.1.dylib", output_root),
+			lib_dir,
 		)
 	except NativeReceiptError as error:
 		raise NativeBuildError(str(error)) from error
@@ -421,10 +450,28 @@ def safe_extract_zip_members(contents: zipfile.ZipFile, destination: Path) -> No
 			target.chmod(permissions)
 
 #============================================
-def download_dependency(output_root: Path, source_input: PinnedSource) -> Path:
-	name, url, digest = source_input.name, source_input.url, source_input.sha256
+def materialize_source_archive(
+	output_root: Path, source_input: PinnedSource, archive_root: Path | None,
+) -> Path:
+	"""Copy one verified offline archive or download its declared HTTPS source."""
 	archive = materialized_archive_path(output_root, source_input)
-	download_verified_archive(archive, url, digest, name)
+	if archive_root is None:
+		return download_verified_archive(archive, source_input.url, source_input.sha256, source_input.name)
+	provided = archive_root / source_input.archive_filename
+	if not provided.is_file():
+		raise NativeBuildError(f"offline archive root lacks {source_input.archive_filename}")
+	verified_archive(provided, source_input.sha256, source_input.name)
+	archive.parent.mkdir(parents=True, exist_ok=True)
+	if archive.exists():
+		raise NativeBuildError(f"refusing to overwrite materialized archive: {archive}")
+	shutil.copy2(provided, archive)
+	return verified_archive(archive, source_input.sha256, source_input.name)
+
+
+#============================================
+def download_dependency(output_root: Path, source_input: PinnedSource, archive_root: Path | None) -> Path:
+	name = source_input.name
+	archive = materialize_source_archive(output_root, source_input, archive_root)
 	destination = output_root / "dependencies" / name
 	if destination.exists():
 		raise NativeBuildError(f"refusing to overwrite existing dependency source: {destination}")
@@ -438,19 +485,8 @@ def download_dependency(output_root: Path, source_input: PinnedSource) -> Path:
 	return validate_materialized_source(extracted, output_root, f"{name} source")
 
 #============================================
-def prepare_source(output_root: Path, archive_argument: str | None) -> Path:
-	if archive_argument:
-		external_archive = verified_archive(Path(archive_argument).resolve())
-		if external_archive.is_relative_to(REPO_ROOT / "OTHER_REPOS"):
-			raise NativeBuildError(f"RDKit archive must not resolve inside OTHER_REPOS: {external_archive}")
-		archive = materialized_archive_path(output_root, FERRUM_RDKIT_PROFILE.rdkit)
-		archive.parent.mkdir(parents=True, exist_ok=True)
-		if archive.exists():
-			raise NativeBuildError(f"refusing to overwrite materialized RDKit archive: {archive}")
-		shutil.copy2(external_archive, archive)
-		verified_archive(archive)
-	else:
-		archive = download_archive(output_root)
+def prepare_source(output_root: Path, archive_root: Path | None) -> Path:
+	archive = materialize_source_archive(output_root, FERRUM_RDKIT_PROFILE.rdkit, archive_root)
 	validate_materialized_source(archive, output_root, "RDKit archive")
 	source_parent = output_root / "source"
 	source = source_parent / f"rdkit-{RDKIT_TAG}"
@@ -465,15 +501,30 @@ def prepare_source(output_root: Path, archive_argument: str | None) -> Path:
 	return validate_materialized_source(source, output_root, "RDKit source")
 
 #============================================
-def materialize_retained_rdkit_inputs(output_root: Path) -> tuple[Path, Path, Path, Path, Path]:
-	"""Supply every hash-pinned, offline configure input for the ABI-3 profile."""
+def materialize_retained_rdkit_inputs(
+	output_root: Path, archive_root: Path | None,
+) -> tuple[Path, Path, Path, Path]:
+	"""Supply every hash-pinned, offline configure input for the native profile."""
 	inputs = {item.name: item for item in FERRUM_RDKIT_PROFILE.dependencies}
-	catch2 = download_dependency(output_root, inputs["catch2"])
-	better_enums = download_dependency(output_root, inputs["better-enums"])
-	boost_headers = download_dependency(output_root, inputs["boost-headers"])
-	inchi = download_dependency(output_root, inputs["inchi"])
-	coordgen = download_dependency(output_root, inputs["coordgen"])
-	return catch2, better_enums, boost_headers, inchi, coordgen
+	catch2 = download_dependency(output_root, inputs["catch2"], archive_root)
+	better_enums = download_dependency(output_root, inputs["better-enums"], archive_root)
+	boost_headers = download_dependency(output_root, inputs["boost-headers"], archive_root)
+	inchi_source = download_dependency(output_root, inputs["inchi-source"], archive_root)
+	return catch2, better_enums, boost_headers, inchi_source
+
+
+#============================================
+def install_pinned_inchi_source(rdkit_source: Path, inchi_source: Path) -> None:
+	"""Install the verified InChI source where RDKit checks before any download."""
+	source = validate_materialized_source(
+		inchi_source, rdkit_source.parent.parent, "InChI source",
+	)
+	if not (source / "INCHI_BASE" / "src" / "ichican2.c").is_file():
+		raise NativeBuildError(f"pinned InChI archive lacks INCHI_BASE sources: {source}")
+	destination = rdkit_source / "External" / "INCHI-API" / "src"
+	if destination.exists():
+		raise NativeBuildError(f"refusing to overwrite RDKit InChI source: {destination}")
+	shutil.copytree(source, destination, symlinks=False)
 
 
 #============================================
@@ -503,22 +554,15 @@ def materialize_boost_headers_config(output_root: Path, boost_headers: Path) -> 
 
 #============================================
 def minimal_rdkit_options(
-	install: Path,
 	catch2_source: Path,
 	better_enums_source: Path,
 	boost_config: Path,
 ) -> list[str]:
-	"""Return the complete normalized policy for the immutable Ferrum profile."""
-	options = list(FERRUM_RDKIT_PROFILE.cmake_options)
-	options.extend((
-		f"-DCMAKE_INSTALL_PREFIX={install}", f"-DBoost_DIR={boost_config}",
-		f"-DCMAKE_PREFIX_PATH={boost_config.parent.parent.parent}",
-		f"-DFETCHCONTENT_SOURCE_DIR_CATCH2={catch2_source}",
-		f"-DFETCHCONTENT_SOURCE_DIR_BETTER_ENUMS={better_enums_source}",
-		"-DCATCH_BUILD_TESTING=OFF",
-	))
-	validate_rdkit_configuration(options)
-	return options
+	"""Map profile validation into the builder's public error contract."""
+	try:
+		return profile_rdkit_options(catch2_source, better_enums_source, boost_config)
+	except ValueError as error:
+		raise NativeBuildError(str(error)) from error
 
 #============================================
 def copy_rdkit_headers(source_root: Path, destination: Path) -> None:
@@ -542,8 +586,8 @@ def copy_rdkit_headers(source_root: Path, destination: Path) -> None:
 
 
 #============================================
-def stage_kekulize_rdkit_inputs(output_root: Path, source: Path, build: Path) -> Path:
-	"""Create private headers and direct ABI-3 adapter libraries for measurement."""
+def stage_rdkit_inputs(output_root: Path, source: Path, build: Path) -> Path:
+	"""Create private headers and the measured ABI-4 RDKit library closure."""
 	stage = output_root / "rdkit-install"
 	if stage.exists():
 		raise NativeBuildError(f"refusing to overwrite RDKit stage: {stage}")
@@ -558,6 +602,17 @@ def stage_kekulize_rdkit_inputs(output_root: Path, source: Path, build: Path) ->
 		if not generated.is_dir():
 			raise NativeBuildError(f"RDKit GraphMol build lacks generated-header root: {generated}")
 		copy_rdkit_headers(build, include)
+		inchi_header = source / "External" / "INCHI-API" / "inchi.h"
+		if not inchi_header.is_file() or inchi_header.is_symlink():
+			raise NativeBuildError(f"RDKit InChI wrapper header is missing: {inchi_header}")
+		shutil.copy2(inchi_header, include / "GraphMol" / "inchi.h")
+		ring_header = (
+			source / "External" / "RingFamilies" / "RingDecomposerLib" / "src"
+			/ "RingDecomposerLib" / "RingDecomposerLib.h"
+		)
+		if not ring_header.is_file() or ring_header.is_symlink():
+			raise NativeBuildError(f"RDKit ring-decomposer header is missing: {ring_header}")
+		shutil.copy2(ring_header, include / "RingDecomposerLib.h")
 		lib_dir = staging / "lib"
 		lib_dir.mkdir(parents=True)
 		for library_name in RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES:
@@ -565,7 +620,7 @@ def stage_kekulize_rdkit_inputs(output_root: Path, source: Path, build: Path) ->
 			candidates = sorted({candidate.resolve() for candidate in (build / "lib").glob(f"{stem}.*.dylib")})
 			if len(candidates) != 1:
 				raise NativeBuildError(
-					"GraphMol profile did not produce exactly one required library for "
+					"Ferrum RDKit profile did not produce exactly one required library for "
 					f"{library_name}: {candidates}"
 				)
 			shutil.copy2(candidates[0], lib_dir / library_name)
@@ -580,19 +635,20 @@ def stage_kekulize_rdkit_inputs(output_root: Path, source: Path, build: Path) ->
 
 
 #============================================
-def build_rdkit(output_root: Path, archive_argument: str | None) -> RdkitLayout:
-	source = prepare_source(output_root, archive_argument)
-	catch2_source, better_enums_source, boost_headers, inchi_source, coordgen_source = (
-		materialize_retained_rdkit_inputs(output_root)
+def build_rdkit(output_root: Path, archive_root: Path | None) -> RdkitLayout:
+	source = prepare_source(output_root, archive_root)
+	catch2_source, better_enums_source, boost_headers, inchi_source = materialize_retained_rdkit_inputs(
+		output_root, archive_root
 	)
-	stage_codec_sources(source, inchi_source, coordgen_source)
+	install_pinned_inchi_source(source, inchi_source)
 	boost_config = materialize_boost_headers_config(output_root, boost_headers)
 	build = output_root / "rdkit-build"
 	install = output_root / "rdkit-install"
 	if build.exists() or install.exists():
 		raise NativeBuildError("refusing to overwrite an RDKit build; choose a fresh output root")
-	options = minimal_rdkit_options(install, catch2_source, better_enums_source, boost_config)
-	validate_rdkit_configuration(options, output_root)
+	options = minimal_rdkit_options(catch2_source, better_enums_source, boost_config)
+	options.append(f"-DCMAKE_INSTALL_PREFIX={install}")
+	validate_rdkit_configuration(options)
 	try:
 		llvm_root = homebrew_llvm()
 		cmake = homebrew_cmake()
@@ -605,15 +661,16 @@ def build_rdkit(output_root: Path, archive_argument: str | None) -> RdkitLayout:
 		*options,
 		env=native_tool_environment(llvm_root, cmake),
 	)
+	validate_resolved_rdkit_configuration(build)
 	try:
 		provenance_audit = audit_cmake_provenance(build, output_root, llvm_root, cmake, sdk_root)
 	except NativePolicyError as error:
 		raise NativeBuildError(str(error)) from error
 	run(
-		str(cmake), "--build", str(build), "--target", "FileParsers", "RDInchiLib", "Depictor", "--parallel",
+		str(cmake), "--build", str(build), "--target", "FileParsers", "RDInchiLib", "--parallel",
 		env=native_tool_environment(llvm_root, cmake),
 	)
-	stage_kekulize_rdkit_inputs(output_root, source, build)
+	stage_rdkit_inputs(output_root, source, build)
 	publish_native_input_manifest(output_root)
 	layout = rdkit_layout_from_output_root(output_root)
 	return RdkitLayout(
@@ -626,49 +683,28 @@ def build_rdkit(output_root: Path, archive_argument: str | None) -> RdkitLayout:
 		depictor_library=layout.depictor_library,
 		smilesparse_library=layout.smilesparse_library,
 		fileparsers_library=layout.fileparsers_library,
-		rdinchilibrary=layout.rdinchilibrary,
-		inchi_library=layout.inchi_library,
+		rdinchi_library=layout.rdinchi_library,
 		cmake_options=tuple(options),
 		toolchain=toolchain_receipt(llvm_root, cmake, sdk_root),
 		provenance_audit=provenance_audit,
 	)
 
 #============================================
-def validate_rdkit_configuration(options: list[str], output_root: Path | None = None) -> None:
-	"""Fail closed if a caller weakens the profile's non-discovery policy."""
-	values = {option.split("=", 1)[0]: option.split("=", 1)[1] for option in options if "=" in option}
-	required = {
-		"-DRDK_BUILD_PYTHON_WRAPPERS": "OFF", "-DRDK_BUILD_SWIG_WRAPPERS": "OFF",
-		"-DRDK_BUILD_INCHI_SUPPORT": "ON", "-DRDK_BUILD_COORDGEN_SUPPORT": "ON",
-		"-DRDK_BUILD_MAEPARSER_SUPPORT": "OFF", "-DRDK_USE_BOOST_SERIALIZATION": "OFF",
-		"-DRDK_USE_BOOST_IOSTREAMS": "OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Python": "ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_Python3": "ON", "-DCMAKE_DISABLE_FIND_PACKAGE_Eigen3": "ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_Catch2": "ON", "-DCMAKE_DISABLE_FIND_PACKAGE_maeparser": "ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_coordgen": "ON", "-DCMAKE_DISABLE_FIND_PACKAGE_TBB": "ON",
-		"-DCMAKE_DISABLE_FIND_PACKAGE_Inchi": "ON", "-DCMAKE_DISABLE_FIND_PACKAGE_INCHI": "ON",
-		"-DRDK_BUILD_FREETYPE_SUPPORT": "OFF", "-DRDK_INSTALL_PYTHON_TESTS": "OFF",
-		"-DRDK_USE_FLEXBISON": "OFF", "-DRDK_BUILD_THREADSAFE_SSS": "ON",
-		"-DCATCH_BUILD_TESTING": "OFF",
-		"-DFETCHCONTENT_FULLY_DISCONNECTED": "ON", "-DFETCHCONTENT_UPDATES_DISCONNECTED": "ON",
-		"-DCMAKE_FIND_USE_PACKAGE_REGISTRY": "FALSE",
-		"-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY": "FALSE", "-DBoost_NO_SYSTEM_PATHS": "ON",
-	}
-	for option, expected in required.items():
-		if values.get(option) != expected:
-			raise NativeBuildError(f"Ferrum RDKit profile requires {option}={expected}")
-	for forbidden in (
-		"-DINCHI_INCLUDE_DIR", "-DINCHI_LIBRARY", "-DMAEPARSER_DIR", "-DCOORDGEN_DIR",
-		"-DMAEPARSER_FORCE_BUILD",
-	):
-		if forbidden in values:
-			raise NativeBuildError(
-				f"Ferrum kekulize profile must not configure future chemistry input: {forbidden}"
-			)
-	for option in options:
-		if "/opt/homebrew" in option or "OTHER_REPOS" in option:
-			raise NativeBuildError(
-				f"Ferrum RDKit profile forbids host/reference path in CMake option: {option}"
-			)
+def validate_rdkit_configuration(options: list[str]) -> None:
+	"""Map command-policy validation into the builder's error contract."""
+	try:
+		validate_profile_configuration(options)
+	except ValueError as error:
+		raise NativeBuildError(str(error)) from error
+
+
+#============================================
+def validate_resolved_rdkit_configuration(build: Path) -> None:
+	"""Map configured-cache validation into the builder's error contract."""
+	try:
+		validate_profile_cache(build)
+	except ValueError as error:
+		raise NativeBuildError(str(error)) from error
 
 #============================================
 def configure_adapter(
@@ -700,10 +736,9 @@ def configure_adapter(
 		f"-DFERRUM_CHEM_RDKIT_DEPICTOR={layout.depictor_library}",
 		f"-DFERRUM_CHEM_RDKIT_SMILESPARSE={layout.smilesparse_library}",
 		f"-DFERRUM_CHEM_RDKIT_FILEPARSERS={layout.fileparsers_library}",
-		f"-DFERRUM_CHEM_RDKIT_RDINCHILIB={layout.rdinchilibrary}",
-		f"-DFERRUM_CHEM_RDKIT_INCHI={layout.inchi_library}",
+		f"-DFERRUM_CHEM_RDKIT_RDINCHI={layout.rdinchi_library}",
 	]
-	command.extend(cmake_toolchain_options(llvm_root, sdk_root))
+	command.extend(cmake_cxx_toolchain_options(llvm_root, sdk_root))
 	run(*command, env=native_tool_environment(llvm_root, cmake))
 	try:
 		audit_cmake_provenance(
@@ -718,64 +753,27 @@ def configure_adapter(
 	if not adapter.is_file():
 		raise NativeBuildError(f"adapter build did not produce {adapter}")
 	linked_names = {Path(item).name for item in otool_dependencies(adapter)}
-	for library in (
-		layout.graphmol_library, layout.rdgeneral_library, layout.depictor_library,
-		layout.smilesparse_library, layout.fileparsers_library, layout.rdinchilibrary,
-		layout.inchi_library,
-	):
+	for library in (layout.graphmol_library, layout.rdgeneral_library,
+			layout.depictor_library, layout.smilesparse_library, layout.fileparsers_library,
+			layout.rdinchi_library):
 		if library.name not in linked_names:
 			raise NativeBuildError(
 				"adapter did not retain its declared RDKit loader dependency; "
 				f"missing {library.name} from {sorted(linked_names)}"
 			)
 	return adapter
-
-#============================================
-def find_maturin() -> str:
-	"""Resolve Maturin from the required Python interpreter, never ambient PATH."""
-	scripts = Path(sysconfig.get_path("scripts")).resolve()
-	command = (scripts / "maturin").resolve()
-	if not command.is_file() or not os.access(command, os.X_OK):
-		raise NativeBuildError(
-			f"maturin is required in the Python 3.12 scripts directory: {scripts}"
-		)
-	return str(command)
-
-#============================================
-def tool_version(command: str) -> str:
-	result = subprocess.run([command, "--version"], text=True, capture_output=True, check=False)
-	if result.returncode:
-		raise NativeBuildError(f"could not determine tool version for {command}: {result.stderr.strip()}")
-	return result.stdout.strip()
-
-#============================================
-def stage_python_project(output_root: Path) -> Path:
-	"""Copy the Rust workspace below output_root before adding wheel artifacts."""
-	output_root = output_root.resolve()
-	stage = output_root / "maturin-project"
-	if stage.exists():
-		raise NativeBuildError(f"refusing to overwrite staged maturin project: {stage}")
-	shutil.copytree(
-		RUST_PACKAGE_SOURCE,
-		stage,
-		ignore=shutil.ignore_patterns(".libs", "target", "__pycache__", "*.pyc"),
-	)
-	return stage / "crates" / "api" / "python"
-
 #============================================
 def validate_wheel_members(
 	members: list[str],
 	profile: RdkitCapabilityProfile = FERRUM_RDKIT_PROFILE,
 ) -> None:
 	"""Reject Python-RDKit/SWIG payloads even when the loader does not use them."""
-	native_extensions = [
-		member for member in members if re.fullmatch(r"ferrum_api/_native[^/]*\.so", member)
-	]
+	native_extensions = [member for member in members if re.fullmatch(r"ferrum_chem[^/]*\.so", member)]
 	if len(native_extensions) != 1:
 		raise NativeBuildError(
 			f"wheel must contain one Ferrum native extension, found {native_extensions}"
 		)
-	native_prefix = "ferrum_api/.libs/"
+	native_prefix = ".dylibs/"
 	native_members = {
 		member.removeprefix(native_prefix)
 		for member in members
@@ -788,15 +786,15 @@ def validate_wheel_members(
 			f"expected {sorted(expected_native)}, got {sorted(native_members)}"
 		)
 	for member in members:
+		if member.startswith("ferrum_chem/"):
+			raise NativeBuildError(f"wheel contains a prohibited nested ferrum_chem package: {member}")
 		if member in native_extensions:
+			continue
+		if member in {"ferrum_chem.pyi", "py.typed"} or ".dist-info/" in member:
 			continue
 		if member.startswith(native_prefix) and member.removeprefix(native_prefix) in expected_native:
 			continue
-		lower = member.lower()
-		if any(fragment in lower for fragment in profile.forbidden_wheel_fragments):
-			raise NativeBuildError(f"wheel contains forbidden RDKit/Python wrapper content: {member}")
-		if lower.endswith((".so", ".dylib", ".pyd")):
-			raise NativeBuildError(f"wheel contains an unexpected native extension: {member}")
+		raise NativeBuildError(f"wheel contains an unexpected non-native member: {member}")
 
 #============================================
 def audit_wheel_closure(wheel: Path, output_root: Path) -> None:
@@ -807,11 +805,11 @@ def audit_wheel_closure(wheel: Path, output_root: Path) -> None:
 	with zipfile.ZipFile(wheel) as contents:
 		validate_wheel_members(contents.namelist())
 		safe_extract_zip_members(contents, audit_root)
-	package = audit_root / "ferrum_api"
-	extensions = sorted(package.glob("_native*.so"))
+		package = audit_root
+		extensions = sorted(package.glob("ferrum_chem*.so"))
 	if len(extensions) != 1:
 		raise NativeBuildError(f"wheel must contain exactly one native extension, found {extensions}")
-	assert_clean_closure(extensions[0], package / ".libs")
+	assert_clean_closure(extensions[0], package / ".dylibs")
 
 #============================================
 def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: str) -> Path:
@@ -821,15 +819,16 @@ def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: s
 			"run this tool through source_me.sh"
 		)
 	output_root = output_root.resolve()
-	stage = stage_python_project(output_root)
-	package_libs = stage / "ferrum_api" / ".libs"
+	stage = stage_python_project(output_root, RUST_PACKAGE_SOURCE)
+	package_libs = stage / ".dylibs"
 	copy_and_rewrite_closure(adapter, layout.graphmol_library, package_libs)
 	try:
 		environment = rust_tool_environment(homebrew_llvm())
 	except NativePolicyError as error:
 		raise NativeBuildError(str(error)) from error
-	# Preserve the adapter's @rpath install identity at link time. Ferrum owns the
-	# separately staged and rewritten .libs closure and audits it after packaging.
+	# Ferrum owns the separately staged and rewritten native closure and audits it
+	# after packaging. The public document extension is intentionally decoupled
+	# from chemistry loading; the E2E Rust probe opens the adapter explicitly.
 	environment["FERRUM_CHEM_LIB_DIR"] = str(adapter.parent)
 	# The public C header is the only ABI authority. Cargo writes this derived
 	# build setting into generated Rust source for the PyO3 boundary.
@@ -844,9 +843,10 @@ def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: s
 		"--interpreter", sys.executable, "--out", str(wheelhouse),
 		cwd=stage, env=environment,
 	)
-	wheels = sorted(wheelhouse.glob("ferrum_api-*.whl"))
+	wheels = sorted(wheelhouse.glob("ferrum_chem-*.whl"))
 	if len(wheels) != 1:
 		raise NativeBuildError(f"expected exactly one wheel in {wheelhouse}, found {wheels}")
+	inject_root_metadata(wheels[0], stage)
 	audit_wheel_closure(wheels[0], output_root)
 	return wheels[0]
 
@@ -868,25 +868,24 @@ def command_build(arguments: argparse.Namespace) -> None:
 		raise NativeBuildError(
 			"initial native-wheel currently proves only macOS arm64; run on an arm64 macOS host"
 		)
-	if arguments.target != TARGET:
-		raise NativeBuildError(
-			f"initial native-wheel currently supports only {TARGET}, not {arguments.target}"
-		)
-	layout = build_rdkit(arguments.output_root, arguments.rdkit_archive)
+	if arguments.sealed_input_root:
+		layout = reuse_sealed_native_inputs(arguments.output_root, arguments.sealed_input_root)
+	else:
+		layout = build_rdkit(arguments.output_root, arguments.source_archive_root)
 	rdkit_libraries = sorted(layout.lib_dir.glob("libRDKit*.dylib"))
 	if not rdkit_libraries:
 		raise NativeBuildError(f"no RDKit dylibs were installed in {layout.lib_dir}")
 	variants = detect_variants(rdkit_libraries)
 	adapter = configure_adapter(arguments.output_root, layout)
-	wheel = build_wheel(arguments.output_root, adapter, layout, arguments.target)
+	wheel = build_wheel(arguments.output_root, adapter, layout, TARGET)
 	try:
 		write_build_receipt(
 			arguments.output_root,
 			FERRUM_RDKIT_PROFILE,
 			ADAPTER_ABI_VERSION,
-			layout.cmake_options,
-			layout.toolchain,
-			layout.provenance_audit,
+			layout.cmake_options or FERRUM_RDKIT_PROFILE.cmake_options,
+			layout.toolchain or {"native_inputs": "validated-sealed-input-root"},
+			layout.provenance_audit or {"native_inputs": "validated-sealed-input-root"},
 			{"path": find_maturin(), "version": tool_version(find_maturin())},
 			rust_toolchain_receipt(),
 			variants,
@@ -900,7 +899,7 @@ def command_build(arguments: argparse.Namespace) -> None:
 #============================================
 def command_adapter(arguments: argparse.Namespace) -> None:
 	layout = rdkit_layout_from_output_root(arguments.rdkit_output_root)
-	adapter = configure_adapter(arguments.output_root, layout, arguments.build_type)
+	adapter = configure_adapter(arguments.output_root, layout, "RelWithDebInfo")
 	package_libs = arguments.output_root / "replacement-package-libs"
 	copy_and_rewrite_closure(adapter, layout.graphmol_library, package_libs)
 	assert_packaged_library_closure(package_libs)
@@ -923,10 +922,17 @@ def parser() -> argparse.ArgumentParser:
 	subcommands = result.add_subparsers(dest="command", required=True)
 	build = subcommands.add_parser("build", help="verify RDKit, source-build it, then build a wheel")
 	build.add_argument("--output-root", required=True, type=output_path)
-	build.add_argument(
-		"--rdkit-archive", help="existing archive; its pinned SHA-256 is always verified"
+	source = build.add_mutually_exclusive_group()
+	source.add_argument(
+		"--source-archive-root",
+		type=archive_root_path,
+		help="read-only directory containing every selected source archive",
 	)
-	build.add_argument("--target", default=TARGET)
+	source.add_argument(
+		"--sealed-input-root",
+		type=output_path,
+		help="previous builder-validated native inputs copied into this fresh output root",
+	)
 	build.set_defaults(handler=command_build)
 	adapter = subcommands.add_parser(
 		"adapter", help="build a replacement ABI-compatible adapter from sealed native inputs"
@@ -938,14 +944,8 @@ def parser() -> argparse.ArgumentParser:
 		type=output_path,
 		help=(
 			"completed Ferrum native-build output root containing the private RDKit install "
-			"and pinned Boost headers"
+			"and the selected Boost headers"
 		),
-	)
-	adapter.add_argument(
-		"--build-type",
-		choices=ADAPTER_BUILD_TYPES,
-		default="Release",
-		help="CMake build variant for the ABI-compatible replacement adapter",
 	)
 	adapter.set_defaults(handler=command_adapter)
 	self_test = subcommands.add_parser(
@@ -954,7 +954,6 @@ def parser() -> argparse.ArgumentParser:
 	self_test.set_defaults(handler=command_self_test)
 	return result
 
-#============================================
 def main() -> int:
 	"""Parse one command and execute its selected native-wheel operation.
 
@@ -965,7 +964,7 @@ def main() -> int:
 		arguments = parser().parse_args()
 		arguments.handler(arguments)
 		return 0
-	except (NativeBuildError, NativeMachoError) as error:
+	except (NativeBuildError, NativeMachoError, NativePackagingError) as error:
 		print(f"initial native-wheel build error: {error}", file=sys.stderr)
 		return 1
 

@@ -15,6 +15,7 @@ from tempfile import TemporaryDirectory
 # Local imports.
 from native_wheel_profile import (
 	MACOS_ARM64_NATIVE_CLOSURE,
+	RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES,
 	TARGET,
 	PinnedSource,
 	RdkitCapabilityProfile,
@@ -24,7 +25,7 @@ from native_wheel_profile import (
 OUTPUT_ROOT_PLACEHOLDER = "${OUTPUT_ROOT}"
 ABSOLUTE_PATH_TOKEN = re.compile(r"/[^\s\"';(),\[\]{}:]+")
 NATIVE_INPUT_MANIFEST_FILENAME = "ferrum-native-inputs.json"
-NATIVE_INPUT_MANIFEST_SCHEMA = "ferrum-native-inputs-v2"
+NATIVE_INPUT_MANIFEST_SCHEMA = "ferrum-native-inputs-v3"
 
 
 class NativeReceiptError(RuntimeError):
@@ -213,12 +214,11 @@ def _expected_native_input_paths(profile: RdkitCapabilityProfile) -> dict[str, s
 	boost_directory = "boost_" + boost_sources[0].version.replace(".", "_")
 	return {
 		"boost_include_dir": f"dependencies/boost-headers/{boost_directory}",
-		"graphmol_library": "rdkit-install/lib/libRDKitGraphMol.1.dylib",
 		# RDKit's installed public headers retain the package prefix.  The adapter
 		# includes <GraphMol/...>, so this must be the directory that contains
 		# GraphMol/, rather than the enclosing CMake install include directory.
 		"include_dir": "rdkit-install/include/rdkit",
-		"rdgeneral_library": "rdkit-install/lib/libRDKitRDGeneral.1.dylib",
+		"rdkit_library_dir": "rdkit-install/lib",
 	}
 
 
@@ -228,8 +228,7 @@ def write_native_input_manifest(
 	profile: RdkitCapabilityProfile,
 	include_dir: Path,
 	boost_include_dir: Path,
-	graphmol_library: Path,
-	rdgeneral_library: Path,
+	rdkit_library_dir: Path,
 ) -> Path:
 	"""Publish the immutable, hash-verified inputs permitted for adapter reuse."""
 	root = output_root.resolve()
@@ -238,11 +237,18 @@ def write_native_input_manifest(
 	manifest = root / NATIVE_INPUT_MANIFEST_FILENAME
 	if manifest.exists():
 		raise NativeReceiptError(f"refusing to overwrite native input manifest: {manifest}")
-	required_headers = (include_dir / "GraphMol" / "MolOps.h", include_dir / "RDGeneral" / "types.h")
+	required_headers = (
+		include_dir / "GraphMol" / "MolOps.h",
+		include_dir / "GraphMol" / "Depictor" / "RDDepictor.h",
+		include_dir / "GraphMol" / "SmilesParse" / "SmilesParse.h",
+		include_dir / "GraphMol" / "SmilesParse" / "SmilesWrite.h",
+		include_dir / "RDGeneral" / "types.h",
+	)
 	for header in required_headers:
 		if not header.is_file():
 			raise NativeReceiptError(f"missing required RDKit header: {header}")
-	for library in (graphmol_library, rdgeneral_library):
+	libraries = tuple(rdkit_library_dir / name for name in RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES)
+	for library in libraries:
 		if not library.is_file():
 			raise NativeReceiptError(f"missing required RDKit library alias: {library}")
 		if not library.resolve().is_file():
@@ -260,13 +266,8 @@ def write_native_input_manifest(
 		"boost_include_dir": _manifest_relative_path(
 			boost_include_dir, root, "Boost include directory"
 		),
-		"graphmol_library": _manifest_relative_path(
-			graphmol_library, root, "GraphMol library alias"
-		),
 		"include_dir": _manifest_relative_path(include_dir, root, "RDKit include directory"),
-		"rdgeneral_library": _manifest_relative_path(
-			rdgeneral_library, root, "RDGeneral library alias"
-		),
+		"rdkit_library_dir": _manifest_relative_path(rdkit_library_dir, root, "RDKit library directory"),
 	}
 	expected_paths = _expected_native_input_paths(profile)
 	if paths != expected_paths:
@@ -288,7 +289,7 @@ def write_native_input_manifest(
 					),
 					"sha256": sha256(library.resolve()),
 				}
-				for library in (graphmol_library, rdgeneral_library)
+			for library in libraries
 			],
 		},
 		"paths": paths,
@@ -338,7 +339,7 @@ def validate_native_input_manifest(
 		raise NativeReceiptError("native input manifest source evidence does not match Ferrum pins")
 	paths = record["paths"]
 	if not isinstance(paths, dict) or set(paths) != {
-		"boost_include_dir", "graphmol_library", "include_dir", "rdgeneral_library"
+		"boost_include_dir", "include_dir", "rdkit_library_dir"
 	}:
 		raise NativeReceiptError("native input manifest paths have an unexpected schema shape")
 	expected_paths = _expected_native_input_paths(profile)
@@ -377,6 +378,9 @@ def validate_native_input_manifest(
 		raise NativeReceiptError("native input manifest artifacts have an unexpected schema shape")
 	expected_headers = [
 		resolved_paths["include_dir"] / "GraphMol" / "MolOps.h",
+		resolved_paths["include_dir"] / "GraphMol" / "Depictor" / "RDDepictor.h",
+		resolved_paths["include_dir"] / "GraphMol" / "SmilesParse" / "SmilesParse.h",
+		resolved_paths["include_dir"] / "GraphMol" / "SmilesParse" / "SmilesWrite.h",
 		resolved_paths["include_dir"] / "RDGeneral" / "types.h",
 	]
 	expected_header_records = [
@@ -389,7 +393,10 @@ def validate_native_input_manifest(
 		or artifacts["headers"] != expected_header_records
 	):
 		raise NativeReceiptError("native input manifest RDKit header evidence does not match files")
-	expected_libraries = [resolved_paths["graphmol_library"], resolved_paths["rdgeneral_library"]]
+	expected_libraries = [
+		resolved_paths["rdkit_library_dir"] / name
+		for name in RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES
+	]
 	expected_library_records = []
 	for library in expected_libraries:
 		if not library.is_file() or not library.resolve().is_file():
@@ -564,7 +571,12 @@ def self_test(profile: RdkitCapabilityProfile) -> None:
 			"boost_" + next(source for source in profile.dependencies if source.name == "boost-headers")
 			.version.replace(".", "_")
 		)
-		for header in (include_dir / "GraphMol" / "MolOps.h", include_dir / "RDGeneral" / "types.h"):
+		for relative in (
+			"GraphMol/MolOps.h", "GraphMol/Depictor/RDDepictor.h",
+			"GraphMol/SmilesParse/SmilesParse.h", "GraphMol/SmilesParse/SmilesWrite.h",
+			"RDGeneral/types.h",
+		):
+			header = include_dir / relative
 			header.parent.mkdir(parents=True, exist_ok=True)
 			header.write_bytes(header.name.encode("ascii"))
 		boost_config = boost_include_dir / "boost" / "config.hpp"
@@ -572,11 +584,9 @@ def self_test(profile: RdkitCapabilityProfile) -> None:
 		boost_config.write_bytes(b"boost config")
 		lib_dir = root / "rdkit-install" / "lib"
 		lib_dir.mkdir(parents=True, exist_ok=True)
-		graphmol = lib_dir / "libRDKitGraphMol.1.dylib"
-		rdgeneral = lib_dir / "libRDKitRDGeneral.1.dylib"
-		graphmol.write_bytes(b"graphmol")
-		rdgeneral.write_bytes(b"rdgeneral")
-		write_native_input_manifest(root, profile, include_dir, boost_include_dir, graphmol, rdgeneral)
+		for name in RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES:
+			(lib_dir / name).write_bytes(name.encode("ascii"))
+		write_native_input_manifest(root, profile, include_dir, boost_include_dir, lib_dir)
 		cmake_options = (
 			f"-DCMAKE_INSTALL_PREFIX={root}/install",
 			f"-DBoost_DIR={root}/boost-config",

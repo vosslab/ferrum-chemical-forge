@@ -28,7 +28,7 @@ fn main() {
         .collect::<Vec<_>>();
     assert!(
         !capability_names.is_empty(),
-        "public adapter header must define at least one ABI-3 capability"
+        "public adapter header must define at least one ABI-4 capability"
     );
     let mut all_known_capabilities = 0_u64;
     for name in capability_names {

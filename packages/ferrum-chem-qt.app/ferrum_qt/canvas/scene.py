@@ -6,10 +6,11 @@ import re
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
+import ferrum_chem
 
 # local repo modules
-import ferrum_qt.bridge.oasa_bridge
 import ferrum_qt.bridge.display_geometry
+import ferrum_qt.bridge.paper_catalog
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.config.geometry_units
 import ferrum_qt.themes.theme_loader
@@ -265,7 +266,7 @@ class ChemScene(PySide6.QtWidgets.QGraphicsScene):
 		self._paper_attributes = dict(attributes)
 		catalog = {
 			name.lower(): dimensions
-			for name, dimensions in ferrum_qt.bridge.oasa_bridge.paper_catalog().items()
+			for name, dimensions in ferrum_qt.bridge.paper_catalog.paper_catalog_v1().items()
 		}
 		paper_type = attributes.get("type", "").lower()
 		if paper_type == "custom":
@@ -449,7 +450,7 @@ class ChemScene(PySide6.QtWidgets.QGraphicsScene):
 		self._require_active_contents("change grid spacing")
 		try:
 			new_spacing = ferrum_qt.bridge.display_geometry.normalize_hex_grid_spacing(value)
-		except (TypeError, ValueError):
+		except ferrum_chem.GeometryError:
 			return
 		if abs(new_spacing - self._grid_spacing_pt) < 1e-6:
 			return

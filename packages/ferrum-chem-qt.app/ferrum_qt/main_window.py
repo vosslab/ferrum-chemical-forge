@@ -1,191 +1,159 @@
-"""Main application window for Ferrum-Qt."""
-
-# Standard Library
-import pathlib
+"""Ordinary OASA-free native-first application window for Ferrum-Qt."""
 
 # PIP3 modules
-import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.config.geometry_units
-import ferrum_qt.config.keybindings
 import ferrum_qt.config.preferences
-import ferrum_qt.widgets.status_bar
-import ferrum_qt.widgets.zoom_controls
-import ferrum_qt.widgets.icon_loader
-import ferrum_qt.setup.canvas_setup
-import ferrum_qt.setup.mode_setup
-import ferrum_qt.setup.toolbar_setup
-import ferrum_qt.actions.file_actions
-import ferrum_qt.actions.options_actions
-import ferrum_qt.canvas.document_projection
-import ferrum_qt.canvas.graphics_retirement
-import ferrum_qt.canvas.molecule_projection
-import ferrum_qt.io.clipboard_manager
-import ferrum_qt.io.import_capabilities
-import ferrum_qt.io.user_template_catalog
-import ferrum_qt.bridge.user_template_inspection
-import ferrum_qt.dialogs.about_dialog
-import ferrum_qt.dialogs.preferences_dialog
-import ferrum_qt.dialogs.theme_chooser_dialog
-
-import ferrum_qt.window_clipboard
-import ferrum_qt.window_files
-import ferrum_qt.window_properties
-import ferrum_qt.window_session_active
-import ferrum_qt.window_session_lifecycle
-import ferrum_qt.window_session_setup
-import ferrum_qt.window_sessions
-import ferrum_qt.window_shared
-import ferrum_qt.window_templates
-import ferrum_qt.window_view
-
-ShutdownState = ferrum_qt.window_shared.ShutdownState
+import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.native.ferrum_native_main_window
 
 
 #============================================
-class MainWindow(
-		ferrum_qt.window_templates.WindowTemplateMixin,
-		ferrum_qt.window_properties.WindowPropertiesMixin,
-		ferrum_qt.window_session_setup.WindowSessionSetupMixin,
-		ferrum_qt.window_session_active.WindowSessionActiveMixin,
-		ferrum_qt.window_session_lifecycle.WindowSessionLifecycleMixin,
-		ferrum_qt.window_clipboard.WindowClipboardMixin,
-		ferrum_qt.window_files.WindowFileMixin,
-		ferrum_qt.window_view.WindowViewMixin,
-		PySide6.QtWidgets.QMainWindow,
-		):
-	"""Thin QMainWindow composition facade for Ferrum-Qt controllers."""
+class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow):
+	"""Start the product host with one empty Rust-owned document.
 
-	worker_retirement_drained = PySide6.QtCore.Signal()
+	The historical OASA session graph lives only in
+	``ferrum_qt.legacy.compatibility_main_window``.  In particular, external
+	CDML open remains unavailable here until the measured Rust admission policy
+	is ready; it must not fall back to the compatibility host.
+	"""
 
-	def __init__(self, theme_manager: object,
+	#============================================
+	def __init__(
+			self, theme_manager: object,
 			parent: PySide6.QtWidgets.QWidget | None = None, *,
-			user_template_directory: str | pathlib.Path | None = None) -> None:
-		"""Initialize the main window with all UI components.
-
-		Args:
-			theme_manager: ThemeManager instance for theme toggling.
-			parent: Optional parent widget.
-			user_template_directory: Explicit frontend-owned directory used for
-				discovering saved user templates, or None for an empty embedded catalog.
-		"""
+			user_template_directory: object = None,
+			) -> None:
+		"""Build the ordinary native-only host and its initial empty document."""
+		del user_template_directory
 		super().__init__(parent)
 		self._theme_manager = theme_manager
 		self._prefs = ferrum_qt.config.preferences.Preferences.instance()
-		ferrum_qt.actions.options_actions.apply_saved_logging_level(self._prefs)
 		self._shutdown_prepared = False
-		self._shutdown_state = ShutdownState.LIVE
-		self._ui_signals_connected = False
-		# The active document has four window-owned callbacks.  Keep their
-		# ownership as explicit state so a projection preparation failure can
-		# detach and restore the same document without asking Qt to disconnect
-		# callbacks that were never installed.
-		self._document_signal_source = None
-		self._tab_change_blocked = False
-		self._sessions = []
-		self._sessions_by_view = {}
-		# MainWindow alone owns every session-to-tab title subscription.  Session
-		# retirement can follow close, replacement rollback, or full-window
-		# shutdown, so all of those paths ask this registry to retire a binding
-		# exactly once instead of independently guessing whether Qt still has it.
-		self._session_title_connections = {}
-		self._pending_session_deletions = {}
-		# A destroyed-session callback retries retained terminal graphics once.
-		# A transient native failure gets one further ordinary event-loop retry;
-		# persistent failures remain explicitly retained for shutdown diagnostics
-		# instead of scheduling an unbounded zero-delay loop.
-		self._pending_session_graphics_retry_scheduled = False
-		self._retired_import_workers = set()
-		self._shutdown_sessions_pending_disposal = []
-		self._active_session = None
-		self._user_template_directory = (
-			pathlib.Path(user_template_directory)
-			if user_template_directory is not None else None
-		)
-		self._user_template_catalog = self._scan_user_template_catalog()
-		self._clipboard_manager = ferrum_qt.io.clipboard_manager.ClipboardManager()
-		self._clipboard = PySide6.QtWidgets.QApplication.clipboard()
-
 		self.setWindowTitle(self.tr("Ferrum-Qt"))
-		style = PySide6.QtWidgets.QApplication.style()
-		window_icon = style.standardIcon(
-			PySide6.QtWidgets.QStyle.StandardPixmap.SP_FileIcon
-		)
-		if not window_icon.isNull():
-			app = PySide6.QtWidgets.QApplication.instance()
-			if app is not None:
-				app.setWindowIcon(window_icon)
-			self.setWindowIcon(window_icon)
 		self.resize(1280, 800)
-
-		# build the UI components
-		self._setup_canvas()
-		self._setup_mode_system()
-		self._setup_menus()
-		self._setup_toolbars()
-		self._setup_status_bar()
-		self._connect_signals()
-		self._apply_geometry_preferences()
-		self._apply_view_preferences()
-		self._show_user_template_catalog_status(self._user_template_catalog)
-
-def drain_pending_session_deletions(
-		app: PySide6.QtWidgets.QApplication,
-		target_window: object = None,
-		max_passes: int = 4,
-		) -> bool:
-	"""Prove one live window's QObject reaper has released every record."""
-	if target_window is None:
-		raise ValueError("A MainWindow is required to prove reaper completion")
-	while target_window._retired_import_workers:
-		loop = PySide6.QtCore.QEventLoop()
-		target_window.worker_retirement_drained.connect(loop.quit)
-		if target_window._retired_import_workers:
-			loop.exec()
-		try:
-			target_window.worker_retirement_drained.disconnect(loop.quit)
-		except (RuntimeError, TypeError):
-			pass
-	for _pass in range(max_passes):
-		target_window._resolve_pending_session_graphics()
-		PySide6.QtCore.QCoreApplication.sendPostedEvents(
-			None, PySide6.QtCore.QEvent.Type.DeferredDelete,
-		)
-		app.processEvents()
-		if not target_window._pending_session_deletions:
-			return True
-	return False
-
-
-#============================================
-def delete_qobject_and_wait(
-		app: PySide6.QtWidgets.QApplication,
-		target: PySide6.QtCore.QObject,
-		max_passes: int = 4,
-		) -> bool:
-	"""Queue one QObject deletion and prove its destroyed signal was delivered."""
-	if not ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(target):
-		raise RuntimeError("Cannot retire an already-retired QObject")
-	destroyed = []
+		self._action_open = self._open_action
+		self._action_open.setEnabled(False)
+		self._action_open.setToolTip(self.tr(
+			"External CDML Open is deferred until its admission policy is approved.",
+		))
+		self._action_new = self._add_new_document_action()
+		self._on_new()
 
 	#============================================
-	def record_destroyed(*_args: object) -> None:
-		"""Record either PySide6 destroyed-signal signature."""
-		destroyed.append(True)
+	def _add_new_document_action(self) -> PySide6.QtGui.QAction:
+		"""Install a window-level native New action without a legacy menu owner."""
+		action = PySide6.QtGui.QAction(self.tr("New"), self)
+		action.triggered.connect(self._on_new)
+		self.addAction(action)
+		return action
 
-	target.destroyed.connect(record_destroyed)
-	target.deleteLater()
-	for _pass in range(max_passes):
-		PySide6.QtCore.QCoreApplication.sendPostedEvents(
-			None, PySide6.QtCore.QEvent.Type.DeferredDelete,
+	#============================================
+	def _create_empty_native_tab(self) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
+		"""Create a revision-zero Rust document without a legacy session."""
+		import ferrum_chem
+		session = ferrum_chem.DocumentSession.create_empty_document_v1()
+		return ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab.from_session(
+			session, self.tr("Untitled"),
 		)
-		app.processEvents()
-		if destroyed:
+
+	#============================================
+	def _on_new(self) -> bool:
+		"""Add one empty Rust-native document tab."""
+		if self._shutdown_prepared:
+			return False
+		try:
+			self._register_native_tab(self._create_empty_native_tab(), activate=True)
+		except Exception as exc:
+			self.statusBar().showMessage(
+				self.tr("Could not create a new Ferrum document: %s") % exc, 5000,
+			)
+			return False
+		return True
+
+	#============================================
+	def _register_native_tab(
+			self,
+			tab: ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+			*, activate: bool = True,
+			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
+		"""Keep the common host's activation default for native callers."""
+		return super()._register_native_tab(tab, activate=activate)
+
+	#============================================
+	def _on_open(self) -> bool:
+		"""Refuse external input until native admission limits are authoritative."""
+		self.statusBar().showMessage(
+			self.tr("Open is deferred until Ferrum-Qt owns an external-input policy."), 5000,
+		)
+		return False
+
+	#============================================
+	def open_file_path(self, file_path: str, replace_current: bool = False) -> bool:
+		"""Keep programmatic launch-file handling on the same unavailable route."""
+		del file_path, replace_current
+		return self._on_open()
+
+	#============================================
+	def open_native_cdml_path(self, file_path: str) -> bool:
+		"""Refuse the old whole-file Python CDML loader in the ordinary host."""
+		del file_path
+		return self._on_open()
+
+	#============================================
+	def _close_native_tab_at(self, index: int) -> bool:
+		"""Close one clean native page and report whether it was disposed."""
+		tab = self._native_tabs_by_page.get(self._tab_widget.widget(index))
+		if tab is None or tab.requires_refresh or tab.is_dirty:
+			return False
+		self._close_tab_at(index)
+		return tab not in self._native_tabs_by_page
+
+	#============================================
+	def _refresh_actions(self, *_unused: object) -> None:
+		"""Keep an incomplete detached tab from enabling native edit commands.
+
+		A tab is registered before every optional projection capability has been
+		installed.  The ordinary host treats that state as non-editable instead of
+		letting an action refresh cross a missing projection attribute.
+		"""
+		tab = self._active_native_tab()
+		controller = getattr(tab, "_controller", None)
+		if tab is not None and not hasattr(controller, "projection"):
+			for action in self.findChildren(PySide6.QtGui.QAction):
+				action.setEnabled(False)
+			return
+		super()._refresh_actions(*_unused)
+
+	#============================================
+	def prepare_application_shutdown(self) -> bool:
+		"""Retire clean native pages before the generic QObject finalizer runs."""
+		if self._shutdown_prepared:
 			return True
-	return False
-import ferrum_qt.window_session_active
-import ferrum_qt.window_session_lifecycle
-import ferrum_qt.window_session_setup
+		if any(tab.requires_refresh or tab.is_dirty for tab in self._native_tabs_by_page.values()):
+			return False
+		for tab in tuple(self._native_tabs_by_page.values()):
+			index = self._tab_widget.indexOf(tab)
+			if index >= 0:
+				self._close_tab_at(index)
+		self._shutdown_prepared = not self._native_tabs_by_page
+		return self._shutdown_prepared
+
+	#============================================
+	def restore_geometry(self) -> None:
+		"""Restore ordinary-window geometry without importing a legacy view mixin."""
+		geometry = self._prefs.value(
+			ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY,
+		)
+		if geometry is not None:
+			self.restoreGeometry(geometry)
+
+	#============================================
+	def closeEvent(self, event: PySide6.QtGui.QCloseEvent) -> None:
+		"""Use the ordinary native-only shutdown policy for a window close."""
+		if not self.prepare_application_shutdown():
+			event.ignore()
+			return
+		event.accept()

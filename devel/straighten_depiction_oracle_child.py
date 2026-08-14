@@ -1,8 +1,15 @@
 """Measure RDKit depiction straightening inside the isolated oracle environment."""
 
+# Standard Library
+import hashlib
 import json
 import math
+import pathlib
+import sys
 
+# PIP3 modules
+import rdkit
+import rdkit.rdBase
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
@@ -14,6 +21,13 @@ CASES = {
 	"asymmetric_three_bond": ((0.0, 0.0), (1.0, 0.2), (1.7, 1.1), (2.4, 1.35)),
 }
 REPEATS = 25
+
+
+#============================================
+def case_corpus_sha256() -> str:
+	"""Return the digest of the exact fixed geometry corpus."""
+	encoded = json.dumps(CASES, separators=(",", ":"), sort_keys=True).encode("ascii")
+	return hashlib.sha256(encoded).hexdigest()
 
 
 def applied_rotation(
@@ -65,6 +79,45 @@ def maximum_coordinate_variation(runs: list[dict]) -> float:
 	return variation
 
 
+#============================================
+def maximum_rotation_variation(runs: list[dict]) -> float:
+	"""Return the largest applied-angle change from the first local run."""
+	first = runs[0]["rotation_radians"]
+	return max(abs(run["rotation_radians"] - first) for run in runs)
+
+
+#============================================
+def rdkit_artifacts() -> list[dict]:
+	"""Identify loaded RDKit files without scanning the package installation."""
+	artifacts = []
+	for module_name, module in sorted(sys.modules.items()):
+		if module_name != "rdkit" and not module_name.startswith("rdkit."):
+			continue
+		module_path = getattr(module, "__file__", None)
+		if not isinstance(module_path, str):
+			artifacts.append({"module": module_name, "status": "absent"})
+			continue
+		try:
+			path = pathlib.Path(module_path).resolve()
+		except OSError as error:
+			artifacts.append(
+				{"module": module_name, "path": module_path, "status": "unresolvable: " + str(error)}
+			)
+			continue
+		if not path.is_file():
+			artifacts.append({"module": module_name, "path": str(path), "status": "not_a_file"})
+			continue
+		artifacts.append(
+			{
+				"module": module_name,
+				"path": str(path),
+				"sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+				"status": "hashed",
+			}
+		)
+	return artifacts
+
+
 def main() -> None:
 	"""Emit repeated RDKit results for each shared Ferrum geometry case."""
 	measurements = {}
@@ -75,9 +128,17 @@ def main() -> None:
 			branches[str(minimize_rotation).lower()] = {
 				"first": runs[0],
 				"maximum_repeat_coordinate_variation": maximum_coordinate_variation(runs),
+				"maximum_repeat_rotation_variation_radians": maximum_rotation_variation(runs),
 			}
 		measurements[name] = branches
-	result = {"repeats": REPEATS, "measurements": measurements}
+	result = {
+		"case_corpus_sha256": case_corpus_sha256(),
+		"measurements": measurements,
+		"rdkit_artifacts": rdkit_artifacts(),
+		"rdkit_version": rdkit.__version__,
+		"repeats": REPEATS,
+		"schema": "ferrum-straighten-depiction-oracle-child-v1",
+	}
 	print(json.dumps(result, separators=(",", ":"), sort_keys=True))
 
 

@@ -3,6 +3,7 @@ import os
 import re
 import ast
 import sys
+import pathlib
 
 # PIP3 modules
 import pytest
@@ -27,6 +28,12 @@ LOCAL_IMPORT_WHITELIST = {
 	# Imported by bioproblems_site/llm_helpers.py and problem_set_title.py.
 	"local_llm_wrapper",
 }
+# Directly imported tool modules can be split from a tracked launcher before
+# their own source is visible to tracked-file discovery. Keep their source
+# paths here, rather than treating them as external or pip-provided imports.
+LOCAL_MODULE_SOURCE_PATHS = (
+	"packages/ferrum-rust/tools/native_wheel_packaging.py",
+)
 IMPORT_REQUIREMENT_ALIASES = {
 	"applescript": "py-applescript",
 	"bio": "biopython",
@@ -36,6 +43,7 @@ IMPORT_REQUIREMENT_ALIASES = {
 	"crypto": "pycryptodome",
 	"cv2": "opencv-python",
 	"docx": "python-docx",
+	"ferrum_chem": "ferrum-chem",
 	"fitz": "pymupdf",
 	"google": "google-api-python-client",
 	"googleapiclient": "google-api-python-client",
@@ -49,6 +57,37 @@ IMPORT_REQUIREMENT_ALIASES = {
 	"rottentomatoes": "rottentomatoes-python",
 	"yaml": "pyyaml",
 }
+# Historical-oracle imports are deliberately narrower than the ordinary
+# requirements policy.  Keep the map keyed by the exact child script so an
+# oracle package cannot become available to a maintainer launcher or product
+# code merely by appearing in the isolated oracle environment.
+ORACLE_CHILD_IMPORTS = {
+	# These version-comparison children are launched with caller-selected, existing
+	# Python executables plus -I/-B so one receipt can compare current and previous
+	# RDKit. They are exact-path allowances, not canonical legacy-oracle workers.
+	"devel/coordinate_parity_oracle_child.py": {"rdkit"},
+	"devel/molblock_parity_rdkit_child.py": {"rdkit"},
+	"devel/rdkit_layout_orientation_child.py": {"rdkit"},
+	"devel/sdf_parity_rdkit_child.py": {"rdkit"},
+	"devel/smarts_parity_oracle_child.py": {"rdkit"},
+	"devel/straighten_depiction_oracle_child.py": {"rdkit"},
+	"tests/e2e/oracle/e2e_oasa_corpus_molecule_child.py": {"oasa", "rdkit"},
+	"tests/e2e/oracle/e2e_oasa_molecule_core_child.py": {"oasa", "rdkit"},
+}
+ORACLE_CHILD_LAUNCHERS = {
+	"devel/rdkit_layout_orientation_child.py": "devel/rdkit_layout_orientation.py",
+	"devel/straighten_depiction_oracle_child.py": "devel/measure_straighten_depiction.py",
+	"tests/e2e/oracle/e2e_oasa_corpus_molecule_child.py": "tests/e2e/e2e_oracle_corpus_molecule.py",
+	"tests/e2e/oracle/e2e_oasa_molecule_core_child.py": "tests/e2e/e2e_oracle_molecule_core.py",
+}
+ORACLE_PYTHON_PATH_PARTS = (
+	"tests",
+	"e2e",
+	"oracle",
+	".venv",
+	"bin",
+	"python",
+)
 REQ_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+")
 
 # Module-level dict of repo-relative POSIX key -> list of violation lines.
@@ -121,10 +160,16 @@ def load_requirement_modules(repo_root: str) -> tuple[set[str], str]:
 #============================================
 def collect_repo_module_names(paths: list[str]) -> set[str]:
 	"""
-	Collect importable module names from tracked Python files.
+	Collect importable module names from tracked and registered local Python files.
 	"""
 	module_names = set()
-	for path in paths:
+	source_paths = list(paths)
+	for rel_path in LOCAL_MODULE_SOURCE_PATHS:
+		source_path = os.path.join(REPO_ROOT, rel_path)
+		if not os.path.isfile(source_path):
+			raise RuntimeError(f"Registered local module source is missing: {rel_path}")
+		source_paths.append(source_path)
+	for path in source_paths:
 		rel_path = file_utils.rel_to_root(path)
 		for part in rel_path.split(os.sep)[:-1]:
 			if part:
@@ -271,6 +316,7 @@ def get_stdlib_modules() -> set[str]:
 
 #============================================
 def is_allowed_module(
+	path: str,
 	module_name: str,
 	repo_modules: set[str],
 	stdlib_modules: set[str],
@@ -279,6 +325,10 @@ def is_allowed_module(
 	"""
 	Return True when a module passes import policy checks.
 	"""
+	rel_path = file_utils.rel_to_root(path)
+	allowed_oracle_modules = ORACLE_CHILD_IMPORTS.get(rel_path, set())
+	if module_name in allowed_oracle_modules:
+		return True
 	if module_name in LOCAL_IMPORT_WHITELIST:
 		return True
 	if module_name in repo_modules:
@@ -337,6 +387,7 @@ def build_violations_by_file(
 			if optional_import and not check_optional_imports:
 				continue
 			if is_allowed_module(
+				path,
 				module_name,
 				repo_modules,
 				stdlib_modules,
@@ -384,6 +435,60 @@ def make_report_lines(
 	# Insert metadata right after the first header line.
 	lines = [lines[0]] + metadata + lines[1:]
 	return lines
+
+
+#============================================
+def command_has_isolated_oracle_contract(command_parts: list[ast.expr]) -> bool:
+	"""Return whether one command list names the isolated child safely."""
+	flags = {
+		part.value
+		for part in command_parts
+		if isinstance(part, ast.Constant) and isinstance(part.value, str)
+	}
+	string_names = {
+		part.args[0].id
+		for part in command_parts
+		if (
+			isinstance(part, ast.Call)
+			and isinstance(part.func, ast.Name)
+			and part.func.id == "str"
+			and len(part.args) == 1
+			and isinstance(part.args[0], ast.Name)
+		)
+	}
+	return (
+		{"-I", "-B"}.issubset(flags)
+		and "ORACLE_PYTHON" in string_names
+		and any(name.endswith("CHILD") for name in string_names)
+	)
+
+
+#============================================
+def launcher_has_isolated_oracle_contract(launcher_path: str, child_path: str) -> bool:
+	"""Validate a launcher binds its listed child to the canonical isolated Python."""
+	source = file_utils.read_source(launcher_path)
+	tree, error = file_utils.parse_source(launcher_path)
+	if error is not None:
+		return False
+	if os.path.basename(child_path) not in source:
+		return False
+	if not all('"' + part + '"' in source for part in ORACLE_PYTHON_PATH_PARTS):
+		return False
+	has_contract_command = False
+	for node in ast.walk(tree):
+		if not isinstance(node, ast.List):
+			continue
+		if command_has_isolated_oracle_contract(node.elts):
+			has_contract_command = True
+	for node in ast.walk(tree):
+		if (
+			isinstance(node, ast.Call)
+			and isinstance(node.func, ast.Attribute)
+			and node.func.attr == "run"
+			and has_contract_command
+		):
+			return True
+	return False
 
 
 FILES = file_utils.discover_files(extensions=(".py",), test_key="import_requirements")
@@ -438,3 +543,55 @@ def test_import_requirements(path: str) -> None:
 	assert rel not in VIOLATIONS_BY_FILE, file_utils.format_violation_assert_message(
 		rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME
 	)
+
+
+#============================================
+def test_oracle_allowance_rejects_seeded_product_import(tmp_path: pathlib.Path) -> None:
+	"""Keep an undeclared RDKit import outside listed oracle children visible."""
+	probe = tmp_path / "product_probe.py"
+	probe.write_text("import rdkit\n", encoding="ascii")
+	violations = build_violations_by_file(
+		[str(probe)], set(), set(), set(), check_optional_imports=True,
+	)
+	assert violations
+
+
+#============================================
+def test_registered_local_tool_source_permits_its_direct_import(
+	tmp_path: pathlib.Path,
+) -> None:
+	"""Recognize a split local tool module without treating it as a package dependency."""
+	probe = tmp_path / "tool_probe.py"
+	probe.write_text("import native_wheel_packaging\n", encoding="ascii")
+	violations = build_violations_by_file(
+		[str(probe)],
+		collect_repo_module_names(FILES),
+		get_stdlib_modules(),
+		set(),
+		check_optional_imports=True,
+	)
+	assert not violations
+
+
+#============================================
+def test_listed_oracle_children_receive_only_their_scoped_import_allowance() -> None:
+	"""Permit the declared oracle children without declaring RDKit repository-wide."""
+	paths = [os.path.join(REPO_ROOT, path) for path in ORACLE_CHILD_IMPORTS]
+	violations = build_violations_by_file(
+		paths, set(), get_stdlib_modules(), set(), check_optional_imports=True,
+	)
+	assert not violations
+
+
+#============================================
+@pytest.mark.parametrize(
+	("child_path", "launcher_path"),
+	sorted(ORACLE_CHILD_LAUNCHERS.items()),
+)
+def test_oracle_children_are_launched_by_the_canonical_isolated_interpreter(
+	child_path: str,
+	launcher_path: str,
+) -> None:
+	"""Require each scoped child to run with the oracle venv, -I, and -B."""
+	launcher = os.path.join(REPO_ROOT, launcher_path)
+	assert launcher_has_isolated_oracle_contract(launcher, child_path)

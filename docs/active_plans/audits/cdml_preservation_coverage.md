@@ -6,9 +6,11 @@ This is the M1d evidence baseline for the later M10 preservation gate. It states
 the committed `tests/e2e/corpus/` represents; it does not declare the corpus complete.
 The separate-process oracle and corpus comparison now exist as independent evidence.
 
-Status: inventory, compact inputs, separate-process harness, and divergence report are
-established. M1d remains in progress because no real user documents are available and
-the no-namespace, future-version, alternate-prefix, and CD-SVG forms remain uncovered.
+Status: M1d is complete. The inventory, compact inputs, separate-process harness, and
+divergence report are established, and every unavailable form names the missing
+authority and the evidence that could extend coverage. No real user documents are
+available; that remains an explicit evidence limit rather than an unfinishable gate.
+The backend-only M10 preservation gate is also green over the committed corpus.
 
 ## Evidence and authority
 
@@ -85,6 +87,12 @@ Verification for this package:
 - Check the audit and corpus for ASCII-only bytes.
 - Run the Markdown-link check on this audit's relative links.
 - Cross-check corpus element names and documented reference attributes against this table.
+- Run `tests/e2e/e2e_cdml_preservation.py` against an already-built Ferrum CLI; it
+  discovers every committed `.cdml` corpus document and requires the public structural
+  rewrite check to succeed.
+
+The accepted gate and its comparison semantics are recorded in
+[`cdml_preservation_gate.md`](../reports/cdml_preservation_gate.md).
 
 No Rust crate, frontend, runner, or root manifest is changed by this package. The central M1
 documentation owner records this package in the changelog.

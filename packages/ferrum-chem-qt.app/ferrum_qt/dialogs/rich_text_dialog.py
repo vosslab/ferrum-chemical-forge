@@ -1,9 +1,23 @@
 """Controlled CDML 26.07 rich-text editing dialog."""
 
+# Standard Library
+import dataclasses
+
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class RichTextDialogCapabilities:
+	"""Visible controls one caller can represent and preserve end to end."""
+
+	bold: bool = True
+	italic: bool = True
+	font_family: bool = True
+	disabled_reason: str = "This formatting is unavailable in the current editor."
 
 
 #============================================
@@ -31,12 +45,14 @@ class RichTextDialog(PySide6.QtWidgets.QDialog):
 			self, runs: tuple[tuple[str, tuple[str, ...]], ...],
 			font_family: str = "Arial", font_size: int = 12, font_color: str = "#000000",
 			parent: PySide6.QtWidgets.QWidget | None = None,
+			*, capabilities: RichTextDialogCapabilities | None = None,
 			) -> None:
 		"""Create one modal rich-text editor from immutable plain run values."""
 		super().__init__(parent)
 		self.setWindowTitle("Edit Rich Text")
 		self.setMinimumSize(360, 260)
 		self._build_ui()
+		self._apply_capabilities(capabilities or RichTextDialogCapabilities())
 		self._install_runs(runs)
 		self._font_combo.setCurrentFont(PySide6.QtGui.QFont(font_family))
 		self._font_spin.setValue(font_size)
@@ -44,6 +60,20 @@ class RichTextDialog(PySide6.QtWidgets.QDialog):
 		self._update_color_button()
 		self._initial_font_values = self.font_values()
 		self._update_controls()
+
+	#============================================
+	def _apply_capabilities(self, capabilities: RichTextDialogCapabilities) -> None:
+		"""Disable unsupported choices visibly without changing the legacy default."""
+		if type(capabilities) is not RichTextDialogCapabilities:
+			raise TypeError("Rich Text capabilities must use the closed dialog profile")
+		for enabled, control in (
+			(capabilities.bold, self._bold_button),
+			(capabilities.italic, self._italic_button),
+			(capabilities.font_family, self._font_combo),
+		):
+			control.setEnabled(enabled)
+			if not enabled:
+				control.setToolTip(capabilities.disabled_reason)
 
 	#============================================
 	def _build_ui(self) -> None:

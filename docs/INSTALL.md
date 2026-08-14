@@ -1,32 +1,27 @@
-# Install Ferrum from source
+# Install Ferrum
 
-The current source tree provides the Rust `ferrum` command-line executable and a
-contributor-preview Ferrum-Qt package. Ferrum-Qt is still migrating away from OASA,
-so its source install is not yet the self-contained desktop distribution Ferrum will
-eventually ship.
+This repository currently provides the Rust `ferrum` command-line tool and a
+contributor-only Ferrum-Qt bounded native CDML editor. The macOS arm64 Python wheel is
+packaging evidence, not a generally supported desktop distribution.
 
-## Rust CLI requirements
+## Requirements
 
 - A checkout of this repository.
-- Rust 1.97.1 or newer, matching `packages/ferrum-rust/Cargo.toml`.
-- Cargo with the `aarch64-apple-darwin` target for the currently verified macOS arm64
-  build.
-- Network access for Cargo's first dependency download; later locked builds use the
-  local Cargo cache.
+- Rust 1.97.1 or newer and Cargo. The workspace records this minimum in
+  `packages/ferrum-rust/Cargo.toml`.
+- Python 3.12 for Python tools, the native wheel proof, and Ferrum-Qt.
+- A macOS arm64 host only when running the native-wheel proof.
 
-## Install the Rust CLI
+## Install the CLI
 
-From the repository root:
+From the repository root, install the Rust command into Cargo's normal binary
+directory:
 
 ```bash
-cd packages/ferrum-rust
-cargo install --path crates/api --locked --target aarch64-apple-darwin
+cargo install --path packages/ferrum-rust/crates/api --locked
 ```
 
-Cargo installs the executable as `ferrum` in its normal binary directory. That
-directory must be on `PATH` to invoke the command by name.
-
-## Verify the Rust install
+Ensure Cargo's binary directory is on `PATH`, then verify the installed command:
 
 ```bash
 ferrum --version
@@ -34,30 +29,51 @@ ferrum --version
 
 The current source reports `ferrum 26.8.0`.
 
-## Install the Qt preview
+## Cargo policy
 
-Ferrum-Qt currently requires the declared PySide6 and migration-only OASA Python
-dependencies. From the repository root, install the source package into the active
-Python 3.12 environment:
+- Run workspace commands with `--locked`; `Cargo.lock` selects the exact resolved
+  dependency graph.
+- The workspace minimum Rust version is 1.97.1.
+- Ordinary direct Rust dependencies use `version = "*"`; package publication is
+  disabled in the workspace manifest.
+
+## Native bounded-editor setup
+
+The `ferrum-qt --native` route requires Python 3.12, the declared Qt dependencies,
+and a compatible installed `ferrum-chem` ABI-4 FCM1 extension. After those
+prerequisites are present, install the contributor application from the repository root:
 
 ```bash
 source source_me.sh
 python3 -m pip install --editable packages/ferrum-chem-qt.app
 ```
 
-The installed application command is `ferrum-qt`. Verify the command without opening
-a window:
+The source environment script exports unbuffered Python output and disables bytecode
+files. It must be sourced, not executed.
+
+## Verify the native route
+
+Verify the lightweight command boundary without opening a window:
 
 ```bash
 ferrum-qt --version
 ```
 
-The current source reports `Ferrum-Qt 26.08`.
+## Native-wheel evidence
 
-## Current installation gaps
+The native-wheel proof is limited to macOS arm64. From the repository root on that
+platform, run:
 
-- The native-wheel proof has passed only on macOS arm64. It proves a minimal
-  clean-environment install and LGPL relink route, not a supported consumer package.
-- Qualify and document platforms other than macOS arm64 before claiming support.
-- Add the self-contained Ferrum-Qt wheel after its Rust backend cutover; the preview
-  install above still resolves the temporary OASA dependency.
+```bash
+source source_me.sh && PYTHONDONTWRITEBYTECODE=1 python3 \
+  tests/e2e/e2e_native_wheel.py
+```
+
+It verifies a clean-environment wheel install and LGPL relinking route for the sealed
+ABI-4 FCM1 profile. It does not establish cross-platform support, a consumer wheel
+release, or a completed OASA replacement.
+
+## Known gaps
+
+- TODO: qualify each additional target platform before documenting it as supported.
+- TODO: publish a consumer installation path for the Ferrum-Qt native route.

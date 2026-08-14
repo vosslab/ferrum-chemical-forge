@@ -29,35 +29,101 @@
 //! grammar revision; V1 intentionally provides no compatibility aliases.
 
 mod atom_bond;
-mod cairo_glyph_metrics;
+mod authored_direct_glycosidic_haworth;
+mod direct_draw_stream_v1;
+mod direct_glycosidic_haworth;
+mod document_artifact_v1;
+mod document_bond_replacement_v1;
+mod document_plan_v1;
+mod document_vector_v1;
+mod draw_stream_v1;
 mod error;
 mod font_environment;
 mod glyph_metrics;
+mod glyph_placement;
 mod haworth;
 mod model;
+mod pdf_backend;
+mod png_backend;
+mod shape_ops;
+mod standalone_text;
+mod svg_backend;
+mod verified_telex_glyph_metrics;
 
 /// Atom and bond source facts plus their render-plan builder.
 pub use atom_bond::{
-    AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomRenderTarget,
-    BondRenderTarget, BondStyle, TargetVisibility, build_atom_bond_plan,
+    AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts,
+    AtomMarkRenderKind, AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, BondStyle,
+    TargetVisibility, build_atom_bond_plan,
 };
-/// Cairo-backed glyph metrics using the verified Telex face.
-pub use cairo_glyph_metrics::CairoGlyphMetrics;
+/// In-process-only renderer profile for durable committed direct Haworth facts.
+pub use authored_direct_glycosidic_haworth::{
+    AuthoredDirectGlycosidicHaworthRenderPlanV1, AuthoredDirectGlycosidicHaworthRenderRequestV1,
+    lower_authored_direct_glycosidic_haworth_v1,
+};
+/// In-process-only renderer profile for accepted direct glycosidic Haworth facts.
+pub use direct_glycosidic_haworth::{
+    DirectGlycosidicHaworthRenderPlanV1, DirectGlycosidicHaworthRenderRequestV1,
+    lower_direct_glycosidic_haworth_v1,
+};
+/// Renderer-neutral receipt for a completed whole-page artifact.
+pub use document_artifact_v1::{DocumentRenderArtifactV1, DocumentRenderReportV1};
+/// Checked in-process selective replacement of one molecule's bond outcomes.
+pub use document_bond_replacement_v1::{
+    DocumentBondReplacementErrorV1, DocumentRenderCompositeV1, compose_document_bond_replacement_v1,
+};
+/// Renderer-neutral whole-page document composition model.
+pub use document_plan_v1::{
+    DocumentRenderContentV1, DocumentRenderExclusionV1, DocumentRenderIdentityV1,
+    DocumentRenderOutcomeV1, DocumentRenderPlanV1, DocumentRenderRootV1, DocumentTextLayoutV1,
+    DocumentTextOpV1, RenderViewportV1,
+};
+/// Checked generic vector operations for direct document roots.
+pub use document_vector_v1::{
+    DocumentVectorOpV1, DocumentVectorRootV1, PathCommandV1, StrokeV1, VectorFillRuleV1,
+    VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
+};
 /// Rendering errors and explicit target diagnostics.
 pub use error::{RenderError, RenderIssue, RenderIssueKind};
 /// Verified immutable Telex font asset environment.
 pub use font_environment::{FerrumFontEnvironmentV1, FerrumFontId, FontAssetDescriptor};
-#[cfg(test)]
-pub use glyph_metrics::DeterministicGlyphMetrics;
 /// Glyph-layout contract and exact layout bounds.
 pub use glyph_metrics::{GlyphBounds, GlyphMetrics};
+/// Closed Telex glyph identifiers, positions, and script roles.
+pub use glyph_placement::{GlyphPlacement, TextScript};
 /// Haworth fragment lowering into the closed V1 render-plan grammar.
 pub use haworth::{HaworthRenderRequest, lower_haworth_fragment};
 /// Validated render-plan model and canonical JSON boundary.
 pub use model::{
-    BatchSpace, FontFace, LineOp, MoleculeRenderPlan, Paint, PositiveFinite, RenderBatch, RenderOp,
-    RenderPoint, RenderRevision, RenderSchemaVersion, RenderTarget, Rgb24, TextOp, TextRun,
-    TextScript,
+    BatchSpace, FontFace, LineOp, MaskOp, MoleculeRenderPlan, Paint, PositiveFinite, RenderBatch,
+    RenderOp, RenderPoint, RenderProvenance, RenderRevision, RenderSchemaVersion, RenderTarget,
+    Rgb24, TextOp, TextRun,
+};
+/// In-memory, outline-only vector PDF V1 lowering with explicit caller-owned limits.
+pub use pdf_backend::{
+    PdfComplexityResourceV1, PdfDocumentV1, PdfOutputBudgetV1, PdfPlanComplexityBudgetV1,
+    PdfRenderComplexityObservationV1, PdfRenderError, PdfRenderRequestV1,
+    render_document_plan_to_pdf_v1,
+};
+/// Bounded, in-memory PNG V1 lowering with caller-owned output limits.
+pub use png_backend::{
+    PngBackgroundV1, PngDocumentV1, PngOutputBudgetV1, PngPixelSizeV1, PngRenderError,
+    PngRenderRequestV1, render_document_plan_to_png_v1,
+};
+pub use shape_ops::EllipseOp;
+/// Exact fixed-content text layout issued by the verified Telex renderer.
+pub use standalone_text::{
+    CenteredTextLayout, PresentationGlyphRun, PresentationTextLayout, PresentationTextOp,
+    PresentationTextSourceRun,
+};
+/// In-memory SVG V1 lowering for one validated molecule render plan.
+pub use svg_backend::{
+    SvgDocumentV1, SvgRenderError, SvgViewportV1, render_direct_glycosidic_haworth_to_svg_v1,
+    render_document_plan_to_svg_v1, render_plan_to_svg_v1,
+};
+/// Pure-Rust TrueType design metrics using the verified Telex face.
+pub use verified_telex_glyph_metrics::{
+    FontBaselineMetrics, GlyphRunMetrics, VerifiedTelexGlyphMetrics,
 };
 
 #[cfg(test)]

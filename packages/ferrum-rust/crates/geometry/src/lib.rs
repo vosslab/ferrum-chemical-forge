@@ -5,12 +5,14 @@
 //! boundaries, so their types never become persistent document facts.
 
 mod hex_grid;
+mod molecule_placement;
 mod point;
 mod straighten;
 mod transform;
 mod wedge;
 
 pub use hex_grid::{HexEdge, HexGrid, HexIndex};
+pub use molecule_placement::{MoleculePlacementV1, place_molecule_depiction_v1};
 pub use point::{GeometryError, Point2, Vector2};
 pub use straighten::{StraightenedDepiction, straighten_depiction};
 pub use transform::Transform2;

@@ -1,0 +1,114 @@
+{
+  "artifacts": {
+    "ferrum_extension_sha256": "f8fff4f749f0c4b531bacb8451a1f26c3df95e878001cfbc36b12dba268ae8ce",
+    "rdkit_python_binary_sha256": "55d1dd25809fea974f90d2a399a5f49d683f029efa958bb0d19546b6a917640a",
+    "wheel": "output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl",
+    "wheel_sha256": "13de57cf0d95dc3f1755f14a1ca36350fe4db7dca43e3ab8ead0e3d0e74b3eda"
+  },
+  "comparison_policy": {
+    "cross_version": "semantic query equivalence; not established by this slice",
+    "recorded_build": "exact canonical SMILES and SMARTS strings"
+  },
+  "corpus": [
+    {
+      "canonical_smiles": "CCO",
+      "canonical_smiles_exact": true,
+      "input_smiles": "CCO",
+      "name": "ethanol",
+      "smarts": "[#6]-[#6]-[#8]",
+      "smarts_exact": true
+    },
+    {
+      "canonical_smiles": "[Cl-].[NH4+]",
+      "canonical_smiles_exact": true,
+      "input_smiles": "[NH4+].[Cl-]",
+      "name": "charged_pair",
+      "smarts": "[#7+].[#17-]",
+      "smarts_exact": true
+    },
+    {
+      "canonical_smiles": "C=O",
+      "canonical_smiles_exact": true,
+      "input_smiles": "C=O",
+      "name": "carbonyl",
+      "smarts": "[#6]=[#8]",
+      "smarts_exact": true
+    },
+    {
+      "canonical_smiles": "C#N",
+      "canonical_smiles_exact": true,
+      "input_smiles": "C#N",
+      "name": "nitrile",
+      "smarts": "[#6]#[#7]",
+      "smarts_exact": true
+    },
+    {
+      "canonical_smiles": "c1ccccc1",
+      "canonical_smiles_exact": true,
+      "input_smiles": "c1ccccc1",
+      "name": "benzene",
+      "smarts": "[#6]1:[#6]:[#6]:[#6]:[#6]:[#6]:1",
+      "smarts_exact": true
+    },
+    {
+      "canonical_smiles": "F/C=C/F",
+      "canonical_smiles_exact": true,
+      "input_smiles": "F/C=C/F",
+      "name": "bond_stereo",
+      "smarts": "[#9]/[#6]=[#6]/[#9]",
+      "smarts_exact": true
+    },
+    {
+      "canonical_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+      "canonical_smiles_exact": true,
+      "input_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+      "name": "isotope_chirality_map",
+      "smarts": "[13#6]-[#6@H](-[#9])-[#6:9](=[#8])-[#8-]",
+      "smarts_exact": true
+    },
+    {
+      "canonical_smiles": "[CH2]",
+      "canonical_smiles_exact": true,
+      "input_smiles": "[CH2]",
+      "name": "explicit_methylene",
+      "smarts": "[#6]",
+      "smarts_exact": true
+    }
+  ],
+  "native_wheel_e2e": {
+    "closure": [
+      "libRDKitAlignment.1.dylib",
+      "libRDKitChemTransforms.1.dylib",
+      "libRDKitDataStructs.1.dylib",
+      "libRDKitDepictor.1.dylib",
+      "libRDKitEigenSolvers.1.dylib",
+      "libRDKitFileParsers.1.dylib",
+      "libRDKitGenericGroups.1.dylib",
+      "libRDKitGraphMol.1.dylib",
+      "libRDKitMolAlign.1.dylib",
+      "libRDKitMolTransforms.1.dylib",
+      "libRDKitRDGeneral.1.dylib",
+      "libRDKitRDGeometryLib.1.dylib",
+      "libRDKitSmilesParse.1.dylib",
+      "libRDKitSubstructMatch.1.dylib",
+      "libferrum_chem.dylib"
+    ],
+    "original_adapter_sha256": "5505f870b94bc3be59665f4152b9e4ee91e978d99a348d603d159a85c8b0229e",
+    "replacement_adapter_sha256": "63c2daa49f3df64c1e43b2ab14890989cafad17e8231c9e02575dbde6fe23849",
+    "replacement_build_type": "RelWithDebInfo",
+    "smarts_after_replacement": "[#6]-[#6]-[#8]",
+    "smarts_before_replacement": "[#6]-[#6]-[#8]"
+  },
+  "oracle_version": "2026.03.5",
+  "schema": "ferrum-smarts-codec-parity-v1",
+  "source_sha256": {
+    "devel/measure_smarts_codec_parity.py": "861e80f90a67738d3e11cc928e4f94999815295b8164680970d2d54c5feaa39a",
+    "devel/smarts_parity_ferrum_child.py": "e0cc84cc41b584e458bc7462ad57516b0fcd9a570f2e401280e40f161bee6e6a",
+    "devel/smarts_parity_oracle_child.py": "33ec7c75e4854ec70e7c1c11c7fe5440e5d6723bec12d8c253e62de1fe4f8762",
+    "packages/ferrum-rust/crates/api/python/src/chemistry_binding.rs": "55d9c3c5e5e268d4ea52b57023c49d80b46ea2c45c87cbd7042a46f076726fea",
+    "packages/ferrum-rust/crates/chemistry/native/ferrum_chem_smarts.cpp": "b7b6775df1ac008ac36ec1886ed4e381c2fc35e7ae26b773923fb778568dbcf6",
+    "packages/ferrum-rust/crates/chemistry/native/include/ferrum_chem_adapter.h": "dc65d582087a4bbc0018b5327d781d5e1a360756ac5dfdbdaf2f00b369468a2a",
+    "packages/ferrum-rust/crates/chemistry/src/native_engine/graph_wire.rs": "dc1c113feb693681f9affd2f8b698d326cbfabcb82fb3a1c4a994f31233c8fd9",
+    "packages/ferrum-rust/crates/chemistry/src/native_engine/text_response.rs": "5331ac6abfb230c25b6ccef5a5df1004abd3c010c4daf3268ede2a7250c51c65"
+  }
+}

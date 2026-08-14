@@ -2,7 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::{DocumentSession, DocumentSessionError, TypedDocument};
+use super::{DocumentSession, DocumentSessionError, TypedDocument, element_name};
+
+const CDML_NAMESPACE: &str = "http://www.freesoftware.fsf.org/bkchem/cdml";
 
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -48,6 +50,61 @@ fn load_snapshots_one_retained_tree() {
             .expect("reparsed tree must serialize")
             .contains("vendor:extension")
     );
+}
+
+#[test]
+fn empty_document_constructor_creates_a_clean_observable_canonical_baseline() {
+    let session = DocumentSession::create_empty_document_v1().expect("empty document must load");
+    let observation = session.observe(0).expect("empty document must project");
+    let retained = TypedDocument::parse(observation.snapshot().cdml())
+        .expect("empty snapshot must remain CDML");
+    let xml = retained.indexed().xml();
+    let root = xml
+        .tree
+        .document_element(xml.document)
+        .expect("retained CDML must have a root");
+
+    assert_eq!(
+        element_name(&xml.tree, root),
+        Some(("cdml".to_owned(), CDML_NAMESPACE.to_owned()))
+    );
+    assert_eq!(retained.root().attribute("version"), Some("26.07"));
+    assert!(observation.projection().molecules().is_empty());
+    assert!(
+        observation
+            .projection()
+            .presentation_stack()
+            .roots()
+            .is_empty()
+    );
+    assert!(!observation.snapshot().is_dirty());
+}
+
+#[test]
+fn empty_document_constructor_reopens_as_a_clean_revision_zero_baseline() {
+    let mut session =
+        DocumentSession::create_empty_document_v1().expect("empty document must load");
+    let saved = session.snapshot().expect("empty document must serialize");
+    let reopened = DocumentSession::load(saved.cdml()).expect("saved empty document must reopen");
+
+    assert_eq!(
+        reopened
+            .snapshot()
+            .expect("reopened snapshot must serialize")
+            .revision(),
+        0
+    );
+    assert!(
+        !reopened
+            .observe(0)
+            .expect("reopened empty document must project")
+            .snapshot()
+            .is_dirty()
+    );
+    assert!(matches!(
+        session.undo(0),
+        Err(DocumentSessionError::HistoryUnavailable)
+    ));
 }
 
 #[test]

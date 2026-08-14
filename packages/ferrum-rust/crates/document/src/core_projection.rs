@@ -8,7 +8,7 @@ use ferrum_core::{
 };
 use thiserror::Error;
 
-use super::{TypedClass, TypedDocument, TypedRecord};
+use super::{DocumentObjectIdV1, TypedClass, TypedDocument, TypedRecord};
 
 const POINTS_PER_CENTIMETRE: f64 = 72.0 / 2.54;
 
@@ -94,6 +94,30 @@ impl TypedDocument {
             document_version,
             molecules,
         })
+    }
+
+    /// Project one durable typed molecule without requiring unrelated molecules.
+    ///
+    /// This targeted form is intended for bounded chemistry operations. Invalid
+    /// facts in another retained molecule must not prevent a caller from preparing
+    /// an operation for the selected molecule.
+    pub fn core_molecule(
+        &self,
+        object_id: &DocumentObjectIdV1,
+    ) -> Result<Option<Molecule>, CoreProjectionError> {
+        let Some(record) = self.resolve_document_object_id(object_id) else {
+            return Ok(None);
+        };
+        if record.class() != TypedClass::Molecule {
+            return Ok(None);
+        }
+        let mut used_identities = HashSet::new();
+        load_molecule(
+            record,
+            self.root().attribute("version"),
+            &mut used_identities,
+        )
+        .map(Some)
     }
 }
 
@@ -278,6 +302,7 @@ fn build_bond(
         .as_deref()
         .map(|source_type| bond_semantics(document_version, source_type))
         .unwrap_or((None, None));
+    let aromatic = order.map(|value| value == BondOrder::Aromatic);
     let bond = build_record(used_identities, Bond::identity, |occurrence| {
         Bond::new(
             raw_bond.source_id.clone(),
@@ -286,7 +311,7 @@ fn build_bond(
             raw_bond.source_type.clone(),
             order,
             style.clone(),
-            None,
+            aromatic,
             occurrence,
         )
     })

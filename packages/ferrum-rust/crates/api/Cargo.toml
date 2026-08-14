@@ -19,7 +19,14 @@ workspace = true
 [dependencies]
 clap = { version = "*", features = ["derive"] }
 ferrum-document = { path = "../document" }
+ferrum-domain = { path = "../domain" }
+ferrum-chemistry = { path = "../chemistry" }
+ferrum-core = { path = "../core" }
+ferrum-geometry = { path = "../geometry" }
+ferrum-render = { path = "../render" }
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*" }
+rustix = { version = "*", features = ["fs"] }
+getrandom = { version = "*" }
 thiserror = { version = "*" }
 xot = { version = "*" }

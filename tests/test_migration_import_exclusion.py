@@ -12,9 +12,10 @@ from pathlib import Path
 import file_utils
 
 
-# A capability is activated only by the milestone that supplies its complete
-# Rust replacement. M4d is the first planned activation ("chemistry").
-ACTIVE_REPLACED_CAPABILITIES = frozenset()
+# A capability is activated only for the production path where its complete
+# Rust replacement has landed. M4d activates chemistry on the native route;
+# the separately hosted legacy editor remains outside that bounded ownership.
+ACTIVE_REPLACED_CAPABILITIES = frozenset({"chemistry"})
 
 # Each capability owns the production paths where its legacy dependency would
 # be architectural. The production selector below is intentionally positive:
@@ -22,7 +23,11 @@ ACTIVE_REPLACED_CAPABILITIES = frozenset()
 # enter this hygiene scan.
 CAPABILITY_IMPORT_POLICIES = {
 	"chemistry": {
-		"paths": ("packages/ferrum-chem-qt.app/ferrum_qt/",),
+		"paths": (
+			"packages/ferrum-chem-qt.app/ferrum_qt/native/",
+			"packages/ferrum-chem-qt.app/ferrum_qt/bridge/display_geometry.py",
+			"packages/ferrum-chem-qt.app/ferrum_qt/bridge/insertion_placement.py",
+		),
 		"forbidden_roots": frozenset({"oasa"}),
 	},
 	"desktop_ui": {
@@ -120,7 +125,7 @@ def find_active_capability_violations(repo_root: str | None = None) -> list[str]
 
 #============================================
 def test_active_capability_imports_are_excluded() -> None:
-	"""The current empty migration policy keeps unreplaced capabilities runnable."""
+	"""Every activated replacement path remains free of its legacy imports."""
 	violations = find_active_capability_violations()
 	assert not violations, "\n".join(violations)
 
@@ -128,7 +133,7 @@ def test_active_capability_imports_are_excluded() -> None:
 #============================================
 def test_seeded_oasa_import_is_rejected_after_chemistry_activation(tmp_path: Path) -> None:
 	"""A chemistry replacement prevents OASA from returning in its owned path."""
-	path = tmp_path / "packages/ferrum-chem-qt.app/ferrum_qt/chemistry.py"
+	path = tmp_path / "packages/ferrum-chem-qt.app/ferrum_qt/native/chemistry.py"
 	path.parent.mkdir(parents=True)
 	path.write_text("import oasa\n", encoding="utf-8")
 	violations = active_policy_violations([str(path)], frozenset({"chemistry"}), str(tmp_path))

@@ -1,4 +1,6 @@
-use crate::repair::{DepictionGraph, RepairError};
+use crate::repair::{
+    DepictionGraph, RepairError, RepairKind, RepairRequest, plan_repair, plan_repair_with_outcome,
+};
 
 use super::fixtures::{bond, vertex};
 
@@ -25,7 +27,7 @@ fn invalid_endpoint_and_parallel_bond_are_rejected() {
 }
 
 #[test]
-fn multi_cycle_topology_is_declined_before_normalization() {
+fn multi_cycle_graph_reaches_whole_depiction_straightening_but_not_single_ring_normalization() {
     let graph = DepictionGraph::new(
         vec![
             vertex("a", 0.0, 0.0),
@@ -41,11 +43,25 @@ fn multi_cycle_topology_is_declined_before_normalization() {
             bond("ac", "a", "c"),
         ],
     )
-    .expect_err("two independent cycles need a future profile");
-    assert_eq!(
+    .expect("topology-independent graph validation accepts a fused cycle graph");
+    assert!(
+        plan_repair_with_outcome(&RepairRequest::new(
+            graph.clone(),
+            RepairKind::Straighten {
+                minimize_rotation: true,
+            },
+        ))
+        .is_ok()
+    );
+    let error = plan_repair(&RepairRequest::new(
         graph,
+        RepairKind::NormalizeSingleRing { spacing: 1.0 },
+    ))
+    .expect_err("single-ring normalization must not choose one cycle from a fused graph");
+    assert_eq!(
+        error,
         RepairError::UnsupportedTopology(
-            "initial repair profile supports at most one independent cycle"
+            "single-ring normalization supports exactly one independent cycle"
         )
     );
 }

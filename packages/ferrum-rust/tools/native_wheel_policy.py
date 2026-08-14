@@ -167,6 +167,14 @@ def cmake_toolchain_options(llvm_root: Path, sdk_root: Path) -> list[str]:
 	]
 
 
+def cmake_cxx_toolchain_options(llvm_root: Path, sdk_root: Path) -> list[str]:
+	"""Return the smaller toolchain declaration for a C++-only CMake project."""
+	return [
+		f"-DCMAKE_CXX_COMPILER={llvm_root / 'bin/clang++'}",
+		f"-DCMAKE_OSX_SYSROOT={sdk_root}",
+	]
+
+
 def toolchain_receipt(llvm_root: Path, cmake: Path, sdk_root: Path) -> dict[str, str]:
 	"""Describe the intentional FOSS compiler plus unavoidable macOS boundary."""
 	return {

@@ -2,13 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use thiserror::Error;
 use xot::xmlname::NameStrInfo;
 use xot::{Node, Value, Xot};
 
+use super::identity_index::ProvisionalToken;
+use super::typed_schema::typed_attribute_names;
 use super::{
-    CDML_NAMESPACE, ElementPath, IndexedDocument, IndexedDocumentError, PersistentId,
-    ProvisionalToken,
+    CDML_NAMESPACE, ElementPath, IndexedDocument, IndexedDocumentError, PersistentId, Point3V1,
+    TypedDiagnostic, TypedDiagnosticKind, TypedDocumentError,
 };
 
 pub use super::typed_class::TypedClass;
@@ -176,43 +177,6 @@ impl UnrecognizedChild {
     }
 }
 
-/// A non-demoting structural problem found on a recognized record.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum TypedDiagnosticKind {
-    /// A required child slot was absent.
-    MissingChild,
-    /// A child exceeded the class's maximum cardinality and stayed opaque.
-    ExcessChild,
-}
-
-/// One diagnostic attached to a typed record without changing its class.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TypedDiagnostic {
-    kind: TypedDiagnosticKind,
-    child_class: TypedClass,
-    message: String,
-}
-
-impl TypedDiagnostic {
-    /// Return the stable problem category.
-    #[must_use]
-    pub fn kind(&self) -> TypedDiagnosticKind {
-        self.kind
-    }
-
-    /// Return the child slot involved.
-    #[must_use]
-    pub fn child_class(&self) -> TypedClass {
-        self.child_class
-    }
-
-    /// Return the human-readable diagnostic.
-    #[must_use]
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-}
-
 /// One content-independent typed CDML element projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypedRecord {
@@ -299,35 +263,6 @@ impl TypedRecord {
     }
 }
 
-/// Parse or typed-projection failure.
-#[derive(Debug, Error)]
-pub enum TypedDocumentError {
-    /// XML parsing or document identity validation failed.
-    #[error(transparent)]
-    Indexed(#[from] IndexedDocumentError),
-    /// An opaque subtree could not be snapshotted structurally.
-    #[error("cannot retain an opaque CDML subtree: {0}")]
-    OpaqueSnapshot(#[source] xot::Error),
-    /// A namespaced unknown attribute had no usable in-scope prefix.
-    #[error("cannot retain an unknown CDML attribute name: {0}")]
-    AttributeName(#[source] xot::Error),
-    /// A retained tree could not be structurally serialized for a typed mutation.
-    #[error("cannot serialize retained CDML: {0}")]
-    Serialize(#[from] super::XmlSerializationError),
-    /// A typed atom element spelling is blank or contains non-letter characters.
-    #[error("atom element must be a nonblank plain element spelling")]
-    InvalidAtomElement,
-    /// The requested molecule does not occur in the retained document.
-    #[error("typed molecule does not exist: {0}")]
-    UnknownMolecule(PersistentId),
-    /// The requested atom ID is already reserved by retained document content.
-    #[error("persistent atom ID already exists: {0}")]
-    DuplicateAtomId(PersistentId),
-    /// A structured XML mutation could not be applied to the retained tree.
-    #[error("cannot mutate retained CDML: {0}")]
-    Mutation(#[source] xot::Error),
-}
-
 /// A single retained CDML tree plus its immutable typed record overlay.
 #[derive(Debug)]
 pub struct TypedDocument {
@@ -339,6 +274,24 @@ impl TypedDocument {
     /// Parse CDML once, establish persistent identity, then project recognized classes.
     pub fn parse(source: &str) -> Result<Self, TypedDocumentError> {
         let indexed = IndexedDocument::parse(source)?;
+        Self::from_indexed(indexed)
+    }
+
+    /// Admit CDML under an explicit caller-owned XML budget, then type one retained tree.
+    ///
+    /// This preserves the existing DTD and entity protections while rejecting an
+    /// over-budget source before `xot` retains it. The caller selects the budget;
+    /// this document layer deliberately provides no default policy.
+    pub fn parse_with_budget(
+        source: &str,
+        budget: super::XmlInputBudgetV1,
+    ) -> Result<Self, TypedDocumentError> {
+        let xml = super::XmlDocument::parse_with_budget(source, budget)?;
+        let indexed = IndexedDocument::from_xml(xml).map_err(IndexedDocumentError::from)?;
+        Self::from_indexed(indexed)
+    }
+
+    pub(crate) fn from_indexed(indexed: IndexedDocument) -> Result<Self, TypedDocumentError> {
         let tree = &indexed.xml.tree;
         let root_node = tree
             .document_element(indexed.xml.document)
@@ -362,6 +315,14 @@ impl TypedDocument {
     /// Serialize the single retained tree under the structural-fidelity contract.
     pub fn to_xml(&self) -> Result<String, super::XmlSerializationError> {
         self.indexed.xml.to_xml()
+    }
+
+    pub(crate) fn detached_candidate(&self) -> Result<Self, TypedDocumentError> {
+        Self::parse(&self.to_xml()?)
+    }
+
+    pub(crate) fn detached_indexed_mut(&mut self) -> &mut IndexedDocument {
+        &mut self.indexed
     }
 
     /// Return a detached document with one typed atom's element spelling replaced.
@@ -426,6 +387,7 @@ impl TypedDocument {
         molecule_id: &PersistentId,
         atom_id: &PersistentId,
         element: &str,
+        position: Point3V1,
     ) -> Result<Self, TypedDocumentError> {
         if element.trim().is_empty()
             || element
@@ -485,6 +447,41 @@ impl TypedDocument {
             .xml
             .tree
             .set_attribute(atom, element_name, element);
+        let point_name = if molecule_namespace.is_empty() {
+            candidate.indexed.xml.tree.add_name("point")
+        } else {
+            let namespace = candidate
+                .indexed
+                .xml
+                .tree
+                .add_namespace(&molecule_namespace);
+            candidate.indexed.xml.tree.add_name_ns("point", namespace)
+        };
+        let point = candidate.indexed.xml.tree.new_element(point_name);
+        let x_name = candidate.indexed.xml.tree.add_name("x");
+        let y_name = candidate.indexed.xml.tree.add_name("y");
+        let z_name = candidate.indexed.xml.tree.add_name("z");
+        candidate
+            .indexed
+            .xml
+            .tree
+            .set_attribute(point, x_name, position.x().to_string());
+        candidate
+            .indexed
+            .xml
+            .tree
+            .set_attribute(point, y_name, position.y().to_string());
+        candidate
+            .indexed
+            .xml
+            .tree
+            .set_attribute(point, z_name, position.z().to_string());
+        candidate
+            .indexed
+            .xml
+            .tree
+            .append(atom, point)
+            .map_err(TypedDocumentError::Mutation)?;
         candidate
             .indexed
             .xml
@@ -505,6 +502,16 @@ impl TypedDocument {
     ) -> Result<(), TypedDocumentError> {
         self.indexed
             .consume_provisional_token(token)
+            .map_err(IndexedDocumentError::from)
+            .map_err(TypedDocumentError::from)
+    }
+
+    pub(crate) fn verify_provisional_token(
+        &self,
+        token: &ProvisionalToken,
+    ) -> Result<(), TypedDocumentError> {
+        self.indexed
+            .verify_provisional_token(token)
             .map_err(IndexedDocumentError::from)
             .map_err(TypedDocumentError::from)
     }
@@ -834,148 +841,5 @@ fn child_cardinality(parent: TypedClass, child: TypedClass) -> (u32, Option<u32>
         | (C::Standard, C::StandardBond | C::StandardArrow | C::StandardAtom)
         | (C::Info, C::AuthorProgram | C::Author | C::Note) => (0, Some(1)),
         _ => (0, None),
-    }
-}
-
-fn typed_attribute_names(class: TypedClass) -> &'static [&'static str] {
-    use TypedClass as C;
-    match class {
-        C::Cdml => &["version", "type"],
-        C::AuthorProgram => &["version"],
-        C::MetadataDocument => &["href"],
-        C::Standard => &[
-            "line_width",
-            "font_size",
-            "font_family",
-            "line_color",
-            "area_color",
-            "paper_type",
-            "paper_orientation",
-            "paper_crop_svg",
-            "paper_crop_margin",
-        ],
-        C::StandardBond => &[
-            "length",
-            "width",
-            "wedge-width",
-            "double-ratio",
-            "min_wedge_angle",
-        ],
-        C::StandardArrow => &["length"],
-        C::StandardAtom => &["show_hydrogens"],
-        C::Paper => &[
-            "id",
-            "type",
-            "orientation",
-            "crop_svg",
-            "crop_margin",
-            "use_real_minus",
-            "replace_minus",
-            "size_x",
-            "size_y",
-        ],
-        C::Viewport => &["viewport", "id"],
-        C::Molecule => &["id", "name"],
-        C::CanvasArrow => &[
-            "id", "type", "start", "end", "width", "spline", "shape", "color",
-        ],
-        C::CanvasPlus => &["id", "font_size", "color", "background-color"],
-        C::CanvasText => &["id", "background-color"],
-        C::Rectangle | C::Square | C::Oval | C::Circle => &[
-            "id",
-            "x1",
-            "y1",
-            "x2",
-            "y2",
-            "area_color",
-            "line_color",
-            "width",
-        ],
-        C::Polygon => &["id", "area_color", "line_color", "width"],
-        C::Polyline => &["id", "line_color", "width", "spline"],
-        C::Reaction => &["id"],
-        C::ReactionReactant
-        | C::ReactionProduct
-        | C::ReactionArrow
-        | C::ReactionCondition
-        | C::ReactionPlus => &["idref"],
-        C::Atom => &[
-            "id",
-            "name",
-            "charge",
-            "pos",
-            "show",
-            "hydrogens",
-            "show_number",
-            "number",
-            "background-color",
-            "multiplicity",
-            "valency",
-            "free_sites",
-            "isotope",
-            "explicit_hydrogens",
-        ],
-        C::Group => &[
-            "id",
-            "name",
-            "group-type",
-            "pos",
-            "background-color",
-            "show_number",
-            "number",
-        ],
-        C::MoleculeText => &["id", "pos", "background-color", "show_number", "number"],
-        C::Query => &[
-            "id",
-            "name",
-            "pos",
-            "background-color",
-            "show_number",
-            "number",
-            "free_sites",
-        ],
-        C::Bond => &[
-            "id",
-            "type",
-            "start",
-            "end",
-            "line_width",
-            "bond_width",
-            "wedge_width",
-            "double_ratio",
-            "center",
-            "auto_sign",
-            "equithick",
-            "simple_double",
-            "color",
-            "wavy_style",
-            "haworth_position",
-        ],
-        C::Template => &["atom", "bond_first", "bond_second"],
-        C::Fragment => &["id", "type"],
-        C::FragmentBond | C::FragmentVertex => &["id"],
-        C::FragmentProperty => &["name", "value", "type"],
-        C::Point => &["x", "y", "z"],
-        C::Font => &["size", "family", "color"],
-        C::Mark => &[
-            "type",
-            "x",
-            "y",
-            "auto",
-            "size",
-            "line_width",
-            "draw_circle",
-            "text",
-            "refname",
-        ],
-        C::Info
-        | C::Author
-        | C::Note
-        | C::Metadata
-        | C::ExternalData
-        | C::DisplayForm
-        | C::UserData
-        | C::FragmentName
-        | C::FormattedText => &[],
     }
 }

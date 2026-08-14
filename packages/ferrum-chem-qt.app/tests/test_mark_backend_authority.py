@@ -50,9 +50,10 @@ def _new_session(
 def _dispose_session(session: object) -> None:
 	"""Retire one test session through its window owner."""
 	owner = session.parent()
-	if not isinstance(owner, ferrum_qt.main_window.MainWindow):
-		raise TypeError("Mark test session has no MainWindow owner")
-	owner._dispose_session_later(session)
+	dispose_later = getattr(owner, "_dispose_session_later", None)
+	if not callable(dispose_later):
+		raise TypeError("Mark test session has no session-lifecycle owner")
+	dispose_later(session)
 
 
 #============================================

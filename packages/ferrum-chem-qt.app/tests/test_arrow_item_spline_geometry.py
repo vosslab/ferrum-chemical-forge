@@ -6,6 +6,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.canvas.ferrum_spline_path
 import ferrum_qt.canvas.items.arrow_item
 
 
@@ -51,6 +52,22 @@ def _quadratic_spline_arrow() -> ferrum_qt.canvas.items.arrow_item.ArrowItem:
 	)
 	item.spline = True
 	item.control_points = [PySide6.QtCore.QPointF(50.0, 100.0)]
+	return item
+
+
+#============================================
+def _multi_control_spline_arrow() -> ferrum_qt.canvas.items.arrow_item.ArrowItem:
+	"""Return one arrow with three authored spline controls."""
+	item = ferrum_qt.canvas.items.arrow_item.ArrowItem(
+		PySide6.QtCore.QPointF(0.0, 0.0),
+		PySide6.QtCore.QPointF(120.0, 0.0),
+	)
+	item.spline = True
+	item.control_points = [
+		PySide6.QtCore.QPointF(0.0, 100.0),
+		PySide6.QtCore.QPointF(120.0, 100.0),
+		PySide6.QtCore.QPointF(120.0, 50.0),
+	]
 	return item
 
 
@@ -112,3 +129,44 @@ def test_loaded_three_point_spline_paints_at_its_quadratic_midpoint(
 	assert _render_arrow(
 		_quadratic_spline_arrow(),
 	).pixelColor(80, 80).alpha() > 0
+
+
+#============================================
+def test_multi_control_spline_uses_one_continuous_paint_and_hit_path(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Three controls remain visible and selectable across each smooth join."""
+	del qapp
+	item = _multi_control_spline_arrow()
+	image = _render_arrow(item)
+	first_segment = PySide6.QtCore.QPointF(15.0, 75.0)
+	second_segment = PySide6.QtCore.QPointF(105.0, 93.75)
+	final_segment = PySide6.QtCore.QPointF(120.0, 43.75)
+
+	assert (
+		item.shape().contains(first_segment)
+		and item.shape().contains(second_segment)
+		and item.shape().contains(final_segment)
+	)
+	assert (
+		image.pixelColor(45, 105).alpha() > 0
+		and image.pixelColor(135, 124).alpha() > 0
+		and image.pixelColor(150, 74).alpha() > 0
+	)
+
+
+#============================================
+def test_shared_spline_helper_handles_empty_and_two_point_inputs(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Empty presentations and two-point splines retain typed Qt path behavior."""
+	del qapp
+	start = PySide6.QtCore.QPointF(0.0, 0.0)
+	end = PySide6.QtCore.QPointF(20.0, 0.0)
+	empty = ferrum_qt.canvas.ferrum_spline_path.presentation_path([], True)
+	two_point = ferrum_qt.canvas.ferrum_spline_path.presentation_path(
+		[start, end], True,
+	)
+
+	assert empty.isEmpty()
+	assert two_point.currentPosition() == end

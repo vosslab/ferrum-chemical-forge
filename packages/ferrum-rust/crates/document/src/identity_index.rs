@@ -44,24 +44,16 @@ impl fmt::Display for PersistentId {
 ///
 /// A token is only issued by an [`IndexedDocument`]. It has a different Rust type
 /// from [`PersistentId`], so callers cannot pass a token to [`IndexedDocument::resolve_id`].
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ProvisionalToken {
+#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) struct ProvisionalToken {
     document_instance: u64,
     sequence: u64,
     spelling: String,
 }
 
-impl ProvisionalToken {
-    /// Return the opaque correlation spelling for transport or diagnostics.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.spelling
-    }
-
-    /// Return the document-local issuance sequence.
-    #[must_use]
-    pub fn sequence(&self) -> u64 {
-        self.sequence
+impl fmt::Debug for ProvisionalToken {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ProvisionalToken([opaque])")
     }
 }
 
@@ -243,6 +235,21 @@ impl XmlDocument {
         Ok(Self { tree, document })
     }
 
+    /// Preflight caller-supplied XML resource limits, then retain one opaque XML tree.
+    ///
+    /// The preflight is a non-retaining tokenizer pass. It rejects an over-budget or
+    /// DTD-bearing input before `xot` allocates its retained tree. No library default
+    /// is provided: each external ingress must choose and document its own policy.
+    pub fn parse_with_budget(
+        source: &str,
+        budget: super::XmlInputBudgetV1,
+    ) -> Result<Self, super::XmlInputError> {
+        super::xml_input_budget_v1::preflight(source, budget)?;
+        let mut tree = Xot::new();
+        let document = tree.parse(source).map_err(super::XmlInputError::Xml)?;
+        Ok(Self { tree, document })
+    }
+
     /// Serialize the retained XML tree.
     ///
     /// The result is structurally equivalent XML. XML declaration spelling, CDATA
@@ -282,7 +289,7 @@ impl IndexedDocument {
         Self::from_xml(xml).map_err(IndexedDocumentError::from)
     }
 
-    fn from_xml(xml: XmlDocument) -> Result<Self, DocumentIdentityError> {
+    pub(crate) fn from_xml(xml: XmlDocument) -> Result<Self, DocumentIdentityError> {
         let root = xml
             .tree
             .document_element(xml.document)
@@ -344,7 +351,7 @@ impl IndexedDocument {
     }
 
     /// Issue a fresh, document-local provisional token.
-    pub fn issue_provisional_token(&mut self) -> ProvisionalToken {
+    pub(crate) fn issue_provisional_token(&mut self) -> ProvisionalToken {
         let sequence = self.next_token;
         let token = ProvisionalToken {
             document_instance: self.document_instance,
@@ -358,7 +365,7 @@ impl IndexedDocument {
     }
 
     /// Consume a token exactly once after its candidate has been accepted.
-    pub fn consume_provisional_token(
+    pub(crate) fn consume_provisional_token(
         &mut self,
         token: ProvisionalToken,
     ) -> Result<(), DocumentIdentityError> {
@@ -379,6 +386,25 @@ impl IndexedDocument {
         }
         let inserted = self.consumed_tokens.insert(token);
         debug_assert!(inserted, "the consumed-token check established uniqueness");
+        Ok(())
+    }
+
+    /// Check whether a token belongs to this document and remains unconsumed.
+    pub(crate) fn verify_provisional_token(
+        &self,
+        token: &ProvisionalToken,
+    ) -> Result<(), DocumentIdentityError> {
+        if token.document_instance != self.document_instance || !self.issued_tokens.contains(token)
+        {
+            return Err(DocumentIdentityError::UnknownProvisionalToken {
+                token: token.spelling.clone(),
+            });
+        }
+        if self.consumed_tokens.contains(token) {
+            return Err(DocumentIdentityError::ConsumedProvisionalToken {
+                token: token.spelling.clone(),
+            });
+        }
         Ok(())
     }
 }

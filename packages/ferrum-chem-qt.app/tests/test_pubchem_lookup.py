@@ -170,34 +170,6 @@ def test_blank_pubchem_query_starts_no_request(
 
 
 #============================================
-def test_pubchem_worker_returns_frozen_plain_display_and_proposal(
-		qtbot: object,
-		) -> None:
-	"""The worker emits display facts and CDML, never a live molecule graph."""
-	worker = ferrum_qt.bridge.worker.OasaWorker(
-		ferrum_qt.bridge.chemistry_preparation.prepare_pubchem_lookup,
-		"Name", "methane", _pubchem_transport, 7, "pubchem-r7-i1",
-		40.0, (2000.0, 1500.0),
-	)
-	values = []
-	worker.result.connect(values.append)
-	worker.finished.connect(worker.deleteLater)
-	with qtbot.waitSignal(worker.finished, timeout=1000):
-		worker.start()
-	prepared = values[0]
-	with pytest.raises(dataclasses.FrozenInstanceError):
-		prepared.insertion = prepared.insertion
-	plain = (
-		dataclasses.is_dataclass(prepared)
-		and prepared.display.cid == 297
-		and prepared.insertion.expected_revision == 7
-		and isinstance(prepared.insertion.proposal_cdml, str)
-	)
-
-	assert plain and _methane_in_cdml(prepared.insertion.proposal_cdml)
-
-
-#============================================
 def test_pubchem_preparation_preserves_oasa_transport_failure_type() -> None:
 	"""The bridge retains OASA's typed offline outcome for worker delivery."""
 	with pytest.raises(oasa.pubchem.PubChemTransportError):

@@ -1,0 +1,317 @@
+{
+  "artifacts": {
+    "ferrum_extension_sha256": "f8fff4f749f0c4b531bacb8451a1f26c3df95e878001cfbc36b12dba268ae8ce",
+    "wheel": "output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl",
+    "wheel_sha256": "13de57cf0d95dc3f1755f14a1ca36350fe4db7dca43e3ab8ead0e3d0e74b3eda"
+  },
+  "build_rdkit_version": "2026.03.5",
+  "comparison_policy": {
+    "molecule": "exact discrete chemistry after strict parse and sanitization",
+    "properties": "exact authored record order, title, property order, and values",
+    "text": "not compared; legal writer formatting is outside the contract"
+  },
+  "compatibility_policy": "refresh the build to current stable and retain previous stable",
+  "evaluations": [
+    {
+      "binary_sha256": "55d1dd25809fea974f90d2a399a5f49d683f029efa958bb0d19546b6a917640a",
+      "formats": {
+        "v2000": {
+          "records": [
+            {
+              "canonical_smiles": "CCO",
+              "properties": [
+                "source",
+                "note"
+              ],
+              "semantic_round_trip": true,
+              "title": "ethanol"
+            },
+            {
+              "canonical_smiles": "[Cl-].[NH4+]",
+              "properties": [
+                "category",
+                "empty"
+              ],
+              "semantic_round_trip": true,
+              "title": "charged pair"
+            },
+            {
+              "canonical_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+              "properties": [
+                "identifier",
+                "sequence"
+              ],
+              "semantic_round_trip": true,
+              "title": "isotope chirality map"
+            }
+          ],
+          "semantic_round_trip": true
+        },
+        "v3000": {
+          "records": [
+            {
+              "canonical_smiles": "CCO",
+              "properties": [
+                "source",
+                "note"
+              ],
+              "semantic_round_trip": true,
+              "title": "ethanol"
+            },
+            {
+              "canonical_smiles": "[Cl-].[NH4+]",
+              "properties": [
+                "category",
+                "empty"
+              ],
+              "semantic_round_trip": true,
+              "title": "charged pair"
+            },
+            {
+              "canonical_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+              "properties": [
+                "identifier",
+                "sequence"
+              ],
+              "semantic_round_trip": true,
+              "title": "isotope chirality map"
+            }
+          ],
+          "semantic_round_trip": true
+        }
+      },
+      "rdkit_version": "2026.03.5"
+    },
+    {
+      "binary_sha256": "b1144d8fe09e79e767afe99656a7e358b9e445ad3db1b78f517bea71f23f7fdb",
+      "formats": {
+        "v2000": {
+          "records": [
+            {
+              "canonical_smiles": "CCO",
+              "properties": [
+                "source",
+                "note"
+              ],
+              "semantic_round_trip": true,
+              "title": "ethanol"
+            },
+            {
+              "canonical_smiles": "[Cl-].[NH4+]",
+              "properties": [
+                "category",
+                "empty"
+              ],
+              "semantic_round_trip": true,
+              "title": "charged pair"
+            },
+            {
+              "canonical_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+              "properties": [
+                "identifier",
+                "sequence"
+              ],
+              "semantic_round_trip": true,
+              "title": "isotope chirality map"
+            }
+          ],
+          "semantic_round_trip": true
+        },
+        "v3000": {
+          "records": [
+            {
+              "canonical_smiles": "CCO",
+              "properties": [
+                "source",
+                "note"
+              ],
+              "semantic_round_trip": true,
+              "title": "ethanol"
+            },
+            {
+              "canonical_smiles": "[Cl-].[NH4+]",
+              "properties": [
+                "category",
+                "empty"
+              ],
+              "semantic_round_trip": true,
+              "title": "charged pair"
+            },
+            {
+              "canonical_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+              "properties": [
+                "identifier",
+                "sequence"
+              ],
+              "semantic_round_trip": true,
+              "title": "isotope chirality map"
+            }
+          ],
+          "semantic_round_trip": true
+        }
+      },
+      "rdkit_version": "2026.03.4"
+    }
+  ],
+  "ferrum_import": {
+    "v2000": [
+      {
+        "canonical_smiles": "CCO",
+        "properties": [
+          [
+            "source",
+            "Ferrum"
+          ],
+          [
+            "note",
+            "line one\nline two"
+          ]
+        ],
+        "title": "ethanol"
+      },
+      {
+        "canonical_smiles": "[Cl-].[NH4+]",
+        "properties": [
+          [
+            "category",
+            "salt"
+          ],
+          [
+            "empty",
+            ""
+          ]
+        ],
+        "title": "charged pair"
+      },
+      {
+        "canonical_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+        "properties": [
+          [
+            "identifier",
+            "mapped chiral"
+          ],
+          [
+            "sequence",
+            "third"
+          ]
+        ],
+        "title": "isotope chirality map"
+      }
+    ],
+    "v3000": [
+      {
+        "canonical_smiles": "CCO",
+        "properties": [
+          [
+            "source",
+            "Ferrum"
+          ],
+          [
+            "note",
+            "line one\nline two"
+          ]
+        ],
+        "title": "ethanol"
+      },
+      {
+        "canonical_smiles": "[Cl-].[NH4+]",
+        "properties": [
+          [
+            "category",
+            "salt"
+          ],
+          [
+            "empty",
+            ""
+          ]
+        ],
+        "title": "charged pair"
+      },
+      {
+        "canonical_smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+        "properties": [
+          [
+            "identifier",
+            "mapped chiral"
+          ],
+          [
+            "sequence",
+            "third"
+          ]
+        ],
+        "title": "isotope chirality map"
+      }
+    ]
+  },
+  "native_wheel_e2e": {
+    "adapter_replacement": true,
+    "receipt": "output_native_wheel/evidence/native-wheel-e2e-receipt.json"
+  },
+  "platform": {
+    "machine": "arm64",
+    "system": "Darwin"
+  },
+  "records": [
+    {
+      "name": "ethanol",
+      "properties": [
+        [
+          "source",
+          "Ferrum"
+        ],
+        [
+          "note",
+          "line one\nline two"
+        ]
+      ],
+      "smiles": "CCO",
+      "title": "ethanol"
+    },
+    {
+      "name": "charged_pair",
+      "properties": [
+        [
+          "category",
+          "salt"
+        ],
+        [
+          "empty",
+          ""
+        ]
+      ],
+      "smiles": "[NH4+].[Cl-]",
+      "title": "charged pair"
+    },
+    {
+      "name": "isotope_chirality_map",
+      "properties": [
+        [
+          "identifier",
+          "mapped chiral"
+        ],
+        [
+          "sequence",
+          "third"
+        ]
+      ],
+      "smiles": "[13CH3][C@H](F)[C:9](=O)[O-]",
+      "title": "isotope chirality map"
+    }
+  ],
+  "schema": "ferrum-sdf-codec-parity-v1",
+  "source_sha256": {
+    "devel/measure_sdf_codec_parity.py": "3844dda4ac93c2ba46acd92c5e74dc477bb44e63014f6989b7c3b87dc202e11b",
+    "devel/sdf_parity_ferrum_child.py": "f103778ed4a809e4a0b81e4e995cb21aa49b54b78425a3b8da4738a4914975f9",
+    "devel/sdf_parity_rdkit_child.py": "c261e07b248563fd3b88cdc27d88ccd96e072b005aa0aa71509df35cecd512df",
+    "packages/ferrum-rust/crates/api/python/src/chemistry_binding.rs": "55d9c3c5e5e268d4ea52b57023c49d80b46ea2c45c87cbd7042a46f076726fea",
+    "packages/ferrum-rust/crates/chemistry/native/ferrum_chem_molblock.cpp": "225f8c9ad4014b9f66308e9a60b72ec0d3f1f612201643fba2fb3dbc353c96bf",
+    "packages/ferrum-rust/crates/chemistry/native/ferrum_chem_molecule_response.cpp": "a69918f243862c13d20953e8adc7b1553ed63c189146141c8e7b0ad7a5910a37",
+    "packages/ferrum-rust/crates/chemistry/native/ferrum_chem_sdf.cpp": "91f66a577059299c94bc4848508d5b6b82c68e84b074df58d38b5ff791db5c83",
+    "packages/ferrum-rust/crates/chemistry/native/ferrum_chem_sdf_import.cpp": "f995fcffc2e5985617d1bb8a00b69e8f973a0aef271ff6e2e391fbb043144b17",
+    "packages/ferrum-rust/crates/chemistry/native/include/ferrum_chem_adapter.h": "dc65d582087a4bbc0018b5327d781d5e1a360756ac5dfdbdaf2f00b369468a2a",
+    "packages/ferrum-rust/crates/chemistry/src/native_engine/sdf_import.rs": "0522bb8e3def67e351eb5c3d601c7091666b096238f82f67f2b93081474424ce",
+    "packages/ferrum-rust/crates/chemistry/src/native_engine/sdf_wire.rs": "bf779fa6c7ae3748f0e5c6c4bd0b9a17bac0e884dd52d6348feda1ccba723e23",
+    "packages/ferrum-rust/crates/chemistry/src/sdf.rs": "85988ce5c2c11c0fa5857aa9d8054db69b53b809e271ecc3f2307954d2384ef6"
+  },
+  "status": "semantic-parity"
+}

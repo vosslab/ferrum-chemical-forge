@@ -21,6 +21,7 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 
 	# emitted when the user clicks a mode button
 	mode_selected = PySide6.QtCore.Signal(str)
+	_COMPACT_BREAKPOINT = 1120
 
 	#============================================
 	def __init__(self, parent: object = None) -> None:
@@ -31,6 +32,10 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 		"""
 		super().__init__("Mode", parent)
 		self.setMovable(False)
+		self.setSizePolicy(
+			PySide6.QtWidgets.QSizePolicy.Policy.Ignored,
+			PySide6.QtWidgets.QSizePolicy.Policy.Fixed,
+		)
 		self.setIconSize(PySide6.QtCore.QSize(32, 32))
 		# show icon with text below, matching old compound='top' layout
 		self.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -39,6 +44,10 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 		self._action_group.setExclusive(True)
 		# map mode name -> QAction for programmatic selection
 		self._actions = {}
+		self._mode_actions = []
+		self._compact_actions = []
+		self._mode_chooser = None
+		self._mode_chooser_action = None
 
 	#============================================
 	def add_mode(self, name: str, label: str, tooltip: str = "",
@@ -55,6 +64,7 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 			icon: Optional QIcon to display on the button.
 		"""
 		action = PySide6.QtGui.QAction(label, self)
+		action.setObjectName(f"mode-action-{name}")
 		action.setCheckable(True)
 		if tooltip:
 			action.setToolTip(tooltip)
@@ -69,6 +79,7 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 		self._action_group.addAction(action)
 		self.addAction(action)
 		self._actions[name] = action
+		self._mode_actions.append(action)
 
 	#============================================
 	def add_action_button(self, name: str, label: str, tooltip: str = "",
@@ -90,6 +101,7 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 			The created QAction.
 		"""
 		action = PySide6.QtGui.QAction(label, self)
+		action.setObjectName(f"mode-action-{name}")
 		action.setCheckable(False)
 		if tooltip:
 			action.setToolTip(tooltip)
@@ -102,13 +114,44 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 		return action
 
 	#============================================
-	def add_separator_marker(self) -> None:
-		"""Insert a visual separator with spacing between mode groups."""
-		self.addSeparator()
-		# add 8px spacer after separator for visual breathing room
-		spacer = PySide6.QtWidgets.QWidget()
-		spacer.setFixedWidth(8)
-		self.addWidget(spacer)
+	def add_separator_marker(self, collapse_in_compact: bool = True) -> None:
+		"""Insert a visual separator between mode groups."""
+		separator = self.addSeparator()
+		if collapse_in_compact:
+			self._compact_actions.append(separator)
+
+	#============================================
+	def add_compact_chooser(self) -> None:
+		"""Add the responsive menu used when the toolbar is narrow.
+
+		The menu reuses registered mode actions, so shortcuts, checked state, and
+		selection signals retain one authoritative implementation.
+		"""
+		if self._mode_chooser is not None:
+			raise RuntimeError("A mode toolbar can only have one compact chooser")
+		chooser_action = PySide6.QtGui.QAction("Mode", self)
+		chooser_action.setObjectName("mode-chooser-action")
+		menu = PySide6.QtWidgets.QMenu(self)
+		for action in self._mode_actions:
+			menu.addAction(action)
+		chooser_action.setMenu(menu)
+		self.addAction(chooser_action)
+		chooser = self.widgetForAction(chooser_action)
+		if not isinstance(chooser, PySide6.QtWidgets.QToolButton):
+			raise RuntimeError("Qt did not create a tool button for the mode chooser")
+		chooser.setPopupMode(
+			PySide6.QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup
+		)
+		chooser.setToolButtonStyle(
+			PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+		)
+		chooser.setMenu(menu)
+		chooser.setAccessibleName("Mode chooser")
+		chooser.setObjectName("mode-chooser")
+		self._mode_chooser = chooser
+		self._mode_chooser_action = chooser_action
+		self._sync_compact_chooser()
+		PySide6.QtCore.QTimer.singleShot(0, self._sync_compact_chooser)
 
 	#============================================
 	def set_active_mode(self, name: str) -> None:
@@ -125,6 +168,7 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 			return
 		for mode_action in self._action_group.actions():
 			mode_action.setChecked(mode_action is action)
+		self._sync_compact_chooser()
 
 	#============================================
 	def update_action_icon(self, name: str, icon: PySide6.QtGui.QIcon) -> None:
@@ -150,3 +194,41 @@ class ModeToolbar(PySide6.QtWidgets.QToolBar):
 		"""
 		if checked:
 			self.mode_selected.emit(name)
+			self._sync_compact_chooser()
+
+	#============================================
+	def minimumSizeHint(self) -> PySide6.QtCore.QSize:
+		"""Keep the workspace resizable while wide mode buttons show."""
+		base_hint = super().minimumSizeHint()
+		return PySide6.QtCore.QSize(320, base_hint.height())
+
+	#============================================
+	def resizeEvent(self, event: PySide6.QtGui.QResizeEvent) -> None:
+		"""Update the chooser as Qt lays out the containing main window."""
+		super().resizeEvent(event)
+		self._sync_compact_chooser()
+
+	#============================================
+	def _sync_compact_chooser(self) -> None:
+		"""Show either the full mode row or its compact menu equivalent."""
+		if self._mode_chooser is None or self._mode_chooser_action is None:
+			return
+		compact = self.window().width() < self._COMPACT_BREAKPOINT
+		for action in self._mode_actions:
+			action.setVisible(not compact)
+		for action in self._compact_actions:
+			action.setVisible(not compact)
+		self._mode_chooser_action.setVisible(compact)
+		active_action = next(
+			(action for action in self._mode_actions if action.isChecked()), None
+		)
+		if active_action is None:
+			return
+		self._mode_chooser.setText(f"Mode: {active_action.text()}")
+		self._mode_chooser.setIcon(active_action.icon())
+		self._mode_chooser.setToolTip(
+			f"Current mode: {active_action.text()}. Select another drawing mode."
+		)
+		self._mode_chooser.setAccessibleDescription(
+			f"Current mode is {active_action.text()}. Open to select a mode."
+		)

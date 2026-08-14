@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
 	"""Entry point for the Ferrum-Qt CLI."""
 	args = parse_args()
-	# Import PySide6-dependent startup only after lightweight CLI handling.
+	# Import exactly one native-first product boundary after lightweight CLI handling.
 	import ferrum_qt.app
 	exit_code = ferrum_qt.app.main(args.files, args.smoke_exit, args.smoke_receipt)
 	sys.exit(exit_code)

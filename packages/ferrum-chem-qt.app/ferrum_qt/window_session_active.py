@@ -219,9 +219,9 @@ class WindowSessionActiveMixin:
 			return
 		if self._document_signal_source is not None:
 			self._disconnect_document_signals(self._document_signal_source)
-		document.selection_changed.connect(
-			self._property_dock.update_from_selection
-		)
+		document.selection_changed.connect(self._property_dock_summary_refresh)
+		document.object_added.connect(self._property_dock_summary_refresh)
+		document.object_removed.connect(self._property_dock_summary_refresh)
 		document.selection_changed.connect(self._update_menu_predicates)
 		document.undo_stack.canUndoChanged.connect(
 			self._on_document_undo_state_changed
@@ -237,7 +237,9 @@ class WindowSessionActiveMixin:
 		if self._document_signal_source is not document:
 			return
 		connections = (
-			(document.selection_changed, self._property_dock.update_from_selection),
+			(document.selection_changed, self._property_dock_summary_refresh),
+			(document.object_added, self._property_dock_summary_refresh),
+			(document.object_removed, self._property_dock_summary_refresh),
 			(document.selection_changed, self._update_menu_predicates),
 			(
 				document.undo_stack.canUndoChanged,

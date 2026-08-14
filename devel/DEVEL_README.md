@@ -58,3 +58,32 @@ source source_me.sh && python3 devel/<script>.py
 
 Run individual scripts with `--help` for current options. Keep command details
 in script help output instead of duplicating them here.
+
+## CDML measurement evidence
+
+`measure_cdml_manifest` is a developer-only Rust example for a consented,
+representative local CDML measurement run. It is not the product CLI and does
+not enable Ferrum-Qt Open. Use it only after the document owner has selected
+the files and prepared an untracked local manifest. It supports the hardened
+input boundary in [docs/CDML_FORMAT_SPEC.md](../docs/CDML_FORMAT_SPEC.md) and
+[docs/CDML_BACKEND_TO_FRONTEND_CONTRACT.md](../docs/CDML_BACKEND_TO_FRONTEND_CONTRACT.md):
+
+```bash
+cargo run -p ferrum-api --example measure_cdml_manifest -- \
+  --manifest /private/path/consented_cdml_measurement.json \
+  --receipt /private/path/cdml_measurement_receipt.json
+```
+
+- The manifest must explicitly set consent, list each local sample, and supply
+  an operator-chosen collection read ceiling. That ceiling bounds this
+  measurement run; it is not a recommended product admission limit.
+- Supported declared formats are `cdml` and `cdsvg`. Compressed inputs,
+  extension guessing, recursive discovery, network access, and normal CLI or
+  Python entry points are outside this tool.
+- Keep both the manifest and any receipt outside Git. The receipt retains only
+  participant-chosen aliases, declared format/stratum/producer metadata,
+  measurements, and stable failure codes. It does not publish source paths,
+  filenames, document text, snippets, or hashes.
+- A receipt is evidence for a later human review of input coverage and Rust
+  resource policy. It chooses no admission budget, so external Open remains
+  unavailable until that review records a policy at the Rust boundary.

@@ -111,7 +111,7 @@ def linked_names(libraries: list[Path]) -> set[str]:
 
 #============================================
 def detect_variants_from_names(names: set[str]) -> dict[str, str]:
-	"""Reject chemistry families outside the GraphMol kekulize profile."""
+	"""Reject chemistry families outside the declared codec-capability profile."""
 	boost = sorted(name for name in names if name.lower().startswith("libboost_"))
 	if boost:
 		raise NativeMachoError(
@@ -119,13 +119,13 @@ def detect_variants_from_names(names: set[str]) -> dict[str, str]:
 		)
 	forbidden = sorted(
 		name for name in names
-		if any(fragment in name.lower() for fragment in ("inchi", "coordgen", "maeparser"))
+		if any(fragment in name.lower() for fragment in ("coordgen", "maeparser"))
 	)
 	if forbidden:
 		raise NativeMachoError(
-			"GraphMol kekulize profile retained disabled chemistry libraries: " f"{forbidden}"
+			"codec profile retained disabled chemistry libraries: " f"{forbidden}"
 		)
-	return {"chemistry_scope": "graphmol-kekulize"}
+	return {"chemistry_scope": FERRUM_RDKIT_PROFILE.name}
 
 
 #============================================
@@ -319,14 +319,14 @@ def validate_packaged_dylib_closure(
 def validate_extension_closure(
 	dependencies: list[str], rpaths: list[str], has_adapter: bool,
 ) -> None:
-	"""Validate the extension boundary: it may load only the Ferrum adapter."""
-	validate_exact_rpaths(rpaths, ["@loader_path/.libs"], "native extension")
+	"""Validate the extension boundary and its adjacent private closure rpath."""
+	validate_exact_rpaths(rpaths, ["@loader_path/.dylibs"], "native extension")
 	extension_dependencies = [
 		dependency for dependency in dependencies if not dependency.startswith(SYSTEM_PREFIXES)
 	]
-	if extension_dependencies != ["@rpath/libferrum_chem.dylib"]:
+	if extension_dependencies not in ([], ["@rpath/libferrum_chem.dylib"]):
 		raise NativeMachoError(
-			"extension must depend only on @rpath/libferrum_chem.dylib outside macOS "
+			"extension must have no native dependency or only @rpath/libferrum_chem.dylib outside macOS "
 			f"system libraries; got {extension_dependencies}"
 		)
 	if not has_adapter:
@@ -393,10 +393,13 @@ def self_test() -> None:
 			return
 		raise NativeMachoError(f"Mach-O self-test accepted {label}")
 
-	if detect_variants_from_names({"libRDKitGraphMol.1.dylib"}) != {
-		"chemistry_scope": "graphmol-kekulize"
+	if detect_variants_from_names({
+		"libRDKitGraphMol.1.dylib", "libRDKitDepictor.1.dylib",
+		"libRDKitFileParsers.1.dylib",
+	}) != {
+		"chemistry_scope": FERRUM_RDKIT_PROFILE.name
 	}:
-		raise NativeMachoError("GraphMol kekulize variant self-test failed")
+		raise NativeMachoError("codec-capability variant self-test failed")
 	reject(
 		lambda: detect_variants_from_names(
 			{"libRDKitGraphMol.1.dylib", "libboost_python312.dylib"}
@@ -405,7 +408,7 @@ def self_test() -> None:
 	)
 	validate_extension_closure(
 		["@rpath/libferrum_chem.dylib", "/usr/lib/libSystem.B.dylib"],
-		["@loader_path/.libs"],
+		["@loader_path/.dylibs"],
 		True,
 	)
 	parsed = parse_otool_dependencies(
@@ -429,7 +432,7 @@ def self_test() -> None:
 	reject(
 		lambda: validate_extension_closure(
 			["@rpath/libferrum_chem.dylib"],
-			["@loader_path/.libs", "@loader_path/.libs"],
+			["@loader_path/../.dylibs", "@loader_path/../.dylibs"],
 			True,
 		),
 		"duplicate LC_RPATH entries",
@@ -455,9 +458,9 @@ def self_test() -> None:
 		"unallowlisted native library",
 	)
 	for dependencies, rpaths, has_adapter in (
-		(["/opt/homebrew/lib/libferrum_chem.dylib"], ["@loader_path/.libs"], True),
+		(["/opt/homebrew/lib/libferrum_chem.dylib"], ["@loader_path/../.dylibs"], True),
 		(["@rpath/libferrum_chem.dylib"], ["/checkout/output"], True),
-		(["@rpath/libferrum_chem.dylib"], ["@loader_path/.libs"], False),
+		(["@rpath/libferrum_chem.dylib"], ["@loader_path/../.dylibs"], False),
 	):
 		reject(
 			lambda dependencies=dependencies, rpaths=rpaths, has_adapter=has_adapter:

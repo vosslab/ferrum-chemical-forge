@@ -9,6 +9,8 @@ import shiboken6
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.canvas.scene
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 
 
 #============================================
@@ -28,7 +30,7 @@ def test_dispose_contents_retires_decorations_and_anonymous_items(
 		and not shiboken6.isValid(grid)
 		and not shiboken6.isValid(anonymous)
 	)
-	assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, scene)
+	assert ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, scene)
 
 
 #============================================
@@ -62,4 +64,4 @@ def test_dispose_contents_retains_failed_decoration_until_controlled_retry(
 	monkeypatch.undo()
 	reaper.drain()
 	assert not shiboken6.isValid(paper) and not reaper.owns_detached_root(paper)
-	assert ferrum_qt.main_window.delete_qobject_and_wait(qapp, scene)
+	assert ferrum_qt.qt_lifecycle.delete_qobject_and_wait(qapp, scene)

@@ -350,6 +350,8 @@ class WindowViewMixin:
 		"""
 		if self._shutdown_prepared:
 			return True
+		if not self._confirm_native_tabs_for_shutdown():
+			return False
 		for session in tuple(self._sessions):
 			if not self._confirm_save_if_dirty(
 					"closing Ferrum-Qt", session,
@@ -370,6 +372,7 @@ class WindowViewMixin:
 		if self._active_session is not None and self._ui_signals_connected:
 			self._disconnect_active_session_signals(self._active_session)
 		self._bind_property_dock(None)
+		self._dispose_native_tabs_for_shutdown()
 
 		sessions = tuple(self._sessions)
 		previous_block = self._tab_widget.blockSignals(True)

@@ -218,7 +218,8 @@ document.
 **Whole-document exchange per committed command was chosen over a fragment
 protocol** because measurement showed a fragment protocol buys nothing inside the
 expected operating envelope. Round-trip cost on the repository's real CDML files
-is 0.34 to 1.83 ms against a 16 ms interactive frame budget, and the crossover
+is 0.34 to 1.83 ms, well within one measured frame interval on the test display;
+that observation is not a universal frame deadline. The crossover
 where whole-document exchange would exceed that budget sits near 300 to 600 KB,
 roughly fifteen to thirty times larger than any document this project currently
 produces. Whole-document exchange also keeps ownership unambiguous, which a
@@ -572,7 +573,7 @@ Python 3.12, and Rust 1.97.1.
 | D4 straighten port | Portable. The `minimizeRotation=true` branch matches at ~5e-16; the `false` branch, which OASA uses, needs the verbatim C++ source |
 | D5 distribution | A pinned source build yields a self-contained relocatable bundle running under `env -i` |
 | D6 WASM | One project-level contract spans both platforms; a **project-built** WASM MinimalLib is required |
-| D7 CDML channel | Whole-document exchange, 0.34 to 1.83 ms on real files against a 16 ms budget |
+| D7 CDML channel | Whole-document exchange, measured at 0.34 to 1.83 ms on real files; compare against the target display's measured frame interval |
 | D8 parity rules | Comparison rule assigned per output class, several measured |
 | D9 dependencies | Adopt `xot` and `cairo-rs`; decline `sdfrust` and a Rust text stack; adopt `petgraph` plus a project cycle basis |
 

@@ -16,13 +16,14 @@ set(FERRUM_CHEM_RDKIT_RDGENERAL "" CACHE FILEPATH
 set(FERRUM_CHEM_RDKIT_DEPICTOR "" CACHE FILEPATH "Explicit libRDKitDepictor dylib")
 set(FERRUM_CHEM_RDKIT_SMILESPARSE "" CACHE FILEPATH "Explicit libRDKitSmilesParse dylib")
 set(FERRUM_CHEM_RDKIT_FILEPARSERS "" CACHE FILEPATH "Explicit libRDKitFileParsers dylib")
-set(FERRUM_CHEM_RDKIT_RDINCHILIB "" CACHE FILEPATH "Explicit libRDKitRDInchiLib dylib")
-set(FERRUM_CHEM_RDKIT_INCHI "" CACHE FILEPATH "Explicit libRDKitInchi dylib")
+set(FERRUM_CHEM_RDKIT_RDINCHI "" CACHE FILEPATH "Explicit libRDKitRDInchiLib dylib")
 
 foreach(required_input IN ITEMS FERRUM_CHEM_RDKIT_INCLUDE_DIR FERRUM_CHEM_BOOST_INCLUDE_DIR
 		FERRUM_CHEM_RDKIT_GRAPHMOL FERRUM_CHEM_RDKIT_RDGENERAL
 		FERRUM_CHEM_RDKIT_DEPICTOR FERRUM_CHEM_RDKIT_SMILESPARSE
-		FERRUM_CHEM_RDKIT_FILEPARSERS FERRUM_CHEM_RDKIT_RDINCHILIB FERRUM_CHEM_RDKIT_INCHI)
+		FERRUM_CHEM_RDKIT_FILEPARSERS
+		FERRUM_CHEM_RDKIT_RDINCHI
+	)
 	if(NOT ${required_input})
 		message(FATAL_ERROR "${required_input} is required; Ferrum never discovers host RDKit")
 	endif()
@@ -40,7 +41,11 @@ if(NOT EXISTS "${FERRUM_CHEM_BOOST_INCLUDE_DIR}/boost/config.hpp")
 	message(FATAL_ERROR "FERRUM_CHEM_BOOST_INCLUDE_DIR lacks boost/config.hpp")
 endif()
 
-add_library(ferrum_chem SHARED ferrum_chem_adapter.cpp)
+add_library(ferrum_chem SHARED
+	ferrum_chem_adapter.cpp ferrum_chem_smarts.cpp ferrum_chem_molblock.cpp
+	ferrum_chem_molblock_import.cpp ferrum_chem_sdf.cpp ferrum_chem_sdf_import.cpp
+	ferrum_chem_molecule_response.cpp
+	ferrum_chem_text_response.cpp ferrum_chem_inchi.cpp)
 target_include_directories(ferrum_chem
 	PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 	PRIVATE "${FERRUM_CHEM_RDKIT_INCLUDE_DIR}" "${FERRUM_CHEM_BOOST_INCLUDE_DIR}")
@@ -50,8 +55,8 @@ target_link_libraries(ferrum_chem PRIVATE
 target_compile_definitions(ferrum_chem PRIVATE FERRUM_CHEM_ENABLE_DEPICTOR=1 FERRUM_CHEM_ENABLE_SMILES=1)
 target_link_libraries(ferrum_chem PRIVATE
 	"${FERRUM_CHEM_RDKIT_DEPICTOR}" "${FERRUM_CHEM_RDKIT_SMILESPARSE}"
-	"${FERRUM_CHEM_RDKIT_FILEPARSERS}" "${FERRUM_CHEM_RDKIT_RDINCHILIB}"
-	"${FERRUM_CHEM_RDKIT_INCHI}")
+	"${FERRUM_CHEM_RDKIT_FILEPARSERS}")
+target_link_libraries(ferrum_chem PRIVATE "${FERRUM_CHEM_RDKIT_RDINCHI}")
 target_link_options(ferrum_chem PRIVATE "-Wl,-rpath,@loader_path")
 set_target_properties(ferrum_chem PROPERTIES
 	OUTPUT_NAME ferrum_chem

@@ -5,6 +5,8 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.qt_lifecycle
+import ferrum_qt.legacy.compatibility_lifecycle
 
 #============================================
 def test_closed_tab_releases_its_detached_native_ownership_graph(
@@ -14,7 +16,7 @@ def test_closed_tab_releases_its_detached_native_ownership_graph(
 	"""A removed tab closes and drains its QObject reaper."""
 	assert main_window._on_new()
 	closed = main_window.close_session_at(1)
-	drained = ferrum_qt.main_window.drain_pending_session_deletions(
+	drained = ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(
 		qapp, main_window,
 	)
 
@@ -34,4 +36,4 @@ def test_tab_title_binding_retires_with_its_session(
 
 	assert main_window._tab_widget.tabText(1) == "Named document"
 	assert main_window.close_session_at(1)
-	assert ferrum_qt.main_window.drain_pending_session_deletions(qapp, main_window)
+	assert ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(qapp, main_window)

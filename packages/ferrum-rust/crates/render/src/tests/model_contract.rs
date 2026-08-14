@@ -16,8 +16,22 @@ fn size(value: f64) -> PositiveFinite {
     PositiveFinite::new(value).expect("test extent is positive and finite")
 }
 
+fn paint(value: &str) -> Paint {
+    Paint::rgb24(Rgb24::new(value).expect("test rgb"))
+}
+
 fn run(text: &str, script: TextScript) -> TextRun {
-    TextRun::new(text, script, point(0.0, 0.0), size(1.0)).expect("run")
+    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
+    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Telex");
+    let scale = match script {
+        TextScript::Baseline => size(1.0),
+        TextScript::Subscript | TextScript::Superscript => size(0.65),
+    };
+    let glyphs = metrics
+        .v1_glyphs_for_run(text, size(12.0), scale)
+        .expect("Telex glyphs");
+    TextRun::new(text, script, point(0.0, 0.0), glyphs, scale).expect("run")
 }
 
 fn label() -> RenderOp {
@@ -31,7 +45,7 @@ fn label() -> RenderOp {
             ],
             FontFace::telex_regular(),
             size(12.0),
-            Paint::Foreground,
+            paint("000000"),
             2,
         )
         .expect("text operation"),
@@ -44,7 +58,7 @@ fn line() -> RenderOp {
             point(1.0, 0.0),
             point(4.0, 0.0),
             size(1.0),
-            Paint::Rgb24(Rgb24::new("112233").expect("rgb")),
+            paint("112233"),
             1,
         )
         .expect("line operation"),
@@ -53,7 +67,7 @@ fn line() -> RenderOp {
 
 fn plan() -> MoleculeRenderPlan {
     MoleculeRenderPlan::new(
-        RenderRevision::new(8).expect("revision"),
+        RenderProvenance::new(RenderRevision::new(8).expect("revision"), [8; 32]),
         vec![
             RenderBatch::new(
                 target(RecordKind::Atom, "a1", 3),
@@ -84,7 +98,7 @@ fn plan_json_is_canonical_and_round_trips() {
     assert_eq!(first, second);
     assert_eq!(restored, original);
     assert!(first.starts_with("{\"schema\":\"ferrum-render-plan-v1\""));
-    assert!(first.contains("\"value\":\"112233\""));
+    assert!(first.contains("\"paint\":\"112233\""));
 }
 
 #[test]
@@ -97,17 +111,48 @@ fn nonfinite_and_invalid_presentation_values_are_rejected() {
     assert!(Rgb24::new("#112233").is_err());
     assert!(Rgb24::new("11223G").is_err());
     assert!(FontFace::new("  ").is_err());
-    assert!(TextRun::new("", TextScript::Baseline, point(0.0, 0.0), size(1.0)).is_err());
+    assert!(TextRun::new("", TextScript::Baseline, point(0.0, 0.0), vec![], size(1.0)).is_err());
     assert!(
         LineOp::new(
             point(1.0, 1.0),
             point(1.0, 1.0),
             size(1.0),
-            Paint::Foreground,
+            paint("000000"),
             0
         )
         .is_err()
     );
+    assert!(
+        EllipseOp::new(
+            point(1.0, 1.0),
+            size(2.0),
+            size(1.0),
+            0.0,
+            None,
+            None,
+            None,
+            0,
+        )
+        .is_err()
+    );
+    assert!(
+        EllipseOp::new(
+            point(1.0, 1.0),
+            size(2.0),
+            size(1.0),
+            0.0,
+            Some(size(1.0)),
+            None,
+            Some(paint("000000")),
+            0,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn initial_document_revision_zero_is_a_valid_render_provenance_value() {
+    assert_eq!(RenderRevision::new(0).expect("initial revision").get(), 0);
 }
 
 #[test]
@@ -137,7 +182,32 @@ fn deserialization_rejects_invalid_geometry_unknown_tags_and_defaults() {
 }
 
 #[test]
-fn coordinate_space_target_and_operation_kinds_cannot_mix() {
+fn inbound_text_runs_reject_forged_or_non_scalar_telex_layouts() {
+    let original = plan().to_canonical_json().expect("serialize");
+    for text in ["e\u{301}", "\u{1F600}"] {
+        let mut wire: serde_json::Value = serde_json::from_str(&original).expect("value");
+        wire["batches"][0]["operations"][0]["operation"]["runs"][0]["text"] = json!(text);
+        assert!(MoleculeRenderPlan::from_json(&wire.to_string()).is_err());
+    }
+    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
+    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Telex");
+    let fi_glyphs = metrics
+        .v1_glyphs_for_run("fi", size(12.0), size(1.0))
+        .expect("Telex has scalar glyphs for the adversary text");
+    let mut semantic_adversary: serde_json::Value = serde_json::from_str(&original).expect("value");
+    semantic_adversary["batches"][0]["operations"][0]["operation"]["runs"][0]["text"] = json!("fi");
+    semantic_adversary["batches"][0]["operations"][0]["operation"]["runs"][0]["glyphs"] =
+        serde_json::to_value(fi_glyphs).expect("glyph placements serialize");
+    assert!(MoleculeRenderPlan::from_json(&semantic_adversary.to_string()).is_err());
+    let mut forged: serde_json::Value = serde_json::from_str(&original).expect("value");
+    forged["batches"][0]["operations"][0]["operation"]["runs"][0]["glyphs"][0]["glyph_index"] =
+        json!(999_999_u32);
+    assert!(MoleculeRenderPlan::from_json(&forged.to_string()).is_err());
+}
+
+#[test]
+fn coordinate_space_target_and_operation_grammar_is_closed() {
     assert!(
         RenderBatch::new(
             target(RecordKind::Bond, "b1", 1),
@@ -164,7 +234,7 @@ fn coordinate_space_target_and_operation_kinds_cannot_mix() {
             },
             vec![line()]
         )
-        .is_err()
+        .is_ok()
     );
     assert!(
         RenderBatch::new(
@@ -197,7 +267,7 @@ fn duplicate_durable_targets_are_rejected_even_when_projection_order_differs() {
     .expect("batch");
     assert!(
         MoleculeRenderPlan::new(
-            RenderRevision::new(1).expect("revision"),
+            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             vec![first, second],
             vec![]
         )
@@ -223,7 +293,7 @@ fn batches_and_operations_require_explicit_stable_order() {
     .expect("batch");
     assert!(
         MoleculeRenderPlan::new(
-            RenderRevision::new(1).expect("revision"),
+            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             vec![atom, bond],
             vec![],
         )
@@ -234,7 +304,7 @@ fn batches_and_operations_require_explicit_stable_order() {
         point(1.0, 0.0),
         point(4.0, 0.0),
         size(1.0),
-        Paint::Foreground,
+        paint("000000"),
         2,
     )
     .expect("line");
@@ -242,7 +312,7 @@ fn batches_and_operations_require_explicit_stable_order() {
         point(5.0, 0.0),
         point(8.0, 0.0),
         size(1.0),
-        Paint::Foreground,
+        paint("000000"),
         1,
     )
     .expect("line");
@@ -266,7 +336,7 @@ fn issues_are_validated_without_creating_partial_batches() {
     )
     .expect("issue");
     let result = MoleculeRenderPlan::new(
-        RenderRevision::new(1).expect("revision"),
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
         vec![],
         vec![issue],
     )
@@ -303,7 +373,7 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     )
     .expect("issue");
     let plan = MoleculeRenderPlan::new(
-        RenderRevision::new(1).expect("revision"),
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
         vec![batch.clone()],
         vec![issue.clone()],
     )
@@ -321,7 +391,7 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     .expect("issue");
     assert!(
         MoleculeRenderPlan::new(
-            RenderRevision::new(1).expect("revision"),
+            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             vec![batch.clone()],
             vec![conflicting_issue],
         )
@@ -337,7 +407,7 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     .expect("issue");
     assert!(
         MoleculeRenderPlan::new(
-            RenderRevision::new(1).expect("revision"),
+            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             vec![batch.clone()],
             vec![duplicate_order_issue],
         )
@@ -353,7 +423,7 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     .expect("issue");
     assert!(
         MoleculeRenderPlan::new(
-            RenderRevision::new(1).expect("revision"),
+            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             vec![],
             vec![later, issue],
         )
@@ -375,10 +445,32 @@ fn wire_float_zeroes_are_normalized_and_text_controls_are_rejected() {
 
     for invalid in ["", "  ", "\t", "Ferrum\0Sans", "Ferrum\nSans"] {
         assert!(FontFace::new(invalid).is_err(), "invalid face: {invalid:?}");
-        assert!(TextRun::new(invalid, TextScript::Baseline, point(0.0, 0.0), size(1.0)).is_err());
+        assert!(
+            TextRun::new(
+                invalid,
+                TextScript::Baseline,
+                point(0.0, 0.0),
+                vec![],
+                size(1.0)
+            )
+            .is_err()
+        );
     }
     assert!(FontFace::new("ferrum-telex-regular-v1").is_ok());
-    assert!(TextRun::new("Cl-", TextScript::Baseline, point(0.0, 0.0), size(1.0)).is_ok());
+    assert!(
+        TextRun::new(
+            "Cl-",
+            TextScript::Baseline,
+            point(0.0, 0.0),
+            vec![
+                GlyphPlacement::new(1, point(0.0, 0.0)).expect("glyph"),
+                GlyphPlacement::new(2, point(1.0, 0.0)).expect("glyph"),
+                GlyphPlacement::new(3, point(2.0, 0.0)).expect("glyph"),
+            ],
+            size(1.0),
+        )
+        .is_ok()
+    );
 }
 
 #[test]

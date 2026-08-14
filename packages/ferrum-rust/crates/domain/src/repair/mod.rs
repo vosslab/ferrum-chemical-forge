@@ -8,10 +8,10 @@
 mod plan;
 mod types;
 
-pub use plan::plan_repair;
+pub use plan::{plan_repair, plan_repair_with_outcome};
 pub use types::{
     CoordinatePatch, CoordinateReplacement, DepictionBond, DepictionGraph, DepictionVertex,
-    PatchPreconditionError, RepairError, RepairKind, RepairRequest,
+    PatchPreconditionError, RepairError, RepairKind, RepairOutcome, RepairRequest,
 };
 
 #[cfg(test)]

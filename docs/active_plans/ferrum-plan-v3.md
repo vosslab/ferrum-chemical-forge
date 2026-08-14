@@ -62,8 +62,11 @@ genuinely exact because their values are discrete.
 
 ## Design philosophy
 
-The trade-off this plan accepts: a heavier build -- a C++ toolchain and a pinned,
-source-built RDKit -- in exchange for chemistry behavior that already works. The
+The trade-off this plan accepts: a heavier build -- a C++ toolchain and a
+source-built RDKit -- in exchange for chemistry behavior that already works. Each
+shipping artifact records and verifies its exact source tag and hash, while the
+development policy advances to the latest stable RDKit and compares the prior stable
+release when that comparison is meaningful. The
 rejected alternative is a pure-Rust chemistry core. `chematic` describes its own
 depiction as not publication-quality and its pure-Rust InChI as approximate; OASA
 adopted RDKit because internal implementations lost to it. Repeating that
@@ -186,22 +189,92 @@ records the decision in the milestone's changelog entry. A divergence classified
 | --- | --- |
 | `packages/ferrum-chem-qt.app/` | Retained frontend now uses the `ferrum_qt` namespace and Ferrum-Qt product identity. Migration-only OASA calls remain until their Rust replacements land. |
 | `pyproject.toml` (Qt app) | `name = "ferrum-qt"`, `license = "AGPL-3.0-only"`, correct Ferrum GitHub URLs, and the intentional installed `ferrum-qt` console entry point. The application remains a migration preview with `oasa>=26.08` until its replacement work lands. |
-| OASA coupling | 445 `oasa` tokens in 18 production files; 64 direct imports in 16 files. The production tree has zero direct Tk/Tkinter imports and 29 historical Tk/Tcl text hits. |
-| `packages/ferrum-rust/` | Seven-crate workspace (api, chemistry, core, document, domain, geometry, render) with a runnable `ferrum` CDML inspection/rewrite CLI; its scoped `target/` output is ignored |
+| OASA coupling | The 445-token/64-import measurement is historical, before the current native route. A 2026-08-12 residual audit found OASA concentrated in the legacy document-session and bridge families, while the standalone native tab, native file route, and native render closure contain no OASA/BKChem import. This does not remove OASA from the legacy production tree or its manifests. |
+| `packages/ferrum-rust/` | Seven-crate workspace (api, chemistry, core, document, domain, geometry, render) with runnable CDML inspection, rewrite, validate, CD-SVG extraction, render-observation, existing-molecule coordinate regeneration, and explicit-adapter chemistry CLI slices; its scoped `target/` output is ignored. These pre-M18 commands are not a frozen public CLI contract. |
 | `bkchem_data` symlink | Removed through an escalated, staged `git rm`; package-owned resources resolve without the obsolete link |
 | Licensing | Complete canonical offline AGPL v3 and LGPL v3 texts and `docs/PROVENANCE.md` record the intended component boundary; this is not legal advice |
 | Scaffolding | `README.md`, `docs/CHANGELOG.md`, and split production/development dependency manifests are populated |
 | Hygiene tests | Root suite initially reported 2,967 passed and 200 M1a-scoped failures from empty README/manifests; after accepted metadata, README, and license fixes it reported 3,167 passed; final M1a suite reported 3,186 passed |
 | M1b capability evidence | `docs/active_plans/audits/ferrum_qt_capability_matrix.md` supplies 25 stable rows, including all seven export codecs, durable edits, numbering, and marks. An installed `ferrum-qt` process now starts offscreen, opens `authored_document_forms.cdml` through the existing Qt/OASA-backed native CDML route, writes the controlled receipt, and exits without a traceback. This proves M1b rename/start/open behavior, not Rust-backend adoption or worker-format completion. |
-| M1e exclusion evidence | `tests/test_migration_import_exclusion.py` uses the positive Ferrum production selector with an empty active capability set. It excludes `OTHER_REPOS`, proves seeded OASA and Tk imports fail after activation, and does not claim unreplaced migration paths are clean. |
+| M1e exclusion evidence | `tests/test_migration_import_exclusion.py` uses a positive Ferrum production selector. Chemistry is active on the standalone native route; desktop UI remains inactive. It excludes `OTHER_REPOS`, proves seeded OASA and Tk imports fail after activation, and does not claim unreplaced legacy paths are clean. |
 | M4a packaging evidence | The macOS arm64 native-wheel E2E source-builds the declared RDKit profile with a controlled CMake/LLVM/Rustup environment, installs a minimal wheel into a scrubbed environment, and loads it. The historical M4a stub proved a two-library closure and replacement mechanism. `docs/active_plans/reports/native_wheel_packaging.md` retains that mechanism evidence without confusing it with the later chemistry adapter. |
 | M4b adapter evidence | The macOS arm64 source E2E built the GraphMol-only `ferrum-rdkit-graphmol-kekulize-v1` profile into a Ferrum-owned sealed stage, installed ABI 2 and the exact five-library chemistry closure, and ran an aromatic benzene kekulization probe in fresh Rust processes before and after a verified package-relative replacement copy. It deliberately replaces the `Release` wheel adapter with distinct-byte `RelWithDebInfo` output. Both results preserve supplied atom facts and topology and produce alternating single/double bonds. The sealed `ferrum-native-inputs-v2` manifest validates the replacement inputs. `docs/active_plans/reports/native_kekulization.md` records the receipt facts and narrow limits. |
+| ABI4/FCM1 superseding wheel evidence | The ABI2/five-library row above remains historical mechanism evidence. The accepted current proof is the direct-extension macOS arm64 wheel `output_native_wheel/inchi-v1-current-20260813/wheelhouse/ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl`, SHA-256 `0f2de3ae9819545846af46efc45cae3eddbfbcabda5a0653f31d2a4ff6e79e6f`. It uses official RDKit 2026.03.5 plus pinned IUPAC InChI 1.07.3 source, ABI4 FCM1, and a measured 18-dylib closure. This is a narrow macOS arm64 packaging proof, not M20 platform coverage or product release evidence. |
+| M4c/M4d chemistry evidence | The current fresh direct-extension wheel `output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/` has SHA-256 `13de57cf0d95dc3f1755f14a1ca36350fe4db7dca43e3ab8ead0e3d0e74b3eda`. The coordinate receipt was refreshed against 20 RDKit 2026.03.5 Python-wrapper processes and 20 Ferrum ABI-4 processes; both again had zero internal noise and exact atom-aligned coordinates across six molecules, so the ULP-derived tolerance remains `7.105427357601002e-15`. The OASA-free native Qt route imports, renders, saves, and reopens CCO. |
+| M5 SMARTS codec | ABI-4 FCG1 carries a complete frozen molecule graph into the native adapter and bounded FCT1 returns RDKit `MolToSmarts` text. Eight cases match the recorded RDKit 2026.03.5 build exactly. A disposable offline check generated both current and previous stable query sets, parsed both under RDKit 2026.03.4 and 2026.03.5, and found agreement on all 272 chirality-aware query-target outcomes. Exact cross-version text was observed but is not required. OASA explicitly registers SMARTS as export-only, so import is not a replacement gate. |
+| M5 molblock codec | ABI-4 carries complete graphs and atom-aligned coordinates in both directions. Strict bounded V2000/V3000 import and export pass seven graph/stereo/charge/isotope cases under current RDKit 2026.03.5 and previous stable 2026.03.4. Coordinate bounds are derived from each emitted decimal token rather than imposed globally. The standalone native Qt route imports one bounded local Molfile through the Rust parser boundary, commits the complete graph against exact document provenance, renders it, and saves/reopens CDML without OASA. Both codec directions pass before and after a distinct adapter replacement. |
+| M5 SDF codec | ABI-4 FSD1/FCT1 exports ordered coordinate-bearing records through RDKit `SDWriter`; FSI1 imports bounded UTF-8 SDF through strict `SDMolSupplier` into owned Rust and frozen Python records. Three multi-record cases in explicit V2000 and V3000 pass semantic evaluation under current RDKit 2026.03.5 and previous RDKit 2026.03.4, and Ferrum import agrees with the current evaluator. Acceptance checks chemistry and ordered property values, never SDF bytes. The OASA reference conversion is 2D and uncompressed, so 3D/compressed suppliers are not parity gates. |
+| M5 InChI codec | ABI-4 imports Standard and Fixed-H InChI into the complete owned graph, exports both explicit modes, and derives validated 27-character InChIKeys. A disposable five-molecule corpus matched RDKit 2026.03.4 and 2026.03.5 exactly for both modes, keys, and canonical round trips. The current direct wheel uses pinned IUPAC InChI 1.07.3, has SHA-256 `0f2de3ae9819545846af46efc45cae3eddbfbcabda5a0653f31d2a4ff6e79e6f`, and passes installed-extension probes before and after a distinct adapter replacement. Its measured macOS arm64 closure is 18 dylibs. Exact strings are a grounded InChI identifier contract, not a general byte-equivalence gate. |
 | M1d preservation evidence | `docs/active_plans/audits/cdml_preservation_coverage.md`, three compact CDML fixtures, and separate-process comparison evidence are established. M1d remains open for real user documents plus no-namespace, future-version, alternate-prefix, and CD-SVG coverage. |
-| M6 XML storage | `ferrum-document` stores opaque CDML in `xot` 0.31.2. A one-time three-fixture probe establishes structural, not lexical, retention; DTD input is rejected without an external resolver, and raw source-slice fallback is not adopted. |
+| M6 XML storage | `ferrum-document` stores opaque CDML in `xot` 0.31.2. A one-time three-fixture probe establishes structural, not lexical, retention; DTD input is rejected without an external resolver, and raw source-slice fallback is not adopted. An accepted caller-owned preflight can reject decoded XML by bytes, elements, depth, attributes, and lexical text/CDATA before `xot` allocation. Current ingress remains unbounded until representative user documents justify a versioned host policy. |
 | M7 identity and ordering | `IndexedDocument` derives direct-child records in source order, a declaration `id_index` that also reserves opaque IDs, root-relative element paths, and single-consumption provisional tokens. Fragment bond/vertex `id` references are excluded from declarations and never rewritten. See `docs/active_plans/decisions/document_identity_ordering.md`. |
 | M2 core model | `ferrum-core` implements the accepted immutable model, accessors, and presence-sensitive properties. The authoritative M8 document projection now reads every corpus molecule with versioned bond semantics. `docs/active_plans/reports/corpus_molecule_parity.md` records the accepted exact agreements, classified differences, zero unexpected differences, and two independent mutation proofs. |
 | M8 typed records | `ferrum-document` implements the accepted assignment as a single-tree typed overlay with context-qualified classes, named lexical fields, unknown-attribute bags, ordered opaque children, and non-demoting diagnostics. It is the sole production CDML reader and projects typed molecules into `ferrum-core`; evidence is in `docs/active_plans/reports/typed_document_records.md`. |
 | Reference material | `OTHER_REPOS/` is gitignored, reference-only material that may be removed at any time. It can inform historical contracts and isolated oracle comparisons, but no Ferrum build, test, runtime, or release path may read it. The chemistry-adapter chain obtains RDKit only from the declared hash-verified upstream source profile. |
+
+### 2026-08-12 pre-milestone implementation evidence
+
+The following accepted vertical slices make the native boundary observable without
+changing any milestone status in the tracker. They are intentionally smaller than
+their corresponding exit criteria.
+
+- The direct PyO3 session exposes exact Rust render observations. The earlier separate
+  native-tab route established bounded open/render/edit behavior; the ordinary
+  OASA-free `ferrum-qt` route now starts a Rust-owned empty document and defers
+  external CDML Open pending the measured admission policy. It can render, change a
+  selected atom element, add one Rust-identified free-standing
+  atom to a durable molecule, connect exactly two existing atoms with one
+  Rust-identified normal single bond by selection or a revision-bound drag gesture,
+  extend an existing atom into empty space with one atomic Rust carbon-plus-bond edit,
+  move one durable atom through an exact revision-bound Rust point operation, delete one
+  durable atom and its typed incident bonds as one history entry, delete one durable typed
+  bond while preserving both endpoint atoms, change one selected normal bond among single,
+  double, and triple order, edit one selected durable bond's supported order, depiction style,
+  center, width, and color facts as one atomic patch, regenerate one ordinary durable molecule's coordinates off the UI
+  thread while retaining its current centroid and mean bond length, export one fresh detached
+  observation as atomic SVG, PDF, or allocation-bounded 72-DPI PNG, undo, redo, save, reopen, and
+  dispose a bounded native document
+  path. Focused evidence is in
+  `docs/active_plans/reports/native_bond_creation_v1.md` and
+  `docs/active_plans/reports/native_atom_move_v1.md` and
+  `docs/active_plans/reports/native_atom_deletion_v1.md` and
+  `docs/active_plans/reports/native_bond_deletion_v1.md` and
+  `docs/active_plans/reports/native_bond_order_v1.md` and
+  `docs/active_plans/reports/native_bond_properties_v1.md` and
+  `docs/active_plans/reports/native_coordinate_regeneration_v1.md` and
+  `docs/active_plans/reports/native_molfile_import_v1.md`.
+- The same standalone route now imports a bounded UTF-8 SDF as one complete ordered
+  batch. Every supported 2D record becomes a distinct durable molecule; exact title
+  and ordered duplicate property facts remain in a preserved Ferrum extension child,
+  and one undo removes the complete import. This advances FQ-004 but does not adopt
+  the route into the ordinary OASA-backed `MainWindow` or complete M16.
+- The standalone route also prepares one InChI string through the packaged ABI-4
+  adapter off the Qt thread and commits its handle-free molecule only against the
+  captured document revision and digest. InChI-complete hydrogen counts cross into
+  CDML; unrepresentable chirality, radicals, maps, and stereo facts remain typed
+  failures rather than lossy imports. This advances FQ-008 without claiming the
+  ordinary `MainWindow` cutover or a general text-import subsystem.
+- The native route is an early adoption slice, not M8a: legacy `MainWindow` and
+  ordinary tabs still own the OASA-backed editor; broad document classes, non-ordinary molecule
+  coordinate regeneration, bond depiction-style and gesture-order/element choices, other object
+  deletion, and a complete draw/edit workflow are not established.
+- The molecule render-plan painter, presentation-vector projection, and
+  Rust/PyO3 display-geometry bridge are separate V1 projections. They do not prove
+  M11 geometry parity, M12 full render-op/glyph-metric tolerance, M13 backends, or
+  M16 adoption of every Qt path.
+- The standalone native Qt snapshot route paints a fresh revision/digest-matched
+  detached observation to SVG, PDF, or PNG and never exports selected screen
+  items. It is an OASA-free frontend output path, not the independent M13
+  renderer-neutral backend. Its artifact and visual checks remain disposable evidence;
+  semantic render-operation tests remain the permanent gate.
+- Telex design metrics use a verified Rust `ttf-parser` route. The Qt painter
+  consumes supplied Rust glyph IDs and origins; it does not shape or measure text.
+  Direct PNG/PDF sinks remain later M13 work; a native graphics library requires a
+  separate M20 packaging decision and is not an M12 metrics dependency.
+- The CLI's `cdml render-observation`, explicit-adapter `smiles inspect`, and
+  explicit-adapter `cdml generate-coordinates` commands exercise native observation, chemistry,
+  document mutation, and atomic publication. They remain pre-M18 and do not freeze the CLI
+  contract.
 
 ## Architecture boundaries and ownership
 
@@ -250,27 +323,27 @@ current -- it is the project's status tracker.
 | M1a | Identity and licensing | Two LICENSE files, metadata, scaffolding, symlink repair | Repository states what it is | done | `maintainer` |
 | M1b | Ferrum-Qt rename and capability matrix | Namespace rename plus an inventory of what the app does | App starts under new name; capabilities enumerated | done | `coder` |
 | M1c | Rust workspace skeleton | Crate layout matching the final architecture | `cargo build` succeeds | done | `coder` |
-| M1d | Oracle harness and preservation inventory | Pinned OASA harness plus CDML coverage inventory | Harness compares one capability; coverage known | in progress | `tester` |
-| M1e | Exclusion checks | Per-capability `oasa`/Tk import guard | Guard runs with an empty capability list | done | `tester` |
+| M1d | Oracle harness and preservation inventory | Pinned OASA harness plus CDML coverage inventory | Harness compares one capability; coverage known | done | `tester` |
+| M1e | Exclusion checks | Per-capability `oasa`/Tk import guard | Native chemistry guard active; legacy desktop path scoped out | done | `tester` |
 | M2 | Core model | Atoms, bonds, molecules, identifiers, errors | Corpus molecules load, fields agree with oracle | done | `coder` |
 | M3 | Graph and deterministic cycles | `petgraph` plus a project cycle basis | Graph parity green, cycle choice deterministic | done | `coder` |
 | M4a | Build and packaging viability | Pinned source build, dependency detection, loadable wheel | The distribution model is proven, not assumed | done | `maintainer` |
 | M4b | Adapter semantics | C ABI surface, `ChemEngine`, stated defaults, kekulization | Chemistry reachable through one narrow trait | done | `expert_coder` |
-| M4c | Coordinate parity and tolerance | Noise-floor measurement, then the parity gate | A justified coordinate tolerance exists | not started | `tester` |
-| M4d | Qt chemistry slice | Ferrum-Qt parses SMILES through Ferrum | Frontend consumes the adapter | not started | `coder` |
-| M5 | Chemistry codecs | SMILES, SMARTS, molblock, SDF, InChI | Codec parity green | not started | `expert_coder` |
+| M4c | Coordinate parity and tolerance | Noise-floor measurement, then the parity gate | A justified coordinate tolerance exists | done | `tester` |
+| M4d | Qt chemistry slice | Ferrum-Qt parses SMILES through Ferrum | Frontend consumes the adapter | done | `coder` |
+| M5 | Chemistry codecs | SMILES, SMARTS, molblock, SDF, InChI | Codec parity green | done | `expert_coder` |
 | M6 | XML storage and opaque retention | `xot` layer, opaque subtrees | Structural preservation proven | done | `coder` |
 | M7 | Identity, ordering, references | Stable ids, canonical order, `id_index` | Ids and order survive round trips | done | `coder` |
 | M8 | Typed document records | Typed payloads plus unknown-attribute bags | Every class assigned and typed | done | `coder` |
-| M8a | Early document session adoption | Narrow load/save session used by Ferrum-Qt | Thin workflow runs end to end | not started | `expert_coder` |
-| M9 | Document-core semantics | Atomicity, revisions, baseline, Recovery Export | Contract semantics implemented once | not started | `expert_coder` |
-| M10 | Full-corpus preservation | Integration of the document chain | Preservation gate green over the inventory | not started | `tester` |
-| M11 | Geometry and straighten port | `kurbo`, `nalgebra`, `straightenDepiction` port | Geometry parity green | not started | `coder` |
-| M12 | Render ops and glyph metrics | Render-op model, label geometry over `cairo-rs` | Qt draws from Ferrum ops | not started | `coder` |
-| M13 | Render backends | Cairo raster and PDF, SVG through `xot` | Backend parity green | not started | `coder` |
-| M14 | Haworth | Spec, layout, fragment layout, renderer | Reference output parity | not started | `expert_coder` |
-| M15 | Domain utilities | Sugar code, peptides, repair, linear formula | Per-utility parity | not started | `expert_coder` |
-| M16 | Full session boundary and adoption | Complete document authority in Ferrum-Qt | Qt opens and saves everything through Ferrum | not started | `expert_coder` |
+| M8a | Early document session adoption | Narrow load/save session used by Ferrum-Qt | Thin workflow runs end to end | done | `expert_coder` |
+| M9 | Document-core semantics | Atomicity, revisions, baseline, Recovery Export | Contract semantics implemented once | done | `expert_coder` |
+| M10 | Full-corpus preservation | Integration of the document chain | Preservation gate green over the inventory | done | `tester` |
+| M11 | Geometry and straighten port | `kurbo`, `nalgebra`, `straightenDepiction` port | Current-target receipt and public atomic result | done | `coder` |
+| M12 | Render ops and glyph metrics | Declarative render-op model and deterministic Telex design metrics | Current-target Qt consumes Ferrum operations and verified Telex metrics | done | `coder` |
+| M13 | Render backends | Direct PNG/PDF sinks and SVG over checked render operations | Semantic sink evidence plus disposable artifacts | done | `coder` |
+| M14 | Haworth | Spec, layout, fragment layout, renderer | Source-backed semantic behavior | done | `expert_coder` |
+| M15 | Domain utilities | Sugar code, peptides, repair, linear formula | Per-utility source-backed semantics | in progress | `expert_coder` |
+| M16 | Full session boundary and adoption | Complete document authority in Ferrum-Qt | Qt opens and saves everything through Ferrum | in progress | `expert_coder` |
 | M17 | Operation protocol and freeze | Versioned protocol, boundary freeze | Contract frozen | not started | `expert_coder` |
 | M18 | Python module and CLI | Bindings, stubs, CLI contract | Callable from Python and shell | not started | `coder` |
 | M19 | Integration closure | Capability matrix cleared | Every mapped capability verified | not started | `integrator` |
@@ -401,16 +474,17 @@ assumption into a checkable claim.
 
 - Depends on: M1b (namespace settled).
 - Deliverables: a hygiene test using `file_utils.discover_files` that rejects `oasa`
-  and Tk imports in the production tree, driven by a per-capability list that starts
-  empty and grows as milestones land replacements. Path-classified with an allowlist
+  and Tk imports in the production tree, driven by a per-capability list that grows
+  as milestones land replacements. Path-classified with an allowlist
   for provenance docs, oracle configuration, and fixture metadata that must name its
   origin accurately.
-- Exit criteria: the guard passes with an empty capability list and fails a seeded
-  violation.
+- Exit criteria: the guard passes for the activated capability paths and fails a
+  seeded violation.
 - Exit evidence: `tests/test_migration_import_exclusion.py` selects only Ferrum
-  production sources with `file_utils.discover_files`, excludes `OTHER_REPOS`, passes
-  with its empty active-capability set, and rejects seeded OASA and Tk imports after
-  the respective capability activates (4 passing focused tests).
+  production sources with `file_utils.discover_files`, excludes `OTHER_REPOS`, and
+  activates chemistry for the OASA-free native route while leaving the separate
+  legacy desktop route inactive. Seeded OASA and Tk imports are rejected after their
+  respective capability activates (4 passing focused tests).
 - Parallel-plan ready: no.
 
 ### Milestone: M2 core model
@@ -442,8 +516,11 @@ assumption into a checkable claim.
 ### Milestone: M4a build and packaging viability
 
 - Depends on: M1c.
-- Deliverables: the pinned RDKit source-build recipe carrying the build facts --
-  C++20 (required by RDKit 2026.03.4 headers), detected dependency naming (external
+- Deliverables: a versioned and hash-verified RDKit source-build recipe carrying the
+  build facts. Each wheel records one exact reproducible source, while new wheel
+  builds move to the current stable RDKit release and check semantic compatibility
+  with the previous stable release. The recorded build facts include
+  C++20 (required by current RDKit headers), detected dependency naming (external
   `libinchi`/`libcoordgen` versus vendored `RDKitInchi`/`RDKitcoordgen`), Boost
   declared separately, `@loader_path` rpaths -- plus a **minimal loadable wheel**: a
   stub extension that links the adapter shell, bundles the dylibs, installs into a
@@ -459,9 +536,8 @@ assumption into a checkable claim.
   `libferrum_chem.dylib` and `libRDKitRDGeneral.1.dylib`. See
   `docs/active_plans/reports/native_wheel_packaging.md` for that run's sources,
   toolchain, and limits. M4b has since completed the narrow ABI-2 native
-  kekulization operation on the same packaging foundation. M4c, M4d, M20, and M22
-  remain open for coordinate parity, Qt use, platform coverage, and removal of the
-  migration dependency.
+  kekulization operation on the same packaging foundation. M20 and M22 remain open
+  for broader platform coverage and removal of the migration dependency.
 - Parallel-plan ready: no -- one owner, one toolchain.
 
 This milestone exists because packaging shapes the C ABI, the wheel layout, the build
@@ -491,8 +567,8 @@ not the chemistry.
   [`reports/rdkit_layout_orientation.json`](reports/rdkit_layout_orientation.json),
   generated outside pytest by
   [`devel/rdkit_layout_orientation.py`](../../devel/rdkit_layout_orientation.py).
-  M4b is limited to this native operation. M4c remains responsible for coordinate
-  implementation, tolerance derivation, and coordinate parity.
+  M4b is limited to this native operation. M4c now supplies the separate coordinate
+  implementation, tolerance derivation, and coordinate parity evidence.
 - Parallel-plan ready: yes -- one work package per entry-point group.
 
 ### Milestone: M4c coordinate parity and tolerance derivation
@@ -504,6 +580,14 @@ not the chemistry.
   that produced it, and coordinate parity is green on the corpus. Every coordinate
   case includes at least one asymmetric molecule, because a symmetric molecule passes
   under either `canonOrient` default and proves nothing.
+- Exit evidence: `reports/coordinate_parity_v1.md` and its source-bound JSON receipt
+  compare 20 independent RDKit 2026.03.5
+  Python-wrapper processes with 20 fresh ABI-4 wheel processes. Both process noise
+  maxima and the cross-backend maximum delta are 0.0 across six molecules, five of
+  them asymmetric. The tolerance is derived as four times observed process noise or
+  eight times the largest measured coordinate ULP, whichever is larger:
+  `7.105427357601002e-15`. The committed test recomputes every measurement-source
+  digest. M20 retains expansion beyond the current macOS arm64 platform.
 - Parallel-plan ready: no -- the measurement gates the gate.
 
 ### Milestone: M4d Qt chemistry slice
@@ -513,6 +597,19 @@ not the chemistry.
   through Ferrum; the chemistry capability added to the M1e exclusion list.
 - Exit criteria: the slice runs in the application; the exclusion check now rejects
   new `oasa` chemistry calls.
+- Exit evidence: the standalone `FerrumNativeMainWindow` starts a cancellable
+  background Rust SMILES preparation, accepts only the frozen extension DTO, commits
+  it through one revision-bound `DocumentSession` molecule transaction, and installs
+  the resulting render observation on the Qt thread. The fresh macOS arm64 wheel at
+  `output_native_wheel/smiles-insertion-v1-20260812-v2/` has SHA-256
+  `a901132f29fa3cd33c2516004be8bdf7fbe9272066d7cb6ab2b8b82b82caaaff` and an
+  audited 13-library ABI-4 closure. `e2e_native_cdml_file_route.py` proves public CCO
+  import, display, atomic save, reopen, opaque-root retention, and zero OASA imports.
+  The chemistry capability is active in the M1e guard for the native route.
+  The V1 insertion writer deliberately rejects chirality, bond stereo/direction,
+  radicals, no-implicit policy, atom maps, stereo references, and quadruple bonds
+  until exact CDML round trips are defined; this is a writer-contract gap, not a
+  claim that CDML cannot represent those concepts.
 - Parallel-plan ready: no.
 
 ### Milestone: M5 chemistry codecs
@@ -523,6 +620,41 @@ not the chemistry.
   and escaping match.
 - Exit criteria: codec parity green per the comparison rules; non-standard InChI
   output carries the `InChI=1/` prefix.
+- Implementation evidence: the SMARTS export slice is green in
+  `reports/smarts_codec_v1.md`. ABI-4 FCG1/FCT1, safe Rust, the frozen PyO3 DTO,
+  and the provisional explicit-adapter CLI match the recorded RDKit 2026.03.5 build
+  exactly on eight discrete graph cases and survive a distinct adapter replacement.
+  RDKit 2026.03.4 and 2026.03.5 also agree on 272 chirality-aware query-target
+  outcomes. The read-only OASA registry defines SMARTS as export-only, so importing
+  SMARTS would be a new query feature rather than parity work.
+- The explicit V2000/V3000 import and export slice is green in
+  `reports/molblock_codec_v1.md`. Seven molecules pass strict semantic reparse under
+  current RDKit 2026.03.5 and previous stable 2026.03.4. Coordinates are bounded by the precision actually
+  written in each format; molblock bytes, comments, spacing, and headers are observed
+  but are not acceptance gates. The clean 15-library wheel and both operations pass
+  before and after a distinct adapter replacement.
+- Ordered multi-record SDF export and bounded 2D import are green in
+  [reports/sdf_codec_v1.md](reports/sdf_codec_v1.md).
+  Titles, record order, property order and values, and discrete chemistry survive
+  strict V2000/V3000 reparse under current and previous stable RDKit releases. Exact
+  SDF bytes are outside the contract. Import retains duplicate property names as
+  distinct ordered values and rejects 3D conformers until the Rust model owns 3D.
+- The standalone native window now consumes that import boundary directly. Rust
+  bounds local-file bytes before UTF-8/native parsing, preserves every record and
+  exact ordered metadata, lays multiple molecules out without overlap, and prepares
+  one revision-bound document batch. The Qt worker carries only one frozen batch;
+  it does not parse SDF or interpret CDML. Semantic record/data retention and atomic
+  history are permanent gates; the public-window worker run is disposable evidence.
+  The OASA conversion copies x/y only and exposes plain text/file SDF, so 3D and
+  compressed suppliers are not parity requirements.
+- Standard and nonstandard Fixed-H InChI import/export plus InChIKey are green in
+  `reports/inchi_codec_v1.md`. The safe Rust engine,
+  direct PyO3 extension, and explicit-adapter CLI share the same ABI-4 boundary.
+  A disposable five-molecule corpus matched current RDKit 2026.03.5 and previous
+  stable 2026.03.4 exactly for the canonical identifiers and semantic round trips.
+- M5 is complete at the declared OASA-compatible codec boundary. Future SMARTS query
+  import, 3D chemistry, compressed suppliers, or additional data typing require their
+  own user-facing capability decisions rather than being smuggled into parity gates.
 - Parallel-plan ready: yes -- one work package per format family.
 
 ### Milestone: M6 XML storage and opaque retention
@@ -551,9 +683,11 @@ not the chemistry.
 - Depends on: M7, M2.
 - Entry evidence: the disposable M2 harness reader was deleted during this milestone.
   The corpus comparison now consumes `ferrum-document`'s typed projection, so there is
-  one CDML reader. `tests/test_cdml_reader_inventory.py` passes with only the document
-  crate allowed, and `xot` is absent from `crates/core/Cargo.toml`
-  `[dev-dependencies]`.
+  one authoritative CDML reader, and `xot` is absent from `crates/core/Cargo.toml`
+  `[dev-dependencies]`. The former permanent source-path allowlist was retired on
+  2026-08-12 after it misclassified legitimate `cfg(test)` and API-ingress literals;
+  parser ownership is now reviewed at the crate/API boundary and exercised through
+  document-ingress behavior rather than inferred from which files spell a URI.
 - Deliverables: typed payloads for every class present in CDML today -- molecule,
   reaction, arrow, text, plus sign, the six vector-graphic shapes (`rect`, `square`,
   `oval`, `circle`, `polygon`, `polyline`), and the molecule-scoped `group` vertex --
@@ -589,6 +723,24 @@ exercised by Ferrum-Qt until M16, which is a long time to design a contract nobo
 calling. M8a deliberately adopts less than the full contract: advanced transaction
 semantics stay owned by M9, and full adoption stays at M16. What it buys is feedback.
 
+The accepted standalone `--native` route now exercises load, existing-molecule coordinate
+generation, Rust render plans, save/reopen, opaque-root preservation, a closed atomic
+atom-properties patch, persistent atom-number assign/show/hide/clear, and all seven closed
+atom-mark toggles. The property slice
+targets one durable atom ID and carries all nine authored dialog facts through exact frozen
+binding values; optional facts can be cleared without authoring dialog defaults. The number
+slice targets one direct atom through its durable molecule/atom pair and renders its explicit
+Rust-owned Telex glyph operation. Mark toggles use the same durable pair and render explicit
+Rust-owned line and ellipse operations. A projection-backed chooser can remove one ID-less mark
+by its exact same-type ordinal. That chooser is the accepted replacement for legacy direct-canvas
+selection: an atom mark has no durable identity of its own, so Qt must not invent one. An explicit
+local-wheel E2E saves and reopens all seven kinds while retaining opaque XML and avoiding OASA.
+Opaque CDML material remains retained. This completes the bounded M8a thin workflow; it does not
+claim M16 because the normal Ferrum-Qt editor still uses the legacy session. An OASA-free route
+can land capability by capability while legacy OASA
+dependencies remain until M22 closes the whole production tree. Its gates remain semantic rather
+than byte-, pixel-, or arbitrary timing-equivalence requirements.
+
 ### Milestone: M9 document-core semantics
 
 - Depends on: M8a (adoption feedback informs the semantics).
@@ -613,52 +765,218 @@ semantics stay owned by M9, and full adoption stays at M16. What it buys is feed
   is not.
 - Parallel-plan ready: no -- this is the integration point.
 
+The accepted backend-only gate is `tests/e2e/e2e_cdml_preservation.py`. It discovers
+the committed corpus and runs the public structural rewrite contract without byte
+comparison or frontend reconstruction. See
+[`cdml_preservation_gate.md`](reports/cdml_preservation_gate.md).
+
 ### Milestone: M11 geometry and straighten port
 
 - Depends on: M2.
+- Status: done for the currently evidenced macOS arm64 release target. Generic graph
+  topology validation no longer globally excludes fused or bridged graphs; only
+  single-ring normalization owns the exact one-independent-cycle boundary.
+- The public Rust `RepairOutcome` reports complete durable-identity-ordered y-up
+  positions and the y-up applied rotation in radians, including a reported zero
+  rotation for a valid no-op. `DocumentSession` prepares exact revision/digest-bound,
+  caller-ordered targets and applies them atomically after structural selector
+  preflight, preserving z, opaque content, and history semantics.
 - Deliverables: `kurbo` and `nalgebra` over geometry, wedge geometry, transforms, and
   hex grid; the `straightenDepiction` port from RDKit C++ source, recorded in
   `docs/PROVENANCE.md` as a derived algorithm under BSD-3; one primary geometry
   representation and a conversion policy.
-- Exit criteria: geometry parity within derived tolerance, covering both
-  `minimizeRotation` branches; rotation angle reported per molecule alongside
-  coordinates.
-- Parallel-plan ready: yes.
+- Exit evidence: both `minimizeRotation` branches have semantic Cargo behavior tests,
+  full public results, and an atomic document boundary. The recomputable, locked,
+  offline macOS arm64 CPython 3.12/RDKit 2026.03.5 receipt reports a maximum coordinate
+  delta of `3.645723512257204e-18`, rotation delta of `0`, and local repeat variation
+  of `0`. See [`geometry_straighten_parity.md`](reports/geometry_straighten_parity.md).
+- Permanent evidence: semantic Cargo behavior tests. The receipt is one-time evidence,
+  not a CI tolerance or pass threshold. M20 refreshes equivalent receipts for each
+  added release target. PyO3 exposure belongs to M18, not this exit. M11 adds no byte,
+  pixel, timing, or network gate.
+- Parallel-plan ready: no.
 
 ### Milestone: M12 render ops and glyph metrics
 
 - Depends on: M11.
-- Deliverables: the render-op model and label geometry over `cairo-rs`.
-- Exit criteria: text extents match the reference within the derived tolerance in the
-  pinned font environment; Ferrum-Qt draws molecules from Ferrum-produced render ops.
-  Render ops stay purely declarative -- an op describes what to draw and carries no
-  layout decisions, so parity compares data rather than two renderers' opinions.
-- Parallel-plan ready: yes.
+- Status: done for the currently evidenced macOS arm64 Telex/PySide6 reference
+  boundary. Declarative operations, verified Telex glyph IDs, frozen PyO3
+  observations, and Qt drawing without reshaping are landed. This does not establish
+  cross-platform coverage, pixel or byte equivalence, a permanent numeric threshold,
+  or an M13 backend.
+- Deliverables: a declarative render-op model and deterministic Telex design metrics
+  from Rust `ttf-parser`; Qt consumes supplied glyph IDs and origins rather than
+  selecting fonts, shaping, or measuring text. Direct PNG/PDF sinks are later M13 work;
+  a native graphics library requires a separate M20 packaging decision.
+- Exit evidence: the closed Telex corpus agrees with a QRawFont 6.11.1 design-metric
+  reference on macOS arm64. Exact glyph IDs/origins agree; the largest per-run `f64`
+  representation observation is about `1.78e-15` scene units. Qt baseline
+  descent/height differs by `0.0001875` scene units and remains an observation, not a
+  tolerance or pass threshold. A disposable current-wheel proof consumes supplied
+  iodine and plus outlines through `QRawFont.pathForGlyph`. The M12 report records
+  the complete boundary and its limits.
+- Render-op policy: Rust converts verified `ttf-parser` design units directly to
+  scene `f64` values with no extra rounding. True outline ink bounds serve runs and
+  centered plus signs; only atom-label clipping adds the atom origin to the outline
+  union. Ordered typed DTO semantics preserve schema, provenance, targets/order,
+  variants, exact discrete facts, and finite `f64` values through round-trip JSON.
+  JSON spelling is not a renderer contract.
+- Permanent evidence: semantic Cargo model and projection tests. Corpus measurements
+  and current-wheel receipts are one-time development or E2E evidence, not arbitrary
+  byte, pixel, timing, or GUI-wiring gates. M20 refreshes target evidence when the
+  release matrix grows.
+- Parallel-plan ready: no.
 
 ### Milestone: M13 render backends
 
 - Depends on: M12.
-- Deliverables: Cairo raster and PDF output, SVG through `xot`. Kept separate from
-  M12 so geometry errors stay distinguishable from renderer errors.
-- Exit criteria: SVG structural equivalence; raster within the perceptual threshold
-  derived in this milestone.
-- Parallel-plan ready: yes -- one work package per backend.
+- Status: done. `ferrum-render` lowers each supported `DocumentRenderPlanV1` once through
+  its private checked `DrawSinkV1` stream to owned in-memory `xot` SVG, direct pure-Rust
+  PNG, and direct pure-Rust vector PDF. The common external receipt carries the exact
+  revision/digest provenance, full page rectangle, and source-order named exclusions;
+  Ferrum provenance is not embedded in output artifact bytes. Supported molecule,
+  fixed-plus, Text, Arrow, Polyline, Wavy, round-bracket, Rectangle, Square, Oval,
+  Circle, and Polygon roots retain issued geometry, paint, order, and Telex outlines.
+  Profile, rejected-projection, and `not_yet_lowered` roots remain named exclusions.
+  Invalid projection, non-finite conversion, overflow, and sink failure are typed and
+  yield no partial artifact/receipt.
+- Output boundary: PNG requires exact nonzero caller-owned dimensions, an explicit
+  transparent or RGB background, and raw-RGBA and encoded-artifact caps. The raw cap is
+  admitted before pixmap allocation and a bounded writer enforces the encoded cap.
+  PDF requires caller-selected structural limits for plan traversal, draw-path commands,
+  and exclusion-report UTF-8 before `pdf-writer` allocation, plus a nonzero post-build
+  completed-artifact nonpublication cap. The latter is not an allocation or process-
+  memory bound. Every V1 sink receives explicit butt caps, miter joins with fixed 4.0
+  bevel fallback, and even-odd fill; no sink inherits those appearance defaults.
+- Dependencies: the lock-reviewed in-process sink surface is `tiny-skia`/`tiny-skia-path`
+  (BSD-3-Clause), `png` and `pdf-writer` (MIT OR Apache-2.0), with no build scripts or
+  native-graphics linkage. Their source/licensing and internal-unsafe boundary are in
+  [docs/PROVENANCE.md](../PROVENANCE.md). A native graphics library remains a separate M20
+  packaging decision.
+- Permanent evidence: focused offline Cargo tests cover common lowering/order/provenance,
+  named exclusions, explicit paint, semantic resource failures, and SVG structure. The
+  2026-08-13 independent review passed 70 `ferrum-render` tests, fmt, clippy, docs, and
+  locked-offline macOS arm64 checking. A disposable current-source proof used one A4 page
+  with six recognizable supported roots, produced an 800 x 1131 PNG and one-page PDF,
+  verified equal SVG/PNG/PDF receipts, PNG decoding, and `qpdf`/`pdfinfo`, then visually
+  inspected both raster outputs. It reported no exclusions. These checks establish
+  semantic structure, dimensions, and recognizability only; they do not create byte,
+  pixel, timing, or perceptual thresholds.
+- M14's M13 dependency is satisfied. M13 does not supply a file, CLI, PyO3, Qt, CD-SVG,
+  RDKit, or cross-platform-pixel-equivalence route; those belong to later boundaries.
+- Parallel-plan ready: no.
 
 ### Milestone: M14 Haworth
 
 - Depends on: M5, M13.
+- Status: done. The first public slice is the separate generic single-ring,
+  read-only, revision/digest-bound `ferrum-api` observation of one selected direct
+  molecule. Its caller supplies the exact five- or six-member C/O cycle IDs,
+  anomeric atom, scale, paint, and width. After proving the selected direct root
+  before core resolution, Ferrum returns the durable root identity and document-root
+  order, finite template-local bounds, and a molecule-local Haworth plan. The plan's
+  selected bond order is molecule-local; it is not a claim about document stacking
+  order or a public entry to the two-ring direct-glycosidic renderer below.
+- The accepted `ferrum-domain` direct-glycosidic topology slice classifies two
+  supplied, revalidated, vertex-disjoint five- or six-member C/O ring receipts plus
+  one exterior degree-two oxygen and its two selected single, non-aromatic bridge
+  bonds. Each bond attaches the bridge to a selected carbon in a different ring. Its
+  owned receipt retains canonical ring facts, the two ring attachments, bridge
+  identity, and snapshot-local source-order records.
+- The accepted pure-domain local layout consumes that topology and a finite positive
+  scale. Canonical ring zero has its attachment at `(-scale, 0)`, canonical ring one
+  at `(+scale, 0)`, and the exterior oxygen at `(0, 0)`; the normalized adjacent-edge
+  outward direction fixes each local rigid transform. Bridge endpoint pairs are keyed
+  by the selected attachment-bond identity, not graph source order. The accepted
+  fragment lowering owns exactly the two ring vertex sets plus bridge oxygen and
+  exactly the two ring cycles plus bridge bonds. Its disjoint ring/bridge bond maps,
+  endpoint identities, and endpoint geometry partition those selected facts exactly;
+  ring substituents are absent.
+- The accepted pure-domain `DirectGlycosidicHaworthDepictionSpecV1` lowers one
+  checked fragment to owned depiction facts. Per canonical ring it assigns exactly
+  one `q1`/front bond, its two canonical-cycle neighbours as directed `w1`/front
+  shoulders from the outer endpoint to the shared-q endpoint, and every remaining
+  cycle bond as `n1`/back. The `q1` and `n1` endpoint pairs retain canonical cycle
+  order. The bridge remains an ordinary separately typed bond with no Haworth role,
+  style, or depth. Snapshot-local source order is copied only as provenance, never
+  as map, child, or paint order.
+- The accepted `ferrum-render` direct renderer consumes the depiction spec through a
+  crate-private draw stream and emits local structural SVG in one closed order:
+  ordinary ring and bridge bonds, then round-cap `q1` strokes, then directed rounded
+  filled `w1` wedges. It is an in-process local renderer, not a document or page
+  compositor; it adds no public PNG/PDF, API, PyO3, Qt, CLI, transport, or file route.
+  Offline semantic and SVG-structure tests cover its bounded rendering behavior.
+- These domain receipts deliberately own no placement on a page, document or
+  session, API, transport behavior, PyO3, Qt, CLI, parser, stereochemistry, RDKit,
+  or OASA behavior. In particular, the depiction spec neither authors nor serializes
+  CDML; it only uses the closed vocabulary defined in
+  [CDML_FORMAT_SPEC.md](../CDML_FORMAT_SPEC.md#direct-glycosidic-haworth-profile).
+  These receipts remain topology/layout/fragment/depiction infrastructure, not a
+  native glycosidic insertion, a named sucrose preset, or a drawing convention.
+- This observation deliberately has no mutation, page placement or complete-document
+  replacement, source-to-template transform, CDML rewrite, stereochemistry or sugar
+  inference, PyO3, Qt, CLI, RDKit, or OASA route. It cannot convert to an M13
+  `DocumentRenderPlanV1`; a later composition boundary must choose a page/placement
+  contract and declare complete coverage and omissions. Haworth topology currently
+  consumes only core atom elements and bond topology/order, not CDML coordinates,
+  style, `haworth_position`, labels, charges, isotopes, hydrogens, wedges/hashes, or
+  carbohydrate naming/stereochemistry.
+- Core projection now records a known parsed aromatic order as `Some(true)` and every
+  other known order as `Some(false)`; unknown order remains unknown. This corrects
+  the normal non-aromatic fact required by the existing ring validator without
+  inferring chemistry from an unknown order.
+- Permanent evidence is compact offline Cargo semantic testing of provenance/root
+  identity, local bond order, finite bounds and line batches, canonical
+  rotation/reversal, stale or invalid selections, typed topology failures,
+  direct-glycosidic ring/bridge classification, canonical local placement, exact
+  selected atom/bond partition, endpoint geometry, depiction roles/direction, and
+  snapshot non-mutation. There is no one-time pixel, coordinate, timing, or byte
+  claim for the depiction spec. The one-time read-only OASA topology receipt
+  establishes the two-ring exterior-oxygen profile and its boundaries; it is not a
+  permanent dependency or byte, pixel, coordinate, timing, network, RDKit, or OASA
+  parity gate.
 - Deliverables: spec, layout, fragment layout, renderer.
-- Exit criteria: output matches the reference outputs under the render-op and SVG
-  comparison rules.
+- Exit criteria: source-backed topology, explicit depiction-spec, fragment layout, and
+  the bounded local direct renderer are accepted at the M14 owning boundary. One
+  disposable visual review records recognizable two-ring chemical meaning and the
+  `q1`/`w1` drawing distinction; it establishes no byte, pixel, coordinate, timing, or
+  perceptual threshold. Direct-glycosidic document authoring, page placement, session
+  commit/history, CDML persistence, and whole-document composition are deferred to an
+  explicit M16 session-authority slice.
 - Parallel-plan ready: yes.
 
 ### Milestone: M15 domain utilities
 
 - Depends on: M5.
+- Status: in progress. The first public utility is the pure in-process
+  `ferrum-api::inspect_peptide_sequence_v1(&str)` boundary. It accepts one strict
+  canonical uppercase one-letter sequence and returns an owned V1 receipt with its
+  canonical sequence, supported alphabet, `u64` residue count, and N-to-C ordered
+  one-/three-letter residue facts. Empty input and the first unsupported Unicode scalar
+  map to closed public errors without losing the one-based scalar position. Proline is
+  a supported residue.
+- Scope: this inspection does not normalize input or create termini, a structure,
+  molecule, SMILES, mass, pI, document operation, external-input reader, FFI/RDKit/OASA
+  call, PyO3 binding, or CLI command. A future CLI, Python, clipboard, document, or
+  network ingress owns its explicit text-resource policy before calling this allocated
+  in-process API; M17/M18 own the versioned protocol and public CLI/Python contracts.
+- The second accepted peptide slice is the pure-domain
+  `build_legacy_peptide_template_smiles_v1(&PeptideSequence)` compatibility profile.
+  It produces owned deterministic historical template SMILES for `ACDEFGHIKLMNQRSTVWY`,
+  including charged termini, and reports proline as a typed one-based unsupported
+  template residue while keeping proline valid for sequence inspection. The next
+  peptide work is integration through a versioned ingress, native chemistry parser,
+  and revision-bound document operation; it is not another overlapping utility.
+- Permanent evidence is compact offline Cargo semantic testing of inspection facts,
+  template grammar, distinctive residue behavior, and typed syntax/profile failures.
+  A small read-only OASA comparison is one-time implementation evidence only. No
+  fixture corpus, subprocess, network, native adapter, OASA/RDKit, timing, or opaque
+  exact-size/count test is retained as a permanent gate.
 - Deliverables: sugar code, peptide utilities, repair operations, linear formula,
   known groups, substructure search data; one differential report per utility.
-- Exit criteria: per-utility parity green. Domain utilities stay separate modules
-  with separate corpora and reports.
+- Exit criteria: each adopted utility has source-backed semantic acceptance at its
+  owning boundary. Domain utilities stay separate modules with separate corpora and
+  reports; exact text is required only where it is the published contract.
 - Parallel-plan ready: yes -- one work package per utility.
 
 ### Milestone: M16 full session boundary and adoption
@@ -670,14 +988,320 @@ semantics stay owned by M9, and full adoption stays at M16. What it buys is feed
   *Performance expectations*).
 - Exit criteria: Ferrum-Qt opens and saves every document class through Ferrum-Chem.
   This milestone adds no document semantics -- M9 owns those and this publishes them.
+- Direct-glycosidic Haworth authoring is a separate M16 session-authority slice. It
+  accepts complete, explicitly authored no-substituent atom/bond facts and one finite
+  caller-selected placement transform; it derives the closed `q1`/`w1`/`n1` and
+  Haworth-depth facts, validates the complete candidate, and inserts the accepted new
+  molecule once through one revision-bound document operation. The accepted receipt
+  retains canonical durable authored facts and the accepted observation. Its sole
+  in-process API composition derives the closed render observation from that embedded
+  observation, without session re-observation, then authenticates source `PersistentId`
+  through the exact projection `DocumentObjectId` and root order. The opaque non-serde
+  composite retains the established whole-document plan, suppresses only selected bond
+  outcomes, preserves atom masks/labels, nonselected bonds, and issues, and injects the
+  ordinary/q1/w1 direct drawing once in private recording-sink traversal. Direct paint
+  and ordinary width resolve from the accepted drawing standard; `standard/bond@wedge-width`
+  does likewise, with the source-backed 5px fallback only when absent. This adds no public
+  SVG, PNG, or PDF overload, Python, CLI, Qt, or wire route. It does not reflow existing
+  roots or claim collision avoidance, carbohydrate recognition, stereochemistry inference,
+  generic exterior-component transforms, or a named sucrose preset. M17 owns any needed
+  wire schema; M18 owns public Python/CLI. Compact offline Cargo semantic tests cover
+  authentication, selective preservation, one injection point, and typed sink refusal;
+  no one-time visual proof is a permanent M16 requirement.
 - Parallel-plan ready: no.
+
+M16 is in progress. Its first shared-scene prerequisite is now explicit: every
+API/PyO3 molecule render entry carries the owning document-root molecule identity
+and source order around the existing molecule-local render plan. Ferrum-Qt owns one
+disposable graphics root per molecule, places that root at the backend-issued
+document position, and keeps atom/bond source order local to the root. This removes
+the former flat-scene ambiguity. Supported Rust-projected polylines now remain
+independent top-level roots and share that scene ordering with molecule groups;
+multiple presentation roots no longer sit behind one aggregate Qt group. The same
+path now retains every ordered point after the required first two, enabling
+multi-segment vectors and rectangular bracket roots without endpoint-only
+approximation. Rectangles, squares, ovals, circles, and polygons now use the same
+class-aware root projection with finite normalized bounds or ordered points and
+explicit stroke/fill provenance; Qt adds no palette, shape, or appearance
+fallback. Semantic geometry, appearance, scene ownership, and order are the
+permanent gates, not XML bytes, pixels, or an arbitrary timing threshold.
+Normal non-spline arrows now cross the same boundary with a backend-derived
+shortened axis, validated head dimensions, filled head polygons, and explicit
+stroke; specialized or spline arrow families remain typed issues rather than
+visual fallbacks. Fixed-content plus roots now resolve their authored anchor and
+appearance in the document projection, then cross an API-owned verified-Telex
+layout as an exact glyph identifier, supplied origins, explicit paint, and
+centered ink bounds. Qt paints those cached outlines without shaping, advancing,
+measuring, or selecting a fallback font; an authored family becomes a typed
+unsupported issue. The bounded native edit now sends one selected direct-root
+Plus through a closed revision-bound Rust patch. Rust owns the unique family,
+integer-size, foreground, and optional-background changes, detached candidate,
+history, and authoritative result. The current Qt form exposes only integer size
+and foreground because those controls preserve the projected facts exactly;
+fractional source sizes are rejected instead of rounded. Selection returns by
+durable document identity after the replacement render installs. Permanent gates
+are semantic and offline; the public-dialog current-wheel exercise remains a
+one-time probe rather than a pixel, XML-byte, wiring, or timing test. The same
+durable selection path now includes supported vector presentation items. One
+selected normal non-spline Arrow may edit start/end heads, a form-representable
+width, and color through a closed five-field Rust patch. Rust also owns spline
+intent, but the native dialog disables that control until spline rendering is
+available, so the UI cannot author a fact it would then omit. This does not yet
+claim specialized arrow rendering, ordinary MainWindow routing, or the complete
+capability-matrix cutover. Direct-root Text now has a bounded display path: Rust
+owns its anchor, identity, resolved appearance, multiline character data, and
+closed rich-run grammar; the renderer supplies exact regular-Telex glyph IDs,
+positions, scripts, paints, and bounds; Qt only caches and paints those facts.
+Font-family requests, bold/italic faces, missing glyphs, and malformed rich
+fragments remain typed issues rather than fallbacks. Permanent tests cover
+semantic runs, failure containment, frozen DTOs, and durable selection. The
+current-wheel install and offscreen scene exercise remain one-time rebuild
+evidence, not XML-byte, pixel, timing, or wiring gates. One selected durable
+Text now edits its complete baseline/subscript/superscript run sequence,
+integer size, and foreground colour through one closed revision-bound Rust
+patch. The detached candidate retains unrelated namespaced content and normal
+history semantics. Qt visibly disables bold, italic, and font-family controls
+until the verified renderer supports those faces, so the native form cannot
+author an immediately omitted object. Permanent gates remain semantic and
+offline; the wheel install and public-dialog launch are one-time evidence.
+A complete selected set of durable direct-root presentation objects can now be
+deleted through one closed record-kind operation. Qt resolves every authenticated
+rendered identity to a Rust-projected authored selector; Rust resolves and
+revalidates every selector, exact kind, direct-root owner, bracket relationship,
+and expected revision before committing. A complete bracket pair deletes in the
+same history entry, while partial pairs and duplicates are rejected atomically.
+Permanent gates cover semantic removal, history, preservation, wrong-kind and
+stale rejection; the wheel install and public-action launch remain one-time
+evidence rather than wiring or timing gates.
+The same exact selector boundary now owns Bring to Front, Send to Back, and
+Reverse Selected Slots. Rust retains selected source order for front/back moves,
+reverses only selected element slots, preserves non-element root slots, and
+requires complete bracket-pair selection. Wrong-kind, partial-pair, duplicate,
+stale, and semantic no-op requests are atomic. Permanent tests inspect source
+order, history, preservation, and durable selection; the public action launch is
+disposable evidence.
+That boundary now also owns translation, positive scaling, both axis mirrors,
+and the six top-level alignments for complete durable molecules and supported
+presentation roots. Scaling and mirrors use one aggregate selection-center
+pivot. Rust validates the exact kind, direct-root identity, complete bracket
+selection, persistent coordinate grammar, scale factors, finite result, and
+expected revision before committing one detached candidate. After a real move,
+Rust recognizes only the exact narrow backend-generated `linear_form` grammar
+and retires it only when the transformed molecule no longer satisfies its path;
+richer, foreign, malformed, and historical fragments are preserved. Native Qt
+recognizes a molecule only when every durable atom is selected, restores the
+disposable atom/root selection after replacement, and keeps scale's targets and
+revision fixed while its modal form is open. Permanent gates cover semantic
+geometry, history, identity no-op, narrow metadata ownership, and whole-request
+rejection. Temporary wheel and offscreen native-tab runs remain one-time rebuild
+evidence. The native rotation interaction now has the distinct preview semantics
+described below; the implemented repair boundaries follow it.
+The standalone native window also exposes complete-root translation as a
+revision-bound pointer gesture. It captures the same exact Rust selectors and
+complete durable selection used by the existing transform operation, derives
+only projected root bounds for disposable dashed feedback, and moves no
+authoritative plan item. Escape, stale provenance, tab change, and teardown
+retire the preview without submission. Release retires it before one Rust
+translation and restores the durable selection only after the replacement
+observation installs. A disposable current-build offscreen exercise proved the
+public gesture at the documented 0.001 cm authored resolution, z and opaque XML
+preservation, selection restoration, undo, and OASA-free execution; it is not a
+permanent private-wiring, pixel, byte, timing, or network gate.
+Selected-atom rotation now has that distinct Rust document/session/PyO3
+operation: durable molecule/atom pairs, a scene-point center, and a radian angle
+are validated before one detached commit. It preserves z, uses the documented
+0.001 cm authored precision, and applies the same narrow generated-form validity
+rule. The standalone native window now captures only durable atom identities and
+immutable projection positions, derives the selection center, and paints a dashed
+Qt-local atom/bond skeleton while the pointer moves. It retires the skeleton before
+submitting one still-current Rust operation on release, restores durable selection
+only after replacement, and cancels without persistence on Esc, stale provenance,
+or tab teardown. It never moves immutable render-plan items or mutates a Qt document
+model. The legacy Rotate mode remains OASA-backed and separate.
+The document/session/PyO3 repair envelope now implements
+`normalize-bond-lengths`, `normalize-bond-angles`, `normalize-rings`, `snap-to-hex-grid`, and
+`straighten-bonds`, delegating
+to pure-Rust planners after every
+selected durable direct-root molecule has entered one validated coordinate
+graph. It converts CDML y-down coordinates to geometry y-up and back once,
+preserves z and opaque content, writes only changed direct atom x/y axes at the
+documented authored precision, and treats an unchanged result as a no-op.
+Terminal straightening moves only degree-one endpoints, preserves nondegenerate
+lengths, uses increasing-angle 30-degree ties, and anchors an isolated pair by
+lexical durable atom ID. Its common spacing value is validated but unused. The
+older domain `Straighten` operation remains a distinct whole-depiction rotation.
+Length normalization fixes ring coordinates, grows acyclic substituent trees
+from their ring anchors, and selects ring-free roots by highest degree with a
+durable-ID tie. Original nondegenerate directions are retained and coincident
+eligible bonds use the upstream eastward fallback. Ring normalization uses a
+canonical durable-ID walk,
+preserves centroid and first-atom authored orientation across the y-down/y-up
+boundary, and rigidly translates each singly anchored acyclic component. Angle
+normalization fixes ring atoms and the first anchored edge, assigns movable
+children to distinct nearest 60-degree slots in authored bond order, preserves
+nondegenerate lengths, and uses explicit spacing only for coincident atoms.
+Incoming and fixed-ring directions reserve slots; ambiguous multiple anchors and
+exhausted slots fail atomically. `clean-geometry` is the sixth implemented kind,
+but deliberately does not use the pure-Rust local-repair planner. Ferrum validates
+every selected bonded molecule and supported graph fact before crossing the narrow
+`ChemEngine` boundary, requests fresh coordinates from packaged ABI-4 RDKit, and
+returns one handle-free revision-and-digest-bound multi-molecule batch. The document
+session validates the whole batch again and commits only changed direct x/y axes in
+one history entry while retaining source centroids, explicit target bond length, z,
+opaque content, identity, and source order. The standalone native Repair menu maps
+selected durable atom/bond identities to their Rust-projected molecules, treats an
+empty selection as all durable molecules, asks the user for grounded explicit
+spacing, and uses the existing cancellable coordinate worker for clean geometry. It
+does not import OASA, reconstruct CDML in Qt, or persist a fallback spacing.
+The same selection path now exposes
+one detached vector-appearance form for rectangles, squares, ovals, circles,
+polygons, and ordinary polylines. Rust owns its unique width, stroke, and
+shape-only fill changes, validates retained geometry, and commits one detached
+candidate. Semantic equality is history-free, and the permanent gates inspect
+resolved facts, preservation, selection, and atomic failures rather than XML
+bytes, pixels, wiring, or timing. Specialized Wavy polylines now cross as a
+distinct projection kind while retaining their durable polyline identity. Rust
+publishes their exact authored point path and resolved stroke, and Qt connects
+those points without regenerating or smoothing the wave. The dedicated native
+form sends only representable width and line-color changes through a closed
+two-field Rust patch; durable selection returns after reprojection. Permanent
+gates inspect authored-point retention, semantic appearance, selection, and
+atomic failure. A real public-dialog current-wheel run remains one-time evidence,
+not a pixel, XML-byte, wiring, or timing test. Wavy creation is now also
+Rust-owned: Qt submits current provenance and two finite endpoints, while a
+prepared operation applies the established bounded zigzag policy, allocates the
+durable presentation ID, authors the full point path/default stroke, validates
+the detached candidate, and commits once. Qt's straight drag preview is
+disposable. Permanent gates cover semantic projection, history, durable
+selection, and atomic rejection; a real public-window drag remains one-time
+current-wheel evidence.
+
+Bracket creation now follows the same ownership boundary. One prepared Rust
+operation accepts an exact revision, a closed rectangular/round style, and four
+finite normalized bounds values. It allocates two durable polyline identities,
+derives the established proportional control points, materializes the effective
+drawing-standard stroke, validates the detached candidate, and commits the pair
+once. The projection publishes pair ID, ordered member IDs, style, and common
+appearance, so Qt never reconstructs persistent pairing from spatial proximity.
+Separate rectangular and round actions send the exact closed style and a finite
+normalized drag box through that same operation. Round pairs cross as a distinct
+closed root kind, and Qt constructs each cubic side from the four Rust-issued
+points without parsing CDML or applying a pixel tolerance.
+Selecting both rendered members exposes one common width/color edit through the
+existing vector form. Rust revalidates the exact pair, member geometry, retained
+appearance, and revision before updating both ordinary polylines in one detached
+candidate. Permanent gates inspect semantic geometry, identity, appearance,
+history, selection, cubic path kind, and atomic malformed/stale rejection.
+Public-window drag/edit and source-current wheel builds remain one-time
+implementation evidence, not pixel, XML-byte, private-wiring, network, or timing
+tests.
+
+The fixed CDML paper-name catalog and its millimetre dimensions are now owned by
+`ferrum-document` and cross PyO3 as frozen values. Qt scene setup, snapshot
+rendering, and the transitional session catalog query consume that table without
+an OASA catalog lookup. Permanent tests cover structural invariants and meaningful
+lookup behavior; the complete table comparison to the read-only OASA oracle is
+one-time rebuild evidence. The first direct core paper and viewport now join the
+same Rust document observation with revision and digest provenance. The
+standalone native editor maps the existing intent-only form to one seven-field,
+revision-bound Rust operation; detached mutation preserves opaque content, later
+paper records, source order, and history. Stable tests cover semantics and
+atomicity. A source-current direct-wheel offscreen edit/undo/redo run remains
+one-time implementation evidence rather than a byte, pixel, wiring, or timing
+gate. The observation now resolves the oriented physical page into the same
+72-point-per-inch scene coordinates as document geometry, including a typed
+compatibility issue and A4 portrait display fallback for malformed preserved
+paper facts. The native scene owns one noninteractive palette-local page behind
+the document roots. Its inspected offscreen image remained disposable evidence,
+not a permanent pixel golden. This does not claim normal-window session adoption.
+One durable molecule can now cross an exact-observation Standard or Fixed-H InChI
+export boundary. Rust resolves and validates the complete graph before loading the
+packaged ABI-4 adapter, then returns the canonical identifier with the frozen source
+revision, digest, molecule identity, and closed mode. The standalone native window
+runs only the adapter work off the UI thread and discards a result after document,
+tab, or provenance drift. Permanent tests cover graph conversion, unsupported-fact
+rejection before FFI, mode routing, and frozen provenance. The current-wheel public
+window and clipboard exercise was disposable evidence, not a private-worker, byte,
+pixel, timing, or network gate. Other document codecs and ordinary-window routing
+remain open M16 work.
+The ordinary `MainWindow` now begins as the native-first product root. It creates one
+Rust-owned empty-document tab, retains zero registered legacy sessions, and keeps File
+> New plus the final-tab zero-page lifecycle on the Rust boundary. External Open,
+same-tab Open, recent-file routing, and explicit external CDML opening remain
+unavailable from this neutral root: no unbounded Python read or invented GUI admission
+budget replaces the required measured Rust admission policy. The retained editor instead
+has an explicit `LegacyCompatibilityMainWindow` migration-only root. That root performs
+the complete former session, menu, toolbar, status, signal, and preference setup;
+fixtures and partial neutral-root initializers cannot publish a legacy session. The
+ordinary `ferrum_qt.main_window` and `ferrum_qt.app` import/start closure is now OASA-free
+and uses only the native product root; the OASA-backed session/canvas/template/worker
+paths remain owned by explicit `ferrum_qt.legacy.compatibility_main_window`. Permanent
+offline behavior tests cover both root lifecycles, their session isolation, and zero-page
+action state. A one-time Qt source-integration run paired the current source extension
+with a sealed RDKit closure and reported 985 passed, 1 skipped. That is integration
+evidence, not a shipping wheel or a new package. OASA remains required by the explicit
+compatibility host until M22; external ingress and the complete session/action cutover
+remain open M16 work.
+The developer-only `measure_cdml_manifest` Cargo example now makes a consented local
+corpus measurement repeatable without creating a product ingress route. Its explicit,
+untracked manifest names only operator-selected CDML or CD-SVG samples and an
+operator-chosen read ceiling that bounds the measurement run. Its receipt retains
+participant-chosen aliases, declared metadata, five shared XML-accounting dimensions,
+format/stratum coverage, and stable non-content failures; it retains no paths, filenames,
+document text, snippets, or hashes. A successful measurement means the raw CDML or
+normalized CD-SVG payload also reached the current typed-document boundary. This is
+one-time evidence, not a permanent corpus fixture, an admission default, or an external
+Open capability. M16 remains in progress until a human reviews representative coverage and
+records a grounded Rust resource policy; an absent CD-SVG stratum keeps that format closed.
+The same native tab now offers Set Atom Number with Ferrum... for exactly one selected
+durable atom. It sends one typed positive number plus explicit show-number state to
+Rust, publishes the returned authoritative projection, and leaves the session
+unchanged when its dialog is cancelled. The action has no OASA mutation or fallback;
+ordinary legacy-tab number handling remains outside this slice.
+Clear Atom Number with Ferrum is a separate explicit action for one selected durable
+atom with an authored number. A hidden number remains authored after Set, whereas Clear
+removes the complete durable number/show-number pair in one revision-bound Rust
+operation, republishes the projection, retains selection, and then disables the clear
+action. It has no OASA mutation or fallback; the ordinary legacy-tab route remains
+outside this slice.
+Delete Selected Atom with Ferrum is separately available for exactly one selected durable
+atom. Rust validates the durable target and current revision, then atomically removes that
+atom and its directly typed incident bonds in one revision-bound operation. The returned
+projection clears selection and disables the action; Undo with Ferrum restores the prior
+Rust-owned topology. A typed failure remains visible without a legacy, OASA, or local
+scene-edit fallback. This does not adopt a bond-deletion bundle, and default Open plus all
+ordinary legacy-tab actions remain unchanged.
+Delete Selected Bond with Ferrum is a separate explicit action for exactly one selected
+durable bond. Rust validates that target and current revision, removes exactly the selected
+bond in one revision-bound operation while retaining both endpoint atoms, and publishes the
+replacement projection with cleared selection and disabled action. Undo with Ferrum restores
+the bond through Rust history. It has no shortcut, does not bundle atom deletion, and leaves
+typed failures visible without legacy, OASA, or local-scene fallback. Default Open and all
+ordinary legacy-tab actions remain unchanged.
+Edit Bond Properties with Ferrum is available for exactly one selected durable bond.
+It reuses the frozen-projection BondDialog adapter to submit one revision-bound Rust
+patch, publishes the returned projection, and retains the durable bond selection.
+Only normal single, double, and triple bond semantics plus renderer-supported width and
+centering combinations are exposed. Unrepresentable source facts fail visibly without
+mutation, and cancellation is a no-op. This native path does not call or fall back to
+OASA; legacy bond editing remains outside the slice.
+Permanent offline behavior tests cover route choice, selection state, lossless failure
+containment, real native edit-history navigation, page transition, native publication,
+lifecycle, accepted atom-number/show-number mutation and clear-pair removal, public-action
+atom deletion with native Undo restoration, public-action bond deletion with retained endpoint
+atoms and native Undo restoration, and the accepted/cancelled/lossless native-bond route.
+Current-extension ordinary-window interactions are disposable implementation proof,
+not byte, pixel, timing, network, or private-wiring
+gates. The default Open route and legacy property dock/actions still import and host
+OASA paths, and the complete session/action cutover remains open M16 work.
 
 ### Milestone: M17 operation protocol and boundary freeze
 
 - Depends on: M16.
 - Deliverables: the versioned request/response protocol with a schema generated from
-  Rust types; the freeze of the supported public boundaries (Python API, CLI,
-  document channel, operation protocol) and of `ChemEngine`'s tested semantics.
+  Rust types; the freeze of the document channel, operation protocol, and
+  `ChemEngine`'s tested semantics; and approval of the Python API and CLI contract
+  surfaces that M18 implements. M17 does not itself expose a Python or CLI route.
 - Exit criteria: schema generated and checked in; unknown protocol versions rejected.
   The `ChemEngine` freeze is an internal stability commitment so native and WASM stay
   aligned, not a third-party compatibility promise.
@@ -686,10 +1310,13 @@ semantics stay owned by M9, and full adoption stays at M16. What it buys is feed
 ### Milestone: M18 Python module and CLI
 
 - Depends on: M17.
-- Pre-milestone proof: the self-contained `ferrum cdml inspect` and
-  `ferrum cdml rewrite` shell interface is implemented and tested. This proves that
-  the Rust backend is directly runnable, but remains non-frozen until M17; it neither
-  starts formal M18 delivery nor satisfies the still-pending Python binding work.
+- Pre-milestone proof: the self-contained `ferrum cdml inspect`, `ferrum cdml rewrite`,
+  `ferrum cdml render-observation`, explicit-adapter `ferrum cdml generate-coordinates`, and
+  explicit-adapter `ferrum smiles inspect` shell interfaces are implemented and tested. The
+  direct extension also supplies typed
+  PyO3 DTOs for bounded native Qt slices. This proves the Rust backend is directly
+  runnable, but remains non-frozen until M17; it neither starts formal M18 delivery
+  nor satisfies the frozen contract and full E2E requirements.
 - Deliverables: bindings, generated `.pyi` stubs, and a CLI contract fixing
   subcommands, flags, exit codes, and stream behavior, derived from the Qt app's
   existing batch and export capabilities in the M1b matrix.
@@ -705,9 +1332,15 @@ semantics stay owned by M9, and full adoption stays at M16. What it buys is feed
   second concurrency model).
 - Entry criteria: the M1b capability matrix exists and every row is mapped.
 - Exit criteria: **every capability in the M1b matrix classified as supported has its
-  named validation artifact passing.** Rows classified known defect or unsupported
+  required behavior passing in the appropriate validation lane.** The artifact names
+  currently listed in the matrix are evidence routes, not promises to retain a fragile
+  test. Before M19 closes, each named pytest is checked against
+  [PYTEST_STYLE.md](../PYTEST_STYLE.md); incidental wiring, exact-count, fixture-heavy, networked, or
+  otherwise brittle cases are deleted or replaced by a semantic Rust test, fast
+  offline pytest, or explicit E2E route. Rows classified known defect or unsupported
   path carry a recorded decision -- reproduced, fixed, or dropped -- rather than
-  silently passing. Per-scenario performance is no worse than the M16 baselines.
+  silently passing. Per-scenario performance remains within the regression thresholds
+  derived from the M16 distributions under matched test conditions.
 - Parallel-plan ready: yes -- capability verification parallelizes by matrix row.
 
 Replacing "every capability the Qt app performed" with the matrix makes this exit
@@ -733,8 +1366,10 @@ so this milestone verifies rather than performs first integration.
 - Deliverables: a project-built MinimalLib WASM carrying the project's exports,
   validated against the frozen contract.
 - Exit criteria: the same request set produces equivalent results through both
-  implementations. Build the same RDKit version on both targets; where that is
-  impractical, the gate is exact-within-version and invariant-across-version.
+  implementations under the comparison rule for each output class. Build the same
+  RDKit version on both targets where practical; otherwise compare discrete fields
+  within one version and the documented semantic or geometric invariants across
+  versions.
   Note that `straighten_depiction` exists in the WASM wrapper but not in
   `cffiwrapper.h`, so the native path uses the M11 port while the browser path uses
   the built-in. If satisfying the contract on WASM would require a browser-shaped
@@ -752,6 +1387,10 @@ so this milestone verifies rather than performs first integration.
   references, and CDML heritage acknowledgement. An About-box acknowledgement of
   BKChem lineage is correct and expected; an `oasa` import is not.
 - Parallel-plan ready: no.
+
+An OASA-free native route is not an exception to this global gate. It is the intended
+capability-by-capability replacement path; M22 remains open until the legacy routes,
+their production dependency, and all required release workflows are actually removed.
 
 ## Workstream breakdown
 
@@ -823,19 +1462,30 @@ so this milestone verifies rather than performs first integration.
 
 ## Acceptance criteria and gates
 
-- **Per-patch gate:** `cargo clippy -- -D warnings`, `cargo fmt --check`,
-  `cargo test`, and `pytest tests/` pass; new behavior carries a test; the
-  exclusion check passes.
+- **Per-patch gate:** the affected Rust and Python baselines pass, including
+  `cargo clippy -- -D warnings`, `cargo fmt --check`, `cargo test`, and
+  `pytest tests/` where those lanes are affected; the exclusion check passes.
+  Durable logic receives the smallest stable semantic test that satisfies
+  [PYTEST_STYLE.md](../PYTEST_STYLE.md). Rebuild receipts, public-window probes, and artifact
+  inspections remain E2E or one-time evidence instead of becoming permanent tests.
 - **Thin-workflow gate:** from M8a onward, the thin workflow E2E case passes. It runs
   on every milestone exit, not only in the milestone that introduced it.
 - **Milestone-exit gate:** the touched capability's differential report shows no new
   divergence, run through `tests/e2e/`. This is deliberately not a per-patch gate --
   the oracle is a subprocess with its own RDKit and belongs in the slow lane.
-- **Preservation gate:** the CDML invariant fixture round-trips intact on every
+- **Preservation gate:** every committed CDML corpus document round-trips intact on every
   parity run, against the coverage inventory. This is the one strict gate, because it
-  is binary and checkable.
+  is a structural, binary, checkable data-loss boundary rather than byte equivalence.
 - **Independent review gate:** a `reviewer` agent audits M4a, M5, M10, M13, and M16
   without having implemented them.
+- **Security-by-boundary gate:** each new external-input, FFI, parser, or package work package
+  records its trust boundary, validation owner, resource limits, typed malformed-input failure,
+  and adversarial tests before acceptance. CDML parsing continues to reject DTD input and permits
+  no external entities, entity resolution, network access, recovery mode, or opt-in huge-tree mode.
+  Those parser settings are not a substitute for measured byte, node, depth, attribute, and text
+  budgets; the shared ingestion boundary records that gap until representative user documents
+  justify a versioned deployment policy. M22 confirms the released product has retained these
+  controls; it does not defer their first use.
 
 ### How each tolerance is derived
 
@@ -856,17 +1506,17 @@ rather than filled with a placeholder number.
 
 | Output class | Rule | Basis |
 | --- | --- | --- |
-| 2D coordinates | Within tolerance derived at M4c against the pinned RDKit version; geometric invariants across versions | Floating-point layout varies with RDKit version and build |
+| 2D coordinates | Within tolerance derived at M4c against the wheel's recorded RDKit build; geometric invariants across versions | Floating-point layout varies with RDKit version and build |
 | Atom and bond fields | Every field Ferrum carries agrees with the oracle; dropped fields listed in the model spec | Discrete values, but Ferrum may carry fewer |
 | Bond orders and aromatic flags | Exact | Discrete enumerations |
 | InChI and InChIKey | Exact string; `InChI=1/` prefix asserted for non-standard output | Deterministic string output |
-| Canonical SMILES and SMARTS | Exact within a pinned version; semantic round trip across versions | Canonical ranking can change between RDKit releases |
+| Canonical SMILES and SMARTS | Exact within one recorded build; semantic round trip across versions | Canonical ranking can change between RDKit releases |
 | Molblock and SDF | Semantic equivalence | Headers carry program and timestamp lines |
 | CDML and SVG | Structural equivalence under one stated normalization: attribute ordering, namespace serialization, and insignificant whitespace normalized before comparison | Byte equality is not achievable through a tree parser |
-| Text and glyph metrics | Within tolerance derived at M12, in the pinned font environment | Font rasterization varies by version and platform |
-| Render ops | Exact after the rounding documented at M12 | Declarative data with stated precision |
-| Raster output | Perceptual threshold with the algorithm and value derived at M13, pinned font environment | Anti-aliasing differs across backends |
-| Straighten port | Within tolerance derived at M11, both `minimizeRotation` branches | Floating-point trigonometry |
+| Text and glyph metrics | Current macOS arm64 QRawFont design-metric receipt: exact glyph IDs/origins; run values are ordinary `f64` observations, not a CI threshold | Closed Telex bytes and design units are stable, while Qt baseline metrics and future targets may differ |
+| Render ops | Ordered typed DTO semantics with exact discrete facts and finite `f64` values carried by round-trip JSON; no extra rounding | Declarative data has a stated schema/provenance contract, not JSON-byte or renderer equivalence |
+| Raster output | Requested dimensions and semantic render-plan structure; disposable local visual inspection may assess recognizability | Anti-aliasing differs across backends; M13 established no pixel or perceptual threshold |
+| Straighten port | One-time current-target receipt for both `minimizeRotation` branches; M20 repeats it for each added release target | Floating-point trigonometry varies by target and build; no CI threshold is justified by one receipt |
 | Cycle basis | Deterministic across runs; divergence from OASA classified intended change | The current historical reference was stable in the 100-call probe; Ferrum owns a deterministic shorter-basis policy independent of dependency traversal |
 
 ### Performance expectations
@@ -891,14 +1541,17 @@ Record these at M16, on the current application, on one machine, over the corpus
 | Save the largest corpus document | Serialization scaling | no |
 | Export SVG and PNG | Render backend cost | no |
 
-The M19 gate is "no worse than the recorded baseline, per scenario, on the same
-machine and corpus." The roughly 16 ms frame budget applies only to the three
-scenarios marked frame-budget relevant, because it is a property of display refresh
-and has nothing to say about opening or saving a file. Whole-document CDML exchange
-was chosen over a fragment protocol on the understanding that a committed-edit round
-trip fits inside that budget for documents of the size this project produces; M8a
-measures it on the real corpus as soon as the session exists, and the choice is
-revisited if documents grow past a few hundred kilobytes.
+M16 records a distribution for each scenario, including warmup policy, repetition
+count, machine, corpus, and relevant background conditions. M19 derives each
+regression threshold from that distribution rather than requiring a new run to beat
+one baseline sample. Interactive scenarios are also compared with the measured frame
+interval of the target display; the familiar roughly 16 ms interval is relevant only
+when testing a 60 Hz display and is not a universal application requirement. Opening,
+saving, and export are never judged against a frame budget. Whole-document CDML
+exchange remains the working design while its measured committed-edit latency stays
+appropriate for documents the project actually handles; larger documents or a
+measured interaction regression trigger a protocol review rather than an invented
+document-size cutoff.
 
 **Accepted differences** record: tolerance, rationale, affected corpus or capability,
 which source-of-truth level justifies the difference, confirmation that it is neither
@@ -918,13 +1571,17 @@ Four homes, one rule each. Placing a check in the wrong home is how a fast suite
 becomes slow and how a one-time proof becomes permanent maintenance.
 
 **`cargo test` -- Rust, fast.** Unit tests beside the code, `proptest` round-trip
-properties, snapshot tests for render-op batches, CDML output, and Haworth output.
-Most Ferrum-Chem verification lands here. This lane is invisible to `pytest tests/`
-and is named as its own per-patch gate.
+properties, exact checks for closed render-operation fields, and structural or
+chemical-semantic checks for CDML and Haworth output. A snapshot or golden is suitable
+only when canonical spelling is itself part of a closed contract; writer bytes and
+raster pixels are not general acceptance contracts. Most Ferrum-Chem verification
+lands here. This lane is invisible to `pytest tests/` and is named as its own
+per-patch gate.
 
 **`pytest tests/` -- permanent, fast, offline.** Only checks passing the
 `docs/PYTEST_STYLE.md` checklist: deterministic, inline inputs, `tmp_path` only,
-well under a second, no network, no subprocess. For this project that means CDML
+small enough for the measured permanent-suite budget, no network, no subprocess.
+No individual test receives an arbitrary duration limit. For this project that means CDML
 typed and opaque round trips on inline XML strings; id, order, and reference
 preservation on an inline document; the `oasa`/Tk exclusion lint written as a hygiene
 test using `file_utils.discover_files`; and pure geometry helpers.
@@ -942,6 +1599,14 @@ M4b `canonOrient` divergence measurement, and the tolerance-derivation runs desc
 above. Record the result in the milestone's changelog entry, then either delete the
 script or keep it under `devel/` as a maintainer tool. Do not let them accrete into
 `tests/`.
+
+The 2026-08-12 enforcement audit removed permanent pytest wrappers around the
+coordinate, Molfile, SDF, and SMARTS measurement receipts; the reports remain durable
+evidence and the repeatable measurement programs remain maintainer tools under
+`devel/`. Four package-local native scripts named `e2e_native_*.py` remain placement
+debt: preserve their installed-wheel behavior coverage, but move them with Git history
+to `tests/e2e/e2e_*.py` before treating their location as conforming. Do not duplicate
+them into the permanent pytest lane.
 
 Reclassifying the behavioral requirements v2 listed as permanent tests: the
 scrubbed-environment rpath check is E2E; the dependency-naming build matrix is CI
@@ -976,9 +1641,10 @@ That is the migration, not a violation of the no-shims rule:
 - `oasa` and its transitive Python `rdkit` are declared in `pip_requirements.txt` and
   the Qt `pyproject.toml` as migration-window dependencies, with M22 named as the
   removal gate in a comment beside each.
-- The M1e exclusion check runs from a per-capability list that starts empty. When a
-  milestone lands a replacement, that milestone adds its capability to the list, and
-  the check then rejects new `oasa` calls in that area. M4d is the first such addition.
+- The M1e exclusion check runs from a per-capability list. M4d activated chemistry
+  for the bounded native route, so the check rejects new `oasa` calls there. Later
+  milestones add their exact production paths without prematurely declaring the
+  separate legacy editor clean.
 - No milestone is expected to leave the application unrunnable.
 
 CDML compatibility is preserved by specification and differential testing. The
@@ -1000,20 +1666,23 @@ on-disk format does not change.
 | The Qt rename leaves partial namespaces | Medium: imports break in rarely-exercised dialogs | The rename is done by search-and-replace without starting the app | WS-F | M1b exits on a running application plus the hygiene suite over the renamed tree |
 | Interactive latency regresses behind an unchanged startup time | Medium: the app feels slower while the gate passes | Performance measured only as one whole-application number | WS-F | Per-scenario baselines recorded at M16; M19 compares each scenario separately |
 | Haworth delays integration | Medium: large irreducible domain logic on its own chain | M14 starts late | WS-E | Start as soon as M5 and M13 allow, independent of the document chain |
-| Coordinates drift across RDKit versions | Medium: parity reports lose signal | A version bump lands mid-project | WS-G | Pin RDKit for oracle, native, and WASM; compare invariants across versions |
+| Coordinates drift across RDKit versions | Medium: parity reports lose signal | An update lands without a cross-version receipt | WS-G | Build against the latest stable RDKit, record the exact artifact source, and compare measured invariants with the prior stable release |
 | OASA code enters the production tree | Medium: provenance and licensing claims become false | A convenience import slips past review | WS-G | Per-capability exclusion checks, path-classified with a provenance allowlist |
 | Imported Qt files fail the repository hygiene suite | Medium: M1 stalls on unrelated lint | `pytest tests/` has never run against the 505 imported files | WS-G | Run the suite during M1a and treat the output as M1a scope |
 
 ## Rollout and release checklist
 
-- [ ] RDKit version pinned for oracle, native, and WASM.
-- [ ] Thin workflow passing continuously since M8a.
+- [ ] Native and future WASM artifacts record exact RDKit source provenance while
+  routine development tracks the latest stable release and checks the prior stable
+  release where a semantic comparison is useful.
+- [x] Thin workflow passing continuously since M8a.
 - [ ] Milestone differential reports committed.
 - [ ] Every parity tolerance derived from a recorded measurement, not asserted.
 - [ ] Accepted-difference list published, each entry naming its source-of-truth level.
-- [ ] Preservation coverage inventory complete; preservation gate green against it.
+- [x] Preservation coverage inventory complete; preservation gate green against it.
 - [ ] M1b capability matrix fully closed at M19.
-- [ ] Per-scenario performance no worse than the M16 baselines.
+- [ ] Per-scenario performance remains within regression thresholds derived from
+  M16's recorded distributions and measurement conditions.
 - [ ] Exclusion checks passing on the production tree with the full capability list.
 - [ ] `docs/PROVENANCE.md` complete and accurate.
 - [ ] Installation documentation covers the Rust toolchain, C++20 compiler, and RDKit

@@ -44,13 +44,6 @@ def parse_args() -> argparse.Namespace:
 	"""Parse oracle environment, report path, and diagnostic mutation controls."""
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument(
-		"-p",
-		"--oracle-python",
-		type=pathlib.Path,
-		default=ORACLE_PYTHON,
-		help="Python executable inside the isolated oracle environment",
-	)
-	parser.add_argument(
 		"-r",
 		"--report",
 		dest="report_path",
@@ -454,7 +447,7 @@ def main() -> None:
 		],
 		"results": [],
 	}
-	if not args.oracle_python.is_file():
+	if not ORACLE_PYTHON.is_file():
 		report["status"] = "harness-error"
 		report["error"] = (
 			"isolated oracle Python was not found; create tests/e2e/oracle/.venv "
@@ -467,7 +460,7 @@ def main() -> None:
 	for corpus_path in corpus_paths():
 		request_text = oracle_request(corpus_path)
 		oracle_output = child_result(
-			[str(args.oracle_python), "-B", str(ORACLE_CHILD)], request_text,
+			[str(ORACLE_PYTHON), "-I", "-B", str(ORACLE_CHILD)], request_text,
 		)
 		ferrum_output = child_result(rust_command(corpus_path))
 		molecules = ferrum_output["projection"]["molecules"]

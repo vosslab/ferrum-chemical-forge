@@ -39,19 +39,31 @@ RDKit for both branches to the printed f64 precision. `minimize_rotation=false`
 applied `-0.38615438234591110` radians, and `true` applied
 `0.13744439325238780` radians. The ten-degree single-bond input exercised the
 same selected rotation in both branches. Fifteen-degree and thirty-degree inputs
-exercise the half-increment and exact-increment boundaries. The local cross-process
-comparison's largest coordinate difference was `3.645723512257204e-18`, and its
-largest applied-rotation difference was `0.0` radians.
+exercise the half-increment and exact-increment boundaries.
 
-## Repeatability and tolerance status
+## Current target receipt
 
-The maximum component variation across the 25 oracle repeats was `0.0` for both
-inputs and for both `minimizeRotation` branches. This establishes a local oracle
-repeatability observation, not a cross-platform tolerance. No cross-platform
-measurement has been run, so M11's plan-level acceptance tolerance remains open.
-The executable comparison records the current local result but deliberately does
-not claim a CI threshold: the required platform sweep must set the threshold outside
-its measured variation rather than add a guessed epsilon.
+The recomputable receipt covers macOS arm64, CPython 3.12.13, and RDKit 2026.03.5.
+Its isolated Ferrum command uses `cargo run --locked --offline`; it makes no network
+request or native RDKit build. Across the named cases and both `minimizeRotation`
+branches, the maximum coordinate delta is `3.645723512257204e-18` and the maximum
+rotation delta is `0`. Twenty-five local repeats report coordinate and rotation
+variation of `0`.
+
+These values are one-time, current-target evidence. They are not a CI tolerance,
+pass threshold, byte-equivalence rule, pixel-equivalence rule, timing target, or
+network gate. M20 refreshes an equivalent receipt for every added release target.
+
+## Public result and document boundary
+
+Generic graph topology validation accepts structurally valid fused and bridged
+graphs; `NormalizeSingleRing` alone owns its exact one-independent-cycle boundary.
+The public Rust `RepairOutcome` retains every calculated y-up position in durable
+identity order and its y-up applied rotation in radians, including `0` for a valid
+no-op. `DocumentSession` prepares an exact revision/digest-bound, caller-ordered
+molecule list and applies it atomically after early structural selector checks. The
+commit preserves z, opaque content, and history semantics. PyO3 exposure is M18 work,
+not an M11 exit requirement.
 
 ## Rust validation
 

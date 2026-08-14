@@ -13,7 +13,8 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.graphics_retirement
-import ferrum_qt.main_window
+import ferrum_qt.legacy.compatibility_lifecycle
+import ferrum_qt.qt_lifecycle
 import ferrum_qt.models.document
 
 
@@ -63,11 +64,13 @@ def retire_terminal_top_level_widgets(
 		widget.close()
 		if not ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
 			continue
-		if isinstance(widget, ferrum_qt.main_window.MainWindow):
-			if not ferrum_qt.main_window.drain_pending_session_deletions(app, widget):
+		if callable(getattr(widget, "_dispose_session_later", None)):
+			if not ferrum_qt.legacy.compatibility_lifecycle.drain_pending_session_deletions(
+					app, widget,
+				):
 				raise RuntimeError("MainWindow session reaper did not drain")
 		if ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(widget):
-			if not ferrum_qt.main_window.delete_qobject_and_wait(app, widget):
+			if not ferrum_qt.qt_lifecycle.delete_qobject_and_wait(app, widget):
 				raise RuntimeError("Top-level QObject deletion was not delivered")
 
 
@@ -97,7 +100,7 @@ def _retire_document_scene(
 			cleanup_error = RuntimeError("Standalone scene retirement reported a diagnostic")
 			cleanup_error.__cause__ = record.diagnostics[0]
 			return cleanup_error
-		if not ferrum_qt.main_window.delete_qobject_and_wait(app, document):
+		if not ferrum_qt.qt_lifecycle.delete_qobject_and_wait(app, document):
 			return RuntimeError("Standalone Document QObject deletion was not delivered")
 	except RuntimeError as exc:
 		cleanup_error = RuntimeError("Standalone scene cleanup failed")

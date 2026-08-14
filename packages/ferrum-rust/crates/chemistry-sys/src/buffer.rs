@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 
 use crate::contract::{AdapterError, BufferFreeFn, FERRUM_CHEM_MAX_RESPONSE_BYTES};
 
-/// Layout-compatible representation of the ABI-3 `ferrum_chem_owned_buffer`.
+/// Layout-compatible representation of the ABI-4 `ferrum_chem_owned_buffer`.
 ///
 /// This type stays crate-private so safe callers cannot manufacture a foreign
 /// allocation or bypass its matching adapter release function.
@@ -109,7 +109,7 @@ fn release_native(
     native: &mut FerrumChemOwnedBuffer,
     buffer_free: BufferFreeFn,
 ) -> Result<(), AdapterError> {
-    // SAFETY: `native` has the exact `repr(C)` layout required by ABI-3 and was
+    // SAFETY: `native` has the exact `repr(C)` layout required by ABI-4 and was
     // initialized by the matching adapter operation. Its allocation and its
     // release callback come from the same still-loaded library. The callback
     // receives an exclusive, valid pointer to this stack owner, is expected to

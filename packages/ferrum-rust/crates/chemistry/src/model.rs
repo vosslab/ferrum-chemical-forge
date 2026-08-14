@@ -12,6 +12,17 @@ impl AtomicNumber {
     pub const fn get(self) -> u8 {
         self.0
     }
+
+    /// Return the canonical case-sensitive element symbol.
+    #[must_use]
+    pub fn symbol(self) -> &'static str {
+        crate::element::symbol(self.0)
+    }
+
+    /// Resolve one canonical case-sensitive element symbol.
+    pub fn from_symbol(symbol: &str) -> Result<Self, MolGraphError> {
+        crate::element::atomic_number(symbol).map(Self)
+    }
 }
 
 impl TryFrom<u8> for AtomicNumber {
@@ -40,6 +51,42 @@ pub enum BondOrder {
     Quadruple,
 }
 
+/// Stable atom chirality fact decoded from the ABI-4 molecule envelope.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AtomChirality {
+    /// No tetrahedral chirality is specified.
+    Unspecified,
+    /// RDKit tetrahedral clockwise chirality.
+    TetrahedralCw,
+    /// RDKit tetrahedral counter-clockwise chirality.
+    TetrahedralCcw,
+    /// A recognized but not otherwise modeled chirality class.
+    Other,
+}
+
+/// Stable bond stereo fact decoded from the ABI-4 molecule envelope.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BondStereo {
+    None,
+    Any,
+    Z,
+    E,
+    Cis,
+    Trans,
+    Other,
+}
+
+/// Stable bond drawing direction decoded from the ABI-4 molecule envelope.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BondDirection {
+    None,
+    BeginWedge,
+    BeginDash,
+    EndUpRight,
+    EndDownRight,
+    Other,
+}
+
 impl TryFrom<u8> for BondOrder {
     type Error = MolGraphError;
 
@@ -63,6 +110,10 @@ pub struct MolAtom {
     isotope: Option<u16>,
     explicit_hydrogens: Option<u16>,
     aromatic: bool,
+    chirality: AtomChirality,
+    radical_electrons: u8,
+    no_implicit: bool,
+    atom_map_number: Option<u32>,
 }
 
 impl MolAtom {
@@ -83,6 +134,10 @@ impl MolAtom {
             isotope,
             explicit_hydrogens,
             aromatic,
+            chirality: AtomChirality::Unspecified,
+            radical_electrons: 0,
+            no_implicit: false,
+            atom_map_number: None,
         })
     }
 
@@ -115,6 +170,55 @@ impl MolAtom {
     pub const fn is_aromatic(&self) -> bool {
         self.aromatic
     }
+
+    /// Return the decoded chirality fact.
+    #[must_use]
+    pub const fn chirality(&self) -> AtomChirality {
+        self.chirality
+    }
+
+    /// Return the exact radical-electron count.
+    #[must_use]
+    pub const fn radical_electrons(&self) -> u8 {
+        self.radical_electrons
+    }
+
+    /// Report whether RDKit disabled implicit hydrogens for this atom.
+    #[must_use]
+    pub const fn no_implicit(&self) -> bool {
+        self.no_implicit
+    }
+
+    /// Return the optional source atom-map number.
+    #[must_use]
+    pub const fn atom_map_number(&self) -> Option<u32> {
+        self.atom_map_number
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_native(
+        atomic_number: AtomicNumber,
+        formal_charge: i32,
+        isotope: u16,
+        explicit_hydrogens: u16,
+        aromatic: bool,
+        chirality: AtomChirality,
+        radical_electrons: u8,
+        no_implicit: bool,
+        atom_map_number: u32,
+    ) -> Result<Self, MolGraphError> {
+        Ok(Self {
+            atomic_number,
+            formal_charge: Some(formal_charge),
+            isotope: (isotope != 0).then_some(isotope),
+            explicit_hydrogens: Some(explicit_hydrogens),
+            aromatic,
+            chirality,
+            radical_electrons,
+            no_implicit,
+            atom_map_number: (atom_map_number != 0).then_some(atom_map_number),
+        })
+    }
 }
 
 /// One owned bond whose endpoints index [`MolGraph::atoms`].
@@ -124,6 +228,9 @@ pub struct MolBond {
     end: usize,
     order: BondOrder,
     aromatic: bool,
+    stereo: BondStereo,
+    direction: BondDirection,
+    stereo_atoms: Option<(usize, usize)>,
 }
 
 impl MolBond {
@@ -135,6 +242,9 @@ impl MolBond {
             end,
             order,
             aromatic,
+            stereo: BondStereo::None,
+            direction: BondDirection::None,
+            stereo_atoms: None,
         }
     }
 
@@ -160,6 +270,44 @@ impl MolBond {
     #[must_use]
     pub const fn is_aromatic(&self) -> bool {
         self.aromatic
+    }
+
+    /// Return the exact bond stereo fact.
+    #[must_use]
+    pub const fn stereo(&self) -> BondStereo {
+        self.stereo
+    }
+
+    /// Return the exact bond direction fact.
+    #[must_use]
+    pub const fn direction(&self) -> BondDirection {
+        self.direction
+    }
+
+    /// Return the optional source stereo reference pair.
+    #[must_use]
+    pub const fn stereo_atoms(&self) -> Option<(usize, usize)> {
+        self.stereo_atoms
+    }
+
+    pub(crate) const fn from_native(
+        start: usize,
+        end: usize,
+        order: BondOrder,
+        aromatic: bool,
+        stereo: BondStereo,
+        direction: BondDirection,
+        stereo_atoms: Option<(usize, usize)>,
+    ) -> Self {
+        Self {
+            start,
+            end,
+            order,
+            aromatic,
+            stereo,
+            direction,
+            stereo_atoms,
+        }
     }
 }
 
@@ -210,35 +358,39 @@ impl Coordinates {
     }
 }
 
-/// Canonical SMILES and a complete atom-order-aligned native 2D depiction.
-///
-/// The value owns only Ferrum data.  It never exposes an RDKit molecule,
-/// parser, or foreign allocation to callers.
+/// Complete immutable SMILES molecule returned by the ABI-4 native adapter.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SmilesDepiction {
+pub struct SmilesMolecule {
     canonical_smiles: String,
-    coordinates: Coordinates,
+    molecule: MolGraph,
 }
 
-impl SmilesDepiction {
-    /// Create a decoded native SMILES depiction.
-    pub(crate) fn new(canonical_smiles: String, coordinates: Coordinates) -> Self {
-        Self {
-            canonical_smiles,
-            coordinates,
+impl SmilesMolecule {
+    /// Construct a complete engine-independent SMILES result.
+    pub fn new(
+        canonical_smiles: impl Into<String>,
+        molecule: MolGraph,
+    ) -> Result<Self, MolGraphError> {
+        let canonical_smiles = canonical_smiles.into();
+        if canonical_smiles.is_empty() || canonical_smiles.as_bytes().contains(&0) {
+            return Err(MolGraphError::InvalidCanonicalSmiles);
         }
+        Ok(Self {
+            canonical_smiles,
+            molecule,
+        })
     }
 
-    /// Return the canonical SMILES written by the selected native profile.
+    /// Return the canonical label produced by the selected native profile.
     #[must_use]
     pub fn canonical_smiles(&self) -> &str {
         &self.canonical_smiles
     }
 
-    /// Return finite coordinates in the native molecule's atom order.
+    /// Return all graph facts and atom-order-aligned coordinates.
     #[must_use]
-    pub fn coordinates(&self) -> &Coordinates {
-        &self.coordinates
+    pub fn molecule(&self) -> &MolGraph {
+        &self.molecule
     }
 }
 
@@ -299,6 +451,20 @@ impl MolGraph {
             }
             if bond.aromatic && matches!(bond.order, BondOrder::Triple | BondOrder::Quadruple) {
                 return Err(MolGraphError::InvalidAromaticBondOrder { order: bond.order });
+            }
+            if let Some((first, second)) = bond.stereo_atoms {
+                if first >= atoms.len()
+                    || second >= atoms.len()
+                    || first == second
+                    || first == bond.start
+                    || first == bond.end
+                    || second == bond.start
+                    || second == bond.end
+                {
+                    return Err(MolGraphError::InvalidStereoReferences);
+                }
+            } else if bond.stereo != BondStereo::None {
+                return Err(MolGraphError::MissingStereoReferences);
             }
         }
 
@@ -363,9 +529,15 @@ impl MolGraph {
 /// A rejected value or violated [`MolGraph`] invariant.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum MolGraphError {
+    /// A canonical SMILES result must be nonempty and contain no NUL byte.
+    #[error("canonical SMILES must be nonempty and contain no NUL byte")]
+    InvalidCanonicalSmiles,
     /// The value does not identify a supported element.
     #[error("unsupported atomic number: {value}")]
     UnsupportedAtomicNumber { value: u8 },
+    /// The value is not one of the 118 canonical case-sensitive element symbols.
+    #[error("unsupported element symbol: {value}")]
+    UnsupportedElementSymbol { value: String },
     /// The value is not a supported Kekule bond order.
     #[error("unsupported bond order: {value}")]
     UnsupportedBondOrder { value: u8 },
@@ -439,6 +611,12 @@ pub enum MolGraphError {
         /// Rejected Kekule order.
         order: BondOrder,
     },
+    /// A stereo-coded bond must name two distinct non-endpoint reference atoms.
+    #[error("bond stereo references are invalid")]
+    InvalidStereoReferences,
+    /// Stereo values other than `None` need a pair of reference atoms.
+    #[error("bond stereo requires source atom references")]
+    MissingStereoReferences,
 }
 
 #[cfg(test)]

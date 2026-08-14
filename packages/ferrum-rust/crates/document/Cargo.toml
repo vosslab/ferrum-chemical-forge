@@ -14,11 +14,16 @@ workspace = true
 
 [dependencies]
 ferrum-core = { path = "../core" }
+ferrum-domain = { path = "../domain" }
+ferrum-geometry = { path = "../geometry" }
 getrandom = { version = "*" }
 rustix = { version = "*", features = ["fs"] }
+serde = { version = "*", features = ["derive"] }
 sha2 = { version = "*" }
 thiserror = { version = "*" }
 xot = { version = "*" }
+xmlparser = { version = "*" }
 
 [dev-dependencies]
+proptest = { version = "*" }
 serde_json = { version = "*" }
