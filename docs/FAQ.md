@@ -2,42 +2,45 @@
 
 ## Is Ferrum a replacement?
 
-Ferrum-Chem is the Rust replacement in progress for the historical OASA backend. The
-`ferrum` command-line interface is self-contained: it does not require Python, OASA,
-or `OTHER_REPOS/` to inspect, validate, rewrite, or observe a CDML document. See
-[USAGE.md](USAGE.md) for its current commands.
+Ferrum-Chem is the Rust replacement for the historical OASA backend. The `ferrum`
+command-line interface is self-contained: it does not require Python, OASA, or
+`OTHER_REPOS/` to run one versioned JSON document operation. See [USAGE.md](USAGE.md)
+for its current commands.
 
-The ordinary `ferrum-qt` application remains a migration preview and still requires
-OASA for its retained legacy workflow. This does not mean that the Rust CLI depends
-on OASA.
+`ferrum-qt` starts Ferrum's one PySide6 Rust-native document window; it has no
+alternate OASA or legacy editor. Its production dependencies are PySide6, shiboken6,
+PyYAML, and `ferrum-chem`; OASA is not a production dependency. Historical OASA
+sources and oracle/provenance material remain isolated from the product for reference
+and end-to-end comparison only.
 
 ## What is the native bounded editor?
 
-`ferrum-qt --native drawing.cdml` starts the separate OASA-free Rust-native CDML
-route. It can open, render, change a selected atom element, add one free-standing
-atom, undo, redo, save, save as, reopen, and close `.cdml` documents through the
-Rust session. It deliberately has no fallback to the legacy window.
+`ferrum-qt drawing.cdml` starts the Rust-native document window. It can open, render,
+change a selected atom element, add one free-standing atom, undo, redo, save, save as,
+reopen, and close `.cdml` documents through the Rust session. It deliberately has no
+fallback to another editor.
 
-The native editor is a narrow vertical slice, not the general editor: it currently
-opens only `.cdml` files and has no bond drawing, atom movement/deletion, coordinate
-generation, or retained import codecs. Use ordinary `ferrum-qt` when that legacy
-contributor-preview behavior is required.
+The native editor is a narrow vertical slice, not the general editor: it opens
+uncompressed `.cdml` files and decoded `.svg` files containing one canonical CDML
+payload. Its documented bounded editing, chemistry import, geometry, template, and
+artifact-export routes remain distinct native workflows rather than general conversion.
 
 ## Which formats work now?
 
-The Rust CLI accepts UTF-8 CDML for its document commands. It can also extract one
-canonical CDML payload from decoded UTF-8 CD-SVG XML with `ferrum cdml extract-cdsvg`.
-Compressed `.svgz` input is not accepted. The native Qt route opens only `.cdml`.
+The `ferrum` CLI accepts a JSON protocol request containing CDML text; it does not
+offer direct file-format subcommands. The native Qt route opens uncompressed `.cdml`
+or decoded `.svg` with exactly one canonical embedded CDML payload. It refuses CDXML,
+CML, `.cdsvg`, `.svgz`, and compressed input before document mutation.
 
 Ferrum preserves parsed CDML structure rather than promising byte-for-byte output.
-For the precise preservation boundary and command examples, read [USAGE.md](USAGE.md).
+For the precise protocol and desktop boundaries, read [USAGE.md](USAGE.md).
 
 ## Can I use every chemistry tool?
 
-Not yet. The current Rust CLI supports CDML inspection, validation, structural rewrite,
-CD-SVG extraction, render observation, explicit-adapter SMILES inspection, and bounded
-molblock/SDF/SMARTS codec slices. It does not yet provide a general conversion suite or
-a Haworth renderer. The implementation sequence and open milestones are in
+Not yet. The CLI's four protocol operations are document inspection, validation,
+structural rewrite, and artifact rendering. Ferrum-Qt separately supports the bounded
+native workflows recorded in the capability matrix; it is not a general conversion
+suite. The implementation sequence and open milestones are in
 [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
 
 ## Is Ferrum ready for production?

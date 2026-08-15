@@ -46,8 +46,8 @@ def hex_grid_points(
 	"""Return immutable finite lattice vertices for one display rectangle.
 
 	An oversized grid is intentionally represented by an empty tuple.  Qt uses
-	that same result as an empty decorative overlay rather than retaining an
-	OASA list or a backend sentinel.
+	that same result as an empty decorative overlay rather than retaining a
+	local list or a backend sentinel.
 	"""
 	return ferrum_chem.hex_grid_points_v1(x_min, y_min, x_max, y_max, spacing)
 

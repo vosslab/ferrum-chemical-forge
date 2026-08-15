@@ -3,8 +3,8 @@
 ## Project identity
 
 Ferrum is a two-part CDML chemical drawing platform under active construction.
-Ferrum-Qt is the PySide6 desktop application. Ferrum-Chem is the planned Rust
-document and chemistry engine that will become the authoritative backend.
+Ferrum-Qt is the PySide6 desktop application. Ferrum-Chem is the Rust document
+and chemistry engine authoritative for the current bounded native routes.
 
 Ferrum project copyright notices identify Neil R. Voss, 2026. The canonical license
 files contain unmodified GNU license terms rather than project-specific notices.
@@ -14,9 +14,10 @@ The two components have deliberately different licenses:
 - Ferrum-Qt is AGPL-3.0-only. Its repository notice is `LICENSE.AGPL-3.0.md`,
   and its distributable package notice is `packages/ferrum-chem-qt.app/LICENSE`.
 - Ferrum-Chem is LGPL-3.0-only. Its repository notice is `LICENSE.LGPL-3.0.md`.
-- RDKit is designated as a BSD-3-Clause dependency. A macOS arm64 packaging proof
-  source-builds its declared profile and bundles it only in an ephemeral test wheel;
-  Ferrum does not yet ship a desktop distribution.
+- RDKit is a BSD-3-Clause native dependency. M20 and M22 have source-accepted mechanisms for a
+  proposed macOS arm64/CPython 3.12 two-wheel route. The required target clean-install, relink,
+  source-archive CLI, classified-artifact, and human legal/release evidence remains pending.
+  Ferrum does not yet ship a supported desktop distribution.
 - `petgraph` 0.8.3 is an MIT-or-Apache-2.0 Rust source dependency. Ferrum uses a
   private graph and its standard algorithms while owning public ordering, errors,
   identities, and fundamental-cycle selection.
@@ -53,6 +54,25 @@ The two components have deliberately different licenses:
 This document records the project's intended licensing boundary and development
 provenance. It is not legal advice. The complete applicable GNU license texts are in
 this repository; distribution work must also include all required third-party notices.
+
+## Native distribution notices
+
+The source-accepted native-wheel packager prepares a wheel-local notice bundle in the standard
+`ferrum_chem-*.dist-info/licenses/` directory and names those files with PEP 639 `License-File`
+metadata. Its roles are the Ferrum-Chem LGPL-3.0 text, the RDKit BSD-3-Clause text, the InChI MIT
+text, the Telex OFL 1.1 text, and the reviewed `THIRD_PARTY_NOTICES.md` index in the native wheel
+metadata source. The final release inventory checks these semantic roles rather than a wheel member
+count or byte identity.
+
+The InChI MIT text is not guessed from a generic archive license. The packager extracts the
+complete leading license and attribution comment from the hash-verified pinned InChI 1.07.3
+archive member `INCHI-1-SRC/INCHI_API/libinchi/src/inchi_dll.c`, the source route used by the
+declared native closure. If that source path, selected closure, or pinned source changes, the
+notice index and human review must change with it.
+
+This mechanism is source-accepted only. Before publication, M20 must produce its actual receipt,
+M22 must classify the final wheels and committed source archive, and a human must review the final
+notice inventory and publication decision.
 
 ## Ferrum-Qt lineage
 
@@ -103,7 +123,10 @@ adapter, replaced `libferrum_chem.dylib`, and ran the same native kekulization r
 in fresh Rust processes before and after a deliberate distinct-byte `RelWithDebInfo`
 replacement for the wheel's `Release` adapter. The proof is recorded in
 [active_plans/reports/native_kekulization.md](active_plans/reports/native_kekulization.md).
-M20 still verifies the full distribution route on every supported platform.
+M20 source implementation now defines one proposed macOS arm64/CPython 3.12 route: it produces
+Ferrum-Chem and Ferrum-Qt wheels from explicit local Cargo, Qt build-backend, and runtime
+wheelhouses, then uses a scrubbed no-index clean install and post-relink observation. The external
+wheelhouses are unavailable, so its runtime receipt is pending and no platform is yet supported.
 
 ## Evidence and limits
 
@@ -129,8 +152,9 @@ into a Ferrum-owned sealed stage and uses RDKit, configure-time Catch2, Better E
 and header-only Boost; InChI, CoordGen, and MAEParser are excluded. Each artifact
 records an exact official RDKit tag and archive digest, while new builds advance to
 the latest stable release and compare semantics with the previous stable release.
-The successful E2E proves direct-wheel load and distinct-byte LGPL relinking on macOS
-arm64, but not cross-platform support or a finished desktop release.
+The historical direct-wheel E2E proves the native load/relink mechanism on macOS arm64. The M20
+two-wheel target proof remains pending; neither result establishes cross-platform support or a
+finished desktop release.
 
 ## Haworth projection terminology
 

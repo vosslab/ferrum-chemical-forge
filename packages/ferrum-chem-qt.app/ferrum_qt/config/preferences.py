@@ -31,6 +31,7 @@ class Preferences:
 	# -- settings key constants --
 	KEY_WINDOW_GEOMETRY: str = "window/geometry"
 	KEY_WINDOW_STATE: str = "window/state"
+	KEY_REMEMBER_WORKSPACE: str = "window/remember_workspace"
 	KEY_THEME: str = "appearance/theme"
 	KEY_GRID_VISIBLE: str = "appearance/grid_visible"
 	KEY_GRID_SNAP_ENABLED: str = "appearance/grid_snap_enabled"
@@ -45,6 +46,7 @@ class Preferences:
 	DEFAULTS: dict = {
 		KEY_WINDOW_GEOMETRY: None,
 		KEY_WINDOW_STATE: None,
+		KEY_REMEMBER_WORKSPACE: True,
 		KEY_THEME: "dark",
 		KEY_GRID_VISIBLE: True,
 		KEY_GRID_SNAP_ENABLED: True,

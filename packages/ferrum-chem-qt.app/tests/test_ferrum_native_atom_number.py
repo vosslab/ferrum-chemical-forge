@@ -1,4 +1,4 @@
-"""Behavior tests for the OASA-free native persistent atom-number seam."""
+"""Behavior tests for the Rust-native persistent atom-number seam."""
 
 # Standard Library
 import os

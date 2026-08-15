@@ -7,13 +7,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{RenderError, RenderIssue};
 
-const SCHEMA_V1: &str = "ferrum-render-plan-v1";
+const SCHEMA_V2: &str = "ferrum-render-plan-v2";
 
-/// The only schema accepted by this initial native render-plan slice.
+/// The only schema accepted by the active native render-plan slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RenderSchemaVersion {
-    /// Initial declarative Ferrum render-plan grammar.
-    V1,
+    /// Declarative Ferrum render-plan grammar with scene paths.
+    V2,
 }
 
 impl Serialize for RenderSchemaVersion {
@@ -21,7 +21,7 @@ impl Serialize for RenderSchemaVersion {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(SCHEMA_V1)
+        serializer.serialize_str(SCHEMA_V2)
     }
 }
 
@@ -31,8 +31,8 @@ impl<'de> Deserialize<'de> for RenderSchemaVersion {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        if value == SCHEMA_V1 {
-            Ok(Self::V1)
+        if value == SCHEMA_V2 {
+            Ok(Self::V2)
         } else {
             Err(serde::de::Error::custom("unknown render-plan schema"))
         }
@@ -635,7 +635,7 @@ impl<'de> Deserialize<'de> for LineOp {
     }
 }
 
-/// The initial closed operation grammar; unsupported styles have no variant yet.
+/// The V2 closed operation grammar, including source-owned scene paths.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     deny_unknown_fields,
@@ -652,6 +652,8 @@ pub enum RenderOp {
     Mask(MaskOp),
     /// An explicit atom-local outlined or filled ellipse.
     Ellipse(crate::EllipseOp),
+    /// An explicit filled and/or stroked scene path.
+    Path(crate::PathOpV2),
 }
 
 impl RenderOp {
@@ -661,6 +663,7 @@ impl RenderOp {
             Self::Line(operation) => operation.z(),
             Self::Mask(operation) => operation.z(),
             Self::Ellipse(operation) => operation.z(),
+            Self::Path(operation) => operation.z(),
         }
     }
 }
@@ -704,6 +707,30 @@ pub enum BatchSpace {
     Scene,
 }
 
+/// Rust-selected display tier for complete target geometry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RenderDisplayLayerV1 {
+    /// Ordinary atom, bond, and back-face content.
+    Ordinary,
+    /// Padded Haworth q1 front strokes.
+    HaworthFrontStroke,
+    /// Filled Haworth w1 front shoulders.
+    HaworthFrontWedge,
+}
+
+impl RenderDisplayLayerV1 {
+    /// Return the toolkit-independent ordering tier.
+    #[must_use]
+    pub const fn z_tier(self) -> i32 {
+        match self {
+            Self::Ordinary => 0,
+            Self::HaworthFrontStroke => 1,
+            Self::HaworthFrontWedge => 2,
+        }
+    }
+}
+
 /// An immutable target-specific operation batch.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -711,6 +738,7 @@ pub struct RenderBatch {
     target: RenderTarget,
     coordinate_space: BatchSpace,
     operations: Vec<RenderOp>,
+    display_layer: RenderDisplayLayerV1,
 }
 
 impl RenderBatch {
@@ -742,7 +770,9 @@ impl RenderBatch {
                     )
                 }) => {}
             (BatchSpace::Scene, RecordKind::Bond)
-                if operations.iter().all(|op| matches!(op, RenderOp::Line(_))) => {}
+                if operations
+                    .iter()
+                    .all(|op| matches!(op, RenderOp::Line(_) | RenderOp::Path(_))) => {}
             (BatchSpace::AtomLocal { .. }, _) => {
                 return Err(RenderError::InvalidRequest(
                     "atom-local batch requires an atom target and annotation operations".to_owned(),
@@ -750,7 +780,7 @@ impl RenderBatch {
             }
             (BatchSpace::Scene, _) => {
                 return Err(RenderError::InvalidRequest(
-                    "scene batch requires a bond target and line operations".to_owned(),
+                    "scene batch requires a bond target and line or path operations".to_owned(),
                 ));
             }
         }
@@ -758,7 +788,15 @@ impl RenderBatch {
             target,
             coordinate_space,
             operations,
+            display_layer: RenderDisplayLayerV1::Ordinary,
         })
+    }
+
+    /// Attach the source-owned paint tier without changing target identity.
+    #[must_use]
+    pub fn with_display_layer(mut self, display_layer: RenderDisplayLayerV1) -> Self {
+        self.display_layer = display_layer;
+        self
     }
 
     /// Return the durable target.
@@ -776,6 +814,11 @@ impl RenderBatch {
     pub fn operations(&self) -> &[RenderOp] {
         &self.operations
     }
+    /// Return the emitted display tier for this target batch.
+    #[must_use]
+    pub const fn display_layer(&self) -> RenderDisplayLayerV1 {
+        self.display_layer
+    }
 }
 
 impl<'de> Deserialize<'de> for RenderBatch {
@@ -789,9 +832,11 @@ impl<'de> Deserialize<'de> for RenderBatch {
             target: RenderTarget,
             coordinate_space: BatchSpace,
             operations: Vec<RenderOp>,
+            display_layer: RenderDisplayLayerV1,
         }
         let wire = WireBatch::deserialize(deserializer)?;
         Self::new(wire.target, wire.coordinate_space, wire.operations)
+            .map(|batch| batch.with_display_layer(wire.display_layer))
             .map_err(serde::de::Error::custom)
     }
 }
@@ -865,7 +910,7 @@ impl MoleculeRenderPlan {
             previous_issue_source_order = Some(target.source_order());
         }
         Ok(Self {
-            schema: RenderSchemaVersion::V1,
+            schema: RenderSchemaVersion::V2,
             provenance,
             batches,
             issues,
@@ -921,7 +966,7 @@ impl<'de> Deserialize<'de> for MoleculeRenderPlan {
             issues: Vec<RenderIssue>,
         }
         let wire = WirePlan::deserialize(deserializer)?;
-        if wire.schema != RenderSchemaVersion::V1 {
+        if wire.schema != RenderSchemaVersion::V2 {
             return Err(serde::de::Error::custom("unsupported render-plan schema"));
         }
         Self::new(wire.provenance, wire.batches, wire.issues).map_err(serde::de::Error::custom)

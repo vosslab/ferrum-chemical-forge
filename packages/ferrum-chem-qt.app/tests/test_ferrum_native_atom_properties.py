@@ -1,4 +1,4 @@
-"""Focused behavior tests for the OASA-free native AtomDialog adapter."""
+"""Focused behavior tests for the Rust-native AtomDialog adapter."""
 
 # Standard Library
 import os

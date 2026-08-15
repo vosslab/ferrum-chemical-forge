@@ -1,0 +1,674 @@
+{
+  "$defs": {
+    "CdmlInspection": {
+      "description": "Stable machine-readable summary emitted by `ferrum cdml inspect`.",
+      "properties": {
+        "diagnostic_count": {
+          "description": "Non-demoting typed-record diagnostics.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "document_version": {
+          "description": "CDML version declared by the core projection, when present.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "molecules": {
+          "description": "Core-projected molecule observations in source order.",
+          "items": {
+            "$ref": "#/$defs/MoleculeInspection"
+          },
+          "type": "array"
+        },
+        "persistent_id_count": {
+          "description": "Count of persistent identities, including retained opaque XML content.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "description": "Versioned JSON schema identifier.",
+          "type": "string"
+        },
+        "top_level_record_count": {
+          "description": "Count of direct children of the CDML root.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "typed_record_counts": {
+          "additionalProperties": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Counts keyed by Ferrum's stable typed record class names.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "persistent_id_count",
+        "top_level_record_count",
+        "typed_record_counts",
+        "diagnostic_count",
+        "molecules"
+      ],
+      "type": "object"
+    },
+    "CdmlValidation": {
+      "description": "Successful CDML validation at an explicitly selected Ferrum level.",
+      "properties": {
+        "diagnostic_count": {
+          "description": "Non-demoting typed-record diagnostics.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "document_version": {
+          "description": "CDML `version` attribute, when present.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "level": {
+          "description": "`structural` retains and indexes CDML; `core` also creates molecule facts.",
+          "type": "string"
+        },
+        "persistent_id_count": {
+          "description": "Count of persistent identities, including retained opaque XML content.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "description": "Versioned JSON schema identifier.",
+          "type": "string"
+        },
+        "top_level_record_count": {
+          "description": "Count of direct children of the CDML root.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "valid": {
+          "description": "Always true for a successful report; invalid inputs use stderr and exit 1.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema",
+        "valid",
+        "level",
+        "persistent_id_count",
+        "top_level_record_count",
+        "diagnostic_count"
+      ],
+      "type": "object"
+    },
+    "MoleculeInspection": {
+      "description": "One molecule's source-order summary.",
+      "properties": {
+        "atom_count": {
+          "description": "Atom count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "bond_count": {
+          "description": "Bond count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "group_count": {
+          "description": "Non-atom vertex count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Optional molecule name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "query_count": {
+          "description": "Query vertex count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_id": {
+          "description": "Persistent source identifier, if the molecule declared one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text_count": {
+          "description": "Text vertex count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "atom_count",
+        "group_count",
+        "text_count",
+        "query_count",
+        "bond_count"
+      ],
+      "type": "object"
+    },
+    "OperationProtocolErrorCategoryV1": {
+      "description": "Stable V1 error categories.",
+      "oneOf": [
+        {
+          "const": "invalid_request",
+          "description": "The JSON envelope or closed operation payload was invalid.",
+          "type": "string"
+        },
+        {
+          "const": "unsupported_protocol_version",
+          "description": "The envelope named a schema identifier not supported by V1.",
+          "type": "string"
+        },
+        {
+          "const": "document_admission_failed",
+          "description": "Bounded uncompressed CDML admission failed.",
+          "type": "string"
+        },
+        {
+          "const": "document_invalid",
+          "description": "A semantically required document operation could not proceed.",
+          "type": "string"
+        },
+        {
+          "const": "render_unsupported",
+          "description": "The document cannot produce a complete artifact for the requested profile.",
+          "type": "string"
+        },
+        {
+          "const": "render_failed",
+          "description": "A native artifact backend could not finish rendering.",
+          "type": "string"
+        },
+        {
+          "const": "resource_limit",
+          "description": "Existing resource policy or derived base64 completion limits refused work.",
+          "type": "string"
+        },
+        {
+          "const": "internal_failure",
+          "description": "An unexpected owned-value executor failure occurred.",
+          "type": "string"
+        }
+      ]
+    },
+    "OperationProtocolErrorResponseV1": {
+      "additionalProperties": false,
+      "description": "A typed domain refusal returned as protocol data.",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/OperationProtocolErrorV1",
+          "description": "Stable discriminator and diagnostic detail."
+        },
+        "request_id": {
+          "description": "Present only after the request envelope admitted this opaque value.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schema": {
+          "$ref": "#/$defs/ProtocolErrorSchemaV1",
+          "description": "Exact V1 error schema identifier."
+        }
+      },
+      "required": [
+        "schema",
+        "error"
+      ],
+      "type": "object"
+    },
+    "OperationProtocolErrorV1": {
+      "additionalProperties": false,
+      "description": "Stable protocol error facts; clients must not discriminate on `message`.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/OperationProtocolErrorCategoryV1",
+          "description": "Stable machine-readable failure category."
+        },
+        "message": {
+          "description": "Human-readable diagnostic detail.",
+          "type": "string"
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProtocolOperationKindV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Decoded operation kind when one was available."
+        }
+      },
+      "required": [
+        "category",
+        "message"
+      ],
+      "type": "object"
+    },
+    "OperationProtocolOperationV1": {
+      "description": "The four protocol operations admitted by V1.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Inspect one bounded CDML document.",
+          "properties": {
+            "document": {
+              "description": "Uncompressed CDML text admitted under Ferrum's existing V1 profile.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "document.inspect",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Validate one bounded CDML document at the selected semantic level.",
+          "properties": {
+            "document": {
+              "description": "Uncompressed CDML text admitted under Ferrum's existing V1 profile.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "document.validate",
+              "type": "string"
+            },
+            "level": {
+              "$ref": "#/$defs/ProtocolValidationLevelV1",
+              "description": "The requested structural or typed validation level."
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Structurally rewrite one bounded CDML document.",
+          "properties": {
+            "document": {
+              "description": "Uncompressed CDML text admitted under Ferrum's existing V1 profile.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "document.rewrite",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Render one complete bounded CDML document to an in-memory artifact.",
+          "properties": {
+            "document": {
+              "description": "Uncompressed CDML text admitted under Ferrum's existing V1 profile.",
+              "type": "string"
+            },
+            "format": {
+              "$ref": "#/$defs/ProtocolArtifactFormatV1",
+              "description": "The complete artifact format to render."
+            },
+            "kind": {
+              "const": "document.render_artifact",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "format"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "OperationProtocolOutcomeV1": {
+      "description": "Tagged successful results for the V1 operation set.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Semantic CDML inspection facts.",
+          "properties": {
+            "kind": {
+              "const": "document.inspect",
+              "type": "string"
+            },
+            "report": {
+              "$ref": "#/$defs/CdmlInspection"
+            }
+          },
+          "required": [
+            "kind",
+            "report"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Validation facts plus the caller-selected protocol level.",
+          "properties": {
+            "kind": {
+              "const": "document.validate",
+              "type": "string"
+            },
+            "level": {
+              "$ref": "#/$defs/ProtocolValidationLevelV1",
+              "description": "The selected protocol level, retained even when lower report labels differ."
+            },
+            "report": {
+              "$ref": "#/$defs/CdmlValidation",
+              "description": "Existing Ferrum validation report."
+            }
+          },
+          "required": [
+            "kind",
+            "level",
+            "report"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Rewritten CDML plus its structural preservation report.",
+          "properties": {
+            "document": {
+              "description": "Structurally re-emitted CDML, not a byte-preservation promise.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "document.rewrite",
+              "type": "string"
+            },
+            "report": {
+              "$ref": "#/$defs/RewriteCheck",
+              "description": "Existing structural rewrite-check report."
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "report"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "One complete native artifact encoded as standard base64.",
+          "properties": {
+            "artifact_base64": {
+              "description": "Complete artifact bytes encoded with RFC 4648 standard base64.",
+              "type": "string"
+            },
+            "format": {
+              "$ref": "#/$defs/ProtocolArtifactFormatV1",
+              "description": "The requested closed artifact format."
+            },
+            "kind": {
+              "const": "document.render_artifact",
+              "type": "string"
+            },
+            "media_type": {
+              "description": "The media type associated with `format`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "format",
+            "media_type",
+            "artifact_base64"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "OperationProtocolRequestV1": {
+      "additionalProperties": false,
+      "description": "One closed V1 request after its exact schema identifier has been admitted.",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationProtocolOperationV1",
+          "description": "The one fully typed operation to execute."
+        },
+        "request_id": {
+          "description": "Caller-owned opaque text echoed unchanged after envelope admission.",
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/ProtocolRequestSchemaV1",
+          "description": "Exact V1 request schema identifier."
+        }
+      },
+      "required": [
+        "schema",
+        "request_id",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "OperationProtocolResponseV1": {
+      "additionalProperties": false,
+      "description": "One successful V1 response.",
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/OperationProtocolOutcomeV1",
+          "description": "The typed operation result."
+        },
+        "request_id": {
+          "description": "Unchanged caller-owned request identifier.",
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/ProtocolResponseSchemaV1",
+          "description": "Exact V1 success schema identifier."
+        }
+      },
+      "required": [
+        "schema",
+        "request_id",
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "ProtocolArtifactFormatV1": {
+      "description": "Closed complete-document artifact formats exposed by V1.",
+      "oneOf": [
+        {
+          "const": "svg",
+          "description": "Complete SVG.",
+          "type": "string"
+        },
+        {
+          "const": "pdf",
+          "description": "Complete vector PDF.",
+          "type": "string"
+        },
+        {
+          "const": "png_one_pixel_per_point_transparent",
+          "description": "Transparent PNG at one pixel per Rust page point.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProtocolErrorSchemaV1": {
+      "description": "Closed V1 error schema identifiers.",
+      "oneOf": [
+        {
+          "const": "ferrum-operation-error-v1",
+          "description": "`ferrum-operation-error-v1`.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProtocolOperationKindV1": {
+      "description": "Stable names for decoded operation kinds in error envelopes.",
+      "oneOf": [
+        {
+          "const": "document.inspect",
+          "description": "`document.inspect`.",
+          "type": "string"
+        },
+        {
+          "const": "document.validate",
+          "description": "`document.validate`.",
+          "type": "string"
+        },
+        {
+          "const": "document.rewrite",
+          "description": "`document.rewrite`.",
+          "type": "string"
+        },
+        {
+          "const": "document.render_artifact",
+          "description": "`document.render_artifact`.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProtocolRequestSchemaV1": {
+      "description": "Closed V1 request schema identifiers.",
+      "oneOf": [
+        {
+          "const": "ferrum-operation-request-v1",
+          "description": "`ferrum-operation-request-v1`.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProtocolResponseSchemaV1": {
+      "description": "Closed V1 success schema identifiers.",
+      "oneOf": [
+        {
+          "const": "ferrum-operation-response-v1",
+          "description": "`ferrum-operation-response-v1`.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProtocolValidationLevelV1": {
+      "description": "Closed validation levels exposed by V1.",
+      "oneOf": [
+        {
+          "const": "structural",
+          "description": "Retain and structurally validate CDML.",
+          "type": "string"
+        },
+        {
+          "const": "typed",
+          "description": "Require the existing typed Ferrum core projection.",
+          "type": "string"
+        }
+      ]
+    },
+    "RewriteCheck": {
+      "description": "A successful structural preservation check for `cdml rewrite --check`.",
+      "properties": {
+        "opaque_child_count": {
+          "description": "Retained opaque-child count verified before and after serialization.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "persistent_id_count": {
+          "description": "Count of persistent identities verified before and after serialization.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "description": "Versioned JSON schema identifier.",
+          "type": "string"
+        },
+        "top_level_record_count": {
+          "description": "Count of direct-root records verified before and after serialization.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "typed_record_counts": {
+          "additionalProperties": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Typed record counts verified before and after serialization.",
+          "type": "object"
+        },
+        "valid": {
+          "description": "True only when the Ferrum-owned structural observations survive reparse.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema",
+        "valid",
+        "persistent_id_count",
+        "top_level_record_count",
+        "typed_record_counts",
+        "opaque_child_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/OperationProtocolResponseV1",
+      "description": "Successful response."
+    },
+    {
+      "$ref": "#/$defs/OperationProtocolErrorResponseV1",
+      "description": "Typed refusal."
+    }
+  ],
+  "description": "A completed operation response or typed protocol refusal.",
+  "title": "Ferrum operation protocol V1",
+  "x-ferrum-roots": {
+    "error_response": {
+      "$ref": "#/$defs/OperationProtocolErrorResponseV1"
+    },
+    "request": {
+      "$ref": "#/$defs/OperationProtocolRequestV1"
+    },
+    "success_response": {
+      "$ref": "#/$defs/OperationProtocolResponseV1"
+    }
+  }
+}

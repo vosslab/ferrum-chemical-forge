@@ -231,9 +231,6 @@ def _probe() -> dict[str, object]:
 			for atom_id, _kind_name, _operations in _MARK_CASES),
 		"number": reopened_atom.number,
 		"show_number": reopened_atom.show_number,
-		"oasa_imported": any(
-			name == "oasa" or name.startswith("oasa.") for name in sys.modules
-		),
 		"root_extension": pathlib.Path(ferrum_chem.__file__).name,
 	}
 
@@ -268,7 +265,7 @@ def main() -> int:
 		)
 	value = json.loads(output)
 	if (
-		value["oasa_imported"] or not value["clean"]
+		not value["clean"]
 		or value["number"] != 42 or value["mark_count"] != len(_MARK_CASES)
 	):
 		raise NativeAtomNumberE2eError("native atom-annotation proof lost durable output truth")

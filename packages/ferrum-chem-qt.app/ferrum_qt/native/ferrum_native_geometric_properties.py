@@ -1,4 +1,4 @@
-"""Typed geometric appearance editing for the OASA-free native window."""
+"""Typed geometric appearance editing for the Rust-native window."""
 
 # Standard Library
 import dataclasses

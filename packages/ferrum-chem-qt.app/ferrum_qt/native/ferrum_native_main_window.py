@@ -1,8 +1,8 @@
-"""Public OASA-free Ferrum-native Qt window for the completed CDML slice."""
-
+"""Public Rust-native Ferrum Qt window for the completed CDML slice."""
 # Standard Library
 import dataclasses
 import functools
+import pathlib
 
 # PIP3 modules
 import PySide6.QtCore
@@ -15,6 +15,7 @@ import ferrum_qt.bridge.insertion_placement
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.native.ferrum_native_document_tab
 import ferrum_qt.native.ferrum_native_drawing_standard as native_drawing_standard
+import ferrum_qt.native.ferrum_native_drawing_parameters
 import ferrum_qt.native.ferrum_native_atom_properties
 import ferrum_qt.native.ferrum_native_atom_element
 import ferrum_qt.native.ferrum_native_atom_number
@@ -26,7 +27,11 @@ import ferrum_qt.native.ferrum_native_coordinate_generation
 import ferrum_qt.native.ferrum_native_geometric_properties as native_geometric_properties
 import ferrum_qt.native.ferrum_native_geometry_actions
 import ferrum_qt.native.ferrum_native_line_tools
+import ferrum_qt.native.ferrum_native_haworth_tool
+import ferrum_qt.native.ferrum_native_direct_glycosidic_haworth_tool
 import ferrum_qt.native.ferrum_native_linear_form
+import ferrum_qt.native.ferrum_native_main_window_support
+import ferrum_qt.native.ferrum_native_explicit_fragments
 import ferrum_qt.native.ferrum_native_molecule_imports
 import ferrum_qt.native.ferrum_native_molecule_exports
 import ferrum_qt.native.ferrum_native_molfile_export
@@ -37,12 +42,12 @@ import ferrum_qt.native.ferrum_native_snapshot_export
 import ferrum_qt.native.ferrum_native_recovery_export
 import ferrum_qt.native.ferrum_native_selection_svg
 import ferrum_qt.native.ferrum_native_view_controls
+import ferrum_qt.native.ferrum_native_user_templates as native_user_templates
 import ferrum_qt.native.ferrum_native_presentation_properties
 import ferrum_qt.native.ferrum_native_property_dock
 import ferrum_qt.native.ferrum_native_paper_properties as native_paper_properties
 import ferrum_qt.native.ferrum_native_wavy_properties as native_wavy_properties
 import ferrum_qt.dialogs.atom_dialog
-
 _ATOM_MARK_ACTIONS = (
 	("plus", "Circled Plus"),
 	("minus", "Circled Minus"),
@@ -52,8 +57,6 @@ _ATOM_MARK_ACTIONS = (
 	("dotted_electronpair", "Dotted Electron Pair"),
 	("pz_orbital", "p Orbital"),
 )
-
-
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class _AtomInsertionIntent:
@@ -66,44 +69,14 @@ class _AtomInsertionIntent:
 	molecule_object_id: str
 	element: str
 
-
-#============================================
-class _NativeOnlyFileFallback:
-	"""Terminate native-file controller delegation without entering legacy code."""
-
-	#============================================
-	def open_file_path(self, file_path: str, replace_current: bool = False) -> bool:
-		"""Reject unsupported formats when the native controller delegates to us."""
-		if replace_current:
-			self._show_native_file_warning(
-				"Open in Current Tab Unavailable",
-				"Ferrum CDML opens in a new Rust-native tab.",
-			)
-			return False
-		self._show_native_file_warning(
-			"Unsupported File Format",
-			"Ferrum-native bounded editor currently opens only .cdml files.",
-		)
-		return False
-
-	#============================================
-	def can_save_authoritatively(self) -> bool:
-		"""Return false when no native page is selected for the mixin fallback."""
-		return False
-
-	#============================================
-	def _on_save(self) -> bool:
-		"""Provide the native-file mixin's no-tab fallback without legacy behavior."""
-		return False
-
-	#============================================
-	def _on_save_as(self) -> bool:
-		"""Provide the native-file mixin's no-tab fallback without legacy behavior."""
-		return False
-
-
 #============================================
 class FerrumNativeMainWindow(
+		ferrum_qt.native.ferrum_native_explicit_fragments.
+		FerrumNativeExplicitFragmentsWindowMixin,
+		ferrum_qt.native.ferrum_native_haworth_tool.FerrumNativeHaworthToolMixin,
+		ferrum_qt.native.ferrum_native_direct_glycosidic_haworth_tool.
+		FerrumNativeDirectGlycosidicHaworthWindowMixin,
+		native_user_templates.FerrumNativeUserTemplateWindowMixin,
 		ferrum_qt.native.ferrum_native_view_controls.FerrumNativeViewControlsMixin,
 		ferrum_qt.native.ferrum_native_selection_svg.FerrumNativeSelectionSvgWindowMixin,
 		ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardWindowMixin,
@@ -122,24 +95,33 @@ class FerrumNativeMainWindow(
 		ferrum_qt.native.ferrum_native_coordinate_generation.
 		FerrumNativeCoordinateGenerationWindowMixin,
 		ferrum_qt.native.ferrum_native_geometry_actions.FerrumNativeGeometryActionsMixin,
-		_NativeOnlyFileFallback,
+		ferrum_qt.native.ferrum_native_main_window_support.NativeOnlyFileFallback,
 		PySide6.QtWidgets.QMainWindow,
 		):
 	"""A standalone public host for Rust-owned CDML tabs only.
 
-	This window intentionally has no legacy session registry, OASA import, or
-	backend fallback. It owns the ordinary product's vertical Rust
-	open/render/save/reopen path; legacy compatibility is a separate explicit host.
+	This window intentionally has no alternate session registry or backend
+	fallback. It owns the ordinary product's vertical Rust
+	open/render/save/reopen path.
 	"""
 
 	local_cdml_open_completed = PySide6.QtCore.Signal(str, bool)
 	local_cdml_open_queue_drained = PySide6.QtCore.Signal(bool)
 
 	#============================================
-	def __init__(self, parent: PySide6.QtWidgets.QWidget | None = None) -> None:
+	def __init__(
+			self, parent: PySide6.QtWidgets.QWidget | None = None, *,
+			user_template_directory: str | pathlib.Path | None = None,
+			) -> None:
 		"""Build the small native document host and its reachable file actions."""
 		super().__init__(parent)
+		getattr(self, "_initialize_native_file_menu_clients", lambda: None)()
 		self._native_tabs_by_page = {}
+		self._drawing_parameters = (
+			ferrum_qt.native.ferrum_native_drawing_parameters.
+			FerrumNativeDrawingParameters()
+		)
+		self._initialize_native_user_templates(user_template_directory)
 		self._initialize_local_cdml_open()
 		self._initialize_view_controls()
 		self._atom_insertion_intent: _AtomInsertionIntent | None = None
@@ -151,7 +133,7 @@ class FerrumNativeMainWindow(
 		self._initialize_molecule_inspection()
 		self._initialize_native_clipboard()
 		self._initialize_coordinate_generation()
-		self._sessions = ()
+		self._initialize_snapshot_exports()
 		self._tab_widget = PySide6.QtWidgets.QTabWidget(self)
 		self._tab_widget.setTabsClosable(True)
 		self._tab_widget.currentChanged.connect(self._on_native_tab_changed)
@@ -171,13 +153,15 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def _build_actions(self) -> None:
-		"""Create native file and bounded Rust edit actions without legacy routing."""
+		"""Create native file and bounded Rust edit actions."""
 		menu = self.menuBar().addMenu(self.tr("File"))
 		self._file_menu = menu
 		self._open_action = PySide6.QtGui.QAction(self.tr("Open"), self)
 		self._open_action.triggered.connect(self._on_open)
 		menu.addAction(self._open_action)
+		self._build_open_in_current_tab_action(menu)
 		self._build_local_cdml_open_action(menu)
+		getattr(self, "_install_native_recent_files_menu", lambda _menu: None)(menu)
 		self._save_action = PySide6.QtGui.QAction(self.tr("Save"), self)
 		self._save_action.triggered.connect(self._on_save)
 		menu.addAction(self._save_action)
@@ -186,6 +170,7 @@ class FerrumNativeMainWindow(
 		menu.addAction(self._save_as_action)
 		self._build_recovery_export_action(menu)
 		self._build_snapshot_export_actions(menu)
+		self._build_native_user_template_file_actions(menu)
 		self._close_action = PySide6.QtGui.QAction(self.tr("Close Tab"), self)
 		self._close_action.triggered.connect(self._close_current_tab)
 		menu.addAction(self._close_action)
@@ -194,6 +179,7 @@ class FerrumNativeMainWindow(
 		quit_action.triggered.connect(self.close)
 		menu.addAction(quit_action)
 		edit_menu = self.menuBar().addMenu(self.tr("Edit"))
+		self._edit_menu = edit_menu
 		self._paper_properties_action = native_paper_properties.install_paper_properties_action(
 			self, edit_menu,
 		)
@@ -291,7 +277,7 @@ class FerrumNativeMainWindow(
 		self._add_atom_action = PySide6.QtGui.QAction(self.tr("Add Atom at Point"), self)
 		self._add_atom_action.setCheckable(True)
 		self._add_atom_action.setToolTip(
-			self.tr("Create one free-standing atom in a durable Rust molecule"),
+			self.tr("Use Next atom, then click the canvas once; Esc cancels"),
 		)
 		self._add_atom_action.triggered.connect(self._on_toggle_add_atom)
 		edit_menu.addAction(self._add_atom_action)
@@ -317,6 +303,7 @@ class FerrumNativeMainWindow(
 		self._refresh_action.triggered.connect(self._on_refresh_authoritative)
 		edit_menu.addAction(self._refresh_action)
 		chemistry_menu = self.menuBar().addMenu(self.tr("Chemistry"))
+		self._build_native_user_template_place_action(chemistry_menu)
 		self._build_molecule_import_actions(chemistry_menu)
 		self._build_sdf_export_actions(chemistry_menu)
 		self._build_molfile_export_actions(chemistry_menu)
@@ -324,6 +311,8 @@ class FerrumNativeMainWindow(
 		self._build_molecule_inspection_actions(chemistry_menu)
 		self._build_molecule_name_action(chemistry_menu)
 		self._build_linear_form_action(chemistry_menu)
+		self._build_explicit_fragment_actions(chemistry_menu)
+		self._build_direct_glycosidic_haworth_action(chemistry_menu)
 		self._build_coordinate_generation_actions(chemistry_menu)
 		self._build_view_controls_actions()
 
@@ -539,7 +528,7 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def _on_toggle_add_atom(self, checked: bool) -> None:
-		"""Collect one bounded insertion intent, then wait for one scene click."""
+		"""Capture one chosen element intent, then wait for one scene click."""
 		if not checked:
 			self._cancel_atom_insertion()
 			return
@@ -556,12 +545,7 @@ class FerrumNativeMainWindow(
 				"This document has no durable molecule that Rust can edit.",
 			)
 			return
-		element, accepted = PySide6.QtWidgets.QInputDialog.getText(
-			self, self.tr("Add Free-Standing Atom"), self.tr("Element symbol:"),
-		)
-		if not accepted:
-			self._cancel_atom_insertion()
-			return
+		drawing = self._drawing_parameters.snapshot()
 		choice = choices[0]
 		if len(choices) > 1:
 			labels = tuple(item.label for item in choices)
@@ -576,12 +560,19 @@ class FerrumNativeMainWindow(
 		snapshot = tab.current_snapshot
 		viewport = tab.view.viewport()
 		self._atom_insertion_intent = _AtomInsertionIntent(
-			tab, viewport, snapshot.revision, snapshot.digest, choice.object_id, element,
+			tab, viewport, snapshot.revision, snapshot.digest, choice.object_id,
+			drawing.element,
 		)
+		self._add_atom_action.setToolTip(self.tr(
+			"Add {0} at the next canvas click; Escape cancels."
+		).format(drawing.element))
+		self._refresh_cancel_tool_action()
 		viewport.installEventFilter(self)
 		viewport.setFocus()
 		self.statusBar().showMessage(
-			self.tr("Click once to add a free-standing atom; trigger Add Atom again to cancel."),
+			self.tr(
+				"Click once to add {0}; Esc cancels Add Atom.".format(drawing.element),
+			),
 		)
 
 	#============================================
@@ -604,13 +595,16 @@ class FerrumNativeMainWindow(
 				"The document changed before the click; start Add Atom again.",
 			)
 			return
-		point = tab.view.mapToScene(event.position().toPoint())
-		self._cancel_atom_insertion(clear_status=False)
 		try:
+			point = tab.view.snap_authored_scene_point(
+				tab.view.mapToScene(event.position().toPoint()),
+			)
+			self._cancel_atom_insertion(clear_status=False)
 			tab.add_atom_at(
 				intent.molecule_object_id, intent.element, float(point.x()), float(point.y()),
 			)
 		except Exception as exc:
+			self._cancel_atom_insertion(clear_status=False)
 			self._refresh_actions()
 			self.statusBar().clearMessage()
 			self._show_native_file_warning("Native Add Atom Error", str(exc))
@@ -628,6 +622,7 @@ class FerrumNativeMainWindow(
 			intent.viewport.removeEventFilter(self)
 		if clear_status:
 			self.statusBar().clearMessage()
+		self._refresh_cancel_tool_action()
 
 	#============================================
 	def _on_undo(self) -> None:
@@ -697,6 +692,7 @@ class FerrumNativeMainWindow(
 			raise ValueError("native tab is already registered")
 		index = self._tab_widget.addTab(tab, tab.title)
 		self._native_tabs_by_page[tab] = tab
+		self._install_native_hex_grid_for_tab(tab)
 		tab.selection_changed.connect(self._on_native_selection_changed)
 		tab.view.display_transform_changed.connect(self._refresh_native_view_status)
 		if activate:
@@ -722,15 +718,21 @@ class FerrumNativeMainWindow(
 		tab = self._native_tabs_by_page.get(page)
 		if tab is None:
 			return
+		if self._cancel_explicit_replacement_for_target_close(tab):
+			return
 		if self._molecule_import_blocks_tab_close(tab):
 			return
 		if self._molecule_export_blocks_tab_close(tab):
+			return
+		if self._snapshot_export_blocks_tab_close(tab):
 			return
 		if self._molecule_inspection_blocks_tab_close(tab):
 			return
 		if self._clipboard_operation_blocks_tab_close(tab):
 			return
 		if self._coordinate_generation_blocks_tab_close(tab):
+			return
+		if self._user_template_placement_blocks_tab_close(tab):
 			return
 		if tab.requires_refresh:
 			self._show_native_file_warning(
@@ -748,6 +750,11 @@ class FerrumNativeMainWindow(
 			self._cancel_atom_insertion()
 		if self._line_gesture_intent is not None and self._line_gesture_intent.tab is tab:
 			self._cancel_line_gesture()
+		if (
+			self._direct_glycosidic_haworth_intent is not None
+			and self._direct_glycosidic_haworth_intent.tab is tab
+		):
+			self._cancel_direct_glycosidic_haworth_intent()
 		self._cancel_native_view_controls_for_tab(tab)
 		self._tab_widget.removeTab(index)
 		self._native_tabs_by_page.pop(tab)
@@ -785,13 +792,22 @@ class FerrumNativeMainWindow(
 		tab = self._active_native_tab()
 		active = tab is not None and not tab._disposed
 		pending = active and tab.requires_refresh
+		template_intent = self._user_template_placement_intent
+		if (
+			template_intent is not None
+			and not self._user_template_placement_is_current(template_intent)
+		):
+			self._cancel_user_template_placement()
 		busy_import = self._molecule_import_busy()
 		busy_export = self._molecule_export_busy()
 		busy_inspection = self._molecule_inspection_busy()
 		busy_clipboard = self._clipboard_busy()
 		busy_coordinates = self._coordinate_generation_intent is not None
+		busy_user_template = self._user_template_placement_intent is not None
+		busy_snapshot_export = self._snapshot_export_busy()
 		busy = (
 			busy_import or busy_export or busy_inspection or busy_clipboard or busy_coordinates
+			or busy_user_template or busy_snapshot_export
 		)
 		if self._atom_insertion_intent is not None and (
 			not active or self._atom_insertion_intent.tab is not tab or busy
@@ -856,7 +872,7 @@ class FerrumNativeMainWindow(
 		can_add_atom = active and not pending and not busy and bool(tab.durable_molecule_choices())
 		self._add_atom_action.setEnabled(can_add_atom)
 		self._add_atom_action.setToolTip(self.tr(
-			"Create one free-standing atom in a durable Rust molecule"
+			"Use Next atom, then click the canvas once; Esc cancels"
 			if can_add_atom else
 			"Requires an active document with a durable Rust molecule",
 		))
@@ -889,6 +905,12 @@ class FerrumNativeMainWindow(
 		)
 		self._refresh_molecule_name_action(active, pending, busy)
 		self._refresh_linear_form_action(active, pending, busy)
+		self._refresh_explicit_fragment_actions(active, pending, busy)
+		self._refresh_direct_glycosidic_haworth_action(active, pending, busy)
+		self._refresh_native_user_template_actions(
+			active, pending,
+			busy_import or busy_export or busy_inspection or busy_clipboard or busy_coordinates,
+		)
 		self._generate_coordinates_action.setEnabled(
 			active and not pending and not busy and bool(tab.durable_molecule_choices()),
 		)
@@ -901,12 +923,14 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def _show_native_file_warning(self, title: str, message: str) -> None:
-		"""Present a native-only actionable failure without a legacy fallback."""
+		"""Present one actionable native-file failure."""
 		PySide6.QtWidgets.QMessageBox.warning(self, self.tr(title), self.tr(message))
 
 	#============================================
 	def closeEvent(self, event: PySide6.QtGui.QCloseEvent) -> None:
 		"""Dispose all clean pages and keep an unsaved Rust document live."""
+		self._cancel_user_template_placement()
+		self._cancel_direct_glycosidic_haworth_intent()
 		if self._cancel_local_cdml_open_for_close():
 			event.ignore()
 			self._show_native_file_warning(
@@ -918,6 +942,9 @@ class FerrumNativeMainWindow(
 			event.ignore()
 			return
 		if self._cancel_molecule_export_for_close():
+			event.ignore()
+			return
+		if self._cancel_snapshot_export_for_close():
 			event.ignore()
 			return
 		if self._cancel_molecule_inspection_for_close():

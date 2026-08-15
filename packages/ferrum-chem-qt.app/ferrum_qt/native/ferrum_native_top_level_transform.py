@@ -22,6 +22,11 @@ _ALIGNMENTS = (
 
 
 #============================================
+class FerrumNativeTopLevelTranslationStaleError(RuntimeError):
+	"""Report a captured complete-root move whose authoritative facts changed."""
+
+
+#============================================
 class FerrumNativeTopLevelTransformTabMixin:
 	"""Map complete disposable selections to closed durable Rust root selectors."""
 
@@ -119,8 +124,17 @@ class FerrumNativeTopLevelTransformTabMixin:
 	def selected_top_level_translation(
 			self,
 			) -> ferrum_qt.native.ferrum_native_translation.FerrumNativeTranslationSelection:
-		"""Capture exact Rust selectors and current scene bounds for translation."""
+		"""Capture an authenticated Rust anchor and projection-only bounds preview."""
 		targets, restore = self.selected_top_level_transform_targets()
+		receipt = self._session.observe_top_level_translation_anchor_v1(
+			self.current_snapshot.revision, targets,
+		)
+		if receipt.source_revision != self.current_snapshot.revision:
+			raise _tab_error("complete-root move receipt has an unexpected revision")
+		if receipt.source_digest != self.current_snapshot.digest:
+			raise _tab_error("complete-root move receipt has an unexpected document state")
+		if not math.isfinite(receipt.anchor_x) or not math.isfinite(receipt.anchor_y):
+			raise _tab_error("complete-root move receipt has a nonfinite authored anchor")
 		projection = self._require_projection()
 		roots = []
 		for kind, identifier in restore:
@@ -144,7 +158,8 @@ class FerrumNativeTopLevelTransformTabMixin:
 			bounds.append(values)
 		return (
 			ferrum_qt.native.ferrum_native_translation.FerrumNativeTranslationSelection(
-				targets, restore, tuple(bounds),
+				receipt.selectors, restore, receipt.source_revision, receipt.source_digest,
+				receipt.anchor_x, receipt.anchor_y, tuple(bounds),
 			)
 		)
 
@@ -172,6 +187,7 @@ class FerrumNativeTopLevelTransformTabMixin:
 		selection = self.selected_top_level_translation()
 		return self.translate_top_level_roots_at_revision(
 			self.current_snapshot.revision,
+			selection.source_digest,
 			selection.targets,
 			selection.durable_selection,
 			float(dx),
@@ -180,12 +196,21 @@ class FerrumNativeTopLevelTransformTabMixin:
 
 	#============================================
 	def translate_top_level_roots_at_revision(
-			self, expected_revision: int, targets: tuple[object, ...],
+			self, expected_revision: int, expected_digest: str, targets: tuple[object, ...],
 			restore: tuple[tuple[str, str], ...], dx: float, dy: float) -> object:
 		"""Translate one captured complete-root selection at its exact revision."""
 		self._require_mutable()
 		if type(expected_revision) is not int:
 			raise TypeError("native root translation requires an exact revision")
+		if type(expected_digest) is not str:
+			raise TypeError("native root translation requires an exact document digest")
+		if (
+				self.current_snapshot.revision != expected_revision
+				or self.current_snapshot.digest != expected_digest
+			):
+			raise FerrumNativeTopLevelTranslationStaleError(
+				"document changed during complete-root translation",
+			)
 		if (
 				type(dx) is not float
 				or type(dy) is not float
@@ -193,14 +218,46 @@ class FerrumNativeTopLevelTransformTabMixin:
 				or not math.isfinite(dy)
 			):
 			raise TypeError("native root translation requires finite float point deltas")
-		_current_targets, current_restore = self.selected_top_level_transform_targets()
-		if current_restore != restore:
-			raise _tab_error("complete-root selection changed during translation")
+		try:
+			current_targets, current_restore = self.selected_top_level_transform_targets()
+		except Exception as exc:
+			from ferrum_qt.native.ferrum_native_document_tab import (
+				FerrumNativeDocumentTabError,
+			)
+			if isinstance(exc, FerrumNativeDocumentTabError):
+				raise FerrumNativeTopLevelTranslationStaleError(
+					"complete-root selection changed during translation",
+				) from exc
+			raise
+		if frozenset(current_restore) != frozenset(restore):
+			raise FerrumNativeTopLevelTranslationStaleError(
+				"complete-root selection changed during translation",
+			)
+		current_selector_keys = frozenset(
+			(target.root_id, target.kind) for target in current_targets
+		)
+		receipt_selector_keys = frozenset(
+			(target.root_id, target.kind) for target in targets
+		)
+		if current_selector_keys != receipt_selector_keys:
+			raise FerrumNativeTopLevelTranslationStaleError(
+				"complete-root selection changed during translation",
+			)
 		import ferrum_chem
 		operation = ferrum_chem.DocumentOperationV1.translate_top_level_roots(
 			targets, dx, dy,
 		)
-		result = self._session.submit(expected_revision, operation)
+		try:
+			result = self._session.submit(expected_revision, operation)
+		except Exception as exc:
+			if (
+					self.current_snapshot.revision != expected_revision
+					or self.current_snapshot.digest != expected_digest
+				):
+				raise FerrumNativeTopLevelTranslationStaleError(
+					"document changed during complete-root translation",
+				) from exc
+			raise
 		self._install_mutation_result(result, restore)
 		return result
 

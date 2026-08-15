@@ -11,6 +11,7 @@ import sys
 
 # PIP3 modules
 import PySide6.QtCore
+import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
@@ -18,6 +19,7 @@ import ferrum_qt.themes.theme_manager
 import ferrum_qt.main_window
 import ferrum_qt.io.clipboard_mime
 import ferrum_qt.qt_lifecycle
+import ferrum_qt.resource_paths
 import ferrum_qt.versioning
 
 # application metadata
@@ -30,6 +32,21 @@ SMOKE_RECEIPT_SCHEMA = "ferrum-smoke-1"
 def default_user_template_directory() -> pathlib.Path:
 	"""Return Ferrum-Qt's frontend-owned user-template directory."""
 	return pathlib.Path.home() / ".ferrum" / "templates"
+
+
+#============================================
+def _load_application_icon(
+		app: PySide6.QtWidgets.QApplication,
+		) -> PySide6.QtGui.QIcon:
+	"""Load Ferrum's packaged application icon when the resource is available."""
+	icon_path = ferrum_qt.resource_paths.get_resource_path("app_icon.svg")
+	if icon_path.is_file():
+		icon = PySide6.QtGui.QIcon(str(icon_path))
+		if not icon.isNull():
+			return icon
+	return app.style().standardIcon(
+		PySide6.QtWidgets.QStyle.StandardPixmap.SP_FileIcon,
+	)
 
 
 #============================================
@@ -281,10 +298,7 @@ def main(
 	"""
 	_validate_smoke_configuration(smoke_exit_seconds, smoke_receipt_path)
 	app = PySide6.QtWidgets.QApplication(sys.argv)
-	style = app.style()
-	app_icon = style.standardIcon(
-		PySide6.QtWidgets.QStyle.StandardPixmap.SP_FileIcon
-	)
+	app_icon = _load_application_icon(app)
 
 	# allow Ctrl+C in terminal to kill the Qt app
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -311,13 +325,15 @@ def main(
 	theme_mgr.restore_theme()
 
 	# create the main window
-	window = ferrum_qt.main_window.MainWindow(theme_mgr)
+	window = ferrum_qt.main_window.MainWindow(
+		theme_mgr, user_template_directory=default_user_template_directory(),
+	)
 	if not app_icon.isNull():
 		window.setWindowIcon(app_icon)
 	window.show()
 
-	# restore saved geometry
-	window.restore_geometry()
+	# restore saved application workspace
+	window.restore_workspace()
 
 	timer_delivery = _SmokeTimerDelivery()
 	if smoke_exit_seconds is not None:

@@ -8,6 +8,7 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 import ferrum_chem
+import ferrum_qt.native.ferrum_native_bond_capacity
 
 
 #============================================
@@ -295,7 +296,8 @@ class FerrumNativeMoleculeInformationDialog(PySide6.QtWidgets.QDialog):
 
 
 #============================================
-class FerrumNativeMoleculeInspectionMixin:
+class FerrumNativeMoleculeInspectionMixin(
+		ferrum_qt.native.ferrum_native_bond_capacity.FerrumNativeBondCapacityMixin):
 	"""Own the cancellable selected-molecule inspection action and delivery fence."""
 
 	#============================================
@@ -303,6 +305,7 @@ class FerrumNativeMoleculeInspectionMixin:
 		"""Initialize the one inspection intent and Qt-thread relay."""
 		self._molecule_inspection_intent: _MoleculeInspectionIntent | None = None
 		self._molecule_inspection_relay = _MoleculeInspectionDeliveryRelay(self)
+		self._initialize_bond_capacity()
 
 	#============================================
 	def _build_molecule_inspection_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
@@ -322,11 +325,12 @@ class FerrumNativeMoleculeInspectionMixin:
 			self._cancel_document_molecule_inspection,
 		)
 		menu.addAction(self._cancel_molecule_inspection_action)
+		self._build_bond_capacity_actions(menu)
 
 	#============================================
 	def _molecule_inspection_busy(self) -> bool:
 		"""Return whether an inspection worker remains live."""
-		return self._molecule_inspection_intent is not None
+		return self._molecule_inspection_intent is not None or self._bond_capacity_busy()
 
 	#============================================
 	def _selected_molecule_inspection_address(self) -> FerrumNativeMoleculeInspectionAddress | None:
@@ -478,11 +482,14 @@ class FerrumNativeMoleculeInspectionMixin:
 			self._molecule_inspection_intent is not None
 			and not self._molecule_inspection_intent.worker.delivery_cancelled,
 		)
+		self._refresh_bond_capacity_actions(active, pending, busy_elsewhere)
 
 	#============================================
 	def _molecule_inspection_blocks_tab_close(self, tab: object) -> bool:
 		"""Keep an inspection source tab alive through worker teardown."""
 		intent = self._molecule_inspection_intent
+		if self._bond_capacity_blocks_tab_close(tab):
+			return True
 		if intent is None or intent.tab is not tab:
 			return False
 		self._show_native_file_warning(
@@ -495,7 +502,7 @@ class FerrumNativeMoleculeInspectionMixin:
 	def _cancel_molecule_inspection_for_close(self) -> bool:
 		"""Cancel delivery and retain the source tab until a later close attempt."""
 		if self._molecule_inspection_intent is None:
-			return False
+			return self._cancel_bond_capacity_for_close()
 		self._cancel_document_molecule_inspection()
 		self._show_native_file_warning(
 			"Molecule Inspection Still Running",

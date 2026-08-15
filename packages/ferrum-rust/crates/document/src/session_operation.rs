@@ -5,12 +5,13 @@ use thiserror::Error;
 use super::{
     ArrowPropertiesPatchV1, AtomMarkActionV1, AtomMarkKindV1, AtomPropertiesPatchV1,
     AtomRotationV1, BondPropertiesPatchV1, BracketPropertiesPatchV1, CleanGeometryUpdateV1,
-    DocumentBondOrderV1, DrawingStandardPatchV1, GeometricPropertiesPatchV1, GeometryRepairV1,
-    MoleculeCoordinateUpdateV1, PaperPropertiesPatchV1, PaperPropertyChangeV1, PersistentId,
-    PlusPropertiesPatchV1, Point3V1, PreparedStraightenDepictionsV1, PresentationRootDeletionSetV1,
-    PresentationRootDeletionV1, PresentationStackReorderV1, SessionDocumentObservationV1,
-    TextPropertiesPatchV1, TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError,
-    WavyPropertiesPatchV1, XmlSerializationError, atom_properties_patch_v1::valid_atom_element,
+    DocumentBondOrderV1, DocumentExplicitFragmentErrorV1, DrawingStandardPatchV1,
+    GeometricPropertiesPatchV1, GeometryRepairV1, MoleculeCoordinateUpdateV1,
+    PaperPropertiesPatchV1, PaperPropertyChangeV1, PersistentId, PlusPropertiesPatchV1, Point3V1,
+    PreparedStraightenDepictionsV1, PresentationRootDeletionSetV1, PresentationRootDeletionV1,
+    PresentationStackReorderV1, SessionDocumentObservationV1, TextPropertiesPatchV1,
+    TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError, WavyPropertiesPatchV1,
+    XmlSerializationError, atom_properties_patch_v1::valid_atom_element,
 };
 
 /// Immutable result of one accepted session mutation or history transition.
@@ -202,6 +203,9 @@ pub enum SessionOperationV1 {
 /// Typed operation failure before an accepted state transition.
 #[derive(Debug, Error)]
 pub enum SessionOperationError {
+    /// A closed explicit-fragment request could not prove its molecule-local facts.
+    #[error(transparent)]
+    ExplicitFragment(#[from] DocumentExplicitFragmentErrorV1),
     /// Native linear-form conversion requires one or more exact selected atoms.
     #[error("linear-form conversion requires a nonempty exact atom selection")]
     EmptyLinearFormSelection,
@@ -232,6 +236,12 @@ pub enum SessionOperationError {
     /// A detached direct-Haworth receipt cannot enter the closed insertion flow.
     #[error("invalid direct Haworth insertion: {0}")]
     InvalidDirectHaworthInsertion(String),
+    /// A closed detached regular-ring request could not form ordinary CDML facts.
+    #[error("invalid regular ring insertion: {0}")]
+    InvalidRegularRingInsertion(String),
+    /// A closed standalone D-glucose Haworth recipe could not be authored.
+    #[error("invalid standalone Haworth insertion: {0}")]
+    InvalidStandaloneHaworthInsertion(String),
     /// Custom dimensions were requested for an effective named paper type.
     #[error("paper dimensions apply only to an effective custom paper type")]
     PaperDimensionsRequireCustom,
@@ -312,9 +322,9 @@ pub enum SessionOperationError {
     /// The session cannot issue another generated fragment identity.
     #[error("generated fragment identifier space is exhausted")]
     FragmentIdentifierExhausted,
-    /// The session cannot issue another generated clipboard-Paste identity.
-    #[error("generated clipboard Paste identifier space is exhausted")]
-    ClipboardIdentifierExhausted,
+    /// The session cannot issue another generated imported-fragment identity.
+    #[error("generated imported-fragment identifier space is exhausted")]
+    FragmentImportIdentifierExhausted,
     /// Storage needed to allocate generated persistent identities was unavailable.
     #[error("generated identifier allocation failed")]
     GeneratedIdentifierAllocationFailed,

@@ -1,4 +1,4 @@
-"""Focused behavior tests for the OASA-free native BondDialog adapter."""
+"""Focused behavior tests for the Rust-native BondDialog adapter."""
 
 # Standard Library
 import os
@@ -166,35 +166,6 @@ def test_absent_optional_facts_do_not_become_authored_on_an_unchanged_dialog(
 
 
 #============================================
-def test_native_dialog_visibly_limits_controls_to_renderer_supported_facts(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""The native route exposes no unsupported style or wedge-width choice."""
-	del qapp
-	_install_ferrum_module(monkeypatch)
-	model = ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(_Bond())
-	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(
-		model,
-		capabilities=ferrum_qt.dialogs.bond_dialog.NATIVE_RENDER_CAPABILITIES,
-	)
-	assert dialog._type_combo.count() == 1
-	assert dialog._type_combo.itemData(0) == "n"
-	assert not dialog._type_combo.isEnabled()
-	assert "Normal bond style only" in dialog._type_combo.toolTip()
-	assert not dialog._wedge_width_spin.isEnabled()
-	assert "wedge rendering" in dialog._wedge_width_spin.toolTip()
-	assert not dialog._center_check.isEnabled()
-	assert not dialog._bond_width_spin.isEnabled()
-	dialog._order_combo.setCurrentIndex(1)
-	assert dialog._center_check.isEnabled()
-	assert dialog._bond_width_spin.isEnabled()
-	dialog._order_combo.setCurrentIndex(2)
-	assert not dialog._center_check.isEnabled()
-	assert dialog._bond_width_spin.isEnabled()
-	dialog.deleteLater()
-
-
-#============================================
 def test_legacy_dialog_keeps_its_full_bond_editing_vocabulary(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
@@ -227,11 +198,11 @@ def test_native_adapter_rejects_a_negative_width_the_shared_dialog_cannot_show(
 def test_native_adapter_rejects_a_source_style_without_renderer_support(
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A durable wedge is unavailable until the native renderer can retain it."""
+	"""A retained style outside the closed native depiction profile is refused."""
 	_install_ferrum_module(monkeypatch)
-	with pytest.raises(ValueError, match="normal bond style only"):
+	with pytest.raises(ValueError, match="Normal, Solid wedge, or Hashed wedge"):
 		ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(
-			_Bond(style=_Style.wedge),
+			_Bond(style=_Style.adder),
 		)
 
 

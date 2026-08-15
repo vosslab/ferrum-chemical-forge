@@ -1,71 +1,41 @@
 # Ferrum-Qt contract
 
 Ferrum-Qt is a Qt Widgets document editor. This contract defines its durable
-ownership boundary while the Ferrum render-plan path replaces the temporary
-OASA-backed path capability by capability. It follows the active
+Rust-native ownership boundary. It follows the active
 [ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md) and applies the repository
 principles "Fix the design, not the symptom" and "Long-term over short-term."
 
 ## Current composition
 
-The legacy `MainWindow` is the application composition facade. It builds the
-canvas, menus, toolbars, status bar, preferences, clipboard, and tabbed
-workspace. Its window controller mixins are split into focused `window_*.py`
-modules, while each legacy open tab has one legacy `DocumentSession`.
-
 ```text
-legacy MainWindow (QMainWindow)
-  tab workspace and active-tab controller
-    legacy DocumentSession, one per legacy tab
-      QGraphicsScene + QGraphicsView + mode manager
-      current temporary document/projection and import workers
-  menus, toolbars, dialogs, clipboard, docks, preferences, status
-
-FerrumNativeMainWindow (standalone QMainWindow bounded editor)
-  native CDML tabs only
+MainWindow
+  native CDML and decoded-CD-SVG tabs
     Rust-owned ferrum_chem.DocumentSession and disposable Qt projection
-  Open, Save, Save As, Close Tab, Change Element, Add Atom at Point,
-  Undo, Redo, Refresh Authoritative View, and Quit
+  native File, editing, authoring, history, recovery, and export actions
 ```
 
-The public legacy `MainWindow` remains a composition and delegation layer. It
-owns widgets, active-tab aliases, connection scopes, window dialogs, and
-orderly shutdown. It does not own CDML parsing, canonical saving, chemistry
-requests, projection construction, graphics disposal loops, or worker result
-policy.
-
-The current source has an intentionally transitional `DocumentSession` path.
-It still imports OASA for CDML authority, chemistry, and legacy rendering. This
-is not Ferrum adoption and is not a compatibility target. The Rust replacement
-deletes that path and its provisional `__bkchem_new__` identifiers when the
-corresponding Ferrum capability is complete. Historical CDML namespaces remain
-valid document data; they are not product branding.
+`MainWindow` owns Qt widgets, modal lifecycle, and disposable projection. Rust owns
+CDML admission, saving, chemistry/document operations, render plans, and publication.
+There is one production editor and one Rust-native session model. Historical CDML namespaces
+remain valid document data; they are not product branding.
 
 ## Current completed slices
 
-The standalone `FerrumNativeMainWindow` is the public `ferrum-qt --native`
-bounded editor for a Rust-owned CDML route. It opens, renders, saves, reopens,
+The public `MainWindow` is the bounded Rust-native editor. It opens, renders, saves, reopens,
 and closes native tabs with an extension-owned `ferrum_chem.DocumentSession`.
 It can change one durably selected atom's element, add one free-standing atom
 at an exact scene point in an explicitly chosen durable molecule, and apply
-Rust-owned undo and redo. Its reachable actions do not import OASA, instantiate
-the legacy `MainWindow`, or fall back to a legacy tab. It intentionally exposes
-only operations with a complete Rust implementation.
-
-The legacy `MainWindow` remains a migration-only OASA path. It is not made
-Rust-owned by the preview, and it continues to contain unreplaced editing,
-codec, worker, and application-shell behavior. The two window types are
-separate composition roots rather than alternate backends behind one tab or
-session interface.
+Rust-owned undo and redo. Its reachable actions expose only operations with a complete
+Rust implementation; unsupported historical workflows are explicitly refused or dropped.
 
 Current V1 Qt slices also include the exact Rust molecule-plan painter, the
 separate presentation-vector projection, and a Rust/PyO3 display-geometry
 bridge. These are bounded evidence for their own routes, not completion claims
-for full geometry, rendering, editing, export, or legacy replacement.
+for full geometry, rendering, editing, or import/export coverage.
 
 The closed CDML paper-name catalog is also Rust-owned and crosses PyO3 as frozen
-name and millimetre-dimension values. Qt scene setup, snapshot rendering, and
-the transitional session catalog adapter consume those issued values. Qt does
+name and millimetre-dimension values. Qt scene setup and snapshot rendering
+consume those issued values. Qt does
 not maintain a second paper table or infer missing dimensions. The standalone
 native observation resolves orientation and physical dimensions into one finite
 scene rectangle at the document origin using 72 points per inch. Qt paints that
@@ -74,15 +44,27 @@ the current UI palette for its fill and outline. Preserved malformed paper facts
 remain document data; Rust supplies a typed compatibility issue and the A4
 portrait display fallback. Normal-window paper/session adoption remains open.
 
-Standalone native snapshot export never paints the installed view scene. The tab
-asks Rust for a fresh render observation at the displayed revision and builds a
-detached, initially unselected projection from the same verified Telex resource.
-An exact revision/digest mismatch rejects export. Qt paints that detached scene to
-SVG, PDF, or PNG, then terminally retires it. SVG and PDF are vector outputs. PNG
-uses the established 72-point-per-inch document scale and must fit Qt's configured
-image-allocation limit. `QSaveFile` publishes all formats atomically; an existing
-symbolic-link or non-file destination is rejected before painting. This frontend
-snapshot route does not claim the independent M13 Cairo/`xot` backend milestone.
+Ordinary native `File -> Export...` never paints the installed view scene or a Qt
+projection. Qt captures the active registered tab and its immutable
+`SessionDocumentObservationV1`, revision, digest, and opaque local-origin token
+before the save chooser. After a selected destination passes the same current/idle
+fence, a `QThread` gives only that immutable observation to a private Rust bridge.
+Rust derives and renders one complete SVG, vector PDF, or transparent
+one-pixel-per-page-point PNG receipt. Qt reauthenticates the same fence on delivery
+and asks Rust to publish only a still-current receipt through the descriptor-relative
+publisher. A complete-plan exclusion refuses the whole artifact; selection and
+hover feedback are absent because they are not document facts.
+
+The `Export PNG (1 pixel per point)...` label describes the Rust page geometry,
+not an encoded physical-density metadata promise. A local CDML or decoded CD-SVG
+origin remains an opaque Rust-held descriptor token. When present, Rust clones that
+live descriptor into publication and rejects the original source or an observed
+hard-link alias as a destination. Qt does not compare paths or hold a Python file
+object. Cancel, stale delivery, close, and incompatible busy work make no
+publication or success claim. Confirmed, directory-entry-unconfirmed, not-started,
+rejected-destination, and possibly-published results have distinct recovery wording.
+`Recovery Export CDML...` is a separate current-document recovery copy; it does not
+replace Save/Save As or artifact export and does not convert unsupported formats.
 
 ## Authority and flow
 
@@ -91,8 +73,7 @@ the complete CDML document, durable identifiers and source order, revision and
 history, dirty/save baseline, accepted mutations, recovery publication, and
 canonical save. `ferrum-chemistry` owns chemistry. `ferrum-render` owns
 declarative rendering. The PyO3 module `ferrum_chem` publishes copied, frozen
-values and typed errors at this boundary. The legacy tab route has not reached
-this boundary and remains explicitly transitional.
+values and typed errors at this boundary.
 
 Qt owns only disposable scene projection, selection interaction, modal state,
 view transform, widgets, and connection lifetime. A Qt scene never becomes
@@ -113,7 +94,7 @@ gesture/action + expected revision
 Each arrow is one direction. Qt submits immutable intent with the observation
 revision it observed. Rust returns an accepted observation or a typed failure.
 Qt rebuilds its projection from that observation and emits semantic UI events
-such as title, dirty, diagnostic, and worker-retired changes. Sibling widgets
+such as title, dirty, and diagnostics. Sibling widgets
 do not call each other's internal methods, and no action retains a Qt item
 across a backend call.
 
@@ -159,11 +140,13 @@ observation; the UI does not mark a document saved itself.
 
 The Ferrum molecule painter consumes a final `RenderObservationV1`, composed by
 the API from one revision-checked `SessionDocumentObservationV1` and verified
-render metrics. It does not consume legacy atom or bond models, OASA operations,
-or Python XML. The final observation contains frozen
-`DocumentMoleculeRenderPlanV1` values in document root order. Each entry keeps
+render metrics. It does not consume retired atom or bond models or Python XML.
+The final observation contains frozen
+`DocumentMoleculeRenderPlanV2` values in document root order. Each entry keeps
 document-root molecule identity and order separate from the molecule-local atom
-and bond order inside its `RenderPlanV1`.
+and bond order inside its `RenderPlanV2`. `RenderObservationV1` retains its name
+because it is the revision-bound document/projection receipt envelope, not a
+molecule-plan grammar; its payload contains only V2 molecule plans.
 
 ```text
 SessionDocumentObservationV1
@@ -172,22 +155,22 @@ SessionDocumentObservationV1
 
 RenderObservationV1
   document: SessionDocumentObservationV1
-  molecule_plans: tuple[DocumentMoleculeRenderPlanV1, ...]
+  molecule_plans: tuple[DocumentMoleculeRenderPlanV2, ...]
 
-DocumentMoleculeRenderPlanV1
+DocumentMoleculeRenderPlanV2
   molecule: MoleculeRenderRootV1
     id: durable document object key or null
     projection_key: projection-local identity
     source_id: authored CDML ID or null
     source_order: direct document-root position
-  plan: RenderPlanV1
+  plan: RenderPlanV2
 
-RenderPlanV1
-  schema: ferrum-render-plan-v1
+RenderPlanV2
+  schema: ferrum-render-plan-v2
   provenance:
     revision: exactly document.snapshot.revision
     digest: exactly document.snapshot.digest
-  batches: tuple[RenderBatchV1, ...]
+  batches: tuple[RenderBatchV2, ...]
   issues: tuple[RenderIssueV1, ...]
 ```
 
@@ -195,9 +178,12 @@ Each molecule entry becomes one disposable root graphics group whose z order is
 the backend-issued molecule `source_order`. Each batch has a durable
 `RenderTargetV1` with `record_id.kind`,
 `record_id.id`, and `source_order`, plus a declared coordinate space. Ordered
-tagged operations contain a `LineOpV1`, `MaskOpV1`, or `TextOpV1` payload.
-Scene-space bond batches contain lines; atom-local batches contain masks and
-text. Paint is explicit lowercase six-digit `Rgb24`. Text runs declare their
+tagged `RenderOperationV2` values contain the established line, mask, text, and
+ellipse leaves or a neutral `PathOpV2`. A path is a finite validated stream of
+`MoveTo`, `LineTo`, `CubicTo`, and `Close` commands with explicit optional
+stroke, fill, and z facts. Scene-space bond batches admit received lines and
+paths; atom-local batches retain masks and text. Paint is explicit lowercase
+six-digit `Rgb24`. Text runs declare their
 supplied origins, exact glyph identifiers, exact glyph origins, script, scale,
 size, face, and paint. Paint is document depiction data, not a Qt palette
 selection. The plan is complete or reports explicit target issues; Qt does not
@@ -205,7 +191,9 @@ infer missing coordinates, hydrogen policy, line width, color, visibility,
 font, glyph mapping, or other depiction defaults.
 
 `FerrumRenderProjection` validates the schema, exact revision, root envelope,
-and DTO shape before allocating scene objects. It builds a complete detached
+and DTO shape before allocating scene objects. It copies received path commands
+into `QPainterPath` and paints or hit-tests only received geometry and paint; Qt
+does not create, complete, recolor, or reinterpret paths. It builds a complete detached
 scene containing molecule groups and every supported presentation-vector root
 from the same document observation before replacing scene ownership. Molecule
 group children keep molecule-local order; top-level molecule and presentation
@@ -371,15 +359,22 @@ provenance, tab change, or teardown retires the skeleton without submission.
 Release retires it before one Rust rotation operation; durable atom selection
 returns only after the accepted replacement observation installs.
 
-`Move Complete Roots` captures the exact current Rust selectors for complete
-durable roots, their durable selection keys, immutable projected scene bounds,
-and observation provenance. Qt paints dashed local rectangles and translates
-only their shared disposable preview group while the pointer moves. Escape,
-stale provenance, tab change, or teardown retires that group without submission.
-Release retires it before one captured-revision Rust translation; the accepted
-replacement observation restores the same durable selection. Qt never moves an
-installed render-plan or presentation-root item and never derives persistent
-coordinates from the preview rectangles.
+`Move Complete Roots` observes one immutable private Rust
+`TopLevelTranslationAnchorV1` receipt at press for the exact complete durable
+roots. The receipt canonically retains selectors, source revision/digest, and
+the finite lower-left union of authored-coordinate bounds; it is neither CDML
+nor document/history/preference state. Qt captures the current `Snap New and
+Moved Points to Hex Grid` boolean with it. Enabled moves resolve one delta as
+`snap(anchor + raw_delta) - anchor`; disabled moves retain `raw_delta`. The
+same finite rigid delta translates the dashed projection-only preview and the
+revision/digest-fenced Rust commit. Projected bounds are overlay-only, not
+anchor authority. Escape, stale provenance, tab change, or teardown retires
+the group without submission. A typed stale category covers a changed selection
+set or revision/digest race and reports `Native Move Complete Roots Stale` with
+the recovery instruction to select complete roots and drag again. Validation
+and nonfinite-input failures remain Error or Unavailable. An accepted replacement
+restores durable selection and established undo/save/reopen behavior. Rotation
+remains angular input and exact existing-atom joins create no moved coordinate.
 
 `Add Atom at Point` is a one-click mode. The frontend captures one current
 durable molecule selector, an explicit element spelling, and the observation
@@ -392,6 +387,149 @@ state: Save, Save As, Change Element, Add Atom, Undo, Redo, and Close are
 disabled, Refresh Authoritative View is the recovery action, and the tab cannot
 close even if an accepted undo made the Rust document clean.
 
+`Draw Bond` captures one immutable Next Drawing snapshot at mouse press:
+element, normal order, and `DocumentBondPresentationV1`. The personal
+`Next presentation:` QSettings client offers Normal, Solid wedge from start
+atom, and Hashed wedge from start atom; directed choices use Single. It is
+shared by ordinary live windows, and changing it affects only the next press.
+Rust maps Normal to `n1`/`n2`/`n3`, SolidWedge to `w1`, and HashedWedge to
+`h1`. A directed gesture serializes its press/start atom as the narrow tip and
+its release or new atom as the wide base. Rust retains target validation,
+duplicate detection, candidate atomicity, provenance, history, selection, and
+the accepted render facts. The source-owned `native_directed_bond_preview_v1`
+receipt supplies V2 path or line operations; Qt copies those facts into a
+disposable preview and does not construct its own wedge geometry. QSettings
+preferences never enter CDML, `<standard>`, document state, history,
+dirty/save state, or selection. `w2`, `w3`, `h2`, `h3`, and all other styles
+remain outside this closed authoring contract.
+
+Selected-bond Properties is a separate editor for one already-projected durable
+bond. Its native form offers only Normal, Solid wedge, and Hashed wedge;
+directed styles require Single and are the only styles with a wedge-width edit.
+Qt submits changes through the existing revision-bound Rust property patch and
+replaces from the accepted projection without repairing historical styles or
+inferring endpoint direction.
+
+`Edit -> Next Drawing...` is the standard MainWindow-owned labelled route to a
+compact client of that same shared application model, including at narrow
+window widths. Editing Tools projects the action at low priority; it adds no
+second preference or document owner. Escape in the focused client restores its
+accepted input and, for an active Draw Bond gesture, composes the shared Cancel
+Tool action. Directed armed and press-frozen feedback names Solid or Hashed
+wedge with Single, the narrow-tip-to-wide-base direction, and the frozen
+element for an empty-space endpoint.
+
+`Insert Cyclohexane Ring` is one shared Edit and Editing Tools QAction for a
+closed native detached-ring outcome. At an empty finite page location, its
+press captures the active tab/revision/digest and resolves the centre once with
+`snap_authored_scene_point`. Rust's private `DetachedRegularRingInsertionV1`
+request supplies the canonical 40-point-side-length C6 flat-top vertices in
+y-down coordinates; Qt copies only those exact vertices into a disposable
+preview. On release, the tab commits the one-use Rust prepared receipt and
+installs its authoritative projection and selected created atoms. An atom hit
+reports empty-page guidance. Escape, Cancel Tool, tab changes, teardown, and
+stale provenance retire the preview/tool and preserve the current document and
+selection. The Rust family can validate detached sizes 3 through 8, while the
+UI exposes only cyclohexane. It writes ordinary C atoms, points, and `n1`
+bonds, not ring metadata, a template name, an orientation preference, or any
+other UI state in CDML. Attachment/fusion, UI size selection, heteroatoms,
+aromaticity, orientation/rotation, and preferences require their own contracts.
+
+`Edit -> Insert Haworth Ring...` is the adjacent shared Edit and Editing Tools
+action for exactly four named detached D-glucose recipes: alpha/beta
+D-glucopyranose and alpha/beta D-glucofuranose. Its parented modal chooser collects
+only ring form and anomer and displays the resulting concrete name. Rust owns the
+literal C6O6 recipe, finite local geometry, durable IDs, CDML authoring, history,
+selection, candidate validation, revision/digest-bound one-use receipt, and normal
+Render Plan V2 output. Qt captures the active tab and the shared snap decision once,
+copies only the Rust preview receipt, and replaces its disposable preview with the
+authoritative observation after commit. Pyranose closes `O5-C1-C2-C3-C4-C5`; furanose
+closes `O4-C1-C2-C3-C4` and continues as `C4-C5-C6`. The front C2-C3 edge is `q1` with
+a round-cap V2 front-stroke layer; directed shoulders C1->C2 and C4->C3 are `w1` front
+wedges; remaining ring edges are `n1` back edges and exocyclic edges are ordinary
+`n1`. These presentation facts are chemical single bonds, not Qt geometry. An authoritative
+atom or bond at either the raw click point or its shared snapped point refuses placement,
+preserves document and selection, and retains the same armed intent for a later empty-page
+click. Escape, Cancel Tool, stale provenance, tab change, and teardown retire the preview and
+preserve durable state. The chooser has no
+QSettings state and no UI choice enters CDML, history, selection, or document data.
+Generic codes/catalogs, other sugars, attachment/fusion, rotation/reflow, and general
+stereochemical inference require new contracts.
+
+The accepted current-source/installed-site walkthrough exercises all four chooser variants,
+one shared snap anchor, receipt-derived preview, and one authoritative commit. It verifies
+occupied-page, Cancel, Escape, and stale-intent preservation; public tab Undo/Redo restores
+semantic CDML and history even though revisions advance; and Save/reopen retains the inserted
+molecules. It confirms that CDML retains only durable Haworth presentation facts and that neither
+the chooser nor QSettings stores Haworth UI metadata. This walkthrough is disposable integration
+evidence, while compact semantic Rust, binding, renderer, and visible product tests remain the
+permanent coverage.
+
+`Chemistry -> Insert Direct-Glycosidic Haworth...` is an accepted native V1 client. Its
+initially empty, accessible `Structural SMILES` dialog
+explains that the tool draws only a limited two-ring C/O profile and does not identify a sugar,
+infer stereochemistry, or name a glycosidic linkage. Rust alone parses and accepts exactly two
+vertex-disjoint five- or six-member C/O rings plus one exterior degree-two oxygen bridge: 11--13
+atoms, neutral nonaromatic single bonds, and no other atoms, bonds, charges, stereo, or source
+facts. This is a structural drawing profile, not sucrose, anomer, D/L, linkage, or general-SMILES
+recognition. No sample or preset is shipped. After typed Rust preparation, Qt captures the source
+tab, revision, digest, and one shared snapped empty-page anchor; it paints only frozen
+receipt-derived V2 preview batches, then installs the ordinary Rust observation after one commit.
+Raw or snapped durable atom/bond occupancy preserves the document and leaves a current intent
+available for an empty location. Cancel, Escape, stale/busy/closed/tab-change state, and failed
+delivery retire preview/intent without mutation or redirection. Rust owns graph admission, IDs,
+CDML, history, selection, persistence, and normal V2 q1/w1/n1 lowering; private PyO3 owns only
+the receipt seam. SMILES, names, parser coordinates, ring choice, preview state, and preferences
+remain outside CDML, QSettings, public `.pyi`, CLI, wire, and composite rendering. Compact
+semantic Rust/binding/Qt behaviors are permanent evidence. A sealed installed site passed the
+focused private/public suite (4 passed); the independent public walkthrough accepted blank and
+invalid inline accessible recovery, pointer-tool cancellation, valid occupied-location retry,
+selection, Escape/tab-switch/close containment, Undo/Redo, save/reopen, and normal V2
+receipt-only installation without a direct-glycosidic marker. Wheel/site mechanics,
+offscreen-focus behavior, screenshots, parser, visual, accessibility, and occupancy probes remain
+disposable.
+
+`Chemistry -> Check Bond Capacity...` is an accepted ordinary-native, read-only FQ-010
+diagnostic for selected complete direct roots. It accepts neutral, nonaromatic ordinary
+`H`, `B`, `C`, `N`, `O`, `F`, `Cl`, `Br`, and `I` graphs with absent or zero formal charge,
+single/double/triple connectivity, and no authored `valency`, `multiplicity`, or
+`free_sites` fact. Rust retains whether formal charge and explicit hydrogen values were
+authored, evaluates explicit-H plus incident bond-order demand, and reports each assessed
+atom as Within Capacity or Exceeds Capacity. A root outside that grammar receives one
+Not checked result rather than a partial atom verdict; bond depiction is ignored. This is
+not a chemical-validity, valence, or oxidation-state claim. Rust owns the finite table,
+grammar, authenticated receipt, and provenance; the private PyO3 seam transfers it and Qt
+owns only the fenced worker and selectable report dialog. The route adds no Properties,
+QSettings, CDML, history, selection, public Python, CLI, or wire contract. Compact
+Rust/API/private-binding/public-action behavior tests are permanent, including a mixed-root public
+regression. The accepted public real-worker walkthrough exercises supported/no-excess/finding/Not checked
+reports, every assessed atom's authored charge/H supporting facts in a mixed excess root, direct-root
+order, depiction independence, lifecycle/nonmutation, and accessibility. Fresh wheel/site,
+visual, and timing observations remain disposable evidence.
+
+`Chemistry -> Create Fragment...` and `View Fragments...` are accepted ordinary-native
+Explicit Fragment V1 clients. Create captures one live source tab, revision, digest, direct-root
+molecule, and durable atom/bond selection before the modal name form. It accepts one nonblank
+plain name after trimming outer whitespace, retains duplicate labels, and asks Rust to create only
+one explicit durable annotation in that molecule. Rust owns direct-child eligibility, selected-bond
+endpoint closure, canonical molecule-source order, collision-safe identity, one-use revision-bound
+commit, CDML, history, undo/redo, save/reopen, and the scalar observation. Disconnected selected
+members are valid metadata; creating the label changes neither molecule chemistry nor selection.
+Qt owns only the dialog, frozen capture, focus/recovery, status, and receipt-based projection
+installation. It keeps typed text for safe retry, and Cancel, Escape, stale/revision/tab/close/busy
+state, or refusal preserves document and selection and directs the author to select again. View is
+read-only: it lists only exact supported explicit records and may show one safe notice that retained
+imported metadata cannot be edited here. Delete, rename, highlight, type selection, clipboard,
+groups/templates, inference, cross-molecule records, QSettings, public `.pyi`, CLI, and wire
+surfaces are outside V1. The private PyO3 seam is runtime plumbing, not a stable Python promise.
+The independent rereview accepted the View lifecycle repair (source tab, revision, digest, busy,
+refresh, and close retire a modal View without redirecting focus) and the stable typed-error repair
+(expected Rust errors retain the Create name/focus without exposing internal reasons). Installed
+public evidence accepted endpoint closure/source order, duplicate labels, blank retry/Cancel/stale
+containment, retained notice, View lifecycle, undo/redo, and save/reopen. Compact semantic
+Rust/binding/Qt tests are permanent evidence; wheel/site, screenshots, keyboard/accessibility,
+visual, corpus, and timing observations remain disposable.
+
 ## Workers and UI thread
 
 The first render-plan slice is Qt-thread affine: `ferrum_chem` calls and all
@@ -399,13 +537,80 @@ QGraphics construction occur on the Qt main thread. Background render work is
 introduced only with an owned-value handoff and a documented main-thread
 projection delivery contract.
 
-Current import workers remain asynchronous. A worker has one owning session
-while live. Its queued relay delivers once on the UI thread only if its session
-and request token are still current. A stale, cancelled, or closed-tab result
-cannot mutate widgets or projection state. Closing or replacing a tab requests
-interruption, transfers a still-running worker to the window's terminal owner,
-and releases its Qt wrapper only after `finished`. Shutdown waits for that
-retirement path before it reports completion.
+Native artifact export follows the same lifetime rule without moving a
+`DocumentSession` off the UI thread. Its worker receives one owned immutable
+observation and creates an owned Rust artifact receipt. Qt fences the tab before
+starting that work and again before publication. Export retains the captured tab as
+busy; ordinary Open and Open in Current Tab also refuse to start while export is
+live, while export refuses when a local Open is active or queued. Close cancels
+future delivery and waits for retirement; it does not claim to interrupt Rust work
+or publication already begun.
+
+## Native Open lifecycle
+
+The local-CDML and decoded-CD-SVG profiles retain the admitted regular descriptor long enough for
+Rust to mint an opaque equality-only origin token. The private one-use PyO3 receipt transfers the
+authenticated session, render observation, token, and closed source kind together. The token is
+live-tab lifecycle state only; it is not CDML, serialized document/session state, history, a
+preference, or a cross-process identity. A decoded-CD-SVG receipt contains canonical embedded CDML
+only; the SVG wrapper never enters the session or Qt projection.
+
+Qt owns immutable Open intents and their dispositions. Interactive `File > Open...` chooses
+`ReplacePristineTarget` only for the explicitly marked, clean revision-zero bootstrap `Untitled`
+tab with no origin, content, selection, pending projection, worker, or canvas interaction. Rust
+admission and receipt authentication happen before Qt revalidates that target, its revision/digest,
+and canvas-idle fence, fully constructs the replacement, and atomically installs it at the target
+index. A stale or ineligible target instead receives the ordinary `NewTab` result. A busy target
+stays current while that new tab installs in the background, so its visible preview survives until
+the user resolves it. Failure, cancellation, shutdown, invalid receipt, and construction failure
+preserve all existing tabs. A matching origin token activates the existing tab, including for a
+hard-link alias, and disposes the newly admitted receipt.
+
+For decoded CD-SVG, Qt keeps source display provenance separate from the tab's
+`file_path`. The source path and closed receipt kind provide truthful tooltip and
+accessible wording, but never enter CDML, history, settings, selection, or Rust session
+state. The tab begins clean without a publication baseline, so Save uses the ordinary
+CDML Save As flow. Once that publication succeeds, later Save uses its `.cdml`
+destination while the original token remains valid for source duplicate activation.
+Qt selects this route only from the requested `.svg` suffix; it does not parse, sniff,
+decompress, render, or preserve a wrapper. Stable rejected-source categories explain
+whether to choose a regular decoded SVG, provide one canonical payload, reduce resource
+use, or choose supported embedded CDML; installation failure states that the current tab
+is unchanged.
+
+Launch and queued paths always use `NewTab`; they never consume a bootstrap page. `File -> Recent
+Files` is the versioned
+`FerrumNativeRecentFilesV1` QSettings-only personal client. It stores lexical
+normalized absolute display paths without symlink resolution, deduplicates those display keys, and
+uses descriptor-token equality only for the stronger live-tab duplicate rule. Confirmed native Open,
+token activation, and Save promote an entry; failed, cancelled, and unconfirmed work does not.
+Recent selection always submits a forced `NewTab` intent through the ordinary coordinator. File
+rebuilds its Recent Files cascade after updates and when shown; duplicate basenames add parent context
+while the full path remains the tooltip, status, and accessible description. Its default usable menu
+capacity is tunable local presentation policy, not a document contract or exact-count test. A
+Rust-confirmed unavailable/nonregular source presents `File Not Available` with `Keep` by default or
+explicit `Remove from Recent Files` before the generic typed failure; cancellation and other failures
+retain the entry. `Clear Recent Files` clears settings only.
+`File -> Open in Current Tab...` is the separate, explicit ordinary-native replacement command. Its
+accessible text is `Open in Current Tab...` and its standard shortcut is `Ctrl+Shift+O`. It is enabled only
+for the selected registered ordinary-native tab with a complete current projection, no close/replacement,
+target-owned asynchronous work, or active canvas interaction; while a tool or target-owned operation is
+active its guidance is to finish, cancel, or let that work complete. It
+captures an immutable target fence, prepares and authenticates the source first, then revalidates the
+registered current target before deciding anything destructive. A matching admitted descriptor token activates the
+already-open native tab and preserves the requested target. A clean saved populated target is constructed
+and swapped atomically at its captured index without a redundant confirmation. A dirty target alone offers
+Save (default), Replace, and Cancel: named Save uses native Save, unnamed Save uses native Save As, and a
+successful publication must establish and pass a fresh post-save fence before the swap. Stale, busy, close,
+cancel, admission, construction, or save failures discard the pending receipt, preserve the target's
+selection, tool, preview, and focus, and report an explicit retry; this command never becomes NewTab.
+At a successful swap the old owner retires only after the complete incoming tab registers, and the new tab
+starts with its own clean selection and focus. A queued worker `finished` signal is deferred while this
+modal recovery decision is active, so it cannot retire the explicit intent inside the nested event loop.
+
+Recent state never enters CDML, standard metadata, Rust sessions/history, dirty/save state, selection,
+receipts, or diagnostics. Recent Files remains confirmed-only composition through forced `NewTab`;
+ordinary Open and Recent semantics are unchanged by explicit current-tab replacement.
 
 ## Visible state model
 
@@ -419,28 +624,33 @@ retirement path before it reports completion.
 | Success | Rust accepts an operation, load, save, or recovery publication. | Replace from the returned observation and report the typed outcome; only confirmed publication updates saved UI state. |
 | Failure | Rust rejects an operation or publication/projection fails. | Preserve the current accepted observation and projection; report the typed error with a recovery action when one exists. |
 
-## Replacement path
+## Native product boundary
 
-The cutover proceeds capability by capability, with no fallback or OASA-shaped
-adapter:
+The public command and `MainWindow` own the complete Rust-native document lifecycle:
+Open, Open in Current Tab, save/reopen, cancellation and stale fences, recovery export,
+ordinary artifact export, and shutdown. There is no second editor, alternate session
+model, compatibility tab, or action-policy switch.
 
-1. Publish frozen revision-bound Rust observations, typed projection facts, and
-   the smallest durable operation through `ferrum_chem`.
-2. Build and verify the isolated RenderPlanV1/Telex Qt painter and projection
-   controller using those values.
-3. Route the completed vertical slice through the tab session, then remove its
-   OASA producer, legacy atom/bond rendering bridge, provisional IDs, and tests.
-4. Repeat for each document, chemistry, presentation, and export capability
-   until no production Qt source imports OASA or exposes BKChem branding.
+The product accepts local CDML and the bounded decoded-CD-SVG profile. It explicitly
+refuses compressed copies, `.svgz`, `.cdsvg`, `.cdxml`, `.cml`, and unsupported or
+incomplete documents without reading, sniffing, or converting them. The recovery copy
+writes CDML only; it does not offer format conversion. Broader historical editing modes,
+template catalogs, import/export families, and clipboard or presentation workflows are
+preproduction drops unless a later slice gives them a complete Rust owner and an explicit
+user contract.
 
-This contract does not claim that the current temporary path has been replaced,
-that unsupported document features render, or that full edit, save, export, and
-codec coverage is complete. In particular, free-standing atom insertion does
-not provide bond creation, Draw-mode equivalence, atom movement or deletion,
-coordinate generation, or general molecule import. It defines the durable path
-that each completed slice must follow.
+Historical note: the former mixed-host migration bridge and its retained-session shutdown
+path were removed with the second host. They are not current product behavior or test
+requirements.
 
 ## Verification evidence
+
+Permanent tests stay small and behavior-focused: a supported native operation, typed
+refusal with preserved document state, and Rust/PyO3 contracts that can regress independently.
+They do not assert private worker wiring, module inventories, timing, fixed action counts,
+or visual bytes. Source/dependency inventories, fresh wheel or installed-site checks,
+manual walkthroughs, screenshots, accessibility checks, and race observations are useful
+one-time implementation evidence, not permanent fast-suite gates.
 
 Before accepting a slice that claims those capabilities, prove its actual user
 path: open or create a document, obtain the required revision-bound Ferrum
@@ -451,6 +661,6 @@ only the operations and document classes named by its receipt.
 
 Run focused Rust, PyO3, and offscreen Qt behavior tests for the changed slice.
 Use a managed end-to-end receipt for installed-wheel and visual evidence. Keep
-the fast suite free of timing, private-wiring, fixture-heavy, or exact-count
-checks. The source-file limit remains below 1,000 physical lines for every
-authored implementation, test, and durable documentation file.
+the fast suite free of timing, private-wiring, fixture-heavy, and exact-count
+checks. Follow the repository source-file guidance rather than treating a line
+count as a functional acceptance gate.

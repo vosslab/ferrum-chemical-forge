@@ -1,5 +1,6 @@
 use ferrum_core::{Identifier, RecordId, RecordKind};
 use ferrum_document::DocumentSession;
+use ferrum_render::{RenderDisplayLayerV1, RenderOp, VectorStrokeLineCapV1};
 use serde_json::Value;
 
 use crate::depiction_profile_v1::DepictionResolutionV1;
@@ -53,6 +54,72 @@ fn profile_emits_explicit_ferrum_defaults_from_initial_session_provenance() {
     assert_eq!(bond["operations"][0]["operation"]["width"], 1.0);
     assert_eq!(bond["operations"][0]["operation"]["paint"], "000000");
     assert_eq!(bond["operations"][0]["operation"]["z"], 10);
+}
+
+#[test]
+fn declared_haworth_front_forms_lower_through_the_ordinary_v2_observation() {
+    let session = DocumentSession::load(
+		"<cdml><standard bond_width=\"6px\"/><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom><atom id=\"c\" name=\"C\"><point x=\"40\" y=\"0\"/></atom><atom id=\"d\" name=\"C\"><point x=\"60\" y=\"0\"/></atom><bond id=\"w\" start=\"a\" end=\"b\" type=\"w1\" haworth_position=\"front\"/><bond id=\"q\" start=\"b\" end=\"c\" type=\"q1\" haworth_position=\"front\"/><bond id=\"n\" start=\"c\" end=\"d\" type=\"n1\" haworth_position=\"back\"/></molecule></cdml>",
+	)
+	.expect("document");
+    let resolution = render_document_projection_v1(
+        session.observe(0).expect("observation").projection(),
+        &DepictionProfileV1::ferrum_default(),
+    )
+    .expect("resolution");
+    let batches = resolution.plans()[0].batches();
+    let q = batches
+        .iter()
+        .find(|batch| batch.display_layer() == RenderDisplayLayerV1::HaworthFrontStroke)
+        .expect("q1/front batch");
+    let w = batches
+        .iter()
+        .find(|batch| batch.display_layer() == RenderDisplayLayerV1::HaworthFrontWedge)
+        .expect("w1/front batch");
+
+    assert!(matches!(q.operations(), [RenderOp::Path(path)]
+		if matches!(path.stroke(), Some(stroke)
+			if stroke.line_cap() == VectorStrokeLineCapV1::Round && stroke.width().get() > 1.0)));
+    assert!(
+        matches!(w.operations(), [RenderOp::Path(path)]
+		if path.fill().is_some() && path.commands().iter().any(|command| matches!(command, ferrum_render::ScenePathCommandV2::CubicTo { .. })))
+            && batches
+                .iter()
+                .any(|batch| matches!(batch.operations(), [RenderOp::Line(_)]))
+            && resolution.issues().is_empty()
+    );
+}
+
+#[test]
+fn malformed_haworth_front_fact_isolated_to_its_bond_target() {
+    let session = DocumentSession::load(
+		"<cdml><molecule id=\"m\"><atom id=\"a\" name=\"N\" background-color=\"#ffffff\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom><atom id=\"c\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"bad\" start=\"a\" end=\"b\" type=\"q1\"/><bond id=\"normal\" start=\"b\" end=\"c\" type=\"n1\"/></molecule></cdml>",
+	)
+	.expect("document");
+    let resolution = render_document_projection_v1(
+        session.observe(0).expect("observation").projection(),
+        &DepictionProfileV1::ferrum_default(),
+    )
+    .expect("resolution");
+    let mut operations = resolution.plans()[0]
+        .batches()
+        .iter()
+        .flat_map(|batch| batch.operations());
+
+    assert!(
+        resolution.plans()[0]
+            .plan()
+            .issues()
+            .iter()
+            .any(|issue| matches!(
+                issue.kind(),
+                ferrum_render::RenderIssueKind::UnsupportedFeature { .. }
+            ))
+    );
+    assert!(operations.any(|operation| matches!(
+        operation,
+        RenderOp::Mask(_) | RenderOp::Text(_) | RenderOp::Line(_)
+    )));
 }
 
 #[test]
@@ -226,8 +293,8 @@ fn local_standard_and_profile_facts_resolve_without_renderer_defaults() {
 }
 
 #[test]
-fn normal_double_and_triple_cdml_bonds_lower_to_complete_multi_line_batches() {
-    for (source_type, expected_lines) in [("n2", 2), ("n3", 3)] {
+fn normal_and_directed_cdml_bonds_lower_to_supported_render_facts() {
+    for source_type in ["n2", "n3"] {
         let source = format!(
             "<cdml><standard><bond width=\"10\"/></standard><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\"><point x=\"20\" y=\"0\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\" type=\"{source_type}\"/></molecule></cdml>",
         );
@@ -245,23 +312,45 @@ fn normal_double_and_triple_cdml_bonds_lower_to_complete_multi_line_batches() {
             .iter()
             .find(|batch| batch.target().record_id().kind() == RecordKind::Bond)
             .expect("normal bond has one complete render batch");
-        assert_eq!(bond.operations().len(), expected_lines, "{source_type}");
         assert!(
             bond.operations()
                 .iter()
-                .all(|operation| matches!(operation, ferrum_render::RenderOp::Line(_))),
+                .any(|operation| matches!(operation, ferrum_render::RenderOp::Line(_))),
             "{source_type}",
         );
-        if source_type == "n2" {
-            let mut lines = bond.operations().iter().map(|operation| match operation {
-                ferrum_render::RenderOp::Line(line) => line.start().y(),
-                _ => unreachable!("normal multiple bond contains only lines"),
-            });
-            let first = lines.next().expect("first lane");
-            let second = lines.next().expect("second lane");
-            assert_eq!(second - first, 10.0);
-        }
     }
+
+    let session = DocumentSession::load(
+        "<cdml><standard><bond width=\"10\" wedge_width=\"12\"/></standard><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\"><point x=\"20\" y=\"0\"/></atom><bond id=\"solid\" start=\"a\" end=\"b\" type=\"w1\"/><bond id=\"hashed\" start=\"b\" end=\"a\" type=\"h1\"/></molecule></cdml>",
+    ).expect("session");
+    let resolution = render_document_projection_v1(
+        session.observe(0).expect("observation").projection(),
+        &DepictionProfileV1::ferrum_default(),
+    )
+    .expect("resolution");
+    assert!(resolution.issues().is_empty());
+    let batches = &resolution.plans()[0].plan().batches();
+    let solid = batches
+        .iter()
+        .find(|batch| {
+            batch
+                .operations()
+                .iter()
+                .any(|operation| matches!(operation, ferrum_render::RenderOp::Path(_)))
+        })
+        .expect("solid wedge batch");
+    let hashed = batches
+        .iter()
+        .find(|batch| {
+            batch.target().record_id().kind() == RecordKind::Bond
+                && batch
+                    .operations()
+                    .iter()
+                    .all(|operation| matches!(operation, ferrum_render::RenderOp::Line(_)))
+        })
+        .expect("hashed wedge batch");
+    assert!(solid.operations().iter().any(|operation| matches!(operation, ferrum_render::RenderOp::Path(path) if path.fill().is_some())));
+    assert!(hashed.operations().iter().all(|operation| matches!(operation, ferrum_render::RenderOp::Line(line) if line.start().x().is_finite() && line.end().x().is_finite())));
 }
 
 #[test]

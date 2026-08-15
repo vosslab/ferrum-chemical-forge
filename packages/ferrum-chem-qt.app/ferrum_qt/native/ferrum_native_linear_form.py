@@ -159,7 +159,7 @@ class FerrumNativeLinearFormWindowMixin:
 
 	#============================================
 	def _on_convert_linear_form(self, _checked: bool = False) -> bool:
-		"""Submit one current selection without a dialog, worker, or legacy fallback."""
+		"""Submit one current selection through a direct Rust operation."""
 		capture = self._linear_form_capture()
 		if capture is None:
 			return False

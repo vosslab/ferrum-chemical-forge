@@ -52,8 +52,17 @@ source source_me.sh
 QT_QPA_PLATFORM=offscreen python3 -B -m pytest packages/ferrum-chem-qt.app/tests/ -q -W error
 ```
 
-The native CDML route is a separate installed-wheel proof. Supply the exact wheel
-under review rather than relying on an ambient extension:
+Ferrum-Qt has one ordinary product entry point. After completing the contributor
+setup in [INSTALL.md](INSTALL.md), use it directly:
+
+```bash
+source source_me.sh
+ferrum-qt
+```
+
+The installed-wheel CDML route is packaging evidence, not a permanent pytest
+gate. Supply the exact wheel under review rather than relying on an ambient
+extension:
 
 ```bash
 source source_me.sh
@@ -61,9 +70,34 @@ python3 -B packages/ferrum-chem-qt.app/tests/e2e_native_cdml_file_route.py \
   --wheel /absolute/path/ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl
 ```
 
-It opens, renders, saves, reopens, and closes a CDML document through
-`ferrum-qt --native`'s OASA-free host. The wider native-wheel closure and relinking
-proof is documented in [USAGE.md](USAGE.md#native-wheel-packaging-evidence).
+It exercises open, edit, save, reopen, and close through the installed ordinary
+Ferrum-Qt package. The wider native-wheel closure and relinking proof is
+documented in [USAGE.md](USAGE.md#package-release-evidence).
+
+## M20/M22 release evidence
+
+M20 and M22 source implementation is accepted for one proposed target: macOS arm64 with CPython
+3.12. It is a maintainer E2E and release workflow, not a normal pytest lane. The source tree does
+not include the required third-party Qt runtime/build wheelhouses, so do not claim a release result
+until the explicit no-index build/install/relink route has run successfully.
+[INSTALL.md](INSTALL.md#m20-package-release-proof) lists the input roles and accurate commands.
+Keep Cargo, Qt build-backend, and Qt runtime inputs separate and recorded; `ferrum` remains a
+Cargo-installed CLI outside the two Python wheels.
+
+The permanent native-builder self-test protects notice-bundle insertion behavior: required notice
+roles must be installed in distribution metadata, linked from metadata, and recorded after wheel
+rewriting. It does not freeze archive bytes, wheel order, native-library totals, or a target build.
+Fresh wheels, clean environments, source archives, installed behavior, relink observations, and
+the predicate inventory are one-time M20/M22 release evidence. The inventory classifies expected
+extension, schema, loader, native RDKit, license, entry-point, and resource roles while permitting
+historical provenance; it is followed by human legal/release review. These checks are not permanent
+pytest, timing, byte/hash, member-count, pixel, network, or platform-matrix requirements.
+
+Historical OASA evidence is isolated under `tests/e2e/oracle/`. It is an
+explicit, non-product comparison tool: do not add its dependencies to a normal
+developer environment or use it as a regular test gate. Run it only when a
+migration question calls for an oracle comparison, following
+[E2E_TESTS.md](E2E_TESTS.md).
 
 ## Check documentation
 

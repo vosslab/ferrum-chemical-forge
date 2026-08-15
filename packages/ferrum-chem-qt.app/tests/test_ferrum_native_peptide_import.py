@@ -1,4 +1,4 @@
-"""Behavior coverage for strict OASA-free native peptide-template insertion."""
+"""Behavior coverage for strict Rust-native peptide-template insertion."""
 
 # Standard Library
 import dataclasses

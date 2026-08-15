@@ -18,12 +18,12 @@ struct CoordinatePair {
     y: f64,
 }
 
-struct RootGeometry {
+pub(crate) struct RootGeometry {
     id: PersistentId,
     node: Node,
     is_molecule: bool,
     pairs: Vec<CoordinatePair>,
-    bounds: (f64, f64, f64, f64),
+    pub(crate) bounds: (f64, f64, f64, f64),
 }
 
 #[derive(Clone, Copy)]
@@ -104,7 +104,7 @@ impl TypedDocument {
     }
 }
 
-fn validate_complete_bracket_selection(
+pub(crate) fn validate_complete_bracket_selection(
     document: &TypedDocument,
     request: &TopLevelTransformV1,
 ) -> Result<(), TypedDocumentError> {
@@ -128,7 +128,7 @@ fn validate_complete_bracket_selection(
     Ok(())
 }
 
-fn resolve_geometries(
+pub(crate) fn resolve_geometries(
     document: &TypedDocument,
     targets: &[TopLevelRootSelectorV1],
 ) -> Result<Vec<RootGeometry>, TypedDocumentError> {

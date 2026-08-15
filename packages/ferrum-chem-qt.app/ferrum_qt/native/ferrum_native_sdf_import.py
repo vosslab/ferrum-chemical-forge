@@ -1,4 +1,4 @@
-"""Bounded OASA-free preparation of every record in one local SDF file."""
+"""Bounded Rust-native preparation of every record in one local SDF file."""
 
 # Standard Library
 import dataclasses

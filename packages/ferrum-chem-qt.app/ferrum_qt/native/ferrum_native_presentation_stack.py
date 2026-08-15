@@ -1,4 +1,4 @@
-"""OASA-free ordering of durable direct-root presentation records."""
+"""Rust-native ordering of durable direct-root presentation records."""
 
 # PIP3 modules
 import PySide6.QtGui

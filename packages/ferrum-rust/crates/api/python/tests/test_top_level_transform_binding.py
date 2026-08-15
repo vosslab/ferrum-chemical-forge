@@ -36,6 +36,33 @@ def test_rigid_translation_is_one_revisioned_operation_across_root_kinds() -> No
     assert session.undo(1).observation.projection.molecules[0].atoms[0].position.x == 1.0
 
 
+def test_private_translation_anchor_receipt_is_canonical_and_revision_bound() -> None:
+    """The private receipt carries Rust geometry and refuses stale provenance."""
+    kinds = ferrum_chem.DocumentTopLevelRootKindV1
+    targets = (_selector("p", kinds.plus), _selector("m", kinds.molecule))
+    session = ferrum_chem.DocumentSession.load(SOURCE)
+    receipt = session.observe_top_level_translation_anchor_v1(0, targets)
+    assert (
+        (receipt.anchor_x, receipt.anchor_y) == (1.0, 2.0)
+        and tuple(selector.root_id for selector in receipt.selectors) == ("m", "p")
+        and receipt.source_revision == session.snapshot().revision
+        and receipt.source_digest == session.snapshot().digest
+    )
+
+    changed = session.submit(
+        0,
+        ferrum_chem.DocumentOperationV1.translate_top_level_roots(
+            receipt.selectors, 3.0, -1.0,
+        ),
+    )
+    with pytest.raises(ferrum_chem.RevisionConflictError):
+        session.observe_top_level_translation_anchor_v1(receipt.source_revision, receipt.selectors)
+    snapshot = session.snapshot()
+    assert (snapshot.revision, snapshot.digest) == (
+        changed.observation.snapshot.revision, changed.observation.snapshot.digest,
+    )
+
+
 def test_scale_and_mirror_share_the_closed_revisioned_operation_boundary() -> None:
     """Affine factories preserve aggregate-pivot semantics and frozen intent."""
     kinds = ferrum_chem.DocumentTopLevelRootKindV1

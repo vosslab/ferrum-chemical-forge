@@ -650,6 +650,7 @@ def command_self_test() -> None:
 		"ferrum_chem.cpython-312-darwin.so",
 		"ferrum_chem.pyi",
 		"py.typed",
+		"ferrum-operation-v1.schema.json",
 		*(
 			f".dylibs/{name}"
 			for name in sorted(builder.MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names)
@@ -778,10 +779,21 @@ def assert_shipped_wheel_members(wheel: Path) -> None:
 		if any(name.startswith("ferrum_chem/") for name in members):
 			raise E2eError("shipping wheel retained a nested ferrum_chem package")
 		extensions = [name for name in members if re.fullmatch(r"ferrum_chem[^/]*\.so", name)]
-		if len(extensions) != 1 or "ferrum_chem.pyi" not in members or "py.typed" not in members:
+		if (
+			len(extensions) != 1
+			or "ferrum_chem.pyi" not in members
+			or "py.typed" not in members
+			or "ferrum-operation-v1.schema.json" not in members
+		):
 			raise E2eError(f"shipping wheel lacks direct extension or typing metadata: {members}")
+		try:
+			schema = json.loads(archive.read("ferrum-operation-v1.schema.json"))
+		except json.JSONDecodeError as error:
+			raise E2eError(f"shipping wheel has an invalid operation protocol schema: {error}") from error
+		if not isinstance(schema, dict) or not isinstance(schema.get("x-ferrum-roots"), dict):
+			raise E2eError("shipping wheel lacks the operation protocol schema roots")
 		allowed = {
-			*extensions, "ferrum_chem.pyi", "py.typed",
+			*extensions, "ferrum_chem.pyi", "py.typed", "ferrum-operation-v1.schema.json",
 			*(name for name in members if ".dist-info/" in name),
 			*(f".dylibs/{name}" for name in load_build_tool().MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names),
 		}

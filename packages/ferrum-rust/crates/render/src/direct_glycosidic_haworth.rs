@@ -111,16 +111,6 @@ impl DirectGlycosidicHaworthDrawOpV1 {
             | Self::RoundedFrontWedge { bond, .. } => bond,
         }
     }
-    /// Return checked graph-local provenance, never a paint-order input.
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) const fn source_order(&self) -> u32 {
-        match self {
-            Self::OrdinaryLine { source_order, .. }
-            | Self::HaworthFrontStroke { source_order, .. }
-            | Self::RoundedFrontWedge { source_order, .. } => *source_order,
-        }
-    }
 }
 
 /// One private-profile path command retained for the private draw stream.

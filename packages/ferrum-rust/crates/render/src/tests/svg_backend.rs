@@ -255,6 +255,53 @@ fn svg_backend_rejects_a_nonfinite_or_nonpositive_viewport_before_emitting() {
 }
 
 #[test]
+fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
+    let path = PathOpV2::new(
+        vec![
+            ScenePathCommandV2::MoveTo(point(2.0, 2.0)),
+            ScenePathCommandV2::LineTo(point(12.0, 2.0)),
+            ScenePathCommandV2::LineTo(point(7.0, 10.0)),
+            ScenePathCommandV2::Close,
+        ],
+        Some(ScenePathStrokeV2::new(paint("112233"), size(1.0))),
+        Some(paint("aabbcc")),
+        0,
+    )
+    .expect("scene path");
+    let plan = MoleculeRenderPlan::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
+        vec![
+            RenderBatch::new(
+                target(RecordKind::Bond, "svg-path", 1),
+                BatchSpace::Scene,
+                vec![RenderOp::Path(path)],
+            )
+            .expect("path batch"),
+        ],
+        vec![],
+    )
+    .expect("path plan");
+    let source = render_plan_to_svg_v1(
+        &plan,
+        SvgViewportV1::new(0.0, 0.0, 20.0, 20.0).expect("viewport"),
+    )
+    .expect("SVG lowering");
+    let mut tree = Xot::new();
+    let parsed = tree.parse(source.as_str()).expect("SVG parses");
+    let root = tree.document_element(parsed).expect("SVG root");
+    let path = descendant_elements(&tree, root)
+        .into_iter()
+        .find(|element| {
+            element_name(&tree, *element).0 == "path"
+                && attribute(&tree, *element, "fill") == Some("#aabbcc")
+        })
+        .expect("source path");
+
+    assert_eq!(attribute(&tree, path, "fill"), Some("#aabbcc"));
+    assert_eq!(attribute(&tree, path, "stroke"), Some("#112233"));
+}
+
+#[test]
 fn svg_backend_returns_a_typed_error_for_valid_extreme_text_geometry() {
     let atom = AtomRenderTarget::new(
         target(RecordKind::Atom, "svg-extreme", 1),

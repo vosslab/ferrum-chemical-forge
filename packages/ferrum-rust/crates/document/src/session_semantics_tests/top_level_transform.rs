@@ -88,6 +88,59 @@ fn rigid_translation_moves_molecule_and_presentation_and_history_restores_geomet
 }
 
 #[test]
+fn translation_anchor_is_canonical_and_rigid_across_mixed_roots() {
+    let mut session = DocumentSession::load(MIXED_SOURCE).expect("fixture loads");
+    let forward = session
+        .observe_top_level_translation_anchor_v1(
+            0,
+            vec![
+                selector("m", TopLevelRootKindV1::Molecule),
+                selector("p", TopLevelRootKindV1::Plus),
+            ],
+        )
+        .expect("mixed roots have an authored anchor");
+    let reversed = session
+        .observe_top_level_translation_anchor_v1(
+            0,
+            vec![
+                selector("p", TopLevelRootKindV1::Plus),
+                selector("m", TopLevelRootKindV1::Molecule),
+            ],
+        )
+        .expect("selector order does not change the receipt");
+    assert_eq!(
+        (forward.selectors(), forward.anchor()),
+        (reversed.selectors(), reversed.anchor())
+    );
+    assert_eq!(forward.anchor(), (1.0, 2.0));
+
+    let changed = session
+        .submit(
+            0,
+            operation(
+                forward.selectors().to_vec(),
+                TopLevelTransformModeV1::Translate { dx: 3.0, dy: -1.0 },
+            ),
+        )
+        .expect("receipt selectors remain a rigid transform target");
+    let projection = changed.observation().projection();
+    let atom = projection.molecules()[0].atoms()[0].position();
+    let PresentationRootProjectionV1::Plus { plus } = &projection.presentation_stack().roots()[0]
+    else {
+        panic!("fixture plus remains projected");
+    };
+    assert!((plus.anchor().x() - atom.x() - 4.0).abs() <= 2.0 * AUTHORED_HALF_UNIT_POINTS);
+    assert!((plus.anchor().y() - atom.y() - 5.0).abs() <= 2.0 * AUTHORED_HALF_UNIT_POINTS);
+    let undone = session.undo(1).expect("rigid move is one history entry");
+    assert_eq!(
+        undone.observation().projection().molecules()[0].atoms()[0]
+            .position()
+            .x(),
+        1.0
+    );
+}
+
+#[test]
 fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
     let source = concat!(
         "<cdml><plus id=\"a\"><point x=\"2\" y=\"4\"/></plus>",
@@ -277,6 +330,39 @@ fn malformed_later_root_rejects_the_whole_transform() {
     let after = session.snapshot().expect("snapshot");
     assert_eq!(after.revision(), before.revision());
     assert_eq!(after.digest(), before.digest());
+}
+
+#[test]
+fn translation_anchor_refuses_partial_brackets_without_changing_the_source() {
+    let source = concat!(
+        "<cdml><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" spline=\"no\">",
+        "<point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/>",
+        "<point x=\"1\" y=\"2\"/><point x=\"0\" y=\"3\"/></polyline>",
+        "<polyline id=\"right\" bracket_pair=\"left\" bracket_side=\"right\" spline=\"no\">",
+        "<point x=\"4\" y=\"0\"/><point x=\"3\" y=\"1\"/>",
+        "<point x=\"3\" y=\"2\"/><point x=\"4\" y=\"3\"/></polyline></cdml>",
+    );
+    let session = DocumentSession::load(source).expect("bracket fixture loads");
+    let before = session.snapshot().expect("source snapshot");
+    let error = session
+        .observe_top_level_translation_anchor_v1(
+            0,
+            vec![selector("left", TopLevelRootKindV1::Polyline)],
+        )
+        .expect_err("partial bracket does not have a complete-root anchor");
+    assert!(
+        matches!(
+            error,
+            DocumentSessionError::Operation(SessionOperationError::Candidate(
+                TypedDocumentError::PartialBracketTransform(_)
+            ))
+        ),
+        "unexpected receipt refusal: {error:?}"
+    );
+    assert_eq!(
+        session.snapshot().expect("source remains unchanged"),
+        before
+    );
 }
 
 #[test]

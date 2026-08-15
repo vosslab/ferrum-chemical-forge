@@ -1,4 +1,4 @@
-"""Behavior coverage for OASA-free native clipboard Copy and Paste."""
+"""Behavior coverage for Rust-native clipboard Copy and Paste."""
 
 # Standard Library
 import os
@@ -14,7 +14,6 @@ import pytest
 
 # local repo modules
 import ferrum_qt.canvas.items.ferrum_plus_item
-import ferrum_qt.io.clipboard_manager
 import ferrum_qt.io.clipboard_mime
 import ferrum_qt.native.ferrum_native_clipboard
 import ferrum_qt.native.ferrum_native_clipboard_paste_tab
@@ -342,14 +341,9 @@ def test_cancel_and_close_keep_source_live_until_copy_worker_finishes(
 
 #============================================
 def test_copy_then_paste_installs_translated_roots_and_selection(
-		qapp: PySide6.QtWidgets.QApplication,
-		monkeypatch: pytest.MonkeyPatch) -> None:
+		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Ordinary actions install one translated structure/artwork result through Rust."""
 	window, tab = _window_with_source()
-	monkeypatch.setattr(
-		ferrum_qt.io.clipboard_manager.ClipboardManager, "read_fragment",
-		lambda _self: pytest.fail("native Paste reached the legacy clipboard path"),
-	)
 	try:
 		tab.select_atom("a")
 		_select_plus(tab)

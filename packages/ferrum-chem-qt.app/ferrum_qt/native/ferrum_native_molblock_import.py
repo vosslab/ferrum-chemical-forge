@@ -1,4 +1,4 @@
-"""Bounded OASA-free preparation of one local V2000 or V3000 molfile."""
+"""Bounded Rust-native preparation of one local V2000 or V3000 molfile."""
 
 # Standard Library
 import dataclasses

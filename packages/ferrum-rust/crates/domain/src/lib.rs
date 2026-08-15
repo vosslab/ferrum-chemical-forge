@@ -7,14 +7,20 @@
 pub mod catalog;
 pub mod haworth;
 pub mod linear_form;
+pub mod neutral_bond_capacity_diagnostic_v1;
 pub mod peptide;
 pub mod repair;
-pub mod sugar;
 
 pub use linear_form::{
     LinearFormAtomV1, LinearFormBondV1, LinearFormGraphV1, LinearFormMetadataShapeV1,
     LinearFormPlanErrorV1, LinearFormPlanV1, LinearFormPointReplacementV1, LinearFormRequestV1,
     plan_linear_form_v1,
+};
+pub use neutral_bond_capacity_diagnostic_v1::{
+    NeutralBondCapacityAtomOutcomeV1, NeutralBondCapacityAtomRecordV1, NeutralBondCapacityAtomV1,
+    NeutralBondCapacityBondV1, NeutralBondCapacityErrorV1,
+    NeutralBondCapacityExplicitHydrogensFactV1, NeutralBondCapacityFormalChargeFactV1,
+    evaluate_neutral_bond_capacity_v1,
 };
 pub use peptide::{
     LEGACY_PEPTIDE_TEMPLATE_SMILES_PROFILE_V1, LEGACY_PEPTIDE_TEMPLATE_SMILES_SCHEMA_V1,

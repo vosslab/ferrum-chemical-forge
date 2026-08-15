@@ -1,4 +1,4 @@
-"""Standalone public startup for Ferrum's OASA-free bounded CDML editor."""
+"""Standalone public startup for Ferrum's Rust-native bounded CDML editor."""
 
 # PIP3 modules
 import PySide6.QtCore
@@ -14,8 +14,8 @@ def main(files: list[str] | None = None,
 	"""Start the native-only public host and optionally open CDML paths.
 
 	This remains an internal standalone host while the ordinary product route
-	uses ``ferrum_qt.app``.  It does not import the legacy MainWindow, OASA, or
-	any worker-backed codec.
+	uses ``ferrum_qt.app``. It uses the same Rust-native document contracts as
+	the ordinary application.
 	"""
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:

@@ -1,4 +1,4 @@
-"""OASA-free deletion of a complete durable presentation selection."""
+"""Rust-native deletion of a complete durable presentation selection."""
 
 # PIP3 modules
 import PySide6.QtGui

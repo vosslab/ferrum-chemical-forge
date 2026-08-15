@@ -1,4 +1,4 @@
-"""OASA-free background preparation for existing-molecule coordinates."""
+"""Rust-native background preparation for existing-molecule coordinates."""
 
 # Standard Library
 import dataclasses

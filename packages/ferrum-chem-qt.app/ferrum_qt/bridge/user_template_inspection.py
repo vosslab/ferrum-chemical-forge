@@ -1,16 +1,13 @@
-"""Qt-free bridge for OASA saved user-template admission."""
-
-# local repo modules
-import oasa.cdml_document
+"""Qt-free bridge for Rust-owned saved user-template admission."""
 
 
 class UserTemplateInspectionError(ValueError):
-	"""Raised when OASA rejects one serialized user template."""
+	"""Raised when Rust rejects one serialized user template."""
 
 
 #============================================
 def inspect_user_template_display_name(template_cdml: str) -> str | None:
-	"""Return OASA's optional display name for one eligible template.
+	"""Return Rust's optional display name for one eligible template.
 
 	Args:
 		template_cdml: Exact complete CDML text saved in one user template.
@@ -19,10 +16,16 @@ def inspect_user_template_display_name(template_cdml: str) -> str | None:
 		A stripped nonblank molecule name, or ``None`` when it is absent.
 
 	Raises:
-		UserTemplateInspectionError: If OASA rejects the template CDML.
+		UserTemplateInspectionError: If Rust rejects the template CDML.
 	"""
+	return prepare_user_template(template_cdml).display_name
+
+
+#============================================
+def prepare_user_template(template_cdml: str) -> object:
+	"""Return one immutable Rust plan for catalog display and later placement."""
 	try:
-		inspection = oasa.cdml_document.inspect_user_template(template_cdml)
-	except oasa.cdml_document.CDMLDocumentError as error:
+		import ferrum_chem
+		return ferrum_chem.prepare_user_template_v1(template_cdml)
+	except Exception as error:
 		raise UserTemplateInspectionError(str(error)) from error
-	return inspection.display_name

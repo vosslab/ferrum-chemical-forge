@@ -10,7 +10,7 @@ pub(super) struct GeneratedIdSequences {
     bond: Option<u64>,
     presentation: Option<u64>,
     fragment: Option<u64>,
-    clipboard: Option<u64>,
+    fragment_import: Option<u64>,
 }
 
 impl GeneratedIdSequences {
@@ -21,7 +21,7 @@ impl GeneratedIdSequences {
             bond: Some(0),
             presentation: Some(0),
             fragment: Some(0),
-            clipboard: Some(0),
+            fragment_import: Some(0),
         }
     }
 
@@ -49,7 +49,7 @@ impl GeneratedIdSequences {
                 bond,
                 presentation: self.presentation,
                 fragment: self.fragment,
-                clipboard: self.clipboard,
+                fragment_import: self.fragment_import,
             },
         ))
     }
@@ -130,14 +130,29 @@ impl GeneratedIdSequences {
         Ok((identifier, Self { fragment, ..self }))
     }
 
-    pub(super) fn reserve_clipboard(
+    /// Reserve identities for one arbitrary retained fragment import.
+    ///
+    /// Native Paste and user-template insertion have distinct admission and
+    /// placement contracts, but both need collision-safe identities for every
+    /// declaration in an externally sourced retained subtree.
+    pub(super) fn reserve_fragment_import(
         self,
         indexed: &IndexedDocument,
         count: usize,
     ) -> Result<(Vec<PersistentId>, Self), SessionOperationError> {
-        let (identifiers, clipboard) =
-            allocate(indexed, GeneratedIdKind::Clipboard, self.clipboard, count)?;
-        Ok((identifiers, Self { clipboard, ..self }))
+        let (identifiers, fragment_import) = allocate(
+            indexed,
+            GeneratedIdKind::FragmentImport,
+            self.fragment_import,
+            count,
+        )?;
+        Ok((
+            identifiers,
+            Self {
+                fragment_import,
+                ..self
+            },
+        ))
     }
 
     pub(super) fn reserve_presentations<const N: usize>(
@@ -174,8 +189,11 @@ impl GeneratedIdSequences {
     }
 
     #[cfg(test)]
-    fn with_clipboard_sequence(self, clipboard: Option<u64>) -> Self {
-        Self { clipboard, ..self }
+    fn with_fragment_import_sequence(self, fragment_import: Option<u64>) -> Self {
+        Self {
+            fragment_import,
+            ..self
+        }
     }
 }
 
@@ -198,7 +216,7 @@ enum GeneratedIdKind {
     Presentation,
     #[cfg_attr(not(test), allow(dead_code))]
     Fragment,
-    Clipboard,
+    FragmentImport,
 }
 
 impl GeneratedIdKind {
@@ -209,7 +227,7 @@ impl GeneratedIdKind {
             Self::Bond => "ferrum-bond-v1-",
             Self::Presentation => "ferrum-presentation-v1-",
             Self::Fragment => "ferrum-fragment-v1-",
-            Self::Clipboard => "ferrum-paste-v1-",
+            Self::FragmentImport => "ferrum-import-v1-",
         }
     }
 
@@ -220,7 +238,7 @@ impl GeneratedIdKind {
             Self::Bond => SessionOperationError::BondIdentifierExhausted,
             Self::Presentation => SessionOperationError::PresentationIdentifierExhausted,
             Self::Fragment => SessionOperationError::FragmentIdentifierExhausted,
-            Self::Clipboard => SessionOperationError::ClipboardIdentifierExhausted,
+            Self::FragmentImport => SessionOperationError::FragmentImportIdentifierExhausted,
         }
     }
 }
@@ -360,46 +378,45 @@ mod tests {
     }
 
     #[test]
-    fn clipboard_exhaustion_has_its_own_typed_error() {
+    fn fragment_import_exhaustion_has_its_own_typed_error() {
         let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
-        let exhausted = GeneratedIdSequences::initial().with_clipboard_sequence(None);
+        let exhausted = GeneratedIdSequences::initial().with_fragment_import_sequence(None);
 
         assert!(matches!(
-            exhausted.reserve_clipboard(&indexed, 1),
-            Err(SessionOperationError::ClipboardIdentifierExhausted)
+            exhausted.reserve_fragment_import(&indexed, 1),
+            Err(SessionOperationError::FragmentImportIdentifierExhausted)
         ));
     }
 
     #[test]
-    fn clipboard_allocation_skips_opaque_declarations() {
+    fn fragment_import_allocation_skips_opaque_declarations() {
         let indexed =
-            IndexedDocument::parse("<cdml><info><vendor id=\"ferrum-paste-v1-0\"/></info></cdml>")
+            IndexedDocument::parse("<cdml><info><vendor id=\"ferrum-import-v1-0\"/></info></cdml>")
                 .expect("valid opaque declaration");
 
         let (identifiers, _) = GeneratedIdSequences::initial()
-            .reserve_clipboard(&indexed, 1)
-            .expect("clipboard identity");
+            .reserve_fragment_import(&indexed, 1)
+            .expect("fragment import identity");
 
-        assert_eq!(identifiers[0].as_str(), "ferrum-paste-v1-1");
+        assert_eq!(identifiers[0].as_str(), "ferrum-import-v1-1");
     }
 
     #[test]
-    fn clipboard_reservation_is_tentative_until_its_sequence_is_installed() {
+    fn fragment_import_reservation_is_tentative_until_its_sequence_is_installed() {
         let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
         let original = GeneratedIdSequences::initial();
 
         let (first, tentative) = original
-            .reserve_clipboard(&indexed, 1)
-            .expect("first clipboard identity");
+            .reserve_fragment_import(&indexed, 1)
+            .expect("first fragment import identity");
         let (repeated, _) = original
-            .reserve_clipboard(&indexed, 1)
+            .reserve_fragment_import(&indexed, 1)
             .expect("uninstalled sequence remains unchanged");
         let (next, _) = tentative
-            .reserve_clipboard(&indexed, 1)
+            .reserve_fragment_import(&indexed, 1)
             .expect("installed tentative sequence advances");
 
-        assert_eq!(first[0].as_str(), "ferrum-paste-v1-0");
-        assert_eq!(repeated[0].as_str(), "ferrum-paste-v1-0");
-        assert_eq!(next[0].as_str(), "ferrum-paste-v1-1");
+        assert_eq!(first[0], repeated[0]);
+        assert_ne!(first[0], next[0]);
     }
 }

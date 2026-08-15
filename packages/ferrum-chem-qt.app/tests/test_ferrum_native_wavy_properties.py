@@ -1,4 +1,4 @@
-"""Semantic Wavy appearance editing through the OASA-free native tab."""
+"""Semantic Wavy appearance editing through the Rust-native tab."""
 
 # Standard Library
 import os

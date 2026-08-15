@@ -1,7 +1,7 @@
 # Ferrum cookbook
 
-These scenarios combine the current commands into bounded, repeatable workflows. They do
-not extend Ferrum's pre-alpha feature set.
+These scenarios combine the current protocol and desktop workflows. They do not extend
+Ferrum's pre-alpha feature set.
 
 ## Review a CDML record
 
@@ -9,42 +9,40 @@ Use this sequence when a collaborator supplies a CDML file and you need to asses
 structure and native rendering before deciding whether to save a structural re-emission.
 It leaves the input unchanged until you deliberately use a Qt save action.
 
-1. Inspect the document and its declared identities.
+1. Inspect the generated protocol schema.
 
    ```bash
-   ferrum cdml inspect supplied.cdml
+   ferrum protocol schema
    ```
 
-2. Validate its retained structure and require current typed molecule facts.
+2. Create one `ferrum-operation-request-v1` JSON request with the supplied CDML text
+   and run it.
 
    ```bash
-   ferrum cdml validate supplied.cdml --typed
+   ferrum protocol run request.json
    ```
 
-3. Check the structural rewrite contract without writing an output file.
+3. Open the same document in the ordinary Ferrum-Qt window.
 
    ```bash
-   ferrum cdml rewrite supplied.cdml --check
+   ferrum-qt supplied.cdml
    ```
 
-4. Produce the Rust render observation that the native Qt projection consumes.
+Ferrum-Qt is the sole desktop product window. It opens the supplied uncompressed `.cdml`
+through Rust, and its native document actions include ordinary editing, Undo/Redo, Save,
+Save As, reopening, and complete-document artifact export. A successful protocol rewrite
+returns structurally preserved CDML, not byte-for-byte output. Use Save As when you want to
+inspect the resulting structural re-emission separately from the supplied source.
 
-   ```bash
-   ferrum cdml render-observation supplied.cdml
-   ```
+File Open also accepts a decoded local `.svg` only when it contains one canonical embedded
+CDML payload; the SVG wrapper is discarded. Ferrum refuses `.cdxml`, `.cml`, `.cdsvg`,
+`.svgz`, and compressed CDML names without changing the active document. Use the source
+application or a converter to produce an uncompressed supported `.cdml` drawing.
 
-5. Open the same document in the OASA-free native bounded editor.
+Use `File -> Recovery Export CDML...` only for a recovery copy of the current CDML. It does
+not replace Save or Save As and does not convert formats. Use `File -> Export...` to publish
+the complete supported document as SVG, PDF, or transparent PNG; this is not CD-SVG export or
+a wrapper round-trip.
 
-   ```bash
-   ferrum-qt --native supplied.cdml
-   ```
-
-The native route can open, render, change an atom element, add one free-standing atom,
-undo/redo, save, save as, reopen, and close CDML documents. It does not create bonds or
-provide an export workflow. A successful `rewrite --check` establishes structural
-preservation, including retained opaque content; it does not promise byte-for-byte output.
-Use Save As when you want to inspect the resulting structural re-emission separately from
-the supplied source.
-
-For command arguments and failure behavior, see [USAGE.md](USAGE.md). For native-route
+For command arguments and failure behavior, see [USAGE.md](USAGE.md). For Ferrum-Qt
 installation and platform limits, see [INSTALL.md](INSTALL.md).

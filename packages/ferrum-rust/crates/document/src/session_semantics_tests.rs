@@ -1,7 +1,7 @@
 use super::{
-    DocumentBondOrderV1, DocumentObjectIdV1, DocumentSession, DocumentSessionError, Point3V1,
-    PublicationDurability, SaveOutcome, SessionOperation, SessionOperationError,
-    SessionOperationV1, TypedClass, TypedDocumentError,
+    DocumentBondOrderV1, DocumentBondPresentationV1, DocumentObjectIdV1, DocumentSession,
+    DocumentSessionError, Point3V1, PublicationDurability, SaveOutcome, SessionOperation,
+    SessionOperationError, SessionOperationV1, TypedClass, TypedDocumentError,
 };
 
 mod arrow_properties;
@@ -14,6 +14,7 @@ mod bond_properties;
 mod bracket_creation;
 mod direct_haworth_insertion;
 mod drawing_standard;
+mod explicit_fragment;
 mod geometric_properties;
 mod geometry_repair;
 mod linear_form_convert;
@@ -22,6 +23,7 @@ mod paper_properties;
 mod plus_properties;
 mod presentation_deletion;
 mod presentation_stack_reorder;
+mod standalone_haworth_insertion;
 mod text_properties;
 mod top_level_transform;
 mod wavy_creation;
@@ -608,11 +610,11 @@ fn generated_atom_identifier_exhaustion_is_typed_and_state_preserving() {
 }
 
 #[test]
-fn prepared_bond_creation_is_revision_bound_undoable_and_consumed_once() {
+fn prepared_bond_creation_preserves_closed_presentation_through_history() {
     let mut session = DocumentSession::load(BOND_SOURCE).expect("source must load");
     let (start, end, _) = atom_object_ids(&session, 0);
     let mut pending = session
-        .prepare_create_bond_v1(0, &start, &end, DocumentBondOrderV1::Single)
+        .prepare_create_bond_v2(0, &start, &end, DocumentBondPresentationV1::SolidWedge)
         .expect("bond candidate must prepare");
     assert_eq!(pending.identifier().as_str(), "ferrum-bond-v1-0");
 
@@ -621,24 +623,17 @@ fn prepared_bond_creation_is_revision_bound_undoable_and_consumed_once() {
         .expect("bond candidate must commit");
     let accepted_snapshot = accepted.observation().snapshot();
     assert_eq!(accepted_snapshot.revision(), 1);
-    assert!(
-        accepted_snapshot
-            .cdml()
-            .contains("id=\"ferrum-bond-v1-0\" type=\"n1\" start=\"a\" end=\"b\"")
-    );
     let bond = &accepted.observation().projection().molecules()[0].bonds()[0];
-    assert_eq!(bond.source_id(), Some("ferrum-bond-v1-0"));
-    assert_eq!(bond.source_type(), Some("n1"));
+    assert_eq!(bond.source_type(), Some("w1"));
+    assert_eq!(bond.start().object_id(), Some(&start));
+    assert_eq!(bond.end().object_id(), Some(&end));
 
     let undone = session.undo(1).expect("bond insertion must be undoable");
     assert!(!undone.observation().snapshot().cdml().contains("<bond"));
     let redone = session.redo(2).expect("bond insertion must be redoable");
-    assert!(
-        redone
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("id=\"ferrum-bond-v1-0\"")
+    assert_eq!(
+        redone.observation().projection().molecules()[0].bonds()[0].source_type(),
+        Some("w1"),
     );
     assert!(matches!(
         session.commit_create_bond(3, &mut pending),
@@ -652,13 +647,13 @@ fn bond_creation_rejects_self_cross_molecule_and_duplicate_edges_without_mutatio
     let (start, end, other) = atom_object_ids(&session, 0);
     let before = session.snapshot().expect("snapshot must work");
     assert!(matches!(
-        session.prepare_create_bond_v1(0, &start, &start, DocumentBondOrderV1::Single),
+        session.prepare_create_bond_v2(0, &start, &start, DocumentBondPresentationV1::SolidWedge),
         Err(DocumentSessionError::Operation(
             SessionOperationError::CreateBondSelfLoop(_)
         ))
     ));
     assert!(matches!(
-        session.prepare_create_bond_v1(0, &start, &other, DocumentBondOrderV1::Single),
+        session.prepare_create_bond_v2(0, &start, &other, DocumentBondPresentationV1::SolidWedge),
         Err(DocumentSessionError::Operation(
             SessionOperationError::CreateBondAcrossMolecules
         ))
@@ -666,14 +661,14 @@ fn bond_creation_rejects_self_cross_molecule_and_duplicate_edges_without_mutatio
     assert_eq!(session.snapshot().expect("snapshot must work"), before);
 
     let mut first = session
-        .prepare_create_bond_v1(0, &start, &end, DocumentBondOrderV1::Single)
+        .prepare_create_bond_v2(0, &start, &end, DocumentBondPresentationV1::SolidWedge)
         .expect("valid edge must prepare");
     assert_eq!(first.identifier().as_str(), "ferrum-bond-v1-0");
     session
         .commit_create_bond(0, &mut first)
         .expect("valid edge must commit");
     assert!(matches!(
-        session.prepare_create_bond_v1(1, &end, &start, DocumentBondOrderV1::Double),
+        session.prepare_create_bond_v2(1, &end, &start, DocumentBondPresentationV1::HashedWedge),
         Err(DocumentSessionError::Operation(
             SessionOperationError::CreateBondDuplicate { .. }
         ))
@@ -686,7 +681,7 @@ fn prepared_bond_is_foreign_safe_stale_safe_and_preserves_exact_order() {
     let mut foreign = DocumentSession::load(BOND_SOURCE).expect("foreign source must load");
     let (start, end, _) = atom_object_ids(&owner, 0);
     let mut pending = owner
-        .prepare_create_bond_v1(0, &start, &end, DocumentBondOrderV1::Double)
+        .prepare_create_bond_v2(0, &start, &end, DocumentBondPresentationV1::HashedWedge)
         .expect("candidate must prepare");
     assert!(matches!(
         foreign.commit_create_bond(0, &mut pending),
@@ -718,7 +713,12 @@ fn generated_bond_identifier_exhaustion_is_typed_and_state_preserving() {
     let before = session.snapshot().expect("snapshot must work");
 
     assert!(matches!(
-        session.prepare_create_bond_v1(0, &start, &end, DocumentBondOrderV1::Triple),
+        session.prepare_create_bond_v2(
+            0,
+            &start,
+            &end,
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Triple),
+        ),
         Err(DocumentSessionError::Operation(
             SessionOperationError::BondIdentifierExhausted
         ))
@@ -732,7 +732,13 @@ fn bonded_atom_creation_is_one_revision_one_history_entry_and_two_identities() {
     let start = first_atom_object_id(&session, 0);
     let before = session.snapshot().expect("snapshot must work");
     let mut pending = session
-        .prepare_create_bonded_atom_v1(0, &start, "O", position(), DocumentBondOrderV1::Single)
+        .prepare_create_bonded_atom_v2(
+            0,
+            &start,
+            "O",
+            position(),
+            DocumentBondPresentationV1::HashedWedge,
+        )
         .expect("complete candidate must prepare");
     assert_eq!(pending.atom_identifier().as_str(), "ferrum-atom-v1-0");
     assert_eq!(pending.bond_identifier().as_str(), "ferrum-bond-v1-0");
@@ -748,7 +754,12 @@ fn bonded_atom_creation_is_one_revision_one_history_entry_and_two_identities() {
     assert_eq!(molecule.atoms()[1].source_id(), Some("ferrum-atom-v1-0"));
     assert_eq!(molecule.atoms()[1].position(), position());
     assert_eq!(molecule.bonds()[0].source_id(), Some("ferrum-bond-v1-0"));
-    assert_eq!(molecule.bonds()[0].source_type(), Some("n1"));
+    assert_eq!(molecule.bonds()[0].source_type(), Some("h1"));
+    assert_eq!(molecule.bonds()[0].start().object_id(), Some(&start));
+    assert_eq!(
+        molecule.bonds()[0].end().source_id(),
+        Some("ferrum-atom-v1-0")
+    );
 
     let undone = session.undo(1).expect("composite insertion must undo once");
     let undone_molecule = &undone.observation().projection().molecules()[0];
@@ -771,12 +782,12 @@ fn bonded_atom_rejection_is_identity_safe_and_foreign_candidates_remain_retryabl
     let start = first_atom_object_id(&owner, 0);
     let molecule = molecule_object_id(&owner, 0);
     assert!(matches!(
-        owner.prepare_create_bonded_atom_v1(
+        owner.prepare_create_bonded_atom_v2(
             0,
             &molecule,
             "O",
             position(),
-            DocumentBondOrderV1::Single,
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
         ),
         Err(DocumentSessionError::Operation(
             SessionOperationError::InvalidCreateBondTarget(_)
@@ -784,12 +795,24 @@ fn bonded_atom_rejection_is_identity_safe_and_foreign_candidates_remain_retryabl
     ));
     assert!(
         owner
-            .prepare_create_bonded_atom_v1(0, &start, "2", position(), DocumentBondOrderV1::Single,)
+            .prepare_create_bonded_atom_v2(
+                0,
+                &start,
+                "2",
+                position(),
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            )
             .is_err()
     );
 
     let mut pending = owner
-        .prepare_create_bonded_atom_v1(0, &start, "N", position(), DocumentBondOrderV1::Double)
+        .prepare_create_bonded_atom_v2(
+            0,
+            &start,
+            "N",
+            position(),
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Double),
+        )
         .expect("valid candidate must prepare");
     assert_eq!(pending.atom_identifier().as_str(), "ferrum-atom-v1-0");
     assert_eq!(pending.bond_identifier().as_str(), "ferrum-bond-v1-0");

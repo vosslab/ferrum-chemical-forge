@@ -67,6 +67,23 @@ impl RetainedSourceFileGuardV1 {
         self.identity
     }
 
+    /// Duplicate the already-open regular source descriptor for one publication.
+    ///
+    /// The clone preserves the captured identity and does not reopen a path or
+    /// expose the descriptor to callers.  A long-lived editor origin can retain
+    /// its guard while a one-shot publication consumes this clone.
+    ///
+    /// # Errors
+    ///
+    /// Returns the operating-system failure if the descriptor cannot be
+    /// duplicated.
+    pub fn try_clone(&self) -> Result<Self, io::Error> {
+        Ok(Self {
+            file: self.file.try_clone()?,
+            identity: self.identity,
+        })
+    }
+
     fn verify_live_identity(&self) -> Result<(), io::Error> {
         let current = identity_from_stat(fstat(&self.file).map_err(io::Error::from)?);
         if current == self.identity {

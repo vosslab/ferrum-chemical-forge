@@ -1,4 +1,4 @@
-"""Typed ArrowDialog adaptation for the OASA-free Ferrum-native editor."""
+"""Typed ArrowDialog adaptation for the Rust-native Ferrum editor."""
 
 # Standard Library
 import dataclasses

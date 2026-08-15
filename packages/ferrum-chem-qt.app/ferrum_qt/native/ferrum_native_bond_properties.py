@@ -1,4 +1,4 @@
-"""Typed BondDialog adaptation for the OASA-free Ferrum-native editor."""
+"""Typed BondDialog adaptation for the Rust-native Ferrum editor."""
 
 # Standard Library
 import dataclasses
@@ -74,7 +74,7 @@ def property_changes_from_dialog(
 	if type(changes) is not tuple:
 		raise TypeError("native bond property changes must be an exact tuple")
 	final_order = _dialog_order(bond.order, ferrum_chem)
-	_dialog_style(bond.style, ferrum_chem)
+	final_style = _dialog_style(bond.style, ferrum_chem)
 	for change in changes:
 		if type(change) is not tuple or len(change) != 2:
 			raise TypeError("native bond property changes must be exact field/value pairs")
@@ -83,7 +83,9 @@ def property_changes_from_dialog(
 			if value not in (1, 2, 3):
 				raise ValueError("native BondDialog supplied an unsupported property change")
 			final_order = value
-	_validate_render_capabilities(changes, final_order)
+		if field == "type" and type(value) is str:
+			final_style = value
+	_validate_render_capabilities(changes, final_order, final_style)
 	converted: list[object] = []
 	for change in changes:
 		field, value = change
@@ -93,13 +95,13 @@ def property_changes_from_dialog(
 
 #============================================
 def _validate_render_capabilities(
-		changes: tuple[tuple[str, object], ...], final_order: int,
+		changes: tuple[tuple[str, object], ...], final_order: int, final_style: str,
 		) -> None:
-	"""Reject form facts the current normal-bond renderer cannot show faithfully."""
+	"""Admit only form facts the closed native bond renderer can show faithfully."""
 	for field, value in changes:
-		if field == "wedge_width":
+		if field == "wedge_width" and final_style not in ("w", "h"):
 			raise ValueError(
-				"native BondDialog cannot apply wedge width until native wedge rendering is available",
+				"Choose a solid or hashed wedge before editing its wedge width.",
 			)
 		if field == "center" and (type(value) is not bool or not value or final_order != 2):
 			raise ValueError(
@@ -109,6 +111,8 @@ def _validate_render_capabilities(
 			raise ValueError(
 				"native BondDialog supports bond width only for a normal double or triple bond",
 			)
+	if final_style in ("w", "h") and final_order != 1:
+		raise ValueError("Solid and hashed wedges use the compatible Single order.")
 
 
 #============================================
@@ -127,13 +131,17 @@ def _dialog_order(value: object, ferrum_chem: object) -> int:
 
 #============================================
 def _dialog_style(value: object, ferrum_chem: object) -> str:
-	"""Allow only the style that the current native renderer can retain visibly."""
-	if value is not ferrum_chem.DocumentBondStyleV1.normal:
-		raise ValueError(
-			"native BondDialog currently supports normal bond style only; "
-			"the selected style has no native renderer support",
-		)
-	return "n"
+	"""Return one closed native style the ordinary renderer can retain visibly."""
+	styles = ferrum_chem.DocumentBondStyleV1
+	if value is styles.normal:
+		return "n"
+	if value is styles.wedge:
+		return "w"
+	if value is styles.hashed_wedge:
+		return "h"
+	raise ValueError(
+		"Select a Normal, Solid wedge, or Hashed wedge bond for native properties.",
+	)
 
 
 #============================================
@@ -166,9 +174,12 @@ def _property_change(field: object, value: object, ferrum_chem: object) -> objec
 		styles = ferrum_chem.DocumentBondStyleV1
 		if value == "n":
 			return ferrum_chem.DocumentBondPropertyChangeV1.style(styles.normal)
+		if value == "w":
+			return ferrum_chem.DocumentBondPropertyChangeV1.style(styles.wedge)
+		if value == "h":
+			return ferrum_chem.DocumentBondPropertyChangeV1.style(styles.hashed_wedge)
 		raise ValueError(
-			"native BondDialog currently supports normal bond style only; "
-			"choose Normal before submitting",
+			"Choose Normal, Solid wedge, or Hashed wedge before submitting.",
 		)
 	if field == "center" and type(value) is bool:
 		return ferrum_chem.DocumentBondPropertyChangeV1.center(value)

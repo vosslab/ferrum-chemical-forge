@@ -306,6 +306,10 @@ fn measure_molecule_operation(
 ) -> Result<(), PdfRenderError> {
     match operation {
         RenderOp::Line(_) => counter.add(PdfComplexityResourceV1::DrawPathCommands, 2),
+        RenderOp::Path(path) => counter.add(
+            PdfComplexityResourceV1::DrawPathCommands,
+            path.commands().len(),
+        ),
         RenderOp::Mask(_) => Ok(()),
         RenderOp::Ellipse(_) => counter.add(PdfComplexityResourceV1::DrawPathCommands, 6),
         RenderOp::Text(text) => measure_text_runs(text.runs(), face, counter),

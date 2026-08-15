@@ -1,4 +1,4 @@
-"""OASA-free direct-root Text editing through one closed Rust operation."""
+"""Rust-native direct-root Text editing through one closed Rust operation."""
 
 # Standard Library
 import dataclasses

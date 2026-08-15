@@ -91,6 +91,51 @@ fn presentation_text_plan(
     .expect("document plan")
 }
 
+fn scene_path_document_plan() -> DocumentRenderPlanV1 {
+    let molecule = MoleculeRenderPlan::new(
+        provenance(21),
+        vec![
+            RenderBatch::new(
+                RenderTarget::new(
+                    RecordId::from_source(
+                        RecordKind::Bond,
+                        &Identifier::new("pdf-path").expect("test identifier"),
+                    ),
+                    1,
+                ),
+                BatchSpace::Scene,
+                vec![RenderOp::Path(
+                    PathOpV2::new(
+                        vec![
+                            ScenePathCommandV2::MoveTo(point(2.0, 2.0)),
+                            ScenePathCommandV2::LineTo(point(12.0, 2.0)),
+                            ScenePathCommandV2::LineTo(point(7.0, 10.0)),
+                            ScenePathCommandV2::Close,
+                        ],
+                        Some(ScenePathStrokeV2::new(paint("112233"), width(1.0))),
+                        Some(paint("aabbcc")),
+                        0,
+                    )
+                    .expect("scene path"),
+                )],
+            )
+            .expect("scene path batch"),
+        ],
+        vec![],
+    )
+    .expect("molecule plan");
+    DocumentRenderPlanV1::new(
+        provenance(21),
+        RenderViewportV1::new(0.0, 0.0, 20.0, 20.0).expect("page"),
+        vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            1,
+            DocumentRenderIdentityV1::projection_local("pdf-path").expect("identity"),
+            DocumentRenderContentV1::Molecule(molecule),
+        ))],
+    )
+    .expect("document plan")
+}
+
 #[test]
 fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics() {
     let source = provenance(8);
@@ -176,6 +221,25 @@ fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics()
     );
     assert!(!source.contains(" Tf"));
     assert!(!source.contains(" Tj"));
+}
+
+#[test]
+fn pdf_backend_treats_v2_path_commands_as_structural_render_work() {
+    let request = PdfRenderRequestV1 {
+        complexity: PdfPlanComplexityBudgetV1 {
+            max_draw_path_commands: 3,
+            ..ample_request().complexity
+        },
+        ..ample_request()
+    };
+
+    assert!(matches!(
+        render_document_plan_to_pdf_v1(&scene_path_document_plan(), request),
+        Err(PdfRenderError::ComplexityLimitExceeded {
+            resource: PdfComplexityResourceV1::DrawPathCommands,
+            ..
+        })
+    ));
 }
 
 #[test]

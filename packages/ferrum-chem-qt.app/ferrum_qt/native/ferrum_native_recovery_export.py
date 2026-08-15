@@ -9,6 +9,9 @@ import pathlib
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.native.ferrum_native_document_tab
+
 
 _RECOVERY_CDML_FILTER = "Ferrum CDML (*.cdml);;All Files (*)"
 
@@ -30,9 +33,9 @@ class FerrumNativeRecoveryExportWindowMixin:
 	#============================================
 	def _build_recovery_export_action(self, file_menu: PySide6.QtWidgets.QMenu) -> None:
 		"""Install the explicit backend-copy action in the native File menu."""
-		action = PySide6.QtGui.QAction(self.tr("Recovery Export Backend CDML..."), self)
+		action = PySide6.QtGui.QAction(self.tr("Recovery Export CDML..."), self)
 		action.setToolTip(self.tr(
-			"Copy current Rust backend CDML without changing the saved file or dirty state",
+			"Copy the current CDML without changing this document's saved file or unsaved state",
 		))
 		action.triggered.connect(self._on_native_recovery_export)
 		file_menu.addAction(action)
@@ -57,7 +60,7 @@ class FerrumNativeRecoveryExportWindowMixin:
 		if capture is None:
 			return False
 		selected_path = PySide6.QtWidgets.QFileDialog.getSaveFileName(
-			self, self.tr("Recovery Export Backend CDML"), "", self.tr(_RECOVERY_CDML_FILTER),
+			self, self.tr("Recovery Export CDML"), "", self.tr(_RECOVERY_CDML_FILTER),
 		)[0]
 		if not selected_path:
 			return False
@@ -85,7 +88,7 @@ class FerrumNativeRecoveryExportWindowMixin:
 			return False
 		if publication.outcome.is_confirmed:
 			self.statusBar().showMessage(
-				self.tr("Backend snapshot exported: %s") % absolute_path, 5000,
+				self.tr("Recovery CDML exported: %s") % absolute_path, 5000,
 			)
 			return True
 		self._show_native_file_warning(

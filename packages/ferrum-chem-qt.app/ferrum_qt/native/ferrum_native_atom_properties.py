@@ -1,4 +1,4 @@
-"""Typed AtomDialog adaptation for the OASA-free Ferrum-native editor."""
+"""Typed AtomDialog adaptation for the Rust-native Ferrum editor."""
 
 # Standard Library
 import dataclasses

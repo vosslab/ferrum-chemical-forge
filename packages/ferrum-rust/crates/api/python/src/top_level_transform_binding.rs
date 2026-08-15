@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyTuple};
 
 use crate::binding::operation_validation_error;
+use crate::binding::{PyDocumentSession, document_result};
 
 #[pyclass(
     frozen,
@@ -62,6 +63,98 @@ pub(crate) struct PyDocumentTopLevelRootSelectorV1 {
     root_id: String,
     #[pyo3(get)]
     kind: PyDocumentTopLevelRootKindV1,
+}
+
+/// Immutable private-adapter receipt for one authored complete-root move.
+#[pyclass(
+    frozen,
+    module = "ferrum_chem",
+    name = "TopLevelTranslationAnchorV1",
+    skip_from_py_object
+)]
+pub(crate) struct PyTopLevelTranslationAnchorV1 {
+    selectors: Vec<PyDocumentTopLevelRootSelectorV1>,
+    #[pyo3(get)]
+    source_revision: u64,
+    #[pyo3(get)]
+    source_digest: String,
+    #[pyo3(get)]
+    anchor_x: f64,
+    #[pyo3(get)]
+    anchor_y: f64,
+}
+
+#[pymethods]
+impl PyTopLevelTranslationAnchorV1 {
+    #[getter]
+    fn selectors(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let values = self
+            .selectors
+            .iter()
+            .cloned()
+            .map(|selector| Py::new(py, selector))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyTuple::new(py, values)?.unbind())
+    }
+}
+
+#[pymethods]
+impl PyDocumentSession {
+    /// Observe a private authored-coordinate anchor for one complete-root move.
+    fn observe_top_level_translation_anchor_v1(
+        &self,
+        py: Python<'_>,
+        expected_revision: u64,
+        targets: &Bound<'_, PyTuple>,
+    ) -> PyResult<PyTopLevelTranslationAnchorV1> {
+        let targets = selectors(py, targets)?;
+        document_result(
+            py,
+            ferrum_api::observe_top_level_translation_anchor_v1(
+                &self.session,
+                expected_revision,
+                targets,
+            ),
+        )
+        .map(PyTopLevelTranslationAnchorV1::from_anchor)
+    }
+}
+
+impl PyTopLevelTranslationAnchorV1 {
+    pub(crate) fn from_anchor(anchor: ferrum_document::TopLevelTranslationAnchorV1) -> Self {
+        let (anchor_x, anchor_y) = anchor.anchor();
+        let selectors = anchor
+            .selectors()
+            .iter()
+            .cloned()
+            .map(|selector| {
+                let kind = match selector.kind() {
+                    TopLevelRootKindV1::Molecule => PyDocumentTopLevelRootKindV1::Molecule,
+                    TopLevelRootKindV1::Arrow => PyDocumentTopLevelRootKindV1::Arrow,
+                    TopLevelRootKindV1::Plus => PyDocumentTopLevelRootKindV1::Plus,
+                    TopLevelRootKindV1::Text => PyDocumentTopLevelRootKindV1::Text,
+                    TopLevelRootKindV1::Rectangle => PyDocumentTopLevelRootKindV1::Rectangle,
+                    TopLevelRootKindV1::Square => PyDocumentTopLevelRootKindV1::Square,
+                    TopLevelRootKindV1::Oval => PyDocumentTopLevelRootKindV1::Oval,
+                    TopLevelRootKindV1::Circle => PyDocumentTopLevelRootKindV1::Circle,
+                    TopLevelRootKindV1::Polygon => PyDocumentTopLevelRootKindV1::Polygon,
+                    TopLevelRootKindV1::Polyline => PyDocumentTopLevelRootKindV1::Polyline,
+                };
+                PyDocumentTopLevelRootSelectorV1 {
+                    root_id: selector.root_id().as_str().to_owned(),
+                    kind,
+                    selector,
+                }
+            })
+            .collect();
+        Self {
+            selectors,
+            source_revision: anchor.source_revision(),
+            source_digest: crate::binding::hex_digest(anchor.source_digest()),
+            anchor_x,
+            anchor_y,
+        }
+    }
 }
 
 #[pymethods]
@@ -176,18 +269,17 @@ pub(crate) fn mirror(
     operation(py, targets, transform)
 }
 
-fn operation(
+pub(crate) fn selectors(
     py: Python<'_>,
     targets: &Bound<'_, PyTuple>,
-    transform: TopLevelTransformModeV1,
-) -> PyResult<SessionOperation> {
+) -> PyResult<Vec<TopLevelRootSelectorV1>> {
     if !targets.is_exact_instance_of::<PyTuple>() {
         return Err(operation_validation_error(
             py,
-            "top-level transform targets must be an exact built-in tuple".to_owned(),
+            "top-level translation anchor targets must be an exact built-in tuple".to_owned(),
         ));
     }
-    let targets = targets
+    targets
         .iter()
         .map(|value| {
             value
@@ -195,7 +287,15 @@ fn operation(
                 .map(|target| target.selector.clone())
                 .map_err(Into::into)
         })
-        .collect::<PyResult<Vec<_>>>()?;
+        .collect()
+}
+
+fn operation(
+    py: Python<'_>,
+    targets: &Bound<'_, PyTuple>,
+    transform: TopLevelTransformModeV1,
+) -> PyResult<SessionOperation> {
+    let targets = selectors(py, targets)?;
     let transform = TopLevelTransformV1::new(targets, transform)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(SessionOperation::V1(

@@ -10,9 +10,11 @@ mod depiction_profile_v1;
 mod direct_haworth_document_composition_v1;
 mod direct_haworth_reobservation_composition_v1;
 mod direct_haworth_smiles_v1;
+mod document_bond_capacity_v1;
 mod document_clipboard_cut_v1;
 mod document_clipboard_paste_v1;
 mod document_complete_render_plan_v1;
+mod document_explicit_fragment_v1;
 mod document_ingress_v1;
 mod document_linear_form_v1;
 mod document_molecule_composition_graph_v1;
@@ -28,12 +30,13 @@ mod document_molecule_sdf_publication_v1;
 mod document_molecule_sdf_v1;
 mod document_molecule_smiles_publication_v1;
 mod document_molecule_smiles_v1;
+mod document_native_artifact_publication_v1;
 mod document_pdf_artifact_v1;
 mod document_png_artifact_v1;
-mod document_render_cli;
 mod document_render_plan_v1;
 mod document_selection_svg_v1;
 mod document_svg_artifact_v1;
+mod document_user_template_v1;
 mod errors;
 mod explicit_adapter;
 mod haworth_observation_v1;
@@ -44,14 +47,14 @@ mod molblock_export;
 mod molblock_inspection;
 mod molblock_molecule_insertion_v1;
 mod molblock_source_v1;
-mod molecule_coordinate_cli;
 mod molecule_coordinate_generation_v1;
 mod peptide_sequence_inspection_v1;
 mod peptide_template_molecule_insertion_v1;
 mod presentation_plus_render_v1;
 mod presentation_text_render_v1;
 mod presentation_vector_lowering_v1;
-mod render_observation_cli;
+mod protocol_cli;
+mod protocol_v1;
 mod render_observation_v1;
 mod reports;
 mod sdf_export;
@@ -63,6 +66,7 @@ mod smiles_inspection;
 mod smiles_molecule_insertion_v1;
 mod streams;
 mod telex_resource;
+mod top_level_translation_anchor_v1;
 
 #[cfg(test)]
 mod cdsvg_tests;
@@ -81,6 +85,9 @@ mod document_molecule_inchi_v1_tests;
 
 #[cfg(test)]
 mod document_molecule_information_v1_tests;
+
+#[cfg(test)]
+mod document_bond_capacity_v1_tests;
 
 #[cfg(test)]
 mod document_molecule_inspection_v1_tests;
@@ -124,9 +131,6 @@ mod haworth_observation_v1_tests;
 mod render_observation_v1_tests;
 
 #[cfg(test)]
-mod render_observation_cli_tests;
-
-#[cfg(test)]
 mod smiles_molecule_insertion_v1_tests;
 
 #[cfg(test)]
@@ -164,6 +168,13 @@ pub use direct_haworth_smiles_v1::{
     DirectHaworthFromSmilesBuildErrorV1, PreparedDirectHaworthFromSmilesV1,
     build_direct_haworth_from_smiles_v1,
 };
+pub use document_bond_capacity_v1::{
+    DOCUMENT_BOND_CAPACITY_SCHEMA_V1, DocumentBondCapacityErrorV1,
+    DocumentBondCapacityNotCheckedReasonV1, DocumentBondCapacityOutcomeV1,
+    DocumentBondCapacityRecordV1, DocumentBondCapacityRequestErrorV1,
+    DocumentBondCapacityRequestV1, DocumentBondCapacitySourceV1, DocumentBondCapacityV1,
+    inspect_document_bond_capacity_v1,
+};
 pub use document_clipboard_cut_v1::{
     DocumentClipboardCutApplyErrorV1, apply_clipboard_cut_v1, prepare_clipboard_cut_v1,
 };
@@ -174,6 +185,12 @@ pub use document_clipboard_paste_v1::{
 };
 pub use document_complete_render_plan_v1::{
     CompleteDocumentRenderPlanErrorV1, compose_complete_document_render_plan_v1,
+};
+pub use document_explicit_fragment_v1::{
+    DOCUMENT_EXPLICIT_FRAGMENT_SCHEMA_V1, DocumentExplicitFragmentCreateResultV1,
+    DocumentExplicitFragmentErrorV1, DocumentExplicitFragmentObservationReceiptV1,
+    DocumentExplicitFragmentRequestV1, create_document_explicit_fragment_v1,
+    inspect_document_explicit_fragments_v1,
 };
 pub use document_ingress_v1::{
     AdmittedDocumentFileV1, CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1,
@@ -237,6 +254,11 @@ pub use document_molecule_smiles_v1::{
     PreparedDocumentMoleculeSmilesV1, export_prepared_document_molecule_smiles_v1,
     prepare_document_molecule_smiles_v1,
 };
+pub use document_native_artifact_publication_v1::{
+    DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
+    PreparedDocumentNativeArtifactV1, prepare_document_native_artifact_v1,
+    publish_prepared_document_native_artifact_v1,
+};
 pub use document_pdf_artifact_v1::{DocumentPdfArtifactErrorV1, render_document_session_to_pdf_v1};
 pub use document_png_artifact_v1::{DocumentPngArtifactErrorV1, render_document_session_to_png_v1};
 pub use document_render_plan_v1::{
@@ -247,6 +269,10 @@ pub use document_selection_svg_v1::{
     DocumentSelectionSvgV1, DocumentSvgSelectionV1, render_document_selection_to_svg_v1,
 };
 pub use document_svg_artifact_v1::{DocumentSvgArtifactErrorV1, render_document_session_to_svg_v1};
+pub use document_user_template_v1::{
+    DOCUMENT_USER_TEMPLATE_PROFILE_V1, DocumentUserTemplateApplyErrorV1, apply_user_template_v1,
+    document_user_template_budget_v1, prepare_user_template_v1,
+};
 pub use errors::{CdmlError, CdsvgError, CliError};
 pub use explicit_adapter::ExplicitAdapterError;
 pub use ferrum_core::{RecordId, RecordKind, RecordOrigin};
@@ -263,12 +289,19 @@ pub use ferrum_document::{
     DocumentClipboardPastePlanV1, DocumentClipboardPasteResultV1, DocumentClipboardPasteRootV1,
     DocumentClipboardPastedRootV1,
 };
+pub use ferrum_document::{
+    DOCUMENT_USER_TEMPLATE_SCHEMA_V1, DocumentUserTemplateErrorV1,
+    DocumentUserTemplateInsertedMoleculeV1, DocumentUserTemplatePlanV1,
+    DocumentUserTemplateResultV1,
+};
 pub use ferrum_geometry::{MoleculePlacementV1, Point2 as MoleculePlacementPointV1};
 pub use ferrum_render::{
-    BatchSpace, DocumentRenderIdentityV1, FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement,
-    LineOp, MaskOp, MoleculeRenderPlan, PresentationGlyphRun, PresentationTextOp,
-    PresentationTextSourceRun, RenderBatch, RenderIssue, RenderIssueKind, RenderOp, RenderPoint,
-    RenderTarget, SvgOutputBudgetV1, TextOp, TextRun, TextScript,
+    BatchSpace, BondStyle, DocumentRenderIdentityV1, FerrumFontEnvironmentV1, FerrumFontId,
+    GlyphPlacement, LineOp, MaskOp, MoleculeRenderPlan, Paint, PathOpV2, PositiveFinite,
+    PresentationGlyphRun, PresentationTextOp, PresentationTextSourceRun, RenderBatch,
+    RenderDisplayLayerV1, RenderIssue, RenderIssueKind, RenderOp, RenderPoint, RenderTarget, Rgb24,
+    ScenePathCommandV2, ScenePathStrokeV2, SvgOutputBudgetV1, TextOp, TextRun, TextScript,
+    VectorStrokeLineCapV1, build_directed_bond_preview_ops, build_haworth_front_preview_ops,
 };
 pub use haworth_observation_v1::{
     DocumentHaworthObservationErrorV1, DocumentHaworthObservationRequestV1,
@@ -281,11 +314,15 @@ pub use inchi_codec::{
 };
 pub use inchi_molecule_insertion_v1::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
 pub use local_document_profile_v1::{
-    LOCAL_CDML_INGRESS_PROFILE_V1, LOCAL_PDF_COMPLETED_BYTES_V1, LOCAL_PDF_DRAW_PATH_COMMANDS_V1,
-    LOCAL_PDF_PLAN_ITEMS_V1, LOCAL_PDF_RENDER_PROFILE_V1, LOCAL_PNG_ENCODED_BYTES_V1,
-    LOCAL_PNG_RAW_RGBA_BYTES_V1, LOCAL_PNG_RENDER_PROFILE_V1, LOCAL_SVG_COMPLETED_BYTES_V1,
-    load_local_cdml_file_v1, local_cdml_ingress_format_v1, local_pdf_render_request_v1,
-    local_png_render_request_v1,
+    LOCAL_CDML_INGRESS_PROFILE_V1, LOCAL_CDML_SOURCE_UTF8_BYTES_V1,
+    LOCAL_DECODED_CDSVG_INGRESS_PROFILE_V1, LOCAL_PDF_COMPLETED_BYTES_V1,
+    LOCAL_PDF_DRAW_PATH_COMMANDS_V1, LOCAL_PDF_PLAN_ITEMS_V1, LOCAL_PDF_RENDER_PROFILE_V1,
+    LOCAL_PNG_ENCODED_BYTES_V1, LOCAL_PNG_RAW_RGBA_BYTES_V1, LOCAL_PNG_RENDER_PROFILE_V1,
+    LOCAL_SVG_COMPLETED_BYTES_V1, load_local_cdml_file_v1, local_cdml_ingress_format_v1,
+    local_decoded_cdsvg_ingress_format_v1, local_pdf_render_request_v1,
+    local_png_render_request_v1, prepare_local_cdml_file_v1,
+    prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_v1,
+    prepare_local_decoded_cdsvg_file_with_origin_v1,
 };
 pub use molblock_export::{MolblockExportError, molblock_from_smiles};
 pub use molblock_inspection::{
@@ -316,9 +353,16 @@ pub use peptide_template_molecule_insertion_v1::{
 };
 pub use presentation_plus_render_v1::{DocumentPlusRenderV1, PresentationTextBoundsV1};
 pub use presentation_text_render_v1::DocumentTextRenderV1;
-pub use render_observation_cli::RenderObservationCliError;
+pub use protocol_v1::{
+    OPERATION_PROTOCOL_ERROR_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+    OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1, OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1,
+    OperationProtocolEnvelopeV1, OperationProtocolErrorCategoryV1,
+    OperationProtocolErrorResponseV1, OperationProtocolInputErrorV1, OperationProtocolRequestV1,
+    OperationProtocolResponseV1, execute_operation_v1, generated_operation_protocol_schema_v1,
+    operation_protocol_schema_v1,
+};
 pub use render_observation_v1::{
-    DocumentMoleculeRenderPlanV1, MoleculeRenderRootV1, RENDER_OBSERVATION_SCHEMA_V1,
+    DocumentMoleculeRenderPlanV2, MoleculeRenderRootV1, RENDER_OBSERVATION_SCHEMA_V1,
     RenderDocumentProvenanceV1, RenderObservationError, RenderObservationV1,
     RenderObservationWireV1, observe_render_v1,
 };
@@ -340,3 +384,4 @@ pub use smiles_molecule_insertion_v1::{
     prepare_smiles_molecule_v1,
 };
 pub use telex_resource::{VerifiedTelexRegularV1, verified_telex_regular_v1};
+pub use top_level_translation_anchor_v1::observe_top_level_translation_anchor_v1;

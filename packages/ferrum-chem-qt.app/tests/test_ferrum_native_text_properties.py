@@ -1,4 +1,4 @@
-"""Semantic direct-root Text editing through the OASA-free native tab."""
+"""Semantic direct-root Text editing through the Rust-native tab."""
 
 # Standard Library
 import os

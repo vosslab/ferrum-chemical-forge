@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use schemars::JsonSchema;
 use serde::Serialize;
 
 pub(crate) const INSPECTION_SCHEMA: &str = "ferrum-cdml-inspection-v1";
@@ -7,7 +8,7 @@ pub(crate) const VALIDATION_SCHEMA: &str = "ferrum-cdml-validation-v1";
 pub(crate) const REWRITE_CHECK_SCHEMA: &str = "ferrum-cdml-rewrite-check-v1";
 
 /// Stable machine-readable summary emitted by `ferrum cdml inspect`.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 pub struct CdmlInspection {
     /// Versioned JSON schema identifier.
     pub schema: &'static str,
@@ -26,7 +27,7 @@ pub struct CdmlInspection {
 }
 
 /// One molecule's source-order summary.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 pub struct MoleculeInspection {
     /// Persistent source identifier, if the molecule declared one.
     pub source_id: Option<String>,
@@ -45,7 +46,7 @@ pub struct MoleculeInspection {
 }
 
 /// Successful CDML validation at an explicitly selected Ferrum level.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 pub struct CdmlValidation {
     /// Versioned JSON schema identifier.
     pub schema: &'static str,
@@ -64,7 +65,7 @@ pub struct CdmlValidation {
 }
 
 /// A successful structural preservation check for `cdml rewrite --check`.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 pub struct RewriteCheck {
     /// Versioned JSON schema identifier.
     pub schema: &'static str,

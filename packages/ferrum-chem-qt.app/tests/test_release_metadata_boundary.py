@@ -1,7 +1,6 @@
-"""Behavior and import-boundary coverage for Qt release metadata."""
+"""Behavior coverage for Qt release metadata."""
 
 # Standard Library
-import ast
 import importlib.metadata
 import pathlib
 
@@ -11,15 +10,6 @@ import pytest
 # local repo modules
 import ferrum_qt.bridge.release_metadata
 import ferrum_qt.versioning
-
-
-_QT_PACKAGE_ROOT = pathlib.Path(__file__).parents[1] / "ferrum_qt"
-_ORDINARY_QT_MODULES = (
-	"versioning.py",
-	"app.py",
-	"cli.py",
-	"dialogs/about_dialog.py",
-)
 
 
 #============================================
@@ -114,29 +104,3 @@ def test_installed_application_version_uses_the_ferrum_distribution_identity(
 
 
 #============================================
-def test_release_ui_modules_are_independent_of_the_historical_backend() -> None:
-	"""Release UI and its metadata bridge retain no OASA import."""
-	def oasa_imports(relative_path: str) -> tuple[str, ...]:
-		tree = ast.parse(
-			(_QT_PACKAGE_ROOT / relative_path).read_text(encoding="utf-8"),
-			filename=relative_path,
-		)
-		imports: list[str] = []
-		for node in ast.walk(tree):
-			if isinstance(node, ast.Import):
-				imports.extend(
-					alias.name for alias in node.names
-					if alias.name == "oasa" or alias.name.startswith("oasa.")
-				)
-			elif isinstance(node, ast.ImportFrom) and node.module is not None:
-				if node.module == "oasa" or node.module.startswith("oasa."):
-					imports.append(node.module)
-		return tuple(imports)
-
-	ordinary_imports = {
-		relative_path: oasa_imports(relative_path)
-		for relative_path in _ORDINARY_QT_MODULES
-	}
-
-	assert not any(ordinary_imports.values())
-	assert not oasa_imports("bridge/release_metadata.py")

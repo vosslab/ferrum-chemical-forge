@@ -2,9 +2,9 @@
 
 use ferrum_core::{BondOrder, BondStyle as DocumentBondStyle, Identifier, RecordId, RecordKind};
 use ferrum_document::{
-    AtomMarkKindV1, AtomProjectionV1, BondEndpointKindV1, BondProjectionV1, DocumentProjectionV1,
-    PresentationRootProjectionV1, ProjectionIssueCodeV1, Rgb24V1 as DocumentRgb24V1,
-    TransparentOrRgb24V1, VisibilityV1,
+    AtomMarkKindV1, AtomProjectionV1, BondEndpointKindV1, BondProjectionV1,
+    DocumentHaworthPositionV1, DocumentProjectionV1, PresentationRootProjectionV1,
+    ProjectionIssueCodeV1, Rgb24V1 as DocumentRgb24V1, TransparentOrRgb24V1, VisibilityV1,
 };
 use ferrum_render::{
     AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts,
@@ -16,7 +16,7 @@ use ferrum_render::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{DocumentMoleculeRenderPlanV1, DocumentPlusRenderV1, DocumentTextRenderV1};
+use crate::{DocumentMoleculeRenderPlanV2, DocumentPlusRenderV1, DocumentTextRenderV1};
 
 /// Closed schema identifier for the Ferrum V1 depiction profile.
 pub const DEPICTION_PROFILE_SCHEMA_V1: &str = "ferrum-depiction-profile-v1";
@@ -31,6 +31,7 @@ const BUILTIN_ATOM_NUMBER_OFFSET_Y: f64 = -12.0;
 const BUILTIN_ATOM_NUMBER_RGB: &str = "0000c8";
 // CDML's historical `standard/bond@wedge-width` default is 5px.
 const BUILTIN_DIRECT_GLYCOSIDIC_HAWORTH_WEDGE_WIDTH: f64 = 5.0;
+const BUILTIN_BOND_WEDGE_WIDTH: f64 = 5.0;
 
 /// Rust-owned, non-serializable presentation policy for the first Ferrum profile.
 ///
@@ -180,7 +181,7 @@ pub struct DepictionResolutionV1 {
     profile: &'static str,
     projection_revision: u64,
     projection_digest: [u8; 32],
-    plans: Vec<DocumentMoleculeRenderPlanV1>,
+    plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     issues: Vec<DepictionIssueV1>,
@@ -207,7 +208,7 @@ impl<'de> Deserialize<'de> for DepictionResolutionV1 {
             profile: String,
             projection_revision: u64,
             projection_digest: [u8; 32],
-            plans: Vec<DocumentMoleculeRenderPlanV1>,
+            plans: Vec<DocumentMoleculeRenderPlanV2>,
             plus_renders: Vec<DocumentPlusRenderV1>,
             text_renders: Vec<DocumentTextRenderV1>,
             issues: Vec<DepictionIssueV1>,
@@ -346,7 +347,7 @@ fn render_with_verified_telex_metrics(
             bond_lane_spacing,
             line_paint,
         )?;
-        plans.push(DocumentMoleculeRenderPlanV1::from_projection(
+        plans.push(DocumentMoleculeRenderPlanV2::from_projection(
             molecule,
             build_atom_bond_plan(&request, metrics)?,
         ));
@@ -607,9 +608,10 @@ fn resolve_bond(
     let width = resolved_bond_width(bond, projection, profile)?;
     let lane_spacing = resolved_bond_lane_spacing(bond, projection, profile)?;
     let paint = resolved_bond_paint(bond, projection, profile)?;
+    let wedge_width = resolved_bond_wedge_width(bond, projection, profile)?;
     let style = render_bond_style(bond);
     BondRenderTarget::new(target, first, second, style, TargetVisibility::Visible)
-        .map(|target| target.with_appearance(width, lane_spacing, paint))
+        .map(|target| target.with_appearance(width, lane_spacing, wedge_width, paint))
         .map_err(|error| {
             issue(
                 DepictionIssueCodeV1::UnsupportedFeature,
@@ -620,13 +622,25 @@ fn resolve_bond(
 }
 
 fn render_bond_style(bond: &BondProjectionV1) -> BondStyle {
-    match (bond.order(), bond.style()) {
-        (Some(BondOrder::Single), Some(DocumentBondStyle::Normal)) => BondStyle::NormalSingle,
-        (Some(BondOrder::Double), Some(DocumentBondStyle::Normal)) => BondStyle::Double,
-        (Some(BondOrder::Triple), Some(DocumentBondStyle::Normal)) => BondStyle::Triple,
-        (order, style) => BondStyle::Unsupported {
+    match (bond.order(), bond.style(), bond.haworth_position()) {
+        (Some(BondOrder::Single), Some(DocumentBondStyle::Normal), _) => BondStyle::NormalSingle,
+        (Some(BondOrder::Double), Some(DocumentBondStyle::Normal), _) => BondStyle::Double,
+        (Some(BondOrder::Triple), Some(DocumentBondStyle::Normal), _) => BondStyle::Triple,
+        (
+            Some(BondOrder::Single),
+            Some(DocumentBondStyle::Wedge),
+            Some(DocumentHaworthPositionV1::Front),
+        ) => BondStyle::HaworthFrontWedge,
+        (Some(BondOrder::Single), Some(DocumentBondStyle::Wedge), _) => BondStyle::SolidWedge,
+        (Some(BondOrder::Single), Some(DocumentBondStyle::Hashed), _) => BondStyle::HashedWedge,
+        (
+            Some(BondOrder::Single),
+            Some(DocumentBondStyle::HaworthFront),
+            Some(DocumentHaworthPositionV1::Front),
+        ) => BondStyle::HaworthFrontStroke,
+        (order, style, position) => BondStyle::Unsupported {
             detail: format!(
-                "unsupported CDML bond type {:?}: order={order:?}, style={style:?}",
+                "unsupported CDML bond type {:?}: order={order:?}, style={style:?}, haworth_position={position:?}",
                 bond.source_type(),
             ),
         },
@@ -828,6 +842,23 @@ fn resolved_bond_lane_spacing(
         .map(|value| positive(value.value()))
         .unwrap_or_else(|| resolved_default_bond_lane_spacing(projection, profile))
 }
+fn resolved_bond_wedge_width(
+    bond: &BondProjectionV1,
+    projection: &DocumentProjectionV1,
+    _profile: &DepictionProfileV1,
+) -> Result<PositiveFinite, DepictionIssueV1> {
+    positive(
+        bond.wedge_width()
+            .map(|value| value.value())
+            .or_else(|| {
+                projection
+                    .drawing_standard()
+                    .and_then(|standard| standard.wedge_width())
+                    .map(|value| value.value())
+            })
+            .unwrap_or(BUILTIN_BOND_WEDGE_WIDTH),
+    )
+}
 fn resolved_bond_paint(
     bond: &BondProjectionV1,
     projection: &DocumentProjectionV1,
@@ -867,7 +898,7 @@ impl DepictionResolutionV1 {
     pub(crate) fn new(
         projection_revision: u64,
         projection_digest: [u8; 32],
-        plans: Vec<DocumentMoleculeRenderPlanV1>,
+        plans: Vec<DocumentMoleculeRenderPlanV2>,
         issues: Vec<DepictionIssueV1>,
     ) -> Self {
         Self {
@@ -895,7 +926,7 @@ impl DepictionResolutionV1 {
     }
     /// Return complete per-molecule plans.
     #[must_use]
-    pub fn plans(&self) -> &[DocumentMoleculeRenderPlanV1] {
+    pub fn plans(&self) -> &[DocumentMoleculeRenderPlanV2] {
         &self.plans
     }
     /// Return exact verified-Telex layouts for supported direct-root plus signs.

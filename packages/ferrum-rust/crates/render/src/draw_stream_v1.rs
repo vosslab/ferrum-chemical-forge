@@ -184,6 +184,7 @@ pub(crate) struct DrawStyleV1<'a> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DrawMetadataV1 {
     MoleculeLine { z: i32 },
+    MoleculePath { z: i32 },
     MoleculeMask { z: i32 },
     MoleculeEllipse { z: i32 },
     MoleculeText { z: i32 },
@@ -590,6 +591,7 @@ fn vector_style<'a>(
             width: stroke.width(),
             line_cap: match stroke.line_cap() {
                 VectorStrokeLineCapV1::Butt => DrawLineCapV1::Butt,
+                VectorStrokeLineCapV1::Round => DrawLineCapV1::Round,
             },
             line_join: stroke.line_join(),
             miter_limit: stroke.miter_limit(),

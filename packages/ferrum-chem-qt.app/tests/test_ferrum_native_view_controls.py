@@ -15,7 +15,9 @@ import pytest
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
+import ferrum_qt.main_window
 import ferrum_qt.native.ferrum_native_coordinate_generation
+import ferrum_qt.native.ferrum_native_drawing_parameters
 import ferrum_qt.native.ferrum_native_document_tab
 import ferrum_qt.native.ferrum_native_graphics_view
 import ferrum_qt.native.ferrum_native_main_window
@@ -141,6 +143,88 @@ def test_empty_content_is_exact_page_fallback(
 		assert _same_transform(tab.view.transform(), page_transform)
 	finally:
 		_close_window(window)
+
+
+#============================================
+def test_hex_grid_visibility_is_application_state_across_scene_replacement(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The shared grid action changes display only and survives a native edit."""
+	window, tab = _open_tab(qapp, _MOLECULE_CDML)
+	try:
+		before = tab.current_snapshot
+		grid_action = next(
+			action for action in window.findChildren(PySide6.QtGui.QAction)
+			if action.text() == "Show Hex Grid"
+		)
+		grid_action.trigger()
+		second = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+			_EMPTY_CDML, "second-grid.cdml",
+		)
+		window._register_native_tab(second, activate=False)
+		assert (
+			grid_action.isChecked(),
+			tab.view.hex_grid_visible,
+			second.view.hex_grid_visible,
+			tab.current_snapshot,
+		) == (False, False, False, before)
+		tab.select_atom("atom-c")
+		tab.change_selected_atom_element("N")
+		assert not tab.view.hex_grid_visible
+		tab.undo()
+	finally:
+		_close_window(window)
+
+
+#============================================
+def test_next_drawing_choices_persist_across_native_windows_without_document_mutation(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Next Drawing follows the application while its open Rust documents stay intact."""
+	first = ferrum_qt.main_window.MainWindow(object())
+	first_tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		_MOLECULE_CDML, "first-drawing.cdml",
+	)
+	second_tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		_MOLECULE_CDML, "second-drawing.cdml",
+	)
+	second = None
+	prior_choices = None
+	try:
+		first._register_native_tab(first_tab, activate=True)
+		second = ferrum_qt.main_window.MainWindow(object())
+		second._register_native_tab(second_tab, activate=True)
+		first.show()
+		second.show()
+		qapp.processEvents()
+		first_tab.select_atom("atom-c")
+		second_tab.select_atom("atom-o")
+		prior_choices = first._drawing_parameters.snapshot()
+		first_snapshot = first_tab.current_snapshot
+		first_selection = first_tab.selected_atom_projection().source_id
+		second_snapshot = second_tab.current_snapshot
+		second_selection = second_tab.selected_atom_projection().source_id
+		first._drawing_parameters.set_element("O")
+		first._drawing_parameters.set_order_name("double")
+		qapp.processEvents()
+		assert second._drawing_parameters.snapshot() == (
+			ferrum_qt.native.ferrum_native_drawing_parameters.
+			FerrumNativeDrawingParametersSnapshot("O", "double", "normal")
+		)
+		assert (
+			first_tab.current_snapshot == first_snapshot
+			and first_tab.selected_atom_projection().source_id == first_selection
+			and second_tab.current_snapshot == second_snapshot
+			and second_tab.selected_atom_projection().source_id == second_selection
+		)
+	finally:
+		if prior_choices is not None:
+			first._drawing_parameters.set_element(prior_choices.element)
+			first._drawing_parameters.set_order_name(prior_choices.order_name)
+			first._drawing_parameters.set_presentation_name(prior_choices.presentation_name)
+		if second is not None:
+			_close_window(second)
+		_close_window(first)
 
 
 #============================================

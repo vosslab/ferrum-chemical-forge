@@ -1,10 +1,10 @@
 //! Declarative, validated molecule render plans.
 //!
-//! # V1 wire contract
+//! # V2 wire contract
 //!
 //! `MoleculeRenderPlan` is the sole JSON boundary between Ferrum's authoritative
 //! document projection and a disposable renderer. JSON accepts only
-//! `ferrum-render-plan-v1`; unknown fields, variants, and future schemas are
+//! `ferrum-render-plan-v2`; unknown fields, variants, and future schemas are
 //! rejected rather than guessed. A plan contains exactly one outcome for each
 //! supplied target: a complete `RenderBatch` or a `RenderIssue`, never both.
 //! Both outcome lists are strictly sorted by unique `source_order`, so a client
@@ -13,7 +13,7 @@
 //! Coordinates are finite Ferrum scene units with the document origin and axes
 //! supplied by the authoritative projection. `Scene` line endpoints are scene
 //! points. `AtomLocal` text origins are offsets from that batch's `anchor` in
-//! the same coordinate system. The V1 grammar deliberately does not assign
+//! the same coordinate system. The V2 grammar deliberately does not assign
 //! screen pixels, DPI, scaling, clipping, or toolkit defaults to a renderer.
 //! Every accepted zero coordinate serializes as `0.0`, never `-0.0`.
 //!
@@ -25,14 +25,15 @@
 //! `UnsupportedFeature` or `UnrenderableTarget` issue is displayed as an
 //! excluded target diagnostic and produces no batch.
 //!
-//! Future operations, typography, and schema versions require a new validated
-//! grammar revision; V1 intentionally provides no compatibility aliases.
+//! V2 adds source-owned finite scene paths for bond batches. Future operations,
+//! typography, and schema versions require a new validated grammar revision.
 
 mod atom_bond;
 mod authored_direct_glycosidic_haworth;
 mod composite_recording_v1;
 mod direct_draw_stream_v1;
 mod direct_glycosidic_haworth;
+mod directed_stereo_bond;
 mod document_artifact_v1;
 mod document_bond_replacement_v1;
 mod document_content_bounds_v1;
@@ -45,9 +46,11 @@ mod font_environment;
 mod glyph_metrics;
 mod glyph_placement;
 mod haworth;
+mod haworth_front_bond;
 mod model;
 mod pdf_backend;
 mod png_backend;
+mod scene_path_v2;
 mod shape_ops;
 mod standalone_text;
 mod svg_backend;
@@ -77,6 +80,8 @@ pub use direct_glycosidic_haworth::{
     DirectGlycosidicHaworthRenderPlanV1, DirectGlycosidicHaworthRenderRequestV1,
     lower_direct_glycosidic_haworth_v1,
 };
+/// Source-owned directed stereo-bond geometry for committed batches and previews.
+pub use directed_stereo_bond::build_directed_bond_preview_ops;
 /// Renderer-neutral receipt for a completed whole-page artifact.
 pub use document_artifact_v1::{DocumentRenderArtifactV1, DocumentRenderReportV1};
 /// Checked in-process selective replacement of one molecule's bond outcomes.
@@ -108,11 +113,13 @@ pub use glyph_metrics::{GlyphBounds, GlyphMetrics};
 pub use glyph_placement::{GlyphPlacement, TextScript};
 /// Haworth fragment lowering into the closed V1 render-plan grammar.
 pub use haworth::{HaworthRenderRequest, lower_haworth_fragment};
+/// Source-owned V2 geometry for detached Haworth q1/w1 previews.
+pub use haworth_front_bond::build_haworth_front_preview_ops;
 /// Validated render-plan model and canonical JSON boundary.
 pub use model::{
     BatchSpace, FontFace, LineOp, MaskOp, MoleculeRenderPlan, Paint, PositiveFinite, RenderBatch,
-    RenderOp, RenderPoint, RenderProvenance, RenderRevision, RenderSchemaVersion, RenderTarget,
-    Rgb24, TextOp, TextRun,
+    RenderDisplayLayerV1, RenderOp, RenderPoint, RenderProvenance, RenderRevision,
+    RenderSchemaVersion, RenderTarget, Rgb24, TextOp, TextRun,
 };
 /// In-memory, outline-only vector PDF V1 lowering with explicit caller-owned limits.
 pub use pdf_backend::{
@@ -125,6 +132,8 @@ pub use png_backend::{
     PngBackgroundV1, PngDocumentV1, PngOutputBudgetV1, PngPixelSizeV1, PngRenderError,
     PngRenderRequestV1, render_document_plan_to_png_v1,
 };
+/// Neutral V2 path facts shared by molecule render-plan consumers.
+pub use scene_path_v2::{PathOpV2, ScenePathCommandV2, ScenePathStrokeV2};
 pub use shape_ops::EllipseOp;
 /// Exact fixed-content text layout issued by the verified Telex renderer.
 pub use standalone_text::{

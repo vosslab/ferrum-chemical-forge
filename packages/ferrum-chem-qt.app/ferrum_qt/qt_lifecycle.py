@@ -1,4 +1,4 @@
-"""OASA-free QObject terminal lifecycle helpers."""
+"""Rust-native QObject terminal lifecycle helpers."""
 
 # PIP3 modules
 import PySide6.QtCore

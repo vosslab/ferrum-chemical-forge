@@ -65,6 +65,23 @@ fn line() -> RenderOp {
     )
 }
 
+fn filled_path() -> RenderOp {
+    RenderOp::Path(
+        PathOpV2::new(
+            vec![
+                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV2::LineTo(point(5.0, 1.0)),
+                ScenePathCommandV2::LineTo(point(3.0, 4.0)),
+                ScenePathCommandV2::Close,
+            ],
+            None,
+            Some(paint("112233")),
+            2,
+        )
+        .expect("finite closed path"),
+    )
+}
+
 fn plan() -> MoleculeRenderPlan {
     MoleculeRenderPlan::new(
         RenderProvenance::new(RenderRevision::new(8).expect("revision"), [8; 32]),
@@ -97,8 +114,76 @@ fn plan_json_is_canonical_and_round_trips() {
     let second = restored.to_canonical_json().expect("serialize again");
     assert_eq!(first, second);
     assert_eq!(restored, original);
-    assert!(first.starts_with("{\"schema\":\"ferrum-render-plan-v1\""));
+    assert!(first.starts_with("{\"schema\":\"ferrum-render-plan-v2\""));
     assert!(first.contains("\"paint\":\"112233\""));
+}
+
+#[test]
+fn scene_path_requires_closed_finite_drawable_painted_geometry() {
+    let accepted = filled_path();
+    assert!(
+        RenderBatch::new(
+            target(RecordKind::Bond, "path", 1),
+            BatchSpace::Scene,
+            vec![accepted],
+        )
+        .is_ok()
+    );
+    assert!(
+        PathOpV2::new(
+            vec![
+                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV2::LineTo(point(5.0, 1.0)),
+            ],
+            None,
+            Some(paint("112233")),
+            0,
+        )
+        .is_err()
+    );
+    assert!(
+        PathOpV2::new(
+            vec![
+                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV2::LineTo(point(5.0, 1.0)),
+            ],
+            None,
+            None,
+            0,
+        )
+        .is_err()
+    );
+    assert!(
+        PathOpV2::new(
+            vec![
+                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV2::Close,
+            ],
+            None,
+            Some(paint("112233")),
+            0,
+        )
+        .is_err()
+    );
+    let path_plan = MoleculeRenderPlan::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
+        vec![
+            RenderBatch::new(
+                target(RecordKind::Bond, "path-wire", 1),
+                BatchSpace::Scene,
+                vec![filled_path()],
+            )
+            .expect("path batch"),
+        ],
+        vec![],
+    )
+    .expect("path plan");
+    let mut wire: serde_json::Value =
+        serde_json::from_str(&path_plan.to_canonical_json().expect("serialize path plan"))
+            .expect("path plan value");
+    wire["batches"][0]["operations"][0]["operation"]["commands"][0]["command"]["x"] =
+        serde_json::Value::Null;
+    assert!(MoleculeRenderPlan::from_json(&wire.to_string()).is_err());
 }
 
 #[test]

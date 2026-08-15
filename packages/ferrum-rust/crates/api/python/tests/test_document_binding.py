@@ -328,12 +328,13 @@ def test_render_observation_is_one_frozen_api_owned_plan_with_exact_glyphs() -> 
 	plan = entry.plan
 	batch = plan.batches[0]
 	operation = batch.operations[-1]
-
 	assert (observation.document.snapshot.revision, observation.document.snapshot.digest) == (
 		plan.provenance.revision,
 		plan.provenance.digest,
 	)
 	assert isinstance(observation.molecule_plans, tuple)
+	assert (plan.schema, type(plan), type(batch), type(operation)) == ("ferrum-render-plan-v2",
+		ferrum_chem.RenderPlanV2, ferrum_chem.RenderBatchV2, ferrum_chem.RenderOperationV2)
 	assert (entry.molecule.source_id, entry.molecule.source_order) == ("m", 0)
 	assert batch.target.record_id.kind == "Atom"
 	assert operation.kind == "text"
@@ -345,7 +346,6 @@ def test_render_observation_is_one_frozen_api_owned_plan_with_exact_glyphs() -> 
 def test_render_observation_preserves_typed_stale_and_closed_telex_contracts() -> None:
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	resource = ferrum_chem.verified_telex_regular()
-
 	assert isinstance(resource.data, bytes)
 	assert (resource.resource_id, resource.byte_length, resource.family) == (
 		"ferrum-telex-regular-v1",
@@ -812,26 +812,20 @@ def test_prepared_atom_insertion_is_revision_bound_and_one_use() -> None:
 		session.commit_create_atom(1, prepared)
 
 
-def test_prepared_bond_insertion_uses_closed_order_and_is_one_use() -> None:
+def test_prepared_bond_insertion_preserves_directed_presentation_and_is_one_use() -> None:
 	session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
 	projection = session.observe(0).projection
 	start, end = (atom.id for atom in projection.molecules[0].atoms)
-	prepared = session.prepare_create_bond_v1(
-		0, start, end, ferrum_chem.DocumentBondOrderV1.double,
+	prepared = session.prepare_create_bond_v2(
+		0, start, end, ferrum_chem.DocumentBondPresentationV1.solid_wedge,
 	)
 
 	assert prepared.identifier == "ferrum-bond-v1-0"
 	committed = session.commit_create_bond(0, prepared).observation
 	assert committed.snapshot.revision == 1
-	assert 'type="n2" start="a" end="b"' in committed.snapshot.cdml
-	assert committed.projection.molecules[0].bonds[0].source_type == "n2"
-	assert ferrum_chem.DocumentBondOrderV1.__module__ == "ferrum_chem"
-	assert (
-		ferrum_chem.DocumentBondOrderV1.double
-		!= ferrum_chem.DocumentBondOrderV1.single
-		and hash(ferrum_chem.DocumentBondOrderV1.double)
-		== hash(ferrum_chem.DocumentBondOrderV1.double)
-	)
+	bond = committed.projection.molecules[0].bonds[0]
+	assert bond.source_type == "w1"
+	assert (bond.start.object_id, bond.end.object_id) == (start, end)
 	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
 		session.commit_create_bond(1, prepared)
 
@@ -840,18 +834,18 @@ def test_bond_insertion_rejects_self_and_duplicate_edges_without_state_change() 
 	session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
 	start, end = (atom.id for atom in session.observe(0).projection.molecules[0].atoms)
 	with pytest.raises(ferrum_chem.OperationValidationError):
-		session.prepare_create_bond_v1(
-			0, start, start, ferrum_chem.DocumentBondOrderV1.single,
+		session.prepare_create_bond_v2(
+			0, start, start, ferrum_chem.DocumentBondPresentationV1.hashed_wedge,
 		)
 	assert session.snapshot().revision == 0
 
-	prepared = session.prepare_create_bond_v1(
-		0, start, end, ferrum_chem.DocumentBondOrderV1.single,
+	prepared = session.prepare_create_bond_v2(
+		0, start, end, ferrum_chem.DocumentBondPresentationV1.hashed_wedge,
 	)
 	session.commit_create_bond(0, prepared)
 	with pytest.raises(ferrum_chem.OperationValidationError):
-		session.prepare_create_bond_v1(
-			1, end, start, ferrum_chem.DocumentBondOrderV1.triple,
+		session.prepare_create_bond_v2(
+			1, end, start, ferrum_chem.DocumentBondPresentationV1.normal_double,
 		)
 	assert session.snapshot().revision == 1
 
@@ -859,8 +853,9 @@ def test_bond_insertion_rejects_self_and_duplicate_edges_without_state_change() 
 def test_bonded_atom_insertion_is_one_frozen_rust_operation_and_one_undo() -> None:
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	start = session.observe(0).projection.molecules[0].atoms[0].id
-	prepared = session.prepare_create_bonded_atom_v1(
-		0, start, "O", 8.0, 9.0, 0.0, ferrum_chem.DocumentBondOrderV1.single,
+	prepared = session.prepare_create_bonded_atom_v2(
+		0, start, "O", 8.0, 9.0, 0.0,
+		ferrum_chem.DocumentBondPresentationV1.hashed_wedge,
 	)
 
 	assert prepared.__class__.__module__ == "ferrum_chem"
@@ -873,7 +868,8 @@ def test_bonded_atom_insertion_is_one_frozen_rust_operation_and_one_undo() -> No
 	assert len(molecule.atoms) == 2 and len(molecule.bonds) == 1
 	assert molecule.atoms[1].source_id == prepared.atom_identifier
 	assert (molecule.atoms[1].position.x, molecule.atoms[1].position.y) == (8.0, 9.0)
-	assert molecule.bonds[0].source_id == prepared.bond_identifier
+	assert molecule.bonds[0].source_type == "h1"
+	assert molecule.bonds[0].end.source_id == prepared.atom_identifier
 	undone = session.undo(1).observation.projection.molecules[0]
 	assert len(undone.atoms) == 1 and not undone.bonds
 	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):

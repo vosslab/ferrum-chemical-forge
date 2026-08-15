@@ -10,10 +10,13 @@ use crate::{Paint, PositiveFinite, RenderError, RenderPoint};
 /// The current document projection supplies no cap alternatives, so V1 fixes this
 /// value instead of leaving it to a backend default. A later source-backed choice
 /// requires a new validated vector grammar revision.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum VectorStrokeLineCapV1 {
     /// End an open stroke exactly at its issued endpoint.
     Butt,
+    /// Extend an open stroke with a semicircular end cap.
+    Round,
 }
 
 impl VectorStrokeLineCapV1 {
@@ -28,6 +31,7 @@ impl VectorStrokeLineCapV1 {
     pub const fn svg_keyword(self) -> &'static str {
         match self {
             Self::Butt => "butt",
+            Self::Round => "round",
         }
     }
 }

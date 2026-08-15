@@ -53,7 +53,7 @@ impl DocumentSession {
         }
         let (generated, tentative_generated_ids) = self
             .generated_ids
-            .reserve_clipboard(current.document().indexed(), plan.declared_id_count())?;
+            .reserve_fragment_import(current.document().indexed(), plan.declared_id_count())?;
         let (candidate, pasted_roots) =
             super::super::clipboard_paste_v1::compose_clipboard_paste_candidate_v1(
                 current.document(),

@@ -11,6 +11,7 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
 import ferrum_qt.native.ferrum_native_bracket_creation as native_bracket_creation
+import ferrum_qt.native.ferrum_native_bond_creation as native_bond_creation
 import ferrum_qt.native.ferrum_native_clipboard_paste_tab as native_clipboard_paste_tab
 import ferrum_qt.native.ferrum_native_clipboard_cut_tab as native_clipboard_cut_tab
 import ferrum_qt.native.ferrum_native_document_tab_construction as native_tab_construction
@@ -24,15 +25,20 @@ import ferrum_qt.native.ferrum_native_presentation_deletion as native_presentati
 import ferrum_qt.native.ferrum_native_presentation_stack as native_presentation_stack
 import ferrum_qt.native.ferrum_native_property_observation as native_property_observation
 import ferrum_qt.native.ferrum_native_rotation as native_rotation
-import ferrum_qt.native.ferrum_native_snapshot_export as native_snapshot_export
+import ferrum_qt.native.ferrum_native_regular_ring_tab as native_regular_ring_tab
+import ferrum_qt.native.ferrum_native_haworth_tab as native_haworth_tab
+import ferrum_qt.native.ferrum_native_direct_glycosidic_haworth_tab as native_direct_haworth_tab
 import ferrum_qt.native.ferrum_native_sdf_insertion as native_sdf_insertion
 import ferrum_qt.native.ferrum_native_text_properties as native_text_properties
 import ferrum_qt.native.ferrum_native_top_level_transform as native_top_level_transform
+import ferrum_qt.native.ferrum_native_user_templates as native_user_templates
 import ferrum_qt.native.ferrum_native_tab_view_state
 import ferrum_qt.native.ferrum_native_wavy_properties as native_wavy_properties
 import ferrum_qt.native.ferrum_native_document_tab_publication as native_publication
 import ferrum_qt.native.ferrum_native_document_tab_errors as native_document_tab_errors
 import ferrum_qt.native.ferrum_native_drawing_standard as native_drawing_standard
+import ferrum_qt.native.ferrum_native_explicit_fragment_tab as native_explicit_fragment
+import ferrum_qt.native.ferrum_native_local_cdml_origin_tab as native_local_cdml_origin_tab
 
 
 #============================================
@@ -63,11 +69,18 @@ class FerrumNativeMoleculeChoice:
 
 #============================================
 class FerrumNativeDocumentTab(
+		native_local_cdml_origin_tab.FerrumNativeLocalCdmlOriginTabMixin,
+		native_regular_ring_tab.FerrumNativeRegularRingTabMixin,
+		native_haworth_tab.FerrumNativeHaworthTabMixin,
+		native_direct_haworth_tab.FerrumNativeDirectGlycosidicHaworthTabMixin,
+		native_bond_creation.FerrumNativeBondCreationMixin,
+		native_user_templates.FerrumNativeUserTemplateTabMixin,
 		native_publication.FerrumNativeDocumentTabPublicationMixin,
 		native_property_observation.FerrumNativePropertyObservationMixin,
 		native_clipboard_cut_tab.FerrumNativeClipboardCutTabMixin,
 		native_clipboard_paste_tab.FerrumNativeClipboardPasteTabMixin,
 		native_drawing_standard.FerrumNativeDrawingStandardTabMixin,
+		native_explicit_fragment.FerrumNativeExplicitFragmentTabMixin,
 		native_linear_form.FerrumNativeLinearFormTabMixin,
 		native_molecule_name.FerrumNativeMoleculeNameTabMixin,
 		native_sdf_insertion.FerrumNativeSdfInsertionTabMixin,
@@ -79,7 +92,6 @@ class FerrumNativeDocumentTab(
 		native_presentation_stack.FerrumNativePresentationStackMixin,
 		native_text_properties.FerrumNativeTextPropertiesMixin,
 		native_rotation.FerrumNativeRotationTabMixin,
-		native_snapshot_export.FerrumNativeSnapshotExportTabMixin,
 		native_geometry_repair.FerrumNativeGeometryRepairTabMixin,
 		native_top_level_transform.FerrumNativeTopLevelTransformTabMixin,
 		ferrum_qt.native.ferrum_native_tab_view_state.FerrumNativeTabViewStateMixin,
@@ -171,6 +183,7 @@ class FerrumNativeDocumentTab(
 		self._pending_durable_selection: tuple[tuple[str, str], ...] | None = None
 		self._selection_scene: PySide6.QtWidgets.QGraphicsScene | None = None
 		self._file_path: pathlib.Path | None = None
+		self._initialize_local_cdml_origin()
 		self._disposed = False
 		layout = PySide6.QtWidgets.QVBoxLayout(self)
 		layout.setContentsMargins(0, 0, 0, 0)
@@ -210,6 +223,7 @@ class FerrumNativeDocumentTab(
 	def file_path(self) -> pathlib.Path | None:
 		"""Return the loaded origin or confirmed publication destination, if known."""
 		return self._file_path
+
 
 	#============================================
 	def _adopt_loaded_origin_path(self, path: str | pathlib.Path) -> None:
@@ -260,22 +274,41 @@ class FerrumNativeDocumentTab(
 			)
 		projection.select_durable((("bond", bond_id),))
 	#============================================
-	def durable_atom_at_viewport_point(self, point: PySide6.QtCore.QPoint) -> str | None:
-		"""Return the topmost durable Rust atom hit by one viewport point."""
+	def durable_structure_at_viewport_point(
+			self, point: PySide6.QtCore.QPoint,
+			) -> tuple[str, str] | None:
+		"""Return the topmost installed durable atom or bond at one viewport point."""
 		self._require_live()
 		if not isinstance(point, PySide6.QtCore.QPoint):
-			raise TypeError("native atom hit testing requires a QPoint")
+			raise TypeError("native structure hit testing requires a QPoint")
 		projection = self._require_projection()
 		for item in self._view.items(point):
 			current = item
 			while current is not None:
 				target = projection.item_targets.get(current)
 				if target is not None:
-					if target.kind == "atom" and target.identifier is not None:
-						return target.identifier
+					# The installed projection owns both this Qt item mapping and the
+					# durable target vocabulary.  Keep window tools independent of
+					# graphics-item classes and transient scene decoration.
+					if (
+						target.kind in ("atom", "bond")
+						and target.identifier is not None
+					):
+						return target.kind, target.identifier
+					# An overlaid presentation root is not durable chemical content.
+					# Move to the next hit-stack item so it cannot mask a bond or
+					# atom beneath it; climbing farther would only revisit its root.
 					break
 				current = current.parentItem()
 		return None
+
+	#============================================
+	def durable_atom_at_viewport_point(self, point: PySide6.QtCore.QPoint) -> str | None:
+		"""Return the topmost durable Rust atom hit by one viewport point."""
+		target = self.durable_structure_at_viewport_point(point)
+		if target is None or target[0] != "atom":
+			return None
+		return target[1]
 
 	#============================================
 	def durable_atom_scene_position(self, atom_id: str) -> PySide6.QtCore.QPointF:
@@ -725,43 +758,6 @@ class FerrumNativeDocumentTab(
 		operation = ferrum_chem.DocumentOperationV1.set_atom_position(atom_id, x, y, 0.0)
 		result = self._session.submit(self.current_snapshot.revision, operation)
 		self._install_mutation_result(result, (("atom", atom_id),))
-		return result
-
-	#============================================
-	def add_single_bond_between_selected_atoms(self) -> object:
-		"""Connect exactly two selected durable atoms through one Rust transaction."""
-		self._require_mutable()
-		selected = self._selected_atom_identifiers(2)
-		start, end = self._atom_object_ids(selected)
-		import ferrum_chem
-		revision = self.current_snapshot.revision
-		prepared = self._session.prepare_create_bond_v1(
-			revision, start, end, ferrum_chem.DocumentBondOrderV1.single,
-		)
-		result = self._session.commit_create_bond(revision, prepared)
-		self._install_mutation_result(result, (("bond", prepared.identifier),))
-		return result
-
-	#============================================
-	def add_bonded_atom_at(self, start_atom_id: str, element: str,
-			x: float, y: float) -> object:
-		"""Create one atom and its bond from an existing durable atom atomically."""
-		self._require_mutable()
-		if type(start_atom_id) is not str or type(element) is not str:
-			raise TypeError("native bonded-atom insertion requires atom and element strings")
-		if type(x) is not float or type(y) is not float:
-			raise TypeError("native bonded-atom insertion coordinates must be floats")
-		(start_object_id,) = self._atom_object_ids((start_atom_id,))
-		import ferrum_chem
-		revision = self.current_snapshot.revision
-		prepared = self._session.prepare_create_bonded_atom_v1(
-			revision, start_object_id, element, x, y, 0.0,
-			ferrum_chem.DocumentBondOrderV1.single,
-		)
-		result = self._session.commit_create_bonded_atom(revision, prepared)
-		self._install_mutation_result(
-			result, (("atom", prepared.atom_identifier),),
-		)
 		return result
 
 	#============================================

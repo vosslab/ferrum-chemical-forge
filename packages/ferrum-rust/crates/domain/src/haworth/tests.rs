@@ -9,5 +9,6 @@ mod direct_glycosidic_spec;
 mod durable_reobservation;
 mod fixtures;
 mod layout_behavior;
+mod standalone_glucose_recipe;
 mod topology_validation;
 mod tree_behavior;

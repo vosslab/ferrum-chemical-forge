@@ -1,7 +1,7 @@
 //! Frozen Python DTOs for the API-owned final render observation.
 
 use ferrum_api::{
-    BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV1,
+    BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
     DocumentPlusRenderV1, RecordOrigin, RenderBatch, RenderIssue, RenderIssueKind,
     RenderObservationError as ApiRenderObservationError, RenderObservationV1, RenderOp,
     RenderPoint, RenderTarget, TextScript, verified_telex_regular_v1,
@@ -11,6 +11,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyTuple;
 
+use crate::binding::PyDocumentBondPresentationV1;
 use crate::binding::{FerrumError, map_document_error};
 
 create_exception!(ferrum_chem, RenderObservationError, FerrumError);
@@ -197,9 +198,47 @@ pub(crate) struct PyEllipseOpV1 {
     z: i32,
 }
 
-#[pyclass(frozen, name = "RenderOperationV1", skip_from_py_object)]
+/// Frozen source-owned V2 scene path.  Qt receives only these commands and paint.
+#[pyclass(frozen, name = "PathOpV2", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyRenderOperationV1 {
+pub(crate) struct PyPathOpV2 {
+    commands: Vec<PyScenePathCommandV2>,
+    #[pyo3(get)]
+    stroke_width: Option<f64>,
+    #[pyo3(get)]
+    stroke_paint: Option<String>,
+    #[pyo3(get)]
+    stroke_line_cap: Option<String>,
+    #[pyo3(get)]
+    fill_paint: Option<String>,
+    #[pyo3(get)]
+    z: i32,
+}
+
+#[pyclass(frozen, name = "ScenePathCommandV2", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyScenePathCommandV2 {
+    #[pyo3(get)]
+    kind: String,
+    #[pyo3(get)]
+    point: Option<PyRenderPointV1>,
+    #[pyo3(get)]
+    control_1: Option<PyRenderPointV1>,
+    #[pyo3(get)]
+    control_2: Option<PyRenderPointV1>,
+}
+
+#[pymethods]
+impl PyPathOpV2 {
+    #[getter]
+    fn commands(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        frozen_tuple(py, &self.commands)
+    }
+}
+
+#[pyclass(frozen, name = "RenderOperationV2", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyRenderOperationV2 {
     #[pyo3(get)]
     kind: String,
     operation: PyRenderOperationPayload,
@@ -211,10 +250,11 @@ enum PyRenderOperationPayload {
     Line(PyLineOpV1),
     Mask(PyMaskOpV1),
     Ellipse(PyEllipseOpV1),
+    Path(PyPathOpV2),
 }
 
 #[pymethods]
-impl PyRenderOperationV1 {
+impl PyRenderOperationV2 {
     #[getter]
     fn operation(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.operation {
@@ -222,17 +262,20 @@ impl PyRenderOperationV1 {
             PyRenderOperationPayload::Line(value) => Ok(Py::new(py, value.clone())?.into_any()),
             PyRenderOperationPayload::Mask(value) => Ok(Py::new(py, value.clone())?.into_any()),
             PyRenderOperationPayload::Ellipse(value) => Ok(Py::new(py, value.clone())?.into_any()),
+            PyRenderOperationPayload::Path(value) => Ok(Py::new(py, value.clone())?.into_any()),
         }
     }
 }
 
-#[pyclass(frozen, name = "RenderBatchV1", skip_from_py_object)]
+#[pyclass(frozen, name = "RenderBatchV2", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyRenderBatchV1 {
+pub(crate) struct PyRenderBatchV2 {
     #[pyo3(get)]
     target: PyRenderTargetV1,
     coordinate_space: PyRenderCoordinateSpace,
-    operations: Vec<PyRenderOperationV1>,
+    #[pyo3(get)]
+    display_layer: String,
+    operations: Vec<PyRenderOperationV2>,
 }
 
 #[derive(Clone)]
@@ -242,7 +285,7 @@ enum PyRenderCoordinateSpace {
 }
 
 #[pymethods]
-impl PyRenderBatchV1 {
+impl PyRenderBatchV2 {
     #[getter]
     fn coordinate_space(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.coordinate_space {
@@ -267,14 +310,14 @@ pub(crate) struct PyRenderIssueV1 {
     detail: String,
 }
 
-#[pyclass(frozen, name = "RenderPlanV1", skip_from_py_object)]
+#[pyclass(frozen, name = "RenderPlanV2", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyRenderPlanV1 {
+pub(crate) struct PyRenderPlanV2 {
     #[pyo3(get)]
     schema: String,
     #[pyo3(get)]
     provenance: PyRenderProvenanceV1,
-    batches: Vec<PyRenderBatchV1>,
+    batches: Vec<PyRenderBatchV2>,
     issues: Vec<PyRenderIssueV1>,
 }
 
@@ -300,17 +343,17 @@ pub(crate) struct PyMoleculeRenderRootV1 {
     source_order: u32,
 }
 
-#[pyclass(frozen, name = "DocumentMoleculeRenderPlanV1", skip_from_py_object)]
+#[pyclass(frozen, name = "DocumentMoleculeRenderPlanV2", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyDocumentMoleculeRenderPlanV1 {
+pub(crate) struct PyDocumentMoleculeRenderPlanV2 {
     #[pyo3(get)]
     molecule: PyMoleculeRenderRootV1,
     #[pyo3(get)]
-    plan: PyRenderPlanV1,
+    plan: PyRenderPlanV2,
 }
 
 #[pymethods]
-impl PyRenderPlanV1 {
+impl PyRenderPlanV2 {
     #[getter]
     fn batches(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         frozen_tuple(py, &self.batches)
@@ -369,7 +412,7 @@ pub(crate) struct PyRenderObservationV1 {
     document: crate::projection_binding::PySessionDocumentObservationV1,
     #[pyo3(get)]
     profile: String,
-    molecule_plans: Vec<PyDocumentMoleculeRenderPlanV1>,
+    molecule_plans: Vec<PyDocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<PyDocumentPlusRenderV1>,
     text_renders: Vec<crate::presentation_text_render_binding::PyDocumentTextRenderV1>,
     issues: Vec<PyDepictionIssueV1>,
@@ -435,6 +478,47 @@ pub(crate) fn verified_telex_regular() -> PyResult<PyVerifiedTelexRegularV1> {
     })
 }
 
+/// Return source-owned V2 operations for one disposable directed-bond preview.
+#[pyfunction]
+pub(crate) fn native_directed_bond_preview_v1(
+    py: Python<'_>,
+    start_x: f64,
+    start_y: f64,
+    end_x: f64,
+    end_y: f64,
+    presentation: PyRef<'_, PyDocumentBondPresentationV1>,
+) -> PyResult<Py<PyTuple>> {
+    let style = match *presentation {
+        PyDocumentBondPresentationV1::SolidWedge => ferrum_api::BondStyle::SolidWedge,
+        PyDocumentBondPresentationV1::HashedWedge => ferrum_api::BondStyle::HashedWedge,
+        _ => {
+            return Err(RenderDepictionError::new_err(
+                "choose a directed wedge presentation for a directed bond preview",
+            ));
+        }
+    };
+    let start = ferrum_api::RenderPoint::new(start_x, start_y)
+        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
+    let end = ferrum_api::RenderPoint::new(end_x, end_y)
+        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
+    let width = ferrum_api::PositiveFinite::new(1.0)
+        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
+    let wedge_width = ferrum_api::PositiveFinite::new(5.0)
+        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
+    let paint = ferrum_api::Paint::rgb24(
+        ferrum_api::Rgb24::new("000000")
+            .map_err(|error| RenderDepictionError::new_err(error.to_string()))?,
+    );
+    let operations =
+        ferrum_api::build_directed_bond_preview_ops(style, start, end, width, wedge_width, paint)
+            .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
+    let values = operations
+        .iter()
+        .map(|operation| operation_from(py, operation))
+        .collect::<PyResult<Vec<_>>>()?;
+    frozen_tuple(py, &values)
+}
+
 pub(crate) fn observation(
     py: Python<'_>,
     value: RenderObservationV1,
@@ -489,9 +573,9 @@ pub(crate) fn error_result(py: Python<'_>, error: ApiRenderObservationError) -> 
 
 fn document_molecule_plan_from(
     py: Python<'_>,
-    value: &DocumentMoleculeRenderPlanV1,
-) -> PyResult<PyDocumentMoleculeRenderPlanV1> {
-    Ok(PyDocumentMoleculeRenderPlanV1 {
+    value: &DocumentMoleculeRenderPlanV2,
+) -> PyResult<PyDocumentMoleculeRenderPlanV2> {
+    Ok(PyDocumentMoleculeRenderPlanV2 {
         molecule: PyMoleculeRenderRootV1 {
             id: value.molecule().id().map(str::to_owned),
             projection_key: value.molecule().projection_key().to_owned(),
@@ -502,9 +586,9 @@ fn document_molecule_plan_from(
     })
 }
 
-fn plan_from(py: Python<'_>, plan: &ferrum_api::MoleculeRenderPlan) -> PyResult<PyRenderPlanV1> {
-    Ok(PyRenderPlanV1 {
-        schema: "ferrum-render-plan-v1".to_owned(),
+fn plan_from(py: Python<'_>, plan: &ferrum_api::MoleculeRenderPlan) -> PyResult<PyRenderPlanV2> {
+    Ok(PyRenderPlanV2 {
+        schema: "ferrum-render-plan-v2".to_owned(),
         provenance: PyRenderProvenanceV1 {
             revision: plan.revision().get(),
             digest: hex_digest(&plan.provenance().digest()),
@@ -518,7 +602,7 @@ fn plan_from(py: Python<'_>, plan: &ferrum_api::MoleculeRenderPlan) -> PyResult<
     })
 }
 
-fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV1> {
+fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV2> {
     let coordinate_space = match batch.coordinate_space() {
         BatchSpace::AtomLocal { anchor } => {
             PyRenderCoordinateSpace::AtomLocal(PyAtomLocalSpaceV1 {
@@ -530,9 +614,14 @@ fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV1> 
             kind: "scene".to_owned(),
         }),
     };
-    Ok(PyRenderBatchV1 {
+    Ok(PyRenderBatchV2 {
         target: batch.target().into(),
         coordinate_space,
+        display_layer: match batch.display_layer() {
+            ferrum_api::RenderDisplayLayerV1::Ordinary => "ordinary".to_owned(),
+            ferrum_api::RenderDisplayLayerV1::HaworthFrontStroke => "haworth_front_stroke".to_owned(),
+            ferrum_api::RenderDisplayLayerV1::HaworthFrontWedge => "haworth_front_wedge".to_owned(),
+        },
         operations: batch
             .operations()
             .iter()
@@ -541,7 +630,7 @@ fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV1> 
     })
 }
 
-fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRenderOperationV1> {
+pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRenderOperationV2> {
     let (kind, operation) = match value {
         RenderOp::Text(text) => ("text", PyRenderOperationPayload::Text(text_from(text))),
         RenderOp::Line(line) => (
@@ -581,8 +670,9 @@ fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRenderOperati
                 z: ellipse.z(),
             }),
         ),
+        RenderOp::Path(path) => ("path", PyRenderOperationPayload::Path(path_from(path))),
     };
-    Ok(PyRenderOperationV1 {
+    Ok(PyRenderOperationV2 {
         kind: kind.to_owned(),
         operation,
     })
@@ -613,6 +703,57 @@ fn text_from(text: &ferrum_api::TextOp) -> PyTextOpV1 {
         size: text.size().get(),
         paint: text.paint().color().as_str().to_owned(),
         z: text.z(),
+    }
+}
+
+fn path_from(path: &ferrum_api::PathOpV2) -> PyPathOpV2 {
+    use ferrum_api::ScenePathCommandV2;
+    let commands = path
+        .commands()
+        .iter()
+        .map(|command| match command {
+            ScenePathCommandV2::MoveTo(point) => PyScenePathCommandV2 {
+                kind: "move_to".to_owned(),
+                point: Some((*point).into()),
+                control_1: None,
+                control_2: None,
+            },
+            ScenePathCommandV2::LineTo(point) => PyScenePathCommandV2 {
+                kind: "line_to".to_owned(),
+                point: Some((*point).into()),
+                control_1: None,
+                control_2: None,
+            },
+            ScenePathCommandV2::CubicTo {
+                control_1,
+                control_2,
+                end,
+            } => PyScenePathCommandV2 {
+                kind: "cubic_to".to_owned(),
+                point: Some((*end).into()),
+                control_1: Some((*control_1).into()),
+                control_2: Some((*control_2).into()),
+            },
+            ScenePathCommandV2::Close => PyScenePathCommandV2 {
+                kind: "close".to_owned(),
+                point: None,
+                control_1: None,
+                control_2: None,
+            },
+        })
+        .collect();
+    PyPathOpV2 {
+        commands,
+        stroke_width: path.stroke().map(|stroke| stroke.width().get()),
+        stroke_paint: path
+            .stroke()
+            .map(|stroke| stroke.paint().color().as_str().to_owned()),
+        stroke_line_cap: path.stroke().map(|stroke| match stroke.line_cap() {
+            ferrum_api::VectorStrokeLineCapV1::Butt => "butt".to_owned(),
+            ferrum_api::VectorStrokeLineCapV1::Round => "round".to_owned(),
+        }),
+        fill_paint: path.fill().map(|paint| paint.color().as_str().to_owned()),
+        z: path.z(),
     }
 }
 
@@ -666,7 +807,50 @@ fn suppression_name(value: DepictionSuppressionV1) -> String {
     format!("{:?}", value).to_ascii_lowercase()
 }
 
-fn frozen_tuple<T>(py: Python<'_>, values: &[T]) -> PyResult<Py<PyTuple>>
+pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add(
+        "RenderObservationError",
+        module.py().get_type::<RenderObservationError>(),
+    )?;
+    module.add(
+        "RenderDepictionError",
+        module.py().get_type::<RenderDepictionError>(),
+    )?;
+    module.add(
+        "RenderProvenanceError",
+        module.py().get_type::<RenderProvenanceError>(),
+    )?;
+    module.add_function(wrap_pyfunction!(verified_telex_regular, module)?)?;
+    module.add_function(wrap_pyfunction!(native_directed_bond_preview_v1, module)?)?;
+    module.add_class::<PyRenderObservationV1>()?;
+    module.add_class::<PyMoleculeRenderRootV1>()?;
+    module.add_class::<PyDocumentMoleculeRenderPlanV2>()?;
+    module.add_class::<PyRenderPlanV2>()?;
+    module.add_class::<PyRenderProvenanceV1>()?;
+    module.add_class::<PyRenderBatchV2>()?;
+    module.add_class::<PyRenderTargetV1>()?;
+    module.add_class::<PyRenderRecordIdV1>()?;
+    module.add_class::<PyAtomLocalSpaceV1>()?;
+    module.add_class::<PySceneSpaceV1>()?;
+    module.add_class::<PyRenderOperationV2>()?;
+    module.add_class::<PyTextOpV1>()?;
+    module.add_class::<PyTextRunV1>()?;
+    module.add_class::<PyGlyphPlacementV1>()?;
+    module.add_class::<PyLineOpV1>()?;
+    module.add_class::<PyMaskOpV1>()?;
+    module.add_class::<PyEllipseOpV1>()?;
+    module.add_class::<PyPathOpV2>()?;
+    module.add_class::<PyScenePathCommandV2>()?;
+    module.add_class::<PyRenderIssueV1>()?;
+    module.add_class::<PyDepictionIssueV1>()?;
+    module.add_class::<PyDocumentPlusRenderV1>()?;
+    crate::presentation_text_render_binding::register(module)?;
+    module.add_class::<PyPresentationTextBoundsV1>()?;
+    module.add_class::<PyRenderPointV1>()?;
+    module.add_class::<PyVerifiedTelexRegularV1>()
+}
+
+pub(crate) fn frozen_tuple<T>(py: Python<'_>, values: &[T]) -> PyResult<Py<PyTuple>>
 where
     T: Clone + for<'a> IntoPyObject<'a>,
 {

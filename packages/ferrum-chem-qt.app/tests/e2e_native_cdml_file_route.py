@@ -132,7 +132,7 @@ def _probe() -> dict[str, object]:
 
 	start = atom_viewport_point("atom-c")
 	end = atom_viewport_point("atom-o")
-	host._draw_single_bond_action.trigger()
+	host._draw_bond_action.trigger()
 	PySide6.QtTest.QTest.mousePress(
 		tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
@@ -222,7 +222,7 @@ def _probe() -> dict[str, object]:
 			"native coordinate generation did not retain molecule placement",
 		)
 	bonded = tab.current_snapshot
-	host._draw_single_bond_action.trigger()
+	host._draw_bond_action.trigger()
 
 	start = atom_viewport_point("atom-o")
 	end = empty_viewport_point()
@@ -252,14 +252,16 @@ def _probe() -> dict[str, object]:
 	if len(extended_bond_ids) != 1 or extended_bond_ids[0] is None:
 		raise NativeCdmlRouteE2eError("empty-space drag did not retain its generated bond ID")
 	extended_bond_id = extended_bond_ids[0]
-	host._draw_single_bond_action.trigger()
+	host._draw_bond_action.trigger()
 
 	start = atom_viewport_point(extended_atom_id)
 	end = empty_viewport_point()
 	start_pointer = tab.view.mapToScene(start)
 	end_pointer = tab.view.mapToScene(end)
 	anchor = tab.durable_atom_scene_position(extended_atom_id)
-	expected_moved = anchor + (end_pointer - start_pointer)
+	expected_moved = tab.view.snap_authored_scene_point(
+		anchor + (end_pointer - start_pointer),
+	)
 	host._move_atom_action.trigger()
 	PySide6.QtTest.QTest.mousePress(
 		tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
@@ -427,9 +429,6 @@ def _probe() -> dict[str, object]:
 		"deleted_incident_bond": created_bond_id,
 		"deleted_selected_bond": extended_bond_id,
 		"native_entry_exit": entry_exit,
-		"oasa_imported": any(
-			name == "oasa" or name.startswith("oasa.") for name in sys.modules
-		),
 	}
 
 
@@ -453,8 +452,6 @@ def main() -> int:
 		_run(str(python), "-B", "-m", "pip", "install", "--no-deps", str(arguments.wheel.resolve()), environment=environment)
 		output = _run(str(python), "-I", "-B", str(pathlib.Path(__file__).resolve()), "--probe", environment=environment)
 	value = json.loads(output)
-	if value["oasa_imported"]:
-		raise NativeCdmlRouteE2eError("native CDML controller imported OASA")
 	if (
 		not value["clean"]
 		or not value["opaque_root"]

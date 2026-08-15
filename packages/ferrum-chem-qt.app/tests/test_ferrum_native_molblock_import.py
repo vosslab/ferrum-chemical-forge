@@ -1,4 +1,4 @@
-"""Behavior coverage for bounded OASA-free native molfile insertion."""
+"""Behavior coverage for bounded Rust-native molfile insertion."""
 
 # Standard Library
 import os

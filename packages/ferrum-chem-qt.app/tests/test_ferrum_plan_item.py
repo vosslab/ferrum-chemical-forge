@@ -76,9 +76,27 @@ class EllipsePayloadV1:
 
 
 @dataclasses.dataclass(frozen=True)
-class OperationV1:
+class PathCommandV2:
 	kind: str
-	operation: TextPayloadV1 | LinePayloadV1 | MaskPayloadV1 | EllipsePayloadV1
+	point: PointV1 | None = None
+	control_1: PointV1 | None = None
+	control_2: PointV1 | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class PathPayloadV2:
+	commands: tuple[PathCommandV2, ...]
+	stroke_width: float | None
+	stroke_paint: str | None
+	fill_paint: str | None
+	z: int
+	stroke_line_cap: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class OperationV2:
+	kind: str
+	operation: TextPayloadV1 | LinePayloadV1 | MaskPayloadV1 | EllipsePayloadV1 | PathPayloadV2
 
 
 @dataclasses.dataclass(frozen=True)
@@ -105,10 +123,11 @@ class SceneV1:
 
 
 @dataclasses.dataclass(frozen=True)
-class BatchFixtureV1:
+class BatchFixtureV2:
 	target: TargetV1
 	coordinate_space: AtomLocalV1 | SceneV1
-	operations: tuple[OperationV1, ...]
+	operations: tuple[OperationV2, ...]
+	display_layer: str = "ordinary"
 
 
 #============================================
@@ -122,12 +141,12 @@ class RenderProvenanceV1:
 
 #============================================
 @dataclasses.dataclass(frozen=True)
-class RenderPlanV1:
+class RenderPlanV2:
 	"""Frozen PyO3-shaped render plan fixture with its owned batches."""
 
 	schema: str
 	provenance: RenderProvenanceV1
-	batches: tuple[BatchFixtureV1, ...]
+	batches: tuple[BatchFixtureV2, ...]
 	issues: tuple[object, ...]
 
 
@@ -144,11 +163,11 @@ class MoleculeRenderRootV1:
 
 #============================================
 @dataclasses.dataclass(frozen=True)
-class DocumentMoleculeRenderPlanV1:
+class DocumentMoleculeRenderPlanV2:
 	"""Frozen PyO3-shaped owner envelope for one render plan."""
 
 	molecule: MoleculeRenderRootV1
-	plan: RenderPlanV1
+	plan: RenderPlanV2
 
 
 #============================================
@@ -176,7 +195,7 @@ class RenderObservationV1:
 	schema: str
 	document: SessionDocumentObservationV1
 	profile: str
-	molecule_plans: tuple[DocumentMoleculeRenderPlanV1, ...]
+	molecule_plans: tuple[DocumentMoleculeRenderPlanV2, ...]
 	plus_renders: tuple[object, ...]
 	text_renders: tuple[object, ...]
 	issues: tuple[object, ...]
@@ -193,24 +212,24 @@ def _telex() -> ferrum_qt.canvas.ferrum_telex.FerrumTelex:
 
 
 #============================================
-def _observation_and_batches() -> tuple[RenderObservationV1, BatchFixtureV1, BatchFixtureV1]:
+def _observation_and_batches() -> tuple[RenderObservationV1, BatchFixtureV2, BatchFixtureV2]:
 	"""Return exact frozen PyO3 observation, atom batch, and bond batch fixtures."""
-	atom = BatchFixtureV1(
+	atom = BatchFixtureV2(
 		TargetV1(RecordIdV1("Atom", "a1"), 2), AtomLocalV1("atom_local", PointV1(10.0, 20.0)),
-		(OperationV1("mask", MaskPayloadV1(PointV1(1.0, 2.0), 12.0, 9.0, "ffffff", 0)),
-		OperationV1("text", TextPayloadV1(
+		(OperationV2("mask", MaskPayloadV1(PointV1(1.0, 2.0), 12.0, 9.0, "ffffff", 0)),
+		OperationV2("text", TextPayloadV1(
 			PointV1(2.0, 3.0), (RunV1("C", "baseline", PointV1(1.0, 2.0),
 			(GlyphV1(13, PointV1(0.0, 0.0)),), 1.0),),
 			"ferrum-telex-regular-v1", 20.0, "112233", 1,
 		))),
 	)
-	line = BatchFixtureV1(
+	line = BatchFixtureV2(
 		TargetV1(RecordIdV1("Bond", "b1"), 5), SceneV1("scene"),
-		(OperationV1("line", LinePayloadV1(PointV1(2.0, 7.0), PointV1(42.0, 7.0), 2.0, "aa3300", 0)),),
+		(OperationV2("line", LinePayloadV1(PointV1(2.0, 7.0), PointV1(42.0, 7.0), 2.0, "aa3300", 0)),),
 	)
 	digest = "1" * 64
-	plan = RenderPlanV1("ferrum-render-plan-v1", RenderProvenanceV1(7, digest), (atom, line), ())
-	entry = DocumentMoleculeRenderPlanV1(
+	plan = RenderPlanV2("ferrum-render-plan-v2", RenderProvenanceV1(7, digest), (atom, line), ())
+	entry = DocumentMoleculeRenderPlanV2(
 		MoleculeRenderRootV1("molecule-1", "ferrum-projection-local-v1/0", "m1", 0),
 		plan,
 	)
@@ -239,7 +258,7 @@ def test_atom_local_ellipse_uses_explicit_geometry_without_metrics_or_pixel_gate
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""A Rust ellipse contributes its translated fill and outline to cached hit geometry."""
 	observation, atom_batch, line_batch = _observation_and_batches()
-	ellipse = OperationV1("ellipse", EllipsePayloadV1(
+	ellipse = OperationV2("ellipse", EllipsePayloadV1(
 		PointV1(5.0, 6.0), 4.0, 2.0, 30.0, 1.0, "112233", "445566", 2,
 	))
 	marked_atom = dataclasses.replace(
@@ -254,6 +273,72 @@ def test_atom_local_ellipse_uses_explicit_geometry_without_metrics_or_pixel_gate
 
 	assert item.shape().contains(PySide6.QtCore.QPointF(15.0, 26.0))
 	assert item.boundingRect().contains(PySide6.QtCore.QPointF(15.0, 26.0))
+
+
+#============================================
+def test_scene_path_copies_received_geometry_and_paint_for_hit_and_bounds(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A V2 path remains source-owned while Qt caches its received painted shape."""
+	observation, unused_atom_batch, line_batch = _observation_and_batches()
+	path = PathPayloadV2(
+		(PathCommandV2("move_to", PointV1(2.0, 2.0)),
+		PathCommandV2("line_to", PointV1(12.0, 2.0)),
+		PathCommandV2("line_to", PointV1(7.0, 10.0)), PathCommandV2("close")),
+		1.0, "112233", "aabbcc", 0, "butt",
+	)
+	plan = dataclasses.replace(
+		observation.molecule_plans[0].plan,
+		batches=(dataclasses.replace(line_batch, operations=(OperationV2("path", path),)),),
+	)
+	item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(plan, 0, _telex())
+
+	assert item.shape().contains(PySide6.QtCore.QPointF(7.0, 5.0))
+	assert item.boundingRect().contains(PySide6.QtCore.QPointF(7.0, 5.0))
+
+
+#============================================
+def test_scene_path_round_cap_expands_the_same_cached_selectable_geometry(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A source-owned round cap affects Qt painting, bounds, and hit geometry together."""
+	observation, unused_atom_batch, line_batch = _observation_and_batches()
+	path = PathPayloadV2(
+		(PathCommandV2("move_to", PointV1(5.0, 5.0)), PathCommandV2("line_to", PointV1(15.0, 5.0))),
+		4.0, "112233", None, 0, "round",
+	)
+	plan = dataclasses.replace(
+		observation.molecule_plans[0].plan,
+		batches=(dataclasses.replace(line_batch, operations=(OperationV2("path", path),)),),
+	)
+	item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(plan, 0, _telex())
+
+	assert item.shape().contains(PySide6.QtCore.QPointF(3.5, 5.0))
+	assert item.boundingRect().contains(PySide6.QtCore.QPointF(3.5, 5.0))
+
+
+#============================================
+def test_filled_scene_path_uses_received_even_odd_containment_for_nested_subpaths(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A same-direction inner contour remains a hole in a filled V2 path."""
+	observation, unused_atom_batch, line_batch = _observation_and_batches()
+	path = PathPayloadV2(
+		(PathCommandV2("move_to", PointV1(0.0, 0.0)),
+		PathCommandV2("line_to", PointV1(12.0, 0.0)),
+		PathCommandV2("line_to", PointV1(12.0, 12.0)),
+		PathCommandV2("line_to", PointV1(0.0, 12.0)), PathCommandV2("close"),
+		PathCommandV2("move_to", PointV1(3.0, 3.0)),
+		PathCommandV2("line_to", PointV1(9.0, 3.0)),
+		PathCommandV2("line_to", PointV1(9.0, 9.0)),
+		PathCommandV2("line_to", PointV1(3.0, 9.0)), PathCommandV2("close")),
+		None, None, "aabbcc", 0,
+	)
+	plan = dataclasses.replace(
+		observation.molecule_plans[0].plan,
+		batches=(dataclasses.replace(line_batch, operations=(OperationV2("path", path),)),),
+	)
+	item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(plan, 0, _telex())
+
+	assert item.shape().contains(PySide6.QtCore.QPointF(1.0, 1.0))
+	assert not item.shape().contains(PySide6.QtCore.QPointF(6.0, 6.0))
 
 
 #============================================
@@ -307,11 +392,11 @@ def test_same_target_from_another_plan_cannot_replace_owned_batch(qapp: PySide6.
 	plan = observation.molecule_plans[0].plan
 	other_line = dataclasses.replace(
 		line_batch,
-		operations=(OperationV1("line", LinePayloadV1(
+		operations=(OperationV2("line", LinePayloadV1(
 			PointV1(2.0, 7.0), PointV1(42.0, 7.0), 2.0, "0066cc", 0,
 		)),),
 	)
-	other_plan = RenderPlanV1(plan.schema, plan.provenance, (atom_batch, other_line), ())
+	other_plan = RenderPlanV2(plan.schema, plan.provenance, (atom_batch, other_line), ())
 	item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(plan, 1, _telex())
 	image = PySide6.QtGui.QImage(48, 16, PySide6.QtGui.QImage.Format.Format_ARGB32_Premultiplied)
 	image.fill(PySide6.QtGui.QColor("white"))
@@ -344,7 +429,7 @@ def test_unknown_operation_preserves_existing_scene_item(qapp: PySide6.QtWidgets
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	previous = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(plan, 1, _telex())
 	scene.addItem(previous)
-	invalid = dataclasses.replace(atom_batch, operations=(OperationV1("circle", atom_batch.operations[0].operation),))
+	invalid = dataclasses.replace(atom_batch, operations=(OperationV2("circle", atom_batch.operations[0].operation),))
 	invalid_plan = dataclasses.replace(plan, batches=(invalid, line_batch))
 	with pytest.raises(ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanError):
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(invalid_plan, 0, _telex())
@@ -361,7 +446,7 @@ def test_missing_or_unknown_exact_glyph_fails_before_paint(qapp: PySide6.QtWidge
 	assert isinstance(text, TextPayloadV1)
 	bad_run = dataclasses.replace(text.runs[0], glyphs=(GlyphV1(0, PointV1(0.0, 0.0)),))
 	bad_text = dataclasses.replace(text, runs=(bad_run,))
-	bad_batch = dataclasses.replace(atom_batch, operations=(atom_batch.operations[0], OperationV1("text", bad_text)))
+	bad_batch = dataclasses.replace(atom_batch, operations=(atom_batch.operations[0], OperationV2("text", bad_text)))
 	bad_plan = dataclasses.replace(plan, batches=(bad_batch, unused_line_batch))
 	with pytest.raises(ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanError):
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(bad_plan, 0, _telex())

@@ -13,10 +13,14 @@ import PySide6.QtWidgets
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class FerrumNativeTranslationSelection:
-	"""Captured Rust selectors and scene bounds for complete selected roots."""
+	"""Captured Rust anchor receipt plus projection-only complete-root bounds."""
 
 	targets: tuple[object, ...]
 	durable_selection: tuple[tuple[str, str], ...]
+	source_revision: int
+	source_digest: str
+	anchor_x: float
+	anchor_y: float
 	bounds: tuple[tuple[float, float, float, float], ...]
 
 

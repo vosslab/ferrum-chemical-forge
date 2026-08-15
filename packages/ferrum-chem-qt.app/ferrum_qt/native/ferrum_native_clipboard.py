@@ -1,4 +1,4 @@
-"""OASA-free, revision-bound Copy and Paste for Rust-native documents."""
+"""Revision-bound Copy and Paste for Rust-native documents."""
 
 # Standard Library
 import dataclasses
@@ -8,6 +8,7 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 import ferrum_chem
+import shiboken6
 
 # local repo modules
 import ferrum_qt.io.clipboard_mime
@@ -462,9 +463,22 @@ class FerrumNativeClipboardWindowMixin:
 		self._clipboard_copy_relay = _ClipboardCopyDeliveryRelay(self)
 		self._clipboard_cut_relay = _ClipboardCutDeliveryRelay(self)
 		self._clipboard_paste_relay = _ClipboardPasteDeliveryRelay(self)
-		PySide6.QtWidgets.QApplication.clipboard().dataChanged.connect(
+		self._native_clipboard = PySide6.QtWidgets.QApplication.clipboard()
+		self._native_clipboard_data_changed_connected = True
+		self._native_clipboard.dataChanged.connect(
 			self._on_native_clipboard_data_changed,
 		)
+		self.destroyed.connect(self._dispose_native_clipboard)
+
+	#============================================
+	def _dispose_native_clipboard(self, *_unused: object) -> None:
+		"""Disconnect QApplication clipboard delivery before native UI disappears."""
+		if not self._native_clipboard_data_changed_connected:
+			return
+		self._native_clipboard.dataChanged.disconnect(
+			self._on_native_clipboard_data_changed,
+		)
+		self._native_clipboard_data_changed_connected = False
 
 	#============================================
 	def _build_native_clipboard_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
@@ -833,6 +847,12 @@ class FerrumNativeClipboardWindowMixin:
 	@PySide6.QtCore.Slot()
 	def _on_native_clipboard_data_changed(self) -> None:
 		"""Refresh Paste reachability when the desktop clipboard changes."""
+		if not self._native_clipboard_data_changed_connected:
+			return
+		tab_widget = getattr(self, "_tab_widget", None)
+		if tab_widget is None or not shiboken6.isValid(tab_widget):
+			self._dispose_native_clipboard()
+			return
 		if hasattr(self, "_paste_action"):
 			self._refresh_actions()
 

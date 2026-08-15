@@ -47,53 +47,47 @@ environment with ambient dynamic-library variables scrubbed and writes a receipt
 `output_native_wheel/evidence/native-wheel-e2e-receipt.json` on success. Other
 platforms are not yet qualified.
 
-## Inspect SMILES
+## Run the operation protocol
 
-### `smiles inspect` rejects the adapter
+### `protocol run` rejects a request
 
-`ferrum smiles inspect` deliberately does not discover a native library. Supply an
-absolute path to the verified ABI-4 adapter library; the path must name a regular file
-and cannot be a symbolic link:
-
-```bash
-ferrum smiles inspect --adapter /absolute/path/libferrum_chem.dylib CCO
-```
-
-Relative paths fail with `adapter path must be absolute`. A symlink, directory, or
-other non-regular path fails before the library is loaded. This prevents an accidental
-or ambient loader choice from changing the chemistry backend.
+Use `ferrum protocol schema` to obtain the generated request shape, then submit one UTF-8
+JSON request file with `ferrum protocol run request.json`. A decodable request refusal is a
+JSON error envelope; malformed JSON, an over-budget request, unreadable input, or a confirmed
+output-publication failure has no envelope and exits 1. `--output -` is a usage error. The
+protocol intentionally does not accept direct SMILES, SDF, molblock, InChI, CD-SVG, adapter, or
+path-bearing operation inputs.
 
 ## Start Ferrum-Qt
 
-### Native bounded editor behaves differently
+### Open or create a drawing
 
-Use the bounded Rust-native CDML editor explicitly:
-
-```bash
-ferrum-qt --native drawing.cdml
-```
-
-This public route loads the Rust wheel and does not import OASA. It currently covers
-native CDML open, render, selected-atom element changes, one free-standing atom
-insertion, Rust undo/redo, save, reopen, and close. Do not expect bond drawing or the
-other retained legacy editing features in this route.
-
-The ordinary command remains the retained PySide6 application during migration:
+Launch Ferrum-Qt with an uncompressed CDML drawing:
 
 ```bash
 ferrum-qt drawing.cdml
 ```
 
-That legacy route still has migration-only OASA dependencies. Use one route or the
-other for a run; `--native` is the required choice when validating the OASA-free CDML
-path.
+`ferrum-qt` is the sole application command. Run it without a path to start the
+window, then use File > New or File > Open. Ferrum opens uncompressed `.cdml`
+drawings and decoded `.svg` files that contain embedded CDML through its Rust-native
+document flow.
 
-### Native smoke receipt is rejected
+### A chosen drawing is unsupported
 
-`--smoke-receipt` belongs only to the retained legacy startup path. It is intentionally
-unavailable with `--native`. Use a positive `--smoke-exit` value for a controlled native
-startup check instead:
+Ferrum does not convert formats while opening them. For ChemDraw XML (`.cdxml`) or
+Chemical Markup Language (`.cml`), use the source application or a converter to make
+an uncompressed `.cdml` drawing, then open that result. For compressed CDML, SVG, or
+`.cdsvg` files, choose the uncompressed source: a `.cdml` drawing or decoded `.svg`
+file containing embedded CDML. The rejected file and the current document remain
+unchanged.
 
-```bash
-ferrum-qt --native --smoke-exit 0.05 drawing.cdml
-```
+### Make a recovery copy
+
+Use File > Recovery Export CDML... to copy the current document's Rust snapshot to a
+new `.cdml` file without changing its saved-file association or unsaved state. Use
+Save or Save As when the selected path should become the document's normal save
+location.
+
+If Ferrum reports that recovery-copy durability is unconfirmed, inspect the chosen
+destination before relying on the copy.

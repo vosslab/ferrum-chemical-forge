@@ -28,12 +28,13 @@ class BondDialogCapabilities:
 	normal_style_only: bool = False
 	wedge_width_available: bool = True
 	dynamic_native_widths: bool = False
+	allowed_style_chars: tuple[str, ...] = ()
 
 
 #============================================
 NATIVE_RENDER_CAPABILITIES = BondDialogCapabilities(
-	normal_style_only=True,
-	wedge_width_available=False,
+	allowed_style_chars=("n", "w", "h"),
+	wedge_width_available=True,
 	dynamic_native_widths=True,
 )
 
@@ -153,6 +154,11 @@ class BondDialog(PySide6.QtWidgets.QDialog):
 		)
 		if self._capabilities.normal_style_only:
 			return tuple(choice for choice in choices if choice[0] == "n")
+		if self._capabilities.allowed_style_chars:
+			return tuple(
+				choice for choice in choices
+				if choice[0] in self._capabilities.allowed_style_chars
+			)
 		return choices
 
 	#============================================

@@ -16,8 +16,6 @@ dependencies = [
     "shiboken6>=6.7",
     "pyyaml",
     "ferrum-chem>=26.8",
-    # Temporary migration dependency; remove at M22 with its Python RDKit dependency.
-    "oasa>=26.08",
 ]
 
 [project.urls]

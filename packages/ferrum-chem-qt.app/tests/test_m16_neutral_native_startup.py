@@ -10,10 +10,10 @@ import pytest
 
 # local repo modules
 import ferrum_qt.config.preferences
-import ferrum_qt.dialogs.theme_chooser_dialog
 import ferrum_qt.main_window
 import ferrum_qt.native.ferrum_native_action_toolbar
 import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.native.ferrum_native_preferences
 import ferrum_qt.native.ferrum_native_property_dock
 
 
@@ -57,14 +57,22 @@ class _PreferencesRecorder:
 		"""Record one application preference write."""
 		self.values[key] = value
 
+	def value(self, key: str, default: object = None) -> object:
+		"""Return one recorded setting or its caller-provided fallback."""
+		return self.values.get(key, default)
+
+	def remove_value(self, key: str) -> None:
+		"""Remove one recorded application setting."""
+		self.values.pop(key, None)
+
 
 #============================================
-def _theme_action(window: PySide6.QtWidgets.QMainWindow) -> PySide6.QtGui.QAction:
+def _preferences_action(window: PySide6.QtWidgets.QMainWindow) -> PySide6.QtGui.QAction:
 	"""Find the ordinary Options action through the public Qt object tree."""
 	return next(
 		action
 		for action in window.findChildren(PySide6.QtGui.QAction)
-		if action.text() == "Theme"
+		if action.text() == "Preferences..."
 	)
 
 
@@ -167,66 +175,110 @@ def test_closing_the_last_native_page_leaves_a_safe_neutral_host(
 
 
 #============================================
-def test_ordinary_theme_action_applies_only_the_accepted_theme(
+def test_ordinary_preferences_apply_only_application_owned_state(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""The public Options action changes UI theme without touching Rust state."""
+	"""Accepted Preferences change UI policy without changing the Rust document."""
 	del qapp
 	theme_manager = _ThemeManager()
 	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	preferences = _PreferencesRecorder()
+	preferences.values.update({
+		ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY: b"old geometry",
+		ferrum_qt.config.preferences.Preferences.KEY_WINDOW_STATE: b"old state",
+	})
+	window._prefs = preferences
 	try:
 		before = window._active_native_tab().current_snapshot
-		def choose_light(_parent: object, _current: str) -> str:
-			"""Accept exactly one different available theme."""
-			return "light"
 		monkeypatch.setattr(
-			ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog,
-			"choose_theme", choose_light,
+			ferrum_qt.native.ferrum_native_preferences.FerrumNativePreferencesDialog,
+			"choose_preferences",
+			lambda _parent, _current: (
+				ferrum_qt.native.ferrum_native_preferences.FerrumNativePreferencesV1(
+					"light", False, False,
+				)
+			),
 		)
-		_theme_action(window).trigger()
-		assert theme_manager.applied == ["light"]
+		_preferences_action(window).trigger()
+		assert (
+			theme_manager.applied,
+			preferences.values[
+				ferrum_qt.config.preferences.Preferences.KEY_REMEMBER_WORKSPACE
+			],
+			preferences.values[
+				ferrum_qt.config.preferences.Preferences.KEY_GRID_VISIBLE
+			],
+			window._active_native_tab().view.hex_grid_visible,
+		) == (["light"], False, False, False)
+		assert (
+			window._active_native_tab().current_snapshot == before
+			and ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY
+			not in preferences.values
+			and ferrum_qt.config.preferences.Preferences.KEY_WINDOW_STATE
+			not in preferences.values
+		)
+	finally:
+		window.close()
+
+
+#============================================
+def test_cancelled_ordinary_preferences_are_a_no_op(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Cancelling Preferences preserves application and document state."""
+	del qapp
+	theme_manager = _ThemeManager()
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	preferences = _PreferencesRecorder()
+	window._prefs = preferences
+	try:
+		before = window._active_native_tab().current_snapshot
+		monkeypatch.setattr(
+			ferrum_qt.native.ferrum_native_preferences.FerrumNativePreferencesDialog,
+			"choose_preferences", lambda _parent, _current: None,
+		)
+		_preferences_action(window).trigger()
+		assert not theme_manager.applied and not preferences.values
 		assert window._active_native_tab().current_snapshot == before
 	finally:
 		window.close()
 
 
 #============================================
-def test_cancelled_ordinary_theme_choice_is_a_no_op(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Cancelling the public Theme action retains the current application theme."""
-	del qapp
-	theme_manager = _ThemeManager()
-	window = ferrum_qt.main_window.MainWindow(theme_manager)
-	try:
-		def cancel_theme(_parent: object, _current: str) -> None:
-			"""Return the retained chooser's cancellation result."""
-			return None
-		monkeypatch.setattr(
-			ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog,
-			"choose_theme", cancel_theme,
-		)
-		_theme_action(window).trigger()
-		assert not theme_manager.applied
-		assert theme_manager.current_theme == "dark"
-	finally:
-		window.close()
-
-
-#============================================
-def test_accepted_native_shutdown_persists_geometry_for_restore(
+def test_accepted_native_shutdown_restores_the_visible_workspace_choice(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""A completed ordinary close writes exactly the geometry restored at startup."""
+	"""Hidden ordinary workspace clients remain hidden in the next window."""
 	window = _make_window(qapp)
 	preferences = _PreferencesRecorder()
 	window._prefs = preferences
-	expected = bytes(window.saveGeometry())
+	window.show()
+	qapp.processEvents()
+	window._native_action_toolbar.hide()
+	window._native_property_dock.hide()
+	editing_tools = next(
+		toolbar
+		for toolbar in window.findChildren(PySide6.QtWidgets.QToolBar)
+		if toolbar.accessibleName() == "Editing tools toolbar"
+	)
+	editing_tools.toggleViewAction().trigger()
+	restored = None
 	try:
 		assert window.prepare_application_shutdown()
-		stored = preferences.values[
-			ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY
-		]
-		assert bytes(stored) == expected
+		restored = _make_window(qapp)
+		restored._prefs = preferences
+		restored.restore_workspace()
+		restored_editing_tools = next(
+			toolbar
+			for toolbar in restored.findChildren(PySide6.QtWidgets.QToolBar)
+			if toolbar.accessibleName() == "Editing tools toolbar"
+		)
+		assert (
+			restored._native_action_toolbar.isHidden()
+			and restored._native_property_dock.isHidden()
+			and restored_editing_tools.isHidden()
+		)
 	finally:
 		window.close()
+		if restored is not None:
+			restored.close()

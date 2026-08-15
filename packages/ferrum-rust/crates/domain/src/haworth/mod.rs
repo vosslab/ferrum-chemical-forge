@@ -8,6 +8,7 @@ mod direct_glycosidic_spec;
 mod durable_reobservation;
 mod layout;
 mod placement;
+mod standalone_glucose_recipe_v1;
 mod tree;
 mod types;
 mod validate;
@@ -44,6 +45,11 @@ pub use durable_reobservation::{
     authored_direct_glycosidic_haworth_depiction_from_durable_profile_v1,
 };
 pub use layout::layout_single_ring;
+pub use standalone_glucose_recipe_v1::{
+    StandaloneDGlucoseHaworthErrorV1, StandaloneDGlucoseHaworthReceiptV1,
+    StandaloneDGlucoseHaworthRecipeV1, StandaloneHaworthAtomV1, StandaloneHaworthBondTokenV1,
+    StandaloneHaworthBondV1, StandaloneHaworthPositionV1, standalone_d_glucose_haworth_recipe_v1,
+};
 pub use tree::{
     GlycosidicLink, HaworthAttachment, HaworthFragment, HaworthLinkGeometry, HaworthLinkTopology,
     HaworthRingNode, HaworthRingTopology, HaworthTreeRequest, MAX_TREE_RINGS, layout_tree,

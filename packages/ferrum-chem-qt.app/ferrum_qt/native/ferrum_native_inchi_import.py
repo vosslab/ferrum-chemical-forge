@@ -1,4 +1,4 @@
-"""OASA-free background preparation for one Rust-owned InChI insertion."""
+"""Rust-native background preparation for one Rust-owned InChI insertion."""
 
 # Standard Library
 import dataclasses

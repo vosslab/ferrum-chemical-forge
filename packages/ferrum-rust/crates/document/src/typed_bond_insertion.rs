@@ -3,8 +3,8 @@
 use xot::Xot;
 
 use super::{
-    CDML_NAMESPACE, DocumentBondOrderV1, PersistentId, Point3V1, TypedDocument, TypedDocumentError,
-    element_name,
+    CDML_NAMESPACE, DocumentBondPresentationV1, PersistentId, Point3V1, TypedDocument,
+    TypedDocumentError, element_name,
 };
 
 pub(super) struct BondedAtomInsertion<'a> {
@@ -12,7 +12,7 @@ pub(super) struct BondedAtomInsertion<'a> {
     bond_id: &'a PersistentId,
     element: &'a str,
     position: Point3V1,
-    order: DocumentBondOrderV1,
+    presentation: DocumentBondPresentationV1,
 }
 
 impl<'a> BondedAtomInsertion<'a> {
@@ -21,14 +21,14 @@ impl<'a> BondedAtomInsertion<'a> {
         bond_id: &'a PersistentId,
         element: &'a str,
         position: Point3V1,
-        order: DocumentBondOrderV1,
+        presentation: DocumentBondPresentationV1,
     ) -> Self {
         Self {
             atom_id,
             bond_id,
             element,
             position,
-            order,
+            presentation,
         }
     }
 }
@@ -56,7 +56,7 @@ impl TypedDocument {
             insertion.bond_id,
             start_atom_id,
             insertion.atom_id,
-            insertion.order,
+            insertion.presentation,
         )
     }
 
@@ -72,7 +72,7 @@ impl TypedDocument {
         bond_id: &PersistentId,
         start_atom_id: &PersistentId,
         end_atom_id: &PersistentId,
-        order: DocumentBondOrderV1,
+        presentation: DocumentBondPresentationV1,
     ) -> Result<Self, TypedDocumentError> {
         if self.indexed().resolve_id(bond_id).is_some() {
             return Err(TypedDocumentError::DuplicateBondId(bond_id.clone()));
@@ -127,7 +127,7 @@ impl TypedDocument {
         indexed
             .xml
             .tree
-            .set_attribute(bond, type_name, order.cdml_token());
+            .set_attribute(bond, type_name, presentation.cdml_token());
         indexed
             .xml
             .tree

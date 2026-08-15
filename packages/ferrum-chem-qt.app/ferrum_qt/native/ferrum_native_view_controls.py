@@ -6,6 +6,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.config.preferences
 import ferrum_qt.native.ferrum_native_graphics_view
 import ferrum_qt.native.ferrum_native_statusbar_view_controls
 
@@ -23,10 +24,12 @@ class FerrumNativeViewControlsMixin:
 		self._view_controls_closing = False
 		self._initial_view_frame_requested: set[object] = set()
 		self._initial_view_frame_completed: set[object] = set()
+		self._native_hex_grid_visible = True
+		self._native_hex_grid_snap_enabled = True
 
 	#============================================
 	def _build_view_controls_actions(self) -> None:
-		"""Install the compact native View menu without legacy view ownership."""
+		"""Install the compact native View menu."""
 		menu = self.menuBar().addMenu(self.tr("View"))
 		self._view_menu = menu
 		self._zoom_in_action = PySide6.QtGui.QAction(self.tr("Zoom In"), self)
@@ -48,6 +51,40 @@ class FerrumNativeViewControlsMixin:
 		self._zoom_content_action = PySide6.QtGui.QAction(self.tr("Zoom to Content"), self)
 		self._zoom_content_action.triggered.connect(self._fit_active_view_to_content)
 		menu.addAction(self._zoom_content_action)
+		menu.addSeparator()
+		self._show_hex_grid_action = PySide6.QtGui.QAction(
+			self.tr("Show Hex Grid"), self,
+		)
+		self._show_hex_grid_action.setCheckable(True)
+		self._show_hex_grid_action.setChecked(self._native_hex_grid_visible)
+		self._show_hex_grid_action.setToolTip(self.tr(
+			"Show a paper-local Rust-generated drawing grid",
+		))
+		self._show_hex_grid_action.triggered.connect(
+			self._on_native_hex_grid_visibility_changed,
+		)
+		menu.addAction(self._show_hex_grid_action)
+		self._snap_hex_grid_action = PySide6.QtGui.QAction(
+			self.tr("Snap New and Moved Points to Hex Grid"), self,
+		)
+		self._snap_hex_grid_action.setCheckable(True)
+		self._snap_hex_grid_action.setChecked(self._native_hex_grid_snap_enabled)
+		self._snap_hex_grid_action.setShortcut(
+			PySide6.QtGui.QKeySequence(self.tr("Ctrl+Shift+G")),
+		)
+		self._snap_hex_grid_action.setToolTip(self.tr(
+			"Place new and moved drawing points on the hex grid",
+		))
+		self._snap_hex_grid_action.setStatusTip(self.tr(
+			"Controls whether new and moved drawing points use the hex grid lattice",
+		))
+		self._snap_hex_grid_action.setWhatsThis(self.tr(
+			"Choose whether new and moved drawing points use the hex grid lattice.",
+		))
+		self._snap_hex_grid_action.triggered.connect(
+			self._on_native_hex_grid_snap_changed,
+		)
+		menu.addAction(self._snap_hex_grid_action)
 
 	#============================================
 	def _install_native_view_status_controls(self) -> None:
@@ -95,11 +132,69 @@ class FerrumNativeViewControlsMixin:
 		"""Keep display controls reachable for every active installed scene."""
 		available = self._active_native_view() is not None
 		for action in (
-				self._zoom_in_action, self._zoom_out_action, self._zoom_100_action,
-				self._zoom_page_action, self._zoom_content_action,
-			):
+			self._zoom_in_action, self._zoom_out_action, self._zoom_100_action,
+			self._zoom_page_action, self._zoom_content_action, self._show_hex_grid_action,
+			self._snap_hex_grid_action,
+		):
 			action.setEnabled(available)
+		self._show_hex_grid_action.setChecked(self._native_hex_grid_visible)
+		self._snap_hex_grid_action.setChecked(self._native_hex_grid_snap_enabled)
 		self._refresh_native_view_status()
+
+	#============================================
+	def _on_native_hex_grid_visibility_changed(self, visible: bool) -> None:
+		"""Apply and persist one application-owned display preference."""
+		self._set_native_hex_grid_visible(visible)
+		prefs = getattr(self, "_prefs", None)
+		if prefs is not None:
+			prefs.set_value(
+				ferrum_qt.config.preferences.Preferences.KEY_GRID_VISIBLE,
+				visible,
+			)
+
+	#============================================
+	def _set_native_hex_grid_visible(self, visible: bool) -> None:
+		"""Project one visibility choice across current and future native tabs."""
+		if type(visible) is not bool:
+			raise TypeError("native hex-grid visibility must be a boolean")
+		self._native_hex_grid_visible = visible
+		if hasattr(self, "_show_hex_grid_action"):
+			self._show_hex_grid_action.setChecked(visible)
+		for tab in self._native_tabs_by_page.values():
+			tab.view.set_hex_grid_visible(visible)
+
+	#============================================
+	def _on_native_hex_grid_snap_changed(self, enabled: bool) -> None:
+		"""Apply and persist the authored-point policy with brief status feedback."""
+		self._set_native_hex_grid_snap_enabled(enabled)
+		prefs = getattr(self, "_prefs", None)
+		if prefs is not None:
+			prefs.set_value(
+				ferrum_qt.config.preferences.Preferences.KEY_GRID_SNAP_ENABLED,
+				enabled,
+			)
+		message = (
+			self.tr("New and moved points snap to the hex grid.")
+			if enabled else self.tr("New and moved points keep their exact pointer positions.")
+		)
+		self.statusBar().showMessage(message, 3000)
+
+	#============================================
+	def _set_native_hex_grid_snap_enabled(self, enabled: bool) -> None:
+		"""Project one authored-point policy across current and future native tabs."""
+		if type(enabled) is not bool:
+			raise TypeError("native hex-grid snapping must be a boolean")
+		self._native_hex_grid_snap_enabled = enabled
+		if hasattr(self, "_snap_hex_grid_action"):
+			self._snap_hex_grid_action.setChecked(enabled)
+		for tab in self._native_tabs_by_page.values():
+			tab.view.set_hex_grid_snap_enabled(enabled)
+
+	#============================================
+	def _install_native_hex_grid_for_tab(self, tab: object) -> None:
+		"""Apply current grid visibility and authored-point policy to one tab view."""
+		tab.view.set_hex_grid_visible(self._native_hex_grid_visible)
+		tab.view.set_hex_grid_snap_enabled(self._native_hex_grid_snap_enabled)
 
 	#============================================
 	def _zoom_in_active_view(self) -> None:

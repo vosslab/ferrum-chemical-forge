@@ -2,7 +2,6 @@
 
 # Standard Library
 import dataclasses
-import enum
 import math
 
 # PIP3 modules
@@ -13,62 +12,23 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.native.ferrum_native_drawing_parameters
+import ferrum_qt.native.ferrum_native_bond_preview
+import ferrum_qt.native.ferrum_native_regular_ring
 import ferrum_qt.native.ferrum_native_rotation
 import ferrum_qt.native.ferrum_native_translation
-
+import ferrum_qt.native.ferrum_native_top_level_transform
+import ferrum_qt.native.ferrum_native_line_tool_intent
+import ferrum_qt.native.ferrum_native_transform_gestures
+#============================================
+_NativeLineTool = ferrum_qt.native.ferrum_native_line_tool_intent._NativeLineTool
+_LineGestureIntent = ferrum_qt.native.ferrum_native_line_tool_intent._LineGestureIntent
 
 #============================================
-class _NativeLineTool(enum.Enum):
-	"""Closed native tools that share one revision-bound line gesture."""
-
-	DRAW_SINGLE_BOND = "draw_single_bond"
-	CREATE_WAVY = "create_wavy"
-	CREATE_RECTANGULAR_BRACKET = "create_rectangular_bracket"
-	CREATE_ROUND_BRACKET = "create_round_bracket"
-	MOVE_ATOM = "move_atom"
-	ROTATE_ATOMS = "rotate_atoms"
-	TRANSLATE_ROOTS = "translate_roots"
-
-
-#============================================
-@dataclasses.dataclass(frozen=True, slots=True)
-class _LineGestureIntent:
-	"""One revision-bound atom pointer gesture and its local preview."""
-
-	tab: ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab
-	viewport: PySide6.QtWidgets.QWidget
-	revision: int
-	digest: str
-	tool: _NativeLineTool
-	start_atom_id: str | None = None
-	start_scene: PySide6.QtCore.QPointF | None = None
-	press_scene: PySide6.QtCore.QPointF | None = None
-	preview: (
-		PySide6.QtWidgets.QGraphicsLineItem
-		| PySide6.QtWidgets.QGraphicsRectItem
-		| None
-	) = None
-	rotation_selection: (
-		ferrum_qt.native.ferrum_native_rotation.FerrumNativeRotationSelection | None
-	) = None
-	rotation_preview: (
-		ferrum_qt.native.ferrum_native_rotation.FerrumNativeRotationPreview | None
-	) = None
-	translation_selection: (
-		ferrum_qt.native.ferrum_native_translation.FerrumNativeTranslationSelection
-		| None
-	) = None
-	translation_preview: (
-		ferrum_qt.native.ferrum_native_translation.FerrumNativeTranslationPreview
-		| None
-	) = None
-	translation_delta: tuple[float, float] = (0.0, 0.0)
-	last_angle: float | None = None
-	accumulated_angle: float = 0.0
-
-
-#============================================
-class FerrumNativeLineToolsMixin:
+class FerrumNativeLineToolsMixin(
+		ferrum_qt.native.ferrum_native_transform_gestures.
+		FerrumNativeTransformGesturesMixin,
+		):
 	"""Own the disposable pointer gestures used by the native document host.
 
 	The host supplies the active document tab, warning/status surfaces, and action
@@ -84,15 +44,27 @@ class FerrumNativeLineToolsMixin:
 	#============================================
 	def _build_line_tool_actions(self, edit_menu: PySide6.QtWidgets.QMenu) -> None:
 		"""Add the checkable native pointer tools to the host's Edit menu."""
-		self._draw_single_bond_action = PySide6.QtGui.QAction(
-			self.tr("Draw Single Bond"), self,
+		self._draw_bond_action = PySide6.QtGui.QAction(
+			self.tr("Draw Bond"), self,
 		)
-		self._draw_single_bond_action.setCheckable(True)
-		self._draw_single_bond_action.setToolTip(
-			self.tr("Drag from an atom to another atom or empty space; Esc cancels"),
+		self._draw_bond_action.setCheckable(True)
+		self._draw_bond_action.setToolTip(
+			self.tr("Use Next atom and Next bond, then drag from an atom; Esc cancels"),
 		)
-		self._draw_single_bond_action.triggered.connect(self._on_toggle_draw_single_bond)
-		edit_menu.addAction(self._draw_single_bond_action)
+		self._draw_bond_action.triggered.connect(self._on_toggle_draw_bond)
+		edit_menu.addAction(self._draw_bond_action)
+		self._insert_cyclohexane_ring_action = PySide6.QtGui.QAction(
+			self.tr("Insert Cyclohexane Ring"), self,
+		)
+		self._insert_cyclohexane_ring_action.setCheckable(True)
+		self._insert_cyclohexane_ring_action.setToolTip(self.tr(
+			"Click an empty page location to insert a six-carbon ring; Escape cancels.",
+		))
+		self._insert_cyclohexane_ring_action.setStatusTip(self.tr(
+			"Click an empty page location to insert a six-carbon ring; Escape cancels.",
+		))
+		self._insert_cyclohexane_ring_action.triggered.connect(self._on_toggle_insert_cyclohexane_ring)
+		edit_menu.addAction(self._insert_cyclohexane_ring_action)
 		self._draw_wavy_action = PySide6.QtGui.QAction(self.tr("Draw Wavy Line"), self)
 		self._draw_wavy_action.setCheckable(True)
 		self._draw_wavy_action.setToolTip(
@@ -144,16 +116,25 @@ class FerrumNativeLineToolsMixin:
 		self._translate_roots_action.setCheckable(True)
 		self._translate_roots_action.setToolTip(
 			self.tr(
-				"Drag complete selected roots; Esc cancels without changing Rust",
+				"Drag selected complete roots; the View snap setting applies; Esc cancels",
 			),
 		)
 		self._translate_roots_action.triggered.connect(self._on_toggle_translate_roots)
 		edit_menu.addAction(self._translate_roots_action)
+		self._cancel_tool_action = PySide6.QtGui.QAction(self.tr("Cancel Tool"), self)
+		self._cancel_tool_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Cancel)
+		self._cancel_tool_action.setToolTip(self.tr(
+			"Cancel the active editing tool; selection and document stay unchanged",
+		))
+		self._cancel_tool_action.triggered.connect(self._on_cancel_tool)
+		self._cancel_tool_action.setEnabled(False)
+		edit_menu.addAction(self._cancel_tool_action)
 
 	#============================================
 	def _refresh_line_tool_actions(self, enabled: bool) -> None:
 		"""Apply the host's authoritative action policy to both pointer tools."""
-		self._draw_single_bond_action.setEnabled(enabled)
+		self._draw_bond_action.setEnabled(enabled)
+		self._insert_cyclohexane_ring_action.setEnabled(enabled)
 		self._draw_wavy_action.setEnabled(enabled)
 		self._draw_bracket_action.setEnabled(enabled)
 		self._draw_round_bracket_action.setEnabled(enabled)
@@ -165,14 +146,40 @@ class FerrumNativeLineToolsMixin:
 		self._translate_roots_action.setEnabled(
 			tab is not None and tab.can_transform_top_level_selection(),
 		)
+		self._refresh_cancel_tool_action()
 
 	#============================================
-	def _on_toggle_draw_single_bond(self, checked: bool) -> None:
+	def _refresh_cancel_tool_action(self) -> None:
+		"""Enable cancellation exactly while one native pointer intent exists."""
+		self._cancel_tool_action.setEnabled(
+			self._atom_insertion_intent is not None
+			or self._line_gesture_intent is not None,
+		)
+		self._refresh_local_cdml_open_action()
+
+	#============================================
+	def _on_cancel_tool(self) -> None:
+		"""Cancel a pointer tool while preserving Rust state and selection."""
+		self._cancel_atom_insertion()
+		self._cancel_line_gesture()
+		self.statusBar().showMessage(
+			self.tr("Tool cancelled. Selection and document are unchanged."), 3000,
+		)
+
+	#============================================
+	def _on_toggle_draw_bond(self, checked: bool) -> None:
 		"""Enter or leave one revision-bound atom-to-atom drawing mode."""
 		if not checked:
 			self._cancel_line_gesture()
 			return
-		self._activate_line_tool(_NativeLineTool.DRAW_SINGLE_BOND)
+		self._activate_line_tool(_NativeLineTool.DRAW_BOND)
+
+	def _on_toggle_insert_cyclohexane_ring(self, checked: bool) -> None:
+		"""Arm one direct, detached, Rust-owned cyclohexane placement."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(_NativeLineTool.INSERT_CYCLOHEXANE_RING)
 
 	#============================================
 	def _on_toggle_draw_wavy(self, checked: bool) -> None:
@@ -231,8 +238,8 @@ class FerrumNativeLineToolsMixin:
 		if tab is None or tab.requires_refresh:
 			self._cancel_line_gesture()
 			return
-		if tool is _NativeLineTool.DRAW_SINGLE_BOND:
-			action = self._draw_single_bond_action
+		if tool is _NativeLineTool.DRAW_BOND:
+			action = self._draw_bond_action
 		elif tool is _NativeLineTool.CREATE_WAVY:
 			action = self._draw_wavy_action
 		elif tool is _NativeLineTool.CREATE_RECTANGULAR_BRACKET:
@@ -243,20 +250,23 @@ class FerrumNativeLineToolsMixin:
 			action = self._move_atom_action
 		elif tool is _NativeLineTool.ROTATE_ATOMS:
 			action = self._rotate_atoms_action
-		else:
+		elif tool is _NativeLineTool.TRANSLATE_ROOTS:
 			action = self._translate_roots_action
+		else:
+			action = self._insert_cyclohexane_ring_action
 		action.setChecked(True)
 		snapshot = tab.current_snapshot
 		viewport = tab.view.viewport()
 		self._line_gesture_intent = _LineGestureIntent(
 			tab, viewport, snapshot.revision, snapshot.digest, tool,
 		)
+		self._refresh_cancel_tool_action()
 		viewport.installEventFilter(self)
 		viewport.setFocus()
-		if tool is _NativeLineTool.DRAW_SINGLE_BOND:
-			message = self.tr(
-				"Drag from an atom to another atom or empty space; Esc cancels Draw Bond.",
-			)
+		if tool is _NativeLineTool.DRAW_BOND:
+			drawing = self._drawing_parameters.snapshot()
+			message = self._draw_bond_feedback(drawing)
+			self._draw_bond_action.setToolTip(message)
 		elif tool is _NativeLineTool.CREATE_WAVY:
 			message = self.tr("Drag between two page points; Esc cancels Draw Wavy Line.")
 		elif tool is _NativeLineTool.CREATE_RECTANGULAR_BRACKET:
@@ -269,11 +279,36 @@ class FerrumNativeLineToolsMixin:
 			message = self.tr(
 				"Drag around the selected atoms' center; Esc cancels Rotate Atoms.",
 			)
-		else:
+		elif tool is _NativeLineTool.TRANSLATE_ROOTS:
 			message = self.tr(
 				"Drag complete selected roots; Esc cancels Move Complete Roots.",
 			)
+		else:
+			message = self.tr(
+				"Insert Cyclohexane Ring: click an empty page location; Escape cancels.",
+			)
 		self.statusBar().showMessage(message)
+
+	#============================================
+	def _draw_bond_feedback(
+			self,
+			drawing: ferrum_qt.native.ferrum_native_drawing_parameters.
+			FerrumNativeDrawingParametersSnapshot,
+			) -> str:
+		"""Name the current normal or directed gesture contract in human wording."""
+		if drawing.presentation_name == "solid_wedge":
+			return self.tr(
+				"Draw Bond: Solid wedge (Single); drag from the narrow tip to the wide end. "
+				"Empty-space endpoints use {0}; Esc cancels."
+			).format(drawing.element)
+		if drawing.presentation_name == "hashed_wedge":
+			return self.tr(
+				"Draw Bond: Hashed wedge (Single); drag from the narrow tip to the wide end. "
+				"Empty-space endpoints use {0}; Esc cancels."
+			).format(drawing.element)
+		return self.tr(
+			"Draw Bond: {0} with a {1} bond; release on an atom or empty space. Esc cancels."
+		).format(drawing.element, drawing.order_name)
 
 	#============================================
 	def eventFilter(self, watched: PySide6.QtCore.QObject,
@@ -308,15 +343,27 @@ class FerrumNativeLineToolsMixin:
 		if event.type() == PySide6.QtCore.QEvent.Type.MouseButtonPress:
 			if event.button() != PySide6.QtCore.Qt.MouseButton.LeftButton:
 				return False
-			self._start_line_gesture(event)
+			try:
+				self._start_line_gesture(event)
+			except (TypeError, ValueError) as exc:
+				self._cancel_line_gesture()
+				self._show_native_file_warning("Native Pointer Input Error", str(exc))
 			return True
 		if event.type() == PySide6.QtCore.QEvent.Type.MouseMove:
-			self._update_line_gesture(event)
+			try:
+				self._update_line_gesture(event)
+			except (TypeError, ValueError) as exc:
+				self._cancel_line_gesture()
+				self._show_native_file_warning("Native Pointer Input Error", str(exc))
 			return self._line_gesture_intent is not None
 		if event.type() == PySide6.QtCore.QEvent.Type.MouseButtonRelease:
 			if event.button() != PySide6.QtCore.Qt.MouseButton.LeftButton:
 				return False
-			self._complete_line_gesture(event)
+			try:
+				self._complete_line_gesture(event)
+			except (TypeError, ValueError) as exc:
+				self._cancel_line_gesture()
+				self._show_native_file_warning("Native Pointer Input Error", str(exc))
 			return True
 		return False
 
@@ -336,6 +383,41 @@ class FerrumNativeLineToolsMixin:
 			return
 		point = event.position().toPoint()
 		press_scene = intent.tab.view.mapToScene(point)
+		if intent.tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
+			center = intent.tab.view.snap_authored_scene_point(press_scene)
+			if (
+				intent.tab.durable_atom_at_viewport_point(point) is not None
+				or intent.tab.durable_atom_at_viewport_point(
+					intent.tab.view.mapFromScene(center),
+				) is not None
+			):
+				self.statusBar().showMessage(
+					self.tr("Choose an empty page location to insert a separate ring."), 5000,
+				)
+				return
+			try:
+				prepared = ferrum_qt.native.ferrum_native_regular_ring.prepare_cyclohexane(
+					intent.tab, center,
+				)
+				preview = ferrum_qt.native.ferrum_native_regular_ring.create_preview(
+					intent.tab, prepared,
+				)
+			except Exception as exc:
+				self._cancel_line_gesture()
+				self._show_native_file_warning("Native Cyclohexane Ring Error", str(exc))
+				return
+			self._line_gesture_intent = dataclasses.replace(
+				intent, start_scene=center, press_scene=press_scene, preview=preview,
+				regular_ring_prepared=prepared,
+			)
+			return
+		if intent.tool is _NativeLineTool.DRAW_BOND:
+			drawing = self._drawing_parameters.snapshot()
+			intent = dataclasses.replace(intent, drawing=drawing)
+			self._line_gesture_intent = intent
+			message = self._draw_bond_feedback(drawing)
+			self._draw_bond_action.setToolTip(message)
+			self.statusBar().showMessage(message)
 		if intent.tool is _NativeLineTool.ROTATE_ATOMS:
 			self._start_rotation_gesture(intent, press_scene)
 			return
@@ -347,28 +429,29 @@ class FerrumNativeLineToolsMixin:
 			_NativeLineTool.CREATE_RECTANGULAR_BRACKET,
 			_NativeLineTool.CREATE_ROUND_BRACKET,
 		):
+			start_scene = intent.tab.view.snap_authored_scene_point(press_scene)
 			try:
 				preview = (
-					self._new_bracket_preview(intent.tab, press_scene)
+					self._new_bracket_preview(intent.tab, start_scene)
 					if intent.tool in (
 						_NativeLineTool.CREATE_RECTANGULAR_BRACKET,
 						_NativeLineTool.CREATE_ROUND_BRACKET,
 					)
-					else self._new_line_preview(intent.tab, press_scene)
+					else self._new_line_preview(intent.tab, start_scene)
 				)
 			except Exception as exc:
 				self._cancel_line_gesture()
 				self._show_native_file_warning("Native Pointer Preview Error", str(exc))
 				return
 			self._line_gesture_intent = dataclasses.replace(
-				intent, start_scene=press_scene, press_scene=press_scene, preview=preview,
+				intent, start_scene=start_scene, press_scene=press_scene, preview=preview,
 			)
 			return
 		atom_id = intent.tab.durable_atom_at_viewport_point(point)
 		if atom_id is None:
 			message = (
 				self.tr("Draw Bond must start on an existing atom.")
-				if intent.tool is _NativeLineTool.DRAW_SINGLE_BOND
+				if intent.tool is _NativeLineTool.DRAW_BOND
 				else self.tr("Move Atom must start on an existing atom.")
 			)
 			self.statusBar().showMessage(message, 5000)
@@ -397,6 +480,8 @@ class FerrumNativeLineToolsMixin:
 			return
 		if intent is None or intent.preview is None or intent.start_scene is None:
 			return
+		if intent.tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
+			return
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
 			title = self._line_tool_stale_title(intent.tool)
@@ -408,7 +493,7 @@ class FerrumNativeLineToolsMixin:
 		if not ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(intent.preview):
 			self._cancel_line_gesture()
 			return
-		current = intent.tab.view.mapToScene(event.position().toPoint())
+		current = self._line_gesture_preview_target(intent, event.position().toPoint())
 		if intent.tool in (
 			_NativeLineTool.CREATE_RECTANGULAR_BRACKET,
 			_NativeLineTool.CREATE_ROUND_BRACKET,
@@ -416,8 +501,7 @@ class FerrumNativeLineToolsMixin:
 			assert isinstance(intent.preview, PySide6.QtWidgets.QGraphicsRectItem)
 			intent.preview.setRect(_normalized_rect(intent.start_scene, current))
 		else:
-			assert isinstance(intent.preview, PySide6.QtWidgets.QGraphicsLineItem)
-			intent.preview.setLine(PySide6.QtCore.QLineF(intent.start_scene, current))
+			self._update_line_preview(intent, current)
 
 	#============================================
 	def _complete_line_gesture(self, event: PySide6.QtGui.QMouseEvent) -> None:
@@ -438,10 +522,34 @@ class FerrumNativeLineToolsMixin:
 					_NativeLineTool.CREATE_WAVY,
 					_NativeLineTool.CREATE_RECTANGULAR_BRACKET,
 					_NativeLineTool.CREATE_ROUND_BRACKET,
+					_NativeLineTool.INSERT_CYCLOHEXANE_RING,
 				)
 				and intent.start_atom_id is None
 			)
-			):
+		):
+			return
+		if intent.tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
+			prepared = intent.regular_ring_prepared
+			if prepared is None:
+				return
+			if not self._line_gesture_is_current(intent):
+				self._cancel_line_gesture()
+				self._show_native_file_warning(
+					self._line_tool_stale_title(intent.tool),
+					"The document changed before the ring was inserted. Try again.",
+				)
+				return
+			self._reset_line_gesture_start()
+			try:
+				intent.tab.commit_regular_ring(prepared)
+			except Exception as exc:
+				self._cancel_line_gesture()
+				self._refresh_actions()
+				self._show_native_file_warning("Native Cyclohexane Ring Error", str(exc))
+				return
+			self._finish_line_gesture(intent, self.tr(
+				"Inserted one Rust-native cyclohexane ring; click again or press Esc.",
+			))
 			return
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
@@ -452,7 +560,7 @@ class FerrumNativeLineToolsMixin:
 			)
 			return
 		release_point = event.position().toPoint()
-		release_scene = intent.tab.view.mapToScene(release_point)
+		release_scene = self._line_gesture_preview_target(intent, release_point)
 		self._reset_line_gesture_start()
 		if intent.tool is _NativeLineTool.CREATE_WAVY:
 			try:
@@ -503,11 +611,9 @@ class FerrumNativeLineToolsMixin:
 		start_atom_id = intent.start_atom_id
 		assert start_atom_id is not None
 		if intent.tool is _NativeLineTool.MOVE_ATOM:
-			delta = release_scene - intent.press_scene
-			target = intent.start_scene + delta
 			try:
 				intent.tab.move_atom_to(
-					start_atom_id, float(target.x()), float(target.y()),
+					start_atom_id, float(release_scene.x()), float(release_scene.y()),
 				)
 			except Exception as exc:
 				self._cancel_line_gesture()
@@ -524,20 +630,24 @@ class FerrumNativeLineToolsMixin:
 				self.tr("Release Draw Bond on a different atom or in empty space."), 5000,
 			)
 			return
+		drawing = intent.drawing
+		if drawing is None:
+			raise RuntimeError("native Draw Bond gesture has no frozen drawing parameters")
+		presentation = drawing.bond_presentation()
 		try:
 			if end_atom_id is None:
 				intent.tab.add_bonded_atom_at(
-					start_atom_id, "C", float(release_scene.x()), float(release_scene.y()),
+					start_atom_id, drawing.element, float(release_scene.x()),
+					float(release_scene.y()), presentation,
 				)
 				result_message = self.tr(
-					"Added one Rust-native carbon and single bond; drag again or press Esc.",
-				)
+					"Added one Rust-native {0} and {1} bond; drag again or press Esc."
+				).format(drawing.element, drawing.presentation_name.replace("_", " "))
 			else:
-				intent.tab.select_atoms((start_atom_id, end_atom_id))
-				intent.tab.add_single_bond_between_selected_atoms()
+				intent.tab.add_bond_between_atoms(start_atom_id, end_atom_id, presentation)
 				result_message = self.tr(
-					"Added one Rust-native single bond; drag again or press Esc.",
-				)
+					"Added one Rust-native {0} bond; drag again or press Esc."
+				).format(drawing.presentation_name.replace("_", " "))
 		except Exception as exc:
 			self._cancel_line_gesture()
 			self._refresh_actions()
@@ -546,110 +656,42 @@ class FerrumNativeLineToolsMixin:
 		self._finish_line_gesture(intent, result_message)
 
 	#============================================
-	def _start_rotation_gesture(self, intent: _LineGestureIntent,
-			press_scene: PySide6.QtCore.QPointF) -> None:
-		"""Capture exact projected atoms and create one local skeleton preview."""
-		try:
-			selection = intent.tab.selected_atom_rotation()
-			dx = press_scene.x() - selection.center.x()
-			dy = press_scene.y() - selection.center.y()
-			if not math.isfinite(dx) or not math.isfinite(dy):
-				raise ValueError("rotation pointer position must be finite")
-			if dx == 0.0 and dy == 0.0:
-				self.statusBar().showMessage(
-					self.tr("Start the rotation drag away from the selection center."), 5000,
-				)
-				return
-			preview = ferrum_qt.native.ferrum_native_rotation.create_rotation_preview(
-				intent.tab, selection,
-			)
-		except Exception as exc:
-			self._cancel_line_gesture()
-			self._show_native_file_warning("Native Rotate Atoms Unavailable", str(exc))
-			return
-		self._line_gesture_intent = dataclasses.replace(
-			intent,
-			press_scene=press_scene,
-			start_scene=selection.center,
-			rotation_selection=selection,
-			rotation_preview=preview,
-			last_angle=math.atan2(dy, dx),
-		)
+	def _line_gesture_preview_target(
+			self, intent: _LineGestureIntent, viewport_point: PySide6.QtCore.QPoint,
+			) -> PySide6.QtCore.QPointF:
+		"""Return the exact committed target for one mutable gesture preview."""
+		raw_scene = intent.tab.view.mapToScene(viewport_point)
+		if intent.tool is _NativeLineTool.MOVE_ATOM:
+			if intent.start_scene is None or intent.press_scene is None:
+				raise RuntimeError("native Move Atom gesture has no captured start point")
+			target = intent.start_scene + raw_scene - intent.press_scene
+			return intent.tab.view.snap_authored_scene_point(target)
+		if intent.tool is _NativeLineTool.DRAW_BOND:
+			end_atom_id = intent.tab.durable_atom_at_viewport_point(viewport_point)
+			if end_atom_id is not None:
+				return intent.tab.durable_atom_scene_position(end_atom_id)
+		return intent.tab.view.snap_authored_scene_point(raw_scene)
 
 	#============================================
-	def _update_rotation_gesture(self, intent: _LineGestureIntent,
-			event: PySide6.QtGui.QMouseEvent) -> None:
-		"""Advance one unwrapped angle and update only its disposable skeleton."""
+	def _update_line_preview(self, intent: _LineGestureIntent,
+			current: PySide6.QtCore.QPointF) -> None:
+		"""Refresh directed previews from Rust V2 operations or update a normal line."""
+		assert intent.preview is not None
+		assert intent.start_scene is not None
+		drawing = intent.drawing
 		if (
-				intent.rotation_preview is None
-				or intent.rotation_selection is None
-				or intent.last_angle is None
-			):
-			return
-		if not self._line_gesture_is_current(intent):
-			self._cancel_line_gesture()
-			self._show_native_file_warning(
-				"Native Rotate Atoms Stale",
-				"The document changed during the gesture; no operation was accepted.",
+			intent.tool is _NativeLineTool.DRAW_BOND
+			and drawing is not None
+			and drawing.presentation_name != "normal"
+		):
+			self._retire_line_preview(intent.preview)
+			preview = ferrum_qt.native.ferrum_native_bond_preview.create_directed_preview(
+				intent.tab, intent.start_scene, current, drawing.bond_presentation(),
 			)
+			self._line_gesture_intent = dataclasses.replace(intent, preview=preview)
 			return
-		current_scene = intent.tab.view.mapToScene(event.position().toPoint())
-		center = intent.rotation_selection.center
-		dx = current_scene.x() - center.x()
-		dy = current_scene.y() - center.y()
-		if not math.isfinite(dx) or not math.isfinite(dy):
-			self._cancel_line_gesture()
-			self._show_native_file_warning(
-				"Native Rotate Atoms Error", "Rotation pointer position must be finite.",
-			)
-			return
-		if dx == 0.0 and dy == 0.0:
-			return
-		current_angle = math.atan2(dy, dx)
-		delta = current_angle - intent.last_angle
-		if delta > math.pi:
-			delta -= math.tau
-		elif delta < -math.pi:
-			delta += math.tau
-		angle = intent.accumulated_angle + delta
-		ferrum_qt.native.ferrum_native_rotation.update_rotation_preview(
-			intent.rotation_preview, float(angle),
-		)
-		self._line_gesture_intent = dataclasses.replace(
-			intent, last_angle=current_angle, accumulated_angle=angle,
-		)
-
-	#============================================
-	def _complete_rotation_gesture(self, intent: _LineGestureIntent,
-			event: PySide6.QtGui.QMouseEvent) -> None:
-		"""Retire the local preview, then submit one still-current Rust rotation."""
-		if intent.rotation_selection is None or intent.rotation_preview is None:
-			return
-		self._update_rotation_gesture(intent, event)
-		current = self._line_gesture_intent
-		if current is None or current.rotation_selection is None:
-			return
-		selection = current.rotation_selection
-		angle = float(current.accumulated_angle)
-		center = (float(selection.center.x()), float(selection.center.y()))
-		self._reset_line_gesture_start()
-		if angle == 0.0:
-			self.statusBar().showMessage(
-				self.tr("Rotate Selected Atoms remains active; no rotation was requested."),
-				5000,
-			)
-			return
-		try:
-			intent.tab.apply_selected_atom_rotation(selection, center, angle)
-		except Exception as exc:
-			self._cancel_line_gesture()
-			self._refresh_actions()
-			self._show_native_file_warning("Native Rotate Atoms Error", str(exc))
-			return
-		self._finish_line_gesture(
-			intent,
-			self.tr("Rotated selected Rust-native atoms; drag again or press Esc."),
-		)
+		assert isinstance(intent.preview, PySide6.QtWidgets.QGraphicsLineItem)
+		intent.preview.setLine(PySide6.QtCore.QLineF(intent.start_scene, current))
 
 	#============================================
 	def _start_translation_gesture(self, intent: _LineGestureIntent,
@@ -657,9 +699,26 @@ class FerrumNativeLineToolsMixin:
 		"""Capture complete roots and create one disposable bounds preview."""
 		try:
 			selection = intent.tab.selected_top_level_translation()
+			if (
+					selection.source_revision != intent.revision
+					or selection.source_digest != intent.digest
+				):
+				raise (
+					ferrum_qt.native.ferrum_native_top_level_transform.
+					FerrumNativeTopLevelTranslationStaleError(
+						"document changed before complete-root translation began",
+					)
+				)
 			preview = ferrum_qt.native.ferrum_native_translation.create_translation_preview(
 				intent.tab, selection,
 			)
+		except ferrum_qt.native.ferrum_native_top_level_transform.FerrumNativeTopLevelTranslationStaleError:
+			self._cancel_line_gesture()
+			self._show_native_file_warning(
+				"Native Move Complete Roots Stale",
+				"The selected roots or document changed. Select complete roots and drag again.",
+			)
+			return
 		except Exception as exc:
 			self._cancel_line_gesture()
 			self._show_native_file_warning(
@@ -671,31 +730,51 @@ class FerrumNativeLineToolsMixin:
 			press_scene=press_scene,
 			translation_selection=selection,
 			translation_preview=preview,
+			translation_snap_enabled=intent.tab.view.hex_grid_snap_enabled,
 		)
 
 	#============================================
 	def _update_translation_gesture(self, intent: _LineGestureIntent,
 			event: PySide6.QtGui.QMouseEvent) -> None:
 		"""Move only the local complete-root bounds preview."""
-		if intent.translation_preview is None or intent.press_scene is None:
+		if (
+				intent.translation_preview is None
+				or intent.translation_selection is None
+				or intent.translation_snap_enabled is None
+				or intent.press_scene is None
+			):
 			return
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
 			self._show_native_file_warning(
 				"Native Move Complete Roots Stale",
-				"The document changed during the gesture; no operation was accepted.",
+				"The selected roots or document changed. Select complete roots and drag again.",
 			)
 			return
 		current = intent.tab.view.mapToScene(event.position().toPoint())
-		dx = float(current.x() - intent.press_scene.x())
-		dy = float(current.y() - intent.press_scene.y())
-		if not math.isfinite(dx) or not math.isfinite(dy):
+		raw_dx = float(current.x() - intent.press_scene.x())
+		raw_dy = float(current.y() - intent.press_scene.y())
+		if not math.isfinite(raw_dx) or not math.isfinite(raw_dy):
 			self._cancel_line_gesture()
 			self._show_native_file_warning(
 				"Native Move Complete Roots Error",
 				"Translation pointer position must be finite.",
 			)
 			return
+		selection = intent.translation_selection
+		try:
+			resolved_anchor = intent.tab.view.resolve_authored_scene_point(
+				PySide6.QtCore.QPointF(
+					selection.anchor_x + raw_dx, selection.anchor_y + raw_dy,
+				),
+				intent.translation_snap_enabled,
+			)
+		except (RuntimeError, TypeError, ValueError) as exc:
+			self._cancel_line_gesture()
+			self._show_native_file_warning("Native Move Complete Roots Error", str(exc))
+			return
+		dx = float(resolved_anchor.x() - selection.anchor_x)
+		dy = float(resolved_anchor.y() - selection.anchor_y)
 		ferrum_qt.native.ferrum_native_translation.update_translation_preview(
 			intent.translation_preview, dx, dy,
 		)
@@ -725,11 +804,20 @@ class FerrumNativeLineToolsMixin:
 		try:
 			intent.tab.translate_top_level_roots_at_revision(
 				intent.revision,
+				selection.source_digest,
 				selection.targets,
 				selection.durable_selection,
 				dx,
 				dy,
 			)
+		except ferrum_qt.native.ferrum_native_top_level_transform.FerrumNativeTopLevelTranslationStaleError:
+			self._cancel_line_gesture()
+			self._refresh_actions()
+			self._show_native_file_warning(
+				"Native Move Complete Roots Stale",
+				"The selected roots or document changed. Select complete roots and drag again.",
+			)
+			return
 		except Exception as exc:
 			self._cancel_line_gesture()
 			self._refresh_actions()
@@ -807,6 +895,7 @@ class FerrumNativeLineToolsMixin:
 		)
 		self._line_gesture_intent = dataclasses.replace(
 			intent,
+			drawing=None,
 			start_atom_id=None,
 			start_scene=None,
 			press_scene=None,
@@ -815,9 +904,11 @@ class FerrumNativeLineToolsMixin:
 			rotation_preview=None,
 			translation_selection=None,
 			translation_preview=None,
+			translation_snap_enabled=None,
 			translation_delta=(0.0, 0.0),
 			last_angle=None,
 			accumulated_angle=0.0,
+			regular_ring_prepared=None,
 		)
 
 	#============================================
@@ -825,7 +916,8 @@ class FerrumNativeLineToolsMixin:
 		"""Release pointer capture and terminally retire its preview."""
 		intent = self._line_gesture_intent
 		self._line_gesture_intent = None
-		self._draw_single_bond_action.setChecked(False)
+		self._draw_bond_action.setChecked(False)
+		self._insert_cyclohexane_ring_action.setChecked(False)
 		self._draw_wavy_action.setChecked(False)
 		self._draw_bracket_action.setChecked(False)
 		self._draw_round_bracket_action.setChecked(False)
@@ -845,12 +937,13 @@ class FerrumNativeLineToolsMixin:
 			)
 		if clear_status:
 			self.statusBar().clearMessage()
+		self._refresh_cancel_tool_action()
 
 	#============================================
 	@staticmethod
 	def _line_tool_stale_title(tool: _NativeLineTool) -> str:
 		"""Return one actionable title for a gesture invalidated by a document edit."""
-		if tool is _NativeLineTool.DRAW_SINGLE_BOND:
+		if tool is _NativeLineTool.DRAW_BOND:
 			return "Native Draw Bond Stale"
 		if tool is _NativeLineTool.CREATE_WAVY:
 			return "Native Draw Wavy Stale"
@@ -862,6 +955,8 @@ class FerrumNativeLineToolsMixin:
 			return "Native Rotate Atoms Stale"
 		if tool is _NativeLineTool.TRANSLATE_ROOTS:
 			return "Native Move Complete Roots Stale"
+		if tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
+			return "Native Cyclohexane Ring Stale"
 		return "Native Move Atom Stale"
 
 	#============================================

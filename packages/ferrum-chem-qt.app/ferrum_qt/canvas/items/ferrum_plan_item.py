@@ -1,4 +1,4 @@
-"""Strict Qt projection item for one immutable Ferrum RenderBatchV1."""
+"""Strict Qt projection item for one immutable Ferrum RenderBatchV2."""
 
 # Standard Library
 import dataclasses
@@ -14,7 +14,7 @@ import ferrum_qt.canvas.ferrum_telex
 import ferrum_qt.canvas.telex_glyph_outline
 
 
-_SCHEMA = "ferrum-render-plan-v1"
+_SCHEMA = "ferrum-render-plan-v2"
 _FACE = "ferrum-telex-regular-v1"
 _PADDING = 1.0
 _SELECTION_WIDTH = 1.5
@@ -210,17 +210,17 @@ class _FixtureFerrumPlanItem(FerrumPlanItem):
 
 #============================================
 def _runtime_plan(value: object) -> object:
-	"""Accept only the exact compiled frozen ``ferrum_chem.RenderPlanV1`` type."""
+	"""Accept only the exact compiled frozen ``ferrum_chem.RenderPlanV2`` type."""
 	try:
 		import ferrum_chem
 	except ImportError as error:
 		raise FerrumPlanError("Ferrum render plans require the installed ferrum_chem extension") from error
-	if type(value) is not ferrum_chem.RenderPlanV1:
-		raise FerrumPlanError("Ferrum plan item requires the frozen ferrum_chem RenderPlanV1")
+	if type(value) is not ferrum_chem.RenderPlanV2:
+		raise FerrumPlanError("Ferrum plan item requires the frozen ferrum_chem RenderPlanV2")
 	if not isinstance(value.batches, tuple):
 		raise FerrumPlanError("Ferrum render plan batches must be a frozen tuple")
 	for batch in value.batches:
-		if type(batch) is not ferrum_chem.RenderBatchV1:
+		if type(batch) is not ferrum_chem.RenderBatchV2:
 			raise FerrumPlanError("Ferrum render plan contains a non-frozen batch")
 	return value
 
@@ -239,7 +239,7 @@ def _copy_batch(plan: object, batch_index: int,
 	space = batch.coordinate_space
 	if space.kind == "scene":
 		anchor = _Point(0.0, 0.0)
-		allowed = {"line"}
+		allowed = {"line", "path"}
 		required_kind = "bond"
 	elif space.kind == "atom_local":
 		anchor = _point(space.anchor, "atom-local anchor")
@@ -337,7 +337,66 @@ def _copy_operation(source: object, anchor: _Point,
 		brush = PySide6.QtGui.QBrush(fill_paint) if fill_paint is not None else None
 		z = _z(payload.z)
 		return _Shape(path, pen, brush, z), z
+	if source.kind == "path":
+		stroke_width = _optional_positive(payload.stroke_width, "path stroke width")
+		stroke_paint = _optional_rgb24(payload.stroke_paint, "path stroke paint")
+		stroke_line_cap = getattr(payload, "stroke_line_cap", None)
+		fill_paint = _optional_rgb24(payload.fill_paint, "path fill paint")
+		if (stroke_width is None) != (stroke_paint is None):
+			raise FerrumPlanError("Ferrum render path outline requires width and paint")
+		if stroke_paint is None and fill_paint is None:
+			raise FerrumPlanError("Ferrum render path requires an outline or fill")
+		path = _path_from_commands(payload.commands, anchor)
+		if fill_paint is not None:
+			# Rust fixes filled V2 paths to even-odd; retain that semantic on
+			# the cached path used for painting, bounds, and hit testing.
+			path.setFillRule(PySide6.QtCore.Qt.FillRule.OddEvenFill)
+		pen = None
+		if stroke_width is not None and stroke_paint is not None:
+			if stroke_line_cap not in {"butt", "round"}:
+				raise FerrumPlanError("Ferrum render path stroke cap is invalid")
+			pen = PySide6.QtGui.QPen(stroke_paint)
+			pen.setWidthF(stroke_width)
+			pen.setCosmetic(False)
+			pen.setCapStyle({
+				"butt": PySide6.QtCore.Qt.PenCapStyle.FlatCap,
+				"round": PySide6.QtCore.Qt.PenCapStyle.RoundCap,
+			}[stroke_line_cap])
+			pen.setJoinStyle(PySide6.QtCore.Qt.PenJoinStyle.MiterJoin)
+		brush = PySide6.QtGui.QBrush(fill_paint) if fill_paint is not None else None
+		z = _z(payload.z)
+		return _Shape(path, pen, brush, z), z
 	raise FerrumPlanError("Ferrum render batch has an unknown operation")
+
+
+#============================================
+def _path_from_commands(commands: object, anchor: _Point) -> PySide6.QtGui.QPainterPath:
+	"""Copy finite Rust V2 path geometry without selecting presentation facts."""
+	if not isinstance(commands, tuple) or not commands:
+		raise FerrumPlanError("Ferrum render path commands must be a nonempty frozen tuple")
+	path = PySide6.QtGui.QPainterPath()
+	has_drawable = False
+	for command in commands:
+		if command.kind == "move_to":
+			point = _translated_point(command.point, anchor, "path move point")
+			path.moveTo(point.x, point.y)
+		elif command.kind == "line_to":
+			point = _translated_point(command.point, anchor, "path line point")
+			path.lineTo(point.x, point.y)
+			has_drawable = True
+		elif command.kind == "cubic_to":
+			control_1 = _translated_point(command.control_1, anchor, "path first control")
+			control_2 = _translated_point(command.control_2, anchor, "path second control")
+			end = _translated_point(command.point, anchor, "path end point")
+			path.cubicTo(control_1.x, control_1.y, control_2.x, control_2.y, end.x, end.y)
+			has_drawable = True
+		elif command.kind == "close":
+			path.closeSubpath()
+		else:
+			raise FerrumPlanError("Ferrum render path has an unknown command")
+	if not has_drawable:
+		raise FerrumPlanError("Ferrum render path has no drawable command")
+	return path
 
 
 #============================================

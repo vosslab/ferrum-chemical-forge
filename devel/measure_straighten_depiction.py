@@ -17,7 +17,6 @@ import pathlib
 import platform
 import shutil
 import subprocess  # nosec B404
-import sys
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -86,26 +85,6 @@ def _source_identity() -> dict:
 	}
 
 
-#============================================
-def _oracle_interpreter() -> tuple[pathlib.Path, dict]:
-	"""Select the maintained isolated interpreter or describe an honest fallback."""
-	if ORACLE_PYTHON.is_file():
-		return (
-			ORACLE_PYTHON,
-			{
-				"selection": "dedicated_oracle_venv",
-				"selection_reason": "the isolated oracle interpreter is present",
-			},
-		)
-	return (
-		pathlib.Path(sys.executable),
-		{
-			"selection": "active_bootstrap_fallback",
-			"selection_reason": "dedicated oracle interpreter is absent: " + str(ORACLE_PYTHON),
-		},
-	)
-
-
 def _run_ferrum_probe() -> dict:
 	"""Run the Rust probe in a separate process and decode its shared cases."""
 	command = [
@@ -136,15 +115,15 @@ def _run_ferrum_probe() -> dict:
 		raise StraightenMeasurementError("Ferrum probe emitted invalid JSON") from error
 
 
-def _run_oracle_probe(interpreter: pathlib.Path) -> dict:
+def _run_oracle_probe() -> dict:
 	"""Run the RDKit measurement in an isolated oracle process."""
-	if not interpreter.is_file():
-		raise StraightenMeasurementError("RDKit interpreter is unavailable: " + str(interpreter))
+	if not ORACLE_PYTHON.is_file():
+		raise StraightenMeasurementError("RDKit interpreter is unavailable: " + str(ORACLE_PYTHON))
 	# The oracle process does not inherit local imports or bytecode settings.
 	environment = os.environ.copy()
 	environment["PYTHONDONTWRITEBYTECODE"] = "1"
-	command = [str(interpreter), "-I", "-B", str(ORACLE_CHILD)]
-	# Both executable paths were resolved from this repository or the active bootstrap.
+	command = [str(ORACLE_PYTHON), "-I", "-B", str(ORACLE_CHILD)]
+	# Both executable paths are resolved from this repository.
 	completed = subprocess.run(  # nosec B603
 		command,
 		cwd=REPOSITORY_ROOT,
@@ -242,8 +221,7 @@ def _validated_ferrum_cases(oracle: dict, ferrum: dict) -> tuple[list[dict], dic
 
 def main() -> None:
 	"""Emit reproducible measurement data on standard output."""
-	interpreter, interpreter_selection = _oracle_interpreter()
-	oracle = _run_oracle_probe(interpreter)
+	oracle = _run_oracle_probe()
 	measurements = oracle.get("measurements")
 	if not isinstance(measurements, dict):
 		raise StraightenMeasurementError("RDKit oracle omitted its measurements")
@@ -260,9 +238,10 @@ def main() -> None:
 		"measurements": measurements,
 		"oracle": {
 			"interpreter": {
-				"path": str(interpreter),
-				"resolved_path": str(interpreter.resolve()),
-				**interpreter_selection,
+				"path": str(ORACLE_PYTHON),
+				"resolved_path": str(ORACLE_PYTHON.resolve()),
+				"selection": "dedicated_oracle_venv",
+				"selection_reason": "the isolated oracle interpreter is present",
 			},
 			"rdkit_artifacts": oracle["rdkit_artifacts"],
 			"rdkit_version": oracle["rdkit_version"],

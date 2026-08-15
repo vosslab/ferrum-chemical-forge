@@ -139,6 +139,17 @@ pub fn prepare_document_clipboard_paste_v1(
     budget: XmlInputBudgetV1,
 ) -> Result<DocumentClipboardPastePlanV1, DocumentClipboardPasteErrorV1> {
     let document = TypedDocument::parse_with_budget(source, budget)?;
+    prepare_admitted_document_clipboard_paste_v1(document)
+}
+
+/// Build Paste's immutable fragment receipt from an already-admitted tree.
+///
+/// Other document operations may reuse the retained-fragment composition
+/// mechanism after enforcing their own stricter source grammar. This helper
+/// deliberately performs no external-input admission and remains crate-private.
+pub(super) fn prepare_admitted_document_clipboard_paste_v1(
+    document: TypedDocument,
+) -> Result<DocumentClipboardPastePlanV1, DocumentClipboardPasteErrorV1> {
     let roots = validate_roots(&document)?;
     let declared_ids = document
         .indexed()

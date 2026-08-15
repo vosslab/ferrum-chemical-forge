@@ -140,7 +140,6 @@ class _NativeFileHost(ferrum_qt.window_native_files.WindowNativeFileMixin):
 		"""Own a native-page registry and a common Qt tab widget."""
 		self._tab_widget = PySide6.QtWidgets.QTabWidget()
 		self._native_tabs_by_page = {}
-		self._sessions = []
 		self._status_bar = _StatusBar()
 		self.warnings = []
 		self.loaded_paths = []
@@ -336,24 +335,3 @@ def test_native_save_rejects_a_symlink_alias_owned_by_another_native_tab(
 	assert host.warnings[-1][0] == "Save Destination Already Open"
 	first_tab.dispose()
 	second_tab.dispose()
-
-
-#============================================
-def test_native_save_rejects_a_destination_owned_by_a_legacy_tab(
-		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
-		) -> None:
-	"""A native save does not overwrite a file still owned by a legacy page."""
-	del qapp
-	first = tmp_path / "first.cdml"
-	legacy_path = tmp_path / "legacy.cdml"
-	first.write_text("<svg/>", encoding="utf-8")
-	host = _NativeFileHost()
-	legacy = dataclasses.make_dataclass("Legacy", ("origin_path",))(str(legacy_path))
-	host._sessions.append(legacy)
-	assert host.open_file_path(str(first))
-	tab = host._active_native_tab()
-	assert tab is not None
-	assert not host._save_native_tab_to_path(tab, str(legacy_path))
-	assert tab.file_path == first and tab.is_dirty
-	assert host.warnings[-1][0] == "Save Destination Already Open"
-	tab.dispose()

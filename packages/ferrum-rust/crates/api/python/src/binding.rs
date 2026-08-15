@@ -1,9 +1,8 @@
-use std::path::PathBuf;
-
 use ferrum_document::{
-    DocumentBondOrderV1, DocumentSession, DocumentSnapshot, PendingCreateAtom, PendingCreateBond,
-    PendingCreateBondedAtom, PendingCreateMolecule, PendingCreateWavy, Point3V1, Publication,
-    SaveOutcome, SessionOperation, SessionOperationResultV1, SessionOperationV1,
+    DocumentBondOrderV1, DocumentBondPresentationV1, DocumentSession, DocumentSnapshot,
+    PendingCreateAtom, PendingCreateBond, PendingCreateBondedAtom, PendingCreateMolecule,
+    PendingCreateWavy, Point3V1, Publication, SaveOutcome, SessionOperation,
+    SessionOperationResultV1, SessionOperationV1,
 };
 use pyo3::prelude::*;
 
@@ -120,7 +119,7 @@ impl PySaveOutcome {
 /// clean `snapshot`; recovery exports and unconfirmed replacements do not alter
 /// the session baseline.
 #[pyclass(frozen, name = "Publication")]
-struct PyPublication {
+pub(crate) struct PyPublication {
     #[pyo3(get)]
     snapshot: PyDocumentSnapshot,
     #[pyo3(get)]
@@ -188,6 +187,42 @@ impl From<PyDocumentBondOrderV1> for DocumentBondOrderV1 {
     }
 }
 
+/// Closed native bond presentations accepted by the private creation seam.
+#[pyclass(
+    frozen,
+    eq,
+    hash,
+    module = "ferrum_chem",
+    name = "DocumentBondPresentationV1",
+    rename_all = "snake_case",
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub(crate) enum PyDocumentBondPresentationV1 {
+    /// A normal single bond.
+    NormalSingle,
+    /// A normal double bond.
+    NormalDouble,
+    /// A normal triple bond.
+    NormalTriple,
+    /// A directed solid wedge from start atom to end atom.
+    SolidWedge,
+    /// A directed hashed wedge from start atom to end atom.
+    HashedWedge,
+}
+
+impl From<PyDocumentBondPresentationV1> for DocumentBondPresentationV1 {
+    fn from(value: PyDocumentBondPresentationV1) -> Self {
+        match value {
+            PyDocumentBondPresentationV1::NormalSingle => Self::Normal(DocumentBondOrderV1::Single),
+            PyDocumentBondPresentationV1::NormalDouble => Self::Normal(DocumentBondOrderV1::Double),
+            PyDocumentBondPresentationV1::NormalTriple => Self::Normal(DocumentBondOrderV1::Triple),
+            PyDocumentBondPresentationV1::SolidWedge => Self::SolidWedge,
+            PyDocumentBondPresentationV1::HashedWedge => Self::HashedWedge,
+        }
+    }
+}
+
 /// Opaque one-use prepared molecule-local bond insertion.
 #[pyclass(unsendable, module = "ferrum_chem", name = "PreparedBondInsertion")]
 struct PyPreparedBondInsertion {
@@ -226,7 +261,7 @@ struct PyPreparedMoleculeInsertion {
 /// frozen owned copies and may outlive their originating session.
 #[pyclass(unsendable, name = "DocumentSession")]
 pub(crate) struct PyDocumentSession {
-    session: DocumentSession,
+    pub(crate) session: DocumentSession,
 }
 
 impl PyDocumentSession {
@@ -255,70 +290,6 @@ impl PyDocumentSession {
     fn load(py: Python<'_>, cdml: &str) -> PyResult<Self> {
         let session = document_result(py, DocumentSession::load(cdml))?;
         Ok(Self { session })
-    }
-
-    /// Admit exact built-in bytes as CDML under one explicit caller-owned budget.
-    #[staticmethod]
-    fn load_utf8_bytes_with_budget(
-        py: Python<'_>,
-        source: &Bound<'_, pyo3::types::PyAny>,
-        budget: &Bound<'_, pyo3::types::PyAny>,
-    ) -> PyResult<Self> {
-        crate::document_ingress_binding::load_utf8_bytes_with_budget(py, source, budget)
-    }
-
-    /// Admit an exact built-in string local path as CDML under one explicit budget.
-    #[staticmethod]
-    fn load_file_with_budget(
-        py: Python<'_>,
-        path: &Bound<'_, pyo3::types::PyAny>,
-        budget: &Bound<'_, pyo3::types::PyAny>,
-    ) -> PyResult<Self> {
-        crate::document_ingress_binding::load_file_with_budget(py, path, budget)
-    }
-
-    /// Prepare one ordinary local CDML file through Rust's immutable V1 profile.
-    ///
-    /// The returned one-use value is safe to deliver from a worker to the UI
-    /// thread. It publishes no stable Python API before the M18 contract freeze.
-    #[staticmethod]
-    fn prepare_local_cdml_file_v1(
-        py: Python<'_>,
-        path: &Bound<'_, pyo3::types::PyAny>,
-    ) -> PyResult<crate::document_ingress_binding::PyPreparedLocalCdmlOpenV1> {
-        crate::document_ingress_binding::prepare_local_cdml_file_v1(py, path)
-    }
-
-    /// Admit exact built-in bytes as CD-SVG under independent wrapper and payload budgets.
-    #[staticmethod]
-    fn load_cdsvg_utf8_bytes_with_budget(
-        py: Python<'_>,
-        source: &Bound<'_, pyo3::types::PyAny>,
-        wrapper_budget: &Bound<'_, pyo3::types::PyAny>,
-        payload_budget: &Bound<'_, pyo3::types::PyAny>,
-    ) -> PyResult<Self> {
-        crate::document_ingress_binding::load_cdsvg_utf8_bytes_with_budget(
-            py,
-            source,
-            wrapper_budget,
-            payload_budget,
-        )
-    }
-
-    /// Admit an exact built-in string local path as CD-SVG with independent budgets.
-    #[staticmethod]
-    fn load_cdsvg_file_with_budget(
-        py: Python<'_>,
-        path: &Bound<'_, pyo3::types::PyAny>,
-        wrapper_budget: &Bound<'_, pyo3::types::PyAny>,
-        payload_budget: &Bound<'_, pyo3::types::PyAny>,
-    ) -> PyResult<Self> {
-        crate::document_ingress_binding::load_cdsvg_file_with_budget(
-            py,
-            path,
-            wrapper_budget,
-            payload_budget,
-        )
     }
 
     /// Return one immutable owned snapshot without changing session state.
@@ -402,6 +373,17 @@ impl PyDocumentSession {
         .map(Into::into)
     }
 
+    /// Create one authenticated explicit molecule-local fragment annotation.
+    #[allow(clippy::too_many_arguments)]
+    fn create_explicit_fragment_v1(
+        &mut self, py: Python<'_>, expected_revision: u64,
+        expected_digest: &Bound<'_, pyo3::types::PyString>, molecule_id: &Bound<'_, pyo3::types::PyString>,
+        name: &Bound<'_, pyo3::types::PyString>, selected_atom_ids: &Bound<'_, pyo3::types::PyAny>,
+        selected_bond_ids: &Bound<'_, pyo3::types::PyAny>,
+    ) -> PyResult<crate::document_explicit_fragment_binding::PyDocumentExplicitFragmentCreateResultV1> {
+        crate::document_explicit_fragment_binding::create_explicit_fragment_v1(py, &mut self.session, expected_revision, expected_digest, molecule_id, name, selected_atom_ids, selected_bond_ids)
+    }
+
     /// Apply one worker-prepared clipboard fragment to this exact installed state.
     fn apply_clipboard_paste_v1(
         &mut self,
@@ -416,6 +398,27 @@ impl PyDocumentSession {
             expected_revision,
             expected_digest,
             prepared,
+        )
+    }
+
+    /// Place one worker-prepared user template at this exact installed state.
+    fn apply_user_template_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest: &Bound<'_, pyo3::types::PyString>,
+        prepared: PyRef<'_, crate::document_user_template_binding::PyDocumentUserTemplatePlanV1>,
+        anchor_x: f64,
+        anchor_y: f64,
+    ) -> PyResult<crate::document_user_template_binding::PyDocumentUserTemplateResultV1> {
+        crate::document_user_template_binding::apply_user_template_v1_binding(
+            py,
+            &mut self.session,
+            expected_revision,
+            expected_digest,
+            prepared,
+            anchor_x,
+            anchor_y,
         )
     }
 
@@ -616,23 +619,23 @@ impl PyDocumentSession {
     }
 
     /// Prepare a revision-bound, one-use molecule-local bond insertion.
-    fn prepare_create_bond_v1(
+    fn prepare_create_bond_v2(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
         start_atom_object_id: String,
         end_atom_object_id: String,
-        order: PyRef<'_, PyDocumentBondOrderV1>,
+        presentation: PyRef<'_, PyDocumentBondPresentationV1>,
     ) -> PyResult<PyPreparedBondInsertion> {
         let start_atom_object_id = document_object_id(py, start_atom_object_id)?;
         let end_atom_object_id = document_object_id(py, end_atom_object_id)?;
         let pending = document_result(
             py,
-            self.session.prepare_create_bond_v1(
+            self.session.prepare_create_bond_v2(
                 expected_revision,
                 &start_atom_object_id,
                 &end_atom_object_id,
-                (*order).into(),
+                (*presentation).into(),
             ),
         )?;
         let identifier = pending.identifier().as_str().to_owned();
@@ -659,7 +662,7 @@ impl PyDocumentSession {
 
     /// Prepare one atom plus its bond to an existing atom as one Rust edit.
     #[allow(clippy::too_many_arguments)]
-    fn prepare_create_bonded_atom_v1(
+    fn prepare_create_bonded_atom_v2(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
@@ -668,7 +671,7 @@ impl PyDocumentSession {
         x: f64,
         y: f64,
         z: f64,
-        order: PyRef<'_, PyDocumentBondOrderV1>,
+        presentation: PyRef<'_, PyDocumentBondPresentationV1>,
     ) -> PyResult<PyPreparedBondedAtomInsertion> {
         let start_atom_object_id = document_object_id(py, start_atom_object_id)?;
         let position = match Point3V1::new(x, y, z) {
@@ -677,12 +680,12 @@ impl PyDocumentSession {
         };
         let pending = document_result(
             py,
-            self.session.prepare_create_bonded_atom_v1(
+            self.session.prepare_create_bonded_atom_v2(
                 expected_revision,
                 &start_atom_object_id,
                 &element,
                 position,
-                (*order).into(),
+                (*presentation).into(),
             ),
         )?;
         let atom_identifier = pending.atom_identifier().as_str().to_owned();
@@ -772,32 +775,9 @@ impl PyDocumentSession {
         )
         .map(Into::into)
     }
-
-    /// Publish the current revision and update the saved baseline only if confirmed.
-    ///
-    /// The path is copied before publication. This operation requires an explicit
-    /// revision so an unrelated stale caller cannot silently write session state.
-    fn save_atomic(
-        &mut self,
-        py: Python<'_>,
-        path: PathBuf,
-        expected_revision: u64,
-    ) -> PyResult<PyPublication> {
-        document_result(py, self.session.save_atomic(&path, expected_revision)).map(Into::into)
-    }
-
-    /// Export the current revision without changing baseline, history, or dirty state.
-    fn recovery_export(
-        &self,
-        py: Python<'_>,
-        path: PathBuf,
-        expected_revision: u64,
-    ) -> PyResult<PyPublication> {
-        document_result(py, self.session.recovery_export(&path, expected_revision)).map(Into::into)
-    }
 }
 
-fn hex_digest(digest: &[u8; 32]) -> String {
+pub(crate) fn hex_digest(digest: &[u8; 32]) -> String {
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -877,9 +857,11 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         "PublicationPossiblyCompletedError",
         module.py().get_type::<PublicationPossiblyCompletedError>(),
     )?;
+    crate::document_native_artifact_binding::register(module)?;
     module.add_class::<PyDocumentSession>()?;
     module.add_class::<crate::document_ingress_binding::PyXmlInputBudgetV1>()?;
-    module.add_class::<crate::document_ingress_binding::PyPreparedLocalCdmlOpenV1>()?;
+    module.add_class::<crate::document_ingress_binding::PyPreparedLocalDocumentOpenV1>()?;
+    module.add_class::<crate::document_ingress_binding::PyLocalDocumentOriginTokenV1>()?;
     module.add_class::<PyDocumentSnapshot>()?;
     module.add_class::<PySessionDocumentObservationV1>()?;
     module.add_class::<PyDocumentProjectionV1>()?;
@@ -932,6 +914,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<crate::top_level_transform_binding::PyDocumentTopLevelRootSelectorV1>()?;
     module.add_class::<crate::top_level_transform_binding::PyDocumentTopLevelAlignmentV1>()?;
     module.add_class::<crate::top_level_transform_binding::PyDocumentTopLevelMirrorV1>()?;
+    module.add_class::<crate::top_level_transform_binding::PyTopLevelTranslationAnchorV1>()?;
     module.add_class::<crate::arrow_properties_binding::PyDocumentArrowPropertyChangeV1>()?;
     module
         .add_class::<crate::geometric_properties_binding::PyDocumentGeometricPropertyChangeV1>()?;
@@ -943,56 +926,18 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDocumentBracketBoundsV1>()?;
     module.add_class::<PyPreparedBracketInsertion>()?;
     module.add_class::<PyDocumentBondOrderV1>()?;
+    module.add_class::<PyDocumentBondPresentationV1>()?;
     module.add_class::<PyDocumentBondStyleV1>()?;
     module.add_class::<PyPreparedBondInsertion>()?;
     module.add_class::<PyPreparedBondedAtomInsertion>()?;
     module.add_class::<PyPreparedMoleculeInsertion>()?;
+    module.add_class::<crate::regular_ring_binding::PyPreparedRegularRingInsertionV1>()?;
+    module.add_class::<crate::standalone_haworth_binding::PyPreparedStandaloneHaworthInsertionV1>()?;
+    module.add_class::<crate::standalone_haworth_binding::PyStandaloneHaworthPreviewBatchV2>()?;
+    module.add_class::<crate::direct_haworth_binding::PyPreparedDirectHaworthFromSmilesV1>()?;
+    module.add_class::<crate::direct_haworth_binding::PyPreparedDirectHaworthInsertionV1>()?;
+    module.add_class::<crate::direct_haworth_binding::PyDirectHaworthPreviewBatchV2>()?;
     module.add_class::<PyPublication>()?;
     module.add_class::<PySaveOutcome>()?;
-    module.add(
-        "RenderObservationError",
-        module
-            .py()
-            .get_type::<render_binding::RenderObservationError>(),
-    )?;
-    module.add(
-        "RenderDepictionError",
-        module
-            .py()
-            .get_type::<render_binding::RenderDepictionError>(),
-    )?;
-    module.add(
-        "RenderProvenanceError",
-        module
-            .py()
-            .get_type::<render_binding::RenderProvenanceError>(),
-    )?;
-    module.add_function(wrap_pyfunction!(
-        render_binding::verified_telex_regular,
-        module
-    )?)?;
-    module.add_class::<PyRenderObservationV1>()?;
-    module.add_class::<render_binding::PyMoleculeRenderRootV1>()?;
-    module.add_class::<render_binding::PyDocumentMoleculeRenderPlanV1>()?;
-    module.add_class::<render_binding::PyRenderPlanV1>()?;
-    module.add_class::<render_binding::PyRenderProvenanceV1>()?;
-    module.add_class::<render_binding::PyRenderBatchV1>()?;
-    module.add_class::<render_binding::PyRenderTargetV1>()?;
-    module.add_class::<render_binding::PyRenderRecordIdV1>()?;
-    module.add_class::<render_binding::PyAtomLocalSpaceV1>()?;
-    module.add_class::<render_binding::PySceneSpaceV1>()?;
-    module.add_class::<render_binding::PyRenderOperationV1>()?;
-    module.add_class::<render_binding::PyTextOpV1>()?;
-    module.add_class::<render_binding::PyTextRunV1>()?;
-    module.add_class::<render_binding::PyGlyphPlacementV1>()?;
-    module.add_class::<render_binding::PyLineOpV1>()?;
-    module.add_class::<render_binding::PyMaskOpV1>()?;
-    module.add_class::<render_binding::PyEllipseOpV1>()?;
-    module.add_class::<render_binding::PyRenderIssueV1>()?;
-    module.add_class::<render_binding::PyDepictionIssueV1>()?;
-    module.add_class::<render_binding::PyDocumentPlusRenderV1>()?;
-    crate::presentation_text_render_binding::register(module)?;
-    module.add_class::<render_binding::PyPresentationTextBoundsV1>()?;
-    module.add_class::<render_binding::PyRenderPointV1>()?;
-    module.add_class::<render_binding::PyVerifiedTelexRegularV1>()
+    render_binding::initialize(module)
 }

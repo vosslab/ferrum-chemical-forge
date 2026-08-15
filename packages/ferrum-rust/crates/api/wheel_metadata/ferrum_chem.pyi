@@ -7,6 +7,17 @@ from typing import ClassVar
 class FerrumError(Exception): ...
 
 
+# BEGIN GENERATED FERRUM OPERATION PROTOCOL V1
+# Generated from the checked-in Rust-owned operation protocol V1 schema.
+class OperationProtocolErrorV1(FerrumError):
+	category: str
+
+
+def execute_operation_v1(request_json: str) -> str: ...
+def operation_protocol_schema_v1() -> str: ...
+# END GENERATED FERRUM OPERATION PROTOCOL V1
+
+
 class GeometryError(FerrumError): ...
 
 
@@ -1329,15 +1340,32 @@ class EllipseOpV1:
 	z: int
 
 
-class RenderOperationV1:
+class ScenePathCommandV2:
 	kind: str
-	operation: TextOpV1 | LineOpV1 | MaskOpV1 | EllipseOpV1
+	point: RenderPointV1 | None
+	control_1: RenderPointV1 | None
+	control_2: RenderPointV1 | None
 
 
-class RenderBatchV1:
+class PathOpV2:
+	commands: tuple[ScenePathCommandV2, ...]
+	stroke_width: float | None
+	stroke_paint: str | None
+	stroke_line_cap: str | None
+	fill_paint: str | None
+	z: int
+
+
+class RenderOperationV2:
+	kind: str
+	operation: TextOpV1 | LineOpV1 | MaskOpV1 | EllipseOpV1 | PathOpV2
+
+
+class RenderBatchV2:
 	target: RenderTargetV1
 	coordinate_space: AtomLocalSpaceV1 | SceneSpaceV1
-	operations: tuple[RenderOperationV1, ...]
+	display_layer: str
+	operations: tuple[RenderOperationV2, ...]
 
 
 class RenderIssueV1:
@@ -1351,10 +1379,10 @@ class RenderProvenanceV1:
 	digest: str
 
 
-class RenderPlanV1:
+class RenderPlanV2:
 	schema: str
 	provenance: RenderProvenanceV1
-	batches: tuple[RenderBatchV1, ...]
+	batches: tuple[RenderBatchV2, ...]
 	issues: tuple[RenderIssueV1, ...]
 
 
@@ -1365,9 +1393,9 @@ class MoleculeRenderRootV1:
 	source_order: int
 
 
-class DocumentMoleculeRenderPlanV1:
+class DocumentMoleculeRenderPlanV2:
 	molecule: MoleculeRenderRootV1
-	plan: RenderPlanV1
+	plan: RenderPlanV2
 
 
 class PresentationTextBoundsV1:
@@ -1425,7 +1453,7 @@ class RenderObservationV1:
 	schema: str
 	document: SessionDocumentObservationV1
 	profile: str
-	molecule_plans: tuple[DocumentMoleculeRenderPlanV1, ...]
+	molecule_plans: tuple[DocumentMoleculeRenderPlanV2, ...]
 	plus_renders: tuple[DocumentPlusRenderV1, ...]
 	text_renders: tuple[DocumentTextRenderV1, ...]
 	issues: tuple[DepictionIssueV1, ...]
@@ -1555,28 +1583,11 @@ class DocumentSession:
 		expected_revision: int,
 		prepared: PreparedBracketInsertion,
 	) -> SessionOperationResultV1: ...
-	def prepare_create_bond_v1(
-		self,
-		expected_revision: int,
-		start_atom_object_id: str,
-		end_atom_object_id: str,
-		order: DocumentBondOrderV1,
-	) -> PreparedBondInsertion: ...
 	def commit_create_bond(
 		self,
 		expected_revision: int,
 		prepared: PreparedBondInsertion,
 	) -> SessionOperationResultV1: ...
-	def prepare_create_bonded_atom_v1(
-		self,
-		expected_revision: int,
-		start_atom_object_id: str,
-		element: str,
-		x: float,
-		y: float,
-		z: float,
-		order: DocumentBondOrderV1,
-	) -> PreparedBondedAtomInsertion: ...
 	def commit_create_bonded_atom(
 		self,
 		expected_revision: int,

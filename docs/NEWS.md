@@ -1,5 +1,11 @@
 # News
 
+## Unreleased pre-alpha work
+
+- Ferrum has source-accepted packaging and notice mechanisms for a proposed macOS arm64/CPython
+  3.12 two-wheel route. It remains pre-alpha: real offline artifact evidence and human
+  legal/release review are still required before any supported desktop-release announcement.
+
 ## v26.08 - 2026-08-12
 
 ### Highlights

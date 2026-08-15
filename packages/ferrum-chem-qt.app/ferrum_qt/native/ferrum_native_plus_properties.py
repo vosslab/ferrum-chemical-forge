@@ -1,4 +1,4 @@
-"""Typed PlusDialog adaptation for the OASA-free Ferrum-native editor."""
+"""Typed PlusDialog adaptation for the Rust-native Ferrum editor."""
 
 # Standard Library
 import dataclasses

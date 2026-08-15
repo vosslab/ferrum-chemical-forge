@@ -1,4 +1,4 @@
-"""Focused native atom-number dialog with no legacy document authority."""
+"""Focused native atom-number dialog with Rust document authority."""
 
 # PIP3 modules
 import PySide6.QtCore

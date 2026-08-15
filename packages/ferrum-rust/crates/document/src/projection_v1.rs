@@ -630,7 +630,7 @@ fn endpoint_kind_name(kind: BondEndpointKindV1) -> &'static str {
     }
 }
 
-fn point(record: &TypedRecord) -> Result<Point3V1, ProjectionError> {
+pub(crate) fn point(record: &TypedRecord) -> Result<Point3V1, ProjectionError> {
     Point3V1::new(
         coordinate(record, "x")?,
         coordinate(record, "y")?,

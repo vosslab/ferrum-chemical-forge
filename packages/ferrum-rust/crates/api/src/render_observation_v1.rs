@@ -121,12 +121,12 @@ impl<'de> Deserialize<'de> for MoleculeRenderRootV1 {
 /// One document-root molecule and its existing complete render plan.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DocumentMoleculeRenderPlanV1 {
+pub struct DocumentMoleculeRenderPlanV2 {
     molecule: MoleculeRenderRootV1,
     plan: MoleculeRenderPlan,
 }
 
-impl DocumentMoleculeRenderPlanV1 {
+impl DocumentMoleculeRenderPlanV2 {
     pub(crate) fn from_projection(
         molecule: &MoleculeProjectionV1,
         plan: MoleculeRenderPlan,
@@ -184,7 +184,7 @@ impl DocumentMoleculeRenderPlanV1 {
 pub struct RenderObservationV1 {
     document: SessionDocumentObservationV1,
     profile: DepictionProfileV1,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV1>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     issues: Vec<DepictionIssueV1>,
@@ -249,7 +249,7 @@ impl RenderObservationV1 {
 
     /// Return complete molecule plans in document root order.
     #[must_use]
-    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV1] {
+    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV2] {
         &self.molecule_plans
     }
 
@@ -376,7 +376,7 @@ pub struct RenderObservationWireV1 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV1>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     issues: Vec<DepictionIssueV1>,
@@ -389,7 +389,7 @@ struct UncheckedRenderObservationWireV1 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV1>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     issues: Vec<DepictionIssueV1>,
@@ -445,7 +445,7 @@ impl RenderObservationWireV1 {
 
     /// Return plans that are complete batches or exact target exclusions.
     #[must_use]
-    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV1] {
+    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV2] {
         &self.molecule_plans
     }
 
@@ -536,7 +536,7 @@ fn validate_projection_text_roots(
 
 fn validate_projection_plan_roots(
     molecules: &[MoleculeProjectionV1],
-    plans: &[DocumentMoleculeRenderPlanV1],
+    plans: &[DocumentMoleculeRenderPlanV2],
 ) -> Result<(), RenderObservationError> {
     let mut molecule_index = 0;
     for entry in plans {
@@ -556,7 +556,7 @@ fn validate_projection_plan_roots(
     Ok(())
 }
 
-fn validate_wire_plan_roots(plans: &[DocumentMoleculeRenderPlanV1]) -> Result<(), String> {
+fn validate_wire_plan_roots(plans: &[DocumentMoleculeRenderPlanV2]) -> Result<(), String> {
     let mut previous_order = None;
     let mut projection_keys = HashSet::new();
     let mut durable_ids = HashSet::new();

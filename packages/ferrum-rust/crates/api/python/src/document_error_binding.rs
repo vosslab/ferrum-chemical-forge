@@ -92,6 +92,9 @@ pub(crate) fn map_document_error(py: Python<'_>, error: DocumentSessionError) ->
         DocumentSessionError::ClipboardCut(error) => {
             operation_validation_error(py, error.to_string())
         }
+        DocumentSessionError::UserTemplate(error) => {
+            operation_validation_error(py, error.to_string())
+        }
         DocumentSessionError::RevisionConflict { expected, actual } => {
             revision_conflict_error(py, expected, actual)?
         }
@@ -301,6 +304,7 @@ fn revision_conflict_error(py: Python<'_>, expected: u64, actual: u64) -> PyResu
 
 fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyErr> {
     match error {
+        SessionOperationError::ExplicitFragment(_) => operation_validation_reason(py, error),
         SessionOperationError::EmptyLinearFormSelection
         | SessionOperationError::LinearFormPlan(_) => operation_validation_reason(py, error),
         SessionOperationError::HistoryResourceExhausted
@@ -316,6 +320,8 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
             Ok(OperationValidationError::new_err(error.to_string()))
         }
         SessionOperationError::InvalidDirectHaworthInsertion(_)
+        | SessionOperationError::InvalidRegularRingInsertion(_)
+        | SessionOperationError::InvalidStandaloneHaworthInsertion(_)
         | SessionOperationError::InvalidStraightenDepiction(_) => {
             let message = error.to_string();
             let py_error = OperationValidationError::new_err(message.clone());
@@ -398,7 +404,7 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::MoleculeIdentifierExhausted
         | SessionOperationError::BondIdentifierExhausted
         | SessionOperationError::PresentationIdentifierExhausted
-        | SessionOperationError::ClipboardIdentifierExhausted => {
+        | SessionOperationError::FragmentImportIdentifierExhausted => {
             Ok(OperationValidationError::new_err(error.to_string()))
         }
         SessionOperationError::Candidate(TypedDocumentError::UnknownTopLevelTransformRoot(
@@ -438,7 +444,7 @@ fn operation_validation_reason(py: Python<'_>, error: SessionOperationError) -> 
     Ok(py_error)
 }
 
-fn publication_error(
+pub(crate) fn publication_error(
     py: Python<'_>,
     constructor: impl FnOnce(String) -> PyErr,
     path: PathBuf,

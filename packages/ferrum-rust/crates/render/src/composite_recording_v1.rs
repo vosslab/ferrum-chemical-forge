@@ -177,6 +177,7 @@ pub enum CompositePathCommandV1 {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompositePaintKindV1 {
     MoleculeLine { z: i32 },
+    MoleculePath { z: i32 },
     MoleculeMask { z: i32 },
     MoleculeEllipse { z: i32 },
     MoleculeText { z: i32 },
@@ -609,6 +610,7 @@ fn point(x: f64, y: f64) -> Result<RenderPoint, CompositeRecordingErrorV1> {
 fn kind(metadata: DrawMetadataV1) -> CompositePaintKindV1 {
     match metadata {
         DrawMetadataV1::MoleculeLine { z } => CompositePaintKindV1::MoleculeLine { z },
+        DrawMetadataV1::MoleculePath { z } => CompositePaintKindV1::MoleculePath { z },
         DrawMetadataV1::MoleculeMask { z } => CompositePaintKindV1::MoleculeMask { z },
         DrawMetadataV1::MoleculeEllipse { z } => CompositePaintKindV1::MoleculeEllipse { z },
         DrawMetadataV1::MoleculeText { z } => CompositePaintKindV1::MoleculeText { z },

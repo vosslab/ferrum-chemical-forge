@@ -1,4 +1,4 @@
-"""Semantic durable presentation deletion through the OASA-free native tab."""
+"""Semantic durable presentation deletion through the Rust-native tab."""
 
 # Standard Library
 import os

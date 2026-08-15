@@ -232,7 +232,6 @@ def _probe() -> dict[str, object]:
 		"revision": reopened_snapshot.revision,
 		"clean": not reopened_snapshot.is_dirty,
 		"opaque_extension": "retained" in reopened_snapshot.cdml,
-		"oasa_imported": any(name == "oasa" or name.startswith("oasa.") for name in sys.modules),
 		"root_extension": pathlib.Path(ferrum_chem.__file__).name,
 	}
 
@@ -257,8 +256,6 @@ def main() -> int:
 		_run(str(python), "-B", "-m", "pip", "install", "--no-deps", str(arguments.wheel.resolve()), environment=environment)
 		output = _run(str(python), "-I", "-B", str(pathlib.Path(__file__).resolve()), "--probe", environment=environment)
 	value = json.loads(output)
-	if value["oasa_imported"]:
-		raise NativeBondPropertiesE2eError("native bond-properties controller imported OASA")
 	if not value["clean"] or not value["opaque_extension"]:
 		raise NativeBondPropertiesE2eError("native bond-properties proof lost durable output truth")
 	print(json.dumps(value, sort_keys=True))

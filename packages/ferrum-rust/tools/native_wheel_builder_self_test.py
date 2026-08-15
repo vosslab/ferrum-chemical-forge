@@ -25,6 +25,7 @@ from native_wheel_macho import (
 	deduplicate_paths_by_identity,
 	self_test as macho_self_test,
 )
+from native_wheel_packaging import NOTICE_FILENAMES, NativePackagingError, inject_root_metadata
 from native_wheel_policy import NativePolicyError, self_test as policy_self_test
 from native_wheel_profile import (
 	FERRUM_RDKIT_PROFILE,
@@ -550,12 +551,20 @@ def _run_wheel_member_fixtures(api: types.ModuleType) -> None:
 		"ferrum_chem.cpython-312-darwin.so",
 		"ferrum_chem.pyi",
 		"py.typed",
+		"ferrum-operation-v1.schema.json",
 		*(
 			f".dylibs/{name}"
 			for name in sorted(MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names)
 		),
 	]
 	api.validate_wheel_members(valid_wheel)
+	_reject(
+		api,
+		lambda: api.validate_wheel_members(
+			[member for member in valid_wheel if member != "ferrum-operation-v1.schema.json"]
+		),
+		"missing operation protocol schema",
+	)
 	_reject(
 		api,
 		lambda: api.validate_wheel_members([*valid_wheel, "ferrum_chem/__init__.py"]),
@@ -591,6 +600,52 @@ def _run_wheel_member_fixtures(api: types.ModuleType) -> None:
 		lambda: api.validate_wheel_members([*valid_wheel, ".dylibs/libRDKitRDGeneral.1.dylib/extra"]),
 		"nested allowed-library prefix",
 	)
+
+
+#============================================
+def _run_notice_injection_fixture(api: types.ModuleType) -> None:
+	"""Verify the wheel rewrite links each staged notice role through metadata."""
+	with tempfile.TemporaryDirectory() as temporary:
+		root = Path(temporary)
+		project = root / "crates" / "api" / "python"
+		project.mkdir(parents=True)
+		metadata = project.parent / "wheel_metadata"
+		notices = metadata / "licenses"
+		notices.mkdir(parents=True)
+		(metadata / "ferrum_chem.pyi").write_text("", encoding="utf-8")
+		(metadata / "py.typed").write_text("", encoding="utf-8")
+		(project.parent / "protocol").mkdir()
+		(project.parent / "protocol" / "ferrum-operation-v1.schema.json").write_text(
+			"{}\n", encoding="utf-8"
+		)
+		for name in NOTICE_FILENAMES:
+			(notices / name).write_text(f"fixture {name}\n", encoding="utf-8")
+		wheel = root / "ferrum_chem-0-py3-none-any.whl"
+		with zipfile.ZipFile(wheel, "w") as archive:
+			archive.writestr("ferrum_chem/ferrum_chem.cpython-312-darwin.so", b"extension")
+			archive.writestr("ferrum_chem-0.dist-info/WHEEL", "Wheel-Version: 1.0\n\n")
+			archive.writestr("ferrum_chem-0.dist-info/METADATA", "Name: ferrum-chem\n\n")
+		inject_root_metadata(wheel, project)
+		with zipfile.ZipFile(wheel) as archive:
+			members = set(archive.namelist())
+			prefix = "ferrum_chem-0.dist-info/licenses/"
+			for name in NOTICE_FILENAMES:
+				member = prefix + name
+				if member not in members:
+					raise api.NativeBuildError(f"notice fixture omitted required role: {name}")
+			metadata_text = archive.read("ferrum_chem-0.dist-info/METADATA").decode("utf-8")
+			for name in NOTICE_FILENAMES:
+				if f"License-File: licenses/{name}" not in metadata_text:
+					raise api.NativeBuildError(f"notice fixture omitted metadata link: {name}")
+			if "ferrum_chem-0.dist-info/RECORD" not in members:
+				raise api.NativeBuildError("notice fixture did not regenerate RECORD")
+		(notices / NOTICE_FILENAMES[0]).unlink()
+		try:
+			inject_root_metadata(wheel, project)
+		except NativePackagingError:
+			pass
+		else:
+			raise api.NativeBuildError("notice fixture accepted a missing required notice")
 
 
 #============================================
@@ -680,3 +735,4 @@ def run(api: types.ModuleType) -> None:
 		stage_root.mkdir()
 		_run_smiles_depict_stage_fixture(api, stage_root)
 	_run_wheel_member_fixtures(api)
+	_run_notice_injection_fixture(api)

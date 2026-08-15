@@ -12,10 +12,10 @@ use thiserror::Error;
 
 use super::identity_index::ProvisionalToken;
 use super::{
-    BracketInsertionV1, BracketStyleV1, DocumentBondOrderV1, DocumentObjectIdV1,
-    MoleculeInsertionV1, PersistentId, Point3V1, PreparedStraightenDepictionsV1, ProjectionError,
-    SessionDocumentObservationV1, TypedClass, TypedDocument, TypedDocumentError, WavyInsertionV1,
-    XmlSerializationError,
+    BracketInsertionV1, BracketStyleV1, DetachedRegularRingInsertionV1, DocumentBondPresentationV1,
+    DocumentObjectIdV1, MoleculeInsertionV1, PersistentId, Point3V1,
+    PreparedStraightenDepictionsV1, ProjectionError, SessionDocumentObservationV1, TypedClass,
+    TypedDocument, TypedDocumentError, WavyInsertionV1, XmlSerializationError,
     generated_ids::GeneratedIdSequences,
     publication::{PublicationDurability, publish_snapshot},
     session_history::SessionHistory,
@@ -31,18 +31,26 @@ mod clipboard;
 mod clipboard_cut;
 mod construction;
 mod direct_haworth;
+mod explicit_fragment;
 mod linear_form;
+mod molecule_creation;
 mod prepared;
 mod sdf;
+mod standalone_haworth;
 mod straighten;
+mod user_template;
 mod wavy;
 pub use bracket::PendingCreateBracket;
 pub use clipboard::DocumentClipboardPasteResultV1;
 pub use direct_haworth::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, PendingDirectHaworthV1,
 };
+#[allow(unused_imports)]
+pub use explicit_fragment::PendingCreateExplicitFragmentV1;
 pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
 pub use sdf::PendingCreateSdfRecords;
+pub use standalone_haworth::PendingStandaloneHaworthV1;
+pub use user_template::DocumentUserTemplateResultV1;
 pub use wavy::PendingCreateWavy;
 /// An owned structural serialization of the authoritative CDML tree.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -279,6 +287,9 @@ pub enum DocumentSessionError {
     /// A prepared native Cut was invalid for this exact session state.
     #[error(transparent)]
     ClipboardCut(#[from] super::DocumentClipboardCutErrorV1),
+    /// A bounded native user template was not valid for this insertion.
+    #[error(transparent)]
+    UserTemplate(#[from] super::DocumentUserTemplateErrorV1),
     /// The retained tree could not be structurally serialized.
     #[error("cannot serialize CDML document: {0}")]
     Serialize(#[source] XmlSerializationError),
@@ -384,6 +395,22 @@ pub struct DocumentSession {
 }
 
 impl DocumentSession {
+    /// Observe one complete-root translation anchor at an exact retained revision.
+    pub fn observe_top_level_translation_anchor_v1(
+        &self,
+        expected_revision: u64,
+        targets: Vec<super::TopLevelRootSelectorV1>,
+    ) -> Result<super::TopLevelTranslationAnchorV1, DocumentSessionError> {
+        self.require_current(expected_revision)?;
+        let current = self.history.current();
+        current
+            .document()
+            .top_level_translation_anchor_v1(current.revision(), *current.digest(), targets)
+            .map_err(|error| {
+                DocumentSessionError::Operation(super::SessionOperationError::Candidate(error))
+            })
+    }
+
     /// Produce an owned structural serialization of the retained tree.
     pub fn snapshot(&self) -> Result<DocumentSnapshot, DocumentSessionError> {
         let current = self.history.current();
@@ -578,12 +605,12 @@ impl DocumentSession {
     /// Endpoint selectors must name two distinct durable atoms under the same
     /// durable molecule. The session allocates the bond identity and validates the
     /// complete detached candidate before issuing its document-local token.
-    pub fn prepare_create_bond_v1(
+    pub fn prepare_create_bond_v2(
         &mut self,
         expected_revision: u64,
         start_atom_object_id: &DocumentObjectIdV1,
         end_atom_object_id: &DocumentObjectIdV1,
-        order: DocumentBondOrderV1,
+        presentation: DocumentBondPresentationV1,
     ) -> Result<PendingCreateBond, DocumentSessionError> {
         self.require_current(expected_revision)?;
         if start_atom_object_id == end_atom_object_id {
@@ -605,7 +632,13 @@ impl DocumentSession {
             .history
             .current()
             .document()
-            .with_insert_bond(&start_molecule, &bond_id, &start_atom, &end_atom, order)
+            .with_insert_bond(
+                &start_molecule,
+                &bond_id,
+                &start_atom,
+                &end_atom,
+                presentation,
+            )
             .map_err(SessionOperationError::Candidate)?;
         let revision = self
             .history
@@ -647,13 +680,13 @@ impl DocumentSession {
     /// durable identities, and validates the complete projected candidate before
     /// issuing a one-use token. No intermediate free-standing atom can become
     /// visible or enter history.
-    pub fn prepare_create_bonded_atom_v1(
+    pub fn prepare_create_bonded_atom_v2(
         &mut self,
         expected_revision: u64,
         start_atom_object_id: &DocumentObjectIdV1,
         element: &str,
         position: Point3V1,
-        order: DocumentBondOrderV1,
+        presentation: DocumentBondPresentationV1,
     ) -> Result<PendingCreateBondedAtom, DocumentSessionError> {
         self.require_current(expected_revision)?;
         let (molecule_id, start_atom_id) = self.resolve_bond_atom(start_atom_object_id)?;
@@ -672,7 +705,7 @@ impl DocumentSession {
                     &identities.bond,
                     element,
                     position,
-                    order,
+                    presentation,
                 ),
             )
             .map_err(SessionOperationError::Candidate)?;
@@ -779,86 +812,6 @@ impl DocumentSession {
     #[cfg(test)]
     pub(super) fn set_next_generated_bond_sequence_for_test(&mut self, sequence: Option<u64>) {
         self.generated_ids = self.generated_ids.with_bond_sequence(sequence);
-    }
-
-    pub fn prepare_create_molecule_v1(
-        &mut self,
-        expected_revision: u64,
-        molecule: &MoleculeInsertionV1,
-    ) -> Result<PendingCreateMolecule, DocumentSessionError> {
-        self.prepare_complete_molecule_candidate(
-            expected_revision,
-            molecule.atoms().len(),
-            molecule.bonds().len(),
-            |document, molecule_id, atom_ids, bond_ids| {
-                document
-                    .with_insert_molecule(molecule_id, atom_ids, bond_ids, molecule)
-                    .map_err(SessionOperationError::Candidate)
-            },
-        )
-    }
-
-    fn prepare_complete_molecule_candidate<F>(
-        &mut self,
-        expected_revision: u64,
-        atom_count: usize,
-        bond_count: usize,
-        writer: F,
-    ) -> Result<PendingCreateMolecule, DocumentSessionError>
-    where
-        F: FnOnce(
-            &TypedDocument,
-            &PersistentId,
-            &[PersistentId],
-            &[PersistentId],
-        ) -> Result<TypedDocument, SessionOperationError>,
-    {
-        self.require_current(expected_revision)?;
-        let (identities, generated_ids) = self.generated_ids.reserve_molecule(
-            self.history.current().document().indexed(),
-            atom_count,
-            bond_count,
-        )?;
-        let candidate = writer(
-            self.history.current().document(),
-            &identities.molecule,
-            &identities.atoms,
-            &identities.bonds,
-        )
-        .map_err(DocumentSessionError::Operation)?;
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let candidate = RevisionState::from_document(revision, candidate)
-            .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.generated_ids = generated_ids;
-        Ok(PendingCreateMolecule {
-            revision: expected_revision,
-            token,
-            molecule_identifier: identities.molecule,
-            atom_identifiers: identities.atoms,
-            bond_identifiers: identities.bonds,
-            candidate: Some(candidate),
-        })
-    }
-
-    pub fn commit_create_molecule(
-        &mut self,
-        expected_revision: u64,
-        pending: &mut PendingCreateMolecule,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
     }
 
     fn commit_prepared_candidate(

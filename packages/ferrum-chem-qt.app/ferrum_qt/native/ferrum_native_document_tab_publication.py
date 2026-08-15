@@ -42,6 +42,7 @@ class FerrumNativeDocumentTabPublicationMixin:
 			raise FerrumNativeDocumentTabSavePresentationError(path, publication)
 		self._file_path = pathlib.Path(path)
 		self._title = self._file_path.name
+		self._refresh_local_document_origin_presentation()
 		return publication
 
 	#============================================

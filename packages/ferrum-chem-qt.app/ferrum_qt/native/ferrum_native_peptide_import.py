@@ -1,4 +1,4 @@
-"""OASA-free background preparation for one supported peptide-template insertion."""
+"""Rust-native background preparation for one supported peptide-template insertion."""
 
 # Standard Library
 import dataclasses

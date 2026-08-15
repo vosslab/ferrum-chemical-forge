@@ -24,7 +24,7 @@ import ferrum_qt.canvas.items.ferrum_text_item
 
 
 _OBSERVATION_SCHEMA = "ferrum-render-observation-v1"
-_PLAN_SCHEMA = "ferrum-render-plan-v1"
+_PLAN_SCHEMA = "ferrum-render-plan-v2"
 _PAPER_SCHEMA = "ferrum-document-paper-layout-v1"
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _U32_RANGE = range(2**32)
@@ -548,7 +548,11 @@ def _build_plan(
 		last_order = target.source_order
 		seen_targets.add(target)
 		item = item_factory(plan, batch_index, telex_resource, root)
-		item.setZValue(float(target.source_order))
+		layer = getattr(batch, "display_layer", None)
+		if layer not in {"ordinary", "haworth_front_stroke", "haworth_front_wedge"}:
+			raise FerrumRenderProjectionError("render batch has an unknown display layer")
+		layer_offset = {"ordinary": 0.0, "haworth_front_stroke": 0.1, "haworth_front_wedge": 0.2}[layer]
+		item.setZValue(float(target.source_order) + layer_offset)
 		result.append((item, target))
 	plan_issues = _plan_issues(issues, seen_targets)
 	return root, tuple(result), plan_issues

@@ -1,4 +1,4 @@
-"""OASA-free background preparation for one Rust-owned SMILES insertion."""
+"""Rust-native background preparation for one Rust-owned SMILES insertion."""
 
 # Standard Library
 import dataclasses

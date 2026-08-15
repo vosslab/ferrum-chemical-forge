@@ -166,9 +166,6 @@ def _probe() -> dict[str, object]:
 		"revision": reopened_snapshot.revision,
 		"clean": not reopened_snapshot.is_dirty,
 		"opaque_extension": "retained" in reopened_snapshot.cdml,
-		"oasa_imported": any(
-			name == "oasa" or name.startswith("oasa.") for name in sys.modules
-		),
 		"root_extension": pathlib.Path(ferrum_chem.__file__).name,
 	}
 
@@ -202,8 +199,6 @@ def main() -> int:
 			environment=environment,
 		)
 	value = json.loads(output)
-	if value["oasa_imported"]:
-		raise NativeAtomPropertiesE2eError("native atom-properties controller imported OASA")
 	if not value["clean"] or not value["opaque_extension"]:
 		raise NativeAtomPropertiesE2eError("native atom-properties proof lost durable output truth")
 	print(json.dumps(value, sort_keys=True))

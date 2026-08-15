@@ -32,6 +32,7 @@ from native_wheel_packaging import (
 	NativePackagingError,
 	find_maturin,
 	inject_root_metadata,
+	stage_native_notice_bundle,
 	stage_python_project,
 	tool_version,
 )
@@ -767,7 +768,18 @@ def validate_wheel_members(
 	members: list[str],
 	profile: RdkitCapabilityProfile = FERRUM_RDKIT_PROFILE,
 ) -> None:
-	"""Reject Python-RDKit/SWIG payloads even when the loader does not use them."""
+	"""Require Ferrum's root metadata while rejecting Python-RDKit/SWIG payloads."""
+	required_root_metadata = {
+		"ferrum_chem.pyi",
+		"py.typed",
+		"ferrum-operation-v1.schema.json",
+	}
+	missing_root_metadata = required_root_metadata.difference(members)
+	if missing_root_metadata:
+		raise NativeBuildError(
+			"wheel is missing required Ferrum metadata: "
+			f"{sorted(missing_root_metadata)}"
+		)
 	native_extensions = [member for member in members if re.fullmatch(r"ferrum_chem[^/]*\.so", member)]
 	if len(native_extensions) != 1:
 		raise NativeBuildError(
@@ -790,7 +802,7 @@ def validate_wheel_members(
 			raise NativeBuildError(f"wheel contains a prohibited nested ferrum_chem package: {member}")
 		if member in native_extensions:
 			continue
-		if member in {"ferrum_chem.pyi", "py.typed"} or ".dist-info/" in member:
+		if member in required_root_metadata or ".dist-info/" in member:
 			continue
 		if member.startswith(native_prefix) and member.removeprefix(native_prefix) in expected_native:
 			continue
@@ -820,6 +832,7 @@ def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: s
 		)
 	output_root = output_root.resolve()
 	stage = stage_python_project(output_root, RUST_PACKAGE_SOURCE)
+	stage_native_notice_bundle(stage, RUST_PACKAGE_SOURCE, layout.input_root)
 	package_libs = stage / ".dylibs"
 	copy_and_rewrite_closure(adapter, layout.graphmol_library, package_libs)
 	try:

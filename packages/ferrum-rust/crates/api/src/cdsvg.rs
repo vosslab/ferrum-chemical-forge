@@ -1,4 +1,4 @@
-//! CD-SVG extraction and verification for the command-line boundary.
+//! CD-SVG extraction and verification for the Rust library boundary.
 
 use ferrum_document::extract_cdml_from_svg;
 

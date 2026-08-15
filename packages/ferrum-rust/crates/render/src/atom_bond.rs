@@ -1,10 +1,12 @@
-//! Atom-label and normal single-, double-, and triple-bond render-plan generation.
+//! Atom-label and closed bond render-plan generation.
 
 use std::collections::{HashMap, HashSet};
 
 use ferrum_core::{RecordId, RecordKind};
 use ferrum_geometry::{Point2, Vector2};
 
+use crate::directed_stereo_bond::directed_stereo_operations;
+use crate::haworth_front_bond::{HaworthFrontBondInput, build_haworth_front_batch};
 use crate::{
     BatchSpace, EllipseOp, FontFace, GlyphBounds, GlyphMetrics, LineOp, MaskOp, MoleculeRenderPlan,
     Paint, PositiveFinite, RenderBatch, RenderError, RenderIssue, RenderIssueKind, RenderOp,
@@ -57,7 +59,6 @@ impl AtomLabelFontProfile {
         self
     }
 }
-
 /// Source facts that produce a structured atom label.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AtomLabelFacts {
@@ -65,7 +66,6 @@ pub struct AtomLabelFacts {
     formal_charge: i8,
     explicit_hydrogens: u8,
 }
-
 /// Explicit presentation facts for one visible persistent atom number.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtomNumberLabelFacts {
@@ -73,7 +73,6 @@ pub struct AtomNumberLabelFacts {
     origin: RenderPoint,
     font: AtomLabelFontProfile,
 }
-
 /// Closed semantic category for one atom-attached mark.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AtomMarkRenderKind {
@@ -85,7 +84,6 @@ pub enum AtomMarkRenderKind {
     DottedElectronpair,
     PzOrbital,
 }
-
 /// Explicit atom-local geometry and paint for one persistent mark.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtomMarkRenderFacts {
@@ -126,7 +124,6 @@ impl AtomMarkRenderFacts {
         })
     }
 }
-
 impl AtomNumberLabelFacts {
     /// Construct one positive decimal annotation with explicit geometry and paint.
     pub fn new(
@@ -146,7 +143,6 @@ impl AtomNumberLabelFacts {
         })
     }
 }
-
 impl AtomLabelFacts {
     /// Construct validated atom-label facts.
     pub fn new(
@@ -217,7 +213,6 @@ impl AtomLabelFacts {
         runs
     }
 }
-
 /// Deliberate visibility supplied by the authoritative source projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TargetVisibility {
@@ -242,7 +237,6 @@ impl TargetVisibility {
         }
     }
 }
-
 /// Bond style carried by the source projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BondStyle {
@@ -258,25 +252,31 @@ pub enum BondStyle {
     SolidWedge,
     /// A hashed stereochemical wedge.
     HashedWedge,
+    /// A declared `q1` front edge in a Haworth depiction.
+    HaworthFrontStroke,
+    /// A declared directed `w1` front shoulder in a Haworth depiction.
+    HaworthFrontWedge,
     /// A dashed bond.
     Dashed,
     /// An exact source depiction that V1 intentionally cannot lower.
     Unsupported { detail: String },
 }
-
 impl BondStyle {
     fn unsupported_name(&self) -> Option<&str> {
         match self {
-            Self::NormalSingle | Self::Double | Self::Triple => None,
+            Self::NormalSingle
+            | Self::Double
+            | Self::Triple
+            | Self::SolidWedge
+            | Self::HashedWedge
+            | Self::HaworthFrontStroke
+            | Self::HaworthFrontWedge => None,
             Self::Aromatic => Some("aromatic bond"),
-            Self::SolidWedge => Some("solid wedge bond"),
-            Self::HashedWedge => Some("hashed wedge bond"),
             Self::Dashed => Some("dashed bond"),
             Self::Unsupported { detail } => Some(detail.as_str()),
         }
     }
 }
-
 /// An atom with explicit source identity, finite position, and label facts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtomRenderTarget {
@@ -288,7 +288,6 @@ pub struct AtomRenderTarget {
     number_label: Option<AtomNumberLabelFacts>,
     marks: Vec<AtomMarkRenderFacts>,
 }
-
 impl AtomRenderTarget {
     /// Construct a valid atom target for this render slice.
     pub fn new(
@@ -340,7 +339,6 @@ impl AtomRenderTarget {
         self
     }
 }
-
 /// A bond with explicit endpoint atom identities and source style facts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BondRenderTarget {
@@ -351,14 +349,13 @@ pub struct BondRenderTarget {
     visibility: TargetVisibility,
     appearance: Option<BondLineAppearance>,
 }
-
 #[derive(Clone, Debug, PartialEq)]
 struct BondLineAppearance {
     stroke_width: PositiveFinite,
     lane_spacing: PositiveFinite,
+    wedge_width: PositiveFinite,
     paint: Paint,
 }
-
 impl BondRenderTarget {
     /// Construct a valid bond target for this render slice.
     pub fn new(
@@ -400,11 +397,13 @@ impl BondRenderTarget {
         mut self,
         stroke_width: PositiveFinite,
         lane_spacing: PositiveFinite,
+        wedge_width: PositiveFinite,
         paint: Paint,
     ) -> Self {
         self.appearance = Some(BondLineAppearance {
             stroke_width,
             lane_spacing,
+            wedge_width,
             paint,
         });
         self
@@ -503,23 +502,26 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
                 feature: style.to_owned(),
             })
         } else {
-            let (stroke_width, lane_spacing, paint) = bond.appearance.as_ref().map_or_else(
-                || {
-                    (
-                        request.line_width,
-                        request.bond_lane_spacing,
-                        request.line_paint.clone(),
-                    )
-                },
-                |appearance| {
-                    (
-                        appearance.stroke_width,
-                        appearance.lane_spacing,
-                        appearance.paint.clone(),
-                    )
-                },
-            );
-            build_bond_batch(bond, &atoms, stroke_width, lane_spacing, paint)
+            let (stroke_width, lane_spacing, wedge_width, paint) =
+                bond.appearance.as_ref().map_or_else(
+                    || {
+                        (
+                            request.line_width,
+                            request.bond_lane_spacing,
+                            request.bond_lane_spacing,
+                            request.line_paint.clone(),
+                        )
+                    },
+                    |appearance| {
+                        (
+                            appearance.stroke_width,
+                            appearance.lane_spacing,
+                            appearance.wedge_width,
+                            appearance.paint.clone(),
+                        )
+                    },
+                );
+            build_bond_batch(bond, &atoms, stroke_width, lane_spacing, wedge_width, paint)
         };
         match outcome {
             Ok(batch) => batches.push(batch),
@@ -754,6 +756,7 @@ fn build_bond_batch(
     atoms: &HashMap<RecordId, AtomGeometry>,
     stroke_width: PositiveFinite,
     lane_spacing: PositiveFinite,
+    wedge_width: PositiveFinite,
     paint: Paint,
 ) -> Result<RenderBatch, RenderIssueKind> {
     let Some(first) = atoms.get(&bond.first_atom) else {
@@ -785,6 +788,10 @@ fn build_bond_batch(
         BondStyle::NormalSingle => &[0.0],
         BondStyle::Double => &[-0.5, 0.5],
         BondStyle::Triple => &[-TRIPLE_OUTER_LANE_FACTOR, 0.0, TRIPLE_OUTER_LANE_FACTOR],
+        BondStyle::SolidWedge
+        | BondStyle::HashedWedge
+        | BondStyle::HaworthFrontStroke
+        | BondStyle::HaworthFrontWedge => &[],
         _ => unreachable!("unsupported styles are excluded before bond geometry"),
     };
     let perpendicular = direction.perpendicular_left();
@@ -795,6 +802,21 @@ fn build_bond_batch(
         perpendicular,
         length,
     };
+    if matches!(bond.style, BondStyle::SolidWedge | BondStyle::HashedWedge) {
+        return build_directed_stereo_batch(bond, &line_context, stroke_width, wedge_width, paint);
+    }
+    if matches!(
+        bond.style,
+        BondStyle::HaworthFrontStroke | BondStyle::HaworthFrontWedge
+    ) {
+        return build_haworth_front_bond_batch(
+            bond,
+            &line_context,
+            stroke_width,
+            wedge_width,
+            paint,
+        );
+    }
     let mut operations = Vec::with_capacity(offsets.len());
     for (index, factor) in offsets.iter().enumerate() {
         let offset = lane_spacing.get() * *factor;
@@ -815,6 +837,52 @@ fn build_bond_batch(
     RenderBatch::new(bond.target.clone(), BatchSpace::Scene, operations).map_err(|error| {
         RenderIssueKind::UnrenderableTarget {
             reason: format!("bond batch is not renderable: {error}"),
+        }
+    })
+}
+
+fn build_haworth_front_bond_batch(
+    bond: &BondRenderTarget,
+    context: &BondLineContext<'_>,
+    stroke_width: PositiveFinite,
+    wedge_width: PositiveFinite,
+    paint: Paint,
+) -> Result<RenderBatch, RenderIssueKind> {
+    let center = build_bond_line(context, 0.0, stroke_width, paint.clone(), 10)?;
+    build_haworth_front_batch(HaworthFrontBondInput {
+        target: bond.target.clone(),
+        style: bond.style.clone(),
+        tip: center.start(),
+        base: center.end(),
+        perpendicular: context.perpendicular,
+        stroke_width,
+        wedge_width,
+        paint,
+    })
+}
+
+fn build_directed_stereo_batch(
+    bond: &BondRenderTarget,
+    context: &BondLineContext<'_>,
+    stroke_width: PositiveFinite,
+    wedge_width: PositiveFinite,
+    paint: Paint,
+) -> Result<RenderBatch, RenderIssueKind> {
+    let center = build_bond_line(context, 0.0, stroke_width, paint.clone(), 10)?;
+    let tip = center.start();
+    let base = center.end();
+    let operations = directed_stereo_operations(
+        bond.style.clone(),
+        tip,
+        base,
+        context.perpendicular,
+        stroke_width,
+        wedge_width,
+        paint,
+    )?;
+    RenderBatch::new(bond.target.clone(), BatchSpace::Scene, operations).map_err(|error| {
+        RenderIssueKind::UnrenderableTarget {
+            reason: format!("directed bond batch is not renderable: {error}"),
         }
     })
 }

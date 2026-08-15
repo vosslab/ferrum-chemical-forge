@@ -1,8 +1,8 @@
 """Qt-facing labels and choice sets for canonical CDML bond styles."""
 
 
-# These choices are editor presentation data.  OASA defines code semantics
-# and authorable orders in oasa.bond_semantics without importing this module.
+# These choices are editor presentation data. Rust owns code semantics and
+# authorable orders without importing this module.
 ORDINARY_BOND_TYPE_CHOICES = (
 	("n", "Normal"),
 	("w", "Wedge"),

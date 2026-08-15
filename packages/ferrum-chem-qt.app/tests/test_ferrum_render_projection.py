@@ -56,6 +56,7 @@ class _Batch:
 	target: _Target
 	coordinate_space: _SceneSpace
 	operations: tuple[_Operation, ...]
+	display_layer: str = "ordinary"
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -166,7 +167,7 @@ def _observation(identifier: str | None = "bond-1", revision: int = 5) -> _Obser
 	digest = "a" * 64
 	target = _Target(_Record("Bond", identifier), 2)
 	batch = _Batch(target, _SceneSpace(), (_Operation("line", _Line(_Point(1.0, 2.0), _Point(8.0, 2.0))),))
-	plan = _Plan("ferrum-render-plan-v1", _Provenance(revision, digest), (batch,))
+	plan = _Plan("ferrum-render-plan-v2", _Provenance(revision, digest), (batch,))
 	molecule = _MoleculeRoot("molecule-1", "ferrum-projection-local-v1/0", "m1", 1)
 	paper = _PaperLayout("ferrum-document-paper-layout-v1", revision, digest, _PaperPage())
 	document = _Document(_Snapshot(revision, digest), _Projection(revision, digest, paper))
@@ -197,6 +198,35 @@ def test_complete_observation_builds_detached_scene_and_durable_map(
 	assert item.scene() is projection.scene and item.zValue() == 2.0
 	assert projection.molecule_roots[root].source_order == 1 and root.zValue() == 1.0
 	assert projection.paper.rect() == projection.scene.sceneRect()
+
+
+#============================================
+def test_source_owned_haworth_layer_projects_above_an_ordinary_bond(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""A received Haworth layer controls child paint order without changing identity."""
+	del qapp
+	ordinary = _observation("ordinary")
+	front = _observation("front")
+	front_batch = dataclasses.replace(
+		front.molecule_plans[0].plan.batches[0], display_layer="haworth_front_wedge",
+	)
+	front_plan = dataclasses.replace(front.molecule_plans[0].plan, batches=(front_batch,))
+	front_root = dataclasses.replace(
+		front.molecule_plans[0].molecule,
+		id="molecule-2", projection_key="ferrum-projection-local-v1/1", source_id="m2", source_order=3,
+	)
+	projection = ferrum_qt.canvas.ferrum_render_projection._build_fixture_render_projection(
+		dataclasses.replace(
+			ordinary,
+			molecule_plans=(
+				ordinary.molecule_plans[0],
+				_MoleculePlan(front_root, front_plan),
+			),
+		),
+		_telex(), _test_observation_validator,
+	)
+	assert projection.durable_items[("bond", "front")].zValue() > projection.durable_items[("bond", "ordinary")].zValue()
 
 
 #============================================

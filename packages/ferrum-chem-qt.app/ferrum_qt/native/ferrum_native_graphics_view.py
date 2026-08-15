@@ -8,6 +8,11 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.bridge.display_geometry
+import ferrum_qt.config.geometry_units
+import ferrum_qt.native.ferrum_native_hex_grid
+
 ZOOM_PERCENT_MINIMUM = 10
 ZOOM_PERCENT_MAXIMUM = 1000
 ZOOM_PERCENT_STEP = 5
@@ -53,6 +58,11 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		super().__init__(parent)
 		self._direct_zoom_anchor_scene: PySide6.QtCore.QPointF | None = None
 		self._direct_zoom_change_in_progress = False
+		self._hex_grid_requested_visible = True
+		self._hex_grid_snap_enabled = True
+		self._hex_grid_item: (
+			ferrum_qt.native.ferrum_native_hex_grid.FerrumNativeHexGridItem | None
+		) = None
 		self.horizontalScrollBar().valueChanged.connect(
 			self._invalidate_direct_zoom_anchor,
 		)
@@ -62,9 +72,102 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 
 	#============================================
 	def setScene(self, scene: PySide6.QtWidgets.QGraphicsScene | None) -> None:
-		"""Install a projection scene and rebase later direct zoom around that scene."""
+		"""Install a projection scene, its grid decoration, and a fresh zoom anchor."""
 		self._invalidate_direct_zoom_anchor()
+		self._hex_grid_item = None
 		super().setScene(scene)
+		self._install_hex_grid_item(scene)
+
+	#============================================
+	@property
+	def hex_grid_visible(self) -> bool:
+		"""Return whether the active projection has a visible grid decoration."""
+		return self._hex_grid_item is not None and self._hex_grid_item.isVisible()
+
+	#============================================
+	def set_hex_grid_visible(self, visible: bool) -> None:
+		"""Apply one application-owned visibility choice to this disposable view."""
+		if type(visible) is not bool:
+			raise TypeError("native hex-grid visibility must be a boolean")
+		self._hex_grid_requested_visible = visible
+		if self._hex_grid_item is not None:
+			self._hex_grid_item.setVisible(visible)
+
+	#============================================
+	@property
+	def hex_grid_snap_enabled(self) -> bool:
+		"""Return whether authored points snap to the shared hex-grid lattice."""
+		return self._hex_grid_snap_enabled
+
+	#============================================
+	def set_hex_grid_snap_enabled(self, enabled: bool) -> None:
+		"""Apply one exact application-owned authored-point policy to this view."""
+		if type(enabled) is not bool:
+			raise TypeError("native hex-grid snapping must be a boolean")
+		self._hex_grid_snap_enabled = enabled
+
+	#============================================
+	def snap_authored_scene_point(
+			self, raw: PySide6.QtCore.QPointF,
+			) -> PySide6.QtCore.QPointF:
+		"""Return one finite authored point under this view's shared snap policy."""
+		if type(raw) is not PySide6.QtCore.QPointF:
+			raise TypeError("native authored scene point must be an exact QPointF")
+		x = raw.x()
+		y = raw.y()
+		if not math.isfinite(x) or not math.isfinite(y):
+			raise ValueError("native authored scene point must have finite coordinates")
+		return self.resolve_authored_scene_point(raw, self._hex_grid_snap_enabled)
+
+	#============================================
+	def resolve_authored_scene_point(
+			self, raw: PySide6.QtCore.QPointF, snap_enabled: bool,
+			) -> PySide6.QtCore.QPointF:
+		"""Resolve one finite authored point under an explicit captured snap policy."""
+		if type(raw) is not PySide6.QtCore.QPointF:
+			raise TypeError("native authored scene point must be an exact QPointF")
+		if type(snap_enabled) is not bool:
+			raise TypeError("native authored snap policy must be a boolean")
+		x = raw.x()
+		y = raw.y()
+		if not math.isfinite(x) or not math.isfinite(y):
+			raise ValueError("native authored scene point must have finite coordinates")
+		if not snap_enabled:
+			return PySide6.QtCore.QPointF(raw)
+		snapped_x, snapped_y = ferrum_qt.bridge.display_geometry.snap_to_hex_grid(
+			x, y, ferrum_qt.config.geometry_units.DEFAULT_BOND_LENGTH_PT,
+		)
+		if not math.isfinite(snapped_x) or not math.isfinite(snapped_y):
+			raise ValueError("native hex-grid snap returned non-finite coordinates")
+		return PySide6.QtCore.QPointF(snapped_x, snapped_y)
+
+	#============================================
+	def _install_hex_grid_item(
+			self, scene: PySide6.QtWidgets.QGraphicsScene | None) -> None:
+		"""Decorate one installed scene without making display failure authoritative."""
+		if scene is None:
+			return
+		try:
+			item = (
+				ferrum_qt.native.ferrum_native_hex_grid.FerrumNativeHexGridItem(
+					scene.sceneRect(),
+				)
+			)
+			item.setVisible(self._hex_grid_requested_visible)
+			scene.addItem(item)
+		except (RuntimeError, TypeError, ValueError):
+			return
+		self._hex_grid_item = item
+
+	#============================================
+	def changeEvent(self, event: PySide6.QtCore.QEvent) -> None:
+		"""Refresh grid colors when the application palette family changes."""
+		super().changeEvent(event)
+		if (
+			event.type() == PySide6.QtCore.QEvent.Type.PaletteChange
+			and self._hex_grid_item is not None
+		):
+			self._hex_grid_item.refresh_application_style()
 
 	#============================================
 	def resizeEvent(self, event: PySide6.QtGui.QResizeEvent) -> None:

@@ -13,6 +13,7 @@ mod atom_mark_v1;
 mod atom_projection_v1;
 mod atom_properties_patch_v1;
 mod atom_rotation_v1;
+mod bond_presentation_v1;
 mod bond_properties_patch_v1;
 mod bracket_insertion_v1;
 mod bracket_pair_projection_v1;
@@ -26,6 +27,7 @@ mod core_projection;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
 mod drawing_standard_patch_v1;
+mod explicit_fragment_v1;
 mod generated_ids;
 mod geometric_properties_patch_v1;
 mod geometry_repair_v1;
@@ -48,6 +50,9 @@ mod presentation_v1;
 mod projection_identity_v1;
 mod projection_v1;
 mod publication;
+mod regular_ring_insertion_v1;
+#[cfg(test)]
+mod regular_ring_insertion_v1_tests;
 mod sdf_record_insertion_v1;
 mod sdf_record_metadata_v1;
 mod session;
@@ -55,9 +60,11 @@ mod session_history;
 mod session_observation;
 mod session_operation;
 mod session_state;
+mod standalone_haworth_insertion_v1;
 mod straighten_depiction_update_v1;
 mod text_properties_patch_v1;
 mod top_level_transform_v1;
+mod top_level_translation_anchor_v1;
 mod typed;
 mod typed_arrow_properties;
 mod typed_atom_mark;
@@ -92,6 +99,7 @@ mod typed_text_properties;
 mod typed_top_level_transform;
 mod typed_wavy_insertion;
 mod typed_wavy_properties;
+mod user_template_v1;
 mod wavy_insertion_v1;
 mod wavy_properties_patch_v1;
 mod xml_input_budget_v1;
@@ -105,6 +113,7 @@ pub use atom_properties_patch_v1::{
     AtomPropertiesPatchV1, AtomPropertiesPatchV1Error, AtomPropertyChangeV1,
 };
 pub use atom_rotation_v1::{AtomRotationTargetV1, AtomRotationV1, AtomRotationV1Error};
+pub use bond_presentation_v1::DocumentBondPresentationV1;
 pub use bond_properties_patch_v1::{
     BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, DocumentBondStyleV1,
     NonZeroFiniteV1,
@@ -147,6 +156,10 @@ pub use drawing_standard_patch_v1::{
     DrawingStandardPatchV1, DrawingStandardPatchV1Error, DrawingStandardPropertyChangeV1,
     MAX_DRAWING_STANDARD_FONT_FAMILY_BYTES_V1, MAX_DRAWING_STANDARD_FONT_SIZE_V1,
     MAX_DRAWING_STANDARD_WIDTH_V1, MIN_DRAWING_STANDARD_FONT_SIZE_V1,
+};
+pub use explicit_fragment_v1::{
+    DocumentExplicitFragmentErrorV1, DocumentExplicitFragmentObservationV1,
+    DocumentExplicitFragmentRecordV1, observe_explicit_fragments_v1,
 };
 pub use geometric_properties_patch_v1::{
     GeometricLineWidthV1, GeometricPropertiesPatchV1, GeometricPropertiesPatchV1Error,
@@ -214,6 +227,10 @@ pub use projection_v1::{
     ProjectionError, ProjectionIssueCodeV1, ProjectionIssueV1,
 };
 pub use publication::PublicationDurability;
+pub use regular_ring_insertion_v1::{
+    DetachedRegularRingInsertionV1, RegularRingInsertionErrorV1, RegularRingOrientationV1,
+    RegularRingSizeV1,
+};
 pub use sdf_record_insertion_v1::{
     SDF_IMPORT_NAMESPACE_V1, SdfPropertyInsertionV1, SdfRecordBatchInsertionV1,
     SdfRecordInsertionV1, SdfRecordInsertionV1Error,
@@ -224,10 +241,11 @@ pub use sdf_record_metadata_v1::{
 };
 pub use session::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, DocumentClipboardPasteResultV1,
-    DocumentSession, DocumentSessionError, DocumentSnapshot, PendingCreateAtom, PendingCreateBond,
-    PendingCreateBondedAtom, PendingCreateBracket, PendingCreateMolecule, PendingCreateSdfRecords,
-    PendingCreateWavy, PendingDirectHaworthV1, PendingLinearFormConvertV1,
-    PreparedLinearFormConvertResultV1, Publication, SaveOutcome,
+    DocumentSession, DocumentSessionError, DocumentSnapshot, DocumentUserTemplateResultV1,
+    PendingCreateAtom, PendingCreateBond, PendingCreateBondedAtom, PendingCreateBracket,
+    PendingCreateMolecule, PendingCreateSdfRecords, PendingCreateWavy, PendingDirectHaworthV1,
+    PendingLinearFormConvertV1, PendingStandaloneHaworthV1, PreparedLinearFormConvertResultV1,
+    Publication, SaveOutcome,
 };
 pub use session_observation::SessionDocumentObservationV1;
 pub use session_operation::{
@@ -245,12 +263,18 @@ pub use top_level_transform_v1::{
     TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
     TopLevelTransformV1Error,
 };
+pub use top_level_translation_anchor_v1::TopLevelTranslationAnchorV1;
 pub use typed::{
     ExpandedName, NamespaceBinding, TypedChild, TypedClass, TypedDocument, TypedRecord, TypedText,
     UnknownAttribute, UnrecognizedChild, UnrecognizedNode,
 };
 pub use typed_diagnostic::{TypedDiagnostic, TypedDiagnosticKind};
 pub use typed_document_error::TypedDocumentError;
+pub use user_template_v1::{
+    DOCUMENT_USER_TEMPLATE_SCHEMA_V1, DocumentUserTemplateErrorV1,
+    DocumentUserTemplateInsertedMoleculeV1, DocumentUserTemplatePlanV1,
+    prepare_document_user_template_v1,
+};
 pub use wavy_insertion_v1::{
     WAVY_MAX_AMPLITUDE_V1, WAVY_MAX_SEGMENTS_V1, WAVY_SEGMENT_LENGTH_V1, WavyInsertionV1,
     WavyInsertionV1Error,
@@ -278,6 +302,9 @@ mod clipboard_cut_v1_tests;
 
 #[cfg(test)]
 mod clipboard_paste_v1_tests;
+
+#[cfg(test)]
+mod user_template_v1_tests;
 
 #[cfg(test)]
 mod identity_index_tests;

@@ -1,13 +1,15 @@
 //! Explicit Python admission of untrusted CDML and CD-SVG bytes or local files.
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use ferrum_api::{
     CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1, DocumentIngressErrorV1,
     DocumentIngressFormatV1, DocumentIngressOriginV1, RenderObservationError, RenderObservationV1,
     SourcePolicyErrorV1, load_document_file_with_budget, load_document_utf8_bytes_with_budget,
-    load_local_cdml_file_v1, observe_render_v1,
+    observe_render_v1, prepare_local_cdml_file_with_origin_v1,
+    prepare_local_decoded_cdsvg_file_with_origin_v1,
 };
+use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
 use ferrum_document::{
     CdsvgExtractionError, DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1,
     XmlInputError,
@@ -21,42 +23,99 @@ use crate::document_error_binding::{
     DocumentInputError, DocumentLoadError, PreparedOperationConsumedError,
 };
 
-/// One worker-safe, one-use local-CDML admission ready for UI-thread ownership.
+/// One closed local container kind carried by a prepared desktop admission.
+#[derive(Clone, Copy)]
+enum LocalDocumentSourceKindV1 {
+    Cdml,
+    DecodedCdsvg,
+}
+
+impl LocalDocumentSourceKindV1 {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cdml => "cdml",
+            Self::DecodedCdsvg => "decoded_cdsvg",
+        }
+    }
+}
+
+/// One worker-safe, one-use local-document admission ready for UI-thread ownership.
 ///
 /// The session is created entirely in Rust on the calling worker thread. Python
 /// cannot inspect or mutate it until `take_admission_v1` transfers the session
 /// and its authenticated observation exactly once.
 #[pyclass(
     module = "ferrum_chem",
-    name = "PreparedLocalCdmlOpenV1",
+    name = "PreparedLocalDocumentOpenV1",
     skip_from_py_object
 )]
-pub(crate) struct PyPreparedLocalCdmlOpenV1 {
+pub(crate) struct PyPreparedLocalDocumentOpenV1 {
     session: Option<DocumentSession>,
     observation: Option<crate::render_binding::PyRenderObservationV1>,
+    origin: Option<PyLocalDocumentOriginTokenV1>,
+    source_kind: Option<LocalDocumentSourceKindV1>,
+}
+
+/// Opaque equality-only descriptor identity for one admitted local document source.
+#[pyclass(
+    frozen,
+    module = "ferrum_chem",
+    name = "LocalDocumentOriginTokenV1",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(crate) struct PyLocalDocumentOriginTokenV1 {
+    source: Arc<RetainedSourceFileGuardV1>,
 }
 
 #[pymethods]
-impl PyPreparedLocalCdmlOpenV1 {
+impl PyLocalDocumentOriginTokenV1 {
+    fn __richcmp__(&self, other: PyRef<'_, Self>, compare: pyo3::basic::CompareOp) -> bool {
+        match compare {
+            pyo3::basic::CompareOp::Eq => self.source.identity() == other.source.identity(),
+            pyo3::basic::CompareOp::Ne => self.source.identity() != other.source.identity(),
+            _ => false,
+        }
+    }
+}
+
+impl PyLocalDocumentOriginTokenV1 {
+    pub(crate) fn try_clone_source(&self) -> Result<RetainedSourceFileGuardV1, std::io::Error> {
+        self.source.try_clone()
+    }
+}
+
+#[pymethods]
+impl PyPreparedLocalDocumentOpenV1 {
     /// Consume this admission and establish one thread-affine document session.
     fn take_admission_v1(
         &mut self,
     ) -> PyResult<(
         PyDocumentSession,
         crate::render_binding::PyRenderObservationV1,
+        PyLocalDocumentOriginTokenV1,
+        String,
     )> {
-        match (self.session.take(), self.observation.take()) {
-            (Some(session), Some(observation)) => {
-                Ok((PyDocumentSession::from_session(session), observation))
-            }
+        match (
+            self.session.take(),
+            self.observation.take(),
+            self.origin.take(),
+            self.source_kind.take(),
+        ) {
+            (Some(session), Some(observation), Some(origin), Some(source_kind)) => Ok((
+                PyDocumentSession::from_session(session),
+                observation,
+                origin,
+                source_kind.as_str().to_owned(),
+            )),
             _ => Err(PreparedOperationConsumedError::new_err(
-                "local CDML admission receipt was already consumed",
+                "local document admission receipt was already consumed",
             )),
         }
     }
 }
 
-enum LocalCdmlOpenPreparationError {
+enum LocalDocumentOpenPreparationError {
     Ingress(DocumentIngressErrorV1),
     Render(RenderObservationError),
 }
@@ -118,6 +177,69 @@ impl PyXmlInputBudgetV1 {
     }
 }
 
+#[pymethods]
+impl PyDocumentSession {
+    /// Admit exact built-in bytes as CDML under one explicit caller-owned budget.
+    #[staticmethod]
+    fn load_utf8_bytes_with_budget(
+        py: Python<'_>,
+        source: &Bound<'_, PyAny>,
+        budget: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        load_utf8_bytes_with_budget(py, source, budget)
+    }
+
+    /// Admit an exact built-in string local path as CDML under one explicit budget.
+    #[staticmethod]
+    fn load_file_with_budget(
+        py: Python<'_>,
+        path: &Bound<'_, PyAny>,
+        budget: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        load_file_with_budget(py, path, budget)
+    }
+
+    /// Prepare one ordinary local CDML file through Rust's immutable V1 profile.
+    #[staticmethod]
+    fn prepare_local_cdml_file_v1(
+        py: Python<'_>,
+        path: &Bound<'_, PyAny>,
+    ) -> PyResult<PyPreparedLocalDocumentOpenV1> {
+        prepare_local_cdml_file_v1(py, path)
+    }
+
+    /// Prepare one decoded local CD-SVG file through Rust's immutable V1 profile.
+    #[staticmethod]
+    fn prepare_local_decoded_cdsvg_file_v1(
+        py: Python<'_>,
+        path: &Bound<'_, PyAny>,
+    ) -> PyResult<PyPreparedLocalDocumentOpenV1> {
+        prepare_local_decoded_cdsvg_file_v1(py, path)
+    }
+
+    /// Admit exact built-in bytes as CD-SVG under independent wrapper and payload budgets.
+    #[staticmethod]
+    fn load_cdsvg_utf8_bytes_with_budget(
+        py: Python<'_>,
+        source: &Bound<'_, PyAny>,
+        wrapper: &Bound<'_, PyAny>,
+        payload: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        load_cdsvg_utf8_bytes_with_budget(py, source, wrapper, payload)
+    }
+
+    /// Admit an exact built-in string local path as CD-SVG with independent budgets.
+    #[staticmethod]
+    fn load_cdsvg_file_with_budget(
+        py: Python<'_>,
+        path: &Bound<'_, PyAny>,
+        wrapper: &Bound<'_, PyAny>,
+        payload: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        load_cdsvg_file_with_budget(py, path, wrapper, payload)
+    }
+}
+
 pub(crate) fn load_utf8_bytes_with_budget(
     py: Python<'_>,
     source: &Bound<'_, PyAny>,
@@ -155,25 +277,55 @@ pub(crate) fn load_file_with_budget(
 pub(crate) fn prepare_local_cdml_file_v1(
     py: Python<'_>,
     path: &Bound<'_, PyAny>,
-) -> PyResult<PyPreparedLocalCdmlOpenV1> {
+) -> PyResult<PyPreparedLocalDocumentOpenV1> {
+    prepare_local_document_file_v1(py, path, LocalDocumentSourceKindV1::Cdml)
+}
+
+pub(crate) fn prepare_local_decoded_cdsvg_file_v1(
+    py: Python<'_>,
+    path: &Bound<'_, PyAny>,
+) -> PyResult<PyPreparedLocalDocumentOpenV1> {
+    prepare_local_document_file_v1(py, path, LocalDocumentSourceKindV1::DecodedCdsvg)
+}
+
+fn prepare_local_document_file_v1(
+    py: Python<'_>,
+    path: &Bound<'_, PyAny>,
+    source_kind: LocalDocumentSourceKindV1,
+) -> PyResult<PyPreparedLocalDocumentOpenV1> {
     let path = exact_path(py, path)?;
     let result = py.detach(move || {
-        let session =
-            load_local_cdml_file_v1(&path).map_err(LocalCdmlOpenPreparationError::Ingress)?;
+        let preparation = match source_kind {
+            LocalDocumentSourceKindV1::Cdml => prepare_local_cdml_file_with_origin_v1(&path),
+            LocalDocumentSourceKindV1::DecodedCdsvg => {
+                prepare_local_decoded_cdsvg_file_with_origin_v1(&path)
+            }
+        };
+        let (session, origin) = preparation.map_err(LocalDocumentOpenPreparationError::Ingress)?;
         let observation =
-            observe_render_v1(&session, 0).map_err(LocalCdmlOpenPreparationError::Render)?;
-        Ok::<(DocumentSession, RenderObservationV1), LocalCdmlOpenPreparationError>((
-            session,
-            observation,
-        ))
+            observe_render_v1(&session, 0).map_err(LocalDocumentOpenPreparationError::Render)?;
+        Ok::<
+            (
+                DocumentSession,
+                RenderObservationV1,
+                RetainedSourceFileGuardV1,
+            ),
+            LocalDocumentOpenPreparationError,
+        >((session, observation, origin))
     });
     match result {
-        Ok((session, observation)) => Ok(PyPreparedLocalCdmlOpenV1 {
+        Ok((session, observation, origin)) => Ok(PyPreparedLocalDocumentOpenV1 {
             session: Some(session),
             observation: Some(crate::render_binding::observation(py, observation)?),
+            origin: Some(PyLocalDocumentOriginTokenV1 {
+                source: Arc::new(origin),
+            }),
+            source_kind: Some(source_kind),
         }),
-        Err(LocalCdmlOpenPreparationError::Ingress(error)) => Err(map_ingress_error(py, error)?),
-        Err(LocalCdmlOpenPreparationError::Render(error)) => {
+        Err(LocalDocumentOpenPreparationError::Ingress(error)) => {
+            Err(map_local_document_open_error(py, error)?)
+        }
+        Err(LocalDocumentOpenPreparationError::Render(error)) => {
             Err(crate::render_binding::error_result(py, error)?)
         }
     }
@@ -335,6 +487,40 @@ fn map_ingress_error(py: Python<'_>, error: DocumentIngressErrorV1) -> PyResult<
         },
         DocumentIngressErrorV1::Cdsvg { origin, source } => map_cdsvg_error(py, origin, source),
     }
+}
+
+/// Translate desktop preparation failures into the closed UI recovery categories.
+///
+/// The existing typed input exception remains the private transport so ordinary
+/// direct-CDML callers retain their established error shape. These two added
+/// attributes contain no source bytes or paths.
+fn map_local_document_open_error(py: Python<'_>, error: DocumentIngressErrorV1) -> PyResult<PyErr> {
+    let category = match &error {
+        DocumentIngressErrorV1::Read { .. } | DocumentIngressErrorV1::SourcePolicy { .. } => {
+            "source_rejected"
+        }
+        DocumentIngressErrorV1::ByteLimitExceeded { .. } => "resource_limit",
+        DocumentIngressErrorV1::Utf8 { .. } => "wrapper_rejected",
+        DocumentIngressErrorV1::Cdml { .. } => "embedded_cdml_rejected",
+        DocumentIngressErrorV1::Cdsvg { source, .. } => match source {
+            CdsvgExtractionError::MissingCdmlPayload => "embedded_cdml_not_found",
+            CdsvgExtractionError::MultipleCdmlPayload { .. } => "multiple_embedded_cdml",
+            CdsvgExtractionError::WrapperInput(XmlInputError::Budget(_))
+            | CdsvgExtractionError::PayloadInput(XmlInputError::Budget(_))
+            | CdsvgExtractionError::Typed(TypedDocumentError::XmlInput(XmlInputError::Budget(_))) => {
+                "resource_limit"
+            }
+            CdsvgExtractionError::PayloadInput(_) | CdsvgExtractionError::Typed(_) => {
+                "embedded_cdml_rejected"
+            }
+            _ => "wrapper_rejected",
+        },
+    };
+    let py_error = map_ingress_error(py, error)?;
+    let value = py_error.value(py);
+    value.setattr("category", category)?;
+    value.setattr("detail", "local document admission rejected")?;
+    Ok(py_error)
 }
 
 fn map_cdsvg_error(

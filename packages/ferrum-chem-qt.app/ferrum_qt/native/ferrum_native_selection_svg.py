@@ -1,4 +1,4 @@
-"""OASA-free selected-root SVG publication for Rust-native documents."""
+"""Rust-native selected-root SVG publication for Rust-native documents."""
 
 # Standard Library
 import dataclasses

@@ -10,7 +10,8 @@ use crate::draw_stream_v1::{
     DrawSinkV1, DrawStreamErrorV1, DrawStrokeV1, DrawStyleV1, scoped_translate,
 };
 use crate::{
-    BatchSpace, EllipseOp, LineOp, MaskOp, MoleculeRenderPlan, RenderOp, VectorStrokeLineJoinV1,
+    BatchSpace, EllipseOp, LineOp, MaskOp, MoleculeRenderPlan, PathOpV2, RenderOp,
+    ScenePathCommandV2, VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
 };
 
 /// Lower one molecule plan through the common private draw stream.
@@ -53,10 +54,54 @@ fn lower_molecule_operations<S: DrawSinkV1>(
             RenderOp::Line(line) => lower_line(line, sink)?,
             RenderOp::Mask(mask) => lower_mask(mask, sink)?,
             RenderOp::Ellipse(ellipse) => lower_ellipse(ellipse, sink)?,
+            RenderOp::Path(path) => lower_path(path, sink)?,
             RenderOp::Text(text) => crate::draw_stream_v1::lower_text(text, face, sink)?,
         }
     }
     Ok(())
+}
+
+fn lower_path<S: DrawSinkV1>(
+    path: &PathOpV2,
+    sink: &mut S,
+) -> Result<(), DrawStreamErrorV1<S::Error>> {
+    let commands = path
+        .commands()
+        .iter()
+        .map(|command| match command {
+            ScenePathCommandV2::MoveTo(point) => DrawPathCommandV1::MoveTo(*point),
+            ScenePathCommandV2::LineTo(point) => DrawPathCommandV1::LineTo(*point),
+            ScenePathCommandV2::CubicTo {
+                control_1,
+                control_2,
+                end,
+            } => DrawPathCommandV1::CubicTo {
+                control_1: *control_1,
+                control_2: *control_2,
+                end: *end,
+            },
+            ScenePathCommandV2::Close => DrawPathCommandV1::Close,
+        })
+        .collect();
+    sink.draw_path(
+        &DrawPathV1 { commands },
+        DrawStyleV1 {
+            fill: path.fill(),
+            stroke: path.stroke().map(|stroke| DrawStrokeV1 {
+                paint: stroke.paint(),
+                width: stroke.width(),
+                line_cap: match stroke.line_cap() {
+                    VectorStrokeLineCapV1::Butt => DrawLineCapV1::Butt,
+                    VectorStrokeLineCapV1::Round => DrawLineCapV1::Round,
+                },
+                line_join: stroke.line_join(),
+                miter_limit: stroke.miter_limit(),
+            }),
+            fill_rule: path.fill_rule(),
+        },
+        DrawMetadataV1::MoleculePath { z: path.z() },
+    )
+    .map_err(DrawStreamErrorV1::Sink)
 }
 
 fn lower_line<S: DrawSinkV1>(

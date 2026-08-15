@@ -21,7 +21,8 @@ ferrum-core = { path = "../../core" }
 ferrum-document = { path = "../../document" }
 ferrum-domain = { path = "../../domain" }
 ferrum-geometry = { path = "../../geometry" }
-pyo3 = { version = "*", features = ["extension-module"] }
+pyo3 = { version = "*", features = ["extension-module", "multiple-pymethods"] }
+serde_json = { version = "*" }
 
 [build-dependencies]
 pyo3-build-config = { version = "*", features = ["extension-module"] }

@@ -16,7 +16,7 @@ _NATIVE_CDML_FILTER = "Ferrum CDML (*.cdml);;All Files (*)"
 
 #============================================
 class WindowNativeFileMixin:
-	"""Route CDML file actions to native tabs without touching legacy sessions."""
+	"""Route CDML file actions to Rust-native tabs."""
 
 	_native_cdml_default_open_enabled = True
 
@@ -62,7 +62,7 @@ class WindowNativeFileMixin:
 			self._show_native_file_warning(
 				"Open in Current Tab Unavailable",
 				"Ferrum CDML currently opens in a new Rust-native tab. "
-				"Replacing a legacy or native tab is not available yet.",
+				"Replacing the current tab is not available yet.",
 			)
 			return False
 		try:
@@ -89,10 +89,13 @@ class WindowNativeFileMixin:
 
 	#============================================
 	def _prepare_local_cdml_admission(self, absolute_path: str) -> tuple[object, object]:
-		"""Synchronously consume one complete compatibility-host admission."""
+		"""Synchronously consume one complete Rust-owned local-CDML admission."""
 		import ferrum_chem
 		prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(absolute_path)
-		return prepared.take_admission_v1()
+		session, observation, _origin_token, source_kind = prepared.take_admission_v1()
+		if source_kind != "cdml":
+			raise RuntimeError("local-CDML admission returned another source kind")
+		return session, observation
 
 	#============================================
 	def _create_native_tab_from_admission(
@@ -123,7 +126,7 @@ class WindowNativeFileMixin:
 
 	#============================================
 	def _on_save(self) -> bool:
-		"""Save an active Rust-native page without entering the legacy session path."""
+		"""Save an active Rust-native page through the native document flow."""
 		tab = self._active_native_tab()
 		if tab is None:
 			if getattr(self, "_neutral_native_shell", False):
@@ -198,6 +201,9 @@ class WindowNativeFileMixin:
 		index = self._tab_widget.indexOf(tab)
 		if index >= 0:
 			self._tab_widget.setTabText(index, tab.title)
+			self._tab_widget.setTabToolTip(
+				index, tab.local_document_source_description or "",
+			)
 		self.statusBar().showMessage(self.tr("Saved Rust CDML: %s") % absolute_path, 3000)
 		return True
 
@@ -207,7 +213,7 @@ class WindowNativeFileMixin:
 			tab: ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
 			absolute_path: str,
 			) -> bool:
-		"""Reject a destination already owned by another live tab of either kind."""
+		"""Reject a destination already owned by another live tab."""
 		existing_native = self._native_tab_for_path(absolute_path)
 		if existing_native is not None and existing_native is not tab:
 			self._show_native_file_warning(
@@ -216,21 +222,6 @@ class WindowNativeFileMixin:
 				"path or close that tab first." % absolute_path,
 			)
 			return False
-		candidate = os.path.normcase(os.path.realpath(absolute_path))
-		for session in getattr(self, "_sessions", ()):
-			origin_path = session.origin_path
-			if origin_path is None:
-				continue
-			legacy_path = os.path.normcase(
-				os.path.realpath(os.path.abspath(origin_path)),
-			)
-			if legacy_path == candidate:
-				self._show_native_file_warning(
-					"Save Destination Already Open",
-					"A legacy tab already owns %s. Save to a different CDML path or "
-					"close that tab first." % absolute_path,
-				)
-				return False
 		return True
 
 	#============================================
@@ -265,10 +256,10 @@ class WindowNativeFileMixin:
 	def _active_native_tab(
 			self,
 			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab | None:
-		"""Return the exact current native page, never a legacy session alias."""
+		"""Return the exact current Rust-native page."""
 		return self._native_tabs_by_page.get(self._tab_widget.currentWidget())
 
 	#============================================
 	def _show_native_file_warning(self, title: str, message: str) -> None:
-		"""Show one user-facing native file failure with no legacy fallback."""
+		"""Show one user-facing native file failure."""
 		PySide6.QtWidgets.QMessageBox.warning(self, self.tr(title), self.tr(message))

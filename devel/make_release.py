@@ -4,8 +4,8 @@
 Releases are manual human decisions. This script never creates tags, never
 runs git mutations, and never calls the gh CLI. It validates the working
 state, builds reproducible source archives from committed HEAD, verifies the
-bundled LICENSE byte-for-byte, and PRINTS the exact commands a human runs to
-cut the release.
+two bundled project license texts byte-for-byte, and PRINTS the exact commands
+a human runs to cut the release.
 
 Dry-run is the default: it reports the planned commands and leaves files as
 they are. Pass -w/--write to actually build the archives under output_release/.
@@ -32,8 +32,11 @@ import version_lib
 
 # Directory (relative to repo root) that receives built release archives.
 OUTPUT_DIR_NAME = "output_release"
-# Committed pathspec the release LICENSE check and snapshot guarantee.
-LICENSE_PATHSPEC = "LICENSE"
+# The two project licenses that a source release must carry from committed HEAD.
+LICENSE_PATHSPECS = (
+	"LICENSE.AGPL-3.0.md",
+	"LICENSE.LGPL-3.0.md",
+)
 
 #============================================
 
@@ -118,21 +121,24 @@ def ensure_tag_free(version: str) -> None:
 
 #============================================
 
-def ensure_committed_license() -> None:
-	"""Confirm a LICENSE blob exists at committed HEAD.
+def ensure_committed_licenses() -> None:
+	"""Confirm both project license blobs exist at committed HEAD.
 
-	The snapshot is built from HEAD, so the LICENSE must be committed (not
-	merely present in the working tree) to ship inside the archives.
+	The snapshot is built from HEAD, so both exact license texts must be
+	committed (not merely present in the working tree) to ship in the archives.
 
 	Raises:
-		RuntimeError: When HEAD has no committed LICENSE.
+		RuntimeError: When HEAD lacks either committed project license.
 	"""
-	result = changelog_lib.run_git(["cat-file", "-e", f"HEAD:{LICENSE_PATHSPEC}"])
-	if result.returncode != 0:
-		raise RuntimeError(
-			"No committed LICENSE at HEAD. Commit a LICENSE file at the "
-			"repo root before releasing so it ships inside the archives."
+	for license_pathspec in LICENSE_PATHSPECS:
+		result = changelog_lib.run_git(
+			["cat-file", "-e", f"HEAD:{license_pathspec}"]
 		)
+		if result.returncode != 0:
+			raise RuntimeError(
+				f"No committed {license_pathspec} at HEAD. Commit both project "
+				"license files at the repo root before releasing."
+			)
 
 #============================================
 
@@ -156,27 +162,31 @@ def warn_uncommitted_changes() -> None:
 
 #============================================
 
-def read_head_license_bytes() -> bytes:
-	"""Read the raw bytes of the LICENSE blob at HEAD.
+def read_head_license_bytes() -> dict[str, bytes]:
+	"""Read the raw bytes of both project license blobs at HEAD.
 
-	Reads in binary mode (not changelog_lib.run_git, which is text mode) so
-	the bytes compare exactly against the blob git archive stores.
+	Reads in binary mode (not changelog_lib.run_git, which is text mode) so the
+	bytes compare exactly against the individual blobs git archive stores.
 
 	Returns:
-		The raw LICENSE bytes from HEAD.
+		A mapping of each project license path to its raw HEAD bytes.
 
 	Raises:
-		RuntimeError: When the LICENSE blob cannot be read.
+		RuntimeError: When either project license blob cannot be read.
 	"""
-	result = subprocess.run(
-		["git", "show", f"HEAD:{LICENSE_PATHSPEC}"],
-		stdout=subprocess.PIPE,
-		stderr=subprocess.PIPE,
-	)
-	if result.returncode != 0:
-		raise RuntimeError("Unable to read HEAD LICENSE bytes.")
-	license_bytes = result.stdout
-	return license_bytes
+	license_bytes_by_path = {}
+	for license_pathspec in LICENSE_PATHSPECS:
+		result = subprocess.run(
+			["git", "show", f"HEAD:{license_pathspec}"],
+			stdout=subprocess.PIPE,
+			stderr=subprocess.PIPE,
+		)
+		if result.returncode != 0:
+			raise RuntimeError(
+				f"Unable to read HEAD {license_pathspec} bytes."
+			)
+		license_bytes_by_path[license_pathspec] = result.stdout
+	return license_bytes_by_path
 
 #============================================
 
@@ -301,19 +311,19 @@ def run_git_archive(archive_args: list[str]) -> None:
 
 #============================================
 
-def verify_archive_license(archive_path: str, member_name: str,
+def verify_archive_license_bytes(archive_path: str, member_name: str,
 		expected_bytes: bytes) -> None:
-	"""Verify an archive carries a LICENSE byte-equal to HEAD.
+	"""Verify an archive carries one project license byte-equal to HEAD.
 
 	Args:
 		archive_path: Path to the built zip or tgz archive.
-		member_name: Archive member path for the LICENSE entry.
-		expected_bytes: The expected LICENSE bytes from HEAD.
+		member_name: Archive member path for the project license entry.
+		expected_bytes: The expected project license bytes from HEAD.
 
 	Raises:
-		RuntimeError: When the archived LICENSE differs from HEAD.
+		RuntimeError: When the archived project license differs from HEAD.
 	"""
-	# Read the LICENSE member back out of whichever archive format this is.
+	# Read the named license member from whichever archive format this is.
 	if archive_path.endswith(".zip"):
 		with zipfile.ZipFile(archive_path) as zip_file:
 			archived_bytes = zip_file.read(member_name)
@@ -322,11 +332,13 @@ def verify_archive_license(archive_path: str, member_name: str,
 			member = tar_file.extractfile(member_name)
 			# extractfile returns None for non-regular members (dirs, links).
 			if member is None:
-				raise RuntimeError(f"No regular LICENSE member {member_name} in {archive_path}.")
+				raise RuntimeError(
+					f"No regular license member {member_name} in {archive_path}."
+				)
 			archived_bytes = member.read()
 	if archived_bytes != expected_bytes:
 		raise RuntimeError(
-			f"LICENSE in {archive_path} does not match HEAD LICENSE."
+			f"{member_name} in {archive_path} does not match committed HEAD."
 		)
 
 #============================================
@@ -515,7 +527,7 @@ def main() -> None:
 
 	# Validate all release preconditions up front, before writing any files.
 	ensure_tag_free(version)
-	ensure_committed_license()
+	ensure_committed_licenses()
 	warn_uncommitted_changes()
 
 	# Resolve snapshot output paths and the in-archive prefix.
@@ -524,7 +536,6 @@ def main() -> None:
 	zip_path = os.path.join(output_dir, f"{repo_name}-v{version}.zip")
 	tgz_path = os.path.join(output_dir, f"{repo_name}-v{version}.tgz")
 	arg_lists = build_archive_arg_lists(prefix, zip_path, tgz_path)
-	license_member = f"{prefix}{LICENSE_PATHSPEC}"
 
 	if args.dry_run:
 		# Dry-run: report the planned build commands, build nothing.
@@ -541,13 +552,15 @@ def main() -> None:
 		# Precheck duplicate release headings up front, before building anything,
 		# so a re-run at an already-released version leaves no archives or doc edits.
 		ensure_release_docs_unreleased(repo_root, version)
-		# Write: build the archives, then verify each bundled LICENSE.
+		# Write: build the archives, then verify each bundled project license.
 		os.makedirs(output_dir, exist_ok=True)
 		run_git_archive(arg_lists["zip"])
 		run_git_archive(arg_lists["tgz"])
-		expected_license = read_head_license_bytes()
-		verify_archive_license(zip_path, license_member, expected_license)
-		verify_archive_license(tgz_path, license_member, expected_license)
+		expected_license_bytes = read_head_license_bytes()
+		for license_pathspec, expected_bytes in expected_license_bytes.items():
+			license_member = f"{prefix}{license_pathspec}"
+			verify_archive_license_bytes(zip_path, license_member, expected_bytes)
+			verify_archive_license_bytes(tgz_path, license_member, expected_bytes)
 		print(f"Built and verified: {zip_path}")
 		print(f"Built and verified: {tgz_path}")
 		# Write the release-doc entries under --write.

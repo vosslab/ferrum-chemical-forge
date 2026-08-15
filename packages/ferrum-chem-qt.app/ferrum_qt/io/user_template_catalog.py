@@ -18,6 +18,8 @@ class UserTemplateCatalogEntry:
 	catalog_key: str
 	label: str
 	template_cdml: str
+	native_plan: object | None = None
+	source_name: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -43,7 +45,7 @@ def scan_user_template_catalog(directory: str | pathlib.Path) -> UserTemplateCat
 	Only regular lowercase ``.cdml`` files participate. A missing directory is
 	an empty catalog so the eventual UI can offer an empty state without creating
 	user filesystem state. Other per-file failures are recorded while remaining
-	eligible entries continue through OASA admission.
+	eligible entries continue through Rust admission.
 
 	Args:
 		directory: The one caller-configured template directory to scan.
@@ -168,17 +170,16 @@ def _scan_template_file(
 			message="Cannot read user template CDML: %s" % _safe_text(str(error)),
 		)
 	try:
-		display_name = ferrum_qt.bridge.user_template_inspection.inspect_user_template_display_name(
-			template_cdml,
-		)
+		plan = ferrum_qt.bridge.user_template_inspection.prepare_user_template(template_cdml)
 	except ferrum_qt.bridge.user_template_inspection.UserTemplateInspectionError as error:
 		return UserTemplateScanFailure(
 			source_name=filename,
 			message="User template is not eligible: %s" % error,
 		)
-	label = display_name if display_name is not None else pathlib.PurePath(filename).stem
+	label = plan.display_name if plan.display_name is not None else pathlib.PurePath(filename).stem
 	return UserTemplateCatalogEntry(
 		catalog_key=_catalog_key(filename), label=label, template_cdml=template_cdml,
+		native_plan=plan, source_name=filename,
 	)
 
 

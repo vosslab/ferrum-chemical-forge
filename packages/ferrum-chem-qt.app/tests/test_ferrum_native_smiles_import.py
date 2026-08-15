@@ -1,4 +1,4 @@
-"""Behavior coverage for OASA-free native SMILES preparation and insertion."""
+"""Behavior coverage for Rust-native SMILES preparation and insertion."""
 
 # Standard Library
 import os

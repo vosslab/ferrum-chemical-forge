@@ -1,5 +1,12 @@
 # Release history
 
+## Unreleased pre-alpha work
+
+- M20 and M22 source mechanisms define a proposed macOS arm64/CPython 3.12 two-wheel route,
+  a dual-license source-release check, native notice staging, and predicate artifact inventory.
+  The actual offline build, install, relink, source-archive CLI, artifact review, and human
+  legal/release decision are still pending. This is not a new supported release.
+
 ## v26.08 - 2026-08-12
 
 ### Highlights

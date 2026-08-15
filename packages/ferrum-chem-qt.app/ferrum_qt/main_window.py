@@ -1,4 +1,4 @@
-"""Ordinary OASA-free native-first application window for Ferrum-Qt."""
+"""Ordinary Rust-native application window for Ferrum-Qt."""
 
 # PIP3 modules
 import PySide6.QtGui
@@ -6,20 +6,22 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.config.preferences
-import ferrum_qt.dialogs.theme_chooser_dialog
 import ferrum_qt.native.ferrum_native_action_toolbar
 import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.native.ferrum_native_drawing_parameters
+import ferrum_qt.native.ferrum_native_drawing_parameters_client
+import ferrum_qt.native.ferrum_native_editing_tools_toolbar
 import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.native.ferrum_native_preferences
+import ferrum_qt.native.ferrum_native_recent_files
 
 
 #============================================
 class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow):
 	"""Start the product host with one empty Rust-owned document.
 
-	The historical OASA session graph lives only in
-	``ferrum_qt.legacy.compatibility_main_window``. External uncompressed CDML
-	uses the same Rust-owned local V1 profile as the native render CLI and never
-	loads document bytes through Python or a compatibility fallback.
+	External uncompressed CDML uses the same Rust-owned local V1 profile as the
+	native render CLI and never loads document bytes through Python.
 	"""
 
 	#============================================
@@ -29,28 +31,59 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 			user_template_directory: object = None,
 			) -> None:
 		"""Build the ordinary native-only host and its initial empty document."""
-		del user_template_directory
-		super().__init__(parent)
+		super().__init__(parent, user_template_directory=user_template_directory)
 		self._theme_manager = theme_manager
-		self._prefs = ferrum_qt.config.preferences.Preferences.instance()
+		self._drawing_parameters = (
+			ferrum_qt.native.ferrum_native_drawing_parameters.
+			FerrumNativeDrawingParameters.shared_application_model(self._prefs)
+		)
+		self._set_native_hex_grid_visible(
+			ferrum_qt.native.ferrum_native_preferences.hex_grid_visible_preference(
+				self._prefs,
+			),
+		)
+		self._set_native_hex_grid_snap_enabled(
+			ferrum_qt.native.ferrum_native_preferences.
+			hex_grid_snap_enabled_preference(self._prefs),
+		)
 		self._shutdown_prepared = False
 		self.setWindowTitle(self.tr("Ferrum-Qt"))
 		self.resize(1280, 800)
 		self._action_open = self._open_action
 		self._action_new = self._add_new_document_action()
-		self._theme_action = self._add_theme_action()
+		self._preferences_action = self._add_preferences_action()
+		self._next_drawing_action = self._add_next_drawing_action()
 		self._native_action_toolbar = self._add_native_action_toolbar()
+		self._native_editing_tools_toolbar = self._add_native_editing_tools_toolbar()
 		self._on_new()
+		bootstrap = self._active_native_tab()
+		if bootstrap is not None:
+			bootstrap._mark_initial_placeholder()
 
 	#============================================
 	def _add_new_document_action(self) -> PySide6.QtGui.QAction:
-		"""Install a window-level native New action without a legacy menu owner."""
+		"""Install the window-level native New action."""
 		action = PySide6.QtGui.QAction(self.tr("New"), self)
 		action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.New)
 		action.setToolTip(self.tr("Create a new empty Rust-owned Ferrum document"))
 		action.triggered.connect(self._on_new)
 		self._file_menu.insertAction(self._open_action, action)
 		return action
+
+	#============================================
+	def _install_native_recent_files_menu(self, menu: PySide6.QtWidgets.QMenu) -> None:
+		"""Create the File-owned personal cascade before the native save actions."""
+		self._recent_files_menu = self._native_recent_files.install_file_menu(menu)
+
+	#============================================
+	def _initialize_native_file_menu_clients(self) -> None:
+		"""Create ordinary personal menu owners after the Qt window is initialized."""
+		self._prefs = ferrum_qt.config.preferences.Preferences.instance()
+		self._native_recent_files = (
+			ferrum_qt.native.ferrum_native_recent_files.FerrumNativeRecentFiles(
+				self, self._prefs,
+			)
+		)
 
 	#============================================
 	def _add_native_action_toolbar(
@@ -85,6 +118,10 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 				(self._zoom_100_action, standard.SP_BrowserReload),
 				(self._zoom_in_action, standard.SP_ArrowUp),
 			),
+			(
+				(self._show_hex_grid_action, standard.SP_FileDialogContentsView),
+				(self._snap_hex_grid_action, standard.SP_DialogApplyButton),
+			),
 		)
 		return (
 			ferrum_qt.native.ferrum_native_action_toolbar.
@@ -92,29 +129,65 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 		)
 
 	#============================================
-	def _add_theme_action(self) -> PySide6.QtGui.QAction:
-		"""Expose the retained application-theme choice without legacy view ownership."""
-		menu = self.menuBar().addMenu(self.tr("Options"))
-		action = PySide6.QtGui.QAction(self.tr("Theme"), self)
-		action.triggered.connect(self._on_choose_theme)
-		menu.addAction(action)
+	def _add_native_editing_tools_toolbar(
+			self,
+			) -> ferrum_qt.native.ferrum_native_editing_tools_toolbar.FerrumNativeEditingToolsToolbar:
+		"""Expose finished canvas tools through their existing shared actions."""
+		tools = (
+			(self._add_atom_action, "atom"),
+			(self._draw_bond_action, "single"),
+			(self._insert_cyclohexane_ring_action, "benzene"),
+			(self._insert_haworth_ring_action, "ring"),
+			(self._draw_wavy_action, "wavyline"),
+			(self._draw_bracket_action, "rectangularbracket"),
+			(self._draw_round_bracket_action, "roundbracket"),
+			(self._move_atom_action, "edit"),
+			(self._rotate_atoms_action, "rotate"),
+			(self._translate_roots_action, "bondalign"),
+		)
+		return (
+			ferrum_qt.native.ferrum_native_editing_tools_toolbar.
+			install_native_editing_tools_toolbar(
+				self, tools, self._cancel_tool_action, self._theme_manager,
+				self._drawing_parameters, self._next_drawing_action,
+			)
+		)
+
+	#============================================
+	def _add_next_drawing_action(self) -> PySide6.QtGui.QAction:
+		"""Offer a standard menu and toolbar route to shared drawing preferences."""
+		action = PySide6.QtGui.QAction(self.tr("Next Drawing..."), self)
+		action.setPriority(PySide6.QtGui.QAction.Priority.LowPriority)
+		action.setIcon(self.style().standardIcon(
+			PySide6.QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView,
+		))
+		action.setToolTip(self.tr(
+			"Choose the next atom, bond order, and bond presentation for native drawing",
+		))
+		action.triggered.connect(self._show_next_drawing_dialog)
+		self._edit_menu.addAction(action)
 		return action
 
 	#============================================
-	def _on_choose_theme(self) -> None:
-		"""Apply one accepted theme choice through the existing application manager."""
-		current = self._theme_manager.current_theme
-		chosen = ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog.choose_theme(
-			self, current,
-		)
-		if chosen is not None and chosen != current:
-			self._theme_manager.apply_theme(chosen)
+	def _show_next_drawing_dialog(self) -> None:
+		"""Open a compact view of the shared application-owned drawing choices."""
+		ferrum_qt.native.ferrum_native_drawing_parameters_client \
+			.show_native_drawing_parameters_dialog(
+				self, self._drawing_parameters, self._cancel_tool_action,
+			)
+
+	#============================================
+	def _add_preferences_action(self) -> PySide6.QtGui.QAction:
+		"""Expose only settings owned by the ordinary application window."""
+		menu = self.menuBar().addMenu(self.tr("Options"))
+		return ferrum_qt.native.ferrum_native_preferences \
+			.install_native_preferences_action(self, menu)
 
 	#============================================
 	def _create_empty_native_tab(
 			self,
 			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-		"""Create a revision-zero Rust document without a legacy session."""
+		"""Create a revision-zero Rust document."""
 		import ferrum_chem
 		session = ferrum_chem.DocumentSession.create_empty_document_v1()
 		return ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab.from_session(
@@ -143,6 +216,18 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
 		"""Keep the common host's activation default for native callers."""
 		return super()._register_native_tab(tab, activate=activate)
+
+	#============================================
+	def _save_native_tab_to_path(
+			self,
+			tab: ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+			file_path: str,
+			) -> bool:
+		"""Promote personal recency only after Rust confirms native publication."""
+		saved = super()._save_native_tab_to_path(tab, file_path)
+		if saved and tab.file_path is not None:
+			self._native_recent_files.record_confirmed_path(tab.file_path)
+		return saved
 
 	#============================================
 	def _close_native_tab_at(self, index: int) -> bool:
@@ -184,20 +269,34 @@ class MainWindow(ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWind
 				self._close_tab_at(index)
 		self._shutdown_prepared = not self._native_tabs_by_page
 		if self._shutdown_prepared:
-			self._prefs.set_value(
-				ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY,
-				self.saveGeometry(),
-			)
+			if ferrum_qt.native.ferrum_native_preferences \
+					.remembered_workspace_preference(self._prefs):
+				self._prefs.set_value(
+					ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY,
+					self.saveGeometry(),
+				)
+				self._prefs.set_value(
+					ferrum_qt.config.preferences.Preferences.KEY_WINDOW_STATE,
+					self.saveState(1),
+				)
 		return self._shutdown_prepared
 
 	#============================================
-	def restore_geometry(self) -> None:
-		"""Restore ordinary-window geometry without importing a legacy view mixin."""
+	def restore_workspace(self) -> None:
+		"""Restore application workspace state through the native view controller."""
+		if not ferrum_qt.native.ferrum_native_preferences \
+				.remembered_workspace_preference(self._prefs):
+			return
 		geometry = self._prefs.value(
 			ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY,
 		)
 		if geometry is not None:
 			self.restoreGeometry(geometry)
+		state = self._prefs.value(
+			ferrum_qt.config.preferences.Preferences.KEY_WINDOW_STATE,
+		)
+		if state is not None:
+			self.restoreState(state, 1)
 
 	#============================================
 	def closeEvent(self, event: PySide6.QtGui.QCloseEvent) -> None:

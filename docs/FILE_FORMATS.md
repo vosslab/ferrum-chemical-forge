@@ -1,13 +1,15 @@
 # Ferrum file formats
 
 This page defines the implemented Ferrum file and stream boundaries. It is a
-pre-alpha compatibility guide, not a promise of general chemical-format conversion.
+pre-production format guide, not a promise of general chemical-format conversion.
 For commands and installation, see [USAGE.md](USAGE.md) and [INSTALL.md](INSTALL.md).
 
 ## CDML documents
 
-Ferrum's Rust document commands accept UTF-8 CDML XML from a file or standard input
-(`-`). The native Qt bounded editor accepts `.cdml` files only.
+The protocol accepts UTF-8 CDML text inside one JSON request. Its one native Qt document
+window accepts decoded local `.cdml` and `.svg` inputs through distinct Rust-owned
+profiles. A native `.svg` input is CD-SVG only when
+it contains one canonical embedded CDML payload; it is not general SVG import.
 
 Ferrum parses CDML into a typed document while retaining the parsed XML structure.
 Its rewrite contract preserves:
@@ -21,64 +23,65 @@ The contract is structural, not lexical. A rewrite can normalize namespace prefi
 attribute order, whitespace representation, or other serializer details. A successful
 rewrite does not promise byte-for-byte identity.
 
-Use `ferrum cdml rewrite INPUT --check` to verify this structural contract without
-creating an output file. `ferrum cdml rewrite INPUT --output OUTPUT` publishes a named
-output through `DocumentSession.save_atomic`. With `--output -`, the rewritten CDML is
-written to standard output and has normal stream semantics.
+`document.rewrite` is the protocol operation that verifies and structurally emits the
+admitted CDML as JSON data. The desktop Save/Save As path publishes CDML through the
+Rust-owned session. Neither surface promises byte-for-byte output.
 
-## CD-SVG extraction
+## Native CD-SVG Open
 
-`ferrum cdml extract-cdsvg INPUT --output OUTPUT` accepts decoded UTF-8 SVG XML, not
-compressed `.svgz`. The SVG root must use the SVG namespace and contain exactly one
-descendant `cdml` element in the canonical CDML namespace.
+The native desktop Open route accepts a local regular `.svg` file only when decoded
+UTF-8 SVG in the SVG namespace contains exactly one descendant `cdml` in the canonical
+CDML namespace. It applies independent complete resource envelopes to the wrapper and
+the normalized selected payload: 16 MiB UTF-8 bytes, 262,144 elements, depth 64,
+1,048,576 attributes, and 8 MiB lexical text or CDATA bytes for each envelope.
 
-Ferrum retains that embedded CDML subtree, structurally serializes and reparses it,
-then publishes the verified CDML through the same named-file or standard-output
-boundary as `rewrite`. The SVG wrapper is presentation data only: Ferrum does not
-infer editable document state from rendered SVG elements.
+Ferrum discards the wrapper after it selects and validates the payload. SVG elements,
+scripts, styles, images, references, metadata, geometry, and presentation never become
+editable facts; the route does not fetch, render, preserve, or save them. The resulting
+tab is clean but has no CDML publication path, so Save opens CDML Save As. A successful
+`.cdml` publication establishes the future Save destination and never overwrites the
+source wrapper. The original descriptor identity remains available only to activate an
+already-open tab, including a hard-link alias.
 
-## JSON report streams
+The desktop route rejects unsafe or malformed wrappers, absent or multiple canonical
+payloads, exhausted envelopes, and rejected payloads with stable recovery guidance.
+It does not sniff suffixes or decompress input. `.cdsvg`, `.svgz`, compression, wrapper
+round trips, and CD-SVG export are outside this V1 desktop boundary. The native window
+refuses `.cdsvg`, `.svgz`, and compressed names; it does not offer a second editor or
+converter fallback.
 
-The CLI sends successful machine reports to standard output and operational failures
-to standard error. Argument errors use exit status 2; an accepted command that cannot
-read, process, or publish data uses exit status 1.
+## Dropped desktop formats
 
-| Command | Success stream contract |
-| --- | --- |
-| `cdml inspect` | `ferrum-cdml-inspection-v1` JSON by default; text is not a parsing contract. |
-| `cdml validate` | `ferrum-cdml-validation-v1` JSON by default; `--typed` requires core facts. |
-| `cdml rewrite --check` | One versioned JSON preservation report. |
-| `cdml render-observation` | One complete `ferrum-render-observation-v1` JSON line. |
-| `smiles inspect` | One newline-terminated `ferrum-smiles-inspection-v1` JSON object. |
-| `molblock inspect` | One newline-terminated `ferrum-molblock-inspection-v1` JSON object. |
-| `sdf inspect` | One newline-terminated `ferrum-sdf-inspection-v1` JSON object. |
+The pre-production desktop product has one Rust-native document window. It supports
+decoded `.cdml` and the bounded decoded `.svg` CD-SVG route described above. It refuses
+`.cdxml`, `.cml`, `.cdsvg`, `.svgz`, and compressed CDML names before reading them,
+preserving the active document. Ferrum does not provide a second editor or converter
+fallback for these dropped desktop formats. This is an explicit format disposition, not a
+claim that historical source or oracle references disappeared.
 
-`render-observation` represents one initial revision-zero CDML session observation,
-its matching document digest, the fixed depiction profile, and complete molecule
-plans or an explicit failure. It accepts no output-format flag.
+## Native document artifact export
 
-`--format text` is available only for `cdml inspect` and `cdml validate`.
+The ordinary native desktop File menu can publish one complete current document as
+SVG, PDF, or transparent PNG. These are rendered from Rust's complete document plan,
+not from an imported SVG wrapper or a Qt scene. SVG and PDF are vector artifacts; PNG
+uses one output pixel per Rust page point and does not promise physical-density metadata.
+Unsupported complete roots refuse the requested artifact rather than producing a partial
+document. This bounded desktop route is not general SVG import/export, CD-SVG export,
+or a wrapper-round-trip contract.
 
-## Native chemistry boundary
+For locally admitted CDML or decoded CD-SVG, publication retains a Rust-owned descriptor
+for the source while the tab is live. The ordinary artifact route rejects that source and
+an observed hard-link alias as destinations. It does not compare lexical paths, expose a
+source descriptor to Python, or preserve CD-SVG wrapper bytes.
 
-`ferrum smiles inspect --adapter ABSOLUTE_LIBRARY SMILES` is a provisional native
-adapter route, not a file-format converter. The supplied library path must be
-absolute, regular, and non-symbolic-link; Ferrum performs no library discovery.
+## JSON operation protocol
 
-The current adapter boundary is ABI-4. Its native wire vocabularies are internal to
-Ferrum's adapter loader and chemistry crate. Users consume the versioned reports or
-text formats rather than those bytes.
-
-`ferrum sdf inspect --adapter ABSOLUTE_LIBRARY INPUT` accepts bounded UTF-8 SDF from
-a file or standard input (`-`). Its `ferrum-sdf-inspection-v1` report preserves record
-order, titles, ordered repeated properties, complete molecule facts, and atom-aligned
-finite 2D coordinates. Three-dimensional coordinate import is not yet supported.
-
-`ferrum molblock inspect --adapter ABSOLUTE_LIBRARY INPUT` accepts exactly one bounded
-UTF-8 V2000 or V3000 molblock from a file or standard input. Its
-`ferrum-molblock-inspection-v1` report contains complete owned molecule facts and
-finite atom-aligned 2D coordinates. SDF separators, multiple terminators, and 3D
-conformers are rejected rather than guessed.
+`ferrum protocol schema` prints the generated protocol schema. `ferrum protocol run`
+reads one request JSON file or standard input and writes one JSON success or typed-error
+envelope. The request carries CDML text, never a protocol file path. `document.inspect`,
+`document.validate`, `document.rewrite`, and `document.render_artifact` are the only V1
+operations. See [USAGE.md](USAGE.md#operation-protocol-v1) for categories, output
+publication, and the separate bounds that protect the transport, CDML, and artifacts.
 
 The accepted ABI-4 FCM1 wheel evidence is limited to macOS arm64. Its packaging and
 licensing boundary is documented in [PROVENANCE.md](PROVENANCE.md); it is not a
@@ -86,9 +89,7 @@ cross-platform release claim.
 
 ## Unsupported formats
 
-Ferrum does not currently provide general import or export coverage for arbitrary
-molfile/SDF variants, SMILES files, image formats, or compressed SVG. Its current
-molblock and SDF commands are bounded provisional slices. The retained legacy Qt
-editor may have separate migration-only capabilities, but they are not part of this
-Rust-owned format contract. The current scope and remaining migration work are tracked
-in [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
+Ferrum does not currently provide a general file-conversion CLI for molfile/SDF variants,
+SMILES files, image formats, general SVG, or compressed SVG. Bounded chemistry import and
+export remain Ferrum-Qt-native workflows with their own document contracts. The current scope
+and remaining migration work are tracked in [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).

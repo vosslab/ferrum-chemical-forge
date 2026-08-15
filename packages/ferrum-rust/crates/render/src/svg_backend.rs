@@ -509,6 +509,11 @@ impl DrawSinkV1 for SvgSinkV1 {
                 write!(self.output, "{z}").map_err(|_| self.output.sink_error())?;
                 self.output.push('"');
             }
+            DrawMetadataV1::MoleculePath { z } => {
+                self.output.push_str(" data-ferrum-z=\"");
+                write!(self.output, "{z}").map_err(|_| self.output.sink_error())?;
+                self.output.push('"');
+            }
             DrawMetadataV1::DocumentVectorPath => self
                 .output
                 .push_str(" data-ferrum-document-operation=\"path\""),

@@ -94,9 +94,8 @@ fn render_document_selection_svg_v1(
     let observation = observation.observation().clone();
     let budget = SvgOutputBudgetV1::new(LOCAL_SVG_COMPLETED_BYTES_V1)
         .map_err(|error| selection_error(py, error.to_string()))?;
-    let result = py.detach(move || {
-        render_document_selection_to_svg_v1(&observation, selection, budget)
-    });
+    let result =
+        py.detach(move || render_document_selection_to_svg_v1(&observation, selection, budget));
     let receipt = result.map_err(|error| selection_error(py, error.to_string()))?;
     receipt_to_python(py, &receipt)
 }
@@ -110,8 +109,8 @@ fn parse_selection(
         return Err(selection_error(py, SELECTION_SHAPE_REASON));
     }
     let object_ids = object_ids.cast::<PyTuple>()?;
-    let maximum = selectable_object_count(observation)
-        .ok_or_else(|| selection_error(py, RESOURCE_REASON))?;
+    let maximum =
+        selectable_object_count(observation).ok_or_else(|| selection_error(py, RESOURCE_REASON))?;
     if object_ids.is_empty() || object_ids.len() > maximum {
         return Err(selection_error(py, SELECTION_SHAPE_REASON));
     }
@@ -133,8 +132,7 @@ fn parse_selection(
                 .map_err(|error| selection_error(py, error.to_string()))?,
         );
     }
-    DocumentSvgSelectionV1::new(selectors)
-        .map_err(|error| selection_error(py, error.to_string()))
+    DocumentSvgSelectionV1::new(selectors).map_err(|error| selection_error(py, error.to_string()))
 }
 
 fn selectable_object_count(observation: &SessionDocumentObservationV1) -> Option<usize> {
@@ -253,9 +251,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDocumentSelectionSvgRootV1>()?;
     module.add_class::<PyDocumentSelectionSvgViewportV1>()?;
     module.add_class::<PyDocumentSelectionSvgV1>()?;
-    module.add_function(wrap_pyfunction!(
-        render_document_selection_svg_v1,
-        module
-    )?)?;
+    module.add_function(wrap_pyfunction!(render_document_selection_svg_v1, module)?)?;
     Ok(())
 }

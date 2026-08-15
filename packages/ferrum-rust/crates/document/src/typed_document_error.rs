@@ -7,6 +7,9 @@ use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
 /// Parse or typed-projection failure.
 #[derive(Debug, Error)]
 pub enum TypedDocumentError {
+    /// A complete-root translation observation received an invalid root request.
+    #[error(transparent)]
+    TopLevelTransform(#[from] super::TopLevelTransformV1Error),
     /// A linear-form adapter allocation could not be reserved from admitted source size.
     #[error("typed linear-form conversion exhausted available resources")]
     LinearFormResourceExhausted,

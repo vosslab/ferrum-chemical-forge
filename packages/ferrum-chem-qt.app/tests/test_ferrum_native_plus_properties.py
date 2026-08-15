@@ -1,4 +1,4 @@
-"""Semantic Plus property editing through the OASA-free native tab."""
+"""Semantic Plus property editing through the Rust-native tab."""
 
 # Standard Library
 import os

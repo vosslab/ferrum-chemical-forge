@@ -1,4 +1,4 @@
-"""Semantic Arrow property editing through the OASA-free native tab."""
+"""Semantic Arrow property editing through the Rust-native tab."""
 
 # Standard Library
 import os

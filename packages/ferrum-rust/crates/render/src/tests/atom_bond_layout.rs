@@ -71,6 +71,69 @@ fn rendered_bond_lines(style: BondStyle) -> Vec<LineOp> {
         .collect()
 }
 
+fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<RenderOp> {
+    let first = atom_target("directed-a", 1, 0.0, 0.0);
+    let second = atom_target("directed-b", 3, 40.0, 0.0);
+    let (start, end) = if reverse {
+        (&second, &first)
+    } else {
+        (&first, &second)
+    };
+    let bond = BondRenderTarget::new(
+        target(RecordKind::Bond, "directed-bond", 2),
+        start.target().record_id().clone(),
+        end.target().record_id().clone(),
+        style,
+        TargetVisibility::Visible,
+    )
+    .expect("directed bond target");
+    let request = AtomBondRenderRequest::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [7; 32]),
+        vec![first, second],
+        vec![bond],
+        atom_bond_font(),
+        size(1.0),
+        size(10.0),
+        paint("112233"),
+    )
+    .expect("directed request");
+    let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("directed plan");
+    assert!(plan.issues().is_empty());
+    plan.batches()[1].operations().to_vec()
+}
+
+fn rendered_haworth_front_batch(style: BondStyle, reverse: bool) -> RenderBatch {
+    let first = atom_target("haworth-a", 1, 0.0, 0.0);
+    let second = atom_target("haworth-b", 3, 40.0, 0.0);
+    let (start, end) = if reverse {
+        (&second, &first)
+    } else {
+        (&first, &second)
+    };
+    let bond = BondRenderTarget::new(
+        target(RecordKind::Bond, "haworth-bond", 2),
+        start.target().record_id().clone(),
+        end.target().record_id().clone(),
+        style,
+        TargetVisibility::Visible,
+    )
+    .expect("Haworth bond target")
+    .with_appearance(size(1.0), size(10.0), size(6.0), paint("224466"));
+    let request = AtomBondRenderRequest::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [6; 32]),
+        vec![first, second],
+        vec![bond],
+        atom_bond_font(),
+        size(1.0),
+        size(10.0),
+        paint("112233"),
+    )
+    .expect("Haworth request");
+    let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("Haworth plan");
+    assert!(plan.issues().is_empty());
+    plan.batches()[1].clone()
+}
+
 fn assert_near(actual: f64, expected: f64) {
     assert!(
         (actual - expected).abs() <= 1.0e-12,
@@ -218,7 +281,7 @@ fn atom_marks_lower_to_closed_semantic_primitives_without_toolkit_defaults() {
             .map(|operation| match operation {
                 RenderOp::Line(_) => "line",
                 RenderOp::Ellipse(_) => "ellipse",
-                RenderOp::Text(_) | RenderOp::Mask(_) => "unexpected",
+                RenderOp::Text(_) | RenderOp::Mask(_) | RenderOp::Path(_) => "unexpected",
             })
             .collect::<Vec<_>>();
         assert_eq!(actual, expected, "{kind:?}");
@@ -246,6 +309,113 @@ fn normal_double_and_triple_bonds_emit_parallel_symmetric_bounded_lines() {
             assert_eq!(line.z(), 10 + i32::try_from(index).expect("small index"));
         }
     }
+}
+
+#[test]
+fn directed_stereo_bonds_widen_toward_the_authored_end() {
+    let forward = rendered_directed_bond_operations(BondStyle::SolidWedge, false);
+    let reverse = rendered_directed_bond_operations(BondStyle::SolidWedge, true);
+    let forward = forward
+        .iter()
+        .find_map(|operation| match operation {
+            RenderOp::Path(path) => Some(path),
+            _ => None,
+        })
+        .expect("solid wedge must lower to a filled scene path");
+    let reverse = reverse
+        .iter()
+        .find_map(|operation| match operation {
+            RenderOp::Path(path) => Some(path),
+            _ => None,
+        })
+        .expect("reversed solid wedge must lower to a filled scene path");
+    let [
+        ScenePathCommandV2::MoveTo(forward_tip),
+        ScenePathCommandV2::LineTo(forward_base_a),
+        ScenePathCommandV2::LineTo(forward_base_b),
+        ScenePathCommandV2::Close,
+    ] = forward.commands()
+    else {
+        panic!("solid wedge must carry a closed directed outline");
+    };
+    let [ScenePathCommandV2::MoveTo(reverse_tip), ..] = reverse.commands() else {
+        panic!("reversed wedge must retain its source-order tip");
+    };
+    assert!(forward.fill().is_some() && forward_base_a.x() > forward_tip.x());
+    assert!(forward_base_b.x() > forward_tip.x() && reverse_tip.x() > forward_tip.x());
+
+    let hashes = rendered_directed_bond_operations(BondStyle::HashedWedge, false);
+    let hashes = hashes
+        .iter()
+        .map(|operation| match operation {
+            RenderOp::Line(line) => line,
+            _ => panic!("hashed wedge must lower to finite source-owned strokes"),
+        })
+        .collect::<Vec<_>>();
+    let first = hashes
+        .first()
+        .expect("hashed wedge has a visible tip stroke");
+    let last = hashes
+        .last()
+        .expect("hashed wedge has a visible base stroke");
+    assert!(
+        first.start().x().is_finite()
+            && first.end().x().is_finite()
+            && last.start().x().is_finite()
+            && last.end().x().is_finite()
+    );
+    assert!(
+        (last.start().y() - last.end().y()).abs() > (first.start().y() - first.end().y()).abs()
+    );
+}
+
+#[test]
+fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
+    let q = rendered_haworth_front_batch(BondStyle::HaworthFrontStroke, false);
+    let w = rendered_haworth_front_batch(BondStyle::HaworthFrontWedge, false);
+    let reversed_w = rendered_haworth_front_batch(BondStyle::HaworthFrontWedge, true);
+
+    let RenderOp::Path(q_path) = &q.operations()[0] else {
+        panic!("q1/front must lower to a selectable scene path");
+    };
+    assert_eq!(q.display_layer(), RenderDisplayLayerV1::HaworthFrontStroke);
+    assert!(matches!(q_path.stroke(), Some(stroke)
+        if stroke.width() == size(6.0)
+            && stroke.paint().color().as_str() == "224466"
+            && stroke.line_cap() == VectorStrokeLineCapV1::Round));
+
+    let RenderOp::Path(w_path) = &w.operations()[0] else {
+        panic!("w1/front must lower to a selectable scene path");
+    };
+    let RenderOp::Path(reversed_w_path) = &reversed_w.operations()[0] else {
+        panic!("reversed w1/front must lower to a selectable scene path");
+    };
+    let [
+        ScenePathCommandV2::MoveTo(tip),
+        ScenePathCommandV2::LineTo(base),
+        ..,
+    ] = w_path.commands()
+    else {
+        panic!("w1/front must preserve the directed tip-to-base edge");
+    };
+    let [
+        ScenePathCommandV2::MoveTo(reversed_tip),
+        ScenePathCommandV2::LineTo(reversed_base),
+        ..,
+    ] = reversed_w_path.commands()
+    else {
+        panic!("reversed w1/front must preserve the directed tip-to-base edge");
+    };
+    assert_eq!(w.display_layer(), RenderDisplayLayerV1::HaworthFrontWedge);
+    assert!(
+        w_path.fill().is_some()
+            && w_path
+                .commands()
+                .iter()
+                .any(|command| matches!(command, ScenePathCommandV2::CubicTo { .. }))
+            && tip.x() < base.x()
+            && reversed_tip.x() > reversed_base.x()
+    );
 }
 
 #[test]

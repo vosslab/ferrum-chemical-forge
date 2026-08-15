@@ -302,7 +302,7 @@ def test_native_add_atom_uses_rust_identity_point_history_and_save(
 
 
 #============================================
-def test_native_add_single_bond_uses_rust_identity_history_and_save(
+def test_native_add_double_bond_uses_rust_identity_history_and_save(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""Two selected atoms become one durable Rust bond through save and reopen."""
@@ -311,14 +311,14 @@ def test_native_add_single_bond_uses_rust_identity_history_and_save(
 	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "bond.cdml",
 	)
-	tab.select_atoms(("atom-c", "atom-o"))
-	result = tab.add_single_bond_between_selected_atoms()
-	selected = tab._controller.projection.selected_durable_targets()
-	bond_id = selected[0].identifier
+	result = tab.add_bond_between_atoms(
+		"atom-c", "atom-o", ferrum_chem.DocumentBondPresentationV1.normal_double,
+	)
+	selected_bond = tab.selected_bond_projection()
+	bond_id = selected_bond.source_id
 	assert result.observation.snapshot.revision == 1
-	assert len(selected) == 1 and selected[0].kind == "bond"
+	assert selected_bond.source_type == "n2"
 	assert bond_id.startswith("ferrum-bond-v1-")
-	assert 'type="n1" start="atom-c" end="atom-o"' in result.observation.snapshot.cdml
 	tab.undo()
 	assert "<bond" not in tab.current_snapshot.cdml
 	tab.redo()
@@ -326,7 +326,7 @@ def test_native_add_single_bond_uses_rust_identity_history_and_save(
 	tab.save_atomic(output)
 	reopened = ferrum_chem.DocumentSession.load(output.read_text(encoding="utf-8")).observe(0)
 	bond = reopened.projection.molecules[0].bonds[0]
-	assert bond.source_id == bond_id and bond.source_type == "n1" and not tab.is_dirty
+	assert bond.source_id == bond_id and bond.source_type == "n2" and not tab.is_dirty
 	tab.dispose()
 
 
@@ -358,7 +358,11 @@ def test_native_add_bonded_atom_is_one_rust_history_entry(
 	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "bonded-atom.cdml",
 	)
-	result = tab.add_bonded_atom_at("atom-c", "N", 60.0, 40.0)
+	import ferrum_chem
+	result = tab.add_bonded_atom_at(
+		"atom-c", "N", 60.0, 40.0,
+		ferrum_chem.DocumentBondPresentationV1.normal_triple,
+	)
 	molecule = result.observation.projection.molecules[0]
 	selected = tab._controller.projection.selected_durable_targets()
 	assert result.observation.snapshot.revision == 1
@@ -366,6 +370,7 @@ def test_native_add_bonded_atom_is_one_rust_history_entry(
 	assert molecule.atoms[-1].source_id.startswith("ferrum-atom-v1-")
 	assert (molecule.atoms[-1].position.x, molecule.atoms[-1].position.y) == (60.0, 40.0)
 	assert molecule.bonds[0].source_id.startswith("ferrum-bond-v1-")
+	assert molecule.bonds[0].source_type == "n3"
 	assert len(selected) == 1 and selected[0].kind == "atom"
 	undone = tab.undo().observation.projection.molecules[0]
 	assert len(undone.atoms) == 2 and not undone.bonds

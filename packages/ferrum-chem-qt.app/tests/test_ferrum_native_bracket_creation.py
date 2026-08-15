@@ -1,4 +1,4 @@
-"""Semantic bracket-pair creation through the OASA-free native tab."""
+"""Semantic bracket-pair creation through the Rust-native tab."""
 
 # Standard Library
 import os

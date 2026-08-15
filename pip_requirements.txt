@@ -2,4 +2,3 @@ PySide6  # Ferrum-Qt production UI
 shiboken6  # Qt object-lifetime integration used directly by Ferrum-Qt
 pyyaml  # Ferrum-Qt resource and theme parsing
 ferrum-chem>=26.8  # Rust-backed Ferrum chemistry API used by Ferrum-Qt
-oasa>=26.08  # Temporary Ferrum-Qt migration dependency; remove at M22.

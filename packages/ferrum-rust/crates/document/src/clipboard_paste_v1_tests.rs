@@ -33,7 +33,7 @@ fn paste_remaps_every_declaration_and_exact_reference_then_translates_once() {
     assert_eq!(plan.roots().len(), 2);
     assert_eq!(plan.declared_id_count(), 7);
     let mut session = DocumentSession::load(concat!(
-        "<cdml version=\"26.07\"><info><vendor id=\"ferrum-paste-v1-0\"/>",
+        "<cdml version=\"26.07\"><info><vendor id=\"ferrum-import-v1-0\"/>",
         "</info></cdml>",
     ))
     .expect("target must load");
@@ -48,7 +48,7 @@ fn paste_remaps_every_declaration_and_exact_reference_then_translates_once() {
         result
             .pasted_roots()
             .iter()
-            .all(|root| root.source_id().as_str().starts_with("ferrum-paste-v1-"))
+            .all(|root| !matches!(root.source_id().as_str(), "m" | "p"))
     );
     let projection = observation.projection();
     let molecule = &projection.molecules()[0];
