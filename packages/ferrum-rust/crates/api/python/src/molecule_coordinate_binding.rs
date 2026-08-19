@@ -2,11 +2,11 @@
 
 use std::collections::HashSet;
 
-use ferrum_api::{
+use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
+use ferrum_document::{
     CleanGeometryBuildError, MoleculeCoordinateBuildError, build_clean_geometry_update_v1,
     build_molecule_coordinate_update_v1,
 };
-use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
 use ferrum_document::{CleanGeometryUpdateV1, DocumentObjectIdV1, MoleculeCoordinateUpdateV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;

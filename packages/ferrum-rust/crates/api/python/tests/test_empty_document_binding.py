@@ -1,7 +1,6 @@
 """Stable behavior checks for Rust-owned new-document construction."""
 
-import xml.etree.ElementTree as element_tree
-
+import defusedxml.ElementTree
 import ferrum_chem
 
 
@@ -9,7 +8,7 @@ def test_create_empty_document_v1_is_clean_and_projects_no_selectable_roots() ->
 	"""New documents have Rust-owned canonical root facts and no selectable content."""
 	session = ferrum_chem.DocumentSession.create_empty_document_v1()
 	observation = session.observe(0)
-	root = element_tree.fromstring(observation.snapshot.cdml)
+	root = defusedxml.ElementTree.fromstring(observation.snapshot.cdml)
 
 	assert (
 		root.tag == "{http://www.freesoftware.fsf.org/bkchem/cdml}cdml"

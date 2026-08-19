@@ -1,7 +1,7 @@
 //! Closed display metadata for the element-picker symbols Ferrum currently exposes.
 //!
 //! This is intentionally a display catalog, not a periodic-table chemistry
-//! model. It owns only the symbols rendered by Ferrum-Qt's element picker,
+//! model. It owns only the symbols rendered by Ferrum's element picker,
 //! their closed category vocabulary, and the V1 palette. Query pseudo-elements
 //! are absent because the picker does not offer them.
 
@@ -13,7 +13,7 @@ pub const PERIODIC_DISPLAY_CATALOG_PROVENANCE_V1: PeriodicDisplayCatalogProvenan
         catalog_id: "ferrum-periodic-display-v1",
         revision: "2026-08-12",
         source: "Ferrum-authored element-picker display catalog",
-        scope: "Ferrum-Qt periodic-table popup symbols only; no query pseudo-elements",
+        scope: "Ferrum periodic-table popup symbols only; no query pseudo-elements",
     };
 
 /// Immutable provenance for the bounded display catalog.

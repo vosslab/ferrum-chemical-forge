@@ -1,4 +1,4 @@
-"""Behavior coverage for Rust-native SMILES preparation and insertion."""
+"""Behavior coverage for Ferrum SMILES preparation and insertion."""
 
 # Standard Library
 import os
@@ -14,9 +14,9 @@ import ferrum_chem
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
-import ferrum_qt.native.ferrum_native_smiles_import
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.smiles_import
 
 
 _EMPTY_CDML = "<cdml/>"
@@ -34,9 +34,9 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 #============================================
 def _finish_window_worker(
 		qapp: PySide6.QtWidgets.QApplication,
-		window: ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow,
+		window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
 		) -> None:
-	"""Wait for native teardown, then deliver its already-queued Qt outcome."""
+	"""Wait for worker cleanup, then deliver its already-queued Qt outcome."""
 	intent = window._smiles_import_intent
 	assert intent is not None and intent.worker.wait(10000)
 	for _iteration in range(3):
@@ -48,10 +48,10 @@ def _finish_window_worker(
 def test_worker_prepares_one_frozen_native_cco_value_off_the_qt_thread(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The real worker delivers owned Rust facts rather than an OASA graph."""
+	"""The real worker delivers owned Rust facts rather than a Python graph."""
 	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
 	worker = (
-		ferrum_qt.native.ferrum_native_smiles_import.
+		ferrum_qt.ferrum.smiles_import.
 		FerrumNativeSmilesPreparationWorker("CCO", placement)
 	)
 	prepared = []
@@ -71,10 +71,10 @@ def test_worker_prepares_one_frozen_native_cco_value_off_the_qt_thread(
 
 #============================================
 def test_worker_cancellation_invalidates_delivery_without_claiming_preemption() -> None:
-	"""Cancellation drops a completed value while native teardown remains ordinary."""
+	"""Cancellation drops a completed value while worker cleanup remains ordinary."""
 	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
 	worker = (
-		ferrum_qt.native.ferrum_native_smiles_import.
+		ferrum_qt.ferrum.smiles_import.
 		FerrumNativeSmilesPreparationWorker._from_fixture(
 			"CCO", placement, lambda _smiles, _placement: object(),
 		)
@@ -92,9 +92,9 @@ def test_worker_cancellation_invalidates_delivery_without_claiming_preemption() 
 def test_cancel_after_native_completion_still_drops_queued_document_delivery(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""A close-time cancel wins even when the native result is already queued."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	"""A close-time cancel wins even when the Ferrum result is already queued."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -117,8 +117,8 @@ def test_public_native_action_imports_renders_and_round_trips_cco(
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""One user action performs the Rust worker, transaction, render, and save loop."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -151,8 +151,8 @@ def test_post_commit_render_failure_retains_pending_rust_authority(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""An accepted molecule cannot be hidden by a failed disposable projection."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -162,15 +162,15 @@ def test_post_commit_render_failure_retains_pending_rust_authority(
 	monkeypatch.setattr(tab._controller, "replace", lambda _observation, _latch: False)
 	warnings = []
 	monkeypatch.setattr(
-		window, "_show_native_file_warning",
-		lambda title, message: warnings.append((title, message)),
+		window, "_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	window._import_smiles_action.trigger()
 	_finish_window_worker(qapp, window)
 
 	assert tab.requires_refresh and tab.is_dirty
 	assert tab._pending_snapshot.revision == 1 and tab.current_snapshot.revision == 0
-	assert warnings[-1][0] == "Native SMILES Insert Error"
+	assert warnings[-1].outcome.value == "unavailable_operation"
 	assert not window._save_action.isEnabled()
 	assert not window._import_smiles_action.isEnabled()
 	assert window._refresh_action.isEnabled()

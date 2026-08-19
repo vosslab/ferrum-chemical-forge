@@ -9,7 +9,7 @@ import PySide6.QtWidgets
 import ferrum_chem
 
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 CDML = (
@@ -44,7 +44,7 @@ def test_visible_create_and_view_fragment_uses_captured_native_selection(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Create and View surface Rust's authoritative owner and label facts."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(CDML, "part.cdml")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(CDML, "part.cdml")
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -89,9 +89,9 @@ def test_visible_create_and_view_fragment_uses_captured_native_selection(
 
 def test_visible_fragment_cancel_preserves_document_and_durable_selection(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Cancelling the name dialog leaves the captured native drawing untouched."""
+	"""Cancelling the name dialog leaves the captured Ferrum drawing untouched."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(CDML, "cancel.cdml")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(CDML, "cancel.cdml")
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -110,10 +110,10 @@ def test_visible_fragment_cancel_preserves_document_and_durable_selection(
 
 def test_visible_fragment_view_retires_when_its_source_tab_changes(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""A read-only View cannot outlive the active native tab that supplied its facts."""
+	"""A read-only View cannot outlive the active Ferrum tab that supplied its facts."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(CDML, "view.cdml")
-	other = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(CDML, "other.cdml")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(CDML, "view.cdml")
+	other = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(CDML, "other.cdml")
 	try:
 		window._register_native_tab(tab, activate=True)
 		window._register_native_tab(other, activate=False)

@@ -15,7 +15,7 @@
   rewriting, with explicit standard-input and standard-output behavior.
 - Added typed CDML storage that preserves assigned CDML records, unknown attributes,
   ordered opaque children, and document identity and ordering facts.
-- Renamed the retained Qt frontend product and installed command to Ferrum-Qt and
+- Renamed the retained Qt frontend product and installed command to Ferrum and
   `ferrum-qt` while keeping the existing application contracts explicit.
 - Added graph analysis for connected components, bridges, articulation points, matchings,
   shortest paths, distances, diameter, and a deterministic fundamental-cycle basis.
@@ -32,7 +32,7 @@
 
 ### Compatibility notes
 
-- Ferrum-Qt is the user-facing product name and `ferrum-qt` is the installed command.
+- Ferrum is the user-facing product name and `ferrum-qt` is the installed command.
   Existing settings, templates, clipboard ownership value, and session identifiers
   remain compatibility identifiers during the migration.
 - The native chemistry boundary remains intentionally narrow: macOS arm64 and
@@ -45,5 +45,5 @@
   unit and integration tests on `aarch64-apple-darwin`.
 - The native-wheel evidence recorded a scrubbed install, exact closure validation, and
   a fresh-process relink probe before and after replacing `libferrum_chem.dylib`.
-- Ferrum-Qt's renamed package and installed command completed its offscreen test and
+- Ferrum's renamed package and installed command completed its offscreen test and
   smoke checks.

@@ -115,8 +115,8 @@ review. It may not bypass the boundary for convenience.
 
 The native operation generates coordinates, and M4c now records exact same-platform
 parity plus a ULP-derived tolerance in `../reports/coordinate_parity_v1.md`. M20
-retains future platform expansion. The one-time orientation tool remains
-[`devel/rdkit_layout_orientation.py`](../../../devel/rdkit_layout_orientation.py),
+retains future platform expansion. The one-time orientation measurement remains
+archived in [`rdkit_layout_orientation.json`](../reports/rdkit_layout_orientation.json),
 not a pytest case.
 
 The document insertion writer is narrower than the ABI molecule model. It stores

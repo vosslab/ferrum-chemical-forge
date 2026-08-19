@@ -1,13 +1,11 @@
-"""Focused behavior tests for the Rust-native AtomDialog adapter."""
+"""Focused behavior tests for the Ferrum AtomDialog adapter."""
 
 # Standard Library
 import os
 import sys
-import types
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-sys.modules.setdefault("ferrum_chem", types.ModuleType("ferrum_chem"))
 
 # PIP3 modules
 import PySide6.QtWidgets
@@ -15,7 +13,7 @@ import pytest
 
 # local repo modules
 import ferrum_qt.dialogs.atom_dialog
-import ferrum_qt.native.ferrum_native_atom_properties
+import ferrum_qt.ferrum.atom_properties
 
 
 #============================================
@@ -31,7 +29,7 @@ class _Change:
 
 #============================================
 class _Changes:
-	"""Fake exact PyO3 factory owner with the public native factory names."""
+	"""Fake exact PyO3 factory owner with the public Ferrum factory names."""
 
 	#============================================
 	@staticmethod
@@ -148,7 +146,7 @@ def test_absent_optional_facts_do_not_become_authored_on_an_unchanged_dialog(
 	"""Opening then accepting the visual form does not manufacture optional CDML."""
 	del qapp
 	_install_ferrum_module(monkeypatch)
-	model = ferrum_qt.native.ferrum_native_atom_properties.dialog_model_from_projection(_Atom())
+	model = ferrum_qt.ferrum.atom_properties.dialog_model_from_projection(_Atom())
 	dialog = ferrum_qt.dialogs.atom_dialog.AtomDialog(model)
 	assert dialog.changes() == ()
 	dialog.deleteLater()
@@ -161,7 +159,7 @@ def test_native_adapter_rejects_a_multiplicity_the_shared_dialog_cannot_show(
 	"""An unsupported source multiplicity is never silently displayed as singlet."""
 	_install_ferrum_module(monkeypatch)
 	with pytest.raises(ValueError, match="multiplicity"):
-		ferrum_qt.native.ferrum_native_atom_properties.dialog_model_from_projection(
+		ferrum_qt.ferrum.atom_properties.dialog_model_from_projection(
 			_Atom(multiplicity=4),
 		)
 
@@ -172,7 +170,7 @@ def test_dialog_fields_map_to_closed_rust_property_factories(
 		) -> None:
 	"""Legacy form names become only the named frozen Rust change values."""
 	_install_ferrum_module(monkeypatch)
-	changes = ferrum_qt.native.ferrum_native_atom_properties.property_changes_from_dialog(
+	changes = ferrum_qt.ferrum.atom_properties.property_changes_from_dialog(
 		(("charge", 0), ("valency", 0), ("isotope", None), ("line_color", "#123456")),
 	)
 	assert [(change.kind, change.value) for change in changes] == [

@@ -3,10 +3,11 @@
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
 #============================================
-class PlusDialog(PySide6.QtWidgets.QDialog):
+class PlusDialog(FerrumAccessibleDialog):
 	"""Edit only the portable root font size and color of one plain Plus."""
 
 	#============================================

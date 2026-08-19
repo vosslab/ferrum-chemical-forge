@@ -7,6 +7,7 @@ import dataclasses
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
 #============================================
@@ -37,7 +38,7 @@ class _PlainPasteTextEdit(PySide6.QtWidgets.QTextEdit):
 
 
 #============================================
-class RichTextDialog(PySide6.QtWidgets.QDialog):
+class RichTextDialog(FerrumAccessibleDialog):
 	"""Edit compact CDML rich runs with only the authored formatting controls."""
 
 	#============================================

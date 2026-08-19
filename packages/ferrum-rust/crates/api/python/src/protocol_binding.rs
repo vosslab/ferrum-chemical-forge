@@ -6,7 +6,7 @@
 
 use ferrum_api::{
     OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1, OperationProtocolInputErrorV1,
-    execute_operation_v1 as execute_rust_operation_v1,
+    execute_operation_with_runtime_v1 as execute_rust_operation_with_runtime_v1,
     operation_protocol_schema_v1 as rust_operation_protocol_schema_v1,
 };
 use pyo3::create_exception;
@@ -40,7 +40,9 @@ fn execute_operation_v1(py: Python<'_>, request_json: &str) -> PyResult<String> 
         ));
     }
     let request_json = request_json.to_owned();
-    let envelope = py.detach(move || execute_rust_operation_v1(&request_json));
+    let runtime = crate::chemistry_binding::packaged_protocol_runtime();
+    let envelope =
+        py.detach(move || execute_rust_operation_with_runtime_v1(&request_json, &runtime));
     let envelope = envelope.map_err(|error| protocol_input_error(py, error))?;
     serde_json::to_string(&envelope)
         .map_err(|error| protocol_error(py, EXECUTION_UNAVAILABLE, error.to_string()))

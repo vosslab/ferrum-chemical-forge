@@ -1,9 +1,9 @@
 //! Frozen, worker-safe InChI molecule preparation for document insertion.
 
-use ferrum_api::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
 use ferrum_chemistry::{
     ChemistryError as RustChemistryError, NativeChemEngine, validate_inchi_input,
 };
+use ferrum_document::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
 use pyo3::prelude::*;
 
 use crate::geometry_binding::PyInsertionPlacementV1;

@@ -1,4 +1,4 @@
-"""Behavioral coverage for the isolated Rust-owned native document tab."""
+"""Behavioral coverage for the isolated Rust-owned Ferrum document tab."""
 
 # Standard Library
 import dataclasses
@@ -14,7 +14,7 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 _EDITABLE_CDML = (
@@ -89,7 +89,7 @@ class _Publication:
 
 
 class _Session:
-	"""Owned-value native session fake with explicit current snapshots."""
+	"""Owned-value Ferrum session fake with explicit current snapshots."""
 
 	#============================================
 	def __init__(self, current: _Snapshot, saved: _Snapshot,
@@ -167,12 +167,12 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 #============================================
 def _tab(current: _Snapshot, saved: _Snapshot, confirmed: bool,
 		acceptances: tuple[bool, ...] = (True, True)) -> tuple[
-			ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 			_Controller,
 		]:
 	"""Build a tab only through its explicitly private owned-value fixture seam."""
 	controller = _Controller(acceptances)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab._from_fixture(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab._from_fixture(
 		"Untitled", _Session(current, saved, confirmed), controller,
 	)
 	return tab, controller
@@ -232,7 +232,7 @@ def test_confirmed_save_with_rejected_refresh_preserves_prior_presentation(
 	current = _Snapshot(4, "a" * 64, True)
 	saved = _Snapshot(4, "b" * 64, False)
 	tab, controller = _tab(current, saved, True, (True, False))
-	with pytest.raises(ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabError):
+	with pytest.raises(ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError):
 		tab.save_atomic(str(tmp_path / "ethanol.cdml"))
 	assert (
 		tab.current_snapshot is current
@@ -252,7 +252,7 @@ def test_disposal_rejects_late_native_operations(
 	current = _Snapshot(4, "a" * 64, True)
 	tab, controller = _tab(current, current, True)
 	tab.dispose()
-	with pytest.raises(ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabError):
+	with pytest.raises(ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError):
 		tab.save_atomic(str(tmp_path / "ethanol.cdml"))
 	assert controller.disposed and controller.installed is not None
 
@@ -261,9 +261,9 @@ def test_disposal_rejects_late_native_operations(
 def test_native_selection_edit_undo_redo_restores_durable_atom(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The public native loop changes one selected atom through Rust history."""
+	"""The public Ferrum loop changes one selected atom through Rust history."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	tab.select_atom("atom-c")
@@ -283,7 +283,7 @@ def test_native_add_atom_uses_rust_identity_point_history_and_save(
 	"""One bounded insertion stays Rust-owned through selection, history, and reopen."""
 	del qapp
 	import ferrum_chem
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	choice = tab.durable_molecule_choices()[0]
@@ -308,7 +308,7 @@ def test_native_add_double_bond_uses_rust_identity_history_and_save(
 	"""Two selected atoms become one durable Rust bond through save and reopen."""
 	del qapp
 	import ferrum_chem
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "bond.cdml",
 	)
 	result = tab.add_bond_between_atoms(
@@ -336,13 +336,13 @@ def test_native_add_single_bond_requires_exactly_two_selected_atoms(
 		) -> None:
 	"""Selection mistakes are rejected before a Rust candidate or revision exists."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "bond.cdml",
 	)
 	tab.select_atom("atom-c")
 	before = tab.current_snapshot
 	with pytest.raises(
-		ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabError,
+		ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError,
 	):
 		tab.add_single_bond_between_selected_atoms()
 	assert tab.current_snapshot is before and not tab.is_dirty and not tab.requires_refresh
@@ -355,7 +355,7 @@ def test_native_add_bonded_atom_is_one_rust_history_entry(
 		) -> None:
 	"""A new atom and its bond appear and disappear through one Rust revision."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "bonded-atom.cdml",
 	)
 	import ferrum_chem
@@ -385,7 +385,7 @@ def test_native_move_atom_uses_rust_position_history_and_selection(
 		) -> None:
 	"""One exact scene point becomes the authoritative Rust atom coordinate."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "move-atom.cdml",
 	)
 	result = tab.move_atom_to("atom-c", 55.5, 66.25)
@@ -408,7 +408,7 @@ def test_native_delete_atom_removes_incident_bonds_and_round_trips(
 	"""One selected atom deletion stays Rust-owned through undo and save."""
 	del qapp
 	import ferrum_chem
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "delete-atom.cdml",
 	)
 	tab.select_atoms(("atom-c", "atom-o"))
@@ -436,7 +436,7 @@ def test_native_delete_bond_preserves_atoms_and_round_trips(
 	"""One selected bond deletion stays Rust-owned through undo and save."""
 	del qapp
 	import ferrum_chem
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "delete-bond.cdml",
 	)
 	tab.select_atoms(("atom-c", "atom-o"))
@@ -463,7 +463,7 @@ def test_native_bond_order_change_round_trips_and_selects_the_same_bond(
 	"""One selected Rust bond becomes a visible double bond and remains undoable."""
 	del qapp
 	import ferrum_chem
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "bond-order.cdml",
 	)
 	tab.select_atoms(("atom-c", "atom-o"))
@@ -494,7 +494,7 @@ def test_native_add_atom_refresh_selects_only_after_replacement_succeeds(
 		) -> None:
 	"""An accepted insertion retains its Rust ID until Refresh installs its scene."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	choice = tab.durable_molecule_choices()[0]
@@ -502,7 +502,7 @@ def test_native_add_atom_refresh_selects_only_after_replacement_succeeds(
 	replace = tab._controller.replace
 	monkeypatch.setattr(tab._controller, "replace", lambda _observation, _latch: False)
 	with pytest.raises(
-		ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabMutationPresentationError,
+		ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError,
 	):
 		tab.add_atom_at(choice.object_id, "O", 30.5, 40.25)
 	assert tab.current_snapshot is prior and tab.requires_refresh and tab.is_dirty
@@ -521,7 +521,7 @@ def test_accepted_mutation_projection_failure_blocks_save_until_exact_refresh(
 		) -> None:
 	"""A scene failure never hides an accepted Rust edit behind the prior display."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	tab.select_atom("atom-c")
@@ -529,11 +529,11 @@ def test_accepted_mutation_projection_failure_blocks_save_until_exact_refresh(
 	replace = tab._controller.replace
 	monkeypatch.setattr(tab._controller, "replace", lambda _observation, _latch: False)
 	with pytest.raises(
-			ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabMutationPresentationError,
+			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError,
 	):
 		tab.change_selected_atom_element("N")
 	assert tab.current_snapshot is prior and tab.requires_refresh and tab.is_dirty
-	with pytest.raises(ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabError):
+	with pytest.raises(ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError):
 		tab.save_atomic(str(tmp_path / "blocked-native-edit.cdml"))
 	monkeypatch.setattr(tab._controller, "replace", replace)
 	assert tab.refresh_authoritative() and not tab.requires_refresh
@@ -544,10 +544,10 @@ def test_accepted_mutation_projection_failure_blocks_save_until_exact_refresh(
 def test_stale_native_edit_keeps_the_installed_scene_truth(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""A stale revision rejection cannot replace the current native projection."""
+	"""A stale revision rejection cannot replace the current Ferrum projection."""
 	del qapp
 	import ferrum_chem
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	tab.select_atom("atom-c")
@@ -567,7 +567,7 @@ def test_post_accept_observe_exception_retains_authoritative_pending_state(
 		) -> None:
 	"""An observation exception after submit cannot make a clean tab closable."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	tab.select_atom("atom-c")
@@ -575,7 +575,7 @@ def test_post_accept_observe_exception_retains_authoritative_pending_state(
 	session = tab._session
 	tab._session = _ObserveFailureSession(session)
 	with pytest.raises(
-			ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabMutationPresentationError,
+			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError,
 	):
 		tab.change_selected_atom_element("N")
 	assert tab.current_snapshot is prior and tab.requires_refresh and tab.is_dirty
@@ -594,7 +594,7 @@ def test_post_accept_replace_exception_retains_authority_until_refresh(
 		) -> None:
 	"""A controller exception after Rust acceptance preserves recovery ownership."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	tab.select_atom("atom-c")
@@ -605,7 +605,7 @@ def test_post_accept_replace_exception_retains_authority_until_refresh(
 		raise RuntimeError("injected replacement failure")
 	monkeypatch.setattr(tab._controller, "replace", fail_replace)
 	with pytest.raises(
-			ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabMutationPresentationError,
+			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError,
 	):
 		tab.change_selected_atom_element("N")
 	assert tab.current_snapshot is prior and tab.requires_refresh and tab.is_dirty

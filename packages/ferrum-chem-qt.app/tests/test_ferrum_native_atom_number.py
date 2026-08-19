@@ -1,21 +1,18 @@
-"""Behavior tests for the Rust-native persistent atom-number seam."""
+"""Behavior tests for the Ferrum persistent atom-number seam."""
 
 # Standard Library
 import os
-import sys
-import types
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-sys.modules.setdefault("ferrum_chem", types.ModuleType("ferrum_chem"))
 
 # PIP3 modules
 import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_atom_number
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.atom_number
+import ferrum_qt.ferrum.main_window
 
 
 #============================================
@@ -93,7 +90,7 @@ def test_dialog_uses_the_protocol_range_without_an_arbitrary_widget_ceiling(
 		) -> None:
 	"""The text form accepts the complete positive u64 protocol and rejects coercion."""
 	dialog = (
-		ferrum_qt.native.ferrum_native_atom_number.
+		ferrum_qt.ferrum.atom_number.
 		FerrumNativeAtomNumberDialog((1 << 64) - 1, True)
 	)
 	ok = dialog.buttons.button(
@@ -113,14 +110,14 @@ def test_public_window_actions_submit_one_assignment_and_one_clear(
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""The native actions carry only explicit scalar intent to the active tab."""
+	"""The Ferrum actions carry only explicit scalar intent to the active tab."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = _NativeTab(_Atom(7, True))
 	monkeypatch.setattr(window, "_active_native_tab", lambda: tab)
 	monkeypatch.setattr(window, "_refresh_actions", lambda *_unused: None)
 	monkeypatch.setattr(
-		ferrum_qt.native.ferrum_native_atom_number,
+		ferrum_qt.ferrum.atom_number,
 		"FerrumNativeAtomNumberDialog",
 		_AcceptedDialog,
 	)

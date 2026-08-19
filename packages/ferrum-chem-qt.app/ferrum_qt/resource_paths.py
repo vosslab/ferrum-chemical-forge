@@ -1,4 +1,4 @@
-"""Resolve package-owned Ferrum-Qt runtime resources."""
+"""Resolve package-owned Ferrum runtime resources."""
 
 # Standard Library
 import pathlib

@@ -1,9 +1,9 @@
 //! Private frozen PyO3 boundary for exact durable molecule inspection.
 //!
-//! This unsupported extension entry point is for the bundled Ferrum-Qt native
+//! This unsupported extension entry point is for the bundled Ferrum native
 //! route only.  It deliberately has no wheel-stub, CLI, serde, or wire surface.
 
-use ferrum_api::{
+use ferrum_document::{
     DocumentMoleculeInspectionRequestV1, DocumentMoleculeInspectionV1,
     inspect_document_molecule_v1 as inspect_rust_document_molecule_v1,
 };
@@ -92,7 +92,7 @@ pub(crate) struct PyDocumentMoleculeInspectionV1 {
 
 /// Inspect one exact durable direct-root molecule without mutating a session.
 ///
-/// Experimental internal-to-Ferrum-Qt API.  The receipt reports retained source
+/// Experimental internal-to-Ferrum API.  The receipt reports retained source
 /// facts only: its element inventory is not a molecular formula, and bounds are
 /// normalized atom-coordinate bounds in points.
 #[pyfunction]

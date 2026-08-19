@@ -1,13 +1,13 @@
 //! Private worker-safe inspection and authenticated user-template insertion.
 //!
-//! This unsupported entry point belongs only to bundled Ferrum-Qt. It has no
+//! This unsupported entry point belongs only to bundled Ferrum. It has no
 //! wheel stub, CLI, serde, or wire-format commitment.
 
-use ferrum_api::{
+use ferrum_document::DocumentSession;
+use ferrum_document::{
     DOCUMENT_USER_TEMPLATE_PROFILE_V1, DocumentUserTemplateApplyErrorV1,
     DocumentUserTemplatePlanV1, apply_user_template_v1, prepare_user_template_v1,
 };
-use ferrum_document::DocumentSession;
 use ferrum_geometry::Point2;
 use pyo3::create_exception;
 use pyo3::prelude::*;

@@ -1,4 +1,4 @@
-"""Prove installed Ferrum bond-property editing remains a native Rust route."""
+"""Prove installed Ferrum bond-property editing remains a Ferrum Rust route."""
 
 # Standard Library
 import argparse
@@ -15,7 +15,7 @@ APP_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 #============================================
 class NativeBondPropertiesE2eError(RuntimeError):
-	"""Raised when the installed native bond-properties path loses durable truth."""
+	"""Raised when the installed Ferrum bond-properties path loses durable truth."""
 
 
 #============================================
@@ -67,9 +67,9 @@ def _assert_bond(bond: object) -> None:
 		ferrum_chem.DocumentBondStyleV1.normal, True, 2.5, 4.0,
 		5.0, "#aabbcc",
 	):
-		raise NativeBondPropertiesE2eError("native patch did not retain bond facts")
+		raise NativeBondPropertiesE2eError("Ferrum patch did not retain bond facts")
 	if (bond.start.source_id, bond.end.source_id) != ("atom-a", "atom-b"):
-		raise NativeBondPropertiesE2eError("native patch changed durable bond endpoints")
+		raise NativeBondPropertiesE2eError("Ferrum patch changed durable bond endpoints")
 
 
 #============================================
@@ -77,14 +77,14 @@ def _assert_unchanged(tab: object, before: object, label: str) -> None:
 	"""Assert a rejected intent left the tab's authoritative snapshot untouched."""
 	after = tab.current_snapshot
 	if (after.revision, after.digest) != (before.revision, before.digest):
-		raise NativeBondPropertiesE2eError(label + " mutated the native session")
+		raise NativeBondPropertiesE2eError(label + " mutated the Ferrum session")
 
 
 #============================================
 def _assert_visual_adapter_refuses_unrepresentable_facts(
 		cdml: str, ferrum_chem: object) -> None:
-	"""Keep unsupported visual forms from authoring a replacement native edit."""
-	import ferrum_qt.native.ferrum_native_bond_properties
+	"""Keep unsupported visual forms from authoring a replacement Ferrum edit."""
+	import ferrum_qt.ferrum.bond_properties
 	changes = ferrum_chem.DocumentBondPropertyChangeV1
 	cases = (
 		("bond_width_negative", changes.bond_width(-4.0)),
@@ -97,29 +97,29 @@ def _assert_visual_adapter_refuses_unrepresentable_facts(
 		).observation.snapshot
 		bond = _bond(session.observe(changed.revision).projection)
 		try:
-			ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(bond)
+			ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(bond)
 		except ValueError:
 			pass
 		else:
 			raise NativeBondPropertiesE2eError(
-				"native visual adapter accepted unrepresentable " + label,
+				"Ferrum visual adapter accepted unrepresentable " + label,
 			)
 		after = session.snapshot()
 		if (after.revision, after.digest) != (changed.revision, changed.digest):
 			raise NativeBondPropertiesE2eError(
-				"visual adapter mutated " + label + " native document",
+				"visual adapter mutated " + label + " Ferrum document",
 			)
 
 
 #============================================
 def _probe() -> dict[str, object]:
-	"""Open, change, undo/redo, save, and reopen through public native seams."""
+	"""Open, change, undo/redo, save, and reopen through public Ferrum seams."""
 	os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 	sys.path.insert(0, str(APP_ROOT))
 
 	import PySide6.QtWidgets
 	import ferrum_chem
-	import ferrum_qt.native.ferrum_native_main_window
+	import ferrum_qt.ferrum.main_window
 
 	if hasattr(ferrum_chem, "__path__") or pathlib.Path(ferrum_chem.__file__).suffix != ".so":
 		raise NativeBondPropertiesE2eError("Ferrum chemistry did not load as a root extension")
@@ -137,17 +137,17 @@ def _probe() -> dict[str, object]:
 		'<v:opaque id="retained" keep="literal"><v:keep/></v:opaque></cdml>'
 	)
 	source_path.write_text(source_cdml, encoding="utf-8")
-	host = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
+	host = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	if not host.open_file_path(str(source_path)):
-		raise NativeBondPropertiesE2eError("native CDML open returned false")
+		raise NativeBondPropertiesE2eError("Ferrum CDML open returned false")
 	tab = host._active_native_tab()
 	if tab is None:
-		raise NativeBondPropertiesE2eError("native host did not create a tab")
+		raise NativeBondPropertiesE2eError("Ferrum host did not create a tab")
 	try:
 		tab.select_bond("bond-ab")
 	except Exception as error:
 		raise NativeBondPropertiesE2eError(
-			"native projection did not expose bond-ab: %r" % (
+			"Ferrum projection did not expose bond-ab: %r" % (
 				tuple(tab._controller.projection.durable_items),
 			),
 		) from error
@@ -184,13 +184,13 @@ def _probe() -> dict[str, object]:
 	result = tab.apply_selected_bond_properties(changes)
 	changed = tab.current_snapshot
 	if changed.revision != 1 or not tab.is_dirty:
-		raise NativeBondPropertiesE2eError("native patch did not create one dirty revision")
+		raise NativeBondPropertiesE2eError("Ferrum patch did not create one dirty revision")
 	if result.observation.snapshot.revision != changed.revision:
-		raise NativeBondPropertiesE2eError("native patch result disagrees with tab truth")
+		raise NativeBondPropertiesE2eError("Ferrum patch result disagrees with tab truth")
 	if not tab.has_one_selected_bond() or tab.selected_bond_projection().source_id != "bond-ab":
 		plan = tab._session.observe_render(changed.revision).molecule_plans[0].plan
 		raise NativeBondPropertiesE2eError(
-			"native patch did not retain bond selection: %r; issues=%r" % (
+			"Ferrum patch did not retain bond selection: %r; issues=%r" % (
 				tuple(tab._controller.projection.durable_items), tuple(plan.issues),
 			),
 		)
@@ -207,15 +207,15 @@ def _probe() -> dict[str, object]:
 	_assert_unchanged(tab, stale_before, "stale PyO3 bond-properties operation")
 	undone = tab.undo().observation
 	if undone.snapshot.revision <= changed.revision or _bond(undone.projection).source_type != "n1":
-		raise NativeBondPropertiesE2eError("native bond-properties undo did not restore source facts")
+		raise NativeBondPropertiesE2eError("Ferrum bond-properties undo did not restore source facts")
 	redone = tab.redo().observation
 	if redone.snapshot.revision <= undone.snapshot.revision:
-		raise NativeBondPropertiesE2eError("native bond-properties redo did not advance history")
+		raise NativeBondPropertiesE2eError("Ferrum bond-properties redo did not advance history")
 	_assert_bond(_bond(redone.projection))
 	if not host.save_active_to_path(str(saved_path)):
-		raise NativeBondPropertiesE2eError("native bond-properties save returned false")
+		raise NativeBondPropertiesE2eError("Ferrum bond-properties save returned false")
 	if tab.is_dirty or tab.file_path != saved_path:
-		raise NativeBondPropertiesE2eError("native save did not install its clean published truth")
+		raise NativeBondPropertiesE2eError("Ferrum save did not install its clean published truth")
 	reopened = ferrum_chem.DocumentSession.load(saved_path.read_text(encoding="utf-8"))
 	reopened_snapshot = reopened.snapshot()
 	_assert_bond(_bond(reopened.observe_render(0).document.projection))
@@ -224,7 +224,7 @@ def _probe() -> dict[str, object]:
 	if "vendor_keep=\"yes\"" not in reopened_snapshot.cdml or "<v:keep" not in reopened_snapshot.cdml:
 		raise NativeBondPropertiesE2eError("save/reopen lost unknown CDML content")
 	if reopened_snapshot.is_dirty:
-		raise NativeBondPropertiesE2eError("reopened saved native document is unexpectedly dirty")
+		raise NativeBondPropertiesE2eError("reopened saved Ferrum document is unexpectedly dirty")
 	host.close()
 	app.processEvents()
 	return {
@@ -257,7 +257,7 @@ def main() -> int:
 		output = _run(str(python), "-I", "-B", str(pathlib.Path(__file__).resolve()), "--probe", environment=environment)
 	value = json.loads(output)
 	if not value["clean"] or not value["opaque_extension"]:
-		raise NativeBondPropertiesE2eError("native bond-properties proof lost durable output truth")
+		raise NativeBondPropertiesE2eError("Ferrum bond-properties proof lost durable output truth")
 	print(json.dumps(value, sort_keys=True))
 	return 0
 

@@ -1,18 +1,18 @@
-//! Private exact-revision selected-molecule SDF operation for Ferrum-Qt.
+//! Private exact-revision selected-molecule SDF operation for Ferrum.
 //!
 //! This discoverable entry point deliberately remains absent from the wheel
 //! stub, CLI, serde, and wire contracts.
 
 use std::path::PathBuf;
 
-use ferrum_api::{
+use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
+use ferrum_document::DocumentObjectIdV1;
+use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
+use ferrum_document::{
     DocumentMoleculeSdfErrorV1, DocumentMoleculeSdfPublicationErrorV1,
     DocumentMoleculeSdfRequestV1, DocumentMoleculeSdfV1, export_prepared_document_molecule_sdf_v1,
     prepare_document_molecule_sdf_v1, publish_document_molecule_sdf_v1 as publish_sdf_receipt,
 };
-use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
-use ferrum_document::DocumentObjectIdV1;
-use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -102,7 +102,7 @@ enum NativeExportFailure {
 
 /// Export one exact supported direct-root graph as one completed SDF record.
 ///
-/// Experimental internal-to-Ferrum-Qt operation. Rust authenticates and owns
+/// Experimental internal-to-Ferrum operation. Rust authenticates and owns
 /// the graph and metadata before the packaged adapter is resolved.
 #[pyfunction]
 fn export_document_molecule_sdf_v1(

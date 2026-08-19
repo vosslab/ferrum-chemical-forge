@@ -84,23 +84,13 @@ separately green in [`molblock_codec_v1.md`](molblock_codec_v1.md),
 [`sdf_codec_v1.md`](sdf_codec_v1.md), and `inchi_codec_v1.md`.
 Those formats use their own grounded comparison rules rather than SMARTS bytes.
 
-## Reproduction
+## Historical evidence
 
-Build the wheel from its exact hash-verified source archives, run the native-wheel
-E2E, install Python RDKit 2026.03.5 in an isolated environment, then run the retained
-same-build comparison:
-
-```bash
-source source_me.sh
-python3 -B devel/measure_smarts_codec_parity.py \
-	--oracle-python <rdkit-2026.03.5-venv>/bin/python \
-	--ferrum-python <fresh-ferrum-wheel-venv>/bin/python \
-	--native-e2e-receipt output_native_wheel/evidence/native-wheel-e2e-receipt.json \
-	--wheel <fresh-smarts-wheel.whl>
-```
-
-The cross-version check was one-time release evidence rather than a permanent test.
-It generated the eight report queries independently under RDKit 2026.03.4 and
-2026.03.5, parsed both query sets under both releases, and compared chirality-aware
-substructure-match truth across the 17-target corpus. It used no network, timing, or
-exact cross-version text assertion.
+The isolated Python-RDKit generator and child were retired after this accepted
+one-time semantic receipt. The retained corpus, wheel identity, source digests, and
+comparison policy are archival evidence rather than a permanent Python-RDKit or CI
+dependency. The cross-version check was one-time release evidence: it generated the
+eight report queries independently under RDKit 2026.03.4 and 2026.03.5, parsed both
+query sets under both releases, and compared chirality-aware substructure-match truth
+across the 17-target corpus. A future codec measurement requires an explicitly scoped
+Ferrum release-evidence plan and a fresh accepted receipt.

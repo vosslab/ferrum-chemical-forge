@@ -13,12 +13,9 @@ import argparse
 import json
 import os
 import platform
-import re
-import stat
 import shutil
 import subprocess
 import sys
-import tarfile
 import time
 import urllib.request
 import urllib.parse
@@ -28,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import native_wheel_builder_self_test
+import native_wheel_bundle
 from native_wheel_packaging import (
 	NativePackagingError,
 	find_maturin,
@@ -35,10 +33,18 @@ from native_wheel_packaging import (
 	stage_native_notice_bundle,
 	stage_python_project,
 	tool_version,
+	validate_wheel_members as validate_packaged_wheel_members,
 )
 
 from native_wheel_adapter_abi import adapter_abi_version_from_header
-from native_wheel_download import HttpsOnlyRedirectHandler, validated_https_url
+from native_wheel_download import (
+	ArchiveExtractionError,
+	HttpsOnlyRedirectHandler,
+	safe_extract as extract_tar,
+	safe_extract_zip as extract_zip,
+	safe_extract_zip_members as extract_zip_members,
+	validated_https_url,
+)
 from native_wheel_macho import (
 	NativeMachoError,
 	assert_clean_closure,
@@ -65,7 +71,7 @@ from native_wheel_profile import (
 	BOOST_VERSION,
 	FERRUM_RDKIT_PROFILE,
 	MACOS_ARM64_NATIVE_CLOSURE,
-	MACHINE_RESULT_SCHEMA,
+MACHINE_RESULT_SCHEMA,
 	PinnedSource,
 	RDKIT_SHA256,
 	RDKIT_TAG,
@@ -86,14 +92,22 @@ from native_wheel_receipt import (
 	write_build_receipt,
 )
 
+engine_bundle_manifest = native_wheel_bundle.engine_bundle_manifest
+executable_bundle_target = native_wheel_bundle.executable_bundle_target
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RUST_PACKAGE_SOURCE = Path(__file__).resolve().parents[1]
 NATIVE_SOURCE = REPO_ROOT / "packages/ferrum-rust/crates/chemistry/native"
 DOWNLOAD_ATTEMPTS = 3
 ADAPTER_BUILD_TYPES = ("Release", "RelWithDebInfo")
 ADAPTER_HEADER = NATIVE_SOURCE / "include/ferrum_chem_adapter.h"
+BUNDLE_MANIFEST_NAME = "ferrum-engine-bundle-v1.json"
+BUNDLE_SCHEMA = "ferrum-engine-bundle-v1"
+ADAPTER_NAME = "libferrum_chem.dylib"
+
 class NativeBuildError(RuntimeError):
 	"""An actionable failure in the build or closure contract."""
+
+
 try:
 	ADAPTER_ABI_VERSION = adapter_abi_version_from_header(ADAPTER_HEADER)
 except RuntimeError as error:
@@ -143,10 +157,27 @@ def output_path(value: str) -> Path:
 		raise argparse.ArgumentTypeError("--output-root must not be inside OTHER_REPOS")
 	try:
 		relative = path.relative_to(REPO_ROOT)
-	except ValueError as error:
-		raise argparse.ArgumentTypeError("--output-root must be inside this checkout") from error
-	if not relative.parts or not relative.parts[0].startswith("output"):
-		raise argparse.ArgumentTypeError("--output-root must be beneath a root ignored output* directory")
+	except ValueError:
+		relative = None
+	if relative is not None:
+		if relative.parts and relative.parts[0].startswith("output"):
+			return path
+	else:
+		temporary_root = Path("/private/tmp")
+		try:
+			temporary_relative = path.relative_to(temporary_root)
+		except ValueError:
+			temporary_relative = None
+		if (
+			temporary_relative is not None
+			and temporary_relative.parts
+			and temporary_relative.parts[0].startswith("ferrum-native-")
+		):
+			return path
+	raise argparse.ArgumentTypeError(
+		"--output-root must be beneath a checkout output* directory or "
+		"/private/tmp/ferrum-native-*"
+	)
 	return path
 
 
@@ -376,79 +407,43 @@ def download_archive(output_root: Path) -> Path:
 	archive = materialized_archive_path(output_root, FERRUM_RDKIT_PROFILE.rdkit)
 	return download_verified_archive(archive, RDKIT_URL, RDKIT_SHA256, f"RDKit {RDKIT_TAG}")
 
+
 #============================================
 def safe_extract(archive: Path, destination: Path) -> Path:
-	"""Extract one tar archive after rejecting traversal and duplicate entries.
+	"""Map safe tar extraction into the builder's stable error contract."""
+	try:
+		result = extract_tar(archive, destination)
+	except ArchiveExtractionError as error:
+		raise NativeBuildError(str(error)) from error
+	return result
 
-	Args:
-		archive: The verified tar archive to unpack.
-		destination: The empty directory that receives the archive contents.
-
-	Returns:
-		The archive's single top-level source directory.
-	"""
-	with tarfile.open(archive, "r:gz") as contents:
-		members = contents.getmembers()
-		seen = set()
-		for member in members:
-			member_path = (destination / member.name).resolve()
-			if not member_path.is_relative_to(destination.resolve()):
-				raise NativeBuildError(f"RDKit archive contains an unsafe path: {member.name}")
-			if member_path in seen:
-				raise NativeBuildError(f"RDKit archive contains a duplicate path: {member.name}")
-			seen.add(member_path)
-		contents.extractall(destination, members, filter="data")
-	children = [path for path in destination.iterdir() if path.is_dir()]
-	if len(children) != 1:
-		raise NativeBuildError("verified source archive must extract one top-level directory")
-	return children[0]
 
 #============================================
 def safe_extract_zip(archive: Path, destination: Path) -> Path:
-	"""Extract one ZIP archive after rejecting unsafe member structure.
+	"""Map safe ZIP extraction into the builder's stable error contract."""
+	try:
+		result = extract_zip(archive, destination)
+	except ArchiveExtractionError as error:
+		raise NativeBuildError(str(error)) from error
+	return result
 
-	Args:
-		archive: The verified ZIP archive to unpack.
-		destination: The empty directory that receives the archive contents.
-
-	Returns:
-		The archive's single top-level source directory.
-	"""
-	with zipfile.ZipFile(archive) as contents:
-		safe_extract_zip_members(contents, destination)
-	children = [path for path in destination.iterdir() if path.is_dir()]
-	if len(children) != 1:
-		raise NativeBuildError("verified source archive must extract one top-level directory")
-	return children[0]
 
 #============================================
 def safe_extract_zip_members(contents: zipfile.ZipFile, destination: Path) -> None:
-	"""Extract regular ZIP members without traversal, links, or duplicate targets."""
-	root = destination.resolve()
-	seen = set()
-	for member in contents.infolist():
-		target = (destination / member.filename).resolve()
-		if not target.is_relative_to(root):
-			raise NativeBuildError(f"verified archive contains an unsafe path: {member.filename}")
-		if target in seen:
-			raise NativeBuildError(f"verified archive contains a duplicate path: {member.filename}")
-		seen.add(target)
-		mode = member.external_attr >> 16
-		file_type = stat.S_IFMT(mode)
-		if member.is_dir():
-			if file_type not in (0, stat.S_IFDIR):
-				raise NativeBuildError(f"verified archive contains an invalid directory: {member.filename}")
-			target.mkdir(parents=True, exist_ok=True)
-			continue
-		if file_type not in (0, stat.S_IFREG):
-			raise NativeBuildError(f"verified archive contains a non-regular file: {member.filename}")
-		target.parent.mkdir(parents=True, exist_ok=True)
-		with contents.open(member) as source, target.open("xb") as output:
-			shutil.copyfileobj(source, output)
-		# Preserve ordinary rwx bits, never setuid, setgid, or sticky archive bits.
-		permissions = mode & 0o777
-		if permissions:
-			target.chmod(permissions)
+	"""Map ZIP-member extraction into the builder's stable error contract."""
+	try:
+		extract_zip_members(contents, destination)
+	except ArchiveExtractionError as error:
+		raise NativeBuildError(str(error)) from error
+
+
+#============================================
+def validate_wheel_members(members: list[str], profile: RdkitCapabilityProfile = FERRUM_RDKIT_PROFILE) -> None:
+	"""Map packaged wheel-member validation into the builder error contract."""
+	try:
+		validate_packaged_wheel_members(members, profile)
+	except NativePackagingError as error:
+		raise NativeBuildError(str(error)) from error
 
 #============================================
 def materialize_source_archive(
@@ -646,7 +641,35 @@ def build_rdkit(output_root: Path, archive_root: Path | None) -> RdkitLayout:
 	build = output_root / "rdkit-build"
 	install = output_root / "rdkit-install"
 	if build.exists() or install.exists():
-		raise NativeBuildError("refusing to overwrite an RDKit build; choose a fresh output root")
+		if not (build.is_dir() and install.is_dir()):
+			raise NativeBuildError("refusing to overwrite an incomplete RDKit build; choose a fresh output root")
+		try:
+			llvm_root = homebrew_llvm()
+			cmake = homebrew_cmake()
+			sdk_root = apple_sdk()
+			validate_resolved_rdkit_configuration(build)
+			provenance_audit = audit_cmake_provenance(build, output_root, llvm_root, cmake, sdk_root)
+		except (NativePolicyError, ValueError) as error:
+			raise NativeBuildError(str(error)) from error
+		if not (output_root / "ferrum-native-inputs.json").is_file():
+			stage_rdkit_inputs(output_root, source, build)
+			publish_native_input_manifest(output_root)
+		layout = rdkit_layout_from_output_root(output_root)
+		return RdkitLayout(
+			input_root=layout.input_root,
+			lib_dir=layout.lib_dir,
+			include_dir=layout.include_dir,
+			boost_include_dir=layout.boost_include_dir,
+			graphmol_library=layout.graphmol_library,
+			rdgeneral_library=layout.rdgeneral_library,
+			depictor_library=layout.depictor_library,
+			smilesparse_library=layout.smilesparse_library,
+			fileparsers_library=layout.fileparsers_library,
+			rdinchi_library=layout.rdinchi_library,
+			cmake_options=tuple(minimal_rdkit_options(catch2_source, better_enums_source, boost_config)),
+			toolchain=toolchain_receipt(llvm_root, cmake, sdk_root),
+			provenance_audit=provenance_audit,
+		)
 	options = minimal_rdkit_options(catch2_source, better_enums_source, boost_config)
 	options.append(f"-DCMAKE_INSTALL_PREFIX={install}")
 	validate_rdkit_configuration(options)
@@ -764,51 +787,6 @@ def configure_adapter(
 			)
 	return adapter
 #============================================
-def validate_wheel_members(
-	members: list[str],
-	profile: RdkitCapabilityProfile = FERRUM_RDKIT_PROFILE,
-) -> None:
-	"""Require Ferrum's root metadata while rejecting Python-RDKit/SWIG payloads."""
-	required_root_metadata = {
-		"ferrum_chem.pyi",
-		"py.typed",
-		"ferrum-operation-v1.schema.json",
-	}
-	missing_root_metadata = required_root_metadata.difference(members)
-	if missing_root_metadata:
-		raise NativeBuildError(
-			"wheel is missing required Ferrum metadata: "
-			f"{sorted(missing_root_metadata)}"
-		)
-	native_extensions = [member for member in members if re.fullmatch(r"ferrum_chem[^/]*\.so", member)]
-	if len(native_extensions) != 1:
-		raise NativeBuildError(
-			f"wheel must contain one Ferrum native extension, found {native_extensions}"
-		)
-	native_prefix = ".dylibs/"
-	native_members = {
-		member.removeprefix(native_prefix)
-		for member in members
-		if member.startswith(native_prefix) and member.lower().endswith(".dylib")
-	}
-	expected_native = MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names
-	if native_members != expected_native:
-		raise NativeBuildError(
-			"wheel native members differ from the frozen platform closure: "
-			f"expected {sorted(expected_native)}, got {sorted(native_members)}"
-		)
-	for member in members:
-		if member.startswith("ferrum_chem/"):
-			raise NativeBuildError(f"wheel contains a prohibited nested ferrum_chem package: {member}")
-		if member in native_extensions:
-			continue
-		if member in required_root_metadata or ".dist-info/" in member:
-			continue
-		if member.startswith(native_prefix) and member.removeprefix(native_prefix) in expected_native:
-			continue
-		raise NativeBuildError(f"wheel contains an unexpected non-native member: {member}")
-
-#============================================
 def audit_wheel_closure(wheel: Path, output_root: Path) -> None:
 	"""Inspect the packaged Mach-O files, not the source staging directory."""
 	audit_root = output_root / "wheel-closure-audit"
@@ -819,9 +797,15 @@ def audit_wheel_closure(wheel: Path, output_root: Path) -> None:
 		safe_extract_zip_members(contents, audit_root)
 		package = audit_root
 		extensions = sorted(package.glob("ferrum_chem*.so"))
+		if not extensions:
+			package = audit_root / "ferrum_chem"
+			extensions = sorted(package.glob("ferrum_chem*.so"))
 	if len(extensions) != 1:
 		raise NativeBuildError(f"wheel must contain exactly one native extension, found {extensions}")
-	assert_clean_closure(extensions[0], package / ".dylibs")
+	package_libs = audit_root / ".dylibs"
+	if not package_libs.is_dir():
+		package_libs = package / ".dylibs"
+	assert_clean_closure(extensions[0], package_libs)
 
 #============================================
 def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: str) -> Path:
@@ -833,7 +817,7 @@ def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: s
 	output_root = output_root.resolve()
 	stage = stage_python_project(output_root, RUST_PACKAGE_SOURCE)
 	stage_native_notice_bundle(stage, RUST_PACKAGE_SOURCE, layout.input_root)
-	package_libs = stage / ".dylibs"
+	package_libs = stage / "ferrum_chem" / ".dylibs" if (stage / "ferrum_chem").is_dir() else stage / ".dylibs"
 	copy_and_rewrite_closure(adapter, layout.graphmol_library, package_libs)
 	try:
 		environment = rust_tool_environment(homebrew_llvm())
@@ -864,6 +848,26 @@ def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: s
 	return wheels[0]
 
 #============================================
+def build_engine_bundle(output_root: Path, adapter: Path, layout: RdkitLayout, destination: Path) -> Path:
+	"""Publish the same rewritten native closure in Ferrum's CLI bundle layout."""
+	root = output_root.resolve()
+	destination = destination.resolve()
+	if not destination.is_relative_to(root):
+		raise NativeBuildError("--engine-bundle-dir must be beneath --output-root")
+	if destination.exists():
+		raise NativeBuildError(f"refusing to overwrite existing engine bundle: {destination}")
+	destination.mkdir(parents=True)
+	copy_and_rewrite_closure(adapter, layout.graphmol_library, destination)
+	assert_packaged_library_closure(destination)
+	manifest = destination / BUNDLE_MANIFEST_NAME
+	manifest.write_bytes(engine_bundle_manifest(
+		sorted(destination.glob("*.dylib")), BUNDLE_SCHEMA, ADAPTER_ABI_VERSION, ADAPTER_NAME, sha256
+	))
+	if not (destination / ADAPTER_NAME).is_file():
+		raise NativeBuildError(f"engine bundle lacks required adapter: {destination / ADAPTER_NAME}")
+	return destination
+
+#============================================
 def emit_artifact_result(action: str, artifact: Path) -> None:
 	"""Emit the sole stdout record for build actions after verifying its target."""
 	artifact = artifact.resolve()
@@ -891,6 +895,8 @@ def command_build(arguments: argparse.Namespace) -> None:
 	variants = detect_variants(rdkit_libraries)
 	adapter = configure_adapter(arguments.output_root, layout)
 	wheel = build_wheel(arguments.output_root, adapter, layout, TARGET)
+	if arguments.engine_bundle_dir is not None:
+		build_engine_bundle(arguments.output_root, adapter, layout, arguments.engine_bundle_dir)
 	try:
 		write_build_receipt(
 			arguments.output_root,
@@ -935,6 +941,14 @@ def parser() -> argparse.ArgumentParser:
 	subcommands = result.add_subparsers(dest="command", required=True)
 	build = subcommands.add_parser("build", help="verify RDKit, source-build it, then build a wheel")
 	build.add_argument("--output-root", required=True, type=output_path)
+	build.add_argument(
+		"--engine-bundle-dir",
+		type=output_path,
+		help=(
+			"optional fresh directory beneath --output-root for the same verified adapter's "
+			"Ferrum CLI engine bundle"
+		),
+	)
 	source = build.add_mutually_exclusive_group()
 	source.add_argument(
 		"--source-archive-root",

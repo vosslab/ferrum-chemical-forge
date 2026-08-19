@@ -1,19 +1,19 @@
-//! Private canonical document-SMILES operation for bundled Ferrum-Qt.
+//! Private canonical document-SMILES operation for bundled Ferrum.
 //!
 //! This discoverable entry point deliberately remains absent from the wheel
 //! stub, CLI, serde, and wire contracts.
 
 use std::path::PathBuf;
 
-use ferrum_api::{
+use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
+use ferrum_document::DocumentObjectIdV1;
+use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
+use ferrum_document::{
     DocumentMoleculeSmilesErrorV1, DocumentMoleculeSmilesPublicationErrorV1,
     DocumentMoleculeSmilesRequestV1, DocumentMoleculeSmilesV1,
     export_prepared_document_molecule_smiles_v1, prepare_document_molecule_smiles_v1,
     publish_document_molecule_smiles_v1 as publish_smiles_receipt,
 };
-use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
-use ferrum_document::DocumentObjectIdV1;
-use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -92,7 +92,7 @@ enum NativeExportFailure {
 
 /// Export one exact supported direct-root graph as canonical isomeric SMILES.
 ///
-/// Experimental internal-to-Ferrum-Qt operation. Rust authenticates and owns
+/// Experimental internal-to-Ferrum operation. Rust authenticates and owns
 /// the complete graph before the packaged adapter path is resolved or loaded.
 #[pyfunction]
 fn export_document_molecule_smiles_v1(
@@ -150,7 +150,7 @@ fn export_document_molecule_smiles_v1(
 
 /// Safely publish one frozen canonical SMILES receipt to a concrete file.
 ///
-/// Experimental internal-to-Ferrum-Qt operation. The file contains exactly
+/// Experimental internal-to-Ferrum operation. The file contains exactly
 /// one UTF-8 SMILES line and this call never mutates a document session.
 #[pyfunction]
 fn publish_document_molecule_smiles_v1(

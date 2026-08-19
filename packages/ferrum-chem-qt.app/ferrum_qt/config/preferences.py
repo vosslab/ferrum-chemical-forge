@@ -1,4 +1,4 @@
-"""User preferences backed by QSettings for Ferrum-Qt."""
+"""User preferences backed by QSettings for Ferrum."""
 
 # PIP3 modules
 import PySide6.QtCore
@@ -7,7 +7,7 @@ import PySide6.QtCore
 #============================================
 # Keep persistent preferences under the same product identity that users see.
 SETTINGS_ORGANIZATION = "Ferrum"
-SETTINGS_APPLICATION = "Ferrum-Qt"
+SETTINGS_APPLICATION = "Ferrum"
 
 
 #============================================

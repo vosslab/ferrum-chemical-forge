@@ -2,18 +2,18 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use ferrum_api::{
-    CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1, DocumentIngressErrorV1,
-    DocumentIngressFormatV1, DocumentIngressOriginV1, RenderObservationError, RenderObservationV1,
-    SourcePolicyErrorV1, load_document_file_with_budget, load_document_utf8_bytes_with_budget,
-    observe_render_v1, prepare_local_cdml_file_with_origin_v1,
-    prepare_local_decoded_cdsvg_file_with_origin_v1,
-};
 use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
+use ferrum_document::{
+    CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1, DocumentIngressErrorV1,
+    DocumentIngressFormatV1, DocumentIngressOriginV1, SourcePolicyErrorV1,
+    load_document_file_with_budget, load_document_utf8_bytes_with_budget,
+    prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_with_origin_v1,
+};
 use ferrum_document::{
     CdsvgExtractionError, DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1,
     XmlInputError,
 };
+use ferrum_render::{RenderObservationError, RenderObservationV1, observe_render_v1};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyInt, PyString};

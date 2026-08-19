@@ -3,10 +3,11 @@
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
 #============================================
-class ScaleDialog(PySide6.QtWidgets.QDialog):
+class ScaleDialog(FerrumAccessibleDialog):
 	"""Dialog for scaling X/Y with optional aspect ratio lock.
 
 	Presents two spinners for X and Y scale factors and a checkbox

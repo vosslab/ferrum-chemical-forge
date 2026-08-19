@@ -1,4 +1,4 @@
-"""Resolve Ferrum-Qt's release version in source and installed layouts."""
+"""Resolve Ferrum's release version in source and installed layouts."""
 
 # Standard Library
 import os

@@ -1,0 +1,75 @@
+name: Ferrum CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: macOS arm64 verification
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: arm64
+
+      - name: Install controlled native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install cmake llvm rustup
+          rustup_bin="$(brew --prefix rustup)/bin"
+          echo "$rustup_bin" >> "$GITHUB_PATH"
+          export PATH="$rustup_bin:$PATH"
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+          rustup component add rustfmt clippy
+          rustc --version | grep -F '1.97.1'
+          cargo --version
+
+      - name: Install Python build and test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r pip_requirements-dev.txt
+
+      - name: Build validated Ferrum-Chem wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          source source_me.sh
+          python3 packages/ferrum-rust/tools/build_native_wheel.py build \
+            --output-root output_ci_native_wheel
+
+      - name: Install packaged Ferrum and Qt frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel="$(find output_ci_native_wheel/wheelhouse -maxdepth 1 -type f \
+            -name 'ferrum_chem-*.whl' -print -quit)"
+          test -n "$wheel"
+          source source_me.sh
+          python3 -m pip install "$wheel"
+          python3 -m pip install --editable packages/ferrum-chem-qt.app
+          python3 -c 'import ferrum_chem, ferrum_qt'
+
+      - name: Repository hygiene tests
+        run: pytest tests/
+
+      - name: Python and Qt tests
+        run: bash ./all_test.sh
+
+      - name: Rust checks
+        run: bash ./check_rust.sh

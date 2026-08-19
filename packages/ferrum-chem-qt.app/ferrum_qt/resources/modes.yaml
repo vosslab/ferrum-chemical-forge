@@ -1,0 +1,25 @@
+# Ferrum's currently supported drawing-tool declarations.
+#
+# Mode state and gesture handling will be introduced separately.  These
+# declarations intentionally reference only existing action IDs and do not
+# create a Python document model or a second undo stack.
+
+toolbar_order:
+  - atom
+  - draw
+  - ---
+  - cancel
+
+modes:
+  atom:
+    label_key: "Atom"
+    help_key: "Activate atom drawing"
+    action: mode.atom
+  draw:
+    label_key: "Bond"
+    help_key: "Activate bond drawing"
+    action: mode.draw
+  cancel:
+    label_key: "Cancel Tool"
+    help_key: "Cancel the active drawing tool"
+    action: tool.cancel

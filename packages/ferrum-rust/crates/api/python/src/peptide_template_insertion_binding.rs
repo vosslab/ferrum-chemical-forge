@@ -1,12 +1,13 @@
-//! Experimental Ferrum-Qt adapter for strict supported peptide templates.
+//! Experimental Ferrum adapter for strict supported peptide templates.
 
-use ferrum_api::{
-    PeptideTemplateInsertionErrorV1, PeptideTemplateMoleculeBuildErrorV1,
-    build_supported_peptide_template_molecule_insertion_v1,
-    compile_supported_peptide_template_request_v1,
-};
 use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
+use ferrum_document::{
+    PeptideTemplateMoleculeBuildErrorV1, build_supported_peptide_template_molecule_insertion_v1,
+};
 use ferrum_domain::PeptideSyntaxError;
+use ferrum_domain::{
+    PeptideTemplateInsertionErrorV1, compile_supported_peptide_template_request_v1,
+};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -39,9 +40,9 @@ enum NativePreparationFailure {
     Build(PeptideTemplateMoleculeBuildErrorV1),
 }
 
-/// Prepare a strict supported peptide template for ordinary Ferrum-Qt insertion.
+/// Prepare a strict supported peptide template for ordinary Ferrum insertion.
 ///
-/// Experimental internal-to-Ferrum-Qt API. Input is exact, nonempty uppercase
+/// Experimental internal-to-Ferrum API. Input is exact, nonempty uppercase
 /// one-letter syntax; only `ACDEFGIKLMNQRSTVY` has a native V1 template. H, P,
 /// and W are rejected before native loading.
 #[pyfunction]

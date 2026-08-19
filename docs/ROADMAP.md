@@ -56,7 +56,7 @@ order, and supported meaning must remain intact. Byte-for-byte files, pixel-equi
 renders, arbitrary test counts, and unmeasured timing limits are not release criteria.
 
 The proposed M20 target is macOS arm64 with CPython 3.12 only. Its two first-party Python
-artifacts are Ferrum-Chem and Ferrum-Qt; Qt build and runtime dependencies stay in explicit local
+artifacts are Ferrum-Chem and Ferrum; Qt build and runtime dependencies stay in explicit local
 wheelhouses, and the Rust CLI remains a Cargo-installed command. Source-accepted M20/M22 work is
 not a release claim: both milestones remain open until a real no-index clean install,
 installed-resource and LGPL relink observation, source-archive CLI run, classified artifact
@@ -65,7 +65,7 @@ own evidence.
 
 ## Deliberate boundaries
 
-- Ferrum-Qt provides the PySide6 interaction surface; Ferrum-Chem owns chemistry and
+- Ferrum provides the PySide6 interaction surface; Ferrum-Chem owns chemistry and
   document authority.
 - RDKit remains behind one project-owned native adapter.
 - Historical OASA/BKChem sources inform provenance and isolated comparisons only.

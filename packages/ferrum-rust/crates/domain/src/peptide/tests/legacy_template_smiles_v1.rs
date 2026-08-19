@@ -5,7 +5,7 @@ use crate::peptide::{
 };
 
 #[test]
-fn builds_the_oasa_compatible_profile_for_a_named_multi_residue_sequence() {
+fn builds_the_legacy_profile_for_a_named_multi_residue_sequence() {
     let sequence = PeptideSequence::parse("ANKLE").expect("strict peptide sequence");
     let receipt = build_legacy_peptide_template_smiles_v1(&sequence).expect("supported template");
 

@@ -1,4 +1,4 @@
-//! Private whole-document artifact bridge for the bundled Ferrum-Qt window.
+//! Private whole-document artifact bridge for the bundled Ferrum window.
 //!
 //! These entry points intentionally stay out of the wheel stub, CLI, serde, and
 //! wire surfaces.  They accept only an immutable Rust observation and closed
@@ -6,13 +6,13 @@
 
 use std::path::PathBuf;
 
-use ferrum_api::{
+use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
+use ferrum_render::{
     DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
     PreparedDocumentNativeArtifactV1,
     prepare_document_native_artifact_v1 as prepare_native_artifact,
     publish_prepared_document_native_artifact_v1 as publish_native_artifact,
 };
-use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyString;

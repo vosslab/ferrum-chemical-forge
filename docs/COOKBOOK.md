@@ -22,13 +22,13 @@ It leaves the input unchanged until you deliberately use a Qt save action.
    ferrum protocol run request.json
    ```
 
-3. Open the same document in the ordinary Ferrum-Qt window.
+3. Open the same document in the ordinary Ferrum window.
 
    ```bash
    ferrum-qt supplied.cdml
    ```
 
-Ferrum-Qt is the sole desktop product window. It opens the supplied uncompressed `.cdml`
+Ferrum is the sole desktop product window. It opens the supplied uncompressed `.cdml`
 through Rust, and its native document actions include ordinary editing, Undo/Redo, Save,
 Save As, reopening, and complete-document artifact export. A successful protocol rewrite
 returns structurally preserved CDML, not byte-for-byte output. Use Save As when you want to
@@ -44,5 +44,5 @@ not replace Save or Save As and does not convert formats. Use `File -> Export...
 the complete supported document as SVG, PDF, or transparent PNG; this is not CD-SVG export or
 a wrapper round-trip.
 
-For command arguments and failure behavior, see [USAGE.md](USAGE.md). For Ferrum-Qt
+For command arguments and failure behavior, see [USAGE.md](USAGE.md). For Ferrum
 installation and platform limits, see [INSTALL.md](INSTALL.md).

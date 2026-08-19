@@ -101,17 +101,10 @@ The other M5 codec families are now separately green:
 This closes M5 without treating molblock bytes as chemistry and without expanding the
 reference codec contract.
 
-## Reproduction
+## Historical evidence
 
-After building and installing the sealed wheel and running the native-wheel E2E:
-
-```bash
-source source_me.sh
-python3 -B devel/measure_molblock_codec_parity.py \
-	--oracle-python <rdkit-2026.03.5-venv>/bin/python \
-	--cross-version-python <rdkit-2026.03.4-python> \
-	--ferrum-python <fresh-ferrum-wheel-venv>/bin/python \
-	--wheel <fresh-molblock-wheel.whl> \
-	--coordinate-receipt docs/active_plans/reports/coordinate_parity_v1.json \
-	--native-e2e-receipt output_native_wheel/evidence/native-wheel-e2e-receipt.json
-```
+The isolated Python-RDKit generator and child were retired after this accepted
+one-time semantic receipt. The retained corpus, wheel identity, source digests, and
+comparison policy are archival evidence rather than a permanent Python-RDKit or CI
+dependency. A future codec measurement requires an explicitly scoped Ferrum
+release-evidence plan and a fresh accepted receipt.

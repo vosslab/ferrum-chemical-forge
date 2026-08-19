@@ -3,7 +3,7 @@
 ## Project identity
 
 Ferrum is a two-part CDML chemical drawing platform under active construction.
-Ferrum-Qt is the PySide6 desktop application. Ferrum-Chem is the Rust document
+Ferrum is the PySide6 desktop application. Ferrum-Chem is the Rust document
 and chemistry engine authoritative for the current bounded native routes.
 
 Ferrum project copyright notices identify Neil R. Voss, 2026. The canonical license
@@ -11,7 +11,7 @@ files contain unmodified GNU license terms rather than project-specific notices.
 
 The two components have deliberately different licenses:
 
-- Ferrum-Qt is AGPL-3.0-only. Its repository notice is `LICENSE.AGPL-3.0.md`,
+- Ferrum is AGPL-3.0-only. Its repository notice is `LICENSE.AGPL-3.0.md`,
   and its distributable package notice is `packages/ferrum-chem-qt.app/LICENSE`.
 - Ferrum-Chem is LGPL-3.0-only. Its repository notice is `LICENSE.LGPL-3.0.md`.
 - RDKit is a BSD-3-Clause native dependency. M20 and M22 have source-accepted mechanisms for a
@@ -74,12 +74,12 @@ This mechanism is source-accepted only. Before publication, M20 must produce its
 M22 must classify the final wheels and committed source archive, and a human must review the final
 notice inventory and publication decision.
 
-## Ferrum-Qt lineage
+## Ferrum lineage
 
 The current `packages/ferrum-chem-qt.app/` tree is the user's own PySide6
 frontend carried forward from the local BKChem-Qt reference tree. It is a
 frontend continuation, not a claim that the Qt application was rewritten from
-scratch. Package metadata and the Python namespace now identify Ferrum-Qt. M1b
+scratch. Package metadata and the Python namespace now identify Ferrum. M1b
 is complete for the installed-command rename, application-start, and authored-CDML
 open evidence: the offscreen `ferrum-qt` process writes its controlled receipt and
 exits without a traceback. That proof does not cover worker-routed non-CDML imports,
@@ -111,7 +111,7 @@ contract and `defa534555fcfc20d223ef8341c66f8c1d6ff3fad4f6aa45f7f85212c071fbdb`
 for the specification.
 
 The copied text retains historical OASA/BKChem names. For Ferrum planning, they
-map respectively to the intended Ferrum-Chem backend and Ferrum-Qt frontend.
+map respectively to the intended Ferrum-Chem backend and Ferrum frontend.
 These documents are compatibility and security reference boundaries, not a claim
 that every described operation is implemented. Any local divergence requires a
 deliberate reconciliation with the named upstream source rather than silent drift.
@@ -124,7 +124,7 @@ in fresh Rust processes before and after a deliberate distinct-byte `RelWithDebI
 replacement for the wheel's `Release` adapter. The proof is recorded in
 [active_plans/reports/native_kekulization.md](active_plans/reports/native_kekulization.md).
 M20 source implementation now defines one proposed macOS arm64/CPython 3.12 route: it produces
-Ferrum-Chem and Ferrum-Qt wheels from explicit local Cargo, Qt build-backend, and runtime
+Ferrum-Chem and Ferrum wheels from explicit local Cargo, Qt build-backend, and runtime
 wheelhouses, then uses a scrubbed no-index clean install and post-relink observation. The external
 wheelhouses are unavailable, so its runtime receipt is pending and no platform is yet supported.
 

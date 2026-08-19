@@ -48,20 +48,13 @@ The receipt records the wheel, installed extension, RDKit Python binary, adapter
 public header, Rust decoder, generator, and child-script digests. The repository test
 recomputes every source digest, so source drift invalidates this measurement.
 
-## Reproduction
+## Historical evidence
 
-Use an isolated Python 3.12 environment containing exactly `rdkit==2026.3.5` and a
-second environment containing the measured Ferrum wheel. From the repository root:
-
-```bash
-source source_me.sh
-python3 -B devel/measure_coordinate_parity.py \
-	--oracle-python <rdkit-2026.03.5-venv>/bin/python \
-	--ferrum-python <ferrum-wheel-venv>/bin/python \
-	--wheel output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/\
-ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl \
-	--repeats 20
-```
+The isolated Python-RDKit generator and child were retired after this accepted
+one-time receipt. The recorded wheel, source digests, corpus, process count, and
+derived tolerance remain archival evidence rather than a permanent Python-RDKit or
+CI dependency. A future platform measurement requires an explicitly scoped Ferrum
+release-evidence plan and a fresh accepted receipt.
 
 ## Limits
 

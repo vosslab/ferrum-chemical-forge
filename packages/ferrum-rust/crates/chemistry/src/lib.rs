@@ -4,13 +4,34 @@
 //! receives a validated [`MolGraph`] and returns a new one, keeping callers free
 //! of foreign handles, borrowed buffers, and toolkit-specific representations.
 
+mod adapter;
 mod adapter_contract;
+mod codec;
 mod composition;
 mod element;
 mod engine;
+mod interchange;
 mod model;
 mod native_engine;
 mod sdf;
+
+pub use crate::adapter::{ExplicitAdapterError, load_explicit_adapter};
+pub use crate::codec::{
+    CanonicalSmilesError, INCHI_INSPECTION_SCHEMA_V1, InchiExportError, InchiInspectionError,
+    InchiInspectionV1, MOLBLOCK_INSPECTION_SCHEMA_V1, MolblockExportError, MolblockInspectionError,
+    MolblockInspectionV1, MoleculeInspectionFactsV1, SDF_INSPECTION_SCHEMA_V1,
+    SMILES_INSPECTION_SCHEMA_V1, SdfExportError, SdfInspectionError, SdfInspectionV1,
+    SdfPropertyInspectionV1, SdfRecordInspectionV1, SmartsExportError, SmilesAtomInspectionV1,
+    SmilesBondInspectionV1, SmilesInspectionError, SmilesInspectionV1, SmilesPointInspectionV1,
+    canonical_smiles_from_smiles, inchi_from_smiles, inspect_inchi, inspect_molblock, inspect_sdf,
+    inspect_smiles, molblock_from_smiles, molecule_inspection_facts, sdf_from_smiles,
+    smarts_from_smiles,
+};
+pub use crate::interchange::{
+    INTERCHANGE_MAX_TEXT_BYTES_V1, InterchangeCodecErrorV1, InterchangeFormatV1,
+    InterchangePropertyV1, InterchangeRecordV1, decode_non_cdml_interchange_v1,
+    encode_non_cdml_interchange_v1,
+};
 
 pub use crate::composition::{
     CompositionAggregationError, CompositionBuildError, CompositionElementKey, ElementCount,

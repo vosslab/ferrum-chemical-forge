@@ -3,15 +3,15 @@
 //! The Qt frontend receives owned scalar tuples or a frozen placement DTO.  This
 //! module never accepts a Qt value, Python sequence, callback, or mutable mapping.
 
-use ferrum_geometry::{GeometryError as RustGeometryError, HexGrid, MoleculePlacementV1, Point2};
+use ferrum_geometry::{
+    CDML_POINTS_PER_CENTIMETRE_V1, CdmlLength, GeometryError as RustGeometryError, HexGrid,
+    MoleculePlacementV1, Point2, ScenePoints,
+};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyTuple};
 
 use crate::binding::FerrumError;
-
-/// CDML's historical physical coordinate scale: 72 PostScript points per inch.
-const CDML_POINTS_PER_CM_V1: f64 = 72.0 / 2.54;
 
 create_exception!(ferrum_chem, GeometryError, FerrumError);
 
@@ -56,21 +56,23 @@ impl PyInsertionPlacementV1 {
 /// Return the exact CDML points-per-centimetre scale used by this V1 boundary.
 #[pyfunction]
 fn cdml_points_per_cm_v1() -> f64 {
-    CDML_POINTS_PER_CM_V1
+    CDML_POINTS_PER_CENTIMETRE_V1
 }
 
 /// Convert one finite CDML centimetre coordinate into finite scene points.
 #[pyfunction]
 fn cm_to_points_v1(py: Python<'_>, centimetres: &Bound<'_, PyAny>) -> PyResult<f64> {
     let value = finite_number(py, centimetres, "centimetres")?;
-    finite_result(py, value * CDML_POINTS_PER_CM_V1, "centimetre conversion")
+    let centimetres = geometry_result(py, CdmlLength::try_from_centimetres(value))?;
+    geometry_result(py, centimetres.as_scene_points()).map(ScenePoints::as_scene_points)
 }
 
 /// Convert one finite scene-point coordinate into finite CDML centimetres.
 #[pyfunction]
 fn points_to_cm_v1(py: Python<'_>, points: &Bound<'_, PyAny>) -> PyResult<f64> {
     let value = finite_number(py, points, "points")?;
-    finite_result(py, value / CDML_POINTS_PER_CM_V1, "point conversion")
+    let points = geometry_result(py, ScenePoints::try_from_scene_points(value))?;
+    geometry_result(py, points.as_centimetres()).map(CdmlLength::as_centimetres)
 }
 
 /// Return bounded immutable pointy-top hex-grid vertices inside one rectangle.
@@ -207,16 +209,6 @@ fn finite_number(py: Python<'_>, value: &Bound<'_, PyAny>, label: &str) -> PyRes
         return Err(geometry_error(py, format!("{label} must be finite")));
     }
     Ok(number)
-}
-
-fn finite_result(py: Python<'_>, value: f64, label: &str) -> PyResult<f64> {
-    if !value.is_finite() {
-        return Err(geometry_error(
-            py,
-            format!("{label} is not representable as finite geometry"),
-        ));
-    }
-    Ok(value)
 }
 
 fn point_tuple(py: Python<'_>, points: Vec<Point2>) -> PyResult<Py<PyTuple>> {

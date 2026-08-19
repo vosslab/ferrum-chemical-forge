@@ -1,4 +1,4 @@
-"""Rust-native QObject terminal lifecycle helpers."""
+"""Ferrum QObject terminal lifecycle helpers."""
 
 # PIP3 modules
 import PySide6.QtCore

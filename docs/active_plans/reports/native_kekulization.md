@@ -115,10 +115,9 @@ evidence, not a tracked wheel or native library.
 - Ferrum-Qt does not consume this operation yet.
 - SMILES, SMARTS, molblock, SDF, and InChI belong to the later codec milestone.
 - Layout is not implemented here. The `canonOrient` result in
-  [rdkit_layout_orientation.json](rdkit_layout_orientation.json) is a one-time
-  measurement that selects `true` for a future layout call. Maintainers can reproduce
-  it with [`devel/rdkit_layout_orientation.py`](../../../devel/rdkit_layout_orientation.py);
-  it is deliberately outside pytest.
+  [rdkit_layout_orientation.json](rdkit_layout_orientation.json) is archived one-time
+  evidence selecting `true` for a future layout call; it is deliberately outside
+  pytest and has no live Python-RDKit measurement route.
 - The coordinate tolerance and parity gate remain M4c work.
 - The package proof is currently scoped to macOS arm64 development evidence, not a
   supported cross-platform desktop release.

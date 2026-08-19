@@ -3,10 +3,11 @@
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
 #============================================
-class ArrowDialog(PySide6.QtWidgets.QDialog):
+class ArrowDialog(FerrumAccessibleDialog):
 	"""Dialog for editing arrow properties.
 
 	Presents checkboxes for start/end arrowheads, a line width spinner,

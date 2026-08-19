@@ -1,4 +1,4 @@
-"""Prove installed persistent atom annotations remain a native Rust route."""
+"""Prove installed persistent atom annotations remain a Ferrum Rust route."""
 
 # Standard Library
 import argparse
@@ -128,7 +128,7 @@ def _probe() -> dict[str, object]:
 
 	import PySide6.QtWidgets
 	import ferrum_chem
-	import ferrum_qt.native.ferrum_native_main_window
+	import ferrum_qt.ferrum.main_window
 
 	if hasattr(ferrum_chem, "__path__") or pathlib.Path(ferrum_chem.__file__).suffix != ".so":
 		raise NativeAtomNumberE2eError("Ferrum chemistry did not load as a root extension")
@@ -150,12 +150,12 @@ def _probe() -> dict[str, object]:
 		'<v:opaque id="retained" keep="literal"/></cdml>',
 		encoding="utf-8",
 	)
-	host = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
+	host = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	if not host.open_file_path(str(source_path)):
-		raise NativeAtomNumberE2eError("native CDML open returned false")
+		raise NativeAtomNumberE2eError("Ferrum CDML open returned false")
 	tab = host._active_native_tab()
 	if tab is None:
-		raise NativeAtomNumberE2eError("native host did not create a tab")
+		raise NativeAtomNumberE2eError("Ferrum host did not create a tab")
 	tab.select_atom("atom-a")
 	_assert_number(tab, None, None)
 
@@ -208,7 +208,7 @@ def _probe() -> dict[str, object]:
 	)
 
 	if not host.save_active_to_path(str(saved_path)):
-		raise NativeAtomNumberE2eError("native atom-annotation save returned false")
+		raise NativeAtomNumberE2eError("Ferrum atom-annotation save returned false")
 	reopened = ferrum_chem.DocumentSession.load(saved_path.read_text(encoding="utf-8"))
 	reopened_snapshot = reopened.snapshot()
 	reopened_projection = reopened.observe_render(0).document.projection
@@ -268,7 +268,7 @@ def main() -> int:
 		not value["clean"]
 		or value["number"] != 42 or value["mark_count"] != len(_MARK_CASES)
 	):
-		raise NativeAtomNumberE2eError("native atom-annotation proof lost durable output truth")
+		raise NativeAtomNumberE2eError("Ferrum atom-annotation proof lost durable output truth")
 	print(json.dumps(value, sort_keys=True))
 	return 0
 

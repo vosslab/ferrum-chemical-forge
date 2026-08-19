@@ -3,6 +3,7 @@
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
 # -- multiplicity labels indexed by value --
@@ -15,7 +16,7 @@ _MULTIPLICITY_VALUES = {v: k for k, v in _MULTIPLICITY_LABELS.items()}
 
 
 #============================================
-class AtomDialog(PySide6.QtWidgets.QDialog):
+class AtomDialog(FerrumAccessibleDialog):
 	"""Dialog for editing atom properties.
 
 	Presents a form with fields for element symbol, charge, valency,

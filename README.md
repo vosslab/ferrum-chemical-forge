@@ -1,112 +1,77 @@
 # Ferrum Chemical Forge
 
-A pre-alpha chemical drawing platform for scientists and educators, pairing a Rust CDML
-engine with one Rust-native PySide6 interface.
+Ferrum is a Rust chemical-document tool for inspecting, validating, rewriting, rendering,
+converting, and drawing durable CDML records.
 
-> Status: pre-alpha. Ordinary `ferrum-qt` is an accepted macOS arm64 bounded editor: it
-> opens, renders, changes an atom element, adds one free-standing atom,
-> edits all nine supported authored atom properties in one Rust-owned operation,
-> connects two existing atoms with a revision-bound Rust-owned single-bond drag, extends an
-> atom into empty space with one carbon and bond, moves an atom by dragging its rendered
-> position, deletes durable atoms or bonds with their correct Rust-owned topology semantics,
-> changes one selected normal bond among single, double, and triple order, imports bounded
-> SMILES, regenerates one existing molecule's 2D coordinates while retaining its current
-> centroid and mean bond length, applies Rust undo/redo, and saves/reopens through Ferrum-Chem
-> without a compatibility host. It opens uncompressed `.cdml` and decoded CD-SVG `.svg`
-> payloads, and refuses unsupported or compressed formats without changing the active document.
-> It does not yet provide general bond-style tools or a complete native editing workflow.
+> Status: pre-production. The command-line document verbs work from a Cargo installation. The
+> desktop editor and engine-backed chemistry verbs have explicit platform and bundle prerequisites.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
 <!-- screenshots:end -->
 
-## One drawing, durable document
+## Start with a document
 
-Chemical drawings should remain useful scientific records, not fragile pictures tied to one
-GUI session. Ferrum is for scientists, educators, and contributors who need a visible drawing
-surface plus a testable CDML document engine with explicit preservation boundaries.
-
-- Run one versioned, stateless JSON document operation through the `ferrum protocol`
-  command family.
-- Open and make bounded atom edits in the ordinary native-first Qt route with `ferrum-qt`.
-- Keep unknown XML and persistent document identity through Ferrum's structural CDML path.
-- Keep chemistry adapters behind Ferrum-owned desktop workflows rather than a public CLI
-  adapter-discovery contract.
-
-## Native-first desktop route
-
-Ordinary `ferrum-qt drawing.cdml` starts the Rust-owned Ferrum-Chem route. On the verified
-macOS arm64 configuration, it opens, renders, changes an atom element, adds one free-standing
-atom, edits all nine supported authored atom properties as one Rust-owned revision, connects two
-existing atoms with a single-bond drag, extends an atom into empty space with one carbon and
-bond, moves an atom with exact Rust-owned coordinates, deletes a durable atom with its typed
-incident bonds or deletes one durable bond while preserving its endpoint atoms, changes one
-selected normal bond among single, double, and triple order, imports bounded SMILES, regenerates
-one durable molecule's coordinates off the Qt thread while preserving its current placement,
-applies Rust undo/redo, and saves/reopens CDML through Ferrum-Chem. Use it for the completed
-bounded native document slice.
-
-The ordinary route does not yet choose a non-carbon element or bond order during the bond gesture,
-edit wedge, hashed, dashed, aromatic, or ring-side depiction styles, delete other object classes,
-regenerate styled or non-ordinary molecule graphs, import arbitrary chemistry, or make a
-cross-platform packaging claim. The ordinary command has one native document window and no
-fallback editor; unsupported workflows need their own Rust-owned contract before they are added.
-
-## Quick start: inspect a real document
-
-Rust 1.97.1 or newer is required. From a source checkout, run the Rust CLI against the
-checked-in authored CDML corpus:
+Rust 1.97.1 or newer is required. From a source checkout, this non-engine example inspects an
+authored CDML document without installing a chemistry engine:
 
 ```bash
-cd packages/ferrum-rust
-cargo run --locked --quiet --bin ferrum -- protocol schema
+cargo run --manifest-path packages/ferrum-rust/Cargo.toml --locked --quiet \
+  --bin ferrum -- inspect tests/e2e/corpus/authored_document_forms.cdml
 ```
 
-This prints the checked-in request/response schema. To run an operation, place one request JSON
-object in a file and use `ferrum protocol run request.json`. For the request shape, response
-envelopes, and a complete example, see [docs/USAGE.md](docs/USAGE.md). For a durable
-installation and the full platform requirements, see [docs/INSTALL.md](docs/INSTALL.md).
+After installing the CLI with the command in [docs/INSTALL.md](docs/INSTALL.md), the same work is:
 
-## Command-line protocol
+```bash
+ferrum inspect drawing.cdml
+ferrum render drawing.cdml --to svg --output drawing.svg
+```
 
-The shipping Rust CLI exposes only `ferrum protocol schema` and `ferrum protocol run INPUT
-[--output OUTPUT]`. Its four closed operations inspect, validate, structurally rewrite, or render
-one admitted CDML document. It has no batch, network, session, Qt, adapter-discovery, or
-path-bearing protocol payload. A successful rewrite preserves document structure, not serialized
-bytes; rendered artifacts are complete results, not pixel-equivalence claims. See
-[docs/USAGE.md](docs/USAGE.md) for the request contract, safe output publication, and failures.
+## Convert a molecule
 
-## Package-release status
+`convert` and `coords` use an explicitly installed native chemistry engine bundle. First obtain a
+bundle built for this Ferrum executable and host from the release process, then install it once:
 
-M20 and M22 source work is accepted for a proposed initial target: macOS arm64 with CPython
-3.12. Its maintainer route builds two first-party Python wheels, `ferrum-chem` and `ferrum-qt`,
-with separate, explicit local Cargo, Qt build-backend, and Qt runtime wheelhouses. The Rust
-`ferrum` command remains a separate Cargo-installed tool; neither Python wheel supplies it.
-The real offline two-wheel install, installed-resource, LGPL relink, source-archive CLI, and
-final artifact-inventory observations remain pending because target-matching external inputs are
-not presently available. Human legal and release review also remains required. This is not yet a
-supported consumer release or a cross-platform claim. Historical source material and oracle
-inputs remain isolated provenance evidence, not product runtime dependencies or a desktop
-fallback.
+```bash
+ferrum engine install /path/to/ferrum-engine-bundle
+ferrum engine status
+ferrum convert aspirin.smi --to sdf_v2000 --output aspirin.sdf
+```
 
-## Documentation
+`ferrum engine status` prints `ready` only for a valid active bundle. Without one, `convert` and
+`coords` return a typed `chemistry_unavailable` refusal and leave requested output files untouched.
+Ferrum never searches the current directory, `PATH`, Python environments, or adapter variables for
+an engine. [docs/USAGE.md](docs/USAGE.md) explains the six verbs, stream use, desktop workflow,
+and the engine lifecycle.
 
-- [docs/INSTALL.md](docs/INSTALL.md) explains the verified Rust CLI install, Qt preview setup,
-  and current platform limits.
-- [docs/USAGE.md](docs/USAGE.md) is the command reference for the frozen JSON operation protocol
-  and the separate bounded Ferrum-Qt workflow.
-- [docs/CODE_ARCHITECTURE.md](docs/CODE_ARCHITECTURE.md) describes ownership boundaries and the
-  Rust, Python binding, and Qt layers.
-- [docs/FILE_STRUCTURE.md](docs/FILE_STRUCTURE.md) maps the workspace, applications, tests, and
-  generated evidence.
-- [docs/QT_CONTRACT.md](docs/QT_CONTRACT.md) records the Qt presentation and native-route
-  contracts.
-- [docs/active_plans/ferrum-plan-v3.md](docs/active_plans/ferrum-plan-v3.md) tracks migration
-  milestones and acceptance gates.
-- [docs/PROVENANCE.md](docs/PROVENANCE.md) records the frontend lineage and licensing boundary.
+## Draw a CDML record
+
+Run `ferrum-qt` for the bounded native drawing route. Open a CDML document, use the Atom and Draw
+Bond commands to author, use Undo to reverse a change, and Save As to publish CDML. The keyboard
+workflow, supported editing slice, and current desktop limits are in [docs/USAGE.md](docs/USAGE.md).
+
+## What Ferrum preserves
+
+Ferrum keeps unknown XML and persistent document identity through its structural CDML path.
+Rewriting promises structural preservation, not byte-for-byte identity. Rendering produces complete
+SVG, PDF, or transparent PNG artifacts for supported documents. The file profile and desktop import
+rules are in [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md).
+
+## Contract and architecture
+
+The six human verbs construct versioned, stateless operation requests. The full envelope schema,
+operation payloads, result shapes, error categories, Python boundary, and exclusions are in
+[docs/FERRUM_API_CONTRACT.md](docs/FERRUM_API_CONTRACT.md). Architecture and ownership boundaries
+are described in [docs/CODE_ARCHITECTURE.md](docs/CODE_ARCHITECTURE.md).
+
+## Installation and status
+
+Ferrum currently has a proposed macOS arm64 CPython 3.12 desktop release route, not a supported
+consumer desktop distribution. The Rust CLI is installed independently from the Python wheels. See
+[docs/INSTALL.md](docs/INSTALL.md) for setup and [docs/PROVENANCE.md](docs/PROVENANCE.md) for
+concise source lineage and license provenance.
 
 ## License
 
-Ferrum-Qt is [AGPL-3.0-only](LICENSE.AGPL-3.0.md). Ferrum-Chem is
-[LGPL-3.0-only](LICENSE.LGPL-3.0.md). The source-accepted native wheel route prepares its
-Ferrum, RDKit, InChI, and Telex notices as a standard wheel-local bundle; final contents require
-the pending artifact inventory and human legal review. See [docs/PROVENANCE.md](docs/PROVENANCE.md).
+Ferrum is [AGPL-3.0-only](LICENSE.AGPL-3.0.md). Ferrum-Chem is
+[LGPL-3.0-only](LICENSE.LGPL-3.0.md). See [docs/PROVENANCE.md](docs/PROVENANCE.md) for the
+license boundary and required notices.

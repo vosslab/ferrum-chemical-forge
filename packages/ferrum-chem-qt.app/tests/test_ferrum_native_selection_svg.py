@@ -1,23 +1,23 @@
-"""Behavior coverage for native selected-root SVG clipboard publication."""
+"""Behavior coverage for Ferrum selected-root SVG clipboard publication."""
 
 # Standard Library
 import os
-import xml.etree.ElementTree
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
+import defusedxml.ElementTree
 import ferrum_chem
 import pytest
 
 # local repo modules
 import ferrum_qt.canvas.items.ferrum_plus_item
 import ferrum_qt.io.clipboard_mime
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
-import ferrum_qt.native.ferrum_native_selection_svg
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.selection_svg
 
 
 _SOURCE = """\
@@ -42,9 +42,9 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 #============================================
 def _window_with_selection() -> tuple[object, object]:
-	"""Return one native window with atom and presentation roots selected."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	"""Return one Ferrum window with atom and presentation roots selected."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "selection-svg.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -54,7 +54,7 @@ def _window_with_selection() -> tuple[object, object]:
 		if type(item) is ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItem
 	)
 	if len(plus_items) != 1:
-		raise RuntimeError("native Plus projection is unavailable")
+		raise RuntimeError("Ferrum Plus projection is unavailable")
 	plus_items[0].setSelected(True)
 	return window, tab
 
@@ -67,7 +67,7 @@ def _action(window: object, label: str) -> PySide6.QtGui.QAction:
 		if action.text() == label
 	)
 	if len(matches) != 1:
-		raise RuntimeError("native action is unavailable: %s" % label)
+		raise RuntimeError("Ferrum action is unavailable: %s" % label)
 	return matches[0]
 
 
@@ -76,12 +76,12 @@ def _wait_for_svg(window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Wait for the action-created SVG worker and queued delivery."""
 	workers = tuple(
 		worker for worker in window.findChildren(
-			ferrum_qt.native.ferrum_native_selection_svg.
+			ferrum_qt.ferrum.selection_svg.
 			FerrumNativeSelectionSvgWorker,
 		)
 	)
 	if len(workers) != 1 or not workers[0].wait(10000):
-		raise RuntimeError("native selected SVG worker did not finish")
+		raise RuntimeError("Ferrum selected SVG worker did not finish")
 	qapp.processEvents()
 
 
@@ -96,7 +96,7 @@ def test_copy_as_svg_publishes_fitted_native_roots_without_mutation(
 		_wait_for_svg(window, qapp)
 		mime_data = qapp.clipboard().mimeData()
 		svg = bytes(mime_data.data("image/svg+xml"))
-		root = xml.etree.ElementTree.fromstring(svg)
+		root = defusedxml.ElementTree.fromstring(svg)
 		view_box = tuple(float(value) for value in root.attrib["viewBox"].split())
 
 		assert (
@@ -128,13 +128,13 @@ def test_copy_as_svg_failure_preserves_existing_clipboard(
 		ferrum_chem, "render_document_selection_svg_v1",
 		lambda *_arguments: (_ for _ in ()).throw(RuntimeError("injected SVG failure")),
 	)
-	window._show_native_file_warning = lambda title, message: warnings.append((title, message))
+	window._show_edit_refusal = lambda request: warnings.append(request)
 	try:
 		_action(window, "Copy as SVG").trigger()
 		_wait_for_svg(window, qapp)
 
 		assert qapp.clipboard().text() == "clipboard-before-native-svg"
-		assert warnings == [("Native Copy as SVG Error", "injected SVG failure")]
+		assert len(warnings) == 1 and warnings[-1].outcome.value == "unavailable_operation" and warnings[-1].technical_details == "injected SVG failure"
 	finally:
 		_action(window, "Close Tab").trigger()
 		window.deleteLater()

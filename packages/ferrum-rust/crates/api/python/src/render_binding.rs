@@ -1,10 +1,13 @@
 //! Frozen Python DTOs for the API-owned final render observation.
 
-use ferrum_api::{
-    BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
-    DocumentPlusRenderV1, RecordOrigin, RenderBatch, RenderIssue, RenderIssueKind,
+use ferrum_core::{RecordId, RecordOrigin};
+use ferrum_render::{
+    BatchSpace, BondStyle, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
+    DocumentPlusRenderV1, MoleculeRenderPlan, Paint, PositiveFinite, RENDER_OBSERVATION_SCHEMA_V1,
+    RenderBatch, RenderDisplayLayerV1, RenderIssue, RenderIssueKind,
     RenderObservationError as ApiRenderObservationError, RenderObservationV1, RenderOp,
-    RenderPoint, RenderTarget, TextScript, verified_telex_regular_v1,
+    RenderPoint, RenderTarget, Rgb24, TextOp, TextScript, VectorStrokeLineCapV1,
+    build_directed_bond_preview_ops, verified_telex_regular_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -45,8 +48,8 @@ pub(crate) struct PyRenderRecordIdV1 {
     id: Option<String>,
 }
 
-impl From<&ferrum_api::RecordId> for PyRenderRecordIdV1 {
-    fn from(value: &ferrum_api::RecordId) -> Self {
+impl From<&RecordId> for PyRenderRecordIdV1 {
+    fn from(value: &RecordId) -> Self {
         let id = match value.origin() {
             RecordOrigin::Source(identifier) => Some(identifier.as_str().to_owned()),
             RecordOrigin::Legacy { .. } => None,
@@ -489,29 +492,27 @@ pub(crate) fn native_directed_bond_preview_v1(
     presentation: PyRef<'_, PyDocumentBondPresentationV1>,
 ) -> PyResult<Py<PyTuple>> {
     let style = match *presentation {
-        PyDocumentBondPresentationV1::SolidWedge => ferrum_api::BondStyle::SolidWedge,
-        PyDocumentBondPresentationV1::HashedWedge => ferrum_api::BondStyle::HashedWedge,
+        PyDocumentBondPresentationV1::SolidWedge => BondStyle::SolidWedge,
+        PyDocumentBondPresentationV1::HashedWedge => BondStyle::HashedWedge,
         _ => {
             return Err(RenderDepictionError::new_err(
                 "choose a directed wedge presentation for a directed bond preview",
             ));
         }
     };
-    let start = ferrum_api::RenderPoint::new(start_x, start_y)
+    let start = RenderPoint::new(start_x, start_y)
         .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let end = ferrum_api::RenderPoint::new(end_x, end_y)
+    let end = RenderPoint::new(end_x, end_y)
         .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let width = ferrum_api::PositiveFinite::new(1.0)
+    let width = PositiveFinite::new(1.0)
         .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let wedge_width = ferrum_api::PositiveFinite::new(5.0)
+    let wedge_width = PositiveFinite::new(5.0)
         .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let paint = ferrum_api::Paint::rgb24(
-        ferrum_api::Rgb24::new("000000")
-            .map_err(|error| RenderDepictionError::new_err(error.to_string()))?,
+    let paint = Paint::rgb24(
+        Rgb24::new("000000").map_err(|error| RenderDepictionError::new_err(error.to_string()))?,
     );
-    let operations =
-        ferrum_api::build_directed_bond_preview_ops(style, start, end, width, wedge_width, paint)
-            .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
+    let operations = build_directed_bond_preview_ops(style, start, end, width, wedge_width, paint)
+        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
     let values = operations
         .iter()
         .map(|operation| operation_from(py, operation))
@@ -529,7 +530,7 @@ pub(crate) fn observation(
         .map(|entry| document_molecule_plan_from(py, entry))
         .collect::<PyResult<_>>()?;
     Ok(PyRenderObservationV1 {
-        schema: ferrum_api::RENDER_OBSERVATION_SCHEMA_V1.to_owned(),
+        schema: RENDER_OBSERVATION_SCHEMA_V1.to_owned(),
         document: value.document().clone().into(),
         profile: value.profile().schema().to_owned(),
         molecule_plans,
@@ -586,7 +587,7 @@ fn document_molecule_plan_from(
     })
 }
 
-fn plan_from(py: Python<'_>, plan: &ferrum_api::MoleculeRenderPlan) -> PyResult<PyRenderPlanV2> {
+fn plan_from(py: Python<'_>, plan: &MoleculeRenderPlan) -> PyResult<PyRenderPlanV2> {
     Ok(PyRenderPlanV2 {
         schema: "ferrum-render-plan-v2".to_owned(),
         provenance: PyRenderProvenanceV1 {
@@ -618,9 +619,9 @@ fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV2> 
         target: batch.target().into(),
         coordinate_space,
         display_layer: match batch.display_layer() {
-            ferrum_api::RenderDisplayLayerV1::Ordinary => "ordinary".to_owned(),
-            ferrum_api::RenderDisplayLayerV1::HaworthFrontStroke => "haworth_front_stroke".to_owned(),
-            ferrum_api::RenderDisplayLayerV1::HaworthFrontWedge => "haworth_front_wedge".to_owned(),
+            RenderDisplayLayerV1::Ordinary => "ordinary".to_owned(),
+            RenderDisplayLayerV1::HaworthFrontStroke => "haworth_front_stroke".to_owned(),
+            RenderDisplayLayerV1::HaworthFrontWedge => "haworth_front_wedge".to_owned(),
         },
         operations: batch
             .operations()
@@ -678,7 +679,7 @@ pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRe
     })
 }
 
-fn text_from(text: &ferrum_api::TextOp) -> PyTextOpV1 {
+fn text_from(text: &TextOp) -> PyTextOpV1 {
     PyTextOpV1 {
         origin: text.origin().into(),
         runs: text
@@ -706,8 +707,8 @@ fn text_from(text: &ferrum_api::TextOp) -> PyTextOpV1 {
     }
 }
 
-fn path_from(path: &ferrum_api::PathOpV2) -> PyPathOpV2 {
-    use ferrum_api::ScenePathCommandV2;
+fn path_from(path: &ferrum_render::PathOpV2) -> PyPathOpV2 {
+    use ferrum_render::ScenePathCommandV2;
     let commands = path
         .commands()
         .iter()
@@ -749,8 +750,8 @@ fn path_from(path: &ferrum_api::PathOpV2) -> PyPathOpV2 {
             .stroke()
             .map(|stroke| stroke.paint().color().as_str().to_owned()),
         stroke_line_cap: path.stroke().map(|stroke| match stroke.line_cap() {
-            ferrum_api::VectorStrokeLineCapV1::Butt => "butt".to_owned(),
-            ferrum_api::VectorStrokeLineCapV1::Round => "round".to_owned(),
+            VectorStrokeLineCapV1::Butt => "butt".to_owned(),
+            VectorStrokeLineCapV1::Round => "round".to_owned(),
         }),
         fill_paint: path.fill().map(|paint| paint.color().as_str().to_owned()),
         z: path.z(),

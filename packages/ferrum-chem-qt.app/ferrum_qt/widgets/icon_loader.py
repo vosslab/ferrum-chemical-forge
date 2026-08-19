@@ -1,4 +1,4 @@
-"""Theme-aware icon loader for Ferrum-Qt.
+"""Theme-aware icon loader for Ferrum.
 
 Loads PNG icons from package resources with theme-appropriate directory
 selection (png/ for light, png-dark/ for dark). Caches loaded QIcon instances

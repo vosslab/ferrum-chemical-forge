@@ -1,4 +1,4 @@
-"""Semantic native presentation ordering through the Rust session."""
+"""Semantic Ferrum presentation ordering through the Rust session."""
 
 # Standard Library
 import os
@@ -12,7 +12,7 @@ import pytest
 pytest.importorskip("ferrum_chem")
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 #============================================
@@ -47,7 +47,7 @@ def test_selected_roots_reorder_through_rust_and_retain_selection(
 	"""A stack edit changes semantic order and history without a Qt-local fallback."""
 	del qapp
 	import ferrum_chem
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml xmlns:v="urn:vendor"><arrow id="a"><point x="0" y="0"/>'
 		'<point x="1" y="1"/></arrow><v:opaque retained="yes"/>'
 		'<text id="t"><point x="2" y="2"/><ftext>note</ftext></text>'
@@ -79,9 +79,9 @@ def test_selected_roots_reorder_through_rust_and_retain_selection(
 def test_partial_bracket_selection_is_not_exposed_for_stack_mutation(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The native route cannot separate one member of an authoritative bracket pair."""
+	"""The Ferrum route cannot separate one member of an authoritative bracket pair."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml><polyline id="left" bracket_pair="left" bracket_side="left" spline="no">'
 		'<point x="0" y="0"/><point x="1" y="1"/><point x="1" y="2"/>'
 		'<point x="0" y="3"/></polyline><polyline id="right" bracket_pair="left" '

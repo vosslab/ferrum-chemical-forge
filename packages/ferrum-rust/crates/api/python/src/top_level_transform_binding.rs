@@ -110,7 +110,7 @@ impl PyDocumentSession {
         let targets = selectors(py, targets)?;
         document_result(
             py,
-            ferrum_api::observe_top_level_translation_anchor_v1(
+            ferrum_document::observe_top_level_translation_anchor_v1(
                 &self.session,
                 expected_revision,
                 targets,

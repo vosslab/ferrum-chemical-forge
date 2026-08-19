@@ -1,4 +1,4 @@
-"""Semantic durable presentation deletion through the Rust-native tab."""
+"""Semantic durable presentation deletion through the Ferrum tab."""
 
 # Standard Library
 import os
@@ -13,7 +13,7 @@ pytest.importorskip("ferrum_chem")
 
 # local repo modules
 import ferrum_qt.canvas.items.ferrum_text_item
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 #============================================
@@ -32,7 +32,7 @@ def test_selected_text_deletion_updates_rust_scene_and_history(
 		) -> None:
 	"""The generic operation deletes one exact root and remains normally undoable."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml xmlns:v="urn:vendor"><text id="t"><point x="1" y="2"/>'
 		'<ftext>label</ftext></text><v:opaque retained-id="t"/>'
 		'<plus id="p"><point x="3" y="4"/></plus></cdml>',
@@ -65,9 +65,9 @@ def test_selected_text_deletion_updates_rust_scene_and_history(
 def test_bracket_deletion_requires_and_accepts_the_complete_pair(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The native action cannot leave half of an authoritative bracket behind."""
+	"""The Ferrum action cannot leave half of an authoritative bracket behind."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml><polyline id="left" bracket_pair="left" bracket_side="left" spline="yes">'
 		'<point x="0" y="0"/><point x="1" y="1"/><point x="1" y="2"/>'
 		'<point x="0" y="3"/></polyline><polyline id="right" bracket_pair="left" '

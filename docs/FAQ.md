@@ -38,7 +38,7 @@ For the precise protocol and desktop boundaries, read [USAGE.md](USAGE.md).
 ## Can I use every chemistry tool?
 
 Not yet. The CLI's four protocol operations are document inspection, validation,
-structural rewrite, and artifact rendering. Ferrum-Qt separately supports the bounded
+structural rewrite, and artifact rendering. Ferrum separately supports the bounded
 native workflows recorded in the capability matrix; it is not a general conversion
 suite. The implementation sequence and open milestones are in
 [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).

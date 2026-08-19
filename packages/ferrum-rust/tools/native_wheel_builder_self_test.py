@@ -76,6 +76,35 @@ def _run_policy_fixtures(api: types.ModuleType) -> None:
 
 
 #============================================
+def _run_engine_bundle_fixtures(api: types.ModuleType) -> None:
+	"""Verify the fixed engine manifest and narrowly admitted temporary root."""
+	with tempfile.TemporaryDirectory() as temporary:
+		member = Path(temporary) / api.ADAPTER_NAME
+		member.write_bytes(b"adapter")
+		manifest = json.loads(api.engine_bundle_manifest(
+			[member], api.BUNDLE_SCHEMA, api.ADAPTER_ABI_VERSION, api.ADAPTER_NAME, api.sha256
+		))
+	if manifest != {
+		"schema": api.BUNDLE_SCHEMA,
+		"target": api.executable_bundle_target(),
+		"adapter_abi_version": api.ADAPTER_ABI_VERSION,
+		"adapter": api.ADAPTER_NAME,
+		"members": [{"path": api.ADAPTER_NAME, "sha256": hashlib.sha256(b"adapter").hexdigest()}],
+	}:
+		raise api.NativeBuildError("engine bundle manifest fixture differs from the fixed CLI contract")
+	if manifest.get("members") != [{"path": api.ADAPTER_NAME, "sha256": hashlib.sha256(b"adapter").hexdigest()}]:
+		raise api.NativeBuildError("engine bundle manifest fixture lacks its closure digest")
+	accepted = api.output_path("/private/tmp/ferrum-native-self-test")
+	if accepted != Path("/private/tmp/ferrum-native-self-test"):
+		raise api.NativeBuildError("engine bundle fixture rejected its admitted temporary output root")
+	_reject(
+		api,
+		lambda: api.output_path("/private/tmp/unrelated-output"),
+		"unscoped temporary output root",
+	)
+
+
+#============================================
 def _run_tree_fixtures(api: types.ModuleType) -> None:
 	"""Verify path identity and tree-digest rejection behavior."""
 	case_key = _tree_relative_path_key("GraphMol/Case.h", "tree self-test")[1]
@@ -624,7 +653,8 @@ def _run_notice_injection_fixture(api: types.ModuleType) -> None:
 		with zipfile.ZipFile(wheel, "w") as archive:
 			archive.writestr("ferrum_chem/ferrum_chem.cpython-312-darwin.so", b"extension")
 			archive.writestr("ferrum_chem-0.dist-info/WHEEL", "Wheel-Version: 1.0\n\n")
-			archive.writestr("ferrum_chem-0.dist-info/METADATA", "Name: ferrum-chem\n\n")
+			# Maturin may emit header-only core metadata with no description body.
+			archive.writestr("ferrum_chem-0.dist-info/METADATA", "Name: ferrum-chem\n")
 		inject_root_metadata(wheel, project)
 		with zipfile.ZipFile(wheel) as archive:
 			members = set(archive.namelist())
@@ -723,6 +753,7 @@ def run(api: types.ModuleType) -> None:
 		api: The imported builder module that owns the production helpers.
 	"""
 	_run_policy_fixtures(api)
+	_run_engine_bundle_fixtures(api)
 	_run_tree_fixtures(api)
 	_run_profile_configuration_fixtures(api)
 	with tempfile.TemporaryDirectory() as temporary:

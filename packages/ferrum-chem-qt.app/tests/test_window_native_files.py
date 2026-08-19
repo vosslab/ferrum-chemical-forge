@@ -1,4 +1,4 @@
-"""Behavioral coverage for the isolated Rust-native CDML file route."""
+"""Behavioral coverage for the isolated Ferrum CDML file route."""
 
 # Standard Library
 import dataclasses
@@ -13,7 +13,8 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.dialogs.refusal_presenter
+import ferrum_qt.ferrum.document_tab
 import ferrum_qt.window_native_files
 
 
@@ -77,14 +78,14 @@ class _Session:
 		"""Return an observation only for the requested current revision."""
 		snapshot = self._saved if self._published else self._current
 		if revision != snapshot.revision:
-			raise ValueError("unexpected native fixture revision")
+			raise ValueError("unexpected Ferrum fixture revision")
 		return _RenderObservation(_DocumentObservation(snapshot))
 
 	#============================================
 	def save_atomic(self, _path: object, revision: int) -> _Publication:
 		"""Publish only the snapshot that the tab actually observed."""
 		if revision != self._current.revision:
-			raise ValueError("unexpected native fixture save revision")
+			raise ValueError("unexpected Ferrum fixture save revision")
 		self._published = self._confirmed
 		return _Publication(self._saved, _Outcome(self._confirmed))
 
@@ -133,7 +134,7 @@ class _StatusBar:
 
 
 class _NativeFileHost(ferrum_qt.window_native_files.WindowNativeFileMixin):
-	"""Minimal isolated host exposing only the native file controller contract."""
+	"""Minimal isolated host exposing only the Ferrum file controller contract."""
 
 	#============================================
 	def __init__(self) -> None:
@@ -169,10 +170,10 @@ class _NativeFileHost(ferrum_qt.window_native_files.WindowNativeFileMixin):
 	#============================================
 	def _create_native_tab_from_admission(
 			self, admission: tuple[object, object], title: str,
-			) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
+			) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
 		"""Use the exact tab type through its explicitly private fixture seam."""
 		session, _observation = admission
-		tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab._from_fixture(
+		tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab._from_fixture(
 			title, session, _Controller(self.next_replacements),
 		)
 		return tab
@@ -180,8 +181,8 @@ class _NativeFileHost(ferrum_qt.window_native_files.WindowNativeFileMixin):
 	#============================================
 	def _register_native_tab(self, tab: object, *, activate: bool) -> object:
 		"""Install one exact page using the minimal common-tab contract."""
-		if type(tab) is not ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-			raise TypeError("native file route created the wrong tab type")
+		if type(tab) is not ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
+			raise TypeError("Ferrum file route created the wrong tab type")
 		index = self._tab_widget.addTab(tab, tab.title)
 		self._native_tabs_by_page[tab] = tab
 		if activate:
@@ -189,8 +190,18 @@ class _NativeFileHost(ferrum_qt.window_native_files.WindowNativeFileMixin):
 		return tab
 
 	#============================================
-	def _show_native_file_warning(self, title: str, message: str) -> None:
+	def _show_edit_refusal(
+			self, request: object, message: str | None = None,
+			) -> None:
 		"""Record failure text instead of opening a modal dialog in the test."""
+		if type(request) is ferrum_qt.dialogs.refusal_presenter.RefusalRequest:
+			presentation = ferrum_qt.dialogs.refusal_presenter.present_refusal(request)
+			self._last_refusal_technical_details = presentation.technical_details
+			title = presentation.title
+			message = presentation.ordinary_text()
+		else:
+			title = request
+		assert isinstance(title, str) and message is not None
 		self.warnings.append((title, message))
 
 
@@ -207,7 +218,7 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 def test_native_cdml_open_uses_one_profile_admission_and_sets_origin(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""A CDML source becomes one Rust-native tab with its true origin location."""
+	"""A CDML source becomes one Ferrum tab with its true origin location."""
 	del qapp
 	source = tmp_path / "ethanol.cdml"
 	cdml = "<svg><molecule id=\"m1\"><opaque-root keep=\"yes\"/></molecule></svg>"
@@ -250,7 +261,7 @@ def test_native_cdml_refuses_same_tab_replacement_before_reading_source(
 	host = _NativeFileHost()
 	assert not host.open_file_path(str(source), replace_current=True)
 	assert not host.loaded_paths
-	assert host.warnings[-1][0] == "Open in Current Tab Unavailable"
+	assert host.warnings[-1][0] == "Action Not Available"
 
 
 #============================================
@@ -288,7 +299,8 @@ def test_native_save_reports_unconfirmed_directory_entry_without_changing_tab_tr
 	assert tab is not None
 	assert not host._save_native_tab_to_path(tab, str(second))
 	assert tab.file_path == first and tab.is_dirty
-	assert host.warnings[-1][0] == "Save Durability Unconfirmed"
+	assert host.warnings[-1][0] == "Could Not Confirm Save"
+	assert "could not confirm" in host.warnings[-1][1].lower()
 	tab.dispose()
 
 
@@ -308,7 +320,7 @@ def test_native_save_reports_completed_publication_when_display_refresh_fails(
 	assert tab is not None
 	assert not host._save_native_tab_to_path(tab, str(second))
 	assert tab.file_path == first and tab.is_dirty
-	assert host.warnings[-1][0] == "Save Completed; Display Refresh Failed"
+	assert host.warnings[-1][0] == "Drawing Saved; Display Needs Attention"
 	tab.dispose()
 
 
@@ -316,7 +328,7 @@ def test_native_save_reports_completed_publication_when_display_refresh_fails(
 def test_native_save_rejects_a_symlink_alias_owned_by_another_native_tab(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""Canonical aliases cannot let two Rust-native tabs claim one CDML destination."""
+	"""Canonical aliases cannot let two Ferrum tabs claim one CDML destination."""
 	del qapp
 	first = tmp_path / "first.cdml"
 	second = tmp_path / "second.cdml"
@@ -332,6 +344,28 @@ def test_native_save_rejects_a_symlink_alias_owned_by_another_native_tab(
 	assert first_tab is not None and second_tab is not None
 	assert not host._save_native_tab_to_path(second_tab, str(alias))
 	assert second_tab.file_path == second and second_tab.is_dirty
-	assert host.warnings[-1][0] == "Save Destination Already Open"
+	assert host.warnings[-1][0] == "File Was Not Saved"
 	first_tab.dispose()
 	second_tab.dispose()
+
+
+#============================================
+def test_native_file_refusal_keeps_exception_detail_out_of_author_message(
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
+		) -> None:
+	"""Open failure keeps the tab state and presents a recovery step, not internals."""
+	del qapp
+	source = tmp_path / "broken.cdml"
+	source.write_text("<svg/>", encoding="utf-8")
+	host = _NativeFileHost()
+
+	def reject(_path: str) -> tuple[_Session, object]:
+		raise RuntimeError("native parser detail")
+	host._prepare_local_cdml_admission = reject
+
+	assert not host.open_file_path(str(source))
+	title, message = host.warnings[-1]
+	assert title == "Could Not Open Document"
+	assert "what to do now:" in message.lower()
+	assert "native" not in message.lower()
+	assert host._last_refusal_technical_details == "native parser detail"

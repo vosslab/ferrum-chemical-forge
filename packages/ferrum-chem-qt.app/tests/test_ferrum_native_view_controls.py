@@ -1,4 +1,4 @@
-"""Public behavior coverage for display-only Rust-native View controls."""
+"""Public behavior coverage for display-only Ferrum View controls."""
 
 # Standard Library
 import os
@@ -16,12 +16,12 @@ import pytest
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_coordinate_generation
-import ferrum_qt.native.ferrum_native_drawing_parameters
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_graphics_view
-import ferrum_qt.native.ferrum_native_main_window
-import ferrum_qt.native.ferrum_native_statusbar_view_controls
+import ferrum_qt.ferrum.coordinate_generation
+import ferrum_qt.ferrum.drawing_parameters
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.graphics_view
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.statusbar_view_controls
 
 
 _MOLECULE_CDML = """<cdml version='26.08'>
@@ -48,9 +48,9 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 def _open_tab(
 		qapp: PySide6.QtWidgets.QApplication, cdml: str,
 		) -> tuple[object, object]:
-	"""Show one host and current native tab through public host registration."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	"""Show one host and current Ferrum tab through public host registration."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		cdml, "view-controls.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -61,7 +61,7 @@ def _open_tab(
 
 #============================================
 def _close_window(window: object) -> None:
-	"""Retire only clean test tabs through the normal native close path."""
+	"""Retire only clean test tabs through the normal Ferrum close path."""
 	while window._tab_widget.count():
 		window._close_tab_at(0)
 	window.close()
@@ -85,12 +85,12 @@ def _same_transform(left: object, right: object) -> bool:
 def _status_controls(window: PySide6.QtWidgets.QMainWindow) -> object:
 	"""Find the installed permanent View client through the public status-bar tree."""
 	controls_type = (
-		ferrum_qt.native.ferrum_native_statusbar_view_controls.
+		ferrum_qt.ferrum.statusbar_view_controls.
 		FerrumNativeStatusBarViewControls
 	)
 	for controls in window.statusBar().findChildren(controls_type):
 		return controls
-	raise AssertionError("Native status bar has no View controls.")
+	raise AssertionError("status bar has no View controls.")
 
 
 #============================================
@@ -99,7 +99,7 @@ def _status_button(controls: object, accessible_name: str) -> PySide6.QtWidgets.
 	for button in controls.findChildren(PySide6.QtWidgets.QToolButton):
 		if button.accessibleName() == accessible_name:
 			return button
-	raise AssertionError(f"Native View status control is missing {accessible_name!r}.")
+	raise AssertionError(f"View status control is missing {accessible_name!r}.")
 
 
 #============================================
@@ -108,7 +108,21 @@ def _status_slider(controls: object) -> PySide6.QtWidgets.QSlider:
 	for slider in controls.findChildren(PySide6.QtWidgets.QSlider):
 		if slider.accessibleName() == "Zoom percentage slider":
 			return slider
-	raise AssertionError("Native View status controls have no zoom percentage slider.")
+	raise AssertionError("View status controls have no zoom percentage slider.")
+
+
+#============================================
+def test_canvas_has_explicit_keyboard_focus_and_accessible_name(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The drawing surface is an explicit, named keyboard-workflow target."""
+	del qapp
+	view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView()
+	try:
+		assert view.focusPolicy() == PySide6.QtCore.Qt.FocusPolicy.StrongFocus
+		assert view.accessibleName() == "Ferrum drawing canvas"
+	finally:
+		view.deleteLater()
 
 
 #============================================
@@ -132,7 +146,7 @@ def test_page_content_and_identity_controls_use_public_document_geometry(
 def test_empty_content_is_exact_page_fallback(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""An empty native document treats Content exactly as Page."""
+	"""An empty Ferrum document treats Content exactly as Page."""
 	window, tab = _open_tab(qapp, _EMPTY_CDML)
 	try:
 		assert tab.document_content_bounds() is None
@@ -149,7 +163,7 @@ def test_empty_content_is_exact_page_fallback(
 def test_hex_grid_visibility_is_application_state_across_scene_replacement(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The shared grid action changes display only and survives a native edit."""
+	"""The shared grid action changes display only and survives a Ferrum edit."""
 	window, tab = _open_tab(qapp, _MOLECULE_CDML)
 	try:
 		before = tab.current_snapshot
@@ -158,7 +172,7 @@ def test_hex_grid_visibility_is_application_state_across_scene_replacement(
 			if action.text() == "Show Hex Grid"
 		)
 		grid_action.trigger()
-		second = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		second = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 			_EMPTY_CDML, "second-grid.cdml",
 		)
 		window._register_native_tab(second, activate=False)
@@ -182,10 +196,10 @@ def test_next_drawing_choices_persist_across_native_windows_without_document_mut
 		) -> None:
 	"""Next Drawing follows the application while its open Rust documents stay intact."""
 	first = ferrum_qt.main_window.MainWindow(object())
-	first_tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	first_tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_MOLECULE_CDML, "first-drawing.cdml",
 	)
-	second_tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	second_tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_MOLECULE_CDML, "second-drawing.cdml",
 	)
 	second = None
@@ -208,7 +222,7 @@ def test_next_drawing_choices_persist_across_native_windows_without_document_mut
 		first._drawing_parameters.set_order_name("double")
 		qapp.processEvents()
 		assert second._drawing_parameters.snapshot() == (
-			ferrum_qt.native.ferrum_native_drawing_parameters.
+			ferrum_qt.ferrum.drawing_parameters.
 			FerrumNativeDrawingParametersSnapshot("O", "double", "normal")
 		)
 		assert (
@@ -298,7 +312,7 @@ def test_wheel_zoom_preserves_cursor_anchor_and_durable_state(
 def test_retained_zoom_shortcuts_dispatch_existing_view_actions(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The retained Ctrl zoom keys operate only the active native display."""
+	"""The retained Ctrl zoom keys operate only the active Ferrum display."""
 	window, tab = _open_tab(qapp, _MOLECULE_CDML)
 	try:
 		tab.view.setFocus()
@@ -319,7 +333,7 @@ def test_each_tab_retains_its_own_completed_view_transform(
 		) -> None:
 	"""Returning to a completed tab retains its transform rather than refitting it."""
 	window, first = _open_tab(qapp, _MOLECULE_CDML)
-	second = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	second = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_MOLECULE_CDML, "second.cdml",
 	)
 	try:
@@ -340,8 +354,8 @@ def test_hidden_first_fit_retries_on_the_next_window_show(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A hidden queued first fit is discarded and later show requests it again."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_MOLECULE_CDML, "hidden.cdml",
 	)
 	try:
@@ -362,8 +376,8 @@ def test_removed_and_zero_page_hosts_leave_display_controls_unavailable(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""Queued display work cannot revive a removed tab and empty hosts disable actions."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_MOLECULE_CDML, "removed.cdml",
 	)
 	try:
@@ -392,7 +406,7 @@ def test_live_scene_view_controls_stay_enabled_for_pending_and_busy_chemistry(
 			"replace", lambda _self, _observation, _latch: False,
 		)
 		with pytest.raises(
-			ferrum_qt.native.ferrum_native_document_tab.
+			ferrum_qt.ferrum.document_tab.
 			FerrumNativeDocumentTabMutationPresentationError,
 		):
 			tab.undo()
@@ -406,13 +420,13 @@ def test_live_scene_view_controls_stay_enabled_for_pending_and_busy_chemistry(
 		choice = tab.durable_molecule_choices()[0]
 		snapshot = tab.current_snapshot
 		worker = (
-			ferrum_qt.native.ferrum_native_coordinate_generation.
+			ferrum_qt.ferrum.coordinate_generation.
 			FerrumNativeCoordinatePreparationWorker(
 				tab.current_document_observation(), choice.object_id,
 			)
 		)
 		window._coordinate_generation_intent = (
-			ferrum_qt.native.ferrum_native_coordinate_generation.
+			ferrum_qt.ferrum.coordinate_generation.
 			FerrumNativeCoordinateGenerationIntent(
 				tab, snapshot.revision, snapshot.digest, worker,
 			)
@@ -470,7 +484,7 @@ def test_status_controls_dispatch_view_actions_without_mutating_the_document(
 def test_status_slider_sets_absolute_zoom_without_changing_durable_state(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The upstream continuous control becomes only an absolute native view client."""
+	"""The upstream continuous control becomes only an absolute Ferrum view client."""
 	window, tab = _open_tab(qapp, _MOLECULE_CDML)
 	try:
 		tab.select_atom("atom-c")
@@ -487,7 +501,7 @@ def test_status_slider_sets_absolute_zoom_without_changing_durable_state(
 			tab.view.mapToScene(tab.view.viewport().rect()).boundingRect().center()
 		)
 		assert (
-			ferrum_qt.native.ferrum_native_graphics_view.
+			ferrum_qt.ferrum.graphics_view.
 			effective_zoom_percent(tab.view)
 		) == pytest.approx(275.0) and (
 			after_center - before_center
@@ -507,7 +521,7 @@ def test_status_controls_retain_each_active_tab_percent_and_empty_page_fallback(
 		) -> None:
 	"""The action client observes only the active tab and exact empty Content fallback."""
 	window, first = _open_tab(qapp, _MOLECULE_CDML)
-	second = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	second = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "empty.cdml",
 	)
 	try:
@@ -539,12 +553,12 @@ def test_status_controls_cover_unavailable_and_keyboard_recovery_states(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""An unsupported transform keeps one keyboard-reachable reset path."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	try:
 		controls = _status_controls(window)
 		zoom_100 = _status_button(controls, "Reset zoom to 100%")
 		slider = _status_slider(controls)
-		tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 			_MOLECULE_CDML, "invalid-transform.cdml",
 		)
 		window._register_native_tab(tab, activate=True)
@@ -597,7 +611,7 @@ def test_effective_zoom_percent_accepts_only_exact_uniform_affine_transforms(
 	try:
 		valid = PySide6.QtGui.QTransform(1.25, 0.0, 0.0, 0.0, 1.25, 0.0, 3.0, 4.0, 1.0)
 		view.setTransform(valid)
-		assert ferrum_qt.native.ferrum_native_graphics_view.effective_zoom_percent(
+		assert ferrum_qt.ferrum.graphics_view.effective_zoom_percent(
 			view,
 		) == 125.0
 		results = []
@@ -610,7 +624,7 @@ def test_effective_zoom_percent_accepts_only_exact_uniform_affine_transforms(
 			):
 			view.setTransform(transform)
 			results.append(
-				ferrum_qt.native.ferrum_native_graphics_view.effective_zoom_percent(view),
+				ferrum_qt.ferrum.graphics_view.effective_zoom_percent(view),
 			)
 		assert all(result is None for result in results)
 	finally:

@@ -426,15 +426,15 @@ def installed_qt_probe(python: pathlib.Path) -> dict[str, object]:
 		python: Clean environment interpreter.
 
 	Returns:
-		Small semantic observation from installed Ferrum-Qt.
+		Small semantic observation from installed Ferrum.
 	"""
 	entrypoint = python.parent / "ferrum-qt"
 	version = run(
-		"Qt entry/resource", "rebuild the Ferrum-Qt wheel with its declared entry point and resources",
+		"Qt entry/resource", "rebuild the Ferrum wheel with its declared entry point and resources",
 		str(entrypoint), "--version",
 	)
-	if not version.strip().startswith("Ferrum-Qt "):
-		raise ReleaseE2eError("installed ferrum-qt --version did not identify Ferrum-Qt")
+	if not version.strip().startswith("Ferrum "):
+		raise ReleaseE2eError("installed ferrum-qt --version did not identify Ferrum")
 	code = (
 		"import json, ferrum_qt.resource_paths; "
 		"icon=ferrum_qt.resource_paths.get_resource_path('app_icon.svg'); "
@@ -442,13 +442,13 @@ def installed_qt_probe(python: pathlib.Path) -> dict[str, object]:
 		"print(json.dumps({'icon':icon.is_file(),'theme':theme.is_file()}))"
 	)
 	value = json_object(run(
-		"Qt entry/resource", "rebuild the Ferrum-Qt wheel with its declared entry point and resources",
+		"Qt entry/resource", "rebuild the Ferrum wheel with its declared entry point and resources",
 		str(python), "-I", "-B", "-c", code,
-	), "Qt entry/resource phase output; next: rebuild the Ferrum-Qt wheel and rerun")
+	), "Qt entry/resource phase output; next: rebuild the Ferrum wheel and rerun")
 	if value.get("icon") is not True or value.get("theme") is not True:
 		raise ReleaseE2eError(
 			"Qt entry/resource phase did not find the installed icon and theme\n"
-			"Next: rebuild the Ferrum-Qt wheel with its declared resources and rerun"
+			"Next: rebuild the Ferrum wheel with its declared resources and rerun"
 		)
 	return {"entrypoint": "ferrum-qt --version", "resources": value}
 

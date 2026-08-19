@@ -30,6 +30,11 @@ An isolated Python process (`-I`) ignores environment variables, including
 `PYTHONDONTWRITEBYTECODE`; it must also receive `-B`. The native-wheel proof follows
 this rule for its isolated probes.
 
+Do not use `py_compile` or `compileall` as a validation shortcut. They explicitly
+write bytecode even when `sys.dont_write_bytecode` is true or Python receives `-B`.
+In this repository, validate executable behavior with pytest or inspect syntax with
+`ast.parse()`; neither route should create bytecode as a side effect.
+
 ## Load the native wheel
 
 ### `import ferrum_chem` fails on macOS
@@ -58,11 +63,11 @@ output-publication failure has no envelope and exits 1. `--output -` is a usage 
 protocol intentionally does not accept direct SMILES, SDF, molblock, InChI, CD-SVG, adapter, or
 path-bearing operation inputs.
 
-## Start Ferrum-Qt
+## Start Ferrum
 
 ### Open or create a drawing
 
-Launch Ferrum-Qt with an uncompressed CDML drawing:
+Launch Ferrum with an uncompressed CDML drawing:
 
 ```bash
 ferrum-qt drawing.cdml

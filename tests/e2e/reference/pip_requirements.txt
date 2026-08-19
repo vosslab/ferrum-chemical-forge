@@ -1,0 +1,2 @@
+# Isolated Python RDKit environment for one-time reference measurements.
+rdkit==2026.3.5

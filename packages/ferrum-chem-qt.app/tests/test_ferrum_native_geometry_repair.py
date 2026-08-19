@@ -1,4 +1,4 @@
-"""Behavior tests for the public Rust-owned native Repair menu."""
+"""Behavior tests for the public Rust-owned Ferrum Repair menu."""
 
 # Standard Library
 import math
@@ -12,8 +12,8 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
 
 
 _TERMINAL_CDML = """<cdml><molecule id='m'>
@@ -54,7 +54,7 @@ _HALF_AUTHORED_UNIT_POINTS = (0.001 * 72.0 / 2.54) / 2.0
 
 @pytest.fixture
 def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Provide the offscreen application used by the real native widgets."""
+	"""Provide the offscreen application used by the real Ferrum widgets."""
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
 		app = PySide6.QtWidgets.QApplication([])
@@ -66,8 +66,8 @@ def test_straighten_action_uses_selected_molecule_and_restores_selection(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""The public action submits durable IDs and never applies Qt geometry."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_TERMINAL_CDML, "terminal.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -97,15 +97,15 @@ def test_snap_action_requires_explicit_positive_spacing_and_repairs_all(
 		monkeypatch: pytest.MonkeyPatch) -> None:
 	"""No selection means all durable molecules; invalid user input is atomic."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SNAP_CDML, "snap.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
 	warnings = []
 	monkeypatch.setattr(
-		window, "_show_native_file_warning",
-		lambda title, message: warnings.append((title, message)),
+		window, "_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText",
@@ -113,7 +113,8 @@ def test_snap_action_requires_explicit_positive_spacing_and_repairs_all(
 	)
 	window._on_snap_to_hex_grid()
 	assert tab.current_snapshot.revision == 0
-	assert warnings[-1][0] == "Hex-Grid Repair Failed"
+	assert warnings[-1].outcome.value == "unavailable_operation"
+	assert warnings[-1].technical_details
 
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText",
@@ -140,8 +141,8 @@ def test_normalize_lengths_action_uses_explicit_spacing_and_rust_geometry(
 		monkeypatch: pytest.MonkeyPatch) -> None:
 	"""The UI supplies intent while Rust owns directions, anchors, and persistence."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_TERMINAL_CDML, "length.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -170,10 +171,10 @@ def test_normalize_lengths_action_uses_explicit_spacing_and_rust_geometry(
 def test_normalize_angles_action_uses_rust_slots_and_restores_selection(
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch) -> None:
-	"""The native action supplies intent while Rust assigns authored-order slots."""
+	"""The Ferrum action supplies intent while Rust assigns authored-order slots."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_ANGLE_CDML, "angles.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -212,8 +213,8 @@ def test_normalize_ring_action_preserves_centroid_and_durable_selection(
 		monkeypatch: pytest.MonkeyPatch) -> None:
 	"""The public action supplies spacing while Rust owns ring topology and layout."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_RING_CDML, "ring.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -250,15 +251,15 @@ def test_clean_geometry_requires_explicit_spacing_before_native_work(
 		monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Invalid user intent leaves the session unchanged and starts no worker."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_TERMINAL_CDML, "clean.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
 	warnings = []
 	monkeypatch.setattr(
-		window, "_show_native_file_warning",
-		lambda title, message: warnings.append((title, message)),
+		window, "_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText",
@@ -269,5 +270,6 @@ def test_clean_geometry_requires_explicit_spacing_before_native_work(
 	window._clean_geometry_action.trigger()
 	assert tab.current_snapshot.revision == 0
 	assert window._coordinate_generation_intent is None
-	assert warnings[-1][0] == "Clean Geometry Failed"
+	assert warnings[-1].outcome.value == "unavailable_operation"
+	assert warnings[-1].technical_details
 	window.close()

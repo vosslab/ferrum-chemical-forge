@@ -14,6 +14,12 @@ publish = false
 name = "ferrum_chem"
 crate-type = ["cdylib"]
 
+[features]
+# Wheel builds must not link libpython; `maturin` selects this default feature.
+# Cargo test uses `--no-default-features` to embed and link the interpreter.
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+
 [dependencies]
 ferrum-api = { path = ".." }
 ferrum-chemistry = { path = "../../chemistry" }
@@ -21,11 +27,12 @@ ferrum-core = { path = "../../core" }
 ferrum-document = { path = "../../document" }
 ferrum-domain = { path = "../../domain" }
 ferrum-geometry = { path = "../../geometry" }
-pyo3 = { version = "*", features = ["extension-module", "multiple-pymethods"] }
+ferrum-render = { path = "../../render" }
+pyo3 = { version = "*", features = ["multiple-pymethods"] }
 serde_json = { version = "*" }
 
 [build-dependencies]
-pyo3-build-config = { version = "*", features = ["extension-module"] }
+pyo3-build-config = { version = "*" }
 
 # This standalone workspace shares the repository target directory. Keep useful
 # line tables for Ferrum code while avoiding unbounded incremental object caches.

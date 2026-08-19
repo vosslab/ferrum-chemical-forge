@@ -1,0 +1,68 @@
+# Ferrum's static menu declarations.
+#
+# This file describes hierarchy and presentation only.  QAction construction
+# and document mutation remain owned by the Ferrum window and Rust backend.
+
+menus:
+  - name: file
+    label_key: "File"
+    help_key: "Create, open, save, and close Ferrum documents"
+    side: left
+    items:
+      - action: file.new
+      - action: file.open
+      - separator: true
+      - action: file.save
+      - action: file.save_as
+      - separator: true
+      - action: file.close
+      - separator: true
+      - action: file.quit
+
+  - name: edit
+    label_key: "Edit"
+    help_key: "Undo and clipboard commands"
+    side: left
+    items:
+      - action: edit.undo
+      - action: edit.redo
+      - separator: true
+      - action: edit.cut
+      - action: edit.copy
+      - action: edit.paste
+
+  - name: view
+    label_key: "View"
+    help_key: "Canvas zoom and grid controls"
+    side: left
+    items:
+      - action: view.zoom_in
+      - action: view.zoom_out
+      - action: view.reset_zoom
+      - separator: true
+      - action: view.toggle_grid
+      - action: view.toggle_grid_snap
+
+  - name: tools
+    label_key: "Tools"
+    help_key: "Choose or cancel the active Ferrum drawing tool"
+    side: left
+    items:
+      - action: mode.atom
+      - action: mode.draw
+      - separator: true
+      - action: tool.cancel
+
+  - name: options
+    label_key: "Options"
+    help_key: "Ferrum settings"
+    side: left
+    items:
+      - action: options.preferences
+
+  - name: help
+    label_key: "Help"
+    help_key: "Ferrum information"
+    side: right
+    items:
+      - action: help.about

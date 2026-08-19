@@ -1,3 +1,0 @@
-# Isolated historical-oracle environment for differential runs.
-oasa==26.8
-rdkit==2026.3.5

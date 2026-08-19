@@ -16,9 +16,11 @@ import pytest
 # local repo modules
 import ferrum_qt.app
 import ferrum_qt.config.preferences
+import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_recent_files
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.recent_files
+import ferrum_qt.ferrum.window_refusals
 
 
 _EMPTY_CDML = '<cdml version="1.0"/>'
@@ -36,7 +38,7 @@ _COORDINATE_CDML = """<cdml version='26.08'><molecule id='mol-1'>
 def _make_window(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> ferrum_qt.main_window.MainWindow:
-	"""Create the ordinary Rust-native product window."""
+	"""Create the ordinary Ferrum product window."""
 	del qapp
 	return ferrum_qt.main_window.MainWindow(object())
 
@@ -66,7 +68,7 @@ def _cancel_open_action(window: PySide6.QtWidgets.QMainWindow) -> PySide6.QtGui.
 def _visible_action(
 		window: PySide6.QtWidgets.QMainWindow, label: str,
 		) -> PySide6.QtGui.QAction:
-	"""Return one user-visible native command by its stable label."""
+	"""Return one user-visible Ferrum command by its stable label."""
 	return next(
 		candidate
 		for candidate in window.findChildren(PySide6.QtGui.QAction)
@@ -105,7 +107,7 @@ def _restore_recent_paths(value: object) -> None:
 def _click_visible_message_button(
 		qapp: PySide6.QtWidgets.QApplication, label: str,
 		) -> PySide6.QtCore.QTimer:
-	"""Click one explicitly named button on the visible native recovery dialog."""
+	"""Click one explicitly named button on the visible Ferrum recovery dialog."""
 	timer = PySide6.QtCore.QTimer(qapp)
 
 	def click() -> None:
@@ -135,13 +137,13 @@ def _click_visible_message_button(
 #============================================
 def _current_native_tab(
 		window: PySide6.QtWidgets.QMainWindow,
-		) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-	"""Return the selected native page through the public central widget tree."""
+		) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
+	"""Return the selected Ferrum page through the public central widget tree."""
 	tab_widget = window.centralWidget()
 	assert isinstance(tab_widget, PySide6.QtWidgets.QTabWidget)
 	tab = tab_widget.currentWidget()
 	assert isinstance(
-		tab, ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+		tab, ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 	)
 	return tab
 
@@ -196,10 +198,10 @@ def test_cdxml_open_refusal_preserves_the_active_native_document(
 	window = _make_window(qapp)
 	tab = _current_native_tab(window)
 	before = tab.current_snapshot
-	warnings: list[tuple[str, str]] = []
+	warnings: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
 	monkeypatch.setattr(
-		window, "_show_native_file_warning",
-		lambda title, message: warnings.append((title, message)),
+		window, "_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		assert not window.open_file_path(str(tmp_path / "drawing.cdxml"))
@@ -207,8 +209,8 @@ def test_cdxml_open_refusal_preserves_the_active_native_document(
 			_current_native_tab(window) is tab
 			and tab.current_snapshot is before
 			and warnings
-			and "converter" in warnings[-1][1].lower()
-			and ".cdml" in warnings[-1][1].lower()
+			and warnings[-1].outcome.value == "unavailable_operation"
+			and warnings[-1].context.value == "edit_document"
 		)
 	finally:
 		window.close()
@@ -220,7 +222,7 @@ def test_public_open_action_loads_saves_and_reopens_through_rust(
 		tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""The visible Open action installs a clean native tab with a durable origin."""
+	"""The visible Open action installs a clean Ferrum tab with a durable origin."""
 	source = tmp_path / "ordinary-open.cdml"
 	destination = tmp_path / "ordinary-open-copy.cdml"
 	source.write_text(_EMPTY_CDML, encoding="utf-8")
@@ -269,7 +271,7 @@ def test_programmatic_open_queues_multiple_launch_documents(
 		origins = {
 			tab.file_path
 			for tab in window.findChildren(
-				ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+				ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 			)
 			if tab.file_path is not None
 		}
@@ -284,7 +286,7 @@ def test_hard_link_alias_activates_the_existing_native_tab(
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
 		) -> None:
-	"""A descriptor-identical alias activates the existing native document."""
+	"""A descriptor-identical alias activates the existing Ferrum document."""
 	source = tmp_path / "single-origin.cdml"
 	alias = tmp_path / "single-origin-alias.cdml"
 	source.write_text(_EMPTY_CDML, encoding="utf-8")
@@ -358,7 +360,7 @@ def test_interactive_open_preserves_an_armed_bootstrap_canvas_gesture(
 		admitted = next(
 			tab
 			for tab in window.findChildren(
-				ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+				ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 			)
 			if tab.file_path == source
 		)
@@ -432,7 +434,7 @@ def test_open_in_current_tab_waits_for_real_coordinate_generation(
 		tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A target-owned native worker fences replacement until its terminal refresh."""
+	"""A target-owned worker fences replacement until its terminal refresh."""
 	target_path = tmp_path / "coordinates.cdml"
 	incoming_path = tmp_path / "replacement.cdml"
 	target_path.write_text(_COORDINATE_CDML, encoding="utf-8")
@@ -506,11 +508,11 @@ def test_symlink_rejection_leaves_the_current_document_unchanged(
 	link = tmp_path / "source-link.cdml"
 	source.write_text(_EMPTY_CDML, encoding="utf-8")
 	link.symlink_to(source)
-	warnings: list[tuple[str, str]] = []
+	refusals: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
 	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox,
-		"warning",
-		lambda _parent, title, message: warnings.append((title, message)),
+		ferrum_qt.ferrum.window_refusals,
+		"show_refusal",
+		lambda _window, request: refusals.append(request),
 	)
 	window = _make_window(qapp)
 	initial_tab = _current_native_tab(window)
@@ -521,7 +523,11 @@ def test_symlink_rejection_leaves_the_current_document_unchanged(
 		)
 		assert not completed and _current_native_tab(window) is initial_tab
 		assert initial_tab.current_snapshot == initial_snapshot
-		assert warnings and warnings[-1][0] == "CDML Source Rejected"
+		assert refusals
+		presentation = ferrum_qt.dialogs.refusal_presenter.present_refusal(refusals[-1])
+		assert presentation.title == "Cannot Open This File"
+		assert presentation.technical_details is not None
+		assert "non-symlink" in presentation.technical_details.lower()
 	finally:
 		window.close()
 
@@ -547,11 +553,11 @@ def test_admitted_tab_rejects_an_observation_from_a_different_session(
 		ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(second)).take_admission_v1()
 	)
 	with pytest.raises(
-		ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabError,
+		ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError,
 		match="does not match its admitted session",
 	):
 		(
-			ferrum_qt.native.ferrum_native_document_tab.
+			ferrum_qt.ferrum.document_tab.
 			FerrumNativeDocumentTab.from_admitted_local_open(
 				first_session, "mismatched.cdml", second_observation,
 			)
@@ -563,7 +569,7 @@ def test_confirmed_native_open_and_save_promote_personal_recent_paths(
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
 		) -> None:
-	"""Confirmed native ingress and publication update only personal recency."""
+	"""Confirmed Ferrum ingress and publication update only personal recency."""
 	source = tmp_path / "opened.cdml"
 	destination = tmp_path / "saved.cdml"
 	source.write_text(_EMPTY_CDML, encoding="utf-8")
@@ -599,7 +605,7 @@ def test_recent_model_promotes_normalized_paths_with_injected_capacity(
 	previous = prefs.value(ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES)
 	prefs.set_value(ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES, {})
 	window = _make_window(qapp)
-	model = ferrum_qt.native.ferrum_native_recent_files.FerrumNativeRecentFiles(
+	model = ferrum_qt.ferrum.recent_files.FerrumNativeRecentFiles(
 		window, prefs, capacity=2,
 	)
 	try:
@@ -618,7 +624,7 @@ def test_recent_file_action_uses_native_new_tab_route_and_origin_identity(
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
 		) -> None:
-	"""A visible recent selection uses ordinary native admission and token reuse."""
+	"""A visible recent selection uses ordinary Ferrum admission and token reuse."""
 	source = tmp_path / "recent.cdml"
 	alias = tmp_path / "recent-alias.cdml"
 	source.write_text(_EMPTY_CDML, encoding="utf-8")
@@ -627,7 +633,7 @@ def test_recent_file_action_uses_native_new_tab_route_and_origin_identity(
 	previous = prefs.value(ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES)
 	prefs.set_value(
 		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
-		ferrum_qt.native.ferrum_native_recent_files.FerrumNativeRecentFilesV1(
+		ferrum_qt.ferrum.recent_files.FerrumNativeRecentFilesV1(
 			(str(alias),),
 		).to_settings_value(),
 	)
@@ -669,7 +675,7 @@ def test_recent_menu_disambiguates_names_and_clear_keeps_document_state(
 	previous = prefs.value(ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES)
 	prefs.set_value(
 		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
-		ferrum_qt.native.ferrum_native_recent_files.FerrumNativeRecentFilesV1(
+		ferrum_qt.ferrum.recent_files.FerrumNativeRecentFilesV1(
 			(str(second), str(first)),
 		).to_settings_value(),
 	)
@@ -705,7 +711,7 @@ def test_recent_missing_file_visible_keep_and_remove_recovery(
 	previous = prefs.value(ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES)
 	prefs.set_value(
 		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
-		ferrum_qt.native.ferrum_native_recent_files.FerrumNativeRecentFilesV1(
+		ferrum_qt.ferrum.recent_files.FerrumNativeRecentFilesV1(
 			(str(missing), str(valid)),
 		).to_settings_value(),
 	)
@@ -742,8 +748,8 @@ def test_recent_missing_file_visible_keep_and_remove_recovery(
 def _open_saved_native_tab(
 		qapp: PySide6.QtWidgets.QApplication, window: ferrum_qt.main_window.MainWindow,
 		path: pathlib.Path,
-		) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-	"""Load one real saved document through the ordinary native ingress."""
+		) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
+	"""Load one real saved document through the ordinary Ferrum ingress."""
 	assert _wait_for_open_queue(window, lambda: window.open_file_path(str(path)))
 	tab = _current_native_tab(window)
 	assert tab.file_path == path and not tab.current_snapshot.is_dirty
@@ -754,8 +760,8 @@ def _open_saved_native_tab(
 def _author_dirty_atom(
 		window: ferrum_qt.main_window.MainWindow,
 		element: str = "N",
-		) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-	"""Make one authoritative atom change on an otherwise idle native tab."""
+		) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
+	"""Make one authoritative atom change on an otherwise idle Ferrum tab."""
 	tab = _current_native_tab(window)
 	tab.select_atom("atom-c")
 	tab.change_selected_atom_element(element)
@@ -889,7 +895,7 @@ def test_open_in_current_tab_save_as_publishes_dirty_unnamed_target_before_swap(
 	incoming_path.write_text(_EMPTY_CDML, encoding="utf-8")
 	window = _make_window(qapp)
 	try:
-		target = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		target = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 			_EDITABLE_CDML, "Untitled",
 		)
 		window._register_native_tab(target, activate=True)
@@ -931,7 +937,7 @@ def test_open_in_current_tab_cancel_and_admission_failure_preserve_dirty_target(
 	link.symlink_to(source)
 	window = _make_window(qapp)
 	try:
-		target = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		target = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 			_EDITABLE_CDML, "Untitled",
 		)
 		window._register_native_tab(target, activate=True)

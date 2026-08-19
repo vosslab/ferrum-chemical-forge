@@ -6,8 +6,10 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_chem
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.dialogs.refusal_presenter
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.window_refusals
 
 
 SOURCE = (
@@ -34,15 +36,17 @@ def _action(window: object, text: str) -> PySide6.QtGui.QAction:
 
 
 #============================================
-def _warnings(monkeypatch: object) -> list[tuple[str, str]]:
+def _warnings(
+		monkeypatch: object,
+		) -> list[ferrum_qt.dialogs.refusal_presenter.RefusalPresentation]:
 	"""Capture actionable warnings without opening another modal surface."""
-	warnings = []
+	warnings: list[ferrum_qt.dialogs.refusal_presenter.RefusalPresentation] = []
 
-	def record(_parent: object, title: str, message: str) -> None:
-		"""Retain one warning title and body."""
-		warnings.append((title, message))
+	def record(_window: object, request: object) -> None:
+		"""Retain one typed refusal presentation."""
+		warnings.append(ferrum_qt.dialogs.refusal_presenter.present_refusal(request))
 
-	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", record)
+	monkeypatch.setattr(ferrum_qt.ferrum.window_refusals, "show_refusal", record)
 	return warnings
 
 
@@ -61,8 +65,8 @@ def _root_name(tab: object, index: int = 0) -> str | None:
 #============================================
 def _new_window_tab() -> tuple[object, object]:
 	"""Create one ordinary window with a current named Rust-owned tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		SOURCE, "names.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -156,7 +160,7 @@ def test_post_dialog_selection_and_tab_switch_fences_are_nonmutating(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
 	"""A changed child target or active tab cannot consume the frozen name intent."""
 	window, tab = _new_window_tab()
-	other_tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	other_tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		SOURCE, "other-names.cdml",
 	)
 	window._register_native_tab(other_tab, activate=False)
@@ -175,7 +179,8 @@ def test_post_dialog_selection_and_tab_switch_fences_are_nonmutating(
 		monkeypatch.setattr(PySide6.QtWidgets.QInputDialog, "getText", change_selection)
 		action.trigger()
 		assert _snapshot_facts(tab.current_snapshot) == before
-		assert warnings[-1][0] == "Set Molecule Name"
+		assert warnings[-1].technical_details is not None
+		assert "selection changed" in warnings[-1].technical_details
 
 		tab.select_atom("a")
 		window.centralWidget().setCurrentIndex(window.centralWidget().indexOf(tab))
@@ -213,7 +218,8 @@ def test_typed_name_failure_warns_without_mutation(
 		)
 		_action(window, "Set Molecule Name...").trigger()
 		assert _snapshot_facts(tab.current_snapshot) == before
-		assert warnings and warnings[-1][0] == "Set Molecule Name"
+		assert warnings and warnings[-1].title == "Action Not Available"
+		assert warnings[-1].technical_details is not None
 	finally:
 		_close_clean(window, tab)
 		del qapp

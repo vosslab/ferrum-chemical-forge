@@ -35,7 +35,7 @@ class FerrumPlusItem(PySide6.QtWidgets.QGraphicsObject):
 		super().__init__(parent)
 		extension = _ferrum_chem()
 		if type(plus) is not extension.DocumentPlusRenderV1:
-			raise FerrumPlusItemError("plus render must be ferrum_chem.DocumentPlusRenderV1")
+			raise FerrumPlusItemError("plus render must be engine.DocumentPlusRenderV1")
 		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
 		self._initialize(plus, extension, telex)
 
@@ -48,7 +48,7 @@ class FerrumPlusItem(PySide6.QtWidgets.QGraphicsObject):
 		PySide6.QtWidgets.QGraphicsObject.__init__(item)
 		extension = _ferrum_chem()
 		if type(plus) is not extension.DocumentPlusRenderV1:
-			raise FerrumPlusItemError("plus render must be ferrum_chem.DocumentPlusRenderV1")
+			raise FerrumPlusItemError("plus render must be engine.DocumentPlusRenderV1")
 		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 			raise FerrumPlusItemError("plus render requires verified Telex bytes")
 		item._initialize(plus, extension, telex)
@@ -229,7 +229,7 @@ def _finite(value: object, description: str) -> float:
 def _ferrum_chem() -> object:
 	"""Load the installed direct extension only at the public boundary."""
 	try:
-		import ferrum_chem
+		import ferrum_qt.ferrum.engine as engine
 	except ImportError as exc:
 		raise FerrumPlusItemError("Ferrum plus rendering requires ferrum_chem") from exc
-	return ferrum_chem
+	return engine

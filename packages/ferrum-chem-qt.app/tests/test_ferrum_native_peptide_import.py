@@ -1,4 +1,4 @@
-"""Behavior coverage for strict Rust-native peptide-template insertion."""
+"""Behavior coverage for strict Ferrum peptide-template insertion."""
 
 # Standard Library
 import dataclasses
@@ -16,9 +16,9 @@ import ferrum_chem
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
-import ferrum_qt.native.ferrum_native_peptide_import
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.peptide_import
 
 
 _EMPTY_CDML = "<cdml/>"
@@ -41,7 +41,7 @@ class _ControlledPeptideWorker(PySide6.QtCore.QThread):
 
 	#============================================
 	def __init__(self, prepared: object | None, failure: str | None) -> None:
-		"""Store one terminal outcome until the test releases native delivery."""
+		"""Store one terminal outcome until the test releases Ferrum delivery."""
 		super().__init__()
 		self._prepared = prepared
 		self._failure = failure
@@ -89,8 +89,8 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 #============================================
 def _window_with_tab() -> tuple[object, object]:
 	"""Create one ordinary Rust-owned document tab for a behavior test."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -123,7 +123,7 @@ def _prepared_molecule() -> object:
 
 #============================================
 def test_worker_passes_exact_unmodified_sequence_to_the_native_contract() -> None:
-	"""Whitespace and case reach the required native extension symbol unchanged."""
+	"""Whitespace and case reach the required Ferrum extension symbol unchanged."""
 	passed = []
 
 	def prepare(sequence: str, placement: object) -> object:
@@ -134,7 +134,7 @@ def test_worker_passes_exact_unmodified_sequence_to_the_native_contract() -> Non
 	operation = ferrum_chem.prepare_supported_peptide_template_molecule_v1
 	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
 	worker = (
-		ferrum_qt.native.ferrum_native_peptide_import.
+		ferrum_qt.ferrum.peptide_import.
 		FerrumNativePeptidePreparationWorker._from_fixture(" AN ", placement, prepare)
 	)
 	worker.run()
@@ -166,12 +166,12 @@ def test_cancelled_prompt_leaves_document_and_action_ready(
 def test_accepted_blank_reports_failure_without_document_edit(
 		qtbot: object, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""An accepted blank reaches native preparation rather than being discarded."""
+	"""An accepted blank reaches Ferrum preparation rather than being discarded."""
 	window, tab = _window_with_tab()
 	worker = _install_controlled_worker(window, None, "sequence must not be empty")
 	warnings = []
 	monkeypatch.setattr(
-		window, "_show_native_file_warning", lambda title, message: warnings.append((title, message)),
+		window, "_show_edit_refusal", lambda request: warnings.append(request),
 	)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText", lambda *_args: ("", True),
@@ -180,7 +180,7 @@ def test_accepted_blank_reports_failure_without_document_edit(
 	_await_worker(qtbot, worker)
 
 	assert not tab.is_dirty
-	assert warnings[-1][0] == "Native Peptide Template Preparation Error"
+	assert warnings[-1].outcome.value == "unavailable_operation"
 	tab.dispose()
 	window.deleteLater()
 
@@ -240,7 +240,7 @@ def test_close_actions_block_then_cancelled_delivery_leaves_no_edit(
 	"""Tab and window close share the delivery cancellation boundary."""
 	window, tab = _window_with_tab()
 	worker = _install_controlled_worker(window, _prepared_molecule(), None)
-	monkeypatch.setattr(window, "_show_native_file_warning", lambda _title, _message: None)
+	monkeypatch.setattr(window, "_show_edit_refusal", lambda _request: None)
 	assert window.start_supported_peptide_import("AN")
 	window._close_action.trigger()
 	remained_open = window.centralWidget().indexOf(tab) >= 0

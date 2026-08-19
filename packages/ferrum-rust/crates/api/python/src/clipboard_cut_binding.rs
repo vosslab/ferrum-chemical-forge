@@ -1,13 +1,13 @@
 //! Private worker-safe preparation and authenticated session boundary for native Cut.
 //!
-//! This unsupported entry point belongs only to bundled Ferrum-Qt. It has no
+//! This unsupported entry point belongs only to bundled Ferrum. It has no
 //! wheel stub, CLI, serde, or wire-format commitment.
 
-use ferrum_api::{
+use ferrum_document::DocumentSession;
+use ferrum_document::{
     DocumentClipboardCutApplyErrorV1, DocumentClipboardCutPlanV1, apply_clipboard_cut_v1,
     prepare_clipboard_cut_v1,
 };
-use ferrum_document::DocumentSession;
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString, PyTuple};

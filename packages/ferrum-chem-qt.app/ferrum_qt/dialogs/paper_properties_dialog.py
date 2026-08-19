@@ -5,6 +5,7 @@ import collections.abc
 import math
 import re
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 _DECIMAL_RE = re.compile(r"(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)")
 _INTEGER_RE = re.compile(r"[0-9]+")
@@ -19,7 +20,7 @@ def _attribute_is_true(attributes: dict[str, str], name: str) -> bool:
 
 
 #============================================
-class PaperPropertiesDialog(PySide6.QtWidgets.QDialog):
+class PaperPropertiesDialog(FerrumAccessibleDialog):
 	"""Edit the paper fields that the document model persists in CDML."""
 
 	#============================================

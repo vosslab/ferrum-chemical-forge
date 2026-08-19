@@ -1,4 +1,4 @@
-"""Geometry unit helpers for Ferrum-Qt scene-space values."""
+"""Geometry unit helpers for Ferrum scene-space values."""
 
 # local repo modules
 import ferrum_qt.bridge.display_geometry

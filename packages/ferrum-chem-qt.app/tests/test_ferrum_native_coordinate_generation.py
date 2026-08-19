@@ -1,4 +1,4 @@
-"""Behavior coverage for Rust-native existing-molecule coordinate generation."""
+"""Behavior coverage for Ferrum existing-molecule coordinate generation."""
 
 # Standard Library
 import math
@@ -14,9 +14,9 @@ import ferrum_chem
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_coordinate_generation
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.coordinate_generation
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
 
 
 _SOURCE = """<cdml version='26.08'><molecule id='mol-1' name='Ethanol'>
@@ -64,9 +64,9 @@ def _mean_bond_length(points: tuple[tuple[float, float], ...]) -> float:
 #============================================
 def _finish_coordinate_worker(
 		qapp: PySide6.QtWidgets.QApplication,
-		window: ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow,
+		window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
 		) -> None:
-	"""Wait for native teardown, then deliver its queued UI-thread result."""
+	"""Wait for worker cleanup, then deliver its queued UI-thread result."""
 	intent = window._coordinate_generation_intent
 	assert intent is not None and intent.worker.wait(10000)
 	for _iteration in range(3):
@@ -78,12 +78,12 @@ def _finish_coordinate_worker(
 def test_worker_returns_frozen_revision_bound_coordinates(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The worker returns owned Ferrum facts rather than an OASA molecule graph."""
+	"""The worker returns owned Ferrum facts rather than a Python molecule graph."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation = session.observe(0)
 	molecule_id = observation.projection.molecules[0].id
 	worker = (
-		ferrum_qt.native.ferrum_native_coordinate_generation.
+		ferrum_qt.ferrum.coordinate_generation.
 		FerrumNativeCoordinatePreparationWorker(observation, molecule_id)
 	)
 	prepared = []
@@ -107,8 +107,8 @@ def test_public_action_preserves_current_placement_and_round_trips_history(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""One action performs worker, transaction, render, undo, redo, and save."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "ethanol.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -121,7 +121,7 @@ def test_public_action_preserves_current_placement_and_round_trips_history(
 	assert math.isclose(_centroid(after)[0], _centroid(before)[0], abs_tol=1e-10)
 	assert math.isclose(_centroid(after)[1], _centroid(before)[1], abs_tol=1e-10)
 	assert math.isclose(_mean_bond_length(after), _mean_bond_length(before), rel_tol=1e-12)
-	assert "Generated Rust-native coordinates." in window.statusBar().currentMessage()
+	assert "Generated Ferrum coordinates." in window.statusBar().currentMessage()
 
 	tab.undo()
 	assert _positions(tab) == before
@@ -144,8 +144,8 @@ def test_worker_result_is_discarded_when_the_source_revision_changes(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A queued coordinate result cannot overwrite a newer authoritative edit."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "ethanol.cdml",
 	)
 	window._register_native_tab(tab, activate=True)

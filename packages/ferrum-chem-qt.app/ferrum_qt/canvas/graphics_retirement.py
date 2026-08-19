@@ -20,9 +20,9 @@ import ferrum_qt.canvas.graphics_callbacks
 
 #============================================
 def is_valid_native_wrapper(item: object) -> bool:
-	"""Return whether a PySide/Shiboken wrapper may cross one native boundary."""
+	"""Return whether a PySide/Shiboken wrapper may cross one Ferrum boundary."""
 	# Shiboken reports ``None`` as valid, but it is the normal terminal parent
-	# sentinel rather than a wrapper that may receive native method calls.
+	# sentinel rather than a wrapper that may receive Ferrum method calls.
 	if item is None:
 		return False
 	try:
@@ -59,7 +59,7 @@ def selected_items_from_captured_scene(
 		) -> list[PySide6.QtWidgets.QGraphicsItem]:
 	"""Return selected items only from one still-live scene wrapper.
 
-	Selection is a native call. A retired scene therefore has no observable
+	Selection is a Ferrum call. A retired scene therefore has no observable
 	selection, rather than a later caller entering C++ through its stale wrapper.
 	"""
 	if not is_valid_native_wrapper(scene):
@@ -162,7 +162,7 @@ class RetainedDetachedGraphics:
 	The record owns only wrappers that were already detached from their scene and
 	parent tree.  Its long-lived reaper owner selects when a controlled terminal
 	resolution is attempted; each attempt checks wrapper validity immediately
-	before the sole native deletion boundary.
+	before the sole Ferrum deletion boundary.
 	"""
 
 	roots: list[PySide6.QtWidgets.QGraphicsItem]
@@ -178,7 +178,7 @@ class RetainedDetachedGraphics:
 #============================================
 @dataclasses.dataclass
 class RetainedSceneProjectionGraphics:
-	"""Own roots whose known scene removal reported a native failure.
+	"""Own roots whose known scene removal reported a Ferrum failure.
 
 	Unlike :class:`RetainedDetachedGraphics`, these roots may still be owned by
 	a live scene.  The record therefore retains that scene as well as the roots
@@ -216,7 +216,7 @@ class RetainedGraphicsRecords:
 	#============================================
 	@property
 	def unresolved(self) -> bool:
-		"""Return whether this aggregate retains any native graphics ownership."""
+		"""Return whether this aggregate retains any Ferrum graphics ownership."""
 		return (
 			(self.detached is not None and self.detached.unresolved)
 			or any(record.unresolved for record in self.scene_projections)
@@ -354,7 +354,7 @@ class TemporarySceneRetirement:
 	#============================================
 	@property
 	def resolved(self) -> bool:
-		"""Return whether this record owns no live native graphics wrappers."""
+		"""Return whether this record owns no live Ferrum graphics wrappers."""
 		roots_resolved = (
 			self.retained_detached_graphics is None
 			or not self.retained_detached_graphics.unresolved
@@ -396,7 +396,7 @@ class TemporarySceneRetirementReaper:
 
 	#============================================
 	def owns_detached_root(self, item: PySide6.QtWidgets.QGraphicsItem) -> bool:
-		"""Return whether a pending record retains ``item`` after a native failure."""
+		"""Return whether a pending record retains ``item`` after a Ferrum failure."""
 		for record in self._pending:
 			retained = record.retained_detached_graphics
 			if retained is not None and item in retained.roots:
@@ -405,7 +405,7 @@ class TemporarySceneRetirementReaper:
 
 	#============================================
 	def _advance(self, record: TemporarySceneRetirement) -> None:
-		"""Advance one record without dropping an unresolved native wrapper."""
+		"""Advance one record without dropping an unresolved Ferrum wrapper."""
 		if not record.contents_retired:
 			coordinator = GraphicsRetirementCoordinator()
 			try:
@@ -506,7 +506,7 @@ class GraphicsRetirementCoordinator:
 		"""Detach roots whose undo command remains their live future owner.
 
 		This is the only nonterminal scene-removal path.  It releases callbacks
-		and scene ownership while deliberately retaining native wrappers for a
+		and scene ownership while deliberately retaining Ferrum wrappers for a
 		future undo/redo command.  Terminal projection disposal uses
 		:meth:`retire_scene_projection_items` instead.
 		"""
@@ -532,7 +532,7 @@ class GraphicsRetirementCoordinator:
 		The caller identifies the still-live scene and roots before retirement.
 		The coordinator snapshots every child, disconnects callbacks, removes
 		known roots, unparents children first, and explicitly deletes children
-		before parents.  Failed native deletions transfer to ``reaper`` (or the
+		before parents.  Failed Ferrum deletions transfer to ``reaper`` (or the
 		process reaper) rather than falling through to Python finalization.
 		"""
 		ordered = self._child_first_unique(items)
@@ -583,7 +583,7 @@ class GraphicsRetirementCoordinator:
 
 		A replacement transaction may have already run every callback while its old
 		projection remained scene-owned.  That explicit flag prevents a second,
-		post-commit callback invocation before native deletion.
+		post-commit callback invocation before Ferrum deletion.
 		"""
 		ordered = self._child_first_unique(items)
 		if not callbacks_already_disposed:
@@ -601,10 +601,10 @@ class GraphicsRetirementCoordinator:
 		"""Retire a known export scene and explicit detached roots in one protocol."""
 		if scene is None or not self._is_live(scene):
 			raise RuntimeError("Cannot retire an invalid temporary scene wrapper")
-		# Explicitly supplied roots leave the scene before native deletion.  This
+		# Explicitly supplied roots leave the scene before Ferrum deletion.  This
 		# preserves child-before-parent ordering for atom-attached presentation
 		# items instead of asking QGraphicsScene.clear() to destroy that mixed tree.
-		# Temporary scene retirement retains any failed native deletion in its
+		# Temporary scene retirement retains any failed Ferrum deletion in its
 		# own long-lived record, so this coordinator must keep failures until the
 		# caller transfers them below.
 		self._retire_scene_items(scene, scene_items)
@@ -807,7 +807,7 @@ class GraphicsRetirementCoordinator:
 				shiboken6.delete(item)
 			except RuntimeError as exc:
 				# Retain the valid root for the controlled owner rather than allowing
-				# Python finalization to make an unresolved native transition implicit.
+				# Python finalization to make an unresolved Ferrum transition implicit.
 				self.retained_detached_roots.append(item)
 				self.report.callback_errors.append(exc)
 
@@ -887,7 +887,7 @@ class GraphicsRetirementCoordinator:
 
 	#============================================
 	def _is_live(self, item: object) -> bool:
-		"""Check a PySide native wrapper immediately before a C++ method call."""
+		"""Check a PySide Ferrum wrapper immediately before a C++ method call."""
 		try:
 			valid = is_valid_native_wrapper(item)
 		except TypeError:

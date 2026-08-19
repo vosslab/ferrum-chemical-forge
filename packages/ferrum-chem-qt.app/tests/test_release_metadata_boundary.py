@@ -61,7 +61,7 @@ def test_invalid_installed_metadata_reports_the_typed_boundary_failure(
 
 	with pytest.raises(
 		ferrum_qt.bridge.release_metadata.ReleaseMetadataError,
-		match="Unsupported installed Ferrum-Qt version metadata",
+		match="Unsupported installed Ferrum version metadata",
 	):
 		ferrum_qt.bridge.release_metadata.installed_display_version("ferrum-qt")
 
@@ -81,7 +81,7 @@ def test_missing_installed_metadata_reports_the_typed_boundary_failure(
 
 	with pytest.raises(
 		ferrum_qt.bridge.release_metadata.ReleaseMetadataError,
-		match="Ferrum-Qt package metadata is unavailable",
+		match="Ferrum package metadata is unavailable",
 	):
 		ferrum_qt.bridge.release_metadata.installed_display_version("ferrum-qt")
 

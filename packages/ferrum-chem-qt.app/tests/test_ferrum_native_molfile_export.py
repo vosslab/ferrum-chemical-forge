@@ -1,4 +1,4 @@
-"""Behavior coverage for selected native document-to-Molfile export."""
+"""Behavior coverage for selected Ferrum document-to-Molfile export."""
 
 # Standard Library
 import os
@@ -14,8 +14,8 @@ import pytest
 
 # local repo modules
 import ferrum_chem
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
 
 
 _SOURCE = """<cdml version='26.08'><molecule id='m1' name='selected molecule'>
@@ -38,7 +38,7 @@ _MULTI_SOURCE = """<cdml version='26.08'>
 #============================================
 @pytest.fixture
 def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Provide the offscreen application used by the ordinary native window."""
+	"""Provide the offscreen application used by the ordinary Ferrum window."""
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
 		app = PySide6.QtWidgets.QApplication([])
@@ -55,8 +55,8 @@ def _action(window: object, text: str) -> PySide6.QtGui.QAction:
 #============================================
 def _register(source: str) -> tuple[object, object]:
 	"""Create one ordinary window with one active Rust-owned tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		source, "molecule.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -101,8 +101,8 @@ def test_visible_actions_publish_both_explicit_molfile_syntaxes_without_mutation
 	)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		v2000 = _action(window, "Export Molfile V2000...")
@@ -159,8 +159,8 @@ def test_action_requires_one_root_and_reauthenticates_after_the_dialog(
 	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_path)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		action = _action(window, "Export Molfile V2000...")
@@ -172,7 +172,7 @@ def test_action_requires_one_root_and_reauthenticates_after_the_dialog(
 		assert action.isEnabled()
 		action.trigger()
 		assert not destination.exists()
-		assert warnings[-1][0] == "Native Molfile Export Unavailable"
+		assert warnings[-1].outcome.value == "unavailable_operation"
 	finally:
 		_dispose(window, tab, qapp)
 
@@ -182,7 +182,7 @@ def test_shared_cancel_action_withholds_molfile_publication(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		tmp_path: pathlib.Path,
 		) -> None:
-	"""Cancellation invalidates delivery without claiming native interruption."""
+	"""Cancellation invalidates delivery without claiming Ferrum interruption."""
 	window, tab = _register(_SOURCE)
 	destination = tmp_path / "cancelled.mol"
 	monkeypatch.setattr(
@@ -220,8 +220,8 @@ def test_unsupported_drawing_bond_reports_failure_without_file_fallback(
 	)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		tab.select_atom("a1")
@@ -229,8 +229,8 @@ def test_unsupported_drawing_bond_reports_failure_without_file_fallback(
 		before = tab.current_snapshot
 		_action(window, "Export Molfile V2000...").trigger()
 		_wait_for_molfile(window, qapp)
-		assert warnings[-1][0] == "Native Molfile Export Error"
-		assert "drawing style" in warnings[-1][1]
+		assert warnings[-1].outcome.value == "unavailable_operation"
+		assert "drawing style" in warnings[-1].technical_details or ""
 		assert not destination.exists() and tab.current_snapshot == before
 	finally:
 		_dispose(window, tab, qapp)

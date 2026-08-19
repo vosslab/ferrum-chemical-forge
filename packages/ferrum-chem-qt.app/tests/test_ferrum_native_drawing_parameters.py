@@ -1,7 +1,7 @@
-"""Behavior coverage for application-owned native drawing choices."""
+"""Behavior coverage for application-owned Ferrum drawing choices."""
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_drawing_parameters
+import ferrum_qt.ferrum.drawing_parameters
 
 
 #============================================
@@ -28,16 +28,16 @@ class _ValueStore:
 def test_valid_next_drawing_choices_round_trip_through_application_store() -> None:
 	"""A completed choice returns with conventional element spelling after recreation."""
 	store = _ValueStore()
-	parameters = ferrum_qt.native.ferrum_native_drawing_parameters.FerrumNativeDrawingParameters(
+	parameters = ferrum_qt.ferrum.drawing_parameters.FerrumNativeDrawingParameters(
 		store,
 	)
 	parameters.set_element("cL")
 	parameters.set_order_name("triple")
-	recreated = ferrum_qt.native.ferrum_native_drawing_parameters.FerrumNativeDrawingParameters(
+	recreated = ferrum_qt.ferrum.drawing_parameters.FerrumNativeDrawingParameters(
 		store,
 	)
 	assert recreated.snapshot() == (
-		ferrum_qt.native.ferrum_native_drawing_parameters.
+		ferrum_qt.ferrum.drawing_parameters.
 		FerrumNativeDrawingParametersSnapshot("Cl", "triple", "normal")
 	)
 
@@ -45,7 +45,7 @@ def test_valid_next_drawing_choices_round_trip_through_application_store() -> No
 #============================================
 def test_invalid_next_drawing_choices_keep_last_effective_choice() -> None:
 	"""An unfinished invalid edit leaves the next authoring operation unchanged."""
-	parameters = ferrum_qt.native.ferrum_native_drawing_parameters.FerrumNativeDrawingParameters(
+	parameters = ferrum_qt.ferrum.drawing_parameters.FerrumNativeDrawingParameters(
 		_ValueStore(),
 	)
 	parameters.set_element("N")
@@ -53,6 +53,6 @@ def test_invalid_next_drawing_choices_keep_last_effective_choice() -> None:
 	parameters.set_element("N2")
 	parameters.set_order_name("aromatic")
 	assert parameters.snapshot() == (
-		ferrum_qt.native.ferrum_native_drawing_parameters.
+		ferrum_qt.ferrum.drawing_parameters.
 		FerrumNativeDrawingParametersSnapshot("N", "double", "normal")
 	)

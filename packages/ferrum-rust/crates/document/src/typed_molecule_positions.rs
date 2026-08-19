@@ -29,72 +29,184 @@ impl TypedDocument {
         molecule_identifier: &PersistentId,
         positions: &[Point3V1],
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let mut candidate = self.detached_candidate()?;
-        let indexed = candidate.detached_indexed_mut();
-        let id_name = indexed.xml.tree.add_name("id");
-        let root = indexed
-            .xml
-            .tree
-            .document_element(indexed.xml.document)
-            .expect("a parsed CDML document has a document element");
-        let molecule = indexed.xml.tree.descendants(root).find(|node| {
-            element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
-                local_name == "molecule"
-                    && valid_namespace(&namespace)
-                    && indexed.xml.tree.get_attribute(*node, id_name)
-                        == Some(molecule_identifier.as_str())
-            })
-        });
-        let Some(molecule) = molecule else {
+        if !has_molecule(self, molecule_identifier) {
             return Ok(None);
-        };
-        let atoms = indexed
+        }
+        self.with_molecule_atom_positions_batch(&[(
+            molecule_identifier.clone(),
+            positions.to_vec(),
+        )])
+        .map(Some)
+    }
+
+    /// Return one detached candidate after validating every Point3 target.
+    ///
+    /// Validation deliberately completes before the detached candidate is changed,
+    /// so a malformed later target cannot leave an earlier replacement visible.
+    pub(crate) fn with_molecule_atom_positions_batch(
+        &self,
+        updates: &[(PersistentId, Vec<Point3V1>)],
+    ) -> Result<Self, TypedDocumentError> {
+        for (molecule_identifier, positions) in updates {
+            validate_xyz_target(self, molecule_identifier, positions.len())?;
+        }
+        let mut candidate = self.detached_candidate()?;
+        for (molecule_identifier, positions) in updates {
+            apply_xyz_target(&mut candidate, molecule_identifier, positions);
+        }
+        Self::parse(&candidate.to_xml()?)
+    }
+}
+
+fn has_molecule(document: &TypedDocument, molecule_identifier: &PersistentId) -> bool {
+    let indexed = document.indexed();
+    let root = indexed
+        .xml
+        .tree
+        .document_element(indexed.xml.document)
+        .expect("a parsed CDML document has a document element");
+    indexed.xml.tree.descendants(root).any(|node| {
+        element_name(&indexed.xml.tree, node).is_some_and(|(local_name, namespace)| {
+            local_name == "molecule"
+                && valid_namespace(&namespace)
+                && unqualified_attribute(&indexed.xml.tree, node, "id")
+                    == Some(molecule_identifier.as_str())
+        })
+    })
+}
+
+fn validate_xyz_target(
+    document: &TypedDocument,
+    molecule_identifier: &PersistentId,
+    position_count: usize,
+) -> Result<(), TypedDocumentError> {
+    let indexed = document.indexed();
+    let root = indexed
+        .xml
+        .tree
+        .document_element(indexed.xml.document)
+        .expect("a parsed CDML document has a document element");
+    let molecule = indexed.xml.tree.descendants(root).find(|node| {
+        element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
+            local_name == "molecule"
+                && valid_namespace(&namespace)
+                && unqualified_attribute(&indexed.xml.tree, *node, "id")
+                    == Some(molecule_identifier.as_str())
+        })
+    });
+    let Some(molecule) = molecule else {
+        return Err(TypedDocumentError::InvalidMoleculeCoordinateTarget(
+            molecule_identifier.clone(),
+        ));
+    };
+    let atoms = indexed
+        .xml
+        .tree
+        .children(molecule)
+        .filter(|node| {
+            element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
+                local_name == "atom" && valid_namespace(&namespace)
+            })
+        })
+        .collect::<Vec<_>>();
+    if atoms.len() != position_count {
+        return Err(TypedDocumentError::MoleculePositionCountMismatch {
+            molecule: molecule_identifier.clone(),
+            expected: atoms.len(),
+            actual: position_count,
+        });
+    }
+    for (atom_index, atom) in atoms.into_iter().enumerate() {
+        let point = indexed
             .xml
             .tree
-            .children(molecule)
-            .filter(|node| {
-                element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
-                    local_name == "atom" && valid_namespace(&namespace)
-                })
-            })
-            .collect::<Vec<_>>();
-        if atoms.len() != positions.len() {
-            return Err(TypedDocumentError::MoleculePositionCountMismatch {
-                molecule: molecule_identifier.clone(),
-                expected: atoms.len(),
-                actual: positions.len(),
-            });
-        }
-        let x_name = indexed.xml.tree.add_name("x");
-        let y_name = indexed.xml.tree.add_name("y");
-        let z_name = indexed.xml.tree.add_name("z");
-        for (atom_index, (atom, position)) in atoms.into_iter().zip(positions).enumerate() {
-            let point = indexed.xml.tree.children(atom).find(|node| {
+            .children(atom)
+            .find(|node| {
                 element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
                     local_name == "point" && valid_namespace(&namespace)
                 })
-            });
-            let point = point.ok_or_else(|| TypedDocumentError::MissingMoleculeAtomPosition {
+            })
+            .ok_or_else(|| TypedDocumentError::MissingMoleculeAtomPosition {
                 molecule: molecule_identifier.clone(),
                 atom_index,
             })?;
-            indexed
-                .xml
-                .tree
-                .set_attribute(point, x_name, position.x().to_string());
-            indexed
-                .xml
-                .tree
-                .set_attribute(point, y_name, position.y().to_string());
-            if position.z() != 0.0 || indexed.xml.tree.get_attribute(point, z_name).is_some() {
-                indexed
-                    .xml
-                    .tree
-                    .set_attribute(point, z_name, position.z().to_string());
-            }
+        for field in ["x", "y"] {
+            target_coordinate(
+                &indexed.xml.tree,
+                point,
+                molecule_identifier,
+                atom_index,
+                field,
+            )?;
         }
-        let serialized = candidate.to_xml()?;
-        Self::parse(&serialized).map(Some)
+        if unqualified_attribute(&indexed.xml.tree, point, "z").is_some() {
+            target_coordinate(
+                &indexed.xml.tree,
+                point,
+                molecule_identifier,
+                atom_index,
+                "z",
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn apply_xyz_target(
+    candidate: &mut TypedDocument,
+    molecule_identifier: &PersistentId,
+    positions: &[Point3V1],
+) {
+    let indexed = candidate.detached_indexed_mut();
+    let id_name = indexed.xml.tree.add_name("id");
+    let root = indexed
+        .xml
+        .tree
+        .document_element(indexed.xml.document)
+        .expect("a parsed CDML document has a document element");
+    let molecule = indexed.xml.tree.descendants(root).find(|node| {
+        element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
+            local_name == "molecule"
+                && valid_namespace(&namespace)
+                && indexed.xml.tree.get_attribute(*node, id_name)
+                    == Some(molecule_identifier.as_str())
+        })
+    });
+    let molecule = molecule.expect("validated molecule remains in detached candidate");
+    let atoms = indexed
+        .xml
+        .tree
+        .children(molecule)
+        .filter(|node| {
+            element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
+                local_name == "atom" && valid_namespace(&namespace)
+            })
+        })
+        .collect::<Vec<_>>();
+    let x_name = indexed.xml.tree.add_name("x");
+    let y_name = indexed.xml.tree.add_name("y");
+    let z_name = indexed.xml.tree.add_name("z");
+    for (atom, position) in atoms.into_iter().zip(positions) {
+        let point = indexed.xml.tree.children(atom).find(|node| {
+            element_name(&indexed.xml.tree, *node).is_some_and(|(local_name, namespace)| {
+                local_name == "point" && valid_namespace(&namespace)
+            })
+        });
+        let point = point.expect("validated atom point remains in detached candidate");
+        indexed
+            .xml
+            .tree
+            .set_attribute(point, x_name, position.x().to_string());
+        indexed
+            .xml
+            .tree
+            .set_attribute(point, y_name, position.y().to_string());
+        if position.z() != 0.0 || indexed.xml.tree.get_attribute(point, z_name).is_some() {
+            indexed
+                .xml
+                .tree
+                .set_attribute(point, z_name, position.z().to_string());
+        }
     }
 }
 

@@ -1,0 +1,216 @@
+//! Human-oriented CLI verbs layered over the frozen operation protocol.
+
+pub(crate) mod convert;
+pub(crate) mod coords;
+mod input;
+pub(crate) mod inspect;
+pub(crate) mod render;
+pub(crate) mod rewrite;
+pub(crate) mod validate;
+
+use std::io::{self, Write};
+use std::path::Path;
+
+use ferrum_document::artifact_publication_v1::{
+    ArtifactPublicationErrorV1, ArtifactPublicationOutcomeV1, ArtifactPublicationRequestV1,
+    RetainedSourceFileGuardV1, publish_artifact_v1,
+};
+use ferrum_document::{DocumentIngressErrorV1, DocumentSessionError};
+use thiserror::Error;
+
+use crate::cli::engine_bundle;
+use crate::protocol::{
+    OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1, OperationProtocolOperationV1,
+    OperationProtocolRequestV1, ProtocolRequestSchemaV1, execute_operation_v1,
+    execute_operation_with_runtime_v1,
+};
+
+pub(crate) use input::{read_document, read_text};
+
+pub(crate) fn execute(
+    operation: OperationProtocolOperationV1,
+) -> Result<OperationProtocolEnvelopeV1, VerbCliError> {
+    let request = OperationProtocolRequestV1 {
+        schema: ProtocolRequestSchemaV1::V1,
+        request_id: "ferrum-cli".to_owned(),
+        operation,
+    };
+    let json = serde_json::to_string(&request)?;
+    let envelope = if operation_requires_chemistry(&request.operation) {
+        match engine_bundle::active_runtime() {
+            Ok(runtime) => execute_operation_with_runtime_v1(&json, &runtime)?,
+            // The no-runtime executor intentionally turns this into a typed,
+            // completed chemistry_unavailable response rather than a transport
+            // failure.  It also keeps the first four verbs independent of an
+            // optional native bundle.
+            Err(_) => execute_operation_v1(&json)?,
+        }
+    } else {
+        execute_operation_v1(&json)?
+    };
+    Ok(envelope)
+}
+
+fn operation_requires_chemistry(operation: &OperationProtocolOperationV1) -> bool {
+    matches!(
+        operation,
+        OperationProtocolOperationV1::ChemistryConvert(_)
+            | OperationProtocolOperationV1::GenerateCoordinates(_)
+    )
+}
+
+pub(crate) fn write_json(
+    envelope: &OperationProtocolEnvelopeV1,
+    stdout: &mut dyn Write,
+) -> Result<(), VerbCliError> {
+    let mut bytes = serde_json::to_vec(envelope)?;
+    bytes.push(b'\n');
+    write_stdout(&bytes, stdout)
+}
+
+pub(crate) fn write_pretty<T: serde::Serialize>(
+    value: &T,
+    stdout: &mut dyn Write,
+) -> Result<(), VerbCliError> {
+    let mut bytes = serde_json::to_vec_pretty(value)?;
+    bytes.push(b'\n');
+    write_stdout(&bytes, stdout)
+}
+
+pub(crate) fn write_refusal(message: &str, stderr: &mut dyn Write) -> Result<(), VerbCliError> {
+    let diagnostic = format!("ferrum: {message}\n");
+    stderr
+        .write_all(diagnostic.as_bytes())
+        .map_err(|source| VerbCliError::Write {
+            output: "standard error".to_owned(),
+            source,
+        })
+}
+
+pub(crate) fn publish_or_write(
+    output: Option<&Path>,
+    bytes: Vec<u8>,
+    retained_source: Option<RetainedSourceFileGuardV1>,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> Result<(), VerbCliError> {
+    let Some(destination) =
+        output.filter(|path| !crate::transport::streams::is_standard_stream(path))
+    else {
+        return write_stdout(&bytes, stdout);
+    };
+    let mut request = ArtifactPublicationRequestV1::new(destination.to_path_buf(), bytes);
+    if let Some(source) = retained_source {
+        request = request.with_retained_source(source);
+    }
+    match publish_artifact_v1(request)? {
+        ArtifactPublicationOutcomeV1::ConfirmedDurable(_) => Ok(()),
+        ArtifactPublicationOutcomeV1::DirectoryEntryUnconfirmed(_) => stderr
+            .write_all(
+                b"ferrum: warning: output was written, but directory-entry durability could not be confirmed\n",
+            )
+            .map_err(|source| VerbCliError::Write {
+                output: "standard error".to_owned(),
+                source,
+            }),
+    }
+}
+
+fn write_stdout(bytes: &[u8], stdout: &mut dyn Write) -> Result<(), VerbCliError> {
+    stdout
+        .write_all(bytes)
+        .map_err(|source| VerbCliError::Write {
+            output: "standard output".to_owned(),
+            source,
+        })
+}
+
+#[derive(Debug, Error)]
+pub enum VerbCliError {
+    /// A named non-CDML source could not be read safely.
+    #[error("input: could not read {input}: {source}")]
+    Input {
+        /// User-facing source label.
+        input: String,
+        /// Underlying I/O failure.
+        #[source]
+        source: io::Error,
+    },
+    /// A bounded interchange source exceeded its transport allocation limit.
+    #[error("input: {input} exceeds the {limit}-byte interchange limit")]
+    InputTooLarge {
+        /// User-facing source label.
+        input: String,
+        /// Maximum accepted bytes.
+        limit: usize,
+    },
+    /// A named source was not valid UTF-8.
+    #[error("input: could not decode {input} as UTF-8: {source}")]
+    InvalidUtf8 {
+        /// User-facing source label.
+        input: String,
+        /// UTF-8 decoding failure.
+        #[source]
+        source: std::string::FromUtf8Error,
+    },
+    /// The document could not be admitted through the local V1 profile.
+    #[error("input: {0}")]
+    Document(#[from] DocumentIngressErrorV1),
+    /// The admitted document could not produce an owned structural snapshot.
+    #[error("input: could not snapshot admitted document: {0}")]
+    Snapshot(#[from] DocumentSessionError),
+    /// The typed request or response could not cross the JSON protocol boundary.
+    #[error("processing: {0}")]
+    Json(#[from] serde_json::Error),
+    /// The internal request could not reach a completed envelope.
+    #[error("processing: {0}")]
+    ProtocolInput(#[from] OperationProtocolInputErrorV1),
+    /// The selected output format could not be inferred.
+    #[error("usage: choose --to svg, --to pdf, or --to png when output has no known extension")]
+    MissingArtifactFormat,
+    /// The source extension did not map to one closed interchange format.
+    #[error(
+        "usage: choose --from one of the documented closed formats when input has no known extension"
+    )]
+    MissingInterchangeInputFormat,
+    /// The protocol returned a different successful operation than the verb requested.
+    #[error("processing: protocol returned an unexpected operation result")]
+    UnexpectedOutcome,
+    /// An internal render completion was not valid standard base64.
+    #[error("processing: protocol returned invalid artifact encoding: {0}")]
+    ArtifactEncoding(#[from] base64::DecodeError),
+    /// A standard-stream or diagnostic write failed.
+    #[error("publication: could not write {output}: {source}")]
+    Write {
+        /// User-facing stream label.
+        output: String,
+        /// Underlying I/O failure.
+        #[source]
+        source: io::Error,
+    },
+    /// Safe named publication failed or could not be confirmed.
+    #[error("publication: {0}")]
+    Publication(#[from] ArtifactPublicationErrorV1),
+}
+
+impl VerbCliError {
+    #[must_use]
+    pub const fn exit_status(&self) -> u8 {
+        match self {
+            Self::Publication(ArtifactPublicationErrorV1::PossiblyPublished { .. }) => 3,
+            Self::Document(_)
+            | Self::Snapshot(_)
+            | Self::Input { .. }
+            | Self::InputTooLarge { .. }
+            | Self::InvalidUtf8 { .. }
+            | Self::Json(_)
+            | Self::ProtocolInput(_)
+            | Self::MissingArtifactFormat
+            | Self::MissingInterchangeInputFormat
+            | Self::UnexpectedOutcome
+            | Self::ArtifactEncoding(_)
+            | Self::Write { .. }
+            | Self::Publication(_) => 1,
+        }
+    }
+}

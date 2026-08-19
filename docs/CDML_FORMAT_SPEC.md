@@ -1,28 +1,25 @@
 # CDML Format Specification
 
-> **Ferrum adoption notice (2026-08-12):** Copied from `vosslab/bkchem-oasa` commit
-> `f3a6b2ffb354c63a5d87d2f76c12b43a07bac36c` (source HEAD
-> `f8fd0e6fbd67d40e48c4d6e38116524e85a6d8ed`; source SHA-256
-> `defa534555fcfc20d223ef8341c66f8c1d6ff3fad4f6aa45f7f85212c071fbdb`).
-> Historical OASA/BKChem names are retained in the source text. In Ferrum, backend maps
-> to Ferrum-Chem and frontend maps to Ferrum-Qt; this reference does not claim every
-> operation is implemented. Local changes require deliberate upstream reconciliation, not
-> silent drift.
+> **Historical provenance (2026-08-12):** This specification was initially adapted from
+> `vosslab/bkchem-oasa` commit `f3a6b2ffb354c63a5d87d2f76c12b43a07bac36c`
+> (source SHA-256 `defa534555fcfc20d223ef8341c66f8c1d6ff3fad4f6aa45f7f85212c071fbdb`).
+> Ferrum maintains this as its current specification; the historical source is provenance,
+> not a runtime dependency, implementation owner, or documentation destination.
 
 ## Overview
 
-CDML (Chemical Drawing Markup Language) is an XML format used by BKChem and
-OASA to represent 2D chemical drawings. It stores molecular structure
+CDML (Chemical Drawing Markup Language) is Ferrum's XML format for 2D chemical
+drawings. It stores molecular structure
 (atoms, bonds, groups), depiction metadata (coordinates, colors, line widths),
 and drawing objects (arrows, text, shapes) in a single document.
 
 CDML is the serialization contract between:
 
-- **OASA document backend**: owns and preserves the complete ordered
+- **Ferrum-Chem document backend**: owns and preserves the complete ordered
   persistent document, including typed and opaque content.
-- **OASA molecule codecs and renderers**: provide typed chemistry adapters for
+- **Ferrum-Chem molecule codecs and renderers**: provide typed chemistry adapters for
   `<molecule>` content; they do not replace the complete-document session.
-- **BKChem Qt frontend**: submits complete candidate CDML and projects the
+- **Ferrum Qt frontend**: submits complete candidate CDML and projects the
   backend's canonical complete response.
 - **CD-SVG**: embeds a `<cdml>` node inside standard SVG for round-trip
   editing.
@@ -39,10 +36,10 @@ for compatibility and identity, not as a guaranteed fetch target.
 The canonical namespace is required by the 26.07 authored profile. Its absence
 is accepted only as standalone legacy compatibility input; it is not a new
 authoring option. It is also required for embedded CDML inside SVG (CD-SVG).
-BKChem may load legacy CDML without the namespace but may prompt when loading
-embedded CDML in SVG files with missing or incorrect namespaces.
+Ferrum may load standalone legacy CDML without the namespace. Embedded CDML in
+SVG requires the canonical namespace.
 
-Documentation URL: [CDML Format Specification](https://github.com/vosslab/bkchem/blob/main/docs/CDML_FORMAT_SPEC.md).
+Documentation URL: [CDML_FORMAT_SPEC.md](https://github.com/vosslab/ferrum-chemical-forge/blob/main/docs/CDML_FORMAT_SPEC.md).
 
 ### Current version
 
@@ -77,7 +74,7 @@ A CDML document has the following top-level structure:
 <cdml version="26.07" xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">
   <info>...</info>
   <metadata>
-    <doc href="https://github.com/vosslab/bkchem/blob/main/docs/CDML_FORMAT_SPEC.md"/>
+    <doc href="https://github.com/vosslab/ferrum-chemical-forge/blob/main/docs/CDML_FORMAT_SPEC.md"/>
   </metadata>
   <standard>...</standard>
   <paper .../>
@@ -131,10 +128,9 @@ CDML's existing semantics and version chain remain authoritative.
 
 ### Machine inspection profiles
 
-The public, Qt-free conformance inspector has exactly two profiles. Its API,
-CLI, and versioned semantic corpus are provided by
-`packages/oasa/oasa/cdml_conformance.py`, `tools/cdml_conformance.py`, and
-`docs/cdml_conformance/cdml_26_07_manifest.json`.
+Ferrum defines exactly two Qt-free conformance profiles. Implementations expose
+them through the Ferrum-Chem document boundary; this specification, rather
+than a retired Python module, is the normative source for their meaning.
 
 | Profile | Behavioral question | Bounded implemented checks |
 |---------|---------------------|----------------------------|
@@ -228,7 +224,7 @@ Optional metadata for human-oriented discovery pointers.
 
 ```xml
 <metadata>
-  <doc href="https://github.com/vosslab/bkchem/blob/main/docs/CDML_FORMAT_SPEC.md"/>
+  <doc href="https://github.com/vosslab/ferrum-chemical-forge/blob/main/docs/CDML_FORMAT_SPEC.md"/>
 </metadata>
 ```
 
@@ -244,7 +240,7 @@ Metadata about the document and authoring program.
 
 ```xml
 <info>
-  <author_program version="application-version">BKChem</author_program>
+  <author_program version="application-version">Ferrum</author_program>
   <author>User Name</author>
   <note>Optional notes</note>
 </info>
@@ -318,9 +314,9 @@ claim of a shared `px` or `mm` conversion.
 ## `<paper>`
 
 Page layout and export options are persistent CDML data owned and preserved by
-the OASA document backend. BKChem edits and projects these values through a
-revision-bound explicit-field backend patch; it does not rebuild the paper
-record or complete document.
+Ferrum-Chem. Ferrum edits and projects these values through a revision-bound
+explicit-field backend patch; it does not rebuild the paper record or complete
+document.
 
 | Attribute | Type | Required | Notes |
 |-----------|------|----------|-------|
@@ -343,8 +339,8 @@ changes the corresponding field.
 
 Standard ISO and US sizes: `A0`--`A10`, `B0`--`B10`, `C0`--`C10`, `Ledger`,
 `Legal`, `Letter`, `Tabloid`. Values are stored as `[width_mm, height_mm]`.
-OASA publishes this plain catalog to clients; Qt scene and snapshot renderers
-use that catalog for recognized page sizing. Unknown legacy values remain
+Ferrum-Chem publishes this plain catalog to clients; Qt scene and snapshot
+renderers use that catalog for recognized page sizing. Unknown legacy values remain
 compatibility-preserved and retain the established default-page projection.
 Ferrum's native paper observation resolves the oriented physical page to a
 scene rectangle at `(0, 0)` using 72 points per inch. Invalid preserved paper
@@ -370,7 +366,7 @@ The `viewport` attribute is a space-separated string of 4 float coordinates.
 ### Coordinate values
 
 Portable authored coordinates and shape bounds use a `cm` suffix, for example
-`"1.500cm"`. OASA writers emit `cm` using `POINTS_PER_CM = 72.0 / 2.54`
+`"1.500cm"`. Ferrum-Chem writers emit `cm` using `POINTS_PER_CM = 72.0 / 2.54`
 (~28.3465 points per cm).
 
 Bare numeric coordinates and `px` values are compatibility input for legacy
@@ -382,10 +378,10 @@ millimetres by definition.
 
 ### Y-axis convention
 
-BKChem stores CDML in canvas coordinates: **+Y points down**. This matches the
-Tk canvas origin (top-left). OASA may canonicalize coordinates internally
-(**+Y up**) for computation or format interchange, but CDML written on disk
-remains **+Y down** unless an explicit versioned migration says otherwise.
+Ferrum stores CDML in canvas coordinates: **+Y points down**. Ferrum-Chem may
+canonicalize coordinates internally (**+Y up**) for computation or format
+interchange, but CDML written on disk remains **+Y down** unless an explicit
+versioned migration says otherwise.
 
 ### Width and length values
 
@@ -440,7 +436,7 @@ A molecular graph containing atoms (vertices) and bonds (edges).
 | `user-data` | 0..1 | Arbitrary DOM nodes preserved on round-trip |
 
 All listed children are established CDML records. In the current delivery, the
-OASA typed molecule adapter provides editable chemistry for `<atom>` and
+Ferrum-Chem typed molecule adapter provides editable chemistry for `<atom>` and
 `<bond>`. Other established molecule children remain complete-document content
 unless an active frontend documents a supported projection for them.
 
@@ -467,8 +463,8 @@ unified from a single `<atom>` element in version 0.14 (see Version History).
 | `multiplicity` | int | No | `1` | Spin multiplicity; only written when != 1 |
 | `valency` | int | No | -- | Explicit valency |
 | `free_sites` | int | No | `0` | Free coordination sites; only written when nonzero |
-| `isotope` | int | No | -- | Mass number (OASA level) |
-| `explicit_hydrogens` | int | No | `0` | Explicit hydrogen count used by OASA chemistry; read when present and written only when nonzero |
+| `isotope` | int | No | -- | Mass number |
+| `explicit_hydrogens` | int | No | `0` | Explicit hydrogen count; read when present and written only when nonzero |
 
 #### `<atom>` children
 
@@ -578,22 +574,22 @@ may preserve other historical values without assigning them new typed meaning.
 Examples: `n1` = normal single, `n2` = normal double, `n3` = normal triple,
 `w1` = wedge single, `h1` = hashed single, `a1` = adder single,
 `b1` = bold single, `d1` = dashed single, `o1` = dotted single, and
-`s1` = wavy single. Aromaticity is a separate chemical property of an OASA
-bond; `a` does not encode aromaticity.
+`s1` = wavy single. Aromaticity is a separate chemical property of a
+Ferrum-Chem bond; `a` does not encode aromaticity.
 
 ### Directed wedge endpoints
 
 `start` and `end` are ordered IDREFs. For authored `w1` and `h1`, that order
 is persistent depiction data: `start` is the narrow tip and `end` is the wide
-base. OASA's normal CDML molecule decoder preserves the serialized order; it
-does not rederive it from X/Y geometry. This is the same order consumed by the
-filled and hashed wedge renderers, not an additional stereo record.
+base. Ferrum-Chem preserves the serialized order; it does not rederive it from
+X/Y geometry. This is the same order consumed by the filled and hashed wedge
+renderers, not an additional stereo record.
 
 `q1` Haworth front edges and `n*` ordinary bonds retain their existing ordered
 endpoint references but have no new wide/narrow interpretation. Every `q1`,
 `w1`, `h1`, and `n1` remains chemical order one. A caller that constructs a
 new directionless wedge may explicitly apply a geometry policy through the
-OASA bond-ordering helper. Any repair for historical documents whose producer
+Ferrum-Chem bond-ordering helper. Any repair for historical documents whose producer
 did not provide meaningful wedge endpoint order must be an explicit,
 version-scoped migration choice, never normal authoritative CDML decoding.
 
@@ -1039,7 +1035,7 @@ versioned reaction model.
 ## `<external-data>`
 
 Application-specific external data. A typed handler may interpret its content
-and attributes, but the OASA document backend preserves them even without one.
+and attributes, but Ferrum-Chem preserves them even without one.
 Without such a handler, its own attributes (including `id`) and complete
 descendant subtree are preservation-only literal content. Literal IDs reserve
 global collision names without becoming editable provisional declarations.
@@ -1064,7 +1060,7 @@ mechanism; it does not imply an unimplemented layer or grouping model.
 Legacy or extension `<bracket>` and `<vector>` content is preserve-only opaque
 content in 26.07 and receives no provisional IDs. The current Vector tool
 instead authors established top-level `<rect>`, `<oval>`, or `<polyline>` through
-an OASA operation. Ferrum-Chem authors rectangular/round brackets as paired
+a Ferrum-Chem operation. Ferrum-Chem authors rectangular/round brackets as paired
 top-level polylines; round pairs use `spline="yes"`, not `<bracket>`. A newly
 authored pair has `bracket_pair` on both polylines, equal to the left polyline's
 durable ID, plus exactly one `bracket_side="left"` and one
@@ -1188,15 +1184,15 @@ order when preserved.
 
 ---
 
-## OASA and BKChem usage
+## Ferrum ownership
 
-Persistent CDML authority is not divided by element type. The OASA document
-backend accepts and returns the complete ordered document and preserves every
-persistent object, typed or opaque. Molecule codecs expose typed chemistry
-behavior for `<molecule>` content, and rendering pipelines consume typed
-chemistry data; neither substitutes for the complete-document session. BKChem
-projects the canonical backend response and must not restore, merge, or
-reconstruct omitted persistent content after a backend round-trip.
+Persistent CDML authority is not divided by element type. Ferrum-Chem accepts
+and returns the complete ordered document and preserves every persistent object,
+typed or opaque. Molecule codecs expose typed chemistry behavior for
+`<molecule>` content, and rendering pipelines consume typed chemistry data;
+neither substitutes for the complete-document session. Ferrum projects the
+canonical backend response and must not restore, merge, or reconstruct omitted
+persistent content after a backend round-trip.
 
 ### Portable render primitives
 
@@ -1253,14 +1249,14 @@ split without changing the complete CDML snapshot. This is operation behavior,
 not a generic permission to normalize, split, or repair molecules during a
 CDML round trip.
 
-| Concern | OASA document backend | OASA molecule codecs and renderers | BKChem Qt frontend |
+| Concern | Ferrum-Chem document backend | Ferrum-Chem molecule codecs and renderers | Ferrum Qt frontend |
 |---------|-----------------------|------------------------------------|--------------------|
 | Complete CDML document | Owns, validates, and preserves | Typed adapters only | Submits candidates and projects response |
 | Molecule chemistry | Owns document record | Reads and writes typed chemistry data | Projects and edits through CDML |
 | Arrows, text, graphics, reactions, paper, and headers | Preserves typed or opaque records | May omit unsupported semantics | Projects supported records; does not re-merge losses |
 | Unknown attributes, elements, namespaces, and nested content | Preserves unchanged | Must not discard through a document round-trip | Must not repair or reconstruct them |
 
-### OASA-level known bond attributes
+### Known bond attributes
 
 Core: `type`, `start`, `end`, `id`.
 
@@ -1272,12 +1268,9 @@ Depiction: `line_width`, `bond_width`, `wedge_width`, `double_ratio`,
 
 ## Historical schema artifacts
 
-The checked-in
-[`cdml.dtd`](https://github.com/vosslab/bkchem-oasa/blob/f8fd0e6fbd67d40e48c4d6e38116524e85a6d8ed/packages/bkchem-app/bkchem_data/dtd/cdml.dtd) and
-[`cdml.xsd`](https://github.com/vosslab/bkchem-oasa/blob/f8fd0e6fbd67d40e48c4d6e38116524e85a6d8ed/packages/bkchem-app/bkchem_data/dtd/cdml.xsd) are historical,
-incomplete, non-authoritative artifacts. Neither is a valid validator for
-current CDML, including the 26.07 authored profile. They remain in the tree as
-legacy evidence; this package neither deletes nor rewrites them.
+Earlier DTD and XSD descriptions are incomplete, non-authoritative historical
+evidence. Neither is a valid validator for current CDML, including the 26.07
+authored profile. Ferrum does not distribute or depend on those artifacts.
 
 The DTD does not include:
 
@@ -1306,12 +1299,12 @@ outweighs the cost of maintaining another grammar artifact.
 
 ## Producing CDML externally
 
-If you generate CDML outside of BKChem or OASA:
+If you generate CDML outside of Ferrum:
 
 1. Set `version="26.07"` on the root `<cdml>` element.
 2. Include the namespace: `xmlns="http://www.freesoftware.fsf.org/bkchem/cdml"`.
 3. Optionally include a documentation pointer:
-   `<metadata><doc href="https://github.com/vosslab/bkchem/blob/main/docs/CDML_FORMAT_SPEC.md"/></metadata>`.
+   `<metadata><doc href="https://github.com/vosslab/ferrum-chemical-forge/blob/main/docs/CDML_FORMAT_SPEC.md"/></metadata>`.
 4. Use the current bond type format: `<type_char><order_digit>` (e.g. `"n1"`).
 5. Provide `<point>` children for all atoms with `x` and `y` attributes.
 6. Give every atom a unique `id` attribute.

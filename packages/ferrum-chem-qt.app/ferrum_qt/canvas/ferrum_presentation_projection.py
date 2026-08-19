@@ -16,8 +16,8 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.canvas.ferrum_spline_path
 import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.ferrum.engine
 
 
 _PRESENTATION_STACK_SCHEMA_V1 = "ferrum-presentation-stack-v1"
@@ -72,15 +72,10 @@ class PolylineProjectionItem(PySide6.QtWidgets.QGraphicsPathItem):
 	"""One immutable, selectable, non-movable segmented presentation polyline."""
 
 	#============================================
-	def __init__(self, points: tuple[PySide6.QtCore.QPointF, ...],
+	def __init__(self, path: PySide6.QtGui.QPainterPath,
 			pen: PySide6.QtGui.QPen,
-			target: PresentationTarget, spline: bool = False) -> None:
+			target: PresentationTarget) -> None:
 		"""Create a fully specified item with no document-model callback."""
-		if type(spline) is not bool:
-			raise TypeError("polyline spline intent must be an exact boolean")
-		path = ferrum_qt.canvas.ferrum_spline_path.presentation_path(
-			list(points), spline,
-		)
 		super().__init__(path)
 		self._target = target
 		self.setPen(pen)
@@ -367,7 +362,7 @@ class FerrumPresentationProjectionController:
 
 	#============================================
 	def _remove_prepared_root(self, projection: FerrumPresentationProjection) -> None:
-		"""Detach a candidate that a native handoff attached before reporting failure."""
+		"""Detach a candidate that a Ferrum handoff attached before reporting failure."""
 		for root in projection.roots:
 			if ferrum_qt.canvas.graphics_retirement.native_scene_for_item(root) is not self._scene:
 				continue
@@ -452,7 +447,7 @@ def _validate_observation(observation: object) -> tuple[object, int, str, object
 	extension = _ferrum_chem()
 	if type(observation) is not extension.SessionDocumentObservationV1:
 		raise PresentationProjectionError(
-			"presentation observation must be ferrum_chem.SessionDocumentObservationV1",
+			"presentation observation must be engine.SessionDocumentObservationV1",
 		)
 	snapshot = observation.snapshot
 	projection = observation.projection
@@ -715,24 +710,24 @@ def _arrow_points(value: object, extension: object,
 #============================================
 def _build_polyline(root: object, extension: object) -> PolylineProjectionItem:
 	"""Validate and build one segmented Rust-projected polyline without defaults."""
-	return _build_polyline_path(root, extension, "polyline", False)
+	return _build_polyline_path(root, extension, "polyline")
 
 
 #============================================
 def _build_wavy(root: object, extension: object) -> PolylineProjectionItem:
 	"""Build one Wavy item from its exact authored Rust-projected point path."""
-	return _build_polyline_path(root, extension, "Wavy", False)
+	return _build_polyline_path(root, extension, "Wavy")
 
 
 #============================================
 def _build_round_bracket(root: object, extension: object) -> PolylineProjectionItem:
 	"""Build one cubic side only from a Rust-issued valid round bracket member."""
-	return _build_polyline_path(root, extension, "round bracket", True, exact_points=4)
+	return _build_polyline_path(root, extension, "round bracket", exact_points=4)
 
 
 #============================================
 def _build_polyline_path(
-		root: object, extension: object, description: str, spline: bool,
+		root: object, extension: object, description: str,
 		*, exact_points: int | None = None,
 		) -> PolylineProjectionItem:
 	"""Build one closed polyline-family path without interpreting persistent data."""
@@ -754,9 +749,58 @@ def _build_polyline_path(
 			f"{description} path requires exactly {exact_points} points",
 		)
 	points = tuple(_point(point, extension) for point in path.points)
+	if description == "round bracket":
+		paint_path = _replay_presentation_path(
+			ferrum_qt.ferrum.engine.lower_round_bracket_presentation_path_v1(root),
+			extension,
+		)
+	else:
+		paint_path = _polyline_path(points)
 	return PolylineProjectionItem(
-		points, _pen(polyline.stroke, extension), target, spline=spline,
+		paint_path, _pen(polyline.stroke, extension), target,
 	)
+
+
+#============================================
+def _polyline_path(points: tuple[PySide6.QtCore.QPointF, ...]) -> PySide6.QtGui.QPainterPath:
+	"""Replay one ordered sequence of already-issued straight path points."""
+	path = PySide6.QtGui.QPainterPath(points[0])
+	for point in points[1:]:
+		path.lineTo(point)
+	return path
+
+
+#============================================
+def _replay_presentation_path(value: object, extension: object) -> PySide6.QtGui.QPainterPath:
+	"""Replay only the frozen MoveTo, LineTo, and CubicTo command grammar."""
+	if type(value) is not extension.PresentationPathV1:
+		raise PresentationProjectionError("presentation path has the wrong DTO type")
+	if value.kind != "authored_spline" or type(value.commands) is not tuple:
+		raise PresentationProjectionError("presentation path has an invalid replay contract")
+	if not value.commands:
+		raise PresentationProjectionError("presentation path has no commands")
+	path = PySide6.QtGui.QPainterPath()
+	for index, command in enumerate(value.commands):
+		if type(command) is not extension.PresentationPathCommandV1:
+			raise PresentationProjectionError("presentation path command has the wrong DTO type")
+		if command.kind == "move_to":
+			if index != 0 or command.control_1 is not None or command.control_2 is not None:
+				raise PresentationProjectionError("presentation path move command is malformed")
+			path.moveTo(_point(command.point, extension))
+		elif command.kind == "line_to":
+			if index == 0 or command.control_1 is not None or command.control_2 is not None:
+				raise PresentationProjectionError("presentation path line command is malformed")
+			path.lineTo(_point(command.point, extension))
+		elif command.kind == "cubic_to":
+			if index == 0:
+				raise PresentationProjectionError("presentation path cubic command lacks a start")
+			path.cubicTo(
+				_point(command.control_1, extension), _point(command.control_2, extension),
+				_point(command.point, extension),
+			)
+		else:
+			raise PresentationProjectionError("presentation path command is unsupported")
+	return path
 
 
 #============================================
@@ -926,7 +970,7 @@ def _retire_failed_detached(items: list[PresentationProjectionItem]) -> None:
 def _ferrum_chem() -> object:
 	"""Load the installed direct extension only at the production boundary."""
 	try:
-		import ferrum_chem
+		import ferrum_qt.ferrum.engine as engine
 	except ImportError as exc:
 		raise PresentationProjectionError("Ferrum presentation binding is unavailable") from exc
-	return ferrum_chem
+	return engine

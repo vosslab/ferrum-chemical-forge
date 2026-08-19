@@ -1,9 +1,9 @@
 //! Private PyO3 boundary for authenticated direct-root linear-form conversion.
 //!
-//! This unsupported extension entry point is for the bundled Ferrum-Qt native
+//! This unsupported extension entry point is for the bundled Ferrum native
 //! route only. It deliberately has no wheel stub, CLI, serde, or wire surface.
 
-use ferrum_api::{
+use ferrum_document::{
     DocumentLinearFormErrorV1, DocumentLinearFormRequestV1,
     convert_document_linear_form_v1 as convert_rust_document_linear_form_v1,
 };

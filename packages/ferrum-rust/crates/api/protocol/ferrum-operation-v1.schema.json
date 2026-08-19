@@ -110,6 +110,39 @@
       ],
       "type": "object"
     },
+    "ChemistryConvertInputV1": {
+      "additionalProperties": false,
+      "description": "Owned chemistry conversion input.",
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/InterchangeFormatV1",
+          "description": "Closed source interchange syntax."
+        },
+        "text": {
+          "description": "Bounded source text; never a filesystem path or native handle.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "text"
+      ],
+      "type": "object"
+    },
+    "InterchangeFormatV1": {
+      "description": "Closed syntax vocabulary. `Cdml` is retained as a wire value for callers\nthat dispatch CDML composition outside this crate.",
+      "enum": [
+        "smiles",
+        "inchi_standard",
+        "inchi_fixed_h",
+        "molblock_v2000",
+        "molblock_v3000",
+        "sdf_v2000",
+        "sdf_v3000",
+        "cdml"
+      ],
+      "type": "string"
+    },
     "MoleculeInspection": {
       "description": "One molecule's source-order summary.",
       "properties": {
@@ -201,6 +234,26 @@
           "type": "string"
         },
         {
+          "const": "chemistry_unavailable",
+          "description": "The caller supplied no usable out-of-band chemistry capability.",
+          "type": "string"
+        },
+        {
+          "const": "conversion_failed",
+          "description": "Molecular interchange was malformed, bounded out, or could not complete.",
+          "type": "string"
+        },
+        {
+          "const": "conversion_unsupported",
+          "description": "The requested interchange target cannot exactly represent the input records.",
+          "type": "string"
+        },
+        {
+          "const": "coordinate_generation_failed",
+          "description": "Coordinate generation could not complete for the whole document snapshot.",
+          "type": "string"
+        },
+        {
           "const": "resource_limit",
           "description": "Existing resource policy or derived base64 completion limits refused work.",
           "type": "string"
@@ -269,7 +322,7 @@
       "type": "object"
     },
     "OperationProtocolOperationV1": {
-      "description": "The four protocol operations admitted by V1.",
+      "description": "The closed protocol operations admitted by V1.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -354,6 +407,49 @@
             "kind",
             "document",
             "format"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Convert bounded molecular interchange through an injected chemistry runtime.",
+          "properties": {
+            "input": {
+              "$ref": "#/$defs/ChemistryConvertInputV1",
+              "description": "Closed source interchange syntax and bounded owned text."
+            },
+            "kind": {
+              "const": "chemistry.convert",
+              "type": "string"
+            },
+            "output_format": {
+              "$ref": "#/$defs/InterchangeFormatV1",
+              "description": "Closed target interchange syntax."
+            }
+          },
+          "required": [
+            "kind",
+            "input",
+            "output_format"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Regenerate all direct typed molecule coordinates as one document transition.",
+          "properties": {
+            "document": {
+              "description": "Uncompressed CDML text admitted under Ferrum's existing V1 profile.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "document.generate_coordinates",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document"
           ],
           "type": "object"
         }
@@ -454,6 +550,63 @@
             "format",
             "media_type",
             "artifact_base64"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Converted owned molecular interchange text.",
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/InterchangeFormatV1",
+              "description": "Closed target syntax."
+            },
+            "kind": {
+              "const": "chemistry.convert",
+              "type": "string"
+            },
+            "record_count": {
+              "description": "Number of preserved molecular records.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "text": {
+              "description": "Complete converted text.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "format",
+            "text",
+            "record_count"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Structural CDML after atomic coordinate regeneration.",
+          "properties": {
+            "document": {
+              "description": "Structural CDML snapshot after one shared coordinate batch commit.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "document.generate_coordinates",
+              "type": "string"
+            },
+            "regenerated_molecule_count": {
+              "description": "Number of direct typed molecular roots regenerated.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "regenerated_molecule_count"
           ],
           "type": "object"
         }
@@ -558,6 +711,16 @@
         {
           "const": "document.render_artifact",
           "description": "`document.render_artifact`.",
+          "type": "string"
+        },
+        {
+          "const": "chemistry.convert",
+          "description": "`chemistry.convert`.",
+          "type": "string"
+        },
+        {
+          "const": "document.generate_coordinates",
+          "description": "`document.generate_coordinates`.",
           "type": "string"
         }
       ]

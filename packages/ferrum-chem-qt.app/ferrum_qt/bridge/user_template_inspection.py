@@ -25,7 +25,7 @@ def inspect_user_template_display_name(template_cdml: str) -> str | None:
 def prepare_user_template(template_cdml: str) -> object:
 	"""Return one immutable Rust plan for catalog display and later placement."""
 	try:
-		import ferrum_chem
-		return ferrum_chem.prepare_user_template_v1(template_cdml)
+		import ferrum_qt.ferrum.engine as engine
+		return engine.prepare_user_template_v1(template_cdml)
 	except Exception as error:
 		raise UserTemplateInspectionError(str(error)) from error

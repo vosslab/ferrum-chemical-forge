@@ -10,10 +10,11 @@ fn main() -> ExitCode {
     let mut stderr = io::stderr().lock();
     match ferrum_api::run(cli, &mut stdin, &mut stdout, &mut stderr) {
         Ok(()) => ExitCode::SUCCESS,
-        Err(ferrum_api::CliError::Protocol(error)) => {
+        Err(error) => {
+            let exit_status = error.exit_status();
             drop(stderr);
             eprintln!("ferrum: {error}");
-            ExitCode::from(error.exit_status())
+            ExitCode::from(exit_status)
         }
     }
 }

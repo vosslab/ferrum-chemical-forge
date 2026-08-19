@@ -210,17 +210,17 @@ class _FixtureFerrumPlanItem(FerrumPlanItem):
 
 #============================================
 def _runtime_plan(value: object) -> object:
-	"""Accept only the exact compiled frozen ``ferrum_chem.RenderPlanV2`` type."""
+	"""Accept only the exact compiled frozen ``engine.RenderPlanV2`` type."""
 	try:
-		import ferrum_chem
+		import ferrum_qt.ferrum.engine as engine
 	except ImportError as error:
 		raise FerrumPlanError("Ferrum render plans require the installed ferrum_chem extension") from error
-	if type(value) is not ferrum_chem.RenderPlanV2:
+	if type(value) is not engine.RenderPlanV2:
 		raise FerrumPlanError("Ferrum plan item requires the frozen ferrum_chem RenderPlanV2")
 	if not isinstance(value.batches, tuple):
 		raise FerrumPlanError("Ferrum render plan batches must be a frozen tuple")
 	for batch in value.batches:
-		if type(batch) is not ferrum_chem.RenderBatchV2:
+		if type(batch) is not engine.RenderBatchV2:
 			raise FerrumPlanError("Ferrum render plan contains a non-frozen batch")
 	return value
 

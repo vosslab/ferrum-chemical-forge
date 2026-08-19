@@ -1,13 +1,13 @@
-//! Private selected-root SVG boundary for the bundled Ferrum-Qt application.
+//! Private selected-root SVG boundary for the bundled Ferrum application.
 //!
 //! The entry point stays absent from the wheel stub, CLI, serde, and wire APIs.
 
-use ferrum_api::{
+use ferrum_document::{DocumentObjectIdV1, SessionDocumentObservationV1};
+use ferrum_render::{
     DocumentRenderIdentityV1, DocumentSelectionSvgRootV1, DocumentSelectionSvgV1,
     DocumentSvgSelectionV1, LOCAL_SVG_COMPLETED_BYTES_V1, SvgOutputBudgetV1,
     render_document_selection_to_svg_v1,
 };
-use ferrum_document::{DocumentObjectIdV1, SessionDocumentObservationV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString, PyTuple};
@@ -82,7 +82,7 @@ struct PyDocumentSelectionSvgV1 {
 
 /// Render exact durable selected objects as complete native SVG roots.
 ///
-/// Experimental internal-to-Ferrum-Qt operation. Atom and bond selection maps
+/// Experimental internal-to-Ferrum operation. Atom and bond selection maps
 /// to its complete molecule root; presentation selection maps to exact roots.
 #[pyfunction]
 fn render_document_selection_svg_v1(

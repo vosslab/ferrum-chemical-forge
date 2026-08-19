@@ -52,7 +52,7 @@ source source_me.sh
 QT_QPA_PLATFORM=offscreen python3 -B -m pytest packages/ferrum-chem-qt.app/tests/ -q -W error
 ```
 
-Ferrum-Qt has one ordinary product entry point. After completing the contributor
+Ferrum has one ordinary product entry point. After completing the contributor
 setup in [INSTALL.md](INSTALL.md), use it directly:
 
 ```bash
@@ -71,7 +71,7 @@ python3 -B packages/ferrum-chem-qt.app/tests/e2e_native_cdml_file_route.py \
 ```
 
 It exercises open, edit, save, reopen, and close through the installed ordinary
-Ferrum-Qt package. The wider native-wheel closure and relinking proof is
+Ferrum package. The wider native-wheel closure and relinking proof is
 documented in [USAGE.md](USAGE.md#package-release-evidence).
 
 ## M20/M22 release evidence
@@ -93,11 +93,11 @@ extension, schema, loader, native RDKit, license, entry-point, and resource role
 historical provenance; it is followed by human legal/release review. These checks are not permanent
 pytest, timing, byte/hash, member-count, pixel, network, or platform-matrix requirements.
 
-Historical OASA evidence is isolated under `tests/e2e/oracle/`. It is an
-explicit, non-product comparison tool: do not add its dependencies to a normal
-developer environment or use it as a regular test gate. Run it only when a
-migration question calls for an oracle comparison, following
-[E2E_TESTS.md](E2E_TESTS.md).
+The live Python comparison harness used during the backend migration is retired;
+its accepted evidence remains in `docs/active_plans/reports/`. The optional
+`tests/e2e/reference/` environment contains only Python RDKit for one-time
+maintainer measurements. Do not add that dependency to the product or normal
+developer environment.
 
 ## Check documentation
 

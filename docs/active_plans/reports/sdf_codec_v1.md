@@ -90,21 +90,10 @@ The installed writer and reader pass before and after replacement with a separat
 built `RelWithDebInfo` adapter. The retained receipt is
 `output_native_wheel/evidence/native-wheel-e2e-receipt.json`.
 
-## Reproduce
+## Historical evidence
 
-Use three isolated Python 3.12 environments: one with the Ferrum wheel, one with the
-current RDKit release, and one with the previous RDKit release. Then run:
-
-```bash
-source source_me.sh
-python3 -B devel/measure_sdf_codec_parity.py \
-	--oracle-python CURRENT_RDKIT_PYTHON \
-	--cross-version-python PREVIOUS_RDKIT_PYTHON \
-	--ferrum-python FERRUM_WHEEL_PYTHON \
-	--wheel output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/\
-ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl \
-	--native-e2e-receipt output_native_wheel/evidence/native-wheel-e2e-receipt.json
-```
-
-The command performs process-isolated semantic comparisons. It does not impose a
-runtime threshold.
+The isolated Python-RDKit generator and child were retired after this accepted
+one-time semantic receipt. The retained corpus, wheel identity, source digests, and
+comparison policy are archival evidence rather than a permanent Python-RDKit or CI
+dependency. A future codec measurement requires an explicitly scoped Ferrum
+release-evidence plan and a fresh accepted receipt.

@@ -1,4 +1,4 @@
-"""Prove the installed Ferrum wheel owns the offscreen native CDML file route."""
+"""Prove the installed Ferrum wheel owns the offscreen Ferrum CDML file route."""
 
 # Standard Library
 import argparse
@@ -16,7 +16,7 @@ APP_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 #============================================
 class NativeCdmlRouteE2eError(RuntimeError):
-	"""Raised when the native CDML user path contradicts its durable contract."""
+	"""Raised when the Ferrum CDML user path contradicts its durable contract."""
 
 
 #============================================
@@ -58,8 +58,8 @@ def _probe() -> dict[str, object]:
 	import PySide6.QtTest
 	import PySide6.QtWidgets
 	import ferrum_chem
-	import ferrum_qt.native.native_app
-	import ferrum_qt.native.ferrum_native_main_window
+	import ferrum_qt.ferrum.native_app
+	import ferrum_qt.ferrum.main_window
 
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
@@ -78,29 +78,29 @@ def _probe() -> dict[str, object]:
 		'</cdml>'
 	)
 	source_path.write_text(source, encoding="utf-8")
-	host = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
+	host = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	if not host.open_file_path(str(source_path)):
-		raise NativeCdmlRouteE2eError("native CDML open returned false")
+		raise NativeCdmlRouteE2eError("Ferrum CDML open returned false")
 	tab = host._active_native_tab()
 	if tab is None or tab.file_path != source_path or tab.is_dirty:
-		raise NativeCdmlRouteE2eError("native open did not retain its clean loaded truth")
+		raise NativeCdmlRouteE2eError("Ferrum open did not retain its clean loaded truth")
 	if tab.view.scene() is None or not tab.view.scene().items():
-		raise NativeCdmlRouteE2eError("native CDML open did not render the molecule")
+		raise NativeCdmlRouteE2eError("Ferrum CDML open did not render the molecule")
 	host.show()
 	app.processEvents()
 	tab.select_atom("atom-c")
 	tab.change_selected_atom_element("N")
 	changed = tab.current_snapshot
 	if not tab.is_dirty or changed.revision <= 0:
-		raise NativeCdmlRouteE2eError("native element edit did not install a dirty Rust revision")
+		raise NativeCdmlRouteE2eError("Ferrum element edit did not install a dirty Rust revision")
 	tab.undo()
 	undone = tab.current_snapshot
 	if undone.revision <= changed.revision:
-		raise NativeCdmlRouteE2eError("native undo did not create a fresh Rust revision")
+		raise NativeCdmlRouteE2eError("Ferrum undo did not create a fresh Rust revision")
 	tab.redo()
 	redone = tab.current_snapshot
 	if redone.revision <= undone.revision:
-		raise NativeCdmlRouteE2eError("native redo did not create a fresh Rust revision")
+		raise NativeCdmlRouteE2eError("Ferrum redo did not create a fresh Rust revision")
 
 	def atom_viewport_point(atom_id: str) -> PySide6.QtCore.QPoint:
 		"""Return one interior hit point from the installed Rust projection item."""
@@ -115,7 +115,7 @@ def _probe() -> dict[str, object]:
 				)
 				if shape.contains(point):
 					return tab.view.mapFromScene(item.mapToScene(point))
-		raise NativeCdmlRouteE2eError("native atom has no hit-test interior")
+		raise NativeCdmlRouteE2eError("Ferrum atom has no hit-test interior")
 
 	def empty_viewport_point() -> PySide6.QtCore.QPoint:
 		"""Return one visible point that does not resolve to a durable atom."""
@@ -128,7 +128,7 @@ def _probe() -> dict[str, object]:
 				)
 				if tab.durable_atom_at_viewport_point(point) is None:
 					return point
-		raise NativeCdmlRouteE2eError("native viewport has no empty insertion point")
+		raise NativeCdmlRouteE2eError("Ferrum viewport has no empty insertion point")
 
 	start = atom_viewport_point("atom-c")
 	end = atom_viewport_point("atom-o")
@@ -145,12 +145,12 @@ def _probe() -> dict[str, object]:
 	bonded = tab.current_snapshot
 	selected = tab._controller.projection.selected_durable_targets()
 	if bonded.revision <= redone.revision or len(selected) != 1 or selected[0].kind != "bond":
-		raise NativeCdmlRouteE2eError("native bond transaction did not install its Rust bond")
+		raise NativeCdmlRouteE2eError("Ferrum bond transaction did not install its Rust bond")
 	created_bond_id = selected[0].identifier
 	if created_bond_id is None:
-		raise NativeCdmlRouteE2eError("native bond transaction did not retain a durable ID")
+		raise NativeCdmlRouteE2eError("Ferrum bond transaction did not retain a durable ID")
 	if host._line_gesture_intent is None or host._line_gesture_intent.preview is not None:
-		raise NativeCdmlRouteE2eError("native bond gesture did not retire its local preview")
+		raise NativeCdmlRouteE2eError("Ferrum bond gesture did not retire its local preview")
 	host._cancel_line_gesture()
 	tab.select_bond(created_bond_id)
 	order_changed = tab.set_selected_bond_order(
@@ -161,7 +161,7 @@ def _probe() -> dict[str, object]:
 		for bond in molecule.bonds if bond.source_id == created_bond_id
 	)
 	if len(changed_bond) != 1 or changed_bond[0].source_type != "n2":
-		raise NativeCdmlRouteE2eError("native bond-order edit did not persist n2")
+		raise NativeCdmlRouteE2eError("Ferrum bond-order edit did not persist n2")
 	order_plan = tab._session.observe_render(
 		order_changed.snapshot.revision,
 	).molecule_plans[0].plan
@@ -170,19 +170,19 @@ def _probe() -> dict[str, object]:
 		if batch.target.record_id.id == created_bond_id
 	)
 	if len(order_batch) != 1 or len(order_batch[0].operations) != 2:
-		raise NativeCdmlRouteE2eError("native double bond did not render two line operations")
+		raise NativeCdmlRouteE2eError("Ferrum double bond did not render two line operations")
 	order_undone = tab.undo().observation.projection.molecules[0]
 	if tuple(
 		bond.source_type for bond in order_undone.bonds
 		if bond.source_id == created_bond_id
 	) != ("n1",):
-		raise NativeCdmlRouteE2eError("native bond-order undo did not restore n1")
+		raise NativeCdmlRouteE2eError("Ferrum bond-order undo did not restore n1")
 	order_redone = tab.redo().observation.projection.molecules[0]
 	if tuple(
 		bond.source_type for bond in order_redone.bonds
 		if bond.source_id == created_bond_id
 	) != ("n2",):
-		raise NativeCdmlRouteE2eError("native bond-order redo did not restore n2")
+		raise NativeCdmlRouteE2eError("Ferrum bond-order redo did not restore n2")
 	before_coordinates = tuple(
 		(atom.position.x, atom.position.y) for atom in order_redone.atoms
 	)
@@ -195,11 +195,11 @@ def _probe() -> dict[str, object]:
 	host._generate_coordinates_action.trigger()
 	coordinate_intent = host._coordinate_generation_intent
 	if coordinate_intent is None or not coordinate_intent.worker.wait(10000):
-		raise NativeCdmlRouteE2eError("native coordinate worker did not finish")
+		raise NativeCdmlRouteE2eError("Ferrum coordinate worker did not finish")
 	for _iteration in range(3):
 		app.processEvents()
 	if host._coordinate_generation_intent is not None:
-		raise NativeCdmlRouteE2eError("native coordinate worker was not released")
+		raise NativeCdmlRouteE2eError("Ferrum coordinate worker was not released")
 	generated_molecule = tab._document_observation.projection.molecules[0]
 	generated_positions = tuple(
 		(atom.position.x, atom.position.y) for atom in generated_molecule.atoms
@@ -219,7 +219,7 @@ def _probe() -> dict[str, object]:
 		)
 	):
 		raise NativeCdmlRouteE2eError(
-			"native coordinate generation did not retain molecule placement",
+			"Ferrum coordinate generation did not retain molecule placement",
 		)
 	bonded = tab.current_snapshot
 	host._draw_bond_action.trigger()
@@ -286,7 +286,7 @@ def _probe() -> dict[str, object]:
 		or (moved_atom[0].position.x, moved_atom[0].position.y)
 		!= (expected_moved.x(), expected_moved.y())
 	):
-		raise NativeCdmlRouteE2eError("native move gesture did not install its Rust position")
+		raise NativeCdmlRouteE2eError("Ferrum move gesture did not install its Rust position")
 	host._move_atom_action.trigger()
 	tab.select_atom("atom-c")
 	host._delete_atom_action.trigger()
@@ -301,19 +301,19 @@ def _probe() -> dict[str, object]:
 		or any(bond.source_id == created_bond_id for bond in root_molecule.bonds)
 		or not any(bond.source_id == extended_bond_id for bond in root_molecule.bonds)
 	):
-		raise NativeCdmlRouteE2eError("native deletion did not remove atom-c and its bond")
+		raise NativeCdmlRouteE2eError("Ferrum deletion did not remove atom-c and its bond")
 	restored = tab.undo().observation.projection.molecules[0]
 	if (
 		not any(atom.source_id == "atom-c" for atom in restored.atoms)
 		or not any(bond.source_id == created_bond_id for bond in restored.bonds)
 	):
-		raise NativeCdmlRouteE2eError("native deletion undo did not restore atom-c and its bond")
+		raise NativeCdmlRouteE2eError("Ferrum deletion undo did not restore atom-c and its bond")
 	redone_delete = tab.redo().observation.projection.molecules[0]
 	if (
 		any(atom.source_id == "atom-c" for atom in redone_delete.atoms)
 		or any(bond.source_id == created_bond_id for bond in redone_delete.bonds)
 	):
-		raise NativeCdmlRouteE2eError("native deletion redo did not restore the deletion")
+		raise NativeCdmlRouteE2eError("Ferrum deletion redo did not restore the deletion")
 	tab.select_bond(extended_bond_id)
 	host._delete_bond_action.trigger()
 	bond_deleted = tab.current_snapshot
@@ -323,25 +323,25 @@ def _probe() -> dict[str, object]:
 		or not any(atom.source_id == extended_atom_id for atom in without_selected_bond.atoms)
 		or any(bond.source_id == extended_bond_id for bond in without_selected_bond.bonds)
 	):
-		raise NativeCdmlRouteE2eError("native bond deletion changed an endpoint or kept the bond")
+		raise NativeCdmlRouteE2eError("Ferrum bond deletion changed an endpoint or kept the bond")
 	bond_restored = tab.undo().observation.projection.molecules[0]
 	if not any(bond.source_id == extended_bond_id for bond in bond_restored.bonds):
-		raise NativeCdmlRouteE2eError("native bond deletion undo did not restore the bond")
+		raise NativeCdmlRouteE2eError("Ferrum bond deletion undo did not restore the bond")
 	bond_redone = tab.redo().observation.projection.molecules[0]
 	if any(bond.source_id == extended_bond_id for bond in bond_redone.bonds):
-		raise NativeCdmlRouteE2eError("native bond deletion redo did not restore the deletion")
+		raise NativeCdmlRouteE2eError("Ferrum bond deletion redo did not restore the deletion")
 	if not host.start_smiles_import("CCO"):
-		raise NativeCdmlRouteE2eError("public native SMILES import did not start")
+		raise NativeCdmlRouteE2eError("public Ferrum SMILES import did not start")
 	intent = host._smiles_import_intent
 	if intent is None or not intent.worker.wait(10000):
-		raise NativeCdmlRouteE2eError("native SMILES worker did not finish")
+		raise NativeCdmlRouteE2eError("Ferrum SMILES worker did not finish")
 	for _iteration in range(3):
 		app.processEvents()
 	if host._smiles_import_intent is not None:
-		raise NativeCdmlRouteE2eError("native SMILES worker was not released")
+		raise NativeCdmlRouteE2eError("Ferrum SMILES worker was not released")
 	inserted = tab.current_snapshot
 	if inserted.revision <= bond_deleted.revision or not tab.is_dirty:
-		raise NativeCdmlRouteE2eError("native SMILES transaction did not install a dirty revision")
+		raise NativeCdmlRouteE2eError("Ferrum SMILES transaction did not install a dirty revision")
 	inserted_projection = tab._document_observation.projection
 	cco_molecules = tuple(
 		molecule for molecule in inserted_projection.molecules
@@ -349,11 +349,11 @@ def _probe() -> dict[str, object]:
 		and len(molecule.bonds) == 2
 	)
 	if len(cco_molecules) != 1:
-		raise NativeCdmlRouteE2eError("native SMILES transaction did not project exact CCO")
+		raise NativeCdmlRouteE2eError("Ferrum SMILES transaction did not project exact CCO")
 	if not host.save_active_to_path(str(saved_path)):
-		raise NativeCdmlRouteE2eError("native CDML save returned false")
+		raise NativeCdmlRouteE2eError("Ferrum CDML save returned false")
 	if tab.file_path != saved_path or tab.is_dirty or tab.title != saved_path.name:
-		raise NativeCdmlRouteE2eError("confirmed save did not update the native tab truth")
+		raise NativeCdmlRouteE2eError("confirmed save did not update the Ferrum tab truth")
 	saved = ferrum_chem.DocumentSession.load(saved_path.read_text(encoding="utf-8"))
 	reopened = saved.snapshot()
 	reopened_projection = saved.observe_render(0).document.projection
@@ -378,7 +378,7 @@ def _probe() -> dict[str, object]:
 		and len(molecule.bonds) == 2
 	)
 	if len(reopened_cco) != 1:
-		raise NativeCdmlRouteE2eError("save/reopen lost the native SMILES molecule")
+		raise NativeCdmlRouteE2eError("save/reopen lost the Ferrum SMILES molecule")
 	reopened_moved = tuple(
 		atom for molecule in reopened_projection.molecules for atom in molecule.atoms
 		if atom.source_id == extended_atom_id
@@ -405,12 +405,12 @@ def _probe() -> dict[str, object]:
 		raise NativeCdmlRouteE2eError("reopened saved Rust document is unexpectedly dirty")
 	host._close_current_tab()
 	if host._native_tabs_by_page:
-		raise NativeCdmlRouteE2eError("native host did not close and dispose the saved tab")
+		raise NativeCdmlRouteE2eError("Ferrum host did not close and dispose the saved tab")
 	host.close()
 	app.processEvents()
-	entry_exit = ferrum_qt.native.native_app.main([str(saved_path)], 0.05)
+	entry_exit = ferrum_qt.ferrum.native_app.main([str(saved_path)], 0.05)
 	if entry_exit != 0:
-		raise NativeCdmlRouteE2eError("public native application entry returned %d" % entry_exit)
+		raise NativeCdmlRouteE2eError("public Ferrum application entry returned %d" % entry_exit)
 	return {
 		"schema": "ferrum-native-cdml-route-e2e-v9",
 		"revision": reopened.revision,
@@ -457,7 +457,7 @@ def main() -> int:
 		or not value["opaque_root"]
 		or (value["smiles_atoms"], value["smiles_bonds"]) != (3, 2)
 		):
-		raise NativeCdmlRouteE2eError("native CDML controller did not preserve durable output truth")
+		raise NativeCdmlRouteE2eError("Ferrum CDML controller did not preserve durable output truth")
 	print(json.dumps(value, sort_keys=True))
 	return 0
 

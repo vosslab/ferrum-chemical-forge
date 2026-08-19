@@ -2,15 +2,18 @@
 
 use std::collections::BTreeMap;
 
-use ferrum_api::{
-    build_direct_haworth_from_smiles_v1, build_haworth_front_preview_ops,
-    DirectHaworthFromSmilesBuildErrorV1, MoleculePlacementPointV1, MoleculePlacementV1, Paint,
-    PositiveFinite, RenderOp, RenderPoint, Rgb24,
-};
 use ferrum_chemistry::{ChemistryError, NativeChemEngine};
 use ferrum_document::{DocumentSessionError, PendingDirectHaworthV1, Point3V1};
 use ferrum_domain::haworth::{
     DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthBondStyleV1,
+};
+use ferrum_domain::haworth::{
+    DirectHaworthFromSmilesBuildErrorV1, build_direct_haworth_from_smiles_v1,
+};
+use ferrum_geometry::{MoleculePlacementV1, Point2 as MoleculePlacementPointV1};
+use ferrum_render::{
+    BondStyle, LineOp, Paint, PositiveFinite, RenderOp, RenderPoint, Rgb24,
+    build_haworth_front_preview_ops,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -18,7 +21,7 @@ use pyo3::types::PyTuple;
 
 use crate::{
     binding::{PyDocumentSession, PySessionOperationResultV1},
-    render_binding::{operation_from, PyRenderOperationV2},
+    render_binding::{PyRenderOperationV2, operation_from},
 };
 
 create_exception!(ferrum_chem, DirectHaworthError, crate::binding::FerrumError);
@@ -306,15 +309,15 @@ fn preview_batches(
                 DirectGlycosidicHaworthBondStyleV1::N1 => (
                     "ordinary",
                     vec![RenderOp::Line(
-                        ferrum_api::LineOp::new(start, end, width, paint.clone(), 10).map_err(
-                            |_| receipt_error(py, "direct Haworth preview is unavailable"),
-                        )?,
+                        LineOp::new(start, end, width, paint.clone(), 10).map_err(|_| {
+                            receipt_error(py, "direct Haworth preview is unavailable")
+                        })?,
                     )],
                 ),
                 DirectGlycosidicHaworthBondStyleV1::Q1 => (
                     "haworth_front_stroke",
                     build_haworth_front_preview_ops(
-                        ferrum_api::BondStyle::HaworthFrontStroke,
+                        BondStyle::HaworthFrontStroke,
                         start,
                         end,
                         width,
@@ -326,7 +329,7 @@ fn preview_batches(
                 DirectGlycosidicHaworthBondStyleV1::W1 => (
                     "haworth_front_wedge",
                     build_haworth_front_preview_ops(
-                        ferrum_api::BondStyle::HaworthFrontWedge,
+                        BondStyle::HaworthFrontWedge,
                         start,
                         end,
                         width,

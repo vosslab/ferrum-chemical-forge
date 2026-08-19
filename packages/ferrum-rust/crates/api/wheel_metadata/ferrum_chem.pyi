@@ -207,7 +207,7 @@ def prepare_supported_peptide_template_molecule_v1(
 	sequence: str,
 	placement: InsertionPlacementV1,
 ) -> MoleculeInsertionV1:
-	"""Experimental internal Ferrum-Qt strict native-17 template insertion."""
+	"""Experimental internal Ferrum strict native-17 template insertion."""
 	...
 
 
@@ -497,6 +497,21 @@ class Point3V1:
 	x: float
 	y: float
 	z: float
+
+
+class PresentationPathError(FerrumError): ...
+
+
+class PresentationPathCommandV1:
+	kind: str
+	point: Point3V1 | None
+	control_1: Point3V1 | None
+	control_2: Point3V1 | None
+
+
+class PresentationPathV1:
+	kind: str
+	commands: tuple[PresentationPathCommandV1, ...]
 
 
 class FontFactsV1:
@@ -1473,6 +1488,11 @@ class RenderObservationError(FerrumError): ...
 class RenderDepictionError(RenderObservationError): ...
 class RenderProvenanceError(RenderObservationError): ...
 def verified_telex_regular() -> VerifiedTelexRegularV1: ...
+
+
+def lower_round_bracket_presentation_path_v1(
+	root: PresentationRootProjectionV1,
+	) -> PresentationPathV1: ...
 
 
 class XmlInputBudgetV1:

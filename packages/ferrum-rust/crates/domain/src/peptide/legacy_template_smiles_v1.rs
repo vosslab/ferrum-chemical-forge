@@ -1,7 +1,7 @@
-//! Deterministic OASA-compatible peptide-template SMILES profile.
+//! Deterministic legacy peptide-template SMILES profile.
 //!
-//! This preserves the legacy template grammar used by the former OASA import
-//! route. It is neither canonical SMILES nor a general peptide structure
+//! This preserves the legacy template grammar accepted by earlier documents.
+//! It is neither canonical SMILES nor a general peptide structure
 //! model: proline, modified residues, alternative termini, and protonation
 //! choices require another explicitly selected profile.
 
@@ -13,8 +13,8 @@ use crate::peptide::{PeptideSequence, ResidueCode};
 pub const LEGACY_PEPTIDE_TEMPLATE_SMILES_SCHEMA_V1: &str =
     "ferrum-legacy-peptide-template-smiles-v1";
 
-/// Fixed structural-template profile reproduced from the OASA compatibility path.
-pub const LEGACY_PEPTIDE_TEMPLATE_SMILES_PROFILE_V1: &str = "oasa-compatibility-v1";
+/// Fixed structural-template profile reproduced from the legacy import path.
+pub const LEGACY_PEPTIDE_TEMPLATE_SMILES_PROFILE_V1: &str = "ferrum-legacy-template-v1";
 
 /// The one-letter residues representable by this legacy template profile.
 pub const LEGACY_PEPTIDE_TEMPLATE_SMILES_SUPPORTED_ALPHABET_V1: &str = "ACDEFGHIKLMNQRSTVWY";
@@ -23,7 +23,7 @@ const N_TERMINUS: &str = "[NH3+][C@@H]";
 const NEXT_RESIDUE: &str = "(C(=O)N[C@@H]";
 const C_TERMINUS: &str = "(C(=O)[O-])";
 
-/// Build the fixed OASA-compatible structural-SMILES template for `sequence`.
+/// Build the fixed legacy structural-SMILES template for `sequence`.
 ///
 /// The input is an already accepted, non-empty N-to-C [`PeptideSequence`].
 /// This function borrows it and returns a self-contained receipt; it does not

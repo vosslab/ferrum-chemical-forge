@@ -8,14 +8,15 @@ separately licensed components:
 - Ferrum-Chem is the LGPL Rust workspace. It owns CDML documents, chemistry
   boundaries, geometry, rendering operations, native artifact publication, and
   the `ferrum` command-line tool.
-- Ferrum-Qt is the AGPL PySide6 desktop application. It has one packaged,
+- Ferrum is the AGPL PySide6 desktop application. It has one packaged,
   Rust-native product route and presents Ferrum-owned documents through Qt.
 
 The active migration contract is
 [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md). Historical
-OASA and BKChem material is retained only as isolated provenance and oracle
-input; it is not part of the Ferrum-Chem or Ferrum-Qt product runtime,
-dependency declaration, packaging path, or normal test suite. The adopted
+OASA and BKChem material is retained only as provenance and accepted migration
+reports; the live Python backend comparison workers are retired. It is not part
+of the Ferrum-Chem or Ferrum product runtime, dependency declaration, packaging
+path, or normal test suite. The adopted
 historical format and behavior references are
 [CDML_BACKEND_TO_FRONTEND_CONTRACT.md](CDML_BACKEND_TO_FRONTEND_CONTRACT.md) and
 [CDML_FORMAT_SPEC.md](CDML_FORMAT_SPEC.md).
@@ -58,17 +59,17 @@ than parsing a product document itself.
 The extension's V1 public automation additions are deliberately narrower:
 `execute_operation_v1`, `operation_protocol_schema_v1`, and
 `OperationProtocolErrorV1`. They exchange request/response JSON only; the
-existing broad extension namespace remains the Ferrum-Qt integration surface,
+existing broad extension namespace remains the Ferrum integration surface,
 not a blanket third-party API promise.
 
-Native chemistry adapters remain private to their owning Rust and Ferrum-Qt
+Native chemistry adapters remain private to their owning Rust and Ferrum
 workflows; the shipping CLI has no adapter argument or discovery behavior. The
 native-wheel tooling in
 [../packages/ferrum-rust/tools/](../packages/ferrum-rust/tools/) verifies the
 packaged extension closure; it does not make a cross-platform desktop-release
 claim.
 
-### Ferrum-Qt application
+### Ferrum application
 
 [../packages/ferrum-chem-qt.app/pyproject.toml](../packages/ferrum-chem-qt.app/pyproject.toml)
 declares one `ferrum-qt` console command. Its product startup chain is:
@@ -85,9 +86,9 @@ ferrum-qt
 owns Qt application lifecycle, launch-file admission, controlled smoke support,
 and clean shutdown. [../packages/ferrum-chem-qt.app/ferrum_qt/main_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/main_window.py)
 is the ordinary product window and subclasses
-[../packages/ferrum-chem-qt.app/ferrum_qt/native/ferrum_native_main_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/native/ferrum_native_main_window.py).
+[../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/main_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/main_window.py).
 
-The [../packages/ferrum-chem-qt.app/ferrum_qt/native/](../packages/ferrum-chem-qt.app/ferrum_qt/native/)
+The [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/)
 submodules organize document tabs and publication, local CDML/CD-SVG admission,
 editing tools and properties, molecule import and export, user templates,
 recovery export, and view controls. A document tab owns one Rust
@@ -143,7 +144,7 @@ one bounded JSON request
 ```
 
 The matching `ferrum_chem.execute_operation_v1` binding uses the same owned-value
-executor. Direct Rust and Ferrum-Qt-native library calls remain separate private
+executor. Direct Rust and Ferrum-native library calls remain separate private
 integration seams; they do not extend the public CLI transport.
 
 Desktop sessions are thread-confined. Each ordinary native tab owns one unsendable
@@ -165,13 +166,14 @@ boundary, not a performance target.
   [../packages/ferrum-rust/tools/build_native_wheel.py](../packages/ferrum-rust/tools/build_native_wheel.py)
   and has root E2E coverage in
   [../tests/e2e/e2e_native_wheel.py](../tests/e2e/e2e_native_wheel.py).
-- Ferrum-Qt behavior tests live in
+- Ferrum behavior tests live in
   [../packages/ferrum-chem-qt.app/tests/](../packages/ferrum-chem-qt.app/tests/).
   They exercise the ordinary product window and focused native boundaries.
 - Repository documentation and policy checks live in [../tests/](../tests/).
-- [../tests/e2e/oracle/](../tests/e2e/oracle/) is an isolated differential
-  comparison environment. Its optional historical dependencies and ignored
-  external references are not product requirements.
+- [../tests/e2e/reference/](../tests/e2e/reference/) is an optional Python RDKit
+  environment for one-time maintainer measurements. It is not a product or
+  normal test dependency; the retired backend comparison survives only as
+  recorded migration evidence.
 
 ## Extension points
 
@@ -180,7 +182,7 @@ boundary, not a performance target.
   identifiers, order, revision semantics, and structural output.
 - Add geometry and rendering logic in Rust before adding its Qt projection.
 - Add desktop capability in the corresponding
-  [../packages/ferrum-chem-qt.app/ferrum_qt/native/](../packages/ferrum-chem-qt.app/ferrum_qt/native/)
+  [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/)
   submodule, with Qt as the typed Rust client.
 - Add a focused, deterministic behavior test at the boundary it protects; use
   disposable local evidence for package and visual checks that do not warrant a

@@ -1,20 +1,12 @@
-"""Focused behavior tests for the Rust-native BondDialog adapter."""
+"""Focused behavior tests for the Ferrum BondDialog adapter."""
 
 # Standard Library
 import os
 import sys
-import types
 import enum
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-try:
-	import ferrum_chem
-except ModuleNotFoundError:
-	ferrum_chem = types.ModuleType("ferrum_chem")
-	sys.modules["ferrum_chem"] = ferrum_chem
-if not hasattr(ferrum_chem, "DocumentSession"):
-	sys.modules["ferrum_chem"] = types.ModuleType("ferrum_chem")
 
 # PIP3 modules
 import PySide6.QtWidgets
@@ -22,7 +14,7 @@ import pytest
 
 # local repo modules
 import ferrum_qt.dialogs.bond_dialog
-import ferrum_qt.native.ferrum_native_bond_properties
+import ferrum_qt.ferrum.bond_properties
 
 
 #============================================
@@ -38,7 +30,7 @@ class _Change:
 
 #============================================
 class _Changes:
-	"""Fake exact PyO3 factory owner with the public native factory names."""
+	"""Fake exact PyO3 factory owner with the public Ferrum factory names."""
 
 	#============================================
 	@staticmethod
@@ -159,20 +151,20 @@ def test_absent_optional_facts_do_not_become_authored_on_an_unchanged_dialog(
 	"""Opening then accepting the form leaves all absent CDML facts absent."""
 	del qapp
 	_install_ferrum_module(monkeypatch)
-	model = ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(_Bond())
+	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond())
 	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
 	assert dialog.changes() == ()
 	dialog.deleteLater()
 
 
 #============================================
-def test_legacy_dialog_keeps_its_full_bond_editing_vocabulary(
+def test_dialog_keeps_its_full_bond_editing_vocabulary(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""The OASA-backed route remains unaffected by native renderer limits."""
+	"""The shared form keeps fields beyond the currently rendered subset."""
 	del qapp
 	_install_ferrum_module(monkeypatch)
-	model = ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(_Bond())
+	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond())
 	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
 	assert dialog._type_combo.count() > 1
 	assert dialog._type_combo.isEnabled()
@@ -189,7 +181,7 @@ def test_native_adapter_rejects_a_negative_width_the_shared_dialog_cannot_show(
 	"""The adapter refuses to lose the directional negative bond-width sign."""
 	_install_ferrum_module(monkeypatch)
 	with pytest.raises(ValueError, match="bond width"):
-		ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(
+		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
 			_Bond(bond_width=-2.0),
 		)
 
@@ -198,10 +190,10 @@ def test_native_adapter_rejects_a_negative_width_the_shared_dialog_cannot_show(
 def test_native_adapter_rejects_a_source_style_without_renderer_support(
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A retained style outside the closed native depiction profile is refused."""
+	"""A retained style outside the closed Ferrum depiction profile is refused."""
 	_install_ferrum_module(monkeypatch)
 	with pytest.raises(ValueError, match="Normal, Solid wedge, or Hashed wedge"):
-		ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(
+		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
 			_Bond(style=_Style.adder),
 		)
 
@@ -219,7 +211,7 @@ def test_native_adapter_rejects_widths_that_a_spin_box_would_change(
 	kwargs = {field: value}
 	bond = _Bond(**kwargs)
 	with pytest.raises(ValueError, match="width"):
-		ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(bond)
+		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(bond)
 
 
 #============================================
@@ -228,7 +220,7 @@ def test_dialog_fields_map_to_closed_rust_property_factories(
 		) -> None:
 	"""Supported BondDialog fields become named frozen Rust property changes."""
 	_install_ferrum_module(monkeypatch)
-	changes = ferrum_qt.native.ferrum_native_bond_properties.property_changes_from_dialog(
+	changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
 		_Bond(), (("order", 2), ("type", "n"), ("center", True), ("line_width", 1.5),
 			("bond_width", 2.5), ("color", "#123456")),
 	)
@@ -245,7 +237,7 @@ def test_unrelated_dialog_edit_preserves_absent_optional_facts(
 	"""Changing order does not convert absence-derived visual defaults into CDML facts."""
 	del qapp
 	_install_ferrum_module(monkeypatch)
-	model = ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(_Bond())
+	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond())
 	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
 	dialog._order_combo.setCurrentIndex(1)
 	assert dialog.changes() == (("order", 2),)
@@ -258,25 +250,25 @@ def test_live_native_tab_submits_one_frozen_bond_patch_and_restores_selection(
 		) -> None:
 	"""The installed Rust DTO route keeps a durable selected bond after one edit."""
 	del qapp
-	import ferrum_chem
-	import ferrum_qt.native.ferrum_native_document_tab
+	ferrum_chem = pytest.importorskip("ferrum_chem")
+	import ferrum_qt.ferrum.document_tab
 	cdml = (
 		'<cdml version="26.08"><molecule id="molecule-1">'
 		'<atom id="atom-c" name="C"><point x="0" y="0"/></atom>'
 		'<atom id="atom-o" name="O"><point x="30" y="0"/></atom>'
 		'</molecule></cdml>'
 	)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(cdml, "bond")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(cdml, "bond")
 	try:
 		tab.select_atoms(("atom-c", "atom-o"))
 		created = tab.add_single_bond_between_selected_atoms()
 		bond_id = created.observation.projection.molecules[0].bonds[0].source_id
 		tab.select_bond(bond_id)
-		model = ferrum_qt.native.ferrum_native_bond_properties.dialog_model_from_projection(
+		model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
 			tab.selected_bond_projection(),
 		)
 		assert model.order == 1 and model.type == "n"
-		changes = ferrum_qt.native.ferrum_native_bond_properties.property_changes_from_dialog(
+		changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
 			tab.selected_bond_projection(), (("order", 2), ("center", True)),
 		)
 		assert all(type(change) is ferrum_chem.DocumentBondPropertyChangeV1 for change in changes)

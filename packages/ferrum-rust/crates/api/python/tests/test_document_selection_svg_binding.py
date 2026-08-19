@@ -1,8 +1,8 @@
 """Installed-extension behavior for private selected-root native SVG."""
 
 import math
-import xml.etree.ElementTree
 
+import defusedxml.ElementTree
 import pytest
 
 import ferrum_chem
@@ -28,7 +28,7 @@ def test_private_selected_svg_keeps_complete_roots_and_source_provenance() -> No
 	receipt = ferrum_chem.render_document_selection_svg_v1(
 		observation, (atom, plus),
 	)
-	root = xml.etree.ElementTree.fromstring(receipt.svg)
+	root = defusedxml.ElementTree.fromstring(receipt.svg)
 	view_box = tuple(float(value) for value in root.attrib["viewBox"].split())
 
 	assert (

@@ -1,4 +1,4 @@
-"""Behavior coverage for native recovery export without Save presentation effects."""
+"""Behavior coverage for Ferrum recovery export without Save presentation effects."""
 
 # Standard Library
 import os
@@ -14,9 +14,10 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_coordinate_generation
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.coordinate_generation
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.window_refusals
 
 
 _CDML = """<cdml version='26.08'><molecule id='mol-1'>
@@ -35,19 +36,19 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 #============================================
 def _window_with_tab() -> tuple[
-		ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow,
-		ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+		ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
+		ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 		]:
-	"""Create one public native window with an active dirty document tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(_CDML, "Untitled")
+	"""Create one public Ferrum window with an active dirty document tab."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "Untitled")
 	window._register_native_tab(tab, activate=True)
 	return window, tab
 
 
 #============================================
 def _tab_facts(
-		tab: ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+		tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 		) -> tuple[object, ...]:
 	"""Capture externally observable facts that Recovery Export must preserve."""
 	snapshot = tab.current_snapshot
@@ -65,13 +66,22 @@ def _tab_facts(
 
 #============================================
 def _dispose_window(
-		window: ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow,
+		window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
 		) -> None:
 	"""Retire test tabs without invoking the production dirty-close confirmation."""
 	for tab in tuple(window._native_tabs_by_page.values()):
 		window._tab_widget.removeTab(window._tab_widget.indexOf(tab))
 		tab.dispose()
 	window.deleteLater()
+
+
+#============================================
+def _suppress_refusals(monkeypatch: pytest.MonkeyPatch) -> None:
+	"""Keep expected refusal paths nonmodal in offscreen tests."""
+	monkeypatch.setattr(
+		ferrum_qt.ferrum.window_refusals, "show_refusal",
+		lambda _window, _request: None,
+	)
 
 
 #============================================
@@ -108,7 +118,7 @@ def test_recovery_export_remains_reachable_for_pending_or_busy_native_state(
 	snapshot = tab.backend_snapshot_for_recovery_export()
 	worker = types.SimpleNamespace(delivery_cancelled=False)
 	intent_type = (
-		ferrum_qt.native.ferrum_native_coordinate_generation.FerrumNativeCoordinateGenerationIntent
+		ferrum_qt.ferrum.coordinate_generation.FerrumNativeCoordinateGenerationIntent
 	)
 	intent = intent_type(
 		tab, snapshot.revision, snapshot.digest, worker,
@@ -134,7 +144,7 @@ def test_recovery_export_refuses_a_tab_switch_after_destination_dialog(
 		) -> None:
 	"""The post-dialog identity fence refuses to publish a different active tab."""
 	window, first = _window_with_tab()
-	second = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(_CDML, "Second")
+	second = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "Second")
 	window._register_native_tab(second, activate=False)
 	destination = tmp_path / "should-not-exist.cdml"
 
@@ -144,7 +154,7 @@ def test_recovery_export_refuses_a_tab_switch_after_destination_dialog(
 		return str(destination), ""
 
 	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_path)
-	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", lambda *_args: None)
+	_suppress_refusals(monkeypatch)
 	try:
 		assert not window._on_native_recovery_export() and not destination.exists()
 		assert first is not second and first.file_path is None and second.file_path is None
@@ -174,7 +184,7 @@ def test_recovery_export_refuses_closed_or_changed_backend_after_destination_dia
 			return str(destination), ""
 
 		monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_path)
-		monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", lambda *_args: None)
+		_suppress_refusals(monkeypatch)
 		try:
 			assert not window._on_native_recovery_export() and not destination.exists()
 		finally:
@@ -194,7 +204,7 @@ def test_recovery_export_rejects_non_cdml_destination_without_adopting_it(
 		"getSaveFileName",
 		lambda *_args: (str(tmp_path / "recovery.svg"), ""),
 	)
-	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", lambda *_args: None)
+	_suppress_refusals(monkeypatch)
 	try:
 		assert not window._on_native_recovery_export()
 		assert _tab_facts(tab) == before
@@ -211,7 +221,7 @@ def test_recovery_export_uses_newer_pending_backend_not_old_installed_projection
 	window, tab = _window_with_tab()
 	tab.select_atom("atom-c")
 	monkeypatch.setattr(tab._controller, "replace", lambda *_args: False)
-	with pytest.raises(ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTabError):
+	with pytest.raises(ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError):
 		tab.change_selected_atom_element("N")
 	destination = tmp_path / "pending.cdml"
 	monkeypatch.setattr(
@@ -250,10 +260,10 @@ def test_recovery_export_refuses_mismatched_normal_receipt_provenance(
 			lambda *_args: (str(tmp_path / field_name), ""),
 		)
 		monkeypatch.setattr(
-			window, "_show_native_file_warning", lambda title, text: warnings.append((title, text)),
+			window, "_show_edit_refusal", lambda request: warnings.append(request),
 		)
 		assert not window._on_native_recovery_export()
-		assert warnings[-1][0] == "Recovery Export Unavailable" and "may already" in warnings[-1][1]
+		assert warnings[-1].outcome.value == "unavailable_operation" and "may already" in warnings[-1].technical_details or ""
 	_dispose_window(window)
 
 
@@ -261,7 +271,7 @@ def test_recovery_export_refuses_mismatched_normal_receipt_provenance(
 def test_recovery_action_requires_a_live_registered_native_page(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""Zero pages are disabled while either clean or dirty live native page is enabled."""
+	"""Zero pages are disabled while either clean or dirty live Ferrum page is enabled."""
 	window, tab = _window_with_tab()
 	window._tab_widget.removeTab(window._tab_widget.indexOf(tab))
 	window._native_tabs_by_page.pop(tab)
@@ -279,7 +289,7 @@ def test_recovery_action_requires_a_live_registered_native_page(
 def test_recovery_action_rejects_non_native_and_disposed_current_pages(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""Only a live registered native widget may enable the recovery action."""
+	"""Only a live registered Ferrum widget may enable the recovery action."""
 	window, tab = _window_with_tab()
 	non_native = PySide6.QtWidgets.QWidget()
 	window._tab_widget.addTab(non_native, "Other")
@@ -318,11 +328,11 @@ def test_recovery_export_unconfirmed_matching_receipt_preserves_tab(
 		PySide6.QtWidgets.QFileDialog, "getSaveFileName", lambda *_args: (str(tmp_path / "x"), ""),
 	)
 	monkeypatch.setattr(
-		window, "_show_native_file_warning", lambda title, text: warnings.append((title, text)),
+		window, "_show_edit_refusal", lambda request: warnings.append(request),
 	)
 	try:
 		assert not window._on_native_recovery_export()
-		assert _tab_facts(tab) == before and warnings[-1][0] == "Recovery Export Durability Unconfirmed"
+		assert _tab_facts(tab) == before and warnings[-1].outcome.value == "unavailable_operation"
 	finally:
 		_dispose_window(window)
 
@@ -348,14 +358,14 @@ def test_recovery_export_error_messages_preserve_tab_facts(
 			PySide6.QtWidgets.QFileDialog, "getSaveFileName", lambda *_args: (str(tmp_path / "x"), ""),
 		)
 		monkeypatch.setattr(
-			window, "_show_native_file_warning", lambda title, text: warnings.append((title, text)),
+			window, "_show_edit_refusal", lambda request: warnings.append(request),
 		)
 		try:
 			assert not window._on_native_recovery_export()
 			assert (
 				_tab_facts(tab) == before
-				and warnings[-1][0] == expected_title
-				and expected_text in warnings[-1][1]
+				and warnings[-1].outcome.value == "unavailable_operation"
+				and "test failure" in (warnings[-1].technical_details or "")
 			)
 		finally:
 			_dispose_window(window)

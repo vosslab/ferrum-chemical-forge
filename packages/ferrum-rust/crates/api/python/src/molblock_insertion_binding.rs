@@ -2,11 +2,11 @@
 
 use std::path::PathBuf;
 
-use ferrum_api::{
-    MolblockMoleculeBuildError, build_molblock_molecule_insertion_v1, read_molblock_file_v1,
-};
 use ferrum_chemistry::{
     ChemistryError as RustChemistryError, NativeChemEngine, validate_molblock_input,
+};
+use ferrum_document::{
+    MolblockMoleculeBuildError, build_molblock_molecule_insertion_v1, read_molblock_file_v1,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;

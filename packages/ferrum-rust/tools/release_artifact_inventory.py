@@ -388,10 +388,10 @@ def inspect_native_wheel(path: pathlib.Path) -> dict:
 
 #============================================
 def inspect_qt_wheel(path: pathlib.Path) -> dict:
-	"""Classify Ferrum-Qt package, dependency, resource, and notice roles.
+	"""Classify Ferrum package, dependency, resource, and notice roles.
 
 	Args:
-		path: Final Ferrum-Qt wheel.
+		path: Final Ferrum wheel.
 
 	Returns:
 		Small machine-readable classification record.

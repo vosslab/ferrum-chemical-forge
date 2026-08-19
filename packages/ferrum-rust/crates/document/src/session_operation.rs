@@ -6,12 +6,12 @@ use super::{
     ArrowPropertiesPatchV1, AtomMarkActionV1, AtomMarkKindV1, AtomPropertiesPatchV1,
     AtomRotationV1, BondPropertiesPatchV1, BracketPropertiesPatchV1, CleanGeometryUpdateV1,
     DocumentBondOrderV1, DocumentExplicitFragmentErrorV1, DrawingStandardPatchV1,
-    GeometricPropertiesPatchV1, GeometryRepairV1, MoleculeCoordinateUpdateV1,
-    PaperPropertiesPatchV1, PaperPropertyChangeV1, PersistentId, PlusPropertiesPatchV1, Point3V1,
-    PreparedStraightenDepictionsV1, PresentationRootDeletionSetV1, PresentationRootDeletionV1,
-    PresentationStackReorderV1, SessionDocumentObservationV1, TextPropertiesPatchV1,
-    TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError, WavyPropertiesPatchV1,
-    XmlSerializationError, atom_properties_patch_v1::valid_atom_element,
+    GeometricPropertiesPatchV1, GeometryRepairV1, MoleculeCoordinateBatchUpdateV1,
+    MoleculeCoordinateUpdateV1, PaperPropertiesPatchV1, PaperPropertyChangeV1, PersistentId,
+    PlusPropertiesPatchV1, Point3V1, PreparedStraightenDepictionsV1, PresentationRootDeletionSetV1,
+    PresentationRootDeletionV1, PresentationStackReorderV1, SessionDocumentObservationV1,
+    TextPropertiesPatchV1, TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError,
+    WavyPropertiesPatchV1, XmlSerializationError, atom_properties_patch_v1::valid_atom_element,
 };
 
 /// Immutable result of one accepted session mutation or history transition.
@@ -187,6 +187,11 @@ pub enum SessionOperationV1 {
     SetMoleculeAtomPositions {
         /// Complete revision- and digest-bound replacement positions.
         update: MoleculeCoordinateUpdateV1,
+    },
+    /// Replace every direct atom Point3 in several molecules as one transition.
+    SetMoleculeAtomPositionsBatch {
+        /// Complete, unique, revision- and digest-bound replacement positions.
+        update: MoleculeCoordinateBatchUpdateV1,
     },
     /// Replace direct atom x/y coordinates for a prepared molecule set atomically.
     SetCleanGeometry {
@@ -688,6 +693,48 @@ impl SessionOperation {
                             update.molecule_id().as_str().to_owned(),
                         )
                     })?;
+                if candidate.to_xml()? == current.to_xml()? {
+                    Ok(Candidate::NoChange)
+                } else {
+                    Ok(Candidate::Changed(Box::new(candidate)))
+                }
+            }
+            Self::V1(SessionOperationV1::SetMoleculeAtomPositionsBatch { update }) => {
+                if update.source_revision() != current_revision {
+                    return Err(SessionOperationError::MoleculeCoordinateRevisionMismatch {
+                        prepared: update.source_revision(),
+                        current: current_revision,
+                    });
+                }
+                if update.source_digest() != current_digest {
+                    return Err(SessionOperationError::MoleculeCoordinateDigestMismatch);
+                }
+                let mut replacements = Vec::with_capacity(update.updates().len());
+                for entry in update.updates() {
+                    let object_id = entry.molecule_id().as_str().to_owned();
+                    let record = current
+                        .resolve_document_object_id(entry.molecule_id())
+                        .ok_or_else(|| {
+                            SessionOperationError::UnknownDocumentObject(object_id.clone())
+                        })?;
+                    if record.class() != TypedClass::Molecule {
+                        return Err(SessionOperationError::InvalidMoleculeCoordinateTarget(
+                            object_id,
+                        ));
+                    }
+                    let source_id = record.attribute("id").ok_or_else(|| {
+                        SessionOperationError::InvalidMoleculeCoordinateTarget(
+                            entry.molecule_id().as_str().to_owned(),
+                        )
+                    })?;
+                    let molecule_id = PersistentId::new(source_id.to_owned()).map_err(|_| {
+                        SessionOperationError::InvalidMoleculeCoordinateTarget(
+                            entry.molecule_id().as_str().to_owned(),
+                        )
+                    })?;
+                    replacements.push((molecule_id, entry.positions().to_vec()));
+                }
+                let candidate = current.with_molecule_atom_positions_batch(&replacements)?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)
                 } else {

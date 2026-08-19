@@ -1,4 +1,4 @@
-"""Behavior coverage for Rust-native clipboard Copy and Paste."""
+"""Behavior coverage for Ferrum clipboard Copy and Paste."""
 
 # Standard Library
 import os
@@ -14,11 +14,13 @@ import pytest
 
 # local repo modules
 import ferrum_qt.canvas.items.ferrum_plus_item
+import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.io.clipboard_mime
-import ferrum_qt.native.ferrum_native_clipboard
-import ferrum_qt.native.ferrum_native_clipboard_paste_tab
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.clipboard
+import ferrum_qt.ferrum.clipboard_paste_tab
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.window_refusals
 
 
 _SOURCE = """\
@@ -44,10 +46,25 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 
 #============================================
+def _capture_refusals(
+		monkeypatch: pytest.MonkeyPatch,
+		) -> list[ferrum_qt.dialogs.refusal_presenter.RefusalPresentation]:
+	"""Capture typed product refusals without opening a modal test dialog."""
+	presentations: list[ferrum_qt.dialogs.refusal_presenter.RefusalPresentation] = []
+	monkeypatch.setattr(
+		ferrum_qt.ferrum.window_refusals, "show_refusal",
+		lambda _window, request: presentations.append(
+			ferrum_qt.dialogs.refusal_presenter.present_refusal(request),
+		),
+	)
+	return presentations
+
+
+#============================================
 def _window_with_source() -> tuple[object, object]:
-	"""Return one standalone native host with a selected clean source tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	"""Return one standalone Ferrum host with a selected clean source tab."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "copy.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -70,7 +87,7 @@ def _wait_for_copy(window: object, qapp: PySide6.QtWidgets.QApplication) -> None
 	"""Wait for the one action-created worker, then deliver its queued result."""
 	workers = tuple(
 		worker for worker in window.findChildren(
-			ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardCopyWorker,
+			ferrum_qt.ferrum.clipboard.FerrumNativeClipboardCopyWorker,
 		)
 	)
 	assert len(workers) == 1 and workers[0].wait(10000)
@@ -82,7 +99,7 @@ def _wait_for_cut(window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Wait for action-created Cut preparation and queued commit delivery."""
 	workers = tuple(
 		worker for worker in window.findChildren(
-			ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardCutWorker,
+			ferrum_qt.ferrum.clipboard.FerrumNativeClipboardCutWorker,
 		)
 	)
 	assert len(workers) == 1 and workers[0].wait(10000)
@@ -94,7 +111,7 @@ def _wait_for_paste(window: object, qapp: PySide6.QtWidgets.QApplication) -> Non
 	"""Wait for the one action-created Paste worker and queued commit delivery."""
 	workers = tuple(
 		worker for worker in window.findChildren(
-			ferrum_qt.native.ferrum_native_clipboard.FerrumNativeClipboardPasteWorker,
+			ferrum_qt.ferrum.clipboard.FerrumNativeClipboardPasteWorker,
 		)
 	)
 	assert len(workers) == 1 and workers[0].wait(10000)
@@ -108,7 +125,7 @@ def _publish_custom_clipboard_bytes(
 	"""Publish raw custom MIME bytes without creating a legacy document model."""
 	mime_data = PySide6.QtCore.QMimeData()
 	mime_data.setData(
-		ferrum_qt.native.ferrum_native_clipboard.CDML_MIME_TYPE,
+		ferrum_qt.ferrum.clipboard.CDML_MIME_TYPE,
 		PySide6.QtCore.QByteArray(source),
 	)
 	if plain_text is not None:
@@ -144,7 +161,7 @@ def test_copy_action_publishes_connected_bond_fragment_without_mutation(
 		mime_data = clipboard.mimeData()
 		fragment = mime_data.text()
 		assert (
-			mime_data.hasFormat(ferrum_qt.native.ferrum_native_clipboard.CDML_MIME_TYPE)
+			mime_data.hasFormat(ferrum_qt.ferrum.clipboard.CDML_MIME_TYPE)
 			and mime_data.property(
 				ferrum_qt.io.clipboard_mime.FERRUM_OWNED_MIME_PROPERTY,
 			) is True
@@ -193,11 +210,7 @@ def test_cut_commit_failure_keeps_the_published_copy_and_document(
 		monkeypatch: pytest.MonkeyPatch) -> None:
 	"""A commit refusal leaves a usable Copy result and the source unchanged."""
 	window, tab = _window_with_source()
-	warnings = []
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, text: warnings.append((title, text)),
-	)
+	warnings = _capture_refusals(monkeypatch)
 
 	def reject_cut(*_arguments: object) -> object:
 		raise RuntimeError("commit refused")
@@ -214,8 +227,9 @@ def test_cut_commit_failure_keeps_the_published_copy_and_document(
 		assert tab.current_snapshot == before and 'id="b"' in qapp.clipboard().text()
 		assert (
 			warnings
-			and warnings[-1][0] == "Native Cut Copied Selection"
-			and "remains in the document" in warnings[-1][1]
+			and warnings[-1].title == "Action Not Available"
+			and warnings[-1].technical_details is not None
+			and "remains in the document" in warnings[-1].technical_details
 		)
 	finally:
 		_action(window, "Close Tab").trigger()
@@ -248,11 +262,7 @@ def test_failed_copy_preserves_existing_clipboard_and_reports_actionable_error(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""A disconnected selection cannot replace pre-existing clipboard content."""
 	window, tab = _window_with_source()
-	warnings = []
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, text: warnings.append((title, text)),
-	)
+	warnings = _capture_refusals(monkeypatch)
 	qapp.clipboard().setText("existing clipboard")
 	try:
 		tab.select_atoms(("a", "c"))
@@ -261,8 +271,9 @@ def test_failed_copy_preserves_existing_clipboard_and_reports_actionable_error(
 		assert qapp.clipboard().text() == "existing clipboard"
 		assert (
 			warnings
-			and warnings[-1][0] == "Native Copy Error"
-			and "must be connected" in warnings[-1][1]
+			and warnings[-1].title == "Action Not Available"
+			and warnings[-1].technical_details is not None
+			and "must be connected" in warnings[-1].technical_details
 		)
 	finally:
 		_action(window, "Close Tab").trigger()
@@ -274,7 +285,7 @@ def test_switching_tabs_suppresses_stale_clipboard_delivery(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""A result from an inactive source tab cannot replace clipboard content."""
 	window, tab = _window_with_source()
-	other = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	other = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "other.cdml",
 	)
 	qapp.clipboard().setText("current clipboard")
@@ -313,11 +324,7 @@ def test_cancel_and_close_keep_source_live_until_copy_worker_finishes(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Cancellation suppresses publication and close retains the worker source tab."""
 	window, tab = _window_with_source()
-	warnings = []
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, text: warnings.append((title, text)),
-	)
+	warnings = _capture_refusals(monkeypatch)
 	qapp.clipboard().setText("retained clipboard")
 	tab.select_bond("bc")
 	copy_action = _action(window, "Copy")
@@ -332,7 +339,8 @@ def test_cancel_and_close_keep_source_live_until_copy_worker_finishes(
 		assert (
 			qapp.clipboard().text() == "retained clipboard"
 			and warnings
-			and warnings[-1][0] == "Native Copy Still Running"
+			and warnings[-1].technical_details is not None
+			and "wait for the current operation" in warnings[-1].technical_details.lower()
 		)
 		close_action.trigger()
 	finally:
@@ -393,11 +401,7 @@ def test_invalid_or_unsupported_cdml_does_not_mutate_destination(
 		source: bytes, expected: str) -> None:
 	"""Rust preparation rejects malformed or out-of-grammar roots before commit."""
 	window, tab = _window_with_source()
-	warnings = []
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, text: warnings.append((title, text)),
-	)
+	warnings = _capture_refusals(monkeypatch)
 	_publish_custom_clipboard_bytes(qapp, source)
 	before = tab.current_snapshot
 	try:
@@ -406,8 +410,8 @@ def test_invalid_or_unsupported_cdml_does_not_mutate_destination(
 		assert tab.current_snapshot == before
 		assert (
 			warnings
-			and warnings[-1][0] == "Native Paste Error"
-			and expected.lower() in warnings[-1][1].lower()
+			and warnings[-1].technical_details is not None
+			and expected.lower() in warnings[-1].technical_details.lower()
 		)
 	finally:
 		_action(window, "Close Tab").trigger()
@@ -419,20 +423,16 @@ def test_invalid_custom_mime_utf8_is_actionable_and_nonmutating(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""The UI-thread capture rejects undecodable preferred MIME without a worker."""
 	window, tab = _window_with_source()
-	warnings = []
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, text: warnings.append((title, text)),
-	)
+	warnings = _capture_refusals(monkeypatch)
 	_publish_custom_clipboard_bytes(qapp, b"\xff\xfe", _SOURCE)
 	before = tab.current_snapshot
 	try:
 		paste_action = _action(window, "Paste")
 		paste_action.trigger()
 		assert tab.current_snapshot == before
-		assert warnings == [(
-			"Native Paste Unavailable", "Ferrum clipboard CDML is not valid UTF-8",
-		)]
+		assert len(warnings) == 1
+		assert warnings[0].title == "Action Not Available"
+		assert warnings[0].technical_details == "Ferrum clipboard CDML is not valid UTF-8"
 	finally:
 		_action(window, "Close Tab").trigger()
 		window.deleteLater()
@@ -465,12 +465,12 @@ def test_post_commit_selection_failure_enters_authoritative_refresh_state(
 		raise ValueError("injected selection projection failure")
 
 	monkeypatch.setattr(
-		ferrum_qt.native.ferrum_native_clipboard_paste_tab,
+		ferrum_qt.ferrum.clipboard_paste_tab,
 		"_clipboard_paste_selection", reject_selection,
 	)
 	try:
 		with pytest.raises(
-			ferrum_qt.native.ferrum_native_document_tab.
+			ferrum_qt.ferrum.document_tab.
 			FerrumNativeDocumentTabMutationPresentationError,
 		):
 			tab.apply_prepared_clipboard_paste(
@@ -488,7 +488,7 @@ def test_switching_tabs_suppresses_stale_paste_delivery(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""A prepared plan cannot commit after its destination tab becomes inactive."""
 	window, tab = _window_with_source()
-	other = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	other = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "other-paste.cdml",
 	)
 	qapp.clipboard().setText(_SOURCE)
@@ -511,11 +511,7 @@ def test_cancel_and_close_keep_destination_live_until_paste_worker_finishes(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Cancellation suppresses commit while close retains the destination tab."""
 	window, tab = _window_with_source()
-	warnings = []
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, text: warnings.append((title, text)),
-	)
+	warnings = _capture_refusals(monkeypatch)
 	qapp.clipboard().setText(_SOURCE)
 	before = tab.current_snapshot
 	try:
@@ -527,7 +523,8 @@ def test_cancel_and_close_keep_destination_live_until_paste_worker_finishes(
 		assert (
 			tab.current_snapshot == before
 			and warnings
-			and warnings[-1][0] == "Native Paste Still Running"
+			and warnings[-1].technical_details is not None
+			and "wait for the current operation" in warnings[-1].technical_details.lower()
 		)
 		_action(window, "Close Tab").trigger()
 	finally:

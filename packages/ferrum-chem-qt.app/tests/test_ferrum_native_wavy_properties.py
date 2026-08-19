@@ -1,4 +1,4 @@
-"""Semantic Wavy appearance editing through the Rust-native tab."""
+"""Semantic Wavy appearance editing through the Ferrum tab."""
 
 # Standard Library
 import os
@@ -13,8 +13,8 @@ ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_presentation_projection
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_wavy_properties as native_wavy_properties
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.wavy_properties as native_wavy_properties
 
 
 #============================================
@@ -46,7 +46,7 @@ def test_native_wavy_edit_preserves_authored_path_and_durable_selection(
 		) -> None:
 	"""A visible edit commits once without regenerating the stored point path."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml><polyline id="wave" style="wavy" color="#000" width="1">'
 		'<point x="0" y="0"/><point x="3" y="2"/>'
 		'<point x="6" y="0"/></polyline></cdml>',
@@ -102,7 +102,7 @@ def test_wavy_form_rejects_coercion_and_spline_has_a_typed_issue(qapp: object) -
 def test_native_wavy_creation_uses_rust_identity_geometry_and_history(qapp: object) -> None:
 	"""Create, select, undo, and redo one backend-authored Wavy root."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml/>", "new-wave.cdml",
 	)
 	try:

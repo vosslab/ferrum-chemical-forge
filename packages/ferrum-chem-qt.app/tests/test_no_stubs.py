@@ -72,7 +72,7 @@ def test_no_stub_handlers(main_window: object) -> None:
 	Fails if any handler source or bytecode contains 'not yet implemented',
 	'stub', or 'TODO' strings.
 	"""
-	registry = main_window._registry
+	registry = main_window._action_registry
 	actions = registry.all_actions()
 	assert len(actions) > 0, "registry should have registered actions"
 	stub_actions = []
@@ -91,7 +91,7 @@ def test_no_stub_handlers(main_window: object) -> None:
 #============================================
 def test_all_handlers_are_callable(main_window: object) -> None:
 	"""Every registered action must have a callable handler or None."""
-	registry = main_window._registry
+	registry = main_window._action_registry
 	actions = registry.all_actions()
 	for action_id, action in sorted(actions.items()):
 		handler = action.handler
@@ -104,7 +104,7 @@ def test_all_handlers_are_callable(main_window: object) -> None:
 #============================================
 def test_minimum_action_count(main_window: object) -> None:
 	"""Registry should have at least 48 actions (all stubs replaced)."""
-	registry = main_window._registry
+	registry = main_window._action_registry
 	actions = registry.all_actions()
 	# the original plan counted 63 total registered actions, 48 were stubs
 	assert len(actions) >= 48, (
@@ -115,7 +115,7 @@ def test_minimum_action_count(main_window: object) -> None:
 #============================================
 def test_action_categories_present(main_window: object) -> None:
 	"""All expected menu categories should have actions registered."""
-	registry = main_window._registry
+	registry = main_window._action_registry
 	actions = registry.all_actions()
 	# extract category prefixes from action IDs
 	categories = set()
@@ -123,8 +123,7 @@ def test_action_categories_present(main_window: object) -> None:
 		prefix = action_id.split(".")[0]
 		categories.add(prefix)
 	expected_categories = {
-		"file", "edit", "align", "object",
-		"chemistry", "repair", "options", "help",
+		"file", "edit", "view", "mode", "tool", "options", "help",
 	}
 	missing = expected_categories - categories
 	assert not missing, f"Missing action categories: {missing}"

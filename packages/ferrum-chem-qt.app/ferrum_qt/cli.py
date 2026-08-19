@@ -1,4 +1,4 @@
-"""Command-line interface for Ferrum-Qt."""
+"""Command-line interface for Ferrum."""
 
 # Standard Library
 import argparse
@@ -17,12 +17,12 @@ def parse_args() -> argparse.Namespace:
 		Parsed argument namespace with version flag and file list.
 	"""
 	parser = argparse.ArgumentParser(
-		description="Ferrum-Qt - 2D molecular structure editor",
+		description="Ferrum - 2D molecular structure editor",
 	)
 	parser.add_argument(
 		'-v', '--version',
 		action='version',
-		version=f"Ferrum-Qt {ferrum_qt.versioning.application_version()}",
+		version=f"Ferrum {ferrum_qt.versioning.application_version()}",
 	)
 	parser.add_argument(
 		'--smoke-exit',
@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
 
 #============================================
 def main() -> None:
-	"""Entry point for the Ferrum-Qt CLI."""
+	"""Entry point for the Ferrum CLI."""
 	args = parse_args()
 	# Import exactly one native-first product boundary after lightweight CLI handling.
 	import ferrum_qt.app

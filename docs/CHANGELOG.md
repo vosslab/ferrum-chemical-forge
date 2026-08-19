@@ -1,3 +1,120 @@
+## 2026-08-19
+
+### Additions and New Features
+
+- Moved checked CDML centimetre/scene-point conversion ownership into the Rust
+  geometry crate with public finite `CdmlLength` and `ScenePoints` value types.
+  The PyO3 surface now delegates without duplicating the 72/2.54 policy, and
+  Rust session tests explicitly cover persistent Wavy endpoints, alternation,
+  safety bounds, and revision fencing.
+
+- Added human-facing `ferrum inspect`, `validate`, `rewrite`, and `render`
+  commands over the frozen operation protocol. The commands accept CDML paths
+  or standard input, support human or JSON-envelope output, publish named
+  outputs safely, infer render formats from destination suffixes, and teach one
+  worked example in every verb's help.
+
+- Added Ferrum's shared dotted action registry and centralized keyboard policy.
+  Existing window-owned actions now expose stable IDs for File, Edit, View,
+  drawing-mode, and cancellation commands. Standard Qt key sequences cover the
+  platform editing workflow, while Ferrum-specific bindings cover zoom, grid,
+  atom, bond, and Escape cancellation actions; duplicate bindings fail before
+  any action is changed.
+
+- Added a standard About Ferrum dialog with version, engine, license, and
+  project-link information. About and Preferences use their platform menu
+  roles, the dialog has explicit tab order, and the drawing canvas now has an
+  explicit strong-focus and accessible-name contract.
+
+- Documented the four human CLI verbs with path, standard-stream, raw-output,
+  JSON-envelope, and safe-publication examples. Added `docs/TODO.md` as the
+  concise register for the remaining protocol, desktop-convergence, adapter,
+  and release gates, and expanded the related-project map for the binding and
+  geometry toolchains.
+
+- Completed the T1-T27 convergence register. The CLI now has six protocol-backed
+  verbs: `inspect`, `validate`, `rewrite`, `render`, `convert`, and `coords`.
+  `convert` and `coords` use a validated explicit engine bundle and return a
+  typed unavailable-engine result when no active bundle exists. The public
+  protocol remains pathless and the new API contract documents the envelopes,
+  stream behavior, publication rule, and 0/1/2/3 exit statuses.
+
+- Added the repository CI workflow and the final local native-wheel/engine-bundle
+  verification route. The workflow calls the existing repository, Python/Qt, and
+  Cargo front doors without duplicating their checks. It is present in the tree but
+  has not yet run on GitHub Actions.
+
+### Behavior or Interface Changes
+
+- Rebranded the visible PySide6 application from Ferrum-Qt to Ferrum across
+  application metadata, window titles, settings identity, command help, and
+  current user documentation. User-facing failures no longer describe the
+  implementation as native, admitted, or typed CDML; the CDML namespace and
+  historical lineage records remain unchanged compatibility and provenance
+  facts.
+
+- Renamed `ferrum_qt/native/` to `ferrum_qt/ferrum/` and removed the redundant
+  `ferrum_native_` module-name prefixes. Feature modules now access the compiled
+  Rust extension through the single lazy `ferrum/engine.py` boundary, so an
+  isolated Qt test can substitute an exact private DTO seam without leaking a
+  fake module into unrelated tests.
+
+- Renamed the internal legacy peptide-template profile from
+  `oasa-compatibility-v1` to `ferrum-legacy-template-v1`. Its deterministic
+  supported alphabet and generated structural SMILES are unchanged.
+
+- Completed the requested Rust ownership decomposition. `ferrum-api` now owns
+  only CLI presentation, protocol DTO/execution, trusted runtime selection, and
+  transport. Chemistry codecs live in `ferrum-chemistry`, document/session/CDML
+  operations in `ferrum-document`, scientific preparation in `ferrum-domain`, and
+  render plans/artifacts in `ferrum-render`; the eight-crate workspace keeps lower
+  crates independent of the delivery facade.
+
+### Removals
+
+- Removed the unused Python `wavy_geometry` helper and its duplicate unit test;
+  persistent Wavy geometry is generated only by the revision-bound Rust
+  document session.
+
+- Removed the ignored stale desktop build tree, including its obsolete
+  `oasa_bridge.py`, and removed empty `legacy`, `models`, `modes`, `setup`, and
+  `undo` placeholder directories. The two Python package manifests and root
+  `VERSION` now use the same zero-padded `26.08` source spelling.
+
+- Retired the two remaining test-only OASA Python workers, their differential
+  runners, and the OASA test dependency. Accepted parity reports remain as
+  historical evidence; the optional reference environment now contains only
+  Python RDKit for one-time maintainer measurements.
+
+### Developer Tests and Notes
+
+- Added focused Qt tests for stable action bindings, conflict-free keyboard
+  setup, canvas focus, the About dialog, and the single extension-import
+  boundary. Added Rust tests that run all four human verbs from standard input
+  and verify their worked help, plus a real CLI E2E that compares each human
+  surface to the equivalent protocol outcome and composes standard streams.
+
+- Built a fresh CPython 3.12 arm64 `ferrum-chem` wheel and completed an
+  offscreen Ferrum startup/shutdown smoke with a success receipt. The focused
+  Qt startup/action/adapter checks, Rust CLI tests, strict Clippy, rustfmt,
+  Python indentation, Markdown-link, and Pyflakes gates pass. The complete Qt
+  suite reaches an environment-dependent coordinate-generation dialog when the
+  separately built chemistry adapter is unavailable, so that run is not
+  recorded as a full-suite pass.
+
+- Final local verification passed `all_test.sh`: 5,916 repository tests, 213
+  installed Ferrum-Chem binding tests, and 393 Ferrum Qt tests with 1 skipped.
+  `check_rust.sh` passed earlier in the same convergence run. A final local
+  macOS arm64 native wheel and validated engine bundle exercised the chemistry
+  CLI route. These are local implementation receipts, not a remote CI result,
+  a cross-platform claim, final release artifacts, or human legal/release
+  approval.
+
+- Documented the bytecode hygiene correction: agents must not use `py_compile`
+  or `compileall` for validation because those explicit compilers write bytecode
+  despite no-bytecode runtime settings. Pytest and AST parsing are the approved
+  validation paths.
+
 ## 2026-08-15
 
 ### Additions and New Features

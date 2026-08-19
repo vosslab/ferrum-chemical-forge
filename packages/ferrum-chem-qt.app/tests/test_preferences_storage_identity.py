@@ -1,4 +1,4 @@
-"""Preference storage identity checks for Ferrum-Qt."""
+"""Preference storage identity checks for Ferrum."""
 
 # Standard Library
 import pathlib

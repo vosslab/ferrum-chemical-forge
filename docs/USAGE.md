@@ -1,31 +1,114 @@
 # Use Ferrum
 
-Ferrum provides a Rust `ferrum` command-line tool and one ordinary `ferrum-qt`
-Rust-native drawing application. The command-line tool works without Python.
-Ferrum-Qt is a bounded pre-production editor; see [INSTALL.md](INSTALL.md) for
-its verified setup and platform limits.
+Ferrum provides a Rust `ferrum` command-line tool and a bounded `ferrum-qt` drawing application.
+The CLI runs without Python; `convert` and `coords` additionally need a trusted engine bundle.
+Install the CLI first as described in [INSTALL.md](INSTALL.md).
 
-## Quick start
+## Convert a molecule
 
-Inspect the generated protocol schema:
+Install a compatible, explicitly provisioned engine bundle before calling `convert` or `coords`:
 
 ```bash
-ferrum protocol schema
+ferrum engine install /path/to/ferrum-engine-bundle
+ferrum engine status
+ferrum convert aspirin.smi --to sdf_v2000 --output aspirin.sdf
 ```
 
-Start a new drawing window, or open an uncompressed drawing on launch:
+`convert` accepts one source file or `-` for standard input. Its exact syntax names are `smiles`,
+`inchi_standard`, `inchi_fixed_h`, `molblock_v2000`, `molblock_v3000`, `sdf_v2000`, `sdf_v3000`,
+and `cdml`. Ferrum infers only `.smi`/`.smiles`, `.inchi`, `.mol`/`.molblock`, `.sdf`, and `.cdml`;
+use `--from` for standard input or another suffix.
+
+```bash
+printf 'CCO\n' | ferrum convert - --from smiles --to molblock_v2000 > ethanol.mol
+ferrum convert input.mol --from molblock_v2000 --to smiles --output output.smi
+```
+
+If `ferrum engine status` is not `ready`, engine verbs finish with the typed
+`chemistry_unavailable` refusal. They do not discover an adapter from the current directory,
+`PATH`, Python installations, or environment variables. An engine bundle is installed from one
+explicit directory, validated for the current host and ABI, copied into Ferrum's application-data
+root, and made active through an atomic record update. Reinstalling a valid bundle replaces the
+active record; `status` reports `not-installed`, `ready`, or `invalid`.
+
+## Render a drawing
+
+Render one supported complete CDML document as SVG, PDF, or transparent PNG:
+
+```bash
+ferrum render drawing.cdml --output drawing.svg
+ferrum render drawing.cdml --to pdf --output drawing.pdf
+ferrum render drawing.cdml --to png --output drawing.png
+```
+
+Ferrum infers a named artifact format from `.svg`, `.pdf`, or `.png`; use `--to` for standard
+output or an unfamiliar suffix. SVG and PDF are vector artifacts. PNG uses one output pixel per
+Rust page point with transparency; that is a page-geometry rule, not a print-DPI promise.
+
+## Draw with the keyboard
+
+Start a new window or open an uncompressed CDML drawing:
 
 ```bash
 ferrum-qt
 ferrum-qt drawing.cdml
 ```
 
-Use `ferrum --help` or `ferrum-qt --help` for the installed command help.
+For a keyboard-only small drawing task, activate File > Open with the platform Open shortcut,
+choose a CDML document, then use these commands while canvas focus is active:
 
-## Operation protocol V1
+1. Press `Ctrl+8` for Add Atom. Arrow keys move the crosshair by one grid step; `Shift+Arrow`
+   makes a fine move. Press `Enter` to place an atom.
+2. Press `Ctrl+2` for Draw Bond. Press `Enter` on the first atom, move to the second atom, and
+   press `Enter` again to commit a bond. Press `Escape` to cancel without changing the document.
+3. Use the platform Undo shortcut to reverse the last change, then use the platform Save shortcut
+   to save or Save As to choose a new CDML path.
 
-The shipping `ferrum` command exposes one stateless, machine-readable CDML
-operation protocol:
+Pointer editing remains available. The bounded desktop route supports Rust-owned atom and normal
+bond edits, selected molecule work, supported insertions, coordinate work, Undo/Redo, CDML save,
+and SVG/PDF/PNG export. Unsupported document features or formats are refused with next-step
+guidance and do not alter the active document. See [FILE_FORMATS.md](FILE_FORMATS.md) for admitted
+files and publication rules.
+
+## Six command verbs
+
+All human verbs create one V1 operation request and use the same Rust executor:
+
+- `ferrum inspect INPUT [--json]` prints a semantic CDML inspection report.
+- `ferrum validate INPUT [--level structural|typed] [--json]` prints validation facts.
+- `ferrum rewrite INPUT [-o OUTPUT] [--json]` writes structurally preserved CDML.
+- `ferrum render INPUT [-o OUTPUT] [--to svg|pdf|png] [--json]` writes one complete artifact.
+- `ferrum convert INPUT [--from FORMAT] --to FORMAT [-o OUTPUT] [--json]` converts one bounded
+  molecular-interchange source through the installed engine.
+- `ferrum coords DOCUMENT [-o OUTPUT] [--json]` regenerates all direct molecule coordinates through
+  the installed engine.
+
+`inspect` and `validate` report to standard output. `rewrite`, `render`, `convert`, and `coords`
+write raw completed results to standard output when `--output` is omitted or `-`. `--json` instead
+writes the complete operation envelope and cannot be combined with a named output destination.
+
+Named outputs use safe publication. Ferrum refuses to replace its retained input source or an
+observed hard-link alias. A successful rewrite may normalize serialization details: it preserves
+structure, not bytes. A render result is complete for its requested profile; it does not claim pixel
+equivalence to another renderer.
+
+## Results and failures
+
+Human diagnostics go to standard error. Exit statuses are:
+
+- `0`: a completed success or typed protocol refusal.
+- `1`: input, processing, or confirmed publication failure.
+- `2`: command-line usage error.
+- `3`: a named output may have been published but Ferrum cannot confirm it.
+
+Use `--json` when another program needs a stable discriminator. Test `schema`, operation `kind`,
+and error `category`, not diagnostic text. The complete request and response contract is in
+[FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md).
+
+## Machine protocol
+
+The lower-level protocol command accepts one UTF-8 JSON request and emits one JSON success or typed
+error envelope:
 
 ```bash
 ferrum protocol schema
@@ -33,151 +116,13 @@ ferrum protocol run request.json
 ferrum protocol run request.json --output response.json
 ```
 
-`request.json` is one UTF-8 JSON object. Its `schema` is
-`ferrum-operation-request-v1`, it carries an opaque `request_id`, and its
-operation is one of `document.inspect`, `document.validate`,
-`document.rewrite`, or `document.render_artifact`. See
-[the protocol section below](#protocol-contract) for the request shape, Python
-boundary, result/error schemas, and exclusions.
+Protocol payloads contain document or interchange text, never paths. It has no batch, network,
+session, Qt, or adapter-discovery capability. The generated schema and precise operation envelopes
+are specified in [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md).
 
-`run` emits one success or typed protocol-error JSON envelope on standard
-output. A completed typed refusal exits 0; input or pre-envelope failure exits
-1; usage failure exits 2; and an output publication that may have occurred but
-cannot be confirmed exits 3. A named `--output` uses safe publication and
-cannot replace the pathname request source or its observed hard-link alias.
-`--output -` is a usage error. The protocol does not batch requests, infer an
-output, write raw artifacts beside JSON, use Qt, or access a network.
+## Current boundaries
 
-### Protocol contract
-
-The request schema is `ferrum-operation-request-v1`. A successful response
-uses `ferrum-operation-response-v1`; a decodable refusal uses
-`ferrum-operation-error-v1`. Ferrum echoes an admitted request ID unchanged,
-but it has no identity, ordering, persistence, or authorization meaning.
-Clients use schema, error category, and operation as discriminators, never a
-diagnostic message.
-
-`document.validate` accepts `structural` or `typed`. Artifact formats are
-`svg`, `pdf`, and `png_one_pixel_per_point_transparent`; a response contains a
-complete base64 artifact and its media type or a typed refusal, never a partial
-artifact. Rewrite is structural preservation, not byte identity.
-
-The envelope has a derived UTF-8 transport boundary before CLI input is
-allocated, Python input is copied, or JSON is parsed. It derives from the
-existing uncompressed CDML profile, worst-case JSON escaping, and a small V1
-framing/request-ID allowance. This is allocation safety, not a latency, corpus,
-pixel, or performance requirement. CDML admission and base64 completion retain
-their separate existing bounds. Stable response categories are
-`invalid_request`, `unsupported_protocol_version`,
-`document_admission_failed`, `document_invalid`, `render_unsupported`,
-`render_failed`, `resource_limit`, and `internal_failure`. Invalid JSON and an
-over-budget transport have no response envelope.
-
-The `ferrum_chem` extension adds only:
-
-```python
-def execute_operation_v1(request_json: str) -> str: ...
-def operation_protocol_schema_v1() -> str: ...
-
-class OperationProtocolErrorV1(FerrumError):
-    category: str
-```
-
-A decodable domain or version refusal is returned JSON data. Before an envelope
-can exist, `OperationProtocolErrorV1.category` is `invalid_json`,
-`resource_limit`, or `execution_unavailable`; non-string input uses Python's
-normal type error. This API accepts no mapping, bytes, path, session, receipt,
-or Qt object. It excludes batch/multi-request transport, protocol paths,
-network, adapter discovery, chemistry conversion, CD-SVG/compressed input,
-selection/root export, templates, clipboard, recovery copies, document
-mutation, and render observation. Existing direct extension values remain the
-Ferrum-Qt integration surface, not a public CLI contract.
-
-Five compact offline Rust semantic cases and two installed-Python semantic
-cases are permanent coverage. The real CLI runner, generator, wheel/schema
-resource check, package build, and installed walkthrough are E2E or one-time
-evidence, not byte, pixel, timing, count, network, mock, or fixture-matrix
-gates.
-
-## Ferrum-Qt
-
-`ferrum-qt` is the sole desktop product command. It opens an uncompressed local
-`.cdml` document or a decoded local `.svg` containing exactly one canonical embedded
-CDML payload. File admission and rendering occur through Rust-owned profiles; Python
-does not parse the source or choose its resource limits.
-
-Use File > New for another empty document. File > Open creates a native tab after
-admission succeeds; File > Open in Current Tab... replaces the selected tab only
-after admission and the required save or replacement choice succeed. Save and Save
-As publish CDML through Rust. The Recent Files menu reuses the same native open route.
-
-For a decoded CD-SVG source, Ferrum opens only the embedded CDML. Its wrapper is not
-rendered, preserved, or rewritten. Save therefore uses CDML Save As and never
-overwrites the source SVG wrapper.
-
-### Supported drawing work
-
-The bounded editor supports Rust-owned document changes including atom and bond
-editing, bounded molecule import, supported peptide and ring insertion, selected
-molecule inspection, coordinate work, geometry tools, presentation and text edits,
-Undo/Redo, Save/Save As, and native artifact export. Available actions enable only
-when their selection and document requirements are met; visible refusal leaves the
-document unchanged.
-
-File > Export... creates one complete current document as:
-
-- Export SVG...
-- Export PDF...
-- Export PNG (1 pixel per point)...
-
-SVG and PDF are vector output. PNG has a transparent background and one output pixel
-per Rust page point; this describes page geometry, not a print-DPI metadata promise.
-Export does not include selection or hover feedback. Cancelling an export destination,
-or a document change before publication, leaves the document unchanged.
-
-File > Recovery Export CDML... writes a recovery copy of the current CDML. It does
-not replace the save target, change unsaved state, export another format, or convert a
-file.
-
-### Refused formats and drops
-
-Ferrum-Qt refuses `.cdxml`, `.cml`, `.cdsvg`, `.svgz`, and compressed CDML names
-before reading them. The current document remains unchanged; use the source application
-or a converter to produce an uncompressed `.cdml` drawing. Ferrum does not sniff
-suffixes, decompress input, export CD-SVG, or preserve a CD-SVG wrapper.
-
-Ferrum is not yet a complete general-purpose chemical-drawing editor or a
-cross-platform desktop distribution. Workflows outside the supported Rust-owned route,
-including broad legacy-format conversion and unbounded chemistry import, are explicit
-pre-production drops rather than alternate desktop paths.
-
-## Package-release evidence
-
-M20 and M22 have accepted source implementation for one proposed initial target, macOS arm64
-with CPython 3.12. The route builds exactly two first-party Python wheels: `ferrum-chem` and
-`ferrum-qt`. The Rust `ferrum` CLI is deliberately separate and remains installed through Cargo;
-installing either Python wheel does not provide it.
-
-The release route is a maintainer-only E2E procedure. It needs a separately provisioned offline
-Cargo home, native source input, Qt build-backend wheelhouse, and Qt runtime dependency wheelhouse.
-The build and installation use scrubbed environments and `--no-index`; they do not use an index,
-an editable checkout, an ambient Python package, or a loader-path workaround. The installed proof
-checks one admitted protocol operation and its schema resource, the `ferrum-qt` entry point and
-owned resources, then the same chemistry observation after the target-specific LGPL relink route.
-
-The external macOS arm64/CPython 3.12 wheelhouses are currently unavailable, so this remains
-pending runtime evidence rather than a supported consumer release. The final M22 classifier also
-requires the two final wheels, a committed source archive, and the M20 receipt; human legal and
-release review remain required. Build/site inspection, toolchain inventory, clean installation,
-relink, source-archive CLI, and artifact-inventory observations are E2E or disposable release
-evidence; they are not permanent pytest, timing, byte, hash, member-count, pixel, network, or
-matrix gates. For the exact maintainer commands and input roles, see
-[INSTALL.md](INSTALL.md#m20-package-release-proof).
-
-## Known gaps
-
-- TODO: complete the real macOS arm64/CPython 3.12 offline package/relink evidence and publish a
-  supported consumer installer only after it succeeds.
-- TODO: qualify additional desktop platforms before documenting them as supported.
-- TODO: expand drawing and chemistry workflows through separately reviewed Rust-owned
-  contracts.
+Ferrum is pre-production. The verified desktop route is a bounded macOS arm64 CPython 3.12 route;
+it is not a cross-platform consumer release. The Rust CLI is a separate Cargo-installed command.
+See [INSTALL.md](INSTALL.md) for release evidence and [PROVENANCE.md](PROVENANCE.md) for concise
+lineage and licensing information.

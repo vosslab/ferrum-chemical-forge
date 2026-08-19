@@ -7,6 +7,7 @@ import math
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
 #============================================
@@ -27,7 +28,7 @@ def _button_foreground(color: str) -> str:
 
 
 #============================================
-class GeometricPropertiesDialog(PySide6.QtWidgets.QDialog):
+class GeometricPropertiesDialog(FerrumAccessibleDialog):
 	"""Edit width, stroke color, and optional fill as detached plain intent.
 
 	The dialog owns only provisional scalar values.  Its caller receives the

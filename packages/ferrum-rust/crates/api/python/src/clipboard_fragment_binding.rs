@@ -1,13 +1,13 @@
 //! Private PyO3 boundary for revision-bound native clipboard Copy.
 //!
-//! This unsupported entry point belongs only to the bundled Ferrum-Qt route. It
+//! This unsupported entry point belongs only to the bundled Ferrum route. It
 //! deliberately has no wheel stub, CLI, serde, or wire-format commitment.
 
-use ferrum_api::{
+use ferrum_document::DocumentObjectIdV1;
+use ferrum_document::{
     DocumentClipboardFragmentKindV1, DocumentClipboardFragmentV1, DocumentClipboardSelectionV1,
     extract_document_clipboard_fragment_v1,
 };
-use ferrum_document::DocumentObjectIdV1;
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString, PyTuple};
@@ -52,7 +52,7 @@ pub(crate) struct PyDocumentClipboardFragmentV1 {
 
 /// Extract one selected-only CDML fragment without mutating the Rust session.
 ///
-/// Experimental internal-to-Ferrum-Qt API. The tuple contains opaque durable
+/// Experimental internal-to-Ferrum API. The tuple contains opaque durable
 /// object IDs resolved from the exact observation's projected selection.
 #[pyfunction(name = "extract_document_clipboard_fragment_v1")]
 fn extract_document_clipboard_fragment_v1_binding(

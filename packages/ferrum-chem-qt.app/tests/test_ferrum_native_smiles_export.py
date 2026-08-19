@@ -1,4 +1,4 @@
-"""Behavior coverage for selected native document-to-SMILES export."""
+"""Behavior coverage for selected Ferrum document-to-SMILES export."""
 
 # Standard Library
 import os
@@ -14,8 +14,10 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.dialogs.refusal_presenter
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.window_refusals
 
 
 _SOURCE = """<cdml version='26.08'><molecule id='m1'>
@@ -38,7 +40,7 @@ _MULTI_SOURCE = """<cdml version='26.08'>
 #============================================
 @pytest.fixture
 def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Provide the offscreen application used by the ordinary native window."""
+	"""Provide the offscreen application used by the ordinary Ferrum window."""
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
 		app = PySide6.QtWidgets.QApplication([])
@@ -55,8 +57,8 @@ def _action(window: object, text: str) -> PySide6.QtGui.QAction:
 #============================================
 def _register(source: str) -> tuple[object, object]:
 	"""Create one ordinary window with one active Rust-owned tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		source, "molecule.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -143,8 +145,8 @@ def test_visible_file_action_publishes_exact_smiles_without_clipboard_or_documen
 	)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		tab.select_atom("a1")
@@ -165,7 +167,7 @@ def test_visible_file_action_publishes_exact_smiles_without_clipboard_or_documen
 		assert tab.current_snapshot == before
 		assert tab.current_document_observation() is observation
 		assert tab.selected_molecule_information_targets() == selected
-		assert not warnings or warnings[-1][0] == "SMILES File Durability Unconfirmed"
+		assert not warnings or warnings[-1].outcome.value == "unavailable_operation"
 	finally:
 		_dispose(window, tab, qapp)
 
@@ -188,8 +190,8 @@ def test_file_action_refuses_changed_selection_after_destination_dialog(
 	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_path)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		tab.select_atom("carbon")
@@ -197,7 +199,7 @@ def test_file_action_refuses_changed_selection_after_destination_dialog(
 		_action(window, "Export SMILES File...").trigger()
 		assert window._molecule_export_intent is None
 		assert not destination.exists()
-		assert warnings[-1][0] == "Native SMILES Export Unavailable"
+		assert warnings[-1].outcome.value == "unavailable_operation"
 	finally:
 		_dispose(window, tab, qapp)
 
@@ -218,8 +220,8 @@ def test_visible_inchi_file_actions_publish_each_explicit_mode_without_mutation(
 	)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	clipboard = PySide6.QtWidgets.QApplication.clipboard()
 	clipboard.setText("unchanged")
@@ -262,13 +264,13 @@ def test_inchi_file_action_refuses_revision_change_after_destination_dialog(
 	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_path)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		_action(window, "Export Standard InChI File...").trigger()
 		assert window._molecule_export_intent is None and not destination.exists()
-		assert warnings[-1][0] == "Native InChI Export Unavailable"
+		assert warnings[-1].outcome.value == "unavailable_operation"
 	finally:
 		_dispose(window, tab, qapp)
 
@@ -324,7 +326,7 @@ def test_tab_switch_discards_completed_worker_result(
 		) -> None:
 	"""A result from a background tab cannot replace the current clipboard."""
 	window, source_tab = _register(_SOURCE)
-	other_tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	other_tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_MULTI_SOURCE, "other.cdml",
 	)
 	shown = []
@@ -353,7 +355,7 @@ def test_tab_switch_discards_completed_worker_result(
 def test_cancel_action_withholds_completed_worker_result(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""Cancellation invalidates delivery without claiming native interruption."""
+	"""Cancellation invalidates delivery without claiming Ferrum interruption."""
 	window, tab = _register(_SOURCE)
 	shown = []
 	monkeypatch.setattr(window, "_show_document_molecule_smiles", shown.append)
@@ -379,16 +381,15 @@ def test_unsupported_drawing_bond_reports_failure_without_fallback(
 		) -> None:
 	"""A presentation-only bond style remains a visible typed Rust refusal."""
 	window, tab = _register(_SOURCE.replace("type='n1'", "type='w1'"))
-	warnings = []
+	warnings: list[ferrum_qt.dialogs.refusal_presenter.RefusalPresentation] = []
 
 	def capture_warning(
-			_parent: object, title: str, message: str,
-			) -> PySide6.QtWidgets.QMessageBox.StandardButton:
+			_window: object, request: object,
+			) -> None:
 		"""Capture the public warning surface without opening a modal dialog."""
-		warnings.append((title, message))
-		return PySide6.QtWidgets.QMessageBox.StandardButton.Ok
+		warnings.append(ferrum_qt.dialogs.refusal_presenter.present_refusal(request))
 
-	monkeypatch.setattr(PySide6.QtWidgets.QMessageBox, "warning", capture_warning)
+	monkeypatch.setattr(ferrum_qt.ferrum.window_refusals, "show_refusal", capture_warning)
 	clipboard = PySide6.QtWidgets.QApplication.clipboard()
 	clipboard.setText("unchanged")
 	try:
@@ -398,8 +399,9 @@ def test_unsupported_drawing_bond_reports_failure_without_fallback(
 		action = _action(window, "Export SMILES")
 		action.trigger()
 		_wait_for_export(window, qapp)
-		assert warnings and warnings[-1][0] == "Native SMILES Export Error"
-		assert "drawing style" in warnings[-1][1]
+		assert warnings and warnings[-1].title == "Action Not Available"
+		assert warnings[-1].technical_details is not None
+		assert "drawing style" in warnings[-1].technical_details
 		assert clipboard.text() == "unchanged" and tab.current_snapshot == before
 	finally:
 		_dispose(window, tab, qapp)

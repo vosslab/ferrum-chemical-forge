@@ -78,10 +78,11 @@ source descriptor to Python, or preserve CD-SVG wrapper bytes.
 
 `ferrum protocol schema` prints the generated protocol schema. `ferrum protocol run`
 reads one request JSON file or standard input and writes one JSON success or typed-error
-envelope. The request carries CDML text, never a protocol file path. `document.inspect`,
-`document.validate`, `document.rewrite`, and `document.render_artifact` are the only V1
-operations. See [USAGE.md](USAGE.md#operation-protocol-v1) for categories, output
-publication, and the separate bounds that protect the transport, CDML, and artifacts.
+envelope. Request payloads carry owned CDML or molecular-interchange text, never protocol
+file paths. The six closed V1 operations include document inspection, validation, rewrite,
+artifact rendering, chemistry conversion, and coordinate generation. See
+[FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for the complete envelopes, categories,
+publication rules, and separate bounds that protect transport, CDML, interchange, and artifacts.
 
 The accepted ABI-4 FCM1 wheel evidence is limited to macOS arm64. Its packaging and
 licensing boundary is documented in [PROVENANCE.md](PROVENANCE.md); it is not a
@@ -89,7 +90,7 @@ cross-platform release claim.
 
 ## Unsupported formats
 
-Ferrum does not currently provide a general file-conversion CLI for molfile/SDF variants,
-SMILES files, image formats, general SVG, or compressed SVG. Bounded chemistry import and
-export remain Ferrum-Qt-native workflows with their own document contracts. The current scope
-and remaining migration work are tracked in [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
+Ferrum is not a general image, SVG, or compressed-SVG converter. `ferrum convert` accepts only
+its closed interchange vocabulary and needs the explicitly installed native engine; it is not a
+desktop import fallback. The current scope and remaining migration work are tracked in
+[active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).

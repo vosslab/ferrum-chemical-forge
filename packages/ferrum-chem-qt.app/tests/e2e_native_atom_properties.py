@@ -1,4 +1,4 @@
-"""Prove installed Ferrum atom-property editing remains a native Rust route."""
+"""Prove installed Ferrum atom-property editing remains a Ferrum Rust route."""
 
 # Standard Library
 import argparse
@@ -15,7 +15,7 @@ APP_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 #============================================
 class NativeAtomPropertiesE2eError(RuntimeError):
-	"""Raised when the installed native atom-properties path loses durable truth."""
+	"""Raised when the installed Ferrum atom-properties path loses durable truth."""
 
 
 #============================================
@@ -61,27 +61,27 @@ def _atom(projection: object) -> object:
 
 #============================================
 def _assert_atom(atom: object) -> None:
-	"""Assert the nine authored facts carried by one complete native patch."""
+	"""Assert the nine authored facts carried by one complete Ferrum patch."""
 	if (
 		atom.element, atom.formal_charge, atom.valence, atom.isotope,
 		atom.multiplicity, atom.show, atom.show_hydrogens,
 	) != ("O", -1, 2, 18, 2, True, True):
-		raise NativeAtomPropertiesE2eError("native patch did not retain scalar atom facts")
+		raise NativeAtomPropertiesE2eError("Ferrum patch did not retain scalar atom facts")
 	if atom.label_font is None or (
 		atom.label_font.size, atom.label_font.color,
 	) != (15.0, "#a0b1c2"):
-		raise NativeAtomPropertiesE2eError("native patch did not retain label font facts")
+		raise NativeAtomPropertiesE2eError("Ferrum patch did not retain label font facts")
 
 
 #============================================
 def _probe() -> dict[str, object]:
-	"""Open, change, undo/redo, save, and reopen through public native seams."""
+	"""Open, change, undo/redo, save, and reopen through public Ferrum seams."""
 	os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 	sys.path.insert(0, str(APP_ROOT))
 
 	import PySide6.QtWidgets
 	import ferrum_chem
-	import ferrum_qt.native.ferrum_native_main_window
+	import ferrum_qt.ferrum.main_window
 
 	if hasattr(ferrum_chem, "__path__") or pathlib.Path(ferrum_chem.__file__).suffix != ".so":
 		raise NativeAtomPropertiesE2eError("Ferrum chemistry did not load as a root extension")
@@ -99,12 +99,12 @@ def _probe() -> dict[str, object]:
 		'</molecule><v:opaque id="retained" keep="literal"/></cdml>',
 		encoding="utf-8",
 	)
-	host = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
+	host = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	if not host.open_file_path(str(source_path)):
-		raise NativeAtomPropertiesE2eError("native CDML open returned false")
+		raise NativeAtomPropertiesE2eError("Ferrum CDML open returned false")
 	tab = host._active_native_tab()
 	if tab is None:
-		raise NativeAtomPropertiesE2eError("native host did not create a tab")
+		raise NativeAtomPropertiesE2eError("Ferrum host did not create a tab")
 	tab.select_atom("atom-a")
 	changes_type = ferrum_chem.DocumentAtomPropertyChangeV1
 	before_rejected = tab.current_snapshot
@@ -121,7 +121,7 @@ def _probe() -> dict[str, object]:
 		after_rejected.revision, after_rejected.digest,
 	) != (before_rejected.revision, before_rejected.digest):
 		raise NativeAtomPropertiesE2eError(
-			"rejected PyO3 atom-property intent mutated the native session",
+			"rejected PyO3 atom-property intent mutated the Ferrum session",
 		)
 	changes = (
 		changes_type.element("O"), changes_type.formal_charge(-1),
@@ -133,23 +133,23 @@ def _probe() -> dict[str, object]:
 	result = tab.apply_selected_atom_properties(changes)
 	changed = tab.current_snapshot
 	if changed.revision != 1 or not tab.is_dirty:
-		raise NativeAtomPropertiesE2eError("native patch did not create one dirty revision")
+		raise NativeAtomPropertiesE2eError("Ferrum patch did not create one dirty revision")
 	if result.observation.snapshot.revision != changed.revision:
-		raise NativeAtomPropertiesE2eError("native patch result disagrees with tab truth")
+		raise NativeAtomPropertiesE2eError("Ferrum patch result disagrees with tab truth")
 	if not tab.has_one_selected_atom() or tab.selected_atom_projection().source_id != "atom-a":
-		raise NativeAtomPropertiesE2eError("native patch did not retain the atom selection")
+		raise NativeAtomPropertiesE2eError("Ferrum patch did not retain the atom selection")
 	_assert_atom(_atom(tab._document_observation.projection))
 	undone = tab.undo().observation
 	if undone.snapshot.revision <= changed.revision or _atom(undone.projection).element != "C":
-		raise NativeAtomPropertiesE2eError("native atom-properties undo did not restore source facts")
+		raise NativeAtomPropertiesE2eError("Ferrum atom-properties undo did not restore source facts")
 	redone = tab.redo().observation
 	if redone.snapshot.revision <= undone.snapshot.revision:
-		raise NativeAtomPropertiesE2eError("native atom-properties redo did not advance history")
+		raise NativeAtomPropertiesE2eError("Ferrum atom-properties redo did not advance history")
 	_assert_atom(_atom(redone.projection))
 	if not host.save_active_to_path(str(saved_path)):
-		raise NativeAtomPropertiesE2eError("native atom-properties save returned false")
+		raise NativeAtomPropertiesE2eError("Ferrum atom-properties save returned false")
 	if tab.is_dirty or tab.file_path != saved_path:
-		raise NativeAtomPropertiesE2eError("native save did not install its clean published truth")
+		raise NativeAtomPropertiesE2eError("Ferrum save did not install its clean published truth")
 	reopened = ferrum_chem.DocumentSession.load(saved_path.read_text(encoding="utf-8"))
 	reopened_snapshot = reopened.snapshot()
 	_assert_atom(_atom(reopened.observe_render(0).document.projection))
@@ -158,7 +158,7 @@ def _probe() -> dict[str, object]:
 	if "vendor_keep=\"yes\"" not in reopened_snapshot.cdml:
 		raise NativeAtomPropertiesE2eError("save/reopen lost unknown atom/font attributes")
 	if reopened_snapshot.is_dirty:
-		raise NativeAtomPropertiesE2eError("reopened saved native document is unexpectedly dirty")
+		raise NativeAtomPropertiesE2eError("reopened saved Ferrum document is unexpectedly dirty")
 	host.close()
 	app.processEvents()
 	return {
@@ -200,7 +200,7 @@ def main() -> int:
 		)
 	value = json.loads(output)
 	if not value["clean"] or not value["opaque_extension"]:
-		raise NativeAtomPropertiesE2eError("native atom-properties proof lost durable output truth")
+		raise NativeAtomPropertiesE2eError("Ferrum atom-properties proof lost durable output truth")
 	print(json.dumps(value, sort_keys=True))
 	return 0
 

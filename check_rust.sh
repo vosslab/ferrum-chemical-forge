@@ -102,13 +102,13 @@ run_step "Main workspace tests" "$RUST_ROOT" \
 run_step "Main workspace documentation" "$RUST_ROOT" \
 	cargo doc --workspace --no-deps --locked
 run_step "PyO3 workspace check" "$PYO3_ROOT" \
-	cargo check --locked
+	cargo check --no-default-features --locked
 run_step "PyO3 workspace strict Clippy" "$PYO3_ROOT" \
-	cargo clippy --all-targets --locked -- -D warnings
+	cargo clippy --no-default-features --all-targets --locked -- -D warnings
 run_step "PyO3 workspace tests" "$PYO3_ROOT" \
-	cargo test --locked
+	cargo test --no-default-features --locked
 run_step "PyO3 workspace documentation" "$PYO3_ROOT" \
-	cargo doc --no-deps --locked
+	cargo doc --no-default-features --no-deps --locked
 
 echo
 echo "PASS: Ferrum Cargo checks and Rust tests completed."

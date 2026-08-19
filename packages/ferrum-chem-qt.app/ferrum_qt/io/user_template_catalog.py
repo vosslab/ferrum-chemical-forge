@@ -209,7 +209,7 @@ def _open_catalog_candidate(
 		os.close(file_descriptor)
 		return UserTemplateScanFailure(
 			source_name=filename,
-			message="Cannot inspect admitted user template file: %s" % _safe_text(str(error)),
+			message="Cannot inspect the selected user template file: %s" % _safe_text(str(error)),
 		)
 	if not stat.S_ISREG(file_status.st_mode):
 		os.close(file_descriptor)

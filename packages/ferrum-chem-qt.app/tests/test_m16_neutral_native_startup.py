@@ -11,10 +11,10 @@ import pytest
 # local repo modules
 import ferrum_qt.config.preferences
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_action_toolbar
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_preferences
-import ferrum_qt.native.ferrum_native_property_dock
+import ferrum_qt.ferrum.action_toolbar
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.preferences
+import ferrum_qt.ferrum.property_dock
 
 
 _PROPERTY_CDML = """<cdml version='26.08'>
@@ -85,7 +85,7 @@ def test_ordinary_startup_creates_a_native_empty_document(
 	try:
 		assert isinstance(
 			window._active_native_tab(),
-			ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 		)
 		assert window._action_open.isEnabled()
 	finally:
@@ -102,7 +102,7 @@ def test_main_toolbar_creates_a_document_and_remains_user_hideable(
 	qapp.processEvents()
 	try:
 		toolbar = window.findChild(
-			ferrum_qt.native.ferrum_native_action_toolbar.FerrumNativeActionToolbar,
+			ferrum_qt.ferrum.action_toolbar.FerrumNativeActionToolbar,
 			"native-main-action-toolbar",
 		)
 		before = window._tab_widget.count()
@@ -121,10 +121,10 @@ def test_properties_follow_the_selected_atom_across_document_tabs(
 		) -> None:
 	"""The inspector follows durable facts from the user-selected document tab."""
 	window = _make_window(qapp)
-	first = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	first = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_PROPERTY_CDML, "carbon.cdml",
 	)
-	second = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	second = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_PROPERTY_CDML, "oxygen.cdml",
 	)
 	try:
@@ -133,7 +133,7 @@ def test_properties_follow_the_selected_atom_across_document_tabs(
 		window._register_native_tab(second, activate=True)
 		second.select_atom("atom-o")
 		dock = window.findChild(
-			ferrum_qt.native.ferrum_native_property_dock.FerrumNativePropertyDock,
+			ferrum_qt.ferrum.property_dock.FerrumNativePropertyDock,
 			"native-properties-dock",
 		)
 		assert "Element: O" in dock.summary_text
@@ -147,7 +147,7 @@ def test_properties_follow_the_selected_atom_across_document_tabs(
 def test_new_document_can_save_and_reopen_through_rust(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""A native New page owns the empty baseline through semantic publication."""
+	"""A Ferrum New page owns the empty baseline through semantic publication."""
 	window = _make_window(qapp)
 	try:
 		tab = window._active_native_tab()
@@ -191,10 +191,10 @@ def test_ordinary_preferences_apply_only_application_owned_state(
 	try:
 		before = window._active_native_tab().current_snapshot
 		monkeypatch.setattr(
-			ferrum_qt.native.ferrum_native_preferences.FerrumNativePreferencesDialog,
+			ferrum_qt.ferrum.preferences.FerrumNativePreferencesDialog,
 			"choose_preferences",
 			lambda _parent, _current: (
-				ferrum_qt.native.ferrum_native_preferences.FerrumNativePreferencesV1(
+				ferrum_qt.ferrum.preferences.FerrumNativePreferencesV1(
 					"light", False, False,
 				)
 			),
@@ -234,7 +234,7 @@ def test_cancelled_ordinary_preferences_are_a_no_op(
 	try:
 		before = window._active_native_tab().current_snapshot
 		monkeypatch.setattr(
-			ferrum_qt.native.ferrum_native_preferences.FerrumNativePreferencesDialog,
+			ferrum_qt.ferrum.preferences.FerrumNativePreferencesDialog,
 			"choose_preferences", lambda _parent, _current: None,
 		)
 		_preferences_action(window).trigger()

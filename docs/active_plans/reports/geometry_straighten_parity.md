@@ -16,18 +16,13 @@ The straightening implementation was derived from
 source revision, reason for the derivation, and non-copying boundary are recorded
 in `docs/PROVENANCE.md`.
 
-The separately launched oracle command was:
-
-```bash
-source source_me.sh && python3 devel/measure_straighten_depiction.py
-```
-
-It used RDKit 2026.03.5 and executes each input 25 times in the Python oracle
-process. It then launches the Rust evidence process separately and compares the
-same named cases, both `minimizeRotation` branches, every coordinate component,
-and the reported applied rotation. The applied rotation is authoritatively derived
-from the full input/output coordinate transform using the summed dot and cross
-products, not from a displacement of one atom.
+The retired isolated Python-RDKit measurement used RDKit 2026.03.5 and executed each
+input 25 times in a reference process. It then launched the Rust evidence process
+separately and compared the same named cases, both `minimizeRotation` branches, every
+coordinate component, and the reported applied rotation. The applied rotation is
+authoritatively derived from the full input/output coordinate transform using the
+summed dot and cross products, not from a displacement of one atom. Its receipt is
+accepted historical evidence, not a permanent Python-RDKit or CI dependency.
 
 ```bash
 cd packages/ferrum-rust

@@ -1,4 +1,4 @@
-"""Semantic geometric appearance editing through the Rust-native tab."""
+"""Semantic geometric appearance editing through the Ferrum tab."""
 
 # Standard Library
 import os
@@ -14,8 +14,8 @@ ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_presentation_projection
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_geometric_properties as native_geometric_properties
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 
 
 #============================================
@@ -47,7 +47,7 @@ def test_native_shape_edit_updates_rust_and_retains_durable_selection(
 		) -> None:
 	"""A visible shape edit commits once and installs the new vector appearance."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml><rect id="shape" x1="1" y1="2" x2="30" y2="40" '
 		'line_color="#000" area_color="#abcdef" width="1"/></cdml>',
 		"shape.cdml",

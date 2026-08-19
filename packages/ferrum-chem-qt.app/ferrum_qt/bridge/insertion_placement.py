@@ -1,7 +1,7 @@
 """Qt-session capture for plain backend molecule-insertion placement data."""
 
 # local repo modules
-import ferrum_chem
+import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.config.geometry_units
 
 
@@ -19,7 +19,7 @@ def capture_insertion_placement_v1(target: object) -> object:
 	if scene is not None and hasattr(scene, "paper_rect"):
 		center = scene.paper_rect.center()
 		anchor = (float(center.x()), float(center.y()))
-	return ferrum_chem.validate_insertion_placement_v1(
+	return engine.validate_insertion_placement_v1(
 		bond_length_pt, anchor[0], anchor[1],
 	)
 

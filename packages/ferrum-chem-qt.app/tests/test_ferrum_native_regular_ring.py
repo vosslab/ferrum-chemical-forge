@@ -1,4 +1,4 @@
-"""Visible behavior for the ordinary native cyclohexane-ring action."""
+"""Visible behavior for the ordinary Ferrum cyclohexane-ring action."""
 
 import os
 
@@ -10,7 +10,7 @@ import PySide6.QtWidgets
 import pytest
 
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 def _click_visible_menu_action(
@@ -55,7 +55,7 @@ def test_insert_cyclohexane_ring_uses_the_shared_authored_centre_and_selects_rus
 	"""The ordinary action commits the snapped and raw centres Rust receives."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml/>", "ring.cdml",
 	)
 	try:
@@ -103,7 +103,7 @@ def test_insert_cyclohexane_ring_refuses_an_occupied_atom_without_mutation(
 		) -> None:
 	"""An occupied click preserves the authoritative document and prior selection."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml><molecule id='m'><atom id='a' name='C'>"
 		"<point x='10' y='20'/></atom></molecule></cdml>",
 		"occupied-ring.cdml",

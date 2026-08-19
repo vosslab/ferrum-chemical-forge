@@ -50,11 +50,34 @@ mod haworth_front_bond;
 mod model;
 mod pdf_backend;
 mod png_backend;
+mod presentation_path_v1;
 mod scene_path_v2;
 mod shape_ops;
 mod standalone_text;
 mod svg_backend;
 mod verified_telex_glyph_metrics;
+mod document {
+    pub(crate) mod artifact {
+        pub(crate) mod native;
+        pub(crate) mod pdf;
+        pub(crate) mod png;
+        pub(crate) mod svg;
+    }
+    pub(crate) mod complete_plan;
+    pub(crate) mod depiction_profile;
+    pub(crate) mod observation;
+    pub(crate) mod plan;
+    pub(crate) mod selection_svg;
+}
+mod font {
+    pub(crate) mod telex;
+}
+mod presentation {
+    pub(crate) mod path;
+    pub(crate) mod plus;
+    pub(crate) mod text;
+    pub(crate) mod vector;
+}
 
 /// Atom and bond source facts plus their render-plan builder.
 pub use atom_bond::{
@@ -82,6 +105,39 @@ pub use direct_glycosidic_haworth::{
 };
 /// Source-owned directed stereo-bond geometry for committed batches and previews.
 pub use directed_stereo_bond::build_directed_bond_preview_ops;
+/// Document-aware depiction, observation, plan composition, and artifact lowering.
+pub use document::artifact::native::{
+    DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
+    PreparedDocumentNativeArtifactV1, prepare_document_native_artifact_v1,
+    publish_prepared_document_native_artifact_v1,
+};
+pub use document::artifact::pdf::{DocumentPdfArtifactErrorV1, render_document_session_to_pdf_v1};
+pub use document::artifact::png::{DocumentPngArtifactErrorV1, render_document_session_to_png_v1};
+pub use document::artifact::svg::{DocumentSvgArtifactErrorV1, render_document_session_to_svg_v1};
+pub use document::complete_plan::{
+    CompleteDocumentRenderPlanErrorV1, compose_complete_document_render_plan_v1,
+};
+pub use document::depiction_profile::{
+    DEPICTION_PROFILE_SCHEMA_V1, DEPICTION_RESOLUTION_SCHEMA_V1, DepictionError,
+    DepictionIssueCodeV1, DepictionIssueV1, DepictionProfileV1, DepictionResolutionV1,
+    DepictionSuppressionV1, HydrogenVisibilityV1, render_document_projection_v1,
+};
+#[doc(hidden)]
+pub use document::depiction_profile::{
+    DirectGlycosidicHaworthStyleV1, resolve_direct_glycosidic_haworth_style_v1,
+};
+#[doc(hidden)]
+pub use document::observation::derive_render_observation_from_accepted_operation_v1 as document_observation_from_accepted_operation_v1;
+pub use document::observation::{
+    DocumentMoleculeRenderPlanV2, MoleculeRenderRootV1, RENDER_OBSERVATION_SCHEMA_V1,
+    RenderDocumentProvenanceV1, RenderObservationError, RenderObservationV1,
+    RenderObservationWireV1, observe_render_v1,
+};
+pub use document::plan::{DocumentRenderPlanCompositionError, compose_document_render_plan_v1};
+pub use document::selection_svg::{
+    DOCUMENT_SELECTION_SVG_SCHEMA_V1, DocumentSelectionSvgErrorV1, DocumentSelectionSvgRootV1,
+    DocumentSelectionSvgV1, DocumentSvgSelectionV1, render_document_selection_to_svg_v1,
+};
 /// Renderer-neutral receipt for a completed whole-page artifact.
 pub use document_artifact_v1::{DocumentRenderArtifactV1, DocumentRenderReportV1};
 /// Checked in-process selective replacement of one molecule's bond outcomes.
@@ -105,6 +161,7 @@ pub use document_vector_v1::{
 };
 /// Rendering errors and explicit target diagnostics.
 pub use error::{RenderError, RenderIssue, RenderIssueKind};
+pub use font::telex::{VerifiedTelexRegularV1, verified_telex_regular_v1};
 /// Verified immutable Telex font asset environment.
 pub use font_environment::{FerrumFontEnvironmentV1, FerrumFontId, FontAssetDescriptor};
 /// Glyph-layout contract and exact layout bounds.
@@ -132,6 +189,18 @@ pub use png_backend::{
     PngBackgroundV1, PngDocumentV1, PngOutputBudgetV1, PngPixelSizeV1, PngRenderError,
     PngRenderRequestV1, render_document_plan_to_png_v1,
 };
+pub use presentation::path::{
+    PresentationPathCompositionErrorV1, lower_presentation_points_path_v1,
+    lower_presentation_polyline_path_v1,
+};
+pub use presentation::plus::{DocumentPlusRenderV1, PresentationTextBoundsV1};
+pub use presentation::text::DocumentTextRenderV1;
+#[doc(hidden)]
+pub use presentation::vector::lower_presentation_vector_v1;
+/// Toolkit-neutral lowering of authored control paths into frozen cubic commands.
+pub use presentation_path_v1::{
+    PathKindV1, PresentationPathErrorV1, PresentationPathV1, lower_authored_control_path_v1,
+};
 /// Neutral V2 path facts shared by molecule render-plan consumers.
 pub use scene_path_v2::{PathOpV2, ScenePathCommandV2, ScenePathStrokeV2};
 pub use shape_ops::EllipseOp;
@@ -150,6 +219,53 @@ pub use svg_backend::{
 pub use verified_telex_glyph_metrics::{
     FontBaselineMetrics, GlyphRunMetrics, VerifiedTelexGlyphMetrics,
 };
+
+/// Maximum completed SVG bytes returned by the first local render profile.
+pub const LOCAL_SVG_COMPLETED_BYTES_V1: usize = 64 * 1024 * 1024;
+/// Maximum completed PDF bytes under the ordinary local V1 policy.
+pub const LOCAL_PDF_COMPLETED_BYTES_V1: usize = 64 * 1024 * 1024;
+/// Maximum counted PDF traversal items under the ordinary local V1 policy.
+pub const LOCAL_PDF_PLAN_ITEMS_V1: usize = 1024 * 1024;
+/// Maximum lowered PDF path commands under the ordinary local V1 policy.
+pub const LOCAL_PDF_DRAW_PATH_COMMANDS_V1: usize = 8 * 1024 * 1024;
+/// Maximum pre-allocation RGBA bytes under the ordinary local V1 policy.
+pub const LOCAL_PNG_RAW_RGBA_BYTES_V1: usize = 256 * 1024 * 1024;
+/// Maximum completed PNG bytes under the ordinary local V1 policy.
+pub const LOCAL_PNG_ENCODED_BYTES_V1: usize = 64 * 1024 * 1024;
+
+/// Build the complete ordinary local PDF policy from explicit caller caps.
+pub fn local_pdf_render_request_v1(
+    max_completed_bytes: usize,
+    max_plan_items: usize,
+    max_draw_path_commands: usize,
+) -> Result<PdfRenderRequestV1, PdfRenderError> {
+    Ok(PdfRenderRequestV1 {
+        output: PdfOutputBudgetV1::new(max_completed_bytes)?,
+        complexity: PdfPlanComplexityBudgetV1 {
+            max_plan_items,
+            max_draw_path_commands,
+            max_exclusion_report_bytes: 0,
+        },
+    })
+}
+
+/// Build one local PNG request from exact caller-owned raster facts and caps.
+#[must_use]
+pub const fn local_png_render_request_v1(
+    pixels: PngPixelSizeV1,
+    background: PngBackgroundV1,
+    max_raw_rgba_bytes: usize,
+    max_encoded_bytes: usize,
+) -> PngRenderRequestV1 {
+    PngRenderRequestV1 {
+        pixels,
+        background,
+        budget: PngOutputBudgetV1 {
+            max_raw_rgba_bytes,
+            max_encoded_bytes,
+        },
+    }
+}
 
 #[cfg(test)]
 mod tests;

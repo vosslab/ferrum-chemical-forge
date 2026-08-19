@@ -1,9 +1,9 @@
 //! Private worker-safe preparation and authenticated session boundary for native Paste.
 //!
-//! This unsupported entry point belongs only to bundled Ferrum-Qt. It has no
+//! This unsupported entry point belongs only to bundled Ferrum. It has no
 //! wheel stub, CLI, serde, or wire-format commitment.
 
-use ferrum_api::{
+use ferrum_document::{
     DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1, DocumentClipboardPasteApplyErrorV1,
     DocumentClipboardPastePlanV1, apply_clipboard_paste_v1, prepare_clipboard_paste_v1,
 };

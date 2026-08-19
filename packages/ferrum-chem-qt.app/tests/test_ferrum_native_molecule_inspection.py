@@ -14,9 +14,9 @@ import pytest
 import ferrum_chem
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
-import ferrum_qt.native.ferrum_native_molecule_inspection
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.molecule_inspection
 
 
 _SOURCE = """<cdml version='26.08'><molecule id='mol-1' name='Ethanal'>
@@ -38,7 +38,7 @@ _MULTI_SOURCE = """<cdml version='26.08'>
 #============================================
 @pytest.fixture
 def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Provide a reusable offscreen Qt application for the native host."""
+	"""Provide a reusable offscreen Qt application for the Ferrum host."""
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
 		app = PySide6.QtWidgets.QApplication([])
@@ -109,7 +109,7 @@ def test_resolver_refuses_duplicate_child_facts_and_idless_roots(
 	valid = _Root("opaque-root", "root-key", "root-source", 3, (child,))
 	duplicate = _Root("opaque-root", "root-key", "root-source", 3, (child, child))
 	idless = _Root(None, "root-key", "root-source", 3, (child,))
-	resolve = ferrum_qt.native.ferrum_native_molecule_inspection.selected_durable_molecule_address
+	resolve = ferrum_qt.ferrum.molecule_inspection.selected_durable_molecule_address
 	assert resolve(_SelectionTab((valid,))).molecule_id == "opaque-root"
 	assert resolve(_SelectionTab((duplicate,))) is None
 	assert resolve(_SelectionTab((valid, valid))) is None
@@ -135,7 +135,7 @@ def test_resolver_deduplicates_roots_and_orders_multiple_molecules(
 		_Target("atom", "a-first", 0),
 	)
 	resolve = (
-		ferrum_qt.native.ferrum_native_molecule_inspection.
+		ferrum_qt.ferrum.molecule_inspection.
 		selected_durable_molecule_addresses
 	)
 	addresses = resolve(_SelectionTab((first, second), targets))
@@ -149,8 +149,8 @@ def test_public_action_is_reachable_for_supported_selected_atoms_or_bonds(
 		) -> None:
 	"""The ordinary host accepts one or more children from durable direct roots."""
 	del qapp
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "ethanal.cdml",
 	)
 	try:
@@ -177,8 +177,8 @@ def test_triggered_action_delivers_native_information_without_mutation(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""The ordinary QAction reaches RDKit and preserves document and scene state."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "ethanal.cdml",
 	)
 	shown = []
@@ -200,7 +200,7 @@ def test_triggered_action_delivers_native_information_without_mutation(
 		assert result.records[0].source_facts.source_id == "mol-1"
 		assert result.records[0].composition.formula == "CH2O"
 		text = (
-			ferrum_qt.native.ferrum_native_molecule_inspection.
+			ferrum_qt.ferrum.molecule_inspection.
 			format_molecule_information(result)
 		)
 		assert "Name: Ethanal" in text and "Source ID: mol-1" in text
@@ -226,14 +226,14 @@ def test_multi_root_dialog_is_selectable_accessible_and_combined(
 		) -> None:
 	"""The read-only dialog presents individual roots and one combined receipt."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_MULTI_SOURCE, "mixture.cdml",
 	)
 	dialog = None
 	try:
 		tab.select_atoms(("atom-c", "atom-o"))
 		addresses = (
-			ferrum_qt.native.ferrum_native_molecule_inspection.
+			ferrum_qt.ferrum.molecule_inspection.
 			selected_durable_molecule_addresses(tab)
 		)
 		assert addresses is not None
@@ -243,7 +243,7 @@ def test_multi_root_dialog_is_selectable_accessible_and_combined(
 			tuple(address.molecule_id for address in addresses),
 		)
 		dialog = (
-			ferrum_qt.native.ferrum_native_molecule_inspection.
+			ferrum_qt.ferrum.molecule_inspection.
 			FerrumNativeMoleculeInformationDialog(result, tab)
 		)
 		details = dialog.findChild(PySide6.QtWidgets.QPlainTextEdit)
@@ -272,8 +272,8 @@ def test_stale_or_foreign_delivery_never_shows_a_modal(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""The one delivery fence suppresses stale result and failure callbacks."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "ethanal.cdml",
 	)
 	shown = []
@@ -282,7 +282,7 @@ def test_stale_or_foreign_delivery_never_shows_a_modal(
 		lambda _parent, title, text: shown.append(("info", title, text)),
 	)
 	monkeypatch.setattr(
-		window, "_show_native_file_warning",
+		window, "_show_edit_refusal",
 		lambda title, text: shown.append(("warning", title, text)),
 	)
 	try:
@@ -298,22 +298,22 @@ def test_stale_or_foreign_delivery_never_shows_a_modal(
 		foreign = object()
 		window._on_document_molecule_inspected(foreign, result)
 		window._on_document_molecule_inspection_failed(
-			foreign, ferrum_qt.native.ferrum_native_molecule_inspection.
+			foreign, ferrum_qt.ferrum.molecule_inspection.
 			FerrumNativeMoleculeInspectionFailure("foreign"),
 		)
-		other = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		other = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 			_SOURCE, "other.cdml",
 		)
 		window._register_native_tab(other, activate=True)
 		window._on_document_molecule_inspected(intent.worker, result)
 		window._on_document_molecule_inspection_failed(
-			intent.worker, ferrum_qt.native.ferrum_native_molecule_inspection.
+			intent.worker, ferrum_qt.ferrum.molecule_inspection.
 			FerrumNativeMoleculeInspectionFailure("inactive"),
 		)
 		intent.worker.cancel_delivery()
 		window._on_document_molecule_inspected(intent.worker, result)
 		window._on_document_molecule_inspection_failed(
-			intent.worker, ferrum_qt.native.ferrum_native_molecule_inspection.
+			intent.worker, ferrum_qt.ferrum.molecule_inspection.
 			FerrumNativeMoleculeInspectionFailure("cancelled"),
 		)
 		assert shown == []
@@ -335,14 +335,14 @@ def test_close_cancels_delivery_and_retains_source_until_worker_finishes(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""Close leaves the source alive until cancellation and worker teardown finish."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "ethanal.cdml",
 	)
 	warnings = []
 	monkeypatch.setattr(
-		window, "_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		window, "_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		window._register_native_tab(tab, activate=True)

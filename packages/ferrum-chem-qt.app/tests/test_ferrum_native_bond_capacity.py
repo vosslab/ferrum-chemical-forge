@@ -1,4 +1,4 @@
-"""Behavior coverage for the native Bond Capacity Check action."""
+"""Behavior coverage for the Ferrum Bond Capacity Check action."""
 
 import os
 
@@ -12,9 +12,11 @@ import pytest
 
 import ferrum_chem
 
+import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_bond_capacity
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.bond_capacity
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.window_refusals
 
 
 _SOURCE = """\
@@ -79,7 +81,7 @@ class _ImmediateBondCapacityWorker(PySide6.QtCore.QThread):
 		self._delivery_cancelled = True
 
 	def start(self) -> None:
-		"""Queue the bounded native result without a timing-dependent thread wait."""
+		"""Queue the bounded Ferrum result without a timing-dependent thread wait."""
 		if not self._delivery_cancelled:
 			self.completed.emit(ferrum_chem.inspect_document_bond_capacity_v1(
 				*self._arguments,
@@ -93,8 +95,8 @@ class _FailingBondCapacityWorker(_ImmediateBondCapacityWorker):
 	def start(self) -> None:
 		"""Queue program-state guidance without simulating elapsed time."""
 		self.failed.emit(
-			ferrum_qt.native.ferrum_native_bond_capacity.FerrumNativeBondCapacityFailure(
-				"native operation unavailable",
+			ferrum_qt.ferrum.bond_capacity.FerrumNativeBondCapacityFailure(
+				"operation unavailable",
 			),
 		)
 		self.finished.emit()
@@ -122,16 +124,16 @@ def test_public_bond_capacity_action_projects_rust_result_without_mutation(
 		) -> None:
 	"""A durable atom selection reaches its read-only Rust receipt."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "mixed.cdml",
 	)
 	shown = []
 	monkeypatch.setattr(
-		ferrum_qt.native.ferrum_native_bond_capacity,
+		ferrum_qt.ferrum.bond_capacity,
 		"FerrumNativeBondCapacityWorker", _ImmediateBondCapacityWorker,
 	)
 	monkeypatch.setattr(
-		ferrum_qt.native.ferrum_native_bond_capacity.FerrumNativeBondCapacityDialog,
+		ferrum_qt.ferrum.bond_capacity.FerrumNativeBondCapacityDialog,
 		"exec", lambda dialog: shown.append(dialog.details_text),
 	)
 	try:
@@ -161,16 +163,16 @@ def test_cancelled_bond_capacity_action_suppresses_queued_result(
 		) -> None:
 	"""Cancellation contains a pending receipt without editing its source tab."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "mixed.cdml",
 	)
 	shown = []
 	monkeypatch.setattr(
-		ferrum_qt.native.ferrum_native_bond_capacity,
+		ferrum_qt.ferrum.bond_capacity,
 		"FerrumNativeBondCapacityWorker", _DeferredBondCapacityWorker,
 	)
 	monkeypatch.setattr(
-		ferrum_qt.native.ferrum_native_bond_capacity.FerrumNativeBondCapacityDialog,
+		ferrum_qt.ferrum.bond_capacity.FerrumNativeBondCapacityDialog,
 		"exec", lambda dialog: shown.append(dialog.details_text),
 	)
 	try:
@@ -197,19 +199,19 @@ def test_cancelled_bond_capacity_action_suppresses_queued_result(
 def test_bond_capacity_operation_failure_is_visible_without_a_document_edit(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A current native operation failure stays separate from a chemistry finding."""
+	"""A current operation failure stays separate from a chemistry finding."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SOURCE, "mixed.cdml",
 	)
-	warnings = []
+	refusals: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
 	monkeypatch.setattr(
-		ferrum_qt.native.ferrum_native_bond_capacity,
+		ferrum_qt.ferrum.bond_capacity,
 		"FerrumNativeBondCapacityWorker", _FailingBondCapacityWorker,
 	)
 	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, message: warnings.append((title, message)),
+		ferrum_qt.ferrum.window_refusals, "show_refusal",
+		lambda _window, request: refusals.append(request),
 	)
 	try:
 		window._register_native_tab(tab, activate=True)
@@ -222,7 +224,10 @@ def test_bond_capacity_operation_failure_is_visible_without_a_document_edit(
 		_click_visible_menu_action(window, "Check Bond Capacity...", qapp)
 		qapp.processEvents()
 
-		assert warnings and warnings[0][0] == "Bond Capacity Check Error"
+		assert refusals
+		presentation = ferrum_qt.dialogs.refusal_presenter.present_refusal(refusals[0])
+		assert presentation.title == "Action Not Available"
+		assert presentation.technical_details == "operation unavailable"
 		assert tab.current_snapshot == before
 		assert tab.selected_molecule_information_targets() == selection
 	finally:

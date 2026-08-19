@@ -2,13 +2,13 @@
 
 use std::path::PathBuf;
 
-use ferrum_api::{
-    SdfMoleculeBuildError, SdfSourceErrorV1, build_sdf_record_batch_insertion_v1, read_sdf_file_v1,
-};
 use ferrum_chemistry::{
     ChemistryError as RustChemistryError, NativeChemEngine, validate_sdf_input,
 };
 use ferrum_document::{PendingCreateSdfRecords, SdfRecordBatchInsertionV1};
+use ferrum_document::{
+    SdfMoleculeBuildError, SdfSourceErrorV1, build_sdf_record_batch_insertion_v1, read_sdf_file_v1,
+};
 use pyo3::create_exception;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;

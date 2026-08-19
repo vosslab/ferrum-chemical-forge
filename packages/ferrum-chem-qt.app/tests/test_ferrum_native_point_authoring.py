@@ -1,4 +1,4 @@
-"""Visible native point-authoring behavior independent of the main window shell."""
+"""Visible Ferrum point-authoring behavior independent of the main window shell."""
 
 import os
 
@@ -9,7 +9,7 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 _EDITABLE_CDML = """<cdml xmlns='http://www.freesoftware.fsf.org/bkchem/cdml'>
@@ -23,7 +23,7 @@ def _click_visible_menu_action(
 		window: PySide6.QtWidgets.QMainWindow, label: str,
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""Activate one labelled native command through the visible menu route."""
+	"""Activate one labelled Ferrum command through the visible menu route."""
 	for menu_action in window.menuBar().actions():
 		menu = menu_action.menu()
 		if menu is None:
@@ -52,7 +52,7 @@ def test_add_atom_action_maps_one_view_click_to_the_rust_scene_point(
 		) -> None:
 	"""The public action captures a shared snapped point and selects Rust's atom."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "editable.cdml",
 	)
 	prior_choices = None
@@ -92,7 +92,7 @@ def test_unchecked_snap_control_keeps_new_atom_at_the_click_position(
 	"""Disabling point snapping preserves an ordinary authored click position."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EDITABLE_CDML, "unsnapped-atom.cdml",
 	)
 	try:

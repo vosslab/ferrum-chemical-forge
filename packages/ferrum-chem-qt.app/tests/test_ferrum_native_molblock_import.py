@@ -1,4 +1,4 @@
-"""Behavior coverage for bounded Rust-native molfile insertion."""
+"""Behavior coverage for bounded Ferrum molfile insertion."""
 
 # Standard Library
 import os
@@ -13,9 +13,9 @@ import ferrum_chem
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
-import ferrum_qt.native.ferrum_native_molblock_import
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.molblock_import
 
 
 _EMPTY_CDML = "<cdml/>"
@@ -60,7 +60,7 @@ def test_worker_reads_one_bounded_file_into_frozen_ferrum_facts(
 	path.write_text(_molblock(), encoding="utf-8")
 	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
 	worker = (
-		ferrum_qt.native.ferrum_native_molblock_import.
+		ferrum_qt.ferrum.molblock_import.
 		FerrumNativeMolblockPreparationWorker(str(path), placement)
 	)
 	prepared = []
@@ -82,20 +82,20 @@ def test_invalid_utf8_file_fails_without_document_mutation(
 	"""Rust admission rejects bytes before an adapter or session can own them."""
 	path = tmp_path / "invalid.mol"
 	path.write_bytes(b"\xff")
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
 	warnings = []
-	window._show_native_file_warning = (
-		lambda title, message: warnings.append((title, message))
+	window._show_edit_refusal = (
+		lambda request: warnings.append(request)
 	)
 	assert window.start_molblock_import(str(path))
 	_finish_worker(qapp, window)
 
 	assert tab.current_snapshot.revision == 0 and not tab.is_dirty
-	assert warnings[-1][0] == "Native Molfile Preparation Error"
+	assert warnings[-1].outcome.value == "unavailable_operation"
 	tab.dispose()
 	window.deleteLater()
 
@@ -109,8 +109,8 @@ def test_public_molfile_action_commits_and_saves_rust_owned_chemistry(
 	"""The menu route performs bounded parse, revision commit, render, and save."""
 	path = tmp_path / "ethanol.mol"
 	path.write_text(_molblock(), encoding="utf-8")
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
 	)
 	window._register_native_tab(tab, activate=True)

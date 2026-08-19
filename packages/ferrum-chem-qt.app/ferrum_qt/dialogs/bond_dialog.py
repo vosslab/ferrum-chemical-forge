@@ -6,6 +6,7 @@ import dataclasses
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 # local repo modules
 import ferrum_qt.bond_presentation
@@ -40,7 +41,7 @@ NATIVE_RENDER_CAPABILITIES = BondDialogCapabilities(
 
 
 #============================================
-class BondDialog(PySide6.QtWidgets.QDialog):
+class BondDialog(FerrumAccessibleDialog):
 	"""Dialog for editing bond properties.
 
 	Presents a form with fields for bond order, type, centering,
@@ -167,18 +168,18 @@ class BondDialog(PySide6.QtWidgets.QDialog):
 		if self._capabilities.normal_style_only:
 			self._type_combo.setEnabled(False)
 			self._type_combo.setToolTip(
-				"Native rendering currently supports Normal bond style only.",
+				"rendering currently supports Normal bond style only.",
 			)
 		if not self._capabilities.wedge_width_available:
 			self._wedge_width_spin.setEnabled(False)
 			self._wedge_width_spin.setToolTip(
-				"Native wedge rendering is not available, so wedge width cannot be edited.",
+				"wedge rendering is not available, so wedge width cannot be edited.",
 			)
 		self._refresh_capability_controls()
 
 	#============================================
 	def _refresh_capability_controls(self) -> None:
-		"""Keep order-dependent native controls honest as the user changes order."""
+		"""Keep order-dependent Ferrum controls honest as the user changes order."""
 		if not self._capabilities.dynamic_native_widths:
 			return
 		order = _ORDER_VALUES.get(self._order_combo.currentText(), 1)
@@ -188,13 +189,13 @@ class BondDialog(PySide6.QtWidgets.QDialog):
 		self._bond_width_spin.setEnabled(bond_width_available)
 		if not center_available:
 			self._center_check.setToolTip(
-				"Native rendering supports centering only for a double bond.",
+				"rendering supports centering only for a double bond.",
 			)
 		else:
 			self._center_check.setToolTip("")
 		if not bond_width_available:
 			self._bond_width_spin.setToolTip(
-				"Native rendering uses bond width only for double and triple bonds.",
+				"rendering uses bond width only for double and triple bonds.",
 			)
 		else:
 			self._bond_width_spin.setToolTip("")

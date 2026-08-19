@@ -1,4 +1,4 @@
-"""Semantic product coverage for decoded CD-SVG in the native Open lifecycle."""
+"""Semantic product coverage for decoded CD-SVG in the Ferrum Open lifecycle."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import PySide6.QtWidgets
 import pytest
 
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 _CDSVG = """<svg xmlns="http://www.w3.org/2000/svg">
@@ -28,7 +28,7 @@ _CDML = """<cdml version="1.0"><molecule id="molecule-1">
 def _make_window(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> ferrum_qt.main_window.MainWindow:
-	"""Create the ordinary Rust-native product window."""
+	"""Create the ordinary Ferrum product window."""
 	del qapp
 	return ferrum_qt.main_window.MainWindow(object())
 
@@ -36,12 +36,12 @@ def _make_window(
 #============================================
 def _current_tab(
 		window: PySide6.QtWidgets.QMainWindow,
-		) -> ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab:
-	"""Return the selected native document through the public central page."""
+		) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
+	"""Return the selected Ferrum document through the public central page."""
 	tabs = window.centralWidget()
 	assert isinstance(tabs, PySide6.QtWidgets.QTabWidget)
 	tab = tabs.currentWidget()
-	assert isinstance(tab, ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab)
+	assert isinstance(tab, ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab)
 	return tab
 
 
@@ -58,7 +58,7 @@ def _wait_for_open(
 		window: ferrum_qt.main_window.MainWindow,
 		start: collections.abc.Callable[[], object],
 		) -> bool:
-	"""Wait on the native controller's completion signal without a timing gate."""
+	"""Wait on the Ferrum controller's completion signal without a timing gate."""
 	loop = PySide6.QtCore.QEventLoop()
 	outcomes: list[bool] = []
 
@@ -270,7 +270,7 @@ def test_svg_installation_failure_preserves_the_current_document(
 			raise RuntimeError("test construction failure")
 
 		monkeypatch.setattr(
-			ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab,
+			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 			"from_admitted_local_open",
 			fail_construction,
 		)

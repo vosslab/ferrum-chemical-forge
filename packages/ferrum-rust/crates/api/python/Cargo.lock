@@ -285,16 +285,14 @@ dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
  "ferrum-document",
- "ferrum-domain",
- "ferrum-geometry",
  "ferrum-render",
- "getrandom 0.4.3",
+ "libc",
  "rustix",
  "schemars",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
- "xot",
 ]
 
 [[package]]
@@ -307,6 +305,7 @@ dependencies = [
  "ferrum-document",
  "ferrum-domain",
  "ferrum-geometry",
+ "ferrum-render",
  "pyo3",
  "pyo3-build-config",
  "serde_json",
@@ -317,6 +316,8 @@ name = "ferrum-chemistry"
 version = "26.8.0"
 dependencies = [
  "ferrum-chemistry-sys",
+ "schemars",
+ "serde",
  "thiserror",
 ]
 
@@ -341,11 +342,13 @@ dependencies = [
 name = "ferrum-document"
 version = "26.8.0"
 dependencies = [
+ "ferrum-chemistry",
  "ferrum-core",
  "ferrum-domain",
  "ferrum-geometry",
  "getrandom 0.4.3",
  "rustix",
+ "schemars",
  "serde",
  "sha2",
  "thiserror",
@@ -357,6 +360,7 @@ dependencies = [
 name = "ferrum-domain"
 version = "26.8.0"
 dependencies = [
+ "ferrum-chemistry",
  "ferrum-core",
  "ferrum-geometry",
  "serde",
@@ -377,6 +381,7 @@ name = "ferrum-render"
 version = "26.8.0"
 dependencies = [
  "ferrum-core",
+ "ferrum-document",
  "ferrum-domain",
  "ferrum-geometry",
  "pdf-writer",

@@ -20,5 +20,7 @@ mod font_environment;
 mod model_contract;
 #[path = "tests/pdf_backend.rs"]
 mod pdf_backend;
+#[path = "tests/presentation_path_v1.rs"]
+mod presentation_path_v1;
 #[path = "tests/svg_backend.rs"]
 mod svg_backend;

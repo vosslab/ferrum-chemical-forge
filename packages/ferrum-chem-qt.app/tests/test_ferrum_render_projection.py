@@ -155,7 +155,7 @@ def _test_observation_validator(_observation: object) -> None:
 
 #============================================
 def _telex() -> ferrum_qt.canvas.ferrum_telex.FerrumTelex:
-	"""Return the verified font bytes required by the native painter seam."""
+	"""Return the verified font bytes required by the Ferrum painter seam."""
 	repository = pathlib.Path(__file__).resolve().parents[3]
 	data = (repository / "packages/ferrum-rust/crates/render/assets/fonts/Telex-Regular.ttf").read_bytes()
 	return ferrum_qt.canvas.ferrum_telex.FerrumTelex(data)

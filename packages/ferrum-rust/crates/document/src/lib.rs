@@ -18,7 +18,10 @@ mod bond_properties_patch_v1;
 mod bracket_insertion_v1;
 mod bracket_pair_projection_v1;
 mod bracket_properties_patch_v1;
+mod cdml_facade_v1;
 mod cdsvg;
+mod cdsvg_facade_v1;
+mod chemistry;
 mod clean_geometry_update_v1;
 mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
@@ -26,15 +29,21 @@ mod clipboard_paste_v1;
 mod core_projection;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
+mod document_explicit_fragment_api_v1;
+mod document_ingress_v1;
 mod drawing_standard_patch_v1;
 mod explicit_fragment_v1;
 mod generated_ids;
 mod geometric_properties_patch_v1;
 mod geometry_repair_v1;
 mod identity_index;
+mod interchange;
 mod linear_form_convert_v1;
+mod local_document_profile_v1;
+mod molecule_coordinate_batch_update_v1;
 mod molecule_coordinate_update_v1;
 mod molecule_insertion_v1;
+mod operations;
 mod paper_properties_v1;
 mod paper_size_v1;
 mod plus_properties_patch_v1;
@@ -53,6 +62,7 @@ mod publication;
 mod regular_ring_insertion_v1;
 #[cfg(test)]
 mod regular_ring_insertion_v1_tests;
+mod reports_v1;
 mod sdf_record_insertion_v1;
 mod sdf_record_metadata_v1;
 mod session;
@@ -123,10 +133,15 @@ pub use bracket_pair_projection_v1::BracketPairProjectionV1;
 pub use bracket_properties_patch_v1::{
     BracketPropertiesPatchV1, BracketPropertiesPatchV1Error, BracketPropertyChangeV1,
 };
+pub use cdml_facade_v1::{
+    CdmlError, inspect_cdml, rewrite_cdml, validate_cdml, verify_cdml_rewrite,
+};
 pub use cdsvg::{
     CdsvgExtractionError, CdsvgInputMeasurementV1, extract_cdml_from_svg,
     extract_cdml_from_svg_with_budget, measure_cdsvg_input_v1,
 };
+pub use cdsvg_facade_v1::{CdsvgError, extract_cdsvg};
+pub use chemistry::*;
 pub use clean_geometry_update_v1::{
     CleanGeometryMoleculeV1, CleanGeometryUpdateV1, CleanGeometryUpdateV1Error,
 };
@@ -152,6 +167,18 @@ pub use direct_haworth_insertion_v1::{
 pub use direct_haworth_reobservation_v1::{
     DirectHaworthReobservationErrorV1, ReobservedDirectHaworthBondFactV1, ReobservedDirectHaworthV1,
 };
+pub use document_explicit_fragment_api_v1::{
+    DOCUMENT_EXPLICIT_FRAGMENT_SCHEMA_V1, DocumentExplicitFragmentApiErrorV1,
+    DocumentExplicitFragmentCreateResultV1, DocumentExplicitFragmentObservationReceiptV1,
+    DocumentExplicitFragmentRequestV1, create_document_explicit_fragment_v1,
+    inspect_document_explicit_fragments_v1,
+};
+pub use document_ingress_v1::{
+    AdmittedDocumentFileV1, CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1,
+    DocumentIngressErrorV1, DocumentIngressFormatV1, DocumentIngressOriginV1, SourcePolicyErrorV1,
+    load_document_file_for_publication_with_budget, load_document_file_with_budget,
+    load_document_reader_with_budget, load_document_utf8_bytes_with_budget,
+};
 pub use drawing_standard_patch_v1::{
     DrawingStandardPatchV1, DrawingStandardPatchV1Error, DrawingStandardPropertyChangeV1,
     MAX_DRAWING_STANDARD_FONT_FAMILY_BYTES_V1, MAX_DRAWING_STANDARD_FONT_SIZE_V1,
@@ -170,12 +197,37 @@ pub use identity_index::{
     DocumentIdentityError, DocumentRecord, ElementPath, IndexedDocument, IndexedDocumentError,
     PersistentId, ResolvedId, SourceOrder, XmlDocument, XmlSerializationError,
 };
+pub use interchange::{
+    INTERCHANGE_MAX_TEXT_BYTES_V1, InterchangeCodecErrorV1, InterchangeFormatV1,
+    InterchangePropertyV1, InterchangeRecordV1, decode_interchange_v1, encode_interchange_v1,
+};
+pub use local_document_profile_v1::{
+    LOCAL_CDML_INGRESS_PROFILE_V1, LOCAL_CDML_SOURCE_UTF8_BYTES_V1,
+    LOCAL_DECODED_CDSVG_INGRESS_PROFILE_V1, load_local_cdml_file_v1, local_cdml_ingress_format_v1,
+    local_decoded_cdsvg_ingress_format_v1, prepare_local_cdml_file_v1,
+    prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_v1,
+    prepare_local_decoded_cdsvg_file_with_origin_v1,
+};
+pub use molecule_coordinate_batch_update_v1::{
+    MoleculeCoordinateBatchUpdateV1, MoleculeCoordinateBatchUpdateV1Error,
+};
 pub use molecule_coordinate_update_v1::{
     MoleculeCoordinateUpdateV1, MoleculeCoordinateUpdateV1Error,
 };
 pub use molecule_insertion_v1::{
     DocumentBondOrderV1, MoleculeInsertionAtomV1, MoleculeInsertionBondOrderV1,
     MoleculeInsertionBondV1, MoleculeInsertionV1, MoleculeInsertionV1Error,
+};
+pub use operations::{
+    DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1, DOCUMENT_CLIPBOARD_PASTE_TRANSLATION_V1,
+    DOCUMENT_USER_TEMPLATE_PROFILE_V1, DocumentClipboardCutApplyErrorV1,
+    DocumentClipboardPasteApplyErrorV1, DocumentLinearFormErrorV1, DocumentLinearFormRequestV1,
+    DocumentLinearFormResultV1, DocumentMoleculeNameErrorV1, DocumentMoleculeNameRequestV1,
+    DocumentUserTemplateApplyErrorV1, apply_clipboard_cut_v1, apply_clipboard_paste_v1,
+    apply_user_template_v1, convert_document_linear_form_v1, document_clipboard_paste_budget_v1,
+    document_operation_budget_v1, document_user_template_budget_v1,
+    observe_top_level_translation_anchor_v1, prepare_clipboard_cut_v1, prepare_clipboard_paste_v1,
+    prepare_user_template_v1, set_document_molecule_name_v1,
 };
 pub use paper_properties_v1::{
     PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributesV1, PaperLayoutProjectionV1,
@@ -226,11 +278,18 @@ pub use projection_v1::{
     DocumentHaworthPositionV1, DocumentProjectionV1, MoleculeProjectionV1, Point3V1,
     ProjectionError, ProjectionIssueCodeV1, ProjectionIssueV1,
 };
-pub use publication::PublicationDurability;
+pub use publication::{
+    DocumentMoleculeInchiPublicationErrorV1, DocumentMoleculeMolblockPublicationErrorV1,
+    DocumentMoleculeSdfPublicationErrorV1, DocumentMoleculeSmilesPublicationErrorV1,
+    PublicationDurability, publish_document_molecule_inchi_v1,
+    publish_document_molecule_molblock_v1, publish_document_molecule_sdf_v1,
+    publish_document_molecule_smiles_v1,
+};
 pub use regular_ring_insertion_v1::{
     DetachedRegularRingInsertionV1, RegularRingInsertionErrorV1, RegularRingOrientationV1,
     RegularRingSizeV1,
 };
+pub use reports_v1::{CdmlInspection, CdmlValidation, MoleculeInspection, RewriteCheck};
 pub use sdf_record_insertion_v1::{
     SDF_IMPORT_NAMESPACE_V1, SdfPropertyInsertionV1, SdfRecordBatchInsertionV1,
     SdfRecordInsertionV1, SdfRecordInsertionV1Error,
@@ -326,6 +385,8 @@ mod presentation_stack_projection_v1_tests;
 #[cfg(test)]
 mod session_semantics_tests;
 
+#[cfg(test)]
+mod molecule_coordinate_batch_update_v1_tests;
 #[cfg(test)]
 mod molecule_insertion_v1_tests;
 #[cfg(test)]

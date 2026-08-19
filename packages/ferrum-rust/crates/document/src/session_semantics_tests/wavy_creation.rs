@@ -33,6 +33,21 @@ fn prepared_wavy_creation_owns_geometry_identity_and_history() {
         Some("ferrum-presentation-v1-1")
     );
     assert_eq!(polyline.path().points().len(), 5);
+    assert_eq!(
+        polyline
+            .path()
+            .points()
+            .iter()
+            .map(|point| (point.x(), point.y(), point.z()))
+            .collect::<Vec<_>>(),
+        vec![
+            (0.0, 0.0, 0.0),
+            (12.0, 4.0, 0.0),
+            (24.0, -4.0, 0.0),
+            (36.0, 4.0, 0.0),
+            (48.0, 0.0, 0.0),
+        ]
+    );
     let first = polyline.path().points().first().unwrap();
     let last = polyline.path().points().last().unwrap();
     assert_eq!((first.x(), first.y()), (0.0, 0.0));
@@ -42,6 +57,34 @@ fn prepared_wavy_creation_owns_geometry_identity_and_history() {
     assert!(result.observation().snapshot().cdml().contains("<keep"));
     session.undo(1).expect("creation must undo");
     session.redo(2).expect("creation must redo");
+}
+
+#[test]
+fn short_wavy_uses_exact_endpoints_and_an_alternating_normal() {
+    let mut session = DocumentSession::load("<cdml/>").expect("source must load");
+    let mut pending = session
+        .prepare_create_wavy_v1(0, point(0.0, 0.0), point(24.0, 0.0))
+        .expect("short Wavy gesture must prepare");
+    let result = session
+        .commit_create_wavy(0, &mut pending)
+        .expect("prepared Wavy must commit");
+    let [PresentationRootProjectionV1::Wavy { polyline }] = result
+        .observation()
+        .projection()
+        .presentation_stack()
+        .roots()
+    else {
+        panic!("expected one Wavy root");
+    };
+    assert_eq!(
+        polyline
+            .path()
+            .points()
+            .iter()
+            .map(|point| (point.x(), point.y()))
+            .collect::<Vec<_>>(),
+        vec![(0.0, 0.0), (12.0, 4.0), (24.0, 0.0)]
+    );
 }
 
 #[test]

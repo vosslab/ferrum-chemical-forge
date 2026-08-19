@@ -1,6 +1,8 @@
 use thiserror::Error;
 
-use crate::{Coordinates, MolGraph, MoleculeComposition, SdfRecord, SmilesMolecule};
+use crate::{
+    Coordinates, ImportedSdfRecord, MolGraph, MoleculeComposition, SdfRecord, SmilesMolecule,
+};
 
 /// Explicit molfile syntax selected for one export operation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,6 +180,13 @@ pub trait ChemEngine {
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "records_to_sdf",
+        })
+    }
+
+    /// Import ordered SDF records without exposing toolkit-owned state.
+    fn sdf_to_records(&self, _input: &str) -> Result<Vec<ImportedSdfRecord>, ChemistryError> {
+        Err(ChemistryError::OperationUnavailable {
+            operation: "sdf_to_records",
         })
     }
 

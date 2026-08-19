@@ -1,6 +1,6 @@
 //! Frozen Python DTOs for exact direct-root Text render layouts.
 
-use ferrum_api::{DocumentTextRenderV1, PresentationGlyphRun, PresentationTextOp};
+use ferrum_render::{DocumentTextRenderV1, PresentationGlyphRun, PresentationTextOp};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
@@ -146,10 +146,10 @@ fn glyph_run(value: &PresentationGlyphRun) -> PyPresentationGlyphRunV1 {
     }
 }
 
-fn script(value: ferrum_api::TextScript) -> &'static str {
+fn script(value: ferrum_render::TextScript) -> &'static str {
     match value {
-        ferrum_api::TextScript::Baseline => "baseline",
-        ferrum_api::TextScript::Subscript => "subscript",
-        ferrum_api::TextScript::Superscript => "superscript",
+        ferrum_render::TextScript::Baseline => "baseline",
+        ferrum_render::TextScript::Subscript => "subscript",
+        ferrum_render::TextScript::Superscript => "superscript",
     }
 }

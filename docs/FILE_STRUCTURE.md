@@ -9,7 +9,7 @@ ferrum-chemical-forge/
 +- docs/                     Durable documentation and active planning records
 +- packages/
 |  +- ferrum-rust/           Ferrum-Chem Rust workspace and wheel tooling
-|  `- ferrum-chem-qt.app/    Ferrum-Qt PySide6 application and tests
+|  `- ferrum-chem-qt.app/    Ferrum PySide6 application and tests
 +- tests/                    Repository checks and cross-package E2E coverage
 +- devel/                    Maintainer scripts and measurement helpers
 +- source_me.sh              Bash environment setup for Python 3.12 commands
@@ -52,7 +52,7 @@ ferrum-chemical-forge/
 - [../packages/ferrum-chem-qt.app/ferrum_qt/main_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/main_window.py)
   is the one ordinary product window and derives from the native main-window
   implementation.
-- [../packages/ferrum-chem-qt.app/ferrum_qt/native/](../packages/ferrum-chem-qt.app/ferrum_qt/native/)
+- [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/)
   contains the document-tab, file admission, edit, import and export, template,
   presentation, and view-control modules that implement the Ferrum desktop
   route.
@@ -73,8 +73,8 @@ replacement subtree. The ordinary package is the supported application route.
 
 - [../tests/e2e/](../tests/e2e/) contains corpus inputs, native-wheel E2E
   coverage, and cross-package scenarios.
-- [../tests/e2e/oracle/](../tests/e2e/oracle/) is an isolated historical oracle
-  environment. Its dependency declaration is for differential comparison only.
+- [../tests/e2e/reference/](../tests/e2e/reference/) is an optional Python RDKit
+  environment for one-time maintainer measurements only.
 - [../tests/](../tests/) also contains repository policy and documentation checks.
 - [active_plans/](active_plans/) contains migration plans, decisions, audits,
   reports, and workstreams. The active plan is the current status authority.
@@ -112,7 +112,7 @@ replacement subtree. The ordinary package is the supported application route.
   [../packages/ferrum-rust/crates/api/python/](../packages/ferrum-rust/crates/api/python/)
   when a typed Rust boundary is ready.
 - Add desktop work in the responsible
-  [../packages/ferrum-chem-qt.app/ferrum_qt/native/](../packages/ferrum-chem-qt.app/ferrum_qt/native/)
+  [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/)
   module or shared Qt module.
 - Add focused behavior coverage with the owning application or Rust crate; put
   artifact-dependent scenarios under [../tests/e2e/](../tests/e2e/).

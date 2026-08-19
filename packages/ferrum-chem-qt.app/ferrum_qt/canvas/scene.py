@@ -1,4 +1,4 @@
-"""Chemistry scene for the Ferrum-Qt canvas."""
+"""Chemistry scene for the Ferrum canvas."""
 
 # PIP3 modules
 import math
@@ -6,7 +6,7 @@ import re
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
-import ferrum_chem
+import ferrum_qt.ferrum.engine as engine
 
 # local repo modules
 import ferrum_qt.bridge.display_geometry
@@ -450,7 +450,7 @@ class ChemScene(PySide6.QtWidgets.QGraphicsScene):
 		self._require_active_contents("change grid spacing")
 		try:
 			new_spacing = ferrum_qt.bridge.display_geometry.normalize_hex_grid_spacing(value)
-		except ferrum_chem.GeometryError:
+		except engine.GeometryError:
 			return
 		if abs(new_spacing - self._grid_spacing_pt) < 1e-6:
 			return

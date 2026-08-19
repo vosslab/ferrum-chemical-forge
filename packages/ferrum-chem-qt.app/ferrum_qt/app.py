@@ -1,4 +1,4 @@
-"""Application bootstrap for Ferrum-Qt."""
+"""Application bootstrap for Ferrum."""
 
 # Standard Library
 import dataclasses
@@ -23,14 +23,14 @@ import ferrum_qt.resource_paths
 import ferrum_qt.versioning
 
 # application metadata
-APP_NAME = "Ferrum-Qt"
+APP_NAME = "Ferrum"
 APP_ORG = "Ferrum"
 SMOKE_RECEIPT_SCHEMA = "ferrum-smoke-1"
 
 
 #============================================
 def default_user_template_directory() -> pathlib.Path:
-	"""Return Ferrum-Qt's frontend-owned user-template directory."""
+	"""Return Ferrum's frontend-owned user-template directory."""
 	return pathlib.Path.home() / ".ferrum" / "templates"
 
 
@@ -285,7 +285,7 @@ def main(
 		files: list | None = None, smoke_exit_seconds: float | None = None,
 		smoke_receipt_path: str | pathlib.Path | None = None,
 		) -> int:
-	"""Create and run the Ferrum-Qt application.
+	"""Create and run the Ferrum application.
 
 	Args:
 		files: Optional list of file paths to open on launch.

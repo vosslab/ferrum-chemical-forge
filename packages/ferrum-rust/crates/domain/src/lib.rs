@@ -25,8 +25,15 @@ pub use neutral_bond_capacity_diagnostic_v1::{
 pub use peptide::{
     LEGACY_PEPTIDE_TEMPLATE_SMILES_PROFILE_V1, LEGACY_PEPTIDE_TEMPLATE_SMILES_SCHEMA_V1,
     LEGACY_PEPTIDE_TEMPLATE_SMILES_SUPPORTED_ALPHABET_V1, LegacyPeptideTemplateSmilesErrorV1,
-    LegacyPeptideTemplateSmilesV1, PeptideSequence, PeptideSyntaxError, PeptideTerminus,
-    ProtonationIntent, ResidueCode, TerminusIntent, build_legacy_peptide_template_smiles_v1,
+    LegacyPeptideTemplateSmilesV1, NATIVE_PEPTIDE_TEMPLATE_INSERTION_FIXED_OUTPUT_BYTES_V1,
+    NATIVE_PEPTIDE_TEMPLATE_INSERTION_MAX_ADDITIONAL_RESIDUE_BYTES_V1,
+    NATIVE_PEPTIDE_TEMPLATE_INSERTION_MAX_SUBMITTED_BYTES_V1,
+    NATIVE_PEPTIDE_TEMPLATE_INSERTION_PROFILE_V1,
+    NATIVE_PEPTIDE_TEMPLATE_INSERTION_SUPPORTED_ALPHABET_V1, PeptideSequence,
+    PeptideSequenceInspectionErrorV1, PeptideSequenceInspectionV1, PeptideSyntaxError,
+    PeptideTemplateInsertionErrorV1, PeptideTerminus, ProtonationIntent, ResidueCode,
+    SupportedPeptideTemplateRequestV1, TerminusIntent, build_legacy_peptide_template_smiles_v1,
+    compile_supported_peptide_template_request_v1, inspect_peptide_sequence_v1,
     parse_one_letter_sequence,
 };
 pub use repair::{

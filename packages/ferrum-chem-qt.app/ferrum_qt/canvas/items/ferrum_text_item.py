@@ -36,7 +36,7 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 		extension = _ferrum_chem()
 		if type(text_render) is not extension.DocumentTextRenderV1:
 			raise FerrumTextItemError(
-				"Text render must be ferrum_chem.DocumentTextRenderV1",
+				"Text render must be engine.DocumentTextRenderV1",
 			)
 		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
 		self._initialize(text_render, extension, telex)
@@ -51,7 +51,7 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 		extension = _ferrum_chem()
 		if type(text_render) is not extension.DocumentTextRenderV1:
 			raise FerrumTextItemError(
-				"Text render must be ferrum_chem.DocumentTextRenderV1",
+				"Text render must be engine.DocumentTextRenderV1",
 			)
 		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 			raise FerrumTextItemError("Text render requires verified Telex bytes")
@@ -233,7 +233,7 @@ def _finite(value: object, description: str) -> float:
 def _ferrum_chem() -> object:
 	"""Load the installed direct extension only at the public boundary."""
 	try:
-		import ferrum_chem
+		import ferrum_qt.ferrum.engine as engine
 	except ImportError as exc:
 		raise FerrumTextItemError("Ferrum Text rendering requires ferrum_chem") from exc
-	return ferrum_chem
+	return engine

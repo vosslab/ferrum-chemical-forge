@@ -1,4 +1,4 @@
-"""Semantic bracket-pair creation through the Rust-native tab."""
+"""Semantic bracket-pair creation through the Ferrum tab."""
 
 # Standard Library
 import os
@@ -13,8 +13,8 @@ import pytest
 ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_geometric_properties as native_geometric_properties
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 import ferrum_qt.canvas.ferrum_presentation_projection
 
 
@@ -34,7 +34,7 @@ def test_native_rectangular_bracket_uses_pair_facts_selection_and_history(
 		) -> None:
 	"""Create one pair and select both durable sides after authoritative render."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml><standard line_width="2" line_color="#123456"/></cdml>',
 		"bracket.cdml",
 	)
@@ -79,7 +79,7 @@ def test_native_round_pair_uses_rust_issued_cubic_paths_without_fallback(
 		) -> None:
 	"""Create a round pair and render its Rust-issued sides as cubic paths."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml/>", "round-bracket.cdml",
 	)
 	try:

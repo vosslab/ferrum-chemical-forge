@@ -1,13 +1,10 @@
 # CDML backend-to-frontend contract
 
-> **Ferrum adoption notice (2026-08-12):** Copied from `vosslab/bkchem-oasa` commit
-> `f3a6b2ffb354c63a5d87d2f76c12b43a07bac36c` (source HEAD
-> `f8fd0e6fbd67d40e48c4d6e38116524e85a6d8ed`; source SHA-256
-> `7cd02af29bff5ce4f004e25fa0c9884efc636c23e46417a24525cf3ee75ca097`).
-> Historical OASA/BKChem names are retained in the source text. In Ferrum, backend maps
-> to Ferrum-Chem and frontend maps to Ferrum-Qt; this reference does not claim every
-> operation is implemented. Local changes require deliberate upstream reconciliation, not
-> silent drift.
+> **Historical provenance (2026-08-12):** This contract was initially adapted from
+> `vosslab/bkchem-oasa` commit `f3a6b2ffb354c63a5d87d2f76c12b43a07bac36c`
+> (source SHA-256 `7cd02af29bff5ce4f004e25fa0c9884efc636c23e46417a24525cf3ee75ca097`).
+> Ferrum maintains this as its current contract; the historical source is provenance,
+> not a runtime dependency, implementation owner, or documentation destination.
 
 This is the stable behavioral boundary between the CDML backend and a frontend.
 It defines observable persistence behavior, not a particular language,
@@ -71,7 +68,7 @@ declares its own emitted-profile rule; ordinary Load and Commit remain
 compatibility-preserving unless that operation explicitly adds such a rule.
 
 A document-bearing external codec returns frontend-neutral complete CDML text,
-not an OASA graph or frontend model. The backend validates that extracted
+not a chemistry graph or frontend model. The backend validates that extracted
 document before it crosses the worker boundary. The frontend installs it as an
 import against an empty saved baseline, so source-container paths never become
 native CDML Save destinations.
@@ -142,14 +139,14 @@ produce a typed compatibility issue with an A4 portrait display fallback.
 
 Ferrum-Chem owns the closed recognized paper-name catalog and its positive
 finite millimetre dimensions. It publishes frozen catalog values to Qt; the
-frontend does not consult OASA or maintain a second table. The catalog and the
+frontend does not consult a second table. The catalog and the
 revision-bound paper operation are authoritative in Ferrum-Chem for the
 standalone native route. Normal-window session adoption remains a separate
 migration boundary.
 
 `CDMLDrawingStandardQuery` observes the first direct core `standard` at one
 exact revision. Its immutable result contains only effective drawing scalars
-and plain diagnostics. OASA applies those values to molecule projection and
+and plain diagnostics. Ferrum-Chem applies those values to molecule projection and
 render observations only where atom or bond depiction fields are absent;
 lexically explicit per-object values remain explicit overrides. Foreign
 lookalikes, later standards, unknown attributes, and child extensions remain
@@ -262,8 +259,8 @@ operation metadata only and is never persistent CDML.
 
 Insert presentation accepts only one exact revision-bound Arrow, plain Text,
 Plus, geometric, or Wavy request. Requests contain scalar content and finite
-scene points, never XML. OASA owns geometry, drawing-standard styling, CDML
-grammar, ID allocation, and atomic commit. The frontend owns only tool,
+scene points, never XML. Ferrum-Chem owns geometry, drawing-standard styling,
+CDML grammar, ID allocation, and atomic commit. The frontend owns only tool,
 gesture, and preview state. Existing records, comments, namespaces, order, and
 opaque extensions remain backend-owned; results expose durable IDs without a
 frontend provisional token or complete-CDML candidate.
@@ -542,7 +539,7 @@ normalized scene bounds. Ferrum-Chem derives classic proportional control
 points, uses the effective drawing-standard stroke, and atomically appends two
 ordinary top-level polylines with allocated IDs. Round pairs author
 `spline="yes"`; rectangular pairs author `no`. Existing content/order remain
-unchanged. Ferrum-Qt's rectangular and round actions both send only the chosen
+unchanged. Ferrum's rectangular and round actions both send only the chosen
 closed style and finite normalized drag bounds. Round pairs project as an
 explicit root family and render from their four backend-issued points rather
 than receiving substitute geometry.
@@ -845,7 +842,7 @@ or another client to select an independent normalization for session identity.
 The backend issues durable persistent IDs. A client may use a reserved
 transaction-local provisional correlation token only in recognized editable ID
 declarations and known reference fields. The token grammar is
-`__bkchem_new__<token>`, where `<token>` matches
+`__ferrum_new__<token>`, where `<token>` matches
 `[A-Za-z][A-Za-z0-9_-]{0,63}`.
 
 Compatibility loading may retain an ID-less legacy record exactly as authored.

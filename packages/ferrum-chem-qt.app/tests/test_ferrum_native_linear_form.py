@@ -1,4 +1,4 @@
-"""Behavior coverage for ordinary native linear-form conversion."""
+"""Behavior coverage for ordinary Ferrum linear-form conversion."""
 
 # PIP3 modules
 import PySide6.QtGui
@@ -6,9 +6,11 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_linear_form
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.dialogs.refusal_presenter
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.linear_form
+import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.window_refusals
 
 
 _SOURCE = """\
@@ -46,9 +48,9 @@ def _action(window: object) -> PySide6.QtGui.QAction:
 
 #============================================
 def _new_window_tab(cdml: str = _SOURCE) -> tuple[object, object]:
-	"""Create one ordinary native window with one Rust-owned document tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	"""Create one ordinary Ferrum window with one Rust-owned document tab."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		cdml, "linear.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -88,7 +90,7 @@ def test_selected_bond_converts_source_order_and_restores_atom_selection(
 	try:
 		tab.select_bond("path")
 		window._refresh_actions()
-		capture = ferrum_qt.native.ferrum_native_linear_form.capture_linear_form_selection(
+		capture = ferrum_qt.ferrum.linear_form.capture_linear_form_selection(
 			tab,
 		)
 		assert capture is not None and capture.atom_ids == ("late", "early")
@@ -113,7 +115,7 @@ def test_cross_root_selection_is_not_offered(
 		window._refresh_actions()
 		assert (
 			not _action(window).isEnabled()
-			and ferrum_qt.native.ferrum_native_linear_form.
+			and ferrum_qt.ferrum.linear_form.
 			capture_linear_form_selection(tab) is None
 		)
 		assert tab.current_snapshot.revision == 0 and not tab.current_snapshot.is_dirty
@@ -127,11 +129,10 @@ def test_rust_path_refusal_is_typed_visible_and_atomic(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""A mapped fork reaches Rust, whose typed reason is shown without changing Qt."""
 	window, tab = _new_window_tab(_BRANCH)
-	warnings = []
+	refusals: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
 	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox,
-		"warning",
-		lambda _parent, title, message: warnings.append((title, message)),
+		ferrum_qt.ferrum.window_refusals, "show_refusal",
+		lambda _window, request: refusals.append(request),
 	)
 	try:
 		tab.select_atoms(("a", "b", "c", "d"))
@@ -147,11 +148,11 @@ def test_rust_path_refusal_is_typed_visible_and_atomic(
 			and tab.view.scene() is before_scene
 			and _selection(tab) == before_selection
 		)
-		assert (
-			warnings
-			and warnings[-1][0] == "Convert to Linear Form"
-			and "linear-form planning refused" in warnings[-1][1]
-		)
+		assert refusals
+		presentation = ferrum_qt.dialogs.refusal_presenter.present_refusal(refusals[-1])
+		assert presentation.title == "Action Not Available"
+		assert presentation.technical_details is not None
+		assert "linear-form planning refused" in presentation.technical_details
 	finally:
 		_close_clean(window, tab)
 		del qapp

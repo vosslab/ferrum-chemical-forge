@@ -537,7 +537,7 @@ def build_qt_wheel(python: Path, qt_root: Path, environment: dict[str, str]) -> 
 		environment: Scrubbed environment used for the isolated build process.
 
 	Returns:
-		Selected Ferrum-Qt wheel.
+		Selected Ferrum wheel.
 	"""
 	wheelhouse = qt_root / "wheelhouse"
 	wheelhouse.mkdir(parents=True)

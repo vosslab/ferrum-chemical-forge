@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+use ferrum_api::TrustedLibraryChemistryRuntimeV1;
 use ferrum_chemistry::{
     AtomChirality, BondDirection, BondOrder, BondStereo, ChemistryError as RustChemistryError,
     ImportedSdfRecord, InchiMode, MolblockVersion, NativeChemEngine, SdfProperty, SdfRecord,
@@ -573,6 +574,18 @@ pub(crate) fn packaged_library_path(py: Python<'_>, operation: &'static str) -> 
     }
 }
 
+/// Construct the protocol's trusted wheel runtime without exposing its path.
+///
+/// The protocol executor owns the loaded native engine for one operation; this
+/// binding retains only the wheel-local location established at module import.
+pub(crate) fn packaged_protocol_runtime() -> TrustedLibraryChemistryRuntimeV1 {
+    let library_path = EXTENSION_DIRECTORY
+        .get()
+        .map(|directory| directory.join(".dylibs").join("libferrum_chem.dylib"))
+        .unwrap_or_default();
+    TrustedLibraryChemistryRuntimeV1::from_trusted_library(library_path)
+}
+
 fn molecule_to_python(py: Python<'_>, molecule: SmilesMolecule) -> PyResult<PySmilesMoleculeV1> {
     let graph = molecule.molecule();
     let atoms = graph
@@ -886,7 +899,20 @@ fn initialize_packaged_library_path(module: &Bound<'_, PyModule>) -> PyResult<()
     let parent = extension_path.parent().ok_or_else(|| {
         ChemistryUnavailable::new_err("Ferrum-Chem extension has no package directory")
     })?;
-    if EXTENSION_DIRECTORY.set(parent.to_path_buf()).is_err() {
+    // Maturin may install this extension either at wheel root or as the
+    // private implementation of the public ``ferrum_chem`` package.  The
+    // sealed closure is always adjacent to that public package root.
+    let closure_directory = if parent.file_name().is_some_and(|name| name == "ferrum_chem") {
+        parent.parent().ok_or_else(|| {
+            ChemistryUnavailable::new_err("Ferrum-Chem package extension has no wheel root")
+        })?
+    } else {
+        parent
+    };
+    if EXTENSION_DIRECTORY
+        .set(closure_directory.to_path_buf())
+        .is_err()
+    {
         return Err(ChemistryUnavailable::new_err(
             "Ferrum-Chem extension origin was initialized more than once",
         ));

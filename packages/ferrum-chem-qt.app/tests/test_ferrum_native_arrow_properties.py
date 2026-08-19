@@ -1,4 +1,4 @@
-"""Semantic Arrow property editing through the Rust-native tab."""
+"""Semantic Arrow property editing through the Ferrum tab."""
 
 # Standard Library
 import os
@@ -13,8 +13,8 @@ ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_presentation_projection
-import ferrum_qt.native.ferrum_native_arrow_properties
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.arrow_properties
+import ferrum_qt.ferrum.document_tab
 
 
 #============================================
@@ -44,7 +44,7 @@ def test_native_arrow_edit_updates_rust_and_retains_durable_selection(
 		) -> None:
 	"""A visible normal-Arrow edit commits once and installs new Rust geometry."""
 	del qapp
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml><arrow id="a" type="normal" start="no" end="yes" '
 		'width="1" color="#000"><point x="0" y="0"/>'
 		'<point x="40" y="0"/></arrow></cdml>',
@@ -55,13 +55,13 @@ def test_native_arrow_edit_updates_rust_and_retains_durable_selection(
 		assert tab.has_one_selected_arrow()
 		arrow = tab.selected_arrow_projection()
 		model = (
-			ferrum_qt.native.ferrum_native_arrow_properties.
+			ferrum_qt.ferrum.arrow_properties.
 			dialog_model_from_projection(arrow)
 		)
 		assert (model.start_head, model.end_head, model.line_width, model.color) == (
 			False, True, 1.0, "#000000",
 		)
-		closed = ferrum_qt.native.ferrum_native_arrow_properties.property_changes_from_dialog(
+		closed = ferrum_qt.ferrum.arrow_properties.property_changes_from_dialog(
 			(
 				("start_head", True),
 				("end_head", False),
@@ -97,9 +97,9 @@ def test_native_arrow_dialog_rejects_unrendered_or_unrepresentable_facts(
 	)
 	arrow = session.observe(0).projection.presentation_stack.roots[0].arrow
 	with pytest.raises(ValueError, match="not representable"):
-		ferrum_qt.native.ferrum_native_arrow_properties.dialog_model_from_projection(arrow)
+		ferrum_qt.ferrum.arrow_properties.dialog_model_from_projection(arrow)
 	with pytest.raises(ValueError, match="spline rendering"):
-		ferrum_qt.native.ferrum_native_arrow_properties.property_changes_from_dialog(
+		ferrum_qt.ferrum.arrow_properties.property_changes_from_dialog(
 			(("spline", True),),
 		)
 	assert session.observe(0).snapshot.revision == 0

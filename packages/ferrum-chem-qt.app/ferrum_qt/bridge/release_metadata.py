@@ -1,4 +1,4 @@
-"""Self-contained release-metadata boundary for the Ferrum-Qt frontend."""
+"""Self-contained release-metadata boundary for the Ferrum frontend."""
 
 # Standard Library
 import importlib.metadata
@@ -71,10 +71,10 @@ def installed_display_version(distribution_name: str) -> str:
 	try:
 		installed_version = importlib.metadata.version(distribution_name)
 	except importlib.metadata.PackageNotFoundError as error:
-		raise ReleaseMetadataError("Ferrum-Qt package metadata is unavailable") from error
+		raise ReleaseMetadataError("Ferrum package metadata is unavailable") from error
 	try:
 		return _display_version(installed_version)
 	except ValueError as error:
 		raise ReleaseMetadataError(
-			f"Unsupported installed Ferrum-Qt version metadata: {error}"
+			f"Unsupported installed Ferrum version metadata: {error}"
 		) from error

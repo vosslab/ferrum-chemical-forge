@@ -32,9 +32,9 @@
   molecule. Explicit `canonOrient=false` and `canonOrient=true` diverge; future
   Ferrum layout will select `true` explicitly. The measurement establishes neither
   a Ferrum layout implementation nor the M4c coordinate-tolerance/parity gate. Its
-  reproducible maintainer tool is
-  [`devel/rdkit_layout_orientation.py`](../devel/rdkit_layout_orientation.py), outside
-  pytest's collection tree.
+  accepted receipt is
+  [`rdkit_layout_orientation.json`](active_plans/reports/rdkit_layout_orientation.json),
+  outside pytest's collection tree.
 
 - Declared CMake and upstream LLVM in the root `Brewfile` so `brew bundle`
   installs the native Ferrum-Chem/RDKit build system and FOSS compiler frontend

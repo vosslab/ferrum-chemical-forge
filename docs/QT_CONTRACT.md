@@ -1,6 +1,6 @@
-# Ferrum-Qt contract
+# Ferrum contract
 
-Ferrum-Qt is a Qt Widgets document editor. This contract defines its durable
+Ferrum is a Qt Widgets document editor. This contract defines its durable
 Rust-native ownership boundary. It follows the active
 [ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md) and applies the repository
 principles "Fix the design, not the symptom" and "Long-term over short-term."

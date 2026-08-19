@@ -1,4 +1,4 @@
-"""Public behavior coverage for Rust-native document drawing defaults."""
+"""Public behavior coverage for Ferrum document drawing defaults."""
 
 # Standard Library
 import os
@@ -13,9 +13,9 @@ import ferrum_chem
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_drawing_standard as native_drawing_standard
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
+import ferrum_qt.ferrum.main_window
 
 
 SOURCE = (
@@ -37,9 +37,9 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 #============================================
 def _window_with_source() -> tuple[object, object]:
-	"""Return one native product host with a clean selected document."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	"""Return one Ferrum product host with a clean selected document."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		SOURCE, "drawing-defaults.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -146,10 +146,10 @@ def test_public_action_commits_rendered_defaults_and_preserves_selection(
 #============================================
 def test_action_and_tab_adapter_refuse_unavailable_or_wrong_state() -> None:
 	"""No active page and non-Ferrum change values cannot enter the operation."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	try:
 		assert not _action(window, "Document Drawing Defaults...").isEnabled()
-		tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+		tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 			SOURCE, "drawing-defaults.cdml",
 		)
 		window._register_native_tab(tab, activate=True)

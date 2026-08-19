@@ -1,4 +1,4 @@
-"""Behavior coverage for exact selected native SDF record export."""
+"""Behavior coverage for exact selected Ferrum SDF record export."""
 
 # Standard Library
 import os
@@ -14,8 +14,8 @@ import pytest
 
 # local repo modules
 import ferrum_chem
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
 
 
 _SOURCE = (
@@ -41,7 +41,7 @@ _MULTI_SOURCE = (
 #============================================
 @pytest.fixture
 def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Provide the offscreen application used by the ordinary native window."""
+	"""Provide the offscreen application used by the ordinary Ferrum window."""
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
 		app = PySide6.QtWidgets.QApplication([])
@@ -58,8 +58,8 @@ def _action(window: object, text: str) -> PySide6.QtGui.QAction:
 #============================================
 def _register(source: str) -> tuple[object, object]:
 	"""Create one ordinary window with one active Rust-owned tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		source, "molecule.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -104,8 +104,8 @@ def test_visible_actions_publish_both_syntaxes_with_exact_import_metadata(
 	)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		v2000 = _action(window, "Export SDF Record V2000...")
@@ -161,15 +161,15 @@ def test_action_reauthenticates_selection_after_the_destination_dialog(
 	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getSaveFileName", choose_path)
 	monkeypatch.setattr(
 		window,
-		"_show_native_file_warning",
-		lambda title, text: warnings.append((title, text)),
+		"_show_edit_refusal",
+		lambda request: warnings.append(request),
 	)
 	try:
 		tab.select_atom("carbon")
 		window._refresh_actions()
 		_action(window, "Export SDF Record V2000...").trigger()
 		assert not destination.exists()
-		assert warnings[-1][0] == "Native SDF Export Unavailable"
+		assert warnings[-1].outcome.value == "unavailable_operation"
 	finally:
 		_dispose(window, tab, qapp)
 
@@ -179,7 +179,7 @@ def test_shared_cancel_action_withholds_sdf_publication(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		tmp_path: pathlib.Path,
 		) -> None:
-	"""Cancellation invalidates delivery without claiming native interruption."""
+	"""Cancellation invalidates delivery without claiming Ferrum interruption."""
 	window, tab = _register(_SOURCE)
 	destination = tmp_path / "cancelled.sdf"
 	monkeypatch.setattr(

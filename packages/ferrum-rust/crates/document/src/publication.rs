@@ -6,6 +6,28 @@
 
 use std::path::Path;
 
+#[path = "publication/document_molecule_inchi_publication_v1.rs"]
+mod document_molecule_inchi_publication_v1;
+#[path = "publication/document_molecule_molblock_publication_v1.rs"]
+mod document_molecule_molblock_publication_v1;
+#[path = "publication/document_molecule_sdf_publication_v1.rs"]
+mod document_molecule_sdf_publication_v1;
+#[path = "publication/document_molecule_smiles_publication_v1.rs"]
+mod document_molecule_smiles_publication_v1;
+
+pub use document_molecule_inchi_publication_v1::{
+    DocumentMoleculeInchiPublicationErrorV1, publish_document_molecule_inchi_v1,
+};
+pub use document_molecule_molblock_publication_v1::{
+    DocumentMoleculeMolblockPublicationErrorV1, publish_document_molecule_molblock_v1,
+};
+pub use document_molecule_sdf_publication_v1::{
+    DocumentMoleculeSdfPublicationErrorV1, publish_document_molecule_sdf_v1,
+};
+pub use document_molecule_smiles_publication_v1::{
+    DocumentMoleculeSmilesPublicationErrorV1, publish_document_molecule_smiles_v1,
+};
+
 #[cfg(test)]
 use super::artifact_publication_v1::ArtifactPrepublicationPhaseV1;
 use super::artifact_publication_v1::{

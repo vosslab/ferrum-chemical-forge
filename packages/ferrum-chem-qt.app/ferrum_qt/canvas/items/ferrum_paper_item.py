@@ -22,17 +22,17 @@ class FerrumPaperItem(PySide6.QtWidgets.QGraphicsRectItem):
 	def __init__(self, layout: object) -> None:
 		"""Copy one exact frozen Rust page without interpreting CDML attributes."""
 		try:
-			import ferrum_chem
+			import ferrum_qt.ferrum.engine as engine
 		except ImportError as exc:
 			raise FerrumPaperItemError("Ferrum paper binding is unavailable") from exc
-		if type(layout) is not ferrum_chem.PaperLayoutProjectionV1:
+		if type(layout) is not engine.PaperLayoutProjectionV1:
 			raise FerrumPaperItemError(
 				"paper background requires the frozen Ferrum paper layout",
 			)
 		page = layout.page
-		if type(page) is not ferrum_chem.PaperPageV1:
+		if type(page) is not engine.PaperPageV1:
 			raise FerrumPaperItemError("paper layout has the wrong page DTO")
-		if page.issue is not None and type(page.issue) is not ferrum_chem.PaperPageIssueV1:
+		if page.issue is not None and type(page.issue) is not engine.PaperPageIssueV1:
 			raise FerrumPaperItemError("paper compatibility issue has the wrong DTO")
 		self._initialize(page)
 

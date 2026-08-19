@@ -1,4 +1,4 @@
-"""YAML-driven color palettes and QSS stylesheets for Ferrum-Qt themes.
+"""YAML-driven color palettes and QSS stylesheets for Ferrum themes.
 
 All colors are loaded from the shared YAML theme files via theme_loader.
 No hardcoded hex color values exist in this module.

@@ -1,6 +1,6 @@
 # Install Ferrum
 
-This repository provides the Rust `ferrum` command-line tool and a bounded Ferrum-Qt native
+This repository provides the Rust `ferrum` command-line tool and a bounded Ferrum native
 CDML editor for contributors. M20 and M22 source work is accepted for a proposed macOS arm64,
 CPython 3.12 release route, but its real offline two-wheel install, relink, source-archive CLI,
 artifact-inventory, and human review evidence is pending. It is not yet a generally supported
@@ -11,7 +11,7 @@ desktop distribution.
 - A checkout of this repository.
 - Rust 1.97.1 or newer and Cargo. The workspace records this minimum in
   `packages/ferrum-rust/Cargo.toml`.
-- Python 3.12 for Python tools, the native wheel proof, and Ferrum-Qt.
+- Python 3.12 for Python tools, the native wheel proof, and Ferrum.
 - A macOS arm64 host and CPython 3.12 only when running the M20 package-release proof.
 
 ## Install the CLI
@@ -30,6 +30,23 @@ ferrum --version
 ```
 
 The current source reports `ferrum 26.8.0`.
+
+## Install an engine bundle
+
+The document-only verbs work after the Cargo install. `ferrum convert` and `ferrum coords` also
+need a compatible Ferrum engine bundle supplied by the release process for this executable and host.
+Install that explicit directory once, then verify its active status:
+
+```bash
+ferrum engine install /path/to/ferrum-engine-bundle
+ferrum engine status
+```
+
+The installer validates the bundle schema, host target, adapter ABI, manifest, and regular
+non-symbolic closure before copying it into Ferrum's application-data root. Ferrum does not search
+for adapters in a working directory, `PATH`, Python environment, or environment variable. See
+[USAGE.md](USAGE.md#convert-a-molecule) for command examples and
+[FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for the typed unavailable-engine result.
 
 ## Cargo policy
 
@@ -53,7 +70,7 @@ python3 -m pip install --editable packages/ferrum-chem-qt.app
 The source environment script exports unbuffered Python output and disables bytecode
 files. It must be sourced, not executed.
 
-## Verify Ferrum-Qt
+## Verify Ferrum
 
 Verify the lightweight command boundary without opening a window:
 
@@ -119,4 +136,4 @@ release evidence, not permanent pytest or packaging-count gates.
 ## Known gaps
 
 - TODO: qualify each additional target platform before documenting it as supported.
-- TODO: publish a consumer installation path for the Ferrum-Qt native route.
+- TODO: publish a consumer installation path for the Ferrum native route.

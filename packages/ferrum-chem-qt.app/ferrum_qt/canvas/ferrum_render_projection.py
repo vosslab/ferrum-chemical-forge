@@ -717,13 +717,13 @@ def _is_frozen_dto(value: object) -> bool:
 def _require_pyo3_observation(observation: object) -> None:
 	"""Accept only the extension-owned observation class on the production path."""
 	try:
-		import ferrum_chem
-		observation_type = ferrum_chem.RenderObservationV1
+		import ferrum_qt.ferrum.engine as engine
+		observation_type = engine.RenderObservationV1
 	except (ImportError, AttributeError) as exc:
 		raise FerrumRenderProjectionError(
 			"Ferrum render observation binding is unavailable",
 		) from exc
 	if type(observation) is not observation_type:
 		raise FerrumRenderProjectionError(
-			"render observation must be the frozen ferrum_chem.RenderObservationV1 DTO",
+			"render observation must be the frozen engine.RenderObservationV1 DTO",
 		)

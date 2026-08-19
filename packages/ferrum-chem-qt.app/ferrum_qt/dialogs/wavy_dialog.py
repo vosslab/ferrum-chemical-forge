@@ -3,10 +3,11 @@
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
+from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
 #============================================
-class WavyDialog(PySide6.QtWidgets.QDialog):
+class WavyDialog(FerrumAccessibleDialog):
 	"""Edit only the portable root width and color of one plain Wavy line."""
 
 	#============================================

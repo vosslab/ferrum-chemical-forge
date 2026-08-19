@@ -1,1 +1,1 @@
-"""Ferrum-Qt frontend."""
+"""Ferrum frontend."""

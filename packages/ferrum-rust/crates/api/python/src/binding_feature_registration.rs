@@ -10,8 +10,8 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     crate::document_linear_form_binding::initialize(module)?;
     crate::document_explicit_fragment_binding::initialize(module)?;
     crate::document_molecule_inchi_binding::initialize(module)?;
-	crate::document_molecule_information_binding::initialize(module)?;
-	crate::document_bond_capacity_binding::initialize(module)?;
+    crate::document_molecule_information_binding::initialize(module)?;
+    crate::document_bond_capacity_binding::initialize(module)?;
     crate::document_molecule_inspection_binding::initialize(module)?;
     crate::document_molecule_molblock_binding::initialize(module)?;
     crate::document_molecule_sdf_binding::initialize(module)?;

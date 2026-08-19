@@ -12,7 +12,12 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-from native_wheel_profile import FERRUM_RDKIT_PROFILE, PinnedSource
+from native_wheel_profile import (
+	FERRUM_RDKIT_PROFILE,
+	MACOS_ARM64_NATIVE_CLOSURE,
+	PinnedSource,
+	RdkitCapabilityProfile,
+)
 
 
 class NativePackagingError(RuntimeError):
@@ -27,6 +32,57 @@ NOTICE_FILENAMES = (
 	"THIRD_PARTY_NOTICES.md",
 )
 INCHI_LICENSE_MEMBER = "INCHI-1-SRC/INCHI_API/libinchi/src/inchi_dll.c"
+
+
+#============================================
+def validate_wheel_members(
+	members: list[str],
+	profile: RdkitCapabilityProfile = FERRUM_RDKIT_PROFILE,
+) -> None:
+	"""Require Ferrum metadata while rejecting Python-RDKit and SWIG payloads."""
+	required_root_metadata = {
+		"ferrum_chem.pyi",
+		"py.typed",
+		"ferrum-operation-v1.schema.json",
+	}
+	missing_root_metadata = required_root_metadata.difference(members)
+	if missing_root_metadata:
+		raise NativePackagingError(
+			"wheel is missing required Ferrum metadata: "
+			f"{sorted(missing_root_metadata)}"
+		)
+	native_extensions = [
+		member for member in members
+		if re.fullmatch(r"(?:ferrum_chem/)?ferrum_chem[^/]*\.so", member)
+	]
+	if len(native_extensions) != 1:
+		raise NativePackagingError(
+			f"wheel must contain one Ferrum native extension, found {native_extensions}"
+		)
+	native_prefix = ".dylibs/" if any(
+		member.startswith(".dylibs/") for member in members
+	) else "ferrum_chem/.dylibs/"
+	native_members = {
+		member.removeprefix(native_prefix)
+		for member in members
+		if member.startswith(native_prefix) and member.lower().endswith(".dylib")
+	}
+	expected_native = MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names
+	if native_members != expected_native:
+		raise NativePackagingError(
+			"wheel native members differ from the frozen platform closure: "
+			f"expected {sorted(expected_native)}, got {sorted(native_members)}"
+		)
+	for member in members:
+		if member in native_extensions:
+			continue
+		if native_extensions[0].startswith("ferrum_chem/") and member == "ferrum_chem/__init__.py":
+			continue
+		if member in required_root_metadata or ".dist-info/" in member:
+			continue
+		if member.startswith(native_prefix) and member.removeprefix(native_prefix) in expected_native:
+			continue
+		raise NativePackagingError(f"wheel contains an unexpected non-native member: {member}")
 
 
 #============================================
@@ -168,7 +224,8 @@ def stage_python_project(output_root: Path, package_source: Path) -> Path:
 	contents = pyproject.read_text(encoding="utf-8")
 	if "include =" in contents:
 		raise NativePackagingError("source PyO3 project must reserve wheel contents for the shipping builder")
-	pyproject.write_text(contents + '\ninclude = [".dylibs/*"]\n', encoding="utf-8")
+	package_prefix = "ferrum_chem/.dylibs/*" if (project / "ferrum_chem").is_dir() else ".dylibs/*"
+	pyproject.write_text(contents + f'\ninclude = ["{package_prefix}"]\n', encoding="utf-8")
 	# Root typing metadata lives outside Maturin's project discovery path. The
 	# shipping rewriter installs it after Maturin has emitted its intermediate.
 	metadata = project.parent / "wheel_metadata"
@@ -202,7 +259,13 @@ def _metadata_with_license_files(metadata: bytes, license_paths: tuple[str, ...]
 		raise NativePackagingError("wheel METADATA is not UTF-8") from error
 	headers, separator, body = text.partition("\n\n")
 	if not separator:
-		raise NativePackagingError("wheel METADATA lacks a header/body separator")
+		# Maturin legitimately emits header-only core metadata. Normalize it to
+		# the RFC 822 header/body form before adding PEP 639 fields.
+		headers = text.rstrip("\n")
+		separator = "\n\n"
+		body = ""
+	if not headers:
+		raise NativePackagingError("wheel METADATA lacks headers")
 	if any(line.startswith("License-File:") for line in headers.splitlines()):
 		raise NativePackagingError("wheel METADATA already declares license files")
 	license_headers = "\n".join(f"License-File: {path}" for path in license_paths)

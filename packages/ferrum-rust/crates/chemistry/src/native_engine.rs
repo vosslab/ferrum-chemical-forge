@@ -162,7 +162,7 @@ impl NativeChemEngine {
         <Self as ChemEngine>::molecule_to_molblock_with_title(self, molecule, version, title)
     }
 
-    /// Import one bounded V2000 or V3000 molblock into an owned molecule.
+    /// Import one bounded V2000 or V3000 molblock.
     pub fn molblock_to_molecule(&self, molblock: &str) -> Result<SmilesMolecule, ChemistryError> {
         <Self as ChemEngine>::molblock_to_molecule(self, molblock)
     }
@@ -195,7 +195,7 @@ impl NativeChemEngine {
         <Self as ChemEngine>::records_to_sdf(self, records, version)
     }
 
-    /// Import bounded UTF-8 SDF text into complete owned ordered records.
+    /// Import bounded UTF-8 SDF text into owned ordered records.
     pub fn sdf_to_records(&self, input: &str) -> Result<Vec<ImportedSdfRecord>, ChemistryError> {
         validate_sdf_input(input)?;
         let response = self
@@ -389,6 +389,10 @@ impl ChemEngine for NativeChemEngine {
         text_response::decode_multiline(&response, "SDF")
     }
 
+    fn sdf_to_records(&self, input: &str) -> Result<Vec<ImportedSdfRecord>, ChemistryError> {
+        NativeChemEngine::sdf_to_records(self, input)
+    }
+
     fn kekulize(
         &self,
         molecule: &MolGraph,
@@ -494,7 +498,6 @@ fn decode_coordinate_response(
     }
     Ok(Coordinates::new(points))
 }
-
 fn adapter_error(error: AdapterError) -> ChemistryError {
     if matches!(
         error,
@@ -512,7 +515,6 @@ fn adapter_error(error: AdapterError) -> ChemistryError {
         reason: error.to_string(),
     }
 }
-
 fn encode_kekulize_request(
     molecule: &MolGraph,
     options: KekulizeOptions,
@@ -987,7 +989,6 @@ fn decode_error(error: DecodeFailure) -> ChemistryError {
         DecodeFailure::Trailing => ChemistryError::TrailingNativeResponse,
     }
 }
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DecodeFailure {
     Malformed(&'static str),

@@ -1,4 +1,4 @@
-"""Run Ferrum-Qt as ``python -m ferrum_qt``."""
+"""Run Ferrum as ``python -m ferrum_qt``."""
 
 # local repo modules
 import ferrum_qt.cli

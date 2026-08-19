@@ -1,6 +1,6 @@
-//! Private neutral bond-capacity receipt for bundled Ferrum-Qt.
+//! Private neutral bond-capacity receipt for bundled Ferrum.
 
-use ferrum_api::{
+use ferrum_document::{
     DocumentBondCapacityNotCheckedReasonV1, DocumentBondCapacityOutcomeV1,
     DocumentBondCapacityRequestV1, inspect_document_bond_capacity_v1 as inspect_bond_capacity,
 };
@@ -138,7 +138,7 @@ fn inspect_document_bond_capacity_v1(
 
 fn receipt_to_python(
     py: Python<'_>,
-    receipt: &ferrum_api::DocumentBondCapacityV1,
+    receipt: &ferrum_document::DocumentBondCapacityV1,
 ) -> PyResult<PyDocumentBondCapacityV1> {
     let mut records = Vec::new();
     records
@@ -157,7 +157,7 @@ fn receipt_to_python(
 
 fn record_to_python(
     py: Python<'_>,
-    record: &ferrum_api::DocumentBondCapacityRecordV1,
+    record: &ferrum_document::DocumentBondCapacityRecordV1,
 ) -> PyResult<PyDocumentBondCapacityRecordV1> {
     let (category, not_checked_reason, atoms) = outcome_facts(record.outcome());
     let source = record.source();
@@ -175,7 +175,11 @@ fn record_to_python(
 
 fn outcome_facts(
     outcome: &DocumentBondCapacityOutcomeV1,
-) -> (&'static str, Option<&'static str>, &[NeutralBondCapacityAtomRecordV1]) {
+) -> (
+    &'static str,
+    Option<&'static str>,
+    &[NeutralBondCapacityAtomRecordV1],
+) {
     match outcome {
         DocumentBondCapacityOutcomeV1::WithinCapacity { atoms } => {
             ("within_capacity", None, atoms.as_slice())

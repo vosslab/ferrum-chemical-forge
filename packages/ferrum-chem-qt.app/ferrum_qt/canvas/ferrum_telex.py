@@ -75,10 +75,10 @@ class FerrumTelex:
 def from_verified_resource(resource: object) -> FerrumTelex:
 	"""Create Telex only from the exact frozen resource published by ``ferrum_chem``."""
 	try:
-		import ferrum_chem
+		import ferrum_qt.ferrum.engine as engine
 	except ImportError as error:
 		raise FerrumTelexError("Ferrum Telex requires the installed ferrum_chem extension") from error
-	if type(resource) is not ferrum_chem.VerifiedTelexRegularV1:
+	if type(resource) is not engine.VerifiedTelexRegularV1:
 		raise FerrumTelexError("Ferrum Telex requires VerifiedTelexRegularV1")
 	if (
 		resource.resource_id != TELEX_RESOURCE_ID

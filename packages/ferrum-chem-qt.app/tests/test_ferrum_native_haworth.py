@@ -9,7 +9,7 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 def _open_haworth_chooser(window: PySide6.QtWidgets.QMainWindow,
@@ -94,7 +94,7 @@ def test_insert_haworth_ring_uses_visible_chooser_and_one_shot_rust_placement(
 	"""Pyranose and furanose choices commit their distinct Rust-owned cycles once."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml/>", "haworth.cdml",
 	)
 	try:
@@ -144,7 +144,7 @@ def test_insert_haworth_ring_preserves_an_occupied_document_and_selection(
 	"""A detached Haworth action leaves an occupied page and selection untouched."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml><molecule id='m'><atom id='a' name='C'>"
 		"<point x='10' y='20'/></atom></molecule></cdml>",
 		"occupied-haworth.cdml",
@@ -181,7 +181,7 @@ def test_insert_haworth_ring_refuses_a_bond_and_keeps_its_intent_armed(
 	"""A bond hit leaves state alone, then the same choice accepts an empty page."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom>"
 		"<atom id='b' name='C'><point x='50' y='20'/></atom>"
 		"<bond id='ab' start='a' end='b' type='n1'/></molecule></cdml>",

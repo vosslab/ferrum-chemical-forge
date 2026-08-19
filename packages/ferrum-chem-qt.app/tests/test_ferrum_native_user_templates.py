@@ -1,4 +1,4 @@
-"""Behavior coverage for ordinary Rust-native user templates."""
+"""Behavior coverage for ordinary Ferrum user templates."""
 
 # Standard Library
 import pathlib
@@ -10,8 +10,8 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.native.ferrum_native_document_tab
-import ferrum_qt.native.ferrum_native_main_window
+import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.main_window
 
 
 _TEMPLATE = """\
@@ -28,11 +28,11 @@ _TEMPLATE = """\
 def _window_with_tab(
 		directory: pathlib.Path, cdml: str = "<cdml version='26.07'/>",
 		) -> tuple[object, object]:
-	"""Return one configured native window with a selected Rust-owned tab."""
-	window = ferrum_qt.native.ferrum_native_main_window.FerrumNativeMainWindow(
+	"""Return one configured Ferrum window with a selected Rust-owned tab."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow(
 		user_template_directory=directory,
 	)
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		cdml, "template-test.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
@@ -41,7 +41,7 @@ def _window_with_tab(
 
 #============================================
 def _retire(window: object, tab: object) -> None:
-	"""Undo test edits and retire the native window without a dirty close prompt."""
+	"""Undo test edits and retire the Ferrum window without a dirty close prompt."""
 	while tab.current_snapshot.is_dirty:
 		tab.undo()
 	window._close_tab_at(window.centralWidget().indexOf(tab))

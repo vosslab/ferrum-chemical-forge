@@ -8,6 +8,7 @@ mod direct_glycosidic_spec;
 mod durable_reobservation;
 mod layout;
 mod placement;
+mod smiles;
 mod standalone_glucose_recipe_v1;
 mod tree;
 mod types;
@@ -45,6 +46,10 @@ pub use durable_reobservation::{
     authored_direct_glycosidic_haworth_depiction_from_durable_profile_v1,
 };
 pub use layout::layout_single_ring;
+pub use smiles::{
+    DirectHaworthFromSmilesBuildErrorV1, PreparedDirectHaworthFromSmilesV1,
+    build_direct_haworth_from_smiles_v1,
+};
 pub use standalone_glucose_recipe_v1::{
     StandaloneDGlucoseHaworthErrorV1, StandaloneDGlucoseHaworthReceiptV1,
     StandaloneDGlucoseHaworthRecipeV1, StandaloneHaworthAtomV1, StandaloneHaworthBondTokenV1,

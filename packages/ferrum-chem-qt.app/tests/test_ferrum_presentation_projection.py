@@ -346,7 +346,7 @@ def test_old_retirement_callback_failure_preserves_the_prior_projection(
 def test_native_handoff_exception_restores_the_prior_scene_and_projection(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A native attach exception after attachment rolls back both scene roots."""
+	"""A Ferrum attach exception after attachment rolls back both scene roots."""
 	del qapp
 	before, after = _successive_observations()
 	scene = PySide6.QtWidgets.QGraphicsScene()
@@ -360,7 +360,7 @@ def test_native_handoff_exception_restores_the_prior_scene_and_projection(
 		if item is prior.roots[0]:
 			return add_item(captured_scene, item)
 		add_item(captured_scene, item)
-		raise ValueError("injected native attachment failure")
+		raise ValueError("injected Ferrum attachment failure")
 
 	monkeypatch.setattr(
 		ferrum_qt.canvas.graphics_retirement, "add_item_to_captured_scene", attach_then_fail,
@@ -397,7 +397,7 @@ def test_successful_replacement_never_repeats_old_dispose_callbacks(
 def test_failed_rollback_invalidates_and_retains_the_transition_diagnostic(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A second native failure closes the controller instead of publishing mixed ownership."""
+	"""A second Ferrum failure closes the controller instead of publishing mixed ownership."""
 	del qapp
 	before, after = _successive_observations()
 	scene = PySide6.QtWidgets.QGraphicsScene()
@@ -419,7 +419,7 @@ def test_failed_rollback_invalidates_and_retains_the_transition_diagnostic(
 def test_attached_candidate_with_failed_rollback_is_retained_not_detached_disposed(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A compound native failure leaves both ambiguous roots under explicit recovery ownership."""
+	"""A compound Ferrum failure leaves both ambiguous roots under explicit recovery ownership."""
 	del qapp
 	before, after = _successive_observations()
 	scene = PySide6.QtWidgets.QGraphicsScene()
@@ -433,7 +433,7 @@ def test_attached_candidate_with_failed_rollback_is_retained_not_detached_dispos
 		if item is prior.roots[0]:
 			return add_item(captured_scene, item)
 		add_item(captured_scene, item)
-		raise ValueError("injected attach failure after native ownership changed")
+		raise ValueError("injected attach failure after Ferrum ownership changed")
 
 	monkeypatch.setattr(
 		ferrum_qt.canvas.graphics_retirement, "add_item_to_captured_scene", attach_then_fail,

@@ -314,7 +314,7 @@ impl PyDocumentSession {
     ) -> PyResult<PyRenderObservationV1> {
         render_binding::result(
             py,
-            ferrum_api::observe_render_v1(&self.session, expected_revision),
+            ferrum_render::observe_render_v1(&self.session, expected_revision),
         )
     }
 
@@ -376,12 +376,26 @@ impl PyDocumentSession {
     /// Create one authenticated explicit molecule-local fragment annotation.
     #[allow(clippy::too_many_arguments)]
     fn create_explicit_fragment_v1(
-        &mut self, py: Python<'_>, expected_revision: u64,
-        expected_digest: &Bound<'_, pyo3::types::PyString>, molecule_id: &Bound<'_, pyo3::types::PyString>,
-        name: &Bound<'_, pyo3::types::PyString>, selected_atom_ids: &Bound<'_, pyo3::types::PyAny>,
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest: &Bound<'_, pyo3::types::PyString>,
+        molecule_id: &Bound<'_, pyo3::types::PyString>,
+        name: &Bound<'_, pyo3::types::PyString>,
+        selected_atom_ids: &Bound<'_, pyo3::types::PyAny>,
         selected_bond_ids: &Bound<'_, pyo3::types::PyAny>,
-    ) -> PyResult<crate::document_explicit_fragment_binding::PyDocumentExplicitFragmentCreateResultV1> {
-        crate::document_explicit_fragment_binding::create_explicit_fragment_v1(py, &mut self.session, expected_revision, expected_digest, molecule_id, name, selected_atom_ids, selected_bond_ids)
+    ) -> PyResult<crate::document_explicit_fragment_binding::PyDocumentExplicitFragmentCreateResultV1>
+    {
+        crate::document_explicit_fragment_binding::create_explicit_fragment_v1(
+            py,
+            &mut self.session,
+            expected_revision,
+            expected_digest,
+            molecule_id,
+            name,
+            selected_atom_ids,
+            selected_bond_ids,
+        )
     }
 
     /// Apply one worker-prepared clipboard fragment to this exact installed state.
@@ -868,6 +882,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPresentationStackProjectionV1>()?;
     module.add_class::<PyBracketPairProjectionV1>()?;
     module.add_class::<PyPresentationRootProjectionV1>()?;
+    crate::presentation_path_binding::register(module)?;
     crate::presentation_text_binding::register(module)?;
     module.add_class::<PyArrowProjectionV1>()?;
     module.add_class::<PyArrowPathV1>()?;
@@ -932,7 +947,8 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPreparedBondedAtomInsertion>()?;
     module.add_class::<PyPreparedMoleculeInsertion>()?;
     module.add_class::<crate::regular_ring_binding::PyPreparedRegularRingInsertionV1>()?;
-    module.add_class::<crate::standalone_haworth_binding::PyPreparedStandaloneHaworthInsertionV1>()?;
+    module
+        .add_class::<crate::standalone_haworth_binding::PyPreparedStandaloneHaworthInsertionV1>()?;
     module.add_class::<crate::standalone_haworth_binding::PyStandaloneHaworthPreviewBatchV2>()?;
     module.add_class::<crate::direct_haworth_binding::PyPreparedDirectHaworthFromSmilesV1>()?;
     module.add_class::<crate::direct_haworth_binding::PyPreparedDirectHaworthInsertionV1>()?;

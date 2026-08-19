@@ -1,15 +1,15 @@
-//! Private native molecule-information operation for bundled Ferrum-Qt.
+//! Private native molecule-information operation for bundled Ferrum.
 //!
 //! This discoverable entry point deliberately remains absent from the wheel
 //! stub, CLI, serde, and wire contracts.
 
-use ferrum_api::{
+use ferrum_chemistry::{
+    ChemistryError as RustChemistryError, MoleculeComposition, NativeChemEngine,
+};
+use ferrum_document::{
     DocumentMoleculeInformationErrorV1, DocumentMoleculeInformationRequestV1,
     DocumentMoleculeInformationV1, execute_prepared_document_molecule_information_v1,
     prepare_document_molecule_information_v1,
-};
-use ferrum_chemistry::{
-    ChemistryError as RustChemistryError, MoleculeComposition, NativeChemEngine,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -131,7 +131,7 @@ enum NativeInformationFailure {
 
 /// Calculate source facts and composition for exact selected durable roots.
 ///
-/// Experimental internal-to-Ferrum-Qt operation. Rust authenticates and owns
+/// Experimental internal-to-Ferrum operation. Rust authenticates and owns
 /// every graph before the packaged adapter path is resolved or loaded.
 #[pyfunction]
 fn inspect_document_molecule_information_v1(

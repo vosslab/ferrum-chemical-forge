@@ -10,7 +10,7 @@ import PySide6.QtWidgets
 
 import ferrum_chem
 import ferrum_qt.main_window
-import ferrum_qt.native.ferrum_native_document_tab
+import ferrum_qt.ferrum.document_tab
 
 
 SMILES = "O1CCCC1OC2CCCCO2"
@@ -90,7 +90,7 @@ def _is_direct_glycosidic_profile(molecule: object) -> bool:
 
 def _start_placement(window: PySide6.QtWidgets.QMainWindow,
 		qapp: PySide6.QtWidgets.QApplication, exercise_blank_error: bool = False) -> None:
-	"""Use the visible native action and real modal field to arm one request."""
+	"""Use the visible Ferrum action and real modal field to arm one request."""
 	def accept_dialog() -> None:
 		dialog = PySide6.QtWidgets.QApplication.activeModalWidget()
 		if dialog is None:
@@ -129,7 +129,7 @@ def test_direct_glycosidic_action_arms_a_real_dialog_and_commits_on_empty_page(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""One visible request reaches Rust's ordinary projection only after a page click."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml/>", "direct-haworth.cdml",
 	)
 	try:
@@ -159,7 +159,7 @@ def test_direct_glycosidic_escape_preserves_the_uncommitted_document(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Escape retires the captured receipt instead of creating or redirecting a drawing."""
 	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.native.ferrum_native_document_tab.FerrumNativeDocumentTab(
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml/>", "cancel-direct-haworth.cdml",
 	)
 	try:

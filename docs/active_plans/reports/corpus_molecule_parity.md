@@ -15,11 +15,10 @@ exact field path, and every classification.
 
 ## Self-contained boundary
 
-The authoritative Rust reader, comparison runner, corpus, and report are Ferrum files. They
-do not read, import, package, or locate `OTHER_REPOS/`. The comparison runner invokes an
-isolated environment at `tests/e2e/oracle/.venv/`, which is ignored and recreated from
-the pinned
-[`pip_requirements.txt`](../../../tests/e2e/oracle/pip_requirements.txt).
+The authoritative Rust reader, corpus, and accepted report are Ferrum files. They
+do not read, import, package, or locate `OTHER_REPOS/`. The live Python backend
+comparison runner and its dependency environment were retired after this report
+was accepted; the commands below remain a historical execution record.
 
 For this completion run, OASA 26.8 was copied into that isolated environment from the
 read-only reference checkout and RDKit 2026.03.5 came from the repository Python 3.12

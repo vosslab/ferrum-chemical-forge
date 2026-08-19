@@ -1,19 +1,19 @@
-//! Private exact-revision document-Molfile operation for bundled Ferrum-Qt.
+//! Private exact-revision document-Molfile operation for bundled Ferrum.
 //!
 //! This discoverable entry point deliberately remains absent from the wheel
 //! stub, CLI, serde, and wire contracts.
 
 use std::path::PathBuf;
 
-use ferrum_api::{
+use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
+use ferrum_document::DocumentObjectIdV1;
+use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
+use ferrum_document::{
     DocumentMoleculeMolblockErrorV1, DocumentMoleculeMolblockPublicationErrorV1,
     DocumentMoleculeMolblockRequestV1, DocumentMoleculeMolblockV1,
     export_prepared_document_molecule_molblock_v1, prepare_document_molecule_molblock_v1,
     publish_document_molecule_molblock_v1 as publish_molblock_receipt,
 };
-use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
-use ferrum_document::DocumentObjectIdV1;
-use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -103,7 +103,7 @@ enum NativeExportFailure {
 
 /// Export one exact supported direct-root graph as an explicit Molfile syntax.
 ///
-/// Experimental internal-to-Ferrum-Qt operation. Rust authenticates and owns
+/// Experimental internal-to-Ferrum operation. Rust authenticates and owns
 /// the coordinate-bearing graph before the packaged adapter is resolved.
 #[pyfunction]
 fn export_document_molecule_molblock_v1(

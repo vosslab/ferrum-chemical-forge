@@ -1,9 +1,9 @@
 //! Private PyO3 boundary for exact direct-root molecule-name mutation.
 //!
-//! This unsupported extension entry point is for the bundled Ferrum-Qt native
+//! This unsupported extension entry point is for the bundled Ferrum native
 //! route only. It deliberately has no wheel stub, CLI, serde, or wire surface.
 
-use ferrum_api::{
+use ferrum_document::{
     DocumentMoleculeNameErrorV1, DocumentMoleculeNameRequestV1,
     set_document_molecule_name_v1 as set_rust_document_molecule_name_v1,
 };
