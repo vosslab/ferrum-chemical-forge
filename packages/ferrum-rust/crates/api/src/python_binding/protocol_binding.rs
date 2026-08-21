@@ -5,9 +5,8 @@
 //! JSON. It deliberately exposes no session, receipt, path, or DTO surface.
 
 use crate::{
-    OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1, OperationProtocolEnvelopeV1,
-    OperationProtocolInputErrorV1,
-    operation_protocol_schema_v1 as rust_operation_protocol_schema_v1,
+    operation_protocol_schema_v1 as rust_operation_protocol_schema_v1, OperationProtocolEnvelopeV1,
+    OperationProtocolInputErrorV1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -92,11 +91,11 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
     use crate::{
-        OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
         protocol::{
             execute_operation_with_runtime_v1,
             runtime::{ChemistryRuntimeErrorV1, ChemistryRuntimeV1},
         },
+        OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
     };
     use ferrum_chemistry::{ChemEngine, ChemistryError};
 

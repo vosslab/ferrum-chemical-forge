@@ -137,7 +137,7 @@ def test_text_cancel_and_preview_failure_leave_cdml_unchanged(
 
 def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Every controller lifecycle cancellation disarms the visible Text action."""
+	"""Escape, settled focus loss, and tool changes retire visible Text state."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-lifecycle.cdml")
 	try:
@@ -149,9 +149,12 @@ def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
 		PySide6.QtTest.QTest.keyClick(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Escape)
 		assert window._line_gesture_intent is None and not window._insert_text_action.isChecked()
 		window._insert_text_action.trigger()
+		qapp.processEvents()
 		qapp.sendEvent(tab.view.viewport(), PySide6.QtGui.QFocusEvent(
 			PySide6.QtCore.QEvent.Type.FocusOut,
 		))
+		tab.view.viewport().clearFocus()
+		qapp.processEvents()
 		assert window._line_gesture_intent is None and not window._insert_text_action.isChecked()
 		window._insert_text_action.trigger()
 		window._draw_plus_action.trigger()
@@ -159,6 +162,88 @@ def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
 		window._on_cancel_tool()
 		assert window._line_gesture_intent is None and not window._draw_plus_action.isChecked()
 		assert tab.current_snapshot.revision == before
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_text_popup_focus_handoff_retains_the_same_armed_intent(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A transient popup FocusOut cannot disarm a viewport that regains focus."""
+	window = ferrum_qt.main_window.MainWindow(object())
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-focus-handoff.cdml")
+	try:
+		window._register_native_tab(tab, activate=True)
+		window.show()
+		qapp.processEvents()
+		window._insert_text_action.trigger()
+		qapp.processEvents()
+		intent = window._line_gesture_intent
+		assert intent is not None
+		qapp.sendEvent(tab.view.viewport(), PySide6.QtGui.QFocusEvent(
+			PySide6.QtCore.QEvent.Type.FocusOut,
+		))
+		tab.view.viewport().setFocus()
+		qapp.processEvents()
+		assert window._line_gesture_intent is intent
+		assert window._insert_text_action.isChecked()
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_text_stale_focus_callback_cannot_cancel_a_replacement_intent(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A queued focus-loss callback is fenced to the intent that created it."""
+	window = ferrum_qt.main_window.MainWindow(object())
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-stale-focus.cdml")
+	try:
+		window._register_native_tab(tab, activate=True)
+		window.show()
+		qapp.processEvents()
+		window._insert_text_action.trigger()
+		qapp.processEvents()
+		old_intent = window._line_gesture_intent
+		assert old_intent is not None
+		qapp.sendEvent(tab.view.viewport(), PySide6.QtGui.QFocusEvent(
+			PySide6.QtCore.QEvent.Type.FocusOut,
+		))
+		window._draw_plus_action.trigger()
+		qapp.processEvents()
+		assert window._line_gesture_intent is not old_intent
+		assert window._line_gesture_intent is not None
+		assert window._draw_plus_action.isChecked()
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+def test_text_stale_focus_restoration_cannot_touch_a_replacement_intent(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
+	"""A stale popup-restoration turn cannot reclaim focus from a new tool."""
+	window = ferrum_qt.main_window.MainWindow(object())
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-stale-restore.cdml")
+	try:
+		window._register_native_tab(tab, activate=True)
+		window.show()
+		qapp.processEvents()
+		callbacks = []
+		monkeypatch.setattr(
+			PySide6.QtCore.QTimer, "singleShot",
+			lambda _delay, callback: callbacks.append(callback),
+		)
+		window._insert_text_action.trigger()
+		old_intent = window._line_gesture_intent
+		assert old_intent is not None
+		window._draw_plus_action.trigger()
+		replacement = window._line_gesture_intent
+		assert replacement is not None and replacement is not old_intent
+		tab.view.viewport().clearFocus()
+		callbacks[0]()
+		assert window._line_gesture_intent is replacement and window._draw_plus_action.isChecked()
+		assert not tab.view.viewport().hasFocus()
 	finally:
 		window.close()
 		window.deleteLater()

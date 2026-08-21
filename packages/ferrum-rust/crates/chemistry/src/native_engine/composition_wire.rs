@@ -4,8 +4,8 @@ use std::cmp::Ordering;
 
 use super::*;
 use crate::{
-    CompositionElementKey, ElementCount, ElementMassPercentage, MoleculeComposition,
     composition::{format_formula, hill_order},
+    CompositionElementKey, ElementCount, ElementMassPercentage, MoleculeComposition,
 };
 
 const MAGIC: [u8; 4] = *b"FCS1";

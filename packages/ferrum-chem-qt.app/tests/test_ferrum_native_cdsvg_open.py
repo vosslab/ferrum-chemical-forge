@@ -67,12 +67,12 @@ def _wait_for_open(
 		outcomes.append(success)
 		loop.quit()
 
-	window.local_cdml_open_queue_drained.connect(complete)
+	window.local_document_open_queue_drained.connect(complete)
 	try:
 		start()
 		loop.exec()
 	finally:
-		window.local_cdml_open_queue_drained.disconnect(complete)
+		window.local_document_open_queue_drained.disconnect(complete)
 	return outcomes[0]
 
 
@@ -240,7 +240,7 @@ def test_recent_svg_request_forces_new_tab_and_keeps_source_out_of_cdml(
 		assert _wait_for_open(window, lambda: window.open_file_path(str(first)))
 		existing = _current_tab(window)
 		baseline = existing.current_snapshot
-		assert _wait_for_open(window, lambda: window.open_recent_native_cdml_path(str(source)))
+		assert _wait_for_open(window, lambda: window.open_recent_native_document_path(str(source)))
 		opened = _current_tab(window)
 		assert opened is not existing and existing.current_snapshot == baseline
 		assert str(source) not in opened.current_snapshot.cdml

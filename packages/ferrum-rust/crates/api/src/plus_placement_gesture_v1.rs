@@ -4,9 +4,10 @@
 //! owns the companion preview and publishes only verified renderer output.
 
 use ferrum_document::{
-    ArrowGestureStyleV1, CommittedPresentationGestureV1, DocumentFenceV1, DocumentSession,
+    CommittedPresentationGestureV1, DocumentFenceV1, DocumentSession,
     PresentationCreationGestureV1, PresentationCreationPreviewV1, PresentationGestureErrorV1,
     PresentationGestureKindV1, PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1,
+    PresentationGestureStyleV1,
 };
 use ferrum_render::document_observation_from_accepted_operation_v1;
 
@@ -94,7 +95,7 @@ pub fn begin_api_plus_gesture_v1(
         fence,
         PresentationGestureKindV1::Plus,
         start,
-        ArrowGestureStyleV1::new(false, false),
+        PresentationGestureStyleV1::Plus,
         PresentationGestureSnapPolicyV1::free(),
     )?;
     Ok(ApiPlusGestureV1 { document, start })
@@ -120,7 +121,7 @@ pub fn preview_api_plus_gesture_v1(
         DocumentFenceV1::new(detached_snapshot.revision(), *detached_snapshot.digest()),
         PresentationGestureKindV1::Plus,
         gesture.start,
-        ArrowGestureStyleV1::new(false, false),
+        PresentationGestureStyleV1::Plus,
         PresentationGestureSnapPolicyV1::free(),
     )?;
     let detached_preview =
@@ -209,7 +210,7 @@ mod tests {
                 DocumentFenceV1::new(snapshot.revision(), *snapshot.digest()),
                 ferrum_document::PresentationGestureKindV1::Plus,
                 PresentationGesturePoint2V1::new(1.0, 1.0).expect("point"),
-                ferrum_document::ArrowGestureStyleV1::new(false, false),
+                ferrum_document::PresentationGestureStyleV1::normal(false, false),
                 ferrum_document::PresentationGestureSnapPolicyV1::free(),
             )
             .expect("generic Plus transaction");

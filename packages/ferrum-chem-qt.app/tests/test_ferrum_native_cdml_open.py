@@ -21,6 +21,9 @@ import ferrum_qt.main_window
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.recent_files
 import ferrum_qt.ferrum.window_refusals
+from ferrum_qt.ferrum.local_document_open_types import (
+	_current_tab_replacement_source_kind_for_path,
+)
 
 
 _EMPTY_CDML = '<cdml version="1.0"/>'
@@ -32,6 +35,11 @@ _COORDINATE_CDML = """<cdml version='26.08'><molecule id='mol-1'>
   <atom id='atom-o' name='O'><point x='50' y='20'/></atom>
   <bond id='bond-co' start='atom-c' end='atom-o' type='n1'/>
 </molecule></cdml>"""
+_SIMPLE_CML = (
+	'<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule id="cml-molecule">'
+	'<atomArray><atom id="cml-carbon" elementType="C" x2="0" y2="0"/>'
+	'</atomArray></molecule></cml>'
+)
 
 
 #============================================
@@ -41,6 +49,19 @@ def _make_window(
 	"""Create the ordinary Ferrum product window."""
 	del qapp
 	return ferrum_qt.main_window.MainWindow(object())
+
+
+#============================================
+def _open_saved_native_tab(
+		qapp: PySide6.QtWidgets.QApplication,
+		window: ferrum_qt.main_window.MainWindow,
+		path: pathlib.Path,
+		) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
+	"""Load one real saved document through the ordinary Ferrum ingress."""
+	assert _wait_for_open_queue(window, lambda: window.open_file_path(str(path)))
+	tab = _current_native_tab(window)
+	assert tab.file_path == path and not tab.current_snapshot.is_dirty
+	return tab
 
 
 #============================================
@@ -171,13 +192,13 @@ def _wait_for_open_queue(
 		"""Finish the bounded wait when the public completion signal is missing."""
 		finish(False)
 
-	window.local_cdml_open_queue_drained.connect(finish)
+	window.local_document_open_queue_drained.connect(finish)
 	timeout.timeout.connect(expire)
 	PySide6.QtCore.QTimer.singleShot(0, start)
 	timeout.start(10000)
 	loop.exec()
 	timeout.stop()
-	window.local_cdml_open_queue_drained.disconnect(finish)
+	window.local_document_open_queue_drained.disconnect(finish)
 	timeout.timeout.disconnect(expire)
 	return outcome is True
 
@@ -199,6 +220,45 @@ def _wait_for_action_enabled(action: PySide6.QtGui.QAction) -> None:
 		loop.exec()
 	finally:
 		action.changed.disconnect(finish)
+
+
+#============================================
+def test_visible_open_actions_pass_distinct_interchange_and_current_tab_filters(
+		qapp: PySide6.QtWidgets.QApplication,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Visible File actions pass Rust interchange or CDML/CDSVG-only filters."""
+	window = _make_window(qapp)
+	captured_filters: list[str] = []
+
+	def capture_filter(*args: object) -> tuple[str, str]:
+		"""Record one visible dialog's exact filter and cancel locally."""
+		captured_filters.append(str(args[-1]))
+		return "", ""
+
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QFileDialog, "getOpenFileName", capture_filter,
+	)
+	try:
+		_open_action(window).trigger()
+		_visible_action(window, "Open in Current Tab...").trigger()
+		assert len(captured_filters) == 2
+		new_document_filter, current_tab_filter = captured_filters
+		interchange_suffixes = {
+			suffix
+			for descriptor in window._local_interchange_open_descriptors
+			for suffix in descriptor.suffixes
+		}
+		assert {".cml", ".sdf"} <= interchange_suffixes
+		assert all("*" + suffix in new_document_filter for suffix in interchange_suffixes)
+		assert all("*" + suffix not in current_tab_filter for suffix in interchange_suffixes)
+		assert "*.cdml *.svg" in current_tab_filter
+		assert _current_tab_replacement_source_kind_for_path("molecule.cdml") is not None
+		assert _current_tab_replacement_source_kind_for_path("drawing.svg") is not None
+		assert _current_tab_replacement_source_kind_for_path("molecule.cml") is None
+		assert _current_tab_replacement_source_kind_for_path("records.sdf") is None
+	finally:
+		window.close()
 
 
 #============================================
@@ -258,6 +318,52 @@ def test_public_open_action_loads_saves_and_reopens_through_rust(
 		prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(destination))
 		reopened, observation, _origin, _source_kind = prepared.take_admission_v1()
 		assert observation.document.snapshot.digest == reopened.snapshot().digest
+	finally:
+		window.close()
+
+
+#============================================
+def test_cml_open_keeps_import_provenance_and_saves_authoritative_cdml(
+		qapp: PySide6.QtWidgets.QApplication,
+		tmp_path: pathlib.Path,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Visible File/Open keeps its initial tab while CML imports into a new tab."""
+	source = tmp_path / "imported.cml"
+	destination = tmp_path / "imported.cdml"
+	source.write_text(_SIMPLE_CML, encoding="utf-8")
+	window = _make_window(qapp)
+	bootstrap = _current_native_tab(window)
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QFileDialog,
+		"getOpenFileName",
+		lambda *_args: (str(source), "CML (*.cml)"),
+	)
+	try:
+		assert _wait_for_open_queue(window, _open_action(window).trigger)
+		tab = _current_native_tab(window)
+		assert (
+			not bootstrap.is_disposed
+			and tab is not bootstrap
+			and tab.file_path is None
+			and tab._local_document_source_path == source
+			and tab._local_document_source_kind == "cml"
+			and tab.local_cdml_origin_token is not None
+			and tab.local_document_source_description == (
+				"Opened from imported.cml; imported CML document. Save writes CDML."
+			)
+		)
+		assert window.save_active_to_path(str(destination))
+		assert (
+			tab.file_path == destination
+			and "saved as imported.cdml" in (tab.local_document_source_description or "")
+		)
+		reopened, _observation, _origin, source_kind = (
+			ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(destination)).take_admission_v1()
+		)
+		assert source_kind == "cdml" and reopened.snapshot().digest == tab.current_snapshot.digest
+		with pytest.raises(ValueError, match="unknown source kind"):
+			tab._adopt_local_document_origin(source, "unknown", object())
 	finally:
 		window.close()
 
@@ -789,253 +895,3 @@ def test_recent_missing_file_visible_keep_and_remove_recovery(
 	finally:
 		window.close()
 		_restore_recent_paths(previous)
-
-
-#============================================
-def _open_saved_native_tab(
-		qapp: PySide6.QtWidgets.QApplication, window: ferrum_qt.main_window.MainWindow,
-		path: pathlib.Path,
-		) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
-	"""Load one real saved document through the ordinary Ferrum ingress."""
-	assert _wait_for_open_queue(window, lambda: window.open_file_path(str(path)))
-	tab = _current_native_tab(window)
-	assert tab.file_path == path and not tab.current_snapshot.is_dirty
-	return tab
-
-
-#============================================
-def _author_dirty_atom(
-		window: ferrum_qt.main_window.MainWindow,
-		element: str = "N",
-		) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
-	"""Make one authoritative atom change on an otherwise idle Ferrum tab."""
-	tab = _current_native_tab(window)
-	tab.select_atom("atom-c")
-	tab.change_selected_atom_element(element)
-	assert tab.current_snapshot.is_dirty
-	return tab
-
-
-#============================================
-def _trigger_current_tab_open(
-		window: ferrum_qt.main_window.MainWindow, path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> bool:
-	"""Choose one explicit replacement source through the public File action."""
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QFileDialog,
-		"getOpenFileName",
-		lambda *_args: (str(path), "Ferrum CDML (*.cdml)"),
-	)
-	action = _visible_action(window, "Open in Current Tab...")
-	assert action.isEnabled()
-	return _wait_for_open_queue(window, action.trigger)
-
-
-#============================================
-def test_open_in_current_tab_replaces_a_clean_saved_document_in_place(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""The explicit File command swaps one admitted clean document at its tab position."""
-	target_path = tmp_path / "target.cdml"
-	incoming_path = tmp_path / "incoming.cdml"
-	target_path.write_text(_EDITABLE_CDML, encoding="utf-8")
-	incoming_path.write_text(
-		'<cdml version="1.0"><plus id="incoming"><point x="3" y="4"/></plus></cdml>',
-		encoding="utf-8",
-	)
-	window = _make_window(qapp)
-	try:
-		target = _open_saved_native_tab(qapp, window, target_path)
-		index = window.centralWidget().currentIndex()
-		assert _trigger_current_tab_open(window, incoming_path, monkeypatch)
-		installed = _current_native_tab(window)
-		assert (
-			installed is not target
-			and installed.file_path == incoming_path
-			and not installed.current_snapshot.is_dirty
-			and window.centralWidget().currentIndex() == index
-			and target.is_disposed
-		)
-	finally:
-		window.close()
-
-
-#============================================
-def test_open_in_current_tab_replace_discards_only_the_dirty_target(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Replace intentionally discards unsaved authored work without publishing it."""
-	target_path = tmp_path / "target.cdml"
-	incoming_path = tmp_path / "incoming.cdml"
-	target_path.write_text(_EDITABLE_CDML, encoding="utf-8")
-	incoming_path.write_text(_EMPTY_CDML, encoding="utf-8")
-	window = _make_window(qapp)
-	try:
-		_open_saved_native_tab(qapp, window, target_path)
-		target = _author_dirty_atom(window)
-		assert window.save_active_to_path(str(target_path))
-		target = _author_dirty_atom(window, "O")
-		discarded_digest = target.current_snapshot.digest
-		click = _click_visible_message_button(qapp, "Replace")
-		try:
-			assert _trigger_current_tab_open(window, incoming_path, monkeypatch)
-		finally:
-			click.stop()
-		installed = _current_native_tab(window)
-		prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(target_path))
-		reopened, _observation, _origin, _source_kind = prepared.take_admission_v1()
-		assert (
-			installed.file_path == incoming_path
-			and installed is not target
-			and reopened.snapshot().digest != discarded_digest
-		)
-	finally:
-		window.close()
-
-
-#============================================
-def test_open_in_current_tab_save_publishes_a_dirty_named_target_before_swap(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Save establishes a durable baseline before the admitted tab replaces it."""
-	target_path = tmp_path / "named-target.cdml"
-	incoming_path = tmp_path / "incoming.cdml"
-	target_path.write_text(_EDITABLE_CDML, encoding="utf-8")
-	incoming_path.write_text(_EMPTY_CDML, encoding="utf-8")
-	window = _make_window(qapp)
-	try:
-		_open_saved_native_tab(qapp, window, target_path)
-		target = _author_dirty_atom(window)
-		dirty_digest = target.current_snapshot.digest
-		click = _click_visible_message_button(qapp, "Save")
-		try:
-			assert _trigger_current_tab_open(window, incoming_path, monkeypatch)
-		finally:
-			click.stop()
-		reopened, _observation, _origin, _source_kind = (
-			ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(target_path)).take_admission_v1()
-		)
-		assert (
-			_current_native_tab(window).file_path == incoming_path
-			and reopened.snapshot().digest == dirty_digest
-		)
-	finally:
-		window.close()
-
-
-#============================================
-def test_open_in_current_tab_save_as_publishes_dirty_unnamed_target_before_swap(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Save As durably publishes the old authored molecule before explicit replacement."""
-	incoming_path = tmp_path / "incoming.cdml"
-	saved_path = tmp_path / "saved-before-replace.cdml"
-	incoming_path.write_text(_EMPTY_CDML, encoding="utf-8")
-	window = _make_window(qapp)
-	try:
-		target = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-			_EDITABLE_CDML, "Untitled",
-		)
-		window._register_native_tab(target, activate=True)
-		target = _author_dirty_atom(window)
-		dirty_digest = target.current_snapshot.digest
-		monkeypatch.setattr(
-			PySide6.QtWidgets.QFileDialog,
-			"getSaveFileName",
-			lambda *_args: (str(saved_path), "Ferrum CDML (*.cdml)"),
-		)
-		click = _click_visible_message_button(qapp, "Save")
-		try:
-			assert _trigger_current_tab_open(window, incoming_path, monkeypatch)
-		finally:
-			click.stop()
-		reopened, _observation, _origin, _source_kind = (
-			ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(saved_path)).take_admission_v1()
-		)
-		assert (
-			_current_native_tab(window).file_path == incoming_path
-			and reopened.snapshot().digest == dirty_digest
-		)
-	finally:
-		window.close()
-
-
-#============================================
-def test_open_in_current_tab_cancel_and_admission_failure_preserve_dirty_target(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Cancel and rejected admission retain the active authored snapshot and focus."""
-	incoming_path = tmp_path / "incoming.cdml"
-	source = tmp_path / "source.cdml"
-	link = tmp_path / "source-link.cdml"
-	incoming_path.write_text(_EMPTY_CDML, encoding="utf-8")
-	source.write_text(_EMPTY_CDML, encoding="utf-8")
-	link.symlink_to(source)
-	window = _make_window(qapp)
-	try:
-		target = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-			_EDITABLE_CDML, "Untitled",
-		)
-		window._register_native_tab(target, activate=True)
-		target = _author_dirty_atom(window)
-		baseline = target.current_snapshot
-		cancel = _click_visible_message_button(qapp, "Cancel")
-		try:
-			assert not _trigger_current_tab_open(window, incoming_path, monkeypatch)
-		finally:
-			cancel.stop()
-		assert (
-			_current_native_tab(window) is target
-			and target.current_snapshot == baseline
-		)
-		acknowledge = _click_visible_message_button(qapp, "OK")
-		try:
-			assert not _wait_for_open_queue(
-				window, lambda: window.open_in_current_tab_path(str(link)),
-			)
-		finally:
-			acknowledge.stop()
-		assert _current_native_tab(window) is target and target.current_snapshot == baseline
-	finally:
-		window.close()
-
-
-#============================================
-def test_open_in_current_tab_duplicate_hard_link_activates_existing_tab_and_keeps_target(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""A duplicate descriptor activates its tab and leaves the explicit target untouched."""
-	source = tmp_path / "single-origin.cdml"
-	alias = tmp_path / "single-origin-alias.cdml"
-	target_path = tmp_path / "target.cdml"
-	source.write_text(_EMPTY_CDML, encoding="utf-8")
-	alias.hardlink_to(source)
-	target_path.write_text(_EMPTY_CDML, encoding="utf-8")
-	window = _make_window(qapp)
-	try:
-		assert _wait_for_open_queue(window, lambda: window.open_file_path(str(source)))
-		existing = _current_native_tab(window)
-		assert _wait_for_open_queue(window, lambda: window.open_file_path(str(target_path)))
-		target = _current_native_tab(window)
-		baseline = target.current_snapshot
-		assert _trigger_current_tab_open(window, alias, monkeypatch)
-		assert (
-			_current_native_tab(window) is existing
-			and not target.is_disposed
-			and target.current_snapshot == baseline
-		)
-	finally:
-		window.close()

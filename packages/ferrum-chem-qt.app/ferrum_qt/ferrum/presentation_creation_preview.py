@@ -1,28 +1,35 @@
-"""Disposable Qt projection of a Rust-issued straight Arrow overlay."""
+"""Disposable Qt projection of Rust-issued straight presentation-arrow overlays."""
 
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.ferrum.engine
+
 
 #============================================
-def create_straight_normal_arrow_overlay(
+def create_straight_presentation_arrow_overlay(
 		tab: object, overlay: object,
 		) -> PySide6.QtWidgets.QGraphicsPathItem:
-	"""Paint only Rust-resolved shaft, head vertices, width, and color."""
+	"""Paint only one closed Rust-issued normal or equilibrium arrow overlay."""
 	scene = tab.view.scene()
 	if scene is None:
 		raise RuntimeError("Ferrum Arrow preview requires an installed scene")
 	path = PySide6.QtGui.QPainterPath()
-	path.moveTo(overlay.axis_start_x, overlay.axis_start_y)
-	path.lineTo(overlay.axis_end_x, overlay.axis_end_y)
-	vertices = overlay.head_vertices
-	if len(vertices) == 3:
-		path.moveTo(vertices[0][0], vertices[0][1])
-		path.lineTo(vertices[1][0], vertices[1][1])
-		path.lineTo(vertices[2][0], vertices[2][1])
-		path.closeSubpath()
+	engine = ferrum_qt.ferrum.engine
+	if type(overlay) is engine.NormalArrowGestureOverlayV1:
+		_append_issued_axis(path, overlay.axis)
+		for head in overlay.heads:
+			_append_issued_polygon(path, head)
+	elif type(overlay) is engine.EquilibriumArrowGestureOverlayV1:
+		_append_issued_axis(path, overlay.lower_axis)
+		_append_issued_axis(path, overlay.upper_axis)
+		_append_issued_polygon(path, overlay.source_head)
+		_append_issued_polygon(path, overlay.destination_head)
+	else:
+		raise TypeError("Ferrum Arrow preview requires a closed Rust-issued arrow overlay")
 	pen = PySide6.QtGui.QPen(PySide6.QtGui.QColor(overlay.color))
 	pen.setWidthF(overlay.width)
 	pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
@@ -30,6 +37,23 @@ def create_straight_normal_arrow_overlay(
 	item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 	item.setZValue(1_000_000.0)
 	return item
+
+
+#============================================
+def _append_issued_axis(path: PySide6.QtGui.QPainterPath, axis: object) -> None:
+	"""Append one Rust-issued axis without deriving endpoints in Qt."""
+	path.moveTo(axis.start_x, axis.start_y)
+	path.lineTo(axis.end_x, axis.end_y)
+
+
+#============================================
+def _append_issued_polygon(path: PySide6.QtGui.QPainterPath, polygon: object) -> None:
+	"""Append one Rust-issued ordered head polygon without changing its geometry."""
+	vertices = polygon.vertices
+	path.moveTo(vertices[0][0], vertices[0][1])
+	for x, y in vertices[1:]:
+		path.lineTo(x, y)
+	path.closeSubpath()
 
 
 #============================================

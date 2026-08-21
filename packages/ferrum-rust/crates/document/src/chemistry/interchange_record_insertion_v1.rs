@@ -1,12 +1,12 @@
-//! Rust-owned conversion of ordered native SDF records into one document batch.
+//! Format-neutral conversion of chemistry-owned interchange records into one document batch.
 
 use crate::{
-    MoleculeInsertionAtomV1, MoleculeInsertionV1, MoleculeInsertionV1Error, Point3V1,
-    ProjectionError, SdfPropertyInsertionV1, SdfRecordBatchInsertionV1, SdfRecordInsertionV1,
-    SdfRecordInsertionV1Error,
+    InterchangePropertyInsertionV1, InterchangeRecordBatchInsertionV1,
+    InterchangeRecordInsertionV1, InterchangeRecordInsertionV1Error, MoleculeInsertionAtomV1,
+    MoleculeInsertionV1, MoleculeInsertionV1Error, Point3V1, ProjectionError,
 };
 use ferrum_chemistry::{
-    ChemEngine, ChemistryError, ImportedSdfRecord, KekulizeOptions, KekulizeOptionsError,
+    ChemEngine, ChemistryError, InterchangeRecordV1, KekulizeOptions, KekulizeOptionsError,
 };
 use ferrum_geometry::{GeometryError, MoleculePlacementV1, Point2};
 use thiserror::Error;
@@ -16,17 +16,17 @@ use super::complete_graph_molecule_insertion_v1::{
     validate_supported_complete_graph_facts_v1,
 };
 
-/// Convert every imported SDF record into one ordered atomic document batch.
+/// Convert every decoded interchange record into one ordered atomic document batch.
 ///
 /// A single record retains the ordinary atom-centroid placement contract. Multiple
 /// records form one nonoverlapping horizontal row whose complete bounds are centered
 /// on the requested anchor; adjacent source-scaled bounds have one target bond length
 /// of whitespace. Titles and ordered properties remain attached to their own record.
-pub fn build_sdf_record_batch_insertion_v1<E: ChemEngine>(
+pub fn build_interchange_record_batch_insertion_v1<E: ChemEngine + ?Sized>(
     engine: &E,
-    records: &[ImportedSdfRecord],
+    records: &[InterchangeRecordV1],
     placement: MoleculePlacementV1,
-) -> Result<SdfRecordBatchInsertionV1, SdfMoleculeBuildError> {
+) -> Result<InterchangeRecordBatchInsertionV1, InterchangeRecordBuildErrorV1> {
     let build_placement = if records.len() == 1 {
         placement
     } else {
@@ -37,7 +37,7 @@ pub fn build_sdf_record_batch_insertion_v1<E: ChemEngine>(
     };
     let mut molecules = Vec::with_capacity(records.len());
     for record in records {
-        let mut graph = record.molecule().molecule().clone();
+        let mut graph = record.molecule().clone();
         validate_supported_complete_graph_facts_v1(&graph)?;
         if graph
             .atoms()
@@ -67,18 +67,24 @@ pub fn build_sdf_record_batch_insertion_v1<E: ChemEngine>(
             let properties = source
                 .properties()
                 .iter()
-                .map(|property| SdfPropertyInsertionV1::new(property.name(), property.value()))
+                .map(|property| {
+                    InterchangePropertyInsertionV1::new(property.name(), property.value())
+                })
                 .collect::<Result<Vec<_>, _>>()?;
-            SdfRecordInsertionV1::new(molecule, source.title(), properties)
+            InterchangeRecordInsertionV1::new(
+                molecule,
+                source.title().unwrap_or_default(),
+                properties,
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    SdfRecordBatchInsertionV1::new(records).map_err(Into::into)
+    InterchangeRecordBatchInsertionV1::new(records).map_err(Into::into)
 }
 
 fn arrange_record_row(
     molecules: Vec<MoleculeInsertionV1>,
     placement: MoleculePlacementV1,
-) -> Result<Vec<MoleculeInsertionV1>, SdfMoleculeBuildError> {
+) -> Result<Vec<MoleculeInsertionV1>, InterchangeRecordBuildErrorV1> {
     let bounds = molecules
         .iter()
         .map(horizontal_bounds)
@@ -113,7 +119,9 @@ fn arrange_record_row(
         .collect()
 }
 
-fn horizontal_bounds(molecule: &MoleculeInsertionV1) -> Result<(f64, f64), SdfMoleculeBuildError> {
+fn horizontal_bounds(
+    molecule: &MoleculeInsertionV1,
+) -> Result<(f64, f64), InterchangeRecordBuildErrorV1> {
     let mut positions = molecule.atoms().iter().map(|atom| atom.position().x());
     let first = positions
         .next()
@@ -131,7 +139,7 @@ fn translate_molecule(
     molecule: &MoleculeInsertionV1,
     delta_x: f64,
     delta_y: f64,
-) -> Result<MoleculeInsertionV1, SdfMoleculeBuildError> {
+) -> Result<MoleculeInsertionV1, InterchangeRecordBuildErrorV1> {
     let atoms = molecule
         .atoms()
         .iter()
@@ -148,13 +156,13 @@ fn translate_molecule(
             )
             .map_err(Into::into)
         })
-        .collect::<Result<Vec<_>, SdfMoleculeBuildError>>()?;
+        .collect::<Result<Vec<_>, InterchangeRecordBuildErrorV1>>()?;
     MoleculeInsertionV1::new(atoms, molecule.bonds().to_vec()).map_err(Into::into)
 }
 
-/// Failure while converting untrusted native SDF records into document facts.
+/// Failure while converting decoded interchange records into document facts.
 #[derive(Debug, Error)]
-pub enum SdfMoleculeBuildError {
+pub enum InterchangeRecordBuildErrorV1 {
     /// Native chemistry normalization failed.
     #[error(transparent)]
     Chemistry(#[from] ChemistryError),
@@ -173,9 +181,9 @@ pub enum SdfMoleculeBuildError {
     /// Rebuilding translated insertion facts failed.
     #[error(transparent)]
     Insertion(#[from] MoleculeInsertionV1Error),
-    /// SDF title, property, or nonempty-batch validation failed.
+    /// Interchange title, property, or nonempty-batch validation failed.
     #[error(transparent)]
-    Metadata(#[from] SdfRecordInsertionV1Error),
+    Metadata(#[from] InterchangeRecordInsertionV1Error),
 }
 
 #[cfg(test)]

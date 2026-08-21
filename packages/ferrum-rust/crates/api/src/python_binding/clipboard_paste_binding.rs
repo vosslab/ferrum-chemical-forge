@@ -4,8 +4,8 @@
 //! wheel stub, CLI, serde, or wire-format commitment.
 
 use ferrum_document::{
-    DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1, DocumentClipboardPasteApplyErrorV1,
-    DocumentClipboardPastePlanV1, apply_clipboard_paste_v1, prepare_clipboard_paste_v1,
+    apply_clipboard_paste_v1, prepare_clipboard_paste_v1, DocumentClipboardPasteApplyErrorV1,
+    DocumentClipboardPastePlanV1, DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1,
 };
 use ferrum_document::{DocumentSession, TopLevelRootKindV1};
 use pyo3::create_exception;

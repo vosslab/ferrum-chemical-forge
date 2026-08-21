@@ -6,16 +6,21 @@
 use std::path::PathBuf;
 
 use ferrum_chemistry::{
-    AtomChirality, BondDirection, BondOrder, BondStereo, ChemistryError as RustChemistryError,
-    ImportedSdfRecord, InchiMode, MolblockVersion, NativeChemEngine, SdfProperty, SdfRecord,
-    SmilesMolecule, validate_inchi_input, validate_molblock_input, validate_sdf_input,
-    validate_smiles_input,
+    validate_inchi_input, validate_molblock_input, validate_sdf_input, validate_smiles_input,
+    ChemistryError as RustChemistryError, ImportedSdfRecord, InchiMode, MolblockVersion,
+    NativeChemEngine, SdfProperty, SdfRecord, SmilesMolecule,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 use super::binding::FerrumError;
+
+mod sdf_values;
+mod value_conversion;
+
+use sdf_values::{PyImportedSdfRecordV1, PySdfPropertyV1};
+use value_conversion::{atom_chirality, bond_direction, bond_order, bond_stereo};
 
 create_exception!(ferrum_chem, ChemistryError, FerrumError);
 create_exception!(ferrum_chem, InvalidSmiles, ChemistryError);
@@ -255,21 +260,6 @@ pub(crate) struct PySmilesMoleculeV1 {
     coordinates: Py<PyTuple>,
 }
 
-/// Immutable ordered SDF property prepared for native export.
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "SdfPropertyV1",
-    skip_from_py_object
-)]
-#[derive(Clone)]
-struct PySdfPropertyV1 {
-    #[pyo3(get)]
-    name: String,
-    #[pyo3(get)]
-    value: String,
-}
-
 /// Immutable coordinate-bearing molecule record prepared for SDF export.
 #[pyclass(
     frozen,
@@ -279,25 +269,6 @@ struct PySdfPropertyV1 {
 )]
 struct PySdfRecordV1 {
     record: SdfRecord,
-    #[pyo3(get)]
-    molecule: Py<PySmilesMoleculeV1>,
-    #[pyo3(get)]
-    title: String,
-    #[pyo3(get)]
-    properties: Py<PyTuple>,
-}
-
-/// Immutable ordered record copied from native SDF input.
-///
-/// This is distinct from [`PySdfRecordV1`] because authored SDF input may
-/// contain repeated property names, which import preserves in encounter order.
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "ImportedSdfRecordV1",
-    skip_from_py_object
-)]
-struct PyImportedSdfRecordV1 {
     #[pyo3(get)]
     molecule: Py<PySmilesMoleculeV1>,
     #[pyo3(get)]
@@ -646,48 +617,6 @@ fn imported_sdf_record_to_python(
         title: record.title().to_owned(),
         properties: PyTuple::new(py, properties)?.unbind(),
     })
-}
-
-fn atom_chirality(value: AtomChirality) -> PySmilesAtomChiralityV1 {
-    match value {
-        AtomChirality::Unspecified => PySmilesAtomChiralityV1::Unspecified,
-        AtomChirality::TetrahedralCw => PySmilesAtomChiralityV1::TetrahedralCw,
-        AtomChirality::TetrahedralCcw => PySmilesAtomChiralityV1::TetrahedralCcw,
-        AtomChirality::Other => PySmilesAtomChiralityV1::Other,
-    }
-}
-
-fn bond_order(value: BondOrder) -> PySmilesBondOrderV1 {
-    match value {
-        BondOrder::Aromatic => PySmilesBondOrderV1::Aromatic,
-        BondOrder::Single => PySmilesBondOrderV1::Single,
-        BondOrder::Double => PySmilesBondOrderV1::Double,
-        BondOrder::Triple => PySmilesBondOrderV1::Triple,
-        BondOrder::Quadruple => PySmilesBondOrderV1::Quadruple,
-    }
-}
-
-fn bond_stereo(value: BondStereo) -> PySmilesBondStereoV1 {
-    match value {
-        BondStereo::None => PySmilesBondStereoV1::None,
-        BondStereo::Any => PySmilesBondStereoV1::Any,
-        BondStereo::Z => PySmilesBondStereoV1::Z,
-        BondStereo::E => PySmilesBondStereoV1::E,
-        BondStereo::Cis => PySmilesBondStereoV1::Cis,
-        BondStereo::Trans => PySmilesBondStereoV1::Trans,
-        BondStereo::Other => PySmilesBondStereoV1::Other,
-    }
-}
-
-fn bond_direction(value: BondDirection) -> PySmilesBondDirectionV1 {
-    match value {
-        BondDirection::None => PySmilesBondDirectionV1::None,
-        BondDirection::BeginWedge => PySmilesBondDirectionV1::BeginWedge,
-        BondDirection::BeginDash => PySmilesBondDirectionV1::BeginDash,
-        BondDirection::EndUpRight => PySmilesBondDirectionV1::EndUpRight,
-        BondDirection::EndDownRight => PySmilesBondDirectionV1::EndDownRight,
-        BondDirection::Other => PySmilesBondDirectionV1::Other,
-    }
 }
 
 pub(crate) fn map_load_error(

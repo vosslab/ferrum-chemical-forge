@@ -15,11 +15,11 @@ mod document_molecule_molblock_v1;
 mod document_molecule_sdf_v1;
 mod document_molecule_smiles_v1;
 mod inchi_molecule_insertion_v1;
+mod interchange_record_insertion_v1;
 mod molblock_molecule_insertion_v1;
 mod molblock_source_v1;
 mod molecule_coordinate_generation_v1;
 mod peptide_template_molecule_insertion_v1;
-mod sdf_molecule_insertion_v1;
 mod sdf_source_v1;
 mod smiles_molecule_insertion_v1;
 
@@ -37,6 +37,7 @@ pub use complete_graph_molecule_insertion_v1::{
     build_complete_graph_molecule_insertion_v1, validate_supported_complete_graph_facts_v1,
     validate_supported_peptide_template_complete_graph_facts_v1,
 };
+pub(crate) use document_bond_capacity_v1::evaluate_document_molecule_neutral_capacity_v1;
 pub use document_bond_capacity_v1::{
     DOCUMENT_BOND_CAPACITY_SCHEMA_V1, DocumentBondCapacityErrorV1,
     DocumentBondCapacityNotCheckedReasonV1, DocumentBondCapacityOutcomeV1,
@@ -88,6 +89,9 @@ pub use document_molecule_smiles_v1::{
     prepare_document_molecule_smiles_v1,
 };
 pub use inchi_molecule_insertion_v1::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
+pub use interchange_record_insertion_v1::{
+    InterchangeRecordBuildErrorV1, build_interchange_record_batch_insertion_v1,
+};
 pub use molblock_molecule_insertion_v1::{
     MolblockMoleculeBuildError, build_molblock_molecule_insertion_v1,
 };
@@ -99,7 +103,6 @@ pub use peptide_template_molecule_insertion_v1::{
     PeptideTemplateMoleculeBuildErrorV1, build_native_template_insertion_with_engine,
     build_supported_peptide_template_molecule_insertion_v1,
 };
-pub use sdf_molecule_insertion_v1::{SdfMoleculeBuildError, build_sdf_record_batch_insertion_v1};
 pub use sdf_source_v1::{SdfSourceErrorV1, read_sdf_file_v1};
 pub use smiles_molecule_insertion_v1::{
     SmilesMoleculeBuildError, SmilesMoleculeInsertionError, build_smiles_molecule_insertion_v1,

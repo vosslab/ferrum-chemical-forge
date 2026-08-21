@@ -35,7 +35,7 @@ def _reopen_through_native_file_route(window: object, path: pathlib.Path) -> obj
 		if pathlib.Path(completed_path) == path:
 			completed.append(success)
 			loop.quit()
-	window.local_cdml_open_completed.connect(receive)
+	window.local_document_open_completed.connect(receive)
 	timeout.timeout.connect(loop.quit)
 	try:
 		if not window.open_file_path(str(path)):
@@ -47,7 +47,7 @@ def _reopen_through_native_file_route(window: object, path: pathlib.Path) -> obj
 		return window._active_native_tab()
 	finally:
 		timeout.stop()
-		window.local_cdml_open_completed.disconnect(receive)
+		window.local_document_open_completed.disconnect(receive)
 
 
 #============================================

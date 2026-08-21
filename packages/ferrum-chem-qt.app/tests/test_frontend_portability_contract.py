@@ -48,7 +48,9 @@ def test_declarative_resources_publish_supported_menu_and_mode_ids() -> None:
 		"view.toggle_grid", "view.toggle_grid_snap", "mode.atom", "mode.draw",
 		"tool.cancel", "options.preferences", "help.about",
 	}
-	assert tuple(modes["toolbar_order"]) == ("atom", "draw", "---", "cancel")
+	assert tuple(modes["toolbar_order"]) == (
+		"atom", "draw", "---", "cancel",
+	)
 	assert {
 		mode["action"] for mode in modes["modes"].values()
 	} == {"mode.atom", "mode.draw", "tool.cancel"}

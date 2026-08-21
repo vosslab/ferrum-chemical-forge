@@ -9,14 +9,14 @@ use ferrum_chemistry::{
     ChemEngine, ChemistryError, SmartsMatchOptions, SmartsMatchUnavailableReason,
 };
 use ferrum_render::{
-    BatchSpace, RenderObservationV1, document_observation_from_accepted_operation_v1,
+    document_observation_from_accepted_operation_v1, BatchSpace, RenderObservationV1,
 };
 use getrandom::fill;
 use pyo3::{create_exception, prelude::*};
 
 use crate::{
-    RenderInteractionSessionV1,
     protocol::document_smarts_snapshot_v1::OwnedDocumentSmartsSnapshotV1,
+    RenderInteractionSessionV1,
 };
 
 const MAX_QUERY_BYTES: usize = 8_192;

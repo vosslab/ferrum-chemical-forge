@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use pyo3::prelude::*;
 
-use super::binding::{PyDocumentSession, PyPublication, document_result};
+use super::binding::{document_result, PyDocumentSession, PyPublication};
 
 #[pymethods]
 impl PyDocumentSession {

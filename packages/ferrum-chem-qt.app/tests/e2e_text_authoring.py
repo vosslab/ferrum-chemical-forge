@@ -47,7 +47,7 @@ def _reopen(window: object, path: pathlib.Path) -> object:
 		if pathlib.Path(value) == path:
 			completed.append(success)
 			loop.quit()
-	window.local_cdml_open_completed.connect(receive)
+	window.local_document_open_completed.connect(receive)
 	timeout.timeout.connect(loop.quit)
 	try:
 		if not window.open_file_path(str(path)):
@@ -59,7 +59,7 @@ def _reopen(window: object, path: pathlib.Path) -> object:
 		return window._active_native_tab()
 	finally:
 		timeout.stop()
-		window.local_cdml_open_completed.disconnect(receive)
+		window.local_document_open_completed.disconnect(receive)
 
 
 def main() -> int:

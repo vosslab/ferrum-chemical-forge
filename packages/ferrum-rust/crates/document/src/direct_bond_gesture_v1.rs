@@ -209,15 +209,49 @@ impl DirectBondOverlayV1 {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectBondPreviewV1 {
-    pub(crate) gesture: DirectBondGestureV1,
-    pub(crate) endpoint: DirectBondEndpointV1,
-    overlay: DirectBondOverlayV1,
+    pub(crate) admission: DirectBondAdmissionV1,
 }
 impl DirectBondPreviewV1 {
     #[must_use]
     pub fn overlay(&self) -> &DirectBondOverlayV1 {
+        self.admission.overlay()
+    }
+}
+
+/// Opaque, revision-fenced admission for one complete direct normal-bond candidate.
+///
+/// This receipt deliberately carries no generated identifiers, provisional token, or
+/// mutable document state. It can only be redeemed by its issuing session.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DirectBondAdmissionV1 {
+    pub(crate) capability: DirectBondGestureCapabilityV1,
+    pub(crate) fence: DocumentFenceV1,
+    pub(crate) candidate: DirectBondAdmittedCandidateV1,
+    overlay: DirectBondOverlayV1,
+}
+impl DirectBondAdmissionV1 {
+    #[must_use]
+    pub fn overlay(&self) -> &DirectBondOverlayV1 {
         &self.overlay
     }
+}
+
+/// Complete semantic direct-bond change held behind an admission receipt.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum DirectBondAdmittedCandidateV1 {
+    ExistingEndpoint {
+        start_atom: DocumentObjectIdV1,
+        end_atom: DocumentObjectIdV1,
+        molecule: PersistentId,
+        presentation: DocumentBondPresentationV1,
+    },
+    NewEndpoint {
+        start_atom: DocumentObjectIdV1,
+        molecule: PersistentId,
+        point: DirectBondPoint2V1,
+        element: String,
+        presentation: DocumentBondPresentationV1,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -285,32 +319,128 @@ pub enum DirectBondGestureErrorV1 {
     PreviewMismatch,
     #[error("direct bond gesture candidate cannot be rendered")]
     UnrenderableCandidate,
+    #[error("direct bond gesture candidate exceeds neutral bond capacity")]
+    ExceedsChemistryCapacity,
+    #[error("direct bond gesture candidate is outside the supported neutral chemistry profile")]
+    UnsupportedChemistryAdmission,
     #[error("direct bond gesture commit was rejected by the document session")]
     SessionConflict,
 }
 
-pub(crate) fn overlay(
-    gesture: DirectBondGestureV1,
-    endpoint: DirectBondEndpointV1,
-) -> DirectBondPreviewV1 {
-    let (end, endpoint_is_new) = match &endpoint {
-        DirectBondEndpointV1::ExistingAtom { point, .. } => (*point, false),
-        DirectBondEndpointV1::NewAtom { point, .. } => (*point, true),
-    };
-    DirectBondPreviewV1 {
+/// Closed user-facing refusal taxonomy for pure candidate admission.
+#[derive(Clone, Debug, Error, PartialEq)]
+pub enum DirectBondAdmissionRefusalV1 {
+    #[error("direct bond gesture belongs to a different document session")]
+    ForeignSession,
+    #[error("direct bond gesture revision is stale")]
+    StaleRevision,
+    #[error("direct bond gesture digest is stale")]
+    StaleDigest,
+    #[error("direct bond gesture start atom is unknown or unsupported")]
+    UnknownStartAtom,
+    #[error("direct bond gesture end atom is unknown or unsupported")]
+    UnknownEndAtom,
+    #[error("direct bond gesture accepts normal single, double, or triple bonds only")]
+    UnsupportedPresentation,
+    #[error("direct bond gesture endpoint input is invalid")]
+    InvalidEndpointInput,
+    #[error("direct bond gesture endpoint collapsed onto its start atom")]
+    CollapsedEndpoint,
+    #[error("direct bond gesture cannot join an atom to itself")]
+    SelfLoop,
+    #[error("direct bond gesture cannot join atoms from different molecules")]
+    CrossMolecule,
+    #[error("direct bond gesture would duplicate an existing bond")]
+    DuplicateBond,
+    #[error("direct bond gesture candidate exceeds neutral bond capacity")]
+    ExceedsChemistryCapacity,
+    #[error("direct bond gesture candidate is outside the supported neutral chemistry profile")]
+    UnsupportedChemistryAdmission,
+    #[error("direct bond gesture candidate cannot be rendered")]
+    UnrenderableCandidate,
+}
+
+/// Closed mechanical failures for redeeming an already admitted candidate.
+#[derive(Clone, Debug, Error, PartialEq)]
+pub enum DirectBondCommitErrorV1 {
+    #[error("direct bond admission belongs to a different document session")]
+    ForeignSession,
+    #[error("direct bond admission revision is stale")]
+    StaleRevision,
+    #[error("direct bond admission digest is stale")]
+    StaleDigest,
+    #[error("direct bond commit could not allocate a durable identity")]
+    IdentityAllocationFailed,
+    #[error("direct bond commit could not reserve a provisional token")]
+    ProvisionalTokenUnavailable,
+    #[error("direct bond commit could not apply its admitted candidate")]
+    CandidateApplicationFailed,
+    #[error("direct bond session revision space is exhausted")]
+    RevisionExhausted,
+}
+
+impl From<DirectBondAdmissionRefusalV1> for DirectBondGestureErrorV1 {
+    fn from(value: DirectBondAdmissionRefusalV1) -> Self {
+        match value {
+            DirectBondAdmissionRefusalV1::ForeignSession => Self::ForeignSession,
+            DirectBondAdmissionRefusalV1::StaleRevision => Self::StaleRevision,
+            DirectBondAdmissionRefusalV1::StaleDigest => Self::StaleDigest,
+            DirectBondAdmissionRefusalV1::UnknownStartAtom => Self::UnknownStartAtom,
+            DirectBondAdmissionRefusalV1::UnknownEndAtom => Self::UnknownEndAtom,
+            DirectBondAdmissionRefusalV1::UnsupportedPresentation => Self::UnsupportedPresentation,
+            DirectBondAdmissionRefusalV1::InvalidEndpointInput => Self::NonFinitePoint,
+            DirectBondAdmissionRefusalV1::CollapsedEndpoint => Self::CollapsedEndpoint,
+            DirectBondAdmissionRefusalV1::SelfLoop => Self::SelfLoop,
+            DirectBondAdmissionRefusalV1::CrossMolecule => Self::CrossMolecule,
+            DirectBondAdmissionRefusalV1::DuplicateBond => Self::DuplicateBond,
+            DirectBondAdmissionRefusalV1::ExceedsChemistryCapacity => {
+                Self::ExceedsChemistryCapacity
+            }
+            DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission => {
+                Self::UnsupportedChemistryAdmission
+            }
+            DirectBondAdmissionRefusalV1::UnrenderableCandidate => Self::UnrenderableCandidate,
+        }
+    }
+}
+
+impl From<DirectBondCommitErrorV1> for DirectBondGestureErrorV1 {
+    fn from(value: DirectBondCommitErrorV1) -> Self {
+        match value {
+            DirectBondCommitErrorV1::ForeignSession => Self::ForeignSession,
+            DirectBondCommitErrorV1::StaleRevision => Self::StaleRevision,
+            DirectBondCommitErrorV1::StaleDigest => Self::StaleDigest,
+            DirectBondCommitErrorV1::IdentityAllocationFailed
+            | DirectBondCommitErrorV1::ProvisionalTokenUnavailable
+            | DirectBondCommitErrorV1::CandidateApplicationFailed
+            | DirectBondCommitErrorV1::RevisionExhausted => Self::SessionConflict,
+        }
+    }
+}
+
+pub(crate) fn admission(
+    gesture: &DirectBondGestureV1,
+    candidate: DirectBondAdmittedCandidateV1,
+    end: DirectBondPoint2V1,
+    endpoint_is_new: bool,
+) -> DirectBondAdmissionV1 {
+    DirectBondAdmissionV1 {
+        capability: gesture.capability,
+        fence: gesture.fence,
+        candidate,
         overlay: DirectBondOverlayV1 {
             start: gesture.start_point,
             end,
             presentation: gesture.presentation,
             endpoint_is_new,
         },
-        gesture,
-        endpoint,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use ferrum_core::BondOrder;
+
     use crate::{
         DocumentBondOrderV1, DocumentBondPresentationV1, DocumentSession, DocumentSnapshot,
     };
@@ -322,7 +452,7 @@ mod tests {
     const SOURCE: &str = concat!(
         "<cdml><molecule id=\"m\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "<atom id=\"b\" name=\"O\"><point x=\"20\" y=\"0\"/></atom>",
+        "<atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom>",
         "</molecule></cdml>"
     );
 
@@ -516,5 +646,259 @@ mod tests {
             session.commit_direct_bond_gesture_v1(&first_gesture, &preview),
             Err(super::DirectBondGestureErrorV1::StaleRevision)
         );
+    }
+
+    #[test]
+    fn receipt_only_admission_is_pure_and_commits_the_admitted_existing_endpoint() {
+        let mut session = DocumentSession::load(SOURCE).expect("session loads");
+        let mut control = DocumentSession::load(SOURCE).expect("control session loads");
+        session.set_next_generated_bond_sequence_for_test(Some(71));
+        control.set_next_generated_bond_sequence_for_test(Some(71));
+        let (fence, start, end) = source(&session);
+        let gesture = session
+            .begin_direct_bond_gesture_v1(
+                fence,
+                start,
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+                "C".to_owned(),
+                DirectBondSnapPolicyV1::free(),
+            )
+            .expect("gesture begins");
+        let before = session.snapshot().expect("snapshot before admission");
+        let admission = session
+            .admit_direct_bond_candidate_v1(
+                &gesture,
+                DirectBondEndIntentV1::ExistingAtom { atom: end },
+            )
+            .expect("candidate admits");
+
+        assert_eq!(session.snapshot().expect("admission is pure"), before);
+        assert!(!admission.overlay().endpoint_is_new());
+        let committed = session
+            .commit_direct_bond_admission_v1(&admission)
+            .expect("receipt commits once");
+        let (control_fence, control_start, control_end) = source(&control);
+        let control_gesture = control
+            .begin_direct_bond_gesture_v1(
+                control_fence,
+                control_start,
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+                "C".to_owned(),
+                DirectBondSnapPolicyV1::free(),
+            )
+            .expect("control gesture begins");
+        let control_admission = control
+            .admit_direct_bond_candidate_v1(
+                &control_gesture,
+                DirectBondEndIntentV1::ExistingAtom { atom: control_end },
+            )
+            .expect("control candidate admits");
+        let control_committed = control
+            .commit_direct_bond_admission_v1(&control_admission)
+            .expect("control receipt commits");
+        assert_eq!(committed.bond(), control_committed.bond());
+        assert_eq!(committed.result().observation().snapshot().revision(), 1);
+        assert_eq!(
+            session.commit_direct_bond_admission_v1(&admission),
+            Err(super::DirectBondCommitErrorV1::StaleRevision)
+        );
+    }
+
+    #[test]
+    fn receipt_only_admission_preserves_the_snapped_new_endpoint() {
+        let mut session = DocumentSession::load(SOURCE).expect("session loads");
+        let mut control = DocumentSession::load(SOURCE).expect("control session loads");
+        session.set_next_generated_atom_sequence_for_test(Some(71));
+        session.set_next_generated_bond_sequence_for_test(Some(71));
+        control.set_next_generated_atom_sequence_for_test(Some(71));
+        control.set_next_generated_bond_sequence_for_test(Some(71));
+        let (fence, start, _) = source(&session);
+        let snap = DirectBondSnapPolicyV1::new(false, None, Some(20.0)).expect("valid snap");
+        let gesture = session
+            .begin_direct_bond_gesture_v1(
+                fence,
+                start,
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+                "C".to_owned(),
+                snap,
+            )
+            .expect("gesture begins");
+        let admission = session
+            .admit_direct_bond_candidate_v1(
+                &gesture,
+                DirectBondEndIntentV1::NewAtomAt {
+                    raw_point: DirectBondPoint2V1::new(30.0, 0.0).expect("finite point"),
+                },
+            )
+            .expect("new candidate admits");
+
+        assert!(admission.overlay().endpoint_is_new());
+        assert_eq!(admission.overlay().end().x(), 20.0);
+        let committed = session
+            .commit_direct_bond_admission_v1(&admission)
+            .expect("receipt commits once");
+        let (control_fence, control_start, _) = source(&control);
+        let control_gesture = control
+            .begin_direct_bond_gesture_v1(
+                control_fence,
+                control_start,
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+                "C".to_owned(),
+                DirectBondSnapPolicyV1::new(false, None, Some(20.0)).expect("valid snap"),
+            )
+            .expect("control gesture begins");
+        let control_admission = control
+            .admit_direct_bond_candidate_v1(
+                &control_gesture,
+                DirectBondEndIntentV1::NewAtomAt {
+                    raw_point: DirectBondPoint2V1::new(30.0, 0.0).expect("finite point"),
+                },
+            )
+            .expect("control candidate admits");
+        let control_committed = control
+            .commit_direct_bond_admission_v1(&control_admission)
+            .expect("control receipt commits");
+        assert_eq!(committed.bond(), control_committed.bond());
+        assert_eq!(committed.end_atom(), control_committed.end_atom());
+        assert!(
+            committed
+                .result()
+                .observation()
+                .snapshot()
+                .cdml()
+                .contains("x=\"20\" y=\"0\"")
+        );
+    }
+
+    #[test]
+    fn refused_and_abandoned_admissions_do_not_allocate_identifiers_or_tokens() {
+        let mut session = DocumentSession::load(SOURCE).expect("session loads");
+        let mut control = DocumentSession::load(SOURCE).expect("control session loads");
+        session.set_next_generated_bond_sequence_for_test(Some(71));
+        control.set_next_generated_bond_sequence_for_test(Some(71));
+        let token_before = session.provisional_token_facts_for_test();
+        let (fence, start, end) = source(&session);
+        let gesture = session
+            .begin_direct_bond_gesture_v1(
+                fence,
+                start.clone(),
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+                "C".to_owned(),
+                DirectBondSnapPolicyV1::free(),
+            )
+            .expect("gesture begins");
+        assert_eq!(
+            session.admit_direct_bond_candidate_v1(
+                &gesture,
+                DirectBondEndIntentV1::ExistingAtom { atom: start },
+            ),
+            Err(super::DirectBondAdmissionRefusalV1::SelfLoop)
+        );
+        assert_eq!(session.provisional_token_facts_for_test(), token_before);
+        let abandoned = session
+            .admit_direct_bond_candidate_v1(
+                &gesture,
+                DirectBondEndIntentV1::ExistingAtom { atom: end.clone() },
+            )
+            .expect("candidate admits for abandonment");
+        assert_eq!(session.provisional_token_facts_for_test(), token_before);
+        drop(abandoned);
+        assert_eq!(session.provisional_token_facts_for_test(), token_before);
+        let admitted = session
+            .admit_direct_bond_candidate_v1(
+                &gesture,
+                DirectBondEndIntentV1::ExistingAtom { atom: end },
+            )
+            .expect("post-abandonment candidate admits");
+        let committed = session
+            .commit_direct_bond_admission_v1(&admitted)
+            .expect("post-abandonment receipt commits");
+        let (control_fence, control_start, control_end) = source(&control);
+        let control_gesture = control
+            .begin_direct_bond_gesture_v1(
+                control_fence,
+                control_start,
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+                "C".to_owned(),
+                DirectBondSnapPolicyV1::free(),
+            )
+            .expect("control gesture begins");
+        let control_admission = control
+            .admit_direct_bond_candidate_v1(
+                &control_gesture,
+                DirectBondEndIntentV1::ExistingAtom { atom: control_end },
+            )
+            .expect("control candidate admits");
+        let control_committed = control
+            .commit_direct_bond_admission_v1(&control_admission)
+            .expect("control receipt commits");
+        assert_eq!(committed.bond(), control_committed.bond());
+        assert_eq!(
+            session.provisional_token_facts_for_test(),
+            control.provisional_token_facts_for_test()
+        );
+    }
+
+    #[test]
+    fn normal_orders_preserve_semantic_graph_across_endpoint_history_and_reopen() {
+        for (order, expected_order, cdml_order) in [
+            (DocumentBondOrderV1::Single, BondOrder::Single, "n1"),
+            (DocumentBondOrderV1::Double, BondOrder::Double, "n2"),
+            (DocumentBondOrderV1::Triple, BondOrder::Triple, "n3"),
+        ] {
+            for endpoint_is_new in [false, true] {
+                let mut session = DocumentSession::load(SOURCE).expect("session loads");
+                let (fence, start, end) = source(&session);
+                let gesture = session
+                    .begin_direct_bond_gesture_v1(
+                        fence,
+                        start,
+                        DocumentBondPresentationV1::Normal(order),
+                        "C".to_owned(),
+                        DirectBondSnapPolicyV1::free(),
+                    )
+                    .expect("normal gesture begins");
+                let before = session.snapshot().expect("snapshot before admission");
+                let end = if endpoint_is_new {
+                    DirectBondEndIntentV1::NewAtomAt {
+                        raw_point: DirectBondPoint2V1::new(40.0, 0.0).expect("finite point"),
+                    }
+                } else {
+                    DirectBondEndIntentV1::ExistingAtom { atom: end }
+                };
+                let admission = session
+                    .admit_direct_bond_candidate_v1(&gesture, end)
+                    .expect("candidate admits without mutation");
+                assert_eq!(session.snapshot().expect("admission stays pure"), before);
+                assert_eq!(admission.overlay().endpoint_is_new(), endpoint_is_new);
+                assert_eq!(
+                    admission.overlay().presentation(),
+                    DocumentBondPresentationV1::Normal(order)
+                );
+
+                let committed = session
+                    .commit_direct_bond_admission_v1(&admission)
+                    .expect("admission commits atomically");
+                let committed_snapshot = committed.result().observation().snapshot();
+                assert_eq!(committed_snapshot.revision(), 1);
+                assert!(
+                    committed_snapshot
+                        .cdml()
+                        .contains(&format!("type=\"{cdml_order}\""))
+                );
+
+                let undone = session.undo(1).expect("one transition undoes");
+                assert_eq!(undone.observation().snapshot().revision(), 2);
+                let redone = session.redo(2).expect("one transition redoes");
+                let redone_snapshot = redone.observation().snapshot();
+                assert_eq!(redone_snapshot.revision(), 3);
+
+                let reopened = DocumentSession::load(redone_snapshot.cdml()).expect("CDML reopens");
+                let observation = reopened.observe(0).expect("reopened observation");
+                let bonds = observation.projection().molecules()[0].bonds();
+                assert_eq!(bonds.len(), 1);
+                assert_eq!(bonds[0].order(), Some(expected_order));
+            }
+        }
     }
 }

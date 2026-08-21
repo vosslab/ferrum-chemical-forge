@@ -109,8 +109,10 @@ fn has_unrepresentable_cdml_content(record: &crate::TypedRecord) -> bool {
 fn encode_cdml(records: &[InterchangeRecordV1]) -> Result<String, InterchangeCodecErrorV1> {
     let mut output = String::from("<cdml version=\"1.0\">");
     for (record_index, record) in records.iter().enumerate() {
-        if !record.sdf_properties().is_empty() {
-            return Err(InterchangeCodecErrorV1::CdmlSdfPropertiesUnsupported { record_index });
+        if !record.properties().is_empty() {
+            return Err(
+                InterchangeCodecErrorV1::CdmlInterchangePropertiesUnsupported { record_index },
+            );
         }
         let graph = record.molecule();
         let points = graph
@@ -198,6 +200,8 @@ fn push_attribute(output: &mut String, name: &str, value: &str) {
 /// A refused source, unsupported target projection, or chemistry codec failure.
 #[derive(Debug, Error)]
 pub enum InterchangeCodecErrorV1 {
+    #[error("interchange property is empty or contains an unretainable control character")]
+    InvalidInterchangeProperty,
     #[error("{format:?} input exceeds {limit} bytes (observed {observed_at_least})")]
     InputTooLarge {
         format: InterchangeFormatV1,
@@ -230,8 +234,8 @@ pub enum InterchangeCodecErrorV1 {
         record_index: usize,
         bond_index: usize,
     },
-    #[error("CDML record {record_index} cannot losslessly carry ordered SDF properties")]
-    CdmlSdfPropertiesUnsupported { record_index: usize },
+    #[error("CDML record {record_index} cannot losslessly carry ordered interchange properties")]
+    CdmlInterchangePropertiesUnsupported { record_index: usize },
     #[error(transparent)]
     Chemistry(#[from] ChemistryError),
     #[error(transparent)]
@@ -247,6 +251,9 @@ pub enum InterchangeCodecErrorV1 {
 impl From<ChemistryInterchangeCodecErrorV1> for InterchangeCodecErrorV1 {
     fn from(value: ChemistryInterchangeCodecErrorV1) -> Self {
         match value {
+            ChemistryInterchangeCodecErrorV1::InvalidInterchangeProperty => {
+                Self::InvalidInterchangeProperty
+            }
             ChemistryInterchangeCodecErrorV1::InputTooLarge {
                 format,
                 limit,
@@ -350,7 +357,7 @@ mod tests {
                 .expect_err("ordered SDF metadata has no CDML interchange representation");
         assert!(matches!(
             error,
-            InterchangeCodecErrorV1::CdmlSdfPropertiesUnsupported { record_index: 0 }
+            InterchangeCodecErrorV1::CdmlInterchangePropertiesUnsupported { record_index: 0 }
         ));
     }
 }

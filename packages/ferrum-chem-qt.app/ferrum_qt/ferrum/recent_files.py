@@ -150,7 +150,7 @@ class FerrumNativeRecentFiles:
 	#============================================
 	def _open_recent(self, path: str) -> None:
 		"""Submit a recent selection through the immutable ordinary NewTab route."""
-		self._window.open_recent_native_cdml_path(path)
+		self._window.open_recent_native_document_path(path)
 
 	#============================================
 	def _load(self) -> FerrumNativeRecentFilesV1:

@@ -156,7 +156,7 @@ def _schedule_launch_files(
 		"""Record success after the complete asynchronous admission queue drains."""
 		opened = _open_launch_files(window, launch_files)
 		all_accepted = opened == len(launch_files)
-		if not window.has_pending_local_cdml_open():
+		if not window.has_pending_local_document_open():
 			delivery.launch_files_completed = all_accepted
 			delivery.launch_files_pending = False
 			_advance_controlled_smoke_exit(app, delivery)
@@ -164,12 +164,12 @@ def _schedule_launch_files(
 
 		def finish_launch_files(batch_success: bool) -> None:
 			"""Finish startup only after every accepted Rust admission terminates."""
-			window.local_cdml_open_queue_drained.disconnect(finish_launch_files)
+			window.local_document_open_queue_drained.disconnect(finish_launch_files)
 			delivery.launch_files_completed = all_accepted and batch_success
 			delivery.launch_files_pending = False
 			_advance_controlled_smoke_exit(app, delivery)
 
-		window.local_cdml_open_queue_drained.connect(finish_launch_files)
+		window.local_document_open_queue_drained.connect(finish_launch_files)
 
 	PySide6.QtCore.QTimer.singleShot(0, open_launch_files)
 

@@ -23,9 +23,10 @@ import uuid
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-
 import native_wheel_builder_self_test
 import native_wheel_bundle
+import native_wheel_builder_cli
+from native_wheel_output_root import output_path as admitted_output_path
 from native_wheel_packaging import (
 	NativePackagingError,
 	find_maturin,
@@ -35,7 +36,6 @@ from native_wheel_packaging import (
 	tool_version,
 	validate_wheel_members as validate_packaged_wheel_members,
 )
-
 from native_wheel_adapter_abi import adapter_abi_version_from_header
 from native_wheel_download import (
 	ArchiveExtractionError,
@@ -53,7 +53,6 @@ from native_wheel_macho import (
 	detect_variants,
 	otool_dependencies,
 )
-
 from native_wheel_policy import (
 	NativePolicyError,
 	apple_sdk,
@@ -107,7 +106,6 @@ ADAPTER_NAME = "libferrum_chem.dylib"
 class NativeBuildError(RuntimeError):
 	"""An actionable failure in the build or closure contract."""
 
-
 try:
 	ADAPTER_ABI_VERSION = adapter_abi_version_from_header(ADAPTER_HEADER)
 except RuntimeError as error:
@@ -145,41 +143,8 @@ def run(*command: str, cwd: Path | None = None, env: dict[str, str] | None = Non
 		raise NativeBuildError(f"command failed ({error.returncode}): {' '.join(command)}") from error
 
 def output_path(value: str) -> Path:
-	"""Return one resolved output path accepted by the command-line parser.
-
-	Args:
-		value: The user-provided output directory text.
-
-	Returns:
-		The resolved output directory path.
-	"""
-	path = Path(value).expanduser().resolve()
-	if path.is_relative_to(REPO_ROOT / "OTHER_REPOS"):
-		raise argparse.ArgumentTypeError("--output-root must not be inside OTHER_REPOS")
-	try:
-		relative = path.relative_to(REPO_ROOT)
-	except ValueError:
-		relative = None
-	if relative is not None:
-		if relative.parts and relative.parts[0].startswith("output"):
-			return path
-	else:
-		temporary_root = Path("/private/tmp")
-		try:
-			temporary_relative = path.relative_to(temporary_root)
-		except ValueError:
-			temporary_relative = None
-		if (
-			temporary_relative is not None
-			and temporary_relative.parts
-			and temporary_relative.parts[0].startswith("ferrum-native-")
-		):
-			return path
-	raise argparse.ArgumentTypeError(
-		"--output-root must be beneath a checkout output* directory or "
-		"/private/tmp/ferrum-native-*"
-	)
-	return path
+	"""Return one parser-admitted builder output root."""
+	return admitted_output_path(value, REPO_ROOT)
 
 
 #============================================
@@ -379,6 +344,8 @@ def materialized_archive_path(output_root: Path, source: PinnedSource) -> Path:
 def download_verified_archive(destination: Path, url: str, digest: str, label: str) -> Path:
 	"""Publish a verified archive atomically, never leaving a partial cache entry."""
 	validated_https_url(url, f"{label} source")
+	if destination.is_symlink():
+		raise NativeBuildError(f"{label} archive must not be a symbolic link: {destination}")
 	destination.parent.mkdir(parents=True, exist_ok=True)
 	if destination.exists():
 		return verified_archive(destination, digest, label)
@@ -411,6 +378,48 @@ def download_verified_archive(destination: Path, url: str, digest: str, label: s
 def download_archive(output_root: Path) -> Path:
 	archive = materialized_archive_path(output_root, FERRUM_RDKIT_PROFILE.rdkit)
 	return download_verified_archive(archive, RDKIT_URL, RDKIT_SHA256, f"RDKit {RDKIT_TAG}")
+
+
+#============================================
+def managed_source_archive_cache_root() -> Path:
+	"""Return the profile-scoped generated archive cache owned by this builder."""
+	return REPO_ROOT / "build" / "native-source-archives" / FERRUM_RDKIT_PROFILE.name
+
+
+#============================================
+def provision_managed_source_archive_cache() -> Path:
+	"""Return a complete verified managed archive cache, provisioning only misses."""
+	cache_root = managed_source_archive_cache_root()
+	if cache_root.is_symlink():
+		raise NativeBuildError(f"managed native archive cache must not be a symbolic link: {cache_root}")
+	if cache_root.exists() and not cache_root.is_dir():
+		raise NativeBuildError(f"managed native archive cache must be a directory: {cache_root}")
+	physical_repo_root = REPO_ROOT.resolve()
+	physical_cache_root = cache_root.resolve()
+	if not physical_cache_root.is_relative_to(physical_repo_root):
+		raise NativeBuildError(
+			f"managed native archive cache resolves outside the repository: {cache_root}"
+		)
+	if "OTHER_REPOS" in physical_cache_root.parts:
+		raise NativeBuildError(
+			f"managed native archive cache must not resolve into OTHER_REPOS: {cache_root}"
+		)
+	cache_root.mkdir(parents=True, exist_ok=True)
+	for source in (FERRUM_RDKIT_PROFILE.rdkit, *FERRUM_RDKIT_PROFILE.dependencies):
+		destination = cache_root / source.archive_filename
+		if destination.exists() or destination.is_symlink():
+			verified_archive(destination, source.sha256, source.name)
+		else:
+			download_verified_archive(destination, source.url, source.sha256, source.name)
+	return cache_root
+
+
+#============================================
+def archive_root_for_build(arguments: argparse.Namespace) -> Path:
+	"""Select an explicit strict archive root or the builder-owned managed cache."""
+	if arguments.source_archive_root is not None:
+		return arguments.source_archive_root
+	return provision_managed_source_archive_cache()
 
 
 #============================================
@@ -892,7 +901,7 @@ def command_build(arguments: argparse.Namespace) -> None:
 	if arguments.sealed_input_root:
 		layout = reuse_sealed_native_inputs(arguments.output_root, arguments.sealed_input_root)
 	else:
-		layout = build_rdkit(arguments.output_root, arguments.source_archive_root)
+		layout = build_rdkit(arguments.output_root, archive_root_for_build(arguments))
 	rdkit_libraries = sorted(layout.lib_dir.glob("libRDKit*.dylib"))
 	if not rdkit_libraries:
 		raise NativeBuildError(f"no RDKit dylibs were installed in {layout.lib_dir}")
@@ -935,56 +944,6 @@ def command_self_test(_: argparse.Namespace) -> None:
 	print("native wheel pure helper checks passed")
 
 #============================================
-def parser() -> argparse.ArgumentParser:
-	"""Create the native-wheel command parser and its subcommands.
-
-	Returns:
-		The fully configured command-line parser.
-	"""
-	result = argparse.ArgumentParser(description=__doc__)
-	subcommands = result.add_subparsers(dest="command", required=True)
-	build = subcommands.add_parser("build", help="verify RDKit, source-build it, then build a wheel")
-	build.add_argument("--output-root", required=True, type=output_path)
-	build.add_argument(
-		"--engine-bundle-dir",
-		type=output_path,
-		help=(
-			"optional fresh directory beneath --output-root for the same verified adapter's "
-			"Ferrum CLI engine bundle"
-		),
-	)
-	source = build.add_mutually_exclusive_group()
-	source.add_argument(
-		"--source-archive-root",
-		type=archive_root_path,
-		help="read-only directory containing every selected source archive",
-	)
-	source.add_argument(
-		"--sealed-input-root",
-		type=output_path,
-		help="previous builder-validated native inputs copied into this fresh output root",
-	)
-	build.set_defaults(handler=command_build)
-	adapter = subcommands.add_parser(
-		"adapter", help="build a replacement ABI-compatible adapter from sealed native inputs"
-	)
-	adapter.add_argument("--output-root", required=True, type=output_path)
-	adapter.add_argument(
-		"--rdkit-output-root",
-		required=True,
-		type=output_path,
-		help=(
-			"completed Ferrum native-build output root containing the private RDKit install "
-			"and the selected Boost headers"
-		),
-	)
-	adapter.set_defaults(handler=command_adapter)
-	self_test = subcommands.add_parser(
-		"self-test", help="run deterministic native-wheel policy helper checks"
-	)
-	self_test.set_defaults(handler=command_self_test)
-	return result
-
 def main() -> int:
 	"""Parse one command and execute its selected native-wheel operation.
 
@@ -992,7 +951,13 @@ def main() -> int:
 		Zero after the selected command completes successfully.
 	"""
 	try:
-		arguments = parser().parse_args()
+		arguments = native_wheel_builder_cli.parser(
+			command_build,
+			command_adapter,
+			command_self_test,
+			output_path,
+			archive_root_path,
+		).parse_args()
 		arguments.handler(arguments)
 		return 0
 	except (NativeBuildError, NativeMachoError, NativePackagingError) as error:

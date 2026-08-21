@@ -51,20 +51,44 @@ class ModeManager:
 		"""Switch tools, retiring only the prior controller's transient state."""
 		if type(mode_id) is not ferrum_qt.modes.base_mode.ModeId:
 			raise TypeError("Ferrum mode ID must be an exact ModeId")
+		if mode_id not in self._modes:
+			raise ValueError(f"Ferrum mode has no input controller: {mode_id}")
 		active_mode_id = self._active_mode_id
 		if active_mode_id is mode_id:
 			return
 		if active_mode_id is not None:
-			self._modes[active_mode_id].exit(context)
+			active_mode = self._modes.get(active_mode_id)
+			if active_mode is not None:
+				active_mode.exit(context)
 		self._active_mode_id = mode_id
 		self._modes[mode_id].enter(context)
+
+	def synchronize_presentation(self, mode_id: ferrum_qt.modes.base_mode.ModeId,
+			context: ferrum_qt.modes.base_mode.ModeContext,
+			) -> None:
+		"""Reflect a host-owned tool in shared chrome without claiming its input."""
+		if type(mode_id) is not ferrum_qt.modes.base_mode.ModeId:
+			raise TypeError("Ferrum mode ID must be an exact ModeId")
+		active_mode_id = self._active_mode_id
+		if active_mode_id is mode_id:
+			return
+		if active_mode_id is not None:
+			active_mode = self._modes.get(active_mode_id)
+			if active_mode is not None:
+				active_mode.exit(context)
+		self._active_mode_id = mode_id
+		mode = self._modes.get(mode_id)
+		if mode is not None:
+			mode.enter(context)
 
 	def cancel(self, context: ferrum_qt.modes.base_mode.ModeContext) -> bool:
 		"""Leave the current tool without changing the Rust document."""
 		active_mode_id = self._active_mode_id
 		if active_mode_id is None:
 			return False
-		self._modes[active_mode_id].exit(context)
+		mode = self._modes.get(active_mode_id)
+		if mode is not None:
+			mode.exit(context)
 		self._active_mode_id = None
 		return True
 
@@ -100,7 +124,7 @@ class ModeManager:
 		active_mode_id = self._active_mode_id
 		if active_mode_id is None:
 			return None
-		mode = self._modes[active_mode_id]
+		mode = self._modes.get(active_mode_id)
 		return mode
 
 	def _dispatch_intent(self, context: ferrum_qt.modes.base_mode.ModeContext,

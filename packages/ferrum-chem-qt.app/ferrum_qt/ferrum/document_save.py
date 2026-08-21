@@ -1,4 +1,4 @@
-"""Rust-only CDML open and publication behavior for Ferrum document tabs."""
+"""Rust-owned publication behavior for Ferrum document tabs."""
 
 # Standard Library
 import os
@@ -16,10 +16,8 @@ _NATIVE_CDML_FILTER = "Ferrum CDML (*.cdml);;All Files (*)"
 
 
 #============================================
-class WindowNativeFileMixin:
-	"""Route CDML file actions to Ferrum tabs."""
-
-	_native_cdml_default_open_enabled = True
+class FerrumNativeDocumentSaveMixin:
+	"""Own Ferrum document save and publication without document admission."""
 
 	#============================================
 	def can_save_authoritatively(self) -> bool:
@@ -31,103 +29,7 @@ class WindowNativeFileMixin:
 		return super().can_save_authoritatively()
 
 	#============================================
-	def open_file_path(self, file_path: str, replace_current: bool = False) -> bool:
-		"""Open CDML through Rust and leave every non-CDML route unchanged."""
-		absolute_path = os.path.abspath(file_path)
-		if (
-			pathlib.Path(absolute_path).suffix.lower() != ".cdml"
-			or not self._native_cdml_default_open_enabled
-		):
-			return super().open_file_path(file_path, replace_current)
-		return self._open_native_cdml(absolute_path, replace_current)
-
-	#============================================
-	def open_native_cdml_path(self, file_path: str) -> bool:
-		"""Open an explicitly chosen CDML path through the Ferrum route."""
-		absolute_path = os.path.abspath(file_path)
-		if pathlib.Path(absolute_path).suffix.lower() != ".cdml":
-			self._show_refusal(
-				ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
-					ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.OPEN_DOCUMENT,
-					ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.UNSUPPORTED_DOCUMENT,
-					pathlib.Path(absolute_path).name,
-				),
-			)
-			return False
-		return self._open_native_cdml(absolute_path, replace_current=False)
-
-	#============================================
-	def _open_native_cdml(self, absolute_path: str, replace_current: bool) -> bool:
-		"""Load one local CDML file through Rust's named V1 resource profile."""
-		existing = self._native_tab_for_path(absolute_path)
-		if existing is not None:
-			self._tab_widget.setCurrentIndex(self._tab_widget.indexOf(existing))
-			return True
-		if replace_current:
-			self._show_refusal(ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
-				ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.EDIT_DOCUMENT,
-				ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.UNAVAILABLE_OPERATION,
-				technical_details=(
-					"This drawing opens in a new tab. Replacing the current tab is not "
-					"available yet."
-				),
-			))
-			return False
-		try:
-			admission = self._prepare_local_cdml_admission(absolute_path)
-			tab = self._create_native_tab_from_admission(
-				admission, pathlib.Path(absolute_path).name,
-			)
-			tab._adopt_loaded_origin_path(absolute_path)
-		except Exception as exc:
-			self._show_refusal(
-				ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
-					ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.OPEN_DOCUMENT,
-					ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.INVALID_DOCUMENT,
-					pathlib.Path(absolute_path).name, str(exc),
-				),
-			)
-			return False
-		try:
-			self._register_native_tab(tab, activate=True)
-		except Exception as exc:
-			tab.dispose()
-			self._show_refusal(
-				ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
-					ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.OPEN_DOCUMENT,
-					ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.INVALID_DOCUMENT,
-					pathlib.Path(absolute_path).name, str(exc),
-				),
-			)
-			return False
-		self.statusBar().showMessage(self.tr("Opened drawing: %s") % absolute_path, 3000)
-		return True
-
-	#============================================
-	def _prepare_local_cdml_admission(self, absolute_path: str) -> tuple[object, object]:
-		"""Synchronously consume one complete Rust-owned local-CDML admission."""
-		import ferrum_qt.ferrum.engine as engine
-		prepared = engine.DocumentSession.prepare_local_cdml_file_v1(absolute_path)
-		session, observation, _origin_token, source_kind = prepared.take_admission_v1()
-		if source_kind != "cdml":
-			raise RuntimeError("local-CDML admission returned another source kind")
-		return session, observation
-
-	#============================================
-	def _create_native_tab_from_admission(
-			self, admission: tuple[object, object], title: str,
-			) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
-		"""Create the sole Ferrum page type without repeating Rust observation."""
-		session, observation = admission
-		return (
-			ferrum_qt.ferrum.document_tab.
-			FerrumNativeDocumentTab.from_admitted_local_open(
-				session, title, observation,
-			)
-		)
-
-	#============================================
-	def _native_tab_for_path(
+	def _native_tab_for_save_path(
 			self, absolute_path: str,
 			) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab | None:
 		"""Return a Ferrum page already loaded from the same canonical location."""
@@ -235,7 +137,7 @@ class WindowNativeFileMixin:
 			absolute_path: str,
 			) -> bool:
 		"""Reject a destination already owned by another live tab."""
-		existing_native = self._native_tab_for_path(absolute_path)
+		existing_native = self._native_tab_for_save_path(absolute_path)
 		if existing_native is not None and existing_native is not tab:
 			self._show_refusal(
 				ferrum_qt.dialogs.refusal_presenter.RefusalRequest(

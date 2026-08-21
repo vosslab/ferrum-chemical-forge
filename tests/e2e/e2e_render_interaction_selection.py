@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Exercise Ferrum P0.2 Rust-owned root selection through the offscreen Qt app."""
 
 # Standard Library

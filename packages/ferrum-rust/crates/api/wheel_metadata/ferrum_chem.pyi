@@ -252,21 +252,15 @@ def prepare_molblock_file_v1(
 ) -> MoleculeInsertionV1: ...
 
 
-class SdfMoleculeBatchInsertionV1:
-	"""Frozen ordered SDF records ready for one document transaction."""
+class InterchangeRecordBatchInsertionV1:
+	"""Frozen ordered interchange records ready for one document transaction."""
 	record_count: int
 
 
 def prepare_sdf_molecules_v1(
 	source: str,
 	placement: InsertionPlacementV1,
-) -> SdfMoleculeBatchInsertionV1: ...
-
-
-def prepare_sdf_file_v1(
-	path: str,
-	placement: InsertionPlacementV1,
-) -> SdfMoleculeBatchInsertionV1: ...
+) -> InterchangeRecordBatchInsertionV1: ...
 
 
 class InvalidSmiles(ChemistryError): ...
@@ -1327,8 +1321,8 @@ class PreparedMoleculeInsertion:
 	molecule_identifier: str
 
 
-class PreparedSdfRecordInsertion:
-	"""Opaque revision-bound one-use prepared SDF record batch."""
+class PreparedInterchangeRecordInsertion:
+	"""Opaque revision-bound one-use prepared interchange record batch."""
 	molecule_identifiers: tuple[str, ...]
 	atom_identifiers: tuple[tuple[str, ...], ...]
 	bond_identifiers: tuple[tuple[str, ...], ...]
@@ -1691,15 +1685,15 @@ class DocumentSession:
 		expected_revision: int,
 		prepared: PreparedMoleculeInsertion,
 	) -> SessionOperationResultV1: ...
-	def prepare_insert_sdf_records_v1(
+	def prepare_insert_interchange_records_v1(
 		self,
 		expected_revision: int,
-		batch: SdfMoleculeBatchInsertionV1,
-	) -> PreparedSdfRecordInsertion: ...
-	def commit_create_sdf_records(
+		batch: InterchangeRecordBatchInsertionV1,
+	) -> PreparedInterchangeRecordInsertion: ...
+	def commit_create_interchange_records_v1(
 		self,
 		expected_revision: int,
-		prepared: PreparedSdfRecordInsertion,
+		prepared: PreparedInterchangeRecordInsertion,
 	) -> SessionOperationResultV1: ...
 	def save_atomic(
 		self,

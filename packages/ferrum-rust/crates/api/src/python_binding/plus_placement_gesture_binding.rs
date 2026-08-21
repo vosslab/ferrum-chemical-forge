@@ -3,8 +3,8 @@
 use super::binding::{PyDocumentSession, PySessionOperationResultV1};
 use super::presentation_creation_gesture_binding::{digest, presentation_error};
 use crate::{
-    ApiPlusGestureV1, ApiPlusPreviewV1, begin_api_plus_gesture_v1, commit_api_plus_gesture_v1,
-    preview_api_plus_gesture_v1,
+    begin_api_plus_gesture_v1, commit_api_plus_gesture_v1, preview_api_plus_gesture_v1,
+    ApiPlusGestureV1, ApiPlusPreviewV1,
 };
 use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
 use pyo3::prelude::*;

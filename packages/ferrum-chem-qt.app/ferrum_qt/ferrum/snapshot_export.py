@@ -164,7 +164,7 @@ class FerrumNativeSnapshotExportWindowMixin:
 			self, active: bool, pending: bool, busy: bool) -> None:
 		"""Keep artifact export available only for an idle current document."""
 		available = (
-			active and not pending and not busy and not self.has_pending_local_cdml_open()
+			active and not pending and not busy and not self.has_pending_local_document_open()
 		)
 		for action in self._snapshot_export_actions.values():
 			action.setEnabled(available)
@@ -273,7 +273,7 @@ class FerrumNativeSnapshotExportWindowMixin:
 		"""Require the same idle native-operation boundary as the rest of the window."""
 		return (
 			(self._snapshot_export_busy() and not allow_snapshot_export)
-			or self.has_pending_local_cdml_open()
+			or self.has_pending_local_document_open()
 			or self._molecule_import_busy()
 			or self._molecule_export_busy()
 			or self._molecule_inspection_busy()

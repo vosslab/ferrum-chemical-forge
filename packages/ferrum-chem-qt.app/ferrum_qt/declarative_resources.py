@@ -16,7 +16,9 @@ _SEPARATOR = "---"
 
 # These are the tool commands that the current Ferrum window exposes.  Future
 # mode-controller work must extend this vocabulary before declaring a new mode.
-SUPPORTED_TOOL_ACTION_IDS = frozenset({"mode.atom", "mode.draw", "tool.cancel"})
+SUPPORTED_TOOL_ACTION_IDS = frozenset({
+	"mode.atom", "mode.draw", "tool.cancel",
+})
 
 
 #============================================

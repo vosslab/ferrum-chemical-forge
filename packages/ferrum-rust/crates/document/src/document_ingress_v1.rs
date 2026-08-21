@@ -230,6 +230,31 @@ pub fn load_document_file_for_publication_with_budget(
     })
 }
 
+/// Read one bounded regular local source while retaining its opened descriptor.
+///
+/// This is the narrow file-policy primitive for a Rust-owned converter whose
+/// decoder is not CDML. It applies the same non-symlink/regular-file policy as
+/// ordinary document admission.
+pub fn read_regular_file_with_origin_with_budget(
+    path: &Path,
+    max_bytes: usize,
+) -> Result<(Vec<u8>, RetainedSourceFileGuardV1), DocumentIngressErrorV1> {
+    let origin = DocumentIngressOriginV1::File(path.to_path_buf());
+    let mut file = open_regular_file(path, &origin)?;
+    let sentinel = checked_sentinel(max_bytes, &origin)?;
+    let bytes = read_through_sentinel(&mut file, sentinel, &origin)?;
+    if bytes.len() == sentinel {
+        return Err(DocumentIngressErrorV1::ByteLimitExceeded {
+            origin,
+            limit: max_bytes,
+            observed_at_least: sentinel,
+        });
+    }
+    let source = retain_regular_source_file_v1(file)
+        .map_err(|error| retained_source_error(origin, error))?;
+    Ok((bytes, source))
+}
+
 fn open_regular_file(
     path: &Path,
     origin: &DocumentIngressOriginV1,

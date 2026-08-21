@@ -1,0 +1,183 @@
+use std::fs;
+
+use pyo3::{exceptions::PyTypeError, types::PyModule, Python};
+
+use super::*;
+
+const SINGLE_ATOM_SDF_V1: &str = concat!(
+    "Ferrum SDF\n",
+    "  Ferrum\n",
+    "\n",
+    "  1  0  0  0  0  0  0  0  0  0  0 V2000\n",
+    "    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n",
+    "M  END\n",
+    "$$$$\n",
+);
+
+fn temporary_sdf_path() -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "ferrum-pyo3-sdf-{}-{}.sdf",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("wall clock")
+            .as_nanos(),
+    ))
+}
+
+fn issued_descriptor<'py>(
+    descriptors: &pyo3::Bound<'py, pyo3::PyAny>,
+    suffix: &str,
+) -> pyo3::Bound<'py, pyo3::PyAny> {
+    descriptors
+        .try_iter()
+        .expect("descriptors iterate")
+        .find_map(|descriptor| {
+            let descriptor = descriptor.expect("descriptor");
+            descriptor
+                .getattr("suffixes")
+                .expect("suffixes")
+                .contains(suffix)
+                .expect("suffix list")
+                .then_some(descriptor)
+        })
+        .expect("registered descriptor")
+}
+
+#[test]
+fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+        super::super::binding::initialize(&module).expect("extension module registers");
+        assert!(
+            !module
+                .hasattr("prepare_sdf_file_v1")
+                .expect("module surface is inspectable"),
+            "descriptor-free SDF file import must not remain public"
+        );
+        let document_session = module.getattr("DocumentSession").expect("session type");
+        let descriptors = document_session
+            .call_method0("local_interchange_open_descriptors_v1")
+            .expect("descriptors issue");
+        let cml_descriptor = issued_descriptor(&descriptors, ".cml");
+        let sdf_descriptor = issued_descriptor(&descriptors, ".sdf");
+        let cml_handle = cml_descriptor
+            .getattr("route_handle")
+            .expect("opaque handle");
+
+        assert!(cml_handle
+            .get_type()
+            .call0()
+            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
+        let copy_module = py.import("copy").expect("copy module");
+        assert!(copy_module
+            .call_method1("copy", (&cml_handle,))
+            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
+        assert!(copy_module
+            .call_method1("deepcopy", (&cml_handle,))
+            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
+        assert!(document_session
+            .call_method1(
+                "prepare_local_interchange_file_v1",
+                (
+                    "/definitely-not-an-interchange-file.cml",
+                    "cml_simple_molecule_import_v1"
+                ),
+            )
+            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
+        assert!(document_session
+            .call_method1(
+                "prepare_local_interchange_file_v1",
+                ("/definitely-not-an-interchange-file.cml", cml_handle),
+            )
+            .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py)));
+
+        let path = temporary_sdf_path();
+        fs::write(&path, SINGLE_ATOM_SDF_V1).expect("write valid SDF");
+        let sdf_handle = sdf_descriptor
+            .getattr("route_handle")
+            .expect("SDF route handle");
+        assert!(
+            document_session
+                .call_method1(
+                    "read_local_interchange_utf8_v1",
+                    (path.to_string_lossy().as_ref(), "sdf"),
+                )
+                .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)),
+            "the text reader requires a registry-issued opaque handle"
+        );
+        assert_eq!(
+            document_session
+                .call_method1(
+                    "read_local_interchange_utf8_v1",
+                    (path.to_string_lossy().as_ref(), &sdf_handle),
+                )
+                .expect("registered SDF source reads as text"),
+            SINGLE_ATOM_SDF_V1,
+        );
+        assert!(
+            document_session
+                .call_method1(
+                    "read_local_interchange_utf8_v1",
+                    ("/definitely-not-an-interchange-file.sdf", &sdf_handle),
+                )
+                .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py)),
+            "the issued reader maps missing local sources through its typed refusal"
+        );
+        let prepared = document_session
+            .call_method1(
+                "prepare_local_interchange_file_v1",
+                (path.to_string_lossy().as_ref(), sdf_handle),
+            )
+            .expect("registered SDF descriptor prepares a new document");
+        let summary = prepared
+            .getattr("interchange_summary")
+            .expect("safe generic receipt")
+            .expect("interchange receipts carry a summary");
+        assert_eq!(
+            summary.getattr("source_kind").expect("source kind"),
+            "regular_file"
+        );
+        assert_eq!(
+            summary
+                .getattr("imported_record_count")
+                .expect("record count"),
+            1
+        );
+        assert_eq!(summary.getattr("atom_count").expect("atom count"), 1);
+        assert_eq!(summary.getattr("bond_count").expect("bond count"), 0);
+        assert!(summary
+            .getattr("format_id")
+            .expect("format id")
+            .is_instance_of::<pyo3::types::PyString>());
+        assert!(summary
+            .getattr("profile_id")
+            .expect("profile id")
+            .is_instance_of::<pyo3::types::PyString>());
+
+        let admission = prepared
+            .call_method0("take_admission_v1")
+            .expect("redeem once");
+        let session = admission.get_item(0).expect("admitted session");
+        let revision = session
+            .call_method0("snapshot")
+            .expect("session snapshot")
+            .getattr("revision")
+            .expect("revision");
+        assert!(
+            prepared.call_method0("take_admission_v1").is_err(),
+            "replay refuses"
+        );
+        assert_eq!(
+            session
+                .call_method0("snapshot")
+                .expect("session snapshot after replay")
+                .getattr("revision")
+                .expect("revision after replay"),
+            revision,
+            "replay cannot mutate the redeemed session"
+        );
+        fs::remove_file(path).expect("remove SDF");
+    });
+}

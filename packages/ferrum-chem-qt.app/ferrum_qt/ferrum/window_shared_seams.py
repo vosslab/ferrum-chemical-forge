@@ -6,6 +6,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.graphics_view
+import ferrum_qt.ferrum.line_tool_intent
 import ferrum_qt.modes.base_mode
 import ferrum_qt.modes.mode_manager
 import ferrum_qt.widgets.property_dock
@@ -88,8 +89,16 @@ def refresh_shared_window_seams(window: object) -> None:
 	if zoom is not None:
 		zoom.update_zoom_display(percent)
 	if status is not None and manager is not None:
-		active = manager.active_mode_id
-		label = "None" if active is None else active.value.replace("_", " ").title()
+		line_intent = getattr(window, "_line_gesture_intent", None)
+		if (
+			line_intent is not None
+			and line_intent.tool
+			is ferrum_qt.ferrum.line_tool_intent._NativeLineTool.ATTACH_CYCLOHEXANE_RING
+		):
+			label = "Attach Cyclohexane Ring"
+		else:
+			active = manager.active_mode_id
+			label = "None" if active is None else active.value.replace("_", " ").title()
 		status.update_mode(label)
 
 
@@ -111,7 +120,7 @@ def _activate_mode(window: object, toolbar: object, mode_id: str) -> None:
 		observation=observation,
 		dispatch_context={"window": window, "tab_title": tab.title},
 	)
-	window._mode_manager.activate(mode, context)
+	window._mode_manager.synchronize_presentation(mode, context)
 	toolbar.apply_mode_manager(window._mode_manager)
 	refresh_shared_window_seams(window)
 
@@ -142,7 +151,9 @@ def synchronize_active_tool_mode(window: object, mode_id: str | None) -> None:
 		manager.cancel(context)
 	else:
 		try:
-			manager.activate(ferrum_qt.modes.base_mode.ModeId(mode_id), context)
+			manager.synchronize_presentation(
+				ferrum_qt.modes.base_mode.ModeId(mode_id), context,
+			)
 		except ValueError:
 			manager.cancel(context)
 	refresh_shared_window_seams(window)

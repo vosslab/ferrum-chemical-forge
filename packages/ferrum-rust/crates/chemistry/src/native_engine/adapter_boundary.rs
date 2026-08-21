@@ -19,7 +19,7 @@ mod adapter_boundary_buffer_tests;
 #[path = "adapter_boundary_contract_tests.rs"]
 mod adapter_boundary_contract_tests;
 
-use self::adapter_boundary_buffer::{FerrumChemOwnedBuffer, finish_call};
+use self::adapter_boundary_buffer::{finish_call, FerrumChemOwnedBuffer};
 use crate::{
     FERRUM_CHEM_ALL_KNOWN_CAPABILITIES, FERRUM_CHEM_CAPABILITY_COMPOSITION,
     FERRUM_CHEM_CAPABILITY_GENERATE_2D, FERRUM_CHEM_CAPABILITY_INCHI,

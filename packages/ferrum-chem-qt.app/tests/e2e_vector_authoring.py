@@ -32,7 +32,7 @@ def _open_and_wait(host: object, path: pathlib.Path) -> None:
 		if pathlib.Path(file_path) == path:
 			completed.append(success)
 			loop.quit()
-	host.local_cdml_open_completed.connect(receive)
+	host.local_document_open_completed.connect(receive)
 	timeout.timeout.connect(loop.quit)
 	try:
 		if not host.open_file_path(str(path)):
@@ -41,7 +41,7 @@ def _open_and_wait(host: object, path: pathlib.Path) -> None:
 		loop.exec()
 	finally:
 		timeout.stop()
-		host.local_cdml_open_completed.disconnect(receive)
+		host.local_document_open_completed.disconnect(receive)
 	if completed != [True]:
 		raise RuntimeError("native asynchronous CDML open did not complete successfully")
 

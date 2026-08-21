@@ -5,15 +5,15 @@ use std::collections::BTreeMap;
 use ferrum_chemistry::{ChemistryError, NativeChemEngine};
 use ferrum_document::{DocumentSessionError, PendingDirectHaworthV1, Point3V1};
 use ferrum_domain::haworth::{
-    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthBondStyleV1,
+    build_direct_haworth_from_smiles_v1, DirectHaworthFromSmilesBuildErrorV1,
 };
 use ferrum_domain::haworth::{
-    DirectHaworthFromSmilesBuildErrorV1, build_direct_haworth_from_smiles_v1,
+    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthBondStyleV1,
 };
 use ferrum_geometry::{MoleculePlacementV1, Point2 as MoleculePlacementPointV1};
 use ferrum_render::{
-    BondStyle, LineOp, Paint, PositiveFinite, RenderOp, RenderPoint, Rgb24,
-    build_haworth_front_preview_ops,
+    build_haworth_front_preview_ops, BondStyle, LineOp, Paint, PositiveFinite, RenderOp,
+    RenderPoint, Rgb24,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -21,7 +21,7 @@ use pyo3::types::PyTuple;
 
 use super::{
     binding::{PyDocumentSession, PySessionOperationResultV1},
-    render_binding::{PyRenderOperationV2, operation_from},
+    render_binding::{operation_from, PyRenderOperationV2},
 };
 
 create_exception!(ferrum_chem, DirectHaworthError, super::binding::FerrumError);
@@ -202,6 +202,9 @@ fn map_preparation_error(py: Python<'_>, error: PreparationFailure) -> PyErr {
         PreparationFailure::Build(error) => match error {
             DirectHaworthFromSmilesBuildErrorV1::InvalidInput(_) => {
                 input_error(py, "enter a structural SMILES")
+            }
+            DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax { .. } => {
+                input_error(py, "structural SMILES could not be parsed")
             }
             DirectHaworthFromSmilesBuildErrorV1::Chemistry(ChemistryError::ResourceExhausted {
                 ..

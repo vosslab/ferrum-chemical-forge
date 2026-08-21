@@ -5,8 +5,8 @@
 
 use ferrum_document::DocumentObjectIdV1;
 use ferrum_document::{
-    DocumentClipboardFragmentKindV1, DocumentClipboardFragmentV1, DocumentClipboardSelectionV1,
-    extract_document_clipboard_fragment_v1,
+    extract_document_clipboard_fragment_v1, DocumentClipboardFragmentKindV1,
+    DocumentClipboardFragmentV1, DocumentClipboardSelectionV1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

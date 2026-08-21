@@ -102,7 +102,7 @@ def test_reaction_selection_refuses_foreign_and_stale_observations_without_mutat
 
 	with pytest.raises(ferrum_chem.ReactionAuthoringChoicesError) as foreign_error:
 		foreign.validate_reaction_selection_v1(selection)
-	assert foreign_error.value.category == ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.foreign_session
+	assert foreign_error.value.category is ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.foreign_session
 	assert foreign.snapshot().digest == foreign_before.digest
 	owner_before = owner.snapshot()
 	owner.submit(

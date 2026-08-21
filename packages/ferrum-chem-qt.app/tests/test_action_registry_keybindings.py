@@ -18,6 +18,7 @@ _ACTION_ATTRIBUTES = (
 	"_cut_action", "_copy_action", "_paste_action", "_zoom_in_action",
 	"_zoom_out_action", "_zoom_100_action", "_show_hex_grid_action",
 	"_snap_hex_grid_action", "_add_atom_action", "_draw_bond_action",
+	"_attach_cyclohexane_ring_action",
 	"_cancel_tool_action", "_preferences_action", "_about_action",
 )
 

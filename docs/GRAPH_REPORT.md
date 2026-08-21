@@ -1,12 +1,12 @@
 # Graph Report - ferrum-chemical-forge  (2026-08-19)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- cluster-only mode - file stats not available
 
 ## Summary
-- 17975 nodes · 39215 edges · 759 communities (693 shown, 66 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 941 edges (avg confidence: 0.78)
-- Token cost: 49,306 input · 7,934 output
+- 17975 nodes * 39215 edges * 759 communities (693 shown, 66 thin omitted)
+- Extraction: 98% EXTRACTED * 2% INFERRED * 0% AMBIGUOUS * INFERRED: 941 edges (avg confidence: 0.78)
+- Token cost: 49,306 input * 7,934 output
 
 ## Graph Freshness
 - Built from commit: `f13dfd67`
@@ -762,15 +762,15 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `test_accepted_blank_reports_failure_without_document_edit()` --indirect_call--> `request()`  [INFERRED]
-  packages/ferrum-chem-qt.app/tests/test_ferrum_native_peptide_import.py → tests/e2e/e2e_ferrum_protocol_v1.py
+  packages/ferrum-chem-qt.app/tests/test_ferrum_native_peptide_import.py -> tests/e2e/e2e_ferrum_protocol_v1.py
 - `test_recovery_export_error_messages_preserve_tab_facts()` --indirect_call--> `request()`  [INFERRED]
-  packages/ferrum-chem-qt.app/tests/test_ferrum_native_recovery_export.py → tests/e2e/e2e_ferrum_protocol_v1.py
+  packages/ferrum-chem-qt.app/tests/test_ferrum_native_recovery_export.py -> tests/e2e/e2e_ferrum_protocol_v1.py
 - `test_recovery_export_refuses_mismatched_normal_receipt_provenance()` --indirect_call--> `request()`  [INFERRED]
-  packages/ferrum-chem-qt.app/tests/test_ferrum_native_recovery_export.py → tests/e2e/e2e_ferrum_protocol_v1.py
+  packages/ferrum-chem-qt.app/tests/test_ferrum_native_recovery_export.py -> tests/e2e/e2e_ferrum_protocol_v1.py
 - `test_recovery_export_unconfirmed_matching_receipt_preserves_tab()` --indirect_call--> `request()`  [INFERRED]
-  packages/ferrum-chem-qt.app/tests/test_ferrum_native_recovery_export.py → tests/e2e/e2e_ferrum_protocol_v1.py
+  packages/ferrum-chem-qt.app/tests/test_ferrum_native_recovery_export.py -> tests/e2e/e2e_ferrum_protocol_v1.py
 - `_fixture_source()` --calls--> `sha256()`  [INFERRED]
-  packages/ferrum-rust/tools/native_wheel_builder_self_test.py → tests/e2e/e2e_release_wheelhouse.py
+  packages/ferrum-rust/tools/native_wheel_builder_self_test.py -> tests/e2e/e2e_release_wheelhouse.py
 
 ## Import Cycles
 - 2-file cycle: `packages/ferrum-rust/crates/chemistry-sys/src/buffer.rs -> packages/ferrum-rust/crates/chemistry-sys/src/contract.rs -> packages/ferrum-rust/crates/chemistry-sys/src/buffer.rs`
@@ -800,11 +800,11 @@ Nodes (104): Arc, CompareOp, exact_budget(), exact_bytes(), exact_path(), exact_
 
 ### Community 3 - "Document Tab Errors"
 Cohesion: 0.04
-Nodes (60): FerrumNativeDocumentTabError, RuntimeError, Raised when a Ferrum tab cannot install its authoritative observation., FerrumNativeDocumentTab, Path, QPoint, QPointF, One self-contained Rust document session and its disposable Qt view. The Rust… (+52 more)
+Nodes (60): FerrumNativeDocumentTabError, RuntimeError, Raised when a Ferrum tab cannot install its authoritative observation., FerrumNativeDocumentTab, Path, QPoint, QPointF, One self-contained Rust document session and its disposable Qt view. The Rust... (+52 more)
 
 ### Community 4 - "Background Jobs"
 Cohesion: 0.03
-Nodes (76): FerrumDetachedJobThread, FerrumWorkerFailure, Exception, Narrow, handle-free background job mechanics for Ferrum Qt features. This…, Stable, exception-free facts delivered from a detached job., Run one immutable operation and deliver at most one terminal outcome.…, Return whether terminal delivery has been invalidated., Withhold terminal delivery and request cooperative interruption. (+68 more)
+Nodes (76): FerrumDetachedJobThread, FerrumWorkerFailure, Exception, Narrow, handle-free background job mechanics for Ferrum Qt features. This..., Stable, exception-free facts delivered from a detached job., Run one immutable operation and deliver at most one terminal outcome...., Return whether terminal delivery has been invalidated., Withhold terminal delivery and request cooperative interruption. (+68 more)
 
 ### Community 5 - "Typed Record"
 Cohesion: 0.20
@@ -964,7 +964,7 @@ Nodes (25): canonical_zero(), map_sink_error(), map_stream_error(), render_direc
 
 ### Community 44 - "User Template Inspection"
 Cohesion: 0.05
-Nodes (62): inspect_user_template_display_name(), prepare_user_template(), ValueError, Qt-free bridge for Rust-owned saved user-template admission., Return Rust's optional display name for one eligible template. Args:…, Return one immutable Rust plan for catalog display and later placement., Raised when Rust rejects one serialized user template., UserTemplateInspectionError (+54 more)
+Nodes (62): inspect_user_template_display_name(), prepare_user_template(), ValueError, Qt-free bridge for Rust-owned saved user-template admission., Return Rust's optional display name for one eligible template. Args:..., Return one immutable Rust plan for catalog display and later placement., Raised when Rust rejects one serialized user template., UserTemplateInspectionError (+54 more)
 
 ### Community 45 - "Document Vector"
 Cohesion: 0.07
@@ -996,7 +996,7 @@ Nodes (44): Endpoints, append_member(), attr(), copy_trimmed_name(), direct_mole
 
 ### Community 52 - "Main Window"
 Cohesion: 0.06
-Nodes (34): FerrumNativeMainWindow, FerrumNativeDocumentTab, QCloseEvent, QMouseEvent, Slot, A standalone public host for Rust-owned CDML tabs only. This window…, Collect one element spelling and submit it only to the active Ferrum tab., Use the shared visual form while keeping the Rust session authoritative. (+26 more)
+Nodes (34): FerrumNativeMainWindow, FerrumNativeDocumentTab, QCloseEvent, QMouseEvent, Slot, A standalone public host for Rust-owned CDML tabs only. This window..., Collect one element spelling and submit it only to the active Ferrum tab., Use the shared visual form while keeping the Rust session authoritative. (+26 more)
 
 ### Community 53 - "Atom Bond"
 Cohesion: 0.11
@@ -1080,7 +1080,7 @@ Nodes (36): _FailureMapper, _Operation, QObject, Capture an immutable, zero-argu
 
 ### Community 73 - "Graphics Retirement"
 Cohesion: 0.10
-Nodes (27): GraphicsRetirementCoordinator, GraphicsRetirementReport, Observable result of one graphics retirement transition., Retire one Qt graphics ownership domain in an explicit order. A coordinator…, Initialize the per-transition report and retained detached roots., Detach callbacks before ``scene.dispose_contents`` clears one graph. Failed…, Detach roots whose undo command remains their live future owner. This is the…, Terminally retire named projection trees from one known live scene. The caller… (+19 more)
+Nodes (27): GraphicsRetirementCoordinator, GraphicsRetirementReport, Observable result of one graphics retirement transition., Retire one Qt graphics ownership domain in an explicit order. A coordinator..., Initialize the per-transition report and retained detached roots., Detach callbacks before ``scene.dispose_contents`` clears one graph. Failed..., Detach roots whose undo command remains their live future owner. This is the..., Terminally retire named projection trees from one known live scene. The caller... (+19 more)
 
 ### Community 74 - "Clipboard Tests"
 Cohesion: 0.09
@@ -1280,7 +1280,7 @@ Nodes (20): Ordering, combined_receipt_uses_one_formula_and_mass_basis(), compos
 
 ### Community 123 - "Chem Scene"
 Cohesion: 0.06
-Nodes (23): ChemScene, _paper_dimension(), QObject, QGraphicsScene subclass for 2D chemistry drawing. Provides a paper rectangle on…, Initialize the scene with default rect, paper, and grid. Args: parent: Optional…, Create the paper rectangle centered in the scene. The paper sits at…, Create one paper-local hex-grid display item from bridge geometry., Update paper and grid colors from the named YAML theme. The single grid overlay… (+15 more)
+Nodes (23): ChemScene, _paper_dimension(), QObject, QGraphicsScene subclass for 2D chemistry drawing. Provides a paper rectangle on..., Initialize the scene with default rect, paper, and grid. Args: parent: Optional..., Create the paper rectangle centered in the scene. The paper sits at..., Create one paper-local hex-grid display item from bridge geometry., Update paper and grid colors from the named YAML theme. The single grid overlay... (+15 more)
 
 ### Community 124 - "Paper Attributes"
 Cohesion: 0.10
@@ -1348,7 +1348,7 @@ Nodes (37): Match, blank_match(), build_tracked_dirs(), check_local_link(), chec
 
 ### Community 140 - "Detached Graphics Retire"
 Cohesion: 0.06
-Nodes (24): DetachedGraphicsRetirementReaper, Detached roots retained after an explicit native-retirement failure. The record…, Return whether the record still owns a detached graphics sentinel., Own roots whose known scene removal reported a Ferrum failure. Unlike…, Return whether this record still owns a scene or graphics root., One explicit handoff bundle for every unresolved terminal graphic. A session…, Return whether this aggregate retains any Ferrum graphics ownership., Own failed terminal graphics deletion until a controlled retry. A caller gives… (+16 more)
+Nodes (24): DetachedGraphicsRetirementReaper, Detached roots retained after an explicit native-retirement failure. The record..., Return whether the record still owns a detached graphics sentinel., Own roots whose known scene removal reported a Ferrum failure. Unlike..., Return whether this record still owns a scene or graphics root., One explicit handoff bundle for every unresolved terminal graphic. A session..., Return whether this aggregate retains any Ferrum graphics ownership., Own failed terminal graphics deletion until a controlled retry. A caller gives... (+16 more)
 
 ### Community 141 - "Wavy Dialog"
 Cohesion: 0.07
@@ -1368,7 +1368,7 @@ Nodes (30): AuthoredDirectGlycosidicHaworthDrawOpV1, AuthoredDirectGlycosidicHaw
 
 ### Community 145 - "Native Wheel Builder Test"
 Cohesion: 0.12
-Nodes (37): _fixture_source(), _minimal_rdkit_options(), ModuleType, Path, PinnedSource, RdkitCapabilityProfile, Pure fixture checks for the native-wheel builder boundary. This module receives…, Verify path identity and tree-digest rejection behavior. (+29 more)
+Nodes (37): _fixture_source(), _minimal_rdkit_options(), ModuleType, Path, PinnedSource, RdkitCapabilityProfile, Pure fixture checks for the native-wheel builder boundary. This module receives..., Verify path identity and tree-digest rejection behavior. (+29 more)
 
 ### Community 146 - "Action Registry"
 Cohesion: 0.06
@@ -1564,7 +1564,7 @@ Nodes (27): build_context_menu(), QMenu, QWidget, Create bounded context menus u
 
 ### Community 195 - "Window Shared Seams"
 Cohesion: 0.06
-Nodes (35): _activate_mode(), _dispatch_mode_intent(), install_shared_window_seams(), Live application clients for Ferrum's declarative Qt interaction seams., Reflect the live Rust-tab tool intent in the shared mode clients. This is the…, Keep future mode-event dispatch bounded to the established Qt action seams. The…, Install shared widget clients around existing Rust-backed window actions., Refresh shared view-only clients from the current Rust observation. (+27 more)
+Nodes (35): _activate_mode(), _dispatch_mode_intent(), install_shared_window_seams(), Live application clients for Ferrum's declarative Qt interaction seams., Reflect the live Rust-tab tool intent in the shared mode clients. This is the..., Keep future mode-event dispatch bounded to the established Qt action seams. The..., Install shared widget clients around existing Rust-backed window actions., Refresh shared view-only clients from the current Rust observation. (+27 more)
 
 ### Community 196 - "Presentation Deletion Binding"
 Cohesion: 0.11
@@ -1596,7 +1596,7 @@ Nodes (30): collect_report(), count_error_details(), format_issue_line(), is_asc
 
 ### Community 203 - "FerrumNativeDrawingParametersClient"
 Cohesion: 0.10
-Nodes (18): 
+Nodes (18):
 				FerrumNativeDrawingParameters, FerrumNativeDrawingParametersClient, QAction, QEvent, QMainWindow, QObject, QWidget, Reflect a shared choice without feeding it back as a new edit. (+10 more)
 
 ### Community 204 - "Ferrum Native Translation"
@@ -1741,7 +1741,7 @@ Nodes (16): BondDialog, BondDialogCapabilities, Bond properties dialog., Return 
 
 ### Community 239 - "preferences_dialog.py"
 Cohesion: 0.10
-Nodes (22): PreferencesDialog, PreferencesDialogResult, QWidget, Application-preference form that returns typed intent without persistence., Return the currently visible typed preference intent., Return accepted typed intent, or ``None`` when the dialog is rejected., Application-owned settings selected by one accepted dialog., Edit Ferrum application settings without applying or persisting them. The… (+14 more)
+Nodes (22): PreferencesDialog, PreferencesDialogResult, QWidget, Application-preference form that returns typed intent without persistence., Return the currently visible typed preference intent., Return accepted typed intent, or ``None`` when the dialog is rejected., Application-owned settings selected by one accepted dialog., Edit Ferrum application settings without applying or persisting them. The... (+14 more)
 
 ### Community 240 - "Rotation"
 Cohesion: 0.12
@@ -1749,15 +1749,15 @@ Nodes (22): create_rotation_preview(), FerrumNativeRotationPreview, FerrumNative
 
 ### Community 241 - "Preferences"
 Cohesion: 0.09
-Nodes (14): Preferences, Store a preference value and sync to disk. Args: key: Settings key string (use…, Delete a preference key and sync the settings backend. Args: key: Settings key…, Singleton wrapper around QSettings for application preferences. Access the…, Create the QSettings backend. Callers should use ``Preferences.instance()``…, Return the shared Preferences singleton. Creates the instance on first call.…, Read a preference value. Lookup order: 1. Explicit *default* argument (when not…, PeriodicTablePopup (+6 more)
+Nodes (14): Preferences, Store a preference value and sync to disk. Args: key: Settings key string (use..., Delete a preference key and sync the settings backend. Args: key: Settings key..., Singleton wrapper around QSettings for application preferences. Access the..., Create the QSettings backend. Callers should use ``Preferences.instance()``..., Return the shared Preferences singleton. Creates the instance on first call...., Read a preference value. Lookup order: 1. Explicit *default* argument (when not..., PeriodicTablePopup (+6 more)
 
 ### Community 242 - "QWidget Status Bar"
 Cohesion: 0.08
-Nodes (15): QWidget, Show a transient host result and restore context when it expires., Restore persistent context after clearing a transient message., Return the active transient message using QStatusBar semantics., Offer a readable snake-case convenience client for hosts., Present host-supplied cursor, mode, and message state. The status bar retains…, Create one keyboard and screen-reader friendly status display., Build one compact permanent label whose full text remains exposed. (+7 more)
+Nodes (15): QWidget, Show a transient host result and restore context when it expires., Restore persistent context after clearing a transient message., Return the active transient message using QStatusBar semantics., Offer a readable snake-case convenience client for hosts., Present host-supplied cursor, mode, and message state. The status bar retains..., Create one keyboard and screen-reader friendly status display., Build one compact permanent label whose full text remains exposed. (+7 more)
 
 ### Community 243 - "Qt Theme Yaml Mapping"
 Cohesion: 0.08
-Nodes (25): Test that Qt theme palette/QSS is driven entirely by YAML theme files. Verifies…, Verify chemistry section has charge_plus and charge_minus in dark., Verify chemistry section has charge_plus and charge_minus in light., Verify tooltip and high_contrast keys exist in dark.yaml gui., Verify tooltip and high_contrast keys exist in light.yaml gui., Verify all expected gui keys exist in dark.yaml via get_gui_colors., Verify all expected gui keys exist in light.yaml via get_gui_colors., Verify dark QSS contains YAML values, not old hardcoded values. (+17 more)
+Nodes (25): Test that Qt theme palette/QSS is driven entirely by YAML theme files. Verifies..., Verify chemistry section has charge_plus and charge_minus in dark., Verify chemistry section has charge_plus and charge_minus in light., Verify tooltip and high_contrast keys exist in dark.yaml gui., Verify tooltip and high_contrast keys exist in light.yaml gui., Verify all expected gui keys exist in dark.yaml via get_gui_colors., Verify all expected gui keys exist in light.yaml via get_gui_colors., Verify dark QSS contains YAML values, not old hardcoded values. (+17 more)
 
 ### Community 244 - "Clipboard Paste Binding"
 Cohesion: 0.16
@@ -1793,7 +1793,7 @@ Nodes (24): DeclarativeResourceError, _is_optional(), load_menu_declarations(), 
 
 ### Community 252 - "Transform Actions"
 Cohesion: 0.14
-Nodes (8): Convenience method to show the dialog and return scale factors. Args: parent:…, FerrumNativeTopLevelTransformMixin, Install complete-root transforms without persistent Qt geometry., Add closed transform actions for complete durable root selection., Submit one exact Rust alignment for the current complete selection., Scale the exact pre-dialog root selection at its captured revision., Submit one exact Rust mirror for the current complete selection., Enable actions only when their complete-root cardinality is met.
+Nodes (8): Convenience method to show the dialog and return scale factors. Args: parent:..., FerrumNativeTopLevelTransformMixin, Install complete-root transforms without persistent Qt geometry., Add closed transform actions for complete durable root selection., Submit one exact Rust alignment for the current complete selection., Scale the exact pre-dialog root selection at its captured revision., Submit one exact Rust mirror for the current complete selection., Enable actions only when their complete-root cardinality is met.
 
 ### Community 253 - "Linear Form"
 Cohesion: 0.11
@@ -1945,7 +1945,7 @@ Nodes (14): _application_theme_name(), FerrumNativeHexGridItem, _hex_grid_dot_pa
 
 ### Community 290 - "Molecule Name"
 Cohesion: 0.11
-Nodes (16): FerrumNativeMoleculeNameTabMixin, FerrumNativeMoleculeNameWindowMixin, _matching_projection_root(), _MoleculeNameCapture, QMenu, Exact Rust-owned molecule-name editing for the ordinary Ferrum window., Freeze one exact current root, name, and durable child selection., Reauthenticate tab, provenance, root, and exact child selection after the… (+8 more)
+Nodes (16): FerrumNativeMoleculeNameTabMixin, FerrumNativeMoleculeNameWindowMixin, _matching_projection_root(), _MoleculeNameCapture, QMenu, Exact Rust-owned molecule-name editing for the ordinary Ferrum window., Freeze one exact current root, name, and durable child selection., Reauthenticate tab, provenance, root, and exact child selection after the... (+8 more)
 
 ### Community 291 - "Ferrum Native Sdf Export"
 Cohesion: 0.17
@@ -1981,7 +1981,7 @@ Nodes (21): Number, array(), boolean(), exact_keys(), object(), parse_manifest()
 
 ### Community 299 - "Projection Management"
 Cohesion: 0.14
-Nodes (13): FerrumPresentationProjection, FerrumPresentationProjectionController, A complete detached projection from one authoritative observation., Select only durable backend IDs in this projection's current item map., Release an uninstalled projection through the established reaper., Atomically expose exact current Ferrum observations in one Qt scene., Install one newer exact observation; invalid or stale input changes nothing., Move scene ownership reversibly before publishing either projection. Previous… (+5 more)
+Nodes (13): FerrumPresentationProjection, FerrumPresentationProjectionController, A complete detached projection from one authoritative observation., Select only durable backend IDs in this projection's current item map., Release an uninstalled projection through the established reaper., Atomically expose exact current Ferrum observations in one Qt scene., Install one newer exact observation; invalid or stale input changes nothing., Move scene ownership reversibly before publishing either projection. Previous... (+5 more)
 
 ### Community 300 - "Theme Colors"
 Cohesion: 0.12
@@ -2025,12 +2025,12 @@ Nodes (20): EdgeIndex, BasisCandidate, BasisScore, breadth_first_tree(), candida
 
 ### Community 310 - "Drawing Parameters"
 Cohesion: 0.10
-Nodes (11): 
+Nodes (11):
 			FerrumNativeDrawingParametersSnapshot, Apply the host's authoritative action policy to both pointer tools., Enable cancellation exactly while one Ferrum pointer intent exists., Enter or leave one revision-bound atom-to-atom drawing mode., Arm one direct, detached, Rust-owned cyclohexane placement., Enter or leave the revision-bound free-standing Wavy drawing mode., Enter or leave the revision-bound rectangular bracket tool., Enter or leave one immutable-projection atom rotation gesture. (+3 more)
 
 ### Community 311 - "Local CDML Origin"
 Cohesion: 0.10
-Nodes (12): FerrumNativeLocalCdmlOriginTabMixin, Path, Private local-source identity, provenance, and bootstrap state for Ferrum Open., Return the narrow Qt lifecycle predicate for automatic first Open., Start with no admitted-file identity and no replacement eligibility., Return the opaque Rust-issued identity for one admitted local source., Retain one private Rust receipt fact for live-tab identity matching., Retain one admitted source without conflating it with CDML publication. A… (+4 more)
+Nodes (12): FerrumNativeLocalCdmlOriginTabMixin, Path, Private local-source identity, provenance, and bootstrap state for Ferrum Open., Return the narrow Qt lifecycle predicate for automatic first Open., Start with no admitted-file identity and no replacement eligibility., Return the opaque Rust-issued identity for one admitted local source., Retain one private Rust receipt fact for live-tab identity matching., Retain one admitted source without conflating it with CDML publication. A... (+4 more)
 
 ### Community 312 - "Atom Number Proofs"
 Cohesion: 0.18
@@ -2102,7 +2102,7 @@ Nodes (17): ArtifactDestinationRejectionV1, H, map_error(), outcome_to_durabilit
 
 ### Community 329 - "Changelog Day Block"
 Cohesion: 0.15
-Nodes (19): DayBlock, One ``## YYYY-MM-DD`` day block from a changelog file. Attributes: date: ISO…, compute_archive_path(), find_boundary_conflict(), main(), parse_args(), print_duplicate_error(), print_loud_warning() (+11 more)
+Nodes (19): DayBlock, One ``## YYYY-MM-DD`` day block from a changelog file. Attributes: date: ISO..., compute_archive_path(), find_boundary_conflict(), main(), parse_args(), print_duplicate_error(), print_loud_warning() (+11 more)
 
 ### Community 330 - "Document Errors"
 Cohesion: 0.28
@@ -2110,7 +2110,7 @@ Nodes (19): DocumentProjectionError, artifact_destination_rejection(), artifact_
 
 ### Community 331 - "Haworth Tool"
 Cohesion: 0.14
-Nodes (11): FerrumNativeHaworthToolMixin, _HaworthIntent, QDialog, QEvent, QGraphicsItem, QMenu, QMouseEvent, Ordinary Ferrum chooser and one-shot placement for closed D-glucose Haworth… (+3 more)
+Nodes (11): FerrumNativeHaworthToolMixin, _HaworthIntent, QDialog, QEvent, QGraphicsItem, QMenu, QMouseEvent, Ordinary Ferrum chooser and one-shot placement for closed D-glucose Haworth... (+3 more)
 
 ### Community 332 - "Change Stand-in"
 Cohesion: 0.13
@@ -2170,7 +2170,7 @@ Nodes (20): RecordId, assemble_direct_glycosidic_haworth_fragment_v1(), coordina
 
 ### Community 346 - "ASCII Compliance"
 Cohesion: 0.14
-Nodes (19): apply_simple_fixes(), find_non_latin1_chars(), fix_ascii_compliance(), main(), normalize_line_endings(), parse_args(), Namespace, Apply simple replacements for ASCII/ISO-8859-1 compliance. Args: text: Input… (+11 more)
+Nodes (19): apply_simple_fixes(), find_non_latin1_chars(), fix_ascii_compliance(), main(), normalize_line_endings(), parse_args(), Namespace, Apply simple replacements for ASCII/ISO-8859-1 compliance. Args: text: Input... (+11 more)
 
 ### Community 347 - "Presentation Fact Provenance"
 Cohesion: 0.11
@@ -2186,7 +2186,7 @@ Nodes (17): Return the current presentation title after confirmed publication on
 
 ### Community 350 - "Theme Manager"
 Cohesion: 0.13
-Nodes (11): QApplication, Detect the operating system theme preference. Uses Qt's…, Restore the theme from saved preference or system detection. Checks saved…, Manages application theme switching between dark and light modes. Applies…, Handle live system theme change from the OS. Only applies if the user has not…, Persist the theme preference if the Preferences module is available. Args:…, Initialize the theme manager. Args: app: The QApplication instance to apply…, Return the name of the currently active theme. Returns: Theme name string,… (+3 more)
+Nodes (11): QApplication, Detect the operating system theme preference. Uses Qt's..., Restore the theme from saved preference or system detection. Checks saved..., Manages application theme switching between dark and light modes. Applies..., Handle live system theme change from the OS. Only applies if the user has not..., Persist the theme preference if the Preferences module is available. Args:..., Initialize the theme manager. Args: app: The QApplication instance to apply..., Return the name of the currently active theme. Returns: Theme name string,... (+3 more)
 
 ### Community 351 - "Mode Toolbar"
 Cohesion: 0.15
@@ -2246,7 +2246,7 @@ Nodes (17): cm_to_points(), element_category_color(), hex_grid_edges(), hex_grid
 
 ### Community 365 - "AtomDialog"
 Cohesion: 0.13
-Nodes (11): AtomDialog, Atom properties dialog., Fill dialog fields from the current atom model values., Open a color picker dialog and update the color button., Set the color button background to the currently selected color., Return dict of edited values. Returns: Dictionary mapping property names to…, Return only changed plain backend field/value pairs., Convenience: show dialog, apply changes if accepted. Args: atom_model: The… (+3 more)
+Nodes (11): AtomDialog, Atom properties dialog., Fill dialog fields from the current atom model values., Open a color picker dialog and update the color button., Set the color button background to the currently selected color., Return dict of edited values. Returns: Dictionary mapping property names to..., Return only changed plain backend field/value pairs., Convenience: show dialog, apply changes if accepted. Args: atom_model: The... (+3 more)
 
 ### Community 366 - "Line Tools"
 Cohesion: 0.14
@@ -2254,11 +2254,11 @@ Nodes (13): _normalized_rect(), QRectF, Revision-bound Qt pointer tools for the 
 
 ### Community 367 - "Molecule Imports"
 Cohesion: 0.14
-Nodes (10): FerrumNativeMoleculeImportsMixin, Own asynchronous text and bounded local-file molecule imports. The host owns…, Commit one still-current SMILES result., Commit one still-current InChI result., Commit one still-current bounded molfile result., Commit one still-current complete SDF batch., Commit one still-current strict peptide-template result., Commit only a worker result whose tab revision and digest remain current. (+2 more)
+Nodes (10): FerrumNativeMoleculeImportsMixin, Own asynchronous text and bounded local-file molecule imports. The host owns..., Commit one still-current SMILES result., Commit one still-current InChI result., Commit one still-current bounded molfile result., Commit one still-current complete SDF batch., Commit one still-current strict peptide-template result., Commit only a worker result whose tab revision and digest remain current. (+2 more)
 
 ### Community 368 - "Resource Paths"
 Cohesion: 0.11
-Nodes (16): get_resource_path(), Path, Resolve package-owned Ferrum runtime resources., Return a path inside the packaged Qt resource directory. Args: *parts: Relative…, get_icon(), has_icon(), QIcon, Theme-aware icon loader for Ferrum. Loads PNG icons from package resources with… (+8 more)
+Nodes (16): get_resource_path(), Path, Resolve package-owned Ferrum runtime resources., Return a path inside the packaged Qt resource directory. Args: *parts: Relative..., get_icon(), has_icon(), QIcon, Theme-aware icon loader for Ferrum. Loads PNG icons from package resources with... (+8 more)
 
 ### Community 369 - "Selection SVG"
 Cohesion: 0.17
@@ -2314,7 +2314,7 @@ Nodes (13): ActionIconGroup, FerrumNativeActionToolbar, install_native_action_to
 
 ### Community 382 - "Geometry Units"
 Cohesion: 0.12
-Nodes (15): cm_to_pt(), pt_to_cm(), Geometry unit helpers for Ferrum scene-space values., Convert centimeters to scene points., Convert scene points to centimeters., Return the canonical bond length in scene points. Reads only the hard-cut…, resolve_bond_length_pt(), create_preview() (+7 more)
+Nodes (15): cm_to_pt(), pt_to_cm(), Geometry unit helpers for Ferrum scene-space values., Convert centimeters to scene points., Convert scene points to centimeters., Return the canonical bond length in scene points. Reads only the hard-cut..., resolve_bond_length_pt(), create_preview() (+7 more)
 
 ### Community 383 - "Atom Properties Proofs"
 Cohesion: 0.19
@@ -2370,11 +2370,11 @@ Nodes (12): depiction_scale(), MoleculePlacementV1, place_molecule_depiction_v1(
 
 ### Community 396 - "Code Lint"
 Cohesion: 0.16
-Nodes (16): chunked(), collect_report(), collect_violations(), index_output_lines(), normalize_path(), fixture, parametrize, Run pyflakes once over all files and return per-file violation lines. Runs a… (+8 more)
+Nodes (16): chunked(), collect_report(), collect_violations(), index_output_lines(), normalize_path(), fixture, parametrize, Run pyflakes once over all files and return per-file violation lines. Runs a... (+8 more)
 
 ### Community 397 - "README First Paragraph"
 Cohesion: 0.18
-Nodes (15): _is_badge_only_block(), _load_first_paragraph(), Return repo name spellings considered "verbatim" for the no-name rule. Repo…, Return the full README.md text. Returns: str: README file contents., Replace Markdown links with their visible text only. Drops the URL portion so a…, Return True when a block consists only of image badges or links. Used to skip…, Load the first prose paragraph of README.md. Skips leading heading-only blocks…, _read_readme_text() (+7 more)
+Nodes (15): _is_badge_only_block(), _load_first_paragraph(), Return repo name spellings considered "verbatim" for the no-name rule. Repo..., Return the full README.md text. Returns: str: README file contents., Replace Markdown links with their visible text only. Drops the URL portion so a..., Return True when a block consists only of image badges or links. Used to skip..., Load the first prose paragraph of README.md. Skips leading heading-only blocks..., _read_readme_text() (+7 more)
 
 ### Community 398 - "Document Rendering"
 Cohesion: 0.23
@@ -2390,7 +2390,7 @@ Nodes (15): path_from_presentation_runs(), path_from_runs(), _point(), _positive
 
 ### Community 401 - "Arrow Dialog"
 Cohesion: 0.17
-Nodes (9): ArrowDialog, Set the color button background to the currently selected color., Dialog for editing arrow properties. Presents checkboxes for start/end…, Expose or visibly disable spline editing for one host capability profile., Return dict of edited arrow property values. Returns: Dictionary with…, Return only explicit values changed after widget initialization., Initialize the arrow properties dialog. Args: parent: Optional parent widget.…, Build the form layout with all property fields. (+1 more)
+Nodes (9): ArrowDialog, Set the color button background to the currently selected color., Dialog for editing arrow properties. Presents checkboxes for start/end..., Expose or visibly disable spline editing for one host capability profile., Return dict of edited arrow property values. Returns: Dictionary with..., Return only explicit values changed after widget initialization., Initialize the arrow properties dialog. Args: parent: Optional parent widget...., Build the form layout with all property fields. (+1 more)
 
 ### Community 402 - "Plus Dialog"
 Cohesion: 0.17
@@ -2446,7 +2446,7 @@ Nodes (12): FerrumNativePropertyDock, install_native_property_dock(), QAction, Q
 
 ### Community 415 - "Indentation Test"
 Cohesion: 0.18
-Nodes (15): check_file(), collect_report(), inspect_file(), multiline_string_lines(), fixture, parametrize, Path, Run indentation checks on one file and return any violations. Runs inspect_file… (+7 more)
+Nodes (15): check_file(), collect_report(), inspect_file(), multiline_string_lines(), fixture, parametrize, Path, Run indentation checks on one file and return any violations. Runs inspect_file... (+7 more)
 
 ### Community 416 - "Pytest Hygiene Test"
 Cohesion: 0.17
@@ -2538,7 +2538,7 @@ Nodes (12): capture_insertion_placement(), capture_insertion_placement_v1(), Qt-
 
 ### Community 438 - "Atom Properties"
 Cohesion: 0.20
-Nodes (13): _dialog_font_values(), dialog_model_from_projection(), FerrumNativeAtomDialogModel, _property_change(), property_changes_from_dialog(), Typed AtomDialog adaptation for the Ferrum editor., Scalar AtomDialog inputs copied from one frozen Rust atom projection., Copy one exact Rust atom DTO into values representable by AtomDialog. Absent… (+5 more)
+Nodes (13): _dialog_font_values(), dialog_model_from_projection(), FerrumNativeAtomDialogModel, _property_change(), property_changes_from_dialog(), Typed AtomDialog adaptation for the Ferrum editor., Scalar AtomDialog inputs copied from one frozen Rust atom projection., Copy one exact Rust atom DTO into values representable by AtomDialog. Absent... (+5 more)
 
 ### Community 439 - "Presentation Deletion"
 Cohesion: 0.22
@@ -2550,7 +2550,7 @@ Nodes (8): FerrumNativeSnapshotExportWindowMixin, Own lifecycle-fenced publicati
 
 ### Community 441 - "Ferrum Main Window"
 Cohesion: 0.20
-Nodes (12): Ordinary Ferrum application window for Ferrum., _is_direct_glycosidic_profile(), QApplication, QMainWindow, Visible ordinary-native behavior for direct-glycosidic Haworth insertion., One visible request reaches Rust's ordinary projection only after a page click., Escape retires the captured receipt instead of creating or redirecting a…, Recognize durable C/O bridge and front-depth facts without XML details. (+4 more)
+Nodes (12): Ordinary Ferrum application window for Ferrum., _is_direct_glycosidic_profile(), QApplication, QMainWindow, Visible ordinary-native behavior for direct-glycosidic Haworth insertion., One visible request reaches Rust's ordinary projection only after a page click., Escape retires the captured receipt instead of creating or redirecting a..., Recognize durable C/O bridge and front-depth facts without XML details. (+4 more)
 
 ### Community 442 - "Declarative Resources Test"
 Cohesion: 0.15
@@ -2634,7 +2634,7 @@ Nodes (9): FerrumNativeDocumentTabPublicationMixin, FerrumNativeDocumentTabSaveP
 
 ### Community 462 - "Keyboard Authoring"
 Cohesion: 0.18
-Nodes (9): FerrumKeyboardAuthoringMixin, Select then join two durable Rust atoms at the document cursor., Adapt keyboard events to existing atom and bond tool intents. The host owns the…, Handle cursor authoring without retaining any Python document state., Commit the captured atom intent at the visible document cursor., _CaptionToolButton, Keep a custom caption while making Return match ordinary button activation., Dispatch Return through the same enabled click signal as a mouse press. (+1 more)
+Nodes (9): FerrumKeyboardAuthoringMixin, Select then join two durable Rust atoms at the document cursor., Adapt keyboard events to existing atom and bond tool intents. The host owns the..., Handle cursor authoring without retaining any Python document state., Commit the captured atom intent at the visible document cursor., _CaptionToolButton, Keep a custom caption while making Return match ordinary button activation., Dispatch Return through the same enabled click signal as a mouse press. (+1 more)
 
 ### Community 463 - "Snapshot Export Actions"
 Cohesion: 0.19
@@ -2646,7 +2646,7 @@ Nodes (12): main(), NativeCdmlRouteE2eError, _probe(), _proof_environment(), Run
 
 ### Community 465 - "CLI Interface"
 Cohesion: 0.11
-Nodes (19): main(), parse_args(), Namespace, Command-line interface for Ferrum., Parse command-line arguments. Returns: Parsed argument namespace with version…, Entry point for the Ferrum CLI., Run Ferrum as ``python -m ferrum_qt``., MonkeyPatch (+11 more)
+Nodes (19): main(), parse_args(), Namespace, Command-line interface for Ferrum., Parse command-line arguments. Returns: Parsed argument namespace with version..., Entry point for the Ferrum CLI., Run Ferrum as ``python -m ferrum_qt``., MonkeyPatch (+11 more)
 
 ### Community 466 - "Document Tab Test"
 Cohesion: 0.21
@@ -2722,11 +2722,11 @@ Nodes (7): DepictionResolutionV1, DepictionSuppressionV1, D, Deserialize, Error,
 
 ### Community 484 - "Bandit Security Test"
 Cohesion: 0.19
-Nodes (12): collect_report(), collect_violations(), format_result_line(), fixture, parametrize, Autouse fixture: clear stale reports, populate VIOLATIONS_BY_FILE, write…, Enforce no medium-or-higher bandit security findings repo-wide., Run bandit ONCE over all files and return the parsed JSON report. Uses the same… (+4 more)
+Nodes (12): collect_report(), collect_violations(), format_result_line(), fixture, parametrize, Autouse fixture: clear stale reports, populate VIOLATIONS_BY_FILE, write..., Enforce no medium-or-higher bandit security findings repo-wide., Run bandit ONCE over all files and return the parsed JSON report. Uses the same... (+4 more)
 
 ### Community 485 - "Whitespace Test"
 Cohesion: 0.18
-Nodes (12): check_file(), _check_whitespace_bytes(), collect_report(), Config, fixture, parametrize, Repo-wide whitespace hygiene: BOM, CRLF, trailing whitespace, missing final…, Fail on whitespace issues in tracked text files. (+4 more)
+Nodes (12): check_file(), _check_whitespace_bytes(), collect_report(), Config, fixture, parametrize, Repo-wide whitespace hygiene: BOM, CRLF, trailing whitespace, missing final..., Fail on whitespace issues in tracked text files. (+4 more)
 
 ### Community 486 - "Molecule Insertion Bond Order"
 Cohesion: 0.26
@@ -2734,7 +2734,7 @@ Nodes (10): MoleculeInsertionBondOrderV1, atom(), coordinates(), placement(), Mo
 
 ### Community 487 - "test_release_metadata_boundary.py"
 Cohesion: 0.09
-Nodes (26): _display_version(), installed_display_version(), Path, RuntimeError, Self-contained release-metadata boundary for the Ferrum frontend., Report missing or invalid frontend release metadata., Normalize one supported CalVer spelling without losing its suffix., Return one canonical display version from the supplied source registry. Args:… (+18 more)
+Nodes (26): _display_version(), installed_display_version(), Path, RuntimeError, Self-contained release-metadata boundary for the Ferrum frontend., Report missing or invalid frontend release metadata., Normalize one supported CalVer spelling without losing its suffix., Return one canonical display version from the supplied source registry. Args:... (+18 more)
 
 ### Community 488 - "Atom Number"
 Cohesion: 0.15
@@ -2786,7 +2786,7 @@ Nodes (11): fixture, QApplication, qapp(), Semantic direct-root Text editing thr
 
 ### Community 500 - "Stub Verification"
 Cohesion: 0.18
-Nodes (11): _handler_source_contains_stub(), Anti-stub test: verify no registered action handler is a placeholder stub.…, Registry should have at least 48 actions (all stubs replaced)., All expected menu categories should have actions registered., Check if a handler's source code contains stub indicators. Inspects the…, Every registered action handler must be a real implementation. Fails if any…, Every registered action must have a callable handler or None., test_action_categories_present() (+3 more)
+Nodes (11): _handler_source_contains_stub(), Anti-stub test: verify no registered action handler is a placeholder stub...., Registry should have at least 48 actions (all stubs replaced)., All expected menu categories should have actions registered., Check if a handler's source code contains stub indicators. Inspects the..., Every registered action handler must be a real implementation. Fails if any..., Every registered action must have a callable handler or None., test_action_categories_present() (+3 more)
 
 ### Community 501 - "Refusal Presentation"
 Cohesion: 0.17
@@ -2850,7 +2850,7 @@ Nodes (5): CdmlLength, GeometryError, Result, Self, ScenePoints
 
 ### Community 516 - "ASCII Compliance"
 Cohesion: 0.23
-Nodes (11): check_ascii_compliance(), find_non_latin1_chars(), main(), parse_args(), Namespace, Run the ISO-8859-1/ASCII compliance check. Returns: int: Process exit code., Read UTF-8 text from a file. Args: input_file: Path to the file. Returns:…, Find non-ISO-8859-1 characters in text. Args: text: Input text. Returns:… (+3 more)
+Nodes (11): check_ascii_compliance(), find_non_latin1_chars(), main(), parse_args(), Namespace, Run the ISO-8859-1/ASCII compliance check. Returns: int: Process exit code., Read UTF-8 text from a file. Args: input_file: Path to the file. Returns:..., Find non-ISO-8859-1 characters in text. Args: text: Input text. Returns:... (+3 more)
 
 ### Community 517 - "Window Mode Sync"
 Cohesion: 0.22
@@ -3074,7 +3074,7 @@ Nodes (6): FerrumNativeUserTemplateWindowMixin, QMenu, Expose template publicati
 
 ### Community 573 - "Palettes"
 Cohesion: 0.22
-Nodes (7): build_palette(), build_qss(), YAML-driven color palettes and QSS stylesheets for Ferrum themes. All colors…, Build a QSS stylesheet from the YAML theme gui section. Reads all gui color…, Build a QPalette from the YAML theme gui section. Reads all gui color keys from…, Theme manager for switching between dark and light themes., QPalette
+Nodes (7): build_palette(), build_qss(), YAML-driven color palettes and QSS stylesheets for Ferrum themes. All colors..., Build a QSS stylesheet from the YAML theme gui section. Reads all gui color..., Build a QPalette from the YAML theme gui section. Reads all gui color keys from..., Theme manager for switching between dark and light themes., QPalette
 
 ### Community 574 - "Document Tab Controller"
 Cohesion: 0.15
@@ -3202,11 +3202,11 @@ Nodes (5): run_step(), all_test.sh script, PYTHONDONTWRITEBYTECODE, PYTHONUNBUFF
 
 ### Community 606 - "Version Bumping"
 Cohesion: 0.38
-Nodes (6): advanced_help(), main(), parse_args(), Namespace, Return help text only when advanced help was requested. Args: show_advanced…, Parse command line arguments. Returns: argparse.Namespace: Parsed arguments.
+Nodes (6): advanced_help(), main(), parse_args(), Namespace, Return help text only when advanced help was requested. Args: show_advanced..., Parse command line arguments. Returns: argparse.Namespace: Parsed arguments.
 
 ### Community 607 - "Git Repository Operations"
 Cohesion: 0.29
-Nodes (7): ensure_in_git_repo(), get_git_root(), CompletedProcess, Run a git command and return the completed process. Args: args: Argument list…, Return the absolute path of the git repository root. Returns: Absolute path of…, Raise if the current working directory is not inside a git work tree. Raises:…, run_git()
+Nodes (7): ensure_in_git_repo(), get_git_root(), CompletedProcess, Run a git command and return the completed process. Args: args: Argument list..., Return the absolute path of the git repository root. Returns: Absolute path of..., Raise if the current working directory is not inside a git work tree. Raises:..., run_git()
 
 ### Community 608 - "UI Painting"
 Cohesion: 0.33
@@ -3290,7 +3290,7 @@ Nodes (6): DocumentOperationV1, set_atom(), test_noop_and_mutation_follow_the_re
 
 ### Community 628 - "Bond Presentation"
 Cohesion: 0.40
-Nodes (5): choices_for_display(), label_for_bond_type(), Qt-facing labels and choice sets for canonical CDML bond styles., Return generic choices plus Haworth when displaying an existing q bond. Args:…, Return the accurate presentation label for one known CDML style. Args:…
+Nodes (5): choices_for_display(), label_for_bond_type(), Qt-facing labels and choice sets for canonical CDML bond styles., Return generic choices plus Haworth when displaying an existing q bond. Args:..., Return the accurate presentation label for one known CDML style. Args:...
 
 ### Community 629 - "Menu Actions"
 Cohesion: 0.40
@@ -3330,7 +3330,7 @@ Nodes (5): delete_qobject_and_wait(), QApplication, QObject, Ferrum QObject term
 
 ### Community 640 - "Theme Toggle"
 Cohesion: 0.33
-Nodes (5): Test that ThemeManager toggle switches palette colors to match YAML values.…, Verify apply_theme switches palette Window color to match YAML values., Verify dark -> light -> dark roundtrip preserves palette colors., test_theme_toggle_changes_palette(), test_theme_toggle_roundtrip()
+Nodes (5): Test that ThemeManager toggle switches palette colors to match YAML values...., Verify apply_theme switches palette Window color to match YAML values., Verify dark -> light -> dark roundtrip preserves palette colors., test_theme_toggle_changes_palette(), test_theme_toggle_roundtrip()
 
 ### Community 641 - "Toolbar Actions"
 Cohesion: 0.33
@@ -3414,7 +3414,7 @@ Nodes (3): run_step(), check_rust.sh script, usage()
 
 ### Community 668 - "Build Choice Prompt"
 Cohesion: 0.50
-Nodes (4): build_choice_prompt(), confirm(), Build a colored y/N prompt string. Args: prompt: Base prompt text. Returns: The…, Ask the user to confirm via a y/N prompt. Args: prompt: Prompt text shown…
+Nodes (4): build_choice_prompt(), confirm(), Build a colored y/N prompt string. Args: prompt: Base prompt text. Returns: The..., Ask the user to confirm via a y/N prompt. Args: prompt: Prompt text shown...
 
 ### Community 669 - "Clean Build Script"
 Cohesion: 0.83
@@ -3426,7 +3426,7 @@ Nodes (3): delete_find_matches(), delete_path(), dist_clean.sh script
 
 ### Community 671 - "Canvas Interaction"
 Cohesion: 0.50
-Nodes (3): One host-owned query for Ferrum canvas interaction containment., Return whether a tab owns an unfinished Ferrum pointer interaction. The…, tab_has_active_native_canvas_interaction()
+Nodes (3): One host-owned query for Ferrum canvas interaction containment., Return whether a tab owns an unfinished Ferrum pointer interaction. The..., tab_has_active_native_canvas_interaction()
 
 ### Community 676 - "Geometry Cleaning"
 Cohesion: 0.50
@@ -3450,7 +3450,7 @@ Nodes (4): local_png_render_request_v1(), PngPixelSizeV1, PngRenderRequestV1, Pn
 
 ### Community 684 - "Session Initialization"
 Cohesion: 0.29
-Nodes (4): QGraphicsView, Load complete CDML into one exact Ferrum session and paint it. Args: cdml:…, Install one ownership graph shared by production and fixture construction., Dispose partial projection resources after construction failure.
+Nodes (4): QGraphicsView, Load complete CDML into one exact Ferrum session and paint it. Args: cdml:..., Install one ownership graph shared by production and fixture construction., Dispose partial projection resources after construction failure.
 
 ### Community 689 - "Module Initialization"
 Cohesion: 0.67
@@ -3458,8 +3458,8 @@ Nodes (3): initialize(), Bound, PyModule
 
 ## Knowledge Gaps
 - **226 isolated node(s):** `RWMol`, `RWMol`, `DocumentSession`, `DocumentSession`, `DocumentSession` (+221 more)
-  These have ≤1 connection - possible missing edges or undocumented components.
-- **66 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have <=1 connection - possible missing edges or undocumented components.
+- **66 thin communities (<3 nodes) omitted from report** - run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_

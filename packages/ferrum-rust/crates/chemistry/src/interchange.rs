@@ -8,10 +8,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    ChemEngine, ChemistryError, ImportedSdfRecord, InchiMode, MOLBLOCK_MAX_INPUT_BYTES, MolGraph,
-    MolblockVersion, NATIVE_SMILES_MAX_INPUT_BYTES, SDF_MAX_INPUT_BYTES, SdfError, SdfProperty,
-    SmilesMolecule, compose_sdf_record, validate_inchi_input, validate_molblock_input,
-    validate_sdf_input, validate_smiles_input,
+    ChemEngine, ChemistryError, InchiMode, MOLBLOCK_MAX_INPUT_BYTES, MolGraph, MolblockVersion,
+    NATIVE_SMILES_MAX_INPUT_BYTES, SDF_MAX_INPUT_BYTES, SdfError, SmilesMolecule,
+    validate_inchi_input, validate_molblock_input, validate_smiles_input,
 };
 
 /// The maximum text accepted or returned by one interchange codec operation.
@@ -71,7 +70,7 @@ impl InterchangeFormatV1 {
         }
     }
 }
-/// One ordered SDF property retained without map normalization.
+/// One ordered text property retained without map normalization.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InterchangePropertyV1 {
     name: String,
@@ -82,11 +81,12 @@ impl InterchangePropertyV1 {
         name: impl Into<String>,
         value: impl Into<String>,
     ) -> Result<Self, InterchangeCodecErrorV1> {
-        let property = SdfProperty::new(name, value).map_err(InterchangeCodecErrorV1::SdfRecord)?;
-        Ok(Self {
-            name: property.name().to_owned(),
-            value: property.value().to_owned(),
-        })
+        let name = name.into();
+        let value = value.into();
+        if name.is_empty() || name.contains(['\0', '\r', '\n']) || value.contains('\0') {
+            return Err(InterchangeCodecErrorV1::InvalidInterchangeProperty);
+        }
+        Ok(Self { name, value })
     }
     #[must_use]
     pub fn name(&self) -> &str {
@@ -96,28 +96,25 @@ impl InterchangePropertyV1 {
     pub fn value(&self) -> &str {
         &self.value
     }
-    fn as_sdf_property(&self) -> Result<SdfProperty, InterchangeCodecErrorV1> {
-        SdfProperty::new(&self.name, &self.value).map_err(InterchangeCodecErrorV1::SdfRecord)
-    }
 }
-/// One fully owned molecular record, including optional display title and SDF metadata.
+/// One fully owned molecular record, including optional display title and ordered metadata.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterchangeRecordV1 {
     molecule: MolGraph,
     title: Option<String>,
-    sdf_properties: Vec<InterchangePropertyV1>,
+    properties: Vec<InterchangePropertyV1>,
 }
 impl InterchangeRecordV1 {
     #[must_use]
     pub fn new(
         molecule: MolGraph,
         title: Option<String>,
-        sdf_properties: Vec<InterchangePropertyV1>,
+        properties: Vec<InterchangePropertyV1>,
     ) -> Self {
         Self {
             molecule,
             title,
-            sdf_properties,
+            properties,
         }
     }
     #[must_use]
@@ -129,8 +126,8 @@ impl InterchangeRecordV1 {
         self.title.as_deref()
     }
     #[must_use]
-    pub fn sdf_properties(&self) -> &[InterchangePropertyV1] {
-        &self.sdf_properties
+    pub fn properties(&self) -> &[InterchangePropertyV1] {
+        &self.properties
     }
 }
 /// Decode any native syntax into complete, owned chemistry records.
@@ -160,12 +157,7 @@ pub fn decode_non_cdml_interchange_v1(
             )]
         }
         InterchangeFormatV1::SdfV2000 | InterchangeFormatV1::SdfV3000 => {
-            validate_sdf_input(text)?;
-            engine
-                .sdf_to_records(text)?
-                .into_iter()
-                .map(from_imported_sdf)
-                .collect()
+            crate::interchange_sdf::decode_sdf_interchange_v1(engine, text)?
         }
         InterchangeFormatV1::Cdml => unreachable!("checked above"),
     };
@@ -206,11 +198,13 @@ pub fn encode_non_cdml_interchange_v1(
                 format.molblock_version().expect("molblock format"),
                 records[0].title().unwrap_or_default(),
             )?,
-        InterchangeFormatV1::SdfV2000 | InterchangeFormatV1::SdfV3000 => encode_sdf(
-            engine,
-            format.molblock_version().expect("SDF format"),
-            records,
-        )?,
+        InterchangeFormatV1::SdfV2000 | InterchangeFormatV1::SdfV3000 => {
+            crate::interchange_sdf::encode_sdf_interchange_v1(
+                engine,
+                format.molblock_version().expect("SDF format"),
+                records,
+            )?
+        }
         InterchangeFormatV1::Cdml => unreachable!("checked above"),
     };
     enforce_output_limit(format, &output)?;
@@ -218,66 +212,6 @@ pub fn encode_non_cdml_interchange_v1(
 }
 fn from_smiles(molecule: SmilesMolecule, title: Option<String>) -> InterchangeRecordV1 {
     InterchangeRecordV1::new(molecule.molecule().clone(), title, Vec::new())
-}
-fn from_imported_sdf(record: ImportedSdfRecord) -> InterchangeRecordV1 {
-    let properties = record
-        .properties()
-        .iter()
-        .map(|property| InterchangePropertyV1 {
-            name: property.name().to_owned(),
-            value: property.value().to_owned(),
-        })
-        .collect();
-    InterchangeRecordV1::new(
-        record.molecule().molecule().clone(),
-        Some(record.title().to_owned()),
-        properties,
-    )
-}
-fn encode_sdf(
-    engine: &dyn ChemEngine,
-    version: MolblockVersion,
-    records: &[InterchangeRecordV1],
-) -> Result<String, InterchangeCodecErrorV1> {
-    let mut output = String::new();
-    for record in records {
-        let molblock = engine.molecule_to_molblock_with_title(
-            record.molecule(),
-            version,
-            record.title().unwrap_or_default(),
-        )?;
-        let properties = record
-            .sdf_properties()
-            .iter()
-            .map(InterchangePropertyV1::as_sdf_property)
-            .collect::<Result<Vec<_>, _>>()?;
-        let fragment = compose_sdf_record(&molblock, &properties)
-            .map_err(InterchangeCodecErrorV1::SdfRecord)?;
-        let projected = output.len().checked_add(fragment.len()).ok_or(
-            InterchangeCodecErrorV1::OutputTooLarge {
-                format: if version == MolblockVersion::V2000 {
-                    InterchangeFormatV1::SdfV2000
-                } else {
-                    InterchangeFormatV1::SdfV3000
-                },
-                limit: INTERCHANGE_MAX_TEXT_BYTES_V1,
-                observed_at_least: usize::MAX,
-            },
-        )?;
-        if projected > INTERCHANGE_MAX_TEXT_BYTES_V1 {
-            return Err(InterchangeCodecErrorV1::OutputTooLarge {
-                format: if version == MolblockVersion::V2000 {
-                    InterchangeFormatV1::SdfV2000
-                } else {
-                    InterchangeFormatV1::SdfV3000
-                },
-                limit: INTERCHANGE_MAX_TEXT_BYTES_V1,
-                observed_at_least: projected,
-            });
-        }
-        output.push_str(&fragment);
-    }
-    Ok(output)
 }
 fn molblock_title(text: &str) -> Option<String> {
     text.lines().next().map(str::to_owned)
@@ -321,6 +255,8 @@ fn enforce_output_limit(
 /// A refused native source or target codec operation.
 #[derive(Debug, Error)]
 pub enum InterchangeCodecErrorV1 {
+    #[error("interchange property is empty or contains an unretainable control character")]
+    InvalidInterchangeProperty,
     #[error("{format:?} input exceeds {limit} bytes (observed {observed_at_least})")]
     InputTooLarge {
         format: InterchangeFormatV1,

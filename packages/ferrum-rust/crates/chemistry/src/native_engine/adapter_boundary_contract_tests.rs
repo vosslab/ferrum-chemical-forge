@@ -28,12 +28,10 @@ fn abi5_adapter_loads_required_symbols_and_honors_capability_bits() {
     assert_eq!(adapter.abi_version(), ADAPTER_ABI_VERSION);
     assert_eq!(adapter.capabilities(), FERRUM_CHEM_CAPABILITY_KEKULIZE);
     assert!(!adapter.supports_generate_2d());
-    assert!(
-        adapter
-            .kekulize(&[])
-            .expect("required ABI-5 kekulize remains callable")
-            .is_empty()
-    );
+    assert!(adapter
+        .kekulize(&[])
+        .expect("required ABI-5 kekulize remains callable")
+        .is_empty());
     assert!(matches!(
         adapter.generate_2d(&[]),
         Err(AdapterError::OperationUnavailable {

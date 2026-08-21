@@ -39,15 +39,6 @@ impl PendingAttachedCyclohexaneV1 {
     pub fn preview_vertices(&self) -> Option<&[Point3V1; 6]> {
         self.candidate.as_ref().map(|_| &self.preview_vertices)
     }
-
-    /// Return complete candidate facts for later response admission only.
-    #[must_use]
-    pub fn candidate_revision_and_digest_v1(&self) -> Option<(u64, [u8; 32])> {
-        self.candidate.as_ref().map(|candidate| {
-            let snapshot = candidate.snapshot(true);
-            (snapshot.revision(), *snapshot.digest())
-        })
-    }
 }
 
 /// Closed refusal vocabulary for the one attached-C6 capability.

@@ -5,10 +5,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use ferrum_core::{Molecule, RecordId};
 
 use crate::haworth::{
+    assemble_direct_glycosidic_haworth_fragment_v1, direct_glycosidic_haworth_depiction_spec_v1,
     DirectGlycosidicHaworthBondStyleV1, DirectGlycosidicHaworthDepictionSpecV1,
     DirectGlycosidicHaworthFragmentRequestV1, DirectGlycosidicHaworthPositionV1,
     DirectGlycosidicHaworthTopologyV1, HaworthError, HaworthPoint,
-    assemble_direct_glycosidic_haworth_fragment_v1, direct_glycosidic_haworth_depiction_spec_v1,
 };
 
 type DurableRingBondComponentsV1 = (
@@ -403,6 +403,12 @@ impl AuthoredDirectGlycosidicHaworthBridgeBondV1 {
 }
 
 impl DirectGlycosidicHaworthAuthoringReceiptV1 {
+    /// Return the checked source depiction used for detached rendering.
+    #[must_use]
+    pub const fn source_spec(&self) -> &DirectGlycosidicHaworthDepictionSpecV1 {
+        &self.source_spec
+    }
+
     /// Rebind this checked A1 receipt to exactly parallel durable document identities.
     pub fn authored_depiction_for_durable_commit_v1(
         &self,

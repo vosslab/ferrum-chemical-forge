@@ -5,7 +5,7 @@
 //! layers must join rather than allowing each adapter to maintain its own CML
 //! table.
 
-use ferrum_chemistry::CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1;
+use ferrum_chemistry::{CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1, SDF_MAX_INPUT_BYTES};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,11 +13,12 @@ use serde::{Deserialize, Serialize};
 pub const CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1: &str = CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1;
 /// Exact API format identifier selected by the static format descriptor.
 pub const CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1: &str = "cml_simple_molecule_import_v1";
-/// Frozen maximum for M2a.3's one canonical CML import response envelope.
-///
-/// M2a.0 retains this value for the later exact-envelope admission boundary. It
-/// does not serialize or publish a response envelope itself.
-pub const CML_IMPORT_RESPONSE_BUDGET_BYTES_V1: usize = 1_048_576;
+/// Exact API format identifier selected by the SDF V1 descriptor.
+pub const SDF_IMPORT_FORMAT_V1: &str = "sdf_v1";
+/// Exact SDF profile selected by the static format descriptor.
+pub const SDF_IMPORT_PROFILE_V1: &str = "sdf_v1";
+const CML_IMPORT_MAX_SOURCE_BYTES_V1: usize = 1_048_576;
+const INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1: usize = 1_048_576;
 
 /// Closed import direction advertised by a Ferrum interchange descriptor.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -26,7 +27,7 @@ pub enum InterchangeDirectionV1 {
     DocumentImportNew,
 }
 
-/// Closed compression policy.  CML import never implicitly decompresses input.
+/// Closed compression policy.  interchange import never implicitly decompresses input.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InterchangeCompressionPolicyV1 {
@@ -40,9 +41,48 @@ pub enum InterchangeSemanticLossPolicyV1 {
     RejectUnrepresentedSemantics,
 }
 
+/// Closed native decoder selected by one static interchange descriptor.
+///
+/// This is deliberately not a string or callback. The API exhaustively owns
+/// every enabled decoder, so adapters cannot invent a format branch.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InterchangeDecoderKeyV1 {
+    CmlSimpleMolecule,
+    Sdf,
+}
+
+/// Source and final-response bounds selected by an interchange descriptor.
+#[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
+pub struct InterchangeImportLimitsV1 {
+    max_source_bytes: usize,
+    max_response_bytes: usize,
+}
+
+impl InterchangeImportLimitsV1 {
+    #[must_use]
+    pub const fn new(max_source_bytes: usize, max_response_bytes: usize) -> Self {
+        Self {
+            max_source_bytes,
+            max_response_bytes,
+        }
+    }
+
+    #[must_use]
+    pub const fn max_source_bytes(self) -> usize {
+        self.max_source_bytes
+    }
+
+    #[must_use]
+    pub const fn max_response_bytes(self) -> usize {
+        self.max_response_bytes
+    }
+}
+
 /// One static, import-only descriptor consumed by future CLI and Qt surfaces.
 #[derive(Debug, JsonSchema, Serialize)]
 pub struct InterchangeFormatDescriptorV1 {
+    display_name: &'static str,
     format_id: &'static str,
     profile_id: &'static str,
     input_aliases: &'static [&'static str],
@@ -51,9 +91,15 @@ pub struct InterchangeFormatDescriptorV1 {
     output_suffixes: &'static [&'static str],
     compression: InterchangeCompressionPolicyV1,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1,
+    decoder: InterchangeDecoderKeyV1,
+    limits: InterchangeImportLimitsV1,
 }
 
 impl InterchangeFormatDescriptorV1 {
+    #[must_use]
+    pub const fn display_name(&self) -> &'static str {
+        self.display_name
+    }
     #[must_use]
     pub const fn format_id(&self) -> &'static str {
         self.format_id
@@ -86,6 +132,14 @@ impl InterchangeFormatDescriptorV1 {
     pub const fn semantic_loss_policy(&self) -> InterchangeSemanticLossPolicyV1 {
         self.semantic_loss_policy
     }
+    #[must_use]
+    pub const fn decoder(&self) -> InterchangeDecoderKeyV1 {
+        self.decoder
+    }
+    #[must_use]
+    pub const fn limits(&self) -> InterchangeImportLimitsV1 {
+        self.limits
+    }
 }
 
 const CML_EXPECTED_INPUT_ALIASES_V1: [&str; 3] = ["cml", "cml1", "cml2"];
@@ -93,6 +147,7 @@ const CML_EXPECTED_INPUT_SUFFIXES_V1: [&str; 1] = [".cml"];
 const CML_EXPECTED_OUTPUT_SUFFIXES_V1: [&str; 0] = [];
 const CML_DIRECTIONS_V1: [InterchangeDirectionV1; 1] = [InterchangeDirectionV1::DocumentImportNew];
 const CML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescriptorV1 {
+    display_name: "Chemical Markup Language (CML/CML2)",
     format_id: CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
     profile_id: CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
     input_aliases: &CML_EXPECTED_INPUT_ALIASES_V1,
@@ -101,6 +156,29 @@ const CML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescri
     output_suffixes: &CML_EXPECTED_OUTPUT_SUFFIXES_V1,
     compression: InterchangeCompressionPolicyV1::Forbidden,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics,
+    decoder: InterchangeDecoderKeyV1::CmlSimpleMolecule,
+    limits: InterchangeImportLimitsV1::new(
+        CML_IMPORT_MAX_SOURCE_BYTES_V1,
+        INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1,
+    ),
+};
+const SDF_EXPECTED_INPUT_ALIASES_V1: [&str; 2] = ["sdf", "sd"];
+const SDF_EXPECTED_INPUT_SUFFIXES_V1: [&str; 2] = [".sdf", ".sd"];
+const SDF_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescriptorV1 {
+    display_name: "Structure Data File (SDF)",
+    format_id: SDF_IMPORT_FORMAT_V1,
+    profile_id: SDF_IMPORT_PROFILE_V1,
+    input_aliases: &SDF_EXPECTED_INPUT_ALIASES_V1,
+    input_suffixes: &SDF_EXPECTED_INPUT_SUFFIXES_V1,
+    directions: &CML_DIRECTIONS_V1,
+    output_suffixes: &CML_EXPECTED_OUTPUT_SUFFIXES_V1,
+    compression: InterchangeCompressionPolicyV1::Forbidden,
+    semantic_loss_policy: InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics,
+    decoder: InterchangeDecoderKeyV1::Sdf,
+    limits: InterchangeImportLimitsV1::new(
+        SDF_MAX_INPUT_BYTES,
+        INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1,
+    ),
 };
 
 /// The sole static API-owned interchange registry for M2a.
@@ -110,170 +188,81 @@ impl InterchangeFormatRegistryV1 {
     /// Return every enabled descriptor in deterministic API order.
     #[must_use]
     pub const fn descriptors() -> &'static [InterchangeFormatDescriptorV1] {
-        &[CML_DESCRIPTOR_V1]
+        &[CML_DESCRIPTOR_V1, SDF_DESCRIPTOR_V1]
     }
 
     /// Resolve one exact lower-case input alias without guessing or suffix fallback.
     pub fn lookup_input_alias(
         alias: &str,
-    ) -> Result<&'static InterchangeFormatDescriptorV1, CmlImportRefusalV1> {
-        if CML_DESCRIPTOR_V1.input_aliases.contains(&alias) {
-            Ok(&CML_DESCRIPTOR_V1)
-        } else {
-            Err(CmlImportRefusalV1::for_reason(
-                CmlImportRefusalReasonV1::FormatAliasUnsupported,
-            ))
-        }
+    ) -> Result<&'static InterchangeFormatDescriptorV1, InterchangeImportRefusalV1> {
+        Self::descriptors()
+            .iter()
+            .find(|descriptor| descriptor.input_aliases.contains(&alias))
+            .ok_or_else(|| {
+                InterchangeImportRefusalV1::for_reason(
+                    InterchangeImportRefusalReasonV1::FormatAliasUnsupported,
+                )
+            })
+    }
+
+    /// Resolve one exact lower-case suffix without filename inference.
+    pub fn lookup_input_suffix(
+        suffix: &str,
+    ) -> Result<&'static InterchangeFormatDescriptorV1, InterchangeImportRefusalV1> {
+        Self::descriptors()
+            .iter()
+            .find(|descriptor| descriptor.input_suffixes.contains(&suffix))
+            .ok_or_else(|| {
+                InterchangeImportRefusalV1::for_reason(
+                    InterchangeImportRefusalReasonV1::FormatAliasUnsupported,
+                )
+            })
     }
 
     /// Prove the API descriptor exactly joins the chemistry profile and document targets.
-    pub fn validate_exact_join() -> Result<(), CmlImportRefusalV1> {
-        let descriptor = &CML_DESCRIPTOR_V1;
+    pub fn validate_exact_join() -> Result<(), InterchangeImportRefusalV1> {
         let directions = [InterchangeDirectionV1::DocumentImportNew];
-        if descriptor.format_id == CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1
-            && descriptor.profile_id == CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1
-            && descriptor.input_aliases == CML_EXPECTED_INPUT_ALIASES_V1
-            && descriptor.input_suffixes == CML_EXPECTED_INPUT_SUFFIXES_V1
-            && descriptor.directions == directions
-            && descriptor.output_suffixes == CML_EXPECTED_OUTPUT_SUFFIXES_V1
-            && descriptor.compression == InterchangeCompressionPolicyV1::Forbidden
-            && descriptor.semantic_loss_policy
+        if CML_DESCRIPTOR_V1.display_name == "Chemical Markup Language (CML/CML2)"
+            && CML_DESCRIPTOR_V1.format_id == CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1
+            && CML_DESCRIPTOR_V1.profile_id == CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1
+            && CML_DESCRIPTOR_V1.input_aliases == CML_EXPECTED_INPUT_ALIASES_V1
+            && CML_DESCRIPTOR_V1.input_suffixes == CML_EXPECTED_INPUT_SUFFIXES_V1
+            && CML_DESCRIPTOR_V1.directions == directions
+            && CML_DESCRIPTOR_V1.output_suffixes == CML_EXPECTED_OUTPUT_SUFFIXES_V1
+            && SDF_DESCRIPTOR_V1.format_id == SDF_IMPORT_FORMAT_V1
+            && SDF_DESCRIPTOR_V1.profile_id == SDF_IMPORT_PROFILE_V1
+            && SDF_DESCRIPTOR_V1.input_aliases == SDF_EXPECTED_INPUT_ALIASES_V1
+            && SDF_DESCRIPTOR_V1.input_suffixes == SDF_EXPECTED_INPUT_SUFFIXES_V1
+            && SDF_DESCRIPTOR_V1.directions == directions
+            && SDF_DESCRIPTOR_V1.output_suffixes == CML_EXPECTED_OUTPUT_SUFFIXES_V1
+            && CML_DESCRIPTOR_V1.compression == InterchangeCompressionPolicyV1::Forbidden
+            && SDF_DESCRIPTOR_V1.compression == InterchangeCompressionPolicyV1::Forbidden
+            && CML_DESCRIPTOR_V1.semantic_loss_policy
                 == InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics
+            && SDF_DESCRIPTOR_V1.semantic_loss_policy
+                == InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics
+            && CML_DESCRIPTOR_V1.decoder == InterchangeDecoderKeyV1::CmlSimpleMolecule
+            && SDF_DESCRIPTOR_V1.decoder == InterchangeDecoderKeyV1::Sdf
+            && CML_DESCRIPTOR_V1.limits.max_source_bytes == CML_IMPORT_MAX_SOURCE_BYTES_V1
+            && SDF_DESCRIPTOR_V1.limits.max_source_bytes == SDF_MAX_INPUT_BYTES
+            && CML_DESCRIPTOR_V1.limits.max_response_bytes
+                == INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1
+            && SDF_DESCRIPTOR_V1.limits.max_response_bytes
+                == INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1
         {
             Ok(())
         } else {
-            Err(CmlImportRefusalV1::for_reason(
-                CmlImportRefusalReasonV1::InternalFailure,
+            Err(InterchangeImportRefusalV1::for_reason(
+                InterchangeImportRefusalReasonV1::InternalFailure,
             ))
         }
     }
 }
 
-/// Frozen ingress and response bounds for M2a.  It has no caller-settable fields.
-#[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
-pub struct CmlIngressBudgetV1 {
-    raw_utf8_input_bytes: usize,
-    decoded_xml_text_bytes: usize,
-    xml_declaration_bytes: usize,
-    comment_bytes: usize,
-    processing_instruction_bytes: usize,
-    xml_elements: usize,
-    xml_depth: usize,
-    attributes_per_element: usize,
-    attribute_value_bytes: usize,
-    source_records: usize,
-    atoms_per_record: usize,
-    atoms_total: usize,
-    bonds_per_record: usize,
-    bonds_total: usize,
-    source_id_map_entries: usize,
-    scalar_identifier_bytes: usize,
-    candidate_cdml_bytes: usize,
-    response_bytes: usize,
-}
-
-impl CmlIngressBudgetV1 {
-    #[must_use]
-    pub const fn frozen() -> Self {
-        Self {
-            raw_utf8_input_bytes: 1_048_576,
-            decoded_xml_text_bytes: 1_048_576,
-            xml_declaration_bytes: 256,
-            comment_bytes: 65_536,
-            processing_instruction_bytes: 8_192,
-            xml_elements: 50_000,
-            xml_depth: 8,
-            attributes_per_element: 8,
-            attribute_value_bytes: 256,
-            source_records: 1_024,
-            atoms_per_record: 10_000,
-            atoms_total: 100_000,
-            bonds_per_record: 20_000,
-            bonds_total: 200_000,
-            source_id_map_entries: 101_024,
-            scalar_identifier_bytes: 128,
-            candidate_cdml_bytes: 8_388_608,
-            response_bytes: CML_IMPORT_RESPONSE_BUDGET_BYTES_V1,
-        }
-    }
-    #[must_use]
-    pub const fn raw_utf8_input_bytes(self) -> usize {
-        self.raw_utf8_input_bytes
-    }
-    #[must_use]
-    pub const fn decoded_xml_text_bytes(self) -> usize {
-        self.decoded_xml_text_bytes
-    }
-    #[must_use]
-    pub const fn xml_declaration_bytes(self) -> usize {
-        self.xml_declaration_bytes
-    }
-    #[must_use]
-    pub const fn comment_bytes(self) -> usize {
-        self.comment_bytes
-    }
-    #[must_use]
-    pub const fn processing_instruction_bytes(self) -> usize {
-        self.processing_instruction_bytes
-    }
-    #[must_use]
-    pub const fn xml_elements(self) -> usize {
-        self.xml_elements
-    }
-    #[must_use]
-    pub const fn xml_depth(self) -> usize {
-        self.xml_depth
-    }
-    #[must_use]
-    pub const fn attributes_per_element(self) -> usize {
-        self.attributes_per_element
-    }
-    #[must_use]
-    pub const fn attribute_value_bytes(self) -> usize {
-        self.attribute_value_bytes
-    }
-    #[must_use]
-    pub const fn source_records(self) -> usize {
-        self.source_records
-    }
-    #[must_use]
-    pub const fn atoms_per_record(self) -> usize {
-        self.atoms_per_record
-    }
-    #[must_use]
-    pub const fn atoms_total(self) -> usize {
-        self.atoms_total
-    }
-    #[must_use]
-    pub const fn bonds_per_record(self) -> usize {
-        self.bonds_per_record
-    }
-    #[must_use]
-    pub const fn bonds_total(self) -> usize {
-        self.bonds_total
-    }
-    #[must_use]
-    pub const fn source_id_map_entries(self) -> usize {
-        self.source_id_map_entries
-    }
-    #[must_use]
-    pub const fn scalar_identifier_bytes(self) -> usize {
-        self.scalar_identifier_bytes
-    }
-    #[must_use]
-    pub const fn candidate_cdml_bytes(self) -> usize {
-        self.candidate_cdml_bytes
-    }
-    #[must_use]
-    pub const fn response_bytes(self) -> usize {
-        self.response_bytes
-    }
-}
-
-/// Closed refusal categories for CML import.
+/// Closed refusal categories for interchange import.
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum CmlImportRefusalCategoryV1 {
+pub enum InterchangeImportRefusalCategoryV1 {
     ConversionFailed,
     ConversionUnsupported,
     ResourceLimit,
@@ -285,8 +274,8 @@ pub enum CmlImportRefusalCategoryV1 {
 /// Closed recovery instruction paired exactly with one refusal category.
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum CmlImportRecoveryV1 {
-    ChooseSupportedCml,
+pub enum InterchangeImportRecoveryV1 {
+    ChooseSupportedFormat,
     RemoveUnsupportedFeatures,
     ReduceInput,
     RetryOrReportProblem,
@@ -298,7 +287,7 @@ pub enum CmlImportRecoveryV1 {
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
 #[allow(clippy::enum_variant_names)]
 #[serde(rename_all = "snake_case")]
-pub enum CmlImportRefusalReasonV1 {
+pub enum InterchangeImportRefusalReasonV1 {
     InvalidUtf8,
     InvalidXml,
     InvalidXmlDeclaration,
@@ -359,89 +348,89 @@ pub enum CmlImportRefusalReasonV1 {
 
 /// Redacted exact refusal triple. Fields are private so callers cannot forge invalid triples.
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
-pub struct CmlImportRefusalV1 {
-    category: CmlImportRefusalCategoryV1,
-    reason: CmlImportRefusalReasonV1,
-    recovery: CmlImportRecoveryV1,
+pub struct InterchangeImportRefusalV1 {
+    category: InterchangeImportRefusalCategoryV1,
+    reason: InterchangeImportRefusalReasonV1,
+    recovery: InterchangeImportRecoveryV1,
 }
 
-impl CmlImportRefusalV1 {
+impl InterchangeImportRefusalV1 {
     #[must_use]
-    pub const fn for_reason(reason: CmlImportRefusalReasonV1) -> Self {
+    pub const fn for_reason(reason: InterchangeImportRefusalReasonV1) -> Self {
         let (category, recovery) = match reason {
-            CmlImportRefusalReasonV1::InvalidUtf8
-            | CmlImportRefusalReasonV1::InvalidXml
-            | CmlImportRefusalReasonV1::InvalidXmlDeclaration
-            | CmlImportRefusalReasonV1::UnexpectedXmlText
-            | CmlImportRefusalReasonV1::UnexpectedXmlNode
-            | CmlImportRefusalReasonV1::InvalidScalar
-            | CmlImportRefusalReasonV1::InvalidCoordinate
-            | CmlImportRefusalReasonV1::CoordinateNotFinite
-            | CmlImportRefusalReasonV1::CoordinateOutOfRange
-            | CmlImportRefusalReasonV1::DuplicateSourceId
-            | CmlImportRefusalReasonV1::DuplicateAtomId
-            | CmlImportRefusalReasonV1::DanglingBond
-            | CmlImportRefusalReasonV1::SelfBond
-            | CmlImportRefusalReasonV1::DuplicateBond
-            | CmlImportRefusalReasonV1::InvalidGraph
-            | CmlImportRefusalReasonV1::EmptyDocument => (
-                CmlImportRefusalCategoryV1::ConversionFailed,
-                CmlImportRecoveryV1::ChooseSupportedCml,
+            InterchangeImportRefusalReasonV1::InvalidUtf8
+            | InterchangeImportRefusalReasonV1::InvalidXml
+            | InterchangeImportRefusalReasonV1::InvalidXmlDeclaration
+            | InterchangeImportRefusalReasonV1::UnexpectedXmlText
+            | InterchangeImportRefusalReasonV1::UnexpectedXmlNode
+            | InterchangeImportRefusalReasonV1::InvalidScalar
+            | InterchangeImportRefusalReasonV1::InvalidCoordinate
+            | InterchangeImportRefusalReasonV1::CoordinateNotFinite
+            | InterchangeImportRefusalReasonV1::CoordinateOutOfRange
+            | InterchangeImportRefusalReasonV1::DuplicateSourceId
+            | InterchangeImportRefusalReasonV1::DuplicateAtomId
+            | InterchangeImportRefusalReasonV1::DanglingBond
+            | InterchangeImportRefusalReasonV1::SelfBond
+            | InterchangeImportRefusalReasonV1::DuplicateBond
+            | InterchangeImportRefusalReasonV1::InvalidGraph
+            | InterchangeImportRefusalReasonV1::EmptyDocument => (
+                InterchangeImportRefusalCategoryV1::ConversionFailed,
+                InterchangeImportRecoveryV1::ChooseSupportedFormat,
             ),
-            CmlImportRefusalReasonV1::NamespaceUnsupported
-            | CmlImportRefusalReasonV1::RootUnsupported
-            | CmlImportRefusalReasonV1::ProfileMismatch
-            | CmlImportRefusalReasonV1::AttributeUnsupported
-            | CmlImportRefusalReasonV1::ArrayAttributeUnsupported
-            | CmlImportRefusalReasonV1::UnrepresentedSemanticFact
-            | CmlImportRefusalReasonV1::DtdForbidden
-            | CmlImportRefusalReasonV1::EntityForbidden
-            | CmlImportRefusalReasonV1::ExternalResourceForbidden
-            | CmlImportRefusalReasonV1::XincludeForbidden
-            | CmlImportRefusalReasonV1::StylesheetForbidden
-            | CmlImportRefusalReasonV1::CompressionForbidden
-            | CmlImportRefusalReasonV1::FormatAliasUnsupported
-            | CmlImportRefusalReasonV1::DirectionUnsupported => (
-                CmlImportRefusalCategoryV1::ConversionUnsupported,
-                CmlImportRecoveryV1::RemoveUnsupportedFeatures,
+            InterchangeImportRefusalReasonV1::NamespaceUnsupported
+            | InterchangeImportRefusalReasonV1::RootUnsupported
+            | InterchangeImportRefusalReasonV1::ProfileMismatch
+            | InterchangeImportRefusalReasonV1::AttributeUnsupported
+            | InterchangeImportRefusalReasonV1::ArrayAttributeUnsupported
+            | InterchangeImportRefusalReasonV1::UnrepresentedSemanticFact
+            | InterchangeImportRefusalReasonV1::DtdForbidden
+            | InterchangeImportRefusalReasonV1::EntityForbidden
+            | InterchangeImportRefusalReasonV1::ExternalResourceForbidden
+            | InterchangeImportRefusalReasonV1::XincludeForbidden
+            | InterchangeImportRefusalReasonV1::StylesheetForbidden
+            | InterchangeImportRefusalReasonV1::CompressionForbidden
+            | InterchangeImportRefusalReasonV1::FormatAliasUnsupported
+            | InterchangeImportRefusalReasonV1::DirectionUnsupported => (
+                InterchangeImportRefusalCategoryV1::ConversionUnsupported,
+                InterchangeImportRecoveryV1::RemoveUnsupportedFeatures,
             ),
-            CmlImportRefusalReasonV1::InputBytesLimit
-            | CmlImportRefusalReasonV1::XmlTextBytesLimit
-            | CmlImportRefusalReasonV1::XmlDeclarationLimit
-            | CmlImportRefusalReasonV1::CommentBytesLimit
-            | CmlImportRefusalReasonV1::PiBytesLimit
-            | CmlImportRefusalReasonV1::XmlElementLimit
-            | CmlImportRefusalReasonV1::XmlDepthLimit
-            | CmlImportRefusalReasonV1::XmlAttributeLimit
-            | CmlImportRefusalReasonV1::AttributeValueLimit
-            | CmlImportRefusalReasonV1::RecordLimit
-            | CmlImportRefusalReasonV1::AtomsPerRecordLimit
-            | CmlImportRefusalReasonV1::AtomLimit
-            | CmlImportRefusalReasonV1::BondsPerRecordLimit
-            | CmlImportRefusalReasonV1::BondLimit
-            | CmlImportRefusalReasonV1::SourceIdMapLimit
-            | CmlImportRefusalReasonV1::IdentifierBytesLimit
-            | CmlImportRefusalReasonV1::CandidateBytesLimit
-            | CmlImportRefusalReasonV1::ResponseBytesLimit => (
-                CmlImportRefusalCategoryV1::ResourceLimit,
-                CmlImportRecoveryV1::ReduceInput,
+            InterchangeImportRefusalReasonV1::InputBytesLimit
+            | InterchangeImportRefusalReasonV1::XmlTextBytesLimit
+            | InterchangeImportRefusalReasonV1::XmlDeclarationLimit
+            | InterchangeImportRefusalReasonV1::CommentBytesLimit
+            | InterchangeImportRefusalReasonV1::PiBytesLimit
+            | InterchangeImportRefusalReasonV1::XmlElementLimit
+            | InterchangeImportRefusalReasonV1::XmlDepthLimit
+            | InterchangeImportRefusalReasonV1::XmlAttributeLimit
+            | InterchangeImportRefusalReasonV1::AttributeValueLimit
+            | InterchangeImportRefusalReasonV1::RecordLimit
+            | InterchangeImportRefusalReasonV1::AtomsPerRecordLimit
+            | InterchangeImportRefusalReasonV1::AtomLimit
+            | InterchangeImportRefusalReasonV1::BondsPerRecordLimit
+            | InterchangeImportRefusalReasonV1::BondLimit
+            | InterchangeImportRefusalReasonV1::SourceIdMapLimit
+            | InterchangeImportRefusalReasonV1::IdentifierBytesLimit
+            | InterchangeImportRefusalReasonV1::CandidateBytesLimit
+            | InterchangeImportRefusalReasonV1::ResponseBytesLimit => (
+                InterchangeImportRefusalCategoryV1::ResourceLimit,
+                InterchangeImportRecoveryV1::ReduceInput,
             ),
-            CmlImportRefusalReasonV1::CandidateValidationFailed
-            | CmlImportRefusalReasonV1::SerializationFailed
-            | CmlImportRefusalReasonV1::InternalFailure => (
-                CmlImportRefusalCategoryV1::DocumentAdmissionFailed,
-                CmlImportRecoveryV1::RetryOrReportProblem,
+            InterchangeImportRefusalReasonV1::CandidateValidationFailed
+            | InterchangeImportRefusalReasonV1::SerializationFailed
+            | InterchangeImportRefusalReasonV1::InternalFailure => (
+                InterchangeImportRefusalCategoryV1::DocumentAdmissionFailed,
+                InterchangeImportRecoveryV1::RetryOrReportProblem,
             ),
-            CmlImportRefusalReasonV1::RevisionMismatch
-            | CmlImportRefusalReasonV1::DigestMismatch
-            | CmlImportRefusalReasonV1::LiveReceiptStale
-            | CmlImportRefusalReasonV1::LiveReceiptUnavailable => (
-                CmlImportRefusalCategoryV1::StaleDocument,
-                CmlImportRecoveryV1::ReopenOrRetry,
+            InterchangeImportRefusalReasonV1::RevisionMismatch
+            | InterchangeImportRefusalReasonV1::DigestMismatch
+            | InterchangeImportRefusalReasonV1::LiveReceiptStale
+            | InterchangeImportRefusalReasonV1::LiveReceiptUnavailable => (
+                InterchangeImportRefusalCategoryV1::StaleDocument,
+                InterchangeImportRecoveryV1::ReopenOrRetry,
             ),
-            CmlImportRefusalReasonV1::ChemistryRuntimeUnavailable => (
-                CmlImportRefusalCategoryV1::ChemistryUnavailable,
-                CmlImportRecoveryV1::InstallChemistryRuntime,
+            InterchangeImportRefusalReasonV1::ChemistryRuntimeUnavailable => (
+                InterchangeImportRefusalCategoryV1::ChemistryUnavailable,
+                InterchangeImportRecoveryV1::InstallChemistryRuntime,
             ),
         };
         Self {
@@ -451,15 +440,15 @@ impl CmlImportRefusalV1 {
         }
     }
     #[must_use]
-    pub const fn category(self) -> CmlImportRefusalCategoryV1 {
+    pub const fn category(self) -> InterchangeImportRefusalCategoryV1 {
         self.category
     }
     #[must_use]
-    pub const fn reason(self) -> CmlImportRefusalReasonV1 {
+    pub const fn reason(self) -> InterchangeImportRefusalReasonV1 {
         self.reason
     }
     #[must_use]
-    pub const fn recovery(self) -> CmlImportRecoveryV1 {
+    pub const fn recovery(self) -> InterchangeImportRecoveryV1 {
         self.recovery
     }
 }
@@ -473,30 +462,43 @@ mod tests {
         InterchangeFormatRegistryV1::validate_exact_join().expect("exact M2a join");
         let descriptor =
             InterchangeFormatRegistryV1::lookup_input_alias("cml2").expect("CML2 alias");
-        assert_eq!(descriptor.profile_id(), CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1);
+        assert_eq!(
+            descriptor.profile_id(),
+            CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1
+        );
         let refusal =
             InterchangeFormatRegistryV1::lookup_input_alias("xml").expect_err("unknown alias");
         assert_eq!(
             refusal.reason(),
-            CmlImportRefusalReasonV1::FormatAliasUnsupported
+            InterchangeImportRefusalReasonV1::FormatAliasUnsupported
         );
         assert_eq!(
             refusal.category(),
-            CmlImportRefusalCategoryV1::ConversionUnsupported
+            InterchangeImportRefusalCategoryV1::ConversionUnsupported
         );
+        let suffix = InterchangeFormatRegistryV1::lookup_input_suffix(".sd").expect("SDF suffix");
+        assert_eq!(suffix.decoder(), InterchangeDecoderKeyV1::Sdf);
     }
 
     #[test]
-    fn frozen_budget_preserves_cross_limit_ordering() {
-        let budget = CmlIngressBudgetV1::frozen();
-        assert!(budget.raw_utf8_input_bytes() <= budget.decoded_xml_text_bytes());
-        assert!(budget.response_bytes() <= budget.candidate_cdml_bytes());
-        assert!(budget.source_records() <= budget.source_id_map_entries());
+    fn every_enabled_descriptor_has_one_closed_decoder_and_complete_transport_policy() {
+        for descriptor in InterchangeFormatRegistryV1::descriptors() {
+            assert!(!descriptor.input_aliases().is_empty());
+            assert!(!descriptor.input_suffixes().is_empty());
+            assert!(!descriptor.profile_id().is_empty());
+            assert!(descriptor.limits().max_source_bytes() > 0);
+            assert!(descriptor.limits().max_response_bytes() > 0);
+            assert!(matches!(
+                descriptor.decoder(),
+                InterchangeDecoderKeyV1::CmlSimpleMolecule | InterchangeDecoderKeyV1::Sdf
+            ));
+        }
     }
 
     #[test]
     fn refusal_dto_serializes_only_the_typed_recovery_triple() {
-        let refusal = CmlImportRefusalV1::for_reason(CmlImportRefusalReasonV1::XmlDepthLimit);
+        let refusal =
+            InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::XmlDepthLimit);
         assert_eq!(
             serde_json::to_value(refusal).expect("refusal serializes"),
             serde_json::json!({

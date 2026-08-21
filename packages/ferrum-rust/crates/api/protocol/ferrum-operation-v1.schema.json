@@ -218,6 +218,116 @@
       ],
       "type": "object"
     },
+    "DocumentInterchangeImportLossReportV1": {
+      "additionalProperties": false,
+      "description": "Closed loss facts for the public interchange-import summary.",
+      "properties": {
+        "dropped_categories": {
+          "items": {
+            "$ref": "#/$defs/DocumentInterchangeLossCategoryV1"
+          },
+          "type": "array"
+        },
+        "source_identifiers_reallocated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source_identifiers_reallocated",
+        "dropped_categories"
+      ],
+      "type": "object"
+    },
+    "DocumentInterchangeImportSummaryV1": {
+      "additionalProperties": false,
+      "description": "Bounded protocol-owned facts for one fixed-target interchange import.",
+      "properties": {
+        "atom_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "bond_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "document_digest_hex": {
+          "type": "string"
+        },
+        "document_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "format_id": {
+          "type": "string"
+        },
+        "imported_record_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "loss_report": {
+          "$ref": "#/$defs/DocumentInterchangeImportLossReportV1"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/DocumentInterchangeProvenanceV1"
+        }
+      },
+      "required": [
+        "format_id",
+        "profile_id",
+        "imported_record_count",
+        "atom_count",
+        "bond_count",
+        "document_revision",
+        "document_digest_hex",
+        "provenance",
+        "loss_report"
+      ],
+      "type": "object"
+    },
+    "DocumentInterchangeLossCategoryV1": {
+      "description": "A semantic category intentionally not retained by an import profile.",
+      "enum": [
+        "lexical_syntax"
+      ],
+      "type": "string"
+    },
+    "DocumentInterchangeProvenanceV1": {
+      "additionalProperties": false,
+      "description": "Provenance facts that cannot disclose a path, source identifier, title, property, or bytes.",
+      "properties": {
+        "format_id": {
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "source_kind": {
+          "$ref": "#/$defs/DocumentInterchangeSourceKindV1"
+        }
+      },
+      "required": [
+        "format_id",
+        "profile_id",
+        "source_kind"
+      ],
+      "type": "object"
+    },
+    "DocumentInterchangeSourceKindV1": {
+      "description": "Provenance-safe origin class for one interchange source.",
+      "enum": [
+        "request_text",
+        "regular_file",
+        "standard_input"
+      ],
+      "type": "string"
+    },
     "DocumentMoleculeReportAggregateOmissionReasonSummaryV1": {
       "description": "Closed reasons that a molecule-report aggregate is unavailable.",
       "enum": [
@@ -577,6 +687,30 @@
       ],
       "type": "object"
     },
+    "DocumentSmartsQueryRequestV1": {
+      "additionalProperties": false,
+      "description": "Stateless V1 SMARTS query request. It has no renderer, receipt, or runtime value.",
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/DocumentSmartsQueryDocumentV1"
+        },
+        "limits": {
+          "$ref": "#/$defs/DocumentSmartsQueryLimitsV1",
+          "default": {
+            "max_matches_per_molecule": null,
+            "max_total_matches": null
+          }
+        },
+        "query": {
+          "$ref": "#/$defs/DocumentSmartsQueryInputV1"
+        }
+      },
+      "required": [
+        "document",
+        "query"
+      ],
+      "type": "object"
+    },
     "DocumentSmartsQuerySummaryV1": {
       "additionalProperties": false,
       "description": "Public SMARTS query facts. Match membership remains private to the live bridge.",
@@ -773,7 +907,6 @@
     },
     "OperationProtocolErrorResponseV1": {
       "additionalProperties": false,
-      "description": "A typed domain refusal returned as protocol data.",
       "properties": {
         "error": {
           "$ref": "#/$defs/OperationProtocolErrorV1",
@@ -1500,6 +1633,30 @@
             "query"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Import one explicitly selected interchange format into a new request-owned document.",
+          "properties": {
+            "format_alias": {
+              "description": "Exact lower-case registry alias. No suffix sniffing or fallback occurs.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "document.molecule.interchange.import.v1",
+              "type": "string"
+            },
+            "source_utf8": {
+              "description": "Request-owned UTF-8 source; no path, handle, or source identity crosses this boundary.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "format_alias",
+            "source_utf8"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -2095,6 +2252,24 @@
             "query"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Bounded interchange import summary without a document artifact or identifiers.",
+          "properties": {
+            "kind": {
+              "const": "document.molecule.interchange.import.v1",
+              "type": "string"
+            },
+            "summary": {
+              "$ref": "#/$defs/DocumentInterchangeImportSummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "summary"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -2289,6 +2464,11 @@
         {
           "const": "document.molecule.smarts.query.v1",
           "description": "`document.molecule.smarts.query.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "document.molecule.interchange.import.v1",
+          "description": "`document.molecule.interchange.import.v1`.",
           "type": "string"
         }
       ]
@@ -2622,6 +2802,9 @@
   "description": "A completed operation response or typed protocol refusal.",
   "title": "Ferrum operation protocol V1",
   "x-ferrum-roots": {
+    "document_smarts_query_request": {
+      "$ref": "#/$defs/DocumentSmartsQueryRequestV1"
+    },
     "error_response": {
       "$ref": "#/$defs/OperationProtocolErrorResponseV1"
     },

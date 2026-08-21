@@ -146,10 +146,31 @@ pub(super) fn installed_wheel_native_engine_v1() -> Result<NativeChemEngine, Che
 ///
 /// The value is copied only inside this extension module hierarchy and always
 /// derives from the one `PyInit` runtime capture.
-pub(super) fn installed_wheel_library_path_v1() -> Option<PathBuf> {
+pub(crate) fn installed_wheel_library_path_v1() -> Option<PathBuf> {
     INSTALLED_WHEEL_RUNTIME_V1
         .get()
         .map(InstalledWheelRuntimeV1::library_path)
+}
+
+/// Installed-wheel capability resolver used only by generic local interchange
+/// preparation.  It has no format input, so decoder policy remains in the
+/// descriptor-owned generic core.
+pub(crate) struct InstalledWheelInterchangeRuntimeResolverV1;
+
+impl crate::document_interchange_import_v1::LocalInterchangeRuntimeResolverV1
+    for InstalledWheelInterchangeRuntimeResolverV1
+{
+    fn chemistry_runtime(
+        &self,
+    ) -> Result<TrustedLibraryChemistryRuntimeV1, crate::InterchangeImportRefusalV1> {
+        installed_wheel_library_path_v1()
+            .map(TrustedLibraryChemistryRuntimeV1::from_trusted_library)
+            .ok_or_else(|| {
+                crate::InterchangeImportRefusalV1::for_reason(
+                    crate::InterchangeImportRefusalReasonV1::ChemistryRuntimeUnavailable,
+                )
+            })
+    }
 }
 
 fn execute_operation_from_installed_wheel_v1(

@@ -6,7 +6,7 @@
 
 mod catalog_placement_v2;
 mod cli;
-mod cml_open_v1;
+mod document_interchange_import_v1;
 mod interchange_import_v1;
 mod plus_placement_gesture_v1;
 mod presentation_vector_gesture_v1;
@@ -47,9 +47,11 @@ pub use ferrum_document_render::{
 };
 pub use interchange_import_v1::{
     CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
-    CmlImportRecoveryV1, CmlImportRefusalCategoryV1, CmlImportRefusalReasonV1, CmlImportRefusalV1,
-    CmlIngressBudgetV1, InterchangeCompressionPolicyV1, InterchangeDirectionV1,
-    InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1, InterchangeSemanticLossPolicyV1,
+    InterchangeCompressionPolicyV1, InterchangeDecoderKeyV1, InterchangeDirectionV1,
+    InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1, InterchangeImportLimitsV1,
+    InterchangeImportRecoveryV1, InterchangeImportRefusalCategoryV1,
+    InterchangeImportRefusalReasonV1, InterchangeImportRefusalV1, InterchangeSemanticLossPolicyV1,
+    SDF_IMPORT_FORMAT_V1, SDF_IMPORT_PROFILE_V1,
 };
 pub use plus_placement_gesture_v1::{
     ApiPlusGestureV1, ApiPlusOverlayV1, ApiPlusPreviewV1, begin_api_plus_gesture_v1,
@@ -68,8 +70,9 @@ pub use protocol::{
     CatalogPlacementRefusalV1, CatalogProvenanceSummaryV1, ChemistryConvertInputV1,
     ChemistryConvertRequestV1, DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
     DocumentGenerateCoordinatesRequestV1, DocumentInspectRequestV1,
-    DocumentMoleculeInterchangeImportLossReportV1, DocumentMoleculeInterchangeImportRequestV1,
-    DocumentMoleculeInterchangeImportSummaryV1,
+    DocumentInterchangeImportLossReportV1, DocumentInterchangeImportSummaryV1,
+    DocumentInterchangeLossCategoryV1, DocumentInterchangeProvenanceV1,
+    DocumentInterchangeSourceKindV1, DocumentMoleculeInterchangeImportRequestV1,
     DocumentMoleculeReportAggregateOmissionReasonSummaryV1,
     DocumentMoleculeReportAggregateOutcomeSummaryV1,
     DocumentMoleculeReportCompositionElementSummaryV1, DocumentMoleculeReportCompositionSummaryV1,

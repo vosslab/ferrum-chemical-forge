@@ -1,7 +1,7 @@
 //! Frozen Python boundary for CDML's recognized physical paper sizes.
 
 use ferrum_document::{
-    PaperDimensionsMmV1, PaperSizeV1, paper_size_catalog_v1 as rust_paper_size_catalog_v1,
+    paper_size_catalog_v1 as rust_paper_size_catalog_v1, PaperDimensionsMmV1, PaperSizeV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;

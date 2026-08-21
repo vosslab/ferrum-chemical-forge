@@ -2,18 +2,18 @@
 
 use ferrum_document::{PendingStandaloneHaworthV1, Point3V1};
 use ferrum_domain::haworth::{
-    StandaloneDGlucoseHaworthRecipeV1, StandaloneHaworthBondTokenV1,
-    standalone_d_glucose_haworth_recipe_v1,
+    standalone_d_glucose_haworth_recipe_v1, StandaloneDGlucoseHaworthRecipeV1,
+    StandaloneHaworthBondTokenV1,
 };
 use pyo3::prelude::*;
 
 use super::{
     binding::{
-        PyDocumentSession, PySessionOperationResultV1, document_result, operation_validation_error,
-        projection_error,
+        document_result, operation_validation_error, projection_error, PyDocumentSession,
+        PySessionOperationResultV1,
     },
     projection_binding::PyPoint3V1,
-    render_binding::{PyRenderOperationV2, operation_from},
+    render_binding::{operation_from, PyRenderOperationV2},
 };
 
 #[pyclass(

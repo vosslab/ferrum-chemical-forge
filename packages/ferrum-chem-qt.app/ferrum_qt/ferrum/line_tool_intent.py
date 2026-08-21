@@ -21,6 +21,7 @@ class _NativeLineTool(enum.Enum):
 
 	DRAW_BOND = "draw_bond"
 	DRAW_ARROW = "draw_arrow"
+	DRAW_EQUILIBRIUM_ARROW = "draw_equilibrium_arrow"
 	DRAW_PLUS = "draw_plus"
 	DRAW_LINE = "draw_line"
 	DRAW_RECTANGLE = "draw_rectangle"
@@ -35,6 +36,7 @@ class _NativeLineTool(enum.Enum):
 	ROTATE_ATOMS = "rotate_atoms"
 	TRANSLATE_ROOTS = "translate_roots"
 	INSERT_CYCLOHEXANE_RING = "insert_cyclohexane_ring"
+	ATTACH_CYCLOHEXANE_RING = "attach_cyclohexane_ring"
 
 
 #============================================
@@ -61,8 +63,10 @@ class _LineGestureIntent:
 	last_angle: float | None = None
 	accumulated_angle: float = 0.0
 	regular_ring_prepared: object | None = None
+	attached_cyclohexane_pending: object | None = None
+	attached_cyclohexane_cancel_blocked: bool = False
 	direct_bond_gesture: object | None = None
-	direct_bond_preview: object | None = None
+	direct_bond_admission: object | None = None
 	presentation_gesture: object | None = None
 	presentation_preview: object | None = None
 	vector_gesture: object | None = None

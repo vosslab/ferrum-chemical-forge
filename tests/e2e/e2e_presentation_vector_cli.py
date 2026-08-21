@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Exercise the stateless CLI presentation-vector transaction end to end."""
 
 from __future__ import annotations

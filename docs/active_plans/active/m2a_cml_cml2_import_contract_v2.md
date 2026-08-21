@@ -29,6 +29,24 @@ This acceptance does not claim full CML, OASA, or BKChem parity. Append to the
 current document, durable selectors, live PyO3 or Qt import, export or
 conversion, and wider CML semantics remain deferred.
 
+## Qt new-document completion
+
+The bounded Qt File/Open extension is complete and accepted for the same
+closed CML/CML2 `new_document` profile. Interactive File/Open preserves the
+bootstrap tab and opens the admitted source in one clean CML tab. It uses the
+Rust-issued native route and installed native wheel; Qt does not parse CML or
+claim a CDML save baseline for the imported source.
+
+The exact native-wheel end-to-end receipt is
+`/private/tmp/ferrum-cml-qt-new-document-e2e-receipt.json` (SHA-256
+`0ffbde86632859e355dacb2e7c21a54a9e7d1553d57607dd8f7dd28052b12e33`). The
+final independent re-review is
+`/private/tmp/ferrum-cml-qt-new-document-final-rereview.md`.
+
+This acceptance remains deliberately bounded. CML append or current-tab
+replacement, live receipts, export or conversion, a generic importer, and
+broader CML semantic profiles remain deferred.
+
 ## Scope and ownership
 
 `ferrum-chemistry` owns XML token admission, profile validation, source spans,

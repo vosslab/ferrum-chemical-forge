@@ -56,10 +56,20 @@ fn normal_arrow_projects_source_axis_and_head_geometry_without_frontend_defaults
     };
     assert_eq!(arrow.target().source_id(), Some("a"));
     assert_eq!(arrow.source_path().points()[1].x(), 40.0);
-    assert_eq!(arrow.axis_path().points()[1].x(), 32.0);
-    assert!(!arrow.start_head() && arrow.end_head());
-    assert_eq!(arrow.head_shape().total_length(), 10.0);
-    let [head] = arrow.heads() else {
+    let crate::ArrowDisplayGeometryV1::Normal {
+        axis_path,
+        head_shape,
+        start_head,
+        end_head,
+        heads,
+    } = arrow.geometry()
+    else {
+        panic!("normal source must issue normal display geometry");
+    };
+    assert_eq!(axis_path.points()[1].x(), 32.0);
+    assert!(!start_head && *end_head);
+    assert_eq!(head_shape.total_length(), 10.0);
+    let [head] = heads.as_slice() else {
         panic!("expected one end head");
     };
     assert_eq!(head.position(), super::ArrowHeadPositionV1::End);
@@ -73,7 +83,8 @@ fn normal_arrow_projects_source_axis_and_head_geometry_without_frontend_defaults
     assert_eq!(arrow.stroke().color().as_str(), "#123456");
     assert_eq!(arrow.stroke().width().value(), 2.0);
     let mut forged = serde_json::to_value(stack).unwrap();
-    forged["roots"][0]["arrow"]["heads"][0]["points"][0]["x"] = Value::from(39.0);
+    forged["roots"][0]["arrow"]["geometry"]["kind"] = Value::from("normal");
+    forged["roots"][0]["arrow"]["geometry"]["heads"][0]["points"][0]["x"] = Value::from(39.0);
     assert!(serde_json::from_value::<super::PresentationStackProjectionV1>(forged).is_err());
 }
 

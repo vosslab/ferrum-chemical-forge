@@ -1,0 +1,60 @@
+"""Command-line parser construction for the native-wheel builder."""
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Callable
+from pathlib import Path
+
+
+def parser(
+	build_handler: Callable[[argparse.Namespace], None],
+	adapter_handler: Callable[[argparse.Namespace], None],
+	self_test_handler: Callable[[argparse.Namespace], None],
+	output_path: Callable[[str], Path],
+	archive_root_path: Callable[[str], Path],
+) -> argparse.ArgumentParser:
+	"""Create the native-wheel command parser from injected build operations."""
+	result = argparse.ArgumentParser(description="Build Ferrum's native wheel.")
+	subcommands = result.add_subparsers(dest="command", required=True)
+	build = subcommands.add_parser("build", help="verify RDKit, source-build it, then build a wheel")
+	build.add_argument("--output-root", required=True, type=output_path)
+	build.add_argument(
+		"--engine-bundle-dir",
+		type=output_path,
+		help=(
+			"optional fresh directory beneath --output-root for the same verified adapter's "
+			"Ferrum CLI engine bundle"
+		),
+	)
+	source = build.add_mutually_exclusive_group()
+	source.add_argument(
+		"--source-archive-root",
+		type=archive_root_path,
+		help="read-only directory containing every selected source archive",
+	)
+	source.add_argument(
+		"--sealed-input-root",
+		type=output_path,
+		help="previous builder-validated native inputs copied into this fresh output root",
+	)
+	build.set_defaults(handler=build_handler)
+	adapter = subcommands.add_parser(
+		"adapter", help="build a replacement ABI-compatible adapter from sealed native inputs"
+	)
+	adapter.add_argument("--output-root", required=True, type=output_path)
+	adapter.add_argument(
+		"--rdkit-output-root",
+		required=True,
+		type=output_path,
+		help=(
+			"completed Ferrum native-build output root containing the private RDKit install "
+			"and the selected Boost headers"
+		),
+	)
+	adapter.set_defaults(handler=adapter_handler)
+	self_test = subcommands.add_parser(
+		"self-test", help="run deterministic native-wheel policy helper checks"
+	)
+	self_test.set_defaults(handler=self_test_handler)
+	return result

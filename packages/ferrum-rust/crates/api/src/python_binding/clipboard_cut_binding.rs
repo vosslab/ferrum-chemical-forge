@@ -5,8 +5,8 @@
 
 use ferrum_document::DocumentSession;
 use ferrum_document::{
-    DocumentClipboardCutApplyErrorV1, DocumentClipboardCutPlanV1, apply_clipboard_cut_v1,
-    prepare_clipboard_cut_v1,
+    apply_clipboard_cut_v1, prepare_clipboard_cut_v1, DocumentClipboardCutApplyErrorV1,
+    DocumentClipboardCutPlanV1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

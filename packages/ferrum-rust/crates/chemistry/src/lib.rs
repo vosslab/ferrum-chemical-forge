@@ -12,6 +12,7 @@ mod composition;
 mod element;
 mod engine;
 mod interchange;
+mod interchange_sdf;
 mod model;
 mod native_engine;
 mod sdf;
@@ -37,6 +38,7 @@ pub use crate::interchange::{
     InterchangeCodecErrorV1, InterchangeFormatV1, InterchangePropertyV1, InterchangeRecordV1,
     decode_non_cdml_interchange_v1, encode_non_cdml_interchange_v1,
 };
+pub use crate::interchange_sdf::interchange_record_from_sdf_v1;
 
 pub use crate::composition::{
     CompositionAggregationError, CompositionBuildError, CompositionElementKey, ElementCount,

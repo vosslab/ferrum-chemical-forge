@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 
 use super::{
     binding::PyDocumentSession,
-    document_error_binding::{RevisionConflictError, document_object_id},
+    document_error_binding::{document_object_id, RevisionConflictError},
     projection_binding::PyPoint3V1,
 };
 
@@ -247,7 +247,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module.py().get_type::<AttachedCyclohexaneAttachmentError>(),
     )?;
     module.add_class::<PyAttachedCyclohexaneCategoryV1>()?;
-    module.add_class::<PyPendingAttachedCyclohexaneV1>()?;
     module.add_class::<PyAttachedCyclohexanePreviewV1>()?;
     module.add_class::<PyAttachedCyclohexaneCommitFactsV1>()?;
     Ok(())
@@ -278,6 +277,32 @@ mod tests {
 
     fn release() -> AttachedCyclohexaneReleaseV1 {
         AttachedCyclohexaneReleaseV1::new(40.0, 0.0).expect("finite release")
+    }
+
+    fn snapshot_facts(session: &pyo3::Bound<'_, PyDocumentSession>) -> (String, u64, String, bool) {
+        let snapshot = session.call_method0("snapshot").expect("session snapshot");
+        (
+            snapshot
+                .getattr("cdml")
+                .expect("snapshot CDML")
+                .extract::<String>()
+                .expect("text CDML"),
+            snapshot
+                .getattr("revision")
+                .expect("snapshot revision")
+                .extract::<u64>()
+                .expect("numeric revision"),
+            snapshot
+                .getattr("digest")
+                .expect("snapshot digest")
+                .extract::<String>()
+                .expect("text digest"),
+            snapshot
+                .getattr("is_dirty")
+                .expect("snapshot dirty state")
+                .extract::<bool>()
+                .expect("boolean dirty state"),
+        )
     }
 
     #[test]
@@ -323,5 +348,154 @@ mod tests {
             Err(AttachedCyclohexaneSessionErrorV1::StaleRevision)
         ));
         assert_eq!(owner.snapshot().expect("stale unchanged"), after);
+    }
+
+    #[test]
+    fn pending_receipt_has_no_registered_constructor_serialization_or_candidate_surface() {
+        Python::initialize();
+        Python::attach(|py| {
+            let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+            super::super::binding::initialize(&module).expect("extension module registers");
+            assert!(module.getattr("PendingAttachedCyclohexaneV1").is_err());
+            for forbidden in [
+                "attach_cyclohexane_v1",
+                "begin_attach_cyclohexane_v1",
+                "AttachedCyclohexaneServiceV1",
+            ] {
+                assert!(module.getattr(forbidden).is_err());
+            }
+
+            let mut session = DocumentSession::load(SOURCE).expect("session loads");
+            let expected_fence = fence(&session);
+            let expected_anchor = anchor(&session);
+            let pending = Py::new(
+                py,
+                begin(&mut session, expected_fence, expected_anchor, release())
+                    .expect("Rust issues pending receipt"),
+            )
+            .expect("receipt binds to Python");
+            let pending = pending.bind(py);
+
+            assert!(pending.get_type().call0().is_err());
+            assert!(py
+                .import("pickle")
+                .expect("standard pickle module")
+                .call_method1("dumps", (pending,))
+                .is_err());
+            for forbidden in [
+                "candidate",
+                "fence",
+                "next_generated_ids",
+                "preview_vertices",
+                "session_origin",
+            ] {
+                assert!(pending.getattr(forbidden).is_err());
+            }
+        });
+    }
+
+    #[test]
+    fn registered_bridge_refuses_digest_anchor_foreign_stale_and_replayed_receipts() {
+        Python::initialize();
+        Python::attach(|py| {
+            let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+            super::super::binding::initialize(&module).expect("extension module registers");
+
+            let owner_document = DocumentSession::load(SOURCE).expect("owner loads");
+            let owner_fence = fence(&owner_document);
+            let owner_anchor = anchor(&owner_document).as_str().to_owned();
+            let owner =
+                Py::new(py, PyDocumentSession::from_session(owner_document)).expect("owner binds");
+            let owner = owner.bind(py);
+
+            let foreign_document = DocumentSession::load(SOURCE).expect("foreign loads");
+            let foreign = Py::new(py, PyDocumentSession::from_session(foreign_document))
+                .expect("foreign binds");
+            let foreign = foreign.bind(py);
+
+            let revision = owner_fence.revision();
+            let digest: String = owner_fence
+                .digest()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            let before = owner
+                .call_method0("snapshot")
+                .expect("owner snapshot")
+                .getattr("revision")
+                .expect("snapshot revision")
+                .extract::<u64>()
+                .expect("numeric revision");
+
+            let wrong_digest = if digest == "0".repeat(64) {
+                "1".repeat(64)
+            } else {
+                "0".repeat(64)
+            };
+            assert!(owner
+                .call_method1(
+                    "_begin_attach_cyclohexane_v1",
+                    (revision, wrong_digest, owner_anchor.clone(), 40.0, 0.0),
+                )
+                .is_err());
+            assert!(owner
+                .call_method1(
+                    "_begin_attach_cyclohexane_v1",
+                    (revision, digest.clone(), "missing-anchor", 40.0, 0.0),
+                )
+                .is_err());
+            assert!(owner
+                .call_method1(
+                    "_begin_attach_cyclohexane_v1",
+                    (
+                        revision + 1,
+                        digest.clone(),
+                        owner_anchor.clone(),
+                        40.0,
+                        0.0
+                    ),
+                )
+                .is_err());
+            assert_eq!(
+                owner
+                    .call_method0("snapshot")
+                    .expect("refusals leave session available")
+                    .getattr("revision")
+                    .expect("snapshot revision")
+                    .extract::<u64>()
+                    .expect("numeric revision"),
+                before
+            );
+
+            let first = owner
+                .call_method1(
+                    "_begin_attach_cyclohexane_v1",
+                    (revision, digest.clone(), owner_anchor.clone(), 40.0, 0.0),
+                )
+                .expect("owner begins");
+            let owner_before_foreign_commit = snapshot_facts(owner);
+            let foreign_before_commit = snapshot_facts(foreign);
+            assert!(foreign
+                .call_method1("_commit_attach_cyclohexane_v1", (&first,))
+                .is_err());
+            assert_eq!(snapshot_facts(owner), owner_before_foreign_commit);
+            assert_eq!(snapshot_facts(foreign), foreign_before_commit);
+            let committed = owner
+                .call_method1("_commit_attach_cyclohexane_v1", (&first,))
+                .expect("owner commits");
+            assert_eq!(
+                committed
+                    .getattr("revision")
+                    .expect("commit revision")
+                    .extract::<u64>()
+                    .expect("numeric revision"),
+                before + 1
+            );
+            let owner_after_commit = snapshot_facts(owner);
+            assert!(owner
+                .call_method1("_commit_attach_cyclohexane_v1", (&first,))
+                .is_err());
+            assert_eq!(snapshot_facts(owner), owner_after_commit);
+        });
     }
 }

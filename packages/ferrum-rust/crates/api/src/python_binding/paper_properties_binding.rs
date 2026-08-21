@@ -1,9 +1,9 @@
 //! Frozen Python boundary for authoritative paper observation and mutation.
 
 use ferrum_document::{
-    PaperAttributesV1, PaperDimensionsMmV1, PaperLayoutProjectionV1, PaperOrientationV1,
-    PaperPageIssueV1, PaperPageV1, PaperPropertiesPatchV1, PaperPropertyChangeV1,
-    ViewportAttributesV1, paper_size_v1,
+    paper_size_v1, PaperAttributesV1, PaperDimensionsMmV1, PaperLayoutProjectionV1,
+    PaperOrientationV1, PaperPageIssueV1, PaperPageV1, PaperPropertiesPatchV1,
+    PaperPropertyChangeV1, ViewportAttributesV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt};

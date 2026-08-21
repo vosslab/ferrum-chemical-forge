@@ -11,7 +11,7 @@ use crate::{
     StructureInteractionSelectionV1, StructureInteractionTargetV1, StructureTargetKindV1,
 };
 use ferrum_document::DocumentFenceV1;
-use pyo3::{PyClass, create_exception, prelude::*, types::PyTuple};
+use pyo3::{create_exception, prelude::*, types::PyTuple, PyClass};
 
 use super::binding::{PyDocumentSession, RevisionConflictError};
 

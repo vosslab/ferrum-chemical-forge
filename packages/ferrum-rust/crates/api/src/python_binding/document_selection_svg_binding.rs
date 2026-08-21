@@ -4,9 +4,9 @@
 
 use ferrum_document::{DocumentObjectIdV1, SessionDocumentObservationV1};
 use ferrum_render::{
-    DocumentRenderIdentityV1, DocumentSelectionSvgRootV1, DocumentSelectionSvgV1,
-    DocumentSvgSelectionV1, LOCAL_SVG_COMPLETED_BYTES_V1, SvgOutputBudgetV1,
-    render_document_selection_to_svg_v1,
+    render_document_selection_to_svg_v1, DocumentRenderIdentityV1, DocumentSelectionSvgRootV1,
+    DocumentSelectionSvgV1, DocumentSvgSelectionV1, SvgOutputBudgetV1,
+    LOCAL_SVG_COMPLETED_BYTES_V1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

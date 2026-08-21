@@ -310,6 +310,18 @@ or save identifier. Issues have no selectable graphics item and appear in the
 non-modal diagnostic/status model. Qt never creates durable-looking or
 provisional correlation identifiers.
 
+`Edit -> Change Element...` is available only for exactly one current durable
+selected atom. Before opening its modal form and again before submission, Qt
+rechecks that one-atom selection and its captured observation revision. Zero,
+multiple, stale, busy, closed, or tab-switched selection refuses the request
+without a Rust submission or document, history, scene, or selection mutation.
+Cancel or Escape closes the form with the same preservation guarantee. The
+action and dialog use the visible `Change Element` label; keyboard activation
+opens the dialog with focus on its bounded `Element symbol:` input. A
+screen-reader announcement reports either the successful element change after
+the authoritative replacement installs or a typed refusal with recovery
+guidance; it does not announce success for cancellation or a refused request.
+
 The native vector-properties action is available only for one selected durable
 rectangle, square, oval, circle, polygon, or ordinary polyline issued by the
 current Rust projection. The detached form may submit width and stroke changes;
@@ -646,13 +658,14 @@ Open, Open in Current Tab, save/reopen, cancellation and stale fences, recovery 
 ordinary artifact export, and shutdown. There is no second editor, alternate session
 model, compatibility tab, or action-policy switch.
 
-The product accepts local CDML and the bounded decoded-CD-SVG profile. It explicitly
-refuses compressed copies, `.svgz`, `.cdsvg`, `.cdxml`, `.cml`, and unsupported or
-incomplete documents without reading, sniffing, or converting them. The recovery copy
-writes CDML only; it does not offer format conversion. Broader historical editing modes,
-template catalogs, import/export families, and clipboard or presentation workflows are
-preproduction drops unless a later slice gives them a complete Rust owner and an explicit
-user contract.
+The product accepts local CDML, the bounded decoded-CD-SVG profile, and the closed
+Rust-owned CML/CML2 simple-molecule profile. CML always converts into a clean new tab and
+never replaces the current tab; it has no CML Save baseline or export route. The product
+explicitly refuses compressed copies, `.svgz`, `.cdsvg`, `.cdxml`, and unsupported or
+incomplete documents without reading, sniffing, or converting them. The recovery copy writes
+CDML only; it does not offer format conversion. Broader historical editing modes, template
+catalogs, import/export families, and clipboard or presentation workflows are preproduction
+drops unless a later slice gives them a complete Rust owner and an explicit user contract.
 
 Historical note: the former mixed-host migration bridge and its retained-session shutdown
 path were removed with the second host. They are not current product behavior or test

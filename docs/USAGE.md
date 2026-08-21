@@ -6,31 +6,29 @@ Install the CLI first as described in [INSTALL.md](INSTALL.md).
 
 ## Use local build artifacts
 
-For a local source-verified native build, select one explicit native input and let `build.sh` print
-the artifact-specific commands. The default `all` target creates the CLI, the verified native wheel
-and its matching engine bundle, and the Qt wheel:
+For a local source-verified native build, run the default `all` target. It creates the CLI,
+the verified native wheel and its matching engine bundle, and the Qt wheel:
 
 ```bash
-./build.sh all --native-sealed-input-root /absolute/path/to/sealed-native-input-root
+./build.sh
 ```
 
-Do not select a wheel by timestamp from `build/wheelhouse/`. The native command retains the
-authoritative wheel, receipt, and matching bundle below its fresh `output_native_wheel/` child.
-Install that exact bundle for the exact CLI build, then install the printed native and Qt wheels:
+The complete native input, storage, cleanup, signal, concurrency, and disk-budget contract is
+[NATIVE_WHEEL_BUILD.md](NATIVE_WHEEL_BUILD.md). Install the exact published bundle and the printed
+native and Qt wheels:
 
 ```bash
 build/bin/ferrum engine install \
-  /absolute/path/output_native_wheel/native-XXXXXXXX/ferrum-engine-bundle
+  /absolute/path/output_native_wheel/current/ferrum-engine-bundle
 build/bin/ferrum engine status
 source source_me.sh && python3 -m pip install --force-reinstall --no-deps \
-  /absolute/path/output_native_wheel/native-XXXXXXXX/wheelhouse/ferrum_chem-*.whl \
+  /absolute/path/output_native_wheel/current/wheelhouse/ferrum_chem-*.whl \
   /absolute/path/build/wheelhouse/ferrum_qt-*.whl
 ferrum-qt
 ```
 
-The source-archive alternative is `--native-source-archive-root PATH`. Both native selectors are
-offline-only inputs; the root script refuses an omitted or ambiguous selector rather than downloading
-sources. This developer route is distinct from the release wheelhouse proof in [INSTALL.md](INSTALL.md).
+This developer route is distinct from the release wheelhouse proof in
+[INSTALL.md](INSTALL.md).
 
 ## Convert a molecule
 

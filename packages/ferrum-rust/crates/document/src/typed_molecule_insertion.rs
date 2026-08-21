@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 use xot::{Node, Xot};
 
 use super::{
-    CDML_NAMESPACE, MoleculeInsertionV1, PersistentId, SDF_IMPORT_NAMESPACE_V1,
-    SdfRecordInsertionV1, TypedDocument, TypedDocumentError, element_name,
+    CDML_NAMESPACE, INTERCHANGE_IMPORT_NAMESPACE_V1, InterchangeRecordInsertionV1,
+    MoleculeInsertionV1, PersistentId, TypedDocument, TypedDocumentError, element_name,
 };
 
 impl TypedDocument {
@@ -20,12 +20,12 @@ impl TypedDocument {
         self.with_insert_molecule_record(molecule_id, atom_ids, bond_ids, molecule, None)
     }
 
-    pub(crate) fn with_insert_sdf_record(
+    pub(crate) fn with_insert_interchange_record(
         &self,
         molecule_id: &PersistentId,
         atom_ids: &[PersistentId],
         bond_ids: &[PersistentId],
-        record: &SdfRecordInsertionV1,
+        record: &InterchangeRecordInsertionV1,
     ) -> Result<Self, TypedDocumentError> {
         self.with_insert_molecule_record(
             molecule_id,
@@ -42,7 +42,7 @@ impl TypedDocument {
         atom_ids: &[PersistentId],
         bond_ids: &[PersistentId],
         molecule: &MoleculeInsertionV1,
-        sdf_record: Option<&SdfRecordInsertionV1>,
+        interchange_record: Option<&InterchangeRecordInsertionV1>,
     ) -> Result<Self, TypedDocumentError> {
         if atom_ids.len() != molecule.atoms().len() || bond_ids.len() != molecule.bonds().len() {
             return Err(TypedDocumentError::InsertionIdentityCountMismatch);
@@ -73,7 +73,7 @@ impl TypedDocument {
             .xml
             .tree
             .set_attribute(molecule_node, names.id, molecule_id.as_str());
-        if let Some(record) = sdf_record
+        if let Some(record) = interchange_record
             && !record.title().is_empty()
             && xml_attribute_safe(record.title())
         {
@@ -110,8 +110,8 @@ impl TypedDocument {
                 .append(molecule_node, bond_node)
                 .map_err(TypedDocumentError::Mutation)?;
         }
-        if let Some(record) = sdf_record {
-            append_sdf_metadata(&mut indexed.xml.tree, molecule_node, record)?;
+        if let Some(record) = interchange_record {
+            append_interchange_metadata(&mut indexed.xml.tree, molecule_node, record)?;
         }
         indexed
             .xml
@@ -223,13 +223,13 @@ fn set_optional_attribute<T: ToString>(
     }
 }
 
-fn append_sdf_metadata(
+fn append_interchange_metadata(
     tree: &mut Xot,
     molecule_node: Node,
-    record: &SdfRecordInsertionV1,
+    record: &InterchangeRecordInsertionV1,
 ) -> Result<(), TypedDocumentError> {
-    let namespace = tree.add_namespace(SDF_IMPORT_NAMESPACE_V1);
-    let record_name = tree.add_name_ns("sdf-record", namespace);
+    let namespace = tree.add_namespace(INTERCHANGE_IMPORT_NAMESPACE_V1);
+    let record_name = tree.add_name_ns("interchange-record", namespace);
     let property_name = tree.add_name_ns("property", namespace);
     let encoding_name = tree.add_name("encoding");
     let title_name = tree.add_name("title");
@@ -237,7 +237,7 @@ fn append_sdf_metadata(
     let value_name = tree.add_name("value");
 
     let record_node = tree.new_element(record_name);
-    let prefix = tree.add_prefix("ferrum-sdf");
+    let prefix = tree.add_prefix("ferrum-interchange");
     tree.set_namespace(record_node, prefix, namespace);
     tree.set_attribute(record_node, encoding_name, "utf8-hex-v1");
     tree.set_attribute(record_node, title_name, utf8_hex(record.title()));

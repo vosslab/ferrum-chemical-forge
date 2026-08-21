@@ -4,16 +4,16 @@ use std::{path::PathBuf, sync::Arc};
 
 use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
 use ferrum_document::{
-    CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1, DocumentIngressErrorV1,
-    DocumentIngressFormatV1, DocumentIngressOriginV1, SourcePolicyErrorV1,
     load_document_file_with_budget, load_document_utf8_bytes_with_budget,
     prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_with_origin_v1,
+    CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1, DocumentIngressErrorV1,
+    DocumentIngressFormatV1, DocumentIngressOriginV1, SourcePolicyErrorV1,
 };
 use ferrum_document::{
     CdsvgExtractionError, DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1,
     XmlInputError,
 };
-use ferrum_render::{RenderObservationError, RenderObservationV1, observe_render_v1};
+use ferrum_render::{observe_render_v1, RenderObservationError, RenderObservationV1};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyInt, PyString};
@@ -22,12 +22,17 @@ use super::binding::PyDocumentSession;
 use super::document_error_binding::{
     DocumentInputError, DocumentLoadError, PreparedOperationConsumedError,
 };
+use crate::{
+    interchange_import_v1::InterchangeImportRefusalV1, InterchangeDirectionV1,
+    InterchangeFormatRegistryV1,
+};
 
 /// One closed local container kind carried by a prepared desktop admission.
 #[derive(Clone, Copy)]
 enum LocalDocumentSourceKindV1 {
     Cdml,
     DecodedCdsvg,
+    Interchange,
 }
 
 impl LocalDocumentSourceKindV1 {
@@ -35,7 +40,45 @@ impl LocalDocumentSourceKindV1 {
         match self {
             Self::Cdml => "cdml",
             Self::DecodedCdsvg => "decoded_cdsvg",
+            Self::Interchange => "interchange",
         }
+    }
+}
+
+/// Immutable API-owned facts for one ordinary File/Open interchange route.
+#[pyclass(
+    frozen,
+    module = "ferrum_chem",
+    name = "LocalInterchangeOpenDescriptorV1"
+)]
+pub(crate) struct PyLocalInterchangeOpenDescriptorV1 {
+    #[pyo3(get)]
+    display_name: String,
+    #[pyo3(get)]
+    suffixes: Vec<String>,
+    route_handle: Py<PyLocalInterchangeOpenRouteHandleV1>,
+}
+
+/// Opaque registry identity issued only inside an eligible File/Open descriptor.
+///
+/// This type deliberately has no Python constructor, fields, comparison, or
+/// serialization surface.  Python can retain a descriptor-issued handle and
+/// return it to the preparation boundary, but cannot mint a route selector.
+#[pyclass(
+    frozen,
+    module = "ferrum_chem",
+    name = "LocalInterchangeOpenRouteHandleV1",
+    skip_from_py_object
+)]
+pub(crate) struct PyLocalInterchangeOpenRouteHandleV1 {
+    format_id: &'static str,
+}
+
+#[pymethods]
+impl PyLocalInterchangeOpenDescriptorV1 {
+    #[getter]
+    fn route_handle(&self, py: Python<'_>) -> Py<PyLocalInterchangeOpenRouteHandleV1> {
+        self.route_handle.clone_ref(py)
     }
 }
 
@@ -54,6 +97,8 @@ pub(crate) struct PyPreparedLocalDocumentOpenV1 {
     observation: Option<super::render_binding::PyRenderObservationV1>,
     origin: Option<PyLocalDocumentOriginTokenV1>,
     source_kind: Option<LocalDocumentSourceKindV1>,
+    interchange_summary:
+        Option<super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1>,
 }
 
 /// Opaque equality-only descriptor identity for one admitted local document source.
@@ -87,6 +132,15 @@ impl PyLocalDocumentOriginTokenV1 {
 
 #[pymethods]
 impl PyPreparedLocalDocumentOpenV1 {
+    /// Return safe generic interchange facts without exposing a commit bypass.
+    #[getter]
+    fn interchange_summary(
+        &self,
+    ) -> Option<super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1>
+    {
+        self.interchange_summary.clone()
+    }
+
     /// Consume this admission and establish one thread-affine document session.
     fn take_admission_v1(
         &mut self,
@@ -179,6 +233,60 @@ impl PyXmlInputBudgetV1 {
 
 #[pymethods]
 impl PyDocumentSession {
+    /// Return immutable Rust-owned interchange routes eligible for File/Open.
+    #[staticmethod]
+    fn local_interchange_open_descriptors_v1(
+        py: Python<'_>,
+    ) -> PyResult<Vec<PyLocalInterchangeOpenDescriptorV1>> {
+        InterchangeFormatRegistryV1::descriptors()
+            .iter()
+            .filter(|descriptor| {
+                descriptor
+                    .directions()
+                    .contains(&InterchangeDirectionV1::DocumentImportNew)
+            })
+            .map(|descriptor| {
+                Ok(PyLocalInterchangeOpenDescriptorV1 {
+                    display_name: descriptor.display_name().to_owned(),
+                    suffixes: descriptor
+                        .input_suffixes()
+                        .iter()
+                        .map(|suffix| (*suffix).to_owned())
+                        .collect(),
+                    route_handle: Py::new(
+                        py,
+                        PyLocalInterchangeOpenRouteHandleV1 {
+                            format_id: descriptor.format_id(),
+                        },
+                    )?,
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()
+    }
+
+    /// Prepare one registry-issued local interchange source for a new document.
+    #[staticmethod]
+    fn prepare_local_interchange_file_v1(
+        py: Python<'_>,
+        path: &Bound<'_, PyAny>,
+        route_handle: &Bound<'_, PyAny>,
+    ) -> PyResult<PyPreparedLocalDocumentOpenV1> {
+        prepare_local_interchange_file_v1(py, path, route_handle)
+    }
+
+    /// Read one descriptor-authorized local interchange source as bounded UTF-8.
+    ///
+    /// This source-only capability is for current-document import adapters.  It
+    /// neither decodes the source nor creates or commits a document.
+    #[staticmethod]
+    fn read_local_interchange_utf8_v1(
+        py: Python<'_>,
+        path: &Bound<'_, PyAny>,
+        route_handle: &Bound<'_, PyAny>,
+    ) -> PyResult<String> {
+        read_local_interchange_utf8_v1(py, path, route_handle)
+    }
+
     /// Admit exact built-in bytes as CDML under one explicit caller-owned budget.
     #[staticmethod]
     fn load_utf8_bytes_with_budget(
@@ -288,6 +396,116 @@ pub(crate) fn prepare_local_decoded_cdsvg_file_v1(
     prepare_local_document_file_v1(py, path, LocalDocumentSourceKindV1::DecodedCdsvg)
 }
 
+pub(crate) fn prepare_local_interchange_file_v1(
+    py: Python<'_>,
+    path: &Bound<'_, PyAny>,
+    route_handle: &Bound<'_, PyAny>,
+) -> PyResult<PyPreparedLocalDocumentOpenV1> {
+    let path = exact_path(py, path)?;
+    let descriptor = local_interchange_descriptor(route_handle)?;
+    let result = py.detach(move || {
+        let (source, prepared) =
+            crate::document_interchange_import_v1::prepare_local_interchange_new_document_v1(
+                descriptor,
+                &path,
+                &super::super::InstalledWheelInterchangeRuntimeResolverV1,
+            )
+            .map_err(LocalInterchangePreparationError::Refused)?;
+        let summary = super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1::from_summary(prepared.summary());
+        let (session, _) = prepared
+            .commit_and_take_session()
+            .map_err(LocalInterchangePreparationError::Refused)?;
+        let observation =
+            observe_render_v1(&session, 0).map_err(LocalInterchangePreparationError::Render)?;
+        Ok::<_, LocalInterchangePreparationError>((
+            session,
+            observation,
+            source
+                .retained_source()
+                .ok_or_else(|| {
+                    LocalInterchangePreparationError::Refused(
+                        InterchangeImportRefusalV1::for_reason(
+                            crate::interchange_import_v1::InterchangeImportRefusalReasonV1::InternalFailure,
+                        ),
+                    )
+                })?
+                .try_clone()
+                .map_err(|_| {
+                    LocalInterchangePreparationError::Refused(
+                        InterchangeImportRefusalV1::for_reason(
+                            crate::interchange_import_v1::InterchangeImportRefusalReasonV1::InternalFailure,
+                        ),
+                    )
+                })?,
+            LocalDocumentSourceKindV1::Interchange,
+            summary,
+        ))
+    });
+    match result {
+        Ok((session, observation, origin, source_kind, interchange_summary)) => {
+            Ok(PyPreparedLocalDocumentOpenV1 {
+                session: Some(session),
+                observation: Some(super::render_binding::observation(py, observation)?),
+                origin: Some(PyLocalDocumentOriginTokenV1 {
+                    source: Arc::new(origin),
+                }),
+                source_kind: Some(source_kind),
+                interchange_summary: Some(interchange_summary),
+            })
+        }
+        Err(LocalInterchangePreparationError::Ingress(error)) => {
+            Err(map_local_document_open_error(py, error)?)
+        }
+        Err(LocalInterchangePreparationError::Refused(refusal)) => Err(
+            super::document_interchange_receipt_binding::local_interchange_refusal(py, refusal)?,
+        ),
+        Err(LocalInterchangePreparationError::Render(error)) => {
+            Err(super::render_binding::error_result(py, error)?)
+        }
+    }
+}
+
+pub(crate) fn read_local_interchange_utf8_v1(
+    py: Python<'_>,
+    path: &Bound<'_, PyAny>,
+    route_handle: &Bound<'_, PyAny>,
+) -> PyResult<String> {
+    let path = exact_path(py, path)?;
+    let descriptor = local_interchange_descriptor(route_handle)?;
+    let result = py.detach(move || {
+        crate::document_interchange_import_v1::read_local_interchange_utf8_source_v1(
+            descriptor, &path,
+        )
+    });
+    match result {
+        Ok(source) => Ok(source),
+        Err(refusal) => Err(
+            super::document_interchange_receipt_binding::local_interchange_refusal(py, refusal)?,
+        ),
+    }
+}
+
+fn local_interchange_descriptor(
+    route_handle: &Bound<'_, PyAny>,
+) -> PyResult<&'static crate::interchange_import_v1::InterchangeFormatDescriptorV1> {
+    let route_handle = exact_route_handle(route_handle)?;
+    InterchangeFormatRegistryV1::descriptors()
+        .iter()
+        .find(|descriptor| descriptor.format_id() == route_handle.format_id)
+        .filter(|descriptor| {
+            descriptor
+                .directions()
+                .contains(&InterchangeDirectionV1::DocumentImportNew)
+        })
+        .ok_or_else(|| PyTypeError::new_err("local interchange route handle is not API-issued"))
+}
+
+enum LocalInterchangePreparationError {
+    Ingress(DocumentIngressErrorV1),
+    Refused(InterchangeImportRefusalV1),
+    Render(RenderObservationError),
+}
+
 fn prepare_local_document_file_v1(
     py: Python<'_>,
     path: &Bound<'_, PyAny>,
@@ -299,6 +517,9 @@ fn prepare_local_document_file_v1(
             LocalDocumentSourceKindV1::Cdml => prepare_local_cdml_file_with_origin_v1(&path),
             LocalDocumentSourceKindV1::DecodedCdsvg => {
                 prepare_local_decoded_cdsvg_file_with_origin_v1(&path)
+            }
+            LocalDocumentSourceKindV1::Interchange => {
+                unreachable!("interchange admission uses its dedicated Rust-owned bridge")
             }
         };
         let (session, origin) = preparation.map_err(LocalDocumentOpenPreparationError::Ingress)?;
@@ -321,6 +542,7 @@ fn prepare_local_document_file_v1(
                 source: Arc::new(origin),
             }),
             source_kind: Some(source_kind),
+            interchange_summary: None,
         }),
         Err(LocalDocumentOpenPreparationError::Ingress(error)) => {
             Err(map_local_document_open_error(py, error)?)
@@ -416,6 +638,30 @@ fn exact_path(py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
     }
     owned.push_str(path);
     Ok(PathBuf::from(owned))
+}
+
+fn exact_route_handle<'py>(
+    route_handle: &Bound<'py, PyAny>,
+) -> PyResult<PyRef<'py, PyLocalInterchangeOpenRouteHandleV1>> {
+    if !route_handle.is_exact_instance_of::<PyLocalInterchangeOpenRouteHandleV1>() {
+        return Err(PyTypeError::new_err(
+            "local interchange route handle must be an API-issued handle",
+        ));
+    }
+    Ok(route_handle.extract::<PyRef<'_, PyLocalInterchangeOpenRouteHandleV1>>()?)
+}
+
+fn local_interchange_refusal(py: Python<'_>) -> PyResult<PyErr> {
+    let error = DocumentInputError::new_err("document input rejected at interchange");
+    let value = error.value(py);
+    value.setattr("origin", "file")?;
+    value.setattr("stage", "interchange")?;
+    value.setattr("limit", py.None())?;
+    value.setattr("actual", py.None())?;
+    value.setattr("observed_at_least", py.None())?;
+    value.setattr("category", "interchange_rejected")?;
+    value.setattr("detail", "local interchange admission rejected")?;
+    Ok(error)
 }
 
 fn exact_budget(value: &Bound<'_, PyAny>) -> PyResult<XmlInputBudgetV1> {
@@ -598,3 +844,7 @@ fn origin_name(origin: &DocumentIngressOriginV1) -> &'static str {
         DocumentIngressOriginV1::File(_) => "file",
     }
 }
+
+#[cfg(test)]
+#[path = "document_ingress_binding_tests.rs"]
+mod tests;

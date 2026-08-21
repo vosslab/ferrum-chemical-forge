@@ -1,7 +1,7 @@
 //! Rust-owned, revision-fenced straight normal-arrow authoring geometry.
 
 use crate::{
-    DocumentFenceV1, PersistentId, PresentationRecordKindV1, PresentationRootSelectorV1,
+    DocumentFenceV1, PersistentId, Point3V1, PresentationRecordKindV1, PresentationRootSelectorV1,
     SessionOperationResultV1,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,6 +16,7 @@ const HEAD_HALF_WIDTH: f64 = 3.0;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PresentationGestureKindV1 {
     StraightNormalArrow,
+    StraightEquilibriumArrow,
     Plus,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,6 +43,19 @@ impl PresentationGesturePoint2V1 {
 pub struct ArrowGestureStyleV1 {
     start_head: bool,
     end_head: bool,
+}
+/// Style facts owned by the specific presentation gesture kind.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PresentationGestureStyleV1 {
+    Normal(ArrowGestureStyleV1),
+    Equilibrium,
+    Plus,
+}
+impl PresentationGestureStyleV1 {
+    #[must_use]
+    pub const fn normal(start_head: bool, end_head: bool) -> Self {
+        Self::Normal(ArrowGestureStyleV1::new(start_head, end_head))
+    }
 }
 impl ArrowGestureStyleV1 {
     #[must_use]
@@ -117,7 +131,7 @@ pub struct PresentationCreationGestureV1 {
     pub(crate) fence: DocumentFenceV1,
     pub(crate) kind: PresentationGestureKindV1,
     pub(crate) start: PresentationGesturePoint2V1,
-    pub(crate) style: ArrowGestureStyleV1,
+    pub(crate) style: PresentationGestureStyleV1,
     pub(crate) snap: PresentationGestureSnapPolicyV1,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -150,12 +164,22 @@ pub struct PresentationGestureOverlayV1 {
     kind: PresentationGestureKindV1,
     start: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
-    axis_start: PresentationGesturePoint2V1,
-    axis_end: PresentationGesturePoint2V1,
-    head_vertices: Vec<PresentationGesturePoint2V1>,
+    geometry: PresentationGestureOverlayGeometryV1,
     bounds: PresentationGestureBoundsV1,
     width: f64,
     color: String,
+}
+/// Closed, Rust-issued display geometry for an Arrow creation preview.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PresentationGestureOverlayGeometryV1 {
+    Normal {
+        axis: [PresentationGesturePoint2V1; 2],
+        heads: Vec<[PresentationGesturePoint2V1; 3]>,
+    },
+    Equilibrium {
+        axes: [[PresentationGesturePoint2V1; 2]; 2],
+        heads: [[PresentationGesturePoint2V1; 4]; 2],
+    },
 }
 impl PresentationGestureOverlayV1 {
     #[must_use]
@@ -171,17 +195,10 @@ impl PresentationGestureOverlayV1 {
         self.end
     }
     #[must_use]
-    pub const fn axis_start(&self) -> PresentationGesturePoint2V1 {
-        self.axis_start
+    pub const fn geometry(&self) -> &PresentationGestureOverlayGeometryV1 {
+        &self.geometry
     }
-    #[must_use]
-    pub const fn axis_end(&self) -> PresentationGesturePoint2V1 {
-        self.axis_end
-    }
-    #[must_use]
-    pub fn head_vertices(&self) -> &[PresentationGesturePoint2V1] {
-        &self.head_vertices
-    }
+
     #[must_use]
     pub const fn bounds(&self) -> PresentationGestureBoundsV1 {
         self.bounds
@@ -237,6 +254,9 @@ impl CommittedPresentationGestureV1 {
                     PresentationGestureKindV1::StraightNormalArrow => {
                         PresentationRecordKindV1::Arrow
                     }
+                    PresentationGestureKindV1::StraightEquilibriumArrow => {
+                        PresentationRecordKindV1::Arrow
+                    }
                     PresentationGestureKindV1::Plus => PresentationRecordKindV1::Plus,
                 },
             )
@@ -256,6 +276,7 @@ pub enum PresentationGestureCategoryV1 {
     BelowMinimumLength,
     ExceedsGeometryLimit,
     InvalidSnapPolicy,
+    InvalidGestureStyle,
     SessionConflict,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -285,6 +306,8 @@ pub enum PresentationGestureErrorV1 {
     ExceedsGeometryLimit,
     #[error("presentation gesture snapping policy is invalid")]
     InvalidSnapPolicy,
+    #[error("presentation gesture style does not belong to its kind")]
+    InvalidGestureStyle,
     #[error("presentation gesture commit was rejected by the document session")]
     SessionConflict,
 }
@@ -301,6 +324,7 @@ impl PresentationGestureErrorV1 {
             Self::BelowMinimumLength => PresentationGestureCategoryV1::BelowMinimumLength,
             Self::ExceedsGeometryLimit => PresentationGestureCategoryV1::ExceedsGeometryLimit,
             Self::InvalidSnapPolicy => PresentationGestureCategoryV1::InvalidSnapPolicy,
+            Self::InvalidGestureStyle => PresentationGestureCategoryV1::InvalidGestureStyle,
             Self::SessionConflict => PresentationGestureCategoryV1::SessionConflict,
         }
     }
@@ -315,7 +339,9 @@ impl PresentationGestureErrorV1 {
             | Self::CollapsedEndpoint
             | Self::BelowMinimumLength
             | Self::ExceedsGeometryLimit => PresentationGestureRecoveryV1::AdjustEndpoint,
-            Self::InvalidSnapPolicy => PresentationGestureRecoveryV1::ChangeToolOrStyle,
+            Self::InvalidSnapPolicy | Self::InvalidGestureStyle => {
+                PresentationGestureRecoveryV1::ChangeToolOrStyle
+            }
             Self::SessionConflict => PresentationGestureRecoveryV1::RefreshAndReport,
         }
     }
@@ -338,12 +364,59 @@ pub(crate) fn preview(
     if length == 0.0 {
         return Err(PresentationGestureErrorV1::CollapsedEndpoint);
     }
-    if length < ARROW_MINIMUM_LENGTH_PT_V1 {
+    let minimum_length = match gesture.kind {
+        PresentationGestureKindV1::StraightEquilibriumArrow => {
+            crate::equilibrium_arrow_geometry_v1::EQUILIBRIUM_MINIMUM_LENGTH_PT_V1
+        }
+        _ => ARROW_MINIMUM_LENGTH_PT_V1,
+    };
+    if length < minimum_length {
         return Err(PresentationGestureErrorV1::BelowMinimumLength);
     }
     if length > ARROW_MAXIMUM_LENGTH_PT_V1 {
         return Err(PresentationGestureErrorV1::ExceedsGeometryLimit);
     }
+    if gesture.kind == PresentationGestureKindV1::StraightEquilibriumArrow {
+        let source_start =
+            Point3V1::new(gesture.start.x, gesture.start.y, 0.0).expect("finite gesture point");
+        let source_end = Point3V1::new(end.x, end.y, 0.0).expect("finite gesture point");
+        let issued = crate::equilibrium_arrow_geometry_v1::geometry(source_start, source_end)
+            .map_err(|_| PresentationGestureErrorV1::BelowMinimumLength)?;
+        let point2 = |point: Point3V1| PresentationGesturePoint2V1 {
+            x: point.x(),
+            y: point.y(),
+        };
+        let axes = issued.axes.map(|axis| axis.map(point2));
+        let heads = issued.heads.map(|head| head.map(point2));
+        let all = axes
+            .into_iter()
+            .flatten()
+            .chain(heads.into_iter().flatten())
+            .collect::<Vec<_>>();
+        let half = ARROW_DEFAULT_WIDTH_V1 / 2.0;
+        let bounds = PresentationGestureBoundsV1 {
+            left: all.iter().map(|p| p.x).fold(f64::INFINITY, f64::min) - half,
+            top: all.iter().map(|p| p.y).fold(f64::INFINITY, f64::min) - half,
+            right: all.iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max) + half,
+            bottom: all.iter().map(|p| p.y).fold(f64::NEG_INFINITY, f64::max) + half,
+        };
+        return Ok(PresentationCreationPreviewV1 {
+            overlay: Some(PresentationGestureOverlayV1 {
+                kind: gesture.kind,
+                start: gesture.start,
+                end,
+                geometry: PresentationGestureOverlayGeometryV1::Equilibrium { axes, heads },
+                bounds,
+                width: ARROW_DEFAULT_WIDTH_V1,
+                color: ARROW_DEFAULT_COLOR_V1.to_owned(),
+            }),
+            gesture,
+            end,
+        });
+    }
+    let PresentationGestureStyleV1::Normal(style) = gesture.style else {
+        return Err(PresentationGestureErrorV1::InvalidGestureStyle);
+    };
     let ux = dx / length;
     let uy = dy / length;
     let px = -uy;
@@ -351,7 +424,7 @@ pub(crate) fn preview(
     let mut heads = Vec::new();
     let mut axis_start = gesture.start;
     let mut axis_end = end;
-    if gesture.style.start_head {
+    if style.start_head {
         axis_start = point(
             gesture.start.x + ux * HEAD_LENGTH,
             gesture.start.y + uy * HEAD_LENGTH,
@@ -368,7 +441,7 @@ pub(crate) fn preview(
             ),
         ]);
     }
-    if gesture.style.end_head {
+    if style.end_head {
         axis_end = point(end.x - ux * HEAD_LENGTH, end.y - uy * HEAD_LENGTH);
         heads.extend([
             end,
@@ -398,9 +471,13 @@ pub(crate) fn preview(
             kind: PresentationGestureKindV1::StraightNormalArrow,
             start: gesture.start,
             end,
-            axis_start,
-            axis_end,
-            head_vertices: heads,
+            geometry: PresentationGestureOverlayGeometryV1::Normal {
+                axis: [axis_start, axis_end],
+                heads: heads
+                    .chunks_exact(3)
+                    .map(|head| [head[0], head[1], head[2]])
+                    .collect(),
+            },
             bounds,
             width: ARROW_DEFAULT_WIDTH_V1,
             color: ARROW_DEFAULT_COLOR_V1.to_owned(),
@@ -447,13 +524,16 @@ mod tests {
             fence: DocumentFenceV1::new(0, [0; 32]),
             kind: PresentationGestureKindV1::StraightNormalArrow,
             start: PresentationGesturePoint2V1::new(0.0, 0.0).unwrap(),
-            style: ArrowGestureStyleV1::new(false, true),
+            style: PresentationGestureStyleV1::normal(false, true),
             snap: PresentationGestureSnapPolicyV1::new(Some(45), Some(20)).unwrap(),
         };
         let p = preview(g, PresentationGesturePoint2V1::new(8.0, 9.0).unwrap()).unwrap();
         let overlay = p.overlay().expect("Arrow owns geometry");
         assert!((overlay.end().x() - 14.142).abs() < 0.01);
-        assert_eq!(overlay.head_vertices().len(), 3);
+        let PresentationGestureOverlayGeometryV1::Normal { heads, .. } = overlay.geometry() else {
+            panic!("normal gesture must issue normal preview geometry");
+        };
+        assert_eq!(heads.len(), 1);
         assert_eq!(overlay.color(), ARROW_DEFAULT_COLOR_V1);
         assert!(overlay.bounds().right() > overlay.end().x());
     }
@@ -473,7 +553,7 @@ mod session_tests {
                 DocumentFenceV1::new(before.revision(), *before.digest()),
                 PresentationGestureKindV1::StraightNormalArrow,
                 PresentationGesturePoint2V1::new(0.0, 0.0).expect("start"),
-                ArrowGestureStyleV1::new(false, true),
+                PresentationGestureStyleV1::normal(false, true),
                 PresentationGestureSnapPolicyV1::free(),
             )
             .expect("begin");
@@ -487,7 +567,10 @@ mod session_tests {
         let overlay = preview.overlay().expect("Arrow owns geometry");
         assert_eq!(overlay.color(), "#000000");
         assert_eq!(overlay.width(), 1.0);
-        assert_eq!(overlay.head_vertices().len(), 3);
+        let PresentationGestureOverlayGeometryV1::Normal { heads, .. } = overlay.geometry() else {
+            panic!("normal gesture must issue normal preview geometry");
+        };
+        assert_eq!(heads.len(), 1);
         let committed = session
             .commit_presentation_creation_gesture_v1(&gesture, &preview)
             .expect("commit");
@@ -519,7 +602,7 @@ mod session_tests {
                 DocumentFenceV1::new(before.revision(), *before.digest()),
                 PresentationGestureKindV1::Plus,
                 PresentationGesturePoint2V1::new(72.0, 36.0).expect("anchor"),
-                ArrowGestureStyleV1::new(false, true),
+                PresentationGestureStyleV1::Plus,
                 PresentationGestureSnapPolicyV1::free(),
             )
             .expect("begin");
@@ -539,13 +622,11 @@ mod session_tests {
         assert!(cdml.contains("<plus"));
         assert!(cdml.contains("x=\"2.540cm\""));
         let plus = cdml.split("<plus").nth(1).expect("inserted plus source");
-        assert!(
-            !plus
-                .split("</plus>")
-                .next()
-                .expect("plus closes")
-                .contains("font_size")
-        );
+        assert!(!plus
+            .split("</plus>")
+            .next()
+            .expect("plus closes")
+            .contains("font_size"));
         assert_eq!(
             session
                 .undo(1)
@@ -555,6 +636,69 @@ mod session_tests {
                 .revision(),
             2
         );
+    }
+
+    #[test]
+    fn equilibrium_gesture_commits_one_typed_root_with_two_issued_shafts() {
+        let mut session = DocumentSession::load("<cdml/>").expect("session");
+        let before = session.snapshot().expect("before");
+        let gesture = session
+            .begin_presentation_creation_gesture_v1(
+                DocumentFenceV1::new(before.revision(), *before.digest()),
+                PresentationGestureKindV1::StraightEquilibriumArrow,
+                PresentationGesturePoint2V1::new(0.0, 0.0).expect("start"),
+                PresentationGestureStyleV1::Equilibrium,
+                PresentationGestureSnapPolicyV1::free(),
+            )
+            .expect("begin");
+        let preview = session
+            .preview_presentation_creation_gesture_v1(
+                &gesture,
+                PresentationGesturePoint2V1::new(72.0, 0.0).expect("end"),
+            )
+            .expect("preview");
+        let overlay = preview.overlay().expect("equilibrium owns geometry");
+        let PresentationGestureOverlayGeometryV1::Equilibrium { axes, heads } = overlay.geometry()
+        else {
+            panic!("equilibrium preview must not be normal-arrow shaped");
+        };
+        assert_eq!(axes.len(), 2);
+        assert_eq!(heads.len(), 2);
+        assert_eq!(heads[0].len(), 4);
+        assert_eq!(heads[1].len(), 4);
+        assert_ne!(axes[0][0].y(), axes[1][0].y());
+        let committed = session
+            .commit_presentation_creation_gesture_v1(&gesture, &preview)
+            .expect("commit");
+        let cdml = committed.result().observation().snapshot().cdml();
+        assert_eq!(cdml.matches("<arrow").count(), 1);
+        assert!(cdml.contains("type=\"equilibrium\""));
+        assert!(!cdml.contains(" start="));
+        assert!(!cdml.contains(" end="));
+        assert_eq!(committed.root().kind(), PresentationRecordKindV1::Arrow);
+    }
+
+    #[test]
+    fn equilibrium_gesture_below_its_fixed_span_is_non_mutating() {
+        let session = DocumentSession::load("<cdml/>").expect("session");
+        let before = session.snapshot().expect("before");
+        let gesture = session
+            .begin_presentation_creation_gesture_v1(
+                DocumentFenceV1::new(before.revision(), *before.digest()),
+                PresentationGestureKindV1::StraightEquilibriumArrow,
+                PresentationGesturePoint2V1::new(0.0, 0.0).expect("start"),
+                PresentationGestureStyleV1::Equilibrium,
+                PresentationGestureSnapPolicyV1::free(),
+            )
+            .expect("begin");
+        assert_eq!(
+            session.preview_presentation_creation_gesture_v1(
+                &gesture,
+                PresentationGesturePoint2V1::new(19.0, 0.0).expect("end"),
+            ),
+            Err(PresentationGestureErrorV1::BelowMinimumLength),
+        );
+        assert_eq!(session.snapshot().expect("unchanged"), before);
     }
 
     #[test]
@@ -568,7 +712,7 @@ mod session_tests {
                 DocumentFenceV1::new(first_snapshot.revision(), *first_snapshot.digest()),
                 PresentationGestureKindV1::StraightNormalArrow,
                 PresentationGesturePoint2V1::new(0.0, 0.0).unwrap(),
-                ArrowGestureStyleV1::new(false, true),
+                PresentationGestureStyleV1::normal(false, true),
                 PresentationGestureSnapPolicyV1::free(),
             )
             .unwrap();
@@ -577,7 +721,7 @@ mod session_tests {
                 DocumentFenceV1::new(second_snapshot.revision(), *second_snapshot.digest()),
                 PresentationGestureKindV1::StraightNormalArrow,
                 PresentationGesturePoint2V1::new(0.0, 0.0).unwrap(),
-                ArrowGestureStyleV1::new(false, true),
+                PresentationGestureStyleV1::normal(false, true),
                 PresentationGestureSnapPolicyV1::free(),
             )
             .unwrap();
@@ -616,7 +760,7 @@ mod replay_tests {
                 DocumentFenceV1::new(snapshot.revision(), *snapshot.digest()),
                 PresentationGestureKindV1::StraightNormalArrow,
                 PresentationGesturePoint2V1::new(0.0, 0.0).expect("start"),
-                ArrowGestureStyleV1::new(false, true),
+                PresentationGestureStyleV1::normal(false, true),
                 PresentationGestureSnapPolicyV1::free(),
             )
             .expect("begin");

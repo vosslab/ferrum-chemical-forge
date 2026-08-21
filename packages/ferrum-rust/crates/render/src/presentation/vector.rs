@@ -8,8 +8,8 @@ use crate::{
     RenderPoint, Rgb24, StrokeV1,
 };
 use ferrum_document::{
-    ArrowProjectionV1, BoxShapeProjectionV1, Point3V1, PolygonProjectionV1, PolylineProjectionV1,
-    PresentationFillV1, PresentationRootProjectionV1, PresentationStrokeV1,
+    ArrowDisplayGeometryV1, ArrowProjectionV1, BoxShapeProjectionV1, Point3V1, PolygonProjectionV1,
+    PolylineProjectionV1, PresentationFillV1, PresentationRootProjectionV1, PresentationStrokeV1,
 };
 
 /// Lower one retained non-text presentation root without changing its issued geometry.
@@ -36,27 +36,43 @@ pub fn lower_presentation_vector_v1(
 
 fn arrow_root(arrow: &ArrowProjectionV1) -> Result<DocumentVectorRootV1, RenderError> {
     let stroke = stroke(arrow.stroke())?;
+    match arrow.geometry() {
+        ArrowDisplayGeometryV1::Normal {
+            axis_path, heads, ..
+        } => arrow_geometry_root(&stroke, std::slice::from_ref(axis_path), heads),
+        ArrowDisplayGeometryV1::Equilibrium { axes, heads } => {
+            arrow_geometry_root(&stroke, axes, heads)
+        }
+    }
+}
+
+fn arrow_geometry_root(
+    stroke: &StrokeV1,
+    axes: &[ferrum_document::ArrowPathV1],
+    heads: &[ferrum_document::ArrowHeadV1],
+) -> Result<DocumentVectorRootV1, RenderError> {
     let mut operations = Vec::new();
     operations
-        .try_reserve(usize::from(!arrow.heads().is_empty()) + 1)
+        .try_reserve(axes.len() + usize::from(!heads.is_empty()))
         .map_err(|_| RenderError::ResourceExhausted)?;
-    operations.push(DocumentVectorOpV1::path(
-        open_path(arrow.axis_path().points())?,
-        Some(stroke.clone()),
-        None,
-    )?);
+    for axis in axes {
+        operations.push(DocumentVectorOpV1::path(
+            open_path(axis.points())?,
+            Some(stroke.clone()),
+            None,
+        )?);
+    }
 
-    if !arrow.heads().is_empty() {
+    if !heads.is_empty() {
         let mut commands = Vec::new();
-        let command_count = arrow
-            .heads()
+        let command_count = heads
             .len()
             .checked_mul(5)
             .ok_or(RenderError::ResourceExhausted)?;
         commands
             .try_reserve(command_count)
             .map_err(|_| RenderError::ResourceExhausted)?;
-        for head in arrow.heads() {
+        for head in heads {
             closed_points(&mut commands, head.points())?;
         }
         operations.push(DocumentVectorOpV1::path(

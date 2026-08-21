@@ -19,6 +19,7 @@ class FerrumNativeWindowModeSyncMixin:
 				mode_id = {
 					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_BOND: "draw",
 					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_ARROW: "arrow",
+					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_EQUILIBRIUM_ARROW: "equilibrium_arrow",
 					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.CREATE_RECTANGULAR_BRACKET: "bracket",
 					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.MOVE_ATOM: "edit",
 				}.get(self._line_gesture_intent.tool)

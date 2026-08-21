@@ -3,8 +3,8 @@
 use schemars::SchemaGenerator;
 
 use super::dto::{
-    OperationProtocolEnvelopeV1, OperationProtocolErrorResponseV1, OperationProtocolRequestV1,
-    OperationProtocolResponseV1,
+    DocumentSmartsQueryRequestV1, OperationProtocolEnvelopeV1, OperationProtocolErrorResponseV1,
+    OperationProtocolRequestV1, OperationProtocolResponseV1,
 };
 
 /// Produce the generated V1 schema document from the authoritative Rust DTOs.
@@ -14,6 +14,7 @@ pub fn generated_operation_protocol_schema_v1() -> serde_json::Value {
     let request = generator.subschema_for::<OperationProtocolRequestV1>();
     let success_response = generator.subschema_for::<OperationProtocolResponseV1>();
     let error_response = generator.subschema_for::<OperationProtocolErrorResponseV1>();
+    let document_smarts_query_request = generator.subschema_for::<DocumentSmartsQueryRequestV1>();
     let mut root = generator.into_root_schema_for::<OperationProtocolEnvelopeV1>();
     root.insert(
         "title".to_owned(),
@@ -25,6 +26,7 @@ pub fn generated_operation_protocol_schema_v1() -> serde_json::Value {
             "request": request,
             "success_response": success_response,
             "error_response": error_response,
+            "document_smarts_query_request": document_smarts_query_request,
         }),
     );
     root.into()

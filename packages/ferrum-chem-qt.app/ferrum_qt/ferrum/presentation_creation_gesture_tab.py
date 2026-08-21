@@ -10,6 +10,26 @@ class FerrumNativePresentationCreationGestureTabMixin:
 			self, x: float, y: float, snap: object,
 			) -> object:
 		"""Begin one backend-owned direct normal-arrow creation gesture."""
+		import ferrum_qt.ferrum.engine as engine
+		return self._begin_straight_presentation_arrow_gesture(
+			engine.PresentationGestureKindV1.straight_normal_arrow, x, y, snap,
+		)
+
+	#============================================
+	def begin_straight_equilibrium_arrow_gesture(
+			self, x: float, y: float, snap: object,
+			) -> object:
+		"""Begin one backend-owned direct equilibrium-arrow creation gesture."""
+		import ferrum_qt.ferrum.engine as engine
+		return self._begin_straight_presentation_arrow_gesture(
+			engine.PresentationGestureKindV1.straight_equilibrium_arrow, x, y, snap,
+		)
+
+	#============================================
+	def _begin_straight_presentation_arrow_gesture(
+			self, kind: object, x: float, y: float, snap: object,
+			) -> object:
+		"""Begin one exact Rust-owned straight presentation-arrow kind."""
 		self._require_mutable()
 		if type(x) is not float or type(y) is not float:
 			raise TypeError("Ferrum Arrow start coordinates must be exact floats")
@@ -17,10 +37,13 @@ class FerrumNativePresentationCreationGestureTabMixin:
 		if type(snap) is not engine.PresentationGestureSnapPolicyV1:
 			raise TypeError("Ferrum Arrow creation requires an exact Rust snap policy")
 		snapshot = self.current_snapshot
+		style = None
+		if kind is engine.PresentationGestureKindV1.straight_normal_arrow:
+			style = engine.ArrowGestureStyleV1()
 		return self._session.begin_presentation_creation_gesture_v1(
 			snapshot.revision, snapshot.digest,
-			engine.PresentationGestureKindV1.straight_normal_arrow,
-			x, y, engine.ArrowGestureStyleV1(), snap,
+			kind,
+			x, y, style, snap,
 		)
 
 	#============================================
@@ -53,10 +76,10 @@ class FerrumNativePresentationCreationGestureTabMixin:
 		return commit
 
 	#============================================
-	def preview_straight_normal_arrow_gesture(
+	def preview_straight_presentation_arrow_gesture(
 			self, gesture: object, x: float, y: float,
 			) -> object:
-		"""Return Rust's immutable Arrow overlay for one raw pointer endpoint."""
+		"""Return Rust's immutable straight-arrow overlay for one pointer endpoint."""
 		self._require_mutable()
 		if type(x) is not float or type(y) is not float:
 			raise TypeError("Ferrum Arrow endpoint coordinates must be exact floats")
@@ -64,11 +87,23 @@ class FerrumNativePresentationCreationGestureTabMixin:
 
 	#============================================
 	def commit_straight_normal_arrow_gesture(self, gesture: object, preview: object) -> object:
-		"""Commit one checked opaque gesture and install its authoritative projection."""
+		"""Commit one checked normal-arrow gesture and install its projection."""
+		return self._commit_straight_presentation_arrow_gesture("arrow", gesture, preview)
+
+	#============================================
+	def commit_straight_equilibrium_arrow_gesture(self, gesture: object, preview: object) -> object:
+		"""Commit one checked equilibrium-arrow gesture and install its projection."""
+		return self._commit_straight_presentation_arrow_gesture("equilibrium_arrow", gesture, preview)
+
+	#============================================
+	def _commit_straight_presentation_arrow_gesture(
+			self, root_kind: str, gesture: object, preview: object,
+			) -> object:
+		"""Commit one checked opaque straight-arrow gesture with its exact root kind."""
 		self._require_mutable()
 		commit = self._session.commit_presentation_creation_gesture_v1(gesture, preview)
 		try:
-			self._install_mutation_result(commit.result, (("arrow", commit.root.identifier),))
+			self._install_mutation_result(commit.result, ((root_kind, commit.root.identifier),))
 		except Exception as exc:
 			# The Rust receipt is already authoritative. Preserve it for the thin
 			# controller recovery path when only disposable Qt installation failed.

@@ -1,16 +1,16 @@
 //! Opaque PyO3 transport for Ferrum-owned catalog placement.
 use super::binding::{PyDocumentSession, PySessionOperationResultV1};
 use super::presentation_creation_gesture_binding::digest;
-use super::render_binding::{PyRenderPlanV2, plan_from};
+use super::render_binding::{plan_from, PyRenderPlanV2};
 use crate::{
+    begin_api_catalog_placement_v2, cancel_api_catalog_placement_gesture_v2,
+    commit_api_catalog_placement_v2, prepare_api_catalog_placement_v2,
+    preview_api_catalog_placement_v2, release_api_catalog_placement_preview_v2,
     ApiCatalogPlacementGestureV2, ApiCatalogPlacementPreparedV2, ApiCatalogPlacementPreviewV2,
-    CatalogPlacementErrorV2, begin_api_catalog_placement_v2,
-    cancel_api_catalog_placement_gesture_v2, commit_api_catalog_placement_v2,
-    prepare_api_catalog_placement_v2, preview_api_catalog_placement_v2,
-    release_api_catalog_placement_preview_v2,
+    CatalogPlacementErrorV2,
 };
 use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
-use ferrum_domain::{CatalogFamilyV1, catalog_manifest_v1, search_catalog_v1};
+use ferrum_domain::{catalog_manifest_v1, search_catalog_v1, CatalogFamilyV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 create_exception!(

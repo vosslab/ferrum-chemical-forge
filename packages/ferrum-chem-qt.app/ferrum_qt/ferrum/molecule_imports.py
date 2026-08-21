@@ -394,9 +394,10 @@ class FerrumNativeMoleculeImportsMixin:
 			return False
 		try:
 			placement = ferrum_qt.bridge.insertion_placement.capture_insertion_placement_v1(tab)
+			route_handle = self._sdf_import_route_handle()
 			worker = (
 				ferrum_qt.ferrum.sdf_import.
-				FerrumNativeSdfPreparationWorker(path, placement)
+				FerrumNativeSdfPreparationWorker(path, placement, route_handle)
 			)
 		except Exception as exc:
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
@@ -418,6 +419,14 @@ class FerrumNativeMoleculeImportsMixin:
 		self._refresh_actions()
 		worker.start()
 		return True
+
+	#============================================
+	def _sdf_import_route_handle(self) -> object:
+		"""Return the registry-issued route handle for the selected SDF source."""
+		for descriptor in self._local_interchange_open_descriptors:
+			if ".sdf" in descriptor.suffixes:
+				return descriptor.route_handle
+		raise RuntimeError("Ferrum did not publish an SDF local interchange route")
 
 	#============================================
 	def _on_import_peptide(self) -> None:

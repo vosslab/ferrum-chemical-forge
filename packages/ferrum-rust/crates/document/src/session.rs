@@ -12,21 +12,24 @@ use thiserror::Error;
 
 use super::identity_index::ProvisionalToken;
 use super::{
-    BracketInsertionV1, BracketStyleV1, DetachedRegularRingInsertionV1, DocumentBondPresentationV1,
-    DocumentObjectIdV1, MoleculeInsertionV1, PersistentId, Point3V1,
-    PreparedStraightenDepictionsV1, ProjectionError, SessionDocumentObservationV1, TypedClass,
-    TypedDocument, TypedDocumentError, WavyInsertionV1, XmlSerializationError,
+    BracketInsertionV1, BracketStyleV1, DetachedRegularRingInsertionV1,
+    DocumentBondCapacityOutcomeV1, DocumentBondPresentationV1, DocumentObjectIdV1,
+    MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1, PersistentId, Point3V1, PreparedStraightenDepictionsV1, ProjectionError,
+    SessionDocumentObservationV1, TypedClass, TypedDocument, TypedDocumentError, WavyInsertionV1,
+    XmlSerializationError,
     direct_bond_gesture_v1::{
-        self, CommittedDirectBondGestureV1, DirectBondEndIntentV1, DirectBondEndpointV1,
+        self, CommittedDirectBondGestureV1, DirectBondAdmissionRefusalV1, DirectBondAdmissionV1,
+        DirectBondAdmittedCandidateV1, DirectBondCommitErrorV1, DirectBondEndIntentV1,
         DirectBondGestureErrorV1, DirectBondGestureV1, DirectBondPoint2V1, DirectBondPreviewV1,
         DirectBondSessionOriginV1, DirectBondSnapPolicyV1, DocumentFenceV1,
     },
+    direct_bond_gesture_v2::{self, CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondAdmittedCandidateV2, DirectBondEndpointIntentV2, DirectBondGestureV2},
     generated_ids::GeneratedIdSequences,
     presentation_creation_gesture_v1::{
-        self, ArrowGestureStyleV1, CommittedPresentationGestureV1, PresentationCreationGestureV1,
+        self, CommittedPresentationGestureV1, PresentationCreationGestureV1,
         PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
         PresentationGesturePoint2V1, PresentationGestureSessionOriginV1,
-        PresentationGestureSnapPolicyV1,
+        PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
     },
     publication::{PublicationDurability, publish_snapshot},
     session_history::SessionHistory,
@@ -38,34 +41,44 @@ use super::{
     typed_bond_insertion::BondedAtomInsertion,
 };
 
+#[doc(hidden)]
+pub mod attached_cyclohexane;
 mod bracket;
-mod attached_cyclohexane;
 mod clipboard;
 mod clipboard_cut;
 mod construction;
+mod direct_bond;
 mod direct_haworth;
 mod explicit_fragment;
+mod gestures;
+mod interchange;
 mod linear_form;
 mod molecule_batch_creation;
 mod molecule_creation;
 mod prepared;
-mod sdf;
+mod primitive_bond;
 mod standalone_haworth;
 mod straighten;
 mod structural_deletion;
 mod user_template;
 mod wavy;
-pub use bracket::PendingCreateBracket;
+/// Concrete internal Rust transaction seam for the API-owned attached-C6 bridge.
+///
+/// This remains public because `ferrum-api` must retain and redeem the opaque prepared
+/// transaction under the current crate dependency direction. It is intentionally not a
+/// general attachment API: the document session retains admission, fencing, deferred IDs,
+/// and atomic commit authority.
 pub use attached_cyclohexane::{AttachedCyclohexaneSessionErrorV1, PendingAttachedCyclohexaneV1};
+pub use bracket::PendingCreateBracket;
 pub use clipboard::DocumentClipboardPasteResultV1;
 pub use direct_haworth::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, PendingDirectHaworthV1,
 };
 #[allow(unused_imports)]
 pub use explicit_fragment::PendingCreateExplicitFragmentV1;
+pub use interchange::PendingCreateInterchangeBatchV1;
 pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
 pub use molecule_batch_creation::PendingCreateMoleculeBatchV1;
-pub use sdf::PendingCreateSdfRecords;
 pub use standalone_haworth::PendingStandaloneHaworthV1;
 pub use structural_deletion::PendingDeleteStructureV1;
 pub use user_template::DocumentUserTemplateResultV1;
@@ -158,53 +171,6 @@ impl Publication {
     }
 }
 
-fn same_point(first: DirectBondPoint2V1, second: DirectBondPoint2V1) -> bool {
-    first.x() == second.x() && first.y() == second.y()
-}
-
-fn snap_point(
-    start: DirectBondPoint2V1,
-    raw: DirectBondPoint2V1,
-    policy: DirectBondSnapPolicyV1,
-) -> Result<DirectBondPoint2V1, DirectBondGestureErrorV1> {
-    let mut dx = raw.x() - start.x();
-    let mut dy = raw.y() - start.y();
-    let mut length = dx.hypot(dy);
-    if let Some(increment) = policy.angle_increment_degrees()
-        && length > 0.0
-    {
-        let step = f64::from(increment).to_radians();
-        let angle = dy.atan2(dx);
-        let snapped = (angle / step).round() * step;
-        dx = length * snapped.cos();
-        dy = length * snapped.sin();
-    }
-    if let Some(fixed) = policy.fixed_length_pt() {
-        if length == 0.0 {
-            return Err(DirectBondGestureErrorV1::CollapsedEndpoint);
-        }
-        length = fixed;
-        let scale = length / dx.hypot(dy);
-        dx *= scale;
-        dy *= scale;
-    }
-    if policy.hex_grid() {
-        const GRID: f64 = 10.0;
-        dx = (dx / GRID).round() * GRID;
-        dy = (dy / GRID).round() * GRID;
-    }
-    DirectBondPoint2V1::new(start.x() + dx, start.y() + dy)
-}
-
-fn map_direct_bond_commit_error(_: DocumentSessionError) -> DirectBondGestureErrorV1 {
-    DirectBondGestureErrorV1::SessionConflict
-}
-
-/// A one-use, revision-bound prepared atom insertion.
-///
-/// The token is intentionally opaque. It originates from the exact current
-/// document, can be committed only at its prepared revision, and is consumed only
-/// after the fully validated candidate is accepted.
 pub struct PendingCreateAtom {
     revision: u64,
     token: ProvisionalToken,
@@ -495,332 +461,6 @@ impl DocumentSession {
     }
     /// Begin one opaque direct-root Text placement.  The returned token has no
     /// XML or mutable document state and is valid only for this exact snapshot.
-    pub fn begin_text_placement_gesture_v1(
-        &self,
-        fence: DocumentFenceV1,
-        anchor: PresentationGesturePoint2V1,
-    ) -> Result<crate::TextPlacementGestureV1, crate::TextPlacementErrorV1> {
-        crate::text_placement_gesture_v1::begin(self.text_placement_origin, fence, anchor)
-    }
-
-    pub fn preview_text_placement_gesture_v1(
-        &self,
-        gesture: &crate::TextPlacementGestureV1,
-        content: crate::TextPlacementContentV1,
-    ) -> Result<crate::TextPlacementPreviewV1, crate::TextPlacementErrorV1> {
-        crate::text_placement_gesture_v1::preview(
-            self.text_placement_origin,
-            self.history.current().revision(),
-            *self.history.current().digest(),
-            gesture,
-            content,
-        )
-    }
-
-    pub fn commit_text_placement_gesture_v1(
-        &mut self,
-        gesture: &crate::TextPlacementGestureV1,
-        preview: &crate::TextPlacementPreviewV1,
-    ) -> Result<crate::CommittedTextPlacementV1, crate::TextPlacementErrorV1> {
-        use crate::text_placement_gesture_v1::{
-            CommittedTextPlacementV1, TextPlacementErrorV1, belongs_to,
-        };
-        if !belongs_to(self.text_placement_origin, gesture)
-            || !belongs_to(self.text_placement_origin, &preview.gesture)
-        {
-            return Err(TextPlacementErrorV1::ForeignSession);
-        }
-        if gesture.capability != preview.gesture.capability {
-            return Err(TextPlacementErrorV1::MismatchedPreview);
-        }
-        if self
-            .text_placement_consumed
-            .contains(&gesture.capability.nonce)
-        {
-            return Err(TextPlacementErrorV1::ReplayedGesture);
-        }
-        if gesture.fence.revision() != self.history.current().revision()
-            || gesture.fence.digest() != *self.history.current().digest()
-        {
-            return Err(TextPlacementErrorV1::StaleSnapshot);
-        }
-        let (identifier, next_ids) = self
-            .generated_ids
-            .reserve_presentation(self.history.current().document().indexed())
-            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
-        let candidate = self
-            .history
-            .current()
-            .document()
-            .with_insert_authored_text_v1(
-                &identifier,
-                gesture.anchor,
-                preview.content.runs(),
-                preview.content.font_size(),
-                preview.content.color(),
-            )
-            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(TextPlacementErrorV1::SessionConflict)?;
-        let state = RevisionState::from_document(revision, candidate)
-            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
-        self.generated_ids = next_ids;
-        self.text_placement_consumed
-            .insert(gesture.capability.nonce);
-        self.history.append(state);
-        let result = self
-            .operation_result()
-            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
-        Ok(CommittedTextPlacementV1::new(identifier, result))
-    }
-
-    pub fn begin_presentation_creation_gesture_v1(
-        &self,
-        fence: DocumentFenceV1,
-        kind: PresentationGestureKindV1,
-        start: PresentationGesturePoint2V1,
-        style: ArrowGestureStyleV1,
-        snap: PresentationGestureSnapPolicyV1,
-    ) -> Result<PresentationCreationGestureV1, PresentationGestureErrorV1> {
-        self.require_presentation_fence(fence)?;
-        Ok(PresentationCreationGestureV1 {
-            capability: self.presentation_gesture_origin.issue_gesture(),
-            fence,
-            kind,
-            start,
-            style,
-            snap,
-        })
-    }
-    pub fn preview_presentation_creation_gesture_v1(
-        &self,
-        gesture: &PresentationCreationGestureV1,
-        end: PresentationGesturePoint2V1,
-    ) -> Result<PresentationCreationPreviewV1, PresentationGestureErrorV1> {
-        self.require_presentation_origin(gesture)?;
-        self.require_presentation_fence(gesture.fence)?;
-        presentation_creation_gesture_v1::preview(gesture.clone(), end)
-    }
-    pub fn commit_presentation_creation_gesture_v1(
-        &mut self,
-        gesture: &PresentationCreationGestureV1,
-        preview: &PresentationCreationPreviewV1,
-    ) -> Result<CommittedPresentationGestureV1, PresentationGestureErrorV1> {
-        self.require_presentation_origin(gesture)?;
-        self.require_presentation_origin(&preview.gesture)?;
-        self.require_presentation_fence(gesture.fence)?;
-        if gesture.capability != preview.gesture.capability {
-            return Err(PresentationGestureErrorV1::PreviewMismatch);
-        }
-        let (identifier, next_ids) = self
-            .generated_ids
-            .reserve_presentation(self.history.current().document().indexed())
-            .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
-        let candidate = match gesture.kind {
-            PresentationGestureKindV1::StraightNormalArrow => self
-                .history
-                .current()
-                .document()
-                .with_insert_straight_normal_arrow(
-                    &identifier,
-                    gesture.start,
-                    preview.end,
-                    gesture.style.start_head(),
-                    gesture.style.end_head(),
-                ),
-            PresentationGestureKindV1::Plus => self
-                .history
-                .current()
-                .document()
-                .with_insert_standard_plus(&identifier, gesture.start),
-        }
-        .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(PresentationGestureErrorV1::SessionConflict)?;
-        let state = RevisionState::from_document(revision, candidate)
-            .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
-        self.generated_ids = next_ids;
-        self.history.append(state);
-        let result = self
-            .operation_result()
-            .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
-        Ok(CommittedPresentationGestureV1::new(
-            gesture.kind,
-            identifier,
-            result,
-        ))
-    }
-    fn require_presentation_origin(
-        &self,
-        gesture: &PresentationCreationGestureV1,
-    ) -> Result<(), PresentationGestureErrorV1> {
-        if gesture
-            .capability
-            .belongs_to(self.presentation_gesture_origin)
-        {
-            Ok(())
-        } else {
-            Err(PresentationGestureErrorV1::ForeignSession)
-        }
-    }
-    fn require_presentation_fence(
-        &self,
-        fence: DocumentFenceV1,
-    ) -> Result<(), PresentationGestureErrorV1> {
-        if self.history.current().revision() != fence.revision() {
-            return Err(PresentationGestureErrorV1::StaleRevision);
-        }
-        if *self.history.current().digest() != fence.digest() {
-            return Err(PresentationGestureErrorV1::StaleDigest);
-        }
-        Ok(())
-    }
-    /// Begin a pure direct normal-bond gesture from one existing direct atom.
-    pub fn begin_direct_bond_gesture_v1(
-        &self,
-        fence: DocumentFenceV1,
-        start_atom: DocumentObjectIdV1,
-        presentation: DocumentBondPresentationV1,
-        new_atom_element: String,
-        snap: DirectBondSnapPolicyV1,
-    ) -> Result<DirectBondGestureV1, DirectBondGestureErrorV1> {
-        self.require_fence(fence)?;
-        if !matches!(presentation, DocumentBondPresentationV1::Normal(_)) {
-            return Err(DirectBondGestureErrorV1::UnsupportedPresentation);
-        }
-        let (start_molecule, _) = self
-            .resolve_bond_atom(&start_atom)
-            .map_err(|_| DirectBondGestureErrorV1::UnknownStartAtom)?;
-        let start_point = self
-            .direct_atom_point(&start_atom)
-            .ok_or(DirectBondGestureErrorV1::UnknownStartAtom)?;
-        Ok(DirectBondGestureV1 {
-            capability: self.direct_bond_origin.issue_gesture(),
-            fence,
-            start_atom,
-            start_molecule,
-            presentation,
-            new_atom_element,
-            snap,
-            start_point,
-        })
-    }
-
-    /// Compute one disposable direct-bond preview without changing the document.
-    pub fn preview_direct_bond_gesture_v1(
-        &self,
-        gesture: &DirectBondGestureV1,
-        end: DirectBondEndIntentV1,
-    ) -> Result<DirectBondPreviewV1, DirectBondGestureErrorV1> {
-        self.require_direct_bond_origin(gesture)?;
-        self.require_fence(gesture.fence)?;
-        let endpoint = match end {
-            DirectBondEndIntentV1::ExistingAtom { atom } => {
-                if atom == gesture.start_atom {
-                    return Err(DirectBondGestureErrorV1::SelfLoop);
-                }
-                let (molecule, _) = self
-                    .resolve_bond_atom(&atom)
-                    .map_err(|_| DirectBondGestureErrorV1::UnknownEndAtom)?;
-                if molecule != gesture.start_molecule {
-                    return Err(DirectBondGestureErrorV1::CrossMolecule);
-                }
-                self.reject_existing_bond_for_object_ids(&gesture.start_atom, &atom)
-                    .map_err(|_| DirectBondGestureErrorV1::DuplicateBond)?;
-                DirectBondEndpointV1::ExistingAtom {
-                    point: self
-                        .direct_atom_point(&atom)
-                        .ok_or(DirectBondGestureErrorV1::UnknownEndAtom)?,
-                    atom,
-                }
-            }
-            DirectBondEndIntentV1::NewAtomAt { raw_point } => {
-                let point = snap_point(gesture.start_point, raw_point, gesture.snap)?;
-                if same_point(gesture.start_point, point) {
-                    return Err(DirectBondGestureErrorV1::CollapsedEndpoint);
-                }
-                DirectBondEndpointV1::NewAtom {
-                    point,
-                    element: gesture.new_atom_element.clone(),
-                }
-            }
-        };
-        Ok(direct_bond_gesture_v1::overlay(gesture.clone(), endpoint))
-    }
-
-    /// Commit one checked preview through the existing prepared insertion seam.
-    pub fn commit_direct_bond_gesture_v1(
-        &mut self,
-        gesture: &DirectBondGestureV1,
-        preview: &DirectBondPreviewV1,
-    ) -> Result<CommittedDirectBondGestureV1, DirectBondGestureErrorV1> {
-        self.require_direct_bond_origin(gesture)?;
-        self.require_direct_bond_origin(&preview.gesture)?;
-        self.require_fence(gesture.fence)?;
-        if preview.gesture.capability != gesture.capability {
-            return Err(DirectBondGestureErrorV1::PreviewMismatch);
-        }
-        match &preview.endpoint {
-            DirectBondEndpointV1::ExistingAtom { atom, .. } => {
-                let (_, end_atom) = self
-                    .resolve_bond_atom(atom)
-                    .map_err(|_| DirectBondGestureErrorV1::UnknownEndAtom)?;
-                let mut pending = self
-                    .prepare_create_bond_v2(
-                        gesture.fence.revision(),
-                        &gesture.start_atom,
-                        atom,
-                        gesture.presentation,
-                    )
-                    .map_err(map_direct_bond_commit_error)?;
-                let bond = pending.identifier().clone();
-                let result = self
-                    .commit_create_bond(gesture.fence.revision(), &mut pending)
-                    .map_err(map_direct_bond_commit_error)?;
-                Ok(CommittedDirectBondGestureV1::ExistingEndpoint {
-                    bond,
-                    end_atom,
-                    result,
-                })
-            }
-            DirectBondEndpointV1::NewAtom { point, element } => {
-                let position = Point3V1::new(point.x(), point.y(), 0.0)
-                    .map_err(|_| DirectBondGestureErrorV1::NonFinitePoint)?;
-                let mut pending = self
-                    .prepare_create_bonded_atom_v2(
-                        gesture.fence.revision(),
-                        &gesture.start_atom,
-                        element,
-                        position,
-                        gesture.presentation,
-                    )
-                    .map_err(map_direct_bond_commit_error)?;
-                let atom = pending.atom_identifier().clone();
-                let bond = pending.bond_identifier().clone();
-                let result = self
-                    .commit_create_bonded_atom(gesture.fence.revision(), &mut pending)
-                    .map_err(map_direct_bond_commit_error)?;
-                Ok(CommittedDirectBondGestureV1::NewEndpoint { bond, atom, result })
-            }
-        }
-    }
-
-    fn require_direct_bond_origin(
-        &self,
-        gesture: &DirectBondGestureV1,
-    ) -> Result<(), DirectBondGestureErrorV1> {
-        if gesture.capability.belongs_to(self.direct_bond_origin) {
-            Ok(())
-        } else {
-            Err(DirectBondGestureErrorV1::ForeignSession)
-        }
-    }
     /// Observe one complete-root translation anchor at an exact retained revision.
     pub fn observe_top_level_translation_anchor_v1(
         &self,
@@ -997,355 +637,6 @@ impl DocumentSession {
     /// session allocates the atom identity and validates the complete detached
     /// candidate before issuing its document-local token. Rejected requests consume
     /// neither a token nor a generated identity.
-    pub fn prepare_create_atom_v1(
-        &mut self,
-        expected_revision: u64,
-        molecule_object_id: &DocumentObjectIdV1,
-        element: &str,
-        position: Point3V1,
-    ) -> Result<PendingCreateAtom, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        let molecule_id = self.resolve_molecule_id(molecule_object_id)?;
-        let (atom_id, generated_ids) = self
-            .generated_ids
-            .reserve_atom(self.history.current().document().indexed())?;
-        let pending = self.prepare_create_atom_candidate(
-            expected_revision,
-            &molecule_id,
-            atom_id,
-            element,
-            position,
-        )?;
-        self.generated_ids = generated_ids;
-        Ok(pending)
-    }
-
-    fn prepare_create_atom_candidate(
-        &mut self,
-        expected_revision: u64,
-        molecule_id: &PersistentId,
-        atom_id: PersistentId,
-        element: &str,
-        position: Point3V1,
-    ) -> Result<PendingCreateAtom, DocumentSessionError> {
-        let candidate = self
-            .history
-            .current()
-            .document()
-            .with_insert_atom(molecule_id, &atom_id, element, position)
-            .map_err(SessionOperationError::Candidate)?;
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let candidate = RevisionState::from_document(revision, candidate)
-            .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        Ok(PendingCreateAtom {
-            revision: expected_revision,
-            token,
-            identifier: atom_id,
-            candidate: Some(candidate),
-        })
-    }
-
-    fn resolve_molecule_id(
-        &self,
-        molecule_object_id: &DocumentObjectIdV1,
-    ) -> Result<PersistentId, SessionOperationError> {
-        let object_id = molecule_object_id.as_str().to_owned();
-        let record = self
-            .history
-            .current()
-            .document()
-            .resolve_document_object_id(molecule_object_id)
-            .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_id.clone()))?;
-        if record.class() != TypedClass::Molecule {
-            return Err(SessionOperationError::InvalidCreateAtomTarget(object_id));
-        }
-        let source_id = record
-            .attribute("id")
-            .ok_or_else(|| SessionOperationError::InvalidCreateAtomTarget(object_id.clone()))?;
-        PersistentId::new(source_id.to_owned())
-            .map_err(|_| SessionOperationError::InvalidCreateAtomTarget(object_id))
-    }
-
-    #[cfg(test)]
-    pub(super) fn set_next_generated_molecule_sequence_for_test(&mut self, sequence: Option<u64>) {
-        self.generated_ids = self.generated_ids.with_molecule_sequence(sequence);
-    }
-
-    #[cfg(test)]
-    pub(super) fn set_next_generated_atom_sequence_for_test(&mut self, sequence: Option<u64>) {
-        self.generated_ids = self.generated_ids.with_atom_sequence(sequence);
-    }
-
-    /// Accept one prepared atom insertion exactly once.
-    pub fn commit_create_atom(
-        &mut self,
-        expected_revision: u64,
-        pending: &mut PendingCreateAtom,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
-    }
-
-    /// Prepare one molecule-local bond insertion at the current revision.
-    ///
-    /// Endpoint selectors must name two distinct durable atoms under the same
-    /// durable molecule. The session allocates the bond identity and validates the
-    /// complete detached candidate before issuing its document-local token.
-    pub fn prepare_create_bond_v2(
-        &mut self,
-        expected_revision: u64,
-        start_atom_object_id: &DocumentObjectIdV1,
-        end_atom_object_id: &DocumentObjectIdV1,
-        presentation: DocumentBondPresentationV1,
-    ) -> Result<PendingCreateBond, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        if start_atom_object_id == end_atom_object_id {
-            return Err(SessionOperationError::CreateBondSelfLoop(
-                start_atom_object_id.as_str().to_owned(),
-            )
-            .into());
-        }
-        let (start_molecule, start_atom) = self.resolve_bond_atom(start_atom_object_id)?;
-        let (end_molecule, end_atom) = self.resolve_bond_atom(end_atom_object_id)?;
-        if start_molecule != end_molecule {
-            return Err(SessionOperationError::CreateBondAcrossMolecules.into());
-        }
-        self.reject_existing_bond(&start_molecule, &start_atom, &end_atom)?;
-        let (bond_id, generated_ids) = self
-            .generated_ids
-            .reserve_bond(self.history.current().document().indexed())?;
-        let candidate = self
-            .history
-            .current()
-            .document()
-            .with_insert_bond(
-                &start_molecule,
-                &bond_id,
-                &start_atom,
-                &end_atom,
-                presentation,
-            )
-            .map_err(SessionOperationError::Candidate)?;
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let candidate = RevisionState::from_document(revision, candidate)
-            .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.generated_ids = generated_ids;
-        Ok(PendingCreateBond {
-            revision: expected_revision,
-            token,
-            identifier: bond_id,
-            candidate: Some(candidate),
-        })
-    }
-
-    /// Accept one prepared bond insertion exactly once.
-    pub fn commit_create_bond(
-        &mut self,
-        expected_revision: u64,
-        pending: &mut PendingCreateBond,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
-    }
-
-    /// Prepare one atom and its bond to an existing durable atom as one edit.
-    ///
-    /// Rust resolves the start atom and its containing molecule, allocates both
-    /// durable identities, and validates the complete projected candidate before
-    /// issuing a one-use token. No intermediate free-standing atom can become
-    /// visible or enter history.
-    pub fn prepare_create_bonded_atom_v2(
-        &mut self,
-        expected_revision: u64,
-        start_atom_object_id: &DocumentObjectIdV1,
-        element: &str,
-        position: Point3V1,
-        presentation: DocumentBondPresentationV1,
-    ) -> Result<PendingCreateBondedAtom, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        let (molecule_id, start_atom_id) = self.resolve_bond_atom(start_atom_object_id)?;
-        let (identities, generated_ids) = self
-            .generated_ids
-            .reserve_bonded_atom(self.history.current().document().indexed())?;
-        let candidate = self
-            .history
-            .current()
-            .document()
-            .with_insert_bonded_atom(
-                &molecule_id,
-                &start_atom_id,
-                BondedAtomInsertion::new(
-                    &identities.atom,
-                    &identities.bond,
-                    element,
-                    position,
-                    presentation,
-                ),
-            )
-            .map_err(SessionOperationError::Candidate)?;
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let candidate = RevisionState::from_document(revision, candidate)
-            .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.generated_ids = generated_ids;
-        Ok(PendingCreateBondedAtom {
-            revision: expected_revision,
-            token,
-            atom_identifier: identities.atom,
-            bond_identifier: identities.bond,
-            candidate: Some(candidate),
-        })
-    }
-
-    /// Accept one prepared atom-plus-bond insertion exactly once.
-    pub fn commit_create_bonded_atom(
-        &mut self,
-        expected_revision: u64,
-        pending: &mut PendingCreateBondedAtom,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
-    }
-
-    fn resolve_bond_atom(
-        &self,
-        object_id: &DocumentObjectIdV1,
-    ) -> Result<(PersistentId, PersistentId), SessionOperationError> {
-        let object_key = object_id.as_str().to_owned();
-        let document = self.history.current().document();
-        let target = document
-            .resolve_document_object_id(object_id)
-            .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_key.clone()))?;
-        if target.class() != TypedClass::Atom {
-            return Err(SessionOperationError::InvalidCreateBondTarget(object_key));
-        }
-        let atom_id = target
-            .attribute("id")
-            .and_then(|value| PersistentId::new(value.to_owned()).ok())
-            .ok_or_else(|| SessionOperationError::InvalidCreateBondTarget(object_key.clone()))?;
-        for molecule_child in document.root().typed_children() {
-            let molecule = molecule_child.record();
-            if molecule.class() != TypedClass::Molecule {
-                continue;
-            }
-            let contains_target = molecule.typed_children().iter().any(|child| {
-                child.record().path() == target.path() && child.record().class() == TypedClass::Atom
-            });
-            if !contains_target {
-                continue;
-            }
-            let molecule_id = molecule
-                .attribute("id")
-                .and_then(|value| PersistentId::new(value.to_owned()).ok())
-                .ok_or(SessionOperationError::InvalidCreateBondTarget(object_key))?;
-            return Ok((molecule_id, atom_id));
-        }
-        Err(SessionOperationError::InvalidCreateBondTarget(object_key))
-    }
-
-    fn reject_existing_bond(
-        &self,
-        molecule_id: &PersistentId,
-        start_atom_id: &PersistentId,
-        end_atom_id: &PersistentId,
-    ) -> Result<(), SessionOperationError> {
-        let document = self.history.current().document();
-        let molecule = document
-            .root()
-            .children_of(TypedClass::Molecule)
-            .find(|record| record.attribute("id") == Some(molecule_id.as_str()))
-            .ok_or_else(|| {
-                SessionOperationError::InvalidCreateBondTarget(molecule_id.to_string())
-            })?;
-        let duplicate = molecule.children_of(TypedClass::Bond).any(|bond| {
-            let start = bond.attribute("start");
-            let end = bond.attribute("end");
-            (start == Some(start_atom_id.as_str()) && end == Some(end_atom_id.as_str()))
-                || (start == Some(end_atom_id.as_str()) && end == Some(start_atom_id.as_str()))
-        });
-        if duplicate {
-            return Err(SessionOperationError::CreateBondDuplicate {
-                start: start_atom_id.as_str().to_owned(),
-                end: end_atom_id.as_str().to_owned(),
-            });
-        }
-        Ok(())
-    }
-
-    #[cfg(test)]
-    pub(super) fn set_next_generated_bond_sequence_for_test(&mut self, sequence: Option<u64>) {
-        self.generated_ids = self.generated_ids.with_bond_sequence(sequence);
-    }
-
-    fn commit_prepared_candidate(
-        &mut self,
-        expected_revision: u64,
-        prepared_revision: u64,
-        token: &ProvisionalToken,
-        candidate: &mut Option<RevisionState>,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        if candidate.is_none() {
-            return Err(DocumentSessionError::PreparedOperationConsumed);
-        }
-        if prepared_revision != expected_revision {
-            return Err(DocumentSessionError::RevisionConflict {
-                expected: prepared_revision,
-                actual: expected_revision,
-            });
-        }
-        self.history
-            .current()
-            .document()
-            .verify_provisional_token(token)
-            .map_err(prepared::map_prepared_token_error)?;
-        self.history
-            .current_mut()
-            .document_mut()
-            .consume_provisional_token(token)
-            .map_err(SessionOperationError::Candidate)?;
-        let state = candidate
-            .take()
-            .expect("the candidate presence check established this invariant");
-        self.history.append(state);
-        self.operation_result()
-    }
-
     pub fn recovery_export(
         &self,
         path: &Path,

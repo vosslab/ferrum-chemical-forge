@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Offscreen P0.3 atom/bond structural deletion workflow."""
 
 import os
@@ -15,12 +14,12 @@ import ferrum_qt.ferrum.main_window
 
 _CDML = """<cdml version='26.08'><molecule id='m'><atom id='a' name='C'><point x='0' y='0'/></atom><atom id='b' name='C'><point x='40' y='0'/></atom><atom id='c' name='O'><point x='80' y='0'/></atom><bond id='ab' start='a' end='b' type='n1'/><bond id='bc' start='b' end='c' type='n1'/></molecule></cdml>"""
 
-def point(tab, identifier):
+def point(tab: object, identifier: str) -> PySide6.QtCore.QPoint:
 	observation = tab.observe_structure_interaction()
 	target = next(value for value in observation.targets if value.identifier == identifier)
 	return tab.view.mapFromScene(PySide6.QtCore.QPointF((target.bounds.left + target.bounds.right) / 2.0, (target.bounds.top + target.bounds.bottom) / 2.0))
 
-def main():
+def main() -> None:
 	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "structure.cdml")

@@ -485,6 +485,15 @@ impl IndexedDocument {
         }
         Ok(())
     }
+
+    #[cfg(test)]
+    pub(crate) fn provisional_token_facts_for_test(&self) -> (u64, usize, usize) {
+        (
+            self.next_token,
+            self.issued_tokens.len(),
+            self.consumed_tokens.len(),
+        )
+    }
 }
 
 pub(crate) fn element_name(tree: &Xot, node: Node) -> Option<(String, String)> {

@@ -178,6 +178,7 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 			(self._draw_plus_action, "plus"),
 			(self._insert_text_action, "text"),
 			(self._insert_cyclohexane_ring_action, "benzene"),
+			(self._attach_cyclohexane_ring_action, "benzene"),
 			(self._draw_wavy_action, "wavyline"),
 			(self._draw_bracket_action, "rectangularbracket"),
 			(self._draw_round_bracket_action, "roundbracket"),
@@ -348,7 +349,7 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		"""Retire clean Ferrum pages before the generic QObject finalizer runs."""
 		if self._shutdown_prepared:
 			return True
-		if self._cancel_local_cdml_open_for_close():
+		if self._cancel_local_document_open_for_close():
 			return False
 		if any(tab.requires_refresh or tab.is_dirty for tab in self._native_tabs_by_page.values()):
 			return False

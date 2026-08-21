@@ -1,32 +1,32 @@
-//! Closed ordered SDF record facts accepted by document insertion.
+//! Closed ordered interchange record facts accepted by document insertion.
 
 use thiserror::Error;
 
 use super::MoleculeInsertionV1;
 
-/// Ferrum-owned opaque extension namespace for lossless imported SDF metadata.
-pub const SDF_IMPORT_NAMESPACE_V1: &str = "urn:ferrum-chemical-forge:sdf-import:v1";
+/// Ferrum-owned extension namespace for lossless imported interchange metadata.
+pub const INTERCHANGE_IMPORT_NAMESPACE_V1: &str = "urn:ferrum-chemical-forge:interchange-import:v1";
 
-/// One ordered SDF property retained with its imported molecule.
+/// One ordered interchange property retained with its imported molecule.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SdfPropertyInsertionV1 {
+pub struct InterchangePropertyInsertionV1 {
     name: String,
     value: String,
 }
 
-impl SdfPropertyInsertionV1 {
+impl InterchangePropertyInsertionV1 {
     /// Validate the same text grammar admitted by the native SDF boundary.
     pub fn new(
         name: impl Into<String>,
         value: impl Into<String>,
-    ) -> Result<Self, SdfRecordInsertionV1Error> {
+    ) -> Result<Self, InterchangeRecordInsertionV1Error> {
         let name = name.into();
         let value = value.into();
         if name.is_empty() || name.contains(['\0', '\r', '\n']) {
-            return Err(SdfRecordInsertionV1Error::InvalidPropertyName);
+            return Err(InterchangeRecordInsertionV1Error::InvalidPropertyName);
         }
         if value.as_bytes().contains(&0) || value.contains("\n\n") || value.contains("\r\n\r\n") {
-            return Err(SdfRecordInsertionV1Error::InvalidPropertyValue);
+            return Err(InterchangeRecordInsertionV1Error::InvalidPropertyValue);
         }
         Ok(Self { name, value })
     }
@@ -44,24 +44,24 @@ impl SdfPropertyInsertionV1 {
     }
 }
 
-/// One complete molecule plus its exact ordered SDF record metadata.
+/// One complete molecule plus its exact ordered interchange record metadata.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SdfRecordInsertionV1 {
+pub struct InterchangeRecordInsertionV1 {
     molecule: MoleculeInsertionV1,
     title: String,
-    properties: Vec<SdfPropertyInsertionV1>,
+    properties: Vec<InterchangePropertyInsertionV1>,
 }
 
-impl SdfRecordInsertionV1 {
+impl InterchangeRecordInsertionV1 {
     /// Construct one record without dropping blank titles or repeated property names.
     pub fn new(
         molecule: MoleculeInsertionV1,
         title: impl Into<String>,
-        properties: Vec<SdfPropertyInsertionV1>,
-    ) -> Result<Self, SdfRecordInsertionV1Error> {
+        properties: Vec<InterchangePropertyInsertionV1>,
+    ) -> Result<Self, InterchangeRecordInsertionV1Error> {
         let title = title.into();
         if title.contains(['\0', '\r', '\n']) {
-            return Err(SdfRecordInsertionV1Error::InvalidTitle);
+            return Err(InterchangeRecordInsertionV1Error::InvalidTitle);
         }
         Ok(Self {
             molecule,
@@ -76,7 +76,7 @@ impl SdfRecordInsertionV1 {
         &self.molecule
     }
 
-    /// Return the exact first-line SDF title, including an empty title.
+    /// Return the exact imported title, including an empty title.
     #[must_use]
     pub fn title(&self) -> &str {
         &self.title
@@ -84,46 +84,48 @@ impl SdfRecordInsertionV1 {
 
     /// Return properties in exact source encounter order, including duplicates.
     #[must_use]
-    pub fn properties(&self) -> &[SdfPropertyInsertionV1] {
+    pub fn properties(&self) -> &[InterchangePropertyInsertionV1] {
         &self.properties
     }
 }
 
-/// A nonempty ordered SDF import committed as one document history entry.
+/// A nonempty ordered interchange import committed as one document history entry.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SdfRecordBatchInsertionV1 {
-    records: Vec<SdfRecordInsertionV1>,
+pub struct InterchangeRecordBatchInsertionV1 {
+    records: Vec<InterchangeRecordInsertionV1>,
 }
 
-impl SdfRecordBatchInsertionV1 {
+impl InterchangeRecordBatchInsertionV1 {
     /// Retain every imported record in exact source order.
-    pub fn new(records: Vec<SdfRecordInsertionV1>) -> Result<Self, SdfRecordInsertionV1Error> {
+    pub fn new(
+        records: Vec<InterchangeRecordInsertionV1>,
+    ) -> Result<Self, InterchangeRecordInsertionV1Error> {
         if records.is_empty() {
-            return Err(SdfRecordInsertionV1Error::EmptyBatch);
+            return Err(InterchangeRecordInsertionV1Error::EmptyBatch);
         }
         Ok(Self { records })
     }
 
     /// Return every source-ordered record.
     #[must_use]
-    pub fn records(&self) -> &[SdfRecordInsertionV1] {
+    pub fn records(&self) -> &[InterchangeRecordInsertionV1] {
         &self.records
     }
 }
 
-/// Rejection of SDF record metadata before document identity allocation.
+/// Rejection of interchange record metadata before document identity allocation.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
-pub enum SdfRecordInsertionV1Error {
+pub enum InterchangeRecordInsertionV1Error {
     /// A batch must retain at least one imported record.
-    #[error("SDF record insertion batch must not be empty")]
+    #[error("interchange record insertion batch must not be empty")]
     EmptyBatch,
-    /// SDF titles are single-line NUL-free UTF-8 text.
-    #[error("SDF record title contains a forbidden character")]
+    /// Interchange titles are single-line NUL-free UTF-8 text.
+    #[error("interchange record title contains a forbidden character")]
     InvalidTitle,
     /// Property names are nonempty single-line NUL-free UTF-8 text.
-    #[error("SDF property name is invalid")]
+    #[error("interchange property name is invalid")]
     InvalidPropertyName,
-    /// Property values cannot contain NUL or an embedded blank SDF line.
-    #[error("SDF property value is invalid")]
+    /// Property values cannot contain NUL or an embedded blank record line.
+    #[error("interchange property value is invalid")]
     InvalidPropertyValue,
 }

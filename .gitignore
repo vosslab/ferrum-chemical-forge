@@ -2,6 +2,7 @@
 .DS_Store
 report_*.txt
 output*/
+/graphify-out/
 _temp*.?*
 /OTHER_REPOS/
 /LOCAL_ONLY/
@@ -17,6 +18,7 @@ sdist/
 site/
 
 # === RUST ===
+/packages/ferrum-rust/target/
 /target/
 **/target/
 **/*.rs.bk

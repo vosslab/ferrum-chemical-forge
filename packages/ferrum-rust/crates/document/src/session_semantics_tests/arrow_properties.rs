@@ -31,6 +31,18 @@ fn arrow(observation: &crate::SessionDocumentObservationV1) -> &crate::ArrowProj
     arrow
 }
 
+fn normal_head_flags(observation: &crate::SessionDocumentObservationV1) -> (bool, bool) {
+    let crate::ArrowDisplayGeometryV1::Normal {
+        start_head,
+        end_head,
+        ..
+    } = arrow(observation).geometry()
+    else {
+        panic!("normal Arrow properties require normal display geometry");
+    };
+    (*start_head, *end_head)
+}
+
 #[test]
 fn arrow_properties_commit_once_preserve_extensions_and_follow_history() {
     let changes = vec![
@@ -46,8 +58,7 @@ fn arrow_properties_commit_once_preserve_extensions_and_follow_history() {
         .expect("patch must commit");
     let projected = arrow(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert!(projected.start_head());
-    assert!(!projected.end_head());
+    assert_eq!(normal_head_flags(changed.observation()), (true, false));
     assert_eq!(projected.stroke().width().value(), 2.5);
     assert_eq!(projected.stroke().color().as_str(), "#aabbcc");
     let cdml = changed.observation().snapshot().cdml();
@@ -56,9 +67,9 @@ fn arrow_properties_commit_once_preserve_extensions_and_follow_history() {
     assert!(cdml.contains("<v:root"));
 
     let undone = session.undo(1).expect("one patch must undo once");
-    assert!(!arrow(undone.observation()).start_head());
+    assert_eq!(normal_head_flags(undone.observation()).0, false);
     let redone = session.redo(2).expect("one patch must redo once");
-    assert!(arrow(redone.observation()).start_head());
+    assert_eq!(normal_head_flags(redone.observation()).0, true);
 }
 
 #[test]

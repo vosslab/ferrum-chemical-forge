@@ -73,10 +73,12 @@ detached topology.
 
 The existing detached action remains its current empty-page insertion action. The new, separately
 named checkable `Attach Cyclohexane Ring` action has its own keyboard-accessible QAction and status
-text, enters attach mode, accepts an eligible atom hit, and makes an empty-page or ineligible hit a
-clear nonmutating refusal/cancellation. This preserves the detached action's established meaning
-and avoids an undocumented context-sensitive mode change; the readiness review supplied the
-evidence for this choice, and no contrary behavior evidence exists.
+text, is owned directly by the authoritative line-tool event path, and makes an eligible atom hit.
+Shared chrome may derive its status label from that live intent, but C6 never enters the generic
+mode-manager vocabulary. Empty-page or ineligible hits make a clear nonmutating
+refusal/cancellation. This preserves the detached action's established meaning and avoids an
+undocumented context-sensitive mode change; the readiness review supplied the evidence for this
+choice, and no contrary behavior evidence exists.
 
 ## Architecture boundaries and ownership
 
@@ -100,7 +102,7 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
 | M | Title | Summary | Goal |
 | --- | --- | --- | --- |
 | M1 | Implement and probe topology | Add the smallest pure core, then measure its settled contract | A safe atom-sharing C6 geometry/admission kernel |
-| M2 | Cross the cooperative internal bridge | Bind only opaque live handles and copied facts | Rust-owned C6 authority with a narrow trusted Qt bridge |
+| M2 | Cross the cooperative internal bridge | Bind one opaque Python receipt over the concrete document seam | Rust-owned C6 authority with a narrow trusted Qt bridge |
 | M3 | Deliver the gesture | Add the attach action and lifecycle | Usable attach, cancel, and detached behavior |
 | M4 | Prove and close | Run focused checks, one root E2E, review, and records | Autonomous acceptance evidence |
 
@@ -123,11 +125,13 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   typed refusals.
 - Workstreams: WS-B.
 - Entry criteria: reviewed document receipt contract.
-- Exit criteria: Rust issues the only pending value and enforces session, revision, digest, anchor,
-  and one-use fencing; Python receives no document IDs, CDML, raw candidate, topology, or
-  serialization surface. The trusted Qt controller is the sole intended repository client of the
-  four underscore-prefixed bridge calls. This is a cooperative same-process application boundary,
-  not isolation from arbitrary Python holding a document session.
+- Exit criteria: the concrete C6 lifecycle remains a public typed internal Rust transaction seam
+  required by the `ferrum-api -> ferrum-document` dependency direction. Its opaque private fields
+  and document-owned session, revision, digest, anchor, and one-use fencing enforce its transaction
+  invariants. Python receives no document IDs, CDML, raw candidate, topology, or serialization
+  surface. The trusted Qt controller is the sole intended repository client of the four
+  underscore-prefixed bridge calls. This is a cooperative same-process application boundary, not
+  isolation from arbitrary Python holding a document session.
 - Parallel-plan ready: no. It depends on the settled document capability.
 
 ### Milestone: Deliver the gesture
@@ -268,25 +272,38 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   cannot invoke a callable method. Caller inputs are durable target ID, current fence, raw pointer
   facts, and approved snap policy; outputs are copied finite preview geometry and typed
   identity-free outcome facts. The Rust-issued pending value is nonconstructible, opaque,
-  methodless, uncloneable, unsendable, and has no pickle/reduction path. It exposes no document
+  methodless, uncloneable, unsendable, and has no pickle/reduction path. Do not register
+  `PyPendingAttachedCyclohexaneV1` with the extension module: specifically omit
+  `module.add_class::<PyPendingAttachedCyclohexaneV1>()`, while proving the four underscore
+  methods can return and consume the Rust-issued opaque object without registration. It exposes no document
   IDs, CDML, raw candidate, topology, fence, or serialization fields. Rust alone retains candidate
   identity, target admission, C6 topology, session origin, revision/digest/anchor fencing, atomic
   commit, and one-use retirement. Foreign session, stale revision, stale digest, replayed,
   retired, unknown/ineligible anchor, and invalid-release uses refuse before mutation.
 
-  Do not add a generic attachment API, public Rust re-export, Python constructor, module-level
+  Do not add a generic attachment API, Python constructor, module-level
   function, attachment service/protocol, selector, CDML result, generated-ID output, or topology
-  serialization surface. Do not introduce a compiled shim, caller-class check, stack inspection,
-  capability wrapper, or process isolation merely to claim stronger Python authority: a compiled
-  shim still exposes a callable bridge unless the established Python controller is replaced, and
-  that larger architectural program is not justified for one C6 gesture.
+  serialization surface. The concrete C6 document lifecycle is a public typed internal Rust
+  transaction seam, not an access-control boundary: the current `ferrum-api -> ferrum-document`
+  dependency direction requires it for the API to retain and redeem the pending receipt. Its fields
+  stay opaque and its lifecycle keeps document-owned admission, deferred identities, fences, and
+  atomic commit. Remove `#[doc(hidden)]` from this supported public seam or document its
+  internal-Rust status in normal rustdoc; hiding it would be misleading. Do not introduce a
+  compiled shim, caller-class check, stack inspection, capability wrapper, or process isolation
+  merely to claim stronger Python authority. Do not add a generic prepared-edit framework: it has
+  no second consumer. Defer a lower-layer Python session-host migration until a second independently
+  justified private document operation needs retained cross-language state and a cycle-free
+  prototype shows that migration reduces coupling.
 - Evidence or review, when useful: use the existing inline API binding suite and embedded Python
-  interpreter to prove no module-level pending constructor or general attachment service; a minted
-  pending object rejects construction, look-alike extraction, and serialization/reduction; and the
+  interpreter to prove the extension module has no `PendingAttachedCyclohexaneV1` attribute, no
+  module-level attachment constructor, function, or service, and no CDML, topology, identifier,
+  pickle, or reduction path; a minted pending object rejects construction and look-alike extraction;
+  and the
   actual bound calls enforce every stated fence/refusal invariant without state mutation. These
-  tests prove opaque Rust values and transaction invariants, not that arbitrary same-process Python
-  is barred from underscore calls. A public Rust-surface check proves no general attachment
-  re-export. No fixture, subprocess, or second root E2E is added.
+  tests prove Python opacity and document transaction invariants, not that arbitrary same-process
+  Python is barred from underscore calls. A Rust API contract check proves the documented public
+  C6 seam remains concrete, has opaque private state, and has not grown an additional generic
+  attachment capability. No fixture, subprocess, or second root E2E is added.
 - Obvious follow-ons: WP-C1 consumes the bridge through one private tab controller without Qt
   topology math or a claim of access control.
 
@@ -297,16 +314,24 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   module in `packages/ferrum-chem-qt.app/`.
 - Depends on: WP-B1, because all attachment work passes through the opaque receipt.
 - Acceptance criteria: a separately named, checkable `Attach Cyclohexane Ring` QAction with a
-  keyboard-accessible activation enters attach mode; the existing Cyclohexane QAction retains its
+  keyboard-accessible activation creates the direct C6 line intent while the generic mode manager
+  remains inactive and the existing
+  line-tool event filter retains sole pointer ownership; the existing Cyclohexane QAction retains its
   detached empty-page behavior unchanged. In attach mode an eligible atom hit starts the receipt,
   move paints only copied Rust preview facts, and release commits once. Escape, tab transition,
   document change, empty-page hit, ineligible anchor, and receipt refusal retire preview and
   preserve state. Status text explicitly identifies attach mode, unavailable target, and retry.
 - Evidence or review, when useful: extend the existing offscreen Qt behavior test with inline CDML;
   prove tab change, dispose, Escape, refusal, and document change retire the local pending value.
-  Add a labelled repository-discipline source call-site oracle establishing that the private tab
-  controller is the sole in-repository client of the four bridge methods. This is not access
-  control. No new fixture directory or test harness.
+  Add one literal, offline, source-local repository-discipline oracle for exactly
+  `_begin_attach_cyclohexane_v1`, `_preview_attach_cyclohexane_v1`,
+  `_commit_attach_cyclohexane_v1`, and `_cancel_attach_cyclohexane_v1`: it scans only the Qt
+  production and Qt test source trees, excluding Rust binding definitions and tests. Every Qt
+  production occurrence must be in the one named private tab-controller module, and the only
+  permitted Qt test occurrence is the dedicated Qt behavior test module. Update this same oracle
+  when that controller is added.
+  It proves repository usage discipline, not access control. No generic scanner/framework, new
+  fixture directory, or test harness.
 - Obvious follow-ons: WP-D1 proves integrated package behavior.
 
 ### Work package: WP-D1 run focused offline proof
@@ -318,9 +343,11 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
 - Acceptance criteria: compact semantic tests prove C6 graph/pose, atom target validation,
   atomicity/history/undo-reopen, stale and cancellation nonmutation, actual-bound-bridge opacity
   and receipt invariants, and offscreen action preview/commit/cancel/refusal. The API proof covers
-  nonconstructibility, no serialization/reduction, absent public/general attachment surfaces, and
-  session/revision/digest/anchor/one-use fencing without claiming arbitrary same-process Python
-  cannot call a cooperative bridge. The Qt proof covers the private controller's lifecycle and
+  nonconstructibility, no serialization/reduction, no public Python attachment surface beyond the
+  cooperative bridge, and session/revision/digest/anchor/one-use fencing without claiming arbitrary
+  same-process Python cannot call a cooperative bridge. The Rust API proof permits the concrete
+  typed document seam, verifies its opaque-state and transaction invariants, and rejects an added
+  generic attachment capability. The Qt proof covers the private controller's lifecycle and
   repository call-site discipline. All input documents are inline and all tests are offline,
   deterministic, and free of sleep/network/subprocess dependence.
 - Evidence or review, when useful: targeted command results go only in the private acceptance report.
@@ -339,10 +366,19 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   timestamp discovery or a network download. The E2E creates a temporary
   `--system-site-packages` venv, installs that exact wheel with `pip install --no-deps`, starts an
   isolated offscreen child with only the current-checkout Qt package root on `sys.path`, and rejects
-  a checkout `ferrum_chem` import. It drives the separate attach QAction through QTest to perform
-  one attach, save/reopen, undo/redo, cancel, and stale/ineligible refusal without a network or
-  person. It emits sorted JSON and writes a compact receipt only under `/private/tmp`, not fixtures
-  or `devel/`; it is executed directly with `source source_me.sh && python3`, never normal pytest.
+  a checkout `ferrum_chem` import. It proves the Edit-menu hierarchy exposes exactly one visible,
+  enabled, checkable, initially unchecked `Attach Cyclohexane Ring` QAction with the window's
+  shared action and exclusive-group ownership. It opens and closes the owning visible `QMenu` with
+  the Qt event queue drained, then calls the canonical shared `QAction.trigger()` only after popup
+  teardown and proves the action is checked, the direct C6 line intent exists, and generic mode
+  state remains `None` before
+  using QTest to perform one attach, save/reopen,
+  undo/redo, cancel, and stale/ineligible refusal without a network or person. It emits sorted JSON
+  and writes a compact receipt only under `/private/tmp`, not fixtures or `devel/`; it is executed
+  directly with `source source_me.sh && python3`, never normal pytest. Offscreen QPA cannot reliably
+  hit-test a native popup action row, so this local E2E proves real menu ownership and uses the
+  QAction's platform-independent activation contract; desktop popup pointer behavior remains a
+  separate platform-level concern.
 - Failure diagnostics: the manager pipeline reports selected sealed-input candidates and manifest
   errors; build failures retain stderr and output root; bootstrap failures report interpreter,
   PySide6 version, wheel path/digest, and `ferrum_chem.__file__`; interaction failures report Qt
@@ -388,19 +424,19 @@ format: after save/reopen the result is an ordinary connected carbon cycle plus 
 | --- | --- | --- | --- | --- |
 | Pose is confusing or overlaps anchor geometry | Incorrect visible chemistry | WP-A1 geometry results fail | expert Rust coder | Revise the single C6 pose rule before implementation |
 | Candidate leaks partial state | Corrupt history or IDs | Failed refusal test | expert Rust coder | Build/validate candidate before one prepared commit |
-| Binding widens document authority | Fragile cross-layer API | Public receipt or generic attach appears | API reviewer | Keep the receipt opaque and private to native tab |
+| Binding widens document authority | Fragile cross-layer API | Generic attachment capability appears | API reviewer | Keep the concrete typed seam, opaque receipt, and one Qt controller |
 | Qt recreates topology | Divergent preview/commit | Qt geometry differs from Rust preview | Qt reviewer | Paint copied Rust vertices only |
 | Scope creeps toward templates/fusion | Delayed durable delivery | Extra ring policies appear | manager | Reject outside-scope work and record deferred item |
 | E2E becomes a diagnostic loop | Slow brittle proof | Focused tests fail or E2E needs retries | tester | Repair owning semantic test first; retain one final E2E |
 
 ## Rollout and release checklist
 
-- [ ] Run WP-A1 and record the selected topology.
-- [ ] Complete, review, and re-review document, API, and Qt packages in dependency order.
-- [ ] Run focused semantic checks and exactly one root E2E.
-- [ ] Capture the autonomous acceptance report in `/private/tmp`.
-- [ ] Update the active plan status and [docs/CHANGELOG.md](../../CHANGELOG.md).
-- [ ] Move the plan to archive only after all gates pass.
+- [x] Run WP-A1 and record the selected topology.
+- [x] Complete, review, and re-review document, API, and Qt packages in dependency order.
+- [x] Run focused semantic checks and exactly one root E2E.
+- [x] Capture the autonomous acceptance report in `/private/tmp`.
+- [x] Update the active plan status and [docs/CHANGELOG.md](../../CHANGELOG.md).
+- [ ] Move the plan to archive only after the manager closes this accepted slice.
 
 ## Documentation close-out requirements
 
@@ -408,6 +444,24 @@ format: after save/reopen the result is an ordinary connected carbon cycle plus 
 - docs/CHANGELOG.md entry: record the closed C6 attachment behavior and explicitly deferred family.
 - Archive / closure notes: record focused and E2E commands, results, review decision, and any
   remaining parity work before moving the plan.
+
+## Completion record
+
+The bounded shared-anchor C6 attachment slice is accepted on 2026-08-21. Final autonomous
+evidence is `/private/tmp/ferrum-cyclohexane-final-e2e-receipt.json`; it used the exact native
+wheel emitted by bare `./build.sh native`, with SHA-256
+`4a438e34473685700d76ae11d8489b4703bfb9c63b0549c39e278ba6ca221ddf`. The managed build-cache
+path replaces the earlier explicit sealed-root prerequisite, so normal builds require no
+operator-selected input root.
+
+The final local offscreen Qt workflow covered unarmed startup, Edit-menu action identity and
+post-popup canonical action activation, typed atom picking, Rust-owned preview and one commit,
+save/reopen, undo/redo, Escape, refusal, cancellation, and tab lifecycle. Independent acceptance
+is recorded in `/private/tmp/ferrum-cyclohexane-final-acceptance-rereview.md`.
+
+This closes only the atom-attached cyclohexane capability. Broader OASA replacement, BKChem UI
+parity, additional ring families, fusion, templates, and compatibility work remain deferred to
+separately scoped milestones.
 
 ## Patch plan and reporting format
 
@@ -423,3 +477,4 @@ format: after save/reopen the result is an ordinary connected carbon cycle plus 
 
 - Consider a separately planned selected-bond fusion slice only after this atom-attachment receipt
   has accepted implementation evidence.
+- Continue broader OASA and BKChem parity through separately scoped, capability-led milestones.

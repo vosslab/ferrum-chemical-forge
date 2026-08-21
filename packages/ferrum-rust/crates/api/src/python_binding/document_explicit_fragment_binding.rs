@@ -1,8 +1,9 @@
 //! Private PyO3 seam for native explicit fragment creation and inspection.
 
 use ferrum_document::{
-    DocumentExplicitFragmentRequestV1, create_document_explicit_fragment_v1,
+    create_document_explicit_fragment_v1,
     inspect_document_explicit_fragments_v1 as inspect_rust_document_explicit_fragments_v1,
+    DocumentExplicitFragmentRequestV1,
 };
 use ferrum_document::{DocumentObjectIdV1, DocumentSession, PersistentId};
 use pyo3::create_exception;

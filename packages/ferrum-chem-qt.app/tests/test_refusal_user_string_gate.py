@@ -34,7 +34,7 @@ def test_file_route_author_strings_use_plain_document_language() -> None:
 	assert _NON_UI_EXEMPTIONS
 	package = pathlib.Path(__file__).parents[1] / "ferrum_qt"
 	for path in (
-			package / "window_native_files.py",
+			package / "ferrum" / "document_save.py",
 			package / "ferrum" / "main_window_support.py",
 		):
 		for line in path.read_text(encoding="utf-8").splitlines():

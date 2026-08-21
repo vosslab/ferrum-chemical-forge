@@ -1,8 +1,5 @@
 """Public boundary behavior for atomic multi-record SDF insertion."""
 
-# Standard Library
-import pathlib
-
 # PIP3 modules
 import ferrum_chem
 import pytest
@@ -30,19 +27,20 @@ def _two_record_sdf() -> str:
 
 
 #============================================
-def test_sdf_batch_is_frozen_ordered_and_one_document_history_step(
-		tmp_path: pathlib.Path) -> None:
+def test_sdf_batch_is_frozen_ordered_and_one_document_history_step() -> None:
 	"""Retain every record/property while committing exactly one session revision."""
-	path = tmp_path / "records.sdf"
-	path.write_text(_two_record_sdf(), encoding="utf-8")
 	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
-	batch = ferrum_chem.prepare_sdf_file_v1(str(path), placement)
+	batch = ferrum_chem.prepare_sdf_molecules_v1(_two_record_sdf(), placement)
 	session = ferrum_chem.DocumentSession.load(
 		"<cdml><opaque payload=\"retained\"/></cdml>",
 	)
-	prepared = session.prepare_insert_sdf_records_v1(0, batch)
-	result = session.commit_create_sdf_records(0, prepared)
+	prepared = session.prepare_insert_interchange_records_v1(0, batch)
+	result = session.commit_create_interchange_records_v1(0, prepared)
 
+	assert type(batch) is ferrum_chem.InterchangeRecordBatchInsertionV1
+	assert type(prepared) is ferrum_chem.PreparedInterchangeRecordInsertion
+	assert not hasattr(ferrum_chem, "SdfMoleculeBatchInsertionV1")
+	assert not hasattr(ferrum_chem, "PreparedSdfRecordInsertion")
 	assert batch.record_count == 2
 	assert prepared.molecule_identifiers == (
 		"ferrum-molecule-v1-0", "ferrum-molecule-v1-1",
@@ -62,15 +60,8 @@ def test_sdf_batch_is_frozen_ordered_and_one_document_history_step(
 
 
 #============================================
-def test_sdf_file_admission_reports_utf8_failure_before_native_parsing(
-		tmp_path: pathlib.Path) -> None:
-	"""Expose stable bounded-source facts without loading malformed text into RDKit."""
-	path = tmp_path / "invalid.sdf"
-	path.write_bytes(b"\xff")
+def test_sdf_text_insertion_requires_text_input() -> None:
+	"""Retire descriptor-free file admission from the insertion-only API."""
 	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 0.0, 0.0)
-	with pytest.raises(ferrum_chem.SdfInputError) as caught:
-		ferrum_chem.prepare_sdf_file_v1(str(path), placement)
-	assert caught.value.stage == "utf8"
-	assert caught.value.path == str(path)
-	assert caught.value.limit is None
-	assert caught.value.observed_at_least is None
+	with pytest.raises(TypeError):
+		ferrum_chem.prepare_sdf_molecules_v1(b"not text", placement)

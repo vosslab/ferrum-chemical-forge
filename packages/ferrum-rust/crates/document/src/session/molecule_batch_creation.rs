@@ -224,10 +224,7 @@ mod tests {
         let revision = owner.snapshot().expect("snapshot").revision();
         let foreign_before = foreign.snapshot().expect("snapshot");
         let mut pending = owner
-            .prepare_create_molecule_batch_v1(
-                revision,
-                &[molecule("C", 0.0), molecule("O", 30.0)],
-            )
+            .prepare_create_molecule_batch_v1(revision, &[molecule("C", 0.0), molecule("O", 30.0)])
             .expect("prepared batch");
 
         assert!(matches!(

@@ -150,16 +150,29 @@ impl ArrowHeadV1 {
     }
 }
 
-/// One supported normal, non-spline direct-root arrow.
+/// Closed backend-issued display geometry for one semantic Arrow root.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ArrowDisplayGeometryV1 {
+    Normal {
+        axis_path: ArrowPathV1,
+        head_shape: ArrowHeadShapeV1,
+        start_head: bool,
+        end_head: bool,
+        heads: Vec<ArrowHeadV1>,
+    },
+    Equilibrium {
+        axes: [ArrowPathV1; 2],
+        heads: [ArrowHeadV1; 2],
+    },
+}
+
+/// One supported non-spline direct-root Arrow with kind-owned display geometry.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ArrowProjectionV1 {
     target: PresentationTargetV1,
     source_path: ArrowPathV1,
-    axis_path: ArrowPathV1,
-    head_shape: ArrowHeadShapeV1,
-    start_head: bool,
-    end_head: bool,
-    heads: Vec<ArrowHeadV1>,
+    geometry: ArrowDisplayGeometryV1,
     stroke: PresentationStrokeV1,
 }
 
@@ -184,11 +197,13 @@ impl<'de> Deserialize<'de> for ArrowProjectionV1 {
         Ok(Self {
             target: wire.target,
             source_path: wire.source_path,
-            axis_path,
-            head_shape: wire.head_shape,
-            start_head: wire.start_head,
-            end_head: wire.end_head,
-            heads,
+            geometry: ArrowDisplayGeometryV1::Normal {
+                axis_path,
+                head_shape: wire.head_shape,
+                start_head: wire.start_head,
+                end_head: wire.end_head,
+                heads,
+            },
             stroke: wire.stroke,
         })
     }
@@ -206,28 +221,8 @@ impl ArrowProjectionV1 {
     }
 
     #[must_use]
-    pub fn axis_path(&self) -> &ArrowPathV1 {
-        &self.axis_path
-    }
-
-    #[must_use]
-    pub fn head_shape(&self) -> ArrowHeadShapeV1 {
-        self.head_shape
-    }
-
-    #[must_use]
-    pub fn start_head(&self) -> bool {
-        self.start_head
-    }
-
-    #[must_use]
-    pub fn end_head(&self) -> bool {
-        self.end_head
-    }
-
-    #[must_use]
-    pub fn heads(&self) -> &[ArrowHeadV1] {
-        &self.heads
+    pub fn geometry(&self) -> &ArrowDisplayGeometryV1 {
+        &self.geometry
     }
 
     #[must_use]
@@ -292,14 +287,12 @@ pub(crate) fn arrow(
 ) -> Option<ArrowProjectionV1> {
     let target = PresentationTargetV1::from_child(child);
     let record = child.record();
-    if record
-        .attribute("type")
-        .is_some_and(|value| value != "normal")
-    {
+    let arrow_type = record.attribute("type").unwrap_or("normal");
+    if !matches!(arrow_type, "normal" | "equilibrium") {
         issues.push(PresentationProjectionIssueV1::new(
             target,
             PresentationProjectionIssueCodeV1::UnsupportedArrowType,
-            "only the normal arrow family has closed V1 display geometry",
+            "this arrow family has no closed V1 display geometry",
         ));
         return None;
     }
@@ -322,6 +315,56 @@ pub(crate) fn arrow(
         ));
         return None;
     }
+    let source_points = match points(record, 2, "arrow") {
+        Ok(value) if value.len() == 2 => value,
+        Ok(_) => {
+            return invalid_geometry(
+                target,
+                "straight arrows require exactly two points".to_owned(),
+                issues,
+            );
+        }
+        Err(detail) => return invalid_geometry(target, detail, issues),
+    };
+    if arrow_type == "equilibrium" {
+        if ["start", "end", "shape"]
+            .into_iter()
+            .any(|field| record.attribute(field).is_some())
+        {
+            return invalid_fact(
+                target,
+                "equilibrium arrows cannot carry normal-arrow head facts".to_owned(),
+                issues,
+            );
+        }
+        let start = source_points[0];
+        let end = source_points[1];
+        let issued = match crate::equilibrium_arrow_geometry_v1::geometry(start, end) {
+            Ok(value) => value,
+            Err(detail) => return invalid_geometry(target, detail, issues),
+        };
+        let axes = issued.axes.map(|points| ArrowPathV1 {
+            points: points.to_vec(),
+        });
+        let heads = [
+            ArrowHeadV1 {
+                position: ArrowHeadPositionV1::Start,
+                points: issued.heads[0],
+            },
+            ArrowHeadV1 {
+                position: ArrowHeadPositionV1::End,
+                points: issued.heads[1],
+            },
+        ];
+        return Some(ArrowProjectionV1 {
+            stroke: stroke_with_color_field(record, defaults, &target, issues, "color"),
+            target,
+            source_path: ArrowPathV1 {
+                points: source_points,
+            },
+            geometry: ArrowDisplayGeometryV1::Equilibrium { axes, heads },
+        });
+    }
     let start_head = match boolean(record, "start", false) {
         Ok(value) => value,
         Err(detail) => return invalid_fact(target, detail, issues),
@@ -333,17 +376,6 @@ pub(crate) fn arrow(
     let head_shape = match head_shape(record) {
         Ok(value) => value,
         Err(detail) => return invalid_fact(target, detail, issues),
-    };
-    let source_points = match points(record, 2, "arrow") {
-        Ok(value) => value,
-        Err(detail) => {
-            issues.push(PresentationProjectionIssueV1::new(
-                target,
-                PresentationProjectionIssueCodeV1::InvalidArrowGeometry,
-                detail,
-            ));
-            return None;
-        }
     };
     let (axis_path, heads) = match arrow_geometry(&source_points, head_shape, start_head, end_head)
     {
@@ -363,12 +395,27 @@ pub(crate) fn arrow(
         source_path: ArrowPathV1 {
             points: source_points,
         },
-        axis_path,
-        head_shape,
-        start_head,
-        end_head,
-        heads,
+        geometry: ArrowDisplayGeometryV1::Normal {
+            axis_path,
+            head_shape,
+            start_head,
+            end_head,
+            heads,
+        },
     })
+}
+
+fn invalid_geometry(
+    target: PresentationTargetV1,
+    detail: String,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
+) -> Option<ArrowProjectionV1> {
+    issues.push(PresentationProjectionIssueV1::new(
+        target,
+        PresentationProjectionIssueCodeV1::InvalidArrowGeometry,
+        detail,
+    ));
+    None
 }
 
 fn invalid_fact(

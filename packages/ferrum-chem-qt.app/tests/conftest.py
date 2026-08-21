@@ -12,6 +12,7 @@ if _REPO_TESTS_DIR not in sys.path:
 	sys.path.insert(0, _REPO_TESTS_DIR)
 
 pytest_plugins = ("pytest_kill_after",)
+collect_ignore = ["e2e"]
 
 # Qt reads its platform choice when QApplication is initialized. Set the
 # deterministic test policy before importing any PySide6 module.

@@ -2,6 +2,7 @@
 
 pub(crate) mod convert;
 pub(crate) mod coords;
+pub(crate) mod haworth;
 mod input;
 pub(crate) mod inspect;
 pub(crate) mod open;
@@ -154,6 +155,12 @@ pub enum VerbCliError {
         /// Maximum accepted bytes.
         limit: usize,
     },
+    /// Structural SMILES did not satisfy the closed detached Haworth profile.
+    #[error("input: {0}")]
+    HaworthInput(String),
+    /// The checked Haworth receipt could not be lowered or serialized.
+    #[error("processing: Haworth SVG rendering failed: {0}")]
+    HaworthRender(String),
     /// A named source was not valid UTF-8.
     /// The document could not be admitted through the local V1 profile.
     #[error("input: {0}")]
@@ -175,9 +182,9 @@ pub enum VerbCliError {
         "usage: choose --from one of the documented closed formats when input has no known extension"
     )]
     MissingInterchangeInputFormat,
-    /// The fixed CML-open operation completed with a typed refusal.
-    #[error("input: CML open refused: {0:?}")]
-    CmlOpenRefusal(crate::CmlImportRefusalV1),
+    /// The descriptor-dispatched interchange import completed with a typed refusal.
+    #[error("input: interchange import refused: {0:?}")]
+    InterchangeImportRefusal(crate::InterchangeImportRefusalV1),
     /// The protocol returned a different successful operation than the verb requested.
     #[error("processing: protocol returned an unexpected operation result")]
     UnexpectedOutcome,
@@ -207,12 +214,14 @@ impl VerbCliError {
             | Self::Snapshot(_)
             | Self::Input { .. }
             | Self::InputTooLarge { .. }
+            | Self::HaworthInput(_)
+            | Self::HaworthRender(_)
             | Self::InvalidUtf8 { .. }
             | Self::Json(_)
             | Self::ProtocolInput(_)
             | Self::MissingArtifactFormat
             | Self::MissingInterchangeInputFormat
-            | Self::CmlOpenRefusal(_)
+            | Self::InterchangeImportRefusal(_)
             | Self::UnexpectedOutcome
             | Self::ArtifactEncoding(_)
             | Self::Write { .. }

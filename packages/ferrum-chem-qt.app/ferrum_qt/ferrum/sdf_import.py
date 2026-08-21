@@ -26,20 +26,29 @@ class FerrumNativeSdfPreparationWorker(FerrumDetachedJobThread):
 	failed = PySide6.QtCore.Signal(object)
 
 	#============================================
-	def __init__(self, path: str, placement: object) -> None:
-		"""Capture one exact local path and immutable Ferrum placement."""
+	def __init__(self, path: str, placement: object, route_handle: object) -> None:
+		"""Capture one exact local source, placement, and registry route handle."""
 		if type(path) is not str or not path:
 			raise ValueError("Ferrum SDF preparation requires a nonempty path")
 		if type(placement) is not engine.InsertionPlacementV1:
 			raise TypeError("Ferrum SDF preparation requires exact Ferrum placement")
 		self._path = path
 		self._placement = placement
+		self._route_handle = route_handle
 		super().__init__(
-			lambda: engine.prepare_sdf_file_v1(self._path, self._placement),
+			self._prepare_sdf_text,
 			lambda error: FerrumNativeSdfPreparationFailure(
 				type(error).__name__, str(error),
 			),
 		)
+
+	#============================================
+	def _prepare_sdf_text(self) -> object:
+		"""Read descriptor-authorized text, then delegate parsing to Rust."""
+		source = engine.DocumentSession.read_local_interchange_utf8_v1(
+			self._path, self._route_handle,
+		)
+		return engine.prepare_sdf_molecules_v1(source, self._placement)
 
 	#============================================
 	def _emit_success(self, prepared: object) -> None:

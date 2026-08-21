@@ -41,5 +41,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::peptide_template_insertion_binding::initialize(module)?;
     super::inchi_insertion_binding::initialize(module)?;
     super::molblock_insertion_binding::initialize(module)?;
+    super::interchange_insertion_binding::initialize(module)?;
     super::sdf_insertion_binding::initialize(module)
 }

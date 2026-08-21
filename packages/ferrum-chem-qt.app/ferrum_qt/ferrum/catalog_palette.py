@@ -174,6 +174,7 @@ class FerrumNativeCatalogPlacementWindowMixin:
 			self._add_atom_action, self._draw_bond_action, self._draw_arrow_action,
 			self._draw_plus_action, self._insert_text_action,
 			self._insert_cyclohexane_ring_action, self._draw_wavy_action,
+			self._attach_cyclohexane_ring_action,
 			self._draw_bracket_action, self._draw_round_bracket_action,
 			self._select_structure_action,
 			self._move_atom_action, self._rotate_atoms_action,

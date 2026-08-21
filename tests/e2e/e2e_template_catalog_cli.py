@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Exercise native CLI template catalog list and benzene insertion end to end."""
 
 from __future__ import annotations

@@ -53,8 +53,10 @@ converter fallback.
 ## Dropped desktop formats
 
 The pre-production desktop product has one Rust-native document window. It supports
-decoded `.cdml` and the bounded decoded `.svg` CD-SVG route described above. It refuses
-`.cdxml`, `.cml`, `.cdsvg`, `.svgz`, and compressed CDML names before reading them,
+decoded `.cdml`, the bounded decoded `.svg` CD-SVG route described above, and the closed
+Rust-owned CML/CML2 simple-molecule profile through File/Open. CML always converts into a
+clean new document; its source path is provenance only, and Save writes authoritative CDML.
+It refuses `.cdxml`, `.cdsvg`, `.svgz`, and compressed CDML names before reading them,
 preserving the active document. Ferrum does not provide a second editor or converter
 fallback for these dropped desktop formats. This is an explicit format disposition, not a
 claim that historical source or oracle references disappeared.

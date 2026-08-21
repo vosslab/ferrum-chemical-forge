@@ -1,4 +1,4 @@
-"""Asynchronous Rust-owned local CDML admission for ordinary Ferrum windows."""
+"""Asynchronous Rust-owned local-document admission for Ferrum windows."""
 
 # Standard Library
 import collections
@@ -8,11 +8,18 @@ import os
 import pathlib
 
 # PIP3 modules
-import ferrum_qt.ferrum.engine as engine
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
-from ferrum_qt.ferrum.background_job import FerrumDetachedJobThread
+from ferrum_qt.ferrum.local_document_open_types import (
+	FerrumNativeLocalDocumentOpenFailure,
+	FerrumNativeLocalDocumentOpenWorker,
+	_LocalDocumentSourceKind,
+	_current_tab_replacement_source_kind_for_path,
+	_interchange_route_handle_for_path,
+	_local_document_source_kind_for_path,
+)
+import ferrum_qt.ferrum.engine as engine
 
 # local repo modules
 import ferrum_qt.dialogs.refusal_presenter
@@ -21,101 +28,18 @@ import ferrum_qt.ferrum.canvas_interaction
 import ferrum_qt.ferrum.tab_operations
 
 
-_NATIVE_LOCAL_DOCUMENT_FILTER = "Ferrum chemical drawings (*.cdml *.svg);;All Files (*)"
-
-
-#============================================
-class _LocalDocumentSourceKind(enum.Enum):
-	"""Closed Qt request adapter; Rust authenticates the admitted kind later."""
-
-	CDML = "cdml"
-	DECODED_CDSVG = "decoded_cdsvg"
-
-
-#============================================
-def _local_document_source_kind_for_path(path: str) -> _LocalDocumentSourceKind | None:
-	"""Select a named Rust admission profile solely from the requested suffix."""
-	suffix = pathlib.Path(path).suffix.lower()
-	if suffix == ".cdml":
-		return _LocalDocumentSourceKind.CDML
-	if suffix == ".svg":
-		return _LocalDocumentSourceKind.DECODED_CDSVG
-	return None
+_CURRENT_TAB_REPLACEMENT_FILTER = "Ferrum chemical drawings (*.cdml *.svg);;All Files (*)"
 
 
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
-class FerrumNativeCdmlOpenFailure:
-	"""Plain typed failure facts safe to deliver to the Qt thread."""
-
-	error_type: str
-	message: str
-	stage: str | None
-	limit: int | None
-	actual: int | None
-	observed_at_least: int | None
-	category: str | None = None
-	detail: str | None = None
-
-
-#============================================
-class FerrumNativeCdmlOpenWorker(FerrumDetachedJobThread):
-	"""Admit one bounded local CDML file outside the Qt event thread."""
-
-	prepared = PySide6.QtCore.Signal(object)
-	failed = PySide6.QtCore.Signal(object)
-
-	#============================================
-	def __init__(
-			self, path: str,
-			source_kind: _LocalDocumentSourceKind = _LocalDocumentSourceKind.CDML,
-			) -> None:
-		"""Capture one exact local path and its closed Rust admission route."""
-		if type(path) is not str or not path or not os.path.isabs(path):
-			raise ValueError("Ferrum local-document Open requires a nonempty absolute path")
-		if type(source_kind) is not _LocalDocumentSourceKind:
-			raise TypeError("Ferrum local-document Open requires a source kind")
-		self._path = path
-		self._source_kind = source_kind
-		self._prepare_operation = {
-			_LocalDocumentSourceKind.CDML:
-			engine.DocumentSession.prepare_local_cdml_file_v1,
-			_LocalDocumentSourceKind.DECODED_CDSVG:
-			engine.DocumentSession.prepare_local_decoded_cdsvg_file_v1,
-		}[source_kind]
-		super().__init__(
-			lambda: self._prepare_operation(self._path), _cdml_open_failure,
-		)
-
-	#============================================
-	def _emit_success(self, prepared: object) -> None:
-		"""Retain the Open route's established prepared signal."""
-		self.prepared.emit(prepared)
-
-
-#============================================
-def _cdml_open_failure(exc: Exception) -> FerrumNativeCdmlOpenFailure:
-	"""Copy stable ingress facts without retaining a worker-thread exception."""
-	if type(exc) is engine.DocumentInputError:
-		return FerrumNativeCdmlOpenFailure(
-			type(exc).__name__, str(exc), getattr(exc, "stage", None),
-			getattr(exc, "limit", None), getattr(exc, "actual", None),
-			getattr(exc, "observed_at_least", None), getattr(exc, "category", None),
-			getattr(exc, "detail", None),
-		)
-	return FerrumNativeCdmlOpenFailure(
-		type(exc).__name__, str(exc), None, None, None, None, None, None,
-	)
-
-
-#============================================
-@dataclasses.dataclass(frozen=True, slots=True)
-class _LocalCdmlOpenIntent:
+class _LocalDocumentOpenIntent:
 	"""One immutable local-CDML request and its sole admission worker."""
 
 	path: str
 	source_kind: _LocalDocumentSourceKind
-	disposition: "_LocalCdmlOpenDisposition"
+	route_handle: object | None
+	disposition: "_LocalDocumentOpenDisposition"
 	target: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab | None
 	target_revision: int | None
 	target_digest: str | None
@@ -123,12 +47,12 @@ class _LocalCdmlOpenIntent:
 	focus_target: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab | None
 	activate_if_still_current: bool
 	recent_request: bool
-	worker: FerrumNativeCdmlOpenWorker
+	worker: FerrumNativeLocalDocumentOpenWorker
 	replacement_fence: "_ExplicitReplacementFence | None" = None
 
 
 #============================================
-class _LocalCdmlOpenDisposition(enum.Enum):
+class _LocalDocumentOpenDisposition(enum.Enum):
 	"""Qt-owned installation policy fixed before Rust admission begins."""
 
 	NEW_TAB = enum.auto()
@@ -151,7 +75,7 @@ class _ExplicitReplacementFence:
 
 
 #============================================
-class _LocalCdmlOpenRelay(PySide6.QtCore.QObject):
+class _LocalDocumentOpenRelay(PySide6.QtCore.QObject):
 	"""Deliver admission outcomes to the owning window on the Qt thread."""
 
 	#============================================
@@ -164,38 +88,41 @@ class _LocalCdmlOpenRelay(PySide6.QtCore.QObject):
 	@PySide6.QtCore.Slot(object)
 	def on_prepared(self, prepared: object) -> None:
 		"""Forward one admitted session receipt with its exact worker."""
-		self._owner._on_local_cdml_open_prepared(self.sender(), prepared)
+		self._owner._on_local_document_open_prepared(self.sender(), prepared)
 
 	#============================================
 	@PySide6.QtCore.Slot(object)
 	def on_failed(self, failure: object) -> None:
 		"""Forward one copied admission failure with its exact worker."""
-		self._owner._on_local_cdml_open_failed(self.sender(), failure)
+		self._owner._on_local_document_open_failed(self.sender(), failure)
 
 	#============================================
 	@PySide6.QtCore.Slot()
 	def on_finished(self) -> None:
 		"""Release the exact worker after its Ferrum call has stopped."""
-		self._owner._on_local_cdml_open_finished(self.sender())
+		self._owner._on_local_document_open_finished(self.sender())
 
 
 #============================================
-class FerrumNativeCdmlOpenMixin:
-	"""Own ordinary asynchronous CDML Open without frontend document parsing."""
+class FerrumNativeLocalDocumentOpenMixin:
+	"""Own local-document Open without frontend document parsing."""
 
 	#============================================
-	def _initialize_local_cdml_open(self) -> None:
+	def _initialize_local_document_open(self) -> None:
 		"""Create the sole local-CDML Open intent and Qt-thread relay."""
-		self._local_cdml_open_intent: _LocalCdmlOpenIntent | None = None
-		self._local_cdml_open_queue: collections.deque[tuple[str, _LocalDocumentSourceKind, _LocalCdmlOpenDisposition, object | None, int | None, str | None, bool, object | None, bool, bool]] = collections.deque()
-		self._local_cdml_open_outcome: bool | None = None
-		self._local_cdml_open_batch_success = True
-		self._local_cdml_open_delivery_active = False
-		self._local_cdml_open_finished_while_delivering: object | None = None
-		self._local_cdml_open_relay = _LocalCdmlOpenRelay(self)
+		self._local_document_open_intent: _LocalDocumentOpenIntent | None = None
+		self._local_interchange_open_descriptors = tuple(
+			engine.DocumentSession.local_interchange_open_descriptors_v1(),
+		)
+		self._local_document_open_queue: collections.deque[tuple[str, _LocalDocumentSourceKind, object | None, _LocalDocumentOpenDisposition, object | None, int | None, str | None, bool, object | None, bool, bool]] = collections.deque()
+		self._local_document_open_outcome: bool | None = None
+		self._local_document_open_batch_success = True
+		self._local_document_open_delivery_active = False
+		self._local_document_open_finished_while_delivering: object | None = None
+		self._local_document_open_relay = _LocalDocumentOpenRelay(self)
 
 	#============================================
-	def _build_local_cdml_open_action(
+	def _build_local_document_open_action(
 			self, menu: PySide6.QtWidgets.QMenu,
 			) -> PySide6.QtGui.QAction:
 		"""Add explicit cancellation next to the host-owned Open action."""
@@ -203,10 +130,26 @@ class FerrumNativeCdmlOpenMixin:
 			"Open a local CDML drawing or SVG containing embedded CDML",
 		))
 		action = PySide6.QtGui.QAction(self.tr("Cancel Open"), self)
-		action.triggered.connect(self._cancel_local_cdml_open)
+		action.triggered.connect(self._cancel_local_document_open)
 		menu.addAction(action)
 		self._cancel_open_action = action
 		return action
+
+	#============================================
+	def _native_new_document_filter(self) -> str:
+		"""Build ordinary File/Open from Rust-owned interchange descriptors."""
+		filters = [_CURRENT_TAB_REPLACEMENT_FILTER.removesuffix(";;All Files (*)")]
+		filters.extend(
+			f"{descriptor.display_name} ({' '.join('*' + suffix for suffix in descriptor.suffixes)})"
+			for descriptor in self._local_interchange_open_descriptors
+		)
+		filters.append("All Files (*)")
+		return ";;".join(filters)
+
+	#============================================
+	def _current_tab_replacement_filter(self) -> str:
+		"""Expose only document representations that can replace the current tab."""
+		return _CURRENT_TAB_REPLACEMENT_FILTER
 
 	#============================================
 	def _build_open_in_current_tab_action(
@@ -229,7 +172,7 @@ class FerrumNativeCdmlOpenMixin:
 			return False
 		path = PySide6.QtWidgets.QFileDialog.getOpenFileName(
 			self, self.tr("Open Ferrum Chemical Drawing in Current Tab"), "",
-			self.tr(_NATIVE_LOCAL_DOCUMENT_FILTER),
+			self.tr(self._current_tab_replacement_filter()),
 		)[0]
 		if not path:
 			return False
@@ -243,15 +186,15 @@ class FerrumNativeCdmlOpenMixin:
 		if not self._can_begin_explicit_current_replacement():
 			return False
 		absolute_path = os.path.abspath(file_path)
-		source_kind = _local_document_source_kind_for_path(absolute_path)
+		source_kind = _current_tab_replacement_source_kind_for_path(absolute_path)
 		if source_kind is None:
 			self._show_unsupported_local_document(absolute_path)
 			return False
 		target = self._active_native_tab()
 		fence = self._capture_explicit_replacement_fence(target)
-		self._local_cdml_open_batch_success = True
-		self._start_local_cdml_open(
-			absolute_path, source_kind, _LocalCdmlOpenDisposition.REPLACE_EXPLICIT_CURRENT_TARGET,
+		self._local_document_open_batch_success = True
+		self._start_local_document_open(
+			absolute_path, source_kind, None, _LocalDocumentOpenDisposition.REPLACE_EXPLICIT_CURRENT_TARGET,
 			target, fence.revision, fence.digest, True, target, True, False,
 			replacement_fence=fence,
 		)
@@ -262,7 +205,7 @@ class FerrumNativeCdmlOpenMixin:
 		"""Keep the command bound to a live idle current Ferrum tab."""
 		tab = self._active_native_tab()
 		if (
-			self._local_cdml_open_intent is not None
+			self._local_document_open_intent is not None
 			or self._snapshot_export_is_busy()
 			or getattr(self, "_shutdown_prepared", False)
 		):
@@ -305,7 +248,7 @@ class FerrumNativeCdmlOpenMixin:
 			return False
 		path = PySide6.QtWidgets.QFileDialog.getOpenFileName(
 			self, self.tr("Open Ferrum Chemical Drawing"), "",
-			self.tr(_NATIVE_LOCAL_DOCUMENT_FILTER),
+			self.tr(self._native_new_document_filter()),
 		)[0]
 		if not path:
 			return False
@@ -326,41 +269,48 @@ class FerrumNativeCdmlOpenMixin:
 			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum drawings open in a new Ferrum tab."))
 			return False
 		absolute_path = os.path.abspath(file_path)
-		source_kind = _local_document_source_kind_for_path(absolute_path)
+		source_kind = _local_document_source_kind_for_path(
+			absolute_path, self._local_interchange_open_descriptors,
+		)
 		if source_kind is None:
 			self._show_unsupported_local_document(absolute_path)
 			return False
+		route_handle = _interchange_route_handle_for_path(
+			absolute_path, self._local_interchange_open_descriptors,
+		)
 		focus_target = self._active_native_tab() if interactive else None
 		focus_busy = (
 			focus_target is not None
 			and self._tab_has_active_native_canvas_interaction(focus_target)
 		)
-		disposition = self._open_disposition_for_request(interactive and not force_new_tab)
-		target = focus_target if disposition is _LocalCdmlOpenDisposition.REPLACE_PRISTINE_TARGET else None
+		disposition = self._open_disposition_for_request(
+			source_kind, interactive and not force_new_tab,
+		)
+		target = focus_target if disposition is _LocalDocumentOpenDisposition.REPLACE_PRISTINE_TARGET else None
 		target_revision, target_digest, target_canvas_idle = self._capture_pristine_target_fence(target)
 		activate_if_still_current = not focus_busy
-		if self._local_cdml_open_intent is not None:
-			if self._local_cdml_open_intent.path == absolute_path:
+		if self._local_document_open_intent is not None:
+			if self._local_document_open_intent.path == absolute_path:
 				return True
-			if not any(path == absolute_path for path, *_unused in self._local_cdml_open_queue):
-				self._local_cdml_open_queue.append(
+			if not any(path == absolute_path for path, *_unused in self._local_document_open_queue):
+				self._local_document_open_queue.append(
 					(
-						absolute_path, source_kind, disposition, target, target_revision, target_digest,
+					absolute_path, source_kind, route_handle, disposition, target, target_revision, target_digest,
 						target_canvas_idle, focus_target, activate_if_still_current, recent_request,
 					),
 				)
 			self.statusBar().showMessage(self.tr("Queued Ferrum drawing Open request."), 3000)
 			self._refresh_actions()
 			return True
-		self._local_cdml_open_batch_success = True
-		self._start_local_cdml_open(
-			absolute_path, source_kind, disposition, target, target_revision, target_digest, target_canvas_idle,
+		self._local_document_open_batch_success = True
+		self._start_local_document_open(
+			absolute_path, source_kind, route_handle, disposition, target, target_revision, target_digest, target_canvas_idle,
 			focus_target, activate_if_still_current, recent_request,
 		)
 		return True
 
 	#============================================
-	def open_recent_native_cdml_path(self, file_path: str) -> bool:
+	def open_recent_native_document_path(self, file_path: str) -> bool:
 		"""Route a personal recent selection through the immutable NewTab policy."""
 		return self.open_file_path(
 			file_path, interactive=True, force_new_tab=True, recent_request=True,
@@ -397,12 +347,6 @@ class FerrumNativeCdmlOpenMixin:
 				"Ferrum does not import ChemDraw XML (.cdxml). Use the source application "
 				"or a converter to make a supported .cdml drawing. This document has not changed."
 			)
-		elif suffix == ".cml":
-			message = (
-				"Ferrum does not import Chemical Markup Language (.cml). Use the source "
-				"application or a converter to make a supported .cdml drawing. This document "
-				"has not changed."
-			)
 		else:
 			message = (
 				"Ferrum opens uncompressed .cdml drawings and decoded .svg files containing "
@@ -412,15 +356,18 @@ class FerrumNativeCdmlOpenMixin:
 		self._show_edit_refusal(self._unavailable_edit_refusal(message))
 
 	#============================================
-	def _open_disposition_for_request(self, interactive: bool) -> _LocalCdmlOpenDisposition:
-		"""Choose the narrow first-Open replacement policy before dispatch."""
+	def _open_disposition_for_request(
+			self, source_kind: _LocalDocumentSourceKind, interactive: bool,
+			) -> _LocalDocumentOpenDisposition:
+		"""Reserve first-Open replacement for native CDML admission only."""
 		tab = self._active_native_tab()
 		if (
-			interactive and tab is not None and tab.is_pristine_initial_placeholder()
+			source_kind is _LocalDocumentSourceKind.CDML
+			and interactive and tab is not None and tab.is_pristine_initial_placeholder()
 			and not self._tab_has_active_native_canvas_interaction(tab)
 		):
-			return _LocalCdmlOpenDisposition.REPLACE_PRISTINE_TARGET
-		return _LocalCdmlOpenDisposition.NEW_TAB
+			return _LocalDocumentOpenDisposition.REPLACE_PRISTINE_TARGET
+		return _LocalDocumentOpenDisposition.NEW_TAB
 
 	#============================================
 	def _capture_pristine_target_fence(self, target: object | None) -> tuple[int | None, str | None, bool]:
@@ -440,36 +387,36 @@ class FerrumNativeCdmlOpenMixin:
 			.tab_has_active_native_canvas_interaction(self, tab)
 
 	#============================================
-	def _start_local_cdml_open(
-			self, absolute_path: str, source_kind: _LocalDocumentSourceKind,
-			disposition: _LocalCdmlOpenDisposition,
+	def _start_local_document_open(
+			self, absolute_path: str, source_kind: _LocalDocumentSourceKind, route_handle: object | None,
+			disposition: _LocalDocumentOpenDisposition,
 			target: object | None, target_revision: int | None, target_digest: str | None,
 			target_canvas_idle: bool,
 			focus_target: object | None, activate_if_still_current: bool,
 			recent_request: bool, *, replacement_fence: _ExplicitReplacementFence | None = None,
 			) -> None:
 		"""Start one already-validated path as the current queue head."""
-		worker = self._create_local_cdml_open_worker(absolute_path, source_kind)
+		worker = self._create_local_document_open_worker(absolute_path, source_kind, route_handle)
 		if target is not None and type(target) is not ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
 			raise TypeError("Ferrum Open target must be an exact Ferrum document tab")
 		if focus_target is not None and type(focus_target) is not ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
 			raise TypeError("Ferrum Open focus target must be an exact Ferrum document tab")
-		self._local_cdml_open_intent = _LocalCdmlOpenIntent(
-			absolute_path, source_kind, disposition, target, target_revision, target_digest,
+		self._local_document_open_intent = _LocalDocumentOpenIntent(
+			absolute_path, source_kind, route_handle, disposition, target, target_revision, target_digest,
 			target_canvas_idle, focus_target, activate_if_still_current, recent_request, worker,
 			replacement_fence,
 		)
-		self._local_cdml_open_outcome = None
+		self._local_document_open_outcome = None
 		worker.prepared.connect(
-			self._local_cdml_open_relay.on_prepared,
+			self._local_document_open_relay.on_prepared,
 			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
 		)
 		worker.failed.connect(
-			self._local_cdml_open_relay.on_failed,
+			self._local_document_open_relay.on_failed,
 			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
 		)
 		worker.finished.connect(
-			self._local_cdml_open_relay.on_finished,
+			self._local_document_open_relay.on_finished,
 			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
 		)
 		self.statusBar().showMessage(self.tr("Opening drawing with Ferrum Rust..."), 0)
@@ -477,16 +424,11 @@ class FerrumNativeCdmlOpenMixin:
 		worker.start()
 
 	#============================================
-	def open_native_cdml_path(self, file_path: str) -> bool:
-		"""Begin the same ordinary bounded Open route for an explicit CDML path."""
-		return self.open_file_path(file_path)
-
-	#============================================
-	def _create_local_cdml_open_worker(
-			self, path: str, source_kind: _LocalDocumentSourceKind,
-			) -> FerrumNativeCdmlOpenWorker:
+	def _create_local_document_open_worker(
+			self, path: str, source_kind: _LocalDocumentSourceKind, route_handle: object | None,
+			) -> FerrumNativeLocalDocumentOpenWorker:
 		"""Construct the one worker responsible for this admission."""
-		return FerrumNativeCdmlOpenWorker(path, source_kind)
+		return FerrumNativeLocalDocumentOpenWorker(path, source_kind, route_handle)
 
 	#============================================
 	def _native_tab_for_origin_token(
@@ -499,11 +441,12 @@ class FerrumNativeCdmlOpenMixin:
 		return None
 
 	#============================================
-	def _can_replace_pristine_target(self, intent: _LocalCdmlOpenIntent) -> bool:
+	def _can_replace_pristine_target(self, intent: _LocalDocumentOpenIntent) -> bool:
 		"""Revalidate the exact bootstrap page after detached admission succeeds."""
 		target = intent.target
 		return (
-			intent.disposition is _LocalCdmlOpenDisposition.REPLACE_PRISTINE_TARGET
+			intent.source_kind is _LocalDocumentSourceKind.CDML
+			and intent.disposition is _LocalDocumentOpenDisposition.REPLACE_PRISTINE_TARGET
 			and target is not None
 			and target in self._native_tabs_by_page
 			and self._tab_widget.currentWidget() is target
@@ -578,7 +521,7 @@ class FerrumNativeCdmlOpenMixin:
 
 	#============================================
 	def _deliver_explicit_current_replacement(
-			self, intent: _LocalCdmlOpenIntent, session: object, observation: object,
+			self, intent: _LocalDocumentOpenIntent, session: object, observation: object,
 			origin_token: object, receipt_source_kind: str,
 		) -> bool:
 		"""Apply one admitted receipt only to its still-current explicit destination."""
@@ -661,7 +604,7 @@ class FerrumNativeCdmlOpenMixin:
 		return "save" if self._save_native_tab_to_path(target, str(target.file_path)) else "retry"
 
 	#============================================
-	def _activate_new_tab_for_intent(self, intent: _LocalCdmlOpenIntent) -> bool:
+	def _activate_new_tab_for_intent(self, intent: _LocalDocumentOpenIntent) -> bool:
 		"""Preserve a later or busy interactive focus while detached Open completes."""
 		if intent.focus_target is None:
 			return True
@@ -671,36 +614,40 @@ class FerrumNativeCdmlOpenMixin:
 		)
 
 	#============================================
-	def _on_local_cdml_open_prepared(self, worker: object, prepared: object) -> None:
+	def _on_local_document_open_prepared(self, worker: object, prepared: object) -> None:
 		"""Install one exact still-current admitted session on the Qt thread."""
-		intent = self._local_cdml_open_intent
+		intent = self._local_document_open_intent
 		if intent is None or worker is not intent.worker or intent.worker.delivery_cancelled:
 			return
 		if type(prepared) is not engine.PreparedLocalDocumentOpenV1:
-			self._local_cdml_open_outcome = False
+			self._local_document_open_outcome = False
 			self._report_local_document_installation_failed(intent)
 			return
 		tab = None
 		try:
 			session, observation, origin_token, receipt_source_kind = prepared.take_admission_v1()
-			if receipt_source_kind != intent.source_kind.value:
+			if (
+				(intent.source_kind is _LocalDocumentSourceKind.INTERCHANGE and not receipt_source_kind)
+				or (intent.source_kind is not _LocalDocumentSourceKind.INTERCHANGE
+					and receipt_source_kind != intent.source_kind.value)
+			):
 				raise RuntimeError("Ferrum returned a receipt for a different source kind")
-			if intent.disposition is _LocalCdmlOpenDisposition.REPLACE_EXPLICIT_CURRENT_TARGET:
-				self._local_cdml_open_delivery_active = True
+			if intent.disposition is _LocalDocumentOpenDisposition.REPLACE_EXPLICIT_CURRENT_TARGET:
+				self._local_document_open_delivery_active = True
 				try:
-					self._local_cdml_open_outcome = self._deliver_explicit_current_replacement(
+					self._local_document_open_outcome = self._deliver_explicit_current_replacement(
 						intent, session, observation, origin_token, receipt_source_kind,
 					)
 				finally:
-					self._local_cdml_open_delivery_active = False
-					finished = self._local_cdml_open_finished_while_delivering
-					self._local_cdml_open_finished_while_delivering = None
+					self._local_document_open_delivery_active = False
+					finished = self._local_document_open_finished_while_delivering
+					self._local_document_open_finished_while_delivering = None
 					if finished is not None:
-						self._on_local_cdml_open_finished(finished)
+						self._on_local_document_open_finished(finished)
 				return
 			existing = self._native_tab_for_origin_token(origin_token)
 			if existing is not None:
-				self._local_cdml_open_outcome = True
+				self._local_document_open_outcome = True
 				self._tab_widget.setCurrentIndex(self._tab_widget.indexOf(existing))
 				self._record_confirmed_native_recent_path(intent.path)
 				return
@@ -726,26 +673,26 @@ class FerrumNativeCdmlOpenMixin:
 						index, tab.local_document_source_description or "",
 					)
 		except Exception as exc:
-			self._local_cdml_open_outcome = False
+			self._local_document_open_outcome = False
 			if tab is not None:
 				tab.dispose()
 			self._report_local_document_installation_failed(intent, exc)
 			return
-		self._local_cdml_open_outcome = True
+		self._local_document_open_outcome = True
 		self._record_confirmed_native_recent_path(intent.path)
 		self.statusBar().showMessage(self.tr(_local_document_open_success(intent)), 3000)
 
 	#============================================
-	def _on_local_cdml_open_failed(self, worker: object, failure: object) -> None:
+	def _on_local_document_open_failed(self, worker: object, failure: object) -> None:
 		"""Present one current typed Rust admission failure."""
-		intent = self._local_cdml_open_intent
+		intent = self._local_document_open_intent
 		if intent is None or worker is not intent.worker or intent.worker.delivery_cancelled:
 			return
-		if type(failure) is not FerrumNativeCdmlOpenFailure:
-			self._local_cdml_open_outcome = False
+		if type(failure) is not FerrumNativeLocalDocumentOpenFailure:
+			self._local_document_open_outcome = False
 			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an invalid drawing Open failure."))
 			return
-		self._local_cdml_open_outcome = False
+		self._local_document_open_outcome = False
 		if intent.recent_request and self._handle_failed_native_recent_open(intent.path, failure):
 			return
 		_title, guidance = _local_document_open_guidance(intent.source_kind, failure)
@@ -765,7 +712,7 @@ class FerrumNativeCdmlOpenMixin:
 
 	#============================================
 	def _report_local_document_installation_failed(
-			self, intent: _LocalCdmlOpenIntent, error: Exception,
+			self, intent: _LocalDocumentOpenIntent, error: Exception,
 			) -> None:
 		"""Contain one post-admission construction failure without exposing internals."""
 		self._show_edit_refusal(
@@ -777,43 +724,43 @@ class FerrumNativeCdmlOpenMixin:
 		)
 
 	#============================================
-	def _on_local_cdml_open_finished(self, worker: object) -> None:
+	def _on_local_document_open_finished(self, worker: object) -> None:
 		"""Retire one exact stopped worker and restore Open reachability."""
-		intent = self._local_cdml_open_intent
+		intent = self._local_document_open_intent
 		if intent is None or worker is not intent.worker:
 			return
-		if self._local_cdml_open_delivery_active:
-			self._local_cdml_open_finished_while_delivering = worker
+		if self._local_document_open_delivery_active:
+			self._local_document_open_finished_while_delivering = worker
 			return
-		outcome = self._local_cdml_open_outcome is True
-		self._local_cdml_open_batch_success &= outcome
-		self._local_cdml_open_intent = None
-		self._local_cdml_open_outcome = None
+		outcome = self._local_document_open_outcome is True
+		self._local_document_open_batch_success &= outcome
+		self._local_document_open_intent = None
+		self._local_document_open_outcome = None
 		worker.deleteLater()
-		self.local_cdml_open_completed.emit(intent.path, outcome)
-		if self._local_cdml_open_queue and not getattr(self, "_shutdown_prepared", False):
+		self.local_document_open_completed.emit(intent.path, outcome)
+		if self._local_document_open_queue and not getattr(self, "_shutdown_prepared", False):
 			(
-				next_path, next_source_kind, disposition, target, revision, digest, canvas_idle,
+				next_path, next_source_kind, next_route_handle, disposition, target, revision, digest, canvas_idle,
 				focus_target, activate_if_still_current, recent_request,
-			) = self._local_cdml_open_queue.popleft()
-			self._start_local_cdml_open(
-				next_path, next_source_kind, disposition, target, revision, digest, canvas_idle,
+			) = self._local_document_open_queue.popleft()
+			self._start_local_document_open(
+				next_path, next_source_kind, next_route_handle, disposition, target, revision, digest, canvas_idle,
 				focus_target, activate_if_still_current, recent_request,
 			)
 			return
-		batch_success = self._local_cdml_open_batch_success
-		self._local_cdml_open_batch_success = True
+		batch_success = self._local_document_open_batch_success
+		self._local_document_open_batch_success = True
 		self._refresh_actions()
-		self.local_cdml_open_queue_drained.emit(batch_success)
+		self.local_document_open_queue_drained.emit(batch_success)
 
 	#============================================
-	def _cancel_local_cdml_open(self) -> None:
+	def _cancel_local_document_open(self) -> None:
 		"""Invalidate delivery while bounded Rust admission finishes normally."""
-		intent = self._local_cdml_open_intent
+		intent = self._local_document_open_intent
 		if intent is None or intent.worker.delivery_cancelled:
 			return
-		self._local_cdml_open_queue.clear()
-		self._local_cdml_open_outcome = False
+		self._local_document_open_queue.clear()
+		self._local_document_open_outcome = False
 		intent.worker.cancel_delivery()
 		self.statusBar().showMessage(
 			self.tr("Cancelling drawing Open delivery; waiting for Rust to finish..."), 0,
@@ -821,22 +768,22 @@ class FerrumNativeCdmlOpenMixin:
 		self._refresh_actions()
 
 	#============================================
-	def _cancel_local_cdml_open_for_close(self) -> bool:
+	def _cancel_local_document_open_for_close(self) -> bool:
 		"""Cancel a live Open delivery and require a later close attempt."""
-		if self._local_cdml_open_intent is None:
+		if self._local_document_open_intent is None:
 			return False
-		self._cancel_local_cdml_open()
+		self._cancel_local_document_open()
 		return True
 
 	#============================================
 	def _cancel_explicit_replacement_for_target_close(self, tab: object) -> bool:
 		"""Invalidate a prepared explicit destination before that tab can retire."""
-		intent = self._local_cdml_open_intent
+		intent = self._local_document_open_intent
 		if intent is None or intent.replacement_fence is None:
 			return False
 		if intent.replacement_fence.target is not tab:
 			return False
-		self._cancel_local_cdml_open()
+		self._cancel_local_document_open()
 		self.statusBar().showMessage(self.tr("Cancelled Open in Current Tab delivery."), 3000)
 		return True
 
@@ -849,7 +796,7 @@ class FerrumNativeCdmlOpenMixin:
 
 	#============================================
 	def _handle_failed_native_recent_open(
-			self, path: str, failure: FerrumNativeCdmlOpenFailure,
+			self, path: str, failure: FerrumNativeLocalDocumentOpenFailure,
 			) -> bool:
 		"""Use a single recovery dialog only for typed stale recent failures."""
 		recent_files = getattr(self, "_native_recent_files", None)
@@ -858,9 +805,9 @@ class FerrumNativeCdmlOpenMixin:
 		return recent_files.handle_failed_recent_open(path, failure)
 
 	#============================================
-	def has_pending_local_cdml_open(self) -> bool:
+	def has_pending_local_document_open(self) -> bool:
 		"""Return whether Rust admission or a queued launch path remains pending."""
-		return self._local_cdml_open_intent is not None or bool(self._local_cdml_open_queue)
+		return self._local_document_open_intent is not None or bool(self._local_document_open_queue)
 
 	#============================================
 	def _snapshot_export_is_busy(self) -> bool:
@@ -869,9 +816,9 @@ class FerrumNativeCdmlOpenMixin:
 		return callable(busy) and busy()
 
 	#============================================
-	def _refresh_local_cdml_open_action(self) -> None:
+	def _refresh_local_document_open_action(self) -> None:
 		"""Mirror the one-worker lifecycle onto Open and Cancel Open."""
-		intent = self._local_cdml_open_intent
+		intent = self._local_document_open_intent
 		shutdown = getattr(self, "_shutdown_prepared", False)
 		self._open_action.setEnabled(
 			intent is None and not self._snapshot_export_is_busy() and not shutdown,
@@ -898,16 +845,18 @@ class FerrumNativeCdmlOpenMixin:
 
 
 #============================================
-def _local_document_open_success(intent: _LocalCdmlOpenIntent) -> str:
+def _local_document_open_success(intent: _LocalDocumentOpenIntent) -> str:
 	"""Describe a successful admission without claiming SVG wrapper preservation."""
 	if intent.source_kind is _LocalDocumentSourceKind.DECODED_CDSVG:
 		return f"Opened embedded CDML from SVG; Save writes CDML: {intent.path}"
+	if intent.source_kind is _LocalDocumentSourceKind.INTERCHANGE:
+		return f"Imported local interchange document: {intent.path}"
 	return f"Loaded Rust CDML: {intent.path}"
 
 
 #============================================
 def _local_document_open_guidance(
-		source_kind: _LocalDocumentSourceKind, failure: FerrumNativeCdmlOpenFailure,
+		source_kind: _LocalDocumentSourceKind, failure: FerrumNativeLocalDocumentOpenFailure,
 		) -> tuple[str, str]:
 	"""Return bounded recovery language for one Rust-owned admission category."""
 	if source_kind is _LocalDocumentSourceKind.DECODED_CDSVG:

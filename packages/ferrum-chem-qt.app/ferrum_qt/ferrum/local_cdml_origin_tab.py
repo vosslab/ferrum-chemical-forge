@@ -38,15 +38,15 @@ class FerrumNativeLocalCdmlOriginTabMixin:
 			) -> None:
 		"""Retain one admitted source without conflating it with CDML publication.
 
-		A decoded CD-SVG is an extraction-only source, so it intentionally has no
-		``file_path`` save baseline.  The descriptor token remains independent of a
-		later CDML Save As destination.
+		Decoded CD-SVG and imported CML are conversion-only sources, so they
+		intentionally have no ``file_path`` save baseline.  The descriptor token
+		remains independent of a later CDML Save As destination.
 		"""
 		self._require_live()
 		origin = pathlib.Path(path)
 		if not origin.is_absolute():
 			raise ValueError("Ferrum document origins must be absolute paths")
-		if source_kind not in {"cdml", "decoded_cdsvg"}:
+		if source_kind not in {"cdml", "decoded_cdsvg", "cml"}:
 			raise ValueError("Ferrum document origin has an unknown source kind")
 		if self._local_document_source_path is not None:
 			raise ValueError("Ferrum tab already has local document source provenance")
@@ -56,19 +56,15 @@ class FerrumNativeLocalCdmlOriginTabMixin:
 		if source_kind == "cdml":
 			self._adopt_loaded_origin_path(origin)
 			return
-		if origin.suffix.lower() != ".svg":
+		if source_kind == "decoded_cdsvg" and origin.suffix.lower() != ".svg":
 			raise ValueError("decoded CD-SVG sources must use the .svg extension")
 		self._title = origin.name
-		self.setToolTip(
-			f"Opened from {origin.name}; embedded CDML document. Save writes CDML.",
-		)
-		self.setAccessibleDescription(
-			f"Opened from {origin.name}; embedded CDML document. Save writes CDML.",
-		)
+		self.setToolTip(self.local_document_source_description or "")
+		self.setAccessibleDescription(self.local_document_source_description or "")
 
 	#============================================
 	def _refresh_local_document_origin_presentation(self) -> None:
-		"""Keep decoded-source provenance visible after a successful CDML Save As."""
+		"""Keep converted-source provenance visible after a successful CDML Save As."""
 		description = self.local_document_source_description
 		if description is None:
 			return
@@ -78,18 +74,23 @@ class FerrumNativeLocalCdmlOriginTabMixin:
 	#============================================
 	@property
 	def local_document_source_description(self) -> str | None:
-		"""Return tab-entry guidance for an extraction-only decoded CD-SVG source."""
-		if self._local_document_source_kind != "decoded_cdsvg":
+		"""Return tab-entry guidance for a conversion-only local source."""
+		if self._local_document_source_kind not in {"decoded_cdsvg", "cml"}:
 			return None
 		if self._local_document_source_path is None:
 			return None
+		document_kind = (
+			"embedded CDML document"
+			if self._local_document_source_kind == "decoded_cdsvg"
+			else "imported CML document"
+		)
 		if self.file_path is None:
 			return (
-				f"Opened from {self._local_document_source_path.name}; embedded CDML "
-				"document. Save writes CDML."
+				f"Opened from {self._local_document_source_path.name}; {document_kind}. "
+				"Save writes CDML."
 			)
 		return (
-			f"Opened from {self._local_document_source_path.name}; embedded CDML document "
+			f"Opened from {self._local_document_source_path.name}; {document_kind} "
 			f"saved as {self.file_path.name}."
 		)
 

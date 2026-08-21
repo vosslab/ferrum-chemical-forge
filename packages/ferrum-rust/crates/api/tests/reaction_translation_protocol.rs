@@ -132,6 +132,8 @@ fn checked_in_schema_is_current_and_declares_the_complete_translation_contract()
         "reaction.translate.v1",
         "view_hex_grid",
         "renderer_exclusion",
+        "document.molecule.smarts.query.v1",
+        "DocumentSmartsQueryRequestV1",
     ] {
         assert!(rendered.contains(fact), "schema omits {fact}");
     }

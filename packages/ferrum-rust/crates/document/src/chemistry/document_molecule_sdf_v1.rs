@@ -1,8 +1,8 @@
 //! Exact-observation single-record SDF export for one direct molecule.
 
 use crate::{
-    DocumentObjectIdV1, SdfRecordMetadataErrorV1, SessionDocumentObservationV1, TypedDocument,
-    observe_sdf_record_metadata_v1,
+    DocumentObjectIdV1, InterchangeRecordMetadataErrorV1, SessionDocumentObservationV1,
+    TypedDocument, observe_interchange_record_metadata_v1,
 };
 use ferrum_chemistry::{
     ChemEngine, ChemistryError, MolGraph, MolblockVersion, NativeChemEngine, SdfError, SdfProperty,
@@ -18,13 +18,13 @@ use super::document_molecule_inspection_v1::{
     verify_molecule_observation_v1,
 };
 
-/// Stable schema for one exact document SDF record receipt.
+/// Stable schema for one exact document interchange record receipt.
 pub const DOCUMENT_MOLECULE_SDF_SCHEMA_V1: &str = "ferrum-document-molecule-sdf-v1";
 /// Coordinate and record-envelope profile used by selected SDF export.
 pub const DOCUMENT_MOLECULE_SDF_PROFILE_V1: &str =
     "document-xy-to-chemistry-x-minus-y-rust-sdf-envelope-v1";
 
-/// Immutable exact-observation request for one direct-root SDF record.
+/// Immutable exact-observation request for one direct-root interchange record.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentMoleculeSdfRequestV1 {
     expected_revision: u64,
@@ -68,7 +68,7 @@ impl DocumentMoleculeSdfRequestV1 {
         &self.molecule_id
     }
 
-    /// Return the explicit Molfile syntax inside the SDF record.
+    /// Return the explicit Molfile syntax inside the interchange record.
     #[must_use]
     pub const fn version(&self) -> MolblockVersion {
         self.version
@@ -125,7 +125,7 @@ impl PreparedDocumentMoleculeSdfV1 {
     }
 }
 
-/// One complete SDF record bound to its exact source observation.
+/// One complete interchange record bound to its exact source observation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentMoleculeSdfV1 {
     schema: &'static str,
@@ -170,7 +170,7 @@ impl DocumentMoleculeSdfV1 {
         self.profile
     }
 
-    /// Return the explicit Molfile syntax inside the SDF record.
+    /// Return the explicit Molfile syntax inside the interchange record.
     #[must_use]
     pub const fn version(&self) -> MolblockVersion {
         self.version
@@ -188,7 +188,7 @@ impl DocumentMoleculeSdfV1 {
         &self.properties
     }
 
-    /// Return the exact completed SDF record text.
+    /// Return the exact completed interchange record text.
     #[must_use]
     pub fn sdf(&self) -> &str {
         &self.sdf
@@ -220,7 +220,7 @@ pub fn prepare_document_molecule_sdf_v1(
         return Err(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch.into());
     }
 
-    let metadata = observe_sdf_record_metadata_v1(&document, root_source_id)?;
+    let metadata = observe_interchange_record_metadata_v1(&document, root_source_id)?;
     let (title, metadata_properties) = match metadata {
         Some(metadata) => metadata.into_parts(),
         None => (copy_text(molecule.name().unwrap_or(""))?, Vec::new()),
@@ -307,15 +307,15 @@ fn copy_text(value: &str) -> Result<String, DocumentMoleculeSdfErrorV1> {
     Ok(copied)
 }
 
-/// Failure while authenticating, converting, or exporting one exact SDF record.
+/// Failure while authenticating, converting, or exporting one exact interchange record.
 #[derive(Debug, Error)]
 pub enum DocumentMoleculeSdfErrorV1 {
     /// Observation provenance or direct-root identity was rejected.
     #[error(transparent)]
     Observation(#[from] DocumentMoleculeInspectionErrorV1),
-    /// Authoritative persisted SDF metadata was absent from its closed grammar.
+    /// Authoritative persisted interchange metadata was absent from its closed grammar.
     #[error(transparent)]
-    Metadata(#[from] SdfRecordMetadataErrorV1),
+    Metadata(#[from] InterchangeRecordMetadataErrorV1),
     /// One authenticated source fact could not be copied into the prepared request.
     #[error("document SDF export could not reserve source-fact storage")]
     ResourceAllocation,

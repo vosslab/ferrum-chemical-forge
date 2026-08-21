@@ -8,13 +8,14 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use super::{
-    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthTopologyV1, HaworthError,
-    HaworthPoint, HaworthTopologyBuilder, HaworthVertex, RingForm,
-    direct_glycosidic_haworth_authoring_receipt_v1,
+    direct_glycosidic_haworth_authoring_receipt_v1, DirectGlycosidicHaworthAuthoringReceiptV1,
+    DirectGlycosidicHaworthTopologyV1, HaworthError, HaworthPoint, HaworthTopologyBuilder,
+    HaworthVertex, RingForm,
 };
 use ferrum_chemistry::{
-    AtomChirality, BondDirection, BondOrder as ChemistryBondOrder, BondStereo, ChemEngine,
-    ChemistryError, MolGraph, NativeChemEngine, validate_smiles_input,
+    validate_smiles_input, AtomChirality, AtomicNumber, BondDirection,
+    BondOrder as ChemistryBondOrder, BondStereo, ChemEngine, ChemistryError, MolAtom, MolBond,
+    MolGraph, NativeChemEngine,
 };
 use ferrum_core::{Atom, Bond, BondOrder, Identifier, Molecule, Position, VertexRef};
 use ferrum_geometry::MoleculePlacementV1;
@@ -50,6 +51,19 @@ pub fn build_direct_haworth_from_smiles_v1(
     build_with_engine(engine, smiles, placement)
 }
 
+/// Build the closed Haworth profile from Rust-parsed structural SMILES.
+///
+/// This intentionally admits only the atom and bond grammar that the closed
+/// direct-glycosidic profile can represent: uppercase C/O atoms, branches, and
+/// one-digit ring closures. It never consults an optional chemistry engine.
+pub fn build_direct_haworth_from_text_smiles_v1(
+    smiles: &str,
+    placement: MoleculePlacementV1,
+) -> Result<PreparedDirectHaworthFromSmilesV1, DirectHaworthFromSmilesBuildErrorV1> {
+    let graph = parse_closed_haworth_smiles(smiles)?;
+    build_from_graph(&graph, placement)
+}
+
 #[cfg(test)]
 pub(crate) fn build_direct_haworth_from_smiles_with_engine_for_test<E: ChemEngine>(
     engine: &E,
@@ -66,8 +80,15 @@ fn build_with_engine<E: ChemEngine>(
 ) -> Result<PreparedDirectHaworthFromSmilesV1, DirectHaworthFromSmilesBuildErrorV1> {
     validate_smiles_input(smiles).map_err(DirectHaworthFromSmilesBuildErrorV1::InvalidInput)?;
     let parsed = engine.smiles_to_molecule(smiles)?;
-    validate_raw_facts(parsed.molecule())?;
-    let (molecule, topology) = lower_closed_profile(parsed.molecule())?;
+    build_from_graph(parsed.molecule(), placement)
+}
+
+fn build_from_graph(
+    graph: &MolGraph,
+    placement: MoleculePlacementV1,
+) -> Result<PreparedDirectHaworthFromSmilesV1, DirectHaworthFromSmilesBuildErrorV1> {
+    validate_raw_facts(graph)?;
+    let (molecule, topology) = lower_closed_profile(graph)?;
     let receipt = direct_glycosidic_haworth_authoring_receipt_v1(
         &molecule,
         topology,
@@ -78,6 +99,90 @@ fn build_with_engine<E: ChemEngine>(
     Ok(PreparedDirectHaworthFromSmilesV1 {
         receipt,
         translation,
+    })
+}
+
+fn parse_closed_haworth_smiles(
+    smiles: &str,
+) -> Result<MolGraph, DirectHaworthFromSmilesBuildErrorV1> {
+    if smiles.is_empty() || smiles.len() > 4_096 {
+        return Err(DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+            reason: "SMILES must contain between 1 and 4096 bytes",
+        });
+    }
+    let mut atoms = Vec::new();
+    let mut bonds = Vec::new();
+    let mut current = None;
+    let mut branches = Vec::new();
+    let mut rings: [Option<usize>; 10] = [None; 10];
+    for byte in smiles.bytes() {
+        match byte {
+            b'C' | b'O' => {
+                let symbol = if byte == b'C' { "C" } else { "O" };
+                let atom = MolAtom::new(
+                    AtomicNumber::from_symbol(symbol).map_err(|_| {
+                        DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+                            reason: "SMILES contains an unsupported atom",
+                        }
+                    })?,
+                    None,
+                    None,
+                    None,
+                    false,
+                )
+                .map_err(|_| DirectHaworthFromSmilesBuildErrorV1::Resource {
+                    reason: "could not reserve structural SMILES atom storage",
+                })?;
+                let next = atoms.len();
+                atoms.push(atom);
+                if let Some(previous) = current {
+                    bonds.push(MolBond::new(
+                        previous,
+                        next,
+                        ChemistryBondOrder::Single,
+                        false,
+                    ));
+                }
+                current = Some(next);
+            }
+            b'(' => branches.push(current.ok_or(
+                DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+                    reason: "branch has no preceding atom",
+                },
+            )?),
+            b')' => {
+                current = Some(branches.pop().ok_or(
+                    DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+                        reason: "branch close has no matching open",
+                    },
+                )?)
+            }
+            b'1'..=b'9' => {
+                let atom = current.ok_or(DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+                    reason: "ring closure has no preceding atom",
+                })?;
+                let slot = usize::from(byte - b'0');
+                if let Some(other) = rings[slot].take() {
+                    bonds.push(MolBond::new(other, atom, ChemistryBondOrder::Single, false));
+                } else {
+                    rings[slot] = Some(atom);
+                }
+            }
+            _ => return Err(DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+                reason:
+                    "only uppercase C/O atoms, branches, and one-digit ring closures are supported",
+            }),
+        }
+    }
+    if current.is_none() || !branches.is_empty() || rings.iter().any(Option::is_some) {
+        return Err(DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+            reason: "SMILES has an incomplete branch or ring closure",
+        });
+    }
+    MolGraph::new(atoms, bonds, None).map_err(|_| {
+        DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+            reason: "SMILES does not form a valid simple molecular graph",
+        }
     })
 }
 
@@ -435,6 +540,8 @@ pub enum DirectHaworthFromSmilesBuildErrorV1 {
     Chemistry(#[from] ChemistryError),
     #[error(transparent)]
     InvalidInput(ChemistryError),
+    #[error("structural SMILES syntax rejection: {reason}")]
+    SmilesSyntax { reason: &'static str },
     #[error("SMILES atom {index} has unsupported {fact}")]
     UnsupportedAtomFact { index: usize, fact: &'static str },
     #[error("SMILES bond {index} has unsupported {fact}")]

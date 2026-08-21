@@ -257,19 +257,23 @@ mod tests {
             assert_eq!(vertices[0], anchor_point);
             assert_eq!(candidate.added_atoms().len(), 5);
             assert_eq!(candidate.bonds().len(), 6);
-            assert!(vertices
-                .iter()
-                .all(|vertex| vertex.x().is_finite() && vertex.y().is_finite()));
+            assert!(
+                vertices
+                    .iter()
+                    .all(|vertex| vertex.x().is_finite() && vertex.y().is_finite())
+            );
             for (index, start) in vertices.iter().enumerate() {
                 let end = vertices[(index + 1) % vertices.len()];
                 assert!(
                     ((start.x() - end.x()).hypot(start.y() - end.y()) - SIDE_LENGTH).abs()
                         < EPSILON
                 );
-                assert!(vertices
-                    .iter()
-                    .skip(index + 1)
-                    .all(|other| !same_point(*start, *other)));
+                assert!(
+                    vertices
+                        .iter()
+                        .skip(index + 1)
+                        .all(|other| !same_point(*start, *other))
+                );
             }
             let center_x = vertices.iter().map(|vertex| vertex.x()).sum::<f64>() / 6.0;
             let center_y = vertices.iter().map(|vertex| vertex.y()).sum::<f64>() / 6.0;

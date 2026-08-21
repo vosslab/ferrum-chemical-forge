@@ -7,8 +7,8 @@ use ferrum_document::{
 use pyo3::prelude::*;
 
 use super::binding::{
-    PyDocumentSession, PySessionOperationResultV1, document_result, operation_validation_error,
-    projection_error,
+    document_result, operation_validation_error, projection_error, PyDocumentSession,
+    PySessionOperationResultV1,
 };
 use super::projection_binding::PyPoint3V1;
 

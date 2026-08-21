@@ -26,6 +26,7 @@ import ferrum_qt.ferrum.presentation_stack as native_presentation_stack
 import ferrum_qt.ferrum.property_observation as native_property_observation
 import ferrum_qt.ferrum.rotation as native_rotation
 import ferrum_qt.ferrum.regular_ring_tab as native_regular_ring_tab
+import ferrum_qt.ferrum.attached_cyclohexane_tab as native_attached_cyclohexane_tab
 import ferrum_qt.ferrum.haworth_tab as native_haworth_tab
 import ferrum_qt.ferrum.direct_glycosidic_haworth_tab as native_direct_haworth_tab
 import ferrum_qt.ferrum.direct_bond_gesture_tab as native_direct_bond_gesture_tab
@@ -42,6 +43,7 @@ import ferrum_qt.ferrum.tab_view_state
 import ferrum_qt.ferrum.wavy_properties as native_wavy_properties
 import ferrum_qt.ferrum.document_tab_publication as native_publication
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
+import ferrum_qt.ferrum.document_tab_selection as native_document_tab_selection
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.explicit_fragment_tab as native_explicit_fragment
 import ferrum_qt.ferrum.local_cdml_origin_tab as native_local_cdml_origin_tab
@@ -72,6 +74,20 @@ FerrumNativeDocumentTabMutationPresentationError = (
 )
 
 
+# A deliberately narrow device-space target for unlabelled atoms at explicit
+# gesture starts. It is not a general canvas hit-test tolerance.
+_IMPLICIT_ATOM_PICK_RADIUS_PX = 6
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class _ImplicitAtomPick:
+	"""One validated identity pair selected from the installed projection."""
+
+	object_id: str
+	source_id: str
+
+
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class FerrumNativeMoleculeChoice:
@@ -84,11 +100,13 @@ class FerrumNativeMoleculeChoice:
 
 #============================================
 class FerrumNativeDocumentTab(
+		native_document_tab_selection.FerrumNativeDocumentSelectionMixin,
 		native_smarts_selected_root_capture.FerrumNativeSmartsSelectedRootCaptureTabMixin,
 		native_live_document_transaction.FerrumLiveDocumentTransactionMixin,
 		native_catalog_palette.FerrumNativeCatalogPlacementTabMixin,
 		native_local_cdml_origin_tab.FerrumNativeLocalCdmlOriginTabMixin,
 		native_regular_ring_tab.FerrumNativeRegularRingTabMixin,
+		native_attached_cyclohexane_tab.FerrumNativeAttachedCyclohexaneTabMixin,
 		native_haworth_tab.FerrumNativeHaworthTabMixin,
 		native_direct_haworth_tab.FerrumNativeDirectGlycosidicHaworthTabMixin,
 		native_direct_bond_gesture_tab.FerrumNativeDirectBondGestureTabMixin,
@@ -336,6 +354,73 @@ class FerrumNativeDocumentTab(
 		return target[1]
 
 	#============================================
+	def durable_attachment_atom_at_viewport_point(
+			self, point: PySide6.QtCore.QPoint,
+			) -> str | None:
+		"""Return one C6 attachment atom from a hit or unique nearby projection.
+
+		Rendered atom hits retain their established precedence.  Only when no
+		rendered atom was hit, the Attach Cyclohexane Ring gesture may resolve an
+		unlabelled projection atom within six device pixels.  This is intentionally
+		not a general canvas-picker tolerance.
+		"""
+		self._require_live()
+		if not isinstance(point, PySide6.QtCore.QPoint):
+			raise TypeError("Ferrum attachment hit testing requires a QPoint")
+		picked = self._durable_or_unique_projection_atom_at_viewport_point(point)
+		return picked.object_id if picked is not None else None
+
+	#============================================
+	def durable_direct_bond_start_atom_at_viewport_point(
+			self, point: PySide6.QtCore.QPoint,
+			) -> str | None:
+		"""Return one direct-bond start atom from a hit or nearby projection.
+
+		This narrow start-picker makes implicit carbons usable as Draw Bond origins.
+		It does not affect direct-bond endpoint hit testing or any other canvas tool.
+		"""
+		self._require_live()
+		if not isinstance(point, PySide6.QtCore.QPoint):
+			raise TypeError("Ferrum direct-bond start hit testing requires a QPoint")
+		picked = self._durable_or_unique_projection_atom_at_viewport_point(point)
+		return picked.source_id if picked is not None else None
+
+	#============================================
+	def _durable_or_unique_projection_atom_at_viewport_point(
+			self, point: PySide6.QtCore.QPoint,
+			) -> _ImplicitAtomPick | None:
+		"""Prefer one rendered atom, else one unique nearby projection atom."""
+		rendered_atom_id = self.durable_atom_at_viewport_point(point)
+		if rendered_atom_id is not None:
+			return _ImplicitAtomPick(rendered_atom_id, rendered_atom_id)
+		if self._document_observation is None:
+			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
+		radius_squared = _IMPLICIT_ATOM_PICK_RADIUS_PX ** 2
+		nearest_distance: int | None = None
+		nearest_atoms: list[_ImplicitAtomPick] = []
+		for molecule in self._document_observation.projection.molecules:
+			for atom in molecule.atoms:
+				if (
+					type(atom.id) is not str or not atom.id
+					or type(atom.source_id) is not str or not atom.source_id
+				):
+					continue
+				viewport_atom = self._view.mapFromScene(PySide6.QtCore.QPointF(
+					atom.position.x, atom.position.y,
+				))
+				delta_x = viewport_atom.x() - point.x()
+				delta_y = viewport_atom.y() - point.y()
+				distance_squared = delta_x * delta_x + delta_y * delta_y
+				if distance_squared > radius_squared:
+					continue
+				if nearest_distance is None or distance_squared < nearest_distance:
+					nearest_distance = distance_squared
+					nearest_atoms = [_ImplicitAtomPick(atom.id, atom.source_id)]
+				elif distance_squared == nearest_distance:
+					nearest_atoms.append(_ImplicitAtomPick(atom.id, atom.source_id))
+		return nearest_atoms[0] if len(nearest_atoms) == 1 else None
+
+	#============================================
 	def durable_atom_at_scene_position(self, point: PySide6.QtCore.QPointF) -> str | None:
 		"""Return one exact installed Rust atom at a keyboard cursor position.
 
@@ -531,308 +616,7 @@ class FerrumNativeDocumentTab(
 		import ferrum_qt.ferrum.engine as engine
 		operation = engine.DocumentOperationV1.set_atom_element(selected, element)
 		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result)
-		return result
-
-	#============================================
-	def selected_atom_projection(self) -> object:
-		"""Return one selected frozen Rust atom projection for a Ferrum dialog."""
-		self._require_mutable()
-		selected = self._selected_atom_identifier()
-		if self._document_observation is None:
-			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
-		for molecule in self._document_observation.projection.molecules:
-			for atom in molecule.atoms:
-				if atom.source_id == selected:
-					return atom
-		raise FerrumNativeDocumentTabError("selected atom is absent from the Rust projection")
-
-	#============================================
-	def apply_selected_atom_properties(self, changes: tuple[object, ...]) -> object:
-		"""Commit one closed Rust atom-properties patch for one selected atom."""
-		self._require_mutable()
-		if type(changes) is not tuple:
-			raise TypeError("Ferrum atom properties require an exact change tuple")
-		selected = self._selected_atom_identifier()
-		import ferrum_qt.ferrum.engine as engine
-		if any(type(change) is not engine.DocumentAtomPropertyChangeV1 for change in changes):
-			raise TypeError("Ferrum atom properties require exact frozen Ferrum changes")
-		operation = engine.DocumentOperationV1.set_atom_properties(selected, changes)
-		result = self._session.submit(self.current_snapshot.revision, operation)
 		self._install_mutation_result(result, (("atom", selected),))
-		return result
-
-	#============================================
-	def set_selected_atom_number(self, number: int, show_number: bool) -> object:
-		"""Assign one selected atom number through the closed Rust operation."""
-		self._require_mutable()
-		if type(number) is not int or number <= 0 or type(show_number) is not bool:
-			raise TypeError("Ferrum atom number requires a positive int and exact bool")
-		molecule_id, atom_id = self._selected_atom_address()
-		import ferrum_qt.ferrum.engine as engine
-		operation = engine.DocumentOperationV1.set_atom_number(
-			molecule_id, atom_id, number, show_number,
-		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result, (("atom", atom_id),))
-		return result
-
-	#============================================
-	def clear_selected_atom_number(self) -> object:
-		"""Clear one selected atom number through the closed Rust operation."""
-		self._require_mutable()
-		molecule_id, atom_id = self._selected_atom_address()
-		import ferrum_qt.ferrum.engine as engine
-		operation = engine.DocumentOperationV1.clear_atom_number(
-			molecule_id, atom_id,
-		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result, (("atom", atom_id),))
-		return result
-
-	#============================================
-	def apply_selected_atom_mark(self, action: object, kind: object,
-			matching_mark_index: int | None) -> object:
-		"""Apply exact frozen mark intent to one selected durable Rust atom."""
-		self._require_mutable()
-		import ferrum_qt.ferrum.engine as engine
-		if type(action) is not engine.AtomMarkActionV1:
-			raise TypeError("Ferrum atom mark action requires an exact Ferrum value")
-		if type(kind) is not engine.AtomMarkKindV1:
-			raise TypeError("Ferrum atom mark kind requires an exact Ferrum value")
-		if matching_mark_index is not None and type(matching_mark_index) is not int:
-			raise TypeError("Ferrum atom mark selector requires an exact int or None")
-		molecule_id, atom_id = self._selected_atom_address()
-		operation = engine.DocumentOperationV1.apply_atom_mark(
-			molecule_id, atom_id, action, kind, matching_mark_index,
-		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result, (("atom", atom_id),))
-		return result
-
-	#============================================
-	def toggle_selected_atom_mark(self, kind: object) -> object:
-		"""Add a missing mark or remove the first matching mark in source order."""
-		self._require_mutable()
-		import ferrum_qt.ferrum.engine as engine
-		if type(kind) is not engine.AtomMarkKindV1:
-			raise TypeError("Ferrum atom mark kind requires an exact Ferrum value")
-		atom = self.selected_atom_projection()
-		matching = next((mark for mark in atom.marks if mark.kind == kind), None)
-		if matching is None:
-			action = engine.AtomMarkActionV1.add
-			ordinal = None
-		else:
-			action = engine.AtomMarkActionV1.remove
-			ordinal = matching.same_type_ordinal
-		return self.apply_selected_atom_mark(action, kind, ordinal)
-
-	#============================================
-	def selected_atom_marks(self) -> tuple[object, ...]:
-		"""Return exact current frozen marks for the single selected durable atom."""
-		return tuple(self.selected_atom_projection().marks)
-
-	#============================================
-	def selected_atom_has_marks(self) -> bool:
-		"""Return whether one selected atom currently owns a supported mark."""
-		return self.has_one_selected_atom() and bool(self.selected_atom_marks())
-
-	#============================================
-	def selected_bond_projection(self) -> object:
-		"""Return one selected frozen Rust bond projection for a Ferrum dialog."""
-		self._require_mutable()
-		selected = self._selected_durable_identifiers(1, "bond")[0]
-		if self._document_observation is None:
-			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
-		for molecule in self._document_observation.projection.molecules:
-			for bond in molecule.bonds:
-				if bond.source_id == selected:
-					return bond
-		raise FerrumNativeDocumentTabError("selected bond is absent from the Rust projection")
-
-	#============================================
-	def apply_selected_bond_properties(self, changes: tuple[object, ...]) -> object:
-		"""Commit one closed Rust bond-properties patch for one selected bond."""
-		self._require_mutable()
-		if type(changes) is not tuple:
-			raise TypeError("Ferrum bond properties require an exact change tuple")
-		selected = self._selected_durable_identifiers(1, "bond")[0]
-		import ferrum_qt.ferrum.engine as engine
-		if any(type(change) is not engine.DocumentBondPropertyChangeV1 for change in changes):
-			raise TypeError("Ferrum bond properties require exact frozen Ferrum changes")
-		operation = engine.DocumentOperationV1.set_bond_properties(selected, changes)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result, (("bond", selected),))
-		return result
-
-	#============================================
-	def has_one_selected_atom(self) -> bool:
-		"""Return whether the current disposable selection names exactly one atom."""
-		if self._disposed or self.requires_refresh:
-			return False
-		projection = self._controller.projection
-		if projection is None:
-			return False
-		selected = projection.selected_durable_targets()
-		return (
-			len(selected) == 1
-			and selected[0].kind == "atom"
-			and selected[0].identifier is not None
-		)
-
-	#============================================
-	def selected_atom_has_number(self) -> bool:
-		"""Return whether the current single selected atom has a valid number fact."""
-		if not self.has_one_selected_atom():
-			return False
-		return self.selected_atom_projection().number is not None
-
-	#============================================
-	def has_one_selected_bond(self) -> bool:
-		"""Return whether the current disposable selection names exactly one bond."""
-		if self._disposed or self.requires_refresh:
-			return False
-		projection = self._controller.projection
-		if projection is None:
-			return False
-		selected = projection.selected_durable_targets()
-		return (
-			len(selected) == 1
-			and selected[0].kind == "bond"
-			and selected[0].identifier is not None
-		)
-
-	#============================================
-	def has_one_selected_plus(self) -> bool:
-		"""Return whether the current selection names one durable rendered Plus."""
-		if self._disposed or self.requires_refresh:
-			return False
-		projection = self._controller.projection
-		if projection is None:
-			return False
-		selected = projection.selected_durable_targets()
-		return (
-			len(selected) == 1
-			and selected[0].kind == "plus"
-			and selected[0].identifier is not None
-		)
-
-	#============================================
-	def has_one_selected_arrow(self) -> bool:
-		"""Return whether the current selection names one durable rendered Arrow."""
-		if self._disposed or self.requires_refresh:
-			return False
-		projection = self._controller.projection
-		if projection is None:
-			return False
-		selected = projection.selected_durable_targets()
-		return (
-			len(selected) == 1
-			and selected[0].kind == "arrow"
-			and selected[0].identifier is not None
-		)
-
-	#============================================
-	def selected_plus_projection(self) -> object:
-		"""Return one selected frozen Rust Plus projection for a Ferrum dialog."""
-		self._require_mutable()
-		selected = self._selected_durable_identifiers(1, "plus")[0]
-		if self._document_observation is None:
-			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
-		for root in self._document_observation.projection.presentation_stack.roots:
-			if root.kind == "plus" and root.plus.target.id == selected:
-				if root.plus.target.source_id is None:
-					raise FerrumNativeDocumentTabError(
-						"selected Plus has no durable authored source identifier",
-					)
-				return root.plus
-		raise FerrumNativeDocumentTabError("selected Plus is absent from the Rust projection")
-
-	#============================================
-	def apply_selected_plus_properties(self, changes: tuple[object, ...]) -> object:
-		"""Commit one closed Rust Plus patch while retaining durable selection."""
-		self._require_mutable()
-		if type(changes) is not tuple:
-			raise TypeError("Ferrum Plus properties require an exact change tuple")
-		import ferrum_qt.ferrum.engine as engine
-		if any(type(change) is not engine.DocumentPlusPropertyChangeV1
-				for change in changes):
-			raise TypeError("Ferrum Plus properties require exact frozen Ferrum changes")
-		plus = self.selected_plus_projection()
-		operation = engine.DocumentOperationV1.set_plus_properties(
-			plus.target.source_id, changes,
-		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result, (("plus", plus.target.id),))
-		return result
-
-	#============================================
-	def selected_arrow_projection(self) -> object:
-		"""Return one selected frozen Rust Arrow projection for a Ferrum dialog."""
-		self._require_mutable()
-		selected = self._selected_durable_identifiers(1, "arrow")[0]
-		if self._document_observation is None:
-			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
-		for root in self._document_observation.projection.presentation_stack.roots:
-			if root.kind == "arrow" and root.arrow.target.id == selected:
-				if root.arrow.target.source_id is None:
-					raise FerrumNativeDocumentTabError(
-						"selected Arrow has no durable authored source identifier",
-					)
-				return root.arrow
-		raise FerrumNativeDocumentTabError("selected Arrow is absent from the Rust projection")
-
-	#============================================
-	def apply_selected_arrow_properties(self, changes: tuple[object, ...]) -> object:
-		"""Commit one closed Rust Arrow patch while retaining durable selection."""
-		self._require_mutable()
-		if type(changes) is not tuple:
-			raise TypeError("Ferrum Arrow properties require an exact change tuple")
-		import ferrum_qt.ferrum.engine as engine
-		if any(type(change) is not engine.DocumentArrowPropertyChangeV1
-				for change in changes):
-			raise TypeError("Ferrum Arrow properties require exact frozen Ferrum changes")
-		arrow = self.selected_arrow_projection()
-		operation = engine.DocumentOperationV1.set_arrow_properties(
-			arrow.target.source_id, changes,
-		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result, (("arrow", arrow.target.id),))
-		return result
-
-	#============================================
-	def delete_selected_atom(self) -> object:
-		"""Delete one selected durable atom and its incident bonds through Rust."""
-		self._require_mutable()
-		selected = self._selected_atom_identifier()
-		import ferrum_qt.ferrum.engine as engine
-		operation = engine.DocumentOperationV1.delete_atom(selected)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result)
-		return result
-
-	#============================================
-	def delete_selected_bond(self) -> object:
-		"""Delete one selected durable typed bond through Rust."""
-		self._require_mutable()
-		selected = self._selected_durable_identifiers(1, "bond")[0]
-		import ferrum_qt.ferrum.engine as engine
-		operation = engine.DocumentOperationV1.delete_bond(selected)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result)
-		return result
-
-	#============================================
-	def set_selected_bond_order(self, order: object) -> object:
-		"""Replace one selected bond order through the closed Rust operation."""
-		self._require_mutable()
-		import ferrum_qt.ferrum.engine as engine
-		if type(order) is not engine.DocumentBondOrderV1:
-			raise TypeError("Ferrum bond order requires an exact Ferrum order value")
-		selected = self._selected_durable_identifiers(1, "bond")[0]
-		operation = engine.DocumentOperationV1.set_bond_order(selected, order)
-		result = self._session.submit(self.current_snapshot.revision, operation)
-		self._install_mutation_result(result, (("bond", selected),))
 		return result
 
 	#============================================
@@ -917,7 +701,7 @@ class FerrumNativeDocumentTab(
 		try:
 			observation = self._publish_live_render_plan_v1(self._pending_snapshot.revision)
 			installed = self._install_observation(observation)
-		except Exception:
+		except FerrumNativeDocumentTabError:
 			return False
 		if not installed:
 			return False
@@ -977,7 +761,7 @@ class FerrumNativeDocumentTab(
 		try:
 			observation = self._publish_live_render_plan_v1(authoritative.snapshot.revision)
 			installed = self._install_observation(observation)
-		except Exception as exc:
+		except FerrumNativeDocumentTabError as exc:
 			raise FerrumNativeDocumentTabMutationPresentationError(result) from exc
 		if not installed:
 			raise FerrumNativeDocumentTabMutationPresentationError(result)

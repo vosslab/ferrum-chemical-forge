@@ -55,16 +55,14 @@ fn smiles_output_limit_fills_the_bounded_text_response_envelope() {
 #[test]
 fn unavailable_engine_reports_only_the_missing_smiles_writer() {
     let molecule = MolGraph::new(
-        vec![
-            MolAtom::new(
-                AtomicNumber::from_symbol("C").expect("carbon"),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("atom"),
-        ],
+        vec![MolAtom::new(
+            AtomicNumber::from_symbol("C").expect("carbon"),
+            None,
+            None,
+            None,
+            false,
+        )
+        .expect("atom")],
         Vec::new(),
         None,
     )

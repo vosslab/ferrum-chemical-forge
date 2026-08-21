@@ -3,3 +3,4 @@ tests/
 devel/
 tools/
 docs/
+/packages/ferrum-rust/target/

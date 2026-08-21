@@ -120,17 +120,33 @@ reference code, and every format has explicit loss and safety behavior.
 
 **Depends on:** M0.  **Parallel-plan ready:** yes once the command DTO is frozen.
 
-P0.1 deliver: a Rust-first, revision/digest-fenced begin/preview/commit gesture
-from an existing direct atom to a same-molecule existing direct atom or a new
-carbon endpoint. It supports only normal single, double, and triple bonds; Qt
-owns a disposable overlay and tool preferences, while Rust owns endpoint
-resolution, snap policy, candidate validation, IDs, history, and the returned
-observation. Begin and preview do not mutate the document.
+P0.1 deliver: one Rust-first, revision/digest-fenced direct-bond gesture from
+an existing direct atom to a same-molecule existing direct atom or a new carbon
+endpoint. Its normal order is the existing visible `Next Drawing` choice:
+single, double, or triple. Activating the one existing `Draw Bond` action
+captures that value, and admission freezes it for the whole pointer or keyboard
+gesture; a later preference change affects only the next gesture. Qt passes
+only closed presentation and endpoint UI facts through the existing opaque Rust
+receipt flow. Rust owns endpoint resolution, snap policy, chemistry admission,
+topology, capacity/valence, IDs, history, and the returned observation. Qt owns
+only a disposable copied overlay, action state, and accessible feedback. Begin,
+preview, and abandoned admission do not mutate the document or consume identity.
 
-P0.1 done when a user draws each normal order to an existing or new carbon
-endpoint, cancellation/refusal leaves the document unchanged, one accepted
-release creates exactly one history transition, and undo/redo/save/reopen
-preserve the semantic graph. Stale revision/digest, malformed, ineligible,
+P0.1 covers all normal orders for both existing-atom and new-carbon endpoints.
+It does not add an action, dialog, shortcut, Qt-local chemistry, or a second
+drawing framework. Wedges, aromatic bonds, free-space starts, heteroatom
+endpoints, and selected-root work remain explicitly deferred; selected-root is
+P0.2, not an implicit extension of this package.
+
+P0.1 done when bounded Rust and PyO3 matrix evidence proves each normal order
+for both endpoint forms, including one atomic history transition, undo/redo,
+and the canonical persistence seam. Focused Qt behavior proves that the visible
+Next Drawing value freezes at admission for pointer and keyboard authoring,
+while cancellation and typed refusal remain mutation-free. One isolated,
+offscreen dual-wheel E2E uses temporary inline input and proves a normal-order
+commit plus Escape cancellation with exact native and Qt wheel provenance.
+The package uses no committed fixture expansion, network connection, manual
+approval, or human GUI gate. Stale revision/digest, malformed, ineligible,
 self-loop, duplicate, cross-molecule, unrenderable, and cancelled requests
 cannot mutate the document.
 
@@ -300,18 +316,21 @@ profile, catalog, and refusal code documents scope, source, limits, and recovery
 
 ## Patch plan and reporting format
 
-The first executable P0 patch is **P0.1: Rust-first direct normal-bond gesture**.
-Add a small `direct_bond_gesture_v1` contract with explicit revision/digest
-fence, immutable begin/preview handles, typed refusal categories, captured snap
-policy, and a commit that delegates to existing prepared bond or bonded-carbon
-insertion primitives. The accepted start is an existing direct atom; the end
-is an existing direct atom in that molecule or a new carbon endpoint. Expose
-only normal single, double, and triple presentations. Begin/preview allocate
-no IDs and change no session state; a valid release creates one history entry.
-Add Rust and PyO3 tests for both endpoint forms, all three orders, fences,
-refusals, cancellation-as-drop, undo/redo, and reopen. The next patch adds the
-small Qt pointer controller and disposable overlay with a real end-to-end
-workflow; interactive handles remain desktop-only, not CLI/protocol values.
+The next executable P0 patch is **P0.1: Next Drawing normal-order completion**.
+Keep `direct_bond_gesture_v1` as the small Rust contract with its explicit
+revision/digest fence, immutable handles, typed refusals, captured snap policy,
+pure admission receipt, and receipt-only atomic commit. The accepted start is
+an existing direct atom; the end is an existing direct atom in that molecule or
+a new carbon endpoint. Retain only normal single, double, and triple
+presentations. Begin/preview/admission allocate no IDs and change no session
+state; a valid receipt redemption creates one history entry. Complete the
+existing Qt controller by passing its immutable Next Drawing snapshot, rather
+than a hard-coded single carbon profile, through the current tab boundary.
+Add a compact Rust/PyO3 order-by-endpoint matrix, focused Qt snapshot/lifecycle
+tests, and one isolated dual-wheel offscreen E2E with temporary inline input.
+No manual gate, network route, persistent fixture, new action, dialog,
+shortcut, or Qt chemistry rule is part of this package. Interactive handles
+remain desktop-only, not CLI/protocol values.
 
 **P0.2 follows P0.1, not in parallel with it.** Add selected-root
 selection/marquee/translation only after render publishes reliable eligible-root

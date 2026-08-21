@@ -15,7 +15,7 @@ Qt frontend was supposed to differ from `bkchem-qt.app` only by branding and by
 recent BKChem work cannot land.
 
 The review confirms both, and finds a third: the interaction layer has real
-gaps — no keyboard shortcuts at all — that the milestone ledger does not track,
+gaps - no keyboard shortcuts at all - that the milestone ledger does not track,
 because the ledger measures capability plumbing rather than usability.
 
 The repository is pre-production with no users. That is the reason to fix the
@@ -52,8 +52,8 @@ operations, writing it to a file, then reading an envelope back
 
 The capability exists: `crates/api/src/` carries SMILES, InChI, SDF, molblock,
 and SMARTS codecs, coordinate generation, SVG/PDF/PNG publication, geometry
-repair, linear form, Haworth composition, and peptide templates — ~95 modules,
-17.8k lines — none reachable from a shell.
+repair, linear form, Haworth composition, and peptide templates - ~95 modules,
+17.8k lines - none reachable from a shell.
 
 The plan's own open question, "CLI subcommand surface", with decision rule
 "derive from the batch and export capabilities already enumerated in the M1b
@@ -77,7 +77,7 @@ Deleted from Ferrum, still present and actively developed in BKChem:
 | resources / config | `resources/menus.yaml`, `resources/modes.yaml`, `config/keybindings.py` (300 lines), `geometry.py`, `canvas/view.py` |
 
 In their place: `ferrum_qt/native/`, 76 files, 18,831 lines, every file named
-`ferrum_native_*`. `main_window.py` went 3809 -> 307 lines — a genuine
+`ferrum_native_*`. `main_window.py` went 3809 -> 307 lines - a genuine
 improvement, and the version that respects the repo's 1000-line rule.
 
 BKChem commits `f3a6b2f` (2026-08-11) and `f8fd0e6` (2026-08-12) touched
@@ -92,8 +92,8 @@ precisely the deleted layer: `modes/arrow_mode.py`, `modes/vector_mode.py`,
 Drift runs both ways: BKChem deleted `wavy_geometry.py` at `f3a6b2f`; Ferrum
 still ships it.
 
-Left on disk: six **empty directories** — `actions/`, `modes/`, `models/`,
-`setup/`, `undo/`, `legacy/` — untracked by git, invisible in review. Also
+Left on disk: six **empty directories** - `actions/`, `modes/`, `models/`,
+`setup/`, `undo/`, `legacy/` - untracked by git, invisible in review. Also
 `packages/ferrum-chem-qt.app/build/`, gitignored but present, containing a
 stale `oasa_bridge.py`: the only `oasa` module name left anywhere and a false
 positive generator for every future audit.
@@ -110,7 +110,7 @@ Rust operation is reachable, not whether a person can work.
   For an editor whose core loop is repeated small edits, this is the largest
   usability defect in the product, and no gate detects it.
 - **No tab order.** 0 `setTabOrder`; 2 `setFocusPolicy`.
-- Partial affordances elsewhere: 45 `setAccessibleName`, 85 `setToolTip` — a
+- Partial affordances elsewhere: 45 `setAccessibleName`, 85 `setToolTip` - a
   real foundation, unevenly applied.
 - **Refusals are system-centric and terminal:** `"Unsupported Save Format"`
   (`window_native_files.py:183`), `"Native Atom Properties Unavailable"`,
@@ -118,9 +118,9 @@ Rust operation is reachable, not whether a person can work.
   (`native/ferrum_native_main_window.py:338,369`), `"CDML Document Rejected"` /
   `"The admitted file is not supported typed CDML."`
   (`native/ferrum_native_cdml_open.py:972`). They name the implementation
-  boundary, not the user's next step. Two do better — the peptide hint at
+  boundary, not the user's next step. Two do better - the peptide hint at
   `native/ferrum_native_molecule_imports.py:429` and the compressed-SVG message
-  — so the good pattern already exists in-house.
+  - so the good pattern already exists in-house.
 - **Missing standard dialogs.** No About, Preferences, or theme chooser.
   `FQ-020`/`FQ-021` claim these Supported; settings are read/written through
   `config/preferences.py:32-56` with no UI to reach them.
@@ -145,7 +145,7 @@ Rust operation is reachable, not whether a person can work.
 - **`crates/api` is a flat god-crate:** ~95 files directly in `src/`, 17.8k
   lines, holding chemistry codecs, render artifacts, Haworth, peptides,
   clipboard, document operations. Unit tests sit as `*_tests.rs` siblings in
-  `src/` — neither layout `docs/RUST_STYLE.md` section 14 describes.
+  `src/` - neither layout `docs/RUST_STYLE.md` section 14 describes.
 - **One `unsafe` outside the FFI crate:** `crates/api/src/smiles_inspection.rs`.
   All others are correctly confined to `chemistry-sys`.
 - Positive: `thiserror` throughout, no `anyhow` in libraries, no TODO/FIXME
@@ -196,7 +196,7 @@ rename and no redesign.
 
 **Success is defined per seam, not in aggregate**: for each Shared row, a named
 BKChem change applies to Ferrum with rename-only edits. `diff -rq` overlap is
-**implementation-time measurement only** — recorded in the task receipt, never
+**implementation-time measurement only** - recorded in the task receipt, never
 a permanent gate, because percentage overlap would reward superficial
 similarity and penalize legitimate Ferrum decomposition.
 
@@ -236,7 +236,7 @@ does not become a second god-module.
 
 It does **not** own operation catalogues. Each feature keeps its own
 operations module (`ferrum/atom_properties.py`, `ferrum/molecule_imports.py`,
-...) that calls `engine` — so `engine.py` stays small and feature code stays
+...) that calls `engine` - so `engine.py` stays small and feature code stays
 where a reader expects it. The import-hygiene test protects this decision; the
 responsibility list above is what review checks.
 
@@ -260,7 +260,7 @@ document contains, it belongs to `document`; if it describes how the document
 is drawn, `render`; if it is coordinate arithmetic independent of both,
 `geometry`; if it is per-user view state, it stays in Qt.*
 
-### D5. Worker abstraction — spike first
+### D5. Worker abstraction - spike first
 
 The 14+ QThread subclasses are clearly duplicated, but whether one helper or a
 small family is the durable design depends on semantics not yet compared. T12
@@ -276,7 +276,7 @@ workers; T13 implements whatever that table justifies. This follows the repo's
 Each task is independently completable, with one owner, one outcome, one
 verification. Parallel groups can run concurrently.
 
-### Group A — no dependencies, start immediately
+### Group A - no dependencies, start immediately
 
 **T1. CI workflow** (`maintainer`)
 Add `.github/workflows/ci.yml` running `pytest tests/`, `all_test.sh`, and
@@ -312,7 +312,7 @@ type, error mapping, GUI-thread commit, and revision/digest fencing. Produce
 recommendation: one helper, or a named small family.
 *Verify:* every worker appears in the table with file:line.
 
-### Group B — CLI (depends on nothing in Group A)
+### Group B - CLI (depends on nothing in Group A)
 
 **T5. `chemistry.convert` protocol operation** (`expert_coder`)
 Add an additive V1 operation converting between SMILES, InChI, molblock, SDF,
@@ -331,7 +331,7 @@ recorded in `reports/coordinate_parity_v1.md`.
 Add `inspect`, `validate`, `render`, `rewrite` to `crates/api/src/cli.rs` plus
 a new `crates/api/src/verb_cli/` directory, one file per verb, each well under
 999 lines. Every verb constructs a `ferrum-operation-request-v1` and calls the
-existing executor — no verb reaches past the protocol. Extension-based format
+existing executor - no verb reaches past the protocol. Extension-based format
 inference overridable by `--from`/`--to`; `-` means stdin/stdout; exit codes
 match the existing 0/1/2/3 contract; human diagnostics to stderr; `--json`
 switches stdout to the envelope.
@@ -345,14 +345,14 @@ Add `convert` and `coords` on the same pattern.
 `tests/e2e/e2e_ferrum_verb_cli.py`: round-trip each verb against
 `tests/e2e/corpus/`, assert exit codes, assert stdin/stdout piping composes,
 and assert each verb's result is semantically equal to the equivalent
-`protocol run` result. Semantic comparison only — never bytes or pixels.
+`protocol run` result. Semantic comparison only - never bytes or pixels.
 *Depends on:* T7a, T7b.
 
 **T9. `--help` that teaches** (`coder`)
 Every verb's help shows a worked example in user vocabulary, not schema names.
 *Depends on:* T7a.
 
-### Group C — frontend structure (T10 gates the rest)
+### Group C - frontend structure (T10 gates the rest)
 
 **T10. Rename `native/` -> `ferrum/`** (`coder`)
 `git mv packages/ferrum-chem-qt.app/ferrum_qt/native
@@ -369,10 +369,10 @@ module imports `ferrum_chem`.
 *Depends on:* T10. *Verify:* new hygiene test; existing Qt tests pass.
 
 **T13. Worker consolidation** (`expert_coder`)
-Implement whatever T12's table justifies — one helper or a named family.
+Implement whatever T12's table justifies - one helper or a named family.
 *Depends on:* T10, T12.
 
-**T14-T19. Reinstate the shared seams** — one task per seam, each parallel
+**T14-T19. Reinstate the shared seams** - one task per seam, each parallel
 after T10, each landing declaration + registry + Rust call in its own files,
 all under 1000 lines:
 
@@ -403,7 +403,7 @@ One-time `diff -rq` measurement plus a per-seam portability check, written to
 `docs/active_plans/reports/frontend_convergence.md`. **Not** a permanent gate.
 *Depends on:* T20.
 
-### Group D — interaction (T18 gates T23)
+### Group D - interaction (T18 gates T23)
 
 **T22. Geometry migration** (`expert_coder`)
 Move each computation to the crate named in D4. `hex_grid` deliberately stays
@@ -428,7 +428,7 @@ CDML"; every refusal names a next step.
 
 **T25. Keyboard-workflow E2E** (`tester`)
 `tests/e2e/e2e_keyboard_workflow.py`: drive one complete drawing task using
-**only** key events — open a document, add an atom, add a bond, undo, save —
+**only** key events - open a document, add an atom, add a bond, undo, save -
 and assert the resulting document. This proves the failure in F3 is corrected,
 which a metadata check alone cannot. Plus a fast structural pytest: every
 `QAction` has text and a shortcut or exemption; every dialog sets tab order;
@@ -444,7 +444,7 @@ Precise boundary language is kept, below the task content.
 *Depends on:* T8, T9. *Verify:* `pytest tests/test_readme_first_paragraph.py`,
 `test_markdown_links.py`.
 
-### Group E — Rust structure
+### Group E - Rust structure
 
 **T27. Decompose `crates/api`** (`expert_coder`)
 Move chemistry codecs to `chemistry`, artifact publication to `render`,
@@ -462,7 +462,7 @@ identically before and after.
 ## Sequencing
 
 - **Wave 1, fully parallel:** T1, T2, T3, T4, T12, T5, T6, T10.
-- **Wave 2:** T7a, T7b (after T5/T6), T11, T13, T14-T19, T22 — all parallel
+- **Wave 2:** T7a, T7b (after T5/T6), T11, T13, T14-T19, T22 - all parallel
   after their gates.
 - **Wave 3:** T8, T9, T20, T23, T24.
 - **Wave 4:** T21, T25, T26, T27.
@@ -471,7 +471,7 @@ T10 gates only the Qt tasks; the entire CLI group, the Rust group, CI, hygiene,
 plan restructuring, and the worker spike proceed independently of it, so the
 rename does not serialize the project.
 
-Milestone alignment: Groups B, C, and D belong to M19's closure — capability
+Milestone alignment: Groups B, C, and D belong to M19's closure - capability
 rows claimed Supported without a usable interaction path are not closed. Group
 C convergence should land before M22 declares a supported boundary.
 
@@ -479,15 +479,15 @@ C convergence should land before M22 declares a supported boundary.
 
 ## Reuse rather than rebuild
 
-- `crates/api/src/protocol_v1.rs` executor — every verb routes through it
-- `crates/chemistry/src/engine.rs:84` `ChemEngine` — already the single
+- `crates/api/src/protocol_v1.rs` executor - every verb routes through it
+- `crates/chemistry/src/engine.rs:84` `ChemEngine` - already the single
   chemistry seam; no new trait
-- `tests/file_utils.py` `discover_files` + `REPO_HYGIENE_FILTERS` — the
+- `tests/file_utils.py` `discover_files` + `REPO_HYGIENE_FILTERS` - the
   established pattern for the adapter-boundary and accessibility checks
-- `all_test.sh`, `check_rust.sh` — CI calls these, does not reimplement them
-- `devel/changelog_lib.py` and friends — changelog updates
+- `all_test.sh`, `check_rust.sh` - CI calls these, does not reimplement them
+- `devel/changelog_lib.py` and friends - changelog updates
 - BKChem's `menus.yaml` / `modes.yaml` schema and `keybindings.py` table shape
-  — proven declarative shapes to adopt, decomposed, not copied
+  - proven declarative shapes to adopt, decomposed, not copied
 
 ## Verification summary
 
@@ -507,5 +507,5 @@ C convergence should land before M22 declares a supported boundary.
 - All moves use `git mv`.
 - Only humans commit.
 - Rust is rustfmt-formatted 4-space; Python stays tab-indented.
-- New source files stay under 1000 lines — the forcing function for the
+- New source files stay under 1000 lines - the forcing function for the
   frontend decomposition, not an obstacle to it.

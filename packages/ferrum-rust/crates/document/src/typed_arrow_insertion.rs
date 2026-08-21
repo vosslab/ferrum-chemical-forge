@@ -5,6 +5,15 @@ use super::{
 use xot::Xot;
 const POINTS_PER_CM: f64 = 72.0 / 2.54;
 impl TypedDocument {
+    pub(crate) fn with_insert_straight_equilibrium_arrow(
+        &self,
+        identifier: &PersistentId,
+        start: PresentationGesturePoint2V1,
+        end: PresentationGesturePoint2V1,
+    ) -> Result<Self, TypedDocumentError> {
+        self.with_insert_straight_arrow(identifier, start, end, "equilibrium", None)
+    }
+
     pub(crate) fn with_insert_straight_normal_arrow(
         &self,
         identifier: &PersistentId,
@@ -12,6 +21,23 @@ impl TypedDocument {
         end: PresentationGesturePoint2V1,
         start_head: bool,
         end_head: bool,
+    ) -> Result<Self, TypedDocumentError> {
+        self.with_insert_straight_arrow(
+            identifier,
+            start,
+            end,
+            "normal",
+            Some((start_head, end_head)),
+        )
+    }
+
+    fn with_insert_straight_arrow(
+        &self,
+        identifier: &PersistentId,
+        start: PresentationGesturePoint2V1,
+        end: PresentationGesturePoint2V1,
+        arrow_type: &'static str,
+        normal_heads: Option<(bool, bool)>,
     ) -> Result<Self, TypedDocumentError> {
         if self.indexed().resolve_id(identifier).is_some() {
             return Err(TypedDocumentError::DuplicateBondId(identifier.clone()));
@@ -30,15 +56,22 @@ impl TypedDocument {
         let arrow = indexed.xml.tree.new_element(arrow_name);
         for (attribute, value) in [
             ("id", identifier.as_str()),
-            ("type", "normal"),
-            ("start", if start_head { "yes" } else { "no" }),
-            ("end", if end_head { "yes" } else { "no" }),
+            ("type", arrow_type),
             ("width", "1.0"),
             ("color", "#000000"),
             ("spline", "no"),
         ] {
             let attribute = indexed.xml.tree.add_name(attribute);
             indexed.xml.tree.set_attribute(arrow, attribute, value)
+        }
+        if let Some((start_head, end_head)) = normal_heads {
+            for (attribute, value) in [
+                ("start", if start_head { "yes" } else { "no" }),
+                ("end", if end_head { "yes" } else { "no" }),
+            ] {
+                let attribute = indexed.xml.tree.add_name(attribute);
+                indexed.xml.tree.set_attribute(arrow, attribute, value)
+            }
         }
         for point in [start, end] {
             let point_name = name(&mut indexed.xml.tree, "point", &namespace);

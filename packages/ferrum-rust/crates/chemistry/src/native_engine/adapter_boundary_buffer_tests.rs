@@ -2,10 +2,10 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::AdapterError;
 use super::adapter_boundary_buffer::{
-    FerrumChemOwnedBuffer, OutputBuffer, checked_length, finish_call,
+    checked_length, finish_call, FerrumChemOwnedBuffer, OutputBuffer,
 };
+use super::AdapterError;
 use crate::FERRUM_CHEM_MAX_RESPONSE_BYTES;
 
 static FREE_CALLS: AtomicUsize = AtomicUsize::new(0);

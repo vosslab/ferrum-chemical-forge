@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Exercise the offline fixed-target CML open command against a real Ferrum CLI."""
 
 # Standard Library
@@ -72,7 +71,7 @@ def main() -> None:
 		}), encoding="utf-8")
 		protocol = subprocess.run(
 			[str(ferrum), "document", "command",
-			 "document.molecule.interchange.import.v1", str(protocol_request)],
+			"document.molecule.interchange.import.v1", str(protocol_request)],
 			text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
 		)
 		if protocol.returncode != 0 or protocol.stderr:
@@ -124,7 +123,7 @@ def main() -> None:
 		}), encoding="utf-8")
 		protocol_refusal = subprocess.run(
 			[str(ferrum), "document", "command",
-			 "document.molecule.interchange.import.v1", str(protocol_request)],
+			"document.molecule.interchange.import.v1", str(protocol_request)],
 			text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
 		)
 		refusal_protocol_envelope = json.loads(protocol_refusal.stdout)

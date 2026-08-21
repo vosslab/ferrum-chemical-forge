@@ -227,8 +227,15 @@ def register_main_window_actions(window: object) -> ActionRegistry:
 	attribute_paths: dict[int, str] = {}
 	for attribute, value in vars(window).items():
 		attribute_paths.update(_attribute_action_paths(value, attribute))
+	direct_line_tool_actions = {
+		getattr(window, "_attach_cyclohexane_ring_action", None),
+	}
 	for qt_action in window.findChildren(PySide6.QtGui.QAction):
-		if qt_action.parent() is not window or qt_action in registry._qt_actions.values():
+		if (
+			qt_action.parent() is not window
+			or qt_action in registry._qt_actions.values()
+			or qt_action in direct_line_tool_actions
+		):
 			continue
 		action_id = _fallback_action_id(attribute_paths.get(id(qt_action), ""), qt_action)
 		base_action_id = action_id

@@ -25,12 +25,12 @@ def main() -> None:
 	sys.path.insert(0, str(install_root))
 	import ferrum_chem
 
-	def session(cdml: str):
+	def session(cdml: str) -> object:
 		value = ferrum_chem.DocumentSession.load(cdml)
 		value._publish_live_render_plan_v1(value.snapshot().revision)
 		return value
 
-	def selected(value, identifier: str):
+	def selected(value: object, identifier: str) -> tuple[object, object]:
 		snapshot = value.snapshot()
 		observation = value.observe_render_interaction_v1(snapshot.revision, snapshot.digest)
 		selection = value.select_render_interaction_roots_v1(
@@ -38,7 +38,7 @@ def main() -> None:
 		)
 		return selection, value._capture_live_document_smarts_selected_query_v1(selection)
 
-	def expect_selection_failure(value, token, reason) -> None:
+	def expect_selection_failure(value: object, token: object, reason: object) -> None:
 		try:
 			value._run_live_document_smarts_query_v1(token, 1, 1)
 		except ferrum_chem.LiveDocumentSmartsError as error:

@@ -49,7 +49,7 @@ def _proof_environment() -> dict[str, str]:
 
 
 #============================================
-def _wait_for_local_cdml_open(
+def _wait_for_local_document_open(
 		host: object, path: pathlib.Path, *, require_success: bool,
 		) -> None:
 	"""Wait for one public local-CDML completion without weakening its async contract."""
@@ -65,20 +65,20 @@ def _wait_for_local_cdml_open(
 		if pathlib.Path(completed_path) != path:
 			return
 		completed.append(success)
-		if not host.has_pending_local_cdml_open():
+		if not host.has_pending_local_document_open():
 			loop.quit()
 
-	host.local_cdml_open_completed.connect(receive_completion)
+	host.local_document_open_completed.connect(receive_completion)
 	timeout.timeout.connect(loop.quit)
 	try:
-		if host.has_pending_local_cdml_open():
+		if host.has_pending_local_document_open():
 			timeout.start(10000)
 			loop.exec()
 		if not completed:
 			raise NativeCdmlRouteE2eError(
 				"Ferrum local CDML open did not complete within 10 seconds",
 			)
-		if host.has_pending_local_cdml_open():
+		if host.has_pending_local_document_open():
 			raise NativeCdmlRouteE2eError(
 				"Ferrum local CDML completion retained a pending open",
 			)
@@ -88,17 +88,17 @@ def _wait_for_local_cdml_open(
 			)
 	finally:
 		timeout.stop()
-		host.local_cdml_open_completed.disconnect(receive_completion)
+		host.local_document_open_completed.disconnect(receive_completion)
 
 
 #============================================
-def _drain_local_cdml_open(host: object, path: pathlib.Path) -> None:
+def _drain_local_document_open(host: object, path: pathlib.Path) -> None:
 	"""Cancel then join a pending local-CDML worker before disposing its host."""
-	if not host.has_pending_local_cdml_open():
+	if not host.has_pending_local_document_open():
 		return
-	host._cancel_local_cdml_open()
-	_wait_for_local_cdml_open(host, path, require_success=False)
-	if host.has_pending_local_cdml_open():
+	host._cancel_local_document_open()
+	_wait_for_local_document_open(host, path, require_success=False)
+	if host.has_pending_local_document_open():
 		raise NativeCdmlRouteE2eError(
 			"Ferrum local CDML worker remained pending after cancellation",
 		)
@@ -138,9 +138,9 @@ def _probe() -> dict[str, object]:
 	try:
 		if not host.open_file_path(str(source_path)):
 			raise NativeCdmlRouteE2eError("Ferrum CDML open returned false")
-		_wait_for_local_cdml_open(host, source_path, require_success=True)
+		_wait_for_local_document_open(host, source_path, require_success=True)
 	except BaseException:
-		_drain_local_cdml_open(host, source_path)
+		_drain_local_document_open(host, source_path)
 		host.close()
 		app.processEvents()
 		raise

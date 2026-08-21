@@ -102,6 +102,19 @@ def _run_engine_bundle_fixtures(api: types.ModuleType) -> None:
 		lambda: api.output_path("/private/tmp/unrelated-output"),
 		"unscoped temporary output root",
 	)
+	_reject(
+		api,
+		lambda: api.output_path(str(
+			api.REPO_ROOT / "output_native_wheel" / "native-retired" / "descendant"
+		)),
+		"retired rotating native publication descendant",
+	)
+	staging_root = api.REPO_ROOT / "build" / "native-staging" / "native-self-test"
+	if api.output_path(str(staging_root)) != staging_root:
+		raise api.NativeBuildError("engine bundle fixture rejected an admitted staging root")
+	for output_root in (api.REPO_ROOT / "output-release", api.REPO_ROOT / "output-wheelhouse"):
+		if api.output_path(str(output_root)) != output_root:
+			raise api.NativeBuildError("engine bundle fixture rejected an admitted output root")
 
 
 #============================================
@@ -526,6 +539,66 @@ def _run_source_and_redirect_fixtures(api: types.ModuleType, root: Path, tempora
 
 
 #============================================
+def _run_managed_archive_cache_fixtures(api: types.ModuleType, root: Path) -> None:
+	"""Verify the profile-owned cache validates, provisions, and preserves overrides."""
+	profile = RdkitCapabilityProfile(
+		name="managed-cache-fixture",
+		rdkit=_fixture_source(root, "rdkit", "rdkit.tar.gz"),
+		dependencies=(
+			_fixture_source(root, "catch2", "catch2.tar.gz"),
+		),
+		cmake_options=(),
+		forbidden_wheel_fragments=(),
+		forbidden_native_fragments=(),
+	)
+	original_repo_root = api.REPO_ROOT
+	original_profile = api.FERRUM_RDKIT_PROFILE
+	original_downloader = api.download_verified_archive
+	try:
+		api.REPO_ROOT = root
+		api.FERRUM_RDKIT_PROFILE = profile
+		cache_root = api.managed_source_archive_cache_root()
+		if cache_root != root / "build" / "native-source-archives" / profile.name:
+			raise api.NativeBuildError("managed archive cache is not profile-scoped")
+		for source in (profile.rdkit, *profile.dependencies):
+			archive = root / "downloads" / source.archive_filename
+			(cache_root / source.archive_filename).parent.mkdir(parents=True, exist_ok=True)
+			(cache_root / source.archive_filename).write_bytes(archive.read_bytes())
+		calls: list[str] = []
+		def no_download(destination: Path, url: str, digest: str, label: str) -> Path:
+			calls.append(label)
+			return original_downloader(destination, url, digest, label)
+		api.download_verified_archive = no_download
+		if api.provision_managed_source_archive_cache() != cache_root or calls:
+			raise api.NativeBuildError("valid managed archive cache unexpectedly downloaded")
+		(cache_root / profile.dependencies[0].archive_filename).unlink()
+		def provision_one(destination: Path, url: str, digest: str, label: str) -> Path:
+			calls.append(label)
+			source = root / "downloads" / Path(destination).name
+			destination.write_bytes(source.read_bytes())
+			return original_downloader(destination, url, digest, label)
+		calls.clear()
+		api.download_verified_archive = provision_one
+		api.provision_managed_source_archive_cache()
+		if calls != [profile.dependencies[0].name]:
+			raise api.NativeBuildError("managed cache did not provision exactly its missing archive")
+		(cache_root / profile.rdkit.archive_filename).write_bytes(b"bad")
+		calls.clear()
+		_reject(api, api.provision_managed_source_archive_cache, "bad managed archive digest")
+		if calls:
+			raise api.NativeBuildError("bad managed archive digest was replaced instead of refused")
+		explicit_root = root / "explicit"
+		explicit_root.mkdir()
+		arguments = argparse.Namespace(source_archive_root=explicit_root)
+		if api.archive_root_for_build(arguments) != explicit_root or calls:
+			raise api.NativeBuildError("explicit archive root provisioned the managed cache")
+	finally:
+		api.download_verified_archive = original_downloader
+		api.FERRUM_RDKIT_PROFILE = original_profile
+		api.REPO_ROOT = original_repo_root
+
+
+#============================================
 def _run_archive_fixtures(api: types.ModuleType, root: Path) -> None:
 	"""Verify native-library identity and safe archive extraction behavior."""
 	library = root / "libRDKitRDGeneral.2026.03.4.dylib"
@@ -772,6 +845,7 @@ def run(api: types.ModuleType) -> None:
 		root.mkdir()
 		_run_native_input_manifest_fixtures(api, root, temporary)
 		_run_source_and_redirect_fixtures(api, root, temporary)
+		_run_managed_archive_cache_fixtures(api, root)
 		_run_archive_fixtures(api, root)
 		stage_root = Path(temporary) / "output-stage"
 		stage_root.mkdir()

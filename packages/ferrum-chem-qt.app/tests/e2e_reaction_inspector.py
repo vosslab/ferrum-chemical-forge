@@ -215,7 +215,7 @@ def _open_and_wait(window: object, path: pathlib.Path) -> object:
 			completed.append(success)
 			_trace(f"async-open-completed={success}")
 			loop.quit()
-	window.local_cdml_open_completed.connect(receive)
+	window.local_document_open_completed.connect(receive)
 	timeout.timeout.connect(loop.quit)
 	try:
 		if not window.open_file_path(str(path)):
@@ -224,7 +224,7 @@ def _open_and_wait(window: object, path: pathlib.Path) -> object:
 		loop.exec()
 	finally:
 		timeout.stop()
-		window.local_cdml_open_completed.disconnect(receive)
+		window.local_document_open_completed.disconnect(receive)
 	if completed != [True]:
 		raise RuntimeError("Ferrum native Open did not complete the saved reaction document")
 	return window._active_native_tab()

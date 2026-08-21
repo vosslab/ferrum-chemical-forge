@@ -1,7 +1,11 @@
 """Shared bounded element-change dialog for Ferrum document tabs."""
 
 # PIP3 modules
+import ferrum_chem
 import PySide6.QtWidgets
+
+# local repo modules
+import ferrum_qt.ferrum.document_tab
 
 
 #============================================
@@ -28,7 +32,19 @@ def run_change_selected_atom_element_dialog(window: object) -> bool:
 		return False
 	try:
 		tab.change_selected_atom_element(element)
-	except Exception as exc:
+	except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
+		# Rust accepted the edit. Recover its pending authoritative projection once;
+		# this is display recovery, never a second document submission.
+		recovered = tab.refresh_authoritative()
+		window._refresh_actions()
+		window._show_edit_refusal(window._unavailable_edit_refusal(
+			"The atom element was changed. Ferrum refreshed the authoritative Rust display."
+			if recovered else
+			"The atom element was changed, but its authoritative display still needs "
+			"recovery; refresh before saving or editing.",
+		))
+		return True
+	except ferrum_chem.OperationValidationError as exc:
 		window._show_edit_refusal(window._unavailable_edit_refusal(str(exc)))
 		return False
 	return True

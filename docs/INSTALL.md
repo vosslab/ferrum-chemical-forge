@@ -72,29 +72,22 @@ files. It must be sourced, not executed.
 
 ## Build local native artifacts
 
-`build.sh native` is a source-verified developer build, not bare Maturin packaging. It requires
-exactly one explicit local native input source and never downloads one implicitly. Use a previously
-validated sealed input root for the fast path, or a directory containing the pinned source archives
-for a fresh offline source build:
+`build.sh` is a source-verified developer build, not bare Maturin packaging. The canonical
+storage, cleanup, concurrency, input, and disk-budget contract is
+[NATIVE_WHEEL_BUILD.md](NATIVE_WHEEL_BUILD.md). The default developer build is:
 
 ```bash
-./build.sh all --native-sealed-input-root /absolute/path/to/sealed-native-input-root
-./build.sh all --native-source-archive-root /absolute/path/to/native-source-archives
+./build.sh
 ```
 
-Each invocation creates a fresh ignored child below `output_native_wheel/`. The builder emits the
-authoritative wheel path and creates the matching `ferrum-engine-bundle` in that same child.
-`build.sh` prints the exact commands for the selected wheel, the matching CLI bundle, and the Qt
-application. Run those printed paths rather than choosing a wheel from `build/wheelhouse/`.
-
-For example, after the first command, use the paths printed by that invocation in this order:
+Use the printed paths from that invocation in this order:
 
 ```bash
 source source_me.sh && python3 -m pip install --force-reinstall --no-deps \
-  /absolute/path/output_native_wheel/native-XXXXXXXX/wheelhouse/ferrum_chem-*.whl \
+  /absolute/path/output_native_wheel/current/wheelhouse/ferrum_chem-*.whl \
   /absolute/path/build/wheelhouse/ferrum_qt-*.whl
 build/bin/ferrum engine install \
-  /absolute/path/output_native_wheel/native-XXXXXXXX/ferrum-engine-bundle
+  /absolute/path/output_native_wheel/current/ferrum-engine-bundle
 build/bin/ferrum engine status
 ferrum-qt
 ```
