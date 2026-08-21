@@ -8,7 +8,6 @@ import PySide6.QtWidgets
 import ferrum_qt.ferrum.graphics_view
 import ferrum_qt.modes.base_mode
 import ferrum_qt.modes.mode_manager
-import ferrum_qt.widgets.mode_toolbar
 import ferrum_qt.widgets.property_dock
 import ferrum_qt.widgets.status_bar
 import ferrum_qt.widgets.zoom_controls
@@ -28,14 +27,14 @@ def install_shared_window_seams(window: object, registry: object) -> None:
 	window._mode_manager = ferrum_qt.modes.mode_manager.ModeManager(
 		lambda context, intent: _dispatch_mode_intent(window, context, intent),
 	)
-	toolbar = ferrum_qt.widgets.mode_toolbar.ModeToolbar(registry, window)
+	toolbar = getattr(window, "_authoring_ribbon", None)
+	if toolbar is None:
+		raise RuntimeError("Ferrum shared seams require the authoring ribbon")
 	for mode_id, action_id in _MODE_ACTIONS:
-		toolbar.add_mode(mode_id, action_id)
-	toolbar.add_compact_chooser()
+		toolbar.add_mode(mode_id, registry.get_qt_action(action_id))
 	toolbar.mode_selected.connect(
 		lambda mode_id: _activate_mode(window, toolbar, mode_id),
 	)
-	window.addToolBar(PySide6.QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
 	window._shared_mode_toolbar = toolbar
 
 	old_dock = getattr(window, "_native_property_dock", None)

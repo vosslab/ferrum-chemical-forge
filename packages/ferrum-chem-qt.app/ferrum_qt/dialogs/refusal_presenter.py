@@ -30,6 +30,7 @@ class RefusalOutcome(enum.Enum):
 	SAVE_DISPLAY_FAILED = "save_display_failed"
 	BUSY_CLOSE = "busy_close"
 	STALE_TOOL = "stale_tool"
+	UNRENDERABLE_MOLECULE = "unrenderable_molecule"
 	UNAVAILABLE_OPERATION = "unavailable_operation"
 	NO_UNDO = "no_undo"
 
@@ -90,6 +91,8 @@ def present_refusal(request: RefusalRequest) -> RefusalPresentation:
 		return _busy_close(request)
 	if request.outcome is RefusalOutcome.STALE_TOOL:
 		return _stale_tool(request)
+	if request.outcome is RefusalOutcome.UNRENDERABLE_MOLECULE:
+		return _unrenderable_molecule(request)
 	if request.outcome is RefusalOutcome.UNAVAILABLE_OPERATION:
 		return _unavailable_operation(request)
 	if request.outcome is RefusalOutcome.NO_UNDO:
@@ -120,7 +123,8 @@ def _validate_request(request: RefusalRequest) -> None:
 		if request.context is not RefusalTaskContext.USE_TOOL:
 			raise ValueError("stale-tool refusal needs a use-tool context")
 	if request.outcome in (
-			RefusalOutcome.UNAVAILABLE_OPERATION, RefusalOutcome.NO_UNDO,
+			RefusalOutcome.UNRENDERABLE_MOLECULE, RefusalOutcome.UNAVAILABLE_OPERATION,
+			RefusalOutcome.NO_UNDO,
 		) and request.context is not RefusalTaskContext.EDIT_DOCUMENT:
 		raise ValueError("editing refusal needs an edit-document context")
 
@@ -253,6 +257,20 @@ def _stale_tool(request: RefusalRequest) -> RefusalPresentation:
 		"This tool was prepared for an earlier version of the drawing and was not used.",
 		"The drawing changed before the tool could finish.",
 		"Choose the tool again, then repeat the step.",
+		request.technical_details,
+	)
+
+
+#============================================
+def _unrenderable_molecule(request: RefusalRequest) -> RefusalPresentation:
+	"""Explain why a structural edit cannot produce visible canvas feedback."""
+	return RefusalPresentation(
+		"Cannot Add an Atom Here",
+		"Ferrum did not change the drawing.",
+		"The selected molecule cannot currently be drawn on the Ferrum canvas.",
+		"Choose another visible molecule. If this is the only molecule, use a "
+		"Ferrum-supported element, hydrogen, and charge label or a supported style, "
+		"then reopen the drawing.",
 		request.technical_details,
 	)
 

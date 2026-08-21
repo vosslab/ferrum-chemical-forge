@@ -1,0 +1,18 @@
+[package]
+name = "ferrum-catalog-placement"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+[dependencies]
+ferrum-document = { path = "../document" }
+ferrum-domain = { path = "../domain" }
+ferrum-render = { path = "../render" }
+ferrum-render-contract = { path = "../render-contract" }
+thiserror = { version = "*" }

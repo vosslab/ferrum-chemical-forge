@@ -1,9 +1,12 @@
 //! Exact-observation source facts plus native perceived composition.
 
-use crate::{DocumentObjectIdV1, SessionDocumentObservationV1, TypedDocument};
+use crate::{
+    DocumentObjectIdV1, MoleculeProjectionV1, SessionDocumentObservationV1, TypedDocument,
+};
 use ferrum_chemistry::{
     ChemEngine, ChemistryError, CompositionAggregationError, MolGraph, MoleculeComposition,
 };
+use ferrum_core::Molecule;
 use thiserror::Error;
 
 use super::document_molecule_composition_graph_v1::{
@@ -11,8 +14,10 @@ use super::document_molecule_composition_graph_v1::{
 };
 use super::document_molecule_inspection_v1::{
     DocumentMoleculeInspectionErrorV1, DocumentMoleculeInspectionV1,
-    build_document_molecule_inspection_v1, direct_projection_molecule_v1,
-    verify_molecule_observation_v1,
+    build_document_molecule_inspection_v1,
+};
+use super::document_molecule_inspection_v1::{
+    direct_projection_molecule_v1, verify_molecule_observation_v1,
 };
 
 /// Stable schema identifier for complete molecule-information receipts.
@@ -169,39 +174,26 @@ pub fn prepare_document_molecule_information_v1(
     observation: &SessionDocumentObservationV1,
     request: &DocumentMoleculeInformationRequestV1,
 ) -> Result<PreparedDocumentMoleculeInformationV1, DocumentMoleculeInformationErrorV1> {
-    verify_molecule_observation_v1(
+    let snapshot = observation.snapshot();
+    let sources = resolve_information_sources_v1(
         observation,
         request.expected_revision,
         &request.expected_digest,
+        &request.molecule_ids,
     )?;
-    let snapshot = observation.snapshot();
-    let projection = observation.projection();
-    let document = TypedDocument::parse(snapshot.cdml())
-        .map_err(DocumentMoleculeInspectionErrorV1::Document)?;
     let mut records = Vec::new();
     records
-        .try_reserve_exact(request.molecule_ids.len())
+        .try_reserve_exact(sources.len())
         .map_err(|_| DocumentMoleculeInformationErrorV1::ResourceAllocation)?;
-    for molecule_id in &request.molecule_ids {
-        let root = direct_projection_molecule_v1(projection, molecule_id)?;
-        let root_source_id = root
-            .source_id()
-            .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
-        let molecule = document
-            .core_molecule(molecule_id)
-            .map_err(DocumentMoleculeInspectionErrorV1::CoreProjection)?
-            .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
-        if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(root_source_id) {
-            return Err(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch.into());
-        }
+    for resolved in sources {
         let source_facts = build_document_molecule_inspection_v1(
             snapshot.revision(),
             snapshot.digest(),
-            molecule_id,
-            root,
-            &molecule,
+            &resolved.molecule_id,
+            &resolved.root,
+            &resolved.molecule,
         )?;
-        let graph = document_molecule_composition_graph_v1(&molecule)?;
+        let graph = document_molecule_composition_graph_v1(&resolved.molecule)?;
         records.push(PreparedRecordV1 {
             source_facts,
             graph,
@@ -279,4 +271,48 @@ pub enum DocumentMoleculeInformationErrorV1 {
     /// Owned operation or result storage could not be allocated completely.
     #[error("molecule information could not reserve owned storage")]
     ResourceAllocation,
+}
+
+/// This resolver is private to molecule-information preparation.  It keeps the
+/// document crate independent of the report protocol enclave while retaining
+/// exact projection/core corroboration for this older document operation.
+struct ResolvedInformationSourceV1 {
+    molecule_id: DocumentObjectIdV1,
+    root: MoleculeProjectionV1,
+    molecule: Molecule,
+}
+
+fn resolve_information_sources_v1(
+    observation: &SessionDocumentObservationV1,
+    expected_revision: u64,
+    expected_digest: &[u8; 32],
+    molecule_ids: &[DocumentObjectIdV1],
+) -> Result<Vec<ResolvedInformationSourceV1>, DocumentMoleculeInformationErrorV1> {
+    verify_molecule_observation_v1(observation, expected_revision, expected_digest)?;
+    let document = TypedDocument::parse(observation.snapshot().cdml())
+        .map_err(DocumentMoleculeInspectionErrorV1::Document)?;
+    let mut sources = Vec::new();
+    sources
+        .try_reserve_exact(molecule_ids.len())
+        .map_err(|_| DocumentMoleculeInformationErrorV1::ResourceAllocation)?;
+    for molecule_id in molecule_ids {
+        let root = direct_projection_molecule_v1(observation.projection(), molecule_id)?;
+        let source_id = root
+            .source_id()
+            .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
+        let molecule = document
+            .core_molecule(molecule_id)
+            .map_err(DocumentMoleculeInspectionErrorV1::CoreProjection)?
+            .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
+        if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(source_id) {
+            return Err(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch.into());
+        }
+        sources.push(ResolvedInformationSourceV1 {
+            molecule_id: molecule_id.clone(),
+            root: root.clone(),
+            molecule,
+        });
+    }
+    sources.sort_by_key(|source| source.root.source_order());
+    Ok(sources)
 }

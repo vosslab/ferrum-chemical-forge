@@ -17,9 +17,6 @@ AI agents frequently get these wrong. Read the full sections below for details.
 - **Declare all third-party imports.** Every non-stdlib, non-local import must be in `pip_requirements.txt`. See [IMPORT REQUIREMENTS](#import-requirements).
 - **No brittle pytest assertions.** Do not assert on dates, collection sizes, required key lists, hardcoded defaults, or function names. See [PYTEST_STYLE.md](PYTEST_STYLE.md).
 - **No `assert` in plain scripts.** All `assert` statements live in `tests/test_*.py`, `tests/playwright/` (browser tests), or `tests/e2e/` (shell/Python E2E). Module-level asserts run on every import and slow script startup. See [ASSERT](#assert).
-- **Do not use `py_compile` or `compileall` for validation.** They explicitly
-  write bytecode even with `sys.dont_write_bytecode`, `PYTHONDONTWRITEBYTECODE`, or
-  `-B`. Use pytest or AST parsing instead.
 
 ## Python version
 
@@ -174,10 +171,6 @@ volume_text = f"<span style='font-family: monospace;'>{vol1:.1f} mL</span>"
 - I like to test the code with **pyflakes** and **mypy**
 - create a folder in most projects called tests for storing test scripts
 - a good repo-wide pyflakes gate is `tests/test_pyflakes_code_lint.py` (run with pytest)
-- Do not validate source with `py_compile` or `compileall`. Those explicit bytecode
-  compilers write `.pyc` files despite `sys.dont_write_bytecode`,
-  `PYTHONDONTWRITEBYTECODE`, or `python3 -B`. Use pytest for executable behavior or
-  `ast.parse()` for syntax-only inspection without creating bytecode.
 - For pytest-specific style, test design, and command usage, see [PYTEST_STYLE.md](PYTEST_STYLE.md).
 - For slow end-to-end tests run outside pytest, see [E2E_TESTS.md](E2E_TESTS.md).
 ```bash

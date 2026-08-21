@@ -5,7 +5,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
-import ferrum_qt.widgets.mode_toolbar
+import ferrum_qt.ferrum.authoring_ribbon
 import ferrum_qt.widgets.property_dock
 import ferrum_qt.widgets.status_bar
 import ferrum_qt.widgets.zoom_controls
@@ -19,7 +19,9 @@ def test_ordinary_window_uses_shared_declarative_clients(
 	del qapp
 	window = ferrum_qt.main_window.MainWindow(object())
 	try:
-		assert isinstance(window._shared_mode_toolbar, ferrum_qt.widgets.mode_toolbar.ModeToolbar)
+		assert isinstance(
+			window._shared_mode_toolbar, ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon,
+		)
 		assert isinstance(window._native_property_dock, ferrum_qt.widgets.property_dock.PropertyDock)
 		assert isinstance(window.statusBar(), ferrum_qt.widgets.status_bar.StatusBar)
 		assert isinstance(window._shared_zoom_controls, ferrum_qt.widgets.zoom_controls.ZoomControls)

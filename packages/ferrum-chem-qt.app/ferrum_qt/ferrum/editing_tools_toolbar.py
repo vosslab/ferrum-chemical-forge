@@ -11,6 +11,13 @@ import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.drawing_parameters_client
 
 
+# The ordinary window uses a compact command ribbon. These values match the
+# primary action toolbar so that both command groups share one visual rhythm.
+COMPACT_ICON_SIZE = 20
+COMPACT_TOOLBAR_SPACING = 2
+COMPACT_TOOLBUTTON_PADDING = 2
+
+
 EditingTool = tuple[PySide6.QtGui.QAction, str]
 
 
@@ -41,17 +48,19 @@ class FerrumNativeEditingToolsToolbar(PySide6.QtWidgets.QToolBar):
 			PySide6.QtWidgets.QSizePolicy.Policy.Ignored,
 			PySide6.QtWidgets.QSizePolicy.Policy.Fixed,
 		)
-		self.setIconSize(PySide6.QtCore.QSize(24, 24))
+		self.setIconSize(PySide6.QtCore.QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
 		self.setToolButtonStyle(
-			PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon,
+			PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly,
+		)
+		self.setStyleSheet(
+			"QToolBar { spacing: " + str(COMPACT_TOOLBAR_SPACING) + "px; }"
+			"QToolButton { padding: " + str(COMPACT_TOOLBUTTON_PADDING) + "px; }",
 		)
 		self._tools = tools
 		self._cancel_action = cancel_action
 		self._theme_manager = theme_manager
 		self._drawing_parameters = drawing_parameters
 		self._next_drawing_action = next_drawing_action
-		self._add_visible_header(parent)
-		self.addSeparator()
 		for tool_index, (action, _icon_name) in enumerate(tools):
 			if tool_index in (1, 5):
 				self.addSeparator()
@@ -83,24 +92,6 @@ class FerrumNativeEditingToolsToolbar(PySide6.QtWidgets.QToolBar):
 			)
 		)
 		self.addWidget(self._drawing_parameters_client)
-
-	#============================================
-	def _add_visible_header(self, parent: PySide6.QtWidgets.QMainWindow) -> None:
-		"""Add the docked toolbar's visible category identity without state policy."""
-		header = PySide6.QtWidgets.QLabel(parent.tr("Editing Tools"), self)
-		header.setAccessibleName(parent.tr("Editing Tools"))
-		header.setAccessibleDescription(parent.tr(
-			"Canvas editing commands are available in the following toolbar controls.",
-		))
-		header.setContentsMargins(4, 0, 4, 0)
-		header.setAlignment(
-			PySide6.QtCore.Qt.AlignmentFlag.AlignVCenter
-			| PySide6.QtCore.Qt.AlignmentFlag.AlignLeft,
-		)
-		font = header.font()
-		font.setBold(True)
-		header.setFont(font)
-		self.addWidget(header)
 
 	#============================================
 	def _theme_name(self) -> str:
@@ -153,7 +144,6 @@ def install_native_editing_tools_toolbar(window: PySide6.QtWidgets.QMainWindow,
 			FerrumNativeDrawingParameters
 			), next_drawing_action: PySide6.QtGui.QAction) -> FerrumNativeEditingToolsToolbar:
 	"""Install the ordinary toolbar and its View-menu visibility action."""
-	window.addToolBarBreak(PySide6.QtCore.Qt.ToolBarArea.TopToolBarArea)
 	toolbar = FerrumNativeEditingToolsToolbar(
 		tools, cancel_action, theme_manager, drawing_parameters, next_drawing_action, window,
 	)

@@ -298,6 +298,10 @@ def _run_manifest_rejection_fixtures(
 		raise api.NativeBuildError("adapter input self-test did not retain GraphMol install name")
 	if private_layout.graphmol_library.resolve().name != "libRDKitGraphMol.2026.03.4.dylib":
 		raise api.NativeBuildError("adapter input self-test did not validate GraphMol target")
+	if private_layout.substructmatch_library.name != "libRDKitSubstructMatch.1.dylib":
+		raise api.NativeBuildError(
+			"ABI-5 SMARTS capability did not retain SubstructMatch install name"
+		)
 	expected_include_dir = private_input / "rdkit-install" / "include" / "rdkit"
 	if private_layout.include_dir != expected_include_dir.resolve():
 		raise api.NativeBuildError(
@@ -326,6 +330,13 @@ def _run_manifest_rejection_fixtures(
 		"rdkit-install/lib/libRDKitGraphMol.2026.03.4.dylib"
 	):
 		raise api.NativeBuildError("manifest self-test did not record GraphMol resolved target")
+	if not any(
+		record["alias_path"] == "rdkit-install/lib/libRDKitSubstructMatch.1.dylib"
+		for record in library_records
+	):
+		raise api.NativeBuildError(
+			"ABI-5 SMARTS capability manifest omitted SubstructMatch"
+		)
 	manifest_path.unlink()
 	_reject(
 		api,

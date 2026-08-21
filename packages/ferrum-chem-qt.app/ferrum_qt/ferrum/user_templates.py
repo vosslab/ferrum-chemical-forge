@@ -133,10 +133,25 @@ class FerrumNativeUserTemplateWindowMixin:
 		self._place_user_template_action.setToolTip(self.tr(
 			"Choose reusable chemical content, then click once to place its atom centroid",
 		))
-		self._place_user_template_action.triggered.connect(
-			self._on_place_user_template,
+		self._connect_interaction_action_v1(
+			self._place_user_template_action, self._on_place_user_template,
+		)
+		self._place_user_template_action.toggled.connect(
+			self._on_place_user_template_toggled,
 		)
 		chemistry_menu.addAction(self._place_user_template_action)
+
+	#============================================
+	def _on_place_user_template_toggled(self, checked: bool) -> None:
+		"""Release this owner before an exclusive incoming tool can activate.
+
+		QActionGroup unchecks its outgoing action through ``toggled(False)``;
+		it does not issue the outgoing action's ``triggered(False)`` callback.
+		The template owner therefore performs its own terminal cleanup here, before
+		the selected authoring action receives canvas events.
+		"""
+		if not checked:
+			self._cancel_user_template_placement()
 
 	#============================================
 	def refresh_user_templates(

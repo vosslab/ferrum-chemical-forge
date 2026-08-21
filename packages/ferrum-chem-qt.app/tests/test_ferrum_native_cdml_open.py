@@ -153,20 +153,33 @@ def _wait_for_open_queue(
 		window: ferrum_qt.main_window.MainWindow,
 		start: collections.abc.Callable[[], object],
 		) -> bool:
-	"""Run the Qt event loop until one accepted Open batch drains."""
+	"""Run one queued Open batch with one completion outcome or bounded timeout."""
 	loop = PySide6.QtCore.QEventLoop()
-	outcomes: list[bool] = []
+	timeout = PySide6.QtCore.QTimer()
+	timeout.setSingleShot(True)
+	outcome: bool | None = None
 
 	def finish(success: bool) -> None:
 		"""Capture the public batch outcome and stop the local event loop."""
-		outcomes.append(success)
+		nonlocal outcome
+		if outcome is not None:
+			return
+		outcome = success
 		loop.quit()
 
+	def expire() -> None:
+		"""Finish the bounded wait when the public completion signal is missing."""
+		finish(False)
+
 	window.local_cdml_open_queue_drained.connect(finish)
-	start()
+	timeout.timeout.connect(expire)
+	PySide6.QtCore.QTimer.singleShot(0, start)
+	timeout.start(10000)
 	loop.exec()
+	timeout.stop()
 	window.local_cdml_open_queue_drained.disconnect(finish)
-	return outcomes[0]
+	timeout.timeout.disconnect(expire)
+	return outcome is True
 
 
 #============================================
@@ -277,6 +290,40 @@ def test_programmatic_open_queues_multiple_launch_documents(
 		}
 		assert completed and origins == {first, second}
 		assert not initial_tab.is_disposed and initial_tab.file_path is None
+	finally:
+		window.close()
+
+
+#============================================
+def test_async_tab_activation_retires_only_the_outgoing_live_smarts_plan(
+		qapp: PySide6.QtWidgets.QApplication,
+		tmp_path: pathlib.Path,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""An admitted incoming tab remains queryable without a second observation."""
+	first_path = tmp_path / "first-live-smarts.cdml"
+	second_path = tmp_path / "second-live-smarts.cdml"
+	first_path.write_text(_EDITABLE_CDML, encoding="utf-8")
+	second_path.write_text(_EDITABLE_CDML, encoding="utf-8")
+	window = _make_window(qapp)
+	refusals: list[object] = []
+	monkeypatch.setattr(window, "_show_edit_refusal", refusals.append)
+	try:
+		first_opened = _wait_for_open_queue(window, lambda: window.open_file_path(str(first_path)))
+		assert not refusals, refusals
+		assert first_opened
+		first = _current_native_tab(window)
+		first_run = first._session._run_live_document_smarts_query_v1("C", 5, 20)
+		assert first_run.receipt is not None
+		second_opened = _wait_for_open_queue(window, lambda: window.open_file_path(str(second_path)))
+		assert not refusals
+		assert second_opened
+		second = _current_native_tab(window)
+		assert second is not first and not second.requires_refresh
+		with pytest.raises(ferrum_chem.LiveDocumentSmartsError, match="SMARTS query cannot continue"):
+			first._session._show_live_document_smarts_match_v1(first_run.receipt, 0)
+		second_run = second._session._run_live_document_smarts_query_v1("C", 5, 20)
+		assert second_run.receipt is not None and not second.requires_refresh
 	finally:
 		window.close()
 

@@ -47,6 +47,7 @@ class RichTextDialog(FerrumAccessibleDialog):
 			font_family: str = "Arial", font_size: int = 12, font_color: str = "#000000",
 			parent: PySide6.QtWidgets.QWidget | None = None,
 			*, capabilities: RichTextDialogCapabilities | None = None,
+			initial_text_selected: bool = False,
 			) -> None:
 		"""Create one modal rich-text editor from immutable plain run values."""
 		super().__init__(parent)
@@ -60,6 +61,11 @@ class RichTextDialog(FerrumAccessibleDialog):
 		self._color = PySide6.QtGui.QColor(font_color).name()
 		self._update_color_button()
 		self._initial_font_values = self.font_values()
+		if initial_text_selected:
+			cursor = self._text_edit.textCursor()
+			cursor.select(PySide6.QtGui.QTextCursor.SelectionType.Document)
+			self._text_edit.setTextCursor(cursor)
+			self.setProperty("ferrum_initial_focus_widget", self._text_edit)
 		self._update_controls()
 
 	#============================================
@@ -85,6 +91,10 @@ class RichTextDialog(FerrumAccessibleDialog):
 		self._italic_button = self._format_button("I", "i")
 		self._sub_button = self._format_button("Sub", "sub")
 		self._sup_button = self._format_button("Sup", "sup")
+		self._bold_button.setAccessibleName("Bold")
+		self._italic_button.setAccessibleName("Italic")
+		self._sub_button.setAccessibleName("Subscript")
+		self._sup_button.setAccessibleName("Superscript")
 		for button in (
 				self._bold_button, self._italic_button,
 				self._sub_button, self._sup_button,
@@ -94,16 +104,20 @@ class RichTextDialog(FerrumAccessibleDialog):
 		layout.addLayout(toolbar)
 		form = PySide6.QtWidgets.QFormLayout()
 		self._font_combo = PySide6.QtWidgets.QFontComboBox(self)
+		self._font_combo.setAccessibleName("Font family")
 		form.addRow("Font family:", self._font_combo)
 		self._font_spin = PySide6.QtWidgets.QSpinBox(self)
+		self._font_spin.setAccessibleName("Font size")
 		self._font_spin.setRange(4, 144)
 		form.addRow("Font size:", self._font_spin)
 		self._color = "#000000"
 		self._color_button = PySide6.QtWidgets.QPushButton(self)
+		self._color_button.setAccessibleName("Text color")
 		self._color_button.clicked.connect(self._pick_color)
 		form.addRow("Color:", self._color_button)
 		layout.addLayout(form)
 		self._text_edit = _PlainPasteTextEdit(self)
+		self._text_edit.setAccessibleName("Text content")
 		self._text_edit.setAcceptRichText(False)
 		self._text_edit.cursorPositionChanged.connect(self._update_controls)
 		layout.addWidget(self._text_edit)

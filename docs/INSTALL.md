@@ -70,6 +70,39 @@ python3 -m pip install --editable packages/ferrum-chem-qt.app
 The source environment script exports unbuffered Python output and disables bytecode
 files. It must be sourced, not executed.
 
+## Build local native artifacts
+
+`build.sh native` is a source-verified developer build, not bare Maturin packaging. It requires
+exactly one explicit local native input source and never downloads one implicitly. Use a previously
+validated sealed input root for the fast path, or a directory containing the pinned source archives
+for a fresh offline source build:
+
+```bash
+./build.sh all --native-sealed-input-root /absolute/path/to/sealed-native-input-root
+./build.sh all --native-source-archive-root /absolute/path/to/native-source-archives
+```
+
+Each invocation creates a fresh ignored child below `output_native_wheel/`. The builder emits the
+authoritative wheel path and creates the matching `ferrum-engine-bundle` in that same child.
+`build.sh` prints the exact commands for the selected wheel, the matching CLI bundle, and the Qt
+application. Run those printed paths rather than choosing a wheel from `build/wheelhouse/`.
+
+For example, after the first command, use the paths printed by that invocation in this order:
+
+```bash
+source source_me.sh && python3 -m pip install --force-reinstall --no-deps \
+  /absolute/path/output_native_wheel/native-XXXXXXXX/wheelhouse/ferrum_chem-*.whl \
+  /absolute/path/build/wheelhouse/ferrum_qt-*.whl
+build/bin/ferrum engine install \
+  /absolute/path/output_native_wheel/native-XXXXXXXX/ferrum-engine-bundle
+build/bin/ferrum engine status
+ferrum-qt
+```
+
+The native builder validates its declared input, compiles and relocates the adapter closure, writes
+the wheel receipt, and emits the separately installable CLI engine bundle. The developer command
+does not constitute the broader offline release proof below.
+
 ## Verify Ferrum
 
 Verify the lightweight command boundary without opening a window:
@@ -119,13 +152,24 @@ supported release.
 
 ## M22 release closure
 
-After the M20 receipt exists, run the release-artifact inventory against the final two wheels,
-the committed-release source archive, and that receipt. It classifies expected production roles
-and notice locations rather than comparing wheel bytes, artwork, member order, or member totals.
+After the M20 receipt exists, retain the release-artifact inventory against the final two wheels,
+the committed-release source archive, and that receipt. This maintainer-only closeout phase
+delegates all predicate checks to the inventory verifier, then atomically writes
+`ferrum-release-artifact-inventory.json` beside the supplied M20 receipt.
 
 ```bash
-source source_me.sh && python3 packages/ferrum-rust/tools/release_artifact_inventory.py --help
+source source_me.sh && python3 packages/ferrum-rust/tools/build_release_wheelhouse.py closeout \
+  --chem-wheel /absolute/path/ferrum_chem-26.08-cp312-cp312-macosx_11_0_arm64.whl \
+  --qt-wheel /absolute/path/ferrum_qt-26.08-py3-none-any.whl \
+  --source-archive /absolute/path/ferrum-26.08.tar.gz \
+  --receipt /absolute/path/ferrum-release-package-receipt.json
 ```
+
+For the standard M20 output root, the receipt is
+`output_release_m20/ferrum-release-package-receipt.json` and this command writes
+`output_release_m20/ferrum-release-artifact-inventory.json`. The command creates no wheels,
+source archives, or release claim. Its output still requires human legal and release review before
+publication.
 
 The source archive must retain both root license texts, and the native wheel route prepares the
 Ferrum-Chem LGPL, RDKit BSD-3-Clause, InChI MIT, Telex OFL, and reviewed notice-index roles in

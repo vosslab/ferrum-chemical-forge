@@ -27,6 +27,7 @@ import ferrum_qt.ferrum.coordinate_generation
 import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 import ferrum_qt.ferrum.geometry_actions
 import ferrum_qt.ferrum.line_tools
+import ferrum_qt.ferrum.structure_selection
 import ferrum_qt.ferrum.window_mode_sync
 import ferrum_qt.ferrum.haworth_tool
 import ferrum_qt.ferrum.direct_glycosidic_haworth_tool
@@ -37,13 +38,16 @@ import ferrum_qt.ferrum.molecule_imports
 import ferrum_qt.ferrum.molecule_exports
 import ferrum_qt.ferrum.molfile_export
 import ferrum_qt.ferrum.sdf_export
-import ferrum_qt.ferrum.molecule_inspection
+import ferrum_qt.ferrum.molecule_report
 import ferrum_qt.ferrum.molecule_name
 import ferrum_qt.ferrum.snapshot_export
 import ferrum_qt.ferrum.recovery_export
 import ferrum_qt.ferrum.selection_svg
+import ferrum_qt.ferrum.interaction_action_handoff
+import ferrum_qt.ferrum.smarts_query_dock
 import ferrum_qt.ferrum.view_controls
 import ferrum_qt.ferrum.user_templates as native_user_templates
+import ferrum_qt.ferrum.catalog_palette as native_catalog_palette
 import ferrum_qt.ferrum.presentation_properties
 import ferrum_qt.ferrum.property_dock
 import ferrum_qt.ferrum.paper_properties as native_paper_properties
@@ -73,6 +77,7 @@ class _AtomInsertionIntent:
 
 #============================================
 class FerrumNativeMainWindow(
+		native_catalog_palette.FerrumNativeCatalogPlacementWindowMixin,
 		ferrum_qt.ferrum.window_mode_sync.FerrumNativeWindowModeSyncMixin,
 		ferrum_qt.ferrum.explicit_fragments.
 		FerrumNativeExplicitFragmentsWindowMixin,
@@ -87,12 +92,13 @@ class FerrumNativeMainWindow(
 		ferrum_qt.window_native_files.WindowNativeFileMixin,
 		ferrum_qt.ferrum.recovery_export.FerrumNativeRecoveryExportWindowMixin,
 		ferrum_qt.ferrum.snapshot_export.FerrumNativeSnapshotExportWindowMixin,
+		ferrum_qt.ferrum.structure_selection.FerrumNativeStructureSelectionMixin,
 		ferrum_qt.ferrum.line_tools.FerrumNativeLineToolsMixin,
 		ferrum_qt.ferrum.molecule_imports.FerrumNativeMoleculeImportsMixin,
 		ferrum_qt.ferrum.sdf_export.FerrumNativeSdfExportMixin,
 		ferrum_qt.ferrum.molfile_export.FerrumNativeMolfileExportMixin,
 		ferrum_qt.ferrum.molecule_exports.FerrumNativeMoleculeExportsMixin,
-		ferrum_qt.ferrum.molecule_inspection.FerrumNativeMoleculeInspectionMixin,
+		ferrum_qt.ferrum.molecule_report.FerrumNativeMoleculeReportMixin,
 		ferrum_qt.ferrum.molecule_name.FerrumNativeMoleculeNameWindowMixin,
 		ferrum_qt.ferrum.linear_form.FerrumNativeLinearFormWindowMixin,
 		ferrum_qt.ferrum.coordinate_generation.
@@ -117,6 +123,10 @@ class FerrumNativeMainWindow(
 			) -> None:
 		"""Build the small Ferrum document host and its reachable file actions."""
 		super().__init__(parent)
+		self._interaction_action_handoff = (
+			ferrum_qt.ferrum.interaction_action_handoff.
+			FerrumInteractionActionHandoff()
+		)
 		getattr(self, "_initialize_native_file_menu_clients", lambda: None)()
 		self._native_tabs_by_page = {}
 		self._drawing_parameters = (
@@ -124,10 +134,12 @@ class FerrumNativeMainWindow(
 			FerrumNativeDrawingParameters()
 		)
 		self._initialize_native_user_templates(user_template_directory)
+		self._initialize_catalog_placement()
 		self._initialize_local_cdml_open()
 		self._initialize_view_controls()
 		self._atom_insertion_intent: _AtomInsertionIntent | None = None
 		self._initialize_line_tools()
+		self._initialize_structure_selection()
 		self._initialize_molecule_imports()
 		self._initialize_sdf_exports()
 		self._initialize_molfile_exports()
@@ -138,12 +150,19 @@ class FerrumNativeMainWindow(
 		self._initialize_snapshot_exports()
 		self._tab_widget = PySide6.QtWidgets.QTabWidget(self)
 		self._tab_widget.setTabsClosable(True)
+		self._last_native_tab = None
 		self._tab_widget.currentChanged.connect(self._on_native_tab_changed)
 		self._tab_widget.tabCloseRequested.connect(self._close_tab_at)
 		self.setCentralWidget(self._tab_widget)
 		self.setWindowTitle(self.tr("Ferrum"))
 		self.resize(1000, 700)
 		self._build_actions()
+		self._smarts_query_controller = (
+			ferrum_qt.ferrum.smarts_query_dock.FerrumSmartsQueryController(self)
+		)
+		self._smarts_query_action = self._smarts_query_controller.install_action(
+			self._chemistry_menu,
+		)
 		self._native_property_dock = (
 			ferrum_qt.ferrum.property_dock.install_native_property_dock(
 				self, self._edit_atom_properties_action, self._edit_bond_properties_action,
@@ -280,7 +299,9 @@ class FerrumNativeMainWindow(
 		self._add_atom_action.setToolTip(
 			self.tr("Use Next atom, then click the canvas once; Esc cancels"),
 		)
-		self._add_atom_action.triggered.connect(self._on_toggle_add_atom)
+		self._connect_interaction_action_v1(
+			self._add_atom_action, self._on_toggle_add_atom,
+		)
 		edit_menu.addAction(self._add_atom_action)
 		self._add_single_bond_action = PySide6.QtGui.QAction(
 			self.tr("Add Single Bond Between Selected Atoms"), self,
@@ -291,6 +312,7 @@ class FerrumNativeMainWindow(
 		self._add_single_bond_action.triggered.connect(self._on_add_single_bond)
 		edit_menu.addAction(self._add_single_bond_action)
 		self._build_line_tool_actions(edit_menu)
+		self._build_structure_selection_action(edit_menu)
 		self._build_top_level_transform_actions(edit_menu)
 		self._undo_action = PySide6.QtGui.QAction(self.tr("Undo"), self)
 		self._undo_action.triggered.connect(self._on_undo)
@@ -304,6 +326,8 @@ class FerrumNativeMainWindow(
 		self._refresh_action.triggered.connect(self._on_refresh_authoritative)
 		edit_menu.addAction(self._refresh_action)
 		chemistry_menu = self.menuBar().addMenu(self.tr("Chemistry"))
+		self._chemistry_menu = chemistry_menu
+		self._build_catalog_template_action(chemistry_menu)
 		self._build_native_user_template_place_action(chemistry_menu)
 		self._build_molecule_import_actions(chemistry_menu)
 		self._build_sdf_export_actions(chemistry_menu)
@@ -316,6 +340,18 @@ class FerrumNativeMainWindow(
 		self._build_direct_glycosidic_haworth_action(chemistry_menu)
 		self._build_coordinate_generation_actions(chemistry_menu)
 		self._build_view_controls_actions()
+		self._wire_catalog_tool_replacement()
+
+	#============================================
+	def _connect_interaction_action_v1(self, action: PySide6.QtGui.QAction,
+			handler: object) -> None:
+		"""Register one action whose handler takes canvas interaction ownership."""
+		self._interaction_action_handoff.connect(action, handler)
+
+	#============================================
+	def _set_interaction_capture_canceller_v1(self, canceller: object | None) -> None:
+		"""Bind the current selected-root capture without exposing its state."""
+		self._interaction_action_handoff.set_capture_canceller(canceller)
 
 	def _on_change_element(self) -> None:
 		"""Collect one element spelling and submit it only to the active Ferrum tab."""
@@ -526,13 +562,17 @@ class FerrumNativeMainWindow(
 		if tab is None:
 			self._cancel_atom_insertion()
 			return
-		choices = tab.durable_molecule_choices()
+		choices = tab.canvas_authorable_molecule_choices()
 		if not choices:
 			self._cancel_atom_insertion()
 			self._show_edit_refusal(self._typed_refusal(
-				"edit_document", "unavailable_operation",
-				"This document has no durable molecule that Rust can edit.",
+				"edit_document", "unrenderable_molecule",
+				"The installed Rust render observation has no canvas-authorable molecule plan.",
 			))
+			# QAction's shortcut toggles its checked state after the triggered slot
+			# returns.  Settle the refused shortcut on the next Qt turn as well, so
+			# the visible tool state cannot disagree with the absent insertion intent.
+			PySide6.QtCore.QTimer.singleShot(0, self._cancel_atom_insertion)
 			return
 		drawing = self._drawing_parameters.snapshot()
 		choice = choices[0]
@@ -598,10 +638,20 @@ class FerrumNativeMainWindow(
 			self._cancel_atom_insertion(clear_status=False)
 			self._refresh_actions()
 			self.statusBar().clearMessage()
-			self._show_edit_refusal(self._typed_refusal("edit_document", "unavailable_operation", str(exc)))
+			self._show_atom_insertion_refusal(exc)
 			return
 		self.statusBar().showMessage(self.tr("Added one free-standing Rust atom."), 5000)
 		self._refresh_actions()
+
+	#============================================
+	def _show_atom_insertion_refusal(self, exc: Exception) -> None:
+		"""Present the canvas-plan refusal identically for pointer and keyboard use."""
+		outcome = "unrenderable_molecule" if isinstance(
+			exc,
+			ferrum_qt.ferrum.document_tab.
+			FerrumNativeDocumentTabUnrenderableMoleculeError,
+		) else "unavailable_operation"
+		self._show_edit_refusal(self._typed_refusal("edit_document", outcome, str(exc)))
 
 	#============================================
 	def _cancel_atom_insertion(self, clear_status: bool = True) -> None:
@@ -692,9 +742,11 @@ class FerrumNativeMainWindow(
 		tab.view.display_transform_changed.connect(self._refresh_native_view_status)
 		if activate:
 			self._tab_widget.setCurrentIndex(index)
-		if self._active_native_tab() is tab:
-			self._on_native_view_tab_changed()
-		self._refresh_actions()
+		# The first addTab() selects its page before this method can publish the
+		# page-to-tab mapping.  Re-enter the authoritative activation lifecycle
+		# only when that early Qt signal could not identify this mapped tab.
+		if self._active_native_tab() is tab and self._last_native_tab is not tab:
+			self._on_native_tab_changed(index)
 		return tab
 
 	#============================================
@@ -729,6 +781,8 @@ class FerrumNativeMainWindow(
 			return
 		if self._user_template_placement_blocks_tab_close(tab):
 			return
+		if self._catalog_placement_blocks_tab_close(tab):
+			return
 		if tab.requires_refresh:
 			self._show_edit_refusal(self._typed_refusal(
 				"close_document", "busy_close",
@@ -750,12 +804,20 @@ class FerrumNativeMainWindow(
 			and self._direct_glycosidic_haworth_intent.tab is tab
 		):
 			self._cancel_direct_glycosidic_haworth_intent()
+		try:
+			tab.dispose()
+		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError:
+			self._show_edit_refusal(self._typed_refusal(
+				"close_document", "busy_close",
+				"Ferrum could not retire the live SMARTS result; refresh before closing this tab.",
+			))
+			return
+		self._retire_molecule_report_dialog_for_tab(tab)
 		self._cancel_native_view_controls_for_tab(tab)
 		self._tab_widget.removeTab(index)
 		self._native_tabs_by_page.pop(tab)
 		tab.hide()
 		tab.setParent(None)
-		tab.dispose()
 		self._refresh_actions()
 
 	#============================================
@@ -768,8 +830,28 @@ class FerrumNativeMainWindow(
 	#============================================
 	@PySide6.QtCore.Slot(int)
 	def _on_native_tab_changed(self, _index: int) -> None:
-		"""Refresh actions after Qt reports a selected Ferrum page index."""
+		"""Retire one outgoing SMARTS plan, then bind the incoming tab once."""
+		controller = getattr(self, "_smarts_query_controller", None)
 		if hasattr(self, "_native_tabs_by_page"):
+			previous = self._last_native_tab
+			current = self._active_native_tab()
+			if previous is not None and previous is not current:
+				retirement_succeeded = True
+				try:
+					previous._require_live_smarts_retirement_v1("tab_deactivated")
+				except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError:
+					retirement_succeeded = False
+					self._show_edit_refusal(self._typed_refusal(
+						"close_document", "busy_close",
+						"Ferrum could not retire the live SMARTS result; refresh before editing this tab.",
+					))
+				if controller is not None:
+					controller._deactivate_after_tab_retirement_v1(retirement_succeeded)
+			self._last_native_tab = current
+			if controller is not None:
+				# A first registration has no outgoing tab, so it only binds its
+				# already-published incoming plan and leaves the modeless dock alone.
+				controller._activate_after_tab_switch_v1()
 			self._on_native_view_tab_changed()
 			self._refresh_actions()
 
@@ -793,16 +875,27 @@ class FerrumNativeMainWindow(
 			and not self._user_template_placement_is_current(template_intent)
 		):
 			self._cancel_user_template_placement()
+		catalog_intent = self._catalog_placement_intent
+		if catalog_intent is not None and not self._catalog_current(catalog_intent):
+			self._cancel_catalog_placement()
 		busy_import = self._molecule_import_busy()
 		busy_export = self._molecule_export_busy()
 		busy_inspection = self._molecule_inspection_busy()
 		busy_clipboard = self._clipboard_busy()
 		busy_coordinates = self._coordinate_generation_intent is not None
 		busy_user_template = self._user_template_placement_intent is not None
+		busy_catalog_template = self._catalog_placement_intent is not None
 		busy_snapshot_export = self._snapshot_export_busy()
 		busy = (
 			busy_import or busy_export or busy_inspection or busy_clipboard or busy_coordinates
-			or busy_user_template or busy_snapshot_export
+			or busy_user_template or busy_catalog_template or busy_snapshot_export
+		)
+		# A template placement is itself a terminal authoring intent.  Keep ordinary
+		# document commands protected, but leave the exclusive authoring actions
+		# reachable so selecting one can retire the template owner before it arms.
+		authoring_busy = (
+			busy_import or busy_export or busy_inspection or busy_clipboard
+			or busy_coordinates or busy_snapshot_export
 		)
 		if self._atom_insertion_intent is not None and (
 			not active or self._atom_insertion_intent.tab is not tab or busy
@@ -864,7 +957,10 @@ class FerrumNativeMainWindow(
 		self._delete_atom_action.setEnabled(active and not pending and not busy)
 		self._delete_bond_action.setEnabled(active and not pending and not busy)
 		self._change_bond_order_action.setEnabled(active and not pending and not busy)
-		can_add_atom = active and not pending and not busy and bool(tab.durable_molecule_choices())
+		can_add_atom = (
+			active and not pending and not authoring_busy
+			and bool(tab.durable_molecule_choices())
+		)
 		self._add_atom_action.setEnabled(can_add_atom)
 		self._add_atom_action.setToolTip(self.tr(
 			"Use Next atom, then click the canvas once; Esc cancels"
@@ -872,8 +968,11 @@ class FerrumNativeMainWindow(
 			"Requires an active document with a durable Rust molecule",
 		))
 		self._add_single_bond_action.setEnabled(active and not pending and not busy)
-		self._refresh_line_tool_actions(active and not pending and not busy)
-		self._refresh_top_level_transform_actions(tab, active, pending, busy)
+		self._refresh_line_tool_actions(active and not pending and not authoring_busy)
+		self._refresh_structure_selection_action(
+			active and not pending and not authoring_busy,
+		)
+		self._refresh_top_level_transform_actions(tab, active, pending, authoring_busy)
 		self._undo_action.setEnabled(active and not pending and not busy)
 		self._redo_action.setEnabled(active and not pending and not busy)
 		self._refresh_action.setEnabled(pending)
@@ -906,6 +1005,10 @@ class FerrumNativeMainWindow(
 			active, pending,
 			busy_import or busy_export or busy_inspection or busy_clipboard or busy_coordinates,
 		)
+		self._refresh_catalog_template_action(
+			active, pending, busy_import or busy_export or busy_inspection or busy_clipboard
+			or busy_coordinates or busy_user_template or busy_snapshot_export,
+		)
 		self._generate_coordinates_action.setEnabled(
 			active and not pending and not busy and bool(tab.durable_molecule_choices()),
 		)
@@ -915,6 +1018,9 @@ class FerrumNativeMainWindow(
 		)
 		self._refresh_view_controls_actions()
 		self._native_property_dock.refresh(tab)
+		controller = getattr(self, "_smarts_query_controller", None)
+		if controller is not None:
+			controller.refresh_action(active, pending, busy)
 
 	#============================================
 	def _show_edit_refusal(self, request: object) -> None:
@@ -929,7 +1035,11 @@ class FerrumNativeMainWindow(
 	#============================================
 	def closeEvent(self, event: PySide6.QtGui.QCloseEvent) -> None:
 		"""Dispose all clean pages and keep an unsaved Rust document live."""
+		controller = getattr(self, "_smarts_query_controller", None)
+		if controller is not None:
+			controller.close()
 		self._cancel_user_template_placement()
+		self._cancel_catalog_placement()
 		self._cancel_direct_glycosidic_haworth_intent()
 		if self._cancel_local_cdml_open_for_close():
 			event.ignore()
@@ -979,11 +1089,19 @@ class FerrumNativeMainWindow(
 		self._cancel_line_gesture()
 		self._prepare_native_view_controls_shutdown()
 		for tab in tuple(self._native_tabs_by_page.values()):
+			try:
+				tab.dispose()
+			except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError:
+				event.ignore()
+				self._show_edit_refusal(self._typed_refusal(
+					"close_document", "busy_close",
+					"Ferrum could not retire the live SMARTS result; refresh before closing Ferrum.",
+				))
+				return
 			index = self._tab_widget.indexOf(tab)
 			if index >= 0:
 				self._tab_widget.removeTab(index)
 			tab.hide()
 			tab.setParent(None)
-			tab.dispose()
 		self._native_tabs_by_page.clear()
 		event.accept()

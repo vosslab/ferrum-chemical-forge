@@ -303,11 +303,18 @@ version = "26.8.0"
 dependencies = [
  "base64",
  "clap",
+ "ferrum-catalog-placement",
  "ferrum-chemistry",
  "ferrum-core",
  "ferrum-document",
+ "ferrum-document-render",
+ "ferrum-domain",
+ "ferrum-geometry",
  "ferrum-render",
+ "getrandom 0.3.4",
  "libc",
+ "pyo3",
+ "pyo3-build-config",
  "rustix",
  "schemars",
  "serde",
@@ -317,21 +324,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferrum-chemistry"
+name = "ferrum-catalog-placement"
 version = "26.8.0"
 dependencies = [
- "ferrum-chemistry-sys",
- "schemars",
- "serde",
+ "ferrum-document",
+ "ferrum-domain",
+ "ferrum-render",
+ "ferrum-render-contract",
  "thiserror",
 ]
 
 [[package]]
-name = "ferrum-chemistry-sys"
+name = "ferrum-chemistry"
 version = "26.8.0"
 dependencies = [
  "libloading",
+ "schemars",
+ "serde",
  "thiserror",
+ "xmlparser",
 ]
 
 [[package]]
@@ -351,6 +362,7 @@ version = "26.8.0"
 dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
+ "ferrum-document-model",
  "ferrum-domain",
  "ferrum-geometry",
  "getrandom 0.4.3",
@@ -363,6 +375,32 @@ dependencies = [
  "thiserror",
  "xmlparser",
  "xot",
+]
+
+[[package]]
+name = "ferrum-document-model"
+version = "26.8.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "xmlparser",
+]
+
+[[package]]
+name = "ferrum-document-render"
+version = "26.8.0"
+dependencies = [
+ "ferrum-catalog-placement",
+ "ferrum-chemistry",
+ "ferrum-core",
+ "ferrum-document",
+ "ferrum-domain",
+ "ferrum-geometry",
+ "ferrum-render",
+ "ferrum-render-contract",
+ "thiserror",
+ "xmlparser",
 ]
 
 [[package]]
@@ -390,6 +428,7 @@ dependencies = [
 name = "ferrum-render"
 version = "26.8.0"
 dependencies = [
+ "ferrum-chemistry",
  "ferrum-core",
  "ferrum-document",
  "ferrum-domain",
@@ -404,6 +443,14 @@ dependencies = [
  "tiny-skia",
  "ttf-parser",
  "xot",
+]
+
+[[package]]
+name = "ferrum-render-contract"
+version = "26.8.0"
+dependencies = [
+ "ferrum-document-model",
+ "thiserror",
 ]
 
 [[package]]
@@ -573,6 +620,15 @@ dependencies = [
  "strum",
  "syn 2.0.119",
  "thiserror",
+]
+
+[[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]
@@ -800,6 +856,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable-atomic"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05c8b63e8d9609db387f0324918f81d68fe27748f084ef092fb35954d0539a85"
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -866,6 +928,64 @@ dependencies = [
  "rusty-fork",
  "tempfile",
  "unarray",
+]
+
+[[package]]
+name = "pyo3"
+version = "0.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4688ddedf473e32662b9b067670129a8afb8c18e351482c70d62ba4a88171e8b"
+dependencies = [
+ "inventory",
+ "libc",
+ "once_cell",
+ "portable-atomic",
+ "pyo3-build-config",
+ "pyo3-ffi",
+ "pyo3-macros",
+]
+
+[[package]]
+name = "pyo3-build-config"
+version = "0.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f41027e41b4bd03f6e60f9f417fe24a6341a6bb744edd62b6f709f2a52ea30e9"
+dependencies = [
+ "target-lexicon",
+]
+
+[[package]]
+name = "pyo3-ffi"
+version = "0.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e591a95526fead067432c3b3a33fc74770b87b1e04e73671090d9c2055a2b327"
+dependencies = [
+ "libc",
+ "pyo3-build-config",
+]
+
+[[package]]
+name = "pyo3-macros"
+version = "0.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73225868fc1cd84eef2c3c230ddb91273bf1de46aeb8a4248da76d32a0924a1c"
+dependencies = [
+ "proc-macro2",
+ "pyo3-macros-backend",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "pyo3-macros-backend"
+version = "0.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "571575aa3749fa6216757dd47d2a3e7ef360f329a40f0666a9fbd14889024952"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -977,6 +1097,12 @@ dependencies = [
  "linux-raw-sys",
  "windows-sys",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "rusty-fork"
@@ -1195,6 +1321,12 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "target-lexicon"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
 
 [[package]]
 name = "tempfile"

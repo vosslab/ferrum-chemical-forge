@@ -49,6 +49,6 @@ paper:
   fill: "white"
   outline: "black"
 grid:
-  line: "#E8E8E8"
-  dot_fill: "#BFE5D9"
-  dot_outline: "#CCCCCC"
+  line: "#9da9b0"
+  dot_fill: "#89a9a1"
+  dot_outline: "#748a84"

@@ -7,6 +7,20 @@ class FerrumNativeDocumentTabError(RuntimeError):
 
 
 #============================================
+class FerrumNativeDocumentTabUnrenderableMoleculeError(FerrumNativeDocumentTabError):
+	"""A canvas edit target lacks a plan in the installed Rust render evidence."""
+
+	#============================================
+	def __init__(self, molecule_object_id: str) -> None:
+		"""Retain the durable molecule identity that the canvas cannot author."""
+		self.molecule_object_id = molecule_object_id
+		super().__init__(
+			"the current Rust render observation contains no canvas plan for molecule "
+			f"{molecule_object_id!r}; no edit was applied",
+		)
+
+
+#============================================
 class FerrumNativeDocumentTabMutationPresentationError(FerrumNativeDocumentTabError):
 	"""A Rust-accepted edit whose authoritative render is pending refresh."""
 

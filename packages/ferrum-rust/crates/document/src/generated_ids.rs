@@ -54,6 +54,21 @@ impl GeneratedIdSequences {
         ))
     }
 
+    /// Reserve only direct-root molecule identities for one structural split.
+    ///
+    /// Structural deletion retains every atom and bond identity.  Reserving through
+    /// this distinct path prevents an implementation detail of a split from
+    /// advancing the unrelated atom or bond sequences.
+    pub(super) fn reserve_molecule_roots(
+        self,
+        indexed: &IndexedDocument,
+        count: usize,
+    ) -> Result<(Vec<PersistentId>, Self), SessionOperationError> {
+        let (molecules, molecule) =
+            allocate(indexed, GeneratedIdKind::Molecule, self.molecule, count)?;
+        Ok((molecules, Self { molecule, ..self }))
+    }
+
     pub(super) fn reserve_atom(
         self,
         indexed: &IndexedDocument,
@@ -171,6 +186,11 @@ impl GeneratedIdSequences {
                 ..self
             },
         ))
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_molecule_sequence(self, molecule: Option<u64>) -> Self {
+        Self { molecule, ..self }
     }
 
     #[cfg(test)]

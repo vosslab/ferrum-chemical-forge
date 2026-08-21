@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 /* The public header is the sole source of truth for the adapter ABI version. */
-#define FERRUM_CHEM_ADAPTER_ABI_VERSION 4U
+#define FERRUM_CHEM_ADAPTER_ABI_VERSION 5U
 
 #ifdef __cplusplus
 #define FERRUM_CHEM_NOEXCEPT noexcept
@@ -27,7 +27,7 @@ extern "C" {
 #define FERRUM_CHEM_RESULT_UNSUPPORTED_MOLECULE 5U
 #define FERRUM_CHEM_RESULT_INTERNAL_FAILURE 6U
 
-/* ABI-4 capability bits. Each adapter exports its supported subset. */
+/* ABI-5 capability bits. Each adapter exports its supported subset. */
 #define FERRUM_CHEM_CAPABILITY_KEKULIZE 0x0000000000000001ULL
 #define FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE 0x0000000000000002ULL
 #define FERRUM_CHEM_CAPABILITY_GENERATE_2D 0x0000000000000004ULL
@@ -40,6 +40,24 @@ extern "C" {
 #define FERRUM_CHEM_CAPABILITY_COMPOSITION 0x0000000000000200ULL
 #define FERRUM_CHEM_CAPABILITY_SMILES_WRITE 0x0000000000000400ULL
 #define FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE 0x0000000000000800ULL
+#define FERRUM_CHEM_CAPABILITY_SMARTS_MATCH 0x0000000000001000ULL
+
+/* ABI-5 bounded SMARTS matching FCQ1/FQM1 constants. */
+#define FERRUM_CHEM_SMARTS_MATCH_WIRE_VERSION 1U
+#define FERRUM_CHEM_SMARTS_MATCH_REQUEST_HEADER_BYTES 24U
+#define FERRUM_CHEM_SMARTS_MATCH_RESPONSE_HEADER_BYTES 28U
+#define FERRUM_CHEM_SMARTS_MATCH_MAX_QUERY_BYTES 65536U
+#define FERRUM_CHEM_SMARTS_MATCH_MAX_PARSED_QUERY_ATOMS 1024U
+#define FERRUM_CHEM_SMARTS_MATCH_PROFILE_MAX_QUERY_ATOMS 64U
+#define FERRUM_CHEM_SMARTS_MATCH_MAX_ROWS 10000U
+#define FERRUM_CHEM_SMARTS_MATCH_MAX_MATRIX_CELLS 1000000U
+#define FERRUM_CHEM_SMARTS_MATCH_FLAG_TRUNCATED 0x00000001U
+#define FERRUM_CHEM_SMARTS_MATCH_STATUS_OK 0U
+#define FERRUM_CHEM_SMARTS_MATCH_STATUS_INVALID_REQUEST 1U
+#define FERRUM_CHEM_SMARTS_MATCH_STATUS_INVALID_QUERY 2U
+#define FERRUM_CHEM_SMARTS_MATCH_STATUS_UNSUPPORTED_TARGET 3U
+#define FERRUM_CHEM_SMARTS_MATCH_STATUS_RESOURCE_LIMITED 4U
+#define FERRUM_CHEM_SMARTS_MATCH_STATUS_NATIVE_FAILURE 5U
 
 /* Every adapter-owned result must fit this bound before a consumer reads it. */
 #define FERRUM_CHEM_MAX_RESPONSE_BYTES 40000000U
@@ -198,8 +216,21 @@ typedef struct ferrum_chem_owned_buffer {
 
 uint32_t ferrum_chem_abi_version(void) FERRUM_CHEM_NOEXCEPT;
 
-/* Returns the explicitly compiled ABI-4 operation set. */
+/* Returns the explicitly compiled ABI-5 operation set. */
 uint64_t ferrum_chem_capabilities_v1(void) FERRUM_CHEM_NOEXCEPT;
+
+/*
+ * ABI-5 FCQ1/FQM1 SMARTS matching. FCQ1 is exactly consumed: "FCQ1",
+ * wire_version:u32, smarts_length:u32, fcg1_length:u32, max_matches:u32,
+ * flags:u32 (zero), then non-empty UTF-8 SMARTS and one complete FCG1 graph.
+ * FQM1 is "FQM1", wire_version:u32, result_status:u32, detail_length:u32,
+ * query_atom_count:u32, match_count:u32, flags:u32, fixed ASCII detail, then
+ * query-ordered target-index u32 rows. This entry point never exposes RDKit
+ * diagnostics: all non-success details are closed contract codes.
+ */
+uint32_t ferrum_chem_smarts_match_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	FERRUM_CHEM_NOEXCEPT;
 
 /* A zero call status always returns a structured response, including errors. */
 uint32_t ferrum_chem_kekulize_v1(

@@ -31,9 +31,11 @@ QT_PACKAGE_ROOT = REPO_ROOT / "packages" / "ferrum-chem-qt.app"
 NATIVE_BUILDER = RUST_PACKAGE_ROOT / "tools" / "build_native_wheel.py"
 BUILD_RECORD_NAME = "ferrum-release-wheelhouse-build-record.json"
 RELEASE_RECEIPT_NAME = "ferrum-release-package-receipt.json"
+ARTIFACT_INVENTORY_NAME = "ferrum-release-artifact-inventory.json"
 BUILD_SCHEMA = "ferrum-release-wheelhouse-build-v1"
 VALIDATION_SCHEMA = "ferrum-release-validation-v1"
 RECEIPT_SCHEMA = "ferrum-release-package-receipt-v1"
+INVENTORY_SCHEMA = "ferrum-release-artifact-inventory-v1"
 TARGET = {"platform": "macos", "architecture": "arm64", "python": "3.12"}
 
 
@@ -103,17 +105,17 @@ def input_directory_path(value: str) -> Path:
 
 #============================================
 def existing_file_path(value: str) -> Path:
-	"""Accept one explicit existing JSON validation record.
+	"""Accept one explicit existing regular-file release input.
 
 	Args:
-		value: User-supplied validation-record text.
+		value: User-supplied input-file text.
 
 	Returns:
 		Resolved existing regular file.
 	"""
 	path = Path(value).expanduser().resolve()
 	if not path.is_file():
-		raise argparse.ArgumentTypeError(f"--validation-record is not a file: {path}")
+		raise argparse.ArgumentTypeError(f"release input is not a regular file: {path}")
 	return path
 
 
@@ -724,6 +726,38 @@ def publish_receipt(arguments: argparse.Namespace) -> None:
 
 
 #============================================
+def publish_artifact_inventory(arguments: argparse.Namespace) -> None:
+	"""Delegate M22 artifact classification and retain its complete JSON result.
+
+	Args:
+		arguments: Parsed explicit final-artifact paths.
+
+	Raises:
+		ReleaseBuildError: When the delegated verifier cannot establish its predicate.
+	"""
+	command = [
+		sys.executable,
+		"-B",
+		str(RUST_PACKAGE_ROOT / "tools" / "release_artifact_inventory.py"),
+		"--chem-wheel", str(arguments.chem_wheel),
+		"--qt-wheel", str(arguments.qt_wheel),
+		"--source-archive", str(arguments.source_archive),
+		"--receipt", str(arguments.receipt),
+	]
+	output = run_command(command, REPO_ROOT, "closeout")
+	try:
+		inventory = json.loads(output)
+	except json.JSONDecodeError as error:
+		raise ReleaseBuildError("closeout phase verifier did not return JSON") from error
+	if not isinstance(inventory, dict) or inventory.get("schema") != INVENTORY_SCHEMA:
+		raise ReleaseBuildError("closeout phase verifier returned an unrecognized inventory")
+	path = arguments.receipt.parent / ARTIFACT_INVENTORY_NAME
+	atomic_json(path, inventory)
+	result = {"schema": INVENTORY_SCHEMA, "action": "closeout", "record": str(path.resolve())}
+	print(json.dumps(result, sort_keys=True))
+
+
+#============================================
 def parser() -> argparse.ArgumentParser:
 	"""Create the maintainer release-wheelhouse command interface.
 
@@ -761,6 +795,14 @@ def parser() -> argparse.ArgumentParser:
 	receipt.add_argument("--output-root", required=True, type=output_root_path)
 	receipt.add_argument("--validation-record", required=True, type=existing_file_path)
 	receipt.set_defaults(handler=publish_receipt)
+	closeout = subcommands.add_parser(
+		"closeout", help="retain M22 inventory after final-artifact classification"
+	)
+	closeout.add_argument("--chem-wheel", required=True, type=existing_file_path)
+	closeout.add_argument("--qt-wheel", required=True, type=existing_file_path)
+	closeout.add_argument("--source-archive", required=True, type=existing_file_path)
+	closeout.add_argument("--receipt", required=True, type=existing_file_path)
+	closeout.set_defaults(handler=publish_artifact_inventory)
 	return result
 
 

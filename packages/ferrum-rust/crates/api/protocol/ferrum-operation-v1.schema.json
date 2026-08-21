@@ -1,5 +1,94 @@
 {
   "$defs": {
+    "CatalogCategorySummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "order": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "order"
+      ],
+      "type": "object"
+    },
+    "CatalogEntrySummaryV1": {
+      "additionalProperties": false,
+      "description": "Immutable, provenance-safe catalog entry facts. This DTO deliberately has\nno template source, CDML, filesystem location, or presentation asset.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/CatalogCategorySummaryV1"
+        },
+        "family": {
+          "$ref": "#/$defs/ProtocolCatalogFamilyV1"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/CatalogProvenanceSummaryV1"
+        }
+      },
+      "required": [
+        "id",
+        "family",
+        "category",
+        "name",
+        "provenance"
+      ],
+      "type": "object"
+    },
+    "CatalogPlacementRefusalV1": {
+      "additionalProperties": false,
+      "description": "Typed refusal facts for `catalog.insert.v1`.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ProtocolCatalogPlacementCategoryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolCatalogPlacementRecoveryV1"
+        }
+      },
+      "required": [
+        "category",
+        "recovery"
+      ],
+      "type": "object"
+    },
+    "CatalogProvenanceSummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "license_spdx": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_kind",
+        "source_id",
+        "license_spdx"
+      ],
+      "type": "object"
+    },
     "CdmlInspection": {
       "description": "Stable machine-readable summary emitted by `ferrum cdml inspect`.",
       "properties": {
@@ -128,6 +217,423 @@
         "text"
       ],
       "type": "object"
+    },
+    "DocumentMoleculeReportAggregateOmissionReasonSummaryV1": {
+      "description": "Closed reasons that a molecule-report aggregate is unavailable.",
+      "enum": [
+        "fewer_than_two_selected",
+        "incomplete_record_composition"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportAggregateOutcomeSummaryV1": {
+      "description": "The all-or-none aggregate result for one molecule report.\n\nThis tagged DTO makes a complete composition and an omission reason mutually\nexclusive at both the Rust and JSON protocol boundaries.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "composition": {
+              "$ref": "#/$defs/DocumentMoleculeReportCompositionSummaryV1"
+            },
+            "kind": {
+              "const": "complete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "composition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "omitted",
+              "type": "string"
+            },
+            "reason": {
+              "$ref": "#/$defs/DocumentMoleculeReportAggregateOmissionReasonSummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DocumentMoleculeReportCompositionElementSummaryV1": {
+      "additionalProperties": false,
+      "description": "One isotope-aware elemental contribution to a complete composition receipt.",
+      "properties": {
+        "atom_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "average_mass_contribution_da": {
+          "format": "double",
+          "type": "number"
+        },
+        "isotope": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mass_percentage": {
+          "format": "double",
+          "type": "number"
+        },
+        "symbol": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "atom_count",
+        "average_mass_contribution_da",
+        "mass_percentage"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportCompositionSummaryV1": {
+      "additionalProperties": false,
+      "description": "One all-or-none, finite composition receipt mapped from an authenticated\nchemistry result. No graph, CDML, toolkit, or runtime capability is exposed.",
+      "properties": {
+        "average_molecular_weight_da": {
+          "format": "double",
+          "type": "number"
+        },
+        "elements": {
+          "description": "Isotope-aware counts and average-mass percentages in canonical formula order.",
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportCompositionElementSummaryV1"
+          },
+          "type": "array"
+        },
+        "formula": {
+          "type": "string"
+        },
+        "monoisotopic_mass_da": {
+          "format": "double",
+          "type": "number"
+        },
+        "net_formal_charge": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "formula",
+        "net_formal_charge",
+        "average_molecular_weight_da",
+        "monoisotopic_mass_da",
+        "elements"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportElementCountSummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "atom_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "symbol": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "atom_count"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportRecordSummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "atom_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "authored_charge": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "authored_elements": {
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportElementCountSummaryV1"
+          },
+          "type": "array"
+        },
+        "authored_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bond_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "composition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentMoleculeReportCompositionSummaryV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Complete engine-derived facts, or `None` when this root cannot produce a\nsupported composition. `finding_codes` explains that absence."
+        },
+        "document_root_order": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "finding_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "molecule_id": {
+          "type": "string"
+        },
+        "neutral_bond_capacity": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "molecule_id",
+        "source_id",
+        "document_root_order",
+        "atom_count",
+        "bond_count",
+        "authored_elements",
+        "neutral_bond_capacity",
+        "finding_codes"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportSummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregate": {
+          "$ref": "#/$defs/DocumentMoleculeReportAggregateOutcomeSummaryV1",
+          "description": "The one complete aggregate composition or its closed omission reason.\nFerrum never emits a subset aggregate."
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportRecordSummaryV1"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_digest_hex": {
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "source_revision",
+        "source_digest_hex",
+        "records",
+        "aggregate"
+      ],
+      "type": "object"
+    },
+    "DocumentSmartsQueryDocumentV1": {
+      "additionalProperties": false,
+      "description": "Fenced request-owned document supplied to the SMARTS query operation.",
+      "properties": {
+        "cdml": {
+          "type": "string"
+        },
+        "expected_digest_hex": {
+          "type": "string"
+        },
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cdml",
+        "expected_revision",
+        "expected_digest_hex"
+      ],
+      "type": "object"
+    },
+    "DocumentSmartsQueryInputV1": {
+      "description": "One exact query representation admitted by the SMARTS query operation.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "smarts",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "selected_molecule",
+              "type": "string"
+            },
+            "molecule_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "molecule_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DocumentSmartsQueryLimitsV1": {
+      "additionalProperties": false,
+      "description": "Optional bounded enumeration limits. Omitted fields use the V1 defaults.",
+      "properties": {
+        "max_matches_per_molecule": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "max_total_matches": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "DocumentSmartsQueryMoleculeSummaryV1": {
+      "additionalProperties": false,
+      "description": "One source-ordered target with at least one retained match. No atom identity crosses JSON.",
+      "properties": {
+        "completeness": {
+          "type": "string"
+        },
+        "match_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_order": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_order",
+        "match_count",
+        "completeness"
+      ],
+      "type": "object"
+    },
+    "DocumentSmartsQuerySummaryV1": {
+      "additionalProperties": false,
+      "description": "Public SMARTS query facts. Match membership remains private to the live bridge.",
+      "properties": {
+        "molecules": {
+          "items": {
+            "$ref": "#/$defs/DocumentSmartsQueryMoleculeSummaryV1"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "traversal": {
+          "$ref": "#/$defs/DocumentSmartsQueryTraversalSummaryV1"
+        }
+      },
+      "required": [
+        "schema",
+        "traversal",
+        "molecules"
+      ],
+      "type": "object"
+    },
+    "DocumentSmartsQueryTraversalSummaryV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "complete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "incomplete",
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "InterchangeFormatV1": {
       "description": "Closed syntax vocabulary. `Cdml` is retained as a wire value for callers\nthat dispatch CDML composition outside this crate.",
@@ -295,6 +801,17 @@
       "additionalProperties": false,
       "description": "Stable protocol error facts; clients must not discriminate on `message`.",
       "properties": {
+        "catalog_placement_refusal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogPlacementRefusalV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Closed catalog-placement recovery facts when this operation refused one."
+        },
         "category": {
           "$ref": "#/$defs/OperationProtocolErrorCategoryV1",
           "description": "Stable machine-readable failure category."
@@ -313,6 +830,39 @@
             }
           ],
           "description": "Decoded operation kind when one was available."
+        },
+        "presentation_vector_refusal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PresentationVectorRefusalV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Closed vector gesture recovery facts when this operation refused one."
+        },
+        "reaction_refusal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReactionRefusalV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Closed reaction authoring recovery facts when this operation refused one."
+        },
+        "resource_limit_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProtocolResourceLimitReasonV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Closed reason for a resource-limit refusal when one is safe to expose."
         }
       },
       "required": [
@@ -450,6 +1000,504 @@
           "required": [
             "kind",
             "document"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Create one direct-root presentation vector through the closed Rust gesture.",
+          "properties": {
+            "appearance_policy": {
+              "$ref": "#/$defs/ProtocolPresentationVectorAppearancePolicyV1"
+            },
+            "document": {
+              "type": "string"
+            },
+            "end_x": {
+              "format": "double",
+              "type": "number"
+            },
+            "end_y": {
+              "format": "double",
+              "type": "number"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "presentation.vector.create.v1",
+              "type": "string"
+            },
+            "start_x": {
+              "format": "double",
+              "type": "number"
+            },
+            "start_y": {
+              "format": "double",
+              "type": "number"
+            },
+            "vector_kind": {
+              "$ref": "#/$defs/ProtocolPresentationVectorKindV1",
+              "description": "Shape family. `kind` remains reserved by the tagged operation envelope."
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "vector_kind",
+            "start_x",
+            "start_y",
+            "end_x",
+            "end_y",
+            "appearance_policy"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "List immutable Ferrum-authored template catalog summary facts.",
+          "properties": {
+            "category": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "family": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProtocolCatalogFamilyV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "const": "catalog.list.v1",
+              "type": "string"
+            },
+            "query": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Insert one catalog-selected template through Ferrum's renderer-preflighted gesture.",
+          "properties": {
+            "anchor_x": {
+              "format": "double",
+              "type": "number"
+            },
+            "anchor_y": {
+              "format": "double",
+              "type": "number"
+            },
+            "catalog_id": {
+              "type": "string"
+            },
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "catalog.insert.v1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "catalog_id",
+            "anchor_x",
+            "anchor_y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Create one canonical durable reaction aggregate from direct-root IDs.",
+          "properties": {
+            "arrow": {
+              "type": "string"
+            },
+            "conditions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.create.v1",
+              "type": "string"
+            },
+            "pluses": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "products": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "reactants": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "reactants",
+            "products",
+            "arrow",
+            "conditions",
+            "pluses"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.list.v1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.observe.v1",
+              "type": "string"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "reaction_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.select.v1",
+              "type": "string"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "reaction_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "arrow": {
+              "type": "string"
+            },
+            "conditions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.patch-membership.v1",
+              "type": "string"
+            },
+            "pluses": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "products": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "reactants": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "reaction_id",
+            "reactants",
+            "products",
+            "arrow",
+            "conditions",
+            "pluses"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.delete-definition.v1",
+              "type": "string"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "reaction_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Translate every direct durable member of one strict reaction aggregate.",
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.translate.v1",
+              "type": "string"
+            },
+            "pointer_x": {
+              "format": "double",
+              "type": "number"
+            },
+            "pointer_y": {
+              "format": "double",
+              "type": "number"
+            },
+            "press_x": {
+              "format": "double",
+              "type": "number"
+            },
+            "press_y": {
+              "format": "double",
+              "type": "number"
+            },
+            "reaction_id": {
+              "type": "string"
+            },
+            "snap": {
+              "$ref": "#/$defs/ProtocolReactionTranslationSnapV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "reaction_id",
+            "press_x",
+            "press_y",
+            "pointer_x",
+            "pointer_y",
+            "snap"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Read bounded composition and authored-fact reports for direct molecule roots.",
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "expected_digest_hex": {
+              "type": "string"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "document.molecule.report.v1",
+              "type": "string"
+            },
+            "molecule_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "expected_revision",
+            "expected_digest_hex",
+            "molecule_ids"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Search direct molecules from one bounded, request-owned document.",
+          "properties": {
+            "document": {
+              "$ref": "#/$defs/DocumentSmartsQueryDocumentV1"
+            },
+            "kind": {
+              "const": "document.molecule.smarts.query.v1",
+              "type": "string"
+            },
+            "limits": {
+              "$ref": "#/$defs/DocumentSmartsQueryLimitsV1",
+              "default": {
+                "max_matches_per_molecule": null,
+                "max_total_matches": null
+              }
+            },
+            "query": {
+              "$ref": "#/$defs/DocumentSmartsQueryInputV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "query"
           ],
           "type": "object"
         }
@@ -609,6 +1657,444 @@
             "regenerated_molecule_count"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Accepted canonical vector document and its durable direct-root ID.",
+          "properties": {
+            "committed_revision": {
+              "description": "Revision of the local session commit represented by this result.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "digest_hex": {
+              "type": "string"
+            },
+            "document": {
+              "type": "string"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "input_revision": {
+              "description": "Every stateless input is loaded as a fresh session at revision zero.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "presentation.vector.create.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "description": "Required `expected_revision` if `document` is submitted in a new request.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "renderer_observation": {
+              "description": "Frozen renderer-owned observation of the exact accepted candidate."
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "identifier",
+            "input_revision",
+            "committed_revision",
+            "next_input_expected_revision",
+            "digest_hex",
+            "renderer_observation"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Immutable shipped catalog facts, without recipe or CDML payloads.",
+          "properties": {
+            "catalog_schema": {
+              "type": "string"
+            },
+            "catalog_version": {
+              "type": "string"
+            },
+            "entries": {
+              "items": {
+                "$ref": "#/$defs/CatalogEntrySummaryV1"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "catalog.list.v1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "catalog_schema",
+            "catalog_version",
+            "entries"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical document after one renderer-preflighted catalog insertion.",
+          "properties": {
+            "committed_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "digest_hex": {
+              "type": "string"
+            },
+            "document": {
+              "type": "string"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "catalog.insert.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "identifier",
+            "input_revision",
+            "committed_revision",
+            "next_input_expected_revision",
+            "digest_hex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "committed_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "digest_hex": {
+              "type": "string"
+            },
+            "document": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.create.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "reaction_id",
+            "input_revision",
+            "committed_revision",
+            "next_input_expected_revision",
+            "digest_hex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "digest_hex": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.list.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reactions": {
+              "items": {
+                "$ref": "#/$defs/ReactionObservationSummaryV1"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "input_revision",
+            "next_input_expected_revision",
+            "digest_hex",
+            "reactions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "digest_hex": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.observe.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reaction": {
+              "$ref": "#/$defs/ReactionObservationSummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "input_revision",
+            "next_input_expected_revision",
+            "digest_hex",
+            "reaction"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "digest_hex": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.select.v1",
+              "type": "string"
+            },
+            "membership_digest": {
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "input_revision",
+            "next_input_expected_revision",
+            "digest_hex",
+            "reaction_id",
+            "membership_digest"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "committed_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "digest_hex": {
+              "type": "string"
+            },
+            "document": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.patch-membership.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "reaction_id",
+            "input_revision",
+            "committed_revision",
+            "next_input_expected_revision",
+            "digest_hex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "committed_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "digest_hex": {
+              "type": "string"
+            },
+            "document": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.delete-definition.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "reaction_id",
+            "input_revision",
+            "committed_revision",
+            "next_input_expected_revision",
+            "digest_hex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "committed_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "digest_hex": {
+              "type": "string"
+            },
+            "document": {
+              "type": "string"
+            },
+            "input_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "reaction.translate.v1",
+              "type": "string"
+            },
+            "next_input_expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reaction_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "reaction_id",
+            "input_revision",
+            "committed_revision",
+            "next_input_expected_revision",
+            "digest_hex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Read-only molecule-report facts.  No CDML, graph, engine, or path crosses this boundary.",
+          "properties": {
+            "kind": {
+              "const": "document.molecule.report.v1",
+              "type": "string"
+            },
+            "report": {
+              "$ref": "#/$defs/DocumentMoleculeReportSummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "report"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Bounded non-redeemable SMARTS query facts.",
+          "properties": {
+            "kind": {
+              "const": "document.molecule.smarts.query.v1",
+              "type": "string"
+            },
+            "query": {
+              "$ref": "#/$defs/DocumentSmartsQuerySummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "query"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -660,6 +2146,23 @@
       ],
       "type": "object"
     },
+    "PresentationVectorRefusalV1": {
+      "additionalProperties": false,
+      "description": "Typed refusal facts for `presentation.vector.create.v1`.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ProtocolPresentationVectorGestureCategoryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolPresentationVectorGestureRecoveryV1"
+        }
+      },
+      "required": [
+        "category",
+        "recovery"
+      ],
+      "type": "object"
+    },
     "ProtocolArtifactFormatV1": {
       "description": "Closed complete-document artifact formats exposed by V1.",
       "oneOf": [
@@ -680,6 +2183,34 @@
         }
       ]
     },
+    "ProtocolCatalogFamilyV1": {
+      "enum": [
+        "system",
+        "biomolecule"
+      ],
+      "type": "string"
+    },
+    "ProtocolCatalogPlacementCategoryV1": {
+      "enum": [
+        "unknown_key",
+        "stale_snapshot",
+        "foreign_session",
+        "mismatched_preview",
+        "replayed_gesture",
+        "invalid_point",
+        "render_preparation",
+        "session_conflict"
+      ],
+      "type": "string"
+    },
+    "ProtocolCatalogPlacementRecoveryV1": {
+      "enum": [
+        "choose_catalog_entry",
+        "refresh_and_restart",
+        "document_unchanged"
+      ],
+      "type": "string"
+    },
     "ProtocolErrorSchemaV1": {
       "description": "Closed V1 error schema identifiers.",
       "oneOf": [
@@ -693,6 +2224,18 @@
     "ProtocolOperationKindV1": {
       "description": "Stable names for decoded operation kinds in error envelopes.",
       "oneOf": [
+        {
+          "enum": [
+            "reaction.create.v1",
+            "reaction.list.v1",
+            "reaction.observe.v1",
+            "reaction.select.v1",
+            "reaction.patch-membership.v1",
+            "reaction.delete-definition.v1",
+            "reaction.translate.v1"
+          ],
+          "type": "string"
+        },
         {
           "const": "document.inspect",
           "description": "`document.inspect`.",
@@ -722,8 +2265,120 @@
           "const": "document.generate_coordinates",
           "description": "`document.generate_coordinates`.",
           "type": "string"
+        },
+        {
+          "const": "presentation.vector.create.v1",
+          "description": "`presentation.vector.create.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "catalog.list.v1",
+          "description": "`catalog.list.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "catalog.insert.v1",
+          "description": "`catalog.insert.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "document.molecule.report.v1",
+          "description": "`document.molecule.report.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "document.molecule.smarts.query.v1",
+          "description": "`document.molecule.smarts.query.v1`.",
+          "type": "string"
         }
       ]
+    },
+    "ProtocolPresentationVectorAppearancePolicyV1": {
+      "enum": [
+        "effective_drawing_standard"
+      ],
+      "type": "string"
+    },
+    "ProtocolPresentationVectorGestureCategoryV1": {
+      "description": "Closed presentation-vector refusal categories.",
+      "enum": [
+        "stale_snapshot",
+        "foreign_session",
+        "mismatched_preview",
+        "replayed_gesture",
+        "invalid_point",
+        "degenerate_geometry",
+        "unsupported_kind",
+        "unrenderable_standard",
+        "render_preparation",
+        "session_conflict",
+        "resource_exhausted"
+      ],
+      "type": "string"
+    },
+    "ProtocolPresentationVectorGestureRecoveryV1": {
+      "description": "Closed recovery instructions for presentation-vector refusals.",
+      "enum": [
+        "document_unchanged",
+        "refresh_and_restart",
+        "change_geometry",
+        "choose_supported_appearance",
+        "reduce_request"
+      ],
+      "type": "string"
+    },
+    "ProtocolPresentationVectorKindV1": {
+      "enum": [
+        "line",
+        "rectangle",
+        "square",
+        "oval",
+        "circle"
+      ],
+      "type": "string"
+    },
+    "ProtocolReactionDefinitionDispositionV1": {
+      "enum": [
+        "strict",
+        "display_only"
+      ],
+      "type": "string"
+    },
+    "ProtocolReactionRefusalCategoryV1": {
+      "enum": [
+        "stale_snapshot",
+        "foreign_session",
+        "replayed_gesture",
+        "invalid_request",
+        "missing_target",
+        "wrong_target_kind",
+        "duplicate_target",
+        "cross_reaction_reuse",
+        "unrenderable_document",
+        "render_preparation",
+        "session_conflict",
+        "missing_reaction",
+        "legacy_definition_not_editable",
+        "membership_changed",
+        "renderer_exclusion"
+      ],
+      "type": "string"
+    },
+    "ProtocolReactionRefusalRecoveryV1": {
+      "enum": [
+        "refresh_and_restart",
+        "correct_selectors",
+        "choose_renderable_members",
+        "repair_legacy_definition"
+      ],
+      "type": "string"
+    },
+    "ProtocolReactionTranslationSnapV1": {
+      "enum": [
+        "free",
+        "view_hex_grid"
+      ],
+      "type": "string"
     },
     "ProtocolRequestSchemaV1": {
       "description": "Closed V1 request schema identifiers.",
@@ -731,6 +2386,16 @@
         {
           "const": "ferrum-operation-request-v1",
           "description": "`ferrum-operation-request-v1`.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProtocolResourceLimitReasonV1": {
+      "description": "Closed public reasons for protocol-wide resource-limit refusals.",
+      "oneOf": [
+        {
+          "const": "response_size_exceeded",
+          "description": "The exact canonical SMARTS result envelope exceeded its public budget.",
           "type": "string"
         }
       ]
@@ -759,6 +2424,139 @@
           "type": "string"
         }
       ]
+    },
+    "ReactionBoundsSummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "bottom": {
+          "format": "double",
+          "type": "number"
+        },
+        "left": {
+          "format": "double",
+          "type": "number"
+        },
+        "right": {
+          "format": "double",
+          "type": "number"
+        },
+        "top": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "left",
+        "top",
+        "right",
+        "bottom"
+      ],
+      "type": "object"
+    },
+    "ReactionMemberSummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReactionBoundsSummaryV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "identifier": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "role_ordinal": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_order": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "identifier",
+        "role",
+        "role_ordinal",
+        "source_order"
+      ],
+      "type": "object"
+    },
+    "ReactionObservationSummaryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "diagnostics": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/$defs/ProtocolReactionDefinitionDispositionV1"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/ReactionMemberSummaryV1"
+          },
+          "type": "array"
+        },
+        "membership_digest": {
+          "type": "string"
+        },
+        "reaction_id": {
+          "type": "string"
+        },
+        "source_order": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "union_bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReactionBoundsSummaryV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "reaction_id",
+        "source_order",
+        "disposition",
+        "diagnostics",
+        "membership_digest",
+        "members"
+      ],
+      "type": "object"
+    },
+    "ReactionRefusalV1": {
+      "additionalProperties": false,
+      "description": "Typed refusal facts for `reaction.create.v1`.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ProtocolReactionRefusalCategoryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolReactionRefusalRecoveryV1"
+        }
+      },
+      "required": [
+        "category",
+        "recovery"
+      ],
+      "type": "object"
     },
     "RewriteCheck": {
       "description": "A successful structural preservation check for `cdml rewrite --check`.",

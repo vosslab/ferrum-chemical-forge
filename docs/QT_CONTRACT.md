@@ -507,6 +507,21 @@ reports, every assessed atom's authored charge/H supporting facts in a mixed exc
 order, depiction independence, lifecycle/nonmutation, and accessibility. Fresh wheel/site,
 visual, and timing observations remain disposable evidence.
 
+`Chemistry -> Molecule Report...` is an ordinary-native, read-only receipt viewer with one
+source-bound modeless lifecycle. The dialog may remain visible as historical context when the
+author changes tabs, but `Run again` is enabled only while its captured source tab is still the
+active live tab and has a complete selected molecule. Rerun recaptures that source tab's current
+
+Each displayed record presents the Rust-issued nested composition DTO exactly when available:
+formula, net formal charge, finite average molecular weight and monoisotopic mass in Da, and
+canonical isotope-aware element contributions with their counts and mass percentages. The dialog
+also displays the required tagged report aggregate exactly as either a complete composition or its
+closed Rust omission reason; it does not derive formula, mass, percentages, or aggregate state.
+selection; it cannot resolve the current selection from another tab. Before its source tab is
+disposed, Qt terminally retires the dialog and its rerun action. Rust remains the sole source of
+report facts; Qt neither reveals an inferred atom nor mutates a document while presenting or
+retiring the receipt.
+
 `Chemistry -> Create Fragment...` and `View Fragments...` are accepted ordinary-native
 Explicit Fragment V1 clients. Create captures one live source tab, revision, digest, direct-root
 molecule, and durable atom/bond selection before the modal name form. It accepts one nonblank

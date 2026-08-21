@@ -31,7 +31,9 @@ class FerrumNativeHaworthToolMixin:
 		self._insert_haworth_ring_action.setToolTip(self.tr(
 			"Choose a D-glucose Haworth form, then click an empty page location.",
 		))
-		self._insert_haworth_ring_action.triggered.connect(self._choose_haworth_recipe)
+		self._connect_interaction_action_v1(
+			self._insert_haworth_ring_action, self._choose_haworth_recipe,
+		)
 		edit_menu.addAction(self._insert_haworth_ring_action)
 		self._haworth_intent: _HaworthIntent | None = None
 

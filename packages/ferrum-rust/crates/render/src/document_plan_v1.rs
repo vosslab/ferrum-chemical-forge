@@ -332,6 +332,70 @@ pub struct DocumentRenderPlanV1 {
     outcomes: Vec<DocumentRenderOutcomeV1>,
 }
 
+/// One renderer-owned, immutable direct-root projection for a transient client
+/// overlay. This value carries the exact content the page plan would paint;
+/// callers cannot supply replacement geometry, CDML, or styling.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RenderRootOverlayV1 {
+    identity: DocumentRenderIdentityV1,
+    source_order: u32,
+    content: DocumentRenderContentV1,
+}
+
+impl RenderRootOverlayV1 {
+    #[must_use]
+    pub const fn identity(&self) -> &DocumentRenderIdentityV1 {
+        &self.identity
+    }
+
+    #[must_use]
+    pub const fn source_order(&self) -> u32 {
+        self.source_order
+    }
+
+    #[must_use]
+    pub const fn content(&self) -> &DocumentRenderContentV1 {
+        &self.content
+    }
+}
+
+/// Return exactly one paintable root from a composed document plan.
+///
+/// Missing or excluded identities fail closed so a preview cannot claim that a
+/// renderer-admitted candidate is visible when normal document painting omits
+/// it.
+pub fn preview_root_render_overlay_v1(
+    plan: &DocumentRenderPlanV1,
+    identity: &DocumentRenderIdentityV1,
+) -> Result<RenderRootOverlayV1, RenderError> {
+    let mut result = None;
+    for outcome in plan.outcomes() {
+        if outcome.identity() != identity {
+            continue;
+        }
+        let DocumentRenderOutcomeV1::Root(root) = outcome else {
+            return Err(RenderError::InvalidRequest(
+                "selected render root is excluded from the renderer".to_owned(),
+            ));
+        };
+        if result.is_some() {
+            return Err(RenderError::InvalidRequest(
+                "selected render root occurs more than once in the renderer plan".to_owned(),
+            ));
+        }
+        result = Some(RenderRootOverlayV1 {
+            identity: root.identity().clone(),
+            source_order: root.source_order(),
+            content: root.content().clone(),
+        });
+    }
+    result.ok_or_else(|| {
+        RenderError::InvalidRequest(
+            "selected render root is absent from the renderer plan".to_owned(),
+        )
+    })
+}
+
 impl DocumentRenderPlanV1 {
     /// Construct a page plan from one observation's authenticated render facts.
     pub fn new(

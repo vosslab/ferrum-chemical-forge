@@ -1,4 +1,5 @@
 #include "ferrum_chem_adapter.h"
+#include "ferrum_chem_smarts_match.h"
 #include "ferrum_chem_molecule_response.h"
 #include "ferrum_chem_utf8.h"
 
@@ -499,7 +500,13 @@ extern "C" uint64_t ferrum_chem_capabilities_v1(void) noexcept {
 		FERRUM_CHEM_CAPABILITY_MOLFILE | FERRUM_CHEM_CAPABILITY_SDF_WRITE |
 		FERRUM_CHEM_CAPABILITY_SDF_READ | FERRUM_CHEM_CAPABILITY_MOLFILE_READ |
 		FERRUM_CHEM_CAPABILITY_INCHI | FERRUM_CHEM_CAPABILITY_COMPOSITION |
-		FERRUM_CHEM_CAPABILITY_SMILES_WRITE | FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE;
+		FERRUM_CHEM_CAPABILITY_SMILES_WRITE | FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE |
+		FERRUM_CHEM_CAPABILITY_SMARTS_MATCH;
+}
+
+extern "C" uint32_t ferrum_chem_smarts_match_v1(
+	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response) noexcept {
+	return ferrum_chem::smarts_match_v1(request, request_len, response);
 }
 
 extern "C" uint32_t ferrum_chem_kekulize_v1(

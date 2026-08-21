@@ -4,9 +4,63 @@ use thiserror::Error;
 
 use crate::draw_stream_v1::{
     DrawEllipseV1, DrawMetadataV1, DrawPathCommandV1, DrawPathV1, DrawRectV1, DrawSinkV1,
-    DrawStreamErrorV1, DrawStyleV1, lower_document_plan_to_sink_v1,
+    DrawStreamErrorV1, DrawStyleV1, lower_document_plan_to_sink_v1, lower_molecule_plan_to_sink_v1,
 };
-use crate::{BatchSpace, DocumentRenderPlanV1, RenderError, RenderPoint, RenderViewportV1};
+use crate::{
+    BatchSpace, DocumentRenderPlanV1, MoleculeRenderPlan, RenderError, RenderPoint,
+    RenderViewportV1,
+};
+
+/// Conservative painted bounds for one complete molecule render plan.
+///
+/// The values are derived by the same private draw-stream lowering that emits
+/// text outlines, masks, line/path strokes, and rotated ellipses to every
+/// artifact backend. They are render-plan facts, not CDML or frontend geometry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MoleculeContentBoundsV1 {
+    left: f64,
+    top: f64,
+    right: f64,
+    bottom: f64,
+}
+
+impl MoleculeContentBoundsV1 {
+    #[must_use]
+    pub const fn left(self) -> f64 {
+        self.left
+    }
+    #[must_use]
+    pub const fn top(self) -> f64 {
+        self.top
+    }
+    #[must_use]
+    pub const fn right(self) -> f64 {
+        self.right
+    }
+    #[must_use]
+    pub const fn bottom(self) -> f64 {
+        self.bottom
+    }
+}
+
+/// Measure every painted primitive in one molecule plan.
+pub fn measure_molecule_render_plan_bounds_v1(
+    plan: &MoleculeRenderPlan,
+) -> Result<MoleculeContentBoundsV1, DocumentContentBoundsErrorV1> {
+    let mut sink = ContentBoundsSinkV1::default();
+    let page =
+        RenderViewportV1::new(0.0, 0.0, 1.0, 1.0).map_err(DocumentContentBoundsErrorV1::Plan)?;
+    lower_molecule_plan_to_sink_v1(plan, page, &mut sink).map_err(map_draw_error)?;
+    let bounds = sink
+        .bounds
+        .ok_or(DocumentContentBoundsErrorV1::EmptyContent)?;
+    Ok(MoleculeContentBoundsV1 {
+        left: bounds.min_x,
+        top: bounds.min_y,
+        right: bounds.max_x,
+        bottom: bounds.max_y,
+    })
+}
 
 /// Fit a document plan to the conservative painted bounds of its retained roots.
 ///
@@ -331,5 +385,133 @@ impl DrawSinkV1 for ContentBoundsSinkV1 {
 
     fn finish_page(&mut self) -> Result<(), Self::Error> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ferrum_core::{Identifier, RecordId, RecordKind};
+
+    use super::*;
+    use crate::*;
+
+    fn point(x: f64, y: f64) -> RenderPoint {
+        RenderPoint::new(x, y).expect("finite point")
+    }
+    fn size(value: f64) -> PositiveFinite {
+        PositiveFinite::new(value).expect("positive extent")
+    }
+    fn paint(value: &str) -> Paint {
+        Paint::rgb24(Rgb24::new(value).expect("paint"))
+    }
+    fn target(kind: RecordKind, id: &str, order: u32) -> RenderTarget {
+        RenderTarget::new(
+            RecordId::from_source(kind, &Identifier::new(id).expect("identifier")),
+            order,
+        )
+    }
+    fn text() -> RenderOp {
+        let environment = FerrumFontEnvironmentV1::load().expect("verified Telex");
+        let metrics = VerifiedTelexGlyphMetrics::new(&environment).expect("metrics");
+        let glyphs = metrics
+            .v1_glyphs_for_run("N", size(12.0), size(1.0))
+            .expect("glyph placements");
+        RenderOp::Text(
+            TextOp::new(
+                point(0.0, 0.0),
+                vec![
+                    TextRun::new(
+                        "N",
+                        TextScript::Baseline,
+                        point(0.0, 0.0),
+                        glyphs,
+                        size(1.0),
+                    )
+                    .expect("run"),
+                ],
+                FontFace::telex_regular(),
+                size(12.0),
+                paint("000000"),
+                1,
+            )
+            .expect("text op"),
+        )
+    }
+
+    #[test]
+    fn molecule_measurement_encloses_text_mask_ellipse_line_and_path_paint() {
+        let plan = MoleculeRenderPlan::new(
+            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
+            vec![
+                RenderBatch::new(
+                    target(RecordKind::Atom, "a", 1),
+                    BatchSpace::AtomLocal {
+                        anchor: point(10.0, 20.0),
+                    },
+                    vec![
+                        text(),
+                        RenderOp::Mask(
+                            MaskOp::new(point(20.0, 0.0), size(5.0), size(4.0), paint("ffffff"), 2)
+                                .expect("mask"),
+                        ),
+                        RenderOp::Ellipse(
+                            EllipseOp::new(
+                                point(40.0, 0.0),
+                                size(5.0),
+                                size(3.0),
+                                45.0,
+                                Some(size(2.0)),
+                                Some(paint("112233")),
+                                Some(paint("aabbcc")),
+                                3,
+                            )
+                            .expect("ellipse"),
+                        ),
+                    ],
+                )
+                .expect("atom batch"),
+                RenderBatch::new(
+                    target(RecordKind::Bond, "b", 2),
+                    BatchSpace::Scene,
+                    vec![RenderOp::Line(
+                        LineOp::new(
+                            point(-20.0, 0.0),
+                            point(-10.0, 0.0),
+                            size(2.0),
+                            paint("112233"),
+                            1,
+                        )
+                        .expect("line"),
+                    )],
+                )
+                .expect("line batch"),
+                RenderBatch::new(
+                    target(RecordKind::Bond, "p", 3),
+                    BatchSpace::Scene,
+                    vec![RenderOp::Path(
+                        PathOpV2::new(
+                            vec![
+                                ScenePathCommandV2::MoveTo(point(0.0, 50.0)),
+                                ScenePathCommandV2::CubicTo {
+                                    control_1: point(10.0, 70.0),
+                                    control_2: point(20.0, 30.0),
+                                    end: point(30.0, 50.0),
+                                },
+                            ],
+                            Some(ScenePathStrokeV2::new(paint("112233"), size(2.0))),
+                            None,
+                            1,
+                        )
+                        .expect("path"),
+                    )],
+                )
+                .expect("path batch"),
+            ],
+            vec![],
+        )
+        .expect("plan");
+        let bounds = measure_molecule_render_plan_bounds_v1(&plan).expect("measured bounds");
+        assert!(bounds.left() <= -21.0 && bounds.right() >= 55.0);
+        assert!(bounds.top() <= 7.0 && bounds.bottom() >= 71.0);
     }
 }

@@ -4,10 +4,10 @@
 _TAB_OPERATION_INTENTS = (
 	"_smiles_import_intent", "_inchi_import_intent", "_molblock_import_intent",
 	"_sdf_import_intent", "_peptide_import_intent", "_molecule_export_intent",
-	"_molecule_inspection_intent", "_clipboard_copy_intent", "_clipboard_cut_intent",
-	"_bond_capacity_intent",
+	"_molecule_report_intent", "_clipboard_copy_intent", "_clipboard_cut_intent",
 	"_clipboard_paste_intent", "_coordinate_generation_intent",
 	"_user_template_placement_intent",
+	"_catalog_placement_intent",
 	"_snapshot_export_intent",
 )
 

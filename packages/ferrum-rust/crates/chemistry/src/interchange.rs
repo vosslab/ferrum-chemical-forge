@@ -17,6 +17,14 @@ use crate::{
 /// The maximum text accepted or returned by one interchange codec operation.
 pub const INTERCHANGE_MAX_TEXT_BYTES_V1: usize = SDF_MAX_INPUT_BYTES;
 
+/// Exact closed profile identity reserved for the Rust-owned CML/CML2 importer.
+///
+/// This is a codec capability identifier only.  The decoder is introduced in a
+/// later M2a phase; keeping the identity here lets API registry validation prove
+/// that presentation code cannot invent a second CML profile table.
+pub const CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1: &str =
+    "ferrum-cml-simple-molecule-import-profile-v1";
+
 /// Closed syntax vocabulary. `Cdml` is retained as a wire value for callers
 /// that dispatch CDML composition outside this crate.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

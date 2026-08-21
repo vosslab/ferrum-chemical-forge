@@ -288,6 +288,26 @@ pub struct IndexedDocument {
     next_token: u64,
 }
 
+/// Complete-document declaration-ID ambiguity facts for one retained CDML tree.
+///
+/// The shared CDML identifier-role classifier counts declarations in opaque and
+/// preservation-only content, but not documented fragment-member IDREF fields.
+/// It is for conservative authoring gates, not object resolution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompleteDocumentIdentityFactsV1 {
+    literal_id_counts: BTreeMap<String, u32>,
+}
+
+impl CompleteDocumentIdentityFactsV1 {
+    /// Return whether this literal spelling occurs at more than one XML position.
+    #[must_use]
+    pub fn is_ambiguous_identifier(&self, identifier: &str) -> bool {
+        self.literal_id_counts
+            .get(identifier)
+            .is_some_and(|count| *count > 1)
+    }
+}
+
 impl IndexedDocument {
     /// Parse opaque CDML, validate document-wide persistent ID uniqueness, and index
     /// direct-child source order.
@@ -316,7 +336,7 @@ impl IndexedDocument {
         index_element(
             &xml.tree,
             root,
-            None,
+            CdmlIdentifierContextV1::CoreCdmlRoot,
             &mut root_path,
             None,
             &mut id_index,
@@ -355,6 +375,28 @@ impl IndexedDocument {
     #[must_use]
     pub fn persistent_id_count(&self) -> usize {
         self.id_index.len()
+    }
+
+    /// Observe every declaration `id` attribute in the retained document.
+    ///
+    /// This remains below API facades so opaque extension content is never parsed
+    /// or exposed there.
+    #[must_use]
+    pub fn complete_document_identity_facts_v1(&self) -> CompleteDocumentIdentityFactsV1 {
+        let root = self
+            .xml
+            .tree
+            .document_element(self.xml.document)
+            .expect("an indexed CDML document has a root element");
+        let mut literal_id_counts = BTreeMap::new();
+        count_declaration_ids(
+            &self.xml.tree,
+            root,
+            None,
+            CdmlIdentifierContextV1::CoreCdmlRoot,
+            &mut literal_id_counts,
+        );
+        CompleteDocumentIdentityFactsV1 { literal_id_counts }
     }
 
     pub(crate) fn persistent_ids(&self) -> impl Iterator<Item = &PersistentId> {
@@ -451,49 +493,121 @@ pub(crate) fn element_name(tree: &Xot, node: Node) -> Option<(String, String)> {
     Some((local_name.to_string(), namespace.to_string()))
 }
 
+enum CdmlIdentifierRoleV1<'a> {
+    Declaration(&'a str),
+    Reference,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum CdmlIdentifierContextV1 {
+    CoreCdmlRoot,
+    CoreDirectMolecule,
+    CoreDirectFragment,
+    CoreFragmentMember,
+    Other,
+}
+
+fn cdml_identifier_role_v1(
+    tree: &Xot,
+    node: Node,
+    context: CdmlIdentifierContextV1,
+) -> Option<CdmlIdentifierRoleV1<'_>> {
+    let identifier = tree.attributes(node).iter().find_map(|(name, value)| {
+        let (local_name, namespace) = tree.name_ns_str(name);
+        (local_name == "id" && namespace.is_empty()).then_some(value.as_str())
+    });
+    identifier.map(|identifier| {
+        if is_fragment_id_reference(tree, node, context) {
+            CdmlIdentifierRoleV1::Reference
+        } else {
+            CdmlIdentifierRoleV1::Declaration(identifier)
+        }
+    })
+}
+
 fn persistent_id(
     tree: &Xot,
     node: Node,
-    parent: Option<Node>,
+    context: CdmlIdentifierContextV1,
 ) -> Result<Option<PersistentId>, DocumentIdentityError> {
-    if is_fragment_id_reference(tree, node, parent) {
-        return Ok(None);
+    match cdml_identifier_role_v1(tree, node, context) {
+        Some(CdmlIdentifierRoleV1::Declaration(identifier)) => {
+            PersistentId::new(identifier.to_owned()).map(Some)
+        }
+        Some(CdmlIdentifierRoleV1::Reference) | None => Ok(None),
     }
-    let identifier = tree.attributes(node).iter().find_map(|(name, value)| {
-        let (local_name, namespace) = tree.name_ns_str(name);
-        (local_name == "id" && namespace.is_empty()).then(|| value.clone())
-    });
-    identifier.map(PersistentId::new).transpose()
 }
 
-fn is_fragment_id_reference(tree: &Xot, node: Node, parent: Option<Node>) -> bool {
-    let Some(parent) = parent else {
+fn is_fragment_id_reference(tree: &Xot, node: Node, context: CdmlIdentifierContextV1) -> bool {
+    if context != CdmlIdentifierContextV1::CoreFragmentMember {
         return false;
-    };
+    }
     let Some((local_name, namespace)) = element_name(tree, node) else {
         return false;
     };
-    let Some((parent_name, parent_namespace)) = element_name(tree, parent) else {
-        return false;
-    };
     let core_namespace = |namespace: &str| namespace.is_empty() || namespace == CDML_NAMESPACE;
-    core_namespace(&namespace)
-        && core_namespace(&parent_namespace)
-        && parent_name == "fragment"
-        && matches!(local_name.as_str(), "bond" | "vertex")
+    core_namespace(&namespace) && matches!(local_name.as_str(), "bond" | "vertex")
+}
+
+fn child_identifier_context(
+    tree: &Xot,
+    parent_context: CdmlIdentifierContextV1,
+    child: Node,
+) -> CdmlIdentifierContextV1 {
+    let Some((local_name, namespace)) = element_name(tree, child) else {
+        return CdmlIdentifierContextV1::Other;
+    };
+    let core_namespace = namespace.is_empty() || namespace == CDML_NAMESPACE;
+    match (parent_context, core_namespace, local_name.as_str()) {
+        (CdmlIdentifierContextV1::CoreCdmlRoot, true, "molecule") => {
+            CdmlIdentifierContextV1::CoreDirectMolecule
+        }
+        (CdmlIdentifierContextV1::CoreDirectMolecule, true, "fragment") => {
+            CdmlIdentifierContextV1::CoreDirectFragment
+        }
+        (CdmlIdentifierContextV1::CoreDirectFragment, true, "bond" | "vertex") => {
+            CdmlIdentifierContextV1::CoreFragmentMember
+        }
+        _ => CdmlIdentifierContextV1::Other,
+    }
+}
+
+fn count_declaration_ids(
+    tree: &Xot,
+    node: Node,
+    _parent: Option<Node>,
+    context: CdmlIdentifierContextV1,
+    counts: &mut BTreeMap<String, u32>,
+) {
+    if let Some(CdmlIdentifierRoleV1::Declaration(identifier)) =
+        cdml_identifier_role_v1(tree, node, context)
+    {
+        *counts.entry(identifier.to_owned()).or_insert(0) += 1;
+    }
+    for child in tree.children(node) {
+        if tree.element(child).is_some() {
+            count_declaration_ids(
+                tree,
+                child,
+                Some(node),
+                child_identifier_context(tree, context, child),
+                counts,
+            );
+        }
+    }
 }
 
 fn index_element(
     tree: &Xot,
     node: Node,
-    parent: Option<Node>,
+    context: CdmlIdentifierContextV1,
     path: &mut Vec<u32>,
     source_order: Option<SourceOrder>,
     id_index: &mut BTreeMap<PersistentId, ResolvedId>,
     records: &mut Vec<DocumentRecord>,
 ) -> Result<(), DocumentIdentityError> {
     let element_path = ElementPath(path.clone());
-    if let Some(identifier) = persistent_id(tree, node, parent)? {
+    if let Some(identifier) = persistent_id(tree, node, context)? {
         let resolved = ResolvedId {
             identifier: identifier.clone(),
             path: element_path.clone(),
@@ -523,14 +637,18 @@ fn index_element(
         if path.len() == 1 {
             records.push(DocumentRecord {
                 source_order: child_order.expect("direct child receives source order"),
-                identifier: persistent_id(tree, child, Some(node))?,
+                identifier: persistent_id(
+                    tree,
+                    child,
+                    child_identifier_context(tree, context, child),
+                )?,
                 path: ElementPath(path.clone()),
             });
         }
         index_element(
             tree,
             child,
-            Some(node),
+            child_identifier_context(tree, context, child),
             path,
             child_order,
             id_index,

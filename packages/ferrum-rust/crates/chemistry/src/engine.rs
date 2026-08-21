@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use crate::adapter_contract::FERRUM_CHEM_SMARTS_MATCH_MAX_ROWS;
 use crate::{
     Coordinates, ImportedSdfRecord, MolGraph, MoleculeComposition, SdfRecord, SmilesMolecule,
 };
@@ -79,6 +80,178 @@ impl Default for KekulizeOptions {
     }
 }
 
+/// Bounded enumeration policy for one SMARTS match request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SmartsMatchOptions {
+    max_matches: u32,
+}
+
+impl SmartsMatchOptions {
+    /// Largest number of result rows admitted by the ABI-5 matcher.
+    pub const MAX_MATCHES: u32 = FERRUM_CHEM_SMARTS_MATCH_MAX_ROWS;
+
+    /// Construct options with one explicit, positive result cap.
+    pub fn new(max_matches: u32) -> Result<Self, SmartsMatchOptionsError> {
+        if max_matches == 0 {
+            return Err(SmartsMatchOptionsError::ZeroMaxMatches);
+        }
+        if max_matches > Self::MAX_MATCHES {
+            return Err(SmartsMatchOptionsError::MaxMatchesTooLarge {
+                maximum: Self::MAX_MATCHES,
+            });
+        }
+        Ok(Self { max_matches })
+    }
+
+    /// Return the maximum number of query-ordered rows to retain.
+    #[must_use]
+    pub const fn max_matches(&self) -> u32 {
+        self.max_matches
+    }
+}
+
+/// Owned facts returned by one bounded SMARTS enumeration.
+///
+/// Every value in a row is an atom position in the caller-provided [`MolGraph`].
+/// Rows preserve query-atom order; no native graph or wire index escapes this type.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SmartsMatchResult {
+    rows: Vec<Vec<usize>>,
+    truncated: bool,
+}
+
+impl SmartsMatchResult {
+    pub(crate) fn new(rows: Vec<Vec<usize>>, truncated: bool) -> Self {
+        Self { rows, truncated }
+    }
+
+    /// Construct validated, caller-relative match facts for a custom chemistry engine.
+    ///
+    /// This accepts only typed atom positions in the caller-supplied graph; it
+    /// exposes no native matcher, adapter, or wire representation.
+    pub fn try_from_rows(
+        target: &MolGraph,
+        options: SmartsMatchOptions,
+        rows: Vec<Vec<usize>>,
+        truncated: bool,
+    ) -> Result<Self, SmartsMatchResultError> {
+        if rows.len()
+            > usize::try_from(options.max_matches()).expect("SMARTS match row maximum fits usize")
+        {
+            return Err(SmartsMatchResultError::TooManyRows {
+                maximum: options.max_matches(),
+            });
+        }
+        let atom_count = target.atoms().len();
+        let mut query_arity = None;
+        for row in &rows {
+            if row.is_empty() {
+                return Err(SmartsMatchResultError::EmptyRow);
+            }
+            if let Some(expected) = query_arity {
+                if row.len() != expected {
+                    return Err(SmartsMatchResultError::InconsistentQueryRowArity {
+                        expected,
+                        observed: row.len(),
+                    });
+                }
+            } else {
+                query_arity = Some(row.len());
+            }
+            let mut positions = row.clone();
+            positions.sort_unstable();
+            if positions.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(SmartsMatchResultError::DuplicateTargetPosition);
+            }
+            if let Some(position) = row.iter().copied().find(|position| *position >= atom_count) {
+                return Err(SmartsMatchResultError::TargetPositionOutOfRange {
+                    position,
+                    atom_count,
+                });
+            }
+        }
+        Ok(Self { rows, truncated })
+    }
+
+    /// Return query-ordered target atom positions for every retained match row.
+    #[must_use]
+    pub fn rows(&self) -> &[Vec<usize>] {
+        &self.rows
+    }
+
+    /// Report whether native enumeration observed a match beyond the requested cap.
+    #[must_use]
+    pub const fn truncated(&self) -> bool {
+        self.truncated
+    }
+}
+
+/// Closed validation failures for caller-owned SMARTS match facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum SmartsMatchResultError {
+    /// A custom engine supplied more rows than its caller requested.
+    #[error("SMARTS result exceeds the maximum of {maximum} rows")]
+    TooManyRows {
+        /// Caller-requested upper bound shared with the engine invocation.
+        maximum: u32,
+    },
+    /// A SMARTS match must bind at least one query atom.
+    #[error("SMARTS result contains an empty match row")]
+    EmptyRow,
+    /// One query row cannot bind two query atoms to the same target atom.
+    #[error("SMARTS result contains a duplicate target atom position")]
+    DuplicateTargetPosition,
+    /// A custom engine supplied an atom position outside the caller's target graph.
+    #[error(
+        "SMARTS result references target atom position {position}, but the graph has {atom_count} atoms"
+    )]
+    TargetPositionOutOfRange {
+        /// Invalid caller-relative atom position.
+        position: usize,
+        /// Number of atoms in the caller-provided target graph.
+        atom_count: usize,
+    },
+    /// Match rows must retain one stable query-atom arity for one request.
+    #[error("SMARTS result row arity {observed} differs from the prior query arity {expected}")]
+    InconsistentQueryRowArity {
+        /// Query atom count established by the first retained row.
+        expected: usize,
+        /// Query atom count in the inconsistent row.
+        observed: usize,
+    },
+}
+
+/// Closed, detail-free reasons why the SMARTS matcher cannot provide a result.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SmartsMatchUnavailableReason {
+    /// The required native runtime could not be used.
+    RuntimeUnavailable,
+    /// The native ABI is incompatible with this engine build.
+    AbiIncompatible,
+    /// The required ABI-5 SMARTS capability is absent.
+    CapabilityUnavailable,
+    /// The native call did not complete successfully.
+    NativeCallFailed,
+    /// The native response violated the private FQM1 contract.
+    MalformedNativeResponse,
+    /// The native matcher rejected the request or target.
+    NativeRejected,
+}
+
+/// A rejected [`SmartsMatchOptions`] value.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum SmartsMatchOptionsError {
+    /// A match request must retain at least one row.
+    #[error("max_matches must be positive")]
+    ZeroMaxMatches,
+    /// The requested cap exceeds the bounded ABI contract.
+    #[error("max_matches exceeds the {maximum}-row SMARTS matcher limit")]
+    MaxMatchesTooLarge {
+        /// Largest supported row cap.
+        maximum: u32,
+    },
+}
+
 /// Safe chemistry operations over immutable, owned Ferrum molecular graphs.
 ///
 /// Implementations may use a native toolkit, a WASM implementation, or another
@@ -92,6 +265,18 @@ pub trait ChemEngine {
     /// The reference request explicitly selects RDKit canonical orientation and
     /// never imports pre-existing graph coordinates into the depiction engine.
     fn generate_2d_coordinates(&self, molecule: &MolGraph) -> Result<Coordinates, ChemistryError>;
+
+    /// Enumerate bounded SMARTS matches against one caller-owned graph.
+    fn smarts_match(
+        &self,
+        _query: &str,
+        _target: &MolGraph,
+        _options: SmartsMatchOptions,
+    ) -> Result<SmartsMatchResult, ChemistryError> {
+        Err(ChemistryError::SmartsMatchUnavailable {
+            reason: SmartsMatchUnavailableReason::RuntimeUnavailable,
+        })
+    }
 
     /// Export one complete owned graph as canonical SMARTS for this engine build.
     fn molecule_to_smarts(&self, _molecule: &MolGraph) -> Result<String, ChemistryError> {
@@ -283,6 +468,12 @@ impl ChemEngine for UnavailableChemEngine {
 /// A chemistry operation failure returned by an engine implementation.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum ChemistryError {
+    /// SMARTS matching failed without exposing native, loader, wire, or diagnostic detail.
+    #[error("SMARTS matching is unavailable: {reason:?}")]
+    SmartsMatchUnavailable {
+        /// Closed reason suitable for public recovery routing.
+        reason: SmartsMatchUnavailableReason,
+    },
     /// This build has no implementation for the requested operation.
     #[error("chemistry operation is unavailable: {operation}")]
     OperationUnavailable {
@@ -427,6 +618,57 @@ mod tests {
         assert_eq!(
             KekulizeOptions::new(false, true, 0),
             Err(KekulizeOptionsError::ZeroMaxBacktracks)
+        );
+    }
+
+    #[test]
+    fn smarts_match_options_limit_tracks_generated_abi_limit() {
+        assert_eq!(
+            SmartsMatchOptions::MAX_MATCHES,
+            crate::adapter_contract::FERRUM_CHEM_SMARTS_MATCH_MAX_ROWS
+        );
+    }
+
+    #[test]
+    fn custom_match_rows_are_bound_to_the_requested_target_and_cap() {
+        let target = MolGraph::new(
+            vec![aromatic_carbon(), aromatic_carbon()],
+            vec![MolBond::new(0, 1, BondOrder::Aromatic, true)],
+            None,
+        )
+        .expect("valid target");
+        let one = SmartsMatchOptions::new(1).expect("valid cap");
+
+        assert_eq!(
+            SmartsMatchResult::try_from_rows(&target, one, vec![vec![0], vec![1]], false),
+            Err(SmartsMatchResultError::TooManyRows { maximum: 1 })
+        );
+        assert_eq!(
+            SmartsMatchResult::try_from_rows(&target, one, vec![vec![2]], false),
+            Err(SmartsMatchResultError::TargetPositionOutOfRange {
+                position: 2,
+                atom_count: 2,
+            })
+        );
+        assert_eq!(
+            SmartsMatchResult::try_from_rows(&target, one, vec![vec![0, 1], vec![0]], false),
+            Err(SmartsMatchResultError::TooManyRows { maximum: 1 })
+        );
+        let two = SmartsMatchOptions::new(2).expect("valid cap");
+        assert_eq!(
+            SmartsMatchResult::try_from_rows(&target, two, vec![vec![], vec![0]], false),
+            Err(SmartsMatchResultError::EmptyRow)
+        );
+        assert_eq!(
+            SmartsMatchResult::try_from_rows(&target, two, vec![vec![0, 0]], false),
+            Err(SmartsMatchResultError::DuplicateTargetPosition)
+        );
+        assert_eq!(
+            SmartsMatchResult::try_from_rows(&target, two, vec![vec![0, 1], vec![0]], false),
+            Err(SmartsMatchResultError::InconsistentQueryRowArity {
+                expected: 2,
+                observed: 1,
+            })
         );
     }
 }

@@ -126,6 +126,7 @@ class RdkitLayout:
 	smilesparse_library: Path
 	fileparsers_library: Path
 	rdinchi_library: Path
+	substructmatch_library: Path
 	cmake_options: tuple[str, ...]
 	toolchain: dict[str, str]
 	provenance_audit: dict[str, object]
@@ -268,6 +269,9 @@ def rdkit_layout_from_output_root(input_root: Path) -> RdkitLayout:
 	smilesparse_library = required_rdkit_library(lib_dir, "libRDKitSmilesParse.1.dylib", root)
 	fileparsers_library = required_rdkit_library(lib_dir, "libRDKitFileParsers.1.dylib", root)
 	rdinchi_library = required_rdkit_library(lib_dir, "libRDKitRDInchiLib.1.dylib", root)
+	substructmatch_library = required_rdkit_library(
+		lib_dir, "libRDKitSubstructMatch.1.dylib", root
+	)
 	boost_include_dir = validate_materialized_source(
 		root / str(paths["boost_include_dir"]), root, "Boost include"
 	)
@@ -290,6 +294,7 @@ def rdkit_layout_from_output_root(input_root: Path) -> RdkitLayout:
 		smilesparse_library=smilesparse_library,
 		fileparsers_library=fileparsers_library,
 		rdinchi_library=rdinchi_library,
+		substructmatch_library=substructmatch_library,
 		cmake_options=(),
 		toolchain={},
 		provenance_audit={},
@@ -666,6 +671,7 @@ def build_rdkit(output_root: Path, archive_root: Path | None) -> RdkitLayout:
 			smilesparse_library=layout.smilesparse_library,
 			fileparsers_library=layout.fileparsers_library,
 			rdinchi_library=layout.rdinchi_library,
+			substructmatch_library=layout.substructmatch_library,
 			cmake_options=tuple(minimal_rdkit_options(catch2_source, better_enums_source, boost_config)),
 			toolchain=toolchain_receipt(llvm_root, cmake, sdk_root),
 			provenance_audit=provenance_audit,
@@ -708,6 +714,7 @@ def build_rdkit(output_root: Path, archive_root: Path | None) -> RdkitLayout:
 		smilesparse_library=layout.smilesparse_library,
 		fileparsers_library=layout.fileparsers_library,
 		rdinchi_library=layout.rdinchi_library,
+		substructmatch_library=layout.substructmatch_library,
 		cmake_options=tuple(options),
 		toolchain=toolchain_receipt(llvm_root, cmake, sdk_root),
 		provenance_audit=provenance_audit,
@@ -761,6 +768,7 @@ def configure_adapter(
 		f"-DFERRUM_CHEM_RDKIT_SMILESPARSE={layout.smilesparse_library}",
 		f"-DFERRUM_CHEM_RDKIT_FILEPARSERS={layout.fileparsers_library}",
 		f"-DFERRUM_CHEM_RDKIT_RDINCHI={layout.rdinchi_library}",
+		f"-DFERRUM_CHEM_RDKIT_SUBSTRUCTMATCH={layout.substructmatch_library}",
 	]
 	command.extend(cmake_cxx_toolchain_options(llvm_root, sdk_root))
 	run(*command, env=native_tool_environment(llvm_root, cmake))
@@ -779,7 +787,7 @@ def configure_adapter(
 	linked_names = {Path(item).name for item in otool_dependencies(adapter)}
 	for library in (layout.graphmol_library, layout.rdgeneral_library,
 			layout.depictor_library, layout.smilesparse_library, layout.fileparsers_library,
-			layout.rdinchi_library):
+			layout.rdinchi_library, layout.substructmatch_library):
 		if library.name not in linked_names:
 			raise NativeBuildError(
 				"adapter did not retain its declared RDKit loader dependency; "
@@ -823,10 +831,6 @@ def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: s
 		environment = rust_tool_environment(homebrew_llvm())
 	except NativePolicyError as error:
 		raise NativeBuildError(str(error)) from error
-	# Ferrum owns the separately staged and rewritten native closure and audits it
-	# after packaging. The public document extension is intentionally decoupled
-	# from chemistry loading; the E2E Rust probe opens the adapter explicitly.
-	environment["FERRUM_CHEM_LIB_DIR"] = str(adapter.parent)
 	# The public C header is the only ABI authority. Cargo writes this derived
 	# build setting into generated Rust source for the PyO3 boundary.
 	environment["FERRUM_CHEM_ADAPTER_ABI_VERSION"] = str(ADAPTER_ABI_VERSION)

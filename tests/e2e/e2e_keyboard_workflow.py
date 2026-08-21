@@ -43,10 +43,32 @@ def wait_for(predicate: object, application: PySide6.QtWidgets.QApplication) -> 
 
 #============================================
 def press(window: PySide6.QtWidgets.QWidget, key: object,
-		modifier: object = PySide6.QtCore.Qt.KeyboardModifier.NoModifier) -> None:
-	"""Send one author-visible QTest keyboard event and flush Qt delivery."""
+		modifier: object = PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+		flush: bool = True) -> None:
+	"""Send one author-visible QTest keyboard event, optionally retaining its boundary."""
 	PySide6.QtTest.QTest.keyClick(window, key, modifier)
-	PySide6.QtWidgets.QApplication.instance().processEvents()
+	if flush:
+		PySide6.QtWidgets.QApplication.instance().processEvents()
+
+
+#============================================
+def find_atom(projection: object, identifier: str) -> object | None:
+	"""Return one Rust projection atom by durable source identity, if present."""
+	for molecule in projection.molecules:
+		for atom in molecule.atoms:
+			if atom.source_id == identifier:
+				return atom
+	return None
+
+
+#============================================
+def find_bond_between(projection: object, first: str, second: str) -> object | None:
+	"""Return the bond with these exact durable endpoint identities, if present."""
+	for molecule in projection.molecules:
+		for bond in molecule.bonds:
+			if frozenset((bond.start.source_id, bond.end.source_id)) == frozenset((first, second)):
+				return bond
+	return None
 
 
 #============================================
@@ -78,14 +100,31 @@ def main() -> int:
 		tab = window._active_native_tab()
 		if tab is None:
 			raise KeyboardWorkflowError("Open shortcut did not install a document tab")
+		original_atom_id = "keyboard-carbon"
+		initial_projection = tab.current_document_observation().projection
+		if find_atom(initial_projection, original_atom_id) is None:
+			raise KeyboardWorkflowError("keyboard fixture lost its ordinary carbon projection")
+		if ("atom", original_atom_id) not in tab._require_projection().durable_items:
+			raise KeyboardWorkflowError(
+				"keyboard fixture lacks a durable Rust-to-Qt render target",
+			)
 		tab.view.set_hex_grid_snap_enabled(False)
 		tab.view.set_keyboard_cursor_scene(PySide6.QtCore.QPointF(90.0, 80.0))
 		press(window, PySide6.QtCore.Qt.Key.Key_8,
 			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier)
-		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Return)
+		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Return, flush=False)
 		created = tab.selected_atom_projection()
-		if created is None:
-			raise KeyboardWorkflowError("keyboard atom placement did not select Rust atom")
+		if (
+			created is None
+			or created.source_id == original_atom_id
+			or (created.position.x, created.position.y) != (90.0, 80.0)
+		):
+			raise KeyboardWorkflowError(
+				"Return did not immediately select the newly created Rust atom at (90, 80)",
+			)
+		created_atom_id = created.source_id
+		if ("atom", created_atom_id) not in tab._require_projection().durable_items:
+			raise KeyboardWorkflowError("newly created Rust atom lacks a durable Qt render target")
 		tab.view.set_keyboard_cursor_scene(PySide6.QtCore.QPointF(10.0, 20.0))
 		press(window, PySide6.QtCore.Qt.Key.Key_2,
 			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier)
@@ -94,12 +133,17 @@ def main() -> int:
 			created.position.x, created.position.y,
 		))
 		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Return)
-		if len(tab.current_document_observation().projection.molecules[0].bonds) != 1:
-			raise KeyboardWorkflowError("keyboard bond placement did not reach Rust")
+		bond = find_bond_between(
+			tab.current_document_observation().projection, original_atom_id, created_atom_id,
+		)
+		if bond is None:
+			raise KeyboardWorkflowError("keyboard bond did not use the newly created Rust atom")
 		press(window, PySide6.QtCore.Qt.Key.Key_Z,
 			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier)
-		if len(tab.current_document_observation().projection.molecules[0].bonds) != 0:
-			raise KeyboardWorkflowError("Undo shortcut did not remove only the keyboard bond")
+		if find_bond_between(
+			tab.current_document_observation().projection, original_atom_id, created_atom_id,
+		) is not None:
+			raise KeyboardWorkflowError("Undo shortcut did not remove the keyboard bond")
 		press(window, PySide6.QtCore.Qt.Key.Key_S,
 			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier
 			| PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier)
@@ -109,9 +153,16 @@ def main() -> int:
 			args.output.read_text(encoding="utf-8"), args.output.name,
 		)
 		try:
-			molecule = reopened.current_document_observation().projection.molecules[0]
-			if len(molecule.atoms) != 2 or len(molecule.bonds) != 0:
-				raise KeyboardWorkflowError("reopened Rust facts differ from saved keyboard edit")
+			reopened_projection = reopened.current_document_observation().projection
+			reopened_atom = find_atom(reopened_projection, created_atom_id)
+			if (
+				reopened_atom is None
+				or (reopened_atom.position.x, reopened_atom.position.y) != (90.0, 80.0)
+				or find_bond_between(reopened_projection, original_atom_id, created_atom_id) is not None
+			):
+				raise KeyboardWorkflowError("Rust reopen lost the saved keyboard workflow state")
+			if ("atom", created_atom_id) not in reopened._require_projection().durable_items:
+				raise KeyboardWorkflowError("Rust reopen lost the created atom's durable render target")
 		finally:
 			reopened.dispose()
 		return 0

@@ -5,6 +5,7 @@ use xot::Xot;
 use super::{
     CDML_NAMESPACE, PresentationRecordKindV1, PresentationRootDeletionSetV1,
     PresentationRootDeletionV1, TypedDocument, TypedDocumentError, element_name,
+    reaction_reference_graph_v1::direct_reaction_reference_graph,
 };
 
 impl TypedDocument {
@@ -62,6 +63,7 @@ impl TypedDocument {
             targets.push(matches[0]);
         }
         validate_complete_bracket_deletion(self, deletions)?;
+        validate_reaction_references(self, deletions)?;
         for target in targets {
             indexed
                 .xml
@@ -72,6 +74,27 @@ impl TypedDocument {
         let serialized = candidate.to_xml()?;
         Self::parse(&serialized).map(Some)
     }
+}
+
+fn validate_reaction_references(
+    document: &TypedDocument,
+    deletions: &PresentationRootDeletionSetV1,
+) -> Result<(), TypedDocumentError> {
+    let selected = deletions
+        .targets()
+        .iter()
+        .map(|target| target.presentation_id().as_str())
+        .collect::<std::collections::HashSet<_>>();
+    let references = direct_reaction_reference_graph(document);
+    for identifier in selected {
+        if references.contains(identifier) {
+            return Err(TypedDocumentError::ReactionReferencedPresentationDeletion(
+                super::PersistentId::new(identifier.to_owned())
+                    .expect("recognized reaction role idref is a durable identifier"),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_complete_bracket_deletion(
@@ -102,4 +125,27 @@ fn is_cdml_element(tree: &Xot, node: xot::Node, expected: &str) -> bool {
     element_name(tree, node).is_some_and(|(local_name, namespace)| {
         local_name == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reaction_referenced_arrow_text_and_plus_are_atomic_presentation_refusals() {
+        let document = TypedDocument::parse("<cdml><arrow id=\"a\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><text id=\"t\"><point x=\"0\" y=\"10\"/><ftext>conditions</ftext></text><plus id=\"p\"><point x=\"20\" y=\"0\"/></plus><reaction id=\"r\"><arrow idref=\"a\"/><condition idref=\"t\"/><plus idref=\"p\"/></reaction></cdml>").expect("fixture parses");
+        for (id, kind) in [
+            ("a", PresentationRecordKindV1::Arrow),
+            ("t", PresentationRecordKindV1::Text),
+            ("p", PresentationRecordKindV1::Plus),
+        ] {
+            let deletion = PresentationRootDeletionV1::new(id.to_owned(), kind).expect("selector");
+            assert!(matches!(
+                document.with_delete_presentation_root(&deletion),
+                Err(TypedDocumentError::ReactionReferencedPresentationDeletion(
+                    _
+                ))
+            ));
+        }
+    }
 }

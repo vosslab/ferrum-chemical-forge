@@ -282,8 +282,10 @@ class InvalidInchi(ChemistryError): ...
 
 
 class ChemistryUnavailable(ChemistryError):
+	reason: str
 	operation: str
-	library_path: str
+	category: str
+	recovery: str
 
 
 class ChemistryParse(ChemistryError):
@@ -293,7 +295,8 @@ class ChemistryParse(ChemistryError):
 class ChemistryCodec(ChemistryError):
 	codec: str
 	operation: str
-	library_path: str
+	category: str
+	recovery: str
 
 
 class ChemistryBoundary(ChemistryError): ...
@@ -1106,11 +1109,60 @@ class DocumentTextEditStyleV1:
 
 class DocumentTextEditRunV1:
 	"""One frozen validated character-data run."""
+	text: str
+	styles: tuple[DocumentTextEditStyleV1, ...]
 	@staticmethod
 	def create(
 		text: str,
 		styles: tuple[DocumentTextEditStyleV1, ...],
 	) -> "DocumentTextEditRunV1": ...
+
+
+class TextPlacementError(DocumentError): ...
+
+
+class TextPlacementErrorCategoryV1:
+	stale_snapshot: ClassVar[TextPlacementErrorCategoryV1]
+	foreign_session: ClassVar[TextPlacementErrorCategoryV1]
+	mismatched_preview: ClassVar[TextPlacementErrorCategoryV1]
+	replayed_gesture: ClassVar[TextPlacementErrorCategoryV1]
+	invalid_anchor: ClassVar[TextPlacementErrorCategoryV1]
+	blank_content: ClassVar[TextPlacementErrorCategoryV1]
+	unsupported_style: ClassVar[TextPlacementErrorCategoryV1]
+	invalid_font_override: ClassVar[TextPlacementErrorCategoryV1]
+	unrenderable_standard: ClassVar[TextPlacementErrorCategoryV1]
+	render_preparation: ClassVar[TextPlacementErrorCategoryV1]
+	session_conflict: ClassVar[TextPlacementErrorCategoryV1]
+
+
+class TextPlacementRecoveryV1:
+	restart_tool: ClassVar[TextPlacementRecoveryV1]
+	choose_another_location: ClassVar[TextPlacementRecoveryV1]
+	correct_text: ClassVar[TextPlacementRecoveryV1]
+	repair_drawing_standard: ClassVar[TextPlacementRecoveryV1]
+	recover_canvas: ClassVar[TextPlacementRecoveryV1]
+	refresh_then_retry: ClassVar[TextPlacementRecoveryV1]
+
+
+class TextPlacementGestureV1: ...
+
+
+class TextPlacementPreviewV1:
+	overlay: DocumentTextRenderV1
+
+
+class TextPlacementDefaultsV1:
+	runs: tuple[DocumentTextEditRunV1, ...]
+	font_size: float
+	color: str
+	bold_supported: bool
+	italic_supported: bool
+	font_family_supported: bool
+
+
+class TextPlacementCommitV1:
+	identifier: str
+	result: SessionOperationResultV1
 
 
 class DocumentTextPropertyChangeV1:
@@ -1548,6 +1600,22 @@ class DocumentSession:
 	def snapshot(self) -> DocumentSnapshot: ...
 	def observe(self, expected_revision: int) -> SessionDocumentObservationV1: ...
 	def observe_render(self, expected_revision: int) -> RenderObservationV1: ...
+	def begin_text_placement_gesture_v1(
+		self, expected_revision: int, expected_digest_hex: str, x: float, y: float,
+	) -> TextPlacementGestureV1: ...
+	def text_placement_defaults_v1(
+		self, gesture: TextPlacementGestureV1,
+	) -> TextPlacementDefaultsV1: ...
+	def preview_text_placement_gesture_v1(
+		self,
+		gesture: TextPlacementGestureV1,
+		runs: tuple[DocumentTextEditRunV1, ...],
+		font_size: int | None,
+		color: str | None,
+	) -> TextPlacementPreviewV1: ...
+	def commit_text_placement_gesture_v1(
+		self, gesture: TextPlacementGestureV1, preview: TextPlacementPreviewV1,
+	) -> TextPlacementCommitV1: ...
 	def submit(
 		self,
 		expected_revision: int,

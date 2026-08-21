@@ -61,6 +61,10 @@ def _task_controls(dialog: PySide6.QtWidgets.QDialog) -> list[PySide6.QtWidgets.
 		and widget.isEnabled()
 		and not widget.isHidden()
 		and widget.window() is dialog
+		and not isinstance(widget.parentWidget(), (
+			PySide6.QtWidgets.QAbstractSpinBox,
+			PySide6.QtWidgets.QComboBox,
+		))
 		and not isinstance(widget, PySide6.QtWidgets.QDialogButtonBox)
 	]
 	ordinary = [
@@ -84,6 +88,16 @@ def finalize_dialog_accessibility(dialog: PySide6.QtWidgets.QDialog) -> None:
 			"or Escape to cancel.",
 		)
 	controls = _task_controls(dialog)
+	for widget in dialog.findChildren(PySide6.QtWidgets.QWidget):
+		if (
+			widget.focusPolicy() != PySide6.QtCore.Qt.FocusPolicy.NoFocus
+			and widget.window() is dialog
+		):
+			_semantic_name(widget)
+	preferred = dialog.property("ferrum_initial_focus_widget")
+	if isinstance(preferred, PySide6.QtWidgets.QWidget) and preferred in controls:
+		controls.remove(preferred)
+		controls.insert(0, preferred)
 	accept_button: PySide6.QtWidgets.QAbstractButton | None = None
 	reject_button: PySide6.QtWidgets.QAbstractButton | None = None
 	for widget in controls:

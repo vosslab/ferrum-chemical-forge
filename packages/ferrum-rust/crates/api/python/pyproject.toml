@@ -17,7 +17,8 @@ classifiers = [
 [tool.maturin]
 module-name = "ferrum_chem"
 bindings = "pyo3"
-features = ["extension-module"]
+manifest-path = "../Cargo.toml"
+features = ["python-extension-module"]
 strip = false
 # A bare `maturin build` is a non-shipping Maturin intermediate. The
 # authoritative native-wheel builder relocates its extension, injects root

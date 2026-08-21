@@ -49,6 +49,62 @@ def _proof_environment() -> dict[str, str]:
 
 
 #============================================
+def _wait_for_local_cdml_open(
+		host: object, path: pathlib.Path, *, require_success: bool,
+		) -> None:
+	"""Wait for one public local-CDML completion without weakening its async contract."""
+	from PySide6 import QtCore
+
+	completed: list[bool] = []
+	loop = QtCore.QEventLoop()
+	timeout = QtCore.QTimer()
+	timeout.setSingleShot(True)
+
+	def receive_completion(completed_path: str, success: bool) -> None:
+		"""Record only the requested local file route completion."""
+		if pathlib.Path(completed_path) != path:
+			return
+		completed.append(success)
+		if not host.has_pending_local_cdml_open():
+			loop.quit()
+
+	host.local_cdml_open_completed.connect(receive_completion)
+	timeout.timeout.connect(loop.quit)
+	try:
+		if host.has_pending_local_cdml_open():
+			timeout.start(10000)
+			loop.exec()
+		if not completed:
+			raise NativeCdmlRouteE2eError(
+				"Ferrum local CDML open did not complete within 10 seconds",
+			)
+		if host.has_pending_local_cdml_open():
+			raise NativeCdmlRouteE2eError(
+				"Ferrum local CDML completion retained a pending open",
+			)
+		if require_success and completed != [True]:
+			raise NativeCdmlRouteE2eError(
+				"Ferrum local CDML open completed unsuccessfully",
+			)
+	finally:
+		timeout.stop()
+		host.local_cdml_open_completed.disconnect(receive_completion)
+
+
+#============================================
+def _drain_local_cdml_open(host: object, path: pathlib.Path) -> None:
+	"""Cancel then join a pending local-CDML worker before disposing its host."""
+	if not host.has_pending_local_cdml_open():
+		return
+	host._cancel_local_cdml_open()
+	_wait_for_local_cdml_open(host, path, require_success=False)
+	if host.has_pending_local_cdml_open():
+		raise NativeCdmlRouteE2eError(
+			"Ferrum local CDML worker remained pending after cancellation",
+		)
+
+
+#============================================
 def _probe() -> dict[str, object]:
 	"""Exercise open, render, save, and reopen using the installed Rust extension."""
 	os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -79,8 +135,15 @@ def _probe() -> dict[str, object]:
 	)
 	source_path.write_text(source, encoding="utf-8")
 	host = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	if not host.open_file_path(str(source_path)):
-		raise NativeCdmlRouteE2eError("Ferrum CDML open returned false")
+	try:
+		if not host.open_file_path(str(source_path)):
+			raise NativeCdmlRouteE2eError("Ferrum CDML open returned false")
+		_wait_for_local_cdml_open(host, source_path, require_success=True)
+	except BaseException:
+		_drain_local_cdml_open(host, source_path)
+		host.close()
+		app.processEvents()
+		raise
 	tab = host._active_native_tab()
 	if tab is None or tab.file_path != source_path or tab.is_dirty:
 		raise NativeCdmlRouteE2eError("Ferrum open did not retain its clean loaded truth")

@@ -13,6 +13,9 @@ mod atom_mark_v1;
 mod atom_projection_v1;
 mod atom_properties_patch_v1;
 mod atom_rotation_v1;
+#[allow(dead_code)] // WP-A1 private topology is consumed by the later session capability.
+mod attached_cyclohexane_v1;
+mod authored_text_v1;
 mod bond_presentation_v1;
 mod bond_properties_patch_v1;
 mod bracket_insertion_v1;
@@ -27,6 +30,8 @@ mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
 mod clipboard_paste_v1;
 mod core_projection;
+mod direct_bond_gesture_v1;
+mod direct_cdml_semantic_index_v1;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
 mod document_explicit_fragment_api_v1;
@@ -48,6 +53,7 @@ mod paper_properties_v1;
 mod paper_size_v1;
 mod plus_properties_patch_v1;
 mod presentation_arrow_projection_v1;
+mod presentation_creation_gesture_v1;
 mod presentation_plus_projection_v1;
 mod presentation_polyline_projection_v1;
 mod presentation_root_deletion_v1;
@@ -59,9 +65,12 @@ mod presentation_v1;
 mod projection_identity_v1;
 mod projection_v1;
 mod publication;
+mod reaction_reference_graph_v1;
 mod regular_ring_insertion_v1;
 #[cfg(test)]
 mod regular_ring_insertion_v1_tests;
+
+mod render_document_model_v1;
 mod reports_v1;
 mod sdf_record_insertion_v1;
 mod sdf_record_metadata_v1;
@@ -72,16 +81,19 @@ mod session_operation;
 mod session_state;
 mod standalone_haworth_insertion_v1;
 mod straighten_depiction_update_v1;
+mod text_placement_gesture_v1;
 mod text_properties_patch_v1;
 mod top_level_transform_v1;
 mod top_level_translation_anchor_v1;
 mod typed;
+mod typed_arrow_insertion;
 mod typed_arrow_properties;
 mod typed_atom_mark;
 mod typed_atom_number;
 mod typed_atom_position;
 mod typed_atom_properties;
 mod typed_atom_rotation;
+mod typed_attached_cyclohexane;
 mod typed_bond_insertion;
 mod typed_bond_order;
 mod typed_bond_properties;
@@ -100,11 +112,13 @@ mod typed_molecule_name;
 mod typed_molecule_positions;
 mod typed_object_resolution;
 mod typed_paper_properties;
+mod typed_plus_insertion;
 mod typed_plus_properties;
 mod typed_presentation_root_deletion;
 mod typed_presentation_stack_reorder;
 mod typed_record_deletion;
 mod typed_schema;
+mod typed_text_insertion_v1;
 mod typed_text_properties;
 mod typed_top_level_transform;
 mod typed_wavy_insertion;
@@ -123,6 +137,10 @@ pub use atom_properties_patch_v1::{
     AtomPropertiesPatchV1, AtomPropertiesPatchV1Error, AtomPropertyChangeV1,
 };
 pub use atom_rotation_v1::{AtomRotationTargetV1, AtomRotationV1, AtomRotationV1Error};
+pub use authored_text_v1::{
+    AuthoredTextRunV1, AuthoredTextStyleV1, normalize_authored_text_runs_v1,
+};
+pub use attached_cyclohexane_v1::{AttachedCyclohexaneErrorV1, AttachedCyclohexaneReleaseV1};
 pub use bond_presentation_v1::DocumentBondPresentationV1;
 pub use bond_properties_patch_v1::{
     BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, DocumentBondStyleV1,
@@ -160,6 +178,18 @@ pub use clipboard_paste_v1::{
     prepare_document_clipboard_paste_v1,
 };
 pub use core_projection::{CoreProjection, CoreProjectionError};
+pub use direct_bond_gesture_v1::{
+    CommittedDirectBondGestureV1, DirectBondEndIntentV1, DirectBondEndpointV1,
+    DirectBondGestureErrorV1, DirectBondGestureV1, DirectBondOverlayV1, DirectBondPoint2V1,
+    DirectBondPreviewV1, DirectBondSnapPolicyV1, DocumentFenceV1,
+};
+pub use direct_cdml_semantic_index_v1::{
+    DirectCdmlRootKindV1, DirectCdmlRootV1, DirectCdmlSemanticErrorV1, DirectCdmlSemanticIndexV1,
+    DirectReactionMemberV1, DirectReactionRoleV1, ReactionDefinitionDiagnosticV1,
+    ReactionDefinitionV1, append_direct_cdml_reaction_v1,
+    delete_direct_cdml_reaction_definition_v1, inspect_direct_reactions_v1,
+    replace_direct_cdml_reaction_members_v1,
+};
 pub use direct_haworth_insertion_v1::{
     CommittedDirectHaworthBondFactV1, DocumentDirectHaworthBondRoleV1,
     DocumentDirectHaworthBondTokenV1,
@@ -194,8 +224,9 @@ pub use geometric_properties_patch_v1::{
 };
 pub use geometry_repair_v1::{GeometryRepairKindV1, GeometryRepairV1, GeometryRepairV1Error};
 pub use identity_index::{
-    DocumentIdentityError, DocumentRecord, ElementPath, IndexedDocument, IndexedDocumentError,
-    PersistentId, ResolvedId, SourceOrder, XmlDocument, XmlSerializationError,
+    CompleteDocumentIdentityFactsV1, DocumentIdentityError, DocumentRecord, ElementPath,
+    IndexedDocument, IndexedDocumentError, PersistentId, ResolvedId, SourceOrder, XmlDocument,
+    XmlSerializationError,
 };
 pub use interchange::{
     INTERCHANGE_MAX_TEXT_BYTES_V1, InterchangeCodecErrorV1, InterchangeFormatV1,
@@ -245,6 +276,12 @@ pub use plus_properties_patch_v1::{
 pub use presentation_arrow_projection_v1::{
     ArrowHeadPositionV1, ArrowHeadShapeV1, ArrowHeadV1, ArrowPathV1, ArrowProjectionV1,
 };
+pub use presentation_creation_gesture_v1::{
+    ArrowGestureStyleV1, CommittedPresentationGestureV1, PresentationCreationGestureV1,
+    PresentationCreationPreviewV1, PresentationGestureCategoryV1, PresentationGestureErrorV1,
+    PresentationGestureKindV1, PresentationGestureOverlayV1, PresentationGesturePoint2V1,
+    PresentationGestureRecoveryV1, PresentationGestureSnapPolicyV1,
+};
 pub use presentation_plus_projection_v1::{PlusProjectionV1, PresentationFontV1};
 pub use presentation_root_deletion_v1::{
     PresentationRootDeletionSetV1, PresentationRootDeletionSetV1Error, PresentationRootDeletionV1,
@@ -289,6 +326,9 @@ pub use regular_ring_insertion_v1::{
     DetachedRegularRingInsertionV1, RegularRingInsertionErrorV1, RegularRingOrientationV1,
     RegularRingSizeV1,
 };
+pub use render_document_model_v1::{
+    RenderDocumentModelConversionErrorV1, render_document_model_from_observation_v1,
+};
 pub use reports_v1::{CdmlInspection, CdmlValidation, MoleculeInspection, RewriteCheck};
 pub use sdf_record_insertion_v1::{
     SDF_IMPORT_NAMESPACE_V1, SdfPropertyInsertionV1, SdfRecordBatchInsertionV1,
@@ -299,20 +339,27 @@ pub use sdf_record_metadata_v1::{
     observe_sdf_record_metadata_v1,
 };
 pub use session::{
-    CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, DocumentClipboardPasteResultV1,
-    DocumentSession, DocumentSessionError, DocumentSnapshot, DocumentUserTemplateResultV1,
+    AttachedCyclohexaneSessionErrorV1, CommittedDirectHaworthResultV1, CommittedDirectHaworthV1,
+    DocumentClipboardPasteResultV1, DocumentSession, DocumentSessionError, DocumentSnapshot,
+    DocumentUserTemplateResultV1,
     PendingCreateAtom, PendingCreateBond, PendingCreateBondedAtom, PendingCreateBracket,
-    PendingCreateMolecule, PendingCreateSdfRecords, PendingCreateWavy, PendingDirectHaworthV1,
+    PendingAttachedCyclohexaneV1, PendingCreateMolecule, PendingCreateMoleculeBatchV1,
+    PendingCreateSdfRecords,
+    PendingCreateWavy, PendingDeleteStructureV1, PendingDirectHaworthV1,
     PendingLinearFormConvertV1, PendingStandaloneHaworthV1, PreparedLinearFormConvertResultV1,
     Publication, SaveOutcome,
 };
-pub use session_observation::SessionDocumentObservationV1;
+pub use session_observation::{ObservedDirectMoleculeGraphV1, SessionDocumentObservationV1};
 pub use session_operation::{
     SessionOperation, SessionOperationError, SessionOperationResultV1, SessionOperationV1,
 };
 pub use straighten_depiction_update_v1::{
     PreparedStraightenDepictionsV1, StraightenDepictionUpdateV1Error,
     StraightenedDepictionMoleculeV1,
+};
+pub use text_placement_gesture_v1::{
+    CommittedTextPlacementV1, TextPlacementContentV1, TextPlacementErrorCategoryV1,
+    TextPlacementErrorV1, TextPlacementGestureV1, TextPlacementPreviewV1, TextPlacementRecoveryV1,
 };
 pub use text_properties_patch_v1::{
     MAX_TEXT_FONT_SIZE_V1, MIN_TEXT_FONT_SIZE_V1, TextEditRunV1, TextEditStyleV1,
@@ -329,6 +376,7 @@ pub use typed::{
 };
 pub use typed_diagnostic::{TypedDiagnostic, TypedDiagnosticKind};
 pub use typed_document_error::TypedDocumentError;
+pub use typed_record_deletion::{StructureDeletionComponentV1, StructureDeletionReceiptV1};
 pub use user_template_v1::{
     DOCUMENT_USER_TEMPLATE_SCHEMA_V1, DocumentUserTemplateErrorV1,
     DocumentUserTemplateInsertedMoleculeV1, DocumentUserTemplatePlanV1,
@@ -386,11 +434,15 @@ mod presentation_stack_projection_v1_tests;
 mod session_semantics_tests;
 
 #[cfg(test)]
+mod structural_deletion_tests;
+
+#[cfg(test)]
 mod molecule_coordinate_batch_update_v1_tests;
 #[cfg(test)]
 mod molecule_insertion_v1_tests;
 #[cfg(test)]
 mod sdf_record_insertion_v1_tests;
+
 #[cfg(test)]
 mod sdf_record_metadata_v1_tests;
 

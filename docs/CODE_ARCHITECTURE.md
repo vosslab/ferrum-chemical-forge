@@ -31,9 +31,8 @@ the edition-2024 workspace. Its crates divide responsibility as follows:
 - [../packages/ferrum-rust/crates/core/](../packages/ferrum-rust/crates/core/)
   provides chemical-domain records and graph-facing data.
 - [../packages/ferrum-rust/crates/chemistry/](../packages/ferrum-rust/crates/chemistry/)
-  owns the project chemistry engine and adapter response model.
-- [../packages/ferrum-rust/crates/chemistry-sys/](../packages/ferrum-rust/crates/chemistry-sys/)
-  validates and loads the explicit native chemistry adapter boundary.
+  owns the project chemistry engine, private adapter loading, and adapter
+  response model.
 - [../packages/ferrum-rust/crates/document/](../packages/ferrum-rust/crates/document/)
   parses and structurally writes CDML, retains opaque content, preserves
   identity and order, and owns revisioned document sessions.

@@ -1,0 +1,77 @@
+//! Canonical direct-root arrow insertion owned by the typed CDML layer.
+use super::{
+    PersistentId, PresentationGesturePoint2V1, TypedDocument, TypedDocumentError, element_name,
+};
+use xot::Xot;
+const POINTS_PER_CM: f64 = 72.0 / 2.54;
+impl TypedDocument {
+    pub(crate) fn with_insert_straight_normal_arrow(
+        &self,
+        identifier: &PersistentId,
+        start: PresentationGesturePoint2V1,
+        end: PresentationGesturePoint2V1,
+        start_head: bool,
+        end_head: bool,
+    ) -> Result<Self, TypedDocumentError> {
+        if self.indexed().resolve_id(identifier).is_some() {
+            return Err(TypedDocumentError::DuplicateBondId(identifier.clone()));
+        }
+        let mut candidate = self.detached_candidate()?;
+        let indexed = candidate.detached_indexed_mut();
+        let root = indexed
+            .xml
+            .tree
+            .document_element(indexed.xml.document)
+            .expect("parsed CDML has root");
+        let namespace = element_name(&indexed.xml.tree, root)
+            .map(|(_, namespace)| namespace)
+            .unwrap_or_default();
+        let arrow_name = name(&mut indexed.xml.tree, "arrow", &namespace);
+        let arrow = indexed.xml.tree.new_element(arrow_name);
+        for (attribute, value) in [
+            ("id", identifier.as_str()),
+            ("type", "normal"),
+            ("start", if start_head { "yes" } else { "no" }),
+            ("end", if end_head { "yes" } else { "no" }),
+            ("width", "1.0"),
+            ("color", "#000000"),
+            ("spline", "no"),
+        ] {
+            let attribute = indexed.xml.tree.add_name(attribute);
+            indexed.xml.tree.set_attribute(arrow, attribute, value)
+        }
+        for point in [start, end] {
+            let point_name = name(&mut indexed.xml.tree, "point", &namespace);
+            let node = indexed.xml.tree.new_element(point_name);
+            let x = indexed.xml.tree.add_name("x");
+            let y = indexed.xml.tree.add_name("y");
+            indexed
+                .xml
+                .tree
+                .set_attribute(node, x, format!("{:.3}cm", point.x() / POINTS_PER_CM));
+            indexed
+                .xml
+                .tree
+                .set_attribute(node, y, format!("{:.3}cm", point.y() / POINTS_PER_CM));
+            indexed
+                .xml
+                .tree
+                .append(arrow, node)
+                .map_err(TypedDocumentError::Mutation)?
+        }
+        indexed
+            .xml
+            .tree
+            .append(root, arrow)
+            .map_err(TypedDocumentError::Mutation)?;
+        Self::parse(&candidate.to_xml()?)
+    }
+}
+fn name(tree: &mut Xot, local: &str, namespace: &str) -> xot::NameId {
+    if namespace.is_empty() {
+        tree.add_name(local)
+    } else {
+        let namespace = tree.add_namespace(namespace);
+        tree.add_name_ns(local, namespace)
+    }
+}

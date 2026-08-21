@@ -58,6 +58,52 @@ fn depiction_request_has_no_kekulization_controls() {
 }
 
 #[test]
+fn direct_native_loader_failure_is_detail_free() {
+    let hostile_path = "/private/ferrum/.dylibs/libferrum_chem.dylib: loader diagnostic";
+    let error = match NativeChemEngine::load(Path::new(hostile_path)) {
+        Ok(_) => panic!("a hostile nonexistent native-library path must not load"),
+        Err(error) => error,
+    };
+
+    let reason = match &error {
+        ChemistryError::NativeBoundary { reason } => reason,
+        other => panic!("loader failure must remain a native-boundary error, got {other:?}"),
+    };
+    assert_eq!(reason, NATIVE_ADAPTER_BOUNDARY_REASON);
+    for forbidden in [
+        "/private/ferrum",
+        ".dylibs",
+        "libferrum_chem",
+        "loader diagnostic",
+    ] {
+        assert!(
+            !reason.contains(forbidden)
+                && !error.to_string().contains(forbidden)
+                && !format!("{error:?}").contains(forbidden),
+            "public loader failure leaked private adapter detail {forbidden:?}"
+        );
+    }
+}
+
+#[test]
+fn direct_smarts_boundary_failures_are_closed_and_detail_free() {
+    let error = super::smarts_adapter_error(super::AdapterError::NativeStatus { status: u32::MAX });
+    assert_eq!(
+        error,
+        ChemistryError::SmartsMatchUnavailable {
+            reason: SmartsMatchUnavailableReason::NativeCallFailed,
+        }
+    );
+    let rendered = format!("{error:?} {error}");
+    for forbidden in ["FCQ1", "FQM1", "native detail", "libferrum_chem"] {
+        assert!(
+            !rendered.contains(forbidden),
+            "SMARTS error leaked {forbidden:?}"
+        );
+    }
+}
+
+#[test]
 fn complete_graph_request_preserves_codec_facts_and_omits_coordinates() {
     let atom = MolAtom::from_native(
         AtomicNumber::try_from(6).expect("carbon"),
@@ -691,7 +737,7 @@ static void fcm1(uint32_t status, uint32_t detail, uint32_t smiles, uint32_t ato
   output[0]='F'; output[1]='C'; output[2]='M'; output[3]='1'; u32le(4,1); u32le(8,status);
   u32le(12,detail); u32le(16,smiles); u32le(20,atoms); u32le(24,bonds); u32le(28,0); *len=32;
 }
-uint32_t ferrum_chem_abi_version(void) { return 4; }
+uint32_t ferrum_chem_abi_version(void) { return 5; }
 uint64_t ferrum_chem_capabilities_v1(void) { return 7; }
 uint32_t ferrum_chem_kekulize_v1(const uint8_t *r,uint64_t n,owner *o) { (void)r;(void)n;o->data=0;o->len=0;return 0; }
 uint32_t ferrum_chem_generate_2d_v1(const uint8_t *r,uint64_t n,owner *o) { (void)r;(void)n;o->data=0;o->len=0;return 0; }

@@ -192,7 +192,7 @@ pub fn inspect_document_bond_capacity_v1(
         };
         records.push(DocumentBondCapacityRecordV1 {
             source,
-            outcome: evaluate_root(&molecule)?,
+            outcome: evaluate_document_molecule_neutral_capacity_v1(&molecule)?,
         });
     }
     records.sort_by_key(|record| record.source.document_root_order);
@@ -204,7 +204,7 @@ pub fn inspect_document_bond_capacity_v1(
     })
 }
 
-fn evaluate_root(
+pub(crate) fn evaluate_document_molecule_neutral_capacity_v1(
     molecule: &Molecule,
 ) -> Result<DocumentBondCapacityOutcomeV1, DocumentBondCapacityErrorV1> {
     if molecule.atoms().is_empty()

@@ -3,6 +3,7 @@
 //! The byte protocol is deliberately private to this module.  All callers see
 //! only owned [`MolGraph`] values and typed [`ChemistryError`] variants.
 
+mod adapter_boundary;
 mod codec_support;
 mod composition_wire;
 mod fcm1;
@@ -12,6 +13,7 @@ mod molblock_import;
 mod molblock_wire;
 mod sdf_import;
 mod sdf_wire;
+mod smarts_wire;
 mod text_response;
 
 #[cfg(test)]
@@ -21,33 +23,31 @@ use codec_support::{Reader, put_i32, put_u16, put_u32};
 
 use std::path::Path;
 
-use ferrum_chemistry_sys::{AdapterError, ChemistryAdapter, FERRUM_CHEM_CALL_ALLOCATION_FAILURE};
-
 use crate::{
     AtomChirality, AtomicNumber, BondDirection, BondOrder, BondStereo, ChemEngine, ChemistryError,
-    Coordinates, FERRUM_CHEM_COMPOSITION_ENTRY_BYTES, FERRUM_CHEM_COMPOSITION_FLAGS_NONE,
-    FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES, FERRUM_CHEM_COMPOSITION_MAX_FORMULA_BYTES,
-    FERRUM_CHEM_COMPOSITION_RESPONSE_HEADER_BYTES, FERRUM_CHEM_COMPOSITION_WIRE_VERSION,
-    FERRUM_CHEM_COORDINATE_BYTES, FERRUM_CHEM_GRAPH_ATOM_BYTES, FERRUM_CHEM_GRAPH_BOND_BYTES,
-    FERRUM_CHEM_GRAPH_FLAGS_NONE, FERRUM_CHEM_GRAPH_REQUEST_HEADER_BYTES,
-    FERRUM_CHEM_GRAPH_WIRE_VERSION, FERRUM_CHEM_INCHI_MAX_BYTES, FERRUM_CHEM_KEKULIZE_ATOM_BYTES,
-    FERRUM_CHEM_KEKULIZE_BOND_BYTES, FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE,
-    FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED, FERRUM_CHEM_KEKULIZE_FACT_EXPLICIT_HYDROGENS,
-    FERRUM_CHEM_KEKULIZE_FACT_FORMAL_CHARGE, FERRUM_CHEM_KEKULIZE_FACT_ISOTOPE,
-    FERRUM_CHEM_KEKULIZE_MAX_ATOMS, FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS,
-    FERRUM_CHEM_KEKULIZE_MAX_BONDS, FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES,
-    FERRUM_CHEM_KEKULIZE_OPTION_CANONICAL, FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS,
-    FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES,
-    FERRUM_CHEM_KEKULIZE_WIRE_VERSION, FERRUM_CHEM_MAX_RESPONSE_BYTES,
-    FERRUM_CHEM_MOLBLOCK_FLAGS_NONE, FERRUM_CHEM_MOLBLOCK_FORMAT_V2000,
-    FERRUM_CHEM_MOLBLOCK_FORMAT_V3000, FERRUM_CHEM_MOLBLOCK_REQUEST_HEADER_BYTES,
-    FERRUM_CHEM_MOLBLOCK_WIRE_VERSION, FERRUM_CHEM_MOLECULE_ATOM_BYTES,
-    FERRUM_CHEM_MOLECULE_BOND_BYTES, FERRUM_CHEM_MOLECULE_RESPONSE_HEADER_BYTES,
-    FERRUM_CHEM_RESULT_DEPICTION_FAILURE, FERRUM_CHEM_RESULT_INTERNAL_FAILURE,
-    FERRUM_CHEM_RESULT_INVALID_MOLECULE, FERRUM_CHEM_RESULT_MALFORMED_REQUEST,
-    FERRUM_CHEM_RESULT_OK, FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
+    Coordinates, FERRUM_CHEM_CALL_ALLOCATION_FAILURE, FERRUM_CHEM_COMPOSITION_ENTRY_BYTES,
+    FERRUM_CHEM_COMPOSITION_FLAGS_NONE, FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES,
+    FERRUM_CHEM_COMPOSITION_MAX_FORMULA_BYTES, FERRUM_CHEM_COMPOSITION_RESPONSE_HEADER_BYTES,
+    FERRUM_CHEM_COMPOSITION_WIRE_VERSION, FERRUM_CHEM_COORDINATE_BYTES,
+    FERRUM_CHEM_GRAPH_ATOM_BYTES, FERRUM_CHEM_GRAPH_BOND_BYTES, FERRUM_CHEM_GRAPH_FLAGS_NONE,
+    FERRUM_CHEM_GRAPH_REQUEST_HEADER_BYTES, FERRUM_CHEM_GRAPH_WIRE_VERSION,
+    FERRUM_CHEM_INCHI_MAX_BYTES, FERRUM_CHEM_KEKULIZE_ATOM_BYTES, FERRUM_CHEM_KEKULIZE_BOND_BYTES,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_AROMATIC, FERRUM_CHEM_KEKULIZE_BOND_TYPE_DOUBLE,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_QUADRUPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_SINGLE,
+    FERRUM_CHEM_KEKULIZE_BOND_TYPE_TRIPLE, FERRUM_CHEM_KEKULIZE_BOND_TYPE_UNSPECIFIED,
+    FERRUM_CHEM_KEKULIZE_FACT_EXPLICIT_HYDROGENS, FERRUM_CHEM_KEKULIZE_FACT_FORMAL_CHARGE,
+    FERRUM_CHEM_KEKULIZE_FACT_ISOTOPE, FERRUM_CHEM_KEKULIZE_MAX_ATOMS,
+    FERRUM_CHEM_KEKULIZE_MAX_BACKTRACKS, FERRUM_CHEM_KEKULIZE_MAX_BONDS,
+    FERRUM_CHEM_KEKULIZE_MAX_DETAIL_BYTES, FERRUM_CHEM_KEKULIZE_OPTION_CANONICAL,
+    FERRUM_CHEM_KEKULIZE_OPTION_CLEAR_AROMATIC_FLAGS, FERRUM_CHEM_KEKULIZE_REQUEST_HEADER_BYTES,
+    FERRUM_CHEM_KEKULIZE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_KEKULIZE_WIRE_VERSION,
+    FERRUM_CHEM_MAX_RESPONSE_BYTES, FERRUM_CHEM_MOLBLOCK_FLAGS_NONE,
+    FERRUM_CHEM_MOLBLOCK_FORMAT_V2000, FERRUM_CHEM_MOLBLOCK_FORMAT_V3000,
+    FERRUM_CHEM_MOLBLOCK_REQUEST_HEADER_BYTES, FERRUM_CHEM_MOLBLOCK_WIRE_VERSION,
+    FERRUM_CHEM_MOLECULE_ATOM_BYTES, FERRUM_CHEM_MOLECULE_BOND_BYTES,
+    FERRUM_CHEM_MOLECULE_RESPONSE_HEADER_BYTES, FERRUM_CHEM_RESULT_DEPICTION_FAILURE,
+    FERRUM_CHEM_RESULT_INTERNAL_FAILURE, FERRUM_CHEM_RESULT_INVALID_MOLECULE,
+    FERRUM_CHEM_RESULT_MALFORMED_REQUEST, FERRUM_CHEM_RESULT_OK, FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
     FERRUM_CHEM_RESULT_UNSUPPORTED_MOLECULE, FERRUM_CHEM_SDF_FLAGS_NONE,
     FERRUM_CHEM_SDF_MAX_PROPERTIES, FERRUM_CHEM_SDF_MAX_RECORDS,
     FERRUM_CHEM_SDF_PROPERTY_HEADER_BYTES, FERRUM_CHEM_SDF_RECORD_HEADER_BYTES,
@@ -57,10 +57,13 @@ use crate::{
     FERRUM_CHEM_TEXT_WIRE_VERSION, FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES,
     FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION, ImportedSdfRecord, InchiMode, KekulizeOptions,
     MolAtom, MolBond, MolGraph, MolblockVersion, MoleculeComposition, Point2, SdfProperty,
-    SdfRecord, SmilesMolecule,
+    SdfRecord, SmartsMatchOptions, SmartsMatchResult, SmartsMatchUnavailableReason, SmilesMolecule,
 };
+use adapter_boundary::{AdapterError, ChemistryAdapter};
 
 const REQUEST_MAGIC: [u8; 4] = *b"FCK1";
+const NATIVE_ADAPTER_BOUNDARY_REASON: &str =
+    "the Ferrum chemistry adapter is unavailable or returned an invalid response";
 
 /// Maximum UTF-8 SMILES bytes accepted by the loaded Ferrum-Chem adapter.
 ///
@@ -141,6 +144,16 @@ impl NativeChemEngine {
         molecule: &MolGraph,
     ) -> Result<MoleculeComposition, ChemistryError> {
         <Self as ChemEngine>::molecule_composition(self, molecule)
+    }
+
+    /// Enumerate bounded query-ordered SMARTS matches for one supplied graph.
+    pub fn smarts_match(
+        &self,
+        query: &str,
+        target: &MolGraph,
+        options: SmartsMatchOptions,
+    ) -> Result<SmartsMatchResult, ChemistryError> {
+        <Self as ChemEngine>::smarts_match(self, query, target, options)
     }
 
     /// Export a complete coordinate-bearing graph as explicit molblock syntax.
@@ -291,6 +304,22 @@ impl ChemEngine for NativeChemEngine {
             .molecule_composition(&request)
             .map_err(adapter_error)?;
         composition_wire::decode(&response, molecule.atoms().len())
+    }
+
+    fn smarts_match(
+        &self,
+        query: &str,
+        target: &MolGraph,
+        options: SmartsMatchOptions,
+    ) -> Result<SmartsMatchResult, ChemistryError> {
+        let request = smarts_wire::encode_request(query, target, options)
+            .map_err(smarts_wire::map_wire_error)?;
+        let response = self
+            .adapter
+            .smarts_match(&request)
+            .map_err(smarts_adapter_error)?;
+        smarts_wire::decode_response(&response, target.atoms().len(), options.max_matches())
+            .map_err(smarts_wire::map_wire_error)
     }
 
     fn molecule_to_molblock(
@@ -499,21 +528,48 @@ fn decode_coordinate_response(
     Ok(Coordinates::new(points))
 }
 fn adapter_error(error: AdapterError) -> ChemistryError {
-    if matches!(
-        error,
+    match error {
         AdapterError::NativeStatus { status }
-            if u64::from(status) == FERRUM_CHEM_CALL_ALLOCATION_FAILURE
-    ) {
-        return ChemistryError::ResourceExhausted {
-            operation: "native adapter response",
-        };
+            if u64::from(status) == FERRUM_CHEM_CALL_ALLOCATION_FAILURE =>
+        {
+            ChemistryError::ResourceExhausted {
+                operation: "native adapter response",
+            }
+        }
+        AdapterError::OperationUnavailable { operation } => {
+            ChemistryError::OperationUnavailable { operation }
+        }
+        // Every remaining variant originates below the private FFI boundary.
+        // In particular, `Load` may retain a platform loader string containing
+        // an absolute path. Do not expose any adapter diagnostic, ABI fact,
+        // capability bit, buffer length, pointer-adjacent state, or status.
+        AdapterError::Load(_)
+        | AdapterError::AbiMismatch { .. }
+        | AdapterError::UnknownCapabilities { .. }
+        | AdapterError::NullBuffer { .. }
+        | AdapterError::BufferTooLarge { .. }
+        | AdapterError::ResponseTooLarge { .. }
+        | AdapterError::BufferFreeDidNotClear
+        | AdapterError::NativeStatus { .. } => ChemistryError::NativeBoundary {
+            reason: NATIVE_ADAPTER_BOUNDARY_REASON.to_owned(),
+        },
     }
-    if let AdapterError::OperationUnavailable { operation } = error {
-        return ChemistryError::OperationUnavailable { operation };
-    }
-    ChemistryError::NativeBoundary {
-        reason: error.to_string(),
-    }
+}
+
+fn smarts_adapter_error(error: AdapterError) -> ChemistryError {
+    let reason = match error {
+        AdapterError::Load(_) => SmartsMatchUnavailableReason::RuntimeUnavailable,
+        AdapterError::AbiMismatch { .. } => SmartsMatchUnavailableReason::AbiIncompatible,
+        AdapterError::UnknownCapabilities { .. } | AdapterError::OperationUnavailable { .. } => {
+            SmartsMatchUnavailableReason::CapabilityUnavailable
+        }
+        AdapterError::NativeStatus { .. }
+        | AdapterError::NullBuffer { .. }
+        | AdapterError::BufferTooLarge { .. }
+        | AdapterError::ResponseTooLarge { .. }
+        | AdapterError::BufferFreeDidNotClear => SmartsMatchUnavailableReason::NativeCallFailed,
+    };
+    ChemistryError::SmartsMatchUnavailable { reason }
 }
 fn encode_kekulize_request(
     molecule: &MolGraph,

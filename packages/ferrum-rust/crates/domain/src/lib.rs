@@ -7,14 +7,26 @@
 pub mod catalog;
 pub mod haworth;
 pub mod linear_form;
+pub mod molecule_diagnostic_finding_v1;
 pub mod neutral_bond_capacity_diagnostic_v1;
 pub mod peptide;
 pub mod repair;
+
+pub use catalog::{
+    CATALOG_MANIFEST_SCHEMA_V1, CatalogCategoryV1, CatalogEntrySummaryV1, CatalogFamilyV1,
+    CatalogKeyV1, CatalogManifestV1, CatalogProvenanceV1, CatalogRecipeKindV1, catalog_entry_v1,
+    catalog_manifest_v1, search_catalog_v1,
+};
 
 pub use linear_form::{
     LinearFormAtomV1, LinearFormBondV1, LinearFormGraphV1, LinearFormMetadataShapeV1,
     LinearFormPlanErrorV1, LinearFormPlanV1, LinearFormPointReplacementV1, LinearFormRequestV1,
     plan_linear_form_v1,
+};
+pub use molecule_diagnostic_finding_v1::{
+    MAX_MOLECULE_DIAGNOSTIC_DETAIL_BYTES_V1, MoleculeDiagnosticCodeV1,
+    MoleculeDiagnosticFindingErrorV1, MoleculeDiagnosticFindingV1, MoleculeDiagnosticLocationV1,
+    MoleculeDiagnosticRecoveryV1, MoleculeDiagnosticSeverityV1,
 };
 pub use neutral_bond_capacity_diagnostic_v1::{
     NeutralBondCapacityAtomOutcomeV1, NeutralBondCapacityAtomRecordV1, NeutralBondCapacityAtomV1,

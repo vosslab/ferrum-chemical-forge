@@ -971,6 +971,27 @@ the established PostScript-point-to-centimetre conversion and moves every
 selected persistent coordinate pair by that offset. A numeric zero delta and
 identity scale remain stale-checked, history-free lexical no-ops.
 
+## Straight normal-arrow creation gesture V1
+
+`presentation.creation.gesture.v1` is the Rust-owned authoring route for one
+direct-root normal Arrow. Begin receives the current revision/digest, the closed
+`straight_normal_arrow` kind, a finite scene point, an exact Arrow head-style
+value, and a closed snap policy. Preview and commit consume only opaque handles.
+Preview returns the exact backend-resolved shaft, head vertices, bounds, width,
+and color for disposable frontend painting; it neither allocates an ID nor edits
+the document. Commit accepts only the originating session's exact current
+gesture/preview pair and returns one durable Arrow selector plus the ordinary
+accepted snapshot.
+
+Qt may map pointer coordinates and paint the returned overlay. It must not
+calculate Arrow geometry, snapping, default style, identifiers, or CDML. Escape,
+focus loss, tab close, tool changes, and handle disposal do not commit. Closed
+Rust gesture categories direct recovery: endpoint geometry failures request an
+adjusted endpoint, stale/session failures request refresh and restart, and
+style-policy failures request a changed tool or style. After acceptance, the
+frontend reprojects from the snapshot and restores selection only by the durable
+selector through the root-interaction contract.
+
 ## Restore, history, and saved state
 
 Restore copies a retained accepted snapshot into a new increasing revision; it
@@ -1032,3 +1053,59 @@ Direct atom-mark observations expose only actionable plain addresses, source
 positions, removal ordinals, diagnostics, and finite rendering facts. Raw mark
 XML remains backend-owned; legacy `atom_number` is a separate compatibility
 diagnostic.
+# Structural child selection and deletion
+
+Direct atom/bond selection is a fenced Rust interaction contract.  Qt may send
+only finite point or full-containment marquee coordinates plus replace/toggle;
+Rust issues all target bounds, target identity, one-molecule selection, and the
+atomic deletion receipt.  An atom target absorbs incident bonds during delete;
+an explicitly selected bond preserves both endpoint atoms.  Blank canvas is an
+ordinary empty selection.  Qt must clear a child selection after any commit,
+tab change, focus loss, or new render observation and must not use scene item
+selection, XML, or locally-derived bond topology as durable authority.
+
+## Molecule report core V1
+
+`document.molecule.report.v1` is the sole public read-only, revision-and-
+digest-fenced molecule-report route. Its request carries bounded complete CDML,
+unique durable direct-root molecule IDs, revision zero, and the input digest.
+`ferrum-document` remains the authority for retained snapshots, direct-root
+projection, typed-core corroboration, and fences. A private `ferrum-api`
+protocol enclave owns report graph preparation and the one trusted chemistry
+runtime callback. Neither crate exports a prepared report, graph, chemistry
+engine, callback, adapter path, or report executor.
+
+Each record always retains authenticated source identity, authored name when
+present, root order, atom count, bond count, canonical authored-element counts,
+and an authored charge only when every atom supplied a charge. Composition is optional: a
+graph that falls outside the closed composition vocabulary remains a successful
+record with bounded closed diagnostic findings. Neutral bond capacity is also a
+record facet and reports `within_capacity`, `exceeds_capacity`, or
+`not_checked`; an excess is a finding, not a request refusal. Combined
+composition is emitted only when at least two selected records all have a
+complete composition. Ferrum never aggregates a subset.
+
+The public protocol represents each available record composition as one
+all-or-none plain DTO: isotope- and
+charge-aware formula, net formal charge, average molecular weight in Da,
+monoisotopic mass in Da, and canonical formula-ordered isotope-aware element
+rows. Each row carries symbol, optional isotope mass number, atom count,
+average-mass contribution in Da, and mass percentage. All mass values are
+finite. An unavailable record composition is `null` with its closed finding;
+the required `aggregate` DTO is either `{"kind":"complete","composition":...}`
+or `{"kind":"omitted","reason":...}`. Its reason is closed to
+`fewer_than_two_selected` or `incomplete_record_composition`. No partial
+formula, subset mass, contradictory complete-and-omitted state, or open reason
+string is emitted.
+
+Report findings use Rust-owned closed code, severity, recovery, and location
+vocabularies. Optional detail is capped at 256 UTF-8 bytes, each record admits
+at most 64 findings, and a storage/capacity breach refuses the whole operation
+without mutation. Stale observations, digest mismatches, malformed admitted
+CDML, and non-direct/ambiguous selectors remain whole-request refusals. The
+protocol and CLI presentation layers serialize only the explicitly mapped
+source, capacity, finding, aggregate, and composition facts; they do not repeat
+CDML traversal or chemistry arithmetic. The named CLI route is `ferrum document
+command document.molecule.report.v1 REQUEST.json`; normal typed refusal paths
+remain read-only and never reveal CDML, a native-library location, or native
+diagnostic payloads.

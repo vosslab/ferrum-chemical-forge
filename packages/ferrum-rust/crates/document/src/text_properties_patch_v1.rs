@@ -4,73 +4,19 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{PersistentId, Rgb24V1};
+use super::{
+    AuthoredTextRunV1, AuthoredTextStyleV1, PersistentId, Rgb24V1, normalize_authored_text_runs_v1,
+};
 
 /// Minimum Text font size represented by the established CDML editor control.
 pub const MIN_TEXT_FONT_SIZE_V1: u16 = 4;
 /// Maximum Text font size represented by the established CDML editor control.
 pub const MAX_TEXT_FONT_SIZE_V1: u16 = 144;
 
-/// One closed formatted-text style accepted by an edit run.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum TextEditStyleV1 {
-    /// Bold source intent.
-    Bold,
-    /// Italic source intent.
-    Italic,
-    /// Lowered script.
-    Subscript,
-    /// Raised script.
-    Superscript,
-}
-
-/// One nonempty character-data run and its canonical unique styles.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TextEditRunV1 {
-    text: String,
-    styles: Vec<TextEditStyleV1>,
-}
-
-impl TextEditRunV1 {
-    /// Validate one run before it can enter a document operation.
-    pub fn new(
-        text: impl Into<String>,
-        mut styles: Vec<TextEditStyleV1>,
-    ) -> Result<Self, TextPropertiesPatchV1Error> {
-        let text = text.into();
-        if text.is_empty() {
-            return Err(TextPropertiesPatchV1Error::EmptyRun);
-        }
-        if text
-            .chars()
-            .any(|character| character.is_control() && character != '\n')
-        {
-            return Err(TextPropertiesPatchV1Error::UnsupportedControlCharacter);
-        }
-        styles.sort_unstable();
-        if styles.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(TextPropertiesPatchV1Error::DuplicateRunStyle);
-        }
-        if styles.contains(&TextEditStyleV1::Subscript)
-            && styles.contains(&TextEditStyleV1::Superscript)
-        {
-            return Err(TextPropertiesPatchV1Error::ConflictingScriptStyles);
-        }
-        Ok(Self { text, styles })
-    }
-
-    /// Return literal rendered character data.
-    #[must_use]
-    pub fn text(&self) -> &str {
-        &self.text
-    }
-
-    /// Return styles in canonical bold, italic, subscript, superscript order.
-    #[must_use]
-    pub fn styles(&self) -> &[TextEditStyleV1] {
-        &self.styles
-    }
-}
+/// Compatibility aliases for the pre-existing Text-properties Python surface.
+/// New document contracts use the source-neutral AuthoredText names directly.
+pub type TextEditStyleV1 = AuthoredTextStyleV1;
+pub type TextEditRunV1 = AuthoredTextRunV1;
 
 /// One supported durable direct-root Text property change.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -177,27 +123,7 @@ impl TextPropertiesPatchV1 {
 }
 
 fn normalize_runs(runs: &mut Vec<TextEditRunV1>) -> Result<(), TextPropertiesPatchV1Error> {
-    if runs.is_empty()
-        || !runs
-            .iter()
-            .flat_map(|run| run.text.chars())
-            .any(|character| !character.is_whitespace())
-    {
-        return Err(TextPropertiesPatchV1Error::BlankText);
-    }
-    let mut normalized: Vec<TextEditRunV1> = Vec::with_capacity(runs.len());
-    for run in runs.drain(..) {
-        if let Some(previous) = normalized
-            .last_mut()
-            .filter(|previous| previous.styles == run.styles)
-        {
-            previous.text.push_str(&run.text);
-        } else {
-            normalized.push(run);
-        }
-    }
-    *runs = normalized;
-    Ok(())
+    normalize_authored_text_runs_v1(runs)
 }
 
 /// Invalid Text-properties intent rejected before document lookup.

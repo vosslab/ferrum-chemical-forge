@@ -235,7 +235,7 @@ def stage_python_project(output_root: Path, package_source: Path) -> Path:
 	schema = project.parent / "protocol" / "ferrum-operation-v1.schema.json"
 	if not schema.is_file():
 		raise NativePackagingError(f"missing generated operation protocol schema: {schema}")
-	build_script = project / "build.rs"
+	build_script = project.parent / "build.rs"
 	build_contents = build_script.read_text(encoding="utf-8")
 	needle = "pyo3_build_config::add_extension_module_link_args();"
 	if needle not in build_contents:

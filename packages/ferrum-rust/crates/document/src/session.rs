@@ -16,31 +16,47 @@ use super::{
     DocumentObjectIdV1, MoleculeInsertionV1, PersistentId, Point3V1,
     PreparedStraightenDepictionsV1, ProjectionError, SessionDocumentObservationV1, TypedClass,
     TypedDocument, TypedDocumentError, WavyInsertionV1, XmlSerializationError,
+    direct_bond_gesture_v1::{
+        self, CommittedDirectBondGestureV1, DirectBondEndIntentV1, DirectBondEndpointV1,
+        DirectBondGestureErrorV1, DirectBondGestureV1, DirectBondPoint2V1, DirectBondPreviewV1,
+        DirectBondSessionOriginV1, DirectBondSnapPolicyV1, DocumentFenceV1,
+    },
     generated_ids::GeneratedIdSequences,
+    presentation_creation_gesture_v1::{
+        self, ArrowGestureStyleV1, CommittedPresentationGestureV1, PresentationCreationGestureV1,
+        PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
+        PresentationGesturePoint2V1, PresentationGestureSessionOriginV1,
+        PresentationGestureSnapPolicyV1,
+    },
     publication::{PublicationDurability, publish_snapshot},
     session_history::SessionHistory,
     session_operation::{
         Candidate, SessionOperation, SessionOperationError, SessionOperationResultV1,
+        SessionOperationV1,
     },
     session_state::{RevisionState, SavedBaseline},
     typed_bond_insertion::BondedAtomInsertion,
 };
 
 mod bracket;
+mod attached_cyclohexane;
 mod clipboard;
 mod clipboard_cut;
 mod construction;
 mod direct_haworth;
 mod explicit_fragment;
 mod linear_form;
+mod molecule_batch_creation;
 mod molecule_creation;
 mod prepared;
 mod sdf;
 mod standalone_haworth;
 mod straighten;
+mod structural_deletion;
 mod user_template;
 mod wavy;
 pub use bracket::PendingCreateBracket;
+pub use attached_cyclohexane::{AttachedCyclohexaneSessionErrorV1, PendingAttachedCyclohexaneV1};
 pub use clipboard::DocumentClipboardPasteResultV1;
 pub use direct_haworth::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, PendingDirectHaworthV1,
@@ -48,10 +64,13 @@ pub use direct_haworth::{
 #[allow(unused_imports)]
 pub use explicit_fragment::PendingCreateExplicitFragmentV1;
 pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
+pub use molecule_batch_creation::PendingCreateMoleculeBatchV1;
 pub use sdf::PendingCreateSdfRecords;
 pub use standalone_haworth::PendingStandaloneHaworthV1;
+pub use structural_deletion::PendingDeleteStructureV1;
 pub use user_template::DocumentUserTemplateResultV1;
 pub use wavy::PendingCreateWavy;
+
 /// An owned structural serialization of the authoritative CDML tree.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentSnapshot {
@@ -137,6 +156,48 @@ impl Publication {
     pub fn outcome(&self) -> SaveOutcome {
         self.outcome
     }
+}
+
+fn same_point(first: DirectBondPoint2V1, second: DirectBondPoint2V1) -> bool {
+    first.x() == second.x() && first.y() == second.y()
+}
+
+fn snap_point(
+    start: DirectBondPoint2V1,
+    raw: DirectBondPoint2V1,
+    policy: DirectBondSnapPolicyV1,
+) -> Result<DirectBondPoint2V1, DirectBondGestureErrorV1> {
+    let mut dx = raw.x() - start.x();
+    let mut dy = raw.y() - start.y();
+    let mut length = dx.hypot(dy);
+    if let Some(increment) = policy.angle_increment_degrees()
+        && length > 0.0
+    {
+        let step = f64::from(increment).to_radians();
+        let angle = dy.atan2(dx);
+        let snapped = (angle / step).round() * step;
+        dx = length * snapped.cos();
+        dy = length * snapped.sin();
+    }
+    if let Some(fixed) = policy.fixed_length_pt() {
+        if length == 0.0 {
+            return Err(DirectBondGestureErrorV1::CollapsedEndpoint);
+        }
+        length = fixed;
+        let scale = length / dx.hypot(dy);
+        dx *= scale;
+        dy *= scale;
+    }
+    if policy.hex_grid() {
+        const GRID: f64 = 10.0;
+        dx = (dx / GRID).round() * GRID;
+        dy = (dy / GRID).round() * GRID;
+    }
+    DirectBondPoint2V1::new(start.x() + dx, start.y() + dy)
+}
+
+fn map_direct_bond_commit_error(_: DocumentSessionError) -> DirectBondGestureErrorV1 {
+    DirectBondGestureErrorV1::SessionConflict
 }
 
 /// A one-use, revision-bound prepared atom insertion.
@@ -278,6 +339,9 @@ impl PendingCreateBondedAtom {
 /// Failures while loading, serializing, or publishing a CDML snapshot.
 #[derive(Debug, Error)]
 pub enum DocumentSessionError {
+    /// An atomic molecule batch must contain at least one validated molecule.
+    #[error("molecule batch must contain at least one molecule")]
+    EmptyMoleculeBatch,
     /// The supplied text did not produce a valid retained CDML document.
     #[error("cannot load CDML document: {0}")]
     Load(#[source] TypedDocumentError),
@@ -389,12 +453,374 @@ pub enum DocumentSessionError {
 /// One authoritative retained CDML tree and its revision-bound transaction state.
 #[derive(Debug)]
 pub struct DocumentSession {
+    bridge_session_origin: u64,
     history: SessionHistory,
     saved_baseline: SavedBaseline,
     generated_ids: GeneratedIdSequences,
+    direct_bond_origin: DirectBondSessionOriginV1,
+    presentation_gesture_origin: PresentationGestureSessionOriginV1,
+    text_placement_origin: crate::text_placement_gesture_v1::TextPlacementSessionOriginV1,
+    text_placement_consumed: std::collections::HashSet<u64>,
 }
 
 impl DocumentSession {
+    /// Stable process-local identity for a bridge-owned opaque capability.
+    ///
+    /// This is not a document operation or durable document fact. It exists so
+    /// renderer-owning transaction bridges can survive ordinary Rust moves of a
+    /// session value without using a memory address as authority.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn bridge_session_origin_v1(&self) -> u64 {
+        self.bridge_session_origin
+    }
+
+    /// Return whether the current authoritative CDML index owns this durable ID.
+    ///
+    /// This generic index query is provided for bridge-side candidate allocation;
+    /// it does not expose XML records or grant a mutation capability.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn contains_durable_id_v1(&self, identifier: &str) -> bool {
+        PersistentId::new(identifier.to_owned())
+            .ok()
+            .is_some_and(|id| {
+                self.history
+                    .current()
+                    .document()
+                    .indexed()
+                    .resolve_id(&id)
+                    .is_some()
+            })
+    }
+    /// Begin one opaque direct-root Text placement.  The returned token has no
+    /// XML or mutable document state and is valid only for this exact snapshot.
+    pub fn begin_text_placement_gesture_v1(
+        &self,
+        fence: DocumentFenceV1,
+        anchor: PresentationGesturePoint2V1,
+    ) -> Result<crate::TextPlacementGestureV1, crate::TextPlacementErrorV1> {
+        crate::text_placement_gesture_v1::begin(self.text_placement_origin, fence, anchor)
+    }
+
+    pub fn preview_text_placement_gesture_v1(
+        &self,
+        gesture: &crate::TextPlacementGestureV1,
+        content: crate::TextPlacementContentV1,
+    ) -> Result<crate::TextPlacementPreviewV1, crate::TextPlacementErrorV1> {
+        crate::text_placement_gesture_v1::preview(
+            self.text_placement_origin,
+            self.history.current().revision(),
+            *self.history.current().digest(),
+            gesture,
+            content,
+        )
+    }
+
+    pub fn commit_text_placement_gesture_v1(
+        &mut self,
+        gesture: &crate::TextPlacementGestureV1,
+        preview: &crate::TextPlacementPreviewV1,
+    ) -> Result<crate::CommittedTextPlacementV1, crate::TextPlacementErrorV1> {
+        use crate::text_placement_gesture_v1::{
+            CommittedTextPlacementV1, TextPlacementErrorV1, belongs_to,
+        };
+        if !belongs_to(self.text_placement_origin, gesture)
+            || !belongs_to(self.text_placement_origin, &preview.gesture)
+        {
+            return Err(TextPlacementErrorV1::ForeignSession);
+        }
+        if gesture.capability != preview.gesture.capability {
+            return Err(TextPlacementErrorV1::MismatchedPreview);
+        }
+        if self
+            .text_placement_consumed
+            .contains(&gesture.capability.nonce)
+        {
+            return Err(TextPlacementErrorV1::ReplayedGesture);
+        }
+        if gesture.fence.revision() != self.history.current().revision()
+            || gesture.fence.digest() != *self.history.current().digest()
+        {
+            return Err(TextPlacementErrorV1::StaleSnapshot);
+        }
+        let (identifier, next_ids) = self
+            .generated_ids
+            .reserve_presentation(self.history.current().document().indexed())
+            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
+        let candidate = self
+            .history
+            .current()
+            .document()
+            .with_insert_authored_text_v1(
+                &identifier,
+                gesture.anchor,
+                preview.content.runs(),
+                preview.content.font_size(),
+                preview.content.color(),
+            )
+            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
+        let revision = self
+            .history
+            .current()
+            .next_revision()
+            .ok_or(TextPlacementErrorV1::SessionConflict)?;
+        let state = RevisionState::from_document(revision, candidate)
+            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
+        self.generated_ids = next_ids;
+        self.text_placement_consumed
+            .insert(gesture.capability.nonce);
+        self.history.append(state);
+        let result = self
+            .operation_result()
+            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
+        Ok(CommittedTextPlacementV1::new(identifier, result))
+    }
+
+    pub fn begin_presentation_creation_gesture_v1(
+        &self,
+        fence: DocumentFenceV1,
+        kind: PresentationGestureKindV1,
+        start: PresentationGesturePoint2V1,
+        style: ArrowGestureStyleV1,
+        snap: PresentationGestureSnapPolicyV1,
+    ) -> Result<PresentationCreationGestureV1, PresentationGestureErrorV1> {
+        self.require_presentation_fence(fence)?;
+        Ok(PresentationCreationGestureV1 {
+            capability: self.presentation_gesture_origin.issue_gesture(),
+            fence,
+            kind,
+            start,
+            style,
+            snap,
+        })
+    }
+    pub fn preview_presentation_creation_gesture_v1(
+        &self,
+        gesture: &PresentationCreationGestureV1,
+        end: PresentationGesturePoint2V1,
+    ) -> Result<PresentationCreationPreviewV1, PresentationGestureErrorV1> {
+        self.require_presentation_origin(gesture)?;
+        self.require_presentation_fence(gesture.fence)?;
+        presentation_creation_gesture_v1::preview(gesture.clone(), end)
+    }
+    pub fn commit_presentation_creation_gesture_v1(
+        &mut self,
+        gesture: &PresentationCreationGestureV1,
+        preview: &PresentationCreationPreviewV1,
+    ) -> Result<CommittedPresentationGestureV1, PresentationGestureErrorV1> {
+        self.require_presentation_origin(gesture)?;
+        self.require_presentation_origin(&preview.gesture)?;
+        self.require_presentation_fence(gesture.fence)?;
+        if gesture.capability != preview.gesture.capability {
+            return Err(PresentationGestureErrorV1::PreviewMismatch);
+        }
+        let (identifier, next_ids) = self
+            .generated_ids
+            .reserve_presentation(self.history.current().document().indexed())
+            .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
+        let candidate = match gesture.kind {
+            PresentationGestureKindV1::StraightNormalArrow => self
+                .history
+                .current()
+                .document()
+                .with_insert_straight_normal_arrow(
+                    &identifier,
+                    gesture.start,
+                    preview.end,
+                    gesture.style.start_head(),
+                    gesture.style.end_head(),
+                ),
+            PresentationGestureKindV1::Plus => self
+                .history
+                .current()
+                .document()
+                .with_insert_standard_plus(&identifier, gesture.start),
+        }
+        .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
+        let revision = self
+            .history
+            .current()
+            .next_revision()
+            .ok_or(PresentationGestureErrorV1::SessionConflict)?;
+        let state = RevisionState::from_document(revision, candidate)
+            .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
+        self.generated_ids = next_ids;
+        self.history.append(state);
+        let result = self
+            .operation_result()
+            .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
+        Ok(CommittedPresentationGestureV1::new(
+            gesture.kind,
+            identifier,
+            result,
+        ))
+    }
+    fn require_presentation_origin(
+        &self,
+        gesture: &PresentationCreationGestureV1,
+    ) -> Result<(), PresentationGestureErrorV1> {
+        if gesture
+            .capability
+            .belongs_to(self.presentation_gesture_origin)
+        {
+            Ok(())
+        } else {
+            Err(PresentationGestureErrorV1::ForeignSession)
+        }
+    }
+    fn require_presentation_fence(
+        &self,
+        fence: DocumentFenceV1,
+    ) -> Result<(), PresentationGestureErrorV1> {
+        if self.history.current().revision() != fence.revision() {
+            return Err(PresentationGestureErrorV1::StaleRevision);
+        }
+        if *self.history.current().digest() != fence.digest() {
+            return Err(PresentationGestureErrorV1::StaleDigest);
+        }
+        Ok(())
+    }
+    /// Begin a pure direct normal-bond gesture from one existing direct atom.
+    pub fn begin_direct_bond_gesture_v1(
+        &self,
+        fence: DocumentFenceV1,
+        start_atom: DocumentObjectIdV1,
+        presentation: DocumentBondPresentationV1,
+        new_atom_element: String,
+        snap: DirectBondSnapPolicyV1,
+    ) -> Result<DirectBondGestureV1, DirectBondGestureErrorV1> {
+        self.require_fence(fence)?;
+        if !matches!(presentation, DocumentBondPresentationV1::Normal(_)) {
+            return Err(DirectBondGestureErrorV1::UnsupportedPresentation);
+        }
+        let (start_molecule, _) = self
+            .resolve_bond_atom(&start_atom)
+            .map_err(|_| DirectBondGestureErrorV1::UnknownStartAtom)?;
+        let start_point = self
+            .direct_atom_point(&start_atom)
+            .ok_or(DirectBondGestureErrorV1::UnknownStartAtom)?;
+        Ok(DirectBondGestureV1 {
+            capability: self.direct_bond_origin.issue_gesture(),
+            fence,
+            start_atom,
+            start_molecule,
+            presentation,
+            new_atom_element,
+            snap,
+            start_point,
+        })
+    }
+
+    /// Compute one disposable direct-bond preview without changing the document.
+    pub fn preview_direct_bond_gesture_v1(
+        &self,
+        gesture: &DirectBondGestureV1,
+        end: DirectBondEndIntentV1,
+    ) -> Result<DirectBondPreviewV1, DirectBondGestureErrorV1> {
+        self.require_direct_bond_origin(gesture)?;
+        self.require_fence(gesture.fence)?;
+        let endpoint = match end {
+            DirectBondEndIntentV1::ExistingAtom { atom } => {
+                if atom == gesture.start_atom {
+                    return Err(DirectBondGestureErrorV1::SelfLoop);
+                }
+                let (molecule, _) = self
+                    .resolve_bond_atom(&atom)
+                    .map_err(|_| DirectBondGestureErrorV1::UnknownEndAtom)?;
+                if molecule != gesture.start_molecule {
+                    return Err(DirectBondGestureErrorV1::CrossMolecule);
+                }
+                self.reject_existing_bond_for_object_ids(&gesture.start_atom, &atom)
+                    .map_err(|_| DirectBondGestureErrorV1::DuplicateBond)?;
+                DirectBondEndpointV1::ExistingAtom {
+                    point: self
+                        .direct_atom_point(&atom)
+                        .ok_or(DirectBondGestureErrorV1::UnknownEndAtom)?,
+                    atom,
+                }
+            }
+            DirectBondEndIntentV1::NewAtomAt { raw_point } => {
+                let point = snap_point(gesture.start_point, raw_point, gesture.snap)?;
+                if same_point(gesture.start_point, point) {
+                    return Err(DirectBondGestureErrorV1::CollapsedEndpoint);
+                }
+                DirectBondEndpointV1::NewAtom {
+                    point,
+                    element: gesture.new_atom_element.clone(),
+                }
+            }
+        };
+        Ok(direct_bond_gesture_v1::overlay(gesture.clone(), endpoint))
+    }
+
+    /// Commit one checked preview through the existing prepared insertion seam.
+    pub fn commit_direct_bond_gesture_v1(
+        &mut self,
+        gesture: &DirectBondGestureV1,
+        preview: &DirectBondPreviewV1,
+    ) -> Result<CommittedDirectBondGestureV1, DirectBondGestureErrorV1> {
+        self.require_direct_bond_origin(gesture)?;
+        self.require_direct_bond_origin(&preview.gesture)?;
+        self.require_fence(gesture.fence)?;
+        if preview.gesture.capability != gesture.capability {
+            return Err(DirectBondGestureErrorV1::PreviewMismatch);
+        }
+        match &preview.endpoint {
+            DirectBondEndpointV1::ExistingAtom { atom, .. } => {
+                let (_, end_atom) = self
+                    .resolve_bond_atom(atom)
+                    .map_err(|_| DirectBondGestureErrorV1::UnknownEndAtom)?;
+                let mut pending = self
+                    .prepare_create_bond_v2(
+                        gesture.fence.revision(),
+                        &gesture.start_atom,
+                        atom,
+                        gesture.presentation,
+                    )
+                    .map_err(map_direct_bond_commit_error)?;
+                let bond = pending.identifier().clone();
+                let result = self
+                    .commit_create_bond(gesture.fence.revision(), &mut pending)
+                    .map_err(map_direct_bond_commit_error)?;
+                Ok(CommittedDirectBondGestureV1::ExistingEndpoint {
+                    bond,
+                    end_atom,
+                    result,
+                })
+            }
+            DirectBondEndpointV1::NewAtom { point, element } => {
+                let position = Point3V1::new(point.x(), point.y(), 0.0)
+                    .map_err(|_| DirectBondGestureErrorV1::NonFinitePoint)?;
+                let mut pending = self
+                    .prepare_create_bonded_atom_v2(
+                        gesture.fence.revision(),
+                        &gesture.start_atom,
+                        element,
+                        position,
+                        gesture.presentation,
+                    )
+                    .map_err(map_direct_bond_commit_error)?;
+                let atom = pending.atom_identifier().clone();
+                let bond = pending.bond_identifier().clone();
+                let result = self
+                    .commit_create_bonded_atom(gesture.fence.revision(), &mut pending)
+                    .map_err(map_direct_bond_commit_error)?;
+                Ok(CommittedDirectBondGestureV1::NewEndpoint { bond, atom, result })
+            }
+        }
+    }
+
+    fn require_direct_bond_origin(
+        &self,
+        gesture: &DirectBondGestureV1,
+    ) -> Result<(), DirectBondGestureErrorV1> {
+        if gesture.capability.belongs_to(self.direct_bond_origin) {
+            Ok(())
+        } else {
+            Err(DirectBondGestureErrorV1::ForeignSession)
+        }
+    }
     /// Observe one complete-root translation anchor at an exact retained revision.
     pub fn observe_top_level_translation_anchor_v1(
         &self,
@@ -417,6 +843,42 @@ impl DocumentSession {
         Ok(current.snapshot(!self.saved_baseline.is_current(current)))
     }
 
+    /// Commit one complete, already-admitted CDML replacement as the next revision.
+    ///
+    /// This is the generic compatibility transaction for complete CDML clients.
+    /// It deliberately knows nothing about tools, gestures, render preflight, or
+    /// durable-ID allocation. Tool-specific owners must validate their exact
+    /// candidate before calling this method.
+    pub fn commit_complete_cdml_transaction_v1(
+        &mut self,
+        fence: DocumentFenceV1,
+        candidate_cdml: &str,
+    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
+        self.require_current(fence.revision())?;
+        if *self.history.current().digest() != fence.digest() {
+            return Err(DocumentSessionError::RevisionConflict {
+                expected: fence.revision(),
+                actual: self.history.current().revision(),
+            });
+        }
+        let document = TypedDocument::parse(candidate_cdml).map_err(DocumentSessionError::Load)?;
+        let revision = self
+            .history
+            .current()
+            .next_revision()
+            .ok_or(DocumentSessionError::RevisionExhausted)?;
+        let state =
+            RevisionState::from_document(revision, document).map_err(DocumentSessionError::Load)?;
+        let snapshot = state.snapshot(!self.saved_baseline.is_current(&state));
+        SessionDocumentObservationV1::from_state(state.document(), snapshot)
+            .map_err(DocumentSessionError::Projection)?;
+        self.history
+            .try_reserve_append()
+            .map_err(|_| SessionOperationError::HistoryResourceExhausted)?;
+        self.history.append_reserved(state);
+        self.operation_result()
+    }
+
     /// Observe the current state through one revision-bound immutable envelope.
     pub fn observe(
         &self,
@@ -426,6 +888,23 @@ impl DocumentSession {
         self.document_observation()
     }
 
+    /// Observe complete-document literal-ID ambiguity facts at one exact revision.
+    ///
+    /// The facts include opaque and unsupported retained XML content, without
+    /// exposing that XML to callers.
+    pub fn observe_complete_document_identity_facts_v1(
+        &self,
+        expected_revision: u64,
+    ) -> Result<super::CompleteDocumentIdentityFactsV1, DocumentSessionError> {
+        self.require_current(expected_revision)?;
+        Ok(self
+            .history
+            .current()
+            .document()
+            .indexed()
+            .complete_document_identity_facts_v1())
+    }
+
     /// Apply one narrow typed operation with optimistic revision control.
     pub fn submit(
         &mut self,
@@ -433,6 +912,20 @@ impl DocumentSession {
         operation: SessionOperation,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
+        if let SessionOperation::V1(SessionOperationV1::DeleteStructure {
+            molecule_id,
+            atom_ids,
+            bond_ids,
+        }) = &operation
+        {
+            let mut pending = self.prepare_delete_structure_v1(
+                expected_revision,
+                molecule_id.clone(),
+                atom_ids.clone(),
+                bond_ids.clone(),
+            )?;
+            return self.commit_delete_structure_v1(expected_revision, &mut pending);
+        }
         let current = self.history.current();
         match operation.prepare(current.document(), current.revision(), current.digest())? {
             Candidate::NoChange => self.operation_result(),
@@ -579,6 +1072,11 @@ impl DocumentSession {
             .ok_or_else(|| SessionOperationError::InvalidCreateAtomTarget(object_id.clone()))?;
         PersistentId::new(source_id.to_owned())
             .map_err(|_| SessionOperationError::InvalidCreateAtomTarget(object_id))
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_next_generated_molecule_sequence_for_test(&mut self, sequence: Option<u64>) {
+        self.generated_ids = self.generated_ids.with_molecule_sequence(sequence);
     }
 
     #[cfg(test)]
@@ -861,6 +1359,40 @@ impl DocumentSession {
             snapshot,
             durability,
         ))
+    }
+
+    fn require_fence(&self, fence: DocumentFenceV1) -> Result<(), DirectBondGestureErrorV1> {
+        if self.history.current().revision() != fence.revision() {
+            return Err(DirectBondGestureErrorV1::StaleRevision);
+        }
+        if *self.history.current().digest() != fence.digest() {
+            return Err(DirectBondGestureErrorV1::StaleDigest);
+        }
+        Ok(())
+    }
+
+    fn direct_atom_point(&self, object_id: &DocumentObjectIdV1) -> Option<DirectBondPoint2V1> {
+        let target = self
+            .history
+            .current()
+            .document()
+            .resolve_document_object_id(object_id)?;
+        if target.class() != TypedClass::Atom {
+            return None;
+        }
+        let point_record = target.children_of(TypedClass::Point).next()?;
+        let point = super::projection_v1::point(point_record).ok()?;
+        DirectBondPoint2V1::new(point.x(), point.y()).ok()
+    }
+
+    fn reject_existing_bond_for_object_ids(
+        &self,
+        start: &DocumentObjectIdV1,
+        end: &DocumentObjectIdV1,
+    ) -> Result<(), SessionOperationError> {
+        let (molecule, start_atom) = self.resolve_bond_atom(start)?;
+        let (_, end_atom) = self.resolve_bond_atom(end)?;
+        self.reject_existing_bond(&molecule, &start_atom, &end_atom)
     }
 
     fn require_current(&self, expected_revision: u64) -> Result<(), DocumentSessionError> {

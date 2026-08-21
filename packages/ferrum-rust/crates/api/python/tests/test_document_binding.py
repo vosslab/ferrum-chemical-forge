@@ -65,6 +65,339 @@ def set_atom(element: str) -> ferrum_chem.DocumentOperationV1:
 	return ferrum_chem.DocumentOperationV1.set_atom_element("a", element)
 
 
+def test_direct_bond_gesture_binding_commits_one_normal_bond() -> None:
+	session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	observation = session.observe(0)
+	start = observation.projection.molecules[0].atoms[0].id
+	end = observation.projection.molecules[0].atoms[1].id
+	snap = ferrum_chem.DirectBondSnapPolicyV1()
+	gesture = session.begin_direct_bond_gesture_v1(
+		observation.snapshot.revision,
+		observation.snapshot.digest,
+		start,
+		ferrum_chem.DocumentBondPresentationV1.normal_double,
+		"C",
+		snap,
+	)
+	preview = session.preview_direct_bond_gesture_v1(
+		gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(end),
+	)
+	assert type(preview) is ferrum_chem.DirectBondPreviewV1
+	commit = session.commit_direct_bond_gesture_v1(gesture, preview)
+	assert commit.created_new_atom is False
+	assert commit.result.observation.snapshot.revision == 1
+	assert 'type="n2"' in commit.result.observation.snapshot.cdml
+
+
+def test_presentation_vector_binding_keeps_frozen_failure_and_commit_contract() -> None:
+	session = ferrum_chem.DocumentSession.load("<cdml><standard line_color='#123456' line_width='2'/></cdml>")
+	snapshot = session.snapshot()
+	gesture = session.begin_presentation_vector_gesture_v1(
+		snapshot.revision,
+		snapshot.digest,
+		ferrum_chem.PresentationVectorKindV1.rectangle,
+		10.0,
+		20.0,
+	)
+	preview = session.preview_presentation_vector_gesture_v1(gesture, 30.0, 45.0)
+	assert hasattr(session, "commit_presentation_vector_gesture_v1")
+	assert not hasattr(session, "preflight_presentation_vector_gesture_v1")
+	assert not hasattr(session, "commit_preflighted_presentation_vector_gesture_v1")
+	prepared = session.prepare_presentation_vector_gesture_v1(gesture, preview)
+	commit = session.commit_presentation_vector_gesture_v1(prepared)
+	assert commit.result.observation.snapshot.revision == 1
+	assert 'line_color="#123456"' in commit.result.observation.snapshot.cdml
+	with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
+		session.commit_presentation_vector_gesture_v1(prepared)
+	assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.replayed_gesture
+	assert captured.value.recovery == ferrum_chem.PresentationVectorGestureRecoveryV1.refresh_and_restart
+
+
+def test_reaction_creation_uses_only_the_renderer_preflighted_python_route() -> None:
+	source = (
+		'<cdml><molecule id="left"><atom id="left-a" name="C">'
+		'<point x="0" y="0"/></atom></molecule><molecule id="product">'
+		'<atom id="product-a" name="O"><point x="100" y="0"/></atom></molecule>'
+		'<arrow id="arrow"><point x="25" y="0"/><point x="75" y="0"/>'
+		'</arrow></cdml>'
+	)
+	session = ferrum_chem.DocumentSession.load(source)
+	commit = session.create_reaction_v1(0, ["left"], ["product"], "arrow", [], [])
+	assert commit.reaction_id == "rxn-1"
+	assert commit.result.observation.snapshot.revision == 1
+	assert '<reaction id="rxn-1"' in commit.result.observation.snapshot.cdml
+	assert not hasattr(session, "commit_raw_reaction_v1")
+	assert not hasattr(session, "commit_preflighted_reaction_v1")
+	with pytest.raises(ferrum_chem.ReactionGestureError) as captured:
+		session.create_reaction_v1(1, ["missing"], ["product"], "arrow", [], [])
+	assert captured.value.category == ferrum_chem.ReactionRefusalCategoryV1.missing_target
+	assert captured.value.recovery == ferrum_chem.ReactionRefusalRecoveryV1.correct_selectors
+
+
+def test_reaction_authoring_choices_are_renderer_fenced_and_non_mutating() -> None:
+	source = (
+		'<cdml><molecule id="left"><atom id="left-a" name="C">'
+		'<point x="0" y="0"/></atom></molecule><molecule id="product">'
+		'<atom id="product-a" name="O"><point x="100" y="0"/></atom></molecule>'
+		'<arrow id="arrow"><point x="25" y="0"/><point x="75" y="0"/></arrow>'
+		'<plus id="plus"><point x="20" y="-10"/></plus>'
+		'<text id="condition"><point x="50" y="-20"/><ftext>heat</ftext></text>'
+		'<rect id="annotation" x1="10" y1="10" x2="30" y2="30"/>'
+		'<reaction id="rxn-old"><reactant idref="left"/></reaction>'
+		'<plus><point x="0" y="20"/></plus>'
+		'</cdml>'
+	)
+	session = ferrum_chem.DocumentSession.load(source)
+	snapshot = session.snapshot()
+	choices = session.observe_reaction_authoring_choices_v1(
+		snapshot.revision, snapshot.digest,
+	)
+	assert choices.revision == snapshot.revision
+	assert choices.digest == snapshot.digest
+	assert [(item.identifier, item.kind, item.availability) for item in choices.choices] == [
+		("left", ferrum_chem.ReactionAuthoringChoiceKindV1.molecule,
+		 ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.already_in_reaction),
+		("product", ferrum_chem.ReactionAuthoringChoiceKindV1.molecule,
+		 ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
+		("arrow", ferrum_chem.ReactionAuthoringChoiceKindV1.arrow,
+		 ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
+		("plus", ferrum_chem.ReactionAuthoringChoiceKindV1.plus,
+		 ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
+		("condition", ferrum_chem.ReactionAuthoringChoiceKindV1.condition_text,
+		 ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
+	]
+	annotation = next(
+		item for item in choices.exclusions if item.diagnostic_key == "annotation"
+	)
+	assert annotation.reason == ferrum_chem.ReactionAuthoringExclusionReasonV1.display_only
+	assert annotation.recovery == ferrum_chem.ReactionAuthoringExclusionRecoveryV1.choose_supported_member
+	assert "<rect" not in annotation.label
+	assert not hasattr(annotation, "cdml")
+	session.validate_reaction_authoring_choices_v1(choices)
+	commit = session.submit(
+		0, ferrum_chem.DocumentOperationV1.set_atom_element("left-a", "N"),
+	)
+	assert commit.observation.snapshot.revision == 1
+	with pytest.raises(ferrum_chem.ReactionAuthoringChoicesError) as captured:
+		session.validate_reaction_authoring_choices_v1(choices)
+	assert captured.value.category == ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.stale_snapshot
+	other = ferrum_chem.DocumentSession.load(source)
+	with pytest.raises(ferrum_chem.ReactionAuthoringChoicesError) as captured:
+		other.validate_reaction_authoring_choices_v1(choices)
+	assert captured.value.category == ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.foreign_session
+
+
+def test_presentation_vector_bridge_receipts_preflight_and_fence_every_python_path() -> None:
+	standard = (
+		'<cdml><standard line_color="#123456" line_width="2" '
+		'area_color="#ABCDEF"/></cdml>'
+	)
+	first = ferrum_chem.DocumentSession.load(standard)
+	second = ferrum_chem.DocumentSession.load(standard)
+	first_snapshot = first.snapshot()
+	second_snapshot = second.snapshot()
+	first_gesture = first.begin_presentation_vector_gesture_v1(
+		first_snapshot.revision,
+		first_snapshot.digest,
+		ferrum_chem.PresentationVectorKindV1.oval,
+		10.0,
+		20.0,
+	)
+	first_preview = first.preview_presentation_vector_gesture_v1(
+		first_gesture, 40.0, 60.0,
+	)
+	assert first_preview.overlay.stroke_color == "#123456"
+	assert first_preview.overlay.stroke_width == 2.0
+	assert first_preview.overlay.fill_color == "#abcdef"
+
+	# The former raw `(gesture, preview)` commit is not a client surface: only
+	# one opaque prepared receipt is accepted by the Python bridge method.
+	with pytest.raises(TypeError):
+		first.commit_presentation_vector_gesture_v1(first_gesture, first_preview)
+	assert not hasattr(first, "commit_raw_presentation_vector_gesture_v1")
+	assert not hasattr(first, "commit_preflighted_presentation_vector_gesture_v1")
+
+	with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
+		second.prepare_presentation_vector_gesture_v1(first_gesture, first_preview)
+	assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.foreign_session
+	assert second.snapshot().revision == second_snapshot.revision
+
+	mismatch_gesture = first.begin_presentation_vector_gesture_v1(
+		first_snapshot.revision,
+		first_snapshot.digest,
+		ferrum_chem.PresentationVectorKindV1.oval,
+		10.0,
+		20.0,
+	)
+	mismatch_preview = first.preview_presentation_vector_gesture_v1(mismatch_gesture, 40.0, 60.0)
+	with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
+		first.prepare_presentation_vector_gesture_v1(first_gesture, mismatch_preview)
+	assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.mismatched_preview
+	assert first.snapshot().revision == first_snapshot.revision
+
+	prepared = first.prepare_presentation_vector_gesture_v1(first_gesture, first_preview)
+	commit = first.commit_presentation_vector_gesture_v1(prepared)
+	assert commit.kind == ferrum_chem.PresentationVectorKindV1.oval
+	assert commit.result.observation.snapshot.revision == 1
+	assert 'line_color="#123456"' in commit.result.observation.snapshot.cdml
+	assert 'width="2"' in commit.result.observation.snapshot.cdml
+	assert 'area_color="#abcdef"' in commit.result.observation.snapshot.cdml
+	with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
+		first.commit_presentation_vector_gesture_v1(prepared)
+	assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.replayed_gesture
+
+	excluded = ferrum_chem.DocumentSession.load(
+		'<cdml><plus id="excluded"><point x="1" y="2"/>'
+		'<font family="Arial"/></plus></cdml>',
+	)
+	excluded_snapshot = excluded.snapshot()
+	excluded_gesture = excluded.begin_presentation_vector_gesture_v1(
+		excluded_snapshot.revision,
+		excluded_snapshot.digest,
+		ferrum_chem.PresentationVectorKindV1.line,
+		10.0,
+		20.0,
+	)
+	excluded_preview = excluded.preview_presentation_vector_gesture_v1(
+		excluded_gesture, 40.0, 60.0,
+	)
+	with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
+		excluded.prepare_presentation_vector_gesture_v1(excluded_gesture, excluded_preview)
+	assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.render_preparation
+	assert captured.value.recovery == ferrum_chem.PresentationVectorGestureRecoveryV1.document_unchanged
+	assert excluded.snapshot().revision == excluded_snapshot.revision
+
+
+def test_text_placement_binding_uses_renderer_overlay_and_one_commit() -> None:
+	session = ferrum_chem.DocumentSession.load("<cdml><standard font_size='18' line_color='#123456'/></cdml>")
+	snapshot = session.snapshot()
+	gesture = session.begin_text_placement_gesture_v1(
+		snapshot.revision, snapshot.digest, 10.0, 20.0,
+	)
+	defaults = session.text_placement_defaults_v1(gesture)
+	assert defaults.font_size == 18.0
+	assert defaults.color == "#123456"
+	assert defaults.bold_supported is False
+	run = ferrum_chem.DocumentTextEditRunV1.create
+	style = ferrum_chem.DocumentTextEditStyleV1
+	preview = session.preview_text_placement_gesture_v1(
+		gesture, (run("H", ()), run("2", (style.subscript,)), run("O", ())), None, None,
+	)
+	assert preview.overlay.operation.size == 18.0
+	commit = session.commit_text_placement_gesture_v1(gesture, preview)
+	assert commit.result.observation.snapshot.revision == 1
+	assert "<ftext>H&lt;sub&gt;2&lt;/sub&gt;O</ftext>" in commit.result.observation.snapshot.cdml
+	with pytest.raises(ferrum_chem.TextPlacementError) as caught:
+		session.commit_text_placement_gesture_v1(gesture, preview)
+	assert caught.value.category == ferrum_chem.TextPlacementErrorCategoryV1.replayed_gesture
+	assert ferrum_chem.TextPlacementErrorCategoryV1.unrenderable_standard
+	assert ferrum_chem.TextPlacementRecoveryV1.repair_drawing_standard
+	assert ferrum_chem.TextPlacementErrorCategoryV1.render_preparation
+	assert ferrum_chem.TextPlacementRecoveryV1.recover_canvas
+
+
+def test_text_placement_custom_standard_refuses_before_mutation() -> None:
+	session = ferrum_chem.DocumentSession.load(
+		'<cdml><standard font_family="No Such Face"/></cdml>',
+	)
+	snapshot = session.snapshot()
+	gesture = session.begin_text_placement_gesture_v1(
+		snapshot.revision, snapshot.digest, 1.0, 2.0,
+	)
+	run = ferrum_chem.DocumentTextEditRunV1.create("x", ())
+	with pytest.raises(ferrum_chem.TextPlacementError) as caught:
+		session.preview_text_placement_gesture_v1(gesture, (run,), None, None)
+	assert caught.value.category == ferrum_chem.TextPlacementErrorCategoryV1.unrenderable_standard
+	assert caught.value.recovery == ferrum_chem.TextPlacementRecoveryV1.repair_drawing_standard
+	assert session.snapshot().revision == snapshot.revision
+
+
+def test_direct_bond_gesture_preview_refusal_is_typed_and_non_mutating() -> None:
+	session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	observation = session.observe(0)
+	start = observation.projection.molecules[0].atoms[0].id
+	gesture = session.begin_direct_bond_gesture_v1(
+		0,
+		observation.snapshot.digest,
+		start,
+		ferrum_chem.DocumentBondPresentationV1.normal_single,
+		"C",
+		ferrum_chem.DirectBondSnapPolicyV1(),
+	)
+	refusal = session.preview_direct_bond_gesture_v1(
+		gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(start),
+	)
+	assert type(refusal) is ferrum_chem.DirectBondPreviewRefusalV1
+	assert refusal.category == ferrum_chem.DirectBondGestureCategoryV1.self_loop
+	assert refusal.recovery == ferrum_chem.DirectBondGestureRecoveryV1.adjust_endpoint
+	assert session.snapshot().revision == 0
+
+
+def test_direct_bond_gesture_binding_rejects_foreign_session_handles() -> None:
+	first = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	second = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	first_observation = first.observe(0)
+	second_observation = second.observe(0)
+	first_start = first_observation.projection.molecules[0].atoms[0].id
+	first_end = first_observation.projection.molecules[0].atoms[1].id
+	second_start = second_observation.projection.molecules[0].atoms[0].id
+	gesture = first.begin_direct_bond_gesture_v1(
+		0,
+		first_observation.snapshot.digest,
+		first_start,
+		ferrum_chem.DocumentBondPresentationV1.normal_single,
+		"C",
+		ferrum_chem.DirectBondSnapPolicyV1(),
+	)
+	second_gesture = second.begin_direct_bond_gesture_v1(
+		0,
+		second_observation.snapshot.digest,
+		second_start,
+		ferrum_chem.DocumentBondPresentationV1.normal_single,
+		"C",
+		ferrum_chem.DirectBondSnapPolicyV1(),
+	)
+	preview = first.preview_direct_bond_gesture_v1(
+		gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(first_end),
+	)
+	with pytest.raises(ferrum_chem.DirectBondGestureError) as captured:
+		second.preview_direct_bond_gesture_v1(
+			gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(first_end),
+		)
+	assert captured.value.category == ferrum_chem.DirectBondGestureCategoryV1.foreign_session
+	with pytest.raises(ferrum_chem.DirectBondGestureError) as captured:
+		second.commit_direct_bond_gesture_v1(second_gesture, preview)
+	assert captured.value.recovery == ferrum_chem.DirectBondGestureRecoveryV1.refresh_and_restart
+
+
+def test_structure_path_target_is_display_only_and_cannot_create_a_delete_handle() -> None:
+	session = ferrum_chem.DocumentSession.load(
+		"<cdml><molecule id=\"m\">"
+		"<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>"
+		"<atom id=\"b\" name=\"O\"><point x=\"30\" y=\"0\"/></atom>"
+		"<bond id=\"ab\" type=\"w1\" start=\"a\" end=\"b\"/>"
+		"</molecule></cdml>"
+	)
+	snapshot = session.snapshot()
+	observation = session.observe_structure_interaction_v1(
+		snapshot.revision, snapshot.digest
+	)
+	target = next(value for value in observation.targets if value.identifier == "ab")
+	assert target.kind == ferrum_chem.StructureTargetKindV1.display_only
+	with pytest.raises(ferrum_chem.RenderInteractionError) as caught:
+		session.select_structure_interaction_v1(
+			observation,
+			None,
+			ferrum_chem.StructureInteractionQueryV1.point(
+				(target.bounds.left + target.bounds.right) / 2.0,
+				(target.bounds.top + target.bounds.bottom) / 2.0,
+				ferrum_chem.RenderInteractionModifierV1.replace,
+			),
+		)
+	assert caught.value.category == ferrum_chem.RenderInteractionCategoryV1.display_only
+	assert caught.value.recovery == ferrum_chem.RenderInteractionRecoveryV1.change_presentation
+
+
 def test_smiles_input_precedes_native_availability_and_module_replacement() -> None:
 	held_parse_smiles = ferrum_chem.parse_smiles
 
@@ -993,3 +1326,300 @@ def test_publication_errors_share_the_documented_shape(tmp_path: Path) -> None:
 		session.save_atomic(target, 0)
 
 	assert (caught.value.path, bool(caught.value.reason)) == (str(target), True)
+
+
+def test_render_interaction_binding_uses_render_plan_authority() -> None:
+	session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	initial = session.snapshot()
+	observation = session.observe_render_interaction_v1(
+		initial.revision, initial.digest,
+	)
+	assert [root.identifier for root in observation.roots] == ["m"]
+	selection = session.select_render_interaction_roots_v1(
+		observation, None,
+		ferrum_chem.RenderInteractionQueryV1.point(
+			1.0, 2.0, ferrum_chem.RenderInteractionModifierV1.replace,
+		),
+	)
+	gesture = session.begin_render_interaction_translation_v1(
+		selection, 1.0, 2.0, ferrum_chem.RenderInteractionSnapV1.free(),
+	)
+	preview = session.preview_render_interaction_translation_v1(gesture, 6.0, 0.0)
+	committed = session.commit_render_interaction_translation_v1(gesture, preview)
+	assert committed.changed is True
+	assert committed.result.observation.snapshot.revision == 1
+	assert session.undo(1).observation.snapshot.revision == 2
+
+	unsupported = ferrum_chem.DocumentSession.load(
+		'<cdml><molecule id="blocked"><atom id="a" name="C">'
+		'<point x="1" y="2"/><ftext><b>rich</b></ftext>'
+		'</atom></molecule></cdml>'
+	)
+	blocked_snapshot = unsupported.snapshot()
+	blocked = unsupported.observe_render_interaction_v1(
+		blocked_snapshot.revision, blocked_snapshot.digest,
+	)
+	assert blocked.roots == ()
+	assert [(entry.identifier, entry.reason) for entry in blocked.exclusions] == [
+		("blocked", ferrum_chem.RenderInteractionExclusionReasonV1.unrenderable_depiction),
+	]
+	with pytest.raises(ferrum_chem.RenderInteractionError) as blocked_error:
+		unsupported.select_render_interaction_roots_v1(
+			blocked, None,
+			ferrum_chem.RenderInteractionQueryV1.root("blocked"),
+		)
+	assert blocked_error.value.category == ferrum_chem.RenderInteractionCategoryV1.unrenderable_depiction
+	display_only = ferrum_chem.DocumentSession.load(
+		'<cdml><plus><point x="4" y="5"/></plus></cdml>',
+	)
+	display_snapshot = display_only.snapshot()
+	display_observation = display_only.observe_render_interaction_v1(
+		display_snapshot.revision, display_snapshot.digest,
+	)
+	assert display_observation.roots == ()
+	assert display_observation.exclusions[0].reason == (
+		ferrum_chem.RenderInteractionExclusionReasonV1.display_only
+	)
+	with pytest.raises(ferrum_chem.RenderInteractionError) as display_error:
+		display_only.select_render_interaction_roots_v1(
+			display_observation, None,
+			ferrum_chem.RenderInteractionQueryV1.root(
+				display_observation.exclusions[0].identifier,
+			),
+		)
+	assert display_error.value.category == ferrum_chem.RenderInteractionCategoryV1.display_only
+	fragment_reference = ferrum_chem.DocumentSession.load(
+		'<cdml><molecule id="m"><atom id="a" name="C">'
+		'<point x="0" y="0"/></atom><fragment><bond id="m"/>'
+		'</fragment></molecule></cdml>',
+	)
+	fragment_snapshot = fragment_reference.snapshot()
+	fragment_observation = fragment_reference.observe_render_interaction_v1(
+		fragment_snapshot.revision, fragment_snapshot.digest,
+	)
+	assert [root.identifier for root in fragment_observation.roots] == ["m"]
+	fragment_selection = fragment_reference.select_render_interaction_roots_v1(
+		fragment_observation, None,
+		ferrum_chem.RenderInteractionQueryV1.root("m"),
+	)
+	fragment_gesture = fragment_reference.begin_render_interaction_translation_v1(
+		fragment_selection, 0.0, 0.0, ferrum_chem.RenderInteractionSnapV1.free(),
+	)
+	fragment_preview = fragment_reference.preview_render_interaction_translation_v1(
+		fragment_gesture, 3.0, 0.0,
+	)
+	assert fragment_reference.commit_render_interaction_translation_v1(
+		fragment_gesture, fragment_preview,
+	).result.observation.snapshot.revision == 1
+	foreign = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	with pytest.raises(ferrum_chem.RenderInteractionError) as foreign_error:
+		foreign.select_render_interaction_roots_v1(
+			observation, None, ferrum_chem.RenderInteractionQueryV1.clear(),
+		)
+	assert foreign_error.value.category == ferrum_chem.RenderInteractionCategoryV1.foreign_session
+	with pytest.raises(ferrum_chem.RevisionConflictError):
+		session.select_render_interaction_roots_v1(
+			observation, None, ferrum_chem.RenderInteractionQueryV1.clear(),
+		)
+
+
+def test_render_interaction_binding_moves_molecule_and_plus_atomically() -> None:
+	session = ferrum_chem.DocumentSession.load(
+		'<cdml><molecule id="m"><atom id="a" name="C">'
+		'<point x="0" y="0"/></atom></molecule><plus id="p">'
+		'<point x="40" y="0"/></plus></cdml>',
+	)
+	initial = session.snapshot()
+	observation = session.observe_render_interaction_v1(
+		initial.revision, initial.digest,
+	)
+	assert [root.identifier for root in observation.roots] == ["m", "p"]
+	molecule = session.select_render_interaction_roots_v1(
+		observation, None,
+		ferrum_chem.RenderInteractionQueryV1.point(
+			0.0, 0.0, ferrum_chem.RenderInteractionModifierV1.replace,
+		),
+	)
+	mixed = session.select_render_interaction_roots_v1(
+		observation, molecule,
+		ferrum_chem.RenderInteractionQueryV1.point(
+			40.0, 0.0, ferrum_chem.RenderInteractionModifierV1.toggle,
+		),
+	)
+	assert [root.identifier for root in mixed.roots] == ["m", "p"]
+	gesture = session.begin_render_interaction_translation_v1(
+		mixed, 0.0, 0.0, ferrum_chem.RenderInteractionSnapV1.free(),
+	)
+	preview = session.preview_render_interaction_translation_v1(gesture, 7.0, 4.0)
+	committed = session.commit_render_interaction_translation_v1(gesture, preview)
+	assert (committed.changed, committed.result.observation.snapshot.revision) == (True, 1)
+	assert session.undo(1).observation.snapshot.revision == 2
+
+
+def test_render_interaction_binding_captures_raw_or_view_hex_grid_snap() -> None:
+	session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	initial = session.snapshot()
+	observation = session.observe_render_interaction_v1(initial.revision, initial.digest)
+	selection = session.select_render_interaction_roots_v1(
+		observation, None, ferrum_chem.RenderInteractionQueryV1.root("m"),
+	)
+	raw = session.begin_render_interaction_translation_v1(
+		selection, 0.0, 0.0, ferrum_chem.RenderInteractionSnapV1.free(),
+	)
+	grid = session.begin_render_interaction_translation_v1(
+		selection, 0.0, 0.0,
+		ferrum_chem.RenderInteractionSnapV1.with_grid_policy(
+			ferrum_chem.RenderInteractionAxisV1.free,
+			ferrum_chem.RenderInteractionGridSnapPolicyV1.view_hex_grid,
+		),
+	)
+	raw_preview = session.preview_render_interaction_translation_v1(raw, 38.0, 18.0)
+	grid_preview = session.preview_render_interaction_translation_v1(grid, 38.0, 18.0)
+	assert (raw_preview.dx, raw_preview.dy) == (38.0, 18.0)
+	assert (grid_preview.dx, grid_preview.dy) != (raw_preview.dx, raw_preview.dy)
+
+
+def test_presentation_creation_gesture_binding_owns_preview_and_canonical_arrow() -> None:
+	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	snapshot = session.snapshot()
+	gesture = session.begin_presentation_creation_gesture_v1(
+		snapshot.revision, snapshot.digest,
+		ferrum_chem.PresentationGestureKindV1.straight_normal_arrow,
+		0.0, 0.0, ferrum_chem.ArrowGestureStyleV1(),
+		ferrum_chem.PresentationGestureSnapPolicyV1(
+			angle_increment_degrees=45, fixed_length_pt=20,
+		),
+	)
+	preview = session.preview_presentation_creation_gesture_v1(gesture, 8.0, 9.0)
+	assert preview.overlay.color == "#000000"
+	assert preview.overlay.width == 1.0
+	assert len(preview.overlay.head_vertices) == 3
+	assert preview.overlay.right > preview.overlay.end_x
+	assert abs(preview.overlay.end_x - 14.142) < 0.01
+	assert session.snapshot().revision == 0
+	commit = session.commit_presentation_creation_gesture_v1(gesture, preview)
+	assert commit.root.kind == ferrum_chem.PresentationGestureRootKindV1.arrow
+	assert commit.root.identifier.startswith("ferrum-presentation-v1-")
+	assert commit.result.observation.snapshot.revision == 1
+	cdml = commit.result.observation.snapshot.cdml
+	assert 'width="1.0"' in cdml
+	assert 'color="#000000"' in cdml
+	assert "cm" in cdml
+
+
+def test_presentation_creation_gesture_binding_rejects_bad_handles_and_geometry() -> None:
+	first = ferrum_chem.DocumentSession.load("<cdml/>")
+	second = ferrum_chem.DocumentSession.load("<cdml/>")
+	first_snapshot = first.snapshot()
+	second_snapshot = second.snapshot()
+	first_gesture = first.begin_presentation_creation_gesture_v1(
+		first_snapshot.revision, first_snapshot.digest,
+		ferrum_chem.PresentationGestureKindV1.straight_normal_arrow,
+		0.0, 0.0, ferrum_chem.ArrowGestureStyleV1(),
+		ferrum_chem.PresentationGestureSnapPolicyV1(),
+	)
+	second_gesture = second.begin_presentation_creation_gesture_v1(
+		second_snapshot.revision, second_snapshot.digest,
+		ferrum_chem.PresentationGestureKindV1.straight_normal_arrow,
+		0.0, 0.0, ferrum_chem.ArrowGestureStyleV1(),
+		ferrum_chem.PresentationGestureSnapPolicyV1(),
+	)
+	preview = first.preview_presentation_creation_gesture_v1(first_gesture, 10.0, 0.0)
+	with pytest.raises(ferrum_chem.PresentationGestureError) as foreign:
+		second.preview_presentation_creation_gesture_v1(first_gesture, 10.0, 0.0)
+	assert foreign.value.category == ferrum_chem.PresentationGestureCategoryV1.foreign_session
+	with pytest.raises(ferrum_chem.PresentationGestureError) as mixed:
+		second.commit_presentation_creation_gesture_v1(second_gesture, preview)
+	assert mixed.value.category == ferrum_chem.PresentationGestureCategoryV1.foreign_session
+	assert second.snapshot().revision == 0
+	with pytest.raises(ferrum_chem.PresentationGestureError) as short:
+		first.preview_presentation_creation_gesture_v1(first_gesture, 1.0, 0.0)
+	assert short.value.category == ferrum_chem.PresentationGestureCategoryV1.below_minimum_length
+	with pytest.raises(ferrum_chem.PresentationGestureError) as long:
+		first.preview_presentation_creation_gesture_v1(first_gesture, 20_001.0, 0.0)
+	assert long.value.category == ferrum_chem.PresentationGestureCategoryV1.exceeds_geometry_limit
+	assert first.snapshot().revision == 0
+
+
+def test_dedicated_plus_placement_facade_commits_standard_plus() -> None:
+	"""Only the renderer-backed Plus facade persists one canonical root."""
+	session = ferrum_chem.DocumentSession.load("<cdml><standard font_size='18'/></cdml>")
+	snapshot = session.snapshot()
+	assert not hasattr(ferrum_chem.PresentationGestureKindV1, "plus")
+	gesture = session.begin_plus_placement_gesture_v1(
+		snapshot.revision, snapshot.digest, 72.0, 36.0,
+	)
+	preview = session.preview_plus_placement_gesture_v1(gesture)
+	assert preview.overlay.text == "+"
+	assert preview.overlay.font_size == 18.0
+	assert session.snapshot().revision == 0
+	commit = session.commit_plus_placement_gesture_v1(gesture, preview)
+	assert commit.identifier.startswith("ferrum-presentation-v1-")
+	assert '<plus' in commit.result.observation.snapshot.cdml
+	plus = commit.result.observation.snapshot.cdml.split('<plus', 1)[1].split('</plus>', 1)[0]
+	assert 'font_size' not in plus
+
+
+def test_dedicated_plus_preview_equals_the_committed_renderer() -> None:
+	"""The dedicated facade publishes only exact current renderer facts."""
+	session = ferrum_chem.DocumentSession.load(
+		"<cdml><standard font_size='18' line_color='#123456'/></cdml>",
+	)
+	snapshot = session.snapshot()
+	gesture = session.begin_plus_placement_gesture_v1(
+		snapshot.revision, snapshot.digest, 72.0, 36.0,
+	)
+	preview = session.preview_plus_placement_gesture_v1(gesture)
+	assert preview.overlay.color == '123456'
+	commit = session.commit_plus_placement_gesture_v1(gesture, preview)
+	plus = commit.result.observation.projection.presentation_stack.roots[0].plus
+	rendered = session.observe_render(1).plus_renders[0]
+	assert (plus.font.size, plus.font.color) == (18.0, '#123456')
+	assert preview.overlay.color == rendered.operation.paint
+	assert (preview.overlay.left - 72.0, preview.overlay.top - 36.0) == pytest.approx((
+		rendered.bounds.left, rendered.bounds.top,
+	))
+	assert (preview.overlay.right - 72.0, preview.overlay.bottom - 36.0) == pytest.approx((
+		rendered.bounds.right, rendered.bounds.bottom,
+	))
+
+
+def test_dedicated_plus_facade_rejects_foreign_and_replayed_handles() -> None:
+	"""The Plus facade keeps both opaque halves bound to one session snapshot."""
+	first = ferrum_chem.DocumentSession.load("<cdml/>")
+	second = ferrum_chem.DocumentSession.load("<cdml/>")
+	first_snapshot = first.snapshot()
+	gesture = first.begin_plus_placement_gesture_v1(
+		first_snapshot.revision, first_snapshot.digest, 72.0, 36.0,
+	)
+	preview = first.preview_plus_placement_gesture_v1(gesture)
+	with pytest.raises(ferrum_chem.PresentationGestureError) as foreign:
+		second.commit_plus_placement_gesture_v1(gesture, preview)
+	assert foreign.value.category == ferrum_chem.PresentationGestureCategoryV1.foreign_session
+	first.commit_plus_placement_gesture_v1(gesture, preview)
+	with pytest.raises(ferrum_chem.PresentationGestureError) as replay:
+		first.commit_plus_placement_gesture_v1(gesture, preview)
+	assert replay.value.category == ferrum_chem.PresentationGestureCategoryV1.stale_revision
+
+
+def test_presentation_creation_gesture_binding_rejects_bool_and_replay_without_mutation() -> None:
+	for kwargs in ({"angle_increment_degrees": True}, {"fixed_length_pt": True}):
+		with pytest.raises(ferrum_chem.PresentationGestureError) as invalid:
+			ferrum_chem.PresentationGestureSnapPolicyV1(**kwargs)
+		assert invalid.value.category == ferrum_chem.PresentationGestureCategoryV1.invalid_snap_policy
+	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	snapshot = session.snapshot()
+	gesture = session.begin_presentation_creation_gesture_v1(
+		snapshot.revision, snapshot.digest,
+		ferrum_chem.PresentationGestureKindV1.straight_normal_arrow,
+		0.0, 0.0, ferrum_chem.ArrowGestureStyleV1(),
+		ferrum_chem.PresentationGestureSnapPolicyV1(),
+	)
+	preview = session.preview_presentation_creation_gesture_v1(gesture, 10.0, 0.0)
+	session.commit_presentation_creation_gesture_v1(gesture, preview)
+	after = session.snapshot()
+	with pytest.raises(ferrum_chem.PresentationGestureError) as replay:
+		session.commit_presentation_creation_gesture_v1(gesture, preview)
+	assert replay.value.category == ferrum_chem.PresentationGestureCategoryV1.stale_revision
+	assert session.snapshot().revision == after.revision
+	assert session.snapshot().cdml == after.cdml

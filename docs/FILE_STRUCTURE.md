@@ -28,7 +28,6 @@ ferrum-chemical-forge/
 - [../packages/ferrum-rust/crates/api/python/](../packages/ferrum-rust/crates/api/python/)
   builds the `ferrum_chem` PyO3 extension.
 - [../packages/ferrum-rust/crates/chemistry/](../packages/ferrum-rust/crates/chemistry/),
-  [../packages/ferrum-rust/crates/chemistry-sys/](../packages/ferrum-rust/crates/chemistry-sys/),
   [../packages/ferrum-rust/crates/core/](../packages/ferrum-rust/crates/core/),
   [../packages/ferrum-rust/crates/document/](../packages/ferrum-rust/crates/document/),
   [../packages/ferrum-rust/crates/domain/](../packages/ferrum-rust/crates/domain/),

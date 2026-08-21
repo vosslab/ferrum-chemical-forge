@@ -43,7 +43,10 @@ def create_admitted_local_document_tab(
 	_validate_admitted_provenance(session, observation, error_type)
 	tab = _construct_tab(tab_class, session, title)
 	try:
-		if not tab._install_observation(observation):
+		live_observation = tab._publish_live_render_plan_v1(
+			observation.document.snapshot.revision,
+		)
+		if not tab._install_observation(live_observation):
 			raise error_type("Ferrum tab could not install its admitted render observation")
 	except Exception:
 		tab._retire_partial_resources()

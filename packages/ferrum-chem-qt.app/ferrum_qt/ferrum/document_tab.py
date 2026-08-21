@@ -28,8 +28,14 @@ import ferrum_qt.ferrum.rotation as native_rotation
 import ferrum_qt.ferrum.regular_ring_tab as native_regular_ring_tab
 import ferrum_qt.ferrum.haworth_tab as native_haworth_tab
 import ferrum_qt.ferrum.direct_glycosidic_haworth_tab as native_direct_haworth_tab
+import ferrum_qt.ferrum.direct_bond_gesture_tab as native_direct_bond_gesture_tab
+import ferrum_qt.ferrum.presentation_creation_gesture_tab as native_presentation_creation_gesture_tab
+import ferrum_qt.ferrum.presentation_vector_gesture_tab as native_presentation_vector_gesture_tab
+import ferrum_qt.ferrum.direct_root_interaction_tab as native_direct_root_interaction_tab
+import ferrum_qt.ferrum.structure_interaction_tab as native_structure_interaction_tab
 import ferrum_qt.ferrum.sdf_insertion as native_sdf_insertion
 import ferrum_qt.ferrum.text_properties as native_text_properties
+import ferrum_qt.ferrum.text_placement_gesture_tab as native_text_placement_gesture_tab
 import ferrum_qt.ferrum.top_level_transform as native_top_level_transform
 import ferrum_qt.ferrum.user_templates as native_user_templates
 import ferrum_qt.ferrum.tab_view_state
@@ -39,10 +45,19 @@ import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.explicit_fragment_tab as native_explicit_fragment
 import ferrum_qt.ferrum.local_cdml_origin_tab as native_local_cdml_origin_tab
+import ferrum_qt.ferrum.catalog_palette as native_catalog_palette
+import ferrum_qt.ferrum.live_document_transaction as native_live_document_transaction
+import ferrum_qt.ferrum.smarts_selected_root_capture_tab as native_smarts_selected_root_capture
 
 
 #============================================
 FerrumNativeDocumentTabError = native_document_tab_errors.FerrumNativeDocumentTabError
+
+
+#============================================
+FerrumNativeDocumentTabUnrenderableMoleculeError = (
+	native_document_tab_errors.FerrumNativeDocumentTabUnrenderableMoleculeError
+)
 
 
 #============================================
@@ -69,10 +84,19 @@ class FerrumNativeMoleculeChoice:
 
 #============================================
 class FerrumNativeDocumentTab(
+		native_smarts_selected_root_capture.FerrumNativeSmartsSelectedRootCaptureTabMixin,
+		native_live_document_transaction.FerrumLiveDocumentTransactionMixin,
+		native_catalog_palette.FerrumNativeCatalogPlacementTabMixin,
 		native_local_cdml_origin_tab.FerrumNativeLocalCdmlOriginTabMixin,
 		native_regular_ring_tab.FerrumNativeRegularRingTabMixin,
 		native_haworth_tab.FerrumNativeHaworthTabMixin,
 		native_direct_haworth_tab.FerrumNativeDirectGlycosidicHaworthTabMixin,
+		native_direct_bond_gesture_tab.FerrumNativeDirectBondGestureTabMixin,
+		native_presentation_creation_gesture_tab.FerrumNativePresentationCreationGestureTabMixin,
+		native_presentation_vector_gesture_tab.FerrumNativePresentationVectorGestureTabMixin,
+		native_text_placement_gesture_tab.FerrumNativeTextPlacementGestureTabMixin,
+		native_direct_root_interaction_tab.FerrumNativeDirectRootInteractionTabMixin,
+		native_structure_interaction_tab.FerrumNativeStructureInteractionTabMixin,
 		native_bond_creation.FerrumNativeBondCreationMixin,
 		native_user_templates.FerrumNativeUserTemplateTabMixin,
 		native_publication.FerrumNativeDocumentTabPublicationMixin,
@@ -173,11 +197,12 @@ class FerrumNativeDocumentTab(
 			view: PySide6.QtWidgets.QGraphicsView, controller: object) -> None:
 		"""Install one ownership graph shared by production and fixture construction."""
 		self._title = title
-		self._session = session
 		self._view = view
 		self._controller = controller
+		self._initialize_live_document_transaction_v1(session)
 		self._snapshot: object | None = None
 		self._document_observation: object | None = None
+		self._render_observation: object | None = None
 		self._pending_result: object | None = None
 		self._pending_snapshot: object | None = None
 		self._pending_durable_selection: tuple[tuple[str, str], ...] | None = None
@@ -311,6 +336,35 @@ class FerrumNativeDocumentTab(
 		return target[1]
 
 	#============================================
+	def durable_atom_at_scene_position(self, point: PySide6.QtCore.QPointF) -> str | None:
+		"""Return one exact installed Rust atom at a keyboard cursor position.
+
+		Pointer tools intentionally use rendered-item hit testing.  Keyboard tools
+		instead address a document coordinate directly, including implicit-carbon
+		atoms that deliberately have no visible text item to hit.
+		"""
+		self._require_live()
+		if not isinstance(point, PySide6.QtCore.QPointF):
+			raise TypeError("Ferrum keyboard atom lookup requires a QPointF")
+		if self._document_observation is None:
+			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
+		matches = tuple(
+			atom.source_id
+			for molecule in self._document_observation.projection.molecules
+			for atom in molecule.atoms
+			if (
+				atom.source_id is not None
+				and atom.position.x == point.x()
+				and atom.position.y == point.y()
+			)
+		)
+		if len(matches) > 1:
+			raise FerrumNativeDocumentTabError(
+				"more than one durable atom occupies the keyboard cursor position",
+			)
+		return None if not matches else matches[0]
+
+	#============================================
 	def durable_atom_scene_position(self, atom_id: str) -> PySide6.QtCore.QPointF:
 		"""Return the exact installed Rust point for one durable atom."""
 		self._require_live()
@@ -345,6 +399,42 @@ class FerrumNativeDocumentTab(
 				FerrumNativeMoleculeChoice(molecule.id, label, molecule.source_order),
 			)
 		return tuple(choices)
+
+	#============================================
+	def canvas_authorable_molecule_choices(self) -> tuple[FerrumNativeMoleculeChoice, ...]:
+		"""Return durable molecules proven by the installed Rust render plans."""
+		self._require_mutable()
+		import ferrum_qt.ferrum.engine as engine
+		observation = self._render_observation
+		if type(observation) is not engine.RenderObservationV1:
+			raise FerrumNativeDocumentTabError(
+				"Ferrum tab has no exact installed Rust render observation",
+			)
+		if (
+			observation.document.snapshot.revision != self.current_snapshot.revision
+			or observation.document.snapshot.digest != self.current_snapshot.digest
+		):
+			raise FerrumNativeDocumentTabError(
+				"installed Rust render observation does not match the current document snapshot",
+			)
+		plan_ids = {
+			plan.molecule.id
+			for plan in observation.molecule_plans
+			if plan.molecule.id is not None
+		}
+		return tuple(
+			choice for choice in self.durable_molecule_choices()
+			if choice.object_id in plan_ids
+		)
+
+	#============================================
+	def _require_canvas_authorable_molecule(self, molecule_object_id: str) -> None:
+		"""Require exact installed Rust render evidence before a canvas mutation."""
+		if not any(
+			choice.object_id == molecule_object_id
+			for choice in self.canvas_authorable_molecule_choices()
+		):
+			raise FerrumNativeDocumentTabUnrenderableMoleculeError(molecule_object_id)
 
 	#============================================
 	def current_document_observation(self) -> object:
@@ -409,6 +499,7 @@ class FerrumNativeDocumentTab(
 			raise TypeError("Ferrum atom insertion requires molecule and element strings")
 		if type(x) is not float or type(y) is not float:
 			raise TypeError("Ferrum atom insertion coordinates must be floats")
+		self._require_canvas_authorable_molecule(molecule_object_id)
 		revision = self.current_snapshot.revision
 		prepared = self._session.prepare_create_atom_v1(
 			revision, molecule_object_id, element, x, y, 0.0,
@@ -824,7 +915,7 @@ class FerrumNativeDocumentTab(
 		if self._pending_snapshot is None:
 			return True
 		try:
-			observation = self._session.observe_render(self._pending_snapshot.revision)
+			observation = self._publish_live_render_plan_v1(self._pending_snapshot.revision)
 			installed = self._install_observation(observation)
 		except Exception:
 			return False
@@ -841,15 +932,17 @@ class FerrumNativeDocumentTab(
 		"""Terminally invalidate render delivery before retiring the graphics view."""
 		if self._disposed:
 			return
+		self._require_live_smarts_retirement_v1("tab_disposed")
 		self._disposed = True
 		self._controller.dispose()
 		self._view.setScene(None)
 		self._view.deleteLater()
+		self._render_observation = None
 	#============================================
 	def _refresh_from_current_revision(self) -> None:
 		"""Observe the current Rust revision and install it only if projection succeeds."""
 		snapshot = self._session.snapshot()
-		observation = self._session.observe_render(snapshot.revision)
+		observation = self._publish_live_render_plan_v1(snapshot.revision)
 		if not self._install_observation(observation):
 			raise FerrumNativeDocumentTabError(
 				"Ferrum tab could not install its render observation",
@@ -863,10 +956,13 @@ class FerrumNativeDocumentTab(
 		latch = ferrum_qt.canvas.ferrum_render_projection.RenderProjectionLatch(
 			snapshot.revision, snapshot.digest, self._controller.generation,
 		)
-		installed = self._controller.replace(observation, latch)
+		installed = self._install_published_render_plan_v1(
+			self._controller.replace, observation, latch,
+		)
 		if installed:
 			self._snapshot = snapshot
 			self._document_observation = observation.document
+			self._render_observation = observation
 			self._connect_current_selection_scene()
 		return installed
 
@@ -879,7 +975,7 @@ class FerrumNativeDocumentTab(
 		self._pending_snapshot = authoritative.snapshot
 		self._pending_durable_selection = durable_selection
 		try:
-			observation = self._session.observe_render(authoritative.snapshot.revision)
+			observation = self._publish_live_render_plan_v1(authoritative.snapshot.revision)
 			installed = self._install_observation(observation)
 		except Exception as exc:
 			raise FerrumNativeDocumentTabMutationPresentationError(result) from exc
@@ -979,6 +1075,9 @@ class FerrumNativeDocumentTab(
 	#============================================
 	def _retire_partial_resources(self) -> None:
 		"""Dispose partial projection resources after construction failure."""
+		retire = getattr(self, "_retire_live_smarts_query_v1", None)
+		if retire is not None:
+			retire("construction_failure")
 		controller = getattr(self, "_controller", None)
 		if controller is not None:
 			controller.dispose()

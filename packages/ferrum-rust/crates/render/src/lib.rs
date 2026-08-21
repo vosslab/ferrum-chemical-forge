@@ -146,13 +146,14 @@ pub use document_bond_replacement_v1::{
 };
 /// Conservative content fitting over the shared lowered document draw stream.
 pub use document_content_bounds_v1::{
-    DocumentContentBoundsErrorV1, fit_document_render_plan_to_content_v1,
+    DocumentContentBoundsErrorV1, MoleculeContentBoundsV1, fit_document_render_plan_to_content_v1,
+    measure_molecule_render_plan_bounds_v1,
 };
 /// Renderer-neutral whole-page document composition model.
 pub use document_plan_v1::{
     DocumentRenderContentV1, DocumentRenderExclusionV1, DocumentRenderIdentityV1,
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, DocumentRenderRootV1, DocumentTextLayoutV1,
-    DocumentTextOpV1, RenderViewportV1,
+    DocumentTextOpV1, RenderRootOverlayV1, RenderViewportV1, preview_root_render_overlay_v1,
 };
 /// Checked generic vector operations for direct document roots.
 pub use document_vector_v1::{

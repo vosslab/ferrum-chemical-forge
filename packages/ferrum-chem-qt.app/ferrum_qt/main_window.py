@@ -1,6 +1,7 @@
 """Ordinary Ferrum application window for Ferrum."""
 
 # PIP3 modules
+import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
@@ -11,14 +12,16 @@ import ferrum_qt.actions.platform_menu
 import ferrum_qt.config.keybindings
 import ferrum_qt.config.preferences
 import ferrum_qt.dialogs.about_dialog
-import ferrum_qt.ferrum.action_toolbar
+import ferrum_qt.ferrum.authoring_ribbon
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.drawing_parameters_client
-import ferrum_qt.ferrum.editing_tools_toolbar
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.preferences
 import ferrum_qt.ferrum.recent_files
+import ferrum_qt.ferrum.reaction_composer
+import ferrum_qt.ferrum.reaction_inspector
+import ferrum_qt.ferrum.smarts_query_dock
 import ferrum_qt.ferrum.window_shared_seams
 
 
@@ -59,9 +62,11 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		self._action_new = self._add_new_document_action()
 		self._preferences_action = self._add_preferences_action()
 		self._next_drawing_action = self._add_next_drawing_action()
-		self._native_action_toolbar = self._add_native_action_toolbar()
-		self._native_editing_tools_toolbar = self._add_native_editing_tools_toolbar()
 		self._about_action = self._add_about_action()
+		self._reaction_composer = ferrum_qt.ferrum.reaction_composer.ReactionComposerController(self)
+		self._create_reaction_action = self._reaction_composer.install_action(self._edit_menu)
+		self._reaction_inspector = ferrum_qt.ferrum.reaction_inspector.ReactionInspectorController(self)
+		self._reaction_inspector_action = self._reaction_inspector.install_action(self._edit_menu)
 		self._action_registry = (
 			ferrum_qt.actions.action_registry.register_main_window_actions(self)
 		)
@@ -72,11 +77,19 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		self._declared_menus = ferrum_qt.actions.menu_builder.build_declared_menus(
 			self, self._action_registry,
 		)
+		chemistry_menu = next(
+			menu for menu in self.menuBar().findChildren(PySide6.QtWidgets.QMenu)
+			if menu.title() == self.tr("Chemistry")
+		)
+		self._smarts_query_action = self._smarts_query_controller.install_action(chemistry_menu)
 		ferrum_qt.actions.platform_menu.apply_platform_menu_roles(self._action_registry)
 		self._keybinding_manager = ferrum_qt.config.keybindings.KeybindingManager(
 			self, self._action_registry,
 		)
 		self._keybinding_manager.setup_shortcuts()
+		self._authoring_ribbon = self._add_authoring_ribbon()
+		self._native_action_toolbar = self._authoring_ribbon
+		self._native_editing_tools_toolbar = self._authoring_ribbon
 		ferrum_qt.ferrum.window_shared_seams.install_shared_window_seams(
 			self, self._action_registry,
 		)
@@ -126,10 +139,10 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		)
 
 	#============================================
-	def _add_native_action_toolbar(
+	def _add_authoring_ribbon(
 			self,
-			) -> ferrum_qt.ferrum.action_toolbar.FerrumNativeActionToolbar:
-		"""Expose frequent commands through one responsive shared-action client."""
+			) -> ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon:
+		"""Install the one responsive, action-reusing Ferrum authoring surface."""
 		standard = PySide6.QtWidgets.QStyle.StandardPixmap
 		self._open_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Open)
 		self._save_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Save)
@@ -138,60 +151,77 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		cut_icon = PySide6.QtGui.QIcon.fromTheme("edit-cut")
 		if not cut_icon.isNull():
 			self._cut_action.setIcon(cut_icon)
-		groups = (
-			(
-				(self._action_new, standard.SP_FileIcon),
-				(self._open_action, standard.SP_DialogOpenButton),
-				(self._save_action, standard.SP_DialogSaveButton),
-			),
-			(
-				(self._undo_action, standard.SP_ArrowBack),
-				(self._redo_action, standard.SP_ArrowForward),
-			),
-			(
-				(self._cut_action, standard.SP_TrashIcon),
-				(self._copy_action, standard.SP_FileDialogDetailedView),
-				(self._paste_action, standard.SP_FileDialogListView),
-			),
-			(
-				(self._zoom_out_action, standard.SP_ArrowDown),
-				(self._zoom_100_action, standard.SP_BrowserReload),
-				(self._zoom_in_action, standard.SP_ArrowUp),
-			),
-			(
-				(self._show_hex_grid_action, standard.SP_FileDialogContentsView),
-				(self._snap_hex_grid_action, standard.SP_DialogApplyButton),
-			),
-		)
-		return (
-			ferrum_qt.ferrum.action_toolbar.
-			install_native_action_toolbar(self, groups)
-		)
-
-	#============================================
-	def _add_native_editing_tools_toolbar(
-			self,
-			) -> ferrum_qt.ferrum.editing_tools_toolbar.FerrumNativeEditingToolsToolbar:
-		"""Expose finished canvas tools through their existing shared actions."""
+		for action, icon_source in (
+			(self._action_new, standard.SP_FileIcon),
+			(self._open_action, standard.SP_DialogOpenButton),
+			(self._save_action, standard.SP_DialogSaveButton),
+			(self._undo_action, standard.SP_ArrowBack),
+			(self._redo_action, standard.SP_ArrowForward),
+			(self._cut_action, standard.SP_TrashIcon),
+			(self._copy_action, standard.SP_FileDialogDetailedView),
+			(self._paste_action, standard.SP_FileDialogListView),
+			(self._zoom_out_action, standard.SP_ArrowDown),
+			(self._zoom_100_action, standard.SP_BrowserReload),
+			(self._zoom_in_action, standard.SP_ArrowUp),
+			(self._show_hex_grid_action, standard.SP_FileDialogContentsView),
+			(self._snap_hex_grid_action, standard.SP_DialogApplyButton),
+			(self._insert_catalog_template_action, standard.SP_FileDialogNewFolder),
+			(self._create_reaction_action, standard.SP_FileDialogDetailedView),
+			(self._reaction_inspector_action, standard.SP_FileDialogContentsView),
+		):
+			if action.icon().isNull():
+				action.setIcon(self.style().standardIcon(icon_source))
 		tools = (
 			(self._add_atom_action, "atom"),
 			(self._draw_bond_action, "single"),
+			(self._draw_arrow_action, "arrow"),
+			(self._draw_plus_action, "plus"),
+			(self._insert_text_action, "text"),
 			(self._insert_cyclohexane_ring_action, "benzene"),
-			(self._insert_haworth_ring_action, "ring"),
 			(self._draw_wavy_action, "wavyline"),
 			(self._draw_bracket_action, "rectangularbracket"),
 			(self._draw_round_bracket_action, "roundbracket"),
 			(self._move_atom_action, "edit"),
 			(self._rotate_atoms_action, "rotate"),
 			(self._translate_roots_action, "bondalign"),
+			(self._select_structure_action, "edit"),
+			(self._place_user_template_action, "usertemplate"),
 		)
-		return (
-			ferrum_qt.ferrum.editing_tools_toolbar.
-			install_native_editing_tools_toolbar(
-				self, tools, self._cancel_tool_action, self._theme_manager,
-				self._drawing_parameters, self._next_drawing_action,
-			)
+		vector_icons = {
+			"Draw Line": "draw",
+			"Draw Rectangle": "rectangle",
+			"Draw Square": "square",
+			"Draw Oval": "oval",
+			"Draw Circle": "circle",
+		}
+		for vector_action in self._draw_vector_actions.values():
+			tools += ((vector_action, vector_icons[vector_action.text()]),)
+		ribbon = ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon(
+			(
+				self._action_new, self._open_action, self._save_action,
+				self._undo_action, self._redo_action, self._cut_action,
+				self._copy_action, self._paste_action, self._zoom_out_action,
+				self._zoom_100_action, self._zoom_in_action,
+				self._show_hex_grid_action, self._snap_hex_grid_action,
+				self._insert_catalog_template_action, self._create_reaction_action,
+				self._reaction_inspector_action,
+			),
+			tools, self._cancel_tool_action, self._drawing_parameters,
+			self._next_drawing_action, self._theme_manager, self,
 		)
+		self.addToolBar(PySide6.QtCore.Qt.ToolBarArea.TopToolBarArea, ribbon)
+		return ribbon
+
+	#============================================
+	def _on_native_tab_changed(self, index: int) -> None:
+		"""Retire a composer before another document becomes active."""
+		composer = getattr(self, "_reaction_composer", None)
+		if composer is not None:
+			composer.close()
+		inspector = getattr(self, "_reaction_inspector", None)
+		if inspector is not None:
+			inspector.close()
+		super()._on_native_tab_changed(index)
 
 	#============================================
 	def _add_next_drawing_action(self) -> PySide6.QtGui.QAction:
@@ -291,9 +321,27 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		if tab is not None and not hasattr(controller, "projection"):
 			for action in self.findChildren(PySide6.QtGui.QAction):
 				action.setEnabled(False)
+			smarts = getattr(self, "_smarts_query_controller", None)
+			if smarts is not None:
+				smarts.refresh_action(False, True, False)
 			return
 		super()._refresh_actions(*_unused)
 		ferrum_qt.ferrum.window_shared_seams.refresh_shared_window_seams(self)
+		composer = getattr(self, "_reaction_composer", None)
+		action = getattr(self, "_create_reaction_action", None)
+		if composer is not None and action is not None:
+			composer.refresh_action(action)
+		inspector = getattr(self, "_reaction_inspector", None)
+		inspector_action = getattr(self, "_reaction_inspector_action", None)
+		if inspector is not None and inspector_action is not None:
+			inspector.refresh_action(inspector_action)
+		smarts = getattr(self, "_smarts_query_controller", None)
+		if smarts is not None:
+			smarts.refresh_action(
+				tab is not None and not tab._disposed,
+				False if tab is None else tab.requires_refresh,
+				bool(getattr(smarts, "_busy", False)),
+			)
 
 	#============================================
 	def prepare_application_shutdown(self) -> bool:

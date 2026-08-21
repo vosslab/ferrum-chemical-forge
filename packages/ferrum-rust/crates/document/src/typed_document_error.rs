@@ -7,6 +7,27 @@ use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
 /// Parse or typed-projection failure.
 #[derive(Debug, Error)]
 pub enum TypedDocumentError {
+    /// A structural deletion request did not name one eligible direct-root molecule.
+    #[error("structural deletion molecule is not one eligible direct-root molecule: {0}")]
+    InvalidStructureDeletionMolecule(PersistentId),
+    /// An eligible structural-deletion molecule has content outside the direct core profile.
+    #[error("structural deletion molecule has unsupported direct content: {0}")]
+    UnsupportedStructureDeletionMolecule(PersistentId),
+    /// An eligible structural-deletion molecule has malformed direct graph topology.
+    #[error("structural deletion molecule has malformed direct topology: {0}")]
+    InvalidStructureDeletionTopology(PersistentId),
+    /// A structural deletion selection did not resolve to one direct durable child.
+    #[error("structural deletion target is not one direct durable child: {0}")]
+    InvalidStructureDeletionTarget(PersistentId),
+    /// A reaction role would be left invalid by removing or splitting its molecule.
+    #[error("structural deletion cannot remove or split reaction-referenced molecule: {0}")]
+    ReactionReferencedStructureDeletion(PersistentId),
+    /// A presentation deletion would leave a direct reaction role dangling.
+    #[error("presentation deletion cannot remove reaction-referenced root: {0}")]
+    ReactionReferencedPresentationDeletion(PersistentId),
+    /// Session-only structural deletion must receive its allocated split identities.
+    #[error("structural deletion requires session-owned split identities")]
+    StructuralDeletionRequiresSession,
     /// A complete-root translation observation received an invalid root request.
     #[error(transparent)]
     TopLevelTransform(#[from] super::TopLevelTransformV1Error),

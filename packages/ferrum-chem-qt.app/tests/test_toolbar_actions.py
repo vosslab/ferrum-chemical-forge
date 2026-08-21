@@ -1,5 +1,9 @@
 """Tests for Patch 2: Toolbar action naming -- all on_* methods resolve."""
 
+# PIP3 modules
+import PySide6.QtCore
+import PySide6.QtWidgets
+
 
 # Stable action IDs presented by the ordinary toolbar.
 _TOOLBAR_ACTION_IDS = (
@@ -28,3 +32,27 @@ def test_save_action_exists_and_has_shortcut(main_window: object) -> None:
 	# verify shortcut is set
 	shortcut = action.shortcut()
 	assert not shortcut.isEmpty(), "save action should have a shortcut"
+
+
+#============================================
+def test_authoring_ribbon_uses_compact_icon_controls(main_window: object) -> None:
+	"""One ribbon keeps direct action clients dense without a third toolbar row."""
+	ribbon = main_window.findChild(
+		PySide6.QtWidgets.QToolBar, "ferrum-authoring-ribbon",
+	)
+	assert ribbon is main_window._authoring_ribbon
+	assert len(main_window.findChildren(PySide6.QtWidgets.QToolBar)) == 1
+
+
+#============================================
+def test_authoring_ribbon_exposes_action_names_to_assistive_technology(
+		main_window: object) -> None:
+	"""Compact controls retain each existing command's accessible label."""
+	buttons = [
+		button for button in main_window._authoring_ribbon.findChildren(
+			PySide6.QtWidgets.QToolButton,
+		)
+		if button.defaultAction() is not None
+	]
+	assert buttons, "ordinary ribbon should expose action buttons"
+	assert all(button.accessibleName() for button in buttons)

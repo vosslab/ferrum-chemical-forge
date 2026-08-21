@@ -35,13 +35,59 @@ pub(crate) fn run_protocol(
 ) -> Result<(), ProtocolCliError> {
     let (request, retained_source) = read_request(input, stdin)?;
     let envelope = execute_with_available_runtime(&request).map_err(protocol_input_error)?;
-    let mut response = serde_json::to_vec(&envelope)?;
+    let mut response = crate::protocol::canonical_protocol_envelope_json_v1(&envelope)?;
     response.push(b'\n');
 
     match output {
         None => write_stdout(&response, stdout),
         Some(destination) => publish_response(destination, response, retained_source, stderr),
     }
+}
+
+/// Execute one protocol request with a controlled Rust-only chemistry runtime.
+///
+/// This exists only to prove the named CLI protocol serialization against a
+/// deterministic typed engine. Production CLI dispatch continues to obtain its
+/// capability exclusively from the installed engine-bundle locator.
+#[cfg(test)]
+pub(crate) fn run_protocol_with_runtime_for_test<
+    R: crate::protocol::runtime::ChemistryRuntimeV1,
+>(
+    input: &Path,
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+    runtime: &R,
+) -> Result<(), ProtocolCliError> {
+    let (request, _) = read_request(input, stdin)?;
+    let envelope =
+        execute_operation_with_runtime_v1(&request, runtime).map_err(protocol_input_error)?;
+    let mut response = crate::protocol::canonical_protocol_envelope_json_v1(&envelope)?;
+    response.push(b'\n');
+    write_stdout(&response, stdout)
+}
+
+/// Test-only named-command transport with a reduced SMARTS response budget.
+#[cfg(test)]
+pub(crate) fn run_protocol_with_runtime_and_smarts_response_limit_for_test<
+    R: crate::protocol::runtime::ChemistryRuntimeV1,
+>(
+    input: &Path,
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+    runtime: &R,
+    response_limit: usize,
+) -> Result<(), ProtocolCliError> {
+    let (request, _) = read_request(input, stdin)?;
+    let envelope =
+        crate::protocol::execute_operation_with_runtime_and_smarts_response_limit_for_test(
+            &request,
+            runtime,
+            response_limit,
+        )
+        .map_err(protocol_input_error)?;
+    let mut response = crate::protocol::canonical_protocol_envelope_json_v1(&envelope)?;
+    response.push(b'\n');
+    write_stdout(&response, stdout)
 }
 
 /// Inject the fixed-root engine capability only for operations that require it.
@@ -59,6 +105,8 @@ fn execute_with_available_runtime(
                 request.operation,
                 OperationProtocolOperationV1::ChemistryConvert(_)
                     | OperationProtocolOperationV1::GenerateCoordinates(_)
+                    | OperationProtocolOperationV1::DocumentMoleculeReport(_)
+                    | OperationProtocolOperationV1::DocumentSmartsQuery(_)
             )
         })
         .unwrap_or(false);

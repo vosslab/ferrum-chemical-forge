@@ -111,6 +111,15 @@ pub enum SessionOperationV1 {
         /// Durable authored bond ID.
         bond_id: String,
     },
+    /// Delete one exact set of direct atoms/bonds from one molecule atomically.
+    DeleteStructure {
+        /// Durable authored direct-root molecule ID.
+        molecule_id: String,
+        /// Durable authored direct atom IDs.
+        atom_ids: Vec<String>,
+        /// Durable authored direct bond IDs.
+        bond_ids: Vec<String>,
+    },
     /// Delete one supported durable direct-root presentation record.
     DeletePresentationRoot {
         /// Exact durable source ID and closed record kind.
@@ -490,6 +499,16 @@ impl SessionOperation {
                 let candidate =
                     candidate.ok_or_else(|| SessionOperationError::UnknownBond(bond_id.clone()))?;
                 Ok(Candidate::Changed(Box::new(candidate)))
+            }
+            Self::V1(SessionOperationV1::DeleteStructure {
+                molecule_id,
+                atom_ids,
+                bond_ids,
+            }) => {
+                let _ = (molecule_id, atom_ids, bond_ids, current);
+                Err(SessionOperationError::Candidate(
+                    TypedDocumentError::StructuralDeletionRequiresSession,
+                ))
             }
             Self::V1(SessionOperationV1::DeletePresentationRoot { deletion }) => {
                 let candidate = current.with_delete_presentation_root(deletion)?;

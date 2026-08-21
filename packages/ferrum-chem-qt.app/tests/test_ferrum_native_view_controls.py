@@ -20,6 +20,7 @@ import ferrum_qt.ferrum.coordinate_generation
 import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.graphics_view
+import ferrum_qt.ferrum.hex_grid
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.statusbar_view_controls
 
@@ -188,6 +189,169 @@ def test_hex_grid_visibility_is_application_state_across_scene_replacement(
 		tab.undo()
 	finally:
 		_close_window(window)
+
+
+#============================================
+def test_hex_grid_has_visible_transient_lines_only_while_enabled(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The native canvas paints a finite grid only while its display choice is on."""
+	window, tab = _open_tab(qapp, _EMPTY_CDML)
+	try:
+		scene = tab.view.scene()
+		item = tab.view._hex_grid_item
+		assert scene is not None and item is not None
+		assert (
+			item in scene.items()
+			and item.isVisible()
+			and not item._line_path.isEmpty()
+			and item._line_pen.widthF() >= 0.75
+		)
+		tab.view.set_hex_grid_visible(False)
+		visible_grids = [
+			candidate for candidate in scene.items()
+			if isinstance(candidate, ferrum_qt.ferrum.hex_grid.FerrumNativeHexGridItem)
+			and candidate.isVisible()
+		]
+		assert visible_grids == []
+	finally:
+		_close_window(window)
+
+
+#============================================
+@pytest.mark.parametrize(("base_color", "theme_name"), [
+	("#ffffff", "light"),
+	("#3c3c3c", "dark"),
+])
+def test_hex_grid_style_meets_paper_contrast_on_both_palette_families(
+		qapp: PySide6.QtWidgets.QApplication, base_color: str, theme_name: str,
+		) -> None:
+	"""The real native item corrects every painted grid component for its paper."""
+	original_palette = qapp.palette()
+	try:
+		palette = qapp.palette()
+		palette.setColor(PySide6.QtGui.QPalette.ColorRole.Base, base_color)
+		qapp.setPalette(palette)
+		item = ferrum_qt.ferrum.hex_grid.FerrumNativeHexGridItem(
+			PySide6.QtCore.QRectF(0.0, 0.0, 120.0, 120.0),
+		)
+		paper_color = PySide6.QtGui.QColor(
+			ferrum_qt.themes.theme_loader.get_paper_color(theme_name),
+		)
+		grid_colors = [
+			item._line_pen.color(), item._dot_pen.color(), item._dot_brush.color(),
+		]
+		assert all(
+			ferrum_qt.ferrum.hex_grid._grid_lightness_delta(color, paper_color)
+			>= ferrum_qt.ferrum.hex_grid._MINIMUM_GRID_LIGHTNESS_DELTA
+			for color in grid_colors
+		)
+	finally:
+		qapp.setPalette(original_palette)
+
+
+#============================================
+def test_hex_grid_palette_refresh_restyles_lines_and_dots(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""A Qt palette change refreshes every native grid style component together."""
+	window, tab = _open_tab(qapp, _EMPTY_CDML)
+	original_palette = qapp.palette()
+	try:
+		palette = qapp.palette()
+		palette.setColor(PySide6.QtGui.QPalette.ColorRole.Base, "#3c3c3c")
+		qapp.setPalette(palette)
+		tab.view.changeEvent(PySide6.QtCore.QEvent(
+			PySide6.QtCore.QEvent.Type.PaletteChange,
+		))
+		item = tab.view._hex_grid_item
+		assert item is not None
+		paper_color = PySide6.QtGui.QColor("#2b2b2b")
+		assert all(
+			ferrum_qt.ferrum.hex_grid._grid_lightness_delta(color, paper_color)
+			>= ferrum_qt.ferrum.hex_grid._MINIMUM_GRID_LIGHTNESS_DELTA
+			for color in [
+				item._line_pen.color(), item._dot_pen.color(), item._dot_brush.color(),
+			]
+		)
+	finally:
+		qapp.setPalette(original_palette)
+		_close_window(window)
+
+
+#============================================
+def test_hex_grid_preserves_theme_color_that_already_meets_paper_contrast(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""A sufficiently distinct configured token retains its visual identity."""
+	del qapp
+	configured_color = PySide6.QtGui.QColor("#345678")
+	paper_color = PySide6.QtGui.QColor("#ffffff")
+	visible_color = ferrum_qt.ferrum.hex_grid._visible_grid_color(
+		configured_color, paper_color,
+	)
+	assert visible_color == configured_color
+
+
+#============================================
+@pytest.mark.parametrize(("base_color", "theme_name"), [
+	("#ffffff", "light"),
+	("#3c3c3c", "dark"),
+])
+@pytest.mark.parametrize("zoom", [0.6, 1.0, 2.0])
+def test_hex_grid_is_discernible_in_composited_viewport_pixels(
+		qapp: PySide6.QtWidgets.QApplication, base_color: str, theme_name: str,
+		zoom: float,
+		) -> None:
+	"""The actual Qt viewport retains a subordinate but visible lattice."""
+	original_palette = qapp.palette()
+	view = PySide6.QtWidgets.QGraphicsView()
+	try:
+		palette = qapp.palette()
+		palette.setColor(PySide6.QtGui.QPalette.ColorRole.Base, base_color)
+		qapp.setPalette(palette)
+		paper_color = PySide6.QtGui.QColor(
+			ferrum_qt.themes.theme_loader.get_paper_color(theme_name),
+		)
+		paper_rect = PySide6.QtCore.QRectF(0.0, 0.0, 300.0, 220.0)
+		scene = PySide6.QtWidgets.QGraphicsScene(paper_rect)
+		paper = scene.addRect(paper_rect, PySide6.QtGui.QPen(
+			PySide6.QtCore.Qt.PenStyle.NoPen,
+		), PySide6.QtGui.QBrush(paper_color))
+		paper.setZValue(-1.0)
+		scene.addItem(ferrum_qt.ferrum.hex_grid.FerrumNativeHexGridItem(paper_rect))
+		view.setScene(scene)
+		view.setAlignment(
+			PySide6.QtCore.Qt.AlignmentFlag.AlignLeft
+			| PySide6.QtCore.Qt.AlignmentFlag.AlignTop,
+		)
+		view.resize(640, 480)
+		view.setTransform(PySide6.QtGui.QTransform().scale(zoom, zoom))
+		view.show()
+		qapp.processEvents()
+		image = view.viewport().grab().toImage().convertToFormat(
+			PySide6.QtGui.QImage.Format.Format_RGB32,
+		)
+		origin = view.mapFromScene(paper_rect.topLeft())
+		width = min(round(paper_rect.width() * zoom), image.width() - origin.x())
+		height = min(round(paper_rect.height() * zoom), image.height() - origin.y())
+		assert width > 0 and height > 0
+		visible_pixel_count = 0
+		for y in range(origin.y() + 2, origin.y() + height - 2):
+			for x in range(origin.x() + 2, origin.x() + width - 2):
+				pixel = image.pixelColor(x, y)
+				color_distance = max(
+					abs(pixel.red() - paper_color.red()),
+					abs(pixel.green() - paper_color.green()),
+					abs(pixel.blue() - paper_color.blue()),
+				)
+				if color_distance >= 30:
+					visible_pixel_count += 1
+		assert visible_pixel_count >= 120
+	finally:
+		view.close()
+		view.deleteLater()
+		qapp.setPalette(original_palette)
 
 
 #============================================

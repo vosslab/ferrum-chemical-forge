@@ -103,7 +103,8 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 		)
 		self._insert_direct_glycosidic_haworth_action.setToolTip(message)
 		self._insert_direct_glycosidic_haworth_action.setStatusTip(message)
-		self._insert_direct_glycosidic_haworth_action.triggered.connect(
+		self._connect_interaction_action_v1(
+			self._insert_direct_glycosidic_haworth_action,
 			self._on_insert_direct_glycosidic_haworth,
 		)
 		menu.addAction(self._insert_direct_glycosidic_haworth_action)

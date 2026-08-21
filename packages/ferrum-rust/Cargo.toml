@@ -2,12 +2,15 @@
 members = [
     "crates/api",
     "crates/chemistry",
-    "crates/chemistry-sys",
     "crates/core",
     "crates/document",
+    "crates/document-render",
+    "crates/catalog-placement",
+    "crates/document-model",
     "crates/domain",
     "crates/geometry",
     "crates/render",
+    "crates/render-contract",
 ]
 resolver = "3"
 

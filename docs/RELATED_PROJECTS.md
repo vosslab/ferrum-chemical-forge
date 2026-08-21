@@ -33,8 +33,8 @@
 
 - Relationship: binding and package toolchain
 - Link: https://github.com/PyO3/pyo3
-- Evidence: `packages/ferrum-rust/crates/api/python/Cargo.toml` declares PyO3,
-  and its `pyproject.toml` selects Maturin as the build backend.
+- Evidence: `packages/ferrum-rust/crates/api/Cargo.toml` owns the PyO3 `cdylib`,
+  while `crates/api/python/pyproject.toml` selects it for the Maturin wheel.
 - Notes: The extension is a narrow Python client of Rust-owned operations; Qt
   feature modules reach it through `ferrum_qt/ferrum/engine.py`.
 

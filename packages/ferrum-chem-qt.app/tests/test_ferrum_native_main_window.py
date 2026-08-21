@@ -204,6 +204,108 @@ def test_public_native_window_routes_cdml_to_rust_without_a_legacy_session(
 
 
 #============================================
+def test_smarts_action_follows_real_window_tab_readiness(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""The installed SMARTS command follows no-tab, ready, pending, and disposed states."""
+	del qapp
+	window = ferrum_qt.main_window.MainWindow(object())
+	action = window._smarts_query_controller._action
+	assert len(window.findChildren(
+		PySide6.QtWidgets.QDockWidget, "smarts-query-dock",
+	)) == 1
+	assert window._smarts_query_action is action
+	chemistry_menu = next(
+		menu for menu in window.menuBar().findChildren(PySide6.QtWidgets.QMenu)
+		if menu.title() == window.tr("Chemistry")
+	)
+	assert len([
+		candidate for candidate in chemistry_menu.actions()
+		if candidate is action
+	]) == 1
+	tab = type("Tab", (), {
+		"_disposed": False,
+		"requires_refresh": False,
+		"_controller": type("Controller", (), {"projection": object()})(),
+	})()
+	active_tab: list[object | None] = [None]
+	monkeypatch.setattr(window, "_active_native_tab", lambda: active_tab[0])
+	monkeypatch.setattr(
+		ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
+		"_refresh_actions", lambda *_args: None,
+	)
+	monkeypatch.setattr(
+		ferrum_qt.ferrum.window_shared_seams,
+		"refresh_shared_window_seams", lambda _window: None,
+	)
+	try:
+		window._refresh_actions()
+		assert not action.isEnabled()
+		active_tab[0] = tab
+		window._refresh_actions()
+		assert action.isEnabled()
+		tab.requires_refresh = True
+		window._refresh_actions()
+		assert not action.isEnabled()
+		tab.requires_refresh = False
+		tab._disposed = True
+		window._refresh_actions()
+		assert not action.isEnabled()
+	finally:
+		window.close()
+
+
+#============================================
+def test_real_add_atom_action_retires_smarts_capture_before_its_handler(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The real MainWindow Add Atom registration retires capture before its handler."""
+	class _CaptureHandoffWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
+		"""Observe the actual Add Atom handler selected while actions are constructed."""
+
+		def __init__(self) -> None:
+			"""Build the real window before supplying its test-only active viewport."""
+			self._handoff_active_tab: object | None = None
+			self.handler_capture_states: list[bool] = []
+			super().__init__()
+
+		def _active_native_tab(self) -> object | None:
+			"""Return the viewport-only tab used by this signal-ordering regression."""
+			return self._handoff_active_tab
+
+		def _on_toggle_add_atom(self, _checked: bool) -> None:
+			"""Observe capture exactly where the real QAction dispatch enters its handler."""
+			capture = self._smarts_query_controller._selected_capture
+			self.handler_capture_states.append(capture.is_armed_v1())
+
+	class _CaptureTab:
+		"""Supply only the live viewport contract needed to arm selected-root capture."""
+
+		def __init__(self, parent: PySide6.QtWidgets.QWidget) -> None:
+			"""Create the canvas viewport owned temporarily by SMARTS capture."""
+			self._disposed = False
+			self.requires_refresh = False
+			self.view = PySide6.QtWidgets.QGraphicsView(parent)
+
+	window = _CaptureHandoffWindow()
+	tab = _CaptureTab(window)
+	window._handoff_active_tab = tab
+	window._add_atom_action.setEnabled(True)
+	window.show()
+	qapp.processEvents()
+	capture = window._smarts_query_controller._selected_capture
+	try:
+		capture.begin()
+		assert capture.is_armed_v1()
+		window._add_atom_action.trigger()
+		assert window.handler_capture_states == [False]
+		assert not capture.is_armed_v1()
+	finally:
+		window._handoff_active_tab = None
+		window.close()
+		window.deleteLater()
+
+
+#============================================
 def test_clean_pending_undo_requires_refresh_before_tab_or_window_close(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:

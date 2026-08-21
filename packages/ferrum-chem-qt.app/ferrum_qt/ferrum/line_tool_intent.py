@@ -20,6 +20,14 @@ class _NativeLineTool(enum.Enum):
 	"""Closed Ferrum tools that share one revision-bound line gesture."""
 
 	DRAW_BOND = "draw_bond"
+	DRAW_ARROW = "draw_arrow"
+	DRAW_PLUS = "draw_plus"
+	DRAW_LINE = "draw_line"
+	DRAW_RECTANGLE = "draw_rectangle"
+	DRAW_SQUARE = "draw_square"
+	DRAW_OVAL = "draw_oval"
+	DRAW_CIRCLE = "draw_circle"
+	INSERT_TEXT = "insert_text"
 	CREATE_WAVY = "create_wavy"
 	CREATE_RECTANGULAR_BRACKET = "create_rectangular_bracket"
 	CREATE_ROUND_BRACKET = "create_round_bracket"
@@ -53,3 +61,17 @@ class _LineGestureIntent:
 	last_angle: float | None = None
 	accumulated_angle: float = 0.0
 	regular_ring_prepared: object | None = None
+	direct_bond_gesture: object | None = None
+	direct_bond_preview: object | None = None
+	presentation_gesture: object | None = None
+	presentation_preview: object | None = None
+	vector_gesture: object | None = None
+	vector_preview: object | None = None
+	text_gesture: object | None = None
+	text_preview: object | None = None
+	direct_root_observation: object | None = None
+	direct_root_selection: object | None = None
+	direct_root_gesture: object | None = None
+	direct_root_preview: object | None = None
+	direct_root_preview_item: PySide6.QtWidgets.QGraphicsItemGroup | None = None
+	direct_root_marquee: PySide6.QtWidgets.QGraphicsRectItem | None = None

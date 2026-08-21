@@ -12,11 +12,18 @@ use thiserror::Error;
 pub struct DocumentMoleculeGraphV1 {
     graph: MolGraph,
     edges: Vec<(usize, usize)>,
+    graph_position_to_record_id: Vec<RecordId>,
 }
 
 impl DocumentMoleculeGraphV1 {
     pub fn into_parts(self) -> (MolGraph, Vec<(usize, usize)>) {
         (self.graph, self.edges)
+    }
+
+    /// Consume this lowering with the exact atom identity that created each
+    /// graph position. This is not a later source-order reconstruction.
+    pub fn into_parts_with_atom_records(self) -> (MolGraph, Vec<(usize, usize)>, Vec<RecordId>) {
+        (self.graph, self.edges, self.graph_position_to_record_id)
     }
 }
 
@@ -60,6 +67,10 @@ fn document_molecule_graph(
     let mut atom_indices = HashMap::new();
     atom_indices
         .try_reserve(molecule.atoms().len())
+        .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+    let mut graph_position_to_record_id = Vec::new();
+    graph_position_to_record_id
+        .try_reserve_exact(molecule.atoms().len())
         .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
     let mut points = Vec::new();
     if include_coordinates {
@@ -107,9 +118,10 @@ fn document_molecule_graph(
             .identity()
             .try_clone()
             .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
-        if atom_indices.insert(identity, index).is_some() {
+        if atom_indices.insert(identity.clone(), index).is_some() {
             return Err(DocumentMoleculeGraphError::DuplicateAtomIdentity { atom_index: index });
         }
+        graph_position_to_record_id.push(identity);
         if include_coordinates {
             points.push(Point2::new(atom.position().x(), -atom.position().y())?);
         }
@@ -143,9 +155,14 @@ fn document_molecule_graph(
         edges.push((start, end));
     }
     let coordinates = include_coordinates.then(|| Coordinates::new(points));
+    let graph = MolGraph::new(atoms, bonds, coordinates)?;
+    if graph_position_to_record_id.len() != graph.atoms().len() {
+        return Err(DocumentMoleculeGraphError::ResourceAllocation);
+    }
     Ok(DocumentMoleculeGraphV1 {
-        graph: MolGraph::new(atoms, bonds, coordinates)?,
+        graph,
         edges,
+        graph_position_to_record_id,
     })
 }
 

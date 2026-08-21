@@ -36,6 +36,12 @@ const OPERATION_PROTOCOL_V1_FRAMING_AND_REQUEST_ID_UTF8_BYTES: usize = 4 * 1024;
 /// This independent cap keeps every echoed success or admitted-error envelope
 /// bounded even when the surrounding transport budget has spare capacity.
 pub const MAX_REQUEST_ID_UTF8_BYTES_V1: usize = 2 * 1024;
+/// Maximum serialized public JSON envelope for one SMARTS query response.
+///
+/// The executor measures the exact canonical response-envelope bytes before a
+/// CLI or PyO3 transport can deliver them. The terminal newline written by the
+/// CLI is not part of the JSON envelope.
+pub const DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1: usize = 1024 * 1024;
 /// Maximum UTF-8 request text accepted before any JSON allocation or parsing.
 ///
 /// This is `LOCAL_CDML_SOURCE_UTF8_BYTES_V1 * 6` for worst-case valid JSON
@@ -90,6 +96,94 @@ pub enum OperationProtocolOperationV1 {
     /// Regenerate all direct typed molecule coordinates as one document transition.
     #[serde(rename = "document.generate_coordinates")]
     GenerateCoordinates(DocumentGenerateCoordinatesRequestV1),
+    /// Create one direct-root presentation vector through the closed Rust gesture.
+    #[serde(rename = "presentation.vector.create.v1")]
+    PresentationVectorCreate(PresentationVectorCreateRequestV1),
+    /// List immutable Ferrum-authored template catalog summary facts.
+    #[serde(rename = "catalog.list.v1")]
+    CatalogList(CatalogListRequestV1),
+    /// Insert one catalog-selected template through Ferrum's renderer-preflighted gesture.
+    #[serde(rename = "catalog.insert.v1")]
+    CatalogInsert(CatalogInsertRequestV1),
+    /// Create one canonical durable reaction aggregate from direct-root IDs.
+    #[serde(rename = "reaction.create.v1")]
+    ReactionCreate(ReactionCreateRequestV1),
+    #[serde(rename = "reaction.list.v1")]
+    ReactionList(ReactionObservationRequestV1),
+    #[serde(rename = "reaction.observe.v1")]
+    ReactionObserve(ReactionObserveRequestV1),
+    #[serde(rename = "reaction.select.v1")]
+    ReactionSelect(ReactionObserveRequestV1),
+    #[serde(rename = "reaction.patch-membership.v1")]
+    ReactionPatchMembership(ReactionPatchMembershipRequestV1),
+    #[serde(rename = "reaction.delete-definition.v1")]
+    ReactionDeleteDefinition(ReactionObserveRequestV1),
+    /// Translate every direct durable member of one strict reaction aggregate.
+    #[serde(rename = "reaction.translate.v1")]
+    ReactionTranslate(ReactionTranslateRequestV1),
+    /// Read bounded composition and authored-fact reports for direct molecule roots.
+    #[serde(rename = "document.molecule.report.v1")]
+    DocumentMoleculeReport(DocumentMoleculeReportRequestV1),
+    /// Search direct molecules from one bounded, request-owned document.
+    #[serde(rename = "document.molecule.smarts.query.v1")]
+    DocumentSmartsQuery(DocumentSmartsQueryRequestV1),
+    /// Import CML/CML2 into one new request-owned document.
+    #[serde(rename = "document.molecule.interchange.import.v1")]
+    DocumentMoleculeInterchangeImport(DocumentMoleculeInterchangeImportRequestV1),
+}
+
+/// Fixed new-document CML import request. No snapshot, placement, or append mode exists.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeInterchangeImportRequestV1 {
+    pub format_alias: String,
+    pub cml_utf8: String,
+}
+
+/// Fenced request-owned document supplied to the SMARTS query operation.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSmartsQueryDocumentV1 {
+    pub cdml: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+}
+
+/// One exact query representation admitted by the SMARTS query operation.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DocumentSmartsQueryInputV1 {
+    Smarts { value: String },
+    SelectedMolecule { molecule_id: String },
+}
+
+/// Optional bounded enumeration limits. Omitted fields use the V1 defaults.
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSmartsQueryLimitsV1 {
+    pub max_matches_per_molecule: Option<u32>,
+    pub max_total_matches: Option<u32>,
+}
+
+/// Stateless V1 SMARTS query request. It has no renderer, receipt, or runtime value.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSmartsQueryRequestV1 {
+    pub document: DocumentSmartsQueryDocumentV1,
+    pub query: DocumentSmartsQueryInputV1,
+    #[serde(default)]
+    pub limits: DocumentSmartsQueryLimitsV1,
+}
+
+/// Closed read-only molecule-report request.  The runtime and report graph are
+/// intentionally absent from this transport contract.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+    pub molecule_ids: Vec<String>,
 }
 
 /// Request payload for `chemistry.convert`.
@@ -118,6 +212,126 @@ pub struct ChemistryConvertInputV1 {
 pub struct DocumentGenerateCoordinatesRequestV1 {
     /// Uncompressed CDML text admitted under Ferrum's existing V1 profile.
     pub document: String,
+}
+
+/// Closed, stateless vector-authoring request.  Appearance is deliberately a
+/// policy token, never caller-supplied paint or XML.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationVectorCreateRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+    /// Shape family. `kind` remains reserved by the tagged operation envelope.
+    pub vector_kind: ProtocolPresentationVectorKindV1,
+    pub start_x: f64,
+    pub start_y: f64,
+    pub end_x: f64,
+    pub end_y: f64,
+    pub appearance_policy: ProtocolPresentationVectorAppearancePolicyV1,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolPresentationVectorKindV1 {
+    Line,
+    Rectangle,
+    Square,
+    Oval,
+    Circle,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolPresentationVectorAppearancePolicyV1 {
+    EffectiveDrawingStandard,
+}
+
+/// Optional filters over immutable shipped template catalog summary facts.
+///
+/// Family and category use exact closed identities. Query trims ASCII whitespace,
+/// compares ASCII case-insensitively, and matches only emitted summary names and
+/// identifiers; catalog source, recipe, and document payloads are never searched.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogListRequestV1 {
+    pub family: Option<ProtocolCatalogFamilyV1>,
+    pub category: Option<String>,
+    pub query: Option<String>,
+}
+
+/// Closed, stateless catalog insertion request. The caller names a catalog ID,
+/// never a recipe, CDML fragment, path, or rendering payload.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogInsertRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+    pub catalog_id: String,
+    pub anchor_x: f64,
+    pub anchor_y: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionCreateRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+    pub reactants: Vec<String>,
+    pub products: Vec<String>,
+    pub arrow: String,
+    pub conditions: Vec<String>,
+    pub pluses: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionObservationRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+}
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionObserveRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+    pub reaction_id: String,
+}
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionPatchMembershipRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+    pub reaction_id: String,
+    pub reactants: Vec<String>,
+    pub products: Vec<String>,
+    pub arrow: String,
+    pub conditions: Vec<String>,
+    pub pluses: Vec<String>,
+}
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionTranslateRequestV1 {
+    pub document: String,
+    pub expected_revision: u64,
+    pub expected_digest_hex: String,
+    pub reaction_id: String,
+    pub press_x: f64,
+    pub press_y: f64,
+    pub pointer_x: f64,
+    pub pointer_y: f64,
+    pub snap: ProtocolReactionTranslationSnapV1,
+}
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolReactionTranslationSnapV1 {
+    Free,
+    ViewHexGrid,
 }
 
 /// Request payload for `document.inspect`.
@@ -252,6 +466,314 @@ pub enum OperationProtocolOutcomeV1 {
         /// Number of direct typed molecular roots regenerated.
         regenerated_molecule_count: usize,
     },
+    /// Accepted canonical vector document and its durable direct-root ID.
+    #[serde(rename = "presentation.vector.create.v1")]
+    PresentationVectorCreate {
+        document: String,
+        identifier: String,
+        /// Every stateless input is loaded as a fresh session at revision zero.
+        input_revision: u64,
+        /// Revision of the local session commit represented by this result.
+        committed_revision: u64,
+        /// Required `expected_revision` if `document` is submitted in a new request.
+        next_input_expected_revision: u64,
+        digest_hex: String,
+        /// Frozen renderer-owned observation of the exact accepted candidate.
+        renderer_observation: serde_json::Value,
+    },
+    /// Immutable shipped catalog facts, without recipe or CDML payloads.
+    #[serde(rename = "catalog.list.v1")]
+    CatalogList {
+        catalog_schema: String,
+        catalog_version: String,
+        entries: Vec<CatalogEntrySummaryV1>,
+    },
+    /// Canonical document after one renderer-preflighted catalog insertion.
+    #[serde(rename = "catalog.insert.v1")]
+    CatalogInsert {
+        document: String,
+        identifier: String,
+        input_revision: u64,
+        committed_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+    },
+    #[serde(rename = "reaction.create.v1")]
+    ReactionCreate {
+        document: String,
+        reaction_id: String,
+        input_revision: u64,
+        committed_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+    },
+    #[serde(rename = "reaction.list.v1")]
+    ReactionList {
+        input_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+        reactions: Vec<ReactionObservationSummaryV1>,
+    },
+    #[serde(rename = "reaction.observe.v1")]
+    ReactionObserve {
+        input_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+        reaction: ReactionObservationSummaryV1,
+    },
+    #[serde(rename = "reaction.select.v1")]
+    ReactionSelect {
+        input_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+        reaction_id: String,
+        membership_digest: String,
+    },
+    #[serde(rename = "reaction.patch-membership.v1")]
+    ReactionPatchMembership {
+        document: String,
+        reaction_id: String,
+        input_revision: u64,
+        committed_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+    },
+    #[serde(rename = "reaction.delete-definition.v1")]
+    ReactionDeleteDefinition {
+        document: String,
+        reaction_id: String,
+        input_revision: u64,
+        committed_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+    },
+    #[serde(rename = "reaction.translate.v1")]
+    ReactionTranslate {
+        document: String,
+        reaction_id: String,
+        input_revision: u64,
+        committed_revision: u64,
+        next_input_expected_revision: u64,
+        digest_hex: String,
+    },
+    /// Read-only molecule-report facts.  No CDML, graph, engine, or path crosses this boundary.
+    #[serde(rename = "document.molecule.report.v1")]
+    DocumentMoleculeReport {
+        report: DocumentMoleculeReportSummaryV1,
+    },
+    /// Bounded non-redeemable SMARTS query facts.
+    #[serde(rename = "document.molecule.smarts.query.v1")]
+    DocumentSmartsQuery { query: DocumentSmartsQuerySummaryV1 },
+    /// Bounded CML import summary without a document artifact or identifiers.
+    #[serde(rename = "document.molecule.interchange.import.v1")]
+    DocumentMoleculeInterchangeImport {
+        summary: DocumentMoleculeInterchangeImportSummaryV1,
+    },
+}
+
+/// Bounded protocol-owned facts for one fixed-target molecule interchange import.
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeInterchangeImportSummaryV1 {
+    pub operation: &'static str,
+    pub target: &'static str,
+    pub document_revision: u64,
+    pub document_digest_hex: String,
+    pub source_record_count: usize,
+    pub inserted_record_count: usize,
+    pub atom_count: usize,
+    pub bond_count: usize,
+    pub profile_id: &'static str,
+    pub format_id: &'static str,
+    pub loss_report: DocumentMoleculeInterchangeImportLossReportV1,
+}
+
+/// Closed loss facts for the public interchange-import summary.
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeInterchangeImportLossReportV1 {
+    pub source_ids_reallocated: bool,
+    pub lexical_xml_not_retained: bool,
+    pub semantic_loss: Vec<String>,
+}
+
+/// Public SMARTS query facts. Match membership remains private to the live bridge.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSmartsQuerySummaryV1 {
+    pub schema: String,
+    pub traversal: DocumentSmartsQueryTraversalSummaryV1,
+    pub molecules: Vec<DocumentSmartsQueryMoleculeSummaryV1>,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DocumentSmartsQueryTraversalSummaryV1 {
+    Complete,
+    Incomplete { reason: String },
+}
+
+/// One source-ordered target with at least one retained match. No atom identity crosses JSON.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSmartsQueryMoleculeSummaryV1 {
+    pub source_order: u32,
+    pub match_count: u32,
+    pub completeness: String,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportSummaryV1 {
+    pub schema: String,
+    pub source_revision: u64,
+    pub source_digest_hex: String,
+    pub records: Vec<DocumentMoleculeReportRecordSummaryV1>,
+    /// The one complete aggregate composition or its closed omission reason.
+    /// Ferrum never emits a subset aggregate.
+    pub aggregate: DocumentMoleculeReportAggregateOutcomeSummaryV1,
+}
+
+/// The all-or-none aggregate result for one molecule report.
+///
+/// This tagged DTO makes a complete composition and an omission reason mutually
+/// exclusive at both the Rust and JSON protocol boundaries.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DocumentMoleculeReportAggregateOutcomeSummaryV1 {
+    Complete {
+        composition: DocumentMoleculeReportCompositionSummaryV1,
+    },
+    Omitted {
+        reason: DocumentMoleculeReportAggregateOmissionReasonSummaryV1,
+    },
+}
+
+/// Closed reasons that a molecule-report aggregate is unavailable.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportAggregateOmissionReasonSummaryV1 {
+    FewerThanTwoSelected,
+    IncompleteRecordComposition,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportRecordSummaryV1 {
+    pub molecule_id: String,
+    pub source_id: String,
+    pub document_root_order: u32,
+    pub authored_name: Option<String>,
+    pub atom_count: usize,
+    pub bond_count: usize,
+    pub authored_charge: Option<i64>,
+    pub authored_elements: Vec<DocumentMoleculeReportElementCountSummaryV1>,
+    /// Complete engine-derived facts, or `None` when this root cannot produce a
+    /// supported composition. `finding_codes` explains that absence.
+    pub composition: Option<DocumentMoleculeReportCompositionSummaryV1>,
+    pub neutral_bond_capacity: String,
+    pub finding_codes: Vec<String>,
+}
+
+/// One all-or-none, finite composition receipt mapped from an authenticated
+/// chemistry result. No graph, CDML, toolkit, or runtime capability is exposed.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportCompositionSummaryV1 {
+    pub formula: String,
+    pub net_formal_charge: i64,
+    pub average_molecular_weight_da: f64,
+    pub monoisotopic_mass_da: f64,
+    /// Isotope-aware counts and average-mass percentages in canonical formula order.
+    pub elements: Vec<DocumentMoleculeReportCompositionElementSummaryV1>,
+}
+
+/// One isotope-aware elemental contribution to a complete composition receipt.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportCompositionElementSummaryV1 {
+    pub symbol: String,
+    pub isotope: Option<u16>,
+    pub atom_count: u64,
+    pub average_mass_contribution_da: f64,
+    pub mass_percentage: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportElementCountSummaryV1 {
+    pub symbol: String,
+    pub atom_count: usize,
+}
+
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionObservationSummaryV1 {
+    pub reaction_id: String,
+    pub source_order: u32,
+    pub disposition: ProtocolReactionDefinitionDispositionV1,
+    pub diagnostics: Vec<String>,
+    pub membership_digest: String,
+    pub members: Vec<ReactionMemberSummaryV1>,
+    pub union_bounds: Option<ReactionBoundsSummaryV1>,
+}
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionMemberSummaryV1 {
+    pub identifier: String,
+    pub role: String,
+    pub role_ordinal: u32,
+    pub source_order: u32,
+    pub bounds: Option<ReactionBoundsSummaryV1>,
+}
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionBoundsSummaryV1 {
+    pub left: f64,
+    pub top: f64,
+    pub right: f64,
+    pub bottom: f64,
+}
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolReactionDefinitionDispositionV1 {
+    Strict,
+    DisplayOnly,
+}
+
+/// Immutable, provenance-safe catalog entry facts. This DTO deliberately has
+/// no template source, CDML, filesystem location, or presentation asset.
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogEntrySummaryV1 {
+    pub id: String,
+    pub family: ProtocolCatalogFamilyV1,
+    pub category: CatalogCategorySummaryV1,
+    pub name: String,
+    pub provenance: CatalogProvenanceSummaryV1,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolCatalogFamilyV1 {
+    System,
+    Biomolecule,
+}
+
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogCategorySummaryV1 {
+    pub id: String,
+    pub name: String,
+    pub order: u16,
+}
+
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogProvenanceSummaryV1 {
+    pub source_kind: String,
+    pub source_id: String,
+    pub license_spdx: String,
 }
 
 /// A typed domain refusal returned as protocol data.
@@ -286,6 +808,128 @@ pub struct OperationProtocolErrorV1 {
     pub operation: Option<ProtocolOperationKindV1>,
     /// Human-readable diagnostic detail.
     pub message: String,
+    /// Closed reason for a resource-limit refusal when one is safe to expose.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_limit_reason: Option<ProtocolResourceLimitReasonV1>,
+    /// Closed vector gesture recovery facts when this operation refused one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_vector_refusal: Option<PresentationVectorRefusalV1>,
+    /// Closed catalog-placement recovery facts when this operation refused one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalog_placement_refusal: Option<CatalogPlacementRefusalV1>,
+    /// Closed reaction authoring recovery facts when this operation refused one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reaction_refusal: Option<ReactionRefusalV1>,
+}
+
+/// Closed public reasons for protocol-wide resource-limit refusals.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolResourceLimitReasonV1 {
+    /// The exact canonical SMARTS result envelope exceeded its public budget.
+    ResponseSizeExceeded,
+}
+
+/// Typed refusal facts for `presentation.vector.create.v1`.
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationVectorRefusalV1 {
+    pub category: ProtocolPresentationVectorGestureCategoryV1,
+    pub recovery: ProtocolPresentationVectorGestureRecoveryV1,
+}
+
+/// Typed refusal facts for `catalog.insert.v1`.
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogPlacementRefusalV1 {
+    pub category: ProtocolCatalogPlacementCategoryV1,
+    pub recovery: ProtocolCatalogPlacementRecoveryV1,
+}
+
+/// Typed refusal facts for `reaction.create.v1`.
+#[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionRefusalV1 {
+    pub category: ProtocolReactionRefusalCategoryV1,
+    pub recovery: ProtocolReactionRefusalRecoveryV1,
+}
+
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolReactionRefusalCategoryV1 {
+    StaleSnapshot,
+    ForeignSession,
+    ReplayedGesture,
+    InvalidRequest,
+    MissingTarget,
+    WrongTargetKind,
+    DuplicateTarget,
+    CrossReactionReuse,
+    UnrenderableDocument,
+    RenderPreparation,
+    SessionConflict,
+    MissingReaction,
+    LegacyDefinitionNotEditable,
+    MembershipChanged,
+    RendererExclusion,
+}
+
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolReactionRefusalRecoveryV1 {
+    RefreshAndRestart,
+    CorrectSelectors,
+    ChooseRenderableMembers,
+    RepairLegacyDefinition,
+}
+
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolCatalogPlacementCategoryV1 {
+    UnknownKey,
+    StaleSnapshot,
+    ForeignSession,
+    MismatchedPreview,
+    ReplayedGesture,
+    InvalidPoint,
+    RenderPreparation,
+    SessionConflict,
+}
+
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolCatalogPlacementRecoveryV1 {
+    ChooseCatalogEntry,
+    RefreshAndRestart,
+    DocumentUnchanged,
+}
+
+/// Closed presentation-vector refusal categories.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolPresentationVectorGestureCategoryV1 {
+    StaleSnapshot,
+    ForeignSession,
+    MismatchedPreview,
+    ReplayedGesture,
+    InvalidPoint,
+    DegenerateGeometry,
+    UnsupportedKind,
+    UnrenderableStandard,
+    RenderPreparation,
+    SessionConflict,
+    ResourceExhausted,
+}
+
+/// Closed recovery instructions for presentation-vector refusals.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolPresentationVectorGestureRecoveryV1 {
+    DocumentUnchanged,
+    RefreshAndRestart,
+    ChangeGeometry,
+    ChooseSupportedAppearance,
+    ReduceRequest,
 }
 
 /// Stable V1 error categories.
@@ -350,6 +994,38 @@ pub enum ProtocolOperationKindV1 {
     /// `document.generate_coordinates`.
     #[serde(rename = "document.generate_coordinates")]
     GenerateCoordinates,
+    /// `presentation.vector.create.v1`.
+    #[serde(rename = "presentation.vector.create.v1")]
+    PresentationVectorCreate,
+    /// `catalog.list.v1`.
+    #[serde(rename = "catalog.list.v1")]
+    CatalogList,
+    /// `catalog.insert.v1`.
+    #[serde(rename = "catalog.insert.v1")]
+    CatalogInsert,
+    #[serde(rename = "reaction.create.v1")]
+    ReactionCreate,
+    #[serde(rename = "reaction.list.v1")]
+    ReactionList,
+    #[serde(rename = "reaction.observe.v1")]
+    ReactionObserve,
+    #[serde(rename = "reaction.select.v1")]
+    ReactionSelect,
+    #[serde(rename = "reaction.patch-membership.v1")]
+    ReactionPatchMembership,
+    #[serde(rename = "reaction.delete-definition.v1")]
+    ReactionDeleteDefinition,
+    #[serde(rename = "reaction.translate.v1")]
+    ReactionTranslate,
+    /// `document.molecule.report.v1`.
+    #[serde(rename = "document.molecule.report.v1")]
+    DocumentMoleculeReport,
+    /// `document.molecule.smarts.query.v1`.
+    #[serde(rename = "document.molecule.smarts.query.v1")]
+    DocumentSmartsQuery,
+    /// `document.molecule.interchange.import.v1`.
+    #[serde(rename = "document.molecule.interchange.import.v1")]
+    DocumentMoleculeInterchangeImport,
 }
 
 /// A completed operation response or typed protocol refusal.
@@ -416,6 +1092,21 @@ impl OperationProtocolOperationV1 {
             Self::RenderArtifact(_) => ProtocolOperationKindV1::RenderArtifact,
             Self::ChemistryConvert(_) => ProtocolOperationKindV1::ChemistryConvert,
             Self::GenerateCoordinates(_) => ProtocolOperationKindV1::GenerateCoordinates,
+            Self::PresentationVectorCreate(_) => ProtocolOperationKindV1::PresentationVectorCreate,
+            Self::CatalogList(_) => ProtocolOperationKindV1::CatalogList,
+            Self::CatalogInsert(_) => ProtocolOperationKindV1::CatalogInsert,
+            Self::ReactionCreate(_) => ProtocolOperationKindV1::ReactionCreate,
+            Self::ReactionList(_) => ProtocolOperationKindV1::ReactionList,
+            Self::ReactionObserve(_) => ProtocolOperationKindV1::ReactionObserve,
+            Self::ReactionSelect(_) => ProtocolOperationKindV1::ReactionSelect,
+            Self::ReactionPatchMembership(_) => ProtocolOperationKindV1::ReactionPatchMembership,
+            Self::ReactionDeleteDefinition(_) => ProtocolOperationKindV1::ReactionDeleteDefinition,
+            Self::ReactionTranslate(_) => ProtocolOperationKindV1::ReactionTranslate,
+            Self::DocumentMoleculeReport(_) => ProtocolOperationKindV1::DocumentMoleculeReport,
+            Self::DocumentSmartsQuery(_) => ProtocolOperationKindV1::DocumentSmartsQuery,
+            Self::DocumentMoleculeInterchangeImport(_) => {
+                ProtocolOperationKindV1::DocumentMoleculeInterchangeImport
+            }
         }
     }
 }

@@ -17,12 +17,15 @@ set(FERRUM_CHEM_RDKIT_DEPICTOR "" CACHE FILEPATH "Explicit libRDKitDepictor dyli
 set(FERRUM_CHEM_RDKIT_SMILESPARSE "" CACHE FILEPATH "Explicit libRDKitSmilesParse dylib")
 set(FERRUM_CHEM_RDKIT_FILEPARSERS "" CACHE FILEPATH "Explicit libRDKitFileParsers dylib")
 set(FERRUM_CHEM_RDKIT_RDINCHI "" CACHE FILEPATH "Explicit libRDKitRDInchiLib dylib")
+set(FERRUM_CHEM_RDKIT_SUBSTRUCTMATCH "" CACHE FILEPATH
+    "Explicit libRDKitSubstructMatch dylib retained for ABI-5 SMARTS matching")
 
 foreach(required_input IN ITEMS FERRUM_CHEM_RDKIT_INCLUDE_DIR FERRUM_CHEM_BOOST_INCLUDE_DIR
 		FERRUM_CHEM_RDKIT_GRAPHMOL FERRUM_CHEM_RDKIT_RDGENERAL
 		FERRUM_CHEM_RDKIT_DEPICTOR FERRUM_CHEM_RDKIT_SMILESPARSE
 		FERRUM_CHEM_RDKIT_FILEPARSERS
 		FERRUM_CHEM_RDKIT_RDINCHI
+		FERRUM_CHEM_RDKIT_SUBSTRUCTMATCH
 	)
 	if(NOT ${required_input})
 		message(FATAL_ERROR "${required_input} is required; Ferrum never discovers host RDKit")
@@ -43,6 +46,7 @@ endif()
 
 add_library(ferrum_chem SHARED
 	ferrum_chem_adapter.cpp ferrum_chem_smarts.cpp ferrum_chem_smiles.cpp
+	ferrum_chem_smarts_match.cpp
 	ferrum_chem_molblock.cpp
 	ferrum_chem_molblock_import.cpp ferrum_chem_sdf.cpp ferrum_chem_sdf_import.cpp
 	ferrum_chem_molecule_response.cpp
@@ -58,6 +62,11 @@ target_link_libraries(ferrum_chem PRIVATE
 	"${FERRUM_CHEM_RDKIT_DEPICTOR}" "${FERRUM_CHEM_RDKIT_SMILESPARSE}"
 	"${FERRUM_CHEM_RDKIT_FILEPARSERS}")
 target_link_libraries(ferrum_chem PRIVATE "${FERRUM_CHEM_RDKIT_RDINCHI}")
+# The ABI-5 SMARTS-match capability requires this pinned dylib in the actual
+# Mach-O load commands even before FCQ1/FQM1 starts calling it.
+target_link_libraries(ferrum_chem PRIVATE "${FERRUM_CHEM_RDKIT_SUBSTRUCTMATCH}")
+target_link_options(ferrum_chem PRIVATE
+	"-Wl,-needed_library,${FERRUM_CHEM_RDKIT_SUBSTRUCTMATCH}")
 target_link_options(ferrum_chem PRIVATE "-Wl,-rpath,@loader_path")
 set_target_properties(ferrum_chem PROPERTIES
 	OUTPUT_NAME ferrum_chem
@@ -66,3 +75,13 @@ set_target_properties(ferrum_chem PROPERTIES
 
 install(TARGETS ferrum_chem LIBRARY DESTINATION lib)
 install(FILES include/ferrum_chem_adapter.h DESTINATION include)
+
+option(FERRUM_CHEM_BUILD_NATIVE_TESTS "Build Ferrum adapter-native ABI tests" OFF)
+if(FERRUM_CHEM_BUILD_NATIVE_TESTS)
+	enable_testing()
+	add_executable(ferrum_chem_smarts_match_test tests/ferrum_chem_smarts_match_test.cpp)
+	target_include_directories(ferrum_chem_smarts_match_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include")
+	target_link_libraries(ferrum_chem_smarts_match_test PRIVATE ferrum_chem)
+	add_test(NAME ferrum_chem_smarts_match_test COMMAND ferrum_chem_smarts_match_test)
+endif()

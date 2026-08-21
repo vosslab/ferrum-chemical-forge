@@ -1320,3 +1320,9 @@ If you generate CDML outside of Ferrum:
 12. Run the `authored-26.07` conformance profile before publishing new CDML.
     It checks the implemented safety boundary; authors remain responsible for
     the normative geometry and cardinality requirements in this specification.
+# Direct structural deletion
+
+Ferrum's session operation `DeleteStructure` targets one direct `molecule` and
+a nonempty set of its direct typed `atom` and/or `bond` children.  It removes
+selected atoms, selected bonds, and every direct bond incident to a selected
+atom as one transaction.  It does not inspect or alter opaque descendants.

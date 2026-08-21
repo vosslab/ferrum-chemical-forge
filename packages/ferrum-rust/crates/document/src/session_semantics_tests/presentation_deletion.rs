@@ -22,6 +22,16 @@ const BRACKET_SOURCE: &str = concat!(
     "</polyline></cdml>",
 );
 
+const REACTION_PRESENTATION_SOURCE: &str = concat!(
+    "<cdml><arrow id=\"a\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow>",
+    "<text id=\"t\"><point x=\"0\" y=\"10\"/><ftext>conditions</ftext></text>",
+    "<plus id=\"p\"><point x=\"20\" y=\"0\"/></plus>",
+    "<arrow id=\"free-a\"><point x=\"0\" y=\"20\"/><point x=\"10\" y=\"20\"/></arrow>",
+    "<text id=\"free-t\"><point x=\"0\" y=\"30\"/><ftext>free</ftext></text>",
+    "<plus id=\"free-p\"><point x=\"20\" y=\"20\"/></plus>",
+    "<reaction id=\"r\"><arrow idref=\"a\"/><condition idref=\"t\"/><plus idref=\"p\"/></reaction></cdml>"
+);
+
 fn deletion(identifier: &str, kind: PresentationRecordKindV1) -> SessionOperation {
     SessionOperation::V1(SessionOperationV1::DeletePresentationRoot {
         deletion: PresentationRootDeletionV1::new(identifier, kind).unwrap(),
@@ -127,6 +137,68 @@ fn presentation_deletion_rejects_wrong_kind_bracket_member_and_stale_intent_atom
         })
     ));
     assert_eq!(stale.snapshot().unwrap(), before);
+}
+
+#[test]
+fn compatibility_reaction_references_refuse_single_and_batch_deletion_without_mutation() {
+    let protected = [
+        ("a", PresentationRecordKindV1::Arrow),
+        ("t", PresentationRecordKindV1::Text),
+        ("p", PresentationRecordKindV1::Plus),
+    ];
+    for (identifier, kind) in protected {
+        let mut session =
+            DocumentSession::load(REACTION_PRESENTATION_SOURCE).expect("fixture loads");
+        let before = session.snapshot().expect("snapshot works");
+        assert!(matches!(
+            session.submit(0, deletion(identifier, kind)),
+            Err(DocumentSessionError::Operation(
+                SessionOperationError::Candidate(
+                    TypedDocumentError::ReactionReferencedPresentationDeletion(_)
+                )
+            ))
+        ));
+        assert_eq!(session.snapshot().expect("snapshot works"), before);
+    }
+
+    let mut mixed = DocumentSession::load(REACTION_PRESENTATION_SOURCE).expect("fixture loads");
+    let before = mixed.snapshot().expect("snapshot works");
+    assert!(matches!(
+        mixed.submit(
+            0,
+            deletion_set(vec![
+                PresentationRootDeletionV1::new("free-a", PresentationRecordKindV1::Arrow).unwrap(),
+                PresentationRootDeletionV1::new("t", PresentationRecordKindV1::Text).unwrap(),
+                PresentationRootDeletionV1::new("free-p", PresentationRecordKindV1::Plus).unwrap(),
+            ]),
+        ),
+        Err(DocumentSessionError::Operation(
+            SessionOperationError::Candidate(
+                TypedDocumentError::ReactionReferencedPresentationDeletion(_)
+            )
+        ))
+    ));
+    assert_eq!(mixed.snapshot().expect("snapshot works"), before);
+
+    let changed = mixed
+        .submit(
+            0,
+            deletion_set(vec![
+                PresentationRootDeletionV1::new("free-a", PresentationRecordKindV1::Arrow).unwrap(),
+                PresentationRootDeletionV1::new("free-t", PresentationRecordKindV1::Text).unwrap(),
+                PresentationRootDeletionV1::new("free-p", PresentationRecordKindV1::Plus).unwrap(),
+            ]),
+        )
+        .expect("unreferenced multi-delete commits after rejected batch");
+    assert_eq!(changed.observation().snapshot().revision(), 1);
+    assert!(changed.observation().snapshot().cdml().contains("id=\"a\""));
+    assert!(
+        !changed
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("id=\"free-a\"")
+    );
 }
 
 #[test]

@@ -41,7 +41,7 @@ class FerrumKeyboardAuthoringMixin:
 				PySide6.QtCore.Qt.Key.Key_Right,
 				PySide6.QtCore.Qt.Key.Key_Up,
 				PySide6.QtCore.Qt.Key.Key_Down,
-				):
+			):
 			tab = self._active_native_tab()
 			if tab is None or tab.requires_refresh:
 				return True
@@ -53,6 +53,9 @@ class FerrumKeyboardAuthoringMixin:
 			dy = increment if key == PySide6.QtCore.Qt.Key.Key_Down else (
 				-increment if key == PySide6.QtCore.Qt.Key.Key_Up else 0.0
 			)
+			if self._nudge_render_interaction_selection(dx, dy):
+				tab.view.viewport().setFocus()
+				return True
 			point = tab.view.move_keyboard_cursor(float(dx), float(dy))
 			precision = "fine " if fine else ""
 			self.statusBar().showMessage(self.tr(
@@ -96,12 +99,16 @@ class FerrumKeyboardAuthoringMixin:
 			point = tab.view.show_keyboard_cursor()
 			tab.add_atom_at(intent.molecule_object_id, intent.element, float(point.x()), float(point.y()))
 		except Exception as exc:
+			if isinstance(
+				exc,
+				ferrum_qt.ferrum.document_tab.
+				FerrumNativeDocumentTabUnrenderableMoleculeError,
+			):
+				self._cancel_atom_insertion(clear_status=False)
 			self._refresh_actions()
 			self._synchronize_mode_state()
 			tab.view.viewport().setFocus()
-			self._show_edit_refusal(self._typed_refusal(
-				"edit_document", "unavailable_operation", str(exc),
-			))
+			self._show_atom_insertion_refusal(exc)
 			return
 		self._cancel_atom_insertion(clear_status=False)
 		self._synchronize_mode_state()
@@ -124,8 +131,28 @@ class FerrumKeyboardAuthoringMixin:
 				"The document changed before placement; start Draw Bond again.",
 			))
 			return
-		point = intent.tab.view.show_keyboard_cursor()
-		atom_id = intent.tab.durable_atom_at_viewport_point(intent.tab.view.mapFromScene(point))
+		try:
+			point = intent.tab.view.show_keyboard_cursor()
+			atom_id = intent.tab.durable_atom_at_scene_position(point)
+		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError as exc:
+			# Exact keyboard coordinates can identify more than one durable atom.
+			# A keyboard gesture cannot guess between them, so retire it rather than
+			# leaving a stale authoring intent active after this typed refusal.
+			self._cancel_line_gesture(clear_status=False)
+			self._refresh_actions()
+			self._synchronize_mode_state()
+			intent.tab.view.viewport().setFocus()
+			self.statusBar().showMessage(self.tr(
+				"Draw Bond cancelled: more than one atom is at the document cursor. "
+				"Choose a distinct atom location, then start Draw Bond again."
+			), 5000)
+			self._show_edit_refusal(self._typed_refusal(
+				"edit_document", "unavailable_operation",
+				"Draw Bond was not used because the keyboard cursor does not identify "
+				"one durable atom: " + str(exc) + ". Choose a distinct atom location, "
+				"then start Draw Bond again.",
+			))
+			return
 		if atom_id is None:
 			intent.tab.view.viewport().setFocus()
 			self.statusBar().showMessage(self.tr("Move the document cursor onto an existing atom, then press Enter."), 5000)

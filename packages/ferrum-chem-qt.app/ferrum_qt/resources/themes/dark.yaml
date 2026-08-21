@@ -49,6 +49,6 @@ paper:
   fill: "#2b2b2b"
   outline: "#555555"
 grid:
-  line: "#3a3a3a"
-  dot_fill: "#2a4a3a"
-  dot_outline: "#444444"
+  line: "#69757b"
+  dot_fill: "#506d63"
+  dot_outline: "#819a91"

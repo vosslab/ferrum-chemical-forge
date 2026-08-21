@@ -5,7 +5,33 @@ use std::path::PathBuf;
 
 const REQUIRED_MACROS: &[&str] = &[
     "FERRUM_CHEM_ADAPTER_ABI_VERSION",
+    "FERRUM_CHEM_CALL_ALLOCATION_FAILURE",
     "FERRUM_CHEM_MAX_RESPONSE_BYTES",
+    "FERRUM_CHEM_CAPABILITY_KEKULIZE",
+    "FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE",
+    "FERRUM_CHEM_CAPABILITY_GENERATE_2D",
+    "FERRUM_CHEM_CAPABILITY_SMARTS",
+    "FERRUM_CHEM_CAPABILITY_MOLFILE",
+    "FERRUM_CHEM_CAPABILITY_SDF_WRITE",
+    "FERRUM_CHEM_CAPABILITY_INCHI",
+    "FERRUM_CHEM_CAPABILITY_SDF_READ",
+    "FERRUM_CHEM_CAPABILITY_MOLFILE_READ",
+    "FERRUM_CHEM_CAPABILITY_COMPOSITION",
+    "FERRUM_CHEM_CAPABILITY_SMILES_WRITE",
+    "FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE",
+    "FERRUM_CHEM_CAPABILITY_SMARTS_MATCH",
+    "FERRUM_CHEM_SMARTS_MATCH_WIRE_VERSION",
+    "FERRUM_CHEM_SMARTS_MATCH_REQUEST_HEADER_BYTES",
+    "FERRUM_CHEM_SMARTS_MATCH_RESPONSE_HEADER_BYTES",
+    "FERRUM_CHEM_SMARTS_MATCH_MAX_QUERY_BYTES",
+    "FERRUM_CHEM_SMARTS_MATCH_MAX_ROWS",
+    "FERRUM_CHEM_SMARTS_MATCH_MAX_MATRIX_CELLS",
+    "FERRUM_CHEM_SMARTS_MATCH_FLAG_TRUNCATED",
+    "FERRUM_CHEM_SMARTS_MATCH_STATUS_INVALID_REQUEST",
+    "FERRUM_CHEM_SMARTS_MATCH_STATUS_INVALID_QUERY",
+    "FERRUM_CHEM_SMARTS_MATCH_STATUS_UNSUPPORTED_TARGET",
+    "FERRUM_CHEM_SMARTS_MATCH_STATUS_RESOURCE_LIMITED",
+    "FERRUM_CHEM_SMARTS_MATCH_STATUS_NATIVE_FAILURE",
     "FERRUM_CHEM_COMPOSITION_WIRE_VERSION",
     "FERRUM_CHEM_COMPOSITION_FLAGS_NONE",
     "FERRUM_CHEM_COMPOSITION_RESPONSE_HEADER_BYTES",
@@ -13,6 +39,7 @@ const REQUIRED_MACROS: &[&str] = &[
     "FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES",
     "FERRUM_CHEM_COMPOSITION_MAX_FORMULA_BYTES",
     "FERRUM_CHEM_RESULT_OK",
+    "FERRUM_CHEM_SMARTS_MATCH_STATUS_OK",
     "FERRUM_CHEM_RESULT_MALFORMED_REQUEST",
     "FERRUM_CHEM_RESULT_INVALID_MOLECULE",
     "FERRUM_CHEM_RESULT_DEPICTION_FAILURE",
@@ -100,6 +127,7 @@ const REQUIRED_MACROS: &[&str] = &[
 
 const ZERO_VALUE_MACROS: &[&str] = &[
     "FERRUM_CHEM_RESULT_OK",
+    "FERRUM_CHEM_SMARTS_MATCH_STATUS_OK",
     "FERRUM_CHEM_MOLECULE_FLAGS_NONE",
     "FERRUM_CHEM_MOLECULE_RESERVED",
     "FERRUM_CHEM_GRAPH_FLAGS_NONE",
@@ -148,7 +176,7 @@ fn main() {
         }
         if name.contains("_FACT_") {
             assert!(
-                value <= u32::from(u16::MAX),
+                value <= u64::from(u16::MAX),
                 "public adapter header macro {name} must fit u16"
             );
         }
@@ -160,16 +188,18 @@ fn main() {
         }
         if name.contains("_BOND_TYPE_") {
             assert!(
-                value <= u32::from(u8::MAX),
+                value <= u64::from(u8::MAX),
                 "public adapter header macro {name} must fit u8"
             );
         }
         let rust_type = if uses_usize(name) {
             assert!(
-                u64::from(value) <= maximum_usize(target_pointer_width),
+                value <= maximum_usize(target_pointer_width),
                 "public adapter header macro {name} does not fit target usize"
             );
             "usize"
+        } else if uses_u64(name) {
+            "u64"
         } else {
             "u32"
         };
@@ -185,13 +215,35 @@ fn main() {
     }
     validate_bond_type_codes(&definitions);
 
+    let all_known_capabilities = REQUIRED_MACROS
+        .iter()
+        .copied()
+        .filter(|name| name.starts_with("FERRUM_CHEM_CAPABILITY_"))
+        .try_fold(0_u64, |mask, name| {
+            let capability = definitions[name][0];
+            assert!(
+                capability.is_power_of_two(),
+                "public adapter header capability {name} must be one bit"
+            );
+            assert_eq!(
+                mask & capability,
+                0,
+                "public adapter header capability {name} overlaps another capability"
+            );
+            Ok::<u64, ()>(mask | capability)
+        })
+        .expect("adapter capability inventory is valid");
+    generated.push_str(&format!(
+        "pub(crate) const FERRUM_CHEM_ALL_KNOWN_CAPABILITIES: u64 = {all_known_capabilities};\n"
+    ));
+
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo provides OUT_DIR"))
         .join("adapter_wire_constants.rs");
     fs::write(output, generated).expect("write generated adapter wire constants");
 }
 
-fn validate_bond_type_codes(definitions: &BTreeMap<String, Vec<u32>>) {
-    let mut codes = BTreeMap::<u32, &str>::new();
+fn validate_bond_type_codes(definitions: &BTreeMap<String, Vec<u64>>) {
+    let mut codes = BTreeMap::<u64, &str>::new();
     for name in REQUIRED_MACROS
         .iter()
         .copied()
@@ -211,6 +263,10 @@ fn uses_usize(name: &str) -> bool {
         || name == "FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES"
 }
 
+fn uses_u64(name: &str) -> bool {
+    name == "FERRUM_CHEM_CALL_ALLOCATION_FAILURE" || name.starts_with("FERRUM_CHEM_CAPABILITY_")
+}
+
 fn maximum_usize(pointer_width: u32) -> u64 {
     match pointer_width {
         16 => u64::from(u16::MAX),
@@ -220,8 +276,8 @@ fn maximum_usize(pointer_width: u32) -> u64 {
     }
 }
 
-fn parse_definitions(contents: &str) -> BTreeMap<String, Vec<u32>> {
-    let mut definitions = BTreeMap::<String, Vec<u32>>::new();
+fn parse_definitions(contents: &str) -> BTreeMap<String, Vec<u64>> {
+    let mut definitions = BTreeMap::<String, Vec<u64>>::new();
     for line in contents.lines() {
         let mut fields = line.split_ascii_whitespace();
         let (Some("#define"), Some(name), Some(value), None) =
@@ -236,13 +292,13 @@ fn parse_definitions(contents: &str) -> BTreeMap<String, Vec<u32>> {
     definitions
 }
 
-fn parse_unsigned_u_literal(value: &str) -> Option<u32> {
-    let digits = value.strip_suffix('U')?;
+fn parse_unsigned_u_literal(value: &str) -> Option<u64> {
+    let digits = value.trim_end_matches(['U', 'L']);
     if let Some(hex) = digits
         .strip_prefix("0x")
         .or_else(|| digits.strip_prefix("0X"))
     {
-        u32::from_str_radix(hex, 16).ok()
+        u64::from_str_radix(hex, 16).ok()
     } else if !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()) {
         digits.parse().ok()
     } else {

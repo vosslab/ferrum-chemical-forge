@@ -4,6 +4,7 @@ pub(crate) mod convert;
 pub(crate) mod coords;
 mod input;
 pub(crate) mod inspect;
+pub(crate) mod open;
 pub(crate) mod render;
 pub(crate) mod rewrite;
 pub(crate) mod validate;
@@ -56,6 +57,7 @@ fn operation_requires_chemistry(operation: &OperationProtocolOperationV1) -> boo
         operation,
         OperationProtocolOperationV1::ChemistryConvert(_)
             | OperationProtocolOperationV1::GenerateCoordinates(_)
+            | OperationProtocolOperationV1::DocumentMoleculeReport(_)
     )
 }
 
@@ -127,6 +129,14 @@ fn write_stdout(bytes: &[u8], stdout: &mut dyn Write) -> Result<(), VerbCliError
 
 #[derive(Debug, Error)]
 pub enum VerbCliError {
+    #[error("input: could not decode {input} as UTF-8: {source}")]
+    InvalidUtf8 {
+        /// User-facing source label.
+        input: String,
+        /// UTF-8 decoding failure.
+        #[source]
+        source: std::string::FromUtf8Error,
+    },
     /// A named non-CDML source could not be read safely.
     #[error("input: could not read {input}: {source}")]
     Input {
@@ -145,14 +155,6 @@ pub enum VerbCliError {
         limit: usize,
     },
     /// A named source was not valid UTF-8.
-    #[error("input: could not decode {input} as UTF-8: {source}")]
-    InvalidUtf8 {
-        /// User-facing source label.
-        input: String,
-        /// UTF-8 decoding failure.
-        #[source]
-        source: std::string::FromUtf8Error,
-    },
     /// The document could not be admitted through the local V1 profile.
     #[error("input: {0}")]
     Document(#[from] DocumentIngressErrorV1),
@@ -173,6 +175,9 @@ pub enum VerbCliError {
         "usage: choose --from one of the documented closed formats when input has no known extension"
     )]
     MissingInterchangeInputFormat,
+    /// The fixed CML-open operation completed with a typed refusal.
+    #[error("input: CML open refused: {0:?}")]
+    CmlOpenRefusal(crate::CmlImportRefusalV1),
     /// The protocol returned a different successful operation than the verb requested.
     #[error("processing: protocol returned an unexpected operation result")]
     UnexpectedOutcome,
@@ -207,6 +212,7 @@ impl VerbCliError {
             | Self::ProtocolInput(_)
             | Self::MissingArtifactFormat
             | Self::MissingInterchangeInputFormat
+            | Self::CmlOpenRefusal(_)
             | Self::UnexpectedOutcome
             | Self::ArtifactEncoding(_)
             | Self::Write { .. }

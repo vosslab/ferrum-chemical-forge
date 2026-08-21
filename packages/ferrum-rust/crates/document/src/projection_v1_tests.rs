@@ -465,3 +465,28 @@ fn session_observation_has_single_state_provenance_and_rejects_stale_reads() {
     assert!(after.snapshot().is_dirty());
     assert_ne!(before.snapshot().digest(), after.snapshot().digest());
 }
+#[test]
+fn session_observation_keeps_authored_source_identity_for_direct_molecule_join() {
+    let observation = crate::DocumentSession::load(concat!(
+        "<cdml><molecule id=\"authored-molecule\">",
+        "<atom id=\"atom-second\" name=\"O\"><point x=\"2\" y=\"0\"/></atom>",
+        "<atom id=\"atom-first\" name=\"C\"><point x=\"1\" y=\"0\"/></atom>",
+        "<bond id=\"bond\" start=\"atom-second\" end=\"atom-first\" type=\"n1\"/>",
+        "</molecule></cdml>",
+    ))
+    .unwrap()
+    .observe(0)
+    .unwrap();
+
+    let root = &observation.projection().molecules()[0];
+    assert_ne!(root.id().unwrap().as_str(), "authored-molecule");
+    assert_eq!(root.source_id(), Some("authored-molecule"));
+
+    let observed = &observation.direct_molecule_graphs_v1()[0];
+    assert_eq!(observed.source_id(), Some("authored-molecule"));
+    let graph = observed.graph().unwrap();
+    let anchors = observed.graph_position_to_record_id();
+    assert_eq!(graph.atoms().len(), 2);
+    assert_eq!(anchors.len(), graph.atoms().len());
+    assert_ne!(anchors[0], anchors[1]);
+}

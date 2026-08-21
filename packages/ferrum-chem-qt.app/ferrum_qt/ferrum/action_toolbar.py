@@ -10,6 +10,12 @@ ActionIconGroup = tuple[
 	tuple[PySide6.QtGui.QAction, PySide6.QtWidgets.QStyle.StandardPixmap], ...
 ]
 
+# The ordinary window uses a compact command ribbon. These are deliberate
+# visual metrics, shared by both native toolbars rather than style fallbacks.
+COMPACT_ICON_SIZE = 20
+COMPACT_TOOLBAR_SPACING = 2
+COMPACT_TOOLBUTTON_PADDING = 2
+
 
 #============================================
 class FerrumNativeActionToolbar(PySide6.QtWidgets.QToolBar):
@@ -29,9 +35,13 @@ class FerrumNativeActionToolbar(PySide6.QtWidgets.QToolBar):
 			PySide6.QtWidgets.QSizePolicy.Policy.Ignored,
 			PySide6.QtWidgets.QSizePolicy.Policy.Fixed,
 		)
-		self.setIconSize(PySide6.QtCore.QSize(24, 24))
+		self.setIconSize(PySide6.QtCore.QSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE))
 		self.setToolButtonStyle(
-			PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon,
+			PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly,
+		)
+		self.setStyleSheet(
+			"QToolBar { spacing: " + str(COMPACT_TOOLBAR_SPACING) + "px; }"
+			"QToolButton { padding: " + str(COMPACT_TOOLBUTTON_PADDING) + "px; }",
 		)
 		for group_index, group in enumerate(groups):
 			if group_index:

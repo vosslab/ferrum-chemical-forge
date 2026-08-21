@@ -24,7 +24,7 @@ pub enum ChemistryRuntimeErrorV1 {
 ///
 /// The generic callback prevents protocol code from retaining a foreign engine
 /// handle. Implementations must finish the callback before returning.
-pub trait ChemistryRuntimeV1 {
+pub(crate) trait ChemistryRuntimeV1 {
     /// Load or borrow an engine for exactly one owned protocol operation.
     fn with_engine<T>(
         &self,
@@ -34,7 +34,7 @@ pub trait ChemistryRuntimeV1 {
 
 /// Runtime used by the path-free convenience executor.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct NoChemistryRuntimeV1;
+pub(crate) struct NoChemistryRuntimeV1;
 
 impl ChemistryRuntimeV1 for NoChemistryRuntimeV1 {
     fn with_engine<T>(
@@ -50,14 +50,14 @@ impl ChemistryRuntimeV1 for NoChemistryRuntimeV1 {
 /// This Rust-only constructor is deliberately not surfaced in protocol JSON,
 /// the public Python API, or a CLI adapter-path option.
 #[derive(Clone, Debug)]
-pub struct TrustedLibraryChemistryRuntimeV1 {
+pub(crate) struct TrustedLibraryChemistryRuntimeV1 {
     library_path: PathBuf,
 }
 
 impl TrustedLibraryChemistryRuntimeV1 {
     /// Create a capability from a path already validated by a trusted locator.
     #[must_use]
-    pub fn from_trusted_library(library_path: PathBuf) -> Self {
+    pub(crate) fn from_trusted_library(library_path: PathBuf) -> Self {
         Self { library_path }
     }
 }
