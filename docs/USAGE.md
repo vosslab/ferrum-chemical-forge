@@ -23,7 +23,7 @@ build/bin/ferrum engine install \
 build/bin/ferrum engine status
 source source_me.sh && python3 -m pip install --force-reinstall --no-deps \
   /absolute/path/output_native_wheel/current/wheelhouse/ferrum_chem-*.whl \
-  /absolute/path/build/wheelhouse/ferrum_qt-*.whl
+  /absolute/path/output_native_wheel/current/wheelhouse/ferrum_qt-*.whl
 ferrum-qt
 ```
 

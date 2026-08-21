@@ -1,7 +1,85 @@
 # Changelog
 
 ## 2026-08-21
+### Behavior or Interface Changes
+- Made the default developer build publish the native and Qt wheels as one
+  immutable `output_native_wheel/current` pair. The shared receipt binds exact
+  wheel, native-receipt, engine-bundle, source-closure, and Qt wheel-member hashes,
+  so GUI acceptance cannot combine independently retained build outputs.
+
 ### Fixes and Maintenance
+- Made Draw Bond press-time classification and native-begin failures retire the exact
+  armed intent before unexpected failures propagate unchanged. Only declared,
+  user-correctable native begin categories now use the ordinary refusal UI.
+
+- Bound the blank-canvas Draw Bond dual-wheel E2E to the entire supplied Qt package rather than
+  a hand-selected routing list. It now derives every safe regular `ferrum_qt/**/*.py` wheel
+  member and requires the isolated installed package to have the exact same members and bytes
+  before public UI acceptance runs.
+
+- Made unexpected Draw Bond endpoint, native-admission, and preview-overlay failures retire
+  their active gesture before propagating. Typed Rust refusal receipts retain their ordinary
+  user-visible recovery path; internal failures are not rewritten as refusals.
+
+- Made Draw Bond release an explicit Rust-admission route before the generic
+  existing-origin line guard. A blank-canvas NewNew gesture now redeems its final
+  opaque admission exactly once, advances native history, and keeps Draw Bond armed;
+  other line tools retain the shared durable-origin requirement.
+
+- Corrected the blank-canvas Draw Bond E2E diagnostics to read the native tab's
+  public `current_snapshot` property rather than treating it as a callable.
+
+- Corrected the blank-canvas native-wheel E2E provenance gate to consume the exact staged and
+  worktree source-closure receipt schemas. It now verifies non-empty per-file manifests,
+  fingerprint digests, and the selected `current` wheel receipt without inventing redundant
+  count or aggregate-digest fields or re-reading mutable worktree sources after publication.
+
+- Moved final native-wheel source-closure validation and the atomic `current` replacement into
+  one Python-owned publication transaction. The builder now records
+  the exact source files admitted by the staging copy policy, verifies the raw staged copy,
+  retains that input closure in its receipt, and refuses the `current` swap when a live
+  worktree change is detected before final publication. Deterministic helper and wrapper
+  fixtures prove a changed `session/direct_bond.rs` preserves the prior selected publication.
+  The real `publish-publication` self-test path now proves the same refusal after its staged
+  manifest is recorded and before its final live-source comparison; documentation defines
+  this as an observed-boundary integrity check rather than an editor lock.
+
+- Renamed the native-wheel publication self-test helper to a descriptive ordinary module name.
+  The helper remains private to the self-test runner by its documented responsibility rather
+  than resembling an ignored temporary file.
+
+- Replaced fragile source-rewritten wheel-publication interruption fixtures with a real
+  publisher atomic-replacement failure fixture and a wrapper-owned signal-cleanup fixture.
+
+- Proved the canonical v2 Draw Bond commit history contract with a Rust blank-canvas
+  New-New regression: one accepted C-C gesture creates exactly one undo target, while
+  Undo restores blank content and Redo restores the committed molecule.
+
+- Corrected the blank-canvas Draw Bond E2E's endpoint oracle. Its saved-CDML proof
+  remains the public semantic blankness check; the test no longer mistakes the
+  universal paper and grid projection items returned by Qt hit testing for authored
+  molecular content.
+
+- Hardened native-wheel `current` publication replacement with a private mode-0700 source-link stage, exact target validation at the `os.replace` boundary, and a fail-closed pointer state machine. An unexpected source or post-swap `current` state now preserves both the prior known-good payload and validated candidate; the prior payload is retired only after a final exact `current` verification under the cooperating-build lock. Wrapper E2E fixtures cover both races without compiling native sources.
+
+- Restored the native-wheel E2E runner's explicit private `run` helper import after its
+  runner/support split, preserving the isolated installed-wheel child-process boundary.
+
+- Split the native-wheel direct E2E into its public runner and a private sibling
+  support module. The runner retains CLI parsing, one resource lifecycle, and
+  installed-wheel orchestration; the support module owns validators and probes.
+  Isolated installed-wheel child commands and proof behavior remain unchanged,
+  while the shipped typing-metadata continuation now uses tab indentation.
+
+- Modularized the native-wheel builder's source-closure and publication-integrity responsibilities.
+  The stable CLI facade now delegates canonical source manifests, receipt and wheel validation,
+  sealed engine-bundle validation, and packaged native-closure assembly to a focused private module.
+
+- Hardened copied engine-bundle ABI admission. The manifest validator now requires an exact JSON
+  integer for `adapter_abi_version`, rejecting Boolean and floating-point values before comparing
+  the configured ABI; pure builder fixtures cover all four malformed scalar types: Boolean,
+  floating-point, string, and null.
+
 - Validated the copied CLI engine bundle against its canonical digest-bound manifest before the
   native publication atomically selects `current`. The shared pure validator rejects malformed,
   altered, missing, symlinked, and extra bundle members; the wrapper fixture proves a copied
@@ -38,6 +116,14 @@
 
 
 ### Developer Tests and Notes
+
+- Enriched only the existing blank-canvas Draw Bond E2E history failure with
+  non-mutating Rust-owned availability, snapshot, and QAction facts, so a failed
+  installed-wheel acceptance run distinguishes native history publication from Qt action state.
+
+- Extended the deterministic native-wheel builder self-test through the stable facade. It now
+  exercises wheel-closure auditing, sealed engine-bundle construction and validation, destination
+  refusal, and the single JSON artifact-emitter protocol with local fake payloads only.
 
 - Extended deterministic history availability coverage across Rust, PyO3, and Qt. The tests now
   prove branch discard, active-tab-only action state, and temporary pending or busy action gates
@@ -78,6 +164,11 @@
   errors before the fallible Python-object conversion, preserving its typed public exception.
 - Corrected the local interchange PyO3 text-reader refusal conversion so an issued descriptor's typed, redacted source refusal becomes one Python error instead of a nested `PyResult` mapping. The existing binding coverage now exercises a missing SDF through the issued opaque route handle.
 ## 2026-08-21
+### Fixes and Maintenance
+- Split native-wheel builder publication, source-closure, and tree-digest self-test fixtures into
+  a private helper module. The wheel-closure fixture now delegates ZIP extraction through the
+  builder's existing validated member-extraction contract instead of using `extractall`.
+
 ### Additions and New Features
 - Added Rust-owned v2 Draw Bond admission for existing and blank canvas endpoints, including atomic detached two-carbon molecule creation for blank-to-blank gestures.
 - Routed the Qt Draw Bond pointer flow through the shared endpoint classifier at both press and release, preserving Rust-owned geometry, opaque admissions, and durable bond selection.
@@ -390,4 +481,13 @@
 - Added closed stateless `reaction.list.v1`, `reaction.observe.v1`, and `reaction.select.v1` protocol and CLI routes. They return only frozen durable facts and re-establish the opaque selection inside each fenced request rather than serializing a capability between processes.
 ## 2026-08-21
 ### Fixes and Maintenance
+- Extended the isolated blank-canvas Direct Bond wheel proof to byte-verify
+  the installed preview and line-tool interaction modules, so its active
+  authoring route is proven to originate from the supplied Qt wheel.
+- Hardened native wheel publication against a post-rename pointer race.  If
+  `output_native_wheel/current` no longer selects the just-published candidate,
+  `build.sh` now fails without overwriting the observed pointer; it preserves
+  the prior and candidate payloads for inspection.  The wrapper E2E injects an
+  external replacement inside the Python helper's post-replace verification
+  window and proves all known payloads remain intact.
 - Restored the direct-bond PyO3 binding facade's private sibling support-module registration after its modular split, so the feature build resolves the extracted implementation from the shared `python_binding` parent rather than a nonexistent nested path.

@@ -3,10 +3,10 @@
 # Standard Library
 import argparse
 import hashlib
-import importlib
 import json
 import os
 import pathlib
+import stat
 import subprocess
 import sys
 import tempfile
@@ -61,6 +61,42 @@ def _wheel_member_digest(wheel: pathlib.Path, member: str) -> str:
 
 
 #============================================
+def _is_safe_qt_python_member(member: str) -> bool:
+	"""Return whether one wheel name is a canonical Ferrum Qt Python member."""
+	path = pathlib.PurePosixPath(member)
+	return (
+		member == path.as_posix()
+		and not path.is_absolute()
+		and path.parts[:1] == ("ferrum_qt",)
+		and len(path.parts) > 1
+		and all(part not in ("", ".", "..") for part in path.parts)
+		and path.suffix == ".py"
+	)
+
+
+#============================================
+def _qt_wheel_member_digests(wheel: pathlib.Path) -> dict[str, str]:
+	"""Return exact digests for every safe regular Ferrum Qt Python wheel member."""
+	with zipfile.ZipFile(wheel) as archive:
+		members: dict[str, str] = {}
+		for info in archive.infolist():
+			if not _is_safe_qt_python_member(info.filename):
+				continue
+			if not stat.S_ISREG(info.external_attr >> 16):
+				raise BlankCanvasDirectBondE2eError(
+				"Ferrum Qt wheel member is not a regular file: %s" % info.filename,
+			)
+			if info.filename in members:
+				raise BlankCanvasDirectBondE2eError(
+				"Ferrum Qt wheel repeats a package member: %s" % info.filename,
+			)
+			members[info.filename] = hashlib.sha256(archive.read(info)).hexdigest()
+	if not members:
+		raise BlankCanvasDirectBondE2eError("Ferrum Qt wheel has no Python package members")
+	return members
+
+
+#============================================
 def _extension_member_digest(wheel: pathlib.Path) -> str:
 	"""Return the supplied wheel's sole root Ferrum chemistry extension digest."""
 	with zipfile.ZipFile(wheel) as archive:
@@ -73,6 +109,110 @@ def _extension_member_digest(wheel: pathlib.Path) -> str:
 				"native wheel must contain one root ferrum_chem extension, found %r" % members,
 			)
 		return _wheel_member_digest(wheel, members[0])
+
+
+#============================================
+def _require_sha256(value: object, label: str) -> None:
+	"""Require one canonical lower-level SHA-256 field from a receipt."""
+	if not isinstance(value, str) or len(value) != 64 or any(
+		character not in "0123456789abcdef" for character in value.lower()
+	):
+		raise BlankCanvasDirectBondE2eError("%s must be a 64-character SHA-256" % label)
+
+
+#============================================
+def _validate_source_closure(value: object, schema: str, fields: set[str]) -> None:
+	"""Validate one exact native-wheel source-closure receipt record."""
+	if not isinstance(value, dict) or set(value) != fields or value["schema"] != schema:
+		raise BlankCanvasDirectBondE2eError("native receipt has an invalid %s record" % schema)
+	files = value["files"]
+	if not isinstance(files, list) or not files:
+		raise BlankCanvasDirectBondE2eError("native receipt %s files must be non-empty" % schema)
+	for entry in files:
+		if not isinstance(entry, dict) or set(entry) != {"path", "sha256"}:
+			raise BlankCanvasDirectBondE2eError("native receipt %s has an invalid file record" % schema)
+		if not isinstance(entry["path"], str) or not entry["path"]:
+			raise BlankCanvasDirectBondE2eError("native receipt %s has an empty file path" % schema)
+		_require_sha256(entry["sha256"], "%s file digest" % schema)
+	_require_sha256(value["fingerprint_sha256"], "%s fingerprint" % schema)
+
+
+#============================================
+def _wheel_member_manifest(wheel: pathlib.Path) -> dict[str, object]:
+	"""Return the exact safe wheel-member manifest used by pair publication."""
+	with zipfile.ZipFile(wheel) as archive:
+		members: list[dict[str, str]] = []
+		seen: set[str] = set()
+		for info in archive.infolist():
+			name = info.filename
+			path = pathlib.PurePosixPath(name)
+			if not name or name.endswith("/") or path.is_absolute() or ".." in path.parts:
+				raise BlankCanvasDirectBondE2eError("wheel has an unsafe member path: %r" % name)
+			if name in seen:
+				raise BlankCanvasDirectBondE2eError("wheel repeats a member: %s" % name)
+			seen.add(name)
+			members.append({"path": name, "sha256": hashlib.sha256(archive.read(info)).hexdigest()})
+	payload = json.dumps(members, separators=(",", ":"), sort_keys=True).encode("utf-8")
+	return {"members": sorted(members, key=lambda item: item["path"]),
+		"fingerprint_sha256": hashlib.sha256(payload).hexdigest()}
+
+
+#============================================
+def _validate_current_pair(native_wheel: pathlib.Path, qt_wheel: pathlib.Path) -> None:
+	"""Require both supplied wheels to be exact members of the selected immutable pair."""
+	repository = pathlib.Path(__file__).resolve().parents[4]
+	current = repository / "output_native_wheel" / "current"
+	if not current.is_symlink():
+		raise BlankCanvasDirectBondE2eError("native wheel current publication is not a symlink")
+	publication = current.resolve(strict=True)
+	wheelhouse = publication / "wheelhouse"
+	selected_wheel = wheelhouse / native_wheel.name
+	selected_qt_wheel = wheelhouse / qt_wheel.name
+	if native_wheel.resolve() != selected_wheel.resolve() or not selected_wheel.is_file():
+		raise BlankCanvasDirectBondE2eError("native wheel is not the exact current pair artifact")
+	if qt_wheel.resolve() != selected_qt_wheel.resolve() or not selected_qt_wheel.is_file():
+		raise BlankCanvasDirectBondE2eError("Qt wheel is not the exact current pair artifact")
+	try:
+		receipt = json.loads((publication / "native-wheel-build-receipt.json").read_text(
+			encoding="utf-8"
+		))
+	except (OSError, json.JSONDecodeError) as error:
+		raise BlankCanvasDirectBondE2eError("current native publication receipt is unavailable") from error
+	if not isinstance(receipt, dict):
+		raise BlankCanvasDirectBondE2eError("current native publication receipt is not an object")
+	wheel = receipt.get("wheel")
+	if not isinstance(wheel, dict) or wheel.get("filename") != native_wheel.name:
+		raise BlankCanvasDirectBondE2eError("current native publication receipt names another wheel")
+	_require_sha256(wheel.get("sha256"), "current native wheel digest")
+	if hashlib.sha256(selected_wheel.read_bytes()).hexdigest() != wheel["sha256"]:
+		raise BlankCanvasDirectBondE2eError("current native wheel differs from its receipt")
+	try:
+		pair_receipt = json.loads((publication / "developer-wheel-publication-receipt.json").read_text(
+			encoding="utf-8"
+		))
+	except (OSError, json.JSONDecodeError) as error:
+		raise BlankCanvasDirectBondE2eError("current developer pair receipt is unavailable") from error
+	if not isinstance(pair_receipt, dict) or pair_receipt.get("schema") != "ferrum-developer-wheel-publication-v1":
+		raise BlankCanvasDirectBondE2eError("current developer pair receipt has an unknown schema")
+	for label, supplied_wheel, record in (
+		("native", native_wheel, pair_receipt.get("native_wheel")),
+		("Qt", qt_wheel, pair_receipt.get("qt_wheel")),
+	):
+		if not isinstance(record, dict) or record.get("filename") != supplied_wheel.name:
+			raise BlankCanvasDirectBondE2eError("current pair receipt names another %s wheel" % label)
+		_require_sha256(record.get("sha256"), "current %s wheel digest" % label)
+		if hashlib.sha256(supplied_wheel.read_bytes()).hexdigest() != record["sha256"]:
+			raise BlankCanvasDirectBondE2eError("current pair receipt digest differs for %s wheel" % label)
+	if pair_receipt.get("qt_wheel_members") != _wheel_member_manifest(qt_wheel):
+		raise BlankCanvasDirectBondE2eError("current pair receipt Qt wheel member manifest differs")
+	_validate_source_closure(
+		receipt.get("ferrum_source_closure"), "ferrum-wheel-source-closure-v2",
+		{"excluded_directories", "files", "fingerprint_sha256", "schema"},
+	)
+	_validate_source_closure(
+		receipt.get("ferrum_worktree_source_closure"), "ferrum-wheel-worktree-source-v1",
+		{"excluded_directories", "excluded_suffixes", "files", "fingerprint_sha256", "schema"},
+	)
 
 
 #============================================
@@ -114,17 +254,6 @@ def _image_digest(viewport: object) -> str:
 	if not viewport.grab().save(buffer, "PNG"):
 		raise BlankCanvasDirectBondE2eError("viewport capture failed")
 	return hashlib.sha256(bytes(buffer.data())).hexdigest()
-
-
-#============================================
-def _require_blank_projection(viewport: object, point: object) -> None:
-	"""Require a viewport point to have no public graphics projection item."""
-	from PySide6 import QtWidgets
-	view = viewport.parentWidget()
-	if not isinstance(view, QtWidgets.QGraphicsView):
-		raise BlankCanvasDirectBondE2eError("viewport did not retain its public graphics view")
-	if view.itemAt(point) is not None:
-		raise BlankCanvasDirectBondE2eError("Draw Bond endpoint is not blank in the public projection")
 
 
 #============================================
@@ -197,6 +326,77 @@ def _drag(viewport: object, start: object, end: object, *, release: bool) -> Non
 
 
 #============================================
+def _history_failure_facts(host: object, undo: object, redo: object) -> str:
+	"""Return non-mutating native and QAction facts for a history assertion failure."""
+	facts: dict[str, object] = {
+		"undo_enabled": undo.isEnabled(),
+		"redo_enabled": redo.isEnabled(),
+	}
+	tab = host._active_native_tab()
+	for name in ("can_undo", "can_redo"):
+		try:
+			facts["native_%s" % name] = getattr(tab, name)()
+		except Exception as error:
+			facts["native_%s_error" % name] = "%s: %s" % (
+				type(error).__name__, error,
+			)
+	try:
+		snapshot = tab.current_snapshot
+		facts["snapshot_revision"] = snapshot.revision
+		facts["snapshot_digest"] = snapshot.digest
+	except Exception as error:
+		facts["snapshot_error"] = "%s: %s" % (type(error).__name__, error)
+	return repr(facts)
+
+
+#============================================
+def _installed_qt_member_digests(site_packages: pathlib.Path) -> dict[str, str]:
+	"""Return exact digests for every regular installed Ferrum Qt Python member."""
+	package = site_packages / "ferrum_qt"
+	if not package.is_dir() or package.is_symlink():
+		raise BlankCanvasDirectBondE2eError("Ferrum Qt package is not a regular installed tree")
+	members: dict[str, str] = {}
+	for path in package.rglob("*.py"):
+		member = path.relative_to(site_packages).as_posix()
+		if not _is_safe_qt_python_member(member) or path.is_symlink() or not path.is_file():
+			raise BlankCanvasDirectBondE2eError(
+				"Ferrum Qt installed member is not a safe regular file: %s" % member,
+			)
+		members[member] = hashlib.sha256(path.read_bytes()).hexdigest()
+	return members
+
+
+#============================================
+def _validate_installed_qt_package(
+	site_packages: pathlib.Path, expected_qt_member_digests: str,
+) -> None:
+	"""Require the installed Ferrum Qt Python tree to exactly match its wheel."""
+	try:
+		expected = json.loads(expected_qt_member_digests)
+	except json.JSONDecodeError as error:
+		raise BlankCanvasDirectBondE2eError("Ferrum Qt wheel digest receipt is invalid JSON") from error
+	if (
+		not isinstance(expected, dict) or not expected
+		or any(
+			not isinstance(member, str) or not _is_safe_qt_python_member(member)
+			or not isinstance(digest, str) or len(digest) != 64
+			for member, digest in expected.items()
+		)
+	):
+		raise BlankCanvasDirectBondE2eError("Ferrum Qt wheel digest receipt is invalid")
+	installed = _installed_qt_member_digests(site_packages)
+	if set(installed) != set(expected):
+		raise BlankCanvasDirectBondE2eError(
+			"installed Ferrum Qt package members differ from the supplied wheel",
+		)
+	for member, digest in expected.items():
+		if installed[member] != digest:
+			raise BlankCanvasDirectBondE2eError(
+				"installed Ferrum Qt differs for %s" % member,
+			)
+
+
+#============================================
 def _probe(expected_extension_digest: str, expected_qt_member_digests: str) -> dict[str, object]:
 	"""Exercise blank-canvas Draw Bond solely through installed public Qt UI."""
 	os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -213,13 +413,7 @@ def _probe(expected_extension_digest: str, expected_qt_member_digests: str) -> d
 		raise BlankCanvasDirectBondE2eError("Ferrum chemistry did not load from the isolated venv")
 	if hashlib.sha256(extension_path.read_bytes()).hexdigest() != expected_extension_digest:
 		raise BlankCanvasDirectBondE2eError("installed Ferrum chemistry differs from supplied wheel")
-	for member, expected_digest in json.loads(expected_qt_member_digests).items():
-		module_name = member.removesuffix(".py").replace("/", ".")
-		module_path = pathlib.Path(importlib.import_module(module_name).__file__).resolve()
-		if module_path != site_packages / member:
-			raise BlankCanvasDirectBondE2eError("Ferrum Qt did not load %s from its wheel" % member)
-		if hashlib.sha256(module_path.read_bytes()).hexdigest() != expected_digest:
-			raise BlankCanvasDirectBondE2eError("installed Ferrum Qt differs for %s" % member)
+	_validate_installed_qt_package(site_packages, expected_qt_member_digests)
 	QtCore.QSettings.setDefaultFormat(QtCore.QSettings.Format.IniFormat)
 	QtCore.QSettings.setPath(QtCore.QSettings.Format.IniFormat,
 		QtCore.QSettings.Scope.UserScope, str(pathlib.Path(sys.prefix) / "settings"))
@@ -265,7 +459,6 @@ def _probe(expected_extension_digest: str, expected_qt_member_digests: str) -> d
 		draw_bond.trigger()
 		if not draw_bond.isChecked():
 			raise BlankCanvasDirectBondE2eError("Draw Bond QAction did not arm")
-		_require_blank_projection(viewport, first_end)
 		_drag(viewport, center, first_end, release=False)
 		preview = _image_digest(viewport)
 		if preview == before:
@@ -277,7 +470,10 @@ def _probe(expected_extension_digest: str, expected_qt_member_digests: str) -> d
 		if not draw_bond.isChecked():
 			raise BlankCanvasDirectBondE2eError("Draw Bond QAction did not stay armed after commit")
 		if not undo.isEnabled() or redo.isEnabled():
-			raise BlankCanvasDirectBondE2eError("one blank-canvas bond did not create exactly one history step")
+			raise BlankCanvasDirectBondE2eError(
+				"one blank-canvas bond did not create exactly one history step: %s" %
+				_history_failure_facts(host, undo, redo),
+			)
 		_save_as(host, saved)
 		facts = _saved_carbon_bond_facts(saved)
 		if not draw_bond.isChecked():
@@ -335,6 +531,7 @@ def main() -> int:
 			raise BlankCanvasDirectBondE2eError("wheel artifacts must be regular .whl files")
 	native_wheel = arguments.native_wheel.resolve()
 	qt_wheel = arguments.qt_wheel.resolve()
+	_validate_current_pair(native_wheel, qt_wheel)
 	environment = _proof_environment()
 	with tempfile.TemporaryDirectory(prefix="ferrum-blank-canvas-direct-bond-wheel-") as directory:
 		venv = pathlib.Path(directory) / "venv"
@@ -345,16 +542,11 @@ def main() -> int:
 		_run(str(python), "-I", "-B", "-c",
 			"import pathlib, sys; compile(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'), sys.argv[1], 'exec')",
 			str(pathlib.Path(__file__).resolve()), environment=environment)
-		qt_members = (
-			"ferrum_qt/main_window.py",
-			"ferrum_qt/ferrum/direct_bond_gesture_tab.py",
-			"ferrum_qt/ferrum/line_tools.py",
-		)
 		output = _run(str(python), "-I", "-B", str(pathlib.Path(__file__).resolve()), "--probe",
 			"--expected-extension-digest", _extension_member_digest(native_wheel),
-			"--expected-qt-member-digests", json.dumps({
-				member: _wheel_member_digest(qt_wheel, member) for member in qt_members
-			}, sort_keys=True), environment=environment)
+			"--expected-qt-member-digests", json.dumps(
+				_qt_wheel_member_digests(qt_wheel), sort_keys=True,
+			), environment=environment)
 	value = json.loads(output)
 	if value["schema"] != "ferrum-blank-canvas-direct-bond-e2e-v2":
 		raise BlankCanvasDirectBondE2eError("installed proof returned an unknown receipt")

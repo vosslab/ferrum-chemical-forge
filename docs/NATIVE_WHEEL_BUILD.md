@@ -54,16 +54,20 @@ is one immutable payload selected through this stable path:
 output_native_wheel/current/
 ```
 
-`current` is an atomically replaced symbolic link, not a build worktree. It always
-selects either the complete previous publication or the complete new publication. The
-selected payload contains:
+`current` is an atomically replaced symbolic link, not a build worktree. Its sibling
+directory entry is replaced with Python `os.replace()`, which does not dereference an
+existing symlink-to-directory on macOS. The wrapper then requires `current` to name the
+newly validated payload exactly; a replacement or verification failure leaves the prior
+publication selected. The selected payload contains:
 
 - `wheelhouse/ferrum_chem-*.whl`
 - `native-wheel-build-receipt.json`
 - `ferrum-engine-bundle/`
 
 The CLI and Qt artifacts are published separately at `build/bin/ferrum` and
-`build/wheelhouse/ferrum_qt-*.whl`. Use the exact paths printed by the successful build;
+`output_native_wheel/current/wheelhouse/ferrum_qt-*.whl`. A successful default build
+publishes both wheels as one immutable pair selected by `current`; use only the exact
+paths and `developer-wheel-publication-receipt.json` below that path.
 do not choose a timestamped wheel from an old output directory.
 
 Before every native build, `build.sh` removes only build-owned obsolete state:
@@ -81,7 +85,8 @@ transforms. It excludes only the builder-owned staged notice bundle and package
 `.dylibs` closure; wheelhouse, Cargo output, and the engine bundle are siblings outside
 that tree. Every other staged regular file is an admitted Ferrum source. The wrapper
 recomputes this exact manifest and checks the copied wheel digest and filename against
-the copied receipt immediately before the atomic `current` pointer replacement. It also
+the copied receipt in the same Python-owned transaction that atomically replaces
+`current`. It also
 parses the copied engine-bundle manifest and requires its exact regular-file member set
 and SHA-256 values.
 
@@ -120,7 +125,7 @@ install the matching bundle for the CLI:
 ```bash
 source source_me.sh && python3 -m pip install --force-reinstall --no-deps \
   /absolute/path/output_native_wheel/current/wheelhouse/ferrum_chem-*.whl \
-  /absolute/path/build/wheelhouse/ferrum_qt-*.whl
+  /absolute/path/output_native_wheel/current/wheelhouse/ferrum_qt-*.whl
 build/bin/ferrum engine install \
   /absolute/path/output_native_wheel/current/ferrum-engine-bundle
 build/bin/ferrum engine status
@@ -138,4 +143,16 @@ builder-failure preservation, copied wheel, receipt, and engine-bundle mutation 
 pointer swap, disk-budget refusal before a builder starts, lock contention and ownership,
 and cleanup across interruption before and after publication. The builder self-test
 also proves that generated staged notices and `.dylibs` do not change the source subset,
-while a staged authored-source mutation fails publication validation.
+while staged or live-worktree authored-source mutation detected before the final
+publication transaction fails validation.
+
+Before the staging rewrites, the builder records the regular worktree files admitted by
+its copy policy and verifies the raw staged copy against that manifest. The receipt
+retains both this worktree-input manifest and the post-rewrite staging manifest. The
+final publication transaction recomputes the live worktree manifest before selecting
+`current`, so an edit detected before that transaction refuses publication and leaves the
+prior `current` wheel selected. The receipt remains the durable authority for the immutable
+staged source snapshot; normal editors do not participate in the build lock. This is an
+integrity comparison at that final observed boundary, not an eternal lock on arbitrary
+worktree editors: a later edit is outside the completed publication transaction and belongs
+to the next build's source snapshot.

@@ -85,7 +85,7 @@ Use the printed paths from that invocation in this order:
 ```bash
 source source_me.sh && python3 -m pip install --force-reinstall --no-deps \
   /absolute/path/output_native_wheel/current/wheelhouse/ferrum_chem-*.whl \
-  /absolute/path/build/wheelhouse/ferrum_qt-*.whl
+  /absolute/path/output_native_wheel/current/wheelhouse/ferrum_qt-*.whl
 build/bin/ferrum engine install \
   /absolute/path/output_native_wheel/current/ferrum-engine-bundle
 build/bin/ferrum engine status

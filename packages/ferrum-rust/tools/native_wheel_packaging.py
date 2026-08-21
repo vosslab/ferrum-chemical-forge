@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import sysconfig
+from collections.abc import Callable
 import tarfile
 import zipfile
 from pathlib import Path
@@ -209,7 +210,10 @@ def stage_native_notice_bundle(
 
 
 #============================================
-def stage_python_project(output_root: Path, package_source: Path) -> Path:
+def stage_python_project(
+		output_root: Path, package_source: Path,
+		verify_copied_source: Callable[[Path], None] | None = None,
+		) -> Path:
 	"""Copy the Rust workspace and configure its generated native-wheel layout."""
 	stage = output_root.resolve() / "maturin-project"
 	if stage.exists():
@@ -219,6 +223,8 @@ def stage_python_project(output_root: Path, package_source: Path) -> Path:
 		stage,
 		ignore=shutil.ignore_patterns(".libs", "target", "__pycache__", "*.pyc"),
 	)
+	if verify_copied_source is not None:
+		verify_copied_source(stage)
 	project = stage / "crates" / "api" / "python"
 	pyproject = project / "pyproject.toml"
 	contents = pyproject.read_text(encoding="utf-8")

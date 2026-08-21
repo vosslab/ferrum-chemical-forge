@@ -285,7 +285,11 @@ class FerrumNativeLineToolPointerMixin:
 			return
 		if intent.tool is _NativeLineTool.DRAW_BOND:
 			import ferrum_qt.ferrum.direct_bond_gesture_tab as direct_bond_gesture_tab
-			endpoint_pick = intent.tab._classify_direct_bond_endpoint_at_viewport_point(point)
+			try:
+				endpoint_pick = intent.tab._classify_direct_bond_endpoint_at_viewport_point(point)
+			except Exception:
+				self._cancel_line_gesture()
+				raise
 			if type(endpoint_pick) is direct_bond_gesture_tab._DirectBondAmbiguous:
 				self.statusBar().showMessage(
 					self.tr("Draw Bond needs one atom clearly or empty canvas."), 5000,
@@ -310,7 +314,11 @@ class FerrumNativeLineToolPointerMixin:
 				)
 			except Exception as exc:
 				self._cancel_line_gesture()
-				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+				if not self._is_direct_bond_begin_refusal(exc):
+					raise
+				self._show_edit_refusal(self._unavailable_edit_refusal(
+					self._direct_bond_refusal_message(exc),
+				))
 				return
 			self.statusBar().showMessage(self.tr(
 				"Drawing a normal {0} bond. Release over an atom or empty space.",
@@ -371,6 +379,26 @@ class FerrumNativeLineToolPointerMixin:
 		self._line_gesture_intent = dataclasses.replace(
 			intent, start_atom_id=atom_id, start_scene=start_scene,
 			press_scene=press_scene, preview=preview,
+		)
+
+	#============================================
+	@staticmethod
+	def _is_direct_bond_begin_refusal(error: Exception) -> bool:
+		"""Accept only native begin failures that the user can correct."""
+		import ferrum_qt.ferrum.engine as engine
+		if type(error) not in (
+			engine.DirectBondGestureError,
+			engine.RevisionConflictError,
+		):
+			return False
+		return getattr(error, "category", None) in (
+			engine.DirectBondGestureCategoryV1.stale_revision,
+			engine.DirectBondGestureCategoryV1.stale_digest,
+			engine.DirectBondGestureCategoryV1.unknown_start_atom,
+			engine.DirectBondGestureCategoryV1.unsupported_presentation,
+			engine.DirectBondGestureCategoryV1.non_finite_point,
+			engine.DirectBondGestureCategoryV1.invalid_snap_policy,
+			engine.DirectBondGestureCategoryV1.session_conflict,
 		)
 
 	#============================================
@@ -474,6 +502,40 @@ class FerrumNativeLineToolPointerMixin:
 		if intent is not None and intent.tool is _NativeLineTool.INSERT_TEXT:
 			self._complete_text_placement_gesture()
 			return
+		# Draw Bond owns opaque Rust endpoint admission, including intentional
+		# blank-canvas starts that have no durable Qt atom identifier.  Complete it
+		# before the generic origin-atom guard, which applies to legacy line tools.
+		if intent is not None and intent.tool is _NativeLineTool.DRAW_BOND:
+			if intent.direct_bond_gesture is None:
+				return
+			self._update_direct_bond_gesture(intent, event.position().toPoint())
+			current = self._line_gesture_intent
+			if (
+				current is None
+				or current.tool is not _NativeLineTool.DRAW_BOND
+				or current.direct_bond_gesture is None
+				or current.direct_bond_admission is None
+			):
+				return
+			admission = current.direct_bond_admission
+			self._reset_line_gesture_start()
+			import ferrum_qt.ferrum.engine as engine
+			try:
+				commit = current.tab.commit_direct_bond_admission(admission)
+			except (engine.DirectBondGestureError, engine.RevisionConflictError) as exc:
+				if not self._is_direct_bond_commit_refusal(exc):
+					raise
+				self._cancel_line_gesture()
+				self._refresh_actions()
+				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+				return
+			result_message = (
+				self.tr("Added one Ferrum carbon and normal bond; drag again or press Esc.")
+				if commit.created_new_atom
+				else self.tr("Added one Ferrum normal bond; drag again or press Esc.")
+			)
+			self._finish_line_gesture(current, result_message)
+			return
 		if (
 			intent is None
 			or (
@@ -547,33 +609,6 @@ class FerrumNativeLineToolPointerMixin:
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
 			self._show_edit_refusal(self._unavailable_edit_refusal("The document changed during the gesture; no operation was accepted."))
-			return
-		if intent.tool is _NativeLineTool.DRAW_BOND and intent.direct_bond_gesture is not None:
-			self._update_direct_bond_gesture(intent, event.position().toPoint())
-			current = self._line_gesture_intent
-			if current is None:
-				return
-			admission = current.direct_bond_admission
-			if admission is None:
-				self._cancel_line_gesture()
-				return
-			self._reset_line_gesture_start()
-			import ferrum_qt.ferrum.engine as engine
-			try:
-				commit = intent.tab.commit_direct_bond_admission(admission)
-			except (engine.DirectBondGestureError, engine.RevisionConflictError) as exc:
-				if not self._is_direct_bond_commit_refusal(exc):
-					raise
-				self._cancel_line_gesture()
-				self._refresh_actions()
-				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
-				return
-			result_message = (
-				self.tr("Added one Ferrum carbon and normal bond; drag again or press Esc.")
-				if commit.created_new_atom
-				else self.tr("Added one Ferrum normal bond; drag again or press Esc.")
-			)
-			self._finish_line_gesture(intent, result_message)
 			return
 		release_point = event.position().toPoint()
 		release_scene = self._line_gesture_preview_target(intent, release_point)

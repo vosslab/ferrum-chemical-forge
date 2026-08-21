@@ -12,11 +12,11 @@ readonly RUST_ROOT="${REPO_ROOT}/packages/ferrum-rust"
 readonly NATIVE_WHEEL_BUILDER="${RUST_ROOT}/tools/build_native_wheel.py"
 readonly QT_PACKAGE_ROOT="${REPO_ROOT}/packages/ferrum-chem-qt.app"
 readonly BUILD_ROOT="${REPO_ROOT}/build"
-readonly WHEELHOUSE="${BUILD_ROOT}/wheelhouse"
 readonly BIN_DIRECTORY="${BUILD_ROOT}/bin"
 readonly NATIVE_OUTPUT_PARENT="${REPO_ROOT}/output_native_wheel"
 readonly NATIVE_CURRENT_OUTPUT="${NATIVE_OUTPUT_PARENT}/current"
 readonly NATIVE_STAGING_PARENT="${BUILD_ROOT}/native-staging"
+readonly QT_STAGING_PARENT="${BUILD_ROOT}/qt-staging"
 readonly NATIVE_MANAGED_ARCHIVE_PARENT="${BUILD_ROOT}/native-source-archives"
 readonly NATIVE_BUILD_LOCK="${BUILD_ROOT}/native-build.lock"
 readonly CHECKOUT_DISK_BUDGET_KIB=$((20 * 1024 * 1024))
@@ -26,6 +26,7 @@ BUILT_NATIVE_WHEEL=""
 BUILT_NATIVE_OUTPUT_ROOT=""
 BUILT_NATIVE_ENGINE_BUNDLE=""
 BUILT_QT_WHEEL=""
+BUILT_QT_SOURCE_CLOSURE=""
 NATIVE_INPUT_FLAG=""
 NATIVE_INPUT_ROOT=""
 SHOW_HELP=false
@@ -33,24 +34,27 @@ BUILD_TARGETS=()
 NATIVE_BUILD_LOCK_HELD=false
 NATIVE_BUILD_LOCK_TOKEN=""
 ACTIVE_NATIVE_STAGING_ROOT=""
+ACTIVE_QT_STAGING_ROOT=""
 ACTIVE_NATIVE_PUBLICATION_ROOT=""
 PREVIOUS_NATIVE_PUBLICATION_ROOT=""
+ACTIVE_NATIVE_CURRENT_POINTER=""
+ACTIVE_NATIVE_CURRENT_POINTER_STAGE=""
 ACTIVE_NATIVE_PUBLICATION_PUBLISHED=false
+NATIVE_PUBLICATION_POINTER_INVARIANT_BROKEN=false
 NATIVE_BUILD_CLEANUP_RUNNING=false
 
 usage() {
 	cat <<'EOF'
-Usage: ./build.sh [all|cli|native|qt]... [native-input option]
+Usage: ./build.sh [all|wheels|cli]... [native-input option]
 
 Build local Ferrum developer artifacts without installing them.
 
 Targets:
-  all     Build the CLI and both Python wheels (default).
+  all     Build the CLI and atomically publish the matching Python wheel pair (default).
+	      `wheels` builds and publishes only that immutable pair.
   cli     Build the release-mode `ferrum` CLI in build/bin/.
-  native  Build the source-verified `ferrum-chem` PyO3 wheel and matching engine bundle.
-  qt      Build the `ferrum-qt` PySide6 wheel without dependencies.
 
-Native input (a profile-scoped managed cache is the default for `all` or `native`):
+Native input (a profile-scoped managed cache is the default for `all` or `wheels`):
   --native-sealed-input-root PATH
           Reuse one builder-validated native input root without downloading sources.
   --native-source-archive-root PATH
@@ -61,8 +65,9 @@ build/native-source-archives/ for the current invocation. It fetches only missin
 pinned archives, then build.sh reclaims that managed cache when the invocation exits.
 Use an explicit source-archive root for reusable offline inputs.
 
-The native builder compiles in a build-owned staging root, then build.sh validates and atomically
-publishes only the wheel, receipt, and matching engine bundle in output_native_wheel/current/.
+The native builder and Qt build both use build-owned staging roots. `all` and `wheels` validate and
+atomically publish their wheel pair, receipts, and matching engine bundle in output_native_wheel/current/.
+`current` is pair-only; use `wheels` when the CLI is not needed.
 Before each native build it removes obsolete generated native output and caches; explicit native
 input roots are never removed.
 For the fuller offline release workflow, use packages/ferrum-rust/tools/build_release_wheelhouse.py.
@@ -101,7 +106,17 @@ newest_wheel() {
 native_target_requested() {
 	local target
 	for target in "${BUILD_TARGETS[@]}"; do
-		if [[ "${target}" == all || "${target}" == native ]]; then
+		if [[ "${target}" == all || "${target}" == wheels ]]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+pair_target_requested() {
+	local target
+	for target in "${BUILD_TARGETS[@]}"; do
+		if [[ "${target}" == all || "${target}" == wheels ]]; then
 			return 0
 		fi
 	done
@@ -111,7 +126,7 @@ native_target_requested() {
 parse_arguments() {
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
-			all|cli|native|qt)
+			all|wheels|cli)
 				BUILD_TARGETS+=("$1")
 				;;
 			--native-sealed-input-root|--native-source-archive-root)
@@ -146,7 +161,7 @@ parse_arguments() {
 		return 0
 	fi
 	if ! native_target_requested && [[ -n "${NATIVE_INPUT_FLAG}" ]]; then
-		printf 'build error: %s is valid only with all or native\n' "${NATIVE_INPUT_FLAG}" >&2
+		printf 'build error: %s is valid only with all or wheels\n' "${NATIVE_INPUT_FLAG}" >&2
 		return 2
 	fi
 }
@@ -235,6 +250,14 @@ prepare_native_staging_parent() {
 			"${NATIVE_STAGING_PARENT}" >&2
 		return 1
 	fi
+}
+
+prepare_qt_staging_parent() {
+	if [[ -L "${QT_STAGING_PARENT}" || ( -e "${QT_STAGING_PARENT}" && ! -d "${QT_STAGING_PARENT}" ) ]]; then
+		printf 'build error: Qt staging parent must be a physical directory: %s\n' "${QT_STAGING_PARENT}" >&2
+		return 1
+	fi
+	mkdir -p "${QT_STAGING_PARENT}"
 }
 
 prepare_native_build_lock_parent() {
@@ -406,18 +429,99 @@ remove_native_publication_root() {
 	rm -rf -- "${publication_root}"
 }
 
+remove_active_native_current_pointer() {
+	local pointer_path="${ACTIVE_NATIVE_CURRENT_POINTER}"
+	local pointer_stage="${ACTIVE_NATIVE_CURRENT_POINTER_STAGE}"
+
+	ACTIVE_NATIVE_CURRENT_POINTER=""
+	ACTIVE_NATIVE_CURRENT_POINTER_STAGE=""
+	[[ -n "${pointer_stage}" ]] || return 0
+	if [[ -L "${pointer_stage}" || ! -d "${pointer_stage}" || \
+		"$(dirname "${pointer_stage}")" != "${NATIVE_OUTPUT_PARENT}" || \
+		"$(basename "${pointer_stage}")" != .native-pointer-stage-* || \
+		"${pointer_path}" != "${pointer_stage}/current" ]]; then
+		printf 'build error: refusing to remove unexpected native current pointer: %s\n' \
+			"${pointer_stage}" >&2
+		return 1
+	fi
+	if [[ -e "${pointer_path}" || -L "${pointer_path}" ]]; then
+		if [[ ! -L "${pointer_path}" ]]; then
+			printf 'build error: refusing to remove non-symbolic native current pointer: %s\n' \
+				"${pointer_path}" >&2
+			return 1
+		fi
+		rm -f -- "${pointer_path}"
+	fi
+	rmdir -- "${pointer_stage}"
+}
+
+native_current_matches_publication_root() {
+	local expected_root="$1"
+	local physical_expected_root
+	local current_root
+
+	[[ -n "${expected_root}" && -d "${expected_root}" && ! -L "${expected_root}" ]] || return 1
+	physical_expected_root="$(cd "${expected_root}" && pwd -P)"
+	current_root="$(native_current_publication_root)" || return 1
+	[[ "${current_root}" == "${physical_expected_root}" ]]
+}
+
+remove_misplaced_current_pointer_artifacts() {
+	local current_root
+	local candidate
+	local target
+
+	current_root="$(native_current_publication_root)" || return 1
+	[[ -n "${current_root}" ]] || return 0
+	for candidate in "${current_root}"/.current-pointer-*; do
+		[[ -e "${candidate}" || -L "${candidate}" ]] || continue
+		if [[ ! -L "${candidate}" ]]; then
+			printf 'build error: native current publication contains an unsafe temporary pointer artifact: %s\n' \
+				"${candidate}" >&2
+			return 1
+		fi
+		target="$(readlink "${candidate}")"
+		if [[ "${target}" != .native-publication-* || "${target}" == */* ]]; then
+			printf 'build error: native current publication contains an unsafe temporary pointer target: %s\n' \
+				"${candidate}" >&2
+			return 1
+		fi
+		rm -f -- "${candidate}"
+	done
+}
+
 cleanup_active_native_build() {
 	local cleanup_failed=false
 
 	[[ "${NATIVE_BUILD_CLEANUP_RUNNING}" == false ]] || return 0
 	NATIVE_BUILD_CLEANUP_RUNNING=true
-	if ! remove_native_publication_root "${ACTIVE_NATIVE_PUBLICATION_ROOT}"; then
+	# The staged source entry is build-owned and never dereferenced during removal.
+	# It is safe to reclaim even after an invariant failure; payload retirement below
+	# remains disabled in that state.
+	if ! remove_active_native_current_pointer; then
 		cleanup_failed=true
 	fi
-	if ! remove_native_publication_root "${PREVIOUS_NATIVE_PUBLICATION_ROOT}"; then
-		cleanup_failed=true
+	if [[ "${NATIVE_PUBLICATION_POINTER_INVARIANT_BROKEN}" == false ]]; then
+		if [[ "${ACTIVE_NATIVE_PUBLICATION_PUBLISHED}" == true ]]; then
+			# This is the final ownership check before retiring the prior payload.  The
+			# repository lock serializes cooperating builds; an unexpected pointer state
+			# fails closed and preserves both known payloads for inspection.
+			if ! native_current_matches_publication_root "${ACTIVE_NATIVE_PUBLICATION_ROOT}"; then
+				printf '%s\n' 'build error: native current publication changed before prior payload retirement' >&2
+				NATIVE_PUBLICATION_POINTER_INVARIANT_BROKEN=true
+				cleanup_failed=true
+			elif ! remove_native_publication_root "${PREVIOUS_NATIVE_PUBLICATION_ROOT}"; then
+				cleanup_failed=true
+			fi
+		elif ! remove_native_publication_root "${ACTIVE_NATIVE_PUBLICATION_ROOT}"; then
+			cleanup_failed=true
+		fi
 	fi
 	if ! remove_native_staging_root "${ACTIVE_NATIVE_STAGING_ROOT}"; then
+		cleanup_failed=true
+	fi
+	if ! remove_build_owned_tree "${ACTIVE_QT_STAGING_ROOT}" \
+		"$(cd "${BUILD_ROOT}" && pwd -P)/qt-staging/$(basename "${ACTIVE_QT_STAGING_ROOT}")"; then
 		cleanup_failed=true
 	fi
 	if ! remove_build_owned_tree "${NATIVE_MANAGED_ARCHIVE_PARENT}" \
@@ -425,9 +529,11 @@ cleanup_active_native_build() {
 		cleanup_failed=true
 	fi
 	ACTIVE_NATIVE_STAGING_ROOT=""
+	ACTIVE_QT_STAGING_ROOT=""
 	ACTIVE_NATIVE_PUBLICATION_ROOT=""
 	PREVIOUS_NATIVE_PUBLICATION_ROOT=""
 	ACTIVE_NATIVE_PUBLICATION_PUBLISHED=false
+	NATIVE_PUBLICATION_POINTER_INVARIANT_BROKEN=false
 	if ! release_native_build_lock; then
 		cleanup_failed=true
 	fi
@@ -578,11 +684,14 @@ remove_native_publication_worktrees() {
 
 prepare_native_build() {
 	prepare_native_output_parent
-	if ! remove_native_publication_worktrees || \
+	if ! remove_misplaced_current_pointer_artifacts || \
+		! remove_native_publication_worktrees || \
 		! remove_build_owned_tree "${NATIVE_MANAGED_ARCHIVE_PARENT}" \
 			"$(cd "${BUILD_ROOT}" && pwd -P)/native-source-archives" || \
 		! remove_build_owned_tree "${NATIVE_STAGING_PARENT}" \
-			"$(cd "${BUILD_ROOT}" && pwd -P)/native-staging"; then
+			"$(cd "${BUILD_ROOT}" && pwd -P)/native-staging" || \
+		! remove_build_owned_tree "${QT_STAGING_PARENT}" \
+			"$(cd "${BUILD_ROOT}" && pwd -P)/qt-staging"; then
 		printf 'build error: native build preflight cleanup did not complete\n' >&2
 		return 1
 	fi
@@ -606,27 +715,6 @@ enforce_checkout_disk_budget() {
 	return 1
 }
 
-install_native_publication() {
-	local candidate_root="$1"
-	local candidate_name
-	local temporary_pointer
-
-	candidate_name="$(basename "${candidate_root}")"
-	if [[ "${candidate_name}" != .native-publication-* ]]; then
-		printf 'build error: native publication candidate has an invalid name: %s\n' \
-			"${candidate_root}" >&2
-		return 1
-	fi
-	PREVIOUS_NATIVE_PUBLICATION_ROOT="$(native_current_publication_root)" || return 1
-	# Rename one prepared symlink over the old pointer. Readers therefore resolve
-	# either the complete old payload or the complete new payload, never a gap.
-	temporary_pointer="$(mktemp "${NATIVE_OUTPUT_PARENT}/.current-pointer-XXXXXXXX")"
-	rm -f -- "${temporary_pointer}"
-	ln -s "${candidate_name}" "${temporary_pointer}"
-	mv -f "${temporary_pointer}" "${NATIVE_CURRENT_OUTPUT}"
-	ACTIVE_NATIVE_PUBLICATION_PUBLISHED=true
-}
-
 publish_native_artifacts() {
 	local staging_root="$1"
 	local wheel="$2"
@@ -648,9 +736,9 @@ publish_native_artifacts() {
 		return 1
 	fi
 	mkdir -p "${publication_root}/wheelhouse"
-	cp "${wheel}" "${publication_wheel}"
-	cp "${receipt}" "${publication_root}/native-wheel-build-receipt.json"
-	cp -R "${engine_bundle}" "${publication_root}/ferrum-engine-bundle"
+	mv "${wheel}" "${publication_wheel}"
+	mv "${receipt}" "${publication_root}/native-wheel-build-receipt.json"
+	mv "${engine_bundle}" "${publication_root}/ferrum-engine-bundle"
 	if [[ ! -f "${publication_wheel}" || \
 		! -f "${publication_root}/ferrum-engine-bundle/ferrum-engine-bundle-v1.json" ]]; then
 		printf 'build error: native publication is incomplete: %s\n' "${publication_root}" >&2
@@ -659,7 +747,7 @@ publish_native_artifacts() {
 	printf '%s' "${publication_wheel}"
 }
 
-validate_native_publication() {
+publish_native_publication() {
 	local staging_root="$1"
 	local publication_wheel="$2"
 	local publication_root="$3"
@@ -667,14 +755,19 @@ validate_native_publication() {
 	local publication_engine_bundle="${publication_root}/ferrum-engine-bundle"
 	local staged_source_root="${staging_root}/maturin-project"
 
-	if ! "${PYTHON_EXECUTABLE}" -B "${NATIVE_WHEEL_BUILDER}" validate-publication \
+	PREVIOUS_NATIVE_PUBLICATION_ROOT="$(native_current_publication_root)" || return 1
+	if ! "${PYTHON_EXECUTABLE}" -B "${NATIVE_WHEEL_BUILDER}" publish-publication \
+		--candidate-root "${publication_root}" \
+		--current-pointer "${NATIVE_CURRENT_OUTPUT}" \
 		--staged-source-root "${staged_source_root}" \
+		--worktree-source-root "${REPO_ROOT}/packages/ferrum-rust" \
 		--wheel "${publication_wheel}" \
 		--receipt "${publication_receipt}" \
 		--engine-bundle "${publication_engine_bundle}" >/dev/null; then
-		printf 'build error: copied native publication failed receipt, wheel, source-closure, or engine-bundle validation\n' >&2
+		printf 'build error: copied native publication failed validation or atomic selection\n' >&2
 		return 1
 	fi
+	ACTIVE_NATIVE_PUBLICATION_PUBLISHED=true
 }
 
 parse_native_artifact_result() {
@@ -720,8 +813,6 @@ build_native() {
 	local builder_result
 	local staging_root=""
 	local staging_engine_bundle=""
-	local publication_root=""
-	local published_wheel=""
 	printf '%s\n' 'Building source-verified Ferrum native Python wheel...'
 	case "${NATIVE_INPUT_FLAG}" in
 		--native-sealed-input-root)
@@ -757,31 +848,79 @@ build_native() {
 	if ! BUILT_NATIVE_WHEEL="$(parse_native_artifact_result "${builder_result}")"; then
 		return 1
 	fi
-	publication_root="$(mktemp -d "${NATIVE_OUTPUT_PARENT}/.native-publication-XXXXXXXX")"
-	ACTIVE_NATIVE_PUBLICATION_ROOT="${publication_root}"
-	if ! published_wheel="$(publish_native_artifacts "${staging_root}" "${BUILT_NATIVE_WHEEL}" \
-		"${staging_engine_bundle}" "${publication_root}")"; then
-		return 1
-	fi
-	if ! validate_native_publication "${staging_root}" "${published_wheel}" "${publication_root}"; then
-		return 1
-	fi
-	if ! install_native_publication "${publication_root}"; then
-		return 1
-	fi
-	BUILT_NATIVE_OUTPUT_ROOT="${NATIVE_CURRENT_OUTPUT}"
-	BUILT_NATIVE_WHEEL="${NATIVE_CURRENT_OUTPUT}/wheelhouse/$(basename "${published_wheel}")"
-	BUILT_NATIVE_ENGINE_BUNDLE="${NATIVE_CURRENT_OUTPUT}/ferrum-engine-bundle"
-	printf 'Built native wheel: %s\n' "${BUILT_NATIVE_WHEEL}"
-	printf 'Built matching engine bundle: %s\n' "${BUILT_NATIVE_ENGINE_BUNDLE}"
+	BUILT_NATIVE_ENGINE_BUNDLE="${staging_engine_bundle}"
 }
 
 build_qt() {
+	local staging_root
+	local source_root
 	printf '%s\n' 'Building Ferrum Qt Python wheel...'
+	prepare_qt_staging_parent
+	staging_root="$(mktemp -d "${QT_STAGING_PARENT}/qt-XXXXXXXX")"
+	ACTIVE_QT_STAGING_ROOT="${staging_root}"
+	source_root="${staging_root}/source"
+	cp -R "${QT_PACKAGE_ROOT}" "${source_root}"
+	BUILT_QT_SOURCE_CLOSURE="${staging_root}/qt-source-closure.json"
+	"${PYTHON_EXECUTABLE}" -B -c '
+import hashlib
+import json
+import pathlib
+import sys
+sys.path.insert(0, sys.argv[1])
+import native_wheel_publication
+root = pathlib.Path(sys.argv[2])
+path = pathlib.Path(sys.argv[3])
+closure = native_wheel_publication.qt_source_closure(
+	root, lambda file_path: hashlib.sha256(file_path.read_bytes()).hexdigest(),
+)
+path.write_text(json.dumps(closure, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+' "${RUST_ROOT}/tools" "${source_root}" "${BUILT_QT_SOURCE_CLOSURE}"
 	"${PYTHON_EXECUTABLE}" -m pip wheel --no-deps --no-build-isolation \
-		--wheel-dir "${WHEELHOUSE}" "${QT_PACKAGE_ROOT}"
-	BUILT_QT_WHEEL="$(newest_wheel ferrum_qt)"
+		--wheel-dir "${staging_root}/wheelhouse" "${source_root}"
+	BUILT_QT_WHEEL="$(find "${staging_root}/wheelhouse" -maxdepth 1 -type f -name 'ferrum_qt-*.whl' -print -quit)"
+	if [[ -z "${BUILT_QT_WHEEL}" ]]; then
+		printf 'build error: Qt staging build produced no Ferrum Qt wheel\n' >&2
+		return 1
+	fi
 	printf 'Built Qt wheel: %s\n' "${BUILT_QT_WHEEL}"
+}
+
+publish_paired_wheels() {
+	local publication_root
+	local native_wheel
+	local qt_wheel
+	local receipt
+	local engine_bundle
+	[[ -n "${BUILT_NATIVE_WHEEL}" && -n "${BUILT_NATIVE_ENGINE_BUNDLE}" && -n "${BUILT_QT_WHEEL}" && -n "${BUILT_QT_SOURCE_CLOSURE}" ]] || {
+		printf '%s\n' 'build error: paired publication requires both staged wheels' >&2
+		return 1
+	}
+	publication_root="$(mktemp -d "${NATIVE_OUTPUT_PARENT}/.native-publication-XXXXXXXX")"
+	ACTIVE_NATIVE_PUBLICATION_ROOT="${publication_root}"
+	native_wheel="$(publish_native_artifacts "${ACTIVE_NATIVE_STAGING_ROOT}" "${BUILT_NATIVE_WHEEL}" \
+		"${BUILT_NATIVE_ENGINE_BUNDLE}" "${publication_root}")" || return 1
+	qt_wheel="${publication_root}/wheelhouse/$(basename "${BUILT_QT_WHEEL}")"
+	mv "${BUILT_QT_WHEEL}" "${qt_wheel}"
+	receipt="${publication_root}/native-wheel-build-receipt.json"
+	engine_bundle="${publication_root}/ferrum-engine-bundle"
+	PREVIOUS_NATIVE_PUBLICATION_ROOT="$(native_current_publication_root)" || return 1
+	if ! "${PYTHON_EXECUTABLE}" -B "${NATIVE_WHEEL_BUILDER}" publish-publication \
+		--candidate-root "${publication_root}" --current-pointer "${NATIVE_CURRENT_OUTPUT}" \
+		--staged-source-root "${ACTIVE_NATIVE_STAGING_ROOT}/maturin-project" \
+		--worktree-source-root "${REPO_ROOT}/packages/ferrum-rust" --wheel "${native_wheel}" \
+		--receipt "${receipt}" --engine-bundle "${engine_bundle}" --qt-wheel "${qt_wheel}" \
+		--qt-source-root "${ACTIVE_QT_STAGING_ROOT}/source" \
+		--qt-source-closure "${BUILT_QT_SOURCE_CLOSURE}" \
+		--pair-receipt "${publication_root}/developer-wheel-publication-receipt.json" >/dev/null; then
+		printf '%s\n' 'build error: paired wheel publication failed validation or atomic selection' >&2
+		return 1
+	fi
+	ACTIVE_NATIVE_PUBLICATION_PUBLISHED=true
+	BUILT_NATIVE_OUTPUT_ROOT="${NATIVE_CURRENT_OUTPUT}"
+	BUILT_NATIVE_WHEEL="${NATIVE_CURRENT_OUTPUT}/wheelhouse/$(basename "${native_wheel}")"
+	BUILT_QT_WHEEL="${NATIVE_CURRENT_OUTPUT}/wheelhouse/$(basename "${qt_wheel}")"
+	BUILT_NATIVE_ENGINE_BUNDLE="${NATIVE_CURRENT_OUTPUT}/ferrum-engine-bundle"
+	printf 'Built paired wheel receipt: %s\n' "${NATIVE_CURRENT_OUTPUT}/developer-wheel-publication-receipt.json"
 }
 
 show_next_steps() {
@@ -832,26 +971,24 @@ main() {
 				require_command cargo
 				require_command maturin
 				"${PYTHON_EXECUTABLE}" -m pip --version >/dev/null
-				mkdir -p "${BIN_DIRECTORY}" "${WHEELHOUSE}"
+				mkdir -p "${BIN_DIRECTORY}"
 				build_cli
 				build_native
 				build_qt
+				publish_paired_wheels
+				;;
+			wheels)
+				require_command cargo
+				require_command maturin
+				"${PYTHON_EXECUTABLE}" -m pip --version >/dev/null
+				build_native
+				build_qt
+				publish_paired_wheels
 				;;
 			cli)
 				require_command cargo
 				mkdir -p "${BIN_DIRECTORY}"
 				build_cli
-				;;
-			native)
-				require_command cargo
-				require_command maturin
-				"${PYTHON_EXECUTABLE}" -m pip --version >/dev/null
-				build_native
-				;;
-			qt)
-				"${PYTHON_EXECUTABLE}" -m pip --version >/dev/null
-				mkdir -p "${WHEELHOUSE}"
-				build_qt
 				;;
 		esac
 	done

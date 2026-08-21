@@ -801,6 +801,55 @@ mod direct_bond_v2_tests {
     }
 
     #[test]
+    fn v2_blank_new_new_commit_has_one_undoable_history_transition() {
+        let mut session = DocumentSession::load(BLANK_SOURCE).expect("blank session loads");
+        let blank_snapshot = session.snapshot().expect("blank snapshot");
+        assert!(!session.can_undo());
+        assert!(!session.can_redo());
+
+        let gesture = session
+            .begin_direct_bond_gesture_v2(
+                fence(&session),
+                point(0.0, 0.0),
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+                "C".to_owned(),
+                DirectBondSnapPolicyV1::free(),
+            )
+            .expect("gesture begins");
+        let admission = session
+            .admit_direct_bond_candidate_v2(&gesture, point(20.0, 0.0))
+            .expect("blank candidate admits");
+        session
+            .commit_direct_bond_admission_v2(&admission)
+            .expect("blank candidate commits");
+        let committed_snapshot = session.snapshot().expect("committed snapshot");
+        assert_ne!(committed_snapshot.cdml(), blank_snapshot.cdml());
+        assert!(session.can_undo());
+        assert!(!session.can_redo());
+
+        session
+            .undo(committed_snapshot.revision())
+            .expect("commit undoes");
+        assert_eq!(
+            session.snapshot().expect("undone snapshot").cdml(),
+            blank_snapshot.cdml()
+        );
+        assert!(!session.can_undo());
+        assert!(session.can_redo());
+
+        let undone_snapshot = session.snapshot().expect("undone snapshot");
+        session
+            .redo(undone_snapshot.revision())
+            .expect("commit redoes");
+        assert_eq!(
+            session.snapshot().expect("redone snapshot").cdml(),
+            committed_snapshot.cdml()
+        );
+        assert!(session.can_undo());
+        assert!(!session.can_redo());
+    }
+
+    #[test]
     fn v2_rejected_blank_candidate_does_not_consume_commit_identity_or_history_state() {
         let mut rejected = DocumentSession::load(BLANK_SOURCE).expect("blank session loads");
         let snapshot = rejected.snapshot().expect("snapshot before refusal");

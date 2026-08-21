@@ -21,6 +21,7 @@ _EDITABLE_CDML = """<cdml xmlns='http://www.freesoftware.fsf.org/bkchem/cdml'>
     <atom id='atom-o' name='O'><point x='70' y='20'/></atom>
   </molecule>
 </cdml>"""
+_EMPTY_CDML = "<cdml/>"
 
 
 #============================================
@@ -81,6 +82,52 @@ def test_normal_pointer_drag_uses_rust_admission_then_commits_one_bond(
 		assert len(tab.current_document_observation().projection.molecules[0].bonds) == 1
 		assert len(commits) == 1
 		assert window._line_gesture_intent.direct_bond_gesture is None
+		assert window._draw_bond_action.isChecked()
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_blank_canvas_direct_bond_redeems_one_new_new_admission(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
+		) -> None:
+	"""A blank NewNew preview becomes one Rust mutation when released."""
+	window = ferrum_qt.main_window.MainWindow(object())
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_EMPTY_CDML, "blank-direct-bond.cdml",
+	)
+	try:
+		monkeypatch.setattr(window, "_show_edit_refusal", lambda *_args: None)
+		window._register_native_tab(tab, activate=True)
+		window.show()
+		qapp.processEvents()
+		start = tab.view.mapFromScene(PySide6.QtCore.QPointF(100.0, 100.0))
+		end = tab.view.mapFromScene(PySide6.QtCore.QPointF(180.0, 100.0))
+		before = tab.current_snapshot.revision
+		commits = []
+		commit = tab.commit_direct_bond_admission
+		monkeypatch.setattr(
+			tab, "commit_direct_bond_admission",
+			lambda admission: commits.append(admission) or commit(admission),
+		)
+		window._draw_bond_action.trigger()
+		PySide6.QtTest.QTest.mousePress(
+			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
+		)
+		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end)
+		qapp.processEvents()
+		assert window._line_gesture_intent.direct_bond_admission is not None
+		PySide6.QtTest.QTest.mouseRelease(
+			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
+		)
+		qapp.processEvents()
+		molecule = tab.current_document_observation().projection.molecules[0]
+		assert len(commits) == 1
+		assert tab.current_snapshot.revision == before + 1
+		assert (len(molecule.atoms), len(molecule.bonds)) == (2, 1)
 		assert window._draw_bond_action.isChecked()
 	finally:
 		window.close()
@@ -546,6 +593,77 @@ def test_unexpected_direct_bond_commit_error_propagates_without_refusal(
 		with pytest.raises(RuntimeError, match="^projection failed$"):
 			window._complete_line_gesture(_ReleaseEvent())
 		assert not refusals
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_unexpected_direct_bond_begin_error_cancels_then_propagates(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
+		) -> None:
+	"""A press-time fault retires the exact armed action before it escapes."""
+	window = ferrum_qt.main_window.MainWindow(object())
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_EDITABLE_CDML, "direct-bond-unexpected-begin.cdml",
+	)
+	try:
+		refusals = []
+		monkeypatch.setattr(
+			window, "_show_edit_refusal",
+			lambda request, _details=None: refusals.append(request),
+		)
+		window._register_native_tab(tab, activate=True)
+		window.show()
+		qapp.processEvents()
+		start = _viewport_point(tab, "atom-c")
+		window._draw_bond_action.trigger()
+		monkeypatch.setattr(
+			tab, "begin_direct_bond_gesture",
+			lambda *_args: (_ for _ in ()).throw(RuntimeError("native begin failed")),
+		)
+		class _PressEvent:
+			def position(self) -> PySide6.QtCore.QPointF:
+				return PySide6.QtCore.QPointF(start)
+		with pytest.raises(RuntimeError, match="^native begin failed$"):
+			window._start_line_gesture(_PressEvent())
+		assert window._line_gesture_intent is None
+		assert not window._draw_bond_action.isChecked()
+		assert not refusals
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_unexpected_direct_bond_preview_error_cancels_then_propagates(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
+		) -> None:
+	"""A failed native preview retires its pointer intent before it escapes."""
+	window = ferrum_qt.main_window.MainWindow(object())
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_EDITABLE_CDML, "direct-bond-unexpected-preview.cdml",
+	)
+	try:
+		window._register_native_tab(tab, activate=True)
+		window.show()
+		qapp.processEvents()
+		start = _viewport_point(tab, "atom-c")
+		end = _viewport_point(tab, "atom-o")
+		window._draw_bond_action.trigger()
+		PySide6.QtTest.QTest.mousePress(
+			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
+		)
+		intent = window._line_gesture_intent
+		assert intent is not None
+		monkeypatch.setattr(
+			tab, "admit_direct_bond_candidate",
+			lambda *_args: (_ for _ in ()).throw(RuntimeError("native preview failed")),
+		)
+		with pytest.raises(RuntimeError, match="^native preview failed$"):
+			window._update_direct_bond_gesture(intent, end)
+		assert window._line_gesture_intent is None
 	finally:
 		window.close()
 		window.deleteLater()

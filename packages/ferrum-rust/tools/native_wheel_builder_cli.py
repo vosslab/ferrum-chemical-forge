@@ -12,6 +12,7 @@ def parser(
 	adapter_handler: Callable[[argparse.Namespace], None],
 	self_test_handler: Callable[[argparse.Namespace], None],
 	publication_validation_handler: Callable[[argparse.Namespace], None],
+	publication_handler: Callable[[argparse.Namespace], None],
 	output_path: Callable[[str], Path],
 	engine_bundle_path: Callable[[str], Path],
 	archive_root_path: Callable[[str], Path],
@@ -61,11 +62,28 @@ def parser(
 	self_test.set_defaults(handler=self_test_handler)
 	publication_validation = subcommands.add_parser(
 		"validate-publication",
-		help="verify a copied wheel and receipt against the staged Ferrum source closure",
+		help="verify copied publication evidence against staged and live Ferrum source closures",
 	)
 	publication_validation.add_argument("--staged-source-root", required=True, type=Path)
+	publication_validation.add_argument("--worktree-source-root", required=True, type=Path)
 	publication_validation.add_argument("--wheel", required=True, type=Path)
 	publication_validation.add_argument("--receipt", required=True, type=Path)
 	publication_validation.add_argument("--engine-bundle", required=True, type=Path)
 	publication_validation.set_defaults(handler=publication_validation_handler)
+	publish_publication = subcommands.add_parser(
+		"publish-publication",
+		help="validate copied evidence and atomically select one native publication",
+	)
+	publish_publication.add_argument("--candidate-root", required=True, type=Path)
+	publish_publication.add_argument("--current-pointer", required=True, type=Path)
+	publish_publication.add_argument("--staged-source-root", required=True, type=Path)
+	publish_publication.add_argument("--worktree-source-root", required=True, type=Path)
+	publish_publication.add_argument("--wheel", required=True, type=Path)
+	publish_publication.add_argument("--receipt", required=True, type=Path)
+	publish_publication.add_argument("--engine-bundle", required=True, type=Path)
+	publish_publication.add_argument("--qt-wheel", type=Path)
+	publish_publication.add_argument("--qt-source-root", type=Path)
+	publish_publication.add_argument("--qt-source-closure", type=Path)
+	publish_publication.add_argument("--pair-receipt", type=Path)
+	publish_publication.set_defaults(handler=publication_handler)
 	return result

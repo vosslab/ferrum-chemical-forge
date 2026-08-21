@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercise root build.sh native routing with controlled commands; never compile native sources.
+# Exercise root build.sh pair publication routing with controlled commands; never compile native sources.
 
 set -euo pipefail
 
@@ -86,6 +86,7 @@ run_build() {
 	FERRUM_TEST_LOG="${TEST_ROOT}/${name}.log" \
 	FERRUM_TEST_MODE="${FERRUM_TEST_MODE:-good}" \
 	FERRUM_TEST_DU_MODE="${FERRUM_TEST_DU_MODE:-normal}" \
+	FERRUM_TEST_INTERRUPT_SIGNAL="${FERRUM_TEST_INTERRUPT_SIGNAL:-}" \
 	FERRUM_TEST_ROOT="${TEST_ROOT}" \
 	FERRUM_REAL_PYTHON="${REAL_PYTHON}" \
 	PATH="${TEST_ROOT}/fake-bin:${PATH}" \
@@ -99,8 +100,10 @@ run_build() {
 }
 
 mkdir -p "${TEST_ROOT}/fake-bin" "${TEST_ROOT}/packages/ferrum-rust/tools" \
+	"${TEST_ROOT}/packages/ferrum-rust/crates/document/src/session" \
 	"${TEST_ROOT}/packages/ferrum-chem-qt.app" \
 	"${TEST_ROOT}/fixture-input"
+printf original >"${TEST_ROOT}/packages/ferrum-rust/crates/document/src/session/direct_bond.rs"
 cp "${SOURCE_ROOT}/build.sh" "${TEST_ROOT}/build.sh"
 chmod +x "${TEST_ROOT}/build.sh"
 cat >"${TEST_ROOT}/source_me.sh" <<'EOF'
@@ -142,6 +145,11 @@ cat >"${TEST_ROOT}/fake-bin/python3" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "$1" == -B && "$2" == -c && "$3" == *native_wheel_publication* ]]; then
+	printf '{}\n' >"$6"
+	exit 0
+fi
+
 if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py && "$3" == build ]]; then
 	shift 2
 	printf 'builder %s\n' "$*" >>"${FERRUM_TEST_LOG}"
@@ -178,7 +186,7 @@ if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py &
 	: >"${engine_bundle}/ferrum-engine-bundle-v1.json"
 	: >"${physical_output_root}/native-wheel-build-receipt.json"
 	case "${FERRUM_TEST_MODE}" in
-		good)
+		good|worktree_changed_at_publication_boundary)
 			wheel="${physical_output_root}/ferrum_chem-test.whl"
 			: >"${wheel}"
 			printf '{"schema":"ferrum-native-wheel-artifact-v1","action":"wheel","artifact":"%s"}\n' "${wheel}"
@@ -199,6 +207,12 @@ if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py &
 		failure)
 			exit 91
 			;;
+		worktree_changed)
+			printf changed >"${FERRUM_TEST_ROOT}/packages/ferrum-rust/crates/document/src/session/direct_bond.rs"
+			wheel="${physical_output_root}/ferrum_chem-test.whl"
+			: >"${wheel}"
+			printf '{"schema":"ferrum-native-wheel-artifact-v1","action":"wheel","artifact":"%s"}\n' "${wheel}"
+			;;
 		replace_lock)
 			rm -rf "${FERRUM_TEST_ROOT}/build/native-build.lock"
 			mkdir "${FERRUM_TEST_ROOT}/build/native-build.lock"
@@ -212,16 +226,35 @@ if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py &
 	exit 0
 fi
 
-if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py && "$3" == validate-publication ]]; then
+if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py && "$3" == publish-publication ]]; then
 	shift 3
 	staged_source_root=""
 	wheel=""
 	receipt=""
 	engine_bundle=""
+	worktree_source_root=""
+	candidate_root=""
+	current_pointer=""
+	qt_wheel=""
+	qt_source_root=""
+	qt_source_closure=""
+	pair_receipt=""
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
+			--candidate-root)
+				candidate_root="$2"
+				shift 2
+				;;
+			--current-pointer)
+				current_pointer="$2"
+				shift 2
+				;;
 			--staged-source-root)
 				staged_source_root="$2"
+				shift 2
+				;;
+			--worktree-source-root)
+				worktree_source_root="$2"
 				shift 2
 				;;
 			--wheel)
@@ -236,12 +269,64 @@ if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py &
 				engine_bundle="$2"
 				shift 2
 				;;
-			esac
+			--qt-wheel)
+				qt_wheel="$2"
+				shift 2
+				;;
+			--qt-source-root)
+				qt_source_root="$2"
+				shift 2
+				;;
+			--qt-source-closure)
+				qt_source_closure="$2"
+				shift 2
+				;;
+			--pair-receipt)
+				pair_receipt="$2"
+				shift 2
+				;;
+			*)
+				printf 'builder fixture error: unsupported publish-publication option: %s\n' "$1" >&2
+				exit 99
+				;;
+		esac
 	done
-	[[ "$(basename "${staged_source_root}")" == maturin-project && -d "${staged_source_root}" && -f "${wheel}" && -f "${receipt}" && -d "${engine_bundle}" ]] || exit 94
+	[[ "$(basename "${staged_source_root}")" == maturin-project && -d "${staged_source_root}" && -f "${wheel}" && -f "${receipt}" && -d "${engine_bundle}" && -d "${candidate_root}" && "$(dirname "${candidate_root}")" == "$(dirname "${current_pointer}")" && -f "${worktree_source_root}/crates/document/src/session/direct_bond.rs" ]] || exit 94
 	[[ ! -s "${wheel}" && ! -s "${receipt}" ]] || exit 95
 	[[ "$(cat "${engine_bundle}/libferrum_chem.dylib")" == adapter ]] || exit 96
-	printf '{"action":"validate-publication","schema":"ferrum-native-wheel-artifact-v1","validated":true}\n'
+	if [[ -n "${qt_wheel}${qt_source_root}${qt_source_closure}${pair_receipt}" ]]; then
+		[[ -n "${qt_wheel}" && -n "${qt_source_root}" && -n "${qt_source_closure}" && -n "${pair_receipt}" && -f "${qt_wheel}" && -d "${qt_source_root}" && -f "${qt_source_closure}" && "$(dirname "${qt_wheel}")" == "${candidate_root}/wheelhouse" && "$(dirname "${pair_receipt}")" == "${candidate_root}" ]] || exit 100
+		[[ "$(cat "${qt_source_closure}")" == '{}' ]] || exit 101
+		: >"${pair_receipt}"
+	fi
+	if [[ "${FERRUM_TEST_MODE}" == worktree_changed_at_publication_boundary ]]; then
+		printf changed >"${worktree_source_root}/crates/document/src/session/direct_bond.rs"
+	fi
+	if [[ "${FERRUM_TEST_MODE}" == worktree_changed || "${FERRUM_TEST_MODE}" == worktree_changed_at_publication_boundary ]]; then
+		[[ "$(cat "${worktree_source_root}/crates/document/src/session/direct_bond.rs")" == original ]] || exit 97
+	fi
+	if [[ -n "${FERRUM_TEST_INTERRUPT_SIGNAL}" ]]; then
+		kill "-${FERRUM_TEST_INTERRUPT_SIGNAL}" "${PPID}"
+		while kill -0 "${PPID}" 2>/dev/null; do
+			sleep 0.01
+		done
+		exit 98
+	fi
+	"${FERRUM_REAL_PYTHON}" -c '
+import os
+import pathlib
+import sys
+
+current = pathlib.Path(sys.argv[1])
+candidate = sys.argv[2]
+temporary = current.parent / ".fixture-current"
+temporary.unlink(missing_ok=True)
+temporary.symlink_to(candidate)
+os.replace(temporary, current)
+if not current.is_symlink() or os.readlink(current) != candidate:
+    raise SystemExit("fixture current pointer did not select the validated candidate")
+' "${current_pointer}" "$(basename "${candidate_root}")" || exit 98
+	printf '{"action":"publish-publication","schema":"ferrum-native-wheel-artifact-v1","published":true}\n'
 	exit 0
 fi
 
@@ -264,7 +349,7 @@ EOF
 chmod +x "${TEST_ROOT}/fake-bin/cargo" "${TEST_ROOT}/fake-bin/maturin" \
 	"${TEST_ROOT}/fake-bin/python3" "${TEST_ROOT}/fake-bin/du"
 
-FERRUM_TEST_DU_MODE=oversize result="$(run_build oversize native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+FERRUM_TEST_DU_MODE=oversize result="$(run_build oversize wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -ne 0 ]] || fail 'over-budget checkout must refuse before native build'
 require_contains "${TEST_ROOT}/oversize.stderr" 'checkout exceeds the 20 GiB build budget'
 require_contains "${TEST_ROOT}/oversize.stderr" 'Remediation:'
@@ -280,7 +365,7 @@ printf 'pid=%s\n' "$$" >"${TEST_ROOT}/build/native-build.lock/owner.live"
 : >"${TEST_ROOT}/build/native-staging/native-held/sentinel"
 : >"${TEST_ROOT}/output_native_wheel/.current-new-held/sentinel"
 : >"${TEST_ROOT}/output_native_wheel/current/sentinel"
-result="$(run_build held_lock native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+result="$(run_build held_lock wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -ne 0 ]] || fail 'held native-build lock must reject a second native build'
 require_contains "${TEST_ROOT}/held_lock.stderr" 'another native build holds the repository lock'
 require_absent "${TEST_ROOT}/held_lock.log" 'builder'
@@ -294,11 +379,11 @@ rm -rf "${TEST_ROOT}/output_native_wheel"
 
 mkdir -p "${TEST_ROOT}/build/native-build.lock"
 printf 'pid=999999\n' >"${TEST_ROOT}/build/native-build.lock/owner.stale"
-result="$(run_build stale_lock native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+result="$(run_build stale_lock wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -eq 0 ]] || fail 'absent lock owner must recover automatically'
 require_contains "${TEST_ROOT}/stale_lock.stderr" 'Recovered stale native build lock'
 
-FERRUM_TEST_MODE=replace_lock result="$(run_build replaced_lock native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+FERRUM_TEST_MODE=replace_lock result="$(run_build replaced_lock wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -ne 0 ]] || fail 'replacement-lock fixture must fail its original build'
 [[ -f "${TEST_ROOT}/build/native-build.lock/owner.replacement" ]] || \
 	fail 'old-owner cleanup must preserve a replacement lock token'
@@ -306,22 +391,22 @@ rm "${TEST_ROOT}/build/native-build.lock/owner.replacement"
 rmdir "${TEST_ROOT}/build/native-build.lock"
 FERRUM_TEST_MODE=good
 
-result="$(run_build default_native native)"
-[[ "${result}" -eq 0 ]] || fail 'native without a selector must delegate managed cache selection to the builder'
-require_native_builder_argv default_native '' ''
+result="$(run_build default_wheels wheels)"
+[[ "${result}" -eq 0 ]] || fail 'wheels without a selector must delegate managed cache selection to the builder'
+require_native_builder_argv default_wheels '' ''
 [[ ! -e "${TEST_ROOT}/build/native-build.lock" ]] || fail 'successful native build must release its lock'
 
-result="$(run_build duplicate native --native-sealed-input-root "${TEST_ROOT}/fixture-input" --native-source-archive-root "${TEST_ROOT}/fixture-input")"
+result="$(run_build duplicate wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input" --native-source-archive-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -eq 2 ]] || fail 'two native selectors must fail'
 require_contains "${TEST_ROOT}/duplicate.stderr" 'specify exactly one native input selector'
 
 result="$(run_build non_native cli --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -eq 2 ]] || fail 'selector without native target must fail'
-require_contains "${TEST_ROOT}/non_native.stderr" 'valid only with all or native'
+require_contains "${TEST_ROOT}/non_native.stderr" 'valid only with all or wheels'
 
 rm -rf "${TEST_ROOT}/output_native_wheel"
 : >"${TEST_ROOT}/output_native_wheel"
-result="$(run_build not_directory native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+result="$(run_build not_directory wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -ne 0 ]] || fail 'non-directory output parent must fail'
 require_contains "${TEST_ROOT}/not_directory.stderr" 'must be a directory'
 require_absent "${TEST_ROOT}/not_directory.log" 'builder'
@@ -329,97 +414,95 @@ rm "${TEST_ROOT}/output_native_wheel"
 
 mkdir -p "${TEST_ROOT}/symlink-target"
 ln -s "${TEST_ROOT}/symlink-target" "${TEST_ROOT}/output_native_wheel"
-result="$(run_build symlink native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+result="$(run_build symlink wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -ne 0 ]] || fail 'symlink output parent must fail'
 require_contains "${TEST_ROOT}/symlink.stderr" 'must not be a symbolic link'
 require_absent "${TEST_ROOT}/symlink.log" 'builder'
 rm "${TEST_ROOT}/output_native_wheel"
 
-FERRUM_TEST_MODE=good result="$(run_build native_good native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+FERRUM_TEST_MODE=good result="$(run_build native_good wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -eq 0 ]] || fail 'one native selector must build'
 require_contains "${TEST_ROOT}/native_good.stdout" "${LOGICAL_TEST_ROOT}/output_native_wheel/current/"
 require_absent "${TEST_ROOT}/native_good.stdout" 'build/wheelhouse/ferrum_chem'
 require_native_builder_argv native_good --sealed-input-root "${TEST_ROOT}/fixture-input"
 [[ -L "${TEST_ROOT}/output_native_wheel/current" ]] || fail 'current must be an atomic publication pointer'
 
-make_interrupted_build() {
-	local name="$1"
-	local interruption="$2"
-	local signal_name="$3"
-	"${REAL_PYTHON}" -c '
-import pathlib
-import sys
+old_publication_name='.native-publication-old'
+old_publication_root="${TEST_ROOT}/output_native_wheel/${old_publication_name}"
+rm -f "${TEST_ROOT}/output_native_wheel/current"
+mkdir -p "${old_publication_root}"
+: >"${old_publication_root}/old-payload-sentinel"
+ln -s '.native-publication-stale' "${old_publication_root}/.current-pointer-leftover"
+ln -s "${old_publication_name}" "${TEST_ROOT}/output_native_wheel/current"
+result="$(run_build replace_existing_current wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+[[ "${result}" -eq 0 ]] || fail 'native build must replace an existing current publication pointer'
+new_publication_name="$(readlink "${TEST_ROOT}/output_native_wheel/current")"
+[[ "${new_publication_name}" != "${old_publication_name}" ]] || \
+	fail 'native build must not report success while current still selects the old payload'
+[[ -f "${TEST_ROOT}/output_native_wheel/current/wheelhouse/ferrum_chem-test.whl" ]] || \
+	fail 'replaced current pointer must select the newly validated wheel payload'
+[[ ! -e "${old_publication_root}" ]] || \
+	fail 'successful publication replacement must retire the prior immutable payload'
+for pointer in "${TEST_ROOT}/output_native_wheel/${new_publication_name}"/.current-pointer-*; do
+	[[ ! -e "${pointer}" && ! -L "${pointer}" ]] || \
+		fail 'native current replacement must not leave a temporary pointer inside a publication payload'
+done
 
-source = pathlib.Path(sys.argv[1])
-destination = pathlib.Path(sys.argv[2])
-interruption = sys.argv[3]
-text = source.read_text(encoding="utf-8")
-needle = "\tmv -f \"${temporary_pointer}\" \"${NATIVE_CURRENT_OUTPUT}\""
-if interruption == "before":
-    replacement = f"\tkill -{sys.argv[4]} $$\n" + needle
-else:
-    replacement = needle + f"\n\tkill -{sys.argv[4]} $$"
-if text.count(needle) != 1:
-    raise SystemExit("interruption fixture could not find the pointer replacement boundary")
-destination.write_text(text.replace(needle, replacement), encoding="utf-8")
-' "${TEST_ROOT}/build.sh" "${TEST_ROOT}/${name}.sh" "${interruption}" "${signal_name}" || fail 'could not create interruption fixture'
-	chmod +x "${TEST_ROOT}/${name}.sh"
-}
+old_publication_name="$(readlink "${TEST_ROOT}/output_native_wheel/current")"
+FERRUM_TEST_MODE=worktree_changed result="$(run_build worktree_changed wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+[[ "${result}" -ne 0 ]] || fail 'worktree source mutation after staging must refuse publication'
+require_contains "${TEST_ROOT}/worktree_changed.stderr" 'paired wheel publication failed'
+[[ "$(readlink "${TEST_ROOT}/output_native_wheel/current")" == "${old_publication_name}" ]] || \
+	fail 'worktree source mutation must preserve the prior current publication'
+printf original >"${TEST_ROOT}/packages/ferrum-rust/crates/document/src/session/direct_bond.rs"
+FERRUM_TEST_MODE=good
 
 make_mutated_publication_build() {
 	local name="$1"
-	local target="$2"
 	"${REAL_PYTHON}" -c '
 import pathlib
 import sys
 
 source = pathlib.Path(sys.argv[1])
 destination = pathlib.Path(sys.argv[2])
-target = sys.argv[3]
 text = source.read_text(encoding="utf-8")
-needle = "\tif ! validate_native_publication \"${staging_root}\" \"${published_wheel}\" \"${publication_root}\"; then"
-if target == "wheel":
-    mutation = "\tprintf changed >\"${published_wheel}\"\n"
-elif target == "receipt":
-    mutation = "\tprintf changed >\"${publication_root}/native-wheel-build-receipt.json\"\n"
-else:
-    mutation = "\tprintf changed >\"${publication_root}/ferrum-engine-bundle/libferrum_chem.dylib\"\n"
+needle = "\tPREVIOUS_NATIVE_PUBLICATION_ROOT=\"$(native_current_publication_root)\" || return 1\n\tif ! \"${PYTHON_EXECUTABLE}\" -B \"${NATIVE_WHEEL_BUILDER}\" publish-publication \\\n\t\t--candidate-root \"${publication_root}\" --current-pointer \"${NATIVE_CURRENT_OUTPUT}\" \\\n"
+mutation = "\tprintf changed >\"${BUILT_QT_SOURCE_CLOSURE}\"\n"
 if text.count(needle) != 1:
-    raise SystemExit("publication mutation fixture could not find validation boundary")
+    raise SystemExit("paired publication mutation fixture could not find validation boundary")
 destination.write_text(text.replace(needle, mutation + needle), encoding="utf-8")
-' "${TEST_ROOT}/build.sh" "${TEST_ROOT}/${name}.sh" "${target}" || fail 'could not create publication mutation fixture'
+' "${TEST_ROOT}/build.sh" "${TEST_ROOT}/${name}.sh" || fail 'could not create paired publication mutation fixture'
 	chmod +x "${TEST_ROOT}/${name}.sh"
 }
 
-assert_mutated_publication_preserves_current() {
-	local target="$1"
-	local name="mutated_${target}"
-	local previous_target
-	previous_target="$(readlink "${TEST_ROOT}/output_native_wheel/current")"
-	make_mutated_publication_build "${name}" "${target}"
-	FERRUM_TEST_BUILD_SCRIPT="${TEST_ROOT}/${name}.sh" \
-		result="$(run_build "${name}" native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
-	[[ "${result}" -ne 0 ]] || fail "mutated copied ${target} must fail publication validation"
-	[[ "$(readlink "${TEST_ROOT}/output_native_wheel/current")" == "${previous_target}" ]] || \
-		fail "mutated copied ${target} must leave the prior current publication selected"
-}
+previous_target="$(readlink "${TEST_ROOT}/output_native_wheel/current")"
+make_mutated_publication_build mutated_qt_source_closure
+FERRUM_TEST_BUILD_SCRIPT="${TEST_ROOT}/mutated_qt_source_closure.sh" \
+	result="$(run_build mutated_qt_source_closure wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+[[ "${result}" -ne 0 ]] || fail 'mutated Qt source closure must fail paired publication validation'
+[[ "$(readlink "${TEST_ROOT}/output_native_wheel/current")" == "${previous_target}" ]] || \
+	fail 'mutated Qt source closure must leave the prior current publication selected'
 
-assert_mutated_publication_preserves_current receipt
-assert_mutated_publication_preserves_current wheel
-assert_mutated_publication_preserves_current engine_bundle
+previous_target="$(readlink "${TEST_ROOT}/output_native_wheel/current")"
+FERRUM_TEST_MODE=worktree_changed_at_publication_boundary \
+	result="$(run_build worktree_changed_at_publication_boundary wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+[[ "${result}" -ne 0 ]] || fail 'source mutation at the former validation-to-publish boundary must refuse publication'
+require_contains "${TEST_ROOT}/worktree_changed_at_publication_boundary.stderr" 'failed validation or atomic selection'
+[[ "$(readlink "${TEST_ROOT}/output_native_wheel/current")" == "${previous_target}" ]] || \
+	fail 'source mutation at the former validation-to-publish boundary must preserve current'
+printf original >"${TEST_ROOT}/packages/ferrum-rust/crates/document/src/session/direct_bond.rs"
+FERRUM_TEST_MODE=good
 
 assert_interrupted_native_cleanup() {
-	local phase="$1"
-	local signal_name="$2"
-	local expected_status="$3"
-	local name="interrupt_${phase}_${signal_name}"
+	local signal_name="$1"
+	local expected_status="$2"
+	local name="interrupt_publisher_${signal_name}"
 	local current_target
 	local candidate
 
-	make_interrupted_build "${name}" "${phase}" "${signal_name}"
-	FERRUM_TEST_BUILD_SCRIPT="${TEST_ROOT}/${name}.sh" \
-		result="$(run_build "${name}" native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
-	[[ "${result}" -eq "${expected_status}" ]] || fail "${signal_name} ${phase} pointer replacement must interrupt the native build"
+	FERRUM_TEST_INTERRUPT_SIGNAL="${signal_name}" \
+		result="$(run_build "${name}" wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+	[[ "${result}" -eq "${expected_status}" ]] || fail "${signal_name} publisher interruption must interrupt the native build"
 	[[ -L "${TEST_ROOT}/output_native_wheel/current" ]] || fail 'interruption must retain the canonical publication pointer'
 	[[ -f "${TEST_ROOT}/output_native_wheel/current/wheelhouse/ferrum_chem-test.whl" ]] || \
 		fail 'interruption must retain a complete publication'
@@ -432,7 +515,14 @@ assert_interrupted_native_cleanup() {
 	for candidate in "${TEST_ROOT}/build/native-staging"/native-*; do
 		[[ ! -e "${candidate}" ]] || fail 'interruption must remove active native staging'
 	done
+	for candidate in "${TEST_ROOT}/build/qt-staging"/qt-*; do
+		[[ ! -e "${candidate}" ]] || fail 'interruption must remove active Qt staging'
+	done
 	[[ ! -e "${TEST_ROOT}/build/native-source-archives" ]] || fail 'interruption must remove the managed archive cache'
+	[[ ! -e "${TEST_ROOT}/build/native-build.lock" ]] || fail 'interruption must release the native build lock'
+	for candidate in "${TEST_ROOT}/output_native_wheel"/.native-pointer-stage-*; do
+		[[ ! -e "${candidate}" ]] || fail 'interruption must remove temporary pointer stages'
+	done
 }
 
 for signal_name in TERM INT HUP; do
@@ -441,10 +531,8 @@ for signal_name in TERM INT HUP; do
 		INT) signal_status=130 ;;
 		HUP) signal_status=129 ;;
 	esac
-	assert_interrupted_native_cleanup before "${signal_name}" "${signal_status}"
-	assert_interrupted_native_cleanup after "${signal_name}" "${signal_status}"
+	assert_interrupted_native_cleanup "${signal_name}" "${signal_status}"
 done
-FERRUM_TEST_BUILD_SCRIPT=""
 
 mkdir -p "${TEST_ROOT}/output_native_wheel/native-stale" \
 	"${TEST_ROOT}/output_native_wheel/.current-stale" \
@@ -454,7 +542,7 @@ mkdir -p "${TEST_ROOT}/output_native_wheel/native-stale" \
 : >"${TEST_ROOT}/output_native_wheel/.current-stale/obsolete"
 : >"${TEST_ROOT}/build/native-staging/native-stale/obsolete"
 : >"${TEST_ROOT}/build/native-source-archives/stale/obsolete"
-result="$(run_build native_cleanup native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+result="$(run_build native_cleanup wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -eq 0 ]] || fail 'successful native build must publish and clean managed native state'
 [[ -f "${TEST_ROOT}/output_native_wheel/current/wheelhouse/ferrum_chem-test.whl" ]] || fail 'successful native build must publish the wheel under current'
 [[ -f "${TEST_ROOT}/output_native_wheel/current/native-wheel-build-receipt.json" ]] || fail 'successful native build must publish the receipt under current'
@@ -469,7 +557,7 @@ require_native_builder_argv native_cleanup --sealed-input-root "${TEST_ROOT}/fix
 
 mkdir -p "${TEST_ROOT}/build/native-staging/native-unrelated"
 : >"${TEST_ROOT}/build/native-staging/native-unrelated/retained"
-FERRUM_TEST_MODE=failure result="$(run_build native_failure native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+FERRUM_TEST_MODE=failure result="$(run_build native_failure wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 [[ "${result}" -ne 0 ]] || fail 'native builder failure must fail the build'
 [[ -f "${TEST_ROOT}/output_native_wheel/current/wheelhouse/ferrum_chem-test.whl" ]] || fail 'failed build must preserve current publication'
 [[ ! -e "${TEST_ROOT}/build/native-staging/native-unrelated" ]] || fail 'preflight must remove stale native staging'
@@ -485,7 +573,7 @@ print(arguments[2].decode("utf-8"))
 FERRUM_TEST_MODE=good
 
 for mode in malformed out_of_root non_wheel; do
-	FERRUM_TEST_MODE="${mode}" result="$(run_build "receipt_${mode}" native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+	FERRUM_TEST_MODE="${mode}" result="$(run_build "receipt_${mode}" wheels --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
 	[[ "${result}" -ne 0 ]] || fail "${mode} receipt must fail"
 	done
 FERRUM_TEST_MODE=good
@@ -496,15 +584,13 @@ require_contains "${TEST_ROOT}/cli.stdout" 'Run the Ferrum CLI:'
 require_absent "${TEST_ROOT}/cli.stdout" 'Run the Ferrum GUI:'
 require_contains "${TEST_ROOT}/cli.log" '--locked --release'
 
-result="$(run_build qt qt)"
-[[ "${result}" -eq 0 ]] || fail 'qt target must build'
-require_absent "${TEST_ROOT}/qt.stdout" 'Run the Ferrum GUI:'
-
-result="$(run_build native_qt native qt --native-source-archive-root "${TEST_ROOT}/fixture-input")"
-[[ "${result}" -eq 0 ]] || fail 'native qt targets must build'
-require_contains "${TEST_ROOT}/native_qt.stdout" 'Run the Ferrum GUI:'
-require_absent "${TEST_ROOT}/native_qt.stdout" 'Run the Ferrum CLI:'
-require_native_builder_argv native_qt --source-archive-root "${TEST_ROOT}/fixture-input"
+result="$(run_build wheels wheels --native-source-archive-root "${TEST_ROOT}/fixture-input")"
+[[ "${result}" -eq 0 ]] || fail 'wheels target must atomically build a paired publication'
+require_contains "${TEST_ROOT}/wheels.stdout" 'Run the Ferrum GUI:'
+require_absent "${TEST_ROOT}/wheels.stdout" 'Run the Ferrum CLI:'
+require_native_builder_argv wheels --source-archive-root "${TEST_ROOT}/fixture-input"
+[[ -f "${TEST_ROOT}/output_native_wheel/current/developer-wheel-publication-receipt.json" ]] || \
+	fail 'paired publication must consume its Qt inputs and write its paired receipt'
 
 result="$(run_build default_all)"
 [[ "${result}" -eq 0 ]] || fail 'bare all target must delegate managed cache selection to the builder'

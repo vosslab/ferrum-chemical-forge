@@ -56,6 +56,7 @@ def validate_engine_bundle(
 		raise NativeEngineBundleError("engine bundle manifest has an invalid schema")
 	if (
 		manifest["schema"] != schema or manifest["target"] != target
+		or type(manifest["adapter_abi_version"]) is not int
 		or manifest["adapter_abi_version"] != adapter_abi_version
 		or manifest["adapter"] != adapter_name
 	):

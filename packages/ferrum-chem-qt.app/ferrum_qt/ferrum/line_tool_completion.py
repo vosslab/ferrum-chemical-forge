@@ -41,39 +41,42 @@ class FerrumNativeLineToolCompletionMixin:
 		if gesture is None:
 			return
 		import ferrum_qt.ferrum.direct_bond_gesture_tab as direct_bond_gesture_tab
-		endpoint_pick = intent.tab._classify_direct_bond_endpoint_at_viewport_point(
-			viewport_point,
-		)
-		if type(endpoint_pick) is direct_bond_gesture_tab._DirectBondAmbiguous:
+		try:
+			endpoint_pick = intent.tab._classify_direct_bond_endpoint_at_viewport_point(
+				viewport_point,
+			)
+			if type(endpoint_pick) is direct_bond_gesture_tab._DirectBondAmbiguous:
+				self._retire_line_preview(intent.preview)
+				self._cancel_line_gesture(clear_status=False)
+				self._show_edit_refusal(self._unavailable_edit_refusal(
+					"Draw Bond is unchanged. Choose one atom clearly or an empty endpoint, then start again.",
+					))
+				return
+			if type(endpoint_pick) is direct_bond_gesture_tab._DirectBondExistingAtom:
+				endpoint = intent.tab.direct_bond_existing_endpoint(endpoint_pick.source_id)
+			elif type(endpoint_pick) is direct_bond_gesture_tab._DirectBondEmptySpace:
+				point = intent.tab.view.mapToScene(viewport_point)
+				endpoint = intent.tab.direct_bond_new_endpoint(float(point.x()), float(point.y()))
+			else:
+				raise RuntimeError("Ferrum direct-bond endpoint classifier returned an unknown result")
+			outcome = intent.tab.admit_direct_bond_candidate(gesture, endpoint)
+			self._retire_line_preview(intent.preview)
+			import ferrum_qt.ferrum.engine as engine
+			if type(outcome) is engine.DirectBondAdmissionRefusalV1:
+				self._cancel_line_gesture(clear_status=False)
+				self._show_edit_refusal(self._unavailable_edit_refusal(
+					self._direct_bond_refusal_message(outcome),
+					))
+				return
+			if type(outcome) is not engine.DirectBondAdmissionV2:
+				raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
+			overlay = ferrum_qt.ferrum.direct_bond_preview.create_overlay(
+				intent.tab, outcome.overlay,
+			)
+		except Exception:
 			self._retire_line_preview(intent.preview)
 			self._cancel_line_gesture(clear_status=False)
-			self._show_edit_refusal(self._unavailable_edit_refusal(
-				"Draw Bond is unchanged. Choose one atom clearly or an empty endpoint, then start again.",
-			))
-			return
-		if type(endpoint_pick) is direct_bond_gesture_tab._DirectBondExistingAtom:
-			endpoint = intent.tab.direct_bond_existing_endpoint(endpoint_pick.source_id)
-		elif type(endpoint_pick) is direct_bond_gesture_tab._DirectBondEmptySpace:
-			endpoint = intent.tab.direct_bond_new_endpoint(
-				float(intent.tab.view.mapToScene(viewport_point).x()),
-				float(intent.tab.view.mapToScene(viewport_point).y()),
-			)
-		else:
-			raise RuntimeError("Ferrum direct-bond endpoint classifier returned an unknown result")
-		outcome = intent.tab.admit_direct_bond_candidate(gesture, endpoint)
-		self._retire_line_preview(intent.preview)
-		import ferrum_qt.ferrum.engine as engine
-		if type(outcome) is engine.DirectBondAdmissionRefusalV1:
-			self._cancel_line_gesture(clear_status=False)
-			self._show_edit_refusal(self._unavailable_edit_refusal(
-				self._direct_bond_refusal_message(outcome),
-			))
-			return
-		if type(outcome) is not engine.DirectBondAdmissionV2:
-			raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
-		overlay = ferrum_qt.ferrum.direct_bond_preview.create_overlay(
-			intent.tab, outcome.overlay,
-		)
+			raise
 		self._line_gesture_intent = dataclasses.replace(
 			intent, preview=overlay, direct_bond_admission=outcome,
 		)
