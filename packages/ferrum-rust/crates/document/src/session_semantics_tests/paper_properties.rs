@@ -7,8 +7,8 @@ use super::{
     SessionOperationV1,
 };
 use crate::{
-    PaperDimensionsMmV1, PaperOrientationV1, PaperPageIssueV1, PaperPropertiesPatchV1,
-    PaperPropertiesPatchV1Error, PaperPropertyChangeV1, element_name,
+    element_name, PaperDimensionsMmV1, PaperOrientationV1, PaperPageIssueV1,
+    PaperPropertiesPatchV1, PaperPropertiesPatchV1Error, PaperPropertyChangeV1,
 };
 
 const EXISTING: &str = concat!(
@@ -151,13 +151,11 @@ fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
         .submit(0, operation(vec![]))
         .expect("empty patch is accepted");
     assert_eq!(empty.observation().snapshot().revision(), 0);
-    assert!(
-        !empty
-            .observation()
-            .projection()
-            .paper_layout()
-            .paper_present()
-    );
+    assert!(!empty
+        .observation()
+        .projection()
+        .paper_layout()
+        .paper_present());
 
     let custom_size = PaperDimensionsMmV1::try_new(200.5, 300.25).unwrap();
     let custom = session

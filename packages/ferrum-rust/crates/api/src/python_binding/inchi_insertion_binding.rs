@@ -1,15 +1,15 @@
 //! Frozen, worker-safe InChI molecule preparation for document insertion.
 
 use ferrum_chemistry::{
-    validate_inchi_input, ChemistryError as RustChemistryError, NativeChemEngine,
+    ChemistryError as RustChemistryError, NativeChemEngine, validate_inchi_input,
 };
-use ferrum_document::{build_inchi_molecule_insertion_v1, InchiMoleculeBuildError};
+use ferrum_document::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
 use pyo3::prelude::*;
 
 use super::geometry_binding::PyInsertionPlacementV1;
 use super::smiles_insertion_binding::{
-    map_complete_graph_error, structured_insertion_error, MoleculeInsertionError,
-    PyMoleculeInsertionV1,
+    MoleculeInsertionError, PyMoleculeInsertionV1, map_complete_graph_error,
+    structured_insertion_error,
 };
 
 const OPERATION: &str = "prepare_inchi_molecule_v1";

@@ -7,23 +7,10 @@ use ferrum_document::{
 };
 use pyo3::prelude::*;
 
-use super::atom_mark_binding::{PyAtomMarkActionV1, PyAtomMarkKindV1};
-use super::atom_properties_binding::PyDocumentAtomPropertyChangeV1;
-use super::bond_properties_binding::{PyDocumentBondPropertyChangeV1, PyDocumentBondStyleV1};
 use super::bracket_binding::{
-    PyBracketPairProjectionV1, PyDocumentBracketBoundsV1, PyDocumentBracketStyleV1,
-    PyPreparedBracketInsertion,
+    PyDocumentBracketBoundsV1, PyDocumentBracketStyleV1, PyPreparedBracketInsertion,
 };
-use super::document_error_binding::{
-    document_object_id, document_result, map_document_error, operation_validation_error,
-    projection_error, DocumentError, DocumentInputError, DocumentLoadError,
-    DocumentSerializationError, FerrumError, HistoryUnavailableError, InvalidAtomElementError,
-    InvalidDestinationError, InvalidDocumentObjectIdError, OperationValidationError,
-    PreparedOperationConsumedError, PreparedOperationError, PreparedOperationForeignSessionError,
-    ProjectionError, PublicationError, PublicationNotStartedError,
-    PublicationPossiblyCompletedError, RevisionConflictError, RevisionExhaustedError,
-    UnknownDocumentObjectError,
-};
+use super::document_error_binding::{document_object_id, document_result, projection_error};
 use super::document_operation_binding::PyDocumentOperationV1;
 use super::interchange_insertion_binding::{
     PyInterchangeRecordBatchInsertionV1, PyPreparedInterchangeRecordInsertion,
@@ -31,16 +18,7 @@ use super::interchange_insertion_binding::{
 use super::molecule_coordinate_binding::{
     PyPreparedCleanGeometryV1, PyPreparedMoleculeCoordinatesV1,
 };
-use super::presentation_root_binding::PyPresentationRootProjectionV1;
-use super::projection_binding::{
-    PyArrowHeadShapeV1, PyArrowHeadV1, PyArrowPathV1, PyArrowProjectionV1, PyAtomMarkProjectionV1,
-    PyAtomProjectionV1, PyBondEndpointV1, PyBondProjectionV1, PyBoxShapeProjectionV1,
-    PyDocumentHaworthPositionV1, PyDocumentProjectionV1, PyFontFactsV1, PyMoleculeProjectionV1,
-    PyPlusProjectionV1, PyPoint3V1, PyPolygonPathV1, PyPolygonProjectionV1, PyPolylinePathV1,
-    PyPolylineProjectionV1, PyPresentationBoundsV1, PyPresentationFillV1, PyPresentationFontV1,
-    PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1, PyPresentationStrokeV1,
-    PyPresentationTargetV1, PyProjectionIssueV1, PySessionDocumentObservationV1,
-};
+use super::projection_binding::PySessionDocumentObservationV1;
 use super::render_binding::{self, PyRenderObservationV1};
 use super::smiles_insertion_binding::PyMoleculeInsertionV1;
 
@@ -309,6 +287,18 @@ impl PyDocumentSession {
     /// Return one immutable owned snapshot without changing session state.
     fn snapshot(&self, py: Python<'_>) -> PyResult<PyDocumentSnapshot> {
         document_result(py, self.session.snapshot()).map(PyDocumentSnapshot::from)
+    }
+
+    /// Return whether the authoritative session has an earlier history state.
+    #[getter]
+    fn can_undo(&self) -> bool {
+        self.session.can_undo()
+    }
+
+    /// Return whether the authoritative session has a later history state.
+    #[getter]
+    fn can_redo(&self) -> bool {
+        self.session.can_redo()
     }
 
     /// Private live-tab SMARTS query. Results contain copied summaries and an

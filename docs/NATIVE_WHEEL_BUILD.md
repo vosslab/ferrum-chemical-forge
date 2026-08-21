@@ -74,7 +74,16 @@ Before every native build, `build.sh` removes only build-owned obsolete state:
 - the managed native source-archive cache
 
 It preserves `output_native_wheel/current/` until a new publication has passed all
-artifact, receipt, and engine-bundle validation.
+artifact, receipt, engine-bundle, and copied-payload source-closure validation. The
+receipt records one canonical source-subset manifest from the completed
+`maturin-project/` staging tree, including the deterministic Maturin include and rpath
+transforms. It excludes only the builder-owned staged notice bundle and package
+`.dylibs` closure; wheelhouse, Cargo output, and the engine bundle are siblings outside
+that tree. Every other staged regular file is an admitted Ferrum source. The wrapper
+recomputes this exact manifest and checks the copied wheel digest and filename against
+the copied receipt immediately before the atomic `current` pointer replacement. It also
+parses the copied engine-bundle manifest and requires its exact regular-file member set
+and SHA-256 values.
 
 ## Disk budget
 
@@ -125,5 +134,8 @@ This is a developer artifact flow. The broader release wheelhouse process is own
 
 `tests/e2e/e2e_build_sh_native_wrapper.sh` verifies the build contract without a real
 native compiler run. It covers one retained current publication, stale-output cleanup,
-builder-failure preservation, disk-budget refusal before a builder starts, lock
-contention and ownership, and cleanup across interruption before and after publication.
+builder-failure preservation, copied wheel, receipt, and engine-bundle mutation refusal before the
+pointer swap, disk-budget refusal before a builder starts, lock contention and ownership,
+and cleanup across interruption before and after publication. The builder self-test
+also proves that generated staged notices and `.dylibs` do not change the source subset,
+while a staged authored-source mutation fails publication validation.

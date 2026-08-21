@@ -92,20 +92,16 @@ fn legacy_color_and_fill_spellings_compare_semantically_without_rewriting() {
         )
         .expect("semantic equal patch must be accepted");
     assert_eq!(result.observation().snapshot().revision(), 0);
-    assert!(
-        result
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("color=\"#ABC\"")
-    );
-    assert!(
-        result
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("background-color=\"#dEf\"")
-    );
+    assert!(result
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("color=\"#ABC\""));
+    assert!(result
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("background-color=\"#dEf\""));
 }
 
 #[test]

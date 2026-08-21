@@ -8,14 +8,13 @@ use super::bracket_binding::{
     PyPreparedBracketInsertion,
 };
 pub(crate) use super::document_error_binding::{
-    document_object_id, document_result, map_document_error, operation_validation_error,
-    projection_error, DocumentError, DocumentInputError, DocumentLoadError,
-    DocumentSerializationError, FerrumError, HistoryUnavailableError, InvalidAtomElementError,
-    InvalidDestinationError, InvalidDocumentObjectIdError, OperationValidationError,
-    PreparedOperationConsumedError, PreparedOperationError, PreparedOperationForeignSessionError,
-    ProjectionError, PublicationError, PublicationNotStartedError,
-    PublicationPossiblyCompletedError, RevisionConflictError, RevisionExhaustedError,
-    UnknownDocumentObjectError,
+    DocumentError, DocumentInputError, DocumentLoadError, DocumentSerializationError, FerrumError,
+    HistoryUnavailableError, InvalidAtomElementError, InvalidDestinationError,
+    InvalidDocumentObjectIdError, OperationValidationError, PreparedOperationConsumedError,
+    PreparedOperationError, PreparedOperationForeignSessionError, ProjectionError,
+    PublicationError, PublicationNotStartedError, PublicationPossiblyCompletedError,
+    RevisionConflictError, RevisionExhaustedError, UnknownDocumentObjectError, document_result,
+    map_document_error, operation_validation_error, projection_error,
 };
 use super::document_operation_binding::PyDocumentOperationV1;
 pub(crate) use super::document_session_binding::*;

@@ -2,6 +2,78 @@
 
 ## 2026-08-21
 ### Fixes and Maintenance
+- Validated the copied CLI engine bundle against its canonical digest-bound manifest before the
+  native publication atomically selects `current`. The shared pure validator rejects malformed,
+  altered, missing, symlinked, and extra bundle members; the wrapper fixture proves a copied
+  adapter mutation preserves the prior selected publication.
+
+- Defined one canonical native-wheel staged source-subset manifest for receipt creation and
+  pre-swap publication validation. It captures the post-rewrite Ferrum source tree, records its
+  exact builder-owned notice and `.dylibs` exclusions, admits every other staged regular file,
+  and leaves wheelhouse, Cargo output, and the engine bundle outside the source boundary.
+
+- Revalidated each copied native-wheel publication immediately before its atomic `current`
+  pointer replacement. The builder now recomputes the completed staged Ferrum source closure
+  and checks the copied wheel filename and digest against the copied receipt; wrapper fixtures
+  prove copied wheel or receipt mutation leaves the prior publication selected.
+
+- Sealed each native-wheel build to a canonical staged Ferrum source-closure manifest. The
+  builder now compares source and staged workspaces before Maturin, retains the fingerprint in
+  its receipt, and refuses an artifact whose receipt does not match that closure and wheel.
+
+- Declared the native `DocumentSession.can_undo` and `can_redo` Boolean properties in the shipped
+  typing stub. The isolated installed-wheel E2E now proves their fresh, commit, undo, and redo
+  transitions while independently auditing the delivered stub surface.
+
+- Replaced the blank-canvas Draw Bond E2E's saved-CDML standard-library XML parsing with the
+  approved defused XML parser, retaining its empty-document and C-C graph proof.
+
+- Kept the main-window lifecycle as the sole Undo and Redo QAction refresh owner.  Its
+  pending and busy guards now combine with each active tab's Rust-owned history availability
+  without later generic action writes overriding those facts.
+
+- Made Undo and Redo action availability an independent Rust-owned session capability. The PyO3
+  binding and native Qt tab relay the exact history facts, while the selected-window actions now
+  refresh from those facts instead of inferring reachability from document snapshots or content.
+
+
+### Developer Tests and Notes
+
+- Extended deterministic history availability coverage across Rust, PyO3, and Qt. The tests now
+  prove branch discard, active-tab-only action state, and temporary pending or busy action gates
+  without altering the authoritative Rust history cursor.
+
+- Corrected the blank-canvas Draw Bond dual-wheel E2E baseline. Each disposable public New tab
+  now saves and parses as independently blank CDML; the second tab reports Undo and Redo state
+  separately before drawing, then establishes its own same-view visual lifecycle baseline.
+
+- Corrected the native-wheel builder CLI staging contract. `--output-root` remains the only
+  independently admitted fresh `build/native-staging/native-*` root; the matching
+  `--engine-bundle-dir` is now parsed as its child payload and remains subject to the builder's
+  strict containment check. The focused helper self-test and `build.sh native` wrapper E2E prove
+  this exact handoff without relaxing retired-output rejection or publication cleanup.
+
+- Added a standalone offline dual-wheel Qt E2E for Draw Bond on a blank canvas.  It drives only public QActions, the visible viewport, and the Save As dialog; saves and parses both independent New documents as empty CDML before drawing; proves sticky QAction arming across gestures, native preview and Escape retirement through viewport captures; checks a single undo/redo history transition; parses the resulting temporary CDML for two carbon atoms and one bond; and hashes both installed wheel payloads before exercising the UI.
+### Fixes and Maintenance
+- Corrected native-wheel source-closure publication validation to fingerprint the completed
+  `maturin-project` staging input, including its deterministic packaging transforms. The wrapper
+  now revalidates the copied candidate against that real staging root before atomic publication;
+  its synthetic E2E fixture uses the same layout.
+- Gated the Python-binding-only local interchange runtime resolver, UTF-8 source reader, and
+  local new-document preparation seam behind `python-binding`. CLI and protocol builds retain
+  their shared generic interchange admission/preparation paths without compiling unused PyO3
+  adapter code.
+- Corrected the v2 Draw Bond PyO3 NewExisting receipt contract test: it now proves the terminal
+  existing endpoint remains `"b"` and independently proves a new start atom was created.
+- Repaired the feature-enabled PyO3 interchange binding test to extract native string and integer
+  values before asserting source, receipt, and replay facts.
+- Removed unused document test-only molecule ID sequence seams, eliminating their dead-code
+  warnings without changing direct-bond admission.
+- Restored the direct document-domain snap-policy import for feature-enabled direct-bond binding
+  tests after the Python-binding module split left the test facade without that type.
+- Replaced the private interchange-import summary's positional argument list with one named,
+  ownership-preserving facts struct, keeping its protocol DTO and public behavior unchanged.
+- Removed stale Python-binding split imports and unreachable local-interchange warning paths.
 - Corrected the presentation-creation gesture PyO3 preview boundary to translate native gesture
   errors before the fallible Python-object conversion, preserving its typed public exception.
 - Corrected the local interchange PyO3 text-reader refusal conversion so an issued descriptor's typed, redacted source refusal becomes one Python error instead of a nested `PyResult` mapping. The existing binding coverage now exercises a missing SDF through the issued opaque route handle.
@@ -163,6 +235,9 @@
 - Clarified `HUMAN_GUIDANCE.md` as concise direct preferences only; repository style and test policy remain in their canonical documents.
 - Resolved the cyclohexane atom-attachment plan before implementation: Ferrum V1 is strict shared-anchor C6 annulation with five new carbon atoms, six new `n1` bonds, and pre-allocation neutral-carbon capacity refusal. The plan now retains the existing detached-ring action and adds a separately named, keyboard-accessible attach action. Its one root E2E is an autonomous fresh native-wheel plus local offscreen-Qt harness with captured diagnostics; no human or network gate remains.
 ### Changed
+- Corrected the blank-canvas Draw Bond wheel E2E so it proves consecutive blank `New` actions
+  preserve visible/history state, preserves sticky Draw Bond arming for the Escape preview, and
+  records Escape nonmutation before its saved-CDML and undo/redo evidence.
 - Closed the Direct Haworth PyO3 preparation-error mapping: structural SMILES syntax refusals now
   surface as the existing actionable `DirectHaworthInputError`, preserving the complete typed
   domain error match without expanding the unsupported Haworth CLI feature.

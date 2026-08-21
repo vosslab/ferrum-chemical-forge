@@ -4,8 +4,8 @@
 //! returns no mutable table, category spelling, alias, or fallback behavior.
 
 use ferrum_domain::catalog::{
-    periodic_display_elements_v1, periodic_display_facts_v1 as rust_periodic_display_facts_v1,
     ElementDisplayCategoryV1, ElementDisplayFactsV1, PERIODIC_DISPLAY_CATALOG_PROVENANCE_V1,
+    periodic_display_elements_v1, periodic_display_facts_v1 as rust_periodic_display_facts_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

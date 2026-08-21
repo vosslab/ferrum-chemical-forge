@@ -7,9 +7,9 @@ use ferrum_chemistry::{
     ChemistryError as RustChemistryError, MoleculeComposition, NativeChemEngine,
 };
 use ferrum_document::{
-    execute_prepared_document_molecule_information_v1, prepare_document_molecule_information_v1,
     DocumentMoleculeInformationErrorV1, DocumentMoleculeInformationRequestV1,
-    DocumentMoleculeInformationV1,
+    DocumentMoleculeInformationV1, execute_prepared_document_molecule_information_v1,
+    prepare_document_molecule_information_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -17,7 +17,7 @@ use pyo3::types::{PyAny, PyString, PyTuple};
 
 use super::binding::FerrumError;
 use super::document_molecule_inspection_binding::{
-    receipt_to_python, PyDocumentMoleculeInspectionV1,
+    PyDocumentMoleculeInspectionV1, receipt_to_python,
 };
 use super::projection_binding::PySessionDocumentObservationV1;
 

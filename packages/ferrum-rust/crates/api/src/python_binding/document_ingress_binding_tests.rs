@@ -1,6 +1,6 @@
 use std::fs;
 
-use pyo3::{exceptions::PyTypeError, types::PyModule, Python};
+use pyo3::{Python, exceptions::PyTypeError, types::PyModule};
 
 use super::*;
 
@@ -66,32 +66,42 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
             .getattr("route_handle")
             .expect("opaque handle");
 
-        assert!(cml_handle
-            .get_type()
-            .call0()
-            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
+        assert!(
+            cml_handle
+                .get_type()
+                .call0()
+                .is_err_and(|error| error.is_instance_of::<PyTypeError>(py))
+        );
         let copy_module = py.import("copy").expect("copy module");
-        assert!(copy_module
-            .call_method1("copy", (&cml_handle,))
-            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
-        assert!(copy_module
-            .call_method1("deepcopy", (&cml_handle,))
-            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
-        assert!(document_session
-            .call_method1(
-                "prepare_local_interchange_file_v1",
-                (
-                    "/definitely-not-an-interchange-file.cml",
-                    "cml_simple_molecule_import_v1"
-                ),
-            )
-            .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)));
-        assert!(document_session
-            .call_method1(
-                "prepare_local_interchange_file_v1",
-                ("/definitely-not-an-interchange-file.cml", cml_handle),
-            )
-            .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py)));
+        assert!(
+            copy_module
+                .call_method1("copy", (&cml_handle,))
+                .is_err_and(|error| error.is_instance_of::<PyTypeError>(py))
+        );
+        assert!(
+            copy_module
+                .call_method1("deepcopy", (&cml_handle,))
+                .is_err_and(|error| error.is_instance_of::<PyTypeError>(py))
+        );
+        assert!(
+            document_session
+                .call_method1(
+                    "prepare_local_interchange_file_v1",
+                    (
+                        "/definitely-not-an-interchange-file.cml",
+                        "cml_simple_molecule_import_v1"
+                    ),
+                )
+                .is_err_and(|error| error.is_instance_of::<PyTypeError>(py))
+        );
+        assert!(
+            document_session
+                .call_method1(
+                    "prepare_local_interchange_file_v1",
+                    ("/definitely-not-an-interchange-file.cml", cml_handle),
+                )
+                .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py))
+        );
 
         let path = temporary_sdf_path();
         fs::write(&path, SINGLE_ATOM_SDF_V1).expect("write valid SDF");
@@ -113,7 +123,9 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
                     "read_local_interchange_utf8_v1",
                     (path.to_string_lossy().as_ref(), &sdf_handle),
                 )
-                .expect("registered SDF source reads as text"),
+                .expect("registered SDF source reads as text")
+                .extract::<String>()
+                .expect("registered SDF source is text"),
             SINGLE_ATOM_SDF_V1,
         );
         assert!(
@@ -133,28 +145,52 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
             .expect("registered SDF descriptor prepares a new document");
         let summary = prepared
             .getattr("interchange_summary")
-            .expect("safe generic receipt")
-            .expect("interchange receipts carry a summary");
+            .expect("safe generic receipt");
+        assert!(!summary.is_none(), "interchange receipts carry a summary");
         assert_eq!(
-            summary.getattr("source_kind").expect("source kind"),
+            summary
+                .getattr("source_kind")
+                .expect("source kind")
+                .extract::<String>()
+                .expect("source kind is text"),
             "regular_file"
         );
         assert_eq!(
             summary
                 .getattr("imported_record_count")
-                .expect("record count"),
+                .expect("record count")
+                .extract::<u64>()
+                .expect("record count is an integer"),
             1
         );
-        assert_eq!(summary.getattr("atom_count").expect("atom count"), 1);
-        assert_eq!(summary.getattr("bond_count").expect("bond count"), 0);
-        assert!(summary
-            .getattr("format_id")
-            .expect("format id")
-            .is_instance_of::<pyo3::types::PyString>());
-        assert!(summary
-            .getattr("profile_id")
-            .expect("profile id")
-            .is_instance_of::<pyo3::types::PyString>());
+        assert_eq!(
+            summary
+                .getattr("atom_count")
+                .expect("atom count")
+                .extract::<u64>()
+                .expect("atom count is an integer"),
+            1
+        );
+        assert_eq!(
+            summary
+                .getattr("bond_count")
+                .expect("bond count")
+                .extract::<u64>()
+                .expect("bond count is an integer"),
+            0
+        );
+        assert!(
+            summary
+                .getattr("format_id")
+                .expect("format id")
+                .is_instance_of::<pyo3::types::PyString>()
+        );
+        assert!(
+            summary
+                .getattr("profile_id")
+                .expect("profile id")
+                .is_instance_of::<pyo3::types::PyString>()
+        );
 
         let admission = prepared
             .call_method0("take_admission_v1")
@@ -164,7 +200,9 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
             .call_method0("snapshot")
             .expect("session snapshot")
             .getattr("revision")
-            .expect("revision");
+            .expect("revision")
+            .extract::<u64>()
+            .expect("revision is an integer");
         assert!(
             prepared.call_method0("take_admission_v1").is_err(),
             "replay refuses"
@@ -174,7 +212,9 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
                 .call_method0("snapshot")
                 .expect("session snapshot after replay")
                 .getattr("revision")
-                .expect("revision after replay"),
+                .expect("revision after replay")
+                .extract::<u64>()
+                .expect("revision after replay is an integer"),
             revision,
             "replay cannot mutate the redeemed session"
         );

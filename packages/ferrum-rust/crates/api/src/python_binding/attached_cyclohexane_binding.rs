@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 
 use super::{
     binding::PyDocumentSession,
-    document_error_binding::{document_object_id, RevisionConflictError},
+    document_error_binding::{RevisionConflictError, document_object_id},
     projection_binding::PyPoint3V1,
 };
 
@@ -377,11 +377,12 @@ mod tests {
             let pending = pending.bind(py);
 
             assert!(pending.get_type().call0().is_err());
-            assert!(py
-                .import("pickle")
-                .expect("standard pickle module")
-                .call_method1("dumps", (pending,))
-                .is_err());
+            assert!(
+                py.import("pickle")
+                    .expect("standard pickle module")
+                    .call_method1("dumps", (pending,))
+                    .is_err()
+            );
             for forbidden in [
                 "candidate",
                 "fence",
@@ -432,30 +433,36 @@ mod tests {
             } else {
                 "0".repeat(64)
             };
-            assert!(owner
-                .call_method1(
-                    "_begin_attach_cyclohexane_v1",
-                    (revision, wrong_digest, owner_anchor.clone(), 40.0, 0.0),
-                )
-                .is_err());
-            assert!(owner
-                .call_method1(
-                    "_begin_attach_cyclohexane_v1",
-                    (revision, digest.clone(), "missing-anchor", 40.0, 0.0),
-                )
-                .is_err());
-            assert!(owner
-                .call_method1(
-                    "_begin_attach_cyclohexane_v1",
-                    (
-                        revision + 1,
-                        digest.clone(),
-                        owner_anchor.clone(),
-                        40.0,
-                        0.0
-                    ),
-                )
-                .is_err());
+            assert!(
+                owner
+                    .call_method1(
+                        "_begin_attach_cyclohexane_v1",
+                        (revision, wrong_digest, owner_anchor.clone(), 40.0, 0.0),
+                    )
+                    .is_err()
+            );
+            assert!(
+                owner
+                    .call_method1(
+                        "_begin_attach_cyclohexane_v1",
+                        (revision, digest.clone(), "missing-anchor", 40.0, 0.0),
+                    )
+                    .is_err()
+            );
+            assert!(
+                owner
+                    .call_method1(
+                        "_begin_attach_cyclohexane_v1",
+                        (
+                            revision + 1,
+                            digest.clone(),
+                            owner_anchor.clone(),
+                            40.0,
+                            0.0
+                        ),
+                    )
+                    .is_err()
+            );
             assert_eq!(
                 owner
                     .call_method0("snapshot")
@@ -475,9 +482,11 @@ mod tests {
                 .expect("owner begins");
             let owner_before_foreign_commit = snapshot_facts(owner);
             let foreign_before_commit = snapshot_facts(foreign);
-            assert!(foreign
-                .call_method1("_commit_attach_cyclohexane_v1", (&first,))
-                .is_err());
+            assert!(
+                foreign
+                    .call_method1("_commit_attach_cyclohexane_v1", (&first,))
+                    .is_err()
+            );
             assert_eq!(snapshot_facts(owner), owner_before_foreign_commit);
             assert_eq!(snapshot_facts(foreign), foreign_before_commit);
             let committed = owner
@@ -492,9 +501,11 @@ mod tests {
                 before + 1
             );
             let owner_after_commit = snapshot_facts(owner);
-            assert!(owner
-                .call_method1("_commit_attach_cyclohexane_v1", (&first,))
-                .is_err());
+            assert!(
+                owner
+                    .call_method1("_commit_attach_cyclohexane_v1", (&first,))
+                    .is_err()
+            );
             assert_eq!(snapshot_facts(owner), owner_after_commit);
         });
     }

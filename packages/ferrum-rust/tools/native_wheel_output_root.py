@@ -6,6 +6,18 @@ import argparse
 from pathlib import Path
 
 
+#============================================
+def engine_bundle_path(value: str) -> Path:
+	"""Resolve one engine-bundle destination for later output-root containment checks.
+
+	An engine bundle is a child payload, not an independently admitted build root.
+	``build_engine_bundle`` verifies that this resolved path is strictly beneath
+	the already-admitted ``--output-root`` before it creates anything.
+	"""
+	return Path(value).expanduser().resolve()
+
+
+#============================================
 def output_path(value: str, repo_root: Path) -> Path:
 	"""Resolve one builder output root while rejecting retired developer layouts.
 

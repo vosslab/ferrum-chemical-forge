@@ -1,16 +1,16 @@
 //! Bounded, worker-safe SDF batch preparation for document insertion.
 
 use ferrum_chemistry::{
-    interchange_record_from_sdf_v1, validate_sdf_input, ChemistryError as RustChemistryError,
-    NativeChemEngine,
+    ChemistryError as RustChemistryError, NativeChemEngine, interchange_record_from_sdf_v1,
+    validate_sdf_input,
 };
-use ferrum_document::{build_interchange_record_batch_insertion_v1, InterchangeRecordBuildErrorV1};
+use ferrum_document::{InterchangeRecordBuildErrorV1, build_interchange_record_batch_insertion_v1};
 use pyo3::prelude::*;
 
 use super::geometry_binding::PyInsertionPlacementV1;
 use super::interchange_insertion_binding::PyInterchangeRecordBatchInsertionV1;
 use super::smiles_insertion_binding::{
-    map_complete_graph_error, structured_insertion_error, MoleculeInsertionError,
+    MoleculeInsertionError, map_complete_graph_error, structured_insertion_error,
 };
 
 const OPERATION: &str = "prepare_sdf_molecules_v1";

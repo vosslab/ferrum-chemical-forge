@@ -224,15 +224,19 @@ def document_probe(python: Path) -> dict[str, object]:
 		str(python), "-I", "-B", "-c",
 		"import importlib.machinery, json, sys, pathlib, ferrum_chem; "
 		"source='<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom></molecule></cdml>'; "
-		"session=ferrum_chem.DocumentSession.load(source); initial=session.snapshot(); "
-		"changed=session.submit(initial.revision, ferrum_chem.DocumentOperationV1.set_atom_element('a', 'N')).observation.snapshot; "
-		"path=pathlib.Path(sys.prefix)/'saved.cdml'; saved=session.save_atomic(path, changed.revision); "
-		"print(json.dumps({'revision': saved.snapshot.revision, 'dirty': saved.snapshot.is_dirty, 'outcome': saved.outcome.is_confirmed, 'saved': path.read_text()==saved.snapshot.cdml, 'native_file': ferrum_chem.__file__.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES)), 'extension_loader': isinstance(ferrum_chem.__spec__.loader, importlib.machinery.ExtensionFileLoader), 'package_shim': hasattr(ferrum_chem, '__path__'), 'bindings_alias': hasattr(ferrum_chem, '_bindings')}))",
+		"session=ferrum_chem.DocumentSession.load(source); initial=session.snapshot(); fresh=(session.can_undo, session.can_redo); "
+		"changed=session.submit(initial.revision, ferrum_chem.DocumentOperationV1.set_atom_element('a', 'N')).observation.snapshot; committed=(session.can_undo, session.can_redo); "
+		"undone=session.undo(changed.revision).observation.snapshot; undone_history=(session.can_undo, session.can_redo); "
+		"redone=session.redo(undone.revision).observation.snapshot; redone_history=(session.can_undo, session.can_redo); "
+		"path=pathlib.Path(sys.prefix)/'saved.cdml'; saved=session.save_atomic(path, redone.revision); "
+		"print(json.dumps({'revision': saved.snapshot.revision, 'dirty': saved.snapshot.is_dirty, 'outcome': saved.outcome.is_confirmed, 'saved': path.read_text()==saved.snapshot.cdml, 'history': [list(fresh), list(committed), list(undone_history), list(redone_history)], 'history_types': [type(value) is bool for facts in (fresh, committed, undone_history, redone_history) for value in facts], 'native_file': ferrum_chem.__file__.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES)), 'extension_loader': isinstance(ferrum_chem.__spec__.loader, importlib.machinery.ExtensionFileLoader), 'package_shim': hasattr(ferrum_chem, '__path__'), 'bindings_alias': hasattr(ferrum_chem, '_bindings')}))",
 		env=scrubbed_environment(),
 	)
 	value = json.loads(output)
 	if value != {
-		"revision": 1, "dirty": False, "outcome": True, "saved": True,
+		"revision": 3, "dirty": False, "outcome": True, "saved": True,
+		"history": [[False, False], [True, False], [False, True], [True, False]],
+		"history_types": [True] * 8,
 		"native_file": True, "extension_loader": True, "package_shim": False,
 		"bindings_alias": False,
 	}:
@@ -769,6 +773,22 @@ def assert_shipped_typing_metadata(site_packages: Path, python: Path) -> None:
 	missing = [name for name in classes if name not in runtime_names]
 	if missing:
 		raise E2eError(f"stubbed public classes are missing from the native extension: {missing}")
+	document_session = next(
+		(node for node in ast.parse(stub.read_text(encoding="utf-8")).body
+		 if isinstance(node, ast.ClassDef) and node.name == "DocumentSession"),
+		None,
+	)
+	if document_session is None:
+		raise E2eError("shipping wheel typing metadata omitted DocumentSession")
+	properties = {
+		node.target.id: ast.unparse(node.annotation)
+		for node in document_session.body
+		if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+	}
+	if {name: properties.get(name) for name in ("can_undo", "can_redo")} != {
+		"can_undo": "bool", "can_redo": "bool",
+	}:
+		raise E2eError("shipping wheel stub lacks bool DocumentSession history properties")
 
 
 #============================================

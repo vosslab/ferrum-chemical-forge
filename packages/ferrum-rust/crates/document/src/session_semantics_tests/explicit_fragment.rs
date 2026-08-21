@@ -1,7 +1,7 @@
 use super::super::session::PendingCreateExplicitFragmentV1;
 use super::super::{
-    DocumentObjectIdV1, DocumentSession, DocumentSessionError, PersistentId, TypedDocument,
-    observe_explicit_fragments_v1,
+    observe_explicit_fragments_v1, DocumentObjectIdV1, DocumentSession, DocumentSessionError,
+    PersistentId, TypedDocument,
 };
 
 const SOURCE: &str = concat!(
@@ -79,17 +79,15 @@ fn explicit_fragment_closes_bonds_in_source_order_and_avoids_retained_identity()
 fn explicit_fragment_refuses_foreign_members_without_mutation() {
     let mut session = DocumentSession::load(SOURCE).expect("source loads");
     let before = session.snapshot().expect("baseline snapshot");
-    assert!(
-        session
-            .prepare_create_explicit_fragment_v1(
-                0,
-                &molecule(&session, 0),
-                "label",
-                &ids(&["missing"]),
-                &[],
-            )
-            .is_err()
-    );
+    assert!(session
+        .prepare_create_explicit_fragment_v1(
+            0,
+            &molecule(&session, 0),
+            "label",
+            &ids(&["missing"]),
+            &[],
+        )
+        .is_err());
     assert_eq!(session.snapshot().expect("refusal is inert"), before);
 }
 
@@ -118,14 +116,11 @@ fn explicit_fragment_receipt_is_one_use_and_history_reopens_its_semantics() {
     let undone = session.undo(1).expect("creation is undoable");
     let redone = session.redo(2).expect("creation is redoable");
     let reopened = DocumentSession::load(&saved).expect("saved CDML reopens");
-    assert!(
-        observe_explicit_fragments_v1(
-            &TypedDocument::parse(undone.observation().snapshot().cdml())
-                .expect("undo CDML parses"),
-        )
-        .records()
-        .is_empty()
-    );
+    assert!(observe_explicit_fragments_v1(
+        &TypedDocument::parse(undone.observation().snapshot().cdml()).expect("undo CDML parses"),
+    )
+    .records()
+    .is_empty());
     assert_eq!(
         observe_explicit_fragments_v1(
             &TypedDocument::parse(redone.observation().snapshot().cdml())

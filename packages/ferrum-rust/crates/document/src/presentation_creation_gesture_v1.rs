@@ -622,11 +622,13 @@ mod session_tests {
         assert!(cdml.contains("<plus"));
         assert!(cdml.contains("x=\"2.540cm\""));
         let plus = cdml.split("<plus").nth(1).expect("inserted plus source");
-        assert!(!plus
-            .split("</plus>")
-            .next()
-            .expect("plus closes")
-            .contains("font_size"));
+        assert!(
+            !plus
+                .split("</plus>")
+                .next()
+                .expect("plus closes")
+                .contains("font_size")
+        );
         assert_eq!(
             session
                 .undo(1)

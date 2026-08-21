@@ -2,11 +2,11 @@
 
 use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
 use ferrum_document::{
-    build_supported_peptide_template_molecule_insertion_v1, PeptideTemplateMoleculeBuildErrorV1,
+    PeptideTemplateMoleculeBuildErrorV1, build_supported_peptide_template_molecule_insertion_v1,
 };
 use ferrum_domain::PeptideSyntaxError;
 use ferrum_domain::{
-    compile_supported_peptide_template_request_v1, PeptideTemplateInsertionErrorV1,
+    PeptideTemplateInsertionErrorV1, compile_supported_peptide_template_request_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -14,7 +14,7 @@ use pyo3::types::PyString;
 
 use super::binding::FerrumError;
 use super::geometry_binding::PyInsertionPlacementV1;
-use super::smiles_insertion_binding::{map_build_error, PyMoleculeInsertionV1};
+use super::smiles_insertion_binding::{PyMoleculeInsertionV1, map_build_error};
 
 create_exception!(ferrum_chem, PeptideTemplateInsertionError, FerrumError);
 create_exception!(

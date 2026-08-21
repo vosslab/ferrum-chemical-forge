@@ -8,14 +8,14 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use super::{
-    direct_glycosidic_haworth_authoring_receipt_v1, DirectGlycosidicHaworthAuthoringReceiptV1,
-    DirectGlycosidicHaworthTopologyV1, HaworthError, HaworthPoint, HaworthTopologyBuilder,
-    HaworthVertex, RingForm,
+    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthTopologyV1, HaworthError,
+    HaworthPoint, HaworthTopologyBuilder, HaworthVertex, RingForm,
+    direct_glycosidic_haworth_authoring_receipt_v1,
 };
 use ferrum_chemistry::{
-    validate_smiles_input, AtomChirality, AtomicNumber, BondDirection,
-    BondOrder as ChemistryBondOrder, BondStereo, ChemEngine, ChemistryError, MolAtom, MolBond,
-    MolGraph, NativeChemEngine,
+    AtomChirality, AtomicNumber, BondDirection, BondOrder as ChemistryBondOrder, BondStereo,
+    ChemEngine, ChemistryError, MolAtom, MolBond, MolGraph, NativeChemEngine,
+    validate_smiles_input,
 };
 use ferrum_core::{Atom, Bond, BondOrder, Identifier, Molecule, Position, VertexRef};
 use ferrum_geometry::MoleculePlacementV1;
@@ -168,10 +168,11 @@ fn parse_closed_haworth_smiles(
                     rings[slot] = Some(atom);
                 }
             }
-            _ => return Err(DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
-                reason:
-                    "only uppercase C/O atoms, branches, and one-digit ring closures are supported",
-            }),
+            _ => {
+                return Err(DirectHaworthFromSmilesBuildErrorV1::SmilesSyntax {
+                    reason: "only uppercase C/O atoms, branches, and one-digit ring closures are supported",
+                });
+            }
         }
     }
     if current.is_none() || !branches.is_empty() || rings.iter().any(Option::is_some) {

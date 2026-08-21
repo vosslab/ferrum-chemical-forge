@@ -6,9 +6,9 @@
 use std::path::PathBuf;
 
 use ferrum_chemistry::{
-    validate_inchi_input, validate_molblock_input, validate_sdf_input, validate_smiles_input,
     ChemistryError as RustChemistryError, ImportedSdfRecord, InchiMode, MolblockVersion,
-    NativeChemEngine, SdfProperty, SdfRecord, SmilesMolecule,
+    NativeChemEngine, SdfProperty, SdfRecord, SmilesMolecule, validate_inchi_input,
+    validate_molblock_input, validate_sdf_input, validate_smiles_input,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

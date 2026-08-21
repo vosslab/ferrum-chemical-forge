@@ -9,10 +9,10 @@ use pyo3::types::{PyAny, PyBool, PyInt, PyTuple};
 
 use super::atom_mark_binding::{PyAtomMarkActionV1, PyAtomMarkKindV1};
 use super::atom_properties_binding::PyDocumentAtomPropertyChangeV1;
-use super::binding::{operation_validation_error, projection_error, PyDocumentBondOrderV1};
+use super::binding::{PyDocumentBondOrderV1, operation_validation_error, projection_error};
 use super::bond_properties_binding::PyDocumentBondPropertyChangeV1;
 use super::drawing_standard_binding;
-use super::paper_properties_binding::{validate_patch, PyDocumentPaperPropertyChangeV1};
+use super::paper_properties_binding::{PyDocumentPaperPropertyChangeV1, validate_patch};
 
 /// Closed V1 operation grammar for authoritative session mutations.
 ///

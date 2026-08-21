@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import stat
 import tarfile
 import tempfile
@@ -94,6 +95,20 @@ def _run_engine_bundle_fixtures(api: types.ModuleType) -> None:
 		raise api.NativeBuildError("engine bundle manifest fixture differs from the fixed CLI contract")
 	if manifest.get("members") != [{"path": api.ADAPTER_NAME, "sha256": hashlib.sha256(b"adapter").hexdigest()}]:
 		raise api.NativeBuildError("engine bundle manifest fixture lacks its closure digest")
+	with tempfile.TemporaryDirectory() as temporary:
+		bundle = Path(temporary)
+		member = bundle / api.ADAPTER_NAME
+		member.write_bytes(b"adapter")
+		(bundle / api.BUNDLE_MANIFEST_NAME).write_bytes(api.engine_bundle_manifest(
+			[member], api.BUNDLE_SCHEMA, api.ADAPTER_ABI_VERSION, api.ADAPTER_NAME, api.sha256
+		))
+		api.validate_publication_engine_bundle(bundle)
+		member.write_bytes(b"changed")
+		_reject(
+			api,
+			lambda: api.validate_publication_engine_bundle(bundle),
+			"changed copied engine bundle member",
+		)
 	accepted = api.output_path("/private/tmp/ferrum-native-self-test")
 	if accepted != Path("/private/tmp/ferrum-native-self-test"):
 		raise api.NativeBuildError("engine bundle fixture rejected its admitted temporary output root")
@@ -112,6 +127,9 @@ def _run_engine_bundle_fixtures(api: types.ModuleType) -> None:
 	staging_root = api.REPO_ROOT / "build" / "native-staging" / "native-self-test"
 	if api.output_path(str(staging_root)) != staging_root:
 		raise api.NativeBuildError("engine bundle fixture rejected an admitted staging root")
+	engine_bundle = staging_root / "ferrum-engine-bundle"
+	if api.engine_bundle_path(str(engine_bundle)) != engine_bundle:
+		raise api.NativeBuildError("engine bundle fixture rejected its staging child destination")
 	for output_root in (api.REPO_ROOT / "output-release", api.REPO_ROOT / "output-wheelhouse"):
 		if api.output_path(str(output_root)) != output_root:
 			raise api.NativeBuildError("engine bundle fixture rejected an admitted output root")
@@ -155,6 +173,89 @@ def _run_tree_fixtures(api: types.ModuleType) -> None:
 			pass
 		else:
 			raise api.NativeBuildError("tree self-test accepted a FIFO special file")
+
+
+#============================================
+def _run_ferrum_source_closure_fixtures(api: types.ModuleType) -> None:
+	"""Prove the canonical staged source subset admits no authored-source drift."""
+	with tempfile.TemporaryDirectory() as temporary:
+		root = Path(temporary)
+		source = root / "source"
+		output_root = root / "output"
+		binding = source / "crates" / "api" / "src" / "python_binding" / "document_session_binding.rs"
+		stub = source / "crates" / "api" / "wheel_metadata" / "ferrum_chem.pyi"
+		binding.parent.mkdir(parents=True)
+		stub.parent.mkdir(parents=True)
+		binding.write_text("getter", encoding="utf-8")
+		stub.write_text("class DocumentSession: ...\n", encoding="utf-8")
+		(stub.parent / "py.typed").write_text("", encoding="utf-8")
+		project = source / "crates" / "api" / "python"
+		project.mkdir()
+		(project / "pyproject.toml").write_text("[build-system]\n", encoding="utf-8")
+		build_script = source / "crates" / "api" / "build.rs"
+		build_script.write_text(
+			"pyo3_build_config::add_extension_module_link_args();\n", encoding="utf-8"
+		)
+		protocol = source / "crates" / "api" / "protocol"
+		protocol.mkdir()
+		(protocol / "ferrum-operation-v1.schema.json").write_text("{}", encoding="utf-8")
+		(source / "Cargo.lock").write_text("lock", encoding="utf-8")
+		stage_project = api.stage_python_project(output_root, source)
+		stage = stage_project.parents[2]
+		source_closure = api.ferrum_source_closure(stage)
+		if source_closure == api.ferrum_source_closure(source):
+			raise api.NativeBuildError("source closure fixture did not capture Maturin staging transforms")
+		authored_target = stage / "target"
+		authored_target.mkdir()
+		(authored_target / "authored-source.txt").write_text("must be admitted", encoding="utf-8")
+		if source_closure == api.ferrum_source_closure(stage):
+			raise api.NativeBuildError("source subset silently ignored an authored staged directory")
+		shutil.rmtree(authored_target)
+		notices = stage / "crates" / "api" / "wheel_metadata" / "licenses"
+		notices.mkdir()
+		(notices / "RDKIT-BSD-3-CLAUSE.txt").write_text("generated notice", encoding="utf-8")
+		package_libs = stage / "crates" / "api" / "python" / ".dylibs"
+		package_libs.mkdir()
+		(package_libs / "libferrum_chem.dylib").write_bytes(b"generated library")
+		nested_package_libs = stage / "crates" / "api" / "python" / "ferrum_chem" / ".dylibs"
+		nested_package_libs.mkdir(parents=True)
+		nested_library = nested_package_libs / "libferrum_chem.dylib"
+		nested_library.write_bytes(b"generated package library")
+		if source_closure != api.ferrum_source_closure(stage):
+			raise api.NativeBuildError("source subset included builder-generated staging payloads")
+		nested_library.write_bytes(b"changed generated package library")
+		if source_closure != api.ferrum_source_closure(stage):
+			raise api.NativeBuildError("source subset included nested builder-generated staging payloads")
+		wheel = root / "wheel.whl"
+		wheel.write_bytes(b"wheel")
+		receipt = root / "native-wheel-build-receipt.json"
+		receipt.write_text(json.dumps({
+			"ferrum_source_closure": source_closure,
+			"wheel": {"filename": wheel.name, "sha256": api.sha256(wheel)},
+		}), encoding="utf-8")
+		api.validate_build_receipt(receipt, wheel, source_closure)
+		api.validate_publication_candidate(receipt, wheel, stage)
+		(stage / "crates" / "api" / "src" / "python_binding" / "document_session_binding.rs").write_text(
+			"changed getter", encoding="utf-8"
+		)
+		_reject(
+			api,
+			lambda: api.validate_publication_candidate(receipt, wheel, stage),
+			"changed staged authored source",
+		)
+		(stage / "crates" / "api" / "src" / "python_binding" / "document_session_binding.rs").write_text(
+			"getter", encoding="utf-8"
+		)
+		wheel.write_bytes(b"changed wheel")
+		_reject(api, lambda: api.validate_publication_candidate(receipt, wheel, stage), "changed publication wheel")
+		wheel.write_bytes(b"wheel")
+		receipt.write_text(json.dumps({
+			"ferrum_source_closure": {"schema": "changed"},
+			"wheel": {"filename": wheel.name, "sha256": api.sha256(wheel)},
+		}), encoding="utf-8")
+		_reject(api, lambda: api.validate_publication_candidate(receipt, wheel, stage), "changed publication receipt")
+		receipt.write_text(json.dumps({"wheel": {"filename": wheel.name, "sha256": api.sha256(wheel)}}), encoding="utf-8")
+		_reject(api, lambda: api.validate_build_receipt(receipt, wheel, source_closure), "receipt without source closure")
 
 
 #============================================
@@ -839,6 +940,7 @@ def run(api: types.ModuleType) -> None:
 	_run_policy_fixtures(api)
 	_run_engine_bundle_fixtures(api)
 	_run_tree_fixtures(api)
+	_run_ferrum_source_closure_fixtures(api)
 	_run_profile_configuration_fixtures(api)
 	with tempfile.TemporaryDirectory() as temporary:
 		root = Path(temporary) / "output-native"

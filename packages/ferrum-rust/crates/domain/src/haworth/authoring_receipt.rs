@@ -5,10 +5,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use ferrum_core::{Molecule, RecordId};
 
 use crate::haworth::{
-    assemble_direct_glycosidic_haworth_fragment_v1, direct_glycosidic_haworth_depiction_spec_v1,
     DirectGlycosidicHaworthBondStyleV1, DirectGlycosidicHaworthDepictionSpecV1,
     DirectGlycosidicHaworthFragmentRequestV1, DirectGlycosidicHaworthPositionV1,
     DirectGlycosidicHaworthTopologyV1, HaworthError, HaworthPoint,
+    assemble_direct_glycosidic_haworth_fragment_v1, direct_glycosidic_haworth_depiction_spec_v1,
 };
 
 type DurableRingBondComponentsV1 = (

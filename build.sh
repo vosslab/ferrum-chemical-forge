@@ -659,6 +659,24 @@ publish_native_artifacts() {
 	printf '%s' "${publication_wheel}"
 }
 
+validate_native_publication() {
+	local staging_root="$1"
+	local publication_wheel="$2"
+	local publication_root="$3"
+	local publication_receipt="${publication_root}/native-wheel-build-receipt.json"
+	local publication_engine_bundle="${publication_root}/ferrum-engine-bundle"
+	local staged_source_root="${staging_root}/maturin-project"
+
+	if ! "${PYTHON_EXECUTABLE}" -B "${NATIVE_WHEEL_BUILDER}" validate-publication \
+		--staged-source-root "${staged_source_root}" \
+		--wheel "${publication_wheel}" \
+		--receipt "${publication_receipt}" \
+		--engine-bundle "${publication_engine_bundle}" >/dev/null; then
+		printf 'build error: copied native publication failed receipt, wheel, source-closure, or engine-bundle validation\n' >&2
+		return 1
+	fi
+}
+
 parse_native_artifact_result() {
 	local result="$1"
 	printf '%s' "${result}" | "${PYTHON_EXECUTABLE}" -c '
@@ -743,6 +761,9 @@ build_native() {
 	ACTIVE_NATIVE_PUBLICATION_ROOT="${publication_root}"
 	if ! published_wheel="$(publish_native_artifacts "${staging_root}" "${BUILT_NATIVE_WHEEL}" \
 		"${staging_engine_bundle}" "${publication_root}")"; then
+		return 1
+	fi
+	if ! validate_native_publication "${staging_root}" "${published_wheel}" "${publication_root}"; then
 		return 1
 	fi
 	if ! install_native_publication "${publication_root}"; then

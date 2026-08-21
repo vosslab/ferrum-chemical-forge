@@ -7,7 +7,7 @@ use ferrum_document::{
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool};
 
-use super::binding::{operation_validation_error, PyDocumentBondOrderV1};
+use super::binding::{PyDocumentBondOrderV1, operation_validation_error};
 
 /// One exact bond-property change accepted by a complete Rust patch.
 #[pyclass(

@@ -79,11 +79,6 @@ impl DocumentSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_next_generated_molecule_sequence_for_test(&mut self, sequence: Option<u64>) {
-        self.generated_ids = self.generated_ids.with_molecule_sequence(sequence);
-    }
-
-    #[cfg(test)]
     pub(crate) fn set_next_generated_atom_sequence_for_test(&mut self, sequence: Option<u64>) {
         self.generated_ids = self.generated_ids.with_atom_sequence(sequence);
     }

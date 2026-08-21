@@ -251,6 +251,16 @@ class FerrumNativeDocumentTab(
 			return self._pending_snapshot.is_dirty
 		return self.current_snapshot.is_dirty
 	#============================================
+	def can_undo(self) -> bool:
+		"""Return the Rust-owned availability of an earlier history state."""
+		self._require_live()
+		return self._session.can_undo
+	#============================================
+	def can_redo(self) -> bool:
+		"""Return the Rust-owned availability of a later history state."""
+		self._require_live()
+		return self._session.can_redo
+	#============================================
 	@property
 	def requires_refresh(self) -> bool:
 		"""Return whether Rust is ahead of the installed disposable Qt projection."""

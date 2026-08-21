@@ -11,7 +11,9 @@ def parser(
 	build_handler: Callable[[argparse.Namespace], None],
 	adapter_handler: Callable[[argparse.Namespace], None],
 	self_test_handler: Callable[[argparse.Namespace], None],
+	publication_validation_handler: Callable[[argparse.Namespace], None],
 	output_path: Callable[[str], Path],
+	engine_bundle_path: Callable[[str], Path],
 	archive_root_path: Callable[[str], Path],
 ) -> argparse.ArgumentParser:
 	"""Create the native-wheel command parser from injected build operations."""
@@ -21,7 +23,7 @@ def parser(
 	build.add_argument("--output-root", required=True, type=output_path)
 	build.add_argument(
 		"--engine-bundle-dir",
-		type=output_path,
+		type=engine_bundle_path,
 		help=(
 			"optional fresh directory beneath --output-root for the same verified adapter's "
 			"Ferrum CLI engine bundle"
@@ -57,4 +59,13 @@ def parser(
 		"self-test", help="run deterministic native-wheel policy helper checks"
 	)
 	self_test.set_defaults(handler=self_test_handler)
+	publication_validation = subcommands.add_parser(
+		"validate-publication",
+		help="verify a copied wheel and receipt against the staged Ferrum source closure",
+	)
+	publication_validation.add_argument("--staged-source-root", required=True, type=Path)
+	publication_validation.add_argument("--wheel", required=True, type=Path)
+	publication_validation.add_argument("--receipt", required=True, type=Path)
+	publication_validation.add_argument("--engine-bundle", required=True, type=Path)
+	publication_validation.set_defaults(handler=publication_validation_handler)
 	return result

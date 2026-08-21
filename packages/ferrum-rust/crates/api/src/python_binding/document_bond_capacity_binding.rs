@@ -1,9 +1,8 @@
 //! Private neutral bond-capacity receipt for bundled Ferrum.
 
 use ferrum_document::{
-    inspect_document_bond_capacity_v1 as inspect_bond_capacity,
     DocumentBondCapacityNotCheckedReasonV1, DocumentBondCapacityOutcomeV1,
-    DocumentBondCapacityRequestV1,
+    DocumentBondCapacityRequestV1, inspect_document_bond_capacity_v1 as inspect_bond_capacity,
 };
 use ferrum_domain::{NeutralBondCapacityAtomOutcomeV1, NeutralBondCapacityAtomRecordV1};
 use pyo3::create_exception;

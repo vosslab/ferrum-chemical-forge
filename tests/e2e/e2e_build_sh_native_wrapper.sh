@@ -142,7 +142,7 @@ cat >"${TEST_ROOT}/fake-bin/python3" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py ]]; then
+if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py && "$3" == build ]]; then
 	shift 2
 	printf 'builder %s\n' "$*" >>"${FERRUM_TEST_LOG}"
 	printf '%s\0' "$@" >"${FERRUM_TEST_LOG}.builder-argv"
@@ -164,9 +164,17 @@ if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py ]
 		esac
 	done
 	physical_output_root="$(cd "${output_root}" && pwd -P)"
+	physical_engine_parent="$(cd "$(dirname "${engine_bundle}")" && pwd -P)"
+	if [[ "${physical_engine_parent}" != "${physical_output_root}" || \
+		"$(basename "${engine_bundle}")" != ferrum-engine-bundle ]]; then
+		printf 'builder fixture error: engine bundle must be the canonical child of output root\n' >&2
+		exit 93
+	fi
 	mkdir -p "${FERRUM_TEST_ROOT}/build/native-source-archives/managed"
 	: >"${FERRUM_TEST_ROOT}/build/native-source-archives/managed/archive"
+	mkdir -p "${physical_output_root}/maturin-project"
 	mkdir -p "${engine_bundle}"
+	printf adapter >"${engine_bundle}/libferrum_chem.dylib"
 	: >"${engine_bundle}/ferrum-engine-bundle-v1.json"
 	: >"${physical_output_root}/native-wheel-build-receipt.json"
 	case "${FERRUM_TEST_MODE}" in
@@ -201,6 +209,39 @@ if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py ]
 			exit 91
 			;;
 	esac
+	exit 0
+fi
+
+if [[ "$1" == -B && "$2" == */packages/ferrum-rust/tools/build_native_wheel.py && "$3" == validate-publication ]]; then
+	shift 3
+	staged_source_root=""
+	wheel=""
+	receipt=""
+	engine_bundle=""
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--staged-source-root)
+				staged_source_root="$2"
+				shift 2
+				;;
+			--wheel)
+				wheel="$2"
+				shift 2
+				;;
+			--receipt)
+				receipt="$2"
+				shift 2
+				;;
+			--engine-bundle)
+				engine_bundle="$2"
+				shift 2
+				;;
+			esac
+	done
+	[[ "$(basename "${staged_source_root}")" == maturin-project && -d "${staged_source_root}" && -f "${wheel}" && -f "${receipt}" && -d "${engine_bundle}" ]] || exit 94
+	[[ ! -s "${wheel}" && ! -s "${receipt}" ]] || exit 95
+	[[ "$(cat "${engine_bundle}/libferrum_chem.dylib")" == adapter ]] || exit 96
+	printf '{"action":"validate-publication","schema":"ferrum-native-wheel-artifact-v1","validated":true}\n'
 	exit 0
 fi
 
@@ -324,6 +365,48 @@ destination.write_text(text.replace(needle, replacement), encoding="utf-8")
 ' "${TEST_ROOT}/build.sh" "${TEST_ROOT}/${name}.sh" "${interruption}" "${signal_name}" || fail 'could not create interruption fixture'
 	chmod +x "${TEST_ROOT}/${name}.sh"
 }
+
+make_mutated_publication_build() {
+	local name="$1"
+	local target="$2"
+	"${REAL_PYTHON}" -c '
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+target = sys.argv[3]
+text = source.read_text(encoding="utf-8")
+needle = "\tif ! validate_native_publication \"${staging_root}\" \"${published_wheel}\" \"${publication_root}\"; then"
+if target == "wheel":
+    mutation = "\tprintf changed >\"${published_wheel}\"\n"
+elif target == "receipt":
+    mutation = "\tprintf changed >\"${publication_root}/native-wheel-build-receipt.json\"\n"
+else:
+    mutation = "\tprintf changed >\"${publication_root}/ferrum-engine-bundle/libferrum_chem.dylib\"\n"
+if text.count(needle) != 1:
+    raise SystemExit("publication mutation fixture could not find validation boundary")
+destination.write_text(text.replace(needle, mutation + needle), encoding="utf-8")
+' "${TEST_ROOT}/build.sh" "${TEST_ROOT}/${name}.sh" "${target}" || fail 'could not create publication mutation fixture'
+	chmod +x "${TEST_ROOT}/${name}.sh"
+}
+
+assert_mutated_publication_preserves_current() {
+	local target="$1"
+	local name="mutated_${target}"
+	local previous_target
+	previous_target="$(readlink "${TEST_ROOT}/output_native_wheel/current")"
+	make_mutated_publication_build "${name}" "${target}"
+	FERRUM_TEST_BUILD_SCRIPT="${TEST_ROOT}/${name}.sh" \
+		result="$(run_build "${name}" native --native-sealed-input-root "${TEST_ROOT}/fixture-input")"
+	[[ "${result}" -ne 0 ]] || fail "mutated copied ${target} must fail publication validation"
+	[[ "$(readlink "${TEST_ROOT}/output_native_wheel/current")" == "${previous_target}" ]] || \
+		fail "mutated copied ${target} must leave the prior current publication selected"
+}
+
+assert_mutated_publication_preserves_current receipt
+assert_mutated_publication_preserves_current wheel
+assert_mutated_publication_preserves_current engine_bundle
 
 assert_interrupted_native_cleanup() {
 	local phase="$1"

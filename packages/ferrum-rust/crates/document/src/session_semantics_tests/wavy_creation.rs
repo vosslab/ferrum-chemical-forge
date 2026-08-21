@@ -91,17 +91,13 @@ fn short_wavy_uses_exact_endpoints_and_an_alternating_normal() {
 fn invalid_or_stale_wavy_creation_never_mutates_or_consumes_the_next_identity() {
     let mut session = DocumentSession::load("<cdml/>").expect("source must load");
     let before = session.snapshot().expect("snapshot");
-    assert!(
-        session
-            .prepare_create_wavy_v1(0, point(1.0, 1.0), point(1.0, 1.0))
-            .is_err()
-    );
+    assert!(session
+        .prepare_create_wavy_v1(0, point(1.0, 1.0), point(1.0, 1.0))
+        .is_err());
     let over_bound = 12.0 * (WAVY_MAX_SEGMENTS_V1 as f64 + 0.6);
-    assert!(
-        session
-            .prepare_create_wavy_v1(0, point(0.0, 0.0), point(over_bound, 0.0))
-            .is_err()
-    );
+    assert!(session
+        .prepare_create_wavy_v1(0, point(0.0, 0.0), point(over_bound, 0.0))
+        .is_err());
     assert_eq!(session.snapshot().expect("snapshot"), before);
 
     let mut pending = session

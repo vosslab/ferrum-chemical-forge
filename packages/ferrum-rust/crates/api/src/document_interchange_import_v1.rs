@@ -31,6 +31,7 @@ const IMPORT_BOND_LENGTH_PT_V1: f64 = 40.0;
 ///
 /// The caller cannot choose a decoder or request a chemistry runtime.  The
 /// generic interchange core calls this only for descriptors that require one.
+#[cfg(feature = "python-binding")]
 pub(crate) trait LocalInterchangeRuntimeResolverV1 {
     fn chemistry_runtime(
         &self,
@@ -108,6 +109,7 @@ pub(crate) fn admit_interchange_source_v1(
 /// This is intentionally only a source-admission boundary.  It does not select
 /// a decoder, acquire a chemistry runtime, create a document, or mutate one;
 /// callers that need those operations use their distinct typed boundaries.
+#[cfg(feature = "python-binding")]
 pub(crate) fn read_local_interchange_utf8_source_v1(
     descriptor: &'static InterchangeFormatDescriptorV1,
     path: &Path,
@@ -223,6 +225,7 @@ pub(crate) fn prepare_interchange_new_document_v1<R: ChemistryRuntimeV1>(
 /// This is the only installed-wheel local-file preparation boundary.  Frontend
 /// adapters supply an authenticated descriptor identity and never branch on
 /// decoder keys or acquire a runtime themselves.
+#[cfg(feature = "python-binding")]
 pub(crate) fn prepare_local_interchange_new_document_v1<R: LocalInterchangeRuntimeResolverV1>(
     descriptor: &'static InterchangeFormatDescriptorV1,
     path: &Path,
@@ -332,20 +335,24 @@ fn prepare_records(
         session,
         baseline_revision: baseline.revision(),
         pending,
-        summary: summary(
+        summary: summary(InterchangeImportSummaryFactsV1 {
             descriptor,
             provenance,
-            source_record_count,
+            imported_record_count: source_record_count,
             atom_count,
             bond_count,
             document_revision,
             digest,
             dropped_categories,
-        ),
+        }),
     })
 }
 
-fn summary(
+/// Internal facts collected while preparing one interchange document.
+///
+/// Keeping this ownership-preserving aggregation private makes the summary
+/// construction boundary self-describing without changing its protocol DTO.
+struct InterchangeImportSummaryFactsV1 {
     descriptor: &'static InterchangeFormatDescriptorV1,
     provenance: DocumentInterchangeProvenanceV1,
     imported_record_count: usize,
@@ -354,19 +361,25 @@ fn summary(
     document_revision: u64,
     digest: [u8; 32],
     dropped_categories: Vec<DocumentInterchangeLossCategoryV1>,
-) -> DocumentInterchangeImportSummaryV1 {
+}
+
+fn summary(facts: InterchangeImportSummaryFactsV1) -> DocumentInterchangeImportSummaryV1 {
     DocumentInterchangeImportSummaryV1 {
-        format_id: descriptor.format_id().to_owned(),
-        profile_id: descriptor.profile_id().to_owned(),
-        imported_record_count: imported_record_count as u32,
-        atom_count: atom_count as u32,
-        bond_count: bond_count as u32,
-        document_revision,
-        document_digest_hex: digest.iter().map(|byte| format!("{byte:02x}")).collect(),
-        provenance,
+        format_id: facts.descriptor.format_id().to_owned(),
+        profile_id: facts.descriptor.profile_id().to_owned(),
+        imported_record_count: facts.imported_record_count as u32,
+        atom_count: facts.atom_count as u32,
+        bond_count: facts.bond_count as u32,
+        document_revision: facts.document_revision,
+        document_digest_hex: facts
+            .digest
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+        provenance: facts.provenance,
         loss_report: DocumentInterchangeImportLossReportV1 {
             source_identifiers_reallocated: true,
-            dropped_categories,
+            dropped_categories: facts.dropped_categories,
         },
     }
 }

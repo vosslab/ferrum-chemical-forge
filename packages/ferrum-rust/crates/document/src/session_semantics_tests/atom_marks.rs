@@ -45,13 +45,11 @@ fn add_and_remove_charge_mark_are_one_atomic_semantic_edit() {
     // most sqrt(2) * 0.0005 cm of radial error from the requested 12 points.
     let radial_error_bound = f64::sqrt(2.0) * 0.0005 * 72.0 / 2.54;
     assert!((mark.radial_offset() - 12.0).abs() <= radial_error_bound);
-    assert!(
-        added
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("<opaque retained=\"yes\"/>")
-    );
+    assert!(added
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("<opaque retained=\"yes\"/>"));
 
     let removed = session
         .submit(
@@ -93,20 +91,16 @@ fn same_type_ordinal_removes_only_the_selected_duplicate() {
     assert_eq!(atom.multiplicity(), Some(2));
     assert_eq!(atom.marks().len(), 1);
     assert_eq!(atom.marks()[0].same_type_ordinal(), 0);
-    assert!(
-        removed
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("y=\"2.4cm\"")
-    );
-    assert!(
-        !removed
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("y=\"2.5cm\"")
-    );
+    assert!(removed
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("y=\"2.4cm\""));
+    assert!(!removed
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("y=\"2.5cm\""));
 }
 
 #[test]
@@ -178,12 +172,10 @@ fn charge_mark_preserves_unrelated_legacy_multiplicity_and_returns_an_observatio
 
     assert_eq!((atom.formal_charge(), atom.multiplicity()), (Some(1), None));
     assert_eq!(atom.marks()[0].kind(), AtomMarkKindV1::Plus);
-    assert!(
-        observation
-            .snapshot()
-            .cdml()
-            .contains("multiplicity=\"legacy\"")
-    );
+    assert!(observation
+        .snapshot()
+        .cdml()
+        .contains("multiplicity=\"legacy\""));
     assert!(observation.projection().issues().iter().any(|issue| {
         issue.code() == crate::ProjectionIssueCodeV1::InvalidPresentationFact
             && issue.detail().contains("multiplicity")

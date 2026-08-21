@@ -5,15 +5,15 @@ use std::collections::BTreeMap;
 use ferrum_chemistry::{ChemistryError, NativeChemEngine};
 use ferrum_document::{DocumentSessionError, PendingDirectHaworthV1, Point3V1};
 use ferrum_domain::haworth::{
-    build_direct_haworth_from_smiles_v1, DirectHaworthFromSmilesBuildErrorV1,
+    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthBondStyleV1,
 };
 use ferrum_domain::haworth::{
-    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthBondStyleV1,
+    DirectHaworthFromSmilesBuildErrorV1, build_direct_haworth_from_smiles_v1,
 };
 use ferrum_geometry::{MoleculePlacementV1, Point2 as MoleculePlacementPointV1};
 use ferrum_render::{
-    build_haworth_front_preview_ops, BondStyle, LineOp, Paint, PositiveFinite, RenderOp,
-    RenderPoint, Rgb24,
+    BondStyle, LineOp, Paint, PositiveFinite, RenderOp, RenderPoint, Rgb24,
+    build_haworth_front_preview_ops,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -21,7 +21,7 @@ use pyo3::types::PyTuple;
 
 use super::{
     binding::{PyDocumentSession, PySessionOperationResultV1},
-    render_binding::{operation_from, PyRenderOperationV2},
+    render_binding::{PyRenderOperationV2, operation_from},
 };
 
 create_exception!(ferrum_chem, DirectHaworthError, super::binding::FerrumError);

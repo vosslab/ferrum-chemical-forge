@@ -490,6 +490,7 @@ def write_build_receipt(
 	maturin: dict[str, str],
 	rust_toolchain: dict[str, str],
 	variants: dict[str, str],
+	ferrum_source_closure: dict[str, object],
 	wheel: Path,
 	closure_names: frozenset[str],
 ) -> Path:
@@ -503,6 +504,20 @@ def write_build_receipt(
 	# revalidated manifest in the durable receipt so its policy and header-tree
 	# seals remain independently inspectable after cleanup.
 	native_input_manifest = validate_native_input_manifest(output_root, profile)
+	if set(ferrum_source_closure) != {
+		"excluded_directories", "files", "fingerprint_sha256", "schema",
+	}:
+		raise NativeReceiptError("Ferrum source closure has the wrong record shape")
+	if ferrum_source_closure["schema"] != "ferrum-wheel-source-closure-v2":
+		raise NativeReceiptError("Ferrum source closure has the wrong schema")
+	if not isinstance(ferrum_source_closure["excluded_directories"], list):
+		raise NativeReceiptError("Ferrum source closure lacks its excluded directories")
+	if not isinstance(ferrum_source_closure["fingerprint_sha256"], str) or len(
+		ferrum_source_closure["fingerprint_sha256"]
+	) != 64:
+		raise NativeReceiptError("Ferrum source closure lacks its fingerprint")
+	if not isinstance(ferrum_source_closure["files"], list):
+		raise NativeReceiptError("Ferrum source closure lacks its file manifest")
 	receipt = output_root / "native-wheel-build-receipt.json"
 	record = {
 		"profile": profile.name,
@@ -523,6 +538,7 @@ def write_build_receipt(
 		"maturin": maturin,
 		"rust_toolchain": rust_toolchain,
 		"dependency_variants": variants,
+		"ferrum_source_closure": ferrum_source_closure,
 		"wheel": {
 			"filename": wheel.name, "sha256": sha256(wheel),
 		},
@@ -605,8 +621,19 @@ def self_test(profile: RdkitCapabilityProfile) -> None:
 				"toolchain": "/Library/Developer/CommandLineTools",
 			},
 		}
+		ferrum_source_closure = {
+			"excluded_directories": [
+				"crates/api/wheel_metadata/licenses",
+				"crates/api/python/.dylibs",
+				"crates/api/python/ferrum_chem/.dylibs",
+			],
+			"files": [{"path": "Cargo.lock", "sha256": hashlib.sha256(b"lock").hexdigest()}],
+			"fingerprint_sha256": hashlib.sha256(b"closure").hexdigest(),
+			"schema": "ferrum-wheel-source-closure-v2",
+		}
 		receipt = write_build_receipt(
-			root, profile, 1, cmake_options, {}, provenance_audit, {}, {}, {}, wheel,
+			root, profile, 1, cmake_options, {}, provenance_audit, {}, {}, {},
+			ferrum_source_closure, wheel,
 			frozenset({"libferrum_chem.dylib"}),
 		)
 		serialized = receipt.read_text(encoding="utf-8")
@@ -627,6 +654,8 @@ def self_test(profile: RdkitCapabilityProfile) -> None:
 		expected_wheel = {"filename": wheel.name, "sha256": sha256(wheel)}
 		if value["wheel"] != expected_wheel:
 			raise NativeReceiptError("receipt wheel contains a transient wheel-path field")
+		if value["ferrum_source_closure"] != ferrum_source_closure:
+			raise NativeReceiptError("receipt did not retain the admitted Ferrum source closure")
 		native_inputs = value.get("native_input_manifest")
 		if not isinstance(native_inputs, dict) or set(native_inputs) != {
 			"artifacts", "paths", "policy", "policy_sha256", "schema", "sources", "tree_digests"

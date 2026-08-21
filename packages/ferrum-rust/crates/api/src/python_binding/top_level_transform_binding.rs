@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyTuple};
 
 use super::binding::operation_validation_error;
-use super::binding::{document_result, PyDocumentSession};
+use super::binding::{PyDocumentSession, document_result};
 
 #[pyclass(
     frozen,

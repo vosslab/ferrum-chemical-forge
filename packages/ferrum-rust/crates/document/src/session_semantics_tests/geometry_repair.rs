@@ -100,13 +100,11 @@ fn prepared_whole_depictions_are_revision_digest_bound_and_apply_as_one_history_
             .z(),
         7.0
     );
-    assert!(
-        applied
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("<vendor/>")
-    );
+    assert!(applied
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("<vendor/>"));
     assert_eq!(
         session
             .undo(1)
@@ -510,13 +508,11 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
         ((after["side"].x() - before["side"].x()) - (after["d"].x() - before["d"].x())).abs()
             <= HALF_AUTHORED_UNIT_POINTS
     );
-    assert!(
-        repaired
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("<v:note>keep</v:note>")
-    );
+    assert!(repaired
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("<v:note>keep</v:note>"));
     assert_eq!(
         session
             .undo(1)

@@ -1,17 +1,17 @@
 //! Frozen, worker-safe SMILES molecule preparation for document insertion.
 
 use ferrum_chemistry::{
-    validate_smiles_input, ChemistryError as RustChemistryError, NativeChemEngine,
+    ChemistryError as RustChemistryError, NativeChemEngine, validate_smiles_input,
 };
 use ferrum_document::MoleculeInsertionV1;
 use ferrum_document::{
-    build_smiles_molecule_insertion_v1, CompleteGraphMoleculeInsertionError,
-    MolblockMoleculeBuildError, MolblockSourceErrorV1, SmilesMoleculeBuildError,
+    CompleteGraphMoleculeInsertionError, MolblockMoleculeBuildError, MolblockSourceErrorV1,
+    SmilesMoleculeBuildError, build_smiles_molecule_insertion_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
 
-use super::binding::{projection_error, FerrumError};
+use super::binding::{FerrumError, projection_error};
 use super::geometry_binding::PyInsertionPlacementV1;
 
 create_exception!(ferrum_chem, MoleculeInsertionError, FerrumError);

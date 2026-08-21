@@ -4,16 +4,16 @@ use std::{path::PathBuf, sync::Arc};
 
 use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
 use ferrum_document::{
-    load_document_file_with_budget, load_document_utf8_bytes_with_budget,
-    prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_with_origin_v1,
     CdmlIngressBudgetV1, CdmlIngressErrorV1, CdsvgIngressBudgetV1, DocumentIngressErrorV1,
     DocumentIngressFormatV1, DocumentIngressOriginV1, SourcePolicyErrorV1,
+    load_document_file_with_budget, load_document_utf8_bytes_with_budget,
+    prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_with_origin_v1,
 };
 use ferrum_document::{
     CdsvgExtractionError, DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1,
     XmlInputError,
 };
-use ferrum_render::{observe_render_v1, RenderObservationError, RenderObservationV1};
+use ferrum_render::{RenderObservationError, RenderObservationV1, observe_render_v1};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyInt, PyString};
@@ -23,8 +23,8 @@ use super::document_error_binding::{
     DocumentInputError, DocumentLoadError, PreparedOperationConsumedError,
 };
 use crate::{
-    interchange_import_v1::InterchangeImportRefusalV1, InterchangeDirectionV1,
-    InterchangeFormatRegistryV1,
+    InterchangeDirectionV1, InterchangeFormatRegistryV1,
+    interchange_import_v1::InterchangeImportRefusalV1,
 };
 
 /// One closed local container kind carried by a prepared desktop admission.
@@ -453,9 +453,6 @@ pub(crate) fn prepare_local_interchange_file_v1(
                 interchange_summary: Some(interchange_summary),
             })
         }
-        Err(LocalInterchangePreparationError::Ingress(error)) => {
-            Err(map_local_document_open_error(py, error)?)
-        }
         Err(LocalInterchangePreparationError::Refused(refusal)) => Err(
             super::document_interchange_receipt_binding::local_interchange_refusal(py, refusal)?,
         ),
@@ -501,7 +498,6 @@ fn local_interchange_descriptor(
 }
 
 enum LocalInterchangePreparationError {
-    Ingress(DocumentIngressErrorV1),
     Refused(InterchangeImportRefusalV1),
     Render(RenderObservationError),
 }
@@ -649,19 +645,6 @@ fn exact_route_handle<'py>(
         ));
     }
     Ok(route_handle.extract::<PyRef<'_, PyLocalInterchangeOpenRouteHandleV1>>()?)
-}
-
-fn local_interchange_refusal(py: Python<'_>) -> PyResult<PyErr> {
-    let error = DocumentInputError::new_err("document input rejected at interchange");
-    let value = error.value(py);
-    value.setattr("origin", "file")?;
-    value.setattr("stage", "interchange")?;
-    value.setattr("limit", py.None())?;
-    value.setattr("actual", py.None())?;
-    value.setattr("observed_at_least", py.None())?;
-    value.setattr("category", "interchange_rejected")?;
-    value.setattr("detail", "local interchange admission rejected")?;
-    Ok(error)
 }
 
 fn exact_budget(value: &Bound<'_, PyAny>) -> PyResult<XmlInputBudgetV1> {

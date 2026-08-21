@@ -4,8 +4,8 @@
 //! route only.  It deliberately has no wheel-stub, CLI, serde, or wire surface.
 
 use ferrum_document::{
-    inspect_document_molecule_v1 as inspect_rust_document_molecule_v1,
     DocumentMoleculeInspectionRequestV1, DocumentMoleculeInspectionV1,
+    inspect_document_molecule_v1 as inspect_rust_document_molecule_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

@@ -466,6 +466,44 @@ def test_clean_pending_undo_requires_refresh_before_tab_or_window_close(
 
 
 #============================================
+def test_history_actions_mirror_active_tab_rust_availability(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Only the active tab's Rust history facts enable the guarded Edit actions."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	history_tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_BOND_CDML, "history-actions.cdml",
+	)
+	fresh_tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_BOND_CDML, "fresh-history-actions.cdml",
+	)
+	window._register_native_tab(history_tab, activate=True)
+	try:
+		assert not window._undo_action.isEnabled() and not window._redo_action.isEnabled()
+		history_tab.select_atoms(("atom-c", "atom-o"))
+		window._add_single_bond_action.trigger()
+		assert window._undo_action.isEnabled() and not window._redo_action.isEnabled()
+		window._register_native_tab(fresh_tab, activate=True)
+		assert not window._undo_action.isEnabled() and not window._redo_action.isEnabled()
+		window._tab_widget.setCurrentWidget(history_tab)
+		qapp.processEvents()
+		assert window._undo_action.isEnabled() and not window._redo_action.isEnabled()
+		with monkeypatch.context() as patch:
+			patch.setattr(type(history_tab), "requires_refresh", property(lambda _tab: True))
+			window._refresh_actions()
+			assert not window._undo_action.isEnabled() and not window._redo_action.isEnabled()
+		assert history_tab.can_undo() and not history_tab.can_redo()
+		with monkeypatch.context() as patch:
+			patch.setattr(window, "_molecule_import_busy", lambda: True)
+			window._refresh_actions()
+			assert not window._undo_action.isEnabled() and not window._redo_action.isEnabled()
+		assert history_tab.can_undo() and not history_tab.can_redo()
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
 def test_add_single_bond_action_connects_exact_selected_atoms(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:

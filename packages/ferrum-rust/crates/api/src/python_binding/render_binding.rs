@@ -2,12 +2,12 @@
 
 use ferrum_core::{RecordId, RecordOrigin};
 use ferrum_render::{
-    build_directed_bond_preview_ops, verified_telex_regular_v1, BatchSpace, BondStyle,
-    DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2, DocumentPlusRenderV1,
-    MoleculeRenderPlan, Paint, PositiveFinite, RenderBatch, RenderDisplayLayerV1, RenderIssue,
-    RenderIssueKind, RenderObservationError as ApiRenderObservationError, RenderObservationV1,
-    RenderOp, RenderPoint, RenderTarget, Rgb24, TextOp, TextScript, VectorStrokeLineCapV1,
-    RENDER_OBSERVATION_SCHEMA_V1,
+    BatchSpace, BondStyle, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
+    DocumentPlusRenderV1, MoleculeRenderPlan, Paint, PositiveFinite, RENDER_OBSERVATION_SCHEMA_V1,
+    RenderBatch, RenderDisplayLayerV1, RenderIssue, RenderIssueKind,
+    RenderObservationError as ApiRenderObservationError, RenderObservationV1, RenderOp,
+    RenderPoint, RenderTarget, Rgb24, TextOp, TextScript, VectorStrokeLineCapV1,
+    build_directed_bond_preview_ops, verified_telex_regular_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -15,7 +15,7 @@ use pyo3::types::PyBytes;
 use pyo3::types::PyTuple;
 
 use super::binding::PyDocumentBondPresentationV1;
-use super::binding::{map_document_error, FerrumError};
+use super::binding::{FerrumError, map_document_error};
 
 create_exception!(ferrum_chem, RenderObservationError, FerrumError);
 create_exception!(ferrum_chem, RenderDepictionError, RenderObservationError);

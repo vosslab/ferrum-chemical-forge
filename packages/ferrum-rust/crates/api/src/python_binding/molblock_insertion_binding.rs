@@ -3,10 +3,10 @@
 use std::path::PathBuf;
 
 use ferrum_chemistry::{
-    validate_molblock_input, ChemistryError as RustChemistryError, NativeChemEngine,
+    ChemistryError as RustChemistryError, NativeChemEngine, validate_molblock_input,
 };
 use ferrum_document::{
-    build_molblock_molecule_insertion_v1, read_molblock_file_v1, MolblockMoleculeBuildError,
+    MolblockMoleculeBuildError, build_molblock_molecule_insertion_v1, read_molblock_file_v1,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;

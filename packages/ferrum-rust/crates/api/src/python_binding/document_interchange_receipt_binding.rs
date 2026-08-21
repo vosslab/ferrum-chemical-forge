@@ -121,7 +121,7 @@ fn closed_name<T: Serialize>(value: T) -> String {
 #[cfg(test)]
 mod tests {
     use crate::interchange_import_v1::{
-        InterchangeImportRefusalReasonV1, CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
+        CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, InterchangeImportRefusalReasonV1,
         SDF_IMPORT_FORMAT_V1,
     };
     use crate::protocol::{

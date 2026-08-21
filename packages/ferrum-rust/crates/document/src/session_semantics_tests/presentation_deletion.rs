@@ -66,25 +66,21 @@ fn presentation_deletion_removes_exact_typed_root_preserves_opaque_content_and_f
     assert!(cdml.contains("<v:tail"));
 
     let undone = session.undo(1).expect("deletion must undo");
-    assert!(
-        undone
-            .observation()
-            .projection()
-            .presentation_stack()
-            .roots()
-            .iter()
-            .any(|root| matches!(root, PresentationRootProjectionV1::Text { .. }))
-    );
+    assert!(undone
+        .observation()
+        .projection()
+        .presentation_stack()
+        .roots()
+        .iter()
+        .any(|root| matches!(root, PresentationRootProjectionV1::Text { .. })));
     let redone = session.redo(2).expect("deletion must redo");
-    assert!(
-        redone
-            .observation()
-            .projection()
-            .presentation_stack()
-            .roots()
-            .iter()
-            .all(|root| !matches!(root, PresentationRootProjectionV1::Text { .. }))
-    );
+    assert!(redone
+        .observation()
+        .projection()
+        .presentation_stack()
+        .roots()
+        .iter()
+        .all(|root| !matches!(root, PresentationRootProjectionV1::Text { .. })));
 }
 
 #[test]
@@ -113,10 +109,11 @@ fn presentation_deletion_rejects_wrong_kind_bracket_member_and_stale_intent_atom
     assert!(matches!(
         bracket.submit(
             0,
-            deletion_set(vec![
-                PresentationRootDeletionV1::new("left", PresentationRecordKindV1::Polyline,)
-                    .unwrap(),
-            ]),
+            deletion_set(vec![PresentationRootDeletionV1::new(
+                "left",
+                PresentationRecordKindV1::Polyline,
+            )
+            .unwrap(),]),
         ),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(TypedDocumentError::PartialBracketDeletion(_))
@@ -192,25 +189,21 @@ fn compatibility_reaction_references_refuse_single_and_batch_deletion_without_mu
         .expect("unreferenced multi-delete commits after rejected batch");
     assert_eq!(changed.observation().snapshot().revision(), 1);
     assert!(changed.observation().snapshot().cdml().contains("id=\"a\""));
-    assert!(
-        !changed
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("id=\"free-a\"")
-    );
+    assert!(!changed
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("id=\"free-a\""));
 }
 
 #[test]
 fn complete_bracket_pair_deletion_is_one_atomic_history_entry() {
     assert!(PresentationRootDeletionSetV1::new(Vec::new()).is_err());
-    assert!(
-        PresentationRootDeletionSetV1::new(vec![
-            PresentationRootDeletionV1::new("left", PresentationRecordKindV1::Polyline).unwrap(),
-            PresentationRootDeletionV1::new("left", PresentationRecordKindV1::Polyline).unwrap(),
-        ])
-        .is_err()
-    );
+    assert!(PresentationRootDeletionSetV1::new(vec![
+        PresentationRootDeletionV1::new("left", PresentationRecordKindV1::Polyline).unwrap(),
+        PresentationRootDeletionV1::new("left", PresentationRecordKindV1::Polyline).unwrap(),
+    ])
+    .is_err());
     let mut session = DocumentSession::load(BRACKET_SOURCE).expect("bracket source must load");
     let changed = session
         .submit(
@@ -224,14 +217,12 @@ fn complete_bracket_pair_deletion_is_one_atomic_history_entry() {
         )
         .expect("complete bracket pair deletes");
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert!(
-        changed
-            .observation()
-            .projection()
-            .presentation_stack()
-            .roots()
-            .is_empty()
-    );
+    assert!(changed
+        .observation()
+        .projection()
+        .presentation_stack()
+        .roots()
+        .is_empty());
     let restored = session.undo(1).expect("pair deletion undoes");
     assert_eq!(restored.observation().snapshot().revision(), 2);
     let [pair] = restored

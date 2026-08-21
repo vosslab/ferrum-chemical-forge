@@ -4,8 +4,8 @@
 //! module never accepts a Qt value, Python sequence, callback, or mutable mapping.
 
 use ferrum_geometry::{
-    CdmlLength, GeometryError as RustGeometryError, HexGrid, MoleculePlacementV1, Point2,
-    ScenePoints, CDML_POINTS_PER_CENTIMETRE_V1,
+    CDML_POINTS_PER_CENTIMETRE_V1, CdmlLength, GeometryError as RustGeometryError, HexGrid,
+    MoleculePlacementV1, Point2, ScenePoints,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

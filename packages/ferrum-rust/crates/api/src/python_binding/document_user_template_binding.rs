@@ -5,8 +5,8 @@
 
 use ferrum_document::DocumentSession;
 use ferrum_document::{
-    apply_user_template_v1, prepare_user_template_v1, DocumentUserTemplateApplyErrorV1,
-    DocumentUserTemplatePlanV1, DOCUMENT_USER_TEMPLATE_PROFILE_V1,
+    DOCUMENT_USER_TEMPLATE_PROFILE_V1, DocumentUserTemplateApplyErrorV1,
+    DocumentUserTemplatePlanV1, apply_user_template_v1, prepare_user_template_v1,
 };
 use ferrum_geometry::Point2;
 use pyo3::create_exception;

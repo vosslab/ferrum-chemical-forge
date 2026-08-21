@@ -84,11 +84,9 @@ fn standalone_haworth_rejects_invalid_or_stale_or_foreign_or_consumed_receipts_w
         )
         .expect("candidate prepares");
     let foreign_before = foreign.snapshot().expect("foreign baseline");
-    assert!(
-        foreign
-            .commit_create_standalone_haworth_v1(0, &mut foreign_pending)
-            .is_err()
-    );
+    assert!(foreign
+        .commit_create_standalone_haworth_v1(0, &mut foreign_pending)
+        .is_err());
     assert_eq!(
         foreign.snapshot().expect("foreign stays unchanged"),
         foreign_before
@@ -112,20 +110,16 @@ fn standalone_haworth_rejects_invalid_or_stale_or_foreign_or_consumed_receipts_w
         .commit_create_standalone_haworth_v1(0, &mut accepted)
         .expect("current candidate commits");
     let after_acceptance = owner.snapshot().expect("accepted snapshot");
-    assert!(
-        owner
-            .commit_create_standalone_haworth_v1(1, &mut stale)
-            .is_err()
-    );
+    assert!(owner
+        .commit_create_standalone_haworth_v1(1, &mut stale)
+        .is_err());
     assert_eq!(
         owner.snapshot().expect("stale receipt is inert"),
         after_acceptance
     );
-    assert!(
-        owner
-            .commit_create_standalone_haworth_v1(1, &mut accepted)
-            .is_err()
-    );
+    assert!(owner
+        .commit_create_standalone_haworth_v1(1, &mut accepted)
+        .is_err());
     assert_eq!(
         owner.snapshot().expect("consumed receipt is inert"),
         after_acceptance

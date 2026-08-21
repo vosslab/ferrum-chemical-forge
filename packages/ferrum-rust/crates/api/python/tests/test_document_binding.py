@@ -794,6 +794,18 @@ def test_undo_and_redo_create_monotonic_revisions() -> None:
     assert redone.is_dirty is True
 
 
+def test_history_availability_getters_follow_cursor_and_discarded_branch() -> None:
+    session = ferrum_chem.DocumentSession.load(SOURCE)
+    assert session.can_undo is False and session.can_redo is False
+
+    changed = session.submit(0, set_atom("N")).observation.snapshot
+    assert session.can_undo is True and session.can_redo is False
+    undone = session.undo(changed.revision).observation.snapshot
+    assert session.can_undo is False and session.can_redo is True
+    session.submit(undone.revision, set_atom("O"))
+    assert session.can_undo is True and session.can_redo is False
+
+
 def test_atom_position_operation_is_finite_revisioned_and_undoable() -> None:
     session = ferrum_chem.DocumentSession.load(SOURCE)
     operation = ferrum_chem.DocumentOperationV1.set_atom_position("a", 7.5, 8.25, 0.0)
@@ -956,5 +968,4 @@ def test_bond_properties_are_one_frozen_atomic_edit_with_history(
         reopened_bond.source_type, reopened_bond.center, reopened_bond.line_width,
         reopened_bond.bond_width, reopened_bond.wedge_width, reopened_bond.color,
     ) == ("d2", True, 2.5, -4.0, 5.0, "#aabbcc")
-
 

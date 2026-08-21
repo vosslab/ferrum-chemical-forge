@@ -59,13 +59,11 @@ fn conversion_commits_once_and_repeat_is_history_free() {
         .commit_convert_linear_form_v1(0, &mut receipt)
         .expect("prepared conversion commits");
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert!(
-        changed
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains(fragment.as_str())
-    );
+    assert!(changed
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains(fragment.as_str()));
     let (molecule, atoms) = request(&session, 1);
     let no_change = session
         .prepare_convert_linear_form_v1(1, &molecule, &atoms)
@@ -75,24 +73,20 @@ fn conversion_commits_once_and_repeat_is_history_free() {
     };
     assert_eq!(no_change.observation().snapshot().revision(), 1);
     let undone = session.undo(1).expect("conversion is undoable");
-    assert!(
-        !undone
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains(fragment.as_str())
-    );
+    assert!(!undone
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains(fragment.as_str()));
     let redone = session.redo(2).expect("conversion is redoable");
     let reopened = DocumentSession::load(redone.observation().snapshot().cdml())
         .expect("accepted conversion reopens");
-    assert!(
-        reopened
-            .observe(0)
-            .expect("reopened conversion projects")
-            .snapshot()
-            .cdml()
-            .contains(fragment.as_str())
-    );
+    assert!(reopened
+        .observe(0)
+        .expect("reopened conversion projects")
+        .snapshot()
+        .cdml()
+        .contains(fragment.as_str()));
 }
 
 #[test]

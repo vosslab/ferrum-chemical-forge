@@ -7,9 +7,9 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, CDML_NAMESPACE,
+    element_name, BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1,
     DocumentBondOrderV1, DocumentBondStyleV1, NonZeroFiniteV1, PositiveFiniteV1, Rgb24V1,
-    element_name,
+    CDML_NAMESPACE,
 };
 use xot::Xot;
 

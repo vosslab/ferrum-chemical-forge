@@ -10,6 +10,7 @@ from __future__ import annotations
 
 # Standard library imports.
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -26,6 +27,7 @@ from pathlib import Path
 import native_wheel_builder_self_test
 import native_wheel_bundle
 import native_wheel_builder_cli
+from native_wheel_output_root import engine_bundle_path as admitted_engine_bundle_path
 from native_wheel_output_root import output_path as admitted_output_path
 from native_wheel_packaging import (
 	NativePackagingError,
@@ -93,6 +95,7 @@ from native_wheel_receipt import (
 
 engine_bundle_manifest = native_wheel_bundle.engine_bundle_manifest
 executable_bundle_target = native_wheel_bundle.executable_bundle_target
+validate_engine_bundle = native_wheel_bundle.validate_engine_bundle
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RUST_PACKAGE_SOURCE = Path(__file__).resolve().parents[1]
 NATIVE_SOURCE = REPO_ROOT / "packages/ferrum-rust/crates/chemistry/native"
@@ -102,6 +105,15 @@ ADAPTER_HEADER = NATIVE_SOURCE / "include/ferrum_chem_adapter.h"
 BUNDLE_MANIFEST_NAME = "ferrum-engine-bundle-v1.json"
 BUNDLE_SCHEMA = "ferrum-engine-bundle-v1"
 ADAPTER_NAME = "libferrum_chem.dylib"
+FERRUM_SOURCE_CLOSURE_SCHEMA = "ferrum-wheel-source-closure-v2"
+# These are the only builder-owned paths created inside maturin-project after
+# stage_python_project() has copied and rewritten the Ferrum source workspace.
+# Every other regular staged file remains an admitted authored source input.
+FERRUM_SOURCE_CLOSURE_EXCLUDED_DIRECTORIES = (
+	"crates/api/wheel_metadata/licenses",
+	"crates/api/python/.dylibs",
+	"crates/api/python/ferrum_chem/.dylibs",
+)
 
 class NativeBuildError(RuntimeError):
 	"""An actionable failure in the build or closure contract."""
@@ -148,6 +160,12 @@ def output_path(value: str) -> Path:
 
 
 #============================================
+def engine_bundle_path(value: str) -> Path:
+	"""Return one resolved child destination for the admitted output root."""
+	return admitted_engine_bundle_path(value)
+
+
+#============================================
 def archive_root_path(value: str) -> Path:
 	"""Accept one read-only directory of exact hash-pinned source archives."""
 	path = Path(value).expanduser().resolve()
@@ -179,6 +197,88 @@ def validate_materialized_alias(path: Path, output_root: Path, label: str) -> Pa
 	if not resolved.is_relative_to(root):
 		raise NativeBuildError(f"{label} must resolve below output root {root}: {resolved}")
 	return lexical
+
+#============================================
+def ferrum_source_closure(root: Path) -> dict[str, object]:
+	"""Return the canonical staged Ferrum source-subset manifest."""
+	root = root.resolve()
+	if not root.is_dir():
+		raise NativeBuildError(f"Ferrum source closure root is not a directory: {root}")
+	excluded_directories = frozenset(FERRUM_SOURCE_CLOSURE_EXCLUDED_DIRECTORIES)
+	files: list[dict[str, str]] = []
+	for directory, names, filenames in os.walk(root):
+		directory_path = Path(directory)
+		accepted_names: list[str] = []
+		for name in sorted(names):
+			path = directory_path / name
+			relative = path.relative_to(root).as_posix()
+			if path.is_symlink():
+				raise NativeBuildError(f"Ferrum source closure requires real directories: {path}")
+			if relative in excluded_directories:
+				continue
+			accepted_names.append(name)
+		names[:] = accepted_names
+		for filename in sorted(filenames):
+			path = directory_path / filename
+			if not path.is_file() or path.is_symlink():
+				raise NativeBuildError(f"Ferrum source closure requires regular files: {path}")
+			files.append({
+				"path": path.relative_to(root).as_posix(),
+				"sha256": sha256(path),
+			})
+	payload = json.dumps({
+		"excluded_directories": list(FERRUM_SOURCE_CLOSURE_EXCLUDED_DIRECTORIES),
+		"files": files,
+		"schema": FERRUM_SOURCE_CLOSURE_SCHEMA,
+	}, separators=(",", ":"), sort_keys=True).encode("utf-8")
+	return {
+		"excluded_directories": list(FERRUM_SOURCE_CLOSURE_EXCLUDED_DIRECTORIES),
+		"files": files,
+		"fingerprint_sha256": hashlib.sha256(payload).hexdigest(),
+		"schema": FERRUM_SOURCE_CLOSURE_SCHEMA,
+	}
+
+#============================================
+def stage_ferrum_python_project(output_root: Path) -> Path:
+	"""Stage Ferrum's deterministic source workspace for Maturin."""
+	return stage_python_project(output_root, RUST_PACKAGE_SOURCE)
+
+#============================================
+def validate_build_receipt(receipt: Path, wheel: Path, source_closure: dict[str, object]) -> None:
+	"""Refuse a publication candidate unless its durable source and wheel evidence agree."""
+	try:
+		value = json.loads(receipt.read_text(encoding="utf-8"))
+	except json.JSONDecodeError as error:
+		raise NativeBuildError(f"native build receipt is invalid JSON: {error.msg}") from error
+	if not isinstance(value, dict) or value.get("ferrum_source_closure") != source_closure:
+		raise NativeBuildError("native build receipt lacks the admitted Ferrum source closure")
+	wheel_record = value.get("wheel")
+	if not isinstance(wheel_record, dict) or wheel_record != {
+		"filename": wheel.name, "sha256": sha256(wheel),
+	}:
+		raise NativeBuildError("native build receipt does not match the final wheel")
+
+#============================================
+def validate_publication_candidate(receipt: Path, wheel: Path, staged_source_root: Path) -> None:
+	"""Revalidate copied publication evidence against the completed staged workspace."""
+	if receipt.is_symlink() or not receipt.is_file():
+		raise NativeBuildError(f"native publication receipt is not a regular file: {receipt}")
+	if wheel.is_symlink() or not wheel.is_file():
+		raise NativeBuildError(f"native publication wheel is not a regular file: {wheel}")
+	source_closure = ferrum_source_closure(staged_source_root)
+	validate_build_receipt(receipt, wheel, source_closure)
+
+
+#============================================
+def validate_publication_engine_bundle(bundle: Path) -> None:
+	"""Revalidate one copied CLI engine bundle against its sealed manifest."""
+	try:
+		validate_engine_bundle(
+			bundle, BUNDLE_MANIFEST_NAME, BUNDLE_SCHEMA, executable_bundle_target(),
+			ADAPTER_ABI_VERSION, ADAPTER_NAME, sha256,
+		)
+	except native_wheel_bundle.NativeEngineBundleError as error:
+		raise NativeBuildError(str(error)) from error
 
 #============================================
 def required_rdkit_library(lib_dir: Path, name: str, input_root: Path) -> Path:
@@ -825,17 +925,22 @@ def audit_wheel_closure(wheel: Path, output_root: Path) -> None:
 	assert_clean_closure(extensions[0], package_libs)
 
 #============================================
-def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: str) -> Path:
+def build_wheel(
+	output_root: Path, adapter: Path, layout: RdkitLayout, target: str,
+) -> tuple[Path, dict[str, object]]:
 	if sys.version_info[:2] != (3, 12):
 		raise NativeBuildError(
 			f"native wheel requires the Python 3.12 build interpreter, got {sys.version.split()[0]}; "
 			"run this tool through source_me.sh"
 		)
 	output_root = output_root.resolve()
-	stage = stage_python_project(output_root, RUST_PACKAGE_SOURCE)
+	stage = stage_ferrum_python_project(output_root)
 	stage_native_notice_bundle(stage, RUST_PACKAGE_SOURCE, layout.input_root)
 	package_libs = stage / "ferrum_chem" / ".dylibs" if (stage / "ferrum_chem").is_dir() else stage / ".dylibs"
 	copy_and_rewrite_closure(adapter, layout.graphmol_library, package_libs)
+	# Capture the source subset after each deterministic staging rewrite. The
+	# manifest explicitly excludes only the builder-owned payload paths.
+	source_closure = ferrum_source_closure(stage.parents[2])
 	try:
 		environment = rust_tool_environment(homebrew_llvm())
 	except NativePolicyError as error:
@@ -858,7 +963,7 @@ def build_wheel(output_root: Path, adapter: Path, layout: RdkitLayout, target: s
 		raise NativeBuildError(f"expected exactly one wheel in {wheelhouse}, found {wheels}")
 	inject_root_metadata(wheels[0], stage)
 	audit_wheel_closure(wheels[0], output_root)
-	return wheels[0]
+	return wheels[0], source_closure
 
 #============================================
 def build_engine_bundle(output_root: Path, adapter: Path, layout: RdkitLayout, destination: Path) -> Path:
@@ -907,7 +1012,7 @@ def command_build(arguments: argparse.Namespace) -> None:
 		raise NativeBuildError(f"no RDKit dylibs were installed in {layout.lib_dir}")
 	variants = detect_variants(rdkit_libraries)
 	adapter = configure_adapter(arguments.output_root, layout)
-	wheel = build_wheel(arguments.output_root, adapter, layout, TARGET)
+	wheel, source_closure = build_wheel(arguments.output_root, adapter, layout, TARGET)
 	if arguments.engine_bundle_dir is not None:
 		build_engine_bundle(arguments.output_root, adapter, layout, arguments.engine_bundle_dir)
 	try:
@@ -921,8 +1026,12 @@ def command_build(arguments: argparse.Namespace) -> None:
 			{"path": find_maturin(), "version": tool_version(find_maturin())},
 			rust_toolchain_receipt(),
 			variants,
+			source_closure,
 			wheel,
 			MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names,
+		)
+		validate_build_receipt(
+			arguments.output_root / "native-wheel-build-receipt.json", wheel, source_closure
 		)
 	except NativeReceiptError as error:
 		raise NativeBuildError(str(error)) from error
@@ -944,6 +1053,17 @@ def command_self_test(_: argparse.Namespace) -> None:
 	print("native wheel pure helper checks passed")
 
 #============================================
+def command_validate_publication(arguments: argparse.Namespace) -> None:
+	"""Validate one copied publication candidate without rebuilding native sources."""
+	validate_publication_candidate(arguments.receipt, arguments.wheel, arguments.staged_source_root)
+	validate_publication_engine_bundle(arguments.engine_bundle)
+	print(json.dumps({
+		"action": "validate-publication",
+		"schema": MACHINE_RESULT_SCHEMA,
+		"validated": True,
+	}, sort_keys=True))
+
+#============================================
 def main() -> int:
 	"""Parse one command and execute its selected native-wheel operation.
 
@@ -955,7 +1075,9 @@ def main() -> int:
 			command_build,
 			command_adapter,
 			command_self_test,
+			command_validate_publication,
 			output_path,
+			engine_bundle_path,
 			archive_root_path,
 		).parse_args()
 		arguments.handler(arguments)

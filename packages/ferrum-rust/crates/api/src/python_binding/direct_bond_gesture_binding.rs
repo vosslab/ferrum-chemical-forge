@@ -204,7 +204,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrum_document::{DocumentObjectIdV1, DocumentSession};
+    use ferrum_document::{DirectBondSnapPolicyV1, DocumentObjectIdV1, DocumentSession};
 
     const SOURCE: &str = "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"40\" y=\"0\"/></atom></molecule></cdml>";
 
@@ -381,11 +381,12 @@ mod tests {
             for forbidden in ["candidate", "fence", "capability", "session_origin"] {
                 assert!(admission.getattr(forbidden).is_err());
             }
-            assert!(py
-                .import("pickle")
-                .expect("standard pickle module")
-                .call_method1("dumps", (&admission,))
-                .is_err());
+            assert!(
+                py.import("pickle")
+                    .expect("standard pickle module")
+                    .call_method1("dumps", (&admission,))
+                    .is_err()
+            );
 
             owner
                 .call_method1("commit_direct_bond_admission_v1", (&admission,))
@@ -563,7 +564,15 @@ mod tests {
                             .expect("release endpoint exposes")
                             .extract::<String>()
                             .expect("release endpoint is text"),
-                        end_id
+                        "b"
+                    );
+                    assert_eq!(
+                        receipt
+                            .getattr("created_new_atom")
+                            .expect("creation fact exposes")
+                            .extract::<bool>()
+                            .expect("creation fact is boolean"),
+                        true
                     );
                 }
             }

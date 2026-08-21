@@ -14,16 +14,19 @@ use super::identity_index::ProvisionalToken;
 use super::{
     BracketInsertionV1, BracketStyleV1, DetachedRegularRingInsertionV1,
     DocumentBondCapacityOutcomeV1, DocumentBondPresentationV1, DocumentObjectIdV1,
-    MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1, PersistentId, Point3V1, PreparedStraightenDepictionsV1, ProjectionError,
-    SessionDocumentObservationV1, TypedClass, TypedDocument, TypedDocumentError, WavyInsertionV1,
-    XmlSerializationError,
+    MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1, PersistentId, Point3V1,
+    PreparedStraightenDepictionsV1, ProjectionError, SessionDocumentObservationV1, TypedClass,
+    TypedDocument, TypedDocumentError, WavyInsertionV1, XmlSerializationError,
     direct_bond_gesture_v1::{
         self, CommittedDirectBondGestureV1, DirectBondAdmissionRefusalV1, DirectBondAdmissionV1,
         DirectBondAdmittedCandidateV1, DirectBondCommitErrorV1, DirectBondEndIntentV1,
         DirectBondGestureErrorV1, DirectBondGestureV1, DirectBondPoint2V1, DirectBondPreviewV1,
         DirectBondSessionOriginV1, DirectBondSnapPolicyV1, DocumentFenceV1,
     },
-    direct_bond_gesture_v2::{self, CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondAdmittedCandidateV2, DirectBondEndpointIntentV2, DirectBondGestureV2},
+    direct_bond_gesture_v2::{
+        self, CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondAdmittedCandidateV2,
+        DirectBondEndpointIntentV2, DirectBondGestureV2,
+    },
     generated_ids::GeneratedIdSequences,
     presentation_creation_gesture_v1::{
         self, CommittedPresentationGestureV1, PresentationCreationGestureV1,
@@ -526,6 +529,18 @@ impl DocumentSession {
     ) -> Result<SessionDocumentObservationV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
         self.document_observation()
+    }
+
+    /// Return whether the retained session history has an earlier state.
+    #[must_use]
+    pub fn can_undo(&self) -> bool {
+        self.history.undo_target().is_some()
+    }
+
+    /// Return whether the retained session history has a later state.
+    #[must_use]
+    pub fn can_redo(&self) -> bool {
+        self.history.redo_target().is_some()
     }
 
     /// Observe complete-document literal-ID ambiguity facts at one exact revision.

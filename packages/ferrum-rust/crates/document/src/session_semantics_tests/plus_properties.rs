@@ -5,8 +5,8 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    CDML_NAMESPACE, PlusPropertiesPatchV1, PlusPropertiesPatchV1Error, PlusPropertyChangeV1,
-    PresentationFactProvenanceV1, PresentationRootProjectionV1, Rgb24V1, element_name,
+    element_name, PlusPropertiesPatchV1, PlusPropertiesPatchV1Error, PlusPropertyChangeV1,
+    PresentationFactProvenanceV1, PresentationRootProjectionV1, Rgb24V1, CDML_NAMESPACE,
 };
 use xot::Xot;
 

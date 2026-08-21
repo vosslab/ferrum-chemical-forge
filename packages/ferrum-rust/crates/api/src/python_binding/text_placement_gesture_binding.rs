@@ -5,9 +5,9 @@ use super::presentation_creation_gesture_binding::digest;
 use super::presentation_text_render_binding::PyDocumentTextRenderV1;
 use super::text_properties_binding::PyDocumentTextEditRunV1;
 use crate::{
-    begin_api_text_placement_gesture_v1, commit_api_text_placement_gesture_v1,
-    preview_api_text_placement_gesture_v1, text_placement_defaults_v1, ApiTextPlacementGestureV1,
-    ApiTextPlacementPreviewV1,
+    ApiTextPlacementGestureV1, ApiTextPlacementPreviewV1, begin_api_text_placement_gesture_v1,
+    commit_api_text_placement_gesture_v1, preview_api_text_placement_gesture_v1,
+    text_placement_defaults_v1,
 };
 use ferrum_document::{
     DocumentFenceV1, PresentationGesturePoint2V1, Rgb24V1, TextPlacementContentV1,

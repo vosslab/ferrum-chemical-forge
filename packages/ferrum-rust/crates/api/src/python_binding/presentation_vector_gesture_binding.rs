@@ -1,12 +1,12 @@
 //! Opaque PyO3 seam for Rust-owned ordinary two-point vector authoring.
 
 use crate::{
-    begin_api_presentation_vector_gesture_v1, commit_api_presentation_vector_gesture_v1,
-    prepare_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
     ApiPresentationVectorGestureV1, ApiPresentationVectorPreparedV1,
     ApiPresentationVectorPreviewV1, PresentationVectorGestureCategoryV1,
     PresentationVectorGestureErrorV1, PresentationVectorGestureRecoveryV1,
     PresentationVectorKindV1, PresentationVectorOverlayV1,
+    begin_api_presentation_vector_gesture_v1, commit_api_presentation_vector_gesture_v1,
+    prepare_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
 };
 use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1, PresentationRecordKindV1};
 use pyo3::create_exception;

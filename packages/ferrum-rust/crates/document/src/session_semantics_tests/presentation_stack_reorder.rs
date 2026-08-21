@@ -71,13 +71,11 @@ fn presentation_stack_modes_preserve_slots_content_and_history() {
             .collect::<Vec<_>>(),
         [4, 5, 6],
     );
-    assert!(
-        brought
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("retained=\"yes\"")
-    );
+    assert!(brought
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("retained=\"yes\""));
     let reversed = session
         .submit(
             1,
@@ -107,23 +105,19 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
         PresentationStackReorderV1::new(PresentationStackOrderV1::BringToFront, Vec::new(),)
             .is_err()
     );
-    assert!(
-        PresentationStackReorderV1::new(
-            PresentationStackOrderV1::SendToBack,
-            vec![
-                target("a", PresentationRecordKindV1::Arrow),
-                target("a", PresentationRecordKindV1::Arrow),
-            ],
-        )
-        .is_err()
-    );
-    assert!(
-        PresentationStackReorderV1::new(
-            PresentationStackOrderV1::ReverseSelectedSlots,
-            vec![target("a", PresentationRecordKindV1::Arrow)],
-        )
-        .is_err()
-    );
+    assert!(PresentationStackReorderV1::new(
+        PresentationStackOrderV1::SendToBack,
+        vec![
+            target("a", PresentationRecordKindV1::Arrow),
+            target("a", PresentationRecordKindV1::Arrow),
+        ],
+    )
+    .is_err());
+    assert!(PresentationStackReorderV1::new(
+        PresentationStackOrderV1::ReverseSelectedSlots,
+        vec![target("a", PresentationRecordKindV1::Arrow)],
+    )
+    .is_err());
     let mut session = DocumentSession::load(SOURCE).expect("fixture loads");
     let before = session.snapshot().expect("baseline");
     let wrong_kind = reorder(

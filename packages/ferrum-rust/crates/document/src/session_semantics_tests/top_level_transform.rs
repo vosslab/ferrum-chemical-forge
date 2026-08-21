@@ -54,20 +54,16 @@ fn rigid_translation_moves_molecule_and_presentation_and_history_restores_geomet
     };
     assert_authored_close(plus.anchor().x(), 8.0);
     assert_authored_close(plus.anchor().y(), 6.0);
-    assert!(
-        result
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("retained=\"yes\"")
-    );
-    assert!(
-        result
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("kept=\"yes\"")
-    );
+    assert!(result
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("retained=\"yes\""));
+    assert!(result
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("kept=\"yes\""));
 
     let undone = session.undo(1).expect("translation is one history entry");
     assert_eq!(
@@ -270,13 +266,11 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
             .y(),
         15.0,
     );
-    assert!(
-        mirrored
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("id=\"owned\"")
-    );
+    assert!(mirrored
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("id=\"owned\""));
 
     let mut vertical = DocumentSession::load(source).expect("fixture loads");
     let mirrored = vertical
@@ -291,13 +285,11 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
             .x(),
         20.0,
     );
-    assert!(
-        !mirrored
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("id=\"owned\"")
-    );
+    assert!(!mirrored
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("id=\"owned\""));
 }
 
 #[test]

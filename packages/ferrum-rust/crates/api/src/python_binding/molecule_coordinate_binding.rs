@@ -4,15 +4,15 @@ use std::collections::HashSet;
 
 use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
 use ferrum_document::{
-    build_clean_geometry_update_v1, build_molecule_coordinate_update_v1, CleanGeometryBuildError,
-    MoleculeCoordinateBuildError,
+    CleanGeometryBuildError, MoleculeCoordinateBuildError, build_clean_geometry_update_v1,
+    build_molecule_coordinate_update_v1,
 };
 use ferrum_document::{CleanGeometryUpdateV1, DocumentObjectIdV1, MoleculeCoordinateUpdateV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyString, PyTuple};
 
-use super::binding::{projection_error, FerrumError};
+use super::binding::{FerrumError, projection_error};
 use super::projection_binding::PySessionDocumentObservationV1;
 
 create_exception!(ferrum_chem, MoleculeCoordinateError, FerrumError);

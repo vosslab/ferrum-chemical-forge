@@ -187,7 +187,10 @@ pub use direct_bond_gesture_v1::{
     DirectBondGestureV1, DirectBondOverlayV1, DirectBondPoint2V1, DirectBondPreviewV1,
     DirectBondSnapPolicyV1, DocumentFenceV1,
 };
-pub use direct_bond_gesture_v2::{CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondEndpointIntentV2, DirectBondGestureV2, DirectBondOverlayV2};
+pub use direct_bond_gesture_v2::{
+    CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondEndpointIntentV2,
+    DirectBondGestureV2, DirectBondOverlayV2,
+};
 pub use direct_cdml_semantic_index_v1::{
     DirectCdmlRootKindV1, DirectCdmlRootV1, DirectCdmlSemanticErrorV1, DirectCdmlSemanticIndexV1,
     DirectReactionMemberV1, DirectReactionRoleV1, ReactionDefinitionDiagnosticV1,

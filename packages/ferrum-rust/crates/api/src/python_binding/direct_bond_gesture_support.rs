@@ -15,10 +15,7 @@ use pyo3::prelude::*;
 pub(super) use super::{
     binding::PyDocumentBondPresentationV1, document_error_binding::document_object_id,
 };
-use super::{
-    binding::{PyDocumentSession, PySessionOperationResultV1},
-    document_error_binding::RevisionConflictError,
-};
+use super::{binding::PySessionOperationResultV1, document_error_binding::RevisionConflictError};
 
 create_exception!(
     ferrum_chem,
@@ -223,18 +220,18 @@ pub(super) struct PyDirectBondAdmissionV1 {
 #[pyclass(frozen, module = "ferrum_chem", name = "DirectBondPreviewRefusalV1")]
 pub(super) struct PyDirectBondPreviewRefusalV1 {
     #[pyo3(get)]
-    category: Py<PyDirectBondGestureCategoryV1>,
+    pub(super) category: Py<PyDirectBondGestureCategoryV1>,
     #[pyo3(get)]
-    recovery: Py<PyDirectBondGestureRecoveryV1>,
+    pub(super) recovery: Py<PyDirectBondGestureRecoveryV1>,
 }
 
 /// A semantic admission refusal that a controller may display directly.
 #[pyclass(frozen, module = "ferrum_chem", name = "DirectBondAdmissionRefusalV1")]
 pub(super) struct PyDirectBondAdmissionRefusalV1 {
     #[pyo3(get)]
-    category: Py<PyDirectBondAdmissionCategoryV1>,
+    pub(super) category: Py<PyDirectBondAdmissionCategoryV1>,
     #[pyo3(get)]
-    recovery: Py<PyDirectBondGestureRecoveryV1>,
+    pub(super) recovery: Py<PyDirectBondGestureRecoveryV1>,
 }
 
 /// Frozen commit receipt containing the new IDs and authoritative observation.
@@ -282,7 +279,12 @@ pub(super) struct PyDirectBondGestureV2 {
     pub(super) gesture: DirectBondGestureV2,
 }
 
-#[pyclass(frozen, module = "ferrum_chem", name = "DirectBondOverlayV2")]
+#[pyclass(
+    frozen,
+    module = "ferrum_chem",
+    name = "DirectBondOverlayV2",
+    skip_from_py_object
+)]
 #[derive(Clone)]
 pub(super) struct PyDirectBondOverlayV2 {
     #[pyo3(get)]

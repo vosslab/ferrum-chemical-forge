@@ -364,6 +364,28 @@ def test_native_add_atom_uses_rust_identity_point_history_and_save(
 
 
 #============================================
+def test_native_tab_relays_independent_rust_history_availability(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The tab exposes the Rust session cursor without rebuilding history in Qt."""
+	del qapp
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_BOND_CDML, "history-availability.cdml",
+	)
+	choice = tab.durable_molecule_choices()[0]
+	try:
+		assert not tab.can_undo() and not tab.can_redo()
+		tab.add_atom_at(choice.object_id, "O", 30.0, 40.0)
+		assert tab.can_undo() and not tab.can_redo()
+		tab.undo()
+		assert not tab.can_undo() and tab.can_redo()
+		tab.add_atom_at(choice.object_id, "N", 35.0, 40.0)
+		assert tab.can_undo() and not tab.can_redo()
+	finally:
+		tab.dispose()
+
+
+#============================================
 def test_native_add_atom_refuses_molecule_without_installed_rust_render_plan(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:

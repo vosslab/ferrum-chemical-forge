@@ -105,13 +105,11 @@ fn drawing_standard_creation_is_ordered_and_empty_patch_is_a_noop() {
         .submit(0, operation(vec![]))
         .expect("empty patch must be accepted");
     assert_eq!(empty.observation().snapshot().revision(), 0);
-    assert!(
-        empty
-            .observation()
-            .projection()
-            .drawing_standard()
-            .is_none()
-    );
+    assert!(empty
+        .observation()
+        .projection()
+        .drawing_standard()
+        .is_none());
 
     let result = session
         .submit(

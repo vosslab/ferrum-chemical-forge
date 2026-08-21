@@ -189,11 +189,6 @@ impl GeneratedIdSequences {
     }
 
     #[cfg(test)]
-    pub(super) fn with_molecule_sequence(self, molecule: Option<u64>) -> Self {
-        Self { molecule, ..self }
-    }
-
-    #[cfg(test)]
     pub(super) fn with_atom_sequence(self, atom: Option<u64>) -> Self {
         Self { atom, ..self }
     }

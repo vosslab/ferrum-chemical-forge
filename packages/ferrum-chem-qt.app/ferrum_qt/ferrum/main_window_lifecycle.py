@@ -255,6 +255,12 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._delete_atom_action.setEnabled(active and not pending and not busy)
 		self._delete_bond_action.setEnabled(active and not pending and not busy)
 		self._change_bond_order_action.setEnabled(active and not pending and not busy)
+		self._undo_action.setEnabled(
+			active and not pending and not busy and tab.can_undo(),
+		)
+		self._redo_action.setEnabled(
+			active and not pending and not busy and tab.can_redo(),
+		)
 		can_add_atom = (
 			active and not pending and not authoring_busy
 			and bool(tab.durable_molecule_choices())
@@ -271,8 +277,6 @@ class FerrumNativeMainWindowLifecycleMixin:
 			active and not pending and not authoring_busy,
 		)
 		self._refresh_top_level_transform_actions(tab, active, pending, authoring_busy)
-		self._undo_action.setEnabled(active and not pending and not busy)
-		self._redo_action.setEnabled(active and not pending and not busy)
 		self._refresh_action.setEnabled(pending)
 		self._refresh_molecule_import_actions(
 			active, pending, busy_coordinates or busy_clipboard,

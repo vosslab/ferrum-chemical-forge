@@ -1,7 +1,7 @@
 //! Frozen Python DTOs for Rust-issued presentation-path replay commands.
 
 use ferrum_document::Point3V1;
-use ferrum_render::{lower_presentation_points_path_v1, PathCommandV1, PathKindV1};
+use ferrum_render::{PathCommandV1, PathKindV1, lower_presentation_points_path_v1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;

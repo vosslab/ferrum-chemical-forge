@@ -1560,6 +1560,8 @@ class XmlInputBudgetV1:
 
 class DocumentSession:
 	"""Thread-affine mutable session with synchronous, owned-value methods only."""
+	can_undo: bool
+	can_redo: bool
 	@staticmethod
 	def create_empty_document_v1() -> "DocumentSession":
 		"""Create a canonical clean empty CDML baseline owned by Rust."""
