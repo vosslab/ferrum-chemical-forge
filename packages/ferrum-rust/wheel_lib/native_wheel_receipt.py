@@ -13,7 +13,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 # Local imports.
-from native_wheel_profile import (
+from wheel_lib.native_wheel_profile import (
 	MACOS_ARM64_NATIVE_CLOSURE,
 	RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES,
 	TARGET,

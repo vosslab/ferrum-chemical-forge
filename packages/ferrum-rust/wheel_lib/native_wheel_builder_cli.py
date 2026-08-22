@@ -13,6 +13,9 @@ def parser(
 	self_test_handler: Callable[[argparse.Namespace], None],
 	publication_validation_handler: Callable[[argparse.Namespace], None],
 	publication_handler: Callable[[argparse.Namespace], None],
+	artifact_result_handler: Callable[[argparse.Namespace], None],
+	qt_worktree_closure_handler: Callable[[argparse.Namespace], None],
+	qt_staging_handler: Callable[[argparse.Namespace], None],
 	output_path: Callable[[str], Path],
 	engine_bundle_path: Callable[[str], Path],
 	archive_root_path: Callable[[str], Path],
@@ -81,9 +84,31 @@ def parser(
 	publish_publication.add_argument("--wheel", required=True, type=Path)
 	publish_publication.add_argument("--receipt", required=True, type=Path)
 	publish_publication.add_argument("--engine-bundle", required=True, type=Path)
-	publish_publication.add_argument("--qt-wheel", type=Path)
-	publish_publication.add_argument("--qt-source-root", type=Path)
-	publish_publication.add_argument("--qt-source-closure", type=Path)
-	publish_publication.add_argument("--pair-receipt", type=Path)
+	publish_publication.add_argument("--qt-wheel", required=True, type=Path)
+	publish_publication.add_argument("--qt-source-root", required=True, type=Path)
+	publish_publication.add_argument("--qt-source-closure", required=True, type=Path)
+	publish_publication.add_argument("--qt-worktree-source-root", required=True, type=Path)
+	publish_publication.add_argument("--qt-worktree-source-closure", required=True, type=Path)
+	publish_publication.add_argument("--pair-receipt", required=True, type=Path)
 	publish_publication.set_defaults(handler=publication_handler)
+	artifact_result = subcommands.add_parser(
+		"parse-artifact-result", help="validate one streamed native builder artifact result",
+	)
+	artifact_result.add_argument("--output-root", required=True, type=Path)
+	artifact_result.set_defaults(handler=artifact_result_handler)
+	qt_worktree_closure = subcommands.add_parser(
+		"record-qt-worktree-source-closure",
+		help="record the admitted Qt source closure before staging",
+	)
+	qt_worktree_closure.add_argument("--worktree-source-root", required=True, type=Path)
+	qt_worktree_closure.add_argument("--closure-path", required=True, type=Path)
+	qt_worktree_closure.set_defaults(handler=qt_worktree_closure_handler)
+	qt_staging = subcommands.add_parser(
+		"stage-qt-source-tree", help="stage exactly one admitted Qt source closure",
+	)
+	qt_staging.add_argument("--worktree-source-root", required=True, type=Path)
+	qt_staging.add_argument("--destination", required=True, type=Path)
+	qt_staging.add_argument("--closure-path", required=True, type=Path)
+	qt_staging.add_argument("--admission-path", required=True, type=Path)
+	qt_staging.set_defaults(handler=qt_staging_handler)
 	return result

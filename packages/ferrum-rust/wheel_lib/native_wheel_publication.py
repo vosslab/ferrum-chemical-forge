@@ -5,28 +5,135 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import stat
 import tempfile
 import zipfile
 from pathlib import Path
 
-import native_wheel_bundle
+import wheel_lib.native_wheel_bundle as native_wheel_bundle
 
 
 class NativePublicationError(ValueError):
 	"""A native-wheel publication candidate violates its evidence contract."""
 
 
-DEVELOPER_WHEEL_PUBLICATION_SCHEMA = "ferrum-developer-wheel-publication-v1"
+DEVELOPER_WHEEL_PUBLICATION_SCHEMA = "ferrum-developer-wheel-publication-v4"
+QT_SOURCE_CLOSURE_SCHEMA = "ferrum-qt-source-closure-v2"
+QT_SOURCE_CLOSURE_EXCLUDED_DIRECTORIES = (
+	"__pycache__", ".pytest_cache", "build", "ferrum_qt.egg-info",
+)
+QT_SOURCE_CLOSURE_EXCLUDED_SUFFIXES = (".pyc",)
 
 
 #============================================
 def qt_source_closure(root: Path, sha256: object) -> dict[str, object]:
 	"""Return the safe regular-file inventory used for one staged Qt wheel."""
 	return ferrum_worktree_source_closure(
-		root, "ferrum-qt-source-closure-v1", ("__pycache__", ".pytest_cache", "build"),
-		(".pyc",), sha256,
+		root, QT_SOURCE_CLOSURE_SCHEMA, QT_SOURCE_CLOSURE_EXCLUDED_DIRECTORIES,
+		QT_SOURCE_CLOSURE_EXCLUDED_SUFFIXES, sha256,
 	)
+
+
+#============================================
+def _closure_relative_path(value: object) -> Path:
+	"""Return one safe relative closure path, rejecting forged manifest members."""
+	if not isinstance(value, str):
+		raise NativePublicationError("Qt source closure has a non-string path")
+	path = Path(value)
+	if path.is_absolute() or ".." in path.parts or path.as_posix() != value:
+		raise NativePublicationError(f"Qt source closure has an unsafe path: {value!r}")
+	return path
+
+
+#============================================
+def stage_qt_source_tree(
+		worktree_root: Path, destination: Path, admission: dict[str, object], sha256: object,
+		) -> dict[str, object]:
+	"""Reconstruct fresh Qt staging from exactly one admitted regular-file inventory."""
+	worktree_root = worktree_root.resolve(strict=True)
+	if not worktree_root.is_dir():
+		raise NativePublicationError(f"Qt worktree source root is not a directory: {worktree_root}")
+	if destination.exists() or destination.is_symlink():
+		raise NativePublicationError(f"Qt staging destination must be absent: {destination}")
+	require_matching_worktree_source_closure(
+		admission, qt_source_closure(worktree_root, sha256), "before staging Qt wheel",
+	)
+	files = admission.get("files")
+	if not isinstance(files, list):
+		raise NativePublicationError("Qt source closure lacks its file inventory")
+	destination.mkdir(parents=True)
+	seen: set[Path] = set()
+	for entry in files:
+		if not isinstance(entry, dict):
+			raise NativePublicationError("Qt source closure has a non-object file record")
+		relative = _closure_relative_path(entry.get("path"))
+		if relative in seen:
+			raise NativePublicationError(f"Qt source closure has a duplicate path: {relative}")
+		seen.add(relative)
+		source = worktree_root / relative
+		if source.is_symlink() or not source.is_file():
+			raise NativePublicationError(f"Qt source closure member is no longer a regular file: {relative}")
+		target = destination / relative
+		target.parent.mkdir(parents=True, exist_ok=True)
+		shutil.copyfile(source, target)
+	staged = qt_source_closure(destination, sha256)
+	require_matching_worktree_source_closure(admission, staged, "while staging Qt wheel")
+	return staged
+
+
+#============================================
+def qt_source_package_manifest(root: Path, sha256: object) -> dict[str, object]:
+	"""Hash every admitted package payload file, including non-Python resources."""
+	members = [
+		{"path": item["path"], "sha256": item["sha256"]}
+		for item in qt_source_closure(root, sha256).get("files", [])
+		if isinstance(item, dict) and isinstance(item.get("path"), str)
+		and isinstance(item.get("sha256"), str) and item["path"].startswith("ferrum_qt/")
+	]
+	if not members:
+		raise NativePublicationError("Qt source closure has no ferrum_qt package payload")
+	payload = json.dumps(members, separators=(",", ":"), sort_keys=True).encode("utf-8")
+	return {"members": members, "fingerprint_sha256": hashlib.sha256(payload).hexdigest()}
+
+
+#============================================
+def qt_wheel_package_manifest(wheel: Path, sha256: object) -> dict[str, object]:
+	"""Require a wheel to contain only Ferrum package payload and generated dist-info."""
+	manifest = wheel_member_manifest(wheel, sha256)
+	members: list[dict[str, str]] = []
+	dist_info_roots: set[str] = set()
+	for member in manifest["members"]:
+		path = member["path"]
+		if path.startswith("ferrum_qt/"):
+			members.append(member)
+			continue
+		parts = Path(path).parts
+		if len(parts) >= 2 and parts[0].startswith("ferrum_qt-") and parts[0].endswith(".dist-info"):
+			dist_info_roots.add(parts[0])
+			continue
+		raise NativePublicationError(f"Qt wheel has an unapproved non-package member: {path}")
+	if not members:
+		raise NativePublicationError("Qt wheel has no ferrum_qt package payload")
+	if len(dist_info_roots) != 1:
+		raise NativePublicationError("Qt wheel must contain exactly one generated ferrum_qt dist-info tree")
+	payload = json.dumps(members, separators=(",", ":"), sort_keys=True).encode("utf-8")
+	return {"members": members, "fingerprint_sha256": hashlib.sha256(payload).hexdigest()}
+
+
+#============================================
+def validate_qt_wheel_package_payload(qt_source_root: Path, qt_wheel: Path, sha256: object) -> dict[str, object]:
+	"""Require every published Qt package byte to equal an admitted staged source byte."""
+	source_payload = qt_source_package_manifest(qt_source_root, sha256)
+	wheel_payload = qt_wheel_package_manifest(qt_wheel, sha256)
+	source_members = {item["path"]: item["sha256"] for item in source_payload["members"]}
+	for member in wheel_payload["members"]:
+		path = member["path"]
+		if source_members.get(path) != member["sha256"]:
+			raise NativePublicationError(
+				f"Qt wheel package payload is not an admitted staged source member: {path}"
+			)
+	return wheel_payload
 
 
 #============================================
@@ -53,7 +160,10 @@ def wheel_member_manifest(wheel: Path, sha256: object) -> dict[str, object]:
 #============================================
 def developer_pair_receipt(
 		candidate_root: Path, native_wheel: Path, qt_wheel: Path, native_receipt: Path,
-		engine_bundle: Path, qt_source_closure_value: dict[str, object], sha256: object,
+		engine_bundle: Path, qt_staged_source_closure: dict[str, object],
+		qt_worktree_source_closure_admission: dict[str, object],
+		qt_worktree_source_closure_final: dict[str, object], qt_delivered_package_payload: dict[str, object],
+		sha256: object,
 		) -> dict[str, object]:
 	"""Bind both developer wheels and their independently verified source evidence."""
 	try:
@@ -75,25 +185,38 @@ def developer_pair_receipt(
 		"native_receipt": {"filename": native_receipt.name, "sha256": sha256(native_receipt)},
 		"engine_bundle_manifest_sha256": sha256(engine_manifest),
 		"native_source_closure_sha256": closure["fingerprint_sha256"],
-		"qt_source_closure": qt_source_closure_value,
+		"qt_staged_source_closure": qt_staged_source_closure,
+		"qt_worktree_source_closure": {
+			"admitted": qt_worktree_source_closure_admission,
+			"final": qt_worktree_source_closure_final,
+		},
+		"qt_delivered_package_payload": qt_delivered_package_payload,
 		"qt_wheel_members": wheel_member_manifest(qt_wheel, sha256),
 	}
 
 
 #============================================
-def require_qt_source_closure(
-		qt_source_root: Path, closure_path: Path, sha256: object,
-		) -> dict[str, object]:
-	"""Load a pre-wheel Qt input closure and reject post-wheel staged-source drift."""
+def load_qt_source_closure(closure_path: Path) -> dict[str, object]:
+	"""Load one canonical Qt source closure from a regular evidence file."""
 	if closure_path.is_symlink() or not closure_path.is_file():
-		raise NativePublicationError("Qt source closure is not a regular staged file")
+		raise NativePublicationError("Qt source closure is not a regular evidence file")
 	try:
 		expected = json.loads(closure_path.read_text(encoding="utf-8"))
 	except json.JSONDecodeError as error:
 		raise NativePublicationError(f"Qt source closure is invalid JSON: {error.msg}") from error
+	if not isinstance(expected, dict):
+		raise NativePublicationError("Qt source closure is not an object")
+	return expected
+
+
+#============================================
+def require_qt_source_closure(
+		qt_source_root: Path, closure_path: Path, sha256: object, label: str,
+		) -> dict[str, object]:
+	"""Require one source tree to match its recorded canonical Qt closure."""
+	expected = load_qt_source_closure(closure_path)
 	actual = qt_source_closure(qt_source_root, sha256)
-	if expected != actual:
-		raise NativePublicationError("staged Qt source changed after its wheel input closure")
+	require_matching_worktree_source_closure(expected, actual, label)
 	return actual
 
 
@@ -101,6 +224,7 @@ def require_qt_source_closure(
 def validate_developer_pair(
 		candidate_root: Path, native_wheel: Path, qt_wheel: Path, native_receipt: Path,
 		engine_bundle: Path, qt_source_root: Path, qt_source_closure_path: Path,
+		qt_worktree_source_root: Path, qt_worktree_source_closure_path: Path,
 		pair_receipt: Path, sha256: object,
 		) -> None:
 	"""Require a complete pair receipt and artifacts physically below one candidate."""
@@ -111,9 +235,21 @@ def validate_developer_pair(
 			raise NativePublicationError(f"developer publication {label} is not a regular candidate member")
 	if not qt_wheel.name.startswith("ferrum_qt-") or qt_wheel.suffix != ".whl":
 		raise NativePublicationError(f"developer publication has an invalid Qt wheel: {qt_wheel}")
-	qt_closure = require_qt_source_closure(qt_source_root, qt_source_closure_path, sha256)
+	qt_staged_source_closure = require_qt_source_closure(
+		qt_source_root, qt_source_closure_path, sha256, "after Qt wheel build",
+	)
+	qt_worktree_source_closure_admission = load_qt_source_closure(qt_worktree_source_closure_path)
+	require_matching_worktree_source_closure(
+		qt_worktree_source_closure_admission, qt_staged_source_closure, "while staging Qt wheel",
+	)
+	qt_worktree_source_closure_final = require_qt_source_closure(
+		qt_worktree_source_root, qt_worktree_source_closure_path, sha256, "before publication",
+	)
+	qt_delivered_package_payload = validate_qt_wheel_package_payload(qt_source_root, qt_wheel, sha256)
 	expected = developer_pair_receipt(
-		candidate_root, native_wheel, qt_wheel, native_receipt, engine_bundle, qt_closure, sha256
+		candidate_root, native_wheel, qt_wheel, native_receipt, engine_bundle,
+		qt_staged_source_closure, qt_worktree_source_closure_admission,
+		qt_worktree_source_closure_final, qt_delivered_package_payload, sha256,
 	)
 	try:
 		actual = json.loads(pair_receipt.read_text(encoding="utf-8"))
@@ -121,6 +257,36 @@ def validate_developer_pair(
 		raise NativePublicationError(f"developer pair receipt is invalid JSON: {error.msg}") from error
 	if actual != expected:
 		raise NativePublicationError("developer pair receipt does not match the complete candidate")
+
+
+#============================================
+def write_developer_pair_receipt(
+		candidate_root: Path, native_wheel: Path, qt_wheel: Path, native_receipt: Path,
+		engine_bundle: Path, qt_source_root: Path, qt_source_closure_path: Path,
+		qt_worktree_source_root: Path, qt_worktree_source_closure_path: Path,
+		pair_receipt: Path, sha256: object,
+		) -> None:
+	"""Seal the pair receipt from the final live Qt worktree observation."""
+	if pair_receipt.is_symlink() or pair_receipt.exists():
+		raise NativePublicationError("developer pair receipt must be a fresh regular candidate file")
+	if not pair_receipt.parent.resolve(strict=True).is_relative_to(candidate_root):
+		raise NativePublicationError("developer pair receipt is outside its candidate")
+	qt_staged_source_closure = require_qt_source_closure(
+		qt_source_root, qt_source_closure_path, sha256, "after Qt wheel build",
+	)
+	qt_worktree_source_closure_admission = load_qt_source_closure(qt_worktree_source_closure_path)
+	require_matching_worktree_source_closure(
+		qt_worktree_source_closure_admission, qt_staged_source_closure, "while staging Qt wheel",
+	)
+	qt_worktree_source_closure_final = require_qt_source_closure(
+		qt_worktree_source_root, qt_worktree_source_closure_path, sha256, "before publication",
+	)
+	qt_delivered_package_payload = validate_qt_wheel_package_payload(qt_source_root, qt_wheel, sha256)
+	pair_receipt.write_text(json.dumps(developer_pair_receipt(
+		candidate_root, native_wheel, qt_wheel, native_receipt, engine_bundle,
+		qt_staged_source_closure, qt_worktree_source_closure_admission,
+		qt_worktree_source_closure_final, qt_delivered_package_payload, sha256,
+	), sort_keys=True, separators=(",", ":")), encoding="utf-8")
 
 
 #============================================
@@ -285,16 +451,20 @@ def publish_current_publication(
 		worktree_excluded_directories: tuple[str, ...],
 		worktree_excluded_suffixes: tuple[str, ...], engine_bundle: Path,
 		manifest_name: str, bundle_schema: str, bundle_target: str,
-		adapter_abi_version: int, adapter_name: str, sha256: object,
-		qt_wheel: Path | None = None, qt_source_root: Path | None = None,
-		qt_source_closure_path: Path | None = None,
-		pair_receipt: Path | None = None,
+		adapter_abi_version: int, adapter_name: str, sha256: object, qt_wheel: Path,
+		qt_source_root: Path, qt_source_closure_path: Path, qt_worktree_source_root: Path,
+		qt_worktree_source_closure_path: Path, pair_receipt: Path,
 		) -> None:
 	"""Validate one candidate then atomically select it as the current publication."""
 	candidate_root = candidate_root.resolve(strict=True)
 	publication_parent = current_pointer.parent.resolve(strict=True)
 	if candidate_root.parent != publication_parent:
 		raise NativePublicationError("native publication candidate is not a current-pointer sibling")
+	if any(value is None for value in (
+			qt_wheel, qt_source_root, qt_source_closure_path, qt_worktree_source_root,
+			qt_worktree_source_closure_path, pair_receipt,
+		)):
+		raise NativePublicationError("developer pair publication requires every Qt evidence input")
 	candidate_name = candidate_root.name
 	if not candidate_name.startswith(".native-publication-"):
 		raise NativePublicationError(f"native publication candidate has an invalid name: {candidate_root}")
@@ -309,13 +479,20 @@ def publish_current_publication(
 		engine_bundle, manifest_name, bundle_schema, bundle_target, adapter_abi_version,
 		adapter_name, sha256,
 	)
-	if any(value is not None for value in (qt_wheel, qt_source_root, qt_source_closure_path, pair_receipt)):
-		if qt_wheel is None or qt_source_root is None or qt_source_closure_path is None or pair_receipt is None:
-			raise NativePublicationError("developer pair publication requires Qt wheel, source root, closure, and receipt")
-		validate_developer_pair(
-			candidate_root, wheel, qt_wheel, receipt, engine_bundle, qt_source_root,
-			qt_source_closure_path, pair_receipt, sha256
-		)
+	validate_wheel_engine_bundle(
+		wheel, engine_bundle, manifest_name, bundle_schema, bundle_target,
+		adapter_abi_version, adapter_name, sha256,
+	)
+	write_developer_pair_receipt(
+		candidate_root, wheel, qt_wheel, receipt, engine_bundle, qt_source_root,
+		qt_source_closure_path, qt_worktree_source_root,
+		qt_worktree_source_closure_path, pair_receipt, sha256,
+	)
+	validate_developer_pair(
+		candidate_root, wheel, qt_wheel, receipt, engine_bundle, qt_source_root,
+		qt_source_closure_path, qt_worktree_source_root,
+		qt_worktree_source_closure_path, pair_receipt, sha256,
+	)
 	# The private stage prevents another cooperating build from substituting the source link
 	# between its exact validation and os.replace().  Ordinary source edits are instead
 	# represented by the closure validation immediately above.
@@ -352,6 +529,34 @@ def validate_engine_bundle(
 		)
 	except native_wheel_bundle.NativeEngineBundleError as error:
 		raise NativePublicationError(str(error)) from error
+
+
+#============================================
+def validate_wheel_engine_bundle(
+		wheel: Path, bundle: Path, manifest_name: str, schema: str, target: str,
+		adapter_abi_version: int, adapter_name: str, sha256: object,
+		) -> None:
+	"""Require the installed-wheel bundle payload to equal its CLI bundle byte-for-byte."""
+	validate_engine_bundle(
+		bundle, manifest_name, schema, target, adapter_abi_version, adapter_name, sha256,
+	)
+	expected = {f"ferrum-engine-bundle/{path.name}": path for path in bundle.iterdir()}
+	try:
+		with zipfile.ZipFile(wheel) as archive:
+			actual = {
+				info.filename: info for info in archive.infolist()
+				if info.filename.startswith("ferrum-engine-bundle/") and not info.is_dir()
+			}
+			if set(actual) != set(expected):
+				raise NativePublicationError("wheel sealed engine bundle members differ from its CLI bundle")
+			for name, source in expected.items():
+				info = actual[name]
+				if stat.S_IFMT(info.external_attr >> 16) == stat.S_IFLNK:
+					raise NativePublicationError(f"wheel sealed engine bundle member is a symbolic link: {name}")
+				if archive.read(info) != source.read_bytes():
+					raise NativePublicationError(f"wheel sealed engine bundle member differs from its CLI bundle: {name}")
+	except zipfile.BadZipFile as error:
+		raise NativePublicationError(f"wheel is not a readable archive: {wheel}") from error
 
 
 #============================================

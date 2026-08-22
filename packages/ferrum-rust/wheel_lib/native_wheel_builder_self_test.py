@@ -19,22 +19,25 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from native_wheel_macho import (
+from wheel_lib.native_wheel_macho import (
 	NativeMachoError,
 	deduplicate_paths_by_identity,
 	self_test as macho_self_test,
 )
-from native_wheel_packaging import NOTICE_FILENAMES, NativePackagingError, inject_root_metadata
-from native_wheel_policy import NativePolicyError, self_test as policy_self_test
-from native_wheel_profile import (
+from wheel_lib.native_wheel_packaging import NOTICE_FILENAMES, NativePackagingError, inject_root_metadata
+from wheel_lib.native_wheel_policy import NativePolicyError, self_test as policy_self_test
+from wheel_lib.native_wheel_profile import (
 	FERRUM_RDKIT_PROFILE,
 	MACOS_ARM64_NATIVE_CLOSURE,
 	PinnedSource,
 	RDKIT_CLOSURE_LIBRARY_INSTALL_NAMES,
 	RdkitCapabilityProfile,
 )
-from native_wheel_receipt import NativeReceiptError, self_test as receipt_self_test, sha256
-import native_wheel_builder_publication_self_test
+from wheel_lib.native_wheel_receipt import NativeReceiptError, self_test as receipt_self_test, sha256
+import wheel_lib.native_wheel_builder_publication_self_test as native_wheel_builder_publication_self_test
+import wheel_lib.native_wheel_builder_model as native_wheel_builder_model
+import wheel_lib.native_wheel_builder_sources as native_wheel_builder_sources
+from wheel_lib.native_wheel_builder_self_test_bindings import production_bindings
 
 
 #============================================
@@ -430,12 +433,15 @@ def _run_native_input_manifest_fixtures(api: types.ModuleType, root: Path, tempo
 	"""Run manifest success and rejection fixtures using one private build tree."""
 	private_input = root / "private-input"
 	fixture_profile = _write_private_native_inputs(private_input)
-	original_profile = api.FERRUM_RDKIT_PROFILE
-	api.FERRUM_RDKIT_PROFILE = fixture_profile
+	original_source_profile = native_wheel_builder_sources.FERRUM_RDKIT_PROFILE
+	original_model_profile = native_wheel_builder_model.FERRUM_RDKIT_PROFILE
+	native_wheel_builder_sources.FERRUM_RDKIT_PROFILE = fixture_profile
+	native_wheel_builder_model.FERRUM_RDKIT_PROFILE = fixture_profile
 	try:
 		_run_manifest_rejection_fixtures(api, private_input, temporary)
 	finally:
-		api.FERRUM_RDKIT_PROFILE = original_profile
+		native_wheel_builder_sources.FERRUM_RDKIT_PROFILE = original_source_profile
+		native_wheel_builder_model.FERRUM_RDKIT_PROFILE = original_model_profile
 
 
 #============================================
@@ -535,13 +541,13 @@ def _run_managed_archive_cache_fixtures(api: types.ModuleType, root: Path) -> No
 		forbidden_wheel_fragments=(),
 		forbidden_native_fragments=(),
 	)
-	original_repo_root = api.REPO_ROOT
-	original_profile = api.FERRUM_RDKIT_PROFILE
-	original_downloader = api.download_verified_archive
+	original_repo_root = native_wheel_builder_sources.REPO_ROOT
+	original_profile = native_wheel_builder_sources.FERRUM_RDKIT_PROFILE
+	original_downloader = native_wheel_builder_sources.download_verified_archive
 	try:
-		api.REPO_ROOT = root
-		api.FERRUM_RDKIT_PROFILE = profile
-		cache_root = api.managed_source_archive_cache_root()
+		native_wheel_builder_sources.REPO_ROOT = root
+		native_wheel_builder_sources.FERRUM_RDKIT_PROFILE = profile
+		cache_root = native_wheel_builder_sources.managed_source_archive_cache_root()
 		if cache_root != root / "build" / "native-source-archives" / profile.name:
 			raise api.NativeBuildError("managed archive cache is not profile-scoped")
 		for source in (profile.rdkit, *profile.dependencies):
@@ -552,8 +558,8 @@ def _run_managed_archive_cache_fixtures(api: types.ModuleType, root: Path) -> No
 		def no_download(destination: Path, url: str, digest: str, label: str) -> Path:
 			calls.append(label)
 			return original_downloader(destination, url, digest, label)
-		api.download_verified_archive = no_download
-		if api.provision_managed_source_archive_cache() != cache_root or calls:
+		native_wheel_builder_sources.download_verified_archive = no_download
+		if native_wheel_builder_sources.provision_managed_source_archive_cache() != cache_root or calls:
 			raise api.NativeBuildError("valid managed archive cache unexpectedly downloaded")
 		(cache_root / profile.dependencies[0].archive_filename).unlink()
 		def provision_one(destination: Path, url: str, digest: str, label: str) -> Path:
@@ -562,24 +568,24 @@ def _run_managed_archive_cache_fixtures(api: types.ModuleType, root: Path) -> No
 			destination.write_bytes(source.read_bytes())
 			return original_downloader(destination, url, digest, label)
 		calls.clear()
-		api.download_verified_archive = provision_one
-		api.provision_managed_source_archive_cache()
+		native_wheel_builder_sources.download_verified_archive = provision_one
+		native_wheel_builder_sources.provision_managed_source_archive_cache()
 		if calls != [profile.dependencies[0].name]:
 			raise api.NativeBuildError("managed cache did not provision exactly its missing archive")
 		(cache_root / profile.rdkit.archive_filename).write_bytes(b"bad")
 		calls.clear()
-		_reject(api, api.provision_managed_source_archive_cache, "bad managed archive digest")
+		_reject(api, native_wheel_builder_sources.provision_managed_source_archive_cache, "bad managed archive digest")
 		if calls:
 			raise api.NativeBuildError("bad managed archive digest was replaced instead of refused")
 		explicit_root = root / "explicit"
 		explicit_root.mkdir()
 		arguments = argparse.Namespace(source_archive_root=explicit_root)
-		if api.archive_root_for_build(arguments) != explicit_root or calls:
+		if native_wheel_builder_sources.archive_root_for_build(arguments) != explicit_root or calls:
 			raise api.NativeBuildError("explicit archive root provisioned the managed cache")
 	finally:
-		api.download_verified_archive = original_downloader
-		api.FERRUM_RDKIT_PROFILE = original_profile
-		api.REPO_ROOT = original_repo_root
+		native_wheel_builder_sources.download_verified_archive = original_downloader
+		native_wheel_builder_sources.FERRUM_RDKIT_PROFILE = original_profile
+		native_wheel_builder_sources.REPO_ROOT = original_repo_root
 
 
 #============================================
@@ -651,6 +657,11 @@ def _run_wheel_member_fixtures(api: types.ModuleType) -> None:
 		"ferrum-operation-v1.schema.json",
 		*(
 			f".dylibs/{name}"
+			for name in sorted(MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names)
+		),
+		"ferrum-engine-bundle/ferrum-engine-bundle-v1.json",
+		*(
+			f"ferrum-engine-bundle/{name}"
 			for name in sorted(MACOS_ARM64_NATIVE_CLOSURE.allowed_non_system_names)
 		),
 	]
@@ -814,12 +825,13 @@ def _run_smiles_depict_stage_fixture(api: types.ModuleType, root: Path) -> None:
 
 
 #============================================
-def run(api: types.ModuleType) -> None:
+def run() -> None:
 	"""Exercise every pure builder-policy fixture through its supplied API.
 
 	Args:
 		api: The imported builder module that owns the production helpers.
 	"""
+	api = production_bindings()
 	_run_policy_fixtures(api)
 	_run_engine_bundle_fixtures(api)
 	native_wheel_builder_publication_self_test.run(api)

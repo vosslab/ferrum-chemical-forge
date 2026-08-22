@@ -28,7 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RUST_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 QT_PACKAGE_ROOT = REPO_ROOT / "packages" / "ferrum-chem-qt.app"
-NATIVE_BUILDER = RUST_PACKAGE_ROOT / "tools" / "build_native_wheel.py"
+NATIVE_BUILDER = RUST_PACKAGE_ROOT / "native_wheel_builder.py"
 BUILD_RECORD_NAME = "ferrum-release-wheelhouse-build-record.json"
 RELEASE_RECEIPT_NAME = "ferrum-release-package-receipt.json"
 ARTIFACT_INVENTORY_NAME = "ferrum-release-artifact-inventory.json"

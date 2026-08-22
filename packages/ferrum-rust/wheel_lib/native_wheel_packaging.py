@@ -13,7 +13,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-from native_wheel_profile import (
+from wheel_lib.native_wheel_profile import (
 	FERRUM_RDKIT_PROFILE,
 	MACOS_ARM64_NATIVE_CLOSURE,
 	PinnedSource,
@@ -74,6 +74,17 @@ def validate_wheel_members(
 			"wheel native members differ from the frozen platform closure: "
 			f"expected {sorted(expected_native)}, got {sorted(native_members)}"
 		)
+	bundle_prefix = "ferrum-engine-bundle/"
+	expected_bundle_members = {"ferrum-engine-bundle-v1.json", *expected_native}
+	bundle_members = {
+		member.removeprefix(bundle_prefix)
+		for member in members if member.startswith(bundle_prefix)
+	}
+	if bundle_members != expected_bundle_members:
+		raise NativePackagingError(
+			"wheel sealed engine bundle differs from the frozen platform closure: "
+			f"expected {sorted(expected_bundle_members)}, got {sorted(bundle_members)}"
+		)
 	for member in members:
 		if member in native_extensions:
 			continue
@@ -82,6 +93,8 @@ def validate_wheel_members(
 		if member in required_root_metadata or ".dist-info/" in member:
 			continue
 		if member.startswith(native_prefix) and member.removeprefix(native_prefix) in expected_native:
+			continue
+		if member.startswith(bundle_prefix) and member.removeprefix(bundle_prefix) in expected_bundle_members:
 			continue
 		raise NativePackagingError(f"wheel contains an unexpected non-native member: {member}")
 
@@ -230,8 +243,15 @@ def stage_python_project(
 	contents = pyproject.read_text(encoding="utf-8")
 	if "include =" in contents:
 		raise NativePackagingError("source PyO3 project must reserve wheel contents for the shipping builder")
-	package_prefix = "ferrum_chem/.dylibs/*" if (project / "ferrum_chem").is_dir() else ".dylibs/*"
-	pyproject.write_text(contents + f'\ninclude = ["{package_prefix}"]\n', encoding="utf-8")
+	if (project / "ferrum_chem").is_dir():
+		package_prefix = "ferrum_chem/.dylibs/*"
+		bundle_prefix = "ferrum_chem/ferrum-engine-bundle/*"
+	else:
+		package_prefix = ".dylibs/*"
+		bundle_prefix = "ferrum-engine-bundle/*"
+	pyproject.write_text(
+		contents + f'\ninclude = ["{package_prefix}", "{bundle_prefix}"]\n', encoding="utf-8"
+	)
 	# Root typing metadata lives outside Maturin's project discovery path. The
 	# shipping rewriter installs it after Maturin has emitted its intermediate.
 	metadata = project.parent / "wheel_metadata"

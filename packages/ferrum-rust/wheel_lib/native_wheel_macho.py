@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 # Local native-wheel profile.
-from native_wheel_profile import (
+from wheel_lib.native_wheel_profile import (
 	FERRUM_RDKIT_PROFILE,
 	MACOS_ARM64_NATIVE_CLOSURE,
 	RdkitCapabilityProfile,
