@@ -425,9 +425,8 @@ fn attr<'a>(tree: &'a Xot, node: Node, expected: &str) -> Option<&'a str> {
     })
 }
 fn is_core(tree: &Xot, node: Node, expected: &str) -> bool {
-    element_name(tree, node).is_some_and(|(name, namespace)| {
-        name == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
-    })
+    element_name(tree, node)
+        .is_some_and(|(name, namespace)| name == expected && (namespace == CDML_NAMESPACE))
 }
 
 #[cfg(test)]
@@ -469,7 +468,7 @@ mod tests {
     #[test]
     fn source_order_controls_members_and_apply_preserves_z_and_marks() {
         let source = concat!(
-            r#"<cdml><molecule id="m"><atom id="b"><point x="20" y="0" z="7"/>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="b"><point x="20" y="0" z="7"/>"#,
             r#"<mark x="21" y="1"/></atom><atom id="a"><point x="0" y="0"/>"#,
             r#"<mark x="1" y="2"/></atom>"#,
             r#"<bond id="ab" start="a" end="b"/><vendor opaque="yes"/></molecule></cdml>"#,
@@ -505,7 +504,7 @@ mod tests {
         let owned = fragment("owned", &["a", "b"], &["ab"]);
         let source = format!(
             concat!(
-                "<cdml><molecule id=\"m\"><atom id=\"b\"><point x=\"20\" y=\"0\"/></atom>",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"b\"><point x=\"20\" y=\"0\"/></atom>",
                 "<atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
                 "<bond id=\"ab\" start=\"a\" end=\"b\"/>{owned}</molecule></cdml>",
             ),
@@ -547,7 +546,7 @@ mod tests {
     #[test]
     fn richer_fragment_and_opaque_collision_are_preserved_or_refused() {
         let source = concat!(
-            r#"<cdml><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
             r#"<atom id="b"><point x="20" y="0"/></atom><bond id="ab" start="a" end="b"/>"#,
             r#"<fragment id="rich" type="linear_form" vendor="keep"><name>linear_form</name>"#,
             r#"<vertex id="a"/><vertex id="b"/>"#,
@@ -583,9 +582,9 @@ mod tests {
     #[test]
     fn malformed_geometry_and_domain_refusals_are_typed() {
         for source in [
-            "<cdml><molecule id=\"m\"><atom id=\"a\"><point x=\"0\"/></atom></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"0\"/></atom></molecule></cdml>",
             concat!(
-                "<cdml><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/>",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/>",
                 "<mark x=\"0\"/></atom></molecule></cdml>",
             ),
         ] {
@@ -598,7 +597,7 @@ mod tests {
             ));
         }
         let source = concat!(
-            r#"<cdml><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
             r#"<atom id="b"><point x="1" y="0"/></atom><atom id="c"><point x="2" y="0"/></atom>"#,
             r#"<atom id="d"><point x="3" y="0"/></atom><bond id="ab" start="a" end="b"/>"#,
             r#"<bond id="ac" start="a" end="c"/>"#,
@@ -617,7 +616,7 @@ mod tests {
     #[test]
     fn direct_root_and_foreign_selection_are_refused_without_a_candidate() {
         let source = concat!(
-            r#"<cdml><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
             r#"<atom id="b"><point x="20" y="0"/></atom><bond id="ab" start="a" end="b"/>"#,
             r#"</molecule></cdml>"#,
         );
@@ -652,7 +651,7 @@ mod tests {
         let owned = fragment("owned", &["b", "a"], &["ab"]);
         let source = format!(
             concat!(
-                "<cdml><molecule id=\"m\"><atom id=\"b\" show_hydrogens=\"on\">",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"b\" show_hydrogens=\"on\">",
                 "<point x=\"0cm\" y=\"0cm\"/></atom><atom id=\"a\" show_hydrogens=\"on\">",
                 "<point x=\"0.353cm\" y=\"0cm\"/></atom><atom id=\"c\">",
                 "<point x=\"0.035cm\" y=\"0cm\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\"/>",
@@ -669,7 +668,7 @@ mod tests {
         );
 
         let moved_source = concat!(
-            r#"<cdml><molecule id="m"><atom id="b"><point x="20" y="0"/></atom>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="b"><point x="20" y="0"/></atom>"#,
             r#"<atom id="a"><point x="0" y="0"/></atom><atom id="c"><point x="1" y="0"/></atom>"#,
             r#"<bond id="ab" start="a" end="b"/>"#,
             r#"<bond id="ac" start="a" end="c"/></molecule></cdml>"#,
@@ -688,7 +687,7 @@ mod tests {
     #[test]
     fn conversion_resource_failure_is_typed_and_leaves_source_unchanged() {
         let source = concat!(
-            r#"<cdml><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a"><point x="0" y="0"/></atom>"#,
             r#"</molecule></cdml>"#,
         );
         let document = TypedDocument::parse(source).expect("typed document");

@@ -17,7 +17,7 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 
 
-_EMPTY_CDML = "<cdml/>"
+_EMPTY_CDML = "<cdml xmlns='urn:ferrum:cdml'/>"
 
 
 #============================================
@@ -77,10 +77,3 @@ def test_sdf_action_reads_descriptor_bound_text_and_commits_one_batch(
 	finally:
 		tab.dispose()
 		window.deleteLater()
-
-
-#============================================
-def test_current_document_sdf_route_has_no_retired_file_preparation_call() -> None:
-	"""Qt supplies bounded text to the generic record insertion boundary only."""
-	source = pathlib.Path(__file__).parents[1] / "ferrum_qt/ferrum/sdf_import.py"
-	assert "prepare_sdf_file_v1" not in source.read_text(encoding="utf-8")

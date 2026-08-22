@@ -258,9 +258,8 @@ fn isolate_molecule(
         .filter(|node| indexed.xml.tree.element(*node).is_some())
         .collect::<Vec<_>>();
     for child in element_children {
-        let keep = element_name(&indexed.xml.tree, child).is_some_and(|(name, namespace)| {
-            name == "molecule" && (namespace.is_empty() || namespace == CDML_NAMESPACE)
-        });
+        let keep = element_name(&indexed.xml.tree, child)
+            .is_some_and(|(name, namespace)| name == "molecule" && (namespace == CDML_NAMESPACE));
         if !keep {
             indexed
                 .xml
@@ -316,9 +315,8 @@ fn materialize_missing_declaration_ids(
 }
 
 fn is_core_element(tree: &xot::Xot, node: xot::Node, expected_name: &str) -> bool {
-    element_name(tree, node).is_some_and(|(name, namespace)| {
-        name == expected_name && (namespace.is_empty() || namespace == CDML_NAMESPACE)
-    })
+    element_name(tree, node)
+        .is_some_and(|(name, namespace)| name == expected_name && (namespace == CDML_NAMESPACE))
 }
 
 fn validate_internal_references(molecule: &TypedRecord) -> Result<(), DocumentUserTemplateErrorV1> {

@@ -19,13 +19,13 @@ import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.molecule_report
 
 
-_SOURCE = """<cdml version='26.08'><molecule id='mixed' name='Mixed'>
+_SOURCE = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='mixed' name='Mixed'>
 <atom id='carbon' name='C' explicit_hydrogens='4'><point x='0' y='0'/></atom>
 <atom id='oxygen' name='O' charge='0'><point x='10' y='0'/></atom>
 <bond id='bond' start='carbon' end='oxygen' type='n1'/>
 </molecule></cdml>"""
 
-_SECOND_SOURCE = """<cdml version='26.08'><molecule id='second' name='Second'>
+_SECOND_SOURCE = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='second' name='Second'>
 <atom id='carbon' name='C' explicit_hydrogens='4'><point x='0' y='0'/></atom>
 </molecule></cdml>"""
 

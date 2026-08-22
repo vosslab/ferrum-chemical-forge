@@ -85,8 +85,8 @@ fn aromatic_smiles_is_kekulized_placed_and_prepared_as_one_document_candidate() 
         graph(BondOrder::Aromatic, true, true),
         Some(graph(BondOrder::Double, false, true)),
     );
-    let mut session =
-        DocumentSession::load("<cdml version=\"1.0\"/>").expect("empty document must load");
+    let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
+        .expect("empty document must load");
     let mut pending = prepare_smiles_molecule_v1(&engine, &mut session, 0, "c:c", placement())
         .expect("representable molecule must prepare");
     assert_eq!(engine.kekulize_calls.get(), 1);
@@ -109,8 +109,8 @@ fn aromatic_smiles_is_kekulized_placed_and_prepared_as_one_document_candidate() 
 #[test]
 fn unsupported_bond_order_is_rejected_before_document_state_changes() {
     let engine = engine(graph(BondOrder::Quadruple, false, true), None);
-    let mut session =
-        DocumentSession::load("<cdml version=\"1.0\"/>").expect("empty document must load");
+    let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
+        .expect("empty document must load");
     let result = prepare_smiles_molecule_v1(&engine, &mut session, 0, "C$C", placement());
     assert!(matches!(
         result,
@@ -133,8 +133,8 @@ fn unsupported_bond_order_is_rejected_before_document_state_changes() {
 #[test]
 fn missing_engine_coordinates_are_a_typed_preparation_failure() {
     let engine = engine(graph(BondOrder::Single, false, false), None);
-    let mut session =
-        DocumentSession::load("<cdml version=\"1.0\"/>").expect("empty document must load");
+    let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
+        .expect("empty document must load");
     assert!(matches!(
         prepare_smiles_molecule_v1(&engine, &mut session, 0, "CC", placement()),
         Err(SmilesMoleculeInsertionError::Build(

@@ -239,7 +239,9 @@ mod tests {
 
     #[test]
     fn placement_commits_one_canonical_text_and_replays_never_mutate() {
-        let mut session = DocumentSession::load("<cdml version='26.07'/>").expect("session");
+        let mut session =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version='26.07'/>")
+                .expect("session");
         let snapshot = session.snapshot().expect("snapshot");
         let gesture = session
             .begin_text_placement_gesture_v1(
@@ -283,7 +285,8 @@ mod tests {
 
     #[test]
     fn placement_normalizes_adjacent_runs_but_retains_style_boundaries() {
-        let mut session = DocumentSession::load("<cdml/>").expect("session");
+        let mut session =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
         let snapshot = session.snapshot().expect("snapshot");
         let gesture = session
             .begin_text_placement_gesture_v1(

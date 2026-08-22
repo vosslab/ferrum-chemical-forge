@@ -352,7 +352,7 @@ impl TypedDocument {
                 return false;
             };
             local_name == "atom"
-                && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+                && (namespace == CDML_NAMESPACE)
                 && candidate.indexed.xml.tree.get_attribute(*node, id_name)
                     == Some(identifier.as_str())
         });
@@ -418,7 +418,7 @@ impl TypedDocument {
                 let (local_name, namespace) =
                     super::element_name(&candidate.indexed.xml.tree, node)?;
                 (local_name == "molecule"
-                    && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+                    && (namespace == CDML_NAMESPACE)
                     && candidate.indexed.xml.tree.get_attribute(node, id_name)
                         == Some(molecule_id.as_str()))
                 .then_some((node, namespace))
@@ -542,7 +542,7 @@ fn project_record(
             let mut child_path = path.clone();
             child_path.push(element_index);
             element_index += 1;
-            let candidate = if namespace.is_empty() || namespace == CDML_NAMESPACE {
+            let candidate = if namespace == CDML_NAMESPACE {
                 child_class(class, &local_name)
             } else {
                 None

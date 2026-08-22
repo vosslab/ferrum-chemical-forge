@@ -459,7 +459,7 @@ class FerrumNativeMoleculeReportMixin:
 			or self._coordinate_generation_intent is not None
 		):
 			return False
-		if tab is None or self._native_tabs_by_page.get(tab) is not tab or tab._disposed:
+		if tab is None or self._native_tabs_by_page.get(tab) is not tab or tab.is_disposed:
 			return False
 		addresses = ferrum_qt.ferrum.molecule_inspection.selected_durable_molecule_addresses(tab)
 		if addresses is None:
@@ -644,7 +644,7 @@ class FerrumNativeMoleculeReportMixin:
 		tab = dialog._tab
 		return (
 			self._native_tabs_by_page.get(tab) is tab
-			and not tab._disposed
+			and not tab.is_disposed
 			and self._active_native_tab() is tab
 		)
 

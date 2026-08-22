@@ -14,6 +14,7 @@ mod document_molecule_inspection_v1;
 mod document_molecule_molblock_v1;
 mod document_molecule_sdf_v1;
 mod document_molecule_smiles_v1;
+mod document_molecules_sdf_v2;
 mod inchi_molecule_insertion_v1;
 mod interchange_record_insertion_v1;
 mod molblock_molecule_insertion_v1;
@@ -87,6 +88,13 @@ pub use document_molecule_smiles_v1::{
     DocumentMoleculeSmilesErrorV1, DocumentMoleculeSmilesRequestV1, DocumentMoleculeSmilesV1,
     PreparedDocumentMoleculeSmilesV1, export_prepared_document_molecule_smiles_v1,
     prepare_document_molecule_smiles_v1,
+};
+pub use document_molecules_sdf_v2::{
+    DOCUMENT_MOLECULES_SDF_PROFILE_V2, DOCUMENT_MOLECULES_SDF_SCHEMA_V2,
+    DocumentMoleculesSdfErrorV2, DocumentMoleculesSdfRecordV2, DocumentMoleculesSdfRequestErrorV2,
+    DocumentMoleculesSdfRequestV2, DocumentMoleculesSdfV2, PreparedDocumentMoleculesSdfV2,
+    export_prepared_document_molecules_sdf_v2, prepare_document_molecules_sdf_from_source_ids_v2,
+    prepare_document_molecules_sdf_v2,
 };
 pub use inchi_molecule_insertion_v1::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
 pub use interchange_record_insertion_v1::{

@@ -24,7 +24,7 @@ def main() -> int:
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	try:
 		window._show_edit_refusal = lambda _request: None
-		tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab("<cdml/>", "haworth-v2.cdml")
+		tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab("<cdml xmlns='urn:ferrum:cdml'/>", "haworth-v2.cdml")
 		window._register_native_tab(tab, activate=True)
 		window.show()
 		app.processEvents()

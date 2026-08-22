@@ -414,5 +414,5 @@ fn is_core_element(tree: &Xot, node: Node, expected: &str) -> bool {
 }
 
 fn valid_namespace(namespace: &str) -> bool {
-    namespace.is_empty() || namespace == CDML_NAMESPACE
+    namespace == CDML_NAMESPACE
 }

@@ -91,7 +91,7 @@ mod tests {
         let request = r#"{
             "schema":"ferrum-operation-request-v1",
             "request_id":"runtime-regression",
-            "operation":{"kind":"document.inspect","document":"<cdml/>"}
+            "operation":{"kind":"document.inspect","document":"<cdml xmlns=\"urn:ferrum:cdml\"/>"}
         }"#;
         let default = execute_operation_v1(request).expect("default execution");
         let injected = execute_operation_with_runtime_v1(request, &NoChemistryRuntimeV1)

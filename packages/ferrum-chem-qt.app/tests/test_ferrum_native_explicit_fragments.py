@@ -13,7 +13,7 @@ import ferrum_qt.ferrum.document_tab
 
 
 CDML = (
-	"<cdml><molecule id='m'><atom id='a' name='C'><point x='0' y='0'/></atom>"
+	"<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='0' y='0'/></atom>"
 	"<atom id='b' name='O'><point x='10' y='0'/></atom>"
 	"<bond id='ab' type='n1' start='a' end='b'/></molecule></cdml>"
 )

@@ -97,6 +97,8 @@ class FerrumNativeMainWindowLifecycleMixin:
 					"Ferrum could not retire the pending cyclohexane attachment; retry cancellation before closing.",
 				))
 				return
+		if getattr(self, "_structure_tab", None) is tab:
+			self._cancel_structure_selection()
 		if (
 			self._direct_glycosidic_haworth_intent is not None
 			and self._direct_glycosidic_haworth_intent.tab is tab
@@ -112,11 +114,20 @@ class FerrumNativeMainWindowLifecycleMixin:
 			return
 		self._retire_molecule_report_dialog_for_tab(tab)
 		self._cancel_native_view_controls_for_tab(tab)
+		self._retire_closed_native_tab(tab, index)
+		self._refresh_actions()
+
+	#============================================
+	def _retire_closed_native_tab(self,
+			tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+			index: int,
+			) -> None:
+		"""Transfer a disposed tab from the tab host to Qt deferred deletion."""
 		self._tab_widget.removeTab(index)
 		self._native_tabs_by_page.pop(tab)
 		tab.hide()
 		tab.setParent(None)
-		self._refresh_actions()
+		tab.deleteLater()
 
 	#============================================
 	def _close_current_tab(self) -> None:
@@ -165,7 +176,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 		"""Make Ferrum Save and Close reachability follow the selected page."""
 		self._refresh_local_document_open_action()
 		tab = self._active_native_tab()
-		active = tab is not None and not tab._disposed
+		active = tab is not None and not tab.is_disposed
 		pending = active and tab.requires_refresh
 		template_intent = self._user_template_placement_intent
 		if (
@@ -287,6 +298,9 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._refresh_sdf_export_actions(
 			active, pending, busy_import or busy_coordinates or busy_clipboard,
 		)
+		self._refresh_multi_sdf_export_actions(
+			active, pending, busy_import or busy_coordinates or busy_clipboard,
+		)
 		self._refresh_molecule_export_actions(
 			active, pending, busy_import or busy_coordinates or busy_clipboard,
 		)
@@ -343,6 +357,14 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._cancel_user_template_placement()
 		self._cancel_catalog_placement()
 		self._cancel_direct_glycosidic_haworth_intent()
+		self._cancel_atom_insertion()
+		if not self._cancel_line_gesture():
+			event.ignore()
+			self._show_edit_refusal(self._typed_refusal(
+				"close_document", "busy_close",
+				"Ferrum could not retire the pending cyclohexane attachment; retry cancellation before closing.",
+			))
+			return
 		if self._cancel_local_document_open_for_close():
 			event.ignore()
 			self._show_edit_refusal(self._typed_refusal(
@@ -387,14 +409,6 @@ class FerrumNativeMainWindowLifecycleMixin:
 				"Save or discard every Ferrum document before closing Ferrum.",
 			))
 			return
-		self._cancel_atom_insertion()
-		if not self._cancel_line_gesture():
-			event.ignore()
-			self._show_edit_refusal(self._typed_refusal(
-				"close_document", "busy_close",
-				"Ferrum could not retire the pending cyclohexane attachment; retry cancellation before closing.",
-			))
-			return
 		self._prepare_native_view_controls_shutdown()
 		for tab in tuple(self._native_tabs_by_page.values()):
 			try:
@@ -408,8 +422,5 @@ class FerrumNativeMainWindowLifecycleMixin:
 				return
 			index = self._tab_widget.indexOf(tab)
 			if index >= 0:
-				self._tab_widget.removeTab(index)
-			tab.hide()
-			tab.setParent(None)
-		self._native_tabs_by_page.clear()
+				self._retire_closed_native_tab(tab, index)
 		event.accept()

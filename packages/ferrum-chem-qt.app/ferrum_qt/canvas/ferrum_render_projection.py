@@ -112,6 +112,7 @@ class FerrumRenderProjection:
 	durable_items: dict[tuple[str, str], PySide6.QtWidgets.QGraphicsItem]
 	local_items: dict[RenderTargetKey, PySide6.QtWidgets.QGraphicsItem]
 	issues: tuple[RenderIssue, ...]
+	_disposed: bool = dataclasses.field(default=False, init=False, repr=False)
 
 	#============================================
 	def selected_targets(self) -> tuple[RenderTargetKey, ...]:
@@ -141,10 +142,14 @@ class FerrumRenderProjection:
 
 	#============================================
 	def dispose(self) -> None:
-		"""Terminally retire only graphics explicitly owned by this projection."""
+		"""Terminally retire this projection's graphics and detached scene once."""
+		if self._disposed:
+			return
 		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
 		coordinator.retire_scene_projection_items(self.scene, list(self.roots))
 		coordinator.raise_if_callback_failed("Ferrum render projection retirement failed")
+		self.scene.deleteLater()
+		self._disposed = True
 
 
 #============================================

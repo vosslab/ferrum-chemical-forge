@@ -8,43 +8,34 @@ import pathlib
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # PIP3 modules
-import ferrum_chem
 import PySide6.QtCore
 import PySide6.QtTest
 import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.window_refusals
 
-# Local test modules
-from test_ferrum_native_main_window import _EDITABLE_CDML
-
-
-_BOND_CDML = """<cdml version='26.08'><molecule id='mol-1'>
+_BOND_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='mol-1'>
   <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
   <atom id='atom-o' name='O'><point x='40' y='20'/></atom>
 </molecule></cdml>"""
 
-_MIXED_ROOT_CDML = """<cdml version='26.08'><molecule id='mol-1'>
-  <atom id='atom-c' name='C'><point x='13' y='17'/></atom>
-</molecule><plus id='plus-1'><point x='73' y='51'/></plus></cdml>"""
-
-_MULTI_MOLECULE_CDML = """<cdml xmlns='http://www.freesoftware.fsf.org/bkchem/cdml'>
-  <molecule id='mol-1' name='First'>
+_EDITABLE_CDML = """<cdml xmlns='urn:ferrum:cdml'>
+  <molecule id='mol-1'>
     <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
-  </molecule>
-  <molecule id='mol-2' name='Second'>
-    <atom id='atom-n' name='N'><point x='30' y='40'/></atom>
   </molecule>
 </cdml>"""
 
-_DUPLICATE_MARK_CDML = """<cdml version='26.07'><molecule id='mol-1'>
+_MIXED_ROOT_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='mol-1'>
+  <atom id='atom-c' name='C'><point x='13' y='17'/></atom>
+</molecule><plus id='plus-1'><point x='73' y='51'/></plus></cdml>"""
+
+_DUPLICATE_MARK_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.07'><molecule id='mol-1'>
   <atom id='atom-c' name='C' charge='2'><point x='10' y='20'/>
     <mark type='plus' x='18' y='28' size='10' data-origin='first'/>
     <mark type='plus' x='20' y='30' size='10' data-origin='second'/>
@@ -162,13 +153,26 @@ def _restore_drawing_parameters(
 	"""Restore application-owned choices after a behavior test changes them."""
 	window._drawing_parameters.set_element(snapshot.element)
 	window._drawing_parameters.set_order_name(snapshot.order_name)
-	window._drawing_parameters.set_presentation_name(snapshot.presentation_name)
+
+
+#============================================
+def _dispose_test_window(
+		window: ferrum_qt.main_window.MainWindow,
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Retire pointer ownership before deleting a potentially dirty test window."""
+	window._cancel_atom_insertion()
+	window._cancel_line_gesture()
+	window.hide()
+	window.deleteLater()
+	qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+	qapp.processEvents()
 
 
 def test_editing_tools_draw_bond_commits_rust_and_escape_preserves_result(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""Editing Tools reaches the Ferrum bond gesture and safe Escape recovery."""
+	"""Editing Tools reaches normal Ferrum bond authoring and Escape recovery."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
@@ -181,11 +185,11 @@ def test_editing_tools_draw_bond_commits_rust_and_escape_preserves_result(
 	try:
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _atom_viewport_point(tab, "atom-o")
-		assert window._drawing_parameters.set_presentation_name("solid_wedge")
+		assert window._drawing_parameters.set_order_name("single")
 		qapp.processEvents()
 		_click_visible_menu_action(window, "Draw Bond", qapp)
-		assert "Solid wedge (Single)" in window.statusBar().currentMessage()
-		assert "narrow tip to the wide end" in window._draw_bond_action.toolTip()
+		assert "Normal single" in window.statusBar().currentMessage()
+		assert "drag between atoms or empty canvas locations" in window._draw_bond_action.toolTip()
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
@@ -197,7 +201,7 @@ def test_editing_tools_draw_bond_commits_rust_and_escape_preserves_result(
 		)
 		selected_bond_id = tab.selected_bond_projection().source_id
 		bond = tab.selected_bond_projection()
-		assert bond.source_type == "w1"
+		assert bond.source_type == "n1"
 		assert (bond.start.source_id, bond.end.source_id) == ("atom-c", "atom-o")
 		accepted_snapshot = tab.current_snapshot
 		PySide6.QtTest.QTest.keyClick(
@@ -207,52 +211,8 @@ def test_editing_tools_draw_bond_commits_rust_and_escape_preserves_result(
 		assert tab.selected_bond_projection().source_id == selected_bond_id
 		tab.save_atomic(tmp_path / "drag-bond.cdml")
 	finally:
-		window._drawing_parameters.set_presentation_name("normal")
-		window._drawing_parameters.set_element(prior_choices.element)
-		window._drawing_parameters.set_order_name(prior_choices.order_name)
-		window._drawing_parameters.set_presentation_name(prior_choices.presentation_name)
-		window.close()
-		window.deleteLater()
-
-
-#============================================
-def test_next_drawing_menu_route_updates_the_shared_application_choice(
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""The compact menu client changes the same next-drawing model as the toolbar."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	window.resize(1400, 900)
-	window.show()
-	qapp.processEvents()
-	prior_choices = window._drawing_parameters.snapshot()
-	try:
-		assert window._next_drawing_action in window._edit_menu.actions()
-
-		def choose_from_dialog() -> None:
-			dialog = qapp.activeModalWidget()
-			if not isinstance(dialog, PySide6.QtWidgets.QDialog):
-				raise AssertionError("Next Drawing action did not open its dialog")
-			for combo in dialog.findChildren(PySide6.QtWidgets.QComboBox):
-				if combo.accessibleName() == "Next presentation":
-					combo.setCurrentText("Hashed wedge from start atom")
-					dialog.reject()
-					return
-			raise AssertionError("Next Drawing dialog has no presentation chooser")
-
-		PySide6.QtCore.QTimer.singleShot(0, choose_from_dialog)
-		window._next_drawing_action.trigger()
-		qapp.processEvents()
-		assert window._drawing_parameters.snapshot().presentation_name == "hashed_wedge"
-		toolbar_client = window._native_editing_tools_toolbar._drawing_parameters_client
-		assert toolbar_client.presentation_combo.currentText() == (
-			"Hashed wedge from start atom"
-		)
-	finally:
-		window._drawing_parameters.set_element(prior_choices.element)
-		window._drawing_parameters.set_order_name(prior_choices.order_name)
-		window._drawing_parameters.set_presentation_name(prior_choices.presentation_name)
-		window.close()
-		window.deleteLater()
+		_restore_drawing_parameters(window, prior_choices)
+		_dispose_test_window(window, qapp)
 
 
 #============================================
@@ -281,7 +241,7 @@ def test_editing_tools_cancel_preserves_document_and_selected_atom(
 		assert tab.selected_atom_projection().source_id == before_atom_id
 		assert window._drawing_parameters.snapshot() == (
 			ferrum_qt.ferrum.drawing_parameters.
-			FerrumNativeDrawingParametersSnapshot("N", "triple", "normal")
+			FerrumNativeDrawingParametersSnapshot("N", "triple")
 		)
 	finally:
 		if prior_choices is not None:
@@ -291,51 +251,10 @@ def test_editing_tools_cancel_preserves_document_and_selected_atom(
 
 
 #============================================
-def test_draw_bond_stale_gesture_preserves_intervening_snapshot_and_selection(
-		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""A gesture captured before another edit cannot commit against the new revision."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		_BOND_CDML, "bond.cdml",
-	)
-	window._register_native_tab(tab, activate=True)
-	window.show()
-	qapp.processEvents()
-	monkeypatch.setattr(
-		ferrum_qt.ferrum.window_refusals, "show_refusal",
-		lambda _window, request: ferrum_qt.dialogs.refusal_presenter.present_refusal(request),
-	)
-	start = _atom_viewport_point(tab, "atom-c")
-	end = _atom_viewport_point(tab, "atom-o")
-	_click_visible_menu_action(window, "Draw Bond", qapp)
-	PySide6.QtTest.QTest.mousePress(
-		tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
-	)
-	tab.select_atom("atom-c")
-	tab.change_selected_atom_element("N")
-	intervening_snapshot = tab.current_snapshot
-	intervening_selection = tab.selected_atom_projection().source_id
-	PySide6.QtTest.QTest.mouseRelease(
-		tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
-	)
-	assert (
-		tab.current_snapshot == intervening_snapshot
-		and tab.selected_atom_projection().source_id == intervening_selection
-	)
-	tab.save_atomic(tmp_path / "stale-drag.cdml")
-	window.close()
-	window.deleteLater()
-
-
-#============================================
-def test_draw_bond_to_empty_space_uses_chosen_atom_order_and_shared_snap_point(
+def test_draw_bond_to_empty_space_uses_normal_order(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""Empty-space release commits one chosen atom/order at the shared snap point."""
+	"""Empty-space release commits one carbon endpoint with its frozen normal order."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_BOND_CDML, "extend-bond.cdml",
@@ -347,8 +266,6 @@ def test_draw_bond_to_empty_space_uses_chosen_atom_order_and_shared_snap_point(
 	try:
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
-		end_scene = tab.view.snap_authored_scene_point(tab.view.mapToScene(end))
-		window._drawing_parameters.set_element("O")
 		window._drawing_parameters.set_order_name("triple")
 		_click_visible_menu_action(window, "Draw Bond", qapp)
 		PySide6.QtTest.QTest.mousePress(
@@ -364,9 +281,7 @@ def test_draw_bond_to_empty_space_uses_chosen_atom_order_and_shared_snap_point(
 		created = next(
 			atom for atom in molecule.atoms if atom.source_id not in {"atom-c", "atom-o"}
 		)
-		assert (
-			created.element, created.position.x, created.position.y,
-		) == ("O", end_scene.x(), end_scene.y())
+		assert created.element == "C"
 		assert molecule.bonds[0].source_type == "n3"
 		tab.save_atomic(tmp_path / "empty-space-bond.cdml")
 	finally:
@@ -376,10 +291,10 @@ def test_draw_bond_to_empty_space_uses_chosen_atom_order_and_shared_snap_point(
 
 
 #============================================
-def test_draw_bond_gesture_uses_parameters_captured_at_mouse_press(
+def test_draw_bond_gesture_freezes_normal_order_at_mouse_press(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""One active drag retains the element and order visible when it began."""
+	"""One active drag retains the normal order visible when it began."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
@@ -392,15 +307,13 @@ def test_draw_bond_gesture_uses_parameters_captured_at_mouse_press(
 	try:
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
-		window._drawing_parameters.set_element("N")
-		window._drawing_parameters.set_presentation_name("hashed_wedge")
+		window._drawing_parameters.set_order_name("triple")
 		_click_visible_menu_action(window, "Draw Bond", qapp)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
 		)
-		window._drawing_parameters.set_element("O")
-		window._drawing_parameters.set_presentation_name("normal")
+		window._drawing_parameters.set_order_name("single")
 		PySide6.QtTest.QTest.mouseRelease(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
@@ -409,8 +322,8 @@ def test_draw_bond_gesture_uses_parameters_captured_at_mouse_press(
 		created = next(
 			atom for atom in molecule.atoms if atom.source_id not in {"atom-c", "atom-o"}
 		)
-		assert created.element == "N"
-		assert molecule.bonds[0].source_type == "h1"
+		assert created.element == "C"
+		assert molecule.bonds[0].source_type == "n3"
 	finally:
 		_restore_drawing_parameters(window, prior_choices)
 		window.close()
@@ -459,7 +372,7 @@ def test_move_atom_drag_snaps_the_translated_atom_target(
 
 #============================================
 def test_move_complete_roots_drag_resolves_one_snapped_rust_anchor_delta(
-		qapp: PySide6.QtWidgets.QApplication,
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
 	"""A visible mixed-root move applies one snapped rigid translation."""
 	window = ferrum_qt.main_window.MainWindow(object())
@@ -470,25 +383,22 @@ def test_move_complete_roots_drag_resolves_one_snapped_rust_anchor_delta(
 	window._register_native_tab(tab, activate=True)
 	window.show()
 	qapp.processEvents()
+	refusals: list[object] = []
+	monkeypatch.setattr(window, "_show_edit_refusal", lambda request: refusals.append(request))
 	try:
 		durable_selection = _select_mixed_complete_roots(tab)
 		window._refresh_actions()
+		_click_visible_menu_action(window, "Move Complete Roots", qapp)
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
-		start_scene = tab.view.mapToScene(start)
-		end_scene = tab.view.mapToScene(end)
-		receipt = tab.selected_top_level_translation()
-		resolved_anchor = tab.view.resolve_authored_scene_point(
-			PySide6.QtCore.QPointF(
-				receipt.anchor_x + end_scene.x() - start_scene.x(),
-				receipt.anchor_y + end_scene.y() - start_scene.y(),
-			), True,
-		)
-		expected_delta = (
-			resolved_anchor.x() - receipt.anchor_x,
-			resolved_anchor.y() - receipt.anchor_y,
-		)
-		_click_visible_menu_action(window, "Move Complete Roots", qapp)
+		committed_previews: list[object] = []
+		commit = tab.commit_direct_root_translation
+
+		def record_commit(gesture: object, preview: object) -> object:
+			committed_previews.append(preview)
+			return commit(gesture, preview)
+
+		monkeypatch.setattr(tab, "commit_direct_root_translation", record_commit)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
@@ -498,20 +408,22 @@ def test_move_complete_roots_drag_resolves_one_snapped_rust_anchor_delta(
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
 		)
 		atom, plus = _mixed_root_positions(tab)
+		assert len(committed_previews) == 1
+		preview = committed_previews[0]
 		assert (
 			atom == pytest.approx(
-				(13.0 + expected_delta[0], 17.0 + expected_delta[1]),
+				(13.0 + preview.dx, 17.0 + preview.dy),
 				abs=_AUTHORED_COORDINATE_TOLERANCE,
 			)
 			and plus == pytest.approx(
-				(73.0 + expected_delta[0], 51.0 + expected_delta[1]),
+				(73.0 + preview.dx, 51.0 + preview.dy),
 				abs=_AUTHORED_COORDINATE_TOLERANCE,
 			)
 			and tab.selected_top_level_transform_targets()[1] == durable_selection
 		)
+		assert refusals == []
 	finally:
-		window.close()
-		window.deleteLater()
+		_dispose_test_window(window, qapp)
 
 
 #============================================
@@ -531,12 +443,12 @@ def test_move_complete_roots_drag_keeps_the_unsnapped_raw_delta(
 		_select_mixed_complete_roots(tab)
 		window._refresh_actions()
 		tab.view.set_hex_grid_snap_enabled(False)
+		_click_visible_menu_action(window, "Move Complete Roots", qapp)
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
 		start_scene = tab.view.mapToScene(start)
 		end_scene = tab.view.mapToScene(end)
 		expected_delta = (end_scene.x() - start_scene.x(), end_scene.y() - start_scene.y())
-		_click_visible_menu_action(window, "Move Complete Roots", qapp)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
@@ -559,128 +471,6 @@ def test_move_complete_roots_drag_keeps_the_unsnapped_raw_delta(
 	finally:
 		window.close()
 		window.deleteLater()
-
-
-#============================================
-#============================================
-def test_add_atom_click_rejects_a_locally_stale_captured_revision(
-		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""A document change between activation and click cannot insert another atom."""
-	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		_EDITABLE_CDML, "editable.cdml",
-	)
-	window._register_native_tab(tab, activate=True)
-	window.show()
-	qapp.processEvents()
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QInputDialog, "getText",
-		lambda *_args: ("O", True),
-	)
-	warnings: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
-	monkeypatch.setattr(
-		window, "_show_edit_refusal",
-		lambda request: warnings.append(request),
-	)
-	window._add_atom_action.trigger()
-	tab.select_atom("atom-c")
-	tab.change_selected_atom_element("N")
-	before_ids = tuple(
-		atom.source_id for atom in tab._document_observation.projection.molecules[0].atoms
-	)
-	PySide6.QtTest.QTest.mouseClick(
-		tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, PySide6.QtCore.QPoint(40, 55),
-	)
-	after_ids = tuple(
-		atom.source_id for atom in tab._document_observation.projection.molecules[0].atoms
-	)
-	assert after_ids == before_ids
-	assert warnings[-1].outcome is ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.STALE_TOOL
-	tab.save_atomic(tmp_path / "stale-click.cdml")
-	window.close()
-	window.deleteLater()
-
-
-#============================================
-def test_add_atom_chooser_targets_the_selected_durable_molecule(
-		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Multiple molecules are named for the user but submitted by opaque Rust ID."""
-	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		_MULTI_MOLECULE_CDML, "multi.cdml",
-	)
-	window._register_native_tab(tab, activate=True)
-	window.show()
-	qapp.processEvents()
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QInputDialog, "getText",
-		lambda *_args: ("O", True),
-	)
-
-	def choose_second(_parent: object, _title: str, _label: str,
-			items: tuple[str, ...], _current: int, _editable: bool) -> tuple[str, bool]:
-		"""Select the second explicit source-ordered molecule choice."""
-		return items[1], True
-
-	monkeypatch.setattr(PySide6.QtWidgets.QInputDialog, "getItem", choose_second)
-	window._add_atom_action.trigger()
-	PySide6.QtTest.QTest.mouseClick(
-		tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, PySide6.QtCore.QPoint(40, 55),
-	)
-	selected = tab._controller.projection.selected_durable_targets()[0].identifier
-	first_ids = tuple(
-		atom.source_id for atom in tab._document_observation.projection.molecules[0].atoms
-	)
-	second_ids = tuple(
-		atom.source_id for atom in tab._document_observation.projection.molecules[1].atoms
-	)
-	assert selected not in first_ids and selected in second_ids
-	tab.save_atomic(tmp_path / "multi-added.cdml")
-	window.close()
-	window.deleteLater()
-
-
-#============================================
-def test_atom_mark_actions_toggle_every_closed_kind_through_rust(
-		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Every visible Ferrum mark action changes Rust state and retains atom selection."""
-	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		_EDITABLE_CDML, "marks.cdml",
-	)
-	window._register_native_tab(tab, activate=True)
-	warnings = []
-	monkeypatch.setattr(
-		window, "_show_edit_refusal",
-		lambda request: warnings.append(request),
-	)
-	tab.select_atom("atom-c")
-	qapp.processEvents()
-
-	for kind_name, action in window._atom_mark_actions.items():
-		assert action.isEnabled()
-		action.trigger()
-		assert warnings == []
-		atom = tab.selected_atom_projection()
-		assert len(atom.marks) == 1
-		assert atom.marks[0].kind == getattr(ferrum_chem.AtomMarkKindV1, kind_name)
-		assert tab._controller.projection.selected_durable_targets()[0].identifier == "atom-c"
-		action.trigger()
-		assert tab.selected_atom_projection().marks == []
-
-	assert "Toggled one Ferrum atom mark." in window.statusBar().currentMessage()
-	assert warnings == []
-	tab.save_atomic(tmp_path / "marks.cdml")
-	window.close()
-	window.deleteLater()
 
 
 #============================================

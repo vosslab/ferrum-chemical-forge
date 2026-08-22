@@ -86,13 +86,13 @@ fn opaque_xml_round_trip_preserves_structure_across_namespace_spellings() {
 #[test]
 fn dtd_input_is_rejected_without_external_entity_resolution() {
     let source = r#"<!DOCTYPE cdml [<!ENTITY external SYSTEM "https://example.invalid/entity">]>
-<cdml>&external;</cdml>"#;
+<cdml xmlns=\"urn:ferrum:cdml\">&external;</cdml>"#;
     assert!(XmlDocument::parse(source).is_err());
 }
 
 #[test]
 fn indexed_document_round_trip_retains_direct_source_order_and_identity_paths() {
-    let source = r#"<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">
+    let source = r#"<cdml xmlns="urn:ferrum:cdml">
   <info id="header"/><molecule id="m1"><atom id="a1"/></molecule><arrow id="arrow-1"/>
 </cdml>"#;
     let document = IndexedDocument::parse(source).expect("valid CDML index");
@@ -139,7 +139,8 @@ fn indexed_document_round_trip_retains_direct_source_order_and_identity_paths() 
 
 #[test]
 fn duplicate_and_blank_persistent_ids_fail_with_locations() {
-    let duplicate = r#"<cdml><molecule id="same"/><arrow id="same"/></cdml>"#;
+    let duplicate =
+        r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="same"/><arrow id="same"/></cdml>"#;
     let duplicate_error = IndexedDocument::parse(duplicate).expect_err("duplicate id fails");
     assert!(matches!(
         duplicate_error,
@@ -148,7 +149,7 @@ fn duplicate_and_blank_persistent_ids_fail_with_locations() {
         }) if first.components() == [0] && duplicate.components() == [1]
     ));
     assert!(matches!(
-        IndexedDocument::parse(r#"<cdml><molecule id=" "/></cdml>"#),
+        IndexedDocument::parse(r#"<cdml xmlns="urn:ferrum:cdml"><molecule id=" "/></cdml>"#),
         Err(super::IndexedDocumentError::Identity(
             DocumentIdentityError::BlankPersistentId
         ))
@@ -158,7 +159,8 @@ fn duplicate_and_blank_persistent_ids_fail_with_locations() {
 #[test]
 fn provisional_tokens_are_distinct_from_persistent_ids_and_consumed_once() {
     let mut document =
-        IndexedDocument::parse(r#"<cdml><molecule id="m1"/></cdml>"#).expect("valid CDML index");
+        IndexedDocument::parse(r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m1"/></cdml>"#)
+            .expect("valid CDML index");
     let token = document
         .try_issue_provisional_token()
         .expect("token registry reserves");
@@ -170,7 +172,8 @@ fn provisional_tokens_are_distinct_from_persistent_ids_and_consumed_once() {
         document.consume_provisional_token(&replay),
         Err(DocumentIdentityError::ConsumedProvisionalToken { .. })
     ));
-    let mut foreign_document = IndexedDocument::parse("<cdml/>").expect("valid foreign document");
+    let mut foreign_document = IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+        .expect("valid foreign document");
     let foreign = foreign_document
         .try_issue_provisional_token()
         .expect("token registry reserves");
@@ -184,8 +187,10 @@ fn provisional_tokens_are_distinct_from_persistent_ids_and_consumed_once() {
 
 #[test]
 fn provisional_tokens_with_matching_sequences_cannot_cross_documents() {
-    let mut first = IndexedDocument::parse("<cdml/>").expect("first valid CDML index");
-    let mut second = IndexedDocument::parse("<cdml/>").expect("second valid CDML index");
+    let mut first = IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+        .expect("first valid CDML index");
+    let mut second = IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+        .expect("second valid CDML index");
     let first_token = first
         .try_issue_provisional_token()
         .expect("registry reserves");
@@ -208,8 +213,9 @@ fn provisional_tokens_with_matching_sequences_cannot_cross_documents() {
 #[test]
 fn root_id_reserves_the_document_wide_collision_name() {
     let root_identifier = PersistentId::new("document").expect("nonblank id");
-    let indexed = IndexedDocument::parse(r#"<cdml id="document"><molecule/></cdml>"#)
-        .expect("root id indexes");
+    let indexed =
+        IndexedDocument::parse(r#"<cdml xmlns="urn:ferrum:cdml" id="document"><molecule/></cdml>"#)
+            .expect("root id indexes");
     assert_eq!(
         indexed
             .resolve_id(&root_identifier)
@@ -223,7 +229,8 @@ fn root_id_reserves_the_document_wide_collision_name() {
         None
     );
     assert!(indexed.records()[0].identifier().is_none());
-    let duplicate = r#"<cdml id="document"><molecule id="document"/></cdml>"#;
+    let duplicate =
+        r#"<cdml xmlns="urn:ferrum:cdml" id="document"><molecule id="document"/></cdml>"#;
     assert!(matches!(
         IndexedDocument::parse(duplicate),
         Err(super::IndexedDocumentError::Identity(
@@ -231,7 +238,7 @@ fn root_id_reserves_the_document_wide_collision_name() {
         )) if first.components().is_empty() && duplicate.components() == [0]
     ));
     assert!(matches!(
-        IndexedDocument::parse(r#"<cdml id=" "/>"#),
+        IndexedDocument::parse(r#"<cdml xmlns="urn:ferrum:cdml" id=" "/>"#),
         Err(super::IndexedDocumentError::Identity(
             DocumentIdentityError::BlankPersistentId
         ))
@@ -240,7 +247,7 @@ fn root_id_reserves_the_document_wide_collision_name() {
 
 #[test]
 fn opaque_reference_looking_values_are_reserved_but_never_rewritten() {
-    let source = r#"<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" xmlns:v="urn:vendor"><molecule id="m1"/><v:extension id="opaque-id" idref="m1">reference m1 <v:item start="m1">m1</v:item></v:extension></cdml>"#;
+    let source = r#"<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><molecule id="m1"/><v:extension id="opaque-id" idref="m1">reference m1 <v:item start="m1">m1</v:item></v:extension></cdml>"#;
     let document = IndexedDocument::parse(source).expect("opaque content indexes");
     let opaque_id = PersistentId::new("opaque-id").expect("nonblank id");
     assert!(document.resolve_id(&opaque_id).is_some());
@@ -253,7 +260,7 @@ fn opaque_reference_looking_values_are_reserved_but_never_rewritten() {
 
 #[test]
 fn fragment_id_references_do_not_collide_with_their_declarations() {
-    let source = r#"<cdml><molecule id="m1"><atom id="a1"/><bond id="b1"/><fragment id="f1"><bond id="b1"/><vertex id="a1"/></fragment></molecule></cdml>"#;
+    let source = r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m1"><atom id="a1"/><bond id="b1"/><fragment id="f1"><bond id="b1"/><vertex id="a1"/></fragment></molecule></cdml>"#;
     let document = IndexedDocument::parse(source).expect("fragment references are not ids");
     assert_eq!(document.persistent_id_count(), 4);
     let bond = PersistentId::new("b1").expect("nonblank id");

@@ -1,14 +1,12 @@
 """Installed-extension checks for private document drawing-standard editing."""
 
-from pathlib import Path
-
 import pytest
 
 import ferrum_chem
 
 
 SOURCE = (
-	'<cdml xmlns:v="urn:vendor"><standard line_width="1" '
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><standard line_width="1" '
 	'font_size="12" font_family="Telex" line_color="#000" '
 	'area_color="" v:keep="yes"><bond width="6" wedge-width="5" '
 	'double-ratio="0.75"><v:keep/></bond><atom show_hydrogens="0"/>'
@@ -75,12 +73,3 @@ def test_private_standard_binding_contains_invalid_python_values() -> None:
 	with pytest.raises(TypeError, match="tuple"):
 		ferrum_chem.DocumentOperationV1.set_drawing_standard([one])
 
-
-def test_private_standard_names_are_runtime_only_until_protocol_freeze() -> None:
-	"""The Qt-only surface remains outside the public wheel stub and wire promise."""
-	assert "DrawingStandardV1" in dir(ferrum_chem)
-	assert "DocumentDrawingStandardPropertyChangeV1" in dir(ferrum_chem)
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-	assert "DrawingStandardV1" not in stub
-	assert "DocumentDrawingStandardPropertyChangeV1" not in stub

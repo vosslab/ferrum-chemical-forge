@@ -546,7 +546,8 @@ mod session_tests {
 
     #[test]
     fn presentation_creation_gesture_commits_canonical_arrow_once() {
-        let mut session = DocumentSession::load("<cdml/>").expect("session");
+        let mut session =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
         let before = session.snapshot().expect("before");
         let gesture = session
             .begin_presentation_creation_gesture_v1(
@@ -593,7 +594,7 @@ mod session_tests {
     #[test]
     fn presentation_creation_gesture_commits_standard_plus_once() {
         let mut session = DocumentSession::load(
-            "<cdml><standard font_size=\"18\" font_color=\"#123456\"/></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><standard font_size=\"18\" font_color=\"#123456\"/></cdml>",
         )
         .expect("session");
         let before = session.snapshot().expect("before");
@@ -642,7 +643,8 @@ mod session_tests {
 
     #[test]
     fn equilibrium_gesture_commits_one_typed_root_with_two_issued_shafts() {
-        let mut session = DocumentSession::load("<cdml/>").expect("session");
+        let mut session =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
         let before = session.snapshot().expect("before");
         let gesture = session
             .begin_presentation_creation_gesture_v1(
@@ -682,7 +684,7 @@ mod session_tests {
 
     #[test]
     fn equilibrium_gesture_below_its_fixed_span_is_non_mutating() {
-        let session = DocumentSession::load("<cdml/>").expect("session");
+        let session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
         let before = session.snapshot().expect("before");
         let gesture = session
             .begin_presentation_creation_gesture_v1(
@@ -705,8 +707,9 @@ mod session_tests {
 
     #[test]
     fn presentation_creation_gesture_rejects_foreign_mixed_and_stale_without_mutation() {
-        let first = DocumentSession::load("<cdml/>").expect("first");
-        let mut second = DocumentSession::load("<cdml/>").expect("second");
+        let first = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("first");
+        let mut second =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("second");
         let first_snapshot = first.snapshot().expect("first snapshot");
         let second_snapshot = second.snapshot().expect("second snapshot");
         let first_gesture = first
@@ -755,7 +758,8 @@ mod replay_tests {
 
     #[test]
     fn presentation_creation_gesture_replay_is_stale_and_non_mutating() {
-        let mut session = DocumentSession::load("<cdml/>").expect("session");
+        let mut session =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
         let snapshot = session.snapshot().expect("snapshot");
         let gesture = session
             .begin_presentation_creation_gesture_v1(

@@ -457,9 +457,8 @@ fn attr<'a>(tree: &'a Xot, node: Node, expected: &str) -> Option<&'a str> {
     })
 }
 fn is_core(tree: &Xot, node: Node, expected: &str) -> bool {
-    element_name(tree, node).is_some_and(|(name, namespace)| {
-        name == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
-    })
+    element_name(tree, node)
+        .is_some_and(|(name, namespace)| name == expected && (namespace == CDML_NAMESPACE))
 }
 fn copy_trimmed_name(value: &str) -> Result<String, DocumentExplicitFragmentErrorV1> {
     let value = value.trim();

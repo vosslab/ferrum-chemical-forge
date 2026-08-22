@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use ferrum_chemistry::AtomicNumber;
 use thiserror::Error;
 
 use super::{PersistentId, PositiveFiniteV1, Rgb24V1};
@@ -127,10 +128,7 @@ impl AtomPropertiesPatchV1 {
 }
 
 pub(crate) fn valid_atom_element(value: &str) -> bool {
-    !value.trim().is_empty()
-        && value
-            .chars()
-            .all(|character| character.is_ascii_alphabetic())
+    AtomicNumber::from_symbol(value).is_ok()
 }
 
 /// Invalid atom-properties intent rejected before document lookup.
@@ -139,8 +137,8 @@ pub enum AtomPropertiesPatchV1Error {
     /// The durable atom identifier is empty or otherwise invalid.
     #[error("atom properties require a valid persistent atom ID")]
     InvalidAtomId,
-    /// The element spelling is not a nonblank plain ASCII name.
-    #[error("atom element must be a nonblank plain element spelling")]
+    /// The element spelling is not a canonical periodic-table symbol.
+    #[error("atom element must be a canonical periodic-table symbol")]
     InvalidElement,
     /// Isotope zero must be represented by clearing the authored fact.
     #[error("atom isotope must be absent or a positive mass number")]

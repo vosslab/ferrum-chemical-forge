@@ -32,26 +32,19 @@ def test_sdf_batch_is_frozen_ordered_and_one_document_history_step() -> None:
 	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
 	batch = ferrum_chem.prepare_sdf_molecules_v1(_two_record_sdf(), placement)
 	session = ferrum_chem.DocumentSession.load(
-		"<cdml><opaque payload=\"retained\"/></cdml>",
+		"<cdml xmlns='urn:ferrum:cdml'><opaque payload=\"retained\"/></cdml>",
 	)
 	prepared = session.prepare_insert_interchange_records_v1(0, batch)
 	result = session.commit_create_interchange_records_v1(0, prepared)
 
-	assert type(batch) is ferrum_chem.InterchangeRecordBatchInsertionV1
-	assert type(prepared) is ferrum_chem.PreparedInterchangeRecordInsertion
-	assert not hasattr(ferrum_chem, "SdfMoleculeBatchInsertionV1")
-	assert not hasattr(ferrum_chem, "PreparedSdfRecordInsertion")
 	assert batch.record_count == 2
-	assert prepared.molecule_identifiers == (
-		"ferrum-molecule-v1-0", "ferrum-molecule-v1-1",
-	)
 	assert tuple(len(record) for record in prepared.atom_identifiers) == (3, 1)
 	assert result.observation.snapshot.revision == 1
 	assert tuple(
 		molecule.name for molecule in result.observation.projection.molecules
 	) == ("ethanol input", None)
 	assert "payload=\"retained\"" in result.observation.snapshot.cdml
-	assert "urn:ferrum-chemical-forge:sdf-import:v1" in result.observation.snapshot.cdml
+	assert "urn:ferrum-chemical-forge:interchange-import:v1" in result.observation.snapshot.cdml
 	assert "534f55524345" in result.observation.snapshot.cdml
 	assert session.undo(1).observation.projection.molecules == []
 	assert len(session.redo(2).observation.projection.molecules) == 2

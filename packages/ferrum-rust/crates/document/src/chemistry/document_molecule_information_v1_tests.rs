@@ -129,7 +129,7 @@ fn request_refuses_empty_or_duplicate_root_input() {
         Err(DocumentMoleculeInformationRequestErrorV1::EmptySelection)
     );
     let observation = observation(
-        "<cdml version=\"26.07\"><molecule id=\"m1\"><atom id=\"a1\" name=\"C\">\
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><molecule id=\"m1\"><atom id=\"a1\" name=\"C\">\
          <point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     let id = observation.projection().molecules()[0]
@@ -145,7 +145,7 @@ fn request_refuses_empty_or_duplicate_root_input() {
 #[test]
 fn multi_root_receipt_is_document_ordered_and_combined_without_mutation() {
     let source = concat!(
-        "<cdml version=\"26.07\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\">",
         "<molecule id=\"carbon\" name=\"Carbon\">",
         "<atom id=\"c1\" name=\"C\" charge=\"1\"><point x=\"0\" y=\"0\"/></atom>",
         "</molecule><molecule id=\"oxygen\" name=\"Oxygen\">",
@@ -194,7 +194,7 @@ fn composition_graph_accepts_closed_drawing_styles_and_aromatic_order() {
     ] {
         let source = format!(
             concat!(
-                "<cdml version=\"26.07\"><molecule id=\"m1\">",
+                "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><molecule id=\"m1\">",
                 "<atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
                 "<atom id=\"a2\" name=\"C\"><point x=\"1\" y=\"0\"/></atom>",
                 "<bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"{}\"/>",
@@ -222,7 +222,7 @@ fn unsupported_source_facts_fail_before_engine_execution() {
     for (atom_fact, bond_type) in [(" valency=\"4\"", "n1"), ("", "x1"), ("", "n9")] {
         let source = format!(
             concat!(
-                "<cdml version=\"26.07\"><molecule id=\"m1\">",
+                "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><molecule id=\"m1\">",
                 "<atom id=\"a1\" name=\"C\"{}><point x=\"0\" y=\"0\"/></atom>",
                 "<atom id=\"a2\" name=\"O\"><point x=\"1\" y=\"0\"/></atom>",
                 "<bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"{}\"/>",
@@ -245,7 +245,7 @@ fn unsupported_source_facts_fail_before_engine_execution() {
 #[test]
 fn engine_failure_returns_no_partial_information_receipt() {
     let source = concat!(
-        "<cdml version=\"26.07\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\">",
         "<molecule id=\"m1\"><atom id=\"a1\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"m2\"><atom id=\"a2\" name=\"O\">",

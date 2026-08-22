@@ -36,7 +36,7 @@ fn protocol_lists_and_inserts_a_closed_haworth_entry_without_recipe_payload() {
     assert!(wire[0].get("recipe").is_none());
     assert!(wire[0].get("document").is_none());
 
-    let document = "<cdml/>";
+    let document = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
     let inserted = execute_operation_v1(&request(serde_json::json!({
         "kind":"catalog.insert.v1", "document":document, "expected_revision":0,
         "expected_digest_hex":digest(document), "catalog_id":key, "anchor_x":42.0, "anchor_y":-9.0

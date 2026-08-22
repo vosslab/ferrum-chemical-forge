@@ -49,7 +49,7 @@ class FerrumNativeRecoveryExportWindowMixin:
 		available = (
 			tab is not None
 			and self._native_tabs_by_page.get(tab) is tab
-			and not tab._disposed
+			and not tab.is_disposed
 		)
 		self._recovery_export_action.setEnabled(available)
 

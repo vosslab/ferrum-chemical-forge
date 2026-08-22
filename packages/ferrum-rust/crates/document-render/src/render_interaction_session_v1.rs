@@ -647,6 +647,22 @@ impl RenderInteractionSessionV1 {
         })
     }
 
+    pub fn render_interaction_selection_contains_point_v1(
+        &self,
+        selection: &RenderInteractionSelectionV1,
+        x: f64,
+        y: f64,
+    ) -> Result<bool, RenderInteractionErrorV1> {
+        self.require_selection(selection)?;
+        if !x.is_finite() || !y.is_finite() {
+            return Err(RenderInteractionErrorV1::NonFinitePoint);
+        }
+        Ok(selection
+            .roots
+            .iter()
+            .any(|root| root.bounds.contains_point(x, y)))
+    }
+
     pub fn begin_render_interaction_translation_v1(
         &self,
         selection: &RenderInteractionSelectionV1,
@@ -682,31 +698,45 @@ impl RenderInteractionSessionV1 {
         if !pointer_x.is_finite() || !pointer_y.is_finite() {
             return Err(RenderInteractionErrorV1::NonFinitePoint);
         }
-        let (pointer_x, pointer_y, press_x, press_y) = match gesture.snap.grid_policy {
-            RenderInteractionGridSnapPolicyV1::Free => {
-                (pointer_x, pointer_y, gesture.press_x, gesture.press_y)
-            }
+        let raw_dx = pointer_x - gesture.press_x;
+        let raw_dy = pointer_y - gesture.press_y;
+        let (mut dx, mut dy) = match gesture.snap.grid_policy {
+            RenderInteractionGridSnapPolicyV1::Free => (raw_dx, raw_dy),
             RenderInteractionGridSnapPolicyV1::ViewHexGrid => {
-                let origin =
-                    Point2::new(0.0, 0.0).map_err(|_| RenderInteractionErrorV1::Observation)?;
-                let grid = HexGrid::new(VIEW_HEX_GRID_SPACING_PT_V1, origin)
-                    .map_err(|_| RenderInteractionErrorV1::Observation)?;
-                let pointer = grid
-                    .snap(
-                        Point2::new(pointer_x, pointer_y)
-                            .map_err(|_| RenderInteractionErrorV1::NonFinitePoint)?,
-                    )
-                    .map_err(|_| RenderInteractionErrorV1::Observation)?;
-                let press = grid
-                    .snap(
-                        Point2::new(gesture.press_x, gesture.press_y)
-                            .map_err(|_| RenderInteractionErrorV1::NonFinitePoint)?,
-                    )
-                    .map_err(|_| RenderInteractionErrorV1::Observation)?;
-                (pointer.x(), pointer.y(), press.x(), press.y())
+                if raw_dx == 0.0 && raw_dy == 0.0 {
+                    (0.0, 0.0)
+                } else {
+                    let targets = gesture
+                        .selection
+                        .roots
+                        .iter()
+                        .map(|root| {
+                            TopLevelRootSelectorV1::new(root.identifier.clone(), root.kind)
+                                .map_err(|_| RenderInteractionErrorV1::SelectionChanged)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let anchor = self
+                        .session
+                        .observe_top_level_translation_anchor_v1(
+                            gesture.selection.fence.revision(),
+                            targets,
+                        )
+                        .map_err(|_| RenderInteractionErrorV1::SelectionChanged)?;
+                    let (anchor_x, anchor_y) = anchor.anchor();
+                    let origin =
+                        Point2::new(0.0, 0.0).map_err(|_| RenderInteractionErrorV1::Observation)?;
+                    let grid = HexGrid::new(VIEW_HEX_GRID_SPACING_PT_V1, origin)
+                        .map_err(|_| RenderInteractionErrorV1::Observation)?;
+                    let snapped_anchor = grid
+                        .snap(
+                            Point2::new(anchor_x + raw_dx, anchor_y + raw_dy)
+                                .map_err(|_| RenderInteractionErrorV1::NonFinitePoint)?,
+                        )
+                        .map_err(|_| RenderInteractionErrorV1::Observation)?;
+                    (snapped_anchor.x() - anchor_x, snapped_anchor.y() - anchor_y)
+                }
             }
         };
-        let (mut dx, mut dy) = (pointer_x - press_x, pointer_y - press_y);
         match gesture.snap.axis {
             RenderInteractionAxisV1::Free => {}
             RenderInteractionAxisV1::Horizontal => dy = 0.0,

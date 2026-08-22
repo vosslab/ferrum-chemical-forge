@@ -213,7 +213,7 @@ fn is_cdml_element(tree: &Xot, node: Node, expected_local: &str) -> bool {
         return false;
     };
     let (local, namespace) = tree.name_ns_str(element.name());
-    local == expected_local && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+    local == expected_local && (namespace == CDML_NAMESPACE)
 }
 
 fn is_element(tree: &Xot, node: Node, expected_local: &str, expected_namespace: &str) -> bool {

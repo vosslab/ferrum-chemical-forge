@@ -47,6 +47,7 @@ const NORMAL_RENDER_ROOTS: &[&str] = &[
     "circle",
     "square",
     "polyline",
+    "polygon",
     "reaction",
     "external-data",
 ];

@@ -15,7 +15,7 @@ def _arrow(observation: object) -> object:
 def test_arrow_properties_are_atomic_frozen_and_revision_bound() -> None:
 	"""Apply one closed patch and preserve semantic state through history."""
 	source = (
-		'<cdml xmlns:v="urn:vendor"><arrow id="a" type="normal" start="no" '
+		'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><arrow id="a" type="normal" start="no" '
 		'end="yes" spline="no" width="1" color="#000" keep="yes">'
 		'<point x="0" y="0"/><v:opaque/><point x="40" y="0"/>'
 		'</arrow></cdml>'
@@ -33,20 +33,30 @@ def test_arrow_properties_are_atomic_frozen_and_revision_bound() -> None:
 	changed = session.submit(0, operation).observation
 	arrow = _arrow(changed)
 	assert changed.snapshot.revision == 1
-	assert (arrow.start_head, arrow.end_head) == (True, False)
+	assert arrow.geometry.kind == "normal"
+	assert arrow.geometry.normal is not None
+	normal = arrow.geometry.normal
+	assert (normal.start_head, normal.end_head) == (True, False)
+	assert [head.position for head in normal.heads] == ["start"]
 	assert (arrow.stroke.width, arrow.stroke.color) == (2.5, "#aabbcc")
 	assert 'keep="yes"' in changed.snapshot.cdml
 	assert "opaque" in changed.snapshot.cdml
 	with pytest.raises(AttributeError):
 		changes[0].value = False
-	assert _arrow(session.undo(1).observation).start_head is False
-	assert _arrow(session.redo(2).observation).start_head is True
+	undone = _arrow(session.undo(1).observation)
+	assert undone.geometry.kind == "normal"
+	assert undone.geometry.normal is not None
+	assert undone.geometry.normal.start_head is False
+	redone = _arrow(session.redo(2).observation)
+	assert redone.geometry.kind == "normal"
+	assert redone.geometry.normal is not None
+	assert redone.geometry.normal.start_head is True
 
 
 def test_arrow_properties_reject_hostile_shapes_without_mutation() -> None:
 	"""Reject malformed intent, tuple subclasses, excess work, and stale edits."""
 	source = (
-		'<cdml><arrow id="a" type="normal"><point x="0" y="0"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal"><point x="0" y="0"/>'
 		'<point x="40" y="0"/></arrow></cdml>'
 	)
 	session = ferrum_chem.DocumentSession.load(source)
@@ -84,4 +94,7 @@ def test_arrow_properties_reject_hostile_shapes_without_mutation() -> None:
 	session.submit(0, operation)
 	with pytest.raises(ferrum_chem.RevisionConflictError):
 		session.submit(0, operation)
-	assert session.observe(1).projection.presentation_stack.roots[0].arrow.start_head
+	arrow = session.observe(1).projection.presentation_stack.roots[0].arrow
+	assert arrow.geometry.kind == "normal"
+	assert arrow.geometry.normal is not None
+	assert arrow.geometry.normal.start_head

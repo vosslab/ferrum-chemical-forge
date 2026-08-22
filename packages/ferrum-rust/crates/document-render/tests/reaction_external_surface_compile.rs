@@ -15,7 +15,7 @@ use ferrum_document_render::{
     begin_reaction_membership_patch_v1, commit_reaction_lifecycle_v1,
     prepare_reaction_lifecycle_v1,
 };
-const SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><molecule id=\"third\"><atom id=\"third-a\" name=\"N\"><point x=\"140\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
+const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><molecule id=\"third\"><atom id=\"third-a\" name=\"N\"><point x=\"140\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
 fn main() {
     let mut session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
     let snapshot = session.snapshot().expect("snapshot");
@@ -31,7 +31,7 @@ const FORGED_LIFECYCLE_SOURCE: &str = r#"
 use ferrum_document::{DocumentFenceV1, DocumentSession};
 use ferrum_document_render::{ReactionMembershipPatchRequestV1, RenderInteractionSessionV1, begin_reaction_membership_patch_v1};
 fn main() {
-    let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml/>").expect("load"));
+    let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("load"));
     let snapshot = session.snapshot().expect("snapshot");
     let fence = DocumentFenceV1::new(snapshot.revision(), *snapshot.digest());
     let request = ReactionMembershipPatchRequestV1::new(0, vec!["a".into()], vec!["b".into()], "c".into(), vec![], vec![]).expect("request");
@@ -41,7 +41,7 @@ fn main() {
 const CLONED_SELECTION_SOURCE: &str = r#"
 use ferrum_document::{DocumentFenceV1, DocumentSession};
 use ferrum_document_render::RenderInteractionSessionV1;
-const SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
+const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
 fn main() {
     let session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
     let snapshot = session.snapshot().expect("snapshot");
@@ -53,7 +53,7 @@ fn main() {
 const CLONED_LIFECYCLE_GESTURE_SOURCE: &str = r#"
 use ferrum_document::{DocumentFenceV1, DocumentSession};
 use ferrum_document_render::{ReactionMembershipPatchRequestV1, RenderInteractionSessionV1, begin_reaction_membership_patch_v1};
-const SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
+const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
 fn main() {
     let session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
     let snapshot = session.snapshot().expect("snapshot");
@@ -74,19 +74,19 @@ fn main() { let _ = PreparedSmartsTargetSetV1 {}; }"#,
         "SMARTS prepared target debug extraction",
         r#"use ferrum_document::{DocumentFenceV1, DocumentSession};
 use ferrum_document_render::RenderInteractionSessionV1;
-fn main() { let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml/>").unwrap()); let snapshot = session.snapshot().unwrap(); let value = session.prepare_smarts_targets_v1(DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())).unwrap(); let _ = format!("{:?}", value); }"#,
+fn main() { let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").unwrap()); let snapshot = session.snapshot().unwrap(); let value = session.prepare_smarts_targets_v1(DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())).unwrap(); let _ = format!("{:?}", value); }"#,
     ),
     (
         "SMARTS prepared target clone",
         r#"use ferrum_document::{DocumentFenceV1, DocumentSession};
 use ferrum_document_render::RenderInteractionSessionV1;
-fn main() { let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml/>").unwrap()); let snapshot = session.snapshot().unwrap(); let value = session.prepare_smarts_targets_v1(DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())).unwrap(); let _ = value.clone(); }"#,
+fn main() { let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").unwrap()); let snapshot = session.snapshot().unwrap(); let value = session.prepare_smarts_targets_v1(DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())).unwrap(); let _ = value.clone(); }"#,
     ),
     (
         "SMARTS prepared target graph extraction",
         r#"use ferrum_document::{DocumentFenceV1, DocumentSession};
 use ferrum_document_render::RenderInteractionSessionV1;
-fn main() { let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml/>").unwrap()); let snapshot = session.snapshot().unwrap(); let value = session.prepare_smarts_targets_v1(DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())).unwrap(); let _ = value.graph_v1(0); }"#,
+fn main() { let session = RenderInteractionSessionV1::new(DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").unwrap()); let snapshot = session.snapshot().unwrap(); let value = session.prepare_smarts_targets_v1(DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())).unwrap(); let _ = value.graph_v1(0); }"#,
     ),
     (
         "reaction gesture construction",

@@ -1,14 +1,12 @@
 """Installed-extension checks for private durable molecule inspection V1."""
 
-from pathlib import Path
-
 import pytest
 
 import ferrum_chem
 
 
 _SOURCE = """\
-<cdml version="1.0"><molecule id="m1" name="Example">
+<cdml xmlns="urn:ferrum:cdml" version="1.0"><molecule id="m1" name="Example">
  <atom id="a1" name="O" charge="-1"><point x="10" y="20"/></atom>
  <atom id="a2" name="C" charge="1"><point x="30" y="5"/></atom>
  <bond id="b1" start="a1" end="a2" type="w1"/>
@@ -102,7 +100,7 @@ def test_private_inspection_maps_object_and_rust_failures_to_its_error() -> None
 		)
 	assert "direct-root molecule" in root.value.reason
 	invalid_source = """\
-<cdml version="1.0"><molecule id="m1">
+<cdml xmlns="urn:ferrum:cdml" version="1.0"><molecule id="m1">
  <atom id="a1" name="Xx"><point x="0" y="0"/></atom>
 </molecule></cdml>
 """
@@ -115,12 +113,3 @@ def test_private_inspection_maps_object_and_rust_failures_to_its_error() -> None
 	assert session.snapshot().revision == before.revision
 	assert session.snapshot().digest == before.digest
 
-
-def test_private_inspection_names_are_discoverable_but_absent_from_wheel_stub() -> None:
-	"""The Qt-only experimental names are runtime-private, not hidden or public."""
-	assert "inspect_document_molecule_v1" in dir(ferrum_chem)
-	assert "DocumentMoleculeInspectionV1" in dir(ferrum_chem)
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-	assert "inspect_document_molecule_v1" not in stub
-	assert "DocumentMoleculeInspection" not in stub

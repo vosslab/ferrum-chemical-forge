@@ -7,14 +7,14 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    element_name, BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1,
+    BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, CDML_NAMESPACE,
     DocumentBondOrderV1, DocumentBondStyleV1, NonZeroFiniteV1, PositiveFiniteV1, Rgb24V1,
-    CDML_NAMESPACE,
+    element_name,
 };
 use xot::Xot;
 
 const PROPERTY_SOURCE: &str = concat!(
-    "<cdml xmlns:v=\"urn:vendor\"><molecule id=\"m\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom>",
     "<atom id=\"b\" name=\"O\"><point x=\"3\" y=\"2\"/></atom>",
     "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"w2\" center=\"no\" ",
@@ -258,7 +258,7 @@ fn stale_bond_properties_patch_does_not_change_authoritative_snapshot() {
 #[test]
 fn bond_properties_mutate_alternate_cdml_namespace_without_disturbing_opaque_content() {
     let source = concat!(
-        "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+        "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
         "xmlns:f=\"urn:foreign\"><c:molecule id=\"m\"><c:atom id=\"a\" ",
         "name=\"C\"><c:point x=\"1\" y=\"2\"/></c:atom><c:atom id=\"b\" ",
         "name=\"O\"><c:point x=\"3\" y=\"2\"/></c:atom><c:bond id=\"ab\" ",

@@ -5,7 +5,7 @@ use super::{
 };
 
 const STRUCTURE_SOURCE: &str = concat!(
-    "<cdml version=\"26.07\"><molecule id=\"m\" name=\"chain\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><molecule id=\"m\" name=\"chain\">",
     "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
     "<vendor:fact xmlns:vendor=\"urn:vendor\" value=\"retained\"/></atom>",
     "<atom id=\"b\" name=\"N\"><point x=\"10\" y=\"0\"/></atom>",
@@ -19,7 +19,7 @@ const STRUCTURE_SOURCE: &str = concat!(
 );
 
 const MIXED_SOURCE: &str = concat!(
-    "<cdml version=\"26.07\"><plus id=\"p\"><point x=\"30\" y=\"40\"/></plus>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><plus id=\"p\"><point x=\"30\" y=\"40\"/></plus>",
     "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
     "</atom><atom id=\"b\" name=\"O\"><point x=\"3\" y=\"4\"/></atom>",
     "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",

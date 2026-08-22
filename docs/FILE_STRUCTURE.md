@@ -8,7 +8,7 @@ ferrum-chemical-forge/
 +- README.md                 Project overview and migration status
 +- docs/                     Durable documentation and active planning records
 +- packages/
-|  +- ferrum-rust/           Ferrum-Chem Rust workspace and wheel tooling
+|  +- ferrum-rust/           Ferrum-Chem Rust workspace and local runtime staging
 |  `- ferrum-chem-qt.app/    Ferrum PySide6 application and tests
 +- tests/                    Repository checks and cross-package E2E coverage
 +- devel/                    Maintainer scripts and measurement helpers
@@ -34,8 +34,9 @@ ferrum-chemical-forge/
   [../packages/ferrum-rust/crates/geometry/](../packages/ferrum-rust/crates/geometry/),
   and [../packages/ferrum-rust/crates/render/](../packages/ferrum-rust/crates/render/)
   contain the native chemical, document, domain, geometry, and rendering layers.
-- [../packages/ferrum-rust/tools/](../packages/ferrum-rust/tools/) contains native
-  wheel construction, receipt, and Mach-O closure checks.
+- [../packages/ferrum-rust/local_engine_builder.py](../packages/ferrum-rust/local_engine_builder.py)
+  and [../packages/ferrum-rust/local_runtime_receipt.py](../packages/ferrum-rust/local_runtime_receipt.py)
+  stage and validate the repository-owned local native runtime.
 - [../packages/ferrum-rust/devel/](../packages/ferrum-rust/devel/) holds
   maintainer measurement and exploration scripts.
 
@@ -70,8 +71,8 @@ replacement subtree. The ordinary package is the supported application route.
 
 ### `tests/` and `docs/`
 
-- [../tests/e2e/](../tests/e2e/) contains corpus inputs, native-wheel E2E
-  coverage, and cross-package scenarios.
+- [../tests/e2e/](../tests/e2e/) contains corpus inputs and cross-package
+  scenarios.
 - [../tests/e2e/reference/](../tests/e2e/reference/) is an optional Python RDKit
   environment for one-time maintainer measurements only.
 - [../tests/](../tests/) also contains repository policy and documentation checks.
@@ -85,9 +86,9 @@ replacement subtree. The ordinary package is the supported application route.
 
 - Cargo outputs use `target/` directories, which
   [../.gitignore](../.gitignore) excludes.
-- Wheel builds, closure receipts, and related disposable evidence use `output*`
-  directories, also excluded by [../.gitignore](../.gitignore).
-- Python build products use `build/`, `dist/`, `sdist/`, `site/`, and
+- Local developer build products use `build/`; `build.sh` removes its transient
+  compiler state and retains only the runnable local application there.
+- Python packaging byproducts use `dist/`, `sdist/`, `site/`, and
   `*.egg-info/`, which the root ignore policy excludes.
 - `OTHER_REPOS/` is ignored optional reference material. Production code,
   packaging, and release paths do not require it.

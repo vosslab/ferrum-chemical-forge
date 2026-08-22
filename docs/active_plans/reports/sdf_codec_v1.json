@@ -1,4 +1,5 @@
 {
+  "current_checkout_status": "Historical wheel evidence only. output_native_wheel was retired; current local validation uses ./build.sh and ./all_test.sh.",
   "artifacts": {
     "ferrum_extension_sha256": "f8fff4f749f0c4b531bacb8451a1f26c3df95e878001cfbc36b12dba268ae8ce",
     "wheel": "output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl",

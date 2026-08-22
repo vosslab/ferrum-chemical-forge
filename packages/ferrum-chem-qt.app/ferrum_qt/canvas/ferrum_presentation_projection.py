@@ -16,6 +16,7 @@ from ferrum_qt.canvas._ferrum_presentation_projection_builder import (
 	PresentationTarget,
 	ShapeProjectionItem,
 	build_presentation_projection,
+	_target as build_presentation_target,
 )
 
 
@@ -31,7 +32,15 @@ __all__ = (
 	"PresentationTarget",
 	"ShapeProjectionItem",
 	"build_presentation_projection",
+	"presentation_target_from_dto",
 )
+
+
+#============================================
+def presentation_target_from_dto(value: object, extension: object,
+		expected_kind: str | None = None) -> PresentationTarget:
+	"""Copy one authenticated native target into immutable projection state."""
+	return build_presentation_target(value, extension, expected_kind)
 
 
 class FerrumPresentationProjectionController:

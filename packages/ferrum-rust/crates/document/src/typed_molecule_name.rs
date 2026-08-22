@@ -52,6 +52,6 @@ fn element_child(tree: &xot::Xot, parent: Node, index: u32) -> Option<Node> {
 
 fn is_molecule(tree: &xot::Xot, node: Node) -> bool {
     super::element_name(tree, node).is_some_and(|(local_name, namespace)| {
-        local_name == "molecule" && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+        local_name == "molecule" && (namespace == CDML_NAMESPACE)
     })
 }

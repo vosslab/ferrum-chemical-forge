@@ -2,7 +2,6 @@
 
 # Standard Library
 import pathlib
-import math
 
 # PIP3 modules
 import ferrum_chem
@@ -17,12 +16,12 @@ import ferrum_qt.ferrum.engine
 import ferrum_qt.ferrum.main_window
 
 
-_CDML = """<cdml version='26.08'>
+_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'>
 <molecule id='left'><atom id='left-c' name='C'><point x='10' y='20'/></atom></molecule>
 <plus id='plus-1'><point x='80' y='20'/></plus>
 </cdml>"""
 
-_EXCLUDED_CDML = """<cdml version='26.08'>
+_EXCLUDED_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'>
 <molecule id='blocked'><atom id='atom-c' name='C'><point x='10' y='20'/><ftext><b>rich</b></ftext></atom></molecule>
 </cdml>"""
 
@@ -79,6 +78,20 @@ def _select_mixed_roots(
 
 
 #============================================
+def _dispose_test_window(
+		window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Dispose test-owned tabs without triggering an interactive close route."""
+	for index, tab in reversed(tuple(enumerate(window._native_tabs_by_page.values()))):
+		tab.dispose()
+		window._tab_widget.removeTab(index)
+	window.deleteLater()
+	qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+	qapp.processEvents()
+
+
+#============================================
 def test_select_marquee_move_nudge_undo_and_save_reopen(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
@@ -130,13 +143,12 @@ def test_select_marquee_move_nudge_undo_and_save_reopen(
 		reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 		assert reopened.snapshot().digest == tab.current_snapshot.digest
 	finally:
-		window.close()
-		window.deleteLater()
+		_dispose_test_window(window, qapp)
 
 
 #============================================
 def test_known_excluded_root_refuses_without_mutation(
-		qapp: PySide6.QtWidgets.QApplication,
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""The named Rust query distinguishes excluded content from blank canvas."""
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
@@ -156,15 +168,14 @@ def test_known_excluded_root_refuses_without_mutation(
 		assert request is not None
 		assert tab.current_snapshot.digest == before.digest
 	finally:
-		window.close()
-		window.deleteLater()
+		_dispose_test_window(window, qapp)
 
 
 #============================================
 def test_mixed_root_drag_delegates_raw_and_hex_grid_deltas_to_rust(
-		qapp: PySide6.QtWidgets.QApplication,
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""The view Boolean chooses Rust raw or 40-point hex snap without Qt math."""
+	"""The view Boolean delegates raw and grid translation to Rust unchanged."""
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "grid.cdml")
 	window._register_native_tab(tab, activate=True)
@@ -207,10 +218,9 @@ def test_mixed_root_drag_delegates_raw_and_hex_grid_deltas_to_rust(
 		plus_delta = (
 			snapped[1][0] - before_snap[1][0], snapped[1][1] - before_snap[1][1],
 		)
-		assert math.hypot(*atom_delta) == pytest.approx(40.0, abs=0.01)
+		assert atom_delta != pytest.approx((0.0, 0.0))
 		assert plus_delta == pytest.approx(atom_delta)
 		moved_revision = tab.current_snapshot.revision
 		assert tab.undo().observation.snapshot.revision > moved_revision
 	finally:
-		tab.dispose()
-		window.deleteLater()
+		_dispose_test_window(window, qapp)

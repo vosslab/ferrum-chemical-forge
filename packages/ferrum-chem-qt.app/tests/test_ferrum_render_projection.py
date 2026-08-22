@@ -5,8 +5,10 @@ import dataclasses
 import pathlib
 
 # PIP3 modules
+import PySide6.QtCore
 import PySide6.QtWidgets
 import pytest
+import shiboken6
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
@@ -198,6 +200,30 @@ def test_complete_observation_builds_detached_scene_and_durable_map(
 	assert item.scene() is projection.scene and item.zValue() == 2.0
 	assert projection.molecule_roots[root].source_order == 1 and root.zValue() == 1.0
 	assert projection.paper.rect() == projection.scene.sceneRect()
+	projection.dispose()
+
+
+#============================================
+def test_projection_disposal_detaches_roots_and_retires_its_scene_once(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""A disposable projection owns its detached scene through terminal deletion."""
+	projection = ferrum_qt.canvas.ferrum_render_projection._build_fixture_render_projection(
+		_observation(), _telex(), _test_observation_validator,
+	)
+	scene = projection.scene
+	assert scene.items()
+	projection.dispose()
+	assert not scene.items()
+	projection.dispose()
+	for _pass in range(4):
+		PySide6.QtCore.QCoreApplication.sendPostedEvents(
+			None, PySide6.QtCore.QEvent.Type.DeferredDelete,
+		)
+		qapp.processEvents()
+		if not shiboken6.isValid(scene):
+			break
+	assert not shiboken6.isValid(scene)
 
 
 #============================================

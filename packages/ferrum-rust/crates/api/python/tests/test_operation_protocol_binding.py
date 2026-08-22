@@ -8,7 +8,7 @@ import ferrum_chem
 
 
 CDML = (
-	'<cdml><molecule id="m"><atom id="a" name="C">'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
 	'<point x="10" y="20"/></atom></molecule></cdml>'
 )
 
@@ -81,9 +81,18 @@ def test_smarts_query_schema_and_stateless_protocol_keep_live_state_private() ->
 	assert '"selected_molecule"' in json.dumps(definitions["DocumentSmartsQueryInputV1"])
 	assert set(summary) == {"schema", "traversal", "molecules"}
 	assert set(molecule) == {"source_order", "match_count", "completeness"}
-	assert resource_reason["enum"] == ["response_size_exceeded"]
-	for private_name in ("receipt", "paint", "query_origin", "query_display", "graph_position", "record_id"):
-		assert private_name not in json.dumps(schema)
+	assert resource_reason["oneOf"][0]["const"] == "response_size_exceeded"
+	private_names = {
+		"receipt",
+		"paint",
+		"query_origin",
+		"query_display",
+		"graph_position",
+		"record_id",
+	}
+	assert not private_names.intersection(request)
+	assert not private_names.intersection(summary)
+	assert not private_names.intersection(molecule)
 
 	snapshot = ferrum_chem.DocumentSession.load(CDML).snapshot()
 	response = ferrum_chem.execute_operation_v1(json.dumps({

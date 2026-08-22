@@ -1,7 +1,10 @@
-use super::{DocumentSession, DocumentSessionError, SessionOperationError, TypedDocumentError};
+use super::{
+    DocumentSession, DocumentSessionError, SessionOperationError, TypedClass, TypedDocument,
+    TypedDocumentError,
+};
 
 const CHAIN: &str = concat!(
-    "<cdml><molecule id=\"m\" name=\"chain\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\" name=\"chain\">",
     "<atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\"><point x=\"1\" y=\"0\"/></atom><atom id=\"c\"><point x=\"2\" y=\"0\"/></atom><atom id=\"d\"><point x=\"3\" y=\"0\"/></atom>",
     "<bond id=\"ab\" start=\"a\" end=\"b\"/>",
     "<bond id=\"bc\" start=\"b\" end=\"c\"/>",
@@ -56,8 +59,18 @@ fn structural_deletion_splits_in_source_order_and_receipts_induced_bonds() {
     assert_eq!(committed.observation().snapshot().revision(), 1);
     let cdml = committed.observation().snapshot().cdml();
     assert!(cdml.contains("<molecule id=\"m\" name=\"chain\"><atom id=\"a\">"));
-    assert!(cdml.contains("<atom id=\"c\"><point"));
-    assert!(cdml.contains("<bond id=\"cd\""));
+    assert!(cdml.contains("id=\"c\""));
+    let document = TypedDocument::parse(cdml).expect("committed CDML reparses");
+    assert!(
+        document
+            .root()
+            .children_of(TypedClass::Molecule)
+            .any(|molecule| {
+                molecule
+                    .children_of(TypedClass::Bond)
+                    .any(|record| record.attribute("id") == Some("cd"))
+            })
+    );
 }
 
 #[test]
@@ -81,7 +94,7 @@ fn reaction_referenced_split_is_atomic() {
 
 #[test]
 fn unsupported_direct_content_is_atomic() {
-    let source = "<cdml><molecule id=\"m\"><atom id=\"a\"/><note/></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"/><note/></molecule></cdml>";
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let before = session.snapshot().expect("snapshot works");
     assert!(matches!(

@@ -1,7 +1,7 @@
 use ferrum_api::{OperationProtocolEnvelopeV1, OperationProtocolOutcomeV1, execute_operation_v1};
 use ferrum_document::DocumentSession;
 
-const CDML: &str = "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
+const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
 
 fn digest(document: &str) -> String {
     DocumentSession::load(document)
@@ -104,8 +104,7 @@ fn vector_protocol_rejects_nonzero_stateless_revision_with_closed_recovery() {
 
 #[test]
 fn vector_protocol_refuses_a_renderer_excluded_existing_root_before_commit() {
-    let excluded =
-        "<cdml><text id=\"bad\"><point x=\"1\" y=\"2\"/><ftext><b>x</b></ftext></text></cdml>";
+    let excluded = "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"bad\"><point x=\"1\" y=\"2\"/><ftext><b>x</b></ftext></text></cdml>";
     let response =
         execute_operation_v1(&request(excluded, 0, 40.0, 60.0)).expect("request decodes");
     let OperationProtocolEnvelopeV1::Error(response) = response else {

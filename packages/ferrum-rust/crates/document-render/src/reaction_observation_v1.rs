@@ -348,7 +348,7 @@ mod tests {
     use crate::RenderInteractionSessionV1;
 
     const SOURCE: &str = concat!(
-        "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule>",
         "<arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow>",
         "<reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>"

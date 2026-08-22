@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use ferrum_document::InterchangeFormatV1;
 
+use crate::interchange_import_v1::{InterchangeDecoderKeyV1, InterchangeFormatRegistryV1};
+
 /// Ferrum command-line arguments.
 #[derive(Debug, Parser)]
 #[command(name = "ferrum", version, about = "Ferrum chemical document tools")]
@@ -84,9 +86,9 @@ pub(crate) enum Command {
         /// Output path, or `-` for standard output.
         #[arg(short, long, conflicts_with = "json")]
         output: Option<PathBuf>,
-        /// Source syntax; otherwise inferred from .smi, .inchi, .mol, .sdf, or .cdml.
-        #[arg(long = "from", value_enum)]
-        input_format: Option<InterchangeFormat>,
+        /// Source syntax; otherwise inferred from .smi, .inchi, .mol, .sdf, .cdml, or .cml.
+        #[arg(long = "from", value_parser = parse_interchange_input_format)]
+        input_format: Option<InterchangeInputFormat>,
         /// Target syntax using one exact closed protocol format name.
         #[arg(long = "to", value_enum)]
         output_format: InterchangeFormat,
@@ -142,14 +144,9 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: DocumentCommand,
     },
-    /// Install or inspect the explicitly provisioned native chemistry engine bundle.
-    Engine {
-        #[command(subcommand)]
-        command: EngineCommand,
-    },
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub(crate) enum DocumentInputFormat {
     Cdml,
 }
@@ -160,7 +157,7 @@ pub(crate) enum DocumentOutputFormat {
 }
 
 /// Closed molecular interchange syntax vocabulary used by `ferrum convert`.
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 #[value(rename_all = "snake_case")]
 pub(crate) enum InterchangeFormat {
     Smiles,
@@ -172,6 +169,48 @@ pub(crate) enum InterchangeFormat {
     SdfV2000,
     SdfV3000,
     Cdml,
+}
+
+/// Closed molecular interchange input vocabulary used by `ferrum convert`.
+///
+/// CML stays input-only: its accepted aliases are resolved from the API-owned
+/// interchange registry and its records flow through the same lowering bridge
+/// as document import.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum InterchangeInputFormat {
+    Native(InterchangeFormat),
+    CmlSimpleMolecule,
+}
+
+impl From<InterchangeInputFormat> for InterchangeFormatV1 {
+    fn from(value: InterchangeInputFormat) -> Self {
+        match value {
+            InterchangeInputFormat::Native(format) => format.into(),
+            InterchangeInputFormat::CmlSimpleMolecule => Self::CmlSimpleMolecule,
+        }
+    }
+}
+
+/// Parse a convert input format, joining CML aliases through the canonical registry.
+pub(crate) fn parse_interchange_input_format(
+    value: &str,
+) -> Result<InterchangeInputFormat, String> {
+    if let Ok(descriptor) = InterchangeFormatRegistryV1::lookup_input_alias(value) {
+        return Ok(interchange_input_format_from_descriptor(descriptor));
+    }
+    InterchangeFormat::from_str(value, false)
+        .map(InterchangeInputFormat::Native)
+        .map_err(|error| error.to_string())
+}
+
+/// Map an API-owned interchange descriptor to its closed convert input profile.
+pub(crate) fn interchange_input_format_from_descriptor(
+    descriptor: &crate::interchange_import_v1::InterchangeFormatDescriptorV1,
+) -> InterchangeInputFormat {
+    match descriptor.decoder() {
+        InterchangeDecoderKeyV1::CmlSimpleMolecule => InterchangeInputFormat::CmlSimpleMolecule,
+        InterchangeDecoderKeyV1::Sdf => InterchangeInputFormat::Native(InterchangeFormat::SdfV2000),
+    }
 }
 
 impl From<InterchangeFormat> for InterchangeFormatV1 {
@@ -218,11 +257,37 @@ pub(crate) enum ProtocolCommand {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum DocumentCommand {
+    /// Export selected direct-root molecules as one atomic multi-record SDF file.
+    #[command(
+        name = "export-sdf",
+        after_help = "Example:\n  ferrum document export-sdf --input drawing.cdml --molecule-id root-a --molecule-id root-b --version v3000 --output selected.sdf"
+    )]
+    ExportSdf {
+        /// Input CDML document.
+        #[arg(long)]
+        input: PathBuf,
+        /// Authored CDML direct-molecule ID to include. Repeat for each root.
+        #[arg(long = "molecule-id", required = true)]
+        molecule_ids: Vec<String>,
+        /// SDF Molfile record syntax.
+        #[arg(long, value_enum)]
+        version: SdfVersion,
+        /// Required SDF destination, published atomically after complete export.
+        #[arg(long, value_parser = output_file_path)]
+        output: PathBuf,
+    },
     /// Execute one named document mutation command.
     Command {
         #[command(subcommand)]
         command: NamedDocumentCommand,
     },
+}
+
+/// Closed SDF record syntax accepted by document export.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub(crate) enum SdfVersion {
+    V2000,
+    V3000,
 }
 
 #[derive(Debug, Subcommand)]
@@ -321,17 +386,6 @@ pub(crate) enum NamedDocumentCommand {
         #[arg(short, long, value_parser = output_file_path)]
         output: Option<PathBuf>,
     },
-}
-
-#[derive(Debug, Subcommand)]
-pub(crate) enum EngineCommand {
-    /// Validate and install one explicit Ferrum engine bundle directory.
-    #[command(
-        after_help = "The bundle location is used only for this install; Ferrum never searches for adapters."
-    )]
-    Install { bundle: PathBuf },
-    /// Report whether the fixed application-data root has a valid active bundle.
-    Status,
 }
 
 fn output_file_path(value: &str) -> Result<PathBuf, String> {

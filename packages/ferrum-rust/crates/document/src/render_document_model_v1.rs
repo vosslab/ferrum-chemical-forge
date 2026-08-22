@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn transfer_model_is_equal_after_a_serde_round_trip_and_retains_root_identity() {
         let session = DocumentSession::load(
-            "<cdml><molecule id=\"m1\"><atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><plus id=\"p1\"><point x=\"2\" y=\"3\"/></plus></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m1\"><atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><plus id=\"p1\"><point x=\"2\" y=\"3\"/></plus></cdml>",
         )
         .expect("fixture loads");
         let observation = session.observe(0).expect("observation");

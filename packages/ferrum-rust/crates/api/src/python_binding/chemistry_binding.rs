@@ -520,14 +520,14 @@ pub(crate) fn packaged_native_engine(
     operation: &'static str,
 ) -> PyResult<(NativeChemEngine, PathBuf)> {
     let library_path = packaged_library_path(py, operation)?;
-    match super::super::installed_wheel_native_engine_v1() {
+    match super::super::staged_extension_native_engine_v1() {
         Ok(engine) => Ok((engine, library_path)),
         Err(error) => Err(map_load_error(py, operation, &library_path, error)?),
     }
 }
 
 pub(crate) fn packaged_library_path(py: Python<'_>, operation: &'static str) -> PyResult<PathBuf> {
-    match super::super::installed_wheel_library_path_v1() {
+    match super::super::staged_extension_library_path_v1() {
         Some(library_path) => Ok(library_path),
         None => {
             let error = unavailable_error(

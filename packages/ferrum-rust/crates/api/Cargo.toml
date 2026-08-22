@@ -14,7 +14,7 @@ name = "ferrum"
 path = "src/main.rs"
 
 [lib]
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib"]
 
 [lints]
 workspace = true
@@ -45,9 +45,3 @@ getrandom = { version = "*", optional = true }
 # a cross-crate convention, seals the installed-wheel runtime capability.
 python-binding = ["dep:pyo3", "dep:getrandom"]
 python-extension-module = ["python-binding", "pyo3/extension-module"]
-# Nonshipping only: lets the sealed PyO3 transport harness lower the already
-# admitted SMARTS response ceiling. Production wheel routes never enable this.
-response-size-e2e-harness = []
-
-[build-dependencies]
-pyo3-build-config = { version = "*" }

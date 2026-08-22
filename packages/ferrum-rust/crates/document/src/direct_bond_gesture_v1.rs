@@ -450,7 +450,7 @@ mod tests {
     };
 
     const SOURCE: &str = concat!(
-        "<cdml><molecule id=\"m\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom>",
         "</molecule></cdml>"

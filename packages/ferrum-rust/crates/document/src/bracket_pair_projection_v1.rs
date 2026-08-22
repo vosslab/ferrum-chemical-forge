@@ -159,9 +159,7 @@ fn has_unsupported_core_content(record: &TypedRecord) -> bool {
         .unrecognized_children()
         .iter()
         .any(|child| match child.node() {
-            UnrecognizedNode::Element { name, .. } => {
-                name.namespace().is_empty() || name.namespace() == CDML_NAMESPACE
-            }
+            UnrecognizedNode::Element { name, .. } => name.namespace() == CDML_NAMESPACE,
             UnrecognizedNode::Text(value) => !value.trim().is_empty(),
             UnrecognizedNode::Comment(_) | UnrecognizedNode::ProcessingInstruction { .. } => false,
         })

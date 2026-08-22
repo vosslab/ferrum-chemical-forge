@@ -253,7 +253,7 @@ def test_live_native_tab_submits_one_frozen_bond_patch_and_restores_selection(
 	ferrum_chem = pytest.importorskip("ferrum_chem")
 	import ferrum_qt.ferrum.document_tab
 	cdml = (
-		'<cdml version="26.08"><molecule id="molecule-1">'
+		'<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="molecule-1">'
 		'<atom id="atom-c" name="C"><point x="0" y="0"/></atom>'
 		'<atom id="atom-o" name="O"><point x="30" y="0"/></atom>'
 		'</molecule></cdml>'

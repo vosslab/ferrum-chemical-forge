@@ -70,32 +70,14 @@ class FerrumNativeDrawingParametersClient(PySide6.QtWidgets.QWidget):
 		order_label.setBuddy(self.order_combo)
 		self.order_combo.setAccessibleName(self.tr("Next bond"))
 		self.order_combo.currentIndexChanged.connect(self._commit_order)
-		presentation_label = PySide6.QtWidgets.QLabel(self.tr("Next presentation:"), self)
-		self.presentation_combo = PySide6.QtWidgets.QComboBox(self)
-		for label, presentation_name in (
-			(self.tr("Normal"), "normal"),
-			(self.tr("Solid wedge from start atom"), "solid_wedge"),
-			(self.tr("Hashed wedge from start atom"), "hashed_wedge"),
-		):
-			self.presentation_combo.addItem(label, presentation_name)
-		presentation_label.setBuddy(self.presentation_combo)
-		self.presentation_combo.setAccessibleName(self.tr("Next presentation"))
-		self.presentation_combo.setAccessibleDescription(self.tr(
-			"Choose Normal, a solid wedge, or a hashed wedge. Directed wedges run from "
-			"the gesture start atom at the tip to its end atom at the wide base.",
-		))
-		self.presentation_combo.currentIndexChanged.connect(self._commit_presentation)
 		if compact:
 			layout.addRow(element_label, self.element_combo)
 			layout.addRow(order_label, self.order_combo)
-			layout.addRow(presentation_label, self.presentation_combo)
 		else:
 			layout.addWidget(element_label)
 			layout.addWidget(self.element_combo)
 			layout.addWidget(order_label)
 			layout.addWidget(self.order_combo)
-			layout.addWidget(presentation_label)
-			layout.addWidget(self.presentation_combo)
 		self._drawing_parameters.changed.connect(self._project_parameters)
 		self._project_parameters()
 
@@ -105,20 +87,14 @@ class FerrumNativeDrawingParametersClient(PySide6.QtWidgets.QWidget):
 		snapshot = self._drawing_parameters.snapshot()
 		element_blocker = PySide6.QtCore.QSignalBlocker(self.element_combo)
 		order_blocker = PySide6.QtCore.QSignalBlocker(self.order_combo)
-		presentation_blocker = PySide6.QtCore.QSignalBlocker(self.presentation_combo)
 		self.element_combo.setCurrentText(snapshot.element)
 		self._element_editor.setText(snapshot.element)
 		self.order_combo.setCurrentIndex(self.order_combo.findData(snapshot.order_name))
-		self.presentation_combo.setCurrentIndex(
-			self.presentation_combo.findData(snapshot.presentation_name),
-		)
-		self.order_combo.setEnabled(snapshot.presentation_name == "normal")
 		self.order_combo.setAccessibleDescription(self.tr(
-			"Bond order used by a normal Draw Bond gesture. Directed wedges use Single.",
+			"Bond order used by the next normal Draw Bond gesture.",
 		))
 		del element_blocker
 		del order_blocker
-		del presentation_blocker
 
 	#============================================
 	def _commit_element(self) -> None:
@@ -151,17 +127,6 @@ class FerrumNativeDrawingParametersClient(PySide6.QtWidgets.QWidget):
 			return
 		snapshot = self._drawing_parameters.snapshot()
 		self.order_combo.setCurrentIndex(self.order_combo.findData(snapshot.order_name))
-
-	#============================================
-	def _commit_presentation(self, index: int) -> None:
-		"""Store one closed next-bond depiction without touching a document."""
-		if self._drawing_parameters.set_presentation_name(
-				self.presentation_combo.itemData(index)):
-			return
-		snapshot = self._drawing_parameters.snapshot()
-		self.presentation_combo.setCurrentIndex(
-			self.presentation_combo.findData(snapshot.presentation_name),
-		)
 
 	#============================================
 	def eventFilter(self, watched: PySide6.QtCore.QObject,

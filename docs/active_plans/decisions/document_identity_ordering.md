@@ -11,7 +11,7 @@ M7 adds an opaque-CDML index without assigning typed chemistry or reference mean
 - root-relative element paths for deterministic diagnostics; and
 - document-local provisional tokens that are distinct from persistent IDs and consume once.
 
-The index accepts the canonical CDML namespace and legacy no-namespace CDML. It rejects
+The index accepts only the canonical Ferrum CDML namespace. It rejects
 blank persistent IDs and duplicate declarations with both structural locations,
 including a root and descendant collision. M8 established that `fragment/bond@id` and
 `fragment/vertex@id` are IDREF fields, so the index excludes those two recognized

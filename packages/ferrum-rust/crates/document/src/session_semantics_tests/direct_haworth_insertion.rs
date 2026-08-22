@@ -1,7 +1,7 @@
 use ferrum_core::{Atom, Bond, BondOrder, Identifier, Molecule, Position, VertexRef};
 use ferrum_domain::haworth::{
-    direct_glycosidic_haworth_authoring_receipt_v1, DirectGlycosidicHaworthTopologyV1,
-    HaworthTopologyBuilder, HaworthVertex, RingForm,
+    DirectGlycosidicHaworthTopologyV1, HaworthTopologyBuilder, HaworthVertex, RingForm,
+    direct_glycosidic_haworth_authoring_receipt_v1,
 };
 
 use super::super::{
@@ -10,7 +10,7 @@ use super::super::{
 };
 
 const LEGACY_ISSUE_SOURCE: &str = concat!(
-    "<cdml><molecule id=\"legacy\"><atom id=\"la\" name=\"C\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"legacy\"><atom id=\"la\" name=\"C\">",
     "<point x=\"0\" y=\"0\"/></atom><atom id=\"lb\" name=\"O\">",
     "<point x=\"1\" y=\"0\"/></atom>",
     "<bond id=\"legacy-bond\" type=\"q1\" start=\"la\" end=\"lb\" ",
@@ -136,12 +136,14 @@ fn direct_haworth_commit_owns_one_complete_ordered_molecule_and_exact_provenance
     let receipt = receipt();
     let anchor = Point3V1::new(11.0, -7.0, 2.0).expect("anchor");
     let mut session = DocumentSession::load(LEGACY_ISSUE_SOURCE).expect("source loads");
-    assert!(!session
-        .observe(0)
-        .expect("baseline projection")
-        .projection()
-        .issues()
-        .is_empty());
+    assert!(
+        !session
+            .observe(0)
+            .expect("baseline projection")
+            .projection()
+            .issues()
+            .is_empty()
+    );
 
     let mut pending = session
         .prepare_create_direct_haworth_v1(0, &receipt, anchor)
@@ -235,29 +237,36 @@ fn direct_haworth_commit_owns_one_complete_ordered_molecule_and_exact_provenance
         depiction.ring_bonds().len() + depiction.bridge_bonds().len(),
         committed.bond_facts().len()
     );
-    assert!(depiction
-        .ring_bonds()
-        .values()
-        .all(|bond| bond.authored_child_order()
-            < molecule.bonds().len() as u32 + molecule.atoms().len() as u32));
-    assert!(depiction
-        .bridge_bonds()
-        .values()
-        .all(|bond| bond.authored_child_order() >= molecule.atoms().len() as u32));
+    assert!(
+        depiction
+            .ring_bonds()
+            .values()
+            .all(|bond| bond.authored_child_order()
+                < molecule.bonds().len() as u32 + molecule.atoms().len() as u32)
+    );
+    assert!(
+        depiction
+            .bridge_bonds()
+            .values()
+            .all(|bond| bond.authored_child_order() >= molecule.atoms().len() as u32)
+    );
 }
 
 #[test]
 fn direct_haworth_rejects_stale_preparation_without_consuming_generated_identity_or_state() {
     let receipt = receipt();
-    let mut rejected = DocumentSession::load("<cdml/>").expect("source loads");
+    let mut rejected =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("source loads");
     let before = rejected.snapshot().expect("baseline");
-    assert!(rejected
-        .prepare_create_direct_haworth_v1(
-            1,
-            &receipt,
-            Point3V1::new(0.0, 0.0, 0.0).expect("anchor"),
-        )
-        .is_err());
+    assert!(
+        rejected
+            .prepare_create_direct_haworth_v1(
+                1,
+                &receipt,
+                Point3V1::new(0.0, 0.0, 0.0).expect("anchor"),
+            )
+            .is_err()
+    );
     assert_eq!(rejected.snapshot().expect("unchanged snapshot"), before);
     let mut after_invalid = rejected
         .prepare_create_direct_haworth_v1(
@@ -266,7 +275,8 @@ fn direct_haworth_rejects_stale_preparation_without_consuming_generated_identity
             Point3V1::new(0.0, 0.0, 0.0).expect("anchor"),
         )
         .expect("valid preparation follows rejection");
-    let mut clean = DocumentSession::load("<cdml/>").expect("clean source loads");
+    let mut clean =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("clean source loads");
     let clean_pending = clean
         .prepare_create_direct_haworth_v1(
             0,
@@ -295,14 +305,18 @@ fn direct_haworth_rejects_stale_preparation_without_consuming_generated_identity
 fn direct_haworth_pending_is_retryable_before_success_and_reopens_with_same_facts() {
     let receipt = receipt();
     let anchor = Point3V1::new(3.0, 5.0, 0.0).expect("anchor");
-    let mut owner = DocumentSession::load("<cdml/>").expect("owner source");
-    let mut foreign = DocumentSession::load("<cdml/>").expect("foreign source");
+    let mut owner =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("owner source");
+    let mut foreign =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("foreign source");
     let mut pending = owner
         .prepare_create_direct_haworth_v1(0, &receipt, anchor)
         .expect("prepare");
-    assert!(foreign
-        .commit_create_direct_haworth_v1(0, &mut pending)
-        .is_err());
+    assert!(
+        foreign
+            .commit_create_direct_haworth_v1(0, &mut pending)
+            .is_err()
+    );
     assert!(matches!(
         owner.commit_create_direct_haworth_v1(1, &mut pending),
         Err(DocumentSessionError::RevisionConflict { .. })
@@ -310,9 +324,11 @@ fn direct_haworth_pending_is_retryable_before_success_and_reopens_with_same_fact
     let result = owner
         .commit_create_direct_haworth_v1(0, &mut pending)
         .expect("retry succeeds");
-    assert!(owner
-        .commit_create_direct_haworth_v1(1, &mut pending)
-        .is_err());
+    assert!(
+        owner
+            .commit_create_direct_haworth_v1(1, &mut pending)
+            .is_err()
+    );
     let reopened = DocumentSession::load(result.operation().observation().snapshot().cdml())
         .expect("saved CDML reopens");
     let reopened_observation = reopened.observe(0).expect("reopened projection");
@@ -417,10 +433,12 @@ fn direct_haworth_reobservation_recovers_a_saved_closed_profile_with_unrelated_i
         depiction.coordinates(),
         committed.receipt().authored_depiction().coordinates()
     );
-    assert!(depiction
-        .bounds()
-        .into_iter()
-        .all(|point| point.x.is_finite() && point.y.is_finite()));
+    assert!(
+        depiction
+            .bounds()
+            .into_iter()
+            .all(|point| point.x.is_finite() && point.y.is_finite())
+    );
     assert_eq!(
         depiction
             .canonical_atoms()
@@ -444,7 +462,8 @@ fn direct_haworth_reobservation_recovers_a_saved_closed_profile_with_unrelated_i
 #[test]
 fn direct_haworth_reobservation_rejects_selected_profile_mutations() {
     let receipt = receipt();
-    let mut session = DocumentSession::load("<cdml/>").expect("source loads");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("source loads");
     let mut pending = session
         .prepare_create_direct_haworth_v1(
             0,
@@ -547,7 +566,8 @@ fn direct_haworth_reobservation_accepts_each_closed_ring_form_pair() {
         (6, RingForm::Pyranose, 6, RingForm::Pyranose),
     ] {
         let receipt = receipt_for_forms(first_count, first_form, second_count, second_form);
-        let mut session = DocumentSession::load("<cdml/>").expect("source loads");
+        let mut session =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("source loads");
         let mut pending = session
             .prepare_create_direct_haworth_v1(
                 0,
@@ -584,7 +604,7 @@ fn direct_haworth_reobservation_accepts_each_closed_ring_form_pair() {
 
 #[test]
 fn direct_haworth_reobservation_stale_foreign_and_non_molecule_selectors_do_not_mutate() {
-    let session = DocumentSession::load("<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>").expect("source loads");
+    let session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>").expect("source loads");
     let before = session.snapshot().expect("before snapshot");
     let atom = session
         .observe(0)
@@ -597,9 +617,11 @@ fn direct_haworth_reobservation_stale_foreign_and_non_molecule_selectors_do_not_
         .clone();
     let foreign = super::super::DocumentObjectIdV1::from_class_source("molecule", "foreign");
     for (revision, selector) in [(1, &atom), (0, &atom), (0, &foreign)] {
-        assert!(session
-            .observe_direct_glycosidic_haworth_v1(revision, selector)
-            .is_err());
+        assert!(
+            session
+                .observe_direct_glycosidic_haworth_v1(revision, selector)
+                .is_err()
+        );
         assert_eq!(session.snapshot().expect("unchanged snapshot"), before);
     }
 }

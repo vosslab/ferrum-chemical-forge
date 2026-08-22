@@ -10,8 +10,8 @@ import subprocess
 import ferrum_chem
 
 
-CDML = '<cdml><molecule id="m"><atom id="a" name="C"><point x="10" y="20"/></atom></molecule></cdml>'
-EXCLUDED = '<cdml><text id="bad"><point x="1" y="2"/><ftext><b>x</b></ftext></text></cdml>'
+CDML = '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="10" y="20"/></atom></molecule></cdml>'
+EXCLUDED = '<cdml xmlns="urn:ferrum:cdml"><text id="bad"><point x="1" y="2"/><ftext><b>x</b></ftext></text></cdml>'
 
 
 def request(document: str, revision: int, end_x: float, end_y: float) -> str:

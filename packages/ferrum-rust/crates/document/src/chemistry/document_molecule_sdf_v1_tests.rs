@@ -81,13 +81,13 @@ fn request_for(
 #[test]
 fn imported_metadata_overrides_display_name_and_preserves_duplicate_property_order() {
     let source = concat!(
-        "<cdml><molecule id=\"m\" name=\"display name\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\" name=\"display name\">",
         "<atom id=\"a\" name=\"C\"><point x=\"2\" y=\"7\"/></atom>",
-        "<f:sdf-record xmlns:f=\"urn:ferrum-chemical-forge:sdf-import:v1\" ",
+        "<f:interchange-record xmlns:f=\"urn:ferrum-chemical-forge:interchange-import:v1\" ",
         "encoding=\"utf8-hex-v1\" title=\"496d706f72746564207469746c65\">",
         "<f:property name=\"4e4f5445\" value=\"6669727374\"/>",
         "<f:property name=\"4e4f5445\" value=\"7365636f6e64\"/>",
-        "</f:sdf-record></molecule></cdml>",
+        "</f:interchange-record></molecule></cdml>",
     );
     let session = DocumentSession::load(source).expect("fixture loads");
     let observation = session.observe(0).expect("fixture projects");
@@ -130,7 +130,7 @@ fn ordinary_name_and_blank_title_take_the_exact_native_paths() {
     for (name_attribute, expected_title) in [(" name=\"ordinary\"", "ordinary"), ("", "")] {
         let source = format!(
             concat!(
-                "<cdml><molecule id=\"m\"{}><atom id=\"a\" name=\"O\">",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"{}><atom id=\"a\" name=\"O\">",
                 "<point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
             ),
             name_attribute,
@@ -154,8 +154,8 @@ fn ordinary_name_and_blank_title_take_the_exact_native_paths() {
 #[test]
 fn stale_foreign_and_malformed_metadata_are_rejected_before_native_execution() {
     let malformed = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
-        "</atom><f:sdf-record xmlns:f=\"urn:ferrum-chemical-forge:sdf-import:v1\" ",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+        "</atom><f:interchange-record xmlns:f=\"urn:ferrum-chemical-forge:interchange-import:v1\" ",
         "encoding=\"utf8-hex-v1\" title=\"0\"/></molecule></cdml>",
     );
     let session = DocumentSession::load(malformed).expect("fixture loads");

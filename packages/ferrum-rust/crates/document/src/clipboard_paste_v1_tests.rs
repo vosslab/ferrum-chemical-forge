@@ -5,7 +5,7 @@ use super::{
 };
 
 const FRAGMENT: &str = concat!(
-    "<cdml version=\"26.07\" xmlns:vendor=\"urn:vendor\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\" xmlns:vendor=\"urn:vendor\">",
     "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
     "<vendor:extension id=\"opaque\" link=\"a\"/></atom>",
     "<atom id=\"b\" name=\"O\"><point x=\"11\" y=\"2\"/></atom>",
@@ -33,7 +33,7 @@ fn paste_remaps_every_declaration_and_exact_reference_then_translates_once() {
     assert_eq!(plan.roots().len(), 2);
     assert_eq!(plan.declared_id_count(), 7);
     let mut session = DocumentSession::load(concat!(
-        "<cdml version=\"26.07\"><info><vendor id=\"ferrum-import-v1-0\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><info><vendor id=\"ferrum-import-v1-0\"/>",
         "</info></cdml>",
     ))
     .expect("target must load");
@@ -147,7 +147,7 @@ fn preparation_and_authentication_fail_without_mutating_the_target() {
     ));
     assert!(matches!(
         prepare_document_clipboard_paste_v1(
-            "<cdml version=\"26.07\"><paper id=\"paper\"/></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><paper id=\"paper\"/></cdml>",
             budget(),
         ),
         Err(DocumentClipboardPasteErrorV1::UnsupportedRoot)

@@ -60,7 +60,7 @@ impl ChemEngine for RecordingEngine {
 fn source(bond_type: &str) -> String {
     format!(
         concat!(
-            "<cdml version=\"1.0\"><molecule id=\"m1\" name=\"Methane\">",
+            "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\" name=\"Methane\">",
             "<atom id=\"a1\" name=\"C\"><point x=\"10\" y=\"20\"/></atom>",
             "<atom id=\"a2\" name=\"H\"><point x=\"30\" y=\"20\"/></atom>",
             "<bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"{}\"/>",

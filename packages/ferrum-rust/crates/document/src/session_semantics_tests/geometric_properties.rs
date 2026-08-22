@@ -10,7 +10,7 @@ use crate::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml xmlns:v=\"urn:vendor\"><standard line_color=\"#123456\" ",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><standard line_color=\"#123456\" ",
     "area_color=\"#abcdef\" line_width=\"1\"/>",
     "<rect id=\"shape\" x1=\"1\" y1=\"2\" x2=\"3\" y2=\"4\" ",
     "color=\"#ABC\" background-color=\"#dEf\" keep=\"yes\">",
@@ -92,16 +92,20 @@ fn legacy_color_and_fill_spellings_compare_semantically_without_rewriting() {
         )
         .expect("semantic equal patch must be accepted");
     assert_eq!(result.observation().snapshot().revision(), 0);
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("color=\"#ABC\""));
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("background-color=\"#dEf\""));
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("color=\"#ABC\"")
+    );
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("background-color=\"#dEf\"")
+    );
 }
 
 #[test]

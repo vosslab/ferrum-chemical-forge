@@ -11,7 +11,7 @@ def test_create_empty_document_v1_is_clean_and_projects_no_selectable_roots() ->
 	root = defusedxml.ElementTree.fromstring(observation.snapshot.cdml)
 
 	assert (
-		root.tag == "{http://www.freesoftware.fsf.org/bkchem/cdml}cdml"
+		root.tag == "{urn:ferrum:cdml}cdml"
 		and root.attrib["version"] == "26.07"
 	)
 	assert (

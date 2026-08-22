@@ -28,7 +28,7 @@ fn direct_molecule_id(
 #[test]
 fn prepared_whole_depictions_keep_caller_order_complete_positions_and_angles() {
     let source = concat!(
-        "<cdml><molecule id=\"first\"><atom id=\"z\" name=\"C\"><point x=\"1\" y=\"1\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"z\" name=\"C\"><point x=\"1\" y=\"1\"/>",
         "</atom><atom id=\"a\" name=\"O\"><point x=\"0\" y=\"0\"/></atom>",
         "<bond id=\"first_bond\" start=\"z\" end=\"a\" type=\"n1\"/></molecule>",
         "<molecule id=\"second\"><atom id=\"b\" name=\"N\"><point x=\"0\" y=\"0\"/>",
@@ -71,7 +71,7 @@ fn prepared_whole_depictions_keep_caller_order_complete_positions_and_angles() {
 #[test]
 fn prepared_whole_depictions_are_revision_digest_bound_and_apply_as_one_history_entry() {
     let source = concat!(
-        "<cdml><molecule id=\"first\" retained=\"yes\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\" retained=\"yes\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\" z=\"7\"/></atom><atom id=\"b\" name=\"O\">",
         "<point x=\"1\" y=\"1\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"opaque\" retained=\"yes\"><vendor/></fragment></molecule>",
@@ -100,11 +100,13 @@ fn prepared_whole_depictions_are_revision_digest_bound_and_apply_as_one_history_
             .z(),
         7.0
     );
-    assert!(applied
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("<vendor/>"));
+    assert!(
+        applied
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("<vendor/>")
+    );
     assert_eq!(
         session
             .undo(1)
@@ -137,7 +139,7 @@ fn prepared_whole_depictions_are_revision_digest_bound_and_apply_as_one_history_
 #[test]
 fn whole_depiction_preparation_rejects_a_later_unsupported_target_without_mutation() {
     let source = concat!(
-        "<cdml><molecule id=\"good\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"good\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
         "</atom></molecule><molecule id=\"bad\"><group id=\"g\"><point x=\"1\" y=\"1\"/>",
         "</group></molecule></cdml>",
     );
@@ -167,7 +169,7 @@ fn whole_depiction_preparation_rejects_a_later_unsupported_target_without_mutati
 #[test]
 fn whole_depiction_preparation_rejects_duplicate_valid_target_without_mutation() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
         "</atom><atom id=\"b\" name=\"O\"><point x=\"1\" y=\"1\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule>",
         "<molecule id=\"other\"><atom id=\"c\" name=\"N\"><point x=\"2\" y=\"2\"/>",
@@ -193,7 +195,7 @@ fn whole_depiction_preparation_rejects_duplicate_valid_target_without_mutation()
 #[test]
 fn prepared_whole_depiction_accepts_fused_topology() {
     let source = concat!(
-        "<cdml><molecule id=\"fused\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"fused\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
         "</atom><atom id=\"b\" name=\"C\"><point x=\"1\" y=\"0\"/></atom>",
         "<atom id=\"c\" name=\"C\"><point x=\"1\" y=\"1\"/></atom>",
         "<atom id=\"d\" name=\"C\"><point x=\"0\" y=\"1\"/></atom>",
@@ -213,7 +215,7 @@ fn prepared_whole_depiction_accepts_fused_topology() {
 #[test]
 fn hex_snap_is_one_sparse_history_entry_and_preserves_unowned_content() {
     let source = concat!(
-        "<cdml><molecule id=\"m\" retained=\"yes\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\" retained=\"yes\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0.2\" y=\"0.2\" z=\"4\"/></atom>",
         "<atom id=\"b\" name=\"O\"><point x=\"0\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
@@ -253,7 +255,7 @@ fn hex_snap_is_one_sparse_history_entry_and_preserves_unowned_content() {
     );
 
     let mut snapped = DocumentSession::load(concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     ))
     .expect("already snapped fixture loads");
@@ -288,7 +290,7 @@ fn repair_envelope_and_later_unsupported_target_are_atomic() {
         Err(GeometryRepairV1Error::InvalidTargetSpacing)
     );
     let source = concat!(
-        "<cdml><molecule id=\"good\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"good\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0.2\" y=\"0.2\"/></atom></molecule>",
         "<molecule id=\"bad\"><group id=\"g\"><point x=\"1\" y=\"1\"/>",
         "</group></molecule></cdml>",
@@ -339,7 +341,7 @@ fn straighten_bonds_moves_only_terminal_endpoint_with_lexical_two_atom_anchor() 
     let half_slot = std::f64::consts::PI / 12.0;
     let source = format!(
         concat!(
-            "<cdml><molecule id=\"m\" retained=\"yes\">",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\" retained=\"yes\">",
             "<atom id=\"z\" name=\"O\"><point x=\"{}\" y=\"{}\" z=\"7\"/></atom>",
             "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
             "<bond id=\"az\" start=\"a\" end=\"z\" type=\"n1\"/>",
@@ -383,7 +385,7 @@ fn straighten_bonds_moves_only_terminal_endpoint_with_lexical_two_atom_anchor() 
 #[test]
 fn normalize_lengths_preserves_directions_and_authored_content() {
     let source = concat!(
-        "<cdml xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
         "<atom id=\"a\" name=\"C\"><point x=\"-20\" y=\"0\" z=\"5\"/>",
         "<v:note>keep</v:note></atom>",
         "<atom id=\"b\" name=\"N\"><point x=\"0\" y=\"0\"/></atom>",
@@ -430,7 +432,7 @@ fn normalize_lengths_preserves_directions_and_authored_content() {
     );
 
     let mut canonical = DocumentSession::load(concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
         "</atom><atom id=\"b\" name=\"O\"><point x=\"10\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
     ))
@@ -450,7 +452,7 @@ fn normalize_lengths_preserves_directions_and_authored_content() {
 #[test]
 fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
     let source = concat!(
-        "<cdml xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom>",
         "<atom id=\"c\" name=\"C\"><point x=\"15\" y=\"10\"/></atom>",
@@ -508,11 +510,13 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
         ((after["side"].x() - before["side"].x()) - (after["d"].x() - before["d"].x())).abs()
             <= HALF_AUTHORED_UNIT_POINTS
     );
-    assert!(repaired
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("<v:note>keep</v:note>"));
+    assert!(
+        repaired
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("<v:note>keep</v:note>")
+    );
     assert_eq!(
         session
             .undo(1)
@@ -524,7 +528,7 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
     );
 
     let mut tree = DocumentSession::load(concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
         "</atom><atom id=\"b\" name=\"O\"><point x=\"10\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
     ))
@@ -548,7 +552,7 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
 #[test]
 fn normalize_angles_uses_authored_order_and_preserves_non_coordinate_content() {
     let source = concat!(
-        "<cdml xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
         "<atom id=\"root\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"z_first\" name=\"N\"><point x=\"10\" y=\"1\" z=\"8\"/>",
         "<v:note>keep</v:note></atom>",

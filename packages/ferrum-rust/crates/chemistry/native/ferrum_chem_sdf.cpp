@@ -136,7 +136,8 @@ bool parse_record(Reader *reader, uint32_t index, std::string *output,
 }
 
 bool records_to_sdf(const uint8_t *request, uint64_t request_len,
-		std::string *output, std::string *error) {
+		std::string *output, std::string *error, uint32_t *failure_status) {
+	*failure_status = FERRUM_CHEM_RESULT_MALFORMED_REQUEST;
 	if (request == nullptr || request_len < FERRUM_CHEM_SDF_REQUEST_HEADER_BYTES ||
 		request_len > FERRUM_CHEM_MAX_RESPONSE_BYTES ||
 		std::memcmp(request, kSdfMagic, sizeof(kSdfMagic)) != 0 ||
@@ -145,9 +146,14 @@ bool records_to_sdf(const uint8_t *request, uint64_t request_len,
 		return false;
 	}
 	const uint32_t record_count = read_u32(request + 8);
-	if (record_count == 0 || record_count > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+	if (record_count == 0 || record_count > FERRUM_CHEM_SDF_MAX_RECORDS ||
 		read_u32(request + 12) != FERRUM_CHEM_SDF_FLAGS_NONE) {
-		*error = "SDF request has no records or nonzero reserved flags";
+		if (record_count > FERRUM_CHEM_SDF_MAX_RECORDS) {
+			*failure_status = FERRUM_CHEM_RESULT_RESOURCE_LIMIT;
+			*error = "SDF record count exceeds the ABI limit";
+		} else {
+			*error = "SDF request has no records or nonzero reserved flags";
+		}
 		return false;
 	}
 	Reader reader(request + FERRUM_CHEM_SDF_REQUEST_HEADER_BYTES,
@@ -178,9 +184,10 @@ extern "C" uint32_t ferrum_chem_records_to_sdf_v1(
 	try {
 		std::string output;
 		std::string error;
-		if (!records_to_sdf(request, request_len, &output, &error)) {
+		uint32_t failure_status = FERRUM_CHEM_RESULT_MALFORMED_REQUEST;
+		if (!records_to_sdf(request, request_len, &output, &error, &failure_status)) {
 			return ferrum_chem::emit_text_response(
-				FERRUM_CHEM_RESULT_MALFORMED_REQUEST, error, "", response);
+				failure_status, error, "", response);
 		}
 		return ferrum_chem::emit_text_response(
 			FERRUM_CHEM_RESULT_OK, "", output, response);

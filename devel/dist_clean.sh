@@ -114,7 +114,6 @@ delete_find_matches eggInfo -type d -name '*.egg-info'
 delete_find_matches eggFiles -type f -name '*.egg'
 delete_path .eggs
 delete_path sdist
-delete_path wheelhouse
 delete_path pip-wheel-metadata
 delete_path .installed.cfg
 

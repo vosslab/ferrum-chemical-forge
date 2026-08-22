@@ -48,7 +48,7 @@ def test_native_shape_edit_updates_rust_and_retains_durable_selection(
 	"""A visible shape edit commits once and installs the new vector appearance."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><rect id="shape" x1="1" y1="2" x2="30" y2="40" '
+		'<cdml xmlns="urn:ferrum:cdml"><rect id="shape" x1="1" y1="2" x2="30" y2="40" '
 		'line_color="#000" area_color="#abcdef" width="1"/></cdml>',
 		"shape.cdml",
 	)
@@ -91,7 +91,7 @@ def test_native_form_rejects_rounding_fill_leakage_and_wavy_fallback(
 	"""The form never rounds source width or treats Wavy as an ordinary line."""
 	del qapp
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><rect id="shape" x1="0" y1="0" x2="2" y2="2" '
+		'<cdml xmlns="urn:ferrum:cdml"><rect id="shape" x1="0" y1="0" x2="2" y2="2" '
 		'width="1.2345"/><polyline id="line"><point x="0" y="0"/>'
 		'<point x="2" y="2"/></polyline><polyline id="wave" style="wavy">'
 		'<point x="0" y="0"/><point x="2" y="2"/></polyline></cdml>',

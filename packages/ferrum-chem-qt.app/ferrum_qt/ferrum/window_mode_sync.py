@@ -1,8 +1,68 @@
 """Shared-mode publication and typed-refusal helpers for the native window."""
 
+# Standard Library
+import dataclasses
+
 # local repo modules
 import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.ferrum.line_tool_intent
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumActiveToolState:
+	"""Public transient-tool state consumed by shared window chrome."""
+
+	mode_id: str | None
+	status_label: str
+
+
+_INACTIVE_TOOL_STATE = FerrumActiveToolState(None, "None")
+
+_LINE_TOOL_STATES = {
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_BOND:
+		FerrumActiveToolState("draw", "Draw Bond"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_ARROW:
+		FerrumActiveToolState("arrow", "Draw Arrow"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_EQUILIBRIUM_ARROW:
+		FerrumActiveToolState("arrow", "Draw Equilibrium Arrow"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
+		FerrumActiveToolState("arrow", "Draw Curved Electron Arrow"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_PLUS:
+		FerrumActiveToolState(None, "Draw Plus"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_LINE:
+		FerrumActiveToolState(None, "Draw Line"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_RECTANGLE:
+		FerrumActiveToolState("vector", "Draw Rectangle"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_SQUARE:
+		FerrumActiveToolState("vector", "Draw Square"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_OVAL:
+		FerrumActiveToolState("vector", "Draw Oval"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_CIRCLE:
+		FerrumActiveToolState("vector", "Draw Circle"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_POLYLINE:
+		FerrumActiveToolState("vector", "Draw Polyline"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_POLYGON:
+		FerrumActiveToolState("vector", "Draw Polygon"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.INSERT_TEXT:
+		FerrumActiveToolState(None, "Insert Text"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.CREATE_WAVY:
+		FerrumActiveToolState(None, "Draw Wavy Line"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.CREATE_RECTANGULAR_BRACKET:
+		FerrumActiveToolState("bracket", "Draw Rectangular Bracket"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.CREATE_ROUND_BRACKET:
+		FerrumActiveToolState(None, "Draw Round Bracket"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.MOVE_ATOM:
+		FerrumActiveToolState("edit", "Move Atom"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.ROTATE_ATOMS:
+		FerrumActiveToolState(None, "Rotate Atoms"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.TRANSLATE_ROOTS:
+		FerrumActiveToolState(None, "Translate Roots"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.INSERT_CYCLOHEXANE_RING:
+		FerrumActiveToolState(None, "Insert Cyclohexane Ring"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.ATTACH_CYCLOHEXANE_RING:
+		FerrumActiveToolState(None, "Attach Cyclohexane Ring"),
+}
 
 
 #============================================
@@ -14,17 +74,15 @@ class FerrumNativeWindowModeSyncMixin:
 		"""Publish actual transient tool ownership to shared mode presentation."""
 		if mode_id is None:
 			if self._atom_insertion_intent is not None:
-				mode_id = "atom"
+				state = FerrumActiveToolState("atom", "Add Atom")
 			elif self._line_gesture_intent is not None:
-				mode_id = {
-					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_BOND: "draw",
-					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_ARROW: "arrow",
-					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_EQUILIBRIUM_ARROW: "equilibrium_arrow",
-					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.CREATE_RECTANGULAR_BRACKET: "bracket",
-					ferrum_qt.ferrum.line_tool_intent._NativeLineTool.MOVE_ATOM: "edit",
-				}.get(self._line_gesture_intent.tool)
+				state = _LINE_TOOL_STATES[self._line_gesture_intent.tool]
+			else:
+				state = _INACTIVE_TOOL_STATE
+		else:
+			state = FerrumActiveToolState(mode_id, mode_id.replace("_", " ").title())
 		from ferrum_qt.ferrum import window_shared_seams
-		window_shared_seams.synchronize_active_tool_mode(self, mode_id)
+		window_shared_seams.synchronize_active_tool_state(self, state)
 
 	#============================================
 	@staticmethod

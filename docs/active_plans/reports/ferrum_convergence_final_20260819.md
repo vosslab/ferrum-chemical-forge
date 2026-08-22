@@ -4,6 +4,15 @@ This report closes the local T1-T27 convergence implementation on 2026-08-19. It
 records local evidence only; it does not claim that the GitHub Actions workflow has
 run, that another platform is qualified, or that release/legal review is complete.
 
+## Scope supersession
+
+This report preserves the 2026-08-19 chronology. On 2026-08-22, the active plan
+superseded wheel, installed-package, publication, and release work with the
+local-development contract: `build.sh` stages the runnable program under `build/`,
+`build/bin/ferrum` and `build/bin/ferrum-qt` use that staged runtime, and
+`all_test.sh` is the repository acceptance suite. References below to wheels, engine
+bundles, CI, or release gates are historical evidence, not current acceptance work.
+
 ## Delivered boundary
 
 - The CI workflow calls `pytest tests/`, `all_test.sh`, and `check_rust.sh` on
@@ -33,11 +42,11 @@ run, that another platform is qualified, or that release/legal review is complet
 The test counts are run receipts, not permanent count assertions. Semantic protocol, CLI,
 binding, and Qt behavior tests remain the durable gates.
 
-## Remaining release limits
+## Historical release limits
 
-- GitHub Actions has not yet executed the new workflow remotely.
-- The local macOS arm64 wheel/bundle evidence is not a cross-platform qualification.
-- M20 still requires the recorded release-wheelhouse/install/relink evidence for every
+- GitHub Actions had not yet executed the new workflow remotely.
+- The local macOS arm64 wheel/bundle evidence was not a cross-platform qualification.
+- M20 then required recorded release-wheelhouse/install/relink evidence for every
   admitted target.
-- M22 still requires final release artifacts, source-archive and inventory checks, and
+- M22 then required final release artifacts, source-archive and inventory checks, and
   human legal and release review.

@@ -10,7 +10,7 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
 
 
-_CDML = "<cdml><standard line_color='#123456' line_width='3' area_color='#abcdef'/></cdml>"
+_CDML = "<cdml xmlns='urn:ferrum:cdml'><standard line_color='#123456' line_width='3' area_color='#abcdef'/></cdml>"
 #============================================
 def _point(tab: object, x: float, y: float) -> PySide6.QtCore.QPoint:
 	"""Map one backend scene coordinate through the visible viewport seam."""
@@ -74,7 +74,7 @@ def test_vector_renderer_preflight_exclusion_refuses_before_mutation(
 		) -> None:
 	"""An existing unsupported renderer root vetoes the prepared vector receipt."""
 	cdml = (
-		"<cdml><arrow id='retro' type='retro'><point x='0' y='0'/>"
+		"<cdml xmlns='urn:ferrum:cdml'><arrow id='retro' type='retro'><point x='0' y='0'/>"
 		"<point x='30' y='0'/></arrow></cdml>"
 	)
 	window = ferrum_qt.main_window.MainWindow(object())

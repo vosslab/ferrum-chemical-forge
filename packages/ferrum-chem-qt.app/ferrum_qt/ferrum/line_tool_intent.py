@@ -22,12 +22,15 @@ class _NativeLineTool(enum.Enum):
 	DRAW_BOND = "draw_bond"
 	DRAW_ARROW = "draw_arrow"
 	DRAW_EQUILIBRIUM_ARROW = "draw_equilibrium_arrow"
+	DRAW_CURVED_ELECTRON_ARROW = "draw_curved_electron_arrow"
 	DRAW_PLUS = "draw_plus"
 	DRAW_LINE = "draw_line"
 	DRAW_RECTANGLE = "draw_rectangle"
 	DRAW_SQUARE = "draw_square"
 	DRAW_OVAL = "draw_oval"
 	DRAW_CIRCLE = "draw_circle"
+	DRAW_POLYLINE = "draw_polyline"
+	DRAW_POLYGON = "draw_polygon"
 	INSERT_TEXT = "insert_text"
 	CREATE_WAVY = "create_wavy"
 	CREATE_RECTANGULAR_BRACKET = "create_rectangular_bracket"
@@ -42,7 +45,7 @@ class _NativeLineTool(enum.Enum):
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class _LineGestureIntent:
-	"""One revision-bound atom pointer gesture and its local preview."""
+	"""One revision-bound Ferrum pointer gesture and its local projection."""
 
 	tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab
 	viewport: PySide6.QtWidgets.QWidget
@@ -69,8 +72,12 @@ class _LineGestureIntent:
 	direct_bond_admission: object | None = None
 	presentation_gesture: object | None = None
 	presentation_preview: object | None = None
+	curved_electron_points: tuple[tuple[float, float], ...] = ()
 	vector_gesture: object | None = None
 	vector_preview: object | None = None
+	path_gesture: object | None = None
+	path_points: tuple[tuple[float, float], ...] = ()
+	path_preview: object | None = None
 	text_gesture: object | None = None
 	text_preview: object | None = None
 	direct_root_observation: object | None = None

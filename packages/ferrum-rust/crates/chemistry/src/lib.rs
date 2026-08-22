@@ -60,7 +60,7 @@ pub use crate::native_engine::{
 };
 pub use crate::sdf::{ImportedSdfRecord, SdfError, SdfProperty, SdfRecord, compose_sdf_record};
 
-pub use crate::adapter_contract::ADAPTER_ABI_VERSION;
+pub use crate::adapter_contract::{ADAPTER_ABI_VERSION, NATIVE_SDF_MAX_RECORDS};
 pub(crate) use crate::adapter_contract::{
     FERRUM_CHEM_ALL_KNOWN_CAPABILITIES, FERRUM_CHEM_CALL_ALLOCATION_FAILURE,
     FERRUM_CHEM_CAPABILITY_COMPOSITION, FERRUM_CHEM_CAPABILITY_GENERATE_2D,

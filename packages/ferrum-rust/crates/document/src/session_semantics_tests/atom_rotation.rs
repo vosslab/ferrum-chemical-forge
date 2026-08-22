@@ -23,7 +23,7 @@ fn assert_authored_close(actual: f64, expected: f64) {
 #[test]
 fn selected_atoms_rotate_in_one_history_entry_and_retire_only_invalid_owned_metadata() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"0\" z=\"2\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
@@ -82,7 +82,7 @@ fn atom_rotation_rejects_invalid_or_unresolved_complete_intent_atomically() {
     );
 
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
         "<point x=\"1\" y=\"2\"/></atom></molecule></cdml>",
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");

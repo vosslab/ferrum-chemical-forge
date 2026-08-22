@@ -45,7 +45,7 @@ def test_native_arrow_edit_updates_rust_and_retains_durable_selection(
 	"""A visible normal-Arrow edit commits once and installs new Rust geometry."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><arrow id="a" type="normal" start="no" end="yes" '
+		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal" start="no" end="yes" '
 		'width="1" color="#000"><point x="0" y="0"/>'
 		'<point x="40" y="0"/></arrow></cdml>',
 		"arrow.cdml",
@@ -73,7 +73,9 @@ def test_native_arrow_edit_updates_rust_and_retains_durable_selection(
 		assert result.observation.snapshot.revision == 1
 		assert tab.has_one_selected_arrow()
 		updated = tab.selected_arrow_projection()
-		assert (updated.start_head, updated.end_head) == (True, False)
+		assert updated.geometry.kind == "normal"
+		assert updated.geometry.normal is not None
+		assert (updated.geometry.normal.start_head, updated.geometry.normal.end_head) == (True, False)
 		assert (updated.stroke.width, updated.stroke.color) == (2.5, "#123456")
 		item = next(
 			item for item in tab.view.scene().items()
@@ -92,7 +94,7 @@ def test_native_arrow_dialog_rejects_unrendered_or_unrepresentable_facts(
 	"""The form never rounds width or enables unsupported spline mutation."""
 	del qapp
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><arrow id="a" type="normal" width="0.2"><point x="0" y="0"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal" width="0.2"><point x="0" y="0"/>'
 		'<point x="40" y="0"/></arrow></cdml>',
 	)
 	arrow = session.observe(0).projection.presentation_stack.roots[0].arrow

@@ -47,7 +47,7 @@ def test_native_wavy_edit_preserves_authored_path_and_durable_selection(
 	"""A visible edit commits once without regenerating the stored point path."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><polyline id="wave" style="wavy" color="#000" width="1">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="wave" style="wavy" color="#000" width="1">'
 		'<point x="0" y="0"/><point x="3" y="2"/>'
 		'<point x="6" y="0"/></polyline></cdml>',
 		"wave.cdml",
@@ -84,7 +84,7 @@ def test_wavy_form_rejects_coercion_and_spline_has_a_typed_issue(qapp: object) -
 	"""Unrepresentable form values and unsupported interpolation fail visibly."""
 	del qapp
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><polyline id="wave" style="wavy" width="1.2345">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="wave" style="wavy" width="1.2345">'
 		'<point x="0" y="0"/><point x="2" y="2"/></polyline>'
 		'<polyline id="spline" style="wavy" spline="yes">'
 		'<point x="0" y="0"/><point x="2" y="2"/></polyline></cdml>',
@@ -103,7 +103,7 @@ def test_native_wavy_creation_uses_rust_identity_geometry_and_history(qapp: obje
 	"""Create, select, undo, and redo one backend-authored Wavy root."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml/>", "new-wave.cdml",
+		"<cdml xmlns='urn:ferrum:cdml'/>", "new-wave.cdml",
 	)
 	try:
 		result = tab.create_wavy(0.0, 0.0, 48.0, 0.0)

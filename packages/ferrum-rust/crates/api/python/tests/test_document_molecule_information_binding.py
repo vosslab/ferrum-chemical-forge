@@ -1,14 +1,12 @@
 """Installed-extension checks for private native molecule information V1."""
 
-from pathlib import Path
-
 import pytest
 
 import ferrum_chem
 
 
 _SOURCE = """\
-<cdml version="26.07">
+<cdml xmlns="urn:ferrum:cdml" version="26.07">
  <molecule id="methane" name="Methane">
   <atom id="c1" name="C"><point x="0" y="0"/></atom>
  </molecule>
@@ -64,7 +62,7 @@ def test_private_information_reports_native_records_and_combined_selection() -> 
 def test_private_information_keeps_isotope_formula_and_has_no_single_aggregate() -> None:
 	"""The sealed RDKit path preserves a labelled heavy atom in its formula."""
 	source = """\
-<cdml version="26.07"><molecule id="labelled">
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><molecule id="labelled">
  <atom id="c1" name="C" isotope="13"><point x="0" y="0"/></atom>
 </molecule></cdml>
 """
@@ -117,12 +115,3 @@ def test_private_information_rejects_duplicates_stale_and_surrogates() -> None:
 		)
 	assert selector.value.reason == "molecule selectors must be valid UTF-8 text"
 
-
-def test_private_information_names_are_runtime_only() -> None:
-	"""Qt plumbing is discoverable at runtime but absent from the public stub."""
-	assert "inspect_document_molecule_information_v1" in dir(ferrum_chem)
-	assert "DocumentMoleculeInformationV1" in dir(ferrum_chem)
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-	assert "inspect_document_molecule_information_v1" not in stub
-	assert "DocumentMoleculeInformationV1" not in stub

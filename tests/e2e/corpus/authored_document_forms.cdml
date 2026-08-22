@@ -3,7 +3,7 @@
 Origin: original compact fixture authored for Ferrum from the documented CDML vocabulary.
 License/provenance treatment: no OASA production code or template text is copied; upstream
 format sources are evidence only. The central M1 documentation owner records final provenance. -->
-<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07" type="normal">
+<cdml xmlns="urn:ferrum:cdml" version="26.07" type="normal">
   <info><author_program version="26.07">Ferrum probe</author_program><author>A</author><note>N</note></info>
   <metadata><doc href="https://example.invalid/cdml"/></metadata>
   <standard line_width="1px" font_size="12" font_family="helvetica" line_color="#000" area_color=""><bond length="0.7cm" width="6px" wedge-width="5px" double-ratio="0.75" min_wedge_angle="0.39"/><arrow length="1.6cm"/><atom show_hydrogens="0"/></standard>

@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn selected_target_lookup_keeps_durable_and_renderer_identity_domains_separate() {
         let observation = DocumentSession::load(concat!(
-            "<cdml><molecule id=\"authored-root\"><atom id=\"a\" name=\"C\">",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"authored-root\"><atom id=\"a\" name=\"C\">",
             "<point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
         ))
         .expect("document")

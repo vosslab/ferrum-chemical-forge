@@ -9,13 +9,13 @@ import pytest
 
 
 IMPORTED_SOURCE = (
-	'<cdml><molecule id="m" name="display name">'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m" name="display name">'
 	'<atom id="a" name="C"><point x="2" y="7"/></atom>'
-	'<f:sdf-record xmlns:f="urn:ferrum-chemical-forge:sdf-import:v1" '
+	'<f:interchange-record xmlns:f="urn:ferrum-chemical-forge:interchange-import:v1" '
 	'encoding="utf8-hex-v1" title="496d706f72746564207469746c65">'
 	'<f:property name="4e4f5445" value="6669727374"/>'
 	'<f:property name="4e4f5445" value="7365636f6e64"/>'
-	'</f:sdf-record></molecule></cdml>'
+	'</f:interchange-record></molecule></cdml>'
 )
 
 
@@ -52,7 +52,7 @@ def test_imported_title_and_duplicate_properties_reach_one_exact_sdf_record() ->
 def test_ordinary_name_and_explicit_syntax_are_retained() -> None:
 	"""Use the molecule name only when no imported record metadata exists."""
 	source = (
-		'<cdml><molecule id="m" name="ordinary title">'
+		'<cdml xmlns="urn:ferrum:cdml"><molecule id="m" name="ordinary title">'
 		'<atom id="a" name="O"><point x="0" y="0"/></atom>'
 		'</molecule></cdml>'
 	)

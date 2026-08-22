@@ -2,10 +2,9 @@
 
 ## Unreleased pre-alpha work
 
-- M20 and M22 source mechanisms define a proposed macOS arm64/CPython 3.12 two-wheel route,
-  a dual-license source-release check, native notice staging, and predicate artifact inventory.
-  The actual offline build, install, relink, source-archive CLI, artifact review, and human
-  legal/release decision are still pending. This is not a new supported release.
+- Ferrum remains pre-production. The repository builds and validates one local
+  CLI and PySide6 application under `build/`; it has no release or installation
+  workflow.
 
 ## v26.08 - 2026-08-12
 
@@ -43,7 +42,5 @@
 
 - The Rust workspace passed formatting, target checking, warnings-denied Clippy, and
   unit and integration tests on `aarch64-apple-darwin`.
-- The native-wheel evidence recorded a scrubbed install, exact closure validation, and
-  a fresh-process relink probe before and after replacing `libferrum_chem.dylib`.
-- Ferrum's renamed package and installed command completed its offscreen test and
-  smoke checks.
+- The local runtime validation recorded extension and dynamic-library closure
+  checks together with CLI and offscreen Qt smoke checks.

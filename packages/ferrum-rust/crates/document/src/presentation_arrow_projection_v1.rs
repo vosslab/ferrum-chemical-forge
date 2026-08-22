@@ -118,6 +118,55 @@ pub struct ArrowHeadV1 {
     points: [Point3V1; 4],
 }
 
+/// Fixed document-owned cubic and terminal-head geometry for an electron arrow.
+///
+/// Electron arrows have no authored head facts. Keeping their quadratic lowering
+/// here gives persisted projections and live render gestures one authoritative
+/// geometric result.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ElectronArrowGeometryV1 {
+    cubic_axis: [Point3V1; 4],
+    head: [Point3V1; 4],
+}
+
+impl ElectronArrowGeometryV1 {
+    #[must_use]
+    pub fn cubic_axis(&self) -> &[Point3V1; 4] {
+        &self.cubic_axis
+    }
+
+    #[must_use]
+    pub fn head(&self) -> &[Point3V1; 4] {
+        &self.head
+    }
+}
+
+/// Lower one validated quadratic electron-arrow source path to its cubic axis
+/// and fixed terminal head.
+pub fn electron_arrow_geometry_v1(
+    start: Point3V1,
+    control: Point3V1,
+    end: Point3V1,
+) -> Result<ElectronArrowGeometryV1, String> {
+    let first_control = Point3V1::new(
+        start.x() + (2.0 / 3.0) * (control.x() - start.x()),
+        start.y() + (2.0 / 3.0) * (control.y() - start.y()),
+        start.z() + (2.0 / 3.0) * (control.z() - start.z()),
+    )
+    .map_err(|error| error.to_string())?;
+    let second_control = Point3V1::new(
+        end.x() + (2.0 / 3.0) * (control.x() - end.x()),
+        end.y() + (2.0 / 3.0) * (control.y() - end.y()),
+        end.z() + (2.0 / 3.0) * (control.z() - end.z()),
+    )
+    .map_err(|error| error.to_string())?;
+    let (_, head) = head_geometry(control, end, electron_arrow_head_shape_v1())?;
+    Ok(ElectronArrowGeometryV1 {
+        cubic_axis: [start, first_control, second_control, end],
+        head,
+    })
+}
+
 impl<'de> Deserialize<'de> for ArrowHeadV1 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -164,6 +213,13 @@ pub enum ArrowDisplayGeometryV1 {
     Equilibrium {
         axes: [ArrowPathV1; 2],
         heads: [ArrowHeadV1; 2],
+    },
+    /// A semantic electron-pushing quadratic lowered to an exact cubic axis.
+    Electron {
+        axis_path: ArrowPathV1,
+        control: Point3V1,
+        head_shape: ArrowHeadShapeV1,
+        head: ArrowHeadV1,
     },
 }
 
@@ -288,7 +344,7 @@ pub(crate) fn arrow(
     let target = PresentationTargetV1::from_child(child);
     let record = child.record();
     let arrow_type = record.attribute("type").unwrap_or("normal");
-    if !matches!(arrow_type, "normal" | "equilibrium") {
+    if !matches!(arrow_type, "normal" | "equilibrium" | "electron") {
         issues.push(PresentationProjectionIssueV1::new(
             target,
             PresentationProjectionIssueCodeV1::UnsupportedArrowType,
@@ -296,31 +352,49 @@ pub(crate) fn arrow(
         ));
         return None;
     }
-    let spline = match boolean(record, "spline", false) {
-        Ok(value) => value,
-        Err(detail) => {
+    if arrow_type != "electron" {
+        let spline = match boolean(record, "spline", false) {
+            Ok(value) => value,
+            Err(detail) => {
+                issues.push(PresentationProjectionIssueV1::new(
+                    target,
+                    PresentationProjectionIssueCodeV1::InvalidArrowFact,
+                    detail,
+                ));
+                return None;
+            }
+        };
+        if spline {
             issues.push(PresentationProjectionIssueV1::new(
                 target,
-                PresentationProjectionIssueCodeV1::InvalidArrowFact,
-                detail,
+                PresentationProjectionIssueCodeV1::UnsupportedArrowSpline,
+                "normal-arrow spline interpolation is preserved but not rendered by V1",
             ));
             return None;
         }
-    };
-    if spline {
-        issues.push(PresentationProjectionIssueV1::new(
+    } else if record.attribute("spline").is_some() {
+        return invalid_fact(
             target,
-            PresentationProjectionIssueCodeV1::UnsupportedArrowSpline,
-            "normal-arrow spline interpolation is preserved but not rendered by V1",
-        ));
-        return None;
+            "electron arrows have explicit quadratic geometry and no spline fact".to_owned(),
+            issues,
+        );
     }
     let source_points = match points(record, 2, "arrow") {
-        Ok(value) if value.len() == 2 => value,
+        Ok(value)
+            if (arrow_type == "electron" && value.len() == 3)
+                || (arrow_type != "electron" && value.len() == 2) =>
+        {
+            value
+        }
         Ok(_) => {
             return invalid_geometry(
                 target,
-                "straight arrows require exactly two points".to_owned(),
+                if arrow_type == "electron" {
+                    "electron arrows require exactly three points: start, control, and end"
+                        .to_owned()
+                } else {
+                    "straight arrows require exactly two points".to_owned()
+                },
                 issues,
             );
         }
@@ -363,6 +437,45 @@ pub(crate) fn arrow(
                 points: source_points,
             },
             geometry: ArrowDisplayGeometryV1::Equilibrium { axes, heads },
+        });
+    }
+    if arrow_type == "electron" {
+        if ["start", "end", "shape"]
+            .into_iter()
+            .any(|field| record.attribute(field).is_some())
+        {
+            return invalid_fact(
+                target,
+                "electron arrows use one fixed terminal head and no normal-arrow head facts"
+                    .to_owned(),
+                issues,
+            );
+        }
+        let [start, control, end] = source_points.as_slice() else {
+            unreachable!("electron point cardinality was checked above");
+        };
+        let issued = match electron_arrow_geometry_v1(*start, *control, *end) {
+            Ok(value) => value,
+            Err(detail) => return invalid_geometry(target, detail, issues),
+        };
+        let stroke = stroke_with_color_field(record, defaults, &target, issues, "color");
+        return Some(ArrowProjectionV1 {
+            target,
+            source_path: ArrowPathV1 {
+                points: source_points.clone(),
+            },
+            geometry: ArrowDisplayGeometryV1::Electron {
+                axis_path: ArrowPathV1 {
+                    points: issued.cubic_axis.to_vec(),
+                },
+                control: *control,
+                head_shape: electron_arrow_head_shape_v1(),
+                head: ArrowHeadV1 {
+                    position: ArrowHeadPositionV1::End,
+                    points: issued.head,
+                },
+            },
+            stroke,
         });
     }
     let start_head = match boolean(record, "start", false) {
@@ -467,6 +580,14 @@ fn head_shape(record: &TypedRecord) -> Result<ArrowHeadShapeV1, String> {
         "arrow shape requires positive finite width and total length at least its line inset"
             .to_owned()
     })
+}
+
+fn electron_arrow_head_shape_v1() -> ArrowHeadShapeV1 {
+    ArrowHeadShapeV1 {
+        line_inset: DEFAULT_HEAD_LINE_INSET,
+        total_length: DEFAULT_HEAD_TOTAL_LENGTH,
+        half_width: DEFAULT_HEAD_HALF_WIDTH,
+    }
 }
 
 fn arrow_geometry(

@@ -8,7 +8,7 @@ use super::{
 fn source(atom_facts: &str, bond_type: &str) -> String {
     format!(
         concat!(
-            "<cdml version=\"1.0\"><molecule id=\"m1\" name=\"Example\">",
+            "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\" name=\"Example\">",
             "{}<bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"{}\"/>",
             "</molecule></cdml>"
         ),
@@ -119,7 +119,7 @@ fn stale_revision_and_digest_are_distinct_request_failures() {
 #[test]
 fn atom_selectors_are_not_inspectable_molecule_roots() {
     let source = concat!(
-        "<cdml version=\"1.0\"><molecule id=\"m1\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
         "<atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"a2\" name=\"O\"><point x=\"1\" y=\"1\"/></atom>",
         "<bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"n1\"/>",
@@ -141,7 +141,7 @@ fn atom_selectors_are_not_inspectable_molecule_roots() {
 #[test]
 fn opaque_nested_looking_and_foreign_selectors_are_not_direct_roots() {
     let nested_source = concat!(
-        "<cdml version=\"1.0\"><molecule id=\"m1\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
         "<molecule id=\"nested\">",
         "<atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "</molecule></molecule></cdml>"
@@ -160,7 +160,7 @@ fn opaque_nested_looking_and_foreign_selectors_are_not_direct_roots() {
     ));
 
     let foreign_source = concat!(
-        "<cdml version=\"1.0\"><molecule id=\"foreign\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"foreign\">",
         "<atom id=\"a1\" name=\"O\"><point x=\"0\" y=\"0\"/></atom>",
         "</molecule></cdml>"
     );
@@ -182,7 +182,7 @@ fn opaque_nested_looking_and_foreign_selectors_are_not_direct_roots() {
 #[test]
 fn missing_and_invalid_elements_remain_typed_source_failures() {
     let missing = concat!(
-        "<cdml version=\"1.0\"><molecule id=\"m1\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
         "<atom id=\"a1\"><point x=\"0\" y=\"0\"/></atom>",
         "</molecule></cdml>"
     );
@@ -193,7 +193,7 @@ fn missing_and_invalid_elements_remain_typed_source_failures() {
     ));
 
     let invalid = concat!(
-        "<cdml version=\"1.0\"><molecule id=\"m1\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
         "<atom id=\"a1\" name=\"Xx\"><point x=\"0\" y=\"0\"/></atom>",
         "</molecule></cdml>"
     );
@@ -206,7 +206,7 @@ fn missing_and_invalid_elements_remain_typed_source_failures() {
 
 #[test]
 fn empty_and_unresolved_retained_graph_facts_never_make_a_receipt() {
-    let empty = "<cdml version=\"1.0\"><molecule id=\"m1\"/></cdml>";
+    let empty = "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\"/></cdml>";
     let (observation, request) = observation_and_request(empty);
     assert!(matches!(
         inspect_document_molecule_v1(&observation, &request),
@@ -214,7 +214,7 @@ fn empty_and_unresolved_retained_graph_facts_never_make_a_receipt() {
     ));
 
     let unresolved = concat!(
-        "<cdml version=\"1.0\"><molecule id=\"m1\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
         "<atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<bond id=\"b1\" start=\"a1\" end=\"missing\" type=\"n1\"/>",
         "</molecule></cdml>"

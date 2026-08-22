@@ -43,7 +43,38 @@ fn arrow_root(arrow: &ArrowProjectionV1) -> Result<DocumentVectorRootV1, RenderE
         ArrowDisplayGeometryV1::Equilibrium { axes, heads } => {
             arrow_geometry_root(&stroke, axes, heads)
         }
+        ArrowDisplayGeometryV1::Electron { axis_path, head, .. } => {
+            electron_arrow_geometry_root(&stroke, axis_path, head)
+        }
     }
+}
+
+fn electron_arrow_geometry_root(
+    stroke: &StrokeV1,
+    axis: &ferrum_document::ArrowPathV1,
+    head: &ferrum_document::ArrowHeadV1,
+) -> Result<DocumentVectorRootV1, RenderError> {
+    let [start, control_1, control_2, end] = axis.points() else {
+        return Err(RenderError::InvalidRequest(
+            "electron arrow axis must contain one cubic segment".to_owned(),
+        ));
+    };
+    let axis = DocumentVectorOpV1::path(
+        vec![
+            PathCommandV1::MoveTo(point(*start)?),
+            PathCommandV1::CubicTo {
+                control_1: point(*control_1)?,
+                control_2: point(*control_2)?,
+                end: point(*end)?,
+            },
+        ],
+        Some(stroke.clone()),
+        None,
+    )?;
+    let mut head_commands = Vec::new();
+    closed_points(&mut head_commands, head.points())?;
+    let head = DocumentVectorOpV1::path(head_commands, None, Some(stroke.paint().clone()))?;
+    DocumentVectorRootV1::new(vec![axis, head])
 }
 
 fn arrow_geometry_root(

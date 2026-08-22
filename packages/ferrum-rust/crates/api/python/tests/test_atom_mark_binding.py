@@ -5,7 +5,7 @@ import pytest
 
 
 SOURCE = (
-	"<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">"
+	"<cdml xmlns='urn:ferrum:cdml'><molecule id=\"m\"><atom id=\"a\" name=\"C\">"
 	"<point x=\"1\" y=\"2\"/></atom></molecule></cdml>"
 )
 

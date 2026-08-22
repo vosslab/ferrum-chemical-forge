@@ -7,7 +7,7 @@ import pytest
 
 def _round_root() -> object:
 	"""Return one accepted direct-root round bracket from a real observation."""
-	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
 	prepared = session.prepare_create_bracket_v1(
 		0, ferrum_chem.DocumentBracketStyleV1.round,
 		ferrum_chem.DocumentBracketBoundsV1(0.0, 0.0, 20.0, 40.0),
@@ -32,7 +32,7 @@ def test_round_bracket_lowering_emits_only_frozen_replay_commands() -> None:
 def test_path_lowering_refuses_an_ordinary_document_polyline() -> None:
 	"""Normal spline admission stays owned by document projection, not this seam."""
 	session = ferrum_chem.DocumentSession.load(
-		"<cdml><polyline><point x=\"0\" y=\"0\"/>"
+		"<cdml xmlns='urn:ferrum:cdml'><polyline><point x=\"0\" y=\"0\"/>"
 		"<point x=\"1\" y=\"1\"/></polyline></cdml>",
 	)
 	root = session.observe(0).projection.presentation_stack.roots[0]

@@ -13,7 +13,7 @@ import ferrum_qt.io.user_template_catalog
 
 
 _USER_TEMPLATE = (
-	'<cdml version="26.07"><standard line_width="9"/><paper id="paper"/>\n'
+	'<cdml xmlns="urn:ferrum:cdml" version="26.07"><standard line_width="9"/><paper id="paper"/>\n'
 	'<molecule id="source" name="Ribbon template">\n'
 	' <atom id="a" name="C"><point x="0" y="0"/></atom>\n'
 	' <atom id="b" name="O"><point x="10" y="0"/></atom>\n'
@@ -192,7 +192,6 @@ def test_authoring_ribbon_retires_template_owner_before_direct_and_more_tools(
 		ferrum_qt.io.user_template_catalog.scan_user_template_catalog(directory)
 	)
 	entry = main_window.user_template_catalog.entries[0]
-	viewport = main_window._active_native_tab().view.viewport()
 	main_window.resize(1280, 800)
 	main_window.show()
 	qapp.processEvents()
@@ -203,13 +202,9 @@ def test_authoring_ribbon_retires_template_owner_before_direct_and_more_tools(
 	qapp.processEvents()
 	assert main_window._user_template_placement_intent is None
 	assert main_window._line_gesture_intent is not None
-	PySide6.QtTest.QTest.mouseClick(
-		viewport, PySide6.QtCore.Qt.MouseButton.LeftButton,
-		pos=PySide6.QtCore.QPoint(80, 80),
+	PySide6.QtTest.QTest.keyClick(
+		main_window._line_gesture_intent.viewport, PySide6.QtCore.Qt.Key.Key_Escape,
 	)
-	qapp.processEvents()
-	assert main_window._user_template_placement_intent is None
-	PySide6.QtTest.QTest.keyClick(viewport, PySide6.QtCore.Qt.Key.Key_Escape)
 	qapp.processEvents()
 	assert main_window._line_gesture_intent is None
 
@@ -225,13 +220,7 @@ def test_authoring_ribbon_retires_template_owner_before_direct_and_more_tools(
 	assert main_window._user_template_placement_intent is None
 	intent = main_window._line_gesture_intent
 	assert intent is not None
-	PySide6.QtTest.QTest.mousePress(
-		viewport, PySide6.QtCore.Qt.MouseButton.LeftButton,
-		pos=PySide6.QtCore.QPoint(120, 90),
-	)
-	qapp.processEvents()
-	assert main_window._line_gesture_intent.press_scene is not None
-	PySide6.QtTest.QTest.keyClick(viewport, PySide6.QtCore.Qt.Key.Key_Escape)
+	PySide6.QtTest.QTest.keyClick(intent.viewport, PySide6.QtCore.Qt.Key.Key_Escape)
 	qapp.processEvents()
 	assert main_window._line_gesture_intent is None
 	assert main_window._user_template_placement_intent is None

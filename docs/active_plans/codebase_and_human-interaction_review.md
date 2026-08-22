@@ -343,9 +343,10 @@ Add `convert` and `coords` on the same pattern.
 
 **T8. Verb CLI E2E** (`tester`)
 `tests/e2e/e2e_ferrum_verb_cli.py`: round-trip each verb against
-`tests/e2e/corpus/`, assert exit codes, assert stdin/stdout piping composes,
-and assert each verb's result is semantically equal to the equivalent
-`protocol run` result. Semantic comparison only - never bytes or pixels.
+the frozen `protocol run` surface from a staged local `build/bin/ferrum`.
+Assert exit codes, stdin/stdout composition, file publication, and semantic
+equivalence. The engine verbs prove the executable resolves its adjacent
+`build/runtime/engine-v1` closure without a per-user installation.
 *Depends on:* T7a, T7b.
 
 **T9. `--help` that teaches** (`coder`)
@@ -493,7 +494,7 @@ C convergence should land before M22 declares a supported boundary.
 
 | Concern | Check | Kind |
 | --- | --- | --- |
-| Verb CLI | `tests/e2e/e2e_ferrum_verb_cli.py` semantic equality with `protocol run` | permanent E2E |
+| Verb CLI | staged `build/bin/ferrum` semantic equality with `protocol run`, including its adjacent local engine runtime | permanent E2E |
 | Adapter boundary | one module imports `ferrum_chem` | permanent fast pytest |
 | Keyboard workflow | key-events-only drawing task completes | permanent E2E |
 | Accessibility structure | action/shortcut, tab order, accessible name | permanent fast pytest |

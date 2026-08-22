@@ -5,13 +5,13 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    element_name, PlusPropertiesPatchV1, PlusPropertiesPatchV1Error, PlusPropertyChangeV1,
-    PresentationFactProvenanceV1, PresentationRootProjectionV1, Rgb24V1, CDML_NAMESPACE,
+    CDML_NAMESPACE, PlusPropertiesPatchV1, PlusPropertiesPatchV1Error, PlusPropertyChangeV1,
+    PresentationFactProvenanceV1, PresentationRootProjectionV1, Rgb24V1, element_name,
 };
 use xot::Xot;
 
 const SOURCE: &str = concat!(
-    "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+    "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
     "xmlns:v=\"urn:vendor\"><c:plus id=\"p\" font_size=\"14\" color=\"#000\" ",
     "background-color=\"#ffffff\" keep=\"yes\"><c:point x=\"10\" y=\"20\"/>",
     "<v:opaque retained=\"yes\"/></c:plus><v:root/></c:cdml>"

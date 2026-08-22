@@ -314,13 +314,21 @@ dependencies = [
  "getrandom 0.3.4",
  "libc",
  "pyo3",
- "pyo3-build-config",
  "rustix",
  "schemars",
  "serde",
  "serde_json",
  "sha2",
  "thiserror",
+]
+
+[[package]]
+name = "ferrum-api-python"
+version = "26.8.0"
+dependencies = [
+ "ferrum-api",
+ "pyo3",
+ "pyo3-build-config",
 ]
 
 [[package]]

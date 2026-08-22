@@ -1,14 +1,12 @@
 """Installed-extension checks for private bounded native clipboard Paste."""
 
-from pathlib import Path
-
 import pytest
 
 import ferrum_chem
 
 
 _FRAGMENT = """\
-<cdml version="26.07"><molecule id="m">
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><molecule id="m">
  <atom id="a" name="C"><point x="1" y="2"/></atom>
  <atom id="b" name="O"><point x="11" y="2"/></atom>
  <bond id="ab" start="a" end="b" type="n1"/>
@@ -65,11 +63,11 @@ def test_private_paste_is_one_history_step_and_plan_is_reusable() -> None:
 @pytest.mark.parametrize(
 	"source, reason",
 	(
-		(b"<cdml/>", "exact built-in string"),
+		(b"<cdml xmlns='urn:ferrum:cdml'/>", "exact built-in string"),
 		("\ud800", "valid UTF-8 text"),
-		("<cdml>", "invalid CDML"),
-		("<cdml><paper id='paper'/></cdml>", "unsupported direct-root"),
-		("<cdml/>/or empty", "invalid CDML"),
+		("<cdml xmlns='urn:ferrum:cdml'>", "invalid CDML"),
+		("<cdml xmlns='urn:ferrum:cdml'><paper id='paper'/></cdml>", "unsupported direct-root"),
+		("<cdml xmlns='urn:ferrum:cdml'/>/or empty", "invalid CDML"),
 	),
 )
 def test_private_paste_rejects_invalid_external_fragments(
@@ -92,21 +90,3 @@ def test_private_paste_reauthenticates_before_mutation() -> None:
 		assert caught.value.reason
 	assert _facts(session.snapshot()) == _facts(before)
 
-
-def test_private_paste_names_remain_outside_the_wheel_stub() -> None:
-	"""The Qt-only Paste surface makes no stable Python contract."""
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-
-	assert (
-		hasattr(ferrum_chem, "prepare_clipboard_paste_v1")
-		and hasattr(ferrum_chem.DocumentSession, "apply_clipboard_paste_v1")
-	)
-	assert all(
-		name not in stub
-		for name in (
-			"prepare_clipboard_paste_v1",
-			"apply_clipboard_paste_v1",
-			"DocumentClipboardPaste",
-		)
-	)

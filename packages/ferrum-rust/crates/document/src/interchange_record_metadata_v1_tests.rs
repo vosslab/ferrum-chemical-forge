@@ -5,7 +5,7 @@ use super::{
 #[test]
 fn exact_metadata_recovers_blank_title_and_repeated_ordered_properties() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
         "</atom><ferrum-interchange:interchange-record ",
         "xmlns:ferrum-interchange=\"urn:ferrum-chemical-forge:interchange-import:v1\" ",
         "encoding=\"utf8-hex-v1\" title=\"\">",
@@ -38,7 +38,7 @@ fn exact_metadata_recovers_blank_title_and_repeated_ordered_properties() {
 #[test]
 fn authoritative_metadata_refuses_ambiguous_or_malformed_structure() {
     let duplicate = concat!(
-        "<cdml><molecule id=\"m\"><f:interchange-record xmlns:f=\"",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><f:interchange-record xmlns:f=\"",
         "urn:ferrum-chemical-forge:interchange-import:v1\" encoding=\"utf8-hex-v1\" title=\"\"/>",
         "<f:interchange-record xmlns:f=\"urn:ferrum-chemical-forge:interchange-import:v1\" ",
         "encoding=\"utf8-hex-v1\" title=\"\"/></molecule></cdml>",
@@ -50,7 +50,7 @@ fn authoritative_metadata_refuses_ambiguous_or_malformed_structure() {
     );
 
     let malformed = concat!(
-        "<cdml><molecule id=\"m\"><f:interchange-record xmlns:f=\"",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><f:interchange-record xmlns:f=\"",
         "urn:ferrum-chemical-forge:interchange-import:v1\" encoding=\"utf8-hex-v1\" ",
         "title=\"0\"/></molecule></cdml>",
     );
@@ -74,7 +74,7 @@ fn authoritative_metadata_refuses_ambiguous_or_malformed_structure() {
     ] {
         let source = format!(
             concat!(
-                "<cdml><molecule id=\"m\"><f:interchange-record xmlns:f=\"",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><f:interchange-record xmlns:f=\"",
                 "urn:ferrum-chemical-forge:interchange-import:v1\" encoding=\"utf8-hex-v1\" ",
                 "title=\"\"><f:property name=\"{}\" value=\"{}\"/>",
                 "</f:interchange-record></molecule></cdml>",

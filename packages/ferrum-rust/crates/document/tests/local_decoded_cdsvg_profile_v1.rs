@@ -6,7 +6,7 @@ use ferrum_document::{DocumentIngressErrorV1, prepare_local_decoded_cdsvg_file_v
 
 const CANONICAL_CDSVG: &str = concat!(
     "<svg xmlns=\"http://www.w3.org/2000/svg\">",
-    "<cdml xmlns=\"http://www.freesoftware.fsf.org/bkchem/cdml\" version=\"1.0\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\">",
     "<plus id=\"payload-fact\"><point x=\"1\" y=\"2\"/></plus>",
     "</cdml><metadata>discarded wrapper content</metadata></svg>",
 );
@@ -59,14 +59,14 @@ fn selected_profile_refuses_invalid_svg_containers_before_session_creation() {
             "multiple.svg",
             concat!(
                 "<svg xmlns=\"http://www.w3.org/2000/svg\">",
-                "<cdml xmlns=\"http://www.freesoftware.fsf.org/bkchem/cdml\" version=\"1.0\"/>",
-                "<cdml xmlns=\"http://www.freesoftware.fsf.org/bkchem/cdml\" version=\"1.0\"/>",
+                "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>",
+                "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>",
                 "</svg>",
             ),
         ),
         (
             "wrong-namespace.svg",
-            "<svg xmlns=\"http://www.w3.org/2000/svg\"><cdml version=\"1.0\"/></svg>",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><cdml xmlns=\"urn:foreign:cdml\" version=\"1.0\"/></svg>",
         ),
     ];
 

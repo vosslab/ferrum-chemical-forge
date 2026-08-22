@@ -229,8 +229,8 @@ pub enum SessionOperationError {
     /// Session history could not reserve storage for a prepared transition.
     #[error("document history could not reserve storage for a prepared transition")]
     HistoryResourceExhausted,
-    /// A requested element spelling is empty or has invalid XML-like content.
-    #[error("atom element must be a nonblank plain element spelling")]
+    /// A requested element spelling is not a canonical periodic-table symbol.
+    #[error("atom element must be a canonical periodic-table symbol")]
     InvalidAtomElement,
     /// Atom number assignment requires a positive value and explicit visibility;
     /// clearing requires both values absent.

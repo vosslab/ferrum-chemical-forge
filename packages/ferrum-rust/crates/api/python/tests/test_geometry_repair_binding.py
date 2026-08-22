@@ -10,7 +10,7 @@ import ferrum_chem
 
 
 SOURCE = (
-    '<cdml><molecule id="m"><atom id="a" name="C">'
+    '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
     '<point x="0.2" y="0.2" z="2"/></atom>'
     '<atom id="b" name="O"><point x="0" y="0"/></atom>'
     '<bond id="ab" start="a" end="b" type="n1"/></molecule></cdml>'
@@ -55,7 +55,7 @@ def test_repair_factory_and_target_fail_without_mutation() -> None:
 def test_straighten_bonds_uses_terminal_endpoint_contract() -> None:
     """Two-atom anchoring uses lexical identity and ignores common spacing."""
     source = (
-        '<cdml><molecule id="m"><atom id="z" name="O">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="z" name="O">'
         '<point x="0.9659258262890683" y="-0.25881904510252074" z="3"/>'
         '</atom><atom id="a" name="C"><point x="0" y="0"/></atom>'
         '<bond id="az" start="a" end="z" type="n1"/></molecule></cdml>'
@@ -76,7 +76,7 @@ def test_straighten_bonds_uses_terminal_endpoint_contract() -> None:
 def test_normalize_bond_lengths_uses_explicit_spacing_and_preserves_direction() -> None:
     """The frozen kind reaches the Rust tree planner without frontend geometry."""
     source = (
-        '<cdml><molecule id="m"><atom id="a" name="C"><point x="-20" y="0"/>'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="-20" y="0"/>'
         '</atom><atom id="b" name="N"><point x="0" y="0"/></atom>'
         '<atom id="c" name="O"><point x="0" y="30"/></atom>'
         '<bond id="ab" start="a" end="b" type="n1"/>'
@@ -96,7 +96,7 @@ def test_normalize_bond_lengths_uses_explicit_spacing_and_preserves_direction() 
 def test_normalize_bond_angles_preserves_length_and_authored_child_order() -> None:
     """The frozen kind delegates slot ownership and coordinate work to Rust."""
     source = (
-        '<cdml><molecule id="m"><atom id="root" name="C"><point x="0" y="0"/>'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="root" name="C"><point x="0" y="0"/>'
         '</atom><atom id="z_first" name="N"><point x="10" y="1" z="3"/></atom>'
         '<atom id="a_second" name="O"><point x="10" y="2"/></atom>'
         '<bond id="z_first_bond" start="root" end="z_first" type="n1"/>'
@@ -123,7 +123,7 @@ def test_normalize_bond_angles_preserves_length_and_authored_child_order() -> No
 def test_normalize_rings_preserves_centroid_and_moves_substituent_rigidly() -> None:
     """The frozen ring kind preserves its bounded topology contract."""
     source = (
-        '<cdml><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/>'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/>'
         '</atom><atom id="b" name="C"><point x="20" y="0"/></atom>'
         '<atom id="c" name="C"><point x="15" y="10"/></atom>'
         '<atom id="d" name="C"><point x="0" y="10"/></atom>'

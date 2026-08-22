@@ -556,6 +556,19 @@ def _build_arrow(root: object, extension: object) -> ArrowProjectionItem:
 		heads = equilibrium.heads
 		if [head.position for head in heads] != ["start", "end"]:
 			raise PresentationProjectionError("equilibrium arrow requires opposing issued heads")
+	elif geometry.kind == "electron":
+		if geometry.normal is not None or geometry.equilibrium is not None or \
+				type(geometry.electron) is not extension.ElectronArrowDisplayGeometryV1:
+			raise PresentationProjectionError("electron arrow geometry payload is invalid")
+		electron = geometry.electron
+		if len(source_points) != 3:
+			raise PresentationProjectionError("electron arrow source path requires three points")
+		axis_points = _arrow_points(electron.axis_path, extension, "electron axis")
+		if len(axis_points) != 4:
+			raise PresentationProjectionError("electron arrow axis requires one issued cubic segment")
+		if type(electron.head) is not extension.ArrowHeadV1 or electron.head.position != "end":
+			raise PresentationProjectionError("electron arrow requires one terminal issued head")
+		heads = [electron.head]
 	else:
 		raise PresentationProjectionError("arrow geometry kind is unknown")
 	if type(heads) is not list or any(type(head) is not extension.ArrowHeadV1 for head in heads):
@@ -576,12 +589,15 @@ def _build_arrow(root: object, extension: object) -> ArrowProjectionItem:
 		axis_path.moveTo(axis_points[0])
 		for point in axis_points[1:]:
 			axis_path.lineTo(point)
-	else:
+	elif geometry.kind == "equilibrium":
 		for axis in geometry.equilibrium.axes:
 			points = _arrow_points(axis, extension, "equilibrium axis")
 			axis_path.moveTo(points[0])
 			for point in points[1:]:
 				axis_path.lineTo(point)
+	else:
+		axis_path.moveTo(axis_points[0])
+		axis_path.cubicTo(axis_points[1], axis_points[2], axis_points[3])
 	return ArrowProjectionItem(axis_path, head_path, _pen(arrow.stroke, extension), target)
 
 

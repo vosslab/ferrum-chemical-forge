@@ -35,7 +35,7 @@ fn request(
 #[test]
 fn mixed_receipt_is_document_ordered_and_does_not_change_the_observation() {
     let source = r#"
-<cdml version="26.08">
+<cdml xmlns="urn:ferrum:cdml" version="26.08">
  <molecule id="within">
   <atom id="c1" name="C" explicit_hydrogens="4"><point x="0" y="0"/></atom>
  </molecule>
@@ -71,7 +71,7 @@ fn mixed_receipt_is_document_ordered_and_does_not_change_the_observation() {
 #[test]
 fn excluded_complete_root_returns_no_partial_atom_receipt() {
     let source = r#"
-<cdml version="26.08"><molecule id="unsupported">
+<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="unsupported">
  <atom id="c1" name="C" multiplicity="2"><point x="0" y="0"/></atom>
 </molecule></cdml>
 "#;

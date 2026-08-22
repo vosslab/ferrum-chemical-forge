@@ -7,7 +7,7 @@ import pytest
 import ferrum_chem
 
 
-CDML_NAMESPACE = "http://www.freesoftware.fsf.org/bkchem/cdml"
+CDML_NAMESPACE = "urn:ferrum:cdml"
 STRICT_SOURCE = (
 	'<c:cdml xmlns:c="' + CDML_NAMESPACE + '">'
 	'<c:molecule id="left"><c:atom id="left-a" name="C">'

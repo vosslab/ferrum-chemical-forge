@@ -5,7 +5,7 @@ use crate::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml xmlns:v=\"urn:vendor\"><!--header--><info/><molecule id=\"m\"/>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><!--header--><info/><molecule id=\"m\"/>",
     "<arrow id=\"a\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></arrow>",
     "<v:opaque retained=\"yes\"/><text id=\"t\"><point x=\"2\" y=\"2\"/>",
     "<ftext>note</ftext></text><plus id=\"p\"><point x=\"3\" y=\"3\"/></plus>",
@@ -71,11 +71,13 @@ fn presentation_stack_modes_preserve_slots_content_and_history() {
             .collect::<Vec<_>>(),
         [4, 5, 6],
     );
-    assert!(brought
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("retained=\"yes\""));
+    assert!(
+        brought
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("retained=\"yes\"")
+    );
     let reversed = session
         .submit(
             1,
@@ -105,19 +107,23 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
         PresentationStackReorderV1::new(PresentationStackOrderV1::BringToFront, Vec::new(),)
             .is_err()
     );
-    assert!(PresentationStackReorderV1::new(
-        PresentationStackOrderV1::SendToBack,
-        vec![
-            target("a", PresentationRecordKindV1::Arrow),
-            target("a", PresentationRecordKindV1::Arrow),
-        ],
-    )
-    .is_err());
-    assert!(PresentationStackReorderV1::new(
-        PresentationStackOrderV1::ReverseSelectedSlots,
-        vec![target("a", PresentationRecordKindV1::Arrow)],
-    )
-    .is_err());
+    assert!(
+        PresentationStackReorderV1::new(
+            PresentationStackOrderV1::SendToBack,
+            vec![
+                target("a", PresentationRecordKindV1::Arrow),
+                target("a", PresentationRecordKindV1::Arrow),
+            ],
+        )
+        .is_err()
+    );
+    assert!(
+        PresentationStackReorderV1::new(
+            PresentationStackOrderV1::ReverseSelectedSlots,
+            vec![target("a", PresentationRecordKindV1::Arrow)],
+        )
+        .is_err()
+    );
     let mut session = DocumentSession::load(SOURCE).expect("fixture loads");
     let before = session.snapshot().expect("baseline");
     let wrong_kind = reorder(
@@ -142,7 +148,7 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
     assert_eq!(no_change.observation().snapshot().revision(), 0);
 
     let bracket_source = concat!(
-        "<cdml><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" spline=\"no\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" spline=\"no\">",
         "<point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/><point x=\"1\" y=\"2\"/>",
         "<point x=\"0\" y=\"3\"/></polyline><polyline id=\"right\" bracket_pair=\"left\" ",
         "bracket_side=\"right\" spline=\"no\"><point x=\"4\" y=\"0\"/>",

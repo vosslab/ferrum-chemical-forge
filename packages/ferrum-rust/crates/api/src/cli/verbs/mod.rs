@@ -2,6 +2,7 @@
 
 pub(crate) mod convert;
 pub(crate) mod coords;
+pub(crate) mod document_export_sdf;
 pub(crate) mod haworth;
 mod input;
 pub(crate) mod inspect;
@@ -51,6 +52,20 @@ pub(crate) fn execute(
         execute_operation_v1(&json)?
     };
     Ok(envelope)
+}
+
+#[cfg(test)]
+pub(crate) fn execute_with_runtime_for_test<R: crate::protocol::runtime::ChemistryRuntimeV1>(
+    operation: OperationProtocolOperationV1,
+    runtime: &R,
+) -> Result<OperationProtocolEnvelopeV1, VerbCliError> {
+    let request = OperationProtocolRequestV1 {
+        schema: ProtocolRequestSchemaV1::V1,
+        request_id: "ferrum-cli".to_owned(),
+        operation,
+    };
+    let json = serde_json::to_string(&request)?;
+    Ok(execute_operation_with_runtime_v1(&json, runtime)?)
 }
 
 fn operation_requires_chemistry(operation: &OperationProtocolOperationV1) -> bool {
@@ -203,6 +218,12 @@ pub enum VerbCliError {
     /// Safe named publication failed or could not be confirmed.
     #[error("publication: {0}")]
     Publication(#[from] ArtifactPublicationErrorV1),
+    /// The executable-relative local chemistry runtime was unavailable.
+    #[error("processing: local Ferrum chemistry runtime is unavailable")]
+    ChemistryUnavailable,
+    /// The Rust-owned multi-root document SDF operation refused the request.
+    #[error("processing: document SDF export refused: {0}")]
+    DocumentMoleculesSdf(#[from] ferrum_document::DocumentMoleculesSdfErrorV2),
 }
 
 impl VerbCliError {
@@ -225,7 +246,9 @@ impl VerbCliError {
             | Self::UnexpectedOutcome
             | Self::ArtifactEncoding(_)
             | Self::Write { .. }
-            | Self::Publication(_) => 1,
+            | Self::Publication(_)
+            | Self::ChemistryUnavailable
+            | Self::DocumentMoleculesSdf(_) => 1,
         }
     }
 }

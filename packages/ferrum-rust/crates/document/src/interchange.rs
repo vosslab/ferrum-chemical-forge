@@ -107,7 +107,7 @@ fn has_unrepresentable_cdml_content(record: &crate::TypedRecord) -> bool {
 }
 
 fn encode_cdml(records: &[InterchangeRecordV1]) -> Result<String, InterchangeCodecErrorV1> {
-    let mut output = String::from("<cdml version=\"1.0\">");
+    let mut output = String::from("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\">");
     for (record_index, record) in records.iter().enumerate() {
         if !record.properties().is_empty() {
             return Err(
@@ -330,8 +330,8 @@ mod tests {
     #[test]
     fn cdml_refuses_nested_opaque_attribute_and_child() {
         for source in [
-            "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\" vendor=\"kept\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
-            "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/><vendor:payload xmlns:vendor=\"urn:vendor\"/></atom></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\" vendor=\"kept\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/><vendor:payload xmlns:vendor=\"urn:vendor\"/></atom></molecule></cdml>",
         ] {
             let error =
                 decode_interchange_v1(&UnavailableChemEngine, InterchangeFormatV1::Cdml, source)

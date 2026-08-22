@@ -83,7 +83,7 @@ pub(crate) fn execute_operation_with_runtime_v1<R: ChemistryRuntimeV1>(
     )
 }
 
-#[cfg(any(test, feature = "response-size-e2e-harness"))]
+#[cfg(test)]
 pub(crate) fn execute_operation_with_runtime_and_smarts_response_limit_for_test<
     R: ChemistryRuntimeV1,
 >(

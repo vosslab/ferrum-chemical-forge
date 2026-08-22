@@ -19,7 +19,7 @@ import ferrum_qt.ferrum.main_window
 
 
 SOURCE = (
-	'<cdml xmlns:v="urn:vendor"><molecule id="m" v:keep="yes">'
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><molecule id="m" v:keep="yes">'
 	'<atom id="a" name="O"><point x="10" y="20"/></atom>'
 	'</molecule><v:opaque retained="yes"/></cdml>'
 )
@@ -71,7 +71,7 @@ def test_projection_model_uses_exact_ferrum_fallbacks_and_authored_values() -> N
 	"""Absent fields use product defaults while authored fields remain exact."""
 	default = native_drawing_standard.model_from_projection(None)
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><standard line_width="2" font_size="18" line_color="#123456" '
+		'<cdml xmlns="urn:ferrum:cdml"><standard line_width="2" font_size="18" line_color="#123456" '
 		'area_color="#abcdef"><bond width="7" wedge-width="8" '
 		'double-ratio="0.4"/><atom show_hydrogens="yes"/></standard></cdml>',
 	)

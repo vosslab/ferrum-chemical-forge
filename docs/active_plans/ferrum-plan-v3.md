@@ -26,7 +26,7 @@ The product goals are to:
 - place RDKit behind one project-owned, replaceable native adapter;
 - provide a coherent Python, CLI, and desktop boundary with no production OASA,
   Python RDKit, Tk, or BKChem product route; and
-- establish release evidence for supported wheels before calling the product shipped.
+- build one runnable local Ferrum program with its runtime staged inside this checkout.
 
 Non-goals: carrying OASA/Tk as production code, rewriting the Qt architecture merely
 because of lineage, changing the CDML on-disk format, browser-front-end development,
@@ -43,9 +43,10 @@ gate, not a claim of product release.
    aromaticity, canonical ranking, and format work. Rust ports self-contained
    arithmetic/depiction utilities and owns public DTOs. `ChemEngine` never leaks an
    RDKit representation.
-2. **Packaging shape:** Ferrum-Chem is a separately replaceable shared library under
-   LGPL v3; Ferrum is AGPL v3. Each release target needs an actual clean-install and
-   relink receipt. A source build that happened to work locally is not release proof.
+2. **Local build shape:** Ferrum-Chem is a separately replaceable shared library under
+   LGPL v3; Ferrum is AGPL v3. `build.sh` stages the native extension, engine, and
+   Python runtime under `build/`, then creates the local CLI and Qt launchers in
+   `build/bin/`. Wheel, installer, and publication work are outside this plan.
 3. **CDML source of truth:** written CDML contracts win, followed by documents users
    created, RDKit chemistry behavior, recorded intended Ferrum changes, then OASA
    observations. Fixture divergences are classified as compatibility, known defect,
@@ -53,7 +54,7 @@ gate, not a claim of product release.
 4. **Protocol:** public V1 is pathless, JSON, stateless, versioned, resource-bounded,
    and schema-backed. Filesystem selection belongs to CLI/desktop transports, never
    protocol payloads. Extension-adapter discovery belongs behind one Python boundary.
-5. **Evidence discipline:** tests protect durable semantics. Wheel builds, GUI
+5. **Evidence discipline:** tests protect durable semantics. Local build runs, GUI
    walkthroughs, oracle comparisons, visual inspection, benchmarks, and current
    platform observations remain E2E or report evidence unless they meet the repository
    permanent-test policy.
@@ -67,20 +68,21 @@ extension adapter. Rust has eight workspace crates (`api`, `chemistry`,
 and transport. Chemistry codecs live in `chemistry`; document/session and CDML work in
 `document`; scientific plans in `domain`; and render plans/artifacts in `render`.
 
-M19 is **done** on current local evidence. T1-T27 delivered the CI front door,
+M19 is **done** on current local evidence. T1-T27 delivered the local test front door,
 hygiene/plan restructuring, safe Rust closure, six protocol-backed verbs, explicit
 engine bundles, the Ferrum frontend seams, worker and geometry ownership, keyboard
 authoring/accessibility, refusal wording, documentation, and crate decomposition.
-The final local Python/Qt gate passed 5,916 repository tests, 213 installed binding
-tests, and 393 Qt tests with 1 skipped. `check_rust.sh` passed before that final
-Python/Qt run. The new GitHub Actions workflow has not yet run remotely, so no remote
-CI claim is made. M20 and M22 remain open release gates; M21 has not started. The
-capability matrix remains the closure ledger:
+The historical 2026-08-19 Python/Qt receipt is retained in the convergence report.
+Current acceptance builds the local program with `build.sh`, runs its launchers from
+`build/bin/` against the staged runtime, and runs `all_test.sh`. M20 and M22 are
+superseded by this local-only scope; M21 is deferred. The capability matrix remains
+the closure ledger:
 [Ferrum capability matrix](audits/ferrum_qt_capability_matrix.md).
 
 ## Status tracker
 
-Allowed status vocabulary: `not started`, `in progress`, `blocked`, `done`.
+Allowed status vocabulary: `not started`, `in progress`, `blocked`, `done`,
+`superseded`.
 
 | M | Milestone | Exit condition | Status | Owner |
 | --- | --- | --- | --- | --- |
@@ -111,9 +113,9 @@ Allowed status vocabulary: `not started`, `in progress`, `blocked`, `done`.
 | M17 | Operation protocol | Versioned public contract frozen | done | `expert_coder` |
 | M18 | Python module and CLI | Supported binding and shell route callable | done | `coder` |
 | M19 | Integration closure | Every supported matrix row has an appropriate lane | done | `integrator` |
-| M20 | Packaging/platform matrix | Each admitted target clean-installs and relinks | in progress | `maintainer` |
+| M20 | Packaging/platform matrix | Superseded by the local staged-runtime contract | superseded | `maintainer` |
 | M21 | WASM proof | Project WASM validates frozen contract | not started | `expert_coder` |
-| M22 | Supported-product release | Release artifacts/workflows prove boundary | in progress | `maintainer` |
+| M22 | Supported-product release | Superseded by the local-only development scope | superseded | `maintainer` |
 
 ## Milestone definitions
 
@@ -166,14 +168,12 @@ Third-party plugin support remains an intentional pre-production drop.
 
 **Depends on:** M18 and M4a; closes after M19.
 
-For each admitted target, build the selected Ferrum-Chem and Ferrum-Qt wheels from
-recorded inputs, install them no-index into a scrubbed environment, execute an
-installed chemistry request, load package-owned Qt resources, and repeat the chemistry
-request after an LGPL relink. Library discovery must work through the packaged link
-layout (for macOS, `@loader_path`), not `DYLD_LIBRARY_PATH`. A local final macOS arm64
-Ferrum-Chem wheel and validated CLI engine bundle now exercise both chemistry verbs;
-this is implementation evidence, not a final two-wheel release receipt or a remote-CI
-result.
+This milestone is superseded. Ferrum currently supports local development builds only:
+`build.sh` creates `build/runtime/` and the `build/bin/ferrum` and
+`build/bin/ferrum-qt` launchers. The build receipt seals that staged runtime, and
+`all_test.sh` validates the local extension and launchers. Clean-install, relink,
+wheelhouse, installer, and publication requirements require a separately approved
+future plan.
 
 ### M21 WASM proof
 
@@ -189,12 +189,11 @@ the native trait.
 
 **Depends on:** M19 and M20.
 
-After those milestones, produce a committed-release source archive, final wheels,
-source-archive Cargo CLI run, classified artifact inventory, migration/install docs,
-and human legal/release review. The artifact must contain no OASA/Tk runtime and no
-Python RDKit dependency, while retaining intentional RDKit closure, notices,
-provenance, CDML heritage, and a Ferrum About acknowledgement of BKChem lineage.
-M21 is nonblocking. Source mechanisms alone do not satisfy this exit.
+This milestone is superseded. The current product boundary is the runnable local
+program produced within the repository. Release archives, wheels, installers,
+publication workflows, and legal release review are not current deliverables. Any
+future distribution work must establish its own artifact, support, and validation
+contract without changing the local-build acceptance path.
 
 ## Workstream ownership
 
@@ -206,7 +205,7 @@ M21 is nonblocking. Source mechanisms alone do not satisfy this exit.
 | WS-D | M6-M10 | Authoritative CDML document/session semantics |
 | WS-E | M14-M15 | Bounded domain capability |
 | WS-F | M1b, M16-M19 | Desktop adoption, protocol, bindings, CLI, matrix closure |
-| WS-G | M1a, M1d, M1e, M4c, M10, M20-M22 | Evidence, packaging, release closure |
+| WS-G | M1a, M1d, M1e, M4c, M10 | Evidence and local-build closure |
 
 No workstream may change another's public boundary without an explicit contract
 decision and an owner review. The API crate/bindings/desktop are WS-F review scope;
@@ -250,15 +249,15 @@ does not protect an exit gate.
 
 - `cargo test`: fast Rust unit/property/semantic checks.
 - `pytest tests/`: deterministic, offline, inline/small tests only.
-- `tests/e2e/e2e_*.py`: real RDKit, wheel, installed CLI, corpus, GUI, oracle,
-  packaging, and WASM observations.
+- `tests/e2e/e2e_*.py`: real RDKit, local CLI from `build/bin/`, corpus, GUI, oracle,
+  and WASM observations.
 - `devel/` plus reports: one-time measurements and walkthrough receipts.
 
 Never put a subprocess, build, network path, large shared fixture, or timing
 expectation in the permanent pytest lane. A current test that violates this policy is
 replaced by a suitable semantic or E2E lane before M19 calls the row verified.
 
-## Migration and release policy
+## Local development policy
 
 Ordinary `ferrum-qt` is Rust-native. There is no compatibility editor, OASA host, or
 silent legacy fallback. Unsupported historical workflows are refused before mutation
@@ -266,24 +265,20 @@ or recorded as pre-production drops. Ferrum uses `Ferrum` QSettings and
 `~/.ferrum/templates`; it makes no historical preference/template migration promise.
 CDML on-disk compatibility is maintained structurally, not lexically.
 
-The release checklist is intentionally short:
+The local-build checklist is intentionally short:
 
 - [x] Thin workflow and preservation gate established.
 - [x] Production manifests remove OASA and Python RDKit.
 - [x] M19 capability matrix reconciled and all supported rows verified locally.
-- [ ] M20 admitted-target wheel/install/relink receipts complete.
-- [ ] Release inventory proves OASA/Tk/Python-RDKit absence and native notices.
-- [ ] Install/migration/provenance documentation reflects the released artifact.
-- [ ] Human legal and release review completed.
-- [ ] GitHub Actions has run the new workflow against this convergence commit.
+- [x] `build.sh` stages the engine, extension, and local launchers under `build/`.
+- [x] `build/bin/ferrum` and `build/bin/ferrum-qt` resolve only that staged runtime.
+- [x] `all_test.sh` validates repository hygiene and the local runtime boundary.
 
 ## Remaining active decisions
 
 | Decision | Owner | Required before |
 | --- | --- | --- |
-| Supported release targets and their recorded build inputs | `maintainer` | M20 target admission |
 | WASM-native divergence, if any | `expert_coder` | M21 exit |
-| Release artifact / migration wording and legal sign-off | `maintainer` + human | M22 exit |
 
 Update this file when status, an active decision, dependency, or exit criterion
 changes. Put commands, corpus measurements, receipts, and completed implementation

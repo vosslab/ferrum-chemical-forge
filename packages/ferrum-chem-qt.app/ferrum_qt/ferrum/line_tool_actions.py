@@ -70,6 +70,18 @@ class FerrumNativeLineToolActionsMixin:
 			self._draw_equilibrium_arrow_action, self._on_toggle_draw_equilibrium_arrow,
 		)
 		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_equilibrium_arrow_action)
+		self._draw_curved_electron_arrow_action = PySide6.QtGui.QAction(
+			self.tr("Draw Curved Electron Arrow"), self,
+		)
+		self._draw_curved_electron_arrow_action.setCheckable(True)
+		self._draw_curved_electron_arrow_action.setToolTip(self.tr(
+			"Click start, bend, and endpoint to create one Rust-owned curved electron arrow; Esc cancels",
+		))
+		self._connect_interaction_action_v1(
+			self._draw_curved_electron_arrow_action,
+			self._on_toggle_draw_curved_electron_arrow,
+		)
+		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_curved_electron_arrow_action)
 		self._draw_plus_action = PySide6.QtGui.QAction(self.tr("Draw Plus"), self)
 		self._draw_plus_action.setCheckable(True)
 		self._draw_plus_action.setToolTip(self.tr("Click to place one Plus; Escape cancels without changing the document"))
@@ -91,6 +103,21 @@ class FerrumNativeLineToolActionsMixin:
 			)
 			self._add_interaction_action_to_menu_v1(edit_menu, action)
 			self._draw_vector_actions[tool] = action
+		self._draw_path_actions = {}
+		for tool, label in (
+			(_NativeLineTool.DRAW_POLYLINE, "Draw Polyline"),
+			(_NativeLineTool.DRAW_POLYGON, "Draw Polygon"),
+		):
+			action = PySide6.QtGui.QAction(self.tr(label), self)
+			action.setCheckable(True)
+			action.setToolTip(self.tr("Click ordered points, then press Enter or double-click to create one Rust-owned {0}; Esc cancels").format(label[5:].lower()))
+			self._connect_interaction_action_v1(action, lambda checked, tool=tool: self._on_toggle_draw_path(tool, checked))
+			self._add_interaction_action_to_menu_v1(edit_menu, action)
+			self._draw_path_actions[tool] = action
+		self._completion_click_actions = frozenset((
+			*self._draw_path_actions,
+			_NativeLineTool.DRAW_CURVED_ELECTRON_ARROW,
+		))
 		self._insert_text_action = PySide6.QtGui.QAction(self.tr("Insert Text"), self)
 		self._insert_text_action.setCheckable(True)
 		self._insert_text_action.setToolTip(self.tr(
@@ -201,8 +228,11 @@ class FerrumNativeLineToolActionsMixin:
 		self._draw_bond_action.setEnabled(enabled)
 		self._draw_arrow_action.setEnabled(enabled)
 		self._draw_equilibrium_arrow_action.setEnabled(enabled)
+		self._draw_curved_electron_arrow_action.setEnabled(enabled)
 		self._draw_plus_action.setEnabled(enabled)
 		for action in self._draw_vector_actions.values():
+			action.setEnabled(enabled)
+		for action in self._draw_path_actions.values():
 			action.setEnabled(enabled)
 		self._insert_text_action.setEnabled(enabled)
 		self._insert_cyclohexane_ring_action.setEnabled(enabled)
@@ -224,12 +254,12 @@ class FerrumNativeLineToolActionsMixin:
 			self._atom_insertion_intent is not None
 			or self._line_gesture_intent is not None,
 		)
-		self._refresh_local_document_open_action()
 
 	def _on_cancel_tool(self) -> None:
 		"""Cancel a pointer tool while preserving Rust state and selection."""
 		self._cancel_atom_insertion()
 		self._cancel_line_gesture()
+		self._refresh_actions()
 		self._synchronize_mode_state()
 		self.statusBar().showMessage(
 			self.tr("Tool cancelled. Selection and document are unchanged."), 3000,
@@ -259,6 +289,14 @@ class FerrumNativeLineToolActionsMixin:
 		self._activate_line_tool(_NativeLineTool.DRAW_EQUILIBRIUM_ARROW)
 
 	#============================================
+	def _on_toggle_draw_curved_electron_arrow(self, checked: bool) -> None:
+		"""Enter or leave Rust-owned three-point curved electron-arrow creation."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(_NativeLineTool.DRAW_CURVED_ELECTRON_ARROW)
+
+	#============================================
 	def _on_toggle_draw_plus(self, checked: bool) -> None:
 		"""Enter or leave Rust-owned direct Plus placement."""
 		if not checked:
@@ -269,6 +307,14 @@ class FerrumNativeLineToolActionsMixin:
 	#============================================
 	def _on_toggle_draw_vector(self, tool: _NativeLineTool, checked: bool) -> None:
 		"""Enter or leave one renderer-preflighted ordinary vector tool."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(tool)
+
+	#============================================
+	def _on_toggle_draw_path(self, tool: _NativeLineTool, checked: bool) -> None:
+		"""Enter or leave one renderer-preflighted multi-point path tool."""
 		if not checked:
 			self._cancel_line_gesture()
 			return
@@ -361,10 +407,14 @@ class FerrumNativeLineToolActionsMixin:
 			action = self._draw_arrow_action
 		elif tool is _NativeLineTool.DRAW_EQUILIBRIUM_ARROW:
 			action = self._draw_equilibrium_arrow_action
+		elif tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
+			action = self._draw_curved_electron_arrow_action
 		elif tool is _NativeLineTool.DRAW_PLUS:
 			action = self._draw_plus_action
 		elif tool in self._draw_vector_actions:
 			action = self._draw_vector_actions[tool]
+		elif tool in self._draw_path_actions:
+			action = self._draw_path_actions[tool]
 		elif tool is _NativeLineTool.INSERT_TEXT:
 			action = self._insert_text_action
 		elif tool is _NativeLineTool.CREATE_WAVY:
@@ -386,31 +436,34 @@ class FerrumNativeLineToolActionsMixin:
 		action.setChecked(True)
 		snapshot = tab.current_snapshot
 		viewport = tab.view.viewport()
-		drawing = self._drawing_parameters.snapshot() if tool is _NativeLineTool.DRAW_BOND else None
 		self._line_gesture_intent = _LineGestureIntent(
-			tab, viewport, snapshot.revision, snapshot.digest, tool, drawing,
+			tab, viewport, snapshot.revision, snapshot.digest, tool,
 		)
 		self._synchronize_mode_state()
 		self._refresh_cancel_tool_action()
+		self._refresh_actions()
 		viewport.installEventFilter(self)
 		viewport.setFocus()
 		self._restore_line_tool_focus_on_next_turn(self._line_gesture_intent)
 		tab.view.show_keyboard_cursor()
 		if tool is _NativeLineTool.DRAW_BOND:
-			if drawing is None:
-				raise RuntimeError("Ferrum Draw Bond activation has no drawing snapshot")
+			drawing = self._drawing_parameters.snapshot()
 			message = self._draw_bond_feedback(drawing)
 			self._draw_bond_action.setToolTip(message)
 		elif tool is _NativeLineTool.DRAW_ARROW:
 			message = self.tr("Draw Arrow: drag a straight normal reaction arrow; Esc cancels.")
 		elif tool is _NativeLineTool.DRAW_EQUILIBRIUM_ARROW:
 			message = self.tr("Draw Equilibrium Arrow: drag a straight equilibrium reaction arrow; Esc cancels.")
+		elif tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
+			message = self.tr("Draw Curved Electron Arrow: click start, bend, and endpoint; Esc cancels.")
 		elif tool is _NativeLineTool.DRAW_PLUS:
 			message = self.tr("Draw Plus: click once to place a Plus; Esc cancels.")
 		elif tool in self._draw_vector_actions:
 			message = self.tr("{0}: drag to create one renderer-preflighted shape; Esc cancels.").format(
 				self._draw_vector_actions[tool].text(),
 			)
+		elif tool in self._draw_path_actions:
+			message = self.tr("{0}: click points, then press Enter or double-click to commit; Esc cancels.").format(self._draw_path_actions[tool].text())
 		elif tool is _NativeLineTool.INSERT_TEXT:
 			message = self.tr("Insert Text: click a page location, enter text, then Save. Escape cancels.")
 		elif tool is _NativeLineTool.CREATE_WAVY:
@@ -445,26 +498,10 @@ class FerrumNativeLineToolActionsMixin:
 			drawing: ferrum_qt.ferrum.drawing_parameters.
 			FerrumNativeDrawingParametersSnapshot,
 			) -> str:
-		"""Name the frozen normal-order Draw Bond contract in human wording."""
+		"""Name the frozen Draw Bond contract in human wording."""
 		return self.tr(
 			"Draw Bond: Normal {0}; drag between atoms or empty canvas locations. "
 			"Shift+Arrow is fine movement; Esc cancels."
 		).format(drawing.order_name)
-
-	#============================================
-	@staticmethod
-	def _normal_direct_bond_presentation(
-			drawing: ferrum_qt.ferrum.drawing_parameters.
-			FerrumNativeDrawingParametersSnapshot,
-			) -> object:
-		"""Map one frozen visible order to the closed normal Rust presentation."""
-		import ferrum_qt.ferrum.engine as engine
-		if drawing.order_name == "single":
-			return engine.DocumentBondPresentationV1.normal_single
-		if drawing.order_name == "double":
-			return engine.DocumentBondPresentationV1.normal_double
-		if drawing.order_name == "triple":
-			return engine.DocumentBondPresentationV1.normal_triple
-		raise ValueError("Ferrum Draw Bond activation contains an unknown order")
 
 	#============================================

@@ -38,7 +38,7 @@ def test_valid_next_drawing_choices_round_trip_through_application_store() -> No
 	)
 	assert recreated.snapshot() == (
 		ferrum_qt.ferrum.drawing_parameters.
-		FerrumNativeDrawingParametersSnapshot("Cl", "triple", "normal")
+		FerrumNativeDrawingParametersSnapshot("Cl", "triple")
 	)
 
 
@@ -54,5 +54,5 @@ def test_invalid_next_drawing_choices_keep_last_effective_choice() -> None:
 	parameters.set_order_name("aromatic")
 	assert parameters.snapshot() == (
 		ferrum_qt.ferrum.drawing_parameters.
-		FerrumNativeDrawingParametersSnapshot("N", "double", "normal")
+		FerrumNativeDrawingParametersSnapshot("N", "double")
 	)

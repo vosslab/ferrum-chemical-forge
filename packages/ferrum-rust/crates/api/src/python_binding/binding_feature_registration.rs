@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::chemistry_binding::initialize(module)?;
+    super::curved_electron_arrow_gesture_binding::initialize(module)?;
     super::clipboard_fragment_binding::initialize(module)?;
     super::clipboard_cut_binding::initialize(module)?;
     super::clipboard_paste_binding::initialize(module)?;
@@ -15,6 +16,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::document_molecule_inspection_binding::initialize(module)?;
     super::document_molecule_molblock_binding::initialize(module)?;
     super::document_molecule_sdf_binding::initialize(module)?;
+    super::document_molecules_sdf_binding::initialize(module)?;
     super::document_molecule_name_binding::initialize(module)?;
     super::document_molecule_smiles_binding::initialize(module)?;
     super::document_native_artifact_binding::initialize(module)?;
@@ -32,6 +34,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::plus_placement_gesture_binding::initialize(module)?;
     super::text_placement_gesture_binding::initialize(module)?;
     super::presentation_creation_gesture_binding::initialize(module)?;
+    super::presentation_path_gesture_binding::initialize(module)?;
     super::presentation_vector_gesture_binding::initialize(module)?;
     super::catalog_placement_binding::initialize(module)?;
     super::reaction_binding::initialize(module)?;

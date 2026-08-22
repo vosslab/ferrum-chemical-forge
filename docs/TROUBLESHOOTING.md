@@ -11,57 +11,54 @@ environment:
 source source_me.sh && python3 -B -m pytest
 ```
 
-`source_me.sh` requires Bash, sources the local shell setup first, and then sets the
-repository's unbuffered-output and no-bytecode defaults. Use the repository's Python
-3.12 environment. Do not run the script as an executable: its environment changes
-would remain in the child process.
+`source_me.sh` requires Bash, sources the local shell setup first, and then sets
+the repository's unbuffered-output and no-bytecode defaults. Use the
+repository's Python 3.12 environment. It must be sourced, not executed.
 
 ### `__pycache__` directories appear
 
-`source_me.sh` exports `PYTHONDONTWRITEBYTECODE=1`, but that applies only to Python
-processes launched after it is sourced. For a one-off command that must not write
-bytecode, also pass `-B`:
+`source_me.sh` exports `PYTHONDONTWRITEBYTECODE`, but that applies only to
+Python processes launched after it is sourced. For a one-off command that must
+not write bytecode, also pass `-B`:
 
 ```bash
 source source_me.sh && python3 -B path/to/script.py
 ```
 
 An isolated Python process (`-I`) ignores environment variables, including
-`PYTHONDONTWRITEBYTECODE`; it must also receive `-B`. The native-wheel proof follows
-this rule for its isolated probes.
+`PYTHONDONTWRITEBYTECODE`; it must also receive `-B`. Do not use `py_compile` or
+`compileall` as a validation shortcut: they explicitly write bytecode. Validate
+behavior with pytest or inspect syntax with `ast.parse()` instead.
 
-Do not use `py_compile` or `compileall` as a validation shortcut. They explicitly
-write bytecode even when `sys.dont_write_bytecode` is true or Python receives `-B`.
-In this repository, validate executable behavior with pytest or inspect syntax with
-`ast.parse()`; neither route should create bytecode as a side effect.
+## Load the local native runtime
 
-## Load the native wheel
+### The local `ferrum_chem` runtime fails on macOS
 
-### `import ferrum_chem` fails on macOS
-
-The native-wheel proof is currently verified only for macOS arm64. Build and verify it
-from the repository root so the test can inspect the installed extension and its
-bundled `.dylibs` closure:
+The local runtime is currently verified only for macOS arm64. Rebuild and test
+it from the repository root:
 
 ```bash
-source source_me.sh && python3 -B tests/e2e/e2e_native_wheel.py
+./build.sh
+./all_test.sh
 ```
 
-Do not treat a successful source-tree import as wheel evidence. The proof uses a fresh
-environment with ambient dynamic-library variables scrubbed and writes a receipt to
-`output_native_wheel/evidence/native-wheel-e2e-receipt.json` on success. Other
-platforms are not yet qualified.
+`build/bin/ferrum-qt` selects the ABI-specific
+`build/runtime/python/ferrum_chem<Python ABI suffix>` and its `.dylibs/`
+closure. The test entry point confirms that the PyO3 and Qt suites use that
+local runtime rather than a globally installed extension. Other platforms are
+not yet qualified.
 
 ## Run the operation protocol
 
 ### `protocol run` rejects a request
 
-Use `ferrum protocol schema` to obtain the generated request shape, then submit one UTF-8
-JSON request file with `ferrum protocol run request.json`. A decodable request refusal is a
-JSON error envelope; malformed JSON, an over-budget request, unreadable input, or a confirmed
-output-publication failure has no envelope and exits 1. `--output -` is a usage error. The
-protocol intentionally does not accept direct SMILES, SDF, molblock, InChI, CD-SVG, adapter, or
-path-bearing operation inputs.
+Use `build/bin/ferrum protocol schema` to obtain the generated request shape,
+then submit one UTF-8 JSON request file with
+`build/bin/ferrum protocol run request.json`. A decodable request refusal is a
+JSON error envelope; malformed JSON, an over-budget request, unreadable input,
+or a confirmed output-publication failure has no envelope and exits 1.
+`--output -` is a usage error. The protocol intentionally does not accept direct
+SMILES, SDF, molblock, InChI, CD-SVG, adapter, or path-bearing operation inputs.
 
 ## Start Ferrum
 
@@ -70,29 +67,29 @@ path-bearing operation inputs.
 Launch Ferrum with an uncompressed CDML drawing:
 
 ```bash
-ferrum-qt drawing.cdml
+build/bin/ferrum-qt drawing.cdml
 ```
 
-`ferrum-qt` is the sole application command. Run it without a path to start the
-window, then use File > New or File > Open. Ferrum opens uncompressed `.cdml`
-drawings and decoded `.svg` files that contain embedded CDML through its Rust-native
-document flow.
+`build/bin/ferrum-qt` is the local application launcher. Run it without a path
+to start the window, then use File > New or File > Open. Ferrum opens
+uncompressed `.cdml` drawings and decoded `.svg` files that contain embedded
+CDML through its Rust-native document flow.
 
 ### A chosen drawing is unsupported
 
-Ferrum does not convert formats while opening them. For ChemDraw XML (`.cdxml`) or
-Chemical Markup Language (`.cml`), use the source application or a converter to make
-an uncompressed `.cdml` drawing, then open that result. For compressed CDML, SVG, or
-`.cdsvg` files, choose the uncompressed source: a `.cdml` drawing or decoded `.svg`
-file containing embedded CDML. The rejected file and the current document remain
-unchanged.
+Ferrum's File > Open accepts uncompressed `.cdml` drawings, decoded `.svg` files
+that contain embedded CDML, and the bounded simple-molecule CML/CML2 profile.
+CML opens as a clean new document and its first Save writes CDML. Use a source
+application or converter for ChemDraw XML (`.cdxml`), compressed CDML, `.cdsvg`,
+or CML outside that supported profile. A rejected file leaves the current
+document unchanged.
 
 ### Make a recovery copy
 
-Use File > Recovery Export CDML... to copy the current document's Rust snapshot to a
-new `.cdml` file without changing its saved-file association or unsaved state. Use
-Save or Save As when the selected path should become the document's normal save
-location.
+Use File > Recovery Export CDML... to copy the current document's Rust snapshot
+to a new `.cdml` file without changing its saved-file association or unsaved
+state. Use Save or Save As when the selected path should become the document's
+normal save location.
 
-If Ferrum reports that recovery-copy durability is unconfirmed, inspect the chosen
-destination before relying on the copy.
+If Ferrum reports that recovery-copy durability is unconfirmed, inspect the
+chosen destination before relying on the copy.

@@ -56,7 +56,7 @@ def main() -> int:
 		# than leave a modal dialog waiting for an unavailable human response.
 		window._show_edit_refusal = lambda _request: None
 		source_path = root / "ferrum-vector-e2e-source.cdml"
-		source_path.write_text("<cdml/>", encoding="utf-8")
+		source_path.write_text("<cdml xmlns='urn:ferrum:cdml'/>", encoding="utf-8")
 		_open_and_wait(window, source_path)
 		tab = window._active_native_tab()
 		if tab is None:

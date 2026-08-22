@@ -349,7 +349,8 @@ mod tests {
 
     #[test]
     fn fragment_exhaustion_has_its_own_typed_error() {
-        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let indexed = IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+            .expect("valid empty document");
         let exhausted = GeneratedIdSequences::initial().with_fragment_sequence(None);
 
         assert!(matches!(
@@ -361,7 +362,7 @@ mod tests {
     #[test]
     fn fragment_allocation_skips_opaque_declarations() {
         let indexed = IndexedDocument::parse(
-            "<cdml><molecule id=\"m\"><vendor id=\"ferrum-fragment-v1-0\"/></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><vendor id=\"ferrum-fragment-v1-0\"/></molecule></cdml>",
         )
         .expect("valid opaque declaration");
 
@@ -374,7 +375,8 @@ mod tests {
 
     #[test]
     fn fragment_reservation_is_tentative_until_its_returned_sequence_is_installed() {
-        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let indexed = IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+            .expect("valid empty document");
         let original = GeneratedIdSequences::initial();
 
         let (first, tentative) = original
@@ -394,7 +396,8 @@ mod tests {
 
     #[test]
     fn fragment_import_exhaustion_has_its_own_typed_error() {
-        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let indexed = IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+            .expect("valid empty document");
         let exhausted = GeneratedIdSequences::initial().with_fragment_import_sequence(None);
 
         assert!(matches!(
@@ -406,7 +409,7 @@ mod tests {
     #[test]
     fn fragment_import_allocation_skips_opaque_declarations() {
         let indexed =
-            IndexedDocument::parse("<cdml><info><vendor id=\"ferrum-import-v1-0\"/></info></cdml>")
+            IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><info><vendor id=\"ferrum-import-v1-0\"/></info></cdml>")
                 .expect("valid opaque declaration");
 
         let (identifiers, _) = GeneratedIdSequences::initial()
@@ -418,7 +421,8 @@ mod tests {
 
     #[test]
     fn fragment_import_reservation_is_tentative_until_its_sequence_is_installed() {
-        let indexed = IndexedDocument::parse("<cdml/>").expect("valid empty document");
+        let indexed = IndexedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+            .expect("valid empty document");
         let original = GeneratedIdSequences::initial();
 
         let (first, tentative) = original

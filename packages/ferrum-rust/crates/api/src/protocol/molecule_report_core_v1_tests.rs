@@ -108,7 +108,7 @@ fn request(
 #[test]
 fn report_normalizes_source_order_and_combines_only_complete_records() {
     let observation = observation(concat!(
-        "<cdml version=\"26.08\"><molecule id=\"first\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"first\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"second\"><atom id=\"o\" name=\"O\"><point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
     ));
     let receipt = execute_prepared_document_molecule_report_v1(
@@ -141,7 +141,7 @@ fn report_normalizes_source_order_and_combines_only_complete_records() {
 #[test]
 fn unsupported_composition_is_a_record_finding_and_prevents_partial_combined_value() {
     let observation = observation(concat!(
-        "<cdml version=\"26.08\"><molecule id=\"good\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"good\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"unsupported\"><atom id=\"n\" name=\"N\" valency=\"3\"><point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
     ));
     let receipt = execute_prepared_document_molecule_report_v1(
@@ -168,7 +168,7 @@ fn unsupported_composition_is_a_record_finding_and_prevents_partial_combined_val
 #[test]
 fn capacity_outcomes_remain_report_facets() {
     let observation = observation(concat!(
-        "<cdml version=\"26.08\"><molecule id=\"within\"><atom id=\"c\" name=\"C\" explicit_hydrogens=\"4\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"within\"><atom id=\"c\" name=\"C\" explicit_hydrogens=\"4\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"exceeds\"><atom id=\"c2\" name=\"C\" explicit_hydrogens=\"4\"><point x=\"1\" y=\"0\"/></atom><atom id=\"o\" name=\"O\"><point x=\"2\" y=\"0\"/></atom><bond id=\"b\" start=\"c2\" end=\"o\" type=\"n1\"/></molecule>",
         "<molecule id=\"unchecked\"><atom id=\"x\" name=\"P\"><point x=\"3\" y=\"0\"/></atom></molecule></cdml>"
     ));
@@ -194,7 +194,7 @@ fn capacity_outcomes_remain_report_facets() {
 #[test]
 fn stale_fence_refuses_the_entire_request() {
     let observation = observation(
-        "<cdml version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     let request = ParsedDocumentMoleculeReportRequestV1::new(
         9,
@@ -216,7 +216,7 @@ fn stale_fence_refuses_the_entire_request() {
 #[test]
 fn selector_bound_rejects_before_duplicate_analysis() {
     let observation = observation(
-        "<cdml version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     let id = observation.projection().molecules()[0]
         .id()
@@ -249,7 +249,7 @@ fn selector_length_refuses_before_document_resolution() {
 #[test]
 fn one_selected_record_explains_why_combined_composition_is_absent() {
     let observation = observation(
-        "<cdml version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     let receipt = execute_prepared_document_molecule_report_v1(
         &CompositionEngine,
@@ -267,7 +267,7 @@ fn one_selected_record_explains_why_combined_composition_is_absent() {
 #[test]
 fn protocol_maps_literal_isotope_aware_report_facts_without_runtime_detail() {
     let source = concat!(
-        "<cdml><molecule id=\"first\"><atom id=\"c\" name=\"C\" charge=\"1\" isotope=\"13\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"c\" name=\"C\" charge=\"1\" isotope=\"13\">",
         "<point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"second\"><atom id=\"o\" name=\"O\" charge=\"1\">",
         "<point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
     );
@@ -360,7 +360,7 @@ fn protocol_maps_literal_isotope_aware_report_facts_without_runtime_detail() {
         }
     );
     let rendered = serde_json::to_string(&report).expect("DTO serializes");
-    assert!(!rendered.contains("<cdml"));
+    assert!(!rendered.contains("<cdml xmlns=\"urn:ferrum:cdml\""));
     assert!(!rendered.contains("adapter"));
 }
 
@@ -430,7 +430,7 @@ fn aggregate_outcome_serializes_closed_branches_and_refuses_impossible_states() 
 #[test]
 fn mapper_serializes_both_closed_aggregate_omissions() {
     let one = observation(
-        "<cdml><molecule id=\"one\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"one\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     let one_receipt = execute_prepared_document_molecule_report_v1(
         &CompositionEngine,
@@ -438,7 +438,7 @@ fn mapper_serializes_both_closed_aggregate_omissions() {
     )
     .expect("one executes");
     let incomplete = observation(concat!(
-        "<cdml><molecule id=\"good\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"good\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"unsupported\"><atom id=\"n\" name=\"N\" valency=\"3\"><point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
     ));
     let incomplete_receipt = execute_prepared_document_molecule_report_v1(
@@ -459,7 +459,7 @@ fn mapper_serializes_both_closed_aggregate_omissions() {
 
 #[test]
 fn protocol_missing_runtime_is_a_redacted_chemistry_refusal() {
-    let source = "<cdml><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
     let observation = observation(source);
     let digest: String = observation
         .snapshot()

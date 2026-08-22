@@ -15,7 +15,7 @@ use ferrum_api::{
 use ferrum_document::DocumentSession;
 
 fn main() {
-    let document = "<cdml><molecule id='m'><atom id='a' name='C'><point x='1' y='2'/></atom></molecule></cdml>";
+    let document = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id='m'><atom id='a' name='C'><point x='1' y='2'/></atom></molecule></cdml>";
     let session = DocumentSession::load(document).expect("fixture loads");
     let observation = session.observe(0).expect("fixture projects");
 	let molecule_id = observation.projection().molecules()[0]

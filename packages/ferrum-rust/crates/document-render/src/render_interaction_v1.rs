@@ -679,4 +679,5 @@ mod render_interaction_session_v1;
 use render_interaction_helpers_v1::*;
 
 #[cfg(test)]
+#[path = "render_interaction_tests_v1.rs"]
 mod render_interaction_tests_v1;

@@ -16,7 +16,7 @@ fn observed(source: &str) -> super::SessionDocumentObservationV1 {
 #[test]
 fn drawing_only_document_projects_one_direct_root_multisegment_polyline() {
     let observation = observed(
-        "<cdml><polyline id=\"line\" spline=\"no\" line_color=\"#AbC\" width=\"2px\"><point x=\"1cm\" y=\"2\"/><point x=\"3\" y=\"4\"/><point x=\"5\" y=\"6\"/><point x=\"7\" y=\"8\"/></polyline></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"line\" spline=\"no\" line_color=\"#AbC\" width=\"2px\"><point x=\"1cm\" y=\"2\"/><point x=\"3\" y=\"4\"/><point x=\"5\" y=\"6\"/><point x=\"7\" y=\"8\"/></polyline></cdml>",
     );
     let stack = observation.projection().presentation_stack();
     assert_eq!(stack.schema(), PRESENTATION_STACK_PROJECTION_SCHEMA_V1);
@@ -48,7 +48,7 @@ fn drawing_only_document_projects_one_direct_root_multisegment_polyline() {
 #[test]
 fn normal_arrow_projects_source_axis_and_head_geometry_without_frontend_defaults() {
     let observation = observed(
-        "<cdml><arrow id=\"a\" type=\"normal\" start=\"no\" end=\"yes\" spline=\"no\" width=\"2\" color=\"#123456\" shape=\"(8,10,3)\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"0\"/></arrow></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"a\" type=\"normal\" start=\"no\" end=\"yes\" spline=\"no\" width=\"2\" color=\"#123456\" shape=\"(8,10,3)\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"0\"/></arrow></cdml>",
     );
     let stack = observation.projection().presentation_stack();
     let [PresentationRootProjectionV1::Arrow { arrow }] = stack.roots() else {
@@ -89,9 +89,35 @@ fn normal_arrow_projects_source_axis_and_head_geometry_without_frontend_defaults
 }
 
 #[test]
+fn electron_arrows_refuse_normal_head_facts_and_non_quadratic_cardinality() {
+    let observation = observed(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"head\" type=\"electron\" end=\"no\"><point x=\"0\" y=\"0\"/><point x=\"20\" y=\"10\"/><point x=\"40\" y=\"0\"/></arrow><arrow id=\"short\" type=\"electron\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"0\"/></arrow></cdml>",
+    );
+    let stack = observation.projection().presentation_stack();
+    assert!(stack.roots().is_empty());
+    assert_eq!(
+        stack
+            .issues()
+            .iter()
+            .map(|issue| issue.code())
+            .collect::<Vec<_>>(),
+        vec![
+            PresentationProjectionIssueCodeV1::InvalidArrowFact,
+            PresentationProjectionIssueCodeV1::InvalidArrowGeometry,
+        ]
+    );
+    assert!(
+        stack.issues()[0]
+            .detail()
+            .contains("no normal-arrow head facts")
+    );
+    assert!(stack.issues()[1].detail().contains("exactly three points"));
+}
+
+#[test]
 fn plus_projects_anchor_and_resolved_appearance_without_font_layout() {
     let observation = observed(
-        "<cdml><standard font_size=\"12\" line_color=\"#123456\"/><plus id=\"p\" font_size=\"18\" color=\"#AbC\" background-color=\"#fedcba\"><point x=\"1cm\" y=\"2\"/></plus></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><standard font_size=\"12\" line_color=\"#123456\"/><plus id=\"p\" font_size=\"18\" color=\"#AbC\" background-color=\"#fedcba\"><point x=\"1cm\" y=\"2\"/></plus></cdml>",
     );
     let stack = observation.projection().presentation_stack();
     let [PresentationRootProjectionV1::Plus { plus }] = stack.roots() else {
@@ -121,7 +147,7 @@ fn plus_projects_anchor_and_resolved_appearance_without_font_layout() {
 #[test]
 fn text_projects_normalized_rich_runs_multiline_content_and_resolved_appearance() {
     let observation = observed(
-        "<cdml><standard font_size=\"11\" line_color=\"#123456\"/><text id=\"label\" background-color=\"#AbC\"><point x=\"1cm\" y=\"2\"/><font size=\"18\" color=\"#fedcba\"/><ftext>Hello &lt;b&gt;bold &lt;sub&gt;2&lt;/sub&gt;&lt;/b&gt;\nnext &amp;amp; end</ftext></text></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><standard font_size=\"11\" line_color=\"#123456\"/><text id=\"label\" background-color=\"#AbC\"><point x=\"1cm\" y=\"2\"/><font size=\"18\" color=\"#fedcba\"/><ftext>Hello &lt;b&gt;bold &lt;sub&gt;2&lt;/sub&gt;&lt;/b&gt;\nnext &amp;amp; end</ftext></text></cdml>",
     );
     let stack = observation.projection().presentation_stack();
     let [PresentationRootProjectionV1::Text { text }] = stack.roots() else {
@@ -168,7 +194,7 @@ fn unsupported_formatted_text_is_a_targeted_issue_without_a_fallback_root() {
         "&lt;!DOCTYPE ftext-root&gt;unsafe",
     ] {
         let observation = observed(&format!(
-            "<cdml><text id=\"bad\"><point x=\"0\" y=\"0\"/><ftext>{authored}</ftext></text></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"bad\"><point x=\"0\" y=\"0\"/><ftext>{authored}</ftext></text></cdml>",
         ));
         let stack = observation.projection().presentation_stack();
         assert!(stack.roots().is_empty());
@@ -186,7 +212,7 @@ fn unsupported_formatted_text_is_a_targeted_issue_without_a_fallback_root() {
 #[test]
 fn text_wire_rejects_noncanonical_runs_and_a_mismatched_target_kind() {
     let stack = observed(
-        "<cdml><text id=\"label\"><point x=\"0\" y=\"0\"/><ftext>&lt;b&gt;label&lt;/b&gt;</ftext></text></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"label\"><point x=\"0\" y=\"0\"/><ftext>&lt;b&gt;label&lt;/b&gt;</ftext></text></cdml>",
     )
     .projection()
     .presentation_stack()
@@ -209,7 +235,7 @@ fn text_wire_rejects_noncanonical_runs_and_a_mismatched_target_kind() {
 #[test]
 fn vector_shapes_preserve_kind_geometry_appearance_and_root_order() {
     let observation = observed(
-        "<cdml><standard line_color=\"#123456\" line_width=\"3\" area_color=\"#abc\"/><rect id=\"r\" x1=\"10\" y1=\"8\" x2=\"2\" y2=\"4\" area_color=\"none\"/><square id=\"s\" x1=\"1\" y1=\"2\" x2=\"5\" y2=\"6\" area_color=\"blue\"/><oval id=\"o\" x1=\"0\" y1=\"0\" x2=\"7\" y2=\"3\" area_color=\"#010203\"/><circle id=\"c\" x1=\"0\" y1=\"0\" x2=\"4\" y2=\"6\" area_color=\"\"/><polygon id=\"p\" line_color=\"#fedcba\" width=\"2\"><point x=\"0\" y=\"0\"/><point x=\"5\" y=\"1\"/><point x=\"2\" y=\"7\"/></polygon></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><standard line_color=\"#123456\" line_width=\"3\" area_color=\"#abc\"/><rect id=\"r\" x1=\"10\" y1=\"8\" x2=\"2\" y2=\"4\" area_color=\"none\"/><square id=\"s\" x1=\"1\" y1=\"2\" x2=\"5\" y2=\"6\" area_color=\"blue\"/><oval id=\"o\" x1=\"0\" y1=\"0\" x2=\"7\" y2=\"3\" area_color=\"#010203\"/><circle id=\"c\" x1=\"0\" y1=\"0\" x2=\"4\" y2=\"6\" area_color=\"\"/><polygon id=\"p\" line_color=\"#fedcba\" width=\"2\"><point x=\"0\" y=\"0\"/><point x=\"5\" y=\"1\"/><point x=\"2\" y=\"7\"/></polygon></cdml>",
     );
     let roots = observation.projection().presentation_stack().roots();
     let [
@@ -261,7 +287,7 @@ fn vector_shapes_preserve_kind_geometry_appearance_and_root_order() {
 #[test]
 fn zero_extent_box_shapes_are_targeted_projection_issues_without_roots() {
     let observation = observed(
-        "<cdml><rect id=\"rect-width\" x1=\"1\" y1=\"0\" x2=\"1\" y2=\"2\"/><square id=\"square-height\" x1=\"0\" y1=\"2\" x2=\"2\" y2=\"2\"/><oval id=\"oval-width\" x1=\"3\" y1=\"0\" x2=\"3\" y2=\"2\"/><circle id=\"circle-height\" x1=\"0\" y1=\"4\" x2=\"2\" y2=\"4\"/></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><rect id=\"rect-width\" x1=\"1\" y1=\"0\" x2=\"1\" y2=\"2\"/><square id=\"square-height\" x1=\"0\" y1=\"2\" x2=\"2\" y2=\"2\"/><oval id=\"oval-width\" x1=\"3\" y1=\"0\" x2=\"3\" y2=\"2\"/><circle id=\"circle-height\" x1=\"0\" y1=\"4\" x2=\"2\" y2=\"4\"/></cdml>",
     );
     let stack = observation.projection().presentation_stack();
     assert!(stack.roots().is_empty());
@@ -295,7 +321,7 @@ fn zero_extent_box_shapes_are_targeted_projection_issues_without_roots() {
 #[test]
 fn root_interleave_and_standard_precedence_remain_explicit() {
     let observation = observed(
-        "<cdml><polyline id=\"first\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><molecule/><standard line_color=\"#123456\" line_width=\"3\"/><polyline id=\"last\" line_color=\"#abcdef\" width=\"4\"><point x=\"2\" y=\"2\"/><point x=\"3\" y=\"3\"/></polyline></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"first\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><molecule/><standard line_color=\"#123456\" line_width=\"3\"/><polyline id=\"last\" line_color=\"#abcdef\" width=\"4\"><point x=\"2\" y=\"2\"/><point x=\"3\" y=\"3\"/></polyline></cdml>",
     );
     let roots = observation.projection().presentation_stack().roots();
     let [
@@ -329,7 +355,7 @@ fn root_interleave_and_standard_precedence_remain_explicit() {
 
 #[test]
 fn alternate_prefix_and_opaque_payload_are_preserved_without_changing_projection() {
-    let source = "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\"><c:polyline id=\"line\" keep=\"yes\"><c:point x=\"0\" y=\"0\"/><c:point x=\"1\" y=\"1\"/><foreign xmlns=\"urn:opaque\"/></c:polyline></c:cdml>";
+    let source = "<c:cdml xmlns:c=\"urn:ferrum:cdml\"><c:polyline id=\"line\" keep=\"yes\"><c:point x=\"0\" y=\"0\"/><c:point x=\"1\" y=\"1\"/><foreign xmlns=\"urn:opaque\"/></c:polyline></c:cdml>";
     let session = DocumentSession::load(source).unwrap();
     let snapshot = session.snapshot().unwrap();
     assert!(snapshot.cdml().contains("urn:opaque"));
@@ -346,7 +372,7 @@ fn alternate_prefix_and_opaque_payload_are_preserved_without_changing_projection
 #[test]
 fn invalid_geometry_is_a_targeted_display_only_issue_without_fallback() {
     let observation = observed(
-        "<cdml><polyline id=\"bad\"><point x=\"NaN\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><polyline id=\"short\"><point x=\"0\" y=\"0\"/></polyline><polyline id=\"wave\" style=\"wavy\" spline=\"yes\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><rect id=\"partial\" x1=\"0\" y1=\"0\" x2=\"1\"/><polygon id=\"triangle\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polygon><arrow id=\"retro\" type=\"retro\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><arrow id=\"curve\" spline=\"yes\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><arrow id=\"shape\" shape=\"(10,8,3)\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><arrow id=\"zero\"><point x=\"0\" y=\"0\"/><point x=\"0\" y=\"0\"/></arrow></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"bad\"><point x=\"NaN\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><polyline id=\"short\"><point x=\"0\" y=\"0\"/></polyline><polyline id=\"wave\" style=\"wavy\" spline=\"yes\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><rect id=\"partial\" x1=\"0\" y1=\"0\" x2=\"1\"/><polygon id=\"triangle\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polygon><arrow id=\"retro\" type=\"retro\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><arrow id=\"curve\" spline=\"yes\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><arrow id=\"shape\" shape=\"(10,8,3)\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><arrow id=\"zero\"><point x=\"0\" y=\"0\"/><point x=\"0\" y=\"0\"/></arrow></cdml>",
     );
     let stack = observation.projection().presentation_stack();
     assert!(stack.roots().is_empty());
@@ -382,7 +408,7 @@ fn invalid_geometry_is_a_targeted_display_only_issue_without_fallback() {
 #[test]
 fn idless_identical_roots_get_unique_non_operation_keys_and_closed_wire_names() {
     let observation = observed(
-        "<cdml><polyline><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><polyline><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><polyline><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline></cdml>",
     );
     let stack = observation.projection().presentation_stack();
     assert!(
@@ -408,7 +434,7 @@ fn idless_identical_roots_get_unique_non_operation_keys_and_closed_wire_names() 
 #[test]
 fn stale_observations_cannot_be_requested_after_a_session_change() {
     let mut session = DocumentSession::load(
-        "<cdml><polyline id=\"line\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"line\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     )
     .unwrap();
     let before = session.observe(0).unwrap();
@@ -437,7 +463,7 @@ fn stale_observations_cannot_be_requested_after_a_session_change() {
 #[test]
 fn strict_wire_deserialization_rejects_unknown_or_invalid_projection_values() {
     let stack = observed(
-        "<cdml><polyline id=\"line\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"line\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline></cdml>",
     )
     .projection()
     .presentation_stack()
@@ -479,7 +505,7 @@ fn strict_wire_deserialization_rejects_unknown_or_invalid_projection_values() {
 #[test]
 fn atomic_save_and_reopen_preserve_opaque_polyline_content_and_projection() {
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    let source = "<cdml xmlns:foreign=\"urn:foreign\"><polyline id=\"line\" keep=\"yes\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/><foreign:payload value=\"retained\"/></polyline></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:foreign=\"urn:foreign\"><polyline id=\"line\" keep=\"yes\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/><foreign:payload value=\"retained\"/></polyline></cdml>";
     let directory = std::env::temp_dir().join(format!(
         "ferrum-presentation-stack-{}-{}",
         std::process::id(),

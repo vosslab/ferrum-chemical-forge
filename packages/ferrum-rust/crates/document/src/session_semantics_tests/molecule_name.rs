@@ -2,7 +2,7 @@ use super::{DocumentSession, DocumentSessionError, SessionOperationError};
 use crate::{DocumentObjectIdV1, SessionOperation, SessionOperationV1};
 
 const SOURCE: &str = concat!(
-    "<cdml xmlns:v=\"urn:vendor\" version=\"26.07\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\" version=\"26.07\">",
     "<v:note id=\"before\"><v:detail>keep</v:detail></v:note>",
     "<molecule id=\"m\" name=\"old\" role=\"source\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
@@ -129,7 +129,7 @@ fn wrong_kind_foreign_and_invalid_name_leave_state_unchanged() {
 #[test]
 fn alternate_canonical_prefix_is_mutated_by_expanded_name() {
     let source = concat!(
-        "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\">",
+        "<c:cdml xmlns:c=\"urn:ferrum:cdml\">",
         "<c:molecule id=\"m\" name=\"before\"><c:atom id=\"a\" name=\"C\">",
         "<c:point x=\"1\" y=\"2\"/><v:opaque xmlns:v=\"urn:vendor\"/>",
         "</c:atom></c:molecule></c:cdml>",

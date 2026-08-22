@@ -100,7 +100,7 @@ fn observation_and_request(
 ) {
     let source = format!(
         concat!(
-            "<cdml version=\"1.0\"><molecule id=\"m1\">",
+            "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
             "<atom id=\"a1\" name=\"N\" charge=\"1\" isotope=\"15\" ",
             "explicit_hydrogens=\"3\"><point x=\"2.5\" y=\"7.5\"/></atom>",
             "<atom id=\"a2\" name=\"C\"><point x=\"12.5\" y=\"-4\"/></atom>",
@@ -246,7 +246,7 @@ fn stale_foreign_and_drawing_style_requests_never_reach_the_engine() {
 #[test]
 fn authored_title_is_frozen_and_written_without_text_postprocessing() {
     let named_source = concat!(
-        "<cdml version=\"1.0\"><molecule id=\"m1\" name=\"authored title\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\" name=\"authored title\">",
         "<atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "</molecule></cdml>"
     );

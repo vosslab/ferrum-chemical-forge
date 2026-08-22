@@ -15,7 +15,7 @@ def _rectangle(observation: object) -> object:
 def test_geometric_properties_are_atomic_frozen_and_history_aware() -> None:
 	"""Apply one closed shape patch while preserving opaque retained content."""
 	source = (
-		'<cdml xmlns:v="urn:vendor"><rect id="shape" x1="1" y1="2" '
+		'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><rect id="shape" x1="1" y1="2" '
 		'x2="3" y2="4" color="#ABC" background-color="#dEf" keep="yes">'
 		'<v:opaque/></rect></cdml>'
 	)
@@ -45,7 +45,7 @@ def test_geometric_properties_are_atomic_frozen_and_history_aware() -> None:
 def test_geometric_properties_reject_hostile_or_inapplicable_intent() -> None:
 	"""Reject invalid Python shapes and wrong persistent targets without mutation."""
 	source = (
-		'<cdml><polyline id="line"><point x="0" y="0"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="line"><point x="0" y="0"/>'
 		'<point x="2" y="2"/></polyline>'
 		'<polyline id="wave" style="wavy"><point x="0" y="0"/>'
 		'<point x="2" y="2"/></polyline></cdml>'

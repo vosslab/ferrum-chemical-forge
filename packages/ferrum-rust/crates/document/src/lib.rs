@@ -22,6 +22,7 @@ mod bracket_insertion_v1;
 mod bracket_pair_projection_v1;
 mod bracket_properties_patch_v1;
 mod cdml_facade_v1;
+mod cdml_namespace_v1;
 mod cdsvg;
 mod cdsvg_facade_v1;
 mod chemistry;
@@ -56,6 +57,7 @@ mod paper_size_v1;
 mod plus_properties_patch_v1;
 mod presentation_arrow_projection_v1;
 mod presentation_creation_gesture_v1;
+mod presentation_path_gesture_v1;
 mod presentation_plus_projection_v1;
 mod presentation_polyline_projection_v1;
 mod presentation_root_deletion_v1;
@@ -187,6 +189,8 @@ pub use direct_bond_gesture_v1::{
     DirectBondGestureV1, DirectBondOverlayV1, DirectBondPoint2V1, DirectBondPreviewV1,
     DirectBondSnapPolicyV1, DocumentFenceV1,
 };
+#[cfg(test)]
+mod direct_bond_v2_matrix_tests;
 pub use direct_bond_gesture_v2::{
     CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondEndpointIntentV2,
     DirectBondGestureV2, DirectBondOverlayV2,
@@ -293,7 +297,7 @@ pub use plus_properties_patch_v1::{
 };
 pub use presentation_arrow_projection_v1::{
     ArrowDisplayGeometryV1, ArrowHeadPositionV1, ArrowHeadShapeV1, ArrowHeadV1, ArrowPathV1,
-    ArrowProjectionV1,
+    ArrowProjectionV1, ElectronArrowGeometryV1, electron_arrow_geometry_v1,
 };
 pub use presentation_creation_gesture_v1::{
     ArrowGestureStyleV1, CommittedPresentationGestureV1, PresentationCreationGestureV1,
@@ -301,6 +305,11 @@ pub use presentation_creation_gesture_v1::{
     PresentationGestureKindV1, PresentationGestureOverlayGeometryV1, PresentationGestureOverlayV1,
     PresentationGesturePoint2V1, PresentationGestureRecoveryV1, PresentationGestureSnapPolicyV1,
     PresentationGestureStyleV1,
+};
+pub use presentation_path_gesture_v1::{
+    PRESENTATION_PATH_MAXIMUM_EXTENT_PT_V1, PRESENTATION_PATH_MAXIMUM_POINTS_V1,
+    PresentationPathGestureCategoryV1, PresentationPathGestureErrorV1, PresentationPathGestureRecoveryV1,
+    PresentationPathGestureV1, PresentationPathKindV1,
 };
 pub use presentation_plus_projection_v1::{PlusProjectionV1, PresentationFontV1};
 pub use presentation_root_deletion_v1::{
@@ -338,9 +347,10 @@ pub use projection_v1::{
 pub use publication::{
     DocumentMoleculeInchiPublicationErrorV1, DocumentMoleculeMolblockPublicationErrorV1,
     DocumentMoleculeSdfPublicationErrorV1, DocumentMoleculeSmilesPublicationErrorV1,
+    DocumentMoleculesSdfPublicationErrorV2,
     PublicationDurability, publish_document_molecule_inchi_v1,
     publish_document_molecule_molblock_v1, publish_document_molecule_sdf_v1,
-    publish_document_molecule_smiles_v1,
+    publish_document_molecule_smiles_v1, publish_document_molecules_sdf_v2,
 };
 pub use regular_ring_insertion_v1::{
     DetachedRegularRingInsertionV1, RegularRingInsertionErrorV1, RegularRingOrientationV1,
@@ -404,7 +414,10 @@ pub use xml_input_budget_v1::{
     XmlBudgetError, XmlInputBudgetV1, XmlInputError, XmlInputMeasurementV1, measure_xml_input_v1,
 };
 
-pub(crate) use identity_index::{CDML_NAMESPACE, element_name};
+pub(crate) use cdml_namespace_v1::{
+    CDML_NAMESPACE, ferrum_cdml_element_name, is_ferrum_cdml_name, is_ferrum_cdml_root,
+};
+pub(crate) use identity_index::element_name;
 
 #[cfg(test)]
 mod compatibility_tests;

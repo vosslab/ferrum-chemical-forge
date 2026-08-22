@@ -9,7 +9,7 @@ import ferrum_chem
 
 CATALOG_KEY = "system/rings/benzene"
 HOST_DOCUMENT = (
-	'<cdml><molecule id="host"><atom id="host-a" name="C">'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule id="host"><atom id="host-a" name="C">'
 	'<point x="0" y="0"/></atom></molecule></cdml>'
 )
 
@@ -52,7 +52,7 @@ def test_catalog_listing_is_immutable_ferrum_metadata_without_template_payload()
 
 def test_catalog_placement_uses_only_opaque_handles_one_revision_and_one_undo() -> None:
 	"""A catalog entry reaches canonical CDML only through Rust-issued capabilities."""
-	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
 	gesture = _begin_benzene(session)
 	prepared = _prepare_benzene(session, gesture)
 
@@ -107,7 +107,7 @@ def test_catalog_placement_refuses_foreign_and_stale_handles_without_mutation() 
 def test_catalog_placement_skips_an_opaque_descendant_identifier_collision() -> None:
 	"""The native allocator reserves descendant declarations, not just root IDs."""
 	source = (
-		'<cdml><molecule id="host"><atom id="host-a" name="C">'
+		'<cdml xmlns="urn:ferrum:cdml"><molecule id="host"><atom id="host-a" name="C">'
 		'<point x="0" y="0"/><opaque id="ferrum-catalog-benzene-1-a1">'
 		'<retained/></opaque></atom></molecule></cdml>'
 	)
@@ -136,7 +136,7 @@ def test_catalog_v2_foreign_refusal_keeps_the_receipt_for_an_owner_retry() -> No
 
 def test_catalog_v2_preview_is_renderer_owned_frozen_and_last_preview_wins() -> None:
 	"""V2 exposes only a renderer plan and one current opaque candidate capability."""
-	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
 	snapshot = session.snapshot()
 	gesture = session.begin_catalog_placement_v2(
 		snapshot.revision, snapshot.digest, CATALOG_KEY,
@@ -162,7 +162,7 @@ def test_catalog_v2_preview_is_renderer_owned_frozen_and_last_preview_wins() -> 
 def test_catalog_v2_haworth_preview_uses_renderer_paths_for_directed_stereo() -> None:
 	"""A sealed Haworth entry reaches Qt as renderer paths, never line/circle geometry."""
 	key = "biomolecules/carbohydrates/d-glucose/alpha-d-glucopyranose"
-	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
 	snapshot = session.snapshot()
 	gesture = session.begin_catalog_placement_v2(
 		snapshot.revision, snapshot.digest, key,

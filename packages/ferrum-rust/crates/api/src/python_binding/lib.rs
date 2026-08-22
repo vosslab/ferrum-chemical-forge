@@ -1,6 +1,7 @@
 //! Ferrum-Chem's compiled Python extension entry point.
 
 mod arrow_properties_binding;
+mod arrow_projection_binding;
 mod atom_mark_binding;
 mod atom_properties_binding;
 mod atom_rotation_binding;
@@ -11,6 +12,7 @@ mod bond_properties_binding;
 mod bracket_binding;
 mod catalog_placement_binding;
 mod chemistry_binding;
+mod curved_electron_arrow_gesture_binding;
 mod clipboard_cut_binding;
 mod clipboard_fragment_binding;
 mod clipboard_paste_binding;
@@ -31,12 +33,14 @@ mod document_molecule_molblock_binding;
 mod document_molecule_name_binding;
 mod document_molecule_sdf_binding;
 mod document_molecule_smiles_binding;
+mod document_molecules_sdf_binding;
 mod document_native_artifact_binding;
 mod document_operation_binding;
 mod document_selection_svg_binding;
 mod document_session_binding;
 mod document_user_template_binding;
 mod drawing_standard_binding;
+mod electron_arrow_projection_binding;
 mod geometric_properties_binding;
 mod geometry_binding;
 mod geometry_repair_binding;
@@ -52,6 +56,7 @@ mod periodic_display_binding;
 mod plus_placement_gesture_binding;
 mod plus_properties_binding;
 mod presentation_creation_gesture_binding;
+mod presentation_path_gesture_binding;
 mod presentation_deletion_binding;
 mod presentation_path_binding;
 mod presentation_root_binding;

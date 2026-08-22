@@ -456,7 +456,7 @@ mod tests {
     use super::*;
 
     const SOURCE: &str = concat!(
-        "<cdml><molecule id=\"left\"><atom id=\"la\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"la\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"right\"><atom id=\"ra\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"third\"><atom id=\"ta\" name=\"N\"><point x=\"140\" y=\"0\"/></atom></molecule>",
         "<arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow>",

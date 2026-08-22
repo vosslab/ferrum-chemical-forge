@@ -43,7 +43,8 @@ fn has_haworth_facts(
 
 #[test]
 fn standalone_haworth_commit_is_atomic_reversible_and_reopens_with_its_recipe_facts() {
-    let mut session = DocumentSession::load("<cdml/>").expect("empty source loads");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty source loads");
     let mut prepared = session
         .prepare_create_standalone_haworth_v1(
             0,
@@ -70,8 +71,10 @@ fn standalone_haworth_commit_is_atomic_reversible_and_reopens_with_its_recipe_fa
 #[test]
 fn standalone_haworth_rejects_invalid_or_stale_or_foreign_or_consumed_receipts_without_mutation() {
     let anchor = Point3V1::new(0.0, 0.0, 0.0).expect("finite anchor");
-    let mut owner = DocumentSession::load("<cdml/>").expect("owner source loads");
-    let mut foreign = DocumentSession::load("<cdml/>").expect("foreign source loads");
+    let mut owner =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("owner source loads");
+    let mut foreign =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("foreign source loads");
     let baseline = owner.snapshot().expect("baseline snapshot");
     assert!(Point3V1::new(f64::INFINITY, 0.0, 0.0).is_err());
     assert_eq!(owner.snapshot().expect("invalid intent is inert"), baseline);
@@ -84,9 +87,11 @@ fn standalone_haworth_rejects_invalid_or_stale_or_foreign_or_consumed_receipts_w
         )
         .expect("candidate prepares");
     let foreign_before = foreign.snapshot().expect("foreign baseline");
-    assert!(foreign
-        .commit_create_standalone_haworth_v1(0, &mut foreign_pending)
-        .is_err());
+    assert!(
+        foreign
+            .commit_create_standalone_haworth_v1(0, &mut foreign_pending)
+            .is_err()
+    );
     assert_eq!(
         foreign.snapshot().expect("foreign stays unchanged"),
         foreign_before
@@ -110,16 +115,20 @@ fn standalone_haworth_rejects_invalid_or_stale_or_foreign_or_consumed_receipts_w
         .commit_create_standalone_haworth_v1(0, &mut accepted)
         .expect("current candidate commits");
     let after_acceptance = owner.snapshot().expect("accepted snapshot");
-    assert!(owner
-        .commit_create_standalone_haworth_v1(1, &mut stale)
-        .is_err());
+    assert!(
+        owner
+            .commit_create_standalone_haworth_v1(1, &mut stale)
+            .is_err()
+    );
     assert_eq!(
         owner.snapshot().expect("stale receipt is inert"),
         after_acceptance
     );
-    assert!(owner
-        .commit_create_standalone_haworth_v1(1, &mut accepted)
-        .is_err());
+    assert!(
+        owner
+            .commit_create_standalone_haworth_v1(1, &mut accepted)
+            .is_err()
+    );
     assert_eq!(
         owner.snapshot().expect("consumed receipt is inert"),
         after_acceptance

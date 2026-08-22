@@ -42,7 +42,7 @@ mod tests {
     #[test]
     fn indexes_only_direct_core_reaction_roles() {
         let document = TypedDocument::parse(concat!(
-            "<cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+            "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:c=\"urn:ferrum:cdml\" ",
             "xmlns:v=\"urn:vendor\"><c:reaction id=\"r\">",
             "<c:arrow idref=\"arrow\"/><c:condition idref=\"text\"/>",
             "<c:plus idref=\"plus\"/><c:note idref=\"note\"/>",

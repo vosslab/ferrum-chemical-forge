@@ -114,7 +114,7 @@ class FerrumNativeViewControlsMixin:
 		if self._view_controls_closing:
 			return None
 		tab = self._active_native_tab()
-		if tab is None or tab not in self._native_tabs_by_page or tab._disposed:
+		if tab is None or tab not in self._native_tabs_by_page or tab.is_disposed:
 			return None
 		view = tab.view
 		if (

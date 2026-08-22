@@ -64,7 +64,7 @@ mod tests {
         }
     }
 
-    const CDML: &str = "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
+    const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
     const HOSTILE_RUNTIME_DETAIL: &str = "/private/ferrum/.dylibs/libferrum_chem.dylib: private_native_adapter dlopen native loader text";
 
     #[test]
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn reaction_create_protocol_is_canonical_and_rejects_stale_digest() {
-        const REACTION_SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"product\"><atom id=\"product-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow></cdml>";
+        const REACTION_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"product\"><atom id=\"product-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow></cdml>";
         let session = admit_document(REACTION_SOURCE).expect("fixture admits");
         let digest = hex_digest(session.snapshot().expect("snapshot").digest());
         let request = serde_json::json!({
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn reaction_observation_protocol_lists_observes_and_selects_strict_membership() {
-        const SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
+        const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
         let digest = hex_digest(
             admit_document(SOURCE)
                 .expect("load")
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn reaction_lifecycle_protocol_replaces_members_and_deletes_only_definition() {
-        const SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><molecule id=\"third\"><atom id=\"third-a\" name=\"N\"><point x=\"140\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
+        const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><molecule id=\"third\"><atom id=\"third-a\" name=\"N\"><point x=\"140\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
         let digest = hex_digest(
             admit_document(SOURCE)
                 .expect("load")
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn reaction_lifecycle_protocol_preserves_missing_and_legacy_refusal_categories() {
-        const SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
+        const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"a\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow><reaction id=\"r\"><reactant idref=\"left\"/><product idref=\"right\"/><arrow idref=\"a\"/></reaction></cdml>";
         let digest = hex_digest(
             admit_document(SOURCE)
                 .expect("load")
@@ -481,7 +481,7 @@ mod tests {
                 "kind": "chemistry.convert",
                 "input": {
                     "format": "cdml",
-                    "text": "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\" vendor=\"kept\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
+                    "text": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\" vendor=\"kept\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
                 },
                 "output_format": "cdml"
             }
@@ -528,12 +528,12 @@ mod tests {
             panic!("coordinate outcome expected");
         };
         assert_eq!(regenerated_molecule_count, 1);
-        assert!(document.contains("<cdml"));
+        assert!(document.contains("<cdml xmlns=\"urn:ferrum:cdml\""));
     }
 
     #[test]
     fn coordinate_generation_commits_all_direct_molecules_as_one_outcome() {
-        let document = "<cdml><molecule id=\"first\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule><molecule id=\"second\"><atom id=\"b\" name=\"O\"><point x=\"30\" y=\"40\"/></atom></molecule></cdml>";
+        let document = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule><molecule id=\"second\"><atom id=\"b\" name=\"O\"><point x=\"30\" y=\"40\"/></atom></molecule></cdml>";
         let request = serde_json::json!({
             "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
             "request_id": "coords-two-molecules",
@@ -557,7 +557,7 @@ mod tests {
 
     #[test]
     fn coordinate_generation_refuses_invalid_later_molecule_without_outcome() {
-        let document = "<cdml><molecule id=\"first\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule><molecule id=\"second\"><atom id=\"b\"><point x=\"30\" y=\"40\"/></atom></molecule></cdml>";
+        let document = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule><molecule id=\"second\"><atom id=\"b\"><point x=\"30\" y=\"40\"/></atom></molecule></cdml>";
         let request = serde_json::json!({
             "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
             "request_id": "coords-invalid-later",

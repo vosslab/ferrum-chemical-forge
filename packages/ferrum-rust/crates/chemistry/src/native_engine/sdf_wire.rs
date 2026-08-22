@@ -14,10 +14,7 @@ pub(super) fn encode(
             reason: "SDF export requires at least one record".to_owned(),
         });
     }
-    let record_count =
-        u32::try_from(records.len()).map_err(|_| ChemistryError::UnsupportedNativeRequest {
-            reason: "SDF record count does not fit the native wire".to_owned(),
-        })?;
+    let record_count = supported_record_count(records.len())?;
     let mut output = Vec::with_capacity(FERRUM_CHEM_SDF_REQUEST_HEADER_BYTES);
     output.extend_from_slice(&MAGIC);
     put_u32(&mut output, FERRUM_CHEM_SDF_WIRE_VERSION);
@@ -33,6 +30,17 @@ pub(super) fn encode(
         }
     }
     Ok(output)
+}
+
+fn supported_record_count(record_count: usize) -> Result<u32, ChemistryError> {
+    if record_count > FERRUM_CHEM_SDF_MAX_RECORDS as usize {
+        return Err(ChemistryError::UnsupportedNativeRequest {
+            reason: "SDF record count exceeds the native ABI limit".to_owned(),
+        });
+    }
+    u32::try_from(record_count).map_err(|_| ChemistryError::UnsupportedNativeRequest {
+        reason: "SDF record count does not fit the native wire".to_owned(),
+    })
 }
 
 fn encode_record(
@@ -103,4 +111,21 @@ fn wire_length(length: usize, field: &str) -> Result<u32, ChemistryError> {
     u32::try_from(length).map_err(|_| ChemistryError::UnsupportedNativeRequest {
         reason: format!("{field} length does not fit the native wire"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn record_count_uses_the_generated_native_abi_limit() {
+        assert_eq!(
+            supported_record_count(FERRUM_CHEM_SDF_MAX_RECORDS as usize),
+            Ok(FERRUM_CHEM_SDF_MAX_RECORDS)
+        );
+        assert!(matches!(
+            supported_record_count(FERRUM_CHEM_SDF_MAX_RECORDS as usize + 1),
+            Err(ChemistryError::UnsupportedNativeRequest { .. })
+        ));
+    }
 }

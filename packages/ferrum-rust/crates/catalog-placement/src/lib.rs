@@ -700,7 +700,7 @@ fn append_haworth(
 #[cfg(test)]
 mod tests {
     use super::*;
-    const EMPTY: &str = "<cdml/>";
+    const EMPTY: &str = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
     fn strictly_cross(left: (f64, f64, f64, f64), right: (f64, f64, f64, f64)) -> bool {
         fn side(ax: f64, ay: f64, bx: f64, by: f64, px: f64, py: f64) -> f64 {
             (bx - ax) * (py - ay) - (by - ay) * (px - ax)
@@ -842,7 +842,7 @@ mod tests {
     #[test]
     fn largest_recipe_reserves_final_atom_and_bond_identifiers_before_assembly() {
         let s = DocumentSession::load(
-            "<cdml><opaque id=\"ferrum-catalog-purine-1-a9\"/><opaque id=\"ferrum-catalog-purine-1-b10\"/></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><opaque id=\"ferrum-catalog-purine-1-a9\"/><opaque id=\"ferrum-catalog-purine-1-b10\"/></cdml>",
         )
         .expect("source");
         let authored = recipe(CatalogRecipeKindV1::Purine);
@@ -862,9 +862,10 @@ mod tests {
     }
     #[test]
     fn reservation_covers_every_emitted_identifier() {
-        let s =
-            DocumentSession::load("<cdml><opaque id=\"ferrum-catalog-thiophene-1-a1\"/></cdml>")
-                .expect("source");
+        let s = DocumentSession::load(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><opaque id=\"ferrum-catalog-thiophene-1-a1\"/></cdml>",
+        )
+        .expect("source");
         let ns = fresh(&s, recipe(CatalogRecipeKindV1::Thiophene), 1);
         assert_eq!(ns.root, "ferrum-catalog-thiophene-2");
         assert!(ns.ids().all(|id| !s.contains_durable_id_v1(id)));

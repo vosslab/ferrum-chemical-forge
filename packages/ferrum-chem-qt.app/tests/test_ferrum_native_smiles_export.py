@@ -20,14 +20,14 @@ import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.window_refusals
 
 
-_SOURCE = """<cdml version='26.08'><molecule id='m1'>
+_SOURCE = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='m1'>
 <atom id='a1' name='N' charge='1' isotope='15' explicit_hydrogens='3'>
 <point x='0' y='0'/></atom>
 <atom id='a2' name='C'><point x='20' y='0'/></atom>
 <bond id='b1' start='a1' end='a2' type='n1'/>
 </molecule></cdml>"""
 
-_MULTI_SOURCE = """<cdml version='26.08'>
+_MULTI_SOURCE = """<cdml xmlns="urn:ferrum:cdml" version='26.08'>
 <molecule id='first'>
 <atom id='carbon' name='C'><point x='0' y='0'/></atom>
 <atom id='carbon-2' name='C'><point x='20' y='0'/></atom>

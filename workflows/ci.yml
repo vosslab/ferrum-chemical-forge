@@ -38,37 +38,21 @@ jobs:
           rustc --version | grep -F '1.97.1'
           cargo --version
 
-      - name: Install Python build and test dependencies
+      - name: Install Python test dependencies
         shell: bash
         run: |
           set -euo pipefail
           python3 -m pip install --upgrade pip
           python3 -m pip install -r pip_requirements-dev.txt
 
-      - name: Build validated Ferrum-Chem wheel
+      - name: Build local Ferrum runtime
         shell: bash
         run: |
           set -euo pipefail
           source source_me.sh
-          python3 packages/ferrum-rust/tools/build_native_wheel.py build \
-            --output-root output_ci_native_wheel
+          ./build.sh
 
-      - name: Install packaged Ferrum and Qt frontend
-        shell: bash
-        run: |
-          set -euo pipefail
-          wheel="$(find output_ci_native_wheel/wheelhouse -maxdepth 1 -type f \
-            -name 'ferrum_chem-*.whl' -print -quit)"
-          test -n "$wheel"
-          source source_me.sh
-          python3 -m pip install "$wheel"
-          python3 -m pip install --editable packages/ferrum-chem-qt.app
-          python3 -c 'import ferrum_chem, ferrum_qt'
-
-      - name: Repository hygiene tests
-        run: pytest tests/
-
-      - name: Python and Qt tests
+      - name: Local runtime and repository tests
         run: bash ./all_test.sh
 
       - name: Rust checks

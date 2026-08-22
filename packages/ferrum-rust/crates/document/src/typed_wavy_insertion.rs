@@ -87,7 +87,7 @@ struct WavyNames {
 
 impl WavyNames {
     fn new(tree: &mut Xot, namespace: String) -> Self {
-        let namespace = if namespace.is_empty() || namespace == CDML_NAMESPACE {
+        let namespace = if namespace == CDML_NAMESPACE {
             namespace
         } else {
             unreachable!("TypedDocument accepts only no-namespace or CDML roots")

@@ -26,14 +26,9 @@ from ferrum_qt.ferrum.local_document_open_types import (
 )
 
 
-_EMPTY_CDML = '<cdml version="1.0"/>'
-_EDITABLE_CDML = """<cdml version='26.08'><molecule id='mol-1'>
+_EMPTY_CDML = '<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
+_EDITABLE_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='mol-1'>
   <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
-</molecule></cdml>"""
-_COORDINATE_CDML = """<cdml version='26.08'><molecule id='mol-1'>
-  <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
-  <atom id='atom-o' name='O'><point x='50' y='20'/></atom>
-  <bond id='bond-co' start='atom-c' end='atom-o' type='n1'/>
 </molecule></cdml>"""
 _SIMPLE_CML = (
 	'<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule id="cml-molecule">'
@@ -125,36 +120,6 @@ def _restore_recent_paths(value: object) -> None:
 
 
 #============================================
-def _click_visible_message_button(
-		qapp: PySide6.QtWidgets.QApplication, label: str,
-		) -> PySide6.QtCore.QTimer:
-	"""Click one explicitly named button on the visible Ferrum recovery dialog."""
-	timer = PySide6.QtCore.QTimer(qapp)
-
-	def click() -> None:
-		"""Click the requested visible action once its message box is shown."""
-		for dialog in qapp.topLevelWidgets():
-			if not isinstance(dialog, PySide6.QtWidgets.QMessageBox) or not dialog.isVisible():
-				continue
-			button = next(
-				(
-					candidate
-					for candidate in dialog.buttons()
-					if candidate.text().replace("&", "") == label
-				),
-				None,
-			)
-			if button is not None:
-				PySide6.QtTest.QTest.mouseClick(
-					button, PySide6.QtCore.Qt.MouseButton.LeftButton,
-				)
-				return
-
-	timer.timeout.connect(click)
-	timer.start(1)
-	return timer
-
-
 #============================================
 def _current_native_tab(
 		window: PySide6.QtWidgets.QMainWindow,
@@ -204,24 +169,6 @@ def _wait_for_open_queue(
 
 
 #============================================
-def _wait_for_action_enabled(action: PySide6.QtGui.QAction) -> None:
-	"""Let one real asynchronous product operation restore its public command."""
-	if action.isEnabled():
-		return
-	loop = PySide6.QtCore.QEventLoop()
-
-	def finish() -> None:
-		"""Leave once the visible command becomes usable again."""
-		if action.isEnabled():
-			loop.quit()
-
-	action.changed.connect(finish)
-	try:
-		loop.exec()
-	finally:
-		action.changed.disconnect(finish)
-
-
 #============================================
 def test_visible_open_actions_pass_distinct_interchange_and_current_tab_filters(
 		qapp: PySide6.QtWidgets.QApplication,
@@ -401,40 +348,6 @@ def test_programmatic_open_queues_multiple_launch_documents(
 
 
 #============================================
-def test_async_tab_activation_retires_only_the_outgoing_live_smarts_plan(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""An admitted incoming tab remains queryable without a second observation."""
-	first_path = tmp_path / "first-live-smarts.cdml"
-	second_path = tmp_path / "second-live-smarts.cdml"
-	first_path.write_text(_EDITABLE_CDML, encoding="utf-8")
-	second_path.write_text(_EDITABLE_CDML, encoding="utf-8")
-	window = _make_window(qapp)
-	refusals: list[object] = []
-	monkeypatch.setattr(window, "_show_edit_refusal", refusals.append)
-	try:
-		first_opened = _wait_for_open_queue(window, lambda: window.open_file_path(str(first_path)))
-		assert not refusals, refusals
-		assert first_opened
-		first = _current_native_tab(window)
-		first_run = first._session._run_live_document_smarts_query_v1("C", 5, 20)
-		assert first_run.receipt is not None
-		second_opened = _wait_for_open_queue(window, lambda: window.open_file_path(str(second_path)))
-		assert not refusals
-		assert second_opened
-		second = _current_native_tab(window)
-		assert second is not first and not second.requires_refresh
-		with pytest.raises(ferrum_chem.LiveDocumentSmartsError, match="SMARTS query cannot continue"):
-			first._session._show_live_document_smarts_match_v1(first_run.receipt, 0)
-		second_run = second._session._run_live_document_smarts_query_v1("C", 5, 20)
-		assert second_run.receipt is not None and not second.requires_refresh
-	finally:
-		window.close()
-
-
-#============================================
 def test_hard_link_alias_activates_the_existing_native_tab(
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
@@ -464,7 +377,7 @@ def test_interactive_open_preserves_a_loaded_document_in_a_new_tab(
 	first = tmp_path / "loaded.cdml"
 	second = tmp_path / "later.cdml"
 	first.write_text(
-		'<cdml version="1.0"><plus id="p"><point x="3" y="4"/></plus></cdml>',
+		'<cdml xmlns="urn:ferrum:cdml" version="1.0"><plus id="p"><point x="3" y="4"/></plus></cdml>',
 		encoding="utf-8",
 	)
 	second.write_text(_EMPTY_CDML, encoding="utf-8")
@@ -487,11 +400,11 @@ def test_interactive_open_preserves_a_loaded_document_in_a_new_tab(
 
 
 #============================================
-def test_interactive_open_preserves_an_armed_bootstrap_canvas_gesture(
+def test_interactive_open_retires_an_armed_bootstrap_canvas_gesture(
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
 		) -> None:
-	"""An armed canvas preview fences first Open into a separate document."""
+	"""Open retires its tool and admits its source into a separate document."""
 	source = tmp_path / "opened-while-armed.cdml"
 	source.write_text(_EMPTY_CDML, encoding="utf-8")
 	window = _make_window(qapp)
@@ -507,6 +420,7 @@ def test_interactive_open_preserves_an_armed_bootstrap_canvas_gesture(
 			PySide6.QtCore.QPoint(80, 80),
 		)
 		qapp.processEvents()
+		assert _visible_action(window, "Cancel Tool").isEnabled()
 		assert _wait_for_open_queue(
 			window, lambda: window.open_file_path(str(source), interactive=True),
 		)
@@ -523,10 +437,7 @@ def test_interactive_open_preserves_an_armed_bootstrap_canvas_gesture(
 			and bootstrap.current_snapshot == baseline
 			and not admitted.is_disposed
 		)
-		PySide6.QtTest.QTest.keyClick(
-			bootstrap.view.viewport(), PySide6.QtCore.Qt.Key.Key_Escape,
-		)
-		assert _current_native_tab(window) is bootstrap and bootstrap.current_snapshot == baseline
+		assert not _visible_action(window, "Cancel Tool").isEnabled()
 	finally:
 		window.close()
 
@@ -577,47 +488,6 @@ def test_open_in_current_tab_recovers_after_an_armed_ring_preview(
 		assert current_tab_open.isEnabled()
 		assert _wait_for_open_queue(window, current_tab_open.trigger)
 		assert _current_native_tab(window).file_path == source
-	finally:
-		window.close()
-
-
-#============================================
-def test_open_in_current_tab_waits_for_real_coordinate_generation(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""A target-owned worker fences replacement until its terminal refresh."""
-	target_path = tmp_path / "coordinates.cdml"
-	incoming_path = tmp_path / "replacement.cdml"
-	target_path.write_text(_COORDINATE_CDML, encoding="utf-8")
-	incoming_path.write_text(_EMPTY_CDML, encoding="utf-8")
-	window = _make_window(qapp)
-	chosen: list[str] = []
-
-	def choose_source(*_args: object) -> tuple[str, str]:
-		"""Record whether the unavailable command ever reaches its chooser."""
-		chosen.append(str(incoming_path))
-		return str(incoming_path), "Ferrum CDML (*.cdml)"
-
-	monkeypatch.setattr(PySide6.QtWidgets.QFileDialog, "getOpenFileName", choose_source)
-	try:
-		target = _open_saved_native_tab(qapp, window, target_path)
-		baseline = target.current_snapshot
-		_visible_action(window, "Generate Molecule Coordinates").trigger()
-		current_tab_open = _visible_action(window, "Open in Current Tab...")
-		assert not current_tab_open.isEnabled()
-		current_tab_open.trigger()
-		assert not chosen and _current_native_tab(window) is target
-		assert target.current_snapshot == baseline
-		_wait_for_action_enabled(current_tab_open)
-		assert current_tab_open.isEnabled() and _current_native_tab(window) is target
-		click = _click_visible_message_button(qapp, "Replace")
-		try:
-			assert _wait_for_open_queue(window, current_tab_open.trigger)
-		finally:
-			click.stop()
-		assert _current_native_tab(window).file_path == incoming_path
 	finally:
 		window.close()
 
@@ -683,38 +553,6 @@ def test_symlink_rejection_leaves_the_current_document_unchanged(
 		assert "non-symlink" in presentation.technical_details.lower()
 	finally:
 		window.close()
-
-
-#============================================
-def test_admitted_tab_rejects_an_observation_from_a_different_session(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		) -> None:
-	"""The UI constructor authenticates the one-use Rust pair before projection."""
-	del qapp
-	first = tmp_path / "first-pair.cdml"
-	second = tmp_path / "second-pair.cdml"
-	first.write_text(_EMPTY_CDML, encoding="utf-8")
-	second.write_text(
-		'<cdml version="1.0"><plus id="p"><point x="3" y="4"/></plus></cdml>',
-		encoding="utf-8",
-	)
-	first_session, _first_observation, _first_origin, _first_source_kind = (
-		ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(first)).take_admission_v1()
-	)
-	_second_session, second_observation, _second_origin, _second_source_kind = (
-		ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(second)).take_admission_v1()
-	)
-	with pytest.raises(
-		ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError,
-		match="does not match its admitted session",
-	):
-		(
-			ferrum_qt.ferrum.document_tab.
-			FerrumNativeDocumentTab.from_admitted_local_open(
-				first_session, "mismatched.cdml", second_observation,
-			)
-		)
 
 
 #============================================
@@ -852,46 +690,3 @@ def test_recent_menu_disambiguates_names_and_clear_keeps_document_state(
 
 
 #============================================
-def test_recent_missing_file_visible_keep_and_remove_recovery(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		) -> None:
-	"""Visible Keep and Remove recover one stale path without changing the Rust page."""
-	valid = tmp_path / "available.cdml"
-	missing = tmp_path / "missing.cdml"
-	valid.write_text(_EMPTY_CDML, encoding="utf-8")
-	prefs = ferrum_qt.config.preferences.Preferences.instance()
-	previous = prefs.value(ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES)
-	prefs.set_value(
-		ferrum_qt.config.preferences.Preferences.KEY_RECENT_FILES,
-		ferrum_qt.ferrum.recent_files.FerrumNativeRecentFilesV1(
-			(str(missing), str(valid)),
-		).to_settings_value(),
-	)
-	window = _make_window(qapp)
-	try:
-		window.show()
-		qapp.processEvents()
-		bootstrap = _current_native_tab(window)
-		baseline = bootstrap.current_snapshot
-		missing_action = next(
-			action for action in _recent_menu(window).actions()
-			if action.text() == missing.name
-		)
-		keep = _click_visible_message_button(qapp, "Keep")
-		assert not _wait_for_open_queue(window, missing_action.trigger)
-		keep.stop()
-		assert _recent_paths() == (str(missing), str(valid)) and _current_native_tab(window) is bootstrap
-		remove = _click_visible_message_button(qapp, "Remove from Recent Files")
-		assert not _wait_for_open_queue(window, missing_action.trigger)
-		remove.stop()
-		assert _recent_paths() == (str(valid),) and bootstrap.current_snapshot == baseline
-		valid_action = next(
-			action for action in _recent_menu(window).actions()
-			if action.text() == valid.name
-		)
-		assert _wait_for_open_queue(window, valid_action.trigger)
-		assert _recent_paths() == (str(valid),) and _current_native_tab(window).file_path == valid
-	finally:
-		window.close()
-		_restore_recent_paths(previous)

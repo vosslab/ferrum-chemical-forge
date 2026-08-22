@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Minimal supported input for the positive keyboard authoring E2E. -->
-<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">
+<cdml xmlns="urn:ferrum:cdml">
   <molecule id="keyboard-workflow-molecule">
     <atom id="keyboard-carbon" name="C"><point x="10" y="20"/></atom>
   </molecule>

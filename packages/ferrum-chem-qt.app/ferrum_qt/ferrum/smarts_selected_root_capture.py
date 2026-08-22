@@ -4,6 +4,9 @@
 import PySide6.QtCore
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.ferrum.smarts_selected_root_contract
+
 
 #============================================
 class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
@@ -14,7 +17,7 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 		self._window = window
 		self._dock = dock
 		self._viewport: PySide6.QtWidgets.QWidget | None = None
-		self._tab: object | None = None
+		self._target: object | None = None
 		self._ready_tab: object | None = None
 		self._selected_query_token: object | None = None
 
@@ -22,25 +25,13 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 	def begin(self) -> None:
 		"""Install a temporary point-only capture after retiring older authoring input."""
 		self.clear_ready_v1()
-		self.cancel(None)
-		for name in (
-			"_cancel_structure_selection", "_cancel_catalog_placement",
-			"_cancel_atom_insertion", "_cancel_line_gesture",
-		):
-			cancel = getattr(self._window, name, None)
-			if callable(cancel):
-				try:
-					cancel()
-				except TypeError:
-					cancel(clear_status=False)
-		tab = getattr(self._window, "_active_native_tab")()
-		if tab is None or tab._disposed or tab.requires_refresh:
-			self._dock._selected_capture_refused_v1(
-				"Open a ready Ferrum drawing, then choose one molecule on the canvas.",
-			)
+		outcome = self._window.begin_smarts_selected_root_capture()
+		contract = ferrum_qt.ferrum.smarts_selected_root_contract
+		if isinstance(outcome, contract.FerrumSmartsSelectedRootCaptureUnavailable):
+			self._dock._selected_capture_refused_v1(outcome.message)
 			return
-		self._tab = tab
-		self._viewport = tab.view.viewport()
+		self._target = outcome
+		self._viewport = outcome.viewport
 		self._viewport.installEventFilter(self)
 		self._viewport.setFocus()
 		self._dock._selected_capture_started_v1()
@@ -51,7 +42,7 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 		if self._viewport is not None:
 			self._viewport.removeEventFilter(self)
 		self._viewport = None
-		self._tab = None
+		self._target = None
 		if message is not None:
 			self._dock._selected_capture_refused_v1(message)
 
@@ -69,7 +60,7 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 	#============================================
 	def is_armed_v1(self) -> bool:
 		"""Report whether the viewport still owns one uncaptured molecule choice."""
-		return self._viewport is not None and self._tab is not None
+		return self._viewport is not None and self._target is not None
 
 	#============================================
 	def consume_selected_query_v1(self, tab: object, per_molecule_limit: int,
@@ -79,8 +70,8 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 		if token is None or self._ready_tab is not tab:
 			raise RuntimeError("Ferrum selected molecule query is not ready")
 		self.clear_ready_v1()
-		return tab._run_live_smarts_selected_query_token_v1(
-			token, per_molecule_limit, total_limit,
+		return self._window.run_smarts_selected_root_query(
+			tab, token, per_molecule_limit, total_limit,
 		)
 
 	#============================================
@@ -110,35 +101,27 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 	#============================================
 	def _capture_at(self, point: PySide6.QtCore.QPoint) -> None:
 		"""Ask Rust for one root and consume that generic selection immediately."""
-		tab = self._tab
-		if tab is None or tab is not getattr(self._window, "_active_native_tab")():
+		target = self._target
+		if target is None:
 			self.cancel("Molecule choice is no longer current. Choose one molecule again.")
 			return
-		selection: object | None = None
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = tab.observe_direct_root_interaction()
-			scene = tab.view.mapToScene(point)
-			selection = tab.select_direct_roots(
-				observation, None,
-				engine.RenderInteractionQueryV1.point(
-					float(scene.x()), float(scene.y()), engine.RenderInteractionModifierV1.replace,
-				),
-			)
-			token = tab._capture_live_smarts_selected_query_v1(selection)
-		except Exception:
-			self.cancel("Ferrum could not use that choice. Choose exactly one direct molecule and try again.")
+		outcome = self._window.capture_smarts_selected_root_query(target, point)
+		contract = ferrum_qt.ferrum.smarts_selected_root_contract
+		if isinstance(outcome, contract.FerrumSmartsSelectedRootCaptureUnavailable):
+			self.cancel(outcome.message)
 			return
-		finally:
-			# The generic renderer selection never becomes dock state or a query input.
-			selection = None
+		if isinstance(outcome, contract.FerrumSmartsSelectedRootCaptureRejected):
+			message, _ = self._dock._closed_failure_message(outcome.error)
+			self.cancel(message)
+			return
 		self.cancel(None)
-		self._ready_tab = tab
-		self._selected_query_token = token
-		self._dock._selected_capture_ready_v1(tab)
+		self._ready_tab = outcome.tab
+		self._selected_query_token = outcome.token
+		self._dock._selected_capture_ready_v1(outcome.tab)
 
 	#============================================
-	def _cancel_for_interaction_action_handoff_v1(self) -> None:
-		"""Retire this pointer mode before another registered tool owns the canvas."""
-		if self._viewport is not None:
-			self.cancel("Molecule choice cancelled because another tool was selected.")
+	def cancel_for_pointer_authoring(self, clear_status: bool) -> None:
+		"""Retire this one capture through the window's explicit handoff contract."""
+		self.cancel(None)
+		if clear_status:
+			self._window.statusBar().clearMessage()

@@ -32,23 +32,20 @@ class FerrumNativeLineToolInteractionMixin:
 				seed = self._revalidate_render_interaction_selection(
 					intent.tab, observation, seed,
 				)
-			modifier = (
-				engine.RenderInteractionModifierV1.toggle
-				if PySide6.QtWidgets.QApplication.keyboardModifiers()
-				& PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
-				else engine.RenderInteractionModifierV1.replace
-			)
-			query = engine.RenderInteractionQueryV1.point(
-				float(press_scene.x()), float(press_scene.y()), modifier,
-			)
-			hit = intent.tab.select_direct_roots(observation, None, query)
-			if (
-				seed is not None and hit.roots
-				and any(root.identifier == hit.roots[0].identifier for root in seed.roots)
-				and modifier == engine.RenderInteractionModifierV1.replace
-			):
+			if seed is not None and intent.tab.direct_root_selection_contains_point(
+					seed, float(press_scene.x()), float(press_scene.y()),
+				):
 				selection = seed
 			else:
+				modifier = (
+					engine.RenderInteractionModifierV1.toggle
+					if PySide6.QtWidgets.QApplication.keyboardModifiers()
+					& PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
+					else engine.RenderInteractionModifierV1.replace
+				)
+				query = engine.RenderInteractionQueryV1.point(
+					float(press_scene.x()), float(press_scene.y()), modifier,
+				)
 				selection = intent.tab.select_direct_roots(observation, seed, query)
 			if not selection.roots:
 				self._replace_render_interaction_selection(None, intent.tab)
@@ -160,6 +157,8 @@ class FerrumNativeLineToolInteractionMixin:
 				current.direct_root_gesture, current.direct_root_preview,
 			)
 		except Exception as exc:
+			if self._recover_accepted_translation_presentation_error(intent, exc):
+				return
 			self._cancel_line_gesture()
 			self._refresh_actions()
 			self._show_edit_refusal(self._render_interaction_refusal(exc))
@@ -275,12 +274,38 @@ class FerrumNativeLineToolInteractionMixin:
 			)
 			commit = intent.tab.commit_direct_root_translation(gesture, preview)
 		except Exception as exc:
+			if self._recover_accepted_translation_presentation_error(intent, exc):
+				return True
 			self._replace_render_interaction_selection(None, intent.tab)
 			self._show_edit_refusal(self._render_interaction_refusal(exc))
 			return True
 		if commit.changed:
 			self._replace_render_interaction_selection(None, intent.tab)
 			self._finish_line_gesture(intent, self.tr("Moved selected Ferrum root; select it again to continue."))
+		return True
+
+	#============================================
+	def _recover_accepted_translation_presentation_error(
+			self, intent: _LineGestureIntent, error: Exception,
+			) -> bool:
+		"""Refresh one Rust-accepted root translation whose scene install failed."""
+		from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+		if not isinstance(error, FerrumNativeDocumentTabMutationPresentationError):
+			return False
+		if error.accepted_receipt is None:
+			return False
+		self._replace_render_interaction_selection(None, intent.tab)
+		if intent.tab.refresh_authoritative():
+			self._finish_line_gesture(
+				intent,
+				self.tr("Moved complete Ferrum roots and refreshed the authoritative canvas."),
+			)
+			return True
+		self._cancel_line_gesture()
+		self._refresh_actions()
+		self.statusBar().showMessage(self.tr(
+			"Move Complete Roots was accepted, but the canvas could not refresh."
+		), 5000)
 		return True
 
 	#============================================
@@ -328,6 +353,16 @@ class FerrumNativeLineToolInteractionMixin:
 		return preview
 
 	#============================================
+	def _update_line_preview(self, intent: _LineGestureIntent,
+			current: PySide6.QtCore.QPointF) -> None:
+		"""Move one disposable line preview without changing native document state."""
+		if not isinstance(intent.preview, PySide6.QtWidgets.QGraphicsLineItem):
+			raise RuntimeError("Ferrum line gesture requires a QGraphicsLineItem preview")
+		if intent.start_scene is None:
+			raise RuntimeError("Ferrum line gesture requires a start scene point")
+		intent.preview.setLine(PySide6.QtCore.QLineF(intent.start_scene, current))
+
+	#============================================
 	def _new_bracket_preview(self, tab: object,
 			start: PySide6.QtCore.QPointF) -> PySide6.QtWidgets.QGraphicsRectItem:
 		"""Create one scene-owned, non-authoritative bracket-bounds preview."""
@@ -365,11 +400,7 @@ class FerrumNativeLineToolInteractionMixin:
 		self._retire_line_preview(intent.direct_root_marquee)
 		self._line_gesture_intent = dataclasses.replace(
 			intent,
-			drawing=(
-				intent.drawing
-				if intent.tool is _NativeLineTool.DRAW_BOND
-				else None
-			),
+			drawing=None,
 			start_atom_id=None,
 			start_scene=None,
 			press_scene=None,
@@ -393,8 +424,12 @@ class FerrumNativeLineToolInteractionMixin:
 			direct_bond_admission=None,
 			presentation_gesture=None,
 			presentation_preview=None,
+			curved_electron_points=(),
 			vector_gesture=None,
 			vector_preview=None,
+			path_gesture=None,
+			path_points=(),
+			path_preview=None,
 		)
 
 	#============================================
@@ -426,8 +461,11 @@ class FerrumNativeLineToolInteractionMixin:
 		self._draw_bond_action.setChecked(False)
 		self._draw_arrow_action.setChecked(False)
 		self._draw_equilibrium_arrow_action.setChecked(False)
+		self._draw_curved_electron_arrow_action.setChecked(False)
 		self._draw_plus_action.setChecked(False)
 		for action in self._draw_vector_actions.values():
+			action.setChecked(False)
+		for action in self._draw_path_actions.values():
 			action.setChecked(False)
 		self._insert_text_action.setChecked(False)
 		self._insert_cyclohexane_ring_action.setChecked(False)

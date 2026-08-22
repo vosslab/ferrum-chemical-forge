@@ -8,6 +8,9 @@ import file_utils
 _repo_root = file_utils.get_repo_root()
 if _repo_root not in sys.path:
 	sys.path.insert(0, _repo_root)
+_rust_root = f"{_repo_root}/packages/ferrum-rust"
+if _rust_root not in sys.path:
+	sys.path.insert(0, _rust_root)
 
 
 # Exclude both end-to-end tiers from pytest collection. tests/playwright/

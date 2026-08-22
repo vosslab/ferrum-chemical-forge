@@ -204,7 +204,7 @@ mod tests {
         DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
     }
 
-    const HOST_DOCUMENT: &str = r#"<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07"><molecule id="host"><atom id="host-a" name="C"><point x="0" y="0"/></atom></molecule></cdml>"#;
+    const HOST_DOCUMENT: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"><molecule id="host"><atom id="host-a" name="C"><point x="0" y="0"/></atom></molecule></cdml>"#;
 
     #[test]
     fn newer_preview_invalidates_the_previous_renderer_receipt() {

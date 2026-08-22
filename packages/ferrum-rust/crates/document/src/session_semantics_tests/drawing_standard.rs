@@ -7,7 +7,7 @@ use crate::{
 };
 
 const EXISTING: &str = concat!(
-    "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+    "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
     "xmlns:v=\"urn:vendor\"><c:info/><v:before/><c:metadata/>",
     "<c:standard line_width=\"1\" font_size=\"12\" font_family=\"Telex\" ",
     "line_color=\"#000000\" area_color=\"\" paper_type=\"Letter\" v:keep=\"yes\">",
@@ -97,7 +97,7 @@ fn drawing_standard_patch_preserves_opaque_source_and_history() {
 #[test]
 fn drawing_standard_creation_is_ordered_and_empty_patch_is_a_noop() {
     let source = concat!(
-        "<cdml xmlns:v=\"urn:vendor\"><info/><v:between/><metadata/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><info/><v:between/><metadata/>",
         "<molecule id=\"m\"/></cdml>"
     );
     let mut session = DocumentSession::load(source).expect("source must load");
@@ -105,11 +105,13 @@ fn drawing_standard_creation_is_ordered_and_empty_patch_is_a_noop() {
         .submit(0, operation(vec![]))
         .expect("empty patch must be accepted");
     assert_eq!(empty.observation().snapshot().revision(), 0);
-    assert!(empty
-        .observation()
-        .projection()
-        .drawing_standard()
-        .is_none());
+    assert!(
+        empty
+            .observation()
+            .projection()
+            .drawing_standard()
+            .is_none()
+    );
 
     let result = session
         .submit(

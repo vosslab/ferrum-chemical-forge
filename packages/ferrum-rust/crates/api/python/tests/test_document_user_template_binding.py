@@ -1,14 +1,12 @@
 """Installed-extension checks for private native user-template operations."""
 
-from pathlib import Path
-
 import pytest
 
 import ferrum_chem
 
 
 _TEMPLATE = """\
-<cdml version="26.07">
+<cdml xmlns="urn:ferrum:cdml" version="26.07">
  <standard line_width="9"/>
  <paper id="template-paper" type="A4"/>
  <molecule id="source-molecule" name="  Example molecule  ">
@@ -85,11 +83,11 @@ def test_private_template_insertion_is_atomic_history_and_reauthenticates() -> N
 @pytest.mark.parametrize(
 	"source, reason",
 	(
-		(b"<cdml/>", "exact built-in string"),
+		(b"<cdml xmlns='urn:ferrum:cdml'/>", "exact built-in string"),
 		("\ud800", "valid UTF-8 text"),
-		("<cdml><molecule/></cdml>", "at least one direct atom"),
+		("<cdml xmlns='urn:ferrum:cdml'><molecule/></cdml>", "at least one direct atom"),
 		(
-			"<cdml><molecule><atom><point x='0' y='0'/></atom>"
+			"<cdml xmlns='urn:ferrum:cdml'><molecule><atom><point x='0' y='0'/></atom>"
 			"<template/></molecule></cdml>",
 			"legacy template",
 		),
@@ -103,10 +101,3 @@ def test_private_template_admission_has_one_operation_specific_error(
 		ferrum_chem.prepare_user_template_v1(source)
 	assert reason in caught.value.reason
 
-
-def test_private_template_names_remain_outside_the_wheel_stub() -> None:
-	"""The Qt-only template surface makes no stable Python contract."""
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-
-	assert "DocumentUserTemplate" not in stub

@@ -16,7 +16,7 @@ def _wavy(observation: object) -> object:
 def test_wavy_properties_preserve_authored_path_and_history() -> None:
 	"""Apply one closed patch without regenerating stored Wavy geometry."""
 	source = (
-		'<cdml xmlns:v="urn:vendor"><polyline id="wave" style="wavy" '
+		'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><polyline id="wave" style="wavy" '
 		'color="#ABC" keep="yes"><point x="0" y="0"/>'
 		'<point x="3" y="2"/><point x="6" y="0"/><v:opaque/>'
 		'</polyline></cdml>'
@@ -42,7 +42,7 @@ def test_wavy_properties_preserve_authored_path_and_history() -> None:
 def test_wavy_properties_reject_hostile_or_wrong_targets_atomically() -> None:
 	"""Reject overlong, subclassed, ordinary, unknown, and stale requests."""
 	source = (
-		'<cdml><polyline id="wave" style="wavy"><point x="0" y="0"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="wave" style="wavy"><point x="0" y="0"/>'
 		'<point x="2" y="2"/></polyline><polyline id="ordinary">'
 		'<point x="0" y="0"/><point x="2" y="2"/></polyline></cdml>'
 	)
@@ -78,7 +78,7 @@ def test_wavy_properties_reject_hostile_or_wrong_targets_atomically() -> None:
 #============================================
 def test_prepared_wavy_creation_exposes_rust_owned_identity_and_path() -> None:
 	"""Commit one bounded prepared Wavy without Python-authored persistent geometry."""
-	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
 	prepared = session.prepare_create_wavy_v1(0, 0.0, 0.0, 48.0, 0.0)
 	assert prepared.identifier == "ferrum-presentation-v1-0"
 	assert session.observe(0).snapshot.revision == 0

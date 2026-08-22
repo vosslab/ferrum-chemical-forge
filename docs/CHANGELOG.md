@@ -1,13 +1,317 @@
 # Changelog
 
 ## 2026-08-21
+
+### Local Build and Runtime
+
+- Current acceptance is the runnable staged local runtime under `build/`. Older
+  same-day wheel and installed-site receipts below are retained only as historical
+  development record and do not describe the supported build or test contract.
+
+- Renamed the extension's internal runtime boundary from wheel terminology to
+  the staged local extension model. `PyInit` still captures the admitted module
+  path exactly once and derives the sealed module-relative native-library path;
+  direct chemistry, protocol, SMARTS, and interchange calls share that one
+  immutable runtime authority.
+
+- Retired the obsolete `output_native_wheel/` publication tree and wheel-only
+  metadata. `./build.sh` removes that fixed legacy root before its checkout
+  budget check; the supported local build owns and stages only `build/`.
+
+- Removed the retired wheel-artifact receipt route from the local native runtime builder. Its
+  immutable input manifest and Mach-O closure checks now use local-runtime terminology and a
+  versioned input schema, matching `./build.sh`'s local-only contract.
+
+### Additions and New Features
+- Added the public Ferrum `Draw Curved Electron Arrow` action. Qt captures only
+  start, control, and end points; the Rust-owned renderer issues the quadratic
+  curve and arrowhead overlay, preflights the complete candidate, and commits
+  one opaque history receipt. The third click automatically commits; typed
+  incomplete-point guidance and Escape leave the document unchanged.
+- Added Rust-owned multi-point Polyline and Polygon authoring. Ferrum now validates ordered finite path geometry and bounded point counts, renderer-preflights the complete candidate, commits one fenced history operation, and exposes opaque PyO3 and Qt click-path seams with Enter, double-click, and Escape completion controls.
+- Added Rust-owned selected-root multi-record SDF V2000/V3000 export. The local
+  `ferrum document export-sdf` command accepts repeated `--molecule-id` values
+  and atomically publishes one complete file. Qt's explicit selected-molecule
+  actions transfer only current durable-root membership, verify the canonical V2
+  receipt, and preserve the established one-record SDF export actions.
+
+- Added registry-owned CML, CML1, and CML2 input support to `ferrum convert`.
+  The closed Rust interchange profile now decodes bounded CML before acquiring
+  the chemistry engine and preserves typed refusal facts for unsupported input.
+
+- Added Rust-owned v2 Draw Bond admission for existing and blank canvas endpoints, including atomic detached two-carbon molecule creation for blank-to-blank gestures.
+- Routed the Qt Draw Bond pointer flow through the shared endpoint classifier at both press and release, preserving Rust-owned geometry, opaque admissions, and durable bond selection.
+
+- Added `ferrum haworth`, a Rust-only direct-glycosidic Haworth SVG vertical slice. It accepts one bounded C/O structural SMILES argument or standard input, parses and lays out the closed profile without an engine bundle, and writes deterministic SVG atomically to a named output or directly to standard output.
+- Implemented the P0.1 normal-order authoring lanes without closing the milestone. Rust and PyO3 now prove all six normal single/double/triple combinations across existing and new-carbon endpoints, including pure admission, atomic commit, history, and CDML reopen. Qt Draw Bond freezes the visible Next Drawing normal order at activation and retains that immutable order across sticky drags; it supplies no chemistry. The isolated paired native-plus-Qt wheel E2E remains pending before P0.1 can be accepted.
+- Defined the next P0.1 normal-order completion contract. The existing Draw Bond action now has one intended source of normal single/double/triple order: the visible Next Drawing preference, frozen at Rust admission. Qt supplies only closed presentation and endpoint UI facts to the opaque Rust receipt flow; Rust remains sole owner of chemistry, identity, history, and commit. Automated completion requires bounded Rust/PyO3 and focused Qt evidence plus one isolated dual-wheel offscreen E2E with temporary inline input. Wedges, aromatic bonds, free-space starts, heteroatom endpoints, and selected-root P0.2 remain deferred.
+- Accepted the bounded direct normal-bond drawing slice. Rust performs pure candidate admission and opaque receipt commit; the Qt Draw Bond client has a fixed normal-single carbon profile. Isolated dual-wheel QAction/viewport evidence proves one commit and Escape cancellation. Closure receipts are `/private/tmp/ferrum-direct-bond-candidate-admission-p1-fix.md`, `/private/tmp/ferrum-direct-bond-qt-receipt-review.md`, `/private/tmp/ferrum-direct-bond-dual-wheel-e2e.md`, and `/private/tmp/ferrum-direct-bond-final-acceptance-review.md`. Wider bond styles/profile, richer drawing interactions, and complete OASA/BKChem parity remain deferred.
+- Added one isolated dual-wheel, offscreen Draw Bond E2E. It loads only the supplied native and Qt wheels, verifies both installed module digests, drives the public QAction and viewport gesture, and proves normal C-C authoring plus Escape-after- admission cancellation without a committed fixture or network route.
+- Accepted the bounded selected-atom `Change Element` slice in the capability ledger. It commits Rust-owned `set_atom_element`, restores the exact durable selected atom after projection replacement, and recovers one failed presentation installation through the typed one-refresh route. Closure evidence includes the dual-wheel offscreen visual E2E, fresh dual-wheel fail-once regression, `/private/tmp/ferrum-change-element-projection-boundary-fix.md`, and `/private/tmp/ferrum-change-element-final-acceptance-review.md`. A generic atom-property editor and broader direct-bond or presentation workflows remain deferred to separate plans.
+- Added the selected-atom `Change Element` vertical slice. The Edit-menu action rechecks one durable selected atom, uses its bounded `Element symbol:` dialog, commits only Rust's `set_atom_element` operation, and restores that exact atom selection after the authoritative replacement scene installs. The isolated local-runtime/offscreen receipt is `packages/ferrum-chem-qt.app/tests/e2e/e2e_native_change_element.py`; it uses temporary inline CDML and verifies public action, capture, undo/redo, save, and Rust reopen without a network or committed fixture.
+- Corrected the File/Open and Qt contract documentation: CML/CML2 is a closed Rust-owned new-document input profile, not a refused desktop format.
+- Documented the closed Rust-owned CML/CML2 File/Open profile: it converts into a clean new document, preserves source provenance only, and writes CDML on its first Save.
+- Corrected Qt interactive CML File/Open to retain the pristine initial tab and install descriptor-backed interchange as a new document; native CDML keeps its established pristine-tab replacement behavior.
+- Corrected the isolated Qt CML E2E to use the stable `OPEN_DOCUMENT / INVALID_DOCUMENT` presentation title while retaining its typed and redacted refusal checks.
+- Corrected the isolated Qt CML E2E to validate the installed immutable molecular projection rather than CML source identifiers, which the Rust document conversion intentionally reallocates.
+- Corrected the isolated Qt CML E2E to assert the public imported-document contract: one clean tab, no CDML save baseline, and the input basename title.
+- Replaced the CML new-document route string with an API-issued opaque route handle. Qt now retains the descriptor handle through its existing queued local-open request, while PyO3 accepts only that exact native handle before resolving the closed Rust interchange registry.
+- Extended the focused CML route-handle binding proof to cover Python shallow and deep copying, pickling, and low-level object allocation. Each route authority reconstruction path is refused before local-file admission.
+- Added the bounded Rust-owned local interchange bridge for ordinary File/Open. The Python extension now exposes immutable eligible-open descriptors and accepts only their opaque route tags; the existing Qt local-open queue carries that tag to Rust and installs the existing one-time admission receipt as a new document. CML/CML2 decoding remains Rust-owned, while current-tab replacement, append/import modes, export, and receipt UI remain unchanged.
+- Fixed the attached-cyclohexane E2E source-isolation call matcher so the generated child program compiles its intended method-call regex.
+- Fixed the isolated attached-cyclohexane E2E child program's missing `re` standard-library import during source-isolation verification.
+- Fixed a generic Qt action-handoff race where a `QMenu` could begin closing before its `QAction` reached Python. The window-owned handoff now records popup terminal lifecycle from `Show`, then attaches the action continuation to that recorded latch so late action dispatch still settles safely.
+- Fixed shared Qt popup-latch lifecycle reuse and cleanup. Reopened menus now require their own terminal event before a deferred action can run, and destroyed transient popups release their handoff-owned latch QObject.
+- Accepted the bounded Qt CML/CML2 new-document File/Open extension. Interactive File/Open preserves the bootstrap tab and creates one clean CML tab through the Rust-issued native route. The native-wheel E2E receipt is `/private/tmp/ferrum-cml-qt-new-document-e2e-receipt.json` (SHA-256 `0ffbde86632859e355dacb2e7c21a54a9e7d1553d57607dd8f7dd28052b12e33`); the final independent re-review is `/private/tmp/ferrum-cml-qt-new-document-final-rereview.md`. CML append or current-tab replacement, live receipts, export or conversion, a generic importer, and broader semantic profiles remain deferred.
+- Added one isolated root E2E for the Rust-owned CML/CML2 new-document route. It installs only the supplied native wheel into a temporary system-site-packages venv, opens inline valid and invalid CML through the ordinary queued Qt `open_file_path` API, and verifies one clean new tab plus one typed redacted refusal without a persistent fixture, dialog, network, or browser.
+- Accepted the bounded shared-anchor `Attach Cyclohexane Ring` capability. The final autonomous local Qt workflow covers menu activation, typed atom picking, Rust-owned preview and one commit, save/reopen, undo/redo, Escape, refusal, cancellation, and tab lifecycle using the exact wheel emitted by bare `./build.sh native` (SHA-256 `4a438e34473685700d76ae11d8489b4703bfb9c63b0549c39e278ba6ca221ddf`). Evidence: `/private/tmp/ferrum-cyclohexane-final-e2e-receipt.json`; independent acceptance: `/private/tmp/ferrum-cyclohexane-final-acceptance-rereview.md`. This closes only the C6 atom-attachment slice; broader OASA/BKChem parity, other ring families, fusion, templates, and compatibility work remain deferred.
+- Retired the false declarative `attach_cyclohexane` mode projection. `Attach Cyclohexane Ring` remains the existing Edit-menu and ribbon QAction, now owned only by its direct line-tool intent and native lifecycle; shared status reads that intent without claiming generic mode-manager ownership.
+- Promoted `Attach Cyclohexane Ring` to one first-class shared pointer mode. Its existing QAction is now the one registry, ribbon, declarative-resource, and line-tool client; selecting it retains the actual C6 drag intent while shared mode presentation reports `attach_cyclohexane`. No second native preparation, commit, or cancellation path was added.
+
 ### Behavior or Interface Changes
-- Made the default developer build publish the native and Qt wheels as one
-  immutable `output_native_wheel/current` pair. The shared receipt binds exact
-  wheel, native-receipt, engine-bundle, source-closure, and Qt wheel-member hashes,
-  so GUI acceptance cannot combine independently retained build outputs.
+- Adopted `urn:ferrum:cdml` as Ferrum's sole ordinary CDML namespace. New
+  documents, typed editing, direct semantic indexing, and CD-SVG admission now
+  share one strict Rust-owned namespace contract; unqualified and historic
+  BKChem roots are rejected while foreign children remain opaque below a
+  canonical Ferrum root.
+
+- Reconciled the P0.1 direct-bond contract with the Rust-owned endpoint matrix:
+  `ExistingExisting`, `ExistingNew`, `NewExisting`, and blank-canvas `NewNew`.
+  New endpoints remain carbon-only; normal single/double/triple orders remain
+  selected by Next Drawing, while wedges, aromatic bonds, and free-form element
+  selection remain deferred.
+
+- Made `./build.sh` build only the runnable local Ferrum program under `build/`.
+  It neither publishes wheels nor installs packages, removes its owned compiler
+  cache on every exit, and enforces the 20 GiB checkout limit before and after
+  compilation. `./all_test.sh` now consumes that local extension after its
+  repository hygiene lane instead of relying on a globally installed binding.
+
+- Aligned CI and contributor documentation with the local-build contract. CI
+  now builds `build/` and runs `./all_test.sh` without installing Ferrum
+  packages; wheel commands are documented only as caller-owned release work.
 
 ### Fixes and Maintenance
+- Split the frozen curved-electron-arrow projection DTO from the general Python
+  projection binding, keeping the public registration surface stable while
+  separating the specialized display contract.
+
+- Centralized Curved Electron Arrow quadratic lowering and terminal-head geometry
+  in the document crate. The persisted projection and Rust live overlay now
+  consume one exact cubic/head result; electron roots reject normal-arrow head
+  attributes, including `end`, and report their required three-point geometry.
+- Kept incomplete Polyline and Polygon gestures armed with non-modal
+  cardinality guidance. Typed Rust path failures now retire the transient Qt
+  owner and use the shared refusal presenter instead of being treated as an
+  incomplete preview.
+- Fixed Polyline commit receipts in documents that already contain Polygons. The
+  renderer-preflighted receipt now retains the validated root kind alongside its
+  generated identifier, so selection always targets the newly committed path.
+- Fixed selected-molecule SDF destination normalization by importing its path
+  authority, and strengthened the public receipt contract to state and prove
+  Rust-canonical document source ordering independent of selection click order.
+- Corrected direct-root toggle selections to retain Rust's canonical document
+  source order regardless of click order, including the public Python binding.
+- Corrected the active P0.2 plan to match the released Rust direct-root
+  contract: canonical mixed molecule and plus selections translate in one
+  fenced atomic operation, while Qt supplies gestures and renders returned
+  observations.
+- Fixed Ferrum tab shutdown to retire an active Select Structure pointer owner
+  before its viewport is disposed. This keeps event-filter ownership aligned
+  with the tab lifecycle for ordinary close and application shutdown.
+- Made `./all_test.sh` execute the bounded staged-runtime CLI E2Es after its
+  launcher proof. The explicit runner covers human CLI verbs and selected-root
+  SDF V2000/V3000 export through `build/bin/ferrum`, without an installation or
+  a broad E2E file-discovery surface.
+- Added the staged offscreen Qt P0.2 root-selection E2E to the explicit local
+  runner. It proves click/marquee selection, shared drag translation, undo, and
+  save/reopen through the staged extension, then closes the ordinary window
+  cleanly without using a globally installed binding.
+- Removed the uncalled persistent native-source archive cache. Local builds now
+  materialize pinned source archives only below their disposable staging root,
+  which is removed after every build and cannot accumulate orphaned archives.
+- Removed completed `chemistry.convert`, `document.generate_coordinates`,
+  `ferrum convert`, and `ferrum coords` work from the outstanding TODO list.
+- Removed the out-of-scope release-wheelhouse builder, artifact inventory,
+  release E2E, and installation documentation. `build.sh` remains Ferrum's
+  single supported local build path and produces the runnable CLI and Qt app
+  under `build/`.
+- Made interactive File/Open retire an armed canvas authoring tool before its
+  detached Rust admission begins. An armed pristine canvas still fences the
+  source into a separate tab and remains selected, but cannot retain a stale
+  event filter after Open completes.
+- Fixed ring and other non-bond pointer tools by moving Draw Bond's dependency
+  import out of the shared dispatch method, preventing Python from treating the
+  `ferrum_qt` package name as an unbound local before that branch runs.
+- Removed the obsolete wheel-install SMARTS harness and its private fixture
+  chain. Local runtime and public Qt workflow coverage remain the permanent
+  validation boundary for Ferrum development.
+- Hardened the local runtime receipt around Cargo's normal/build release closure
+  and sealed both launchers; `all_test.sh` now proves local launcher provenance
+  before binding and Qt validation, while build-lock cleanup retains foreign or
+  nonempty locks for inspection.
+- Centralized synchronous Qt action refresh ownership. Popup handoff observes
+  only its owned popup, main-window refresh coalesces layout callbacks, and
+  line-tool cancellation no longer re-enters local-open refresh.
+- Replaced direct-bond clients' private endpoint classifier coupling with one
+  public opaque endpoint-resolution contract shared by pointer and keyboard
+  authoring.
+- Kept incoming checkable pointer-tool actions visibly active after handoff, and
+  refreshed central command state when authoring arms or retires so in-place
+  File/Open is available only for an idle current tab.
+- Made live-property observation a closed Available/Unavailable/Stale boundary:
+  stale state receives one explicit refresh, while unexpected defects surface
+  instead of being misrepresented as ordinary unavailable UI state.
+- Routed Reaction Inspector and selected-root SMARTS capture through public
+  MainWindow ownership transactions, retiring every pointer tool and returning
+  typed expected outcomes without reflective private calls.
+- Made `build/bin/ferrum` resolve its sealed sibling chemistry engine under
+  `build/runtime/engine-v1`, removed the per-user engine install/status route,
+  and added an engine-backed local CLI conversion check to `all_test.sh`.
+- Narrowed Reaction Composer and Reaction Inspector recovery to their declared
+  native refusal and presentation outcomes, so unexpected UI and programming
+  defects surface instead of becoming misleading user refusals.
+- Updated shared window chrome to show every active tool, dispatch only stable
+  action-registry identities, and retire the superseded property dock.
+- Removed release-only native-wheel publication commands, Qt wheel staging, and
+  current-pointer selection from the local builder. The retained wheel evidence
+  helpers now serve only `build.sh`'s runnable local runtime.
+- Removed obsolete toolbar aliases; the supported authoring command surface is
+  `AuthoringRibbon`.
+- Recovered Rust-accepted reaction creation after an initial Qt projection
+  installation failure; composer refreshes authoritative state and reselects
+  committed members instead of displaying a false role refusal.
+- Closed SDF worker failure delivery to `FerrumNativeMoleculeExportFailure`,
+  refusing unexpected signal payloads without exposing arbitrary exception text.
+- Completed the public document-tab lifecycle boundary across Ferrum UI clients
+  and their test doubles. SMARTS capture, main-window action refresh, reaction
+  composition, and other tab consumers now read the stable `is_disposed`
+  contract rather than owner-internal disposal state.
+- Removed the unreferenced preproduction action and editing-tool toolbar
+  modules. The single supported `AuthoringRibbon` remains the window's only
+  command surface, and startup coverage now exercises its live New action and
+  persisted ribbon/property-dock visibility state.
+- Aligned Qt contract tests with the current generic interchange preparation API,
+  two-field Next Drawing snapshot, and visible Draw Bond action wording.
+- Migrated the Qt SDF insertion bridge to Rust's generic immutable interchange
+  record receipt API. The SDF workflow still selects every committed atom from
+  the prepared receipt, while SDF-specific Rust binding names remain retired.
+- Aligned the native SDF export fixture with the canonical Rust interchange
+  record namespace, preserving the real UI and native export path.
+- Kept one-shot attached-cyclohexane receipts owned through native commit, so
+  failed commits retire their live receipt while successful commits clear it
+  without a second retirement. Generic action refresh now leaves persistent
+  pointer tools armed after accepted projection refreshes.
+- Made the local runtime extension path Python-ABI-specific. `build.sh`, the
+  local-runtime receipt, and `all_test.sh` now share one resolver for the
+  importable extension filename, so local validation cannot silently use a
+  globally installed `ferrum_chem` binding.
+- Made root local builds exclusive while preserving nested native-engine
+  staging, so a failed concurrent `build.sh` invocation cannot remove another
+  compiler's target tree. Move Complete Roots asks Rust whether the press is on
+  its already validated complete-root selection, so selected-root drags retain
+  the full selection while blank-canvas presses retain Rust-owned marquee
+  selection. Rust snaps its native root anchor after the raw drag delta.
+- Kept the implicit-carbon picker test on its real authoring boundary: a
+  rendered carbon is an existing endpoint, while C6 retains its bounded
+  fallback check instead of fabricated projection objects or a retired
+  direct-bond picker.
+- Made rendered C6 attachment hits translate their public document source ID
+  to one installed projection object ID before Rust admission; missing or
+  ambiguous projection mappings now refuse rather than sending an invalid
+  identity across that boundary.
+- Restored the bounded P0.1 Draw Bond contract: its shared Next Drawing client
+  offers only normal single/double/triple order and its Rust gesture creates
+  carbon at new endpoints. Refused window shutdown now retires transient
+  viewport input ownership before preserving an unsaved document. Restored the
+  interaction-owned line-preview update used by Move Atom and Wavy gestures.
+- Restored canonical periodic-table validation for atom-element operations, so
+  invalid symbols are refused through the existing typed API boundary.
+- Kept accepted Rust mutations recoverable when projection installation fails:
+  Ferrum retains pending authority and raises the documented typed presentation
+  error for authoritative refresh.
+- Made Haworth insertion treat implicit atom and bond projection locations as
+  occupied page space, preserving the empty-page placement contract.
+- Retired the unused direct-bond start-picker seam. Main-window authoring now
+  verifies the canonical classified-endpoint path after popup handoff settles.
+- Kept valid Haworth render publications openable when live SMARTS cannot
+  establish its private atom correspondence. The binding now records typed
+  `unsupported_document` SMARTS readiness without minting a plan or receipt.
+- Routed native plus and Text render targets through the public presentation projection facade, so valid roots install without a private cross-module dependency.
+- Made local CML interchange admissions derive their returned render observation
+  and CML origin provenance from the committed descriptor/session state, so the
+  authenticated receipt agrees with its redeemed snapshot instead of refusing
+  as stale or unknown-origin input.
+- Made focused Draw Bond pointer checks establish and restore their own normal
+  single-bond preference, retire Qt objects through the ordinary deferred
+  lifecycle, and cover only real user-visible authoring contracts.
+- Added a fail-closed local-runtime freshness receipt. `./build.sh` now records
+  the Cargo-resolved source closure, native inputs, and staged artifact hashes;
+  `./all_test.sh` rejects stale local artifacts before importing Ferrum.
+- Made render-projection disposal retire its detached `QGraphicsScene` after
+  its owned roots, with idempotent terminal lifecycle behavior.
+- Removed an invalid synthetic direct-bond click from the ribbon handoff test; the test now proves action ownership without leaving a required refusal dialog open.
+- Kept Qt drawing-test CDML input local and restored package-qualified access to the document-tab fixture seam.
+- Made the retired Python-brand boundary inspect the tracked worktree rather
+  than stale staged snapshots. It continues to reject live OASA/BKChem module
+  paths, imports, and dependency manifests without coupling code validation to
+  intermediate source-control state.
+
+- Removed the publication-only `build.sh` wrapper simulator. It faked Cargo,
+  Python, disk space, locks, signals, and publication without compiling Ferrum;
+  the local build contract is documented in `docs/LOCAL_BUILD.md` instead.
+
+- Made the blank-canvas Draw Bond acceptance E2E verify Escape through saved
+  CDML facts and public history instead of an unstable PNG encoding. The
+  check now tolerates only ephemeral cursor repaint while still requiring
+  Escape to preserve the committed Rust document.
+
+- Preserved final selected-SMARTS search and clear confirmations after control-state refresh, so
+  selected-capture recovery guidance no longer overwrites terminal status.
+
+- Moved selected-SMARTS empty-root admission to native capture issuance. Qt now presents the
+  typed `selected_root_empty` recovery and retains a not-ready selected source instead of
+  reporting a token as ready until Find refuses it.
+
+- Preserved the visible keyboard scene cursor across successful authoritative Qt
+  document-mutation scene replacement, so the next keyboard authoring gesture
+  retains the user's current endpoint position.
+
+- Made live-SMARTS publication distinguish an unrenderable accepted document
+  from an unpublished plan. Partial render observations now open normally,
+  retain no SMARTS plan or receipts, and return the closed
+  `unsupported_document` SMARTS reason on later queries.
+
+- Made revoked live-SMARTS receipts consistently return their typed
+  `receipt_unavailable` refusal before plan lookup. Binding coverage now asserts
+  the public refusal facts and checks opaque representations only for meaningful
+  payload leakage without mutating installed native artifacts.
+
+- Made Draw Bond snapshot the selected next-drawing parameters at valid pointer press and clear
+  that snapshot when the interaction resets. The blank-canvas wheel E2E now selects and verifies
+  public `Single` before authoring, then proves the saved canonical `n1` C-C bond topology through
+  durable atom identities and endpoints.
+
+- Added the fast root-build wrapper lifecycle E2E to `./all_test.sh`, so ordinary test runs
+  now fail on broken cleanup, lock ownership, disk admission, publication retention, or
+  signal handling without requiring retained wheel artifacts.
+
+- Repaired paired developer-wheel provenance and cleanup as one contract: the v4 receipt
+  source-closure fences the Qt wheel with the native artifact and requires every delivered
+  `ferrum_qt/**` member to match an admitted staged payload byte-for-byte, while allowing
+  intentionally unshipped admitted sources and the generated wheel dist-info tree. It also
+  supports receipt-bound isolated acceptance plus atomic replacement and signal-cleanup
+  fixtures without source-rewriting hacks.
+
+- Split the root build lifecycle into its owned shell module and `build_native_wheel.py`
+  into a thin CLI facade with concrete builder modules. No compatibility layer was added:
+  root `./build.sh` and the builder CLI commands remain the developer entry points.
+
+- Moved root native-artifact lifecycle ownership into
+  `tools/build/native_artifact_lifecycle.sh`, kept `build_native_wheel.py` as a thin
+  facade over focused public builder helpers, and extracted private live-SMARTS Rust
+  test modules. The responsibility splits preserve existing behavior.
+
 - Made Draw Bond press-time classification and native-begin failures retire the exact
   armed intent before unexpected failures propagate unchanged. Only declared,
   user-correctable native begin categories now use the ordinary refusal UI.
@@ -115,32 +419,6 @@
   refresh from those facts instead of inferring reachability from document snapshots or content.
 
 
-### Developer Tests and Notes
-
-- Enriched only the existing blank-canvas Draw Bond E2E history failure with
-  non-mutating Rust-owned availability, snapshot, and QAction facts, so a failed
-  installed-wheel acceptance run distinguishes native history publication from Qt action state.
-
-- Extended the deterministic native-wheel builder self-test through the stable facade. It now
-  exercises wheel-closure auditing, sealed engine-bundle construction and validation, destination
-  refusal, and the single JSON artifact-emitter protocol with local fake payloads only.
-
-- Extended deterministic history availability coverage across Rust, PyO3, and Qt. The tests now
-  prove branch discard, active-tab-only action state, and temporary pending or busy action gates
-  without altering the authoritative Rust history cursor.
-
-- Corrected the blank-canvas Draw Bond dual-wheel E2E baseline. Each disposable public New tab
-  now saves and parses as independently blank CDML; the second tab reports Undo and Redo state
-  separately before drawing, then establishes its own same-view visual lifecycle baseline.
-
-- Corrected the native-wheel builder CLI staging contract. `--output-root` remains the only
-  independently admitted fresh `build/native-staging/native-*` root; the matching
-  `--engine-bundle-dir` is now parsed as its child payload and remains subject to the builder's
-  strict containment check. The focused helper self-test and `build.sh native` wrapper E2E prove
-  this exact handoff without relaxing retired-output rejection or publication cleanup.
-
-- Added a standalone offline dual-wheel Qt E2E for Draw Bond on a blank canvas.  It drives only public QActions, the visible viewport, and the Save As dialog; saves and parses both independent New documents as empty CDML before drawing; proves sticky QAction arming across gestures, native preview and Escape retirement through viewport captures; checks a single undo/redo history transition; parses the resulting temporary CDML for two carbon atoms and one bond; and hashes both installed wheel payloads before exercising the UI.
-### Fixes and Maintenance
 - Corrected native-wheel source-closure publication validation to fingerprint the completed
   `maturin-project` staging input, including its deterministic packaging transforms. The wrapper
   now revalidates the copied candidate against that real staging root before atomic publication;
@@ -163,17 +441,10 @@
 - Corrected the presentation-creation gesture PyO3 preview boundary to translate native gesture
   errors before the fallible Python-object conversion, preserving its typed public exception.
 - Corrected the local interchange PyO3 text-reader refusal conversion so an issued descriptor's typed, redacted source refusal becomes one Python error instead of a nested `PyResult` mapping. The existing binding coverage now exercises a missing SDF through the issued opaque route handle.
-## 2026-08-21
-### Fixes and Maintenance
 - Split native-wheel builder publication, source-closure, and tree-digest self-test fixtures into
   a private helper module. The wheel-closure fixture now delegates ZIP extraction through the
   builder's existing validated member-extraction contract instead of using `extractall`.
 
-### Additions and New Features
-- Added Rust-owned v2 Draw Bond admission for existing and blank canvas endpoints, including atomic detached two-carbon molecule creation for blank-to-blank gestures.
-- Routed the Qt Draw Bond pointer flow through the shared endpoint classifier at both press and release, preserving Rust-owned geometry, opaque admissions, and durable bond selection.
-
-### Fixes and Maintenance
 - Restored the presentation-creation gesture test mutability contract: canonical-arrow and
   equilibrium commit tests now mutably own their sessions, while the below-span refusal test no
   longer declares an unused mutable session.
@@ -243,39 +514,10 @@
 - Corrected the isolated Change Element installed-wheel E2E startup and failure cleanup. It now waits for the public local-CDML completion signal before inspecting its native tab, and cancels then drains a pending admission worker before closing the Qt host.
 - Corrected the isolated Change Element installed-wheel E2E to require explicit native and Qt wheels, install both with isolated dependency resolution, and verify the loaded root extension digest against the supplied native wheel.
 - Corrected Change Element so a Rust-accepted mutation with a failed Qt projection follows the authoritative-refresh recovery path instead of being reported as refused. Its isolated installed-wheel E2E now lives under the package `tests/e2e/` fence, outside fast pytest collection.
-### Additions and New Features
-- Added `ferrum haworth`, a Rust-only direct-glycosidic Haworth SVG vertical slice. It accepts one bounded C/O structural SMILES argument or standard input, parses and lays out the closed profile without an engine bundle, and writes deterministic SVG atomically to a named output or directly to standard output.
-- Implemented the P0.1 normal-order authoring lanes without closing the milestone. Rust and PyO3 now prove all six normal single/double/triple combinations across existing and new-carbon endpoints, including pure admission, atomic commit, history, and CDML reopen. Qt Draw Bond freezes the visible Next Drawing normal order at activation and retains that immutable order across sticky drags; it supplies no chemistry. The isolated paired native-plus-Qt wheel E2E remains pending before P0.1 can be accepted.
-- Defined the next P0.1 normal-order completion contract. The existing Draw Bond action now has one intended source of normal single/double/triple order: the visible Next Drawing preference, frozen at Rust admission. Qt supplies only closed presentation and endpoint UI facts to the opaque Rust receipt flow; Rust remains sole owner of chemistry, identity, history, and commit. Automated completion requires bounded Rust/PyO3 and focused Qt evidence plus one isolated dual-wheel offscreen E2E with temporary inline input. Wedges, aromatic bonds, free-space starts, heteroatom endpoints, and selected-root P0.2 remain deferred.
-- Accepted the bounded direct normal-bond drawing slice. Rust performs pure candidate admission and opaque receipt commit; the Qt Draw Bond client has a fixed normal-single carbon profile. Isolated dual-wheel QAction/viewport evidence proves one commit and Escape cancellation. Closure receipts are `/private/tmp/ferrum-direct-bond-candidate-admission-p1-fix.md`, `/private/tmp/ferrum-direct-bond-qt-receipt-review.md`, `/private/tmp/ferrum-direct-bond-dual-wheel-e2e.md`, and `/private/tmp/ferrum-direct-bond-final-acceptance-review.md`. Wider bond styles/profile, richer drawing interactions, and complete OASA/BKChem parity remain deferred.
-- Added one isolated dual-wheel, offscreen Draw Bond E2E. It loads only the supplied native and Qt wheels, verifies both installed module digests, drives the public QAction and viewport gesture, and proves normal C-C authoring plus Escape-after- admission cancellation without a committed fixture or network route.
-- Accepted the bounded selected-atom `Change Element` slice in the capability ledger. It commits Rust-owned `set_atom_element`, restores the exact durable selected atom after projection replacement, and recovers one failed presentation installation through the typed one-refresh route. Closure evidence includes the dual-wheel offscreen visual E2E, fresh dual-wheel fail-once regression, `/private/tmp/ferrum-change-element-projection-boundary-fix.md`, and `/private/tmp/ferrum-change-element-final-acceptance-review.md`. A generic atom-property editor and broader direct-bond or presentation workflows remain deferred to separate plans.
-- Added the selected-atom `Change Element` vertical slice. The Edit-menu action rechecks one durable selected atom, uses its bounded `Element symbol:` dialog, commits only Rust's `set_atom_element` operation, and restores that exact atom selection after the authoritative replacement scene installs. The isolated installed-wheel/offscreen receipt is `packages/ferrum-chem-qt.app/tests/e2e/ e2e_native_change_element.py`; it uses temporary inline CDML and verifies public action, capture, undo/redo, save, and Rust reopen without a network or committed fixture.
-- Corrected the File/Open and Qt contract documentation: CML/CML2 is a closed Rust-owned new-document input profile, not a refused desktop format.
-- Documented the closed Rust-owned CML/CML2 File/Open profile: it converts into a clean new document, preserves source provenance only, and writes CDML on its first Save.
-- Corrected Qt interactive CML File/Open to retain the pristine initial tab and install descriptor-backed interchange as a new document; native CDML keeps its established pristine-tab replacement behavior.
-- Corrected the isolated Qt CML E2E to use the stable `OPEN_DOCUMENT / INVALID_DOCUMENT` presentation title while retaining its typed and redacted refusal checks.
-- Corrected the isolated Qt CML E2E to validate the installed immutable molecular projection rather than CML source identifiers, which the Rust document conversion intentionally reallocates.
-- Corrected the isolated Qt CML E2E to assert the public imported-document contract: one clean tab, no CDML save baseline, and the input basename title.
-- Replaced the CML new-document route string with an API-issued opaque route handle. Qt now retains the descriptor handle through its existing queued local-open request, while PyO3 accepts only that exact native handle before resolving the closed Rust interchange registry.
-- Extended the focused CML route-handle binding proof to cover Python shallow and deep copying, pickling, and low-level object allocation. Each route authority reconstruction path is refused before local-file admission.
-- Added the bounded Rust-owned local interchange bridge for ordinary File/Open. The Python extension now exposes immutable eligible-open descriptors and accepts only their opaque route tags; the existing Qt local-open queue carries that tag to Rust and installs the existing one-time admission receipt as a new document. CML/CML2 decoding remains Rust-owned, while current-tab replacement, append/import modes, export, and receipt UI remain unchanged.
-- Fixed the attached-cyclohexane E2E source-isolation call matcher so the generated child program compiles its intended method-call regex.
-- Fixed the isolated attached-cyclohexane E2E child program's missing `re` standard-library import during source-isolation verification.
-- Fixed a generic Qt action-handoff race where a `QMenu` could begin closing before its `QAction` reached Python. The window-owned handoff now records popup terminal lifecycle from `Show`, then attaches the action continuation to that recorded latch so late action dispatch still settles safely.
-- Fixed shared Qt popup-latch lifecycle reuse and cleanup. Reopened menus now require their own terminal event before a deferred action can run, and destroyed transient popups release their handoff-owned latch QObject.
-### Fixes and Maintenance
 - Removed the Qt-local `.cml` suffix gate after a Rust-admitted CML receipt. Rust descriptor admission remains the sole interchange suffix authority while Qt retains CML provenance and CDML Save behavior.
 - Accepted Rust-admitted CML files as local imported sources in the Qt tab provenance model. CML now preserves its input identity without becoming a loaded-CDML save baseline; Save and Save As publish authoritative CDML.
 - Retired armed Ferrum pointer tools before Qt Undo or Redo advances Rust history, preventing stale checked actions after a revision transition.<br>- Corrected the attached-cyclohexane root E2E to invoke the window-owned Undo and Redo QActions. The check now covers the production history lifecycle that retires C6 state, rather than bypassing it through direct tab calls.
 - Hardened the focused direct-bond history test to observe the retired intent and unchecked action at the actual Rust Undo and Redo transition boundary.
-### Additions and New Features
-- Accepted the bounded Qt CML/CML2 new-document File/Open extension. Interactive File/Open preserves the bootstrap tab and creates one clean CML tab through the Rust-issued native route. The native-wheel E2E receipt is `/private/tmp/ferrum-cml-qt-new-document-e2e-receipt.json` (SHA-256 `0ffbde86632859e355dacb2e7c21a54a9e7d1553d57607dd8f7dd28052b12e33`); the final independent re-review is `/private/tmp/ferrum-cml-qt-new-document-final-rereview.md`. CML append or current-tab replacement, live receipts, export or conversion, a generic importer, and broader semantic profiles remain deferred.
-- Added one isolated root E2E for the Rust-owned CML/CML2 new-document route. It installs only the supplied native wheel into a temporary system-site-packages venv, opens inline valid and invalid CML through the ordinary queued Qt `open_file_path` API, and verifies one clean new tab plus one typed redacted refusal without a persistent fixture, dialog, network, or browser.
-- Accepted the bounded shared-anchor `Attach Cyclohexane Ring` capability. The final autonomous local Qt workflow covers menu activation, typed atom picking, Rust-owned preview and one commit, save/reopen, undo/redo, Escape, refusal, cancellation, and tab lifecycle using the exact wheel emitted by bare `./build.sh native` (SHA-256 `4a438e34473685700d76ae11d8489b4703bfb9c63b0549c39e278ba6ca221ddf`). Evidence: `/private/tmp/ferrum-cyclohexane-final-e2e-receipt.json`; independent acceptance: `/private/tmp/ferrum-cyclohexane-final-acceptance-rereview.md`. This closes only the C6 atom-attachment slice; broader OASA/BKChem parity, other ring families, fusion, templates, and compatibility work remain deferred.
-- Retired the false declarative `attach_cyclohexane` mode projection. `Attach Cyclohexane Ring` remains the existing Edit-menu and ribbon QAction, now owned only by its direct line-tool intent and native lifecycle; shared status reads that intent without claiming generic mode-manager ownership.
-- Promoted `Attach Cyclohexane Ring` to one first-class shared pointer mode. Its existing QAction is now the one registry, ribbon, declarative-resource, and line-tool client; selecting it retains the actual C6 drag intent while shared mode presentation reports `attach_cyclohexane`. No second native preparation, commit, or cancellation path was added.
-### Fixes and Maintenance
 - Added passive phase fences to the attached-cyclohexane root E2E menu discovery. The harness now snapshots the shared action, C6 intent, mode, and Qt action trace before traversal, after traversal, after action-group lookup, and after popup close; an unexpected dispatch reports its exact phase and event delta without resetting product state.
 - Narrowed the attached-cyclohexane root E2E startup guard to the attach QAction, its presentation mode, and line intent. Checked dock and view preferences remain passive diagnostic facts, rather than incorrectly preventing an otherwise unarmed attach workflow.
 - Extended the attached-cyclohexane root E2E's initial unarmed-action precondition with passive state facts. An unexpected checked attach action now records the presentation mode, line intent lifecycle, checked Qt actions, and action-registry identifiers before refusing the run; the test does not alter product state or command dispatch.
@@ -287,9 +529,57 @@
 - Added the focused symmetric popup-focus regression: a stale queued focus restoration cannot reclaim the viewport or alter a replacement pointer tool.
 - Corrected the attached-cyclohexane root E2E's ownership oracle to match the one approved Qt route: only `line_tools.py` may call the public tab bridge, and only `attached_cyclohexane_tab.py` may call the private session bridge. The E2E now also proves that the menu's shared checkable QAction sets the `attach_cyclohexane` presentation mode before its existing line-tool drag.
 - Removed the inert `AttachCyclohexaneMode` drag controller and its synthetic dispatcher mapping. The existing QAction, registry identity, ribbon, and `ATTACH_CYCLOHEXANE_RING` presentation map remain; the production line-tool event filter is the sole C6 pointer and native-commit path. Focused Qt coverage now proves shared QAction and presentation state instead of a controller-only drag simulation.
-### Fixes and Maintenance
 - Restored the PyO3 reaction-binding split by explicitly resolving its private methods and support
   modules as sibling files, while retaining one public facade and registration surface.
+
+- Hardened native wheel publication against a post-rename pointer race.  If
+  `output_native_wheel/current` no longer selects the just-published candidate,
+  `build.sh` now fails without overwriting the observed pointer; it preserves
+  the prior and candidate payloads for inspection.  The wrapper E2E injects an
+  external replacement inside the Python helper's post-replace verification
+  window and proves all known payloads remain intact.
+- Restored the direct-bond PyO3 binding facade's private sibling support-module registration after its modular split, so the feature build resolves the extracted implementation from the shared `python_binding` parent rather than a nonexistent nested path.
+
+### Developer Tests and Notes
+- Scoped the paired-publication Qt-closure mutation fixture to its one build invocation.
+  Later successful-build assertions now exercise the ordinary copied build contract regardless
+  of test ordering.
+
+- Enriched only the existing blank-canvas Draw Bond E2E history failure with
+  non-mutating Rust-owned availability, snapshot, and QAction facts, so a failed
+  installed-wheel acceptance run distinguishes native history publication from Qt action state.
+
+- Extended the deterministic native-wheel builder self-test through the stable facade. It now
+  exercises wheel-closure auditing, sealed engine-bundle construction and validation, destination
+  refusal, and the single JSON artifact-emitter protocol with local fake payloads only.
+
+- Extended deterministic history availability coverage across Rust, PyO3, and Qt. The tests now
+  prove branch discard, active-tab-only action state, and temporary pending or busy action gates
+  without altering the authoritative Rust history cursor.
+
+- Corrected the blank-canvas Draw Bond dual-wheel E2E baseline. Each disposable public New tab
+  now saves and parses as independently blank CDML; the second tab reports Undo and Redo state
+  separately before drawing, then establishes its own same-view visual lifecycle baseline.
+
+- Corrected the native-wheel builder CLI staging contract. `--output-root` remains the only
+  independently admitted fresh `build/native-staging/native-*` root; the matching
+  `--engine-bundle-dir` is now parsed as its child payload and remains subject to the builder's
+  strict containment check. The focused helper self-test and `build.sh native` wrapper E2E prove
+  this exact handoff without relaxing retired-output rejection or publication cleanup.
+
+- Added a standalone offline dual-wheel Qt E2E for Draw Bond on a blank canvas.  It drives only public QActions, the visible viewport, and the Save As dialog; saves and parses both independent New documents as empty CDML before drawing; proves sticky QAction arming across gestures, native preview and Escape retirement through viewport captures; checks a single undo/redo history transition; parses the resulting temporary CDML for two carbon atoms and one bond; and hashes both installed wheel payloads before exercising the UI.
+- Audited and rewired the final combined SMARTS artifact-pair release/acceptance E2E to invoke the explicit
+  sealed native-wheel SMARTS proof rather than copying a removed source-test
+  harness.  Its one receipt now retains isolated CLI, PyO3, and real Qt
+  evidence without shared-artifact mutation or environment-gated test inputs,
+  and follows the public Qt open-queue completion signal.
+- Moved the sealed live-SMARTS wheel harness out of ordinary pytest into an
+  explicit local E2E command.  It now creates and removes its isolated venv,
+  verifies the supplied native wheel and derived ABI-5 bundle bytes, exercises
+  opaque and typed-refusal FFI contracts, and never mutates published artifacts.
+- Extended the isolated blank-canvas Direct Bond wheel proof to byte-verify
+  the installed preview and line-tool interaction modules, so its active
+  authoring route is proven to originate from the supplied Qt wheel.
 
 ## 2026-08-20
 ### Decisions and failures
@@ -368,6 +658,7 @@
 - Corrected modeless SMARTS dock closed-error decoding. It now accepts only exact frozen PyO3 category/reason/recovery enum triples, maps every native closed outcome to user-facing recovery guidance, and fails unknown or incomplete outcomes closed as typed unavailability.
 - Corrected SMARTS dock lifecycle refresh, document-transition invalidation, and Escape coverage so stale copied results clear immediately after a successful mutation or render-plan replacement without issuing another native retirement.
 ## Unreleased
+- Placed the permanent arrow-authoring workflow E2E in the canonical root E2E lane.
 - Added a compiler-derived Rustdoc JSON oracle that rejects retired M4b SMARTS
   renderer authority across the render, document-render, and API public surfaces,
   including hidden re-exports, aliases, and globs.
@@ -439,6 +730,7 @@
 ### Developer Tests and Notes
 - The default and `python-binding` external-consumer builds now prove that a valid fenced molecule report reaches only the typed no-runtime refusal while private binding, runtime, execution, report-core, and chemistry imports do not compile. The canonical native-wheel launcher was attempted against both retained sealed inputs and refused their stale header-tree evidence before compilation; a regenerated validated input root is required for wheel E2E.
 ### Fixes and Maintenance
+- Corrected direct-root move ownership at two opaque boundaries. Shift point selection now carries its Rust-revalidated prior selection into the Rust toggle query, and an exact zero-distance view-grid gesture returns a zero translation rather than snapping an off-lattice root on click.
 - Tightened the M2a.3a CML create-only boundary. Document-owned preparation now rejects every nonempty session before candidate construction, public summaries no longer expose source identifiers, and the named protocol route measures its exact standard envelope before commit. Added the named CML command to the existing single offline root E2E; it proves success and redacted refusal behavior without fixtures, network access, or a second E2E.
 - Corrected M2a.3a CML import to expose only the fixed new-document operation `document.molecule.interchange.import.v1`. The public result is a bounded summary or typed refusal; append/snapshot/placement fields and public CDML handoff were removed. The sole temporary-input E2E now proves success and a refusal leaves no output file.
 - Corrected SMARTS dock tab-switch ordering so the outgoing dock clears and hides before it binds the already-current incoming tab.  This prevents a hide callback from touching an incoming live query plan.<br>- Enforced the caller-selected SMARTS match cap at the private FQM1 decoder boundary, so a divergent native response cannot surface more typed match rows than requested. The public option limit and synthetic ABI-5 capability fixture now derive from the header-generated private adapter contract.
@@ -479,15 +771,9 @@
 - Added immutable Rust-owned reaction lifecycle observations and opaque selection capabilities. Direct CDML reaction definitions retain source-ordered role members and compatibility diagnostics; rendered bounds and selection authority remain bound to one document session and snapshot fence.
 - Exposed reaction observation union bounds and closed compatibility diagnostics through frozen PyO3 facts. Python now receives Rust-issued reason, recovery, and selector-source values without XML, DOM, candidate, render-plan, or mutable-root authority.
 - Added closed stateless `reaction.list.v1`, `reaction.observe.v1`, and `reaction.select.v1` protocol and CLI routes. They return only frozen durable facts and re-establish the opaque selection inside each fenced request rather than serializing a capability between processes.
-## 2026-08-21
-### Fixes and Maintenance
-- Extended the isolated blank-canvas Direct Bond wheel proof to byte-verify
-  the installed preview and line-tool interaction modules, so its active
-  authoring route is proven to originate from the supplied Qt wheel.
-- Hardened native wheel publication against a post-rename pointer race.  If
-  `output_native_wheel/current` no longer selects the just-published candidate,
-  `build.sh` now fails without overwriting the observed pointer; it preserves
-  the prior and candidate payloads for inspection.  The wrapper E2E injects an
-  external replacement inside the Python helper's post-replace verification
-  window and proves all known payloads remain intact.
-- Restored the direct-bond PyO3 binding facade's private sibling support-module registration after its modular split, so the feature build resolves the extracted implementation from the shared `python_binding` parent rather than a nonexistent nested path.
+
+### Earlier entries for 2026-08-21
+
+- Replaced shared-window and SMARTS-dock inspection of a tab's private disposal field with the public `FerrumNativeDocumentTab.is_disposed` lifecycle contract.
+- Relocated the native wheel builder library from `packages/ferrum-rust/tools/` to `packages/ferrum-rust/wheel_lib/`, with `native_wheel_builder.py` as its executable adapter.
+- Retired seven uncollected wheel and installed-site E2E scripts from the Qt package. `build.sh` now has one local-build contract, and durable local behavior remains covered by the collected Rust, binding, Qt, and repository E2E suites rather than obsolete package-install probes.

@@ -27,6 +27,7 @@ class FerrumKeyboardAuthoringMixin:
 		if key == PySide6.QtCore.Qt.Key.Key_Escape:
 			self._cancel_atom_insertion()
 			self._cancel_line_gesture()
+			self._refresh_actions()
 			tab = self._active_native_tab()
 			if tab is not None:
 				tab.view.hide_keyboard_cursor()
@@ -118,7 +119,7 @@ class FerrumKeyboardAuthoringMixin:
 
 	#============================================
 	def _complete_keyboard_bond_endpoint(self) -> None:
-		"""Select then join two durable Rust atoms at the document cursor."""
+		"""Select then join Rust-owned existing or proposed cursor endpoints."""
 		intent = self._line_gesture_intent
 		if intent is None or intent.tool is not ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_BOND:
 			return
@@ -131,53 +132,106 @@ class FerrumKeyboardAuthoringMixin:
 				"The document changed before placement; start Draw Bond again.",
 			))
 			return
+		import ferrum_qt.ferrum.direct_bond_gesture_tab
 		try:
 			point = intent.tab.view.show_keyboard_cursor()
-			atom_id = intent.tab.durable_atom_at_scene_position(point)
-		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError as exc:
-			# Exact keyboard coordinates can identify more than one durable atom.
-			# A keyboard gesture cannot guess between them, so retire it rather than
-			# leaving a stale authoring intent active after this typed refusal.
+			endpoint = intent.tab.direct_bond_endpoint_at_keyboard_scene_position(
+				point,
+			)
+		except ferrum_qt.ferrum.direct_bond_gesture_tab.DirectBondEndpointAmbiguity:
 			self._cancel_line_gesture(clear_status=False)
 			self._refresh_actions()
 			self._synchronize_mode_state()
 			intent.tab.view.viewport().setFocus()
-			self.statusBar().showMessage(self.tr(
-				"Draw Bond cancelled: more than one atom is at the document cursor. "
-				"Choose a distinct atom location, then start Draw Bond again."
-			), 5000)
-			self._show_edit_refusal(self._typed_refusal(
-				"edit_document", "unavailable_operation",
-				"Draw Bond was not used because the keyboard cursor does not identify "
-				"one durable atom: " + str(exc) + ". Choose a distinct atom location, "
-				"then start Draw Bond again.",
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"Draw Bond is unchanged. Choose one atom clearly or an empty endpoint, then start again.",
 			))
 			return
-		if atom_id is None:
-			intent.tab.view.viewport().setFocus()
-			self.statusBar().showMessage(self.tr("Move the document cursor onto an existing atom, then press Enter."), 5000)
-			return
-		if intent.start_atom_id is None:
-			drawing = self._drawing_parameters.snapshot()
-			self._line_gesture_intent = dataclasses.replace(intent, start_atom_id=atom_id, start_scene=intent.tab.durable_atom_scene_position(atom_id), drawing=drawing)
-			intent.tab.view.viewport().setFocus()
-			self.statusBar().showMessage(self.tr("Bond start selected. Move to a different atom and press Enter; Esc cancels."), 5000)
-			return
-		if atom_id == intent.start_atom_id:
-			intent.tab.view.viewport().setFocus()
-			self.statusBar().showMessage(self.tr("Choose a different bond endpoint, or press Esc to cancel Draw Bond."), 5000)
-			return
-		drawing = intent.drawing or self._drawing_parameters.snapshot()
-		try:
-			intent.tab.add_bond_between_atoms(intent.start_atom_id, atom_id, drawing.bond_presentation())
-		except Exception as exc:
+		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError as exc:
+			self._cancel_line_gesture(clear_status=False)
 			self._refresh_actions()
 			self._synchronize_mode_state()
 			intent.tab.view.viewport().setFocus()
-			self._show_edit_refusal(self._typed_refusal(
-				"edit_document", "unavailable_operation", str(exc),
+			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			return
+		atom_id = endpoint.source_id
+		if intent.direct_bond_gesture is None:
+			try:
+				# Freeze the shared next-drawing choice only after this valid
+				# keyboard endpoint has begun a Rust-owned gesture.
+				drawing = self._drawing_parameters.snapshot()
+				gesture = intent.tab.begin_direct_bond_gesture(
+					endpoint.endpoint, drawing.bond_presentation(),
+					intent.tab.view.hex_grid_snap_enabled,
+				)
+			except Exception as exc:
+				self._cancel_line_gesture(clear_status=False)
+				self._refresh_actions()
+				self._synchronize_mode_state()
+				intent.tab.view.viewport().setFocus()
+				if not self._is_direct_bond_begin_refusal(exc):
+					raise
+				self._show_edit_refusal(self._unavailable_edit_refusal(
+					self._direct_bond_refusal_message(exc),
+				))
+				return
+			self._line_gesture_intent = dataclasses.replace(
+				intent,
+				start_atom_id=atom_id,
+				start_scene=point,
+				drawing=drawing,
+				direct_bond_gesture=gesture,
+			)
+			intent.tab.view.viewport().setFocus()
+			self.statusBar().showMessage(self.tr("Bond start selected. Move to a different endpoint and press Enter; Esc cancels."), 5000)
+			return
+		if atom_id is not None and atom_id == intent.start_atom_id:
+			intent.tab.view.viewport().setFocus()
+			self.statusBar().showMessage(self.tr("Choose a different bond endpoint, or press Esc to cancel Draw Bond."), 5000)
+			return
+		gesture = intent.direct_bond_gesture
+		if gesture is None:
+			self._cancel_line_gesture(clear_status=False)
+			self._synchronize_mode_state()
+			intent.tab.view.viewport().setFocus()
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"Draw Bond was cancelled because its native gesture was unavailable. Start Draw Bond again.",
 			))
 			return
+		import ferrum_qt.ferrum.engine as engine
+		try:
+			outcome = intent.tab.admit_direct_bond_candidate(gesture, endpoint.endpoint)
+			if type(outcome) is engine.DirectBondAdmissionRefusalV1:
+				self._cancel_line_gesture(clear_status=False)
+				self._refresh_actions()
+				self._synchronize_mode_state()
+				intent.tab.view.viewport().setFocus()
+				self._show_edit_refusal(self._unavailable_edit_refusal(
+					self._direct_bond_refusal_message(outcome),
+				))
+				return
+			if type(outcome) is not engine.DirectBondAdmissionV2:
+				raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
+			intent.tab.commit_direct_bond_admission(outcome)
+		except (engine.DirectBondGestureError, engine.RevisionConflictError) as exc:
+			if not self._is_direct_bond_commit_refusal(exc):
+				self._cancel_line_gesture(clear_status=False)
+				self._refresh_actions()
+				self._synchronize_mode_state()
+				intent.tab.view.viewport().setFocus()
+				raise
+			self._cancel_line_gesture(clear_status=False)
+			self._refresh_actions()
+			self._synchronize_mode_state()
+			intent.tab.view.viewport().setFocus()
+			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			return
+		except Exception:
+			self._cancel_line_gesture(clear_status=False)
+			self._refresh_actions()
+			self._synchronize_mode_state()
+			intent.tab.view.viewport().setFocus()
+			raise
 		self._reset_line_gesture_start()
 		self._finish_line_gesture(intent, self.tr("Added one bond. Choose another start atom with Enter, or press Esc."))
 		self._synchronize_mode_state()

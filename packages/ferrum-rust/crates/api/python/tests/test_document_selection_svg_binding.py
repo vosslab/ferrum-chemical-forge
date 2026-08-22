@@ -9,7 +9,7 @@ import ferrum_chem
 
 
 _SOURCE = """\
-<cdml version="26.07"><plus id="p"><point x="40" y="20"/></plus>
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><plus id="p"><point x="40" y="20"/></plus>
 <molecule id="near"><atom id="a" name="C"><point x="10" y="20"/></atom>
  <atom id="b" name="O"><point x="25" y="20"/></atom>
  <bond id="ab" start="a" end="b" type="n1"/></molecule>
@@ -62,7 +62,7 @@ def test_private_selected_svg_keeps_complete_roots_and_source_provenance() -> No
 def test_private_selected_svg_withholds_a_profile_excluded_root() -> None:
 	"""A selected root without native depiction returns its private typed reason."""
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><text id="t"><point x="10" y="20"/><font family="Arial"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="10" y="20"/><font family="Arial"/>'
 		'<ftext>label</ftext></text></cdml>',
 	)
 	observation = session.observe(0)

@@ -13,19 +13,19 @@ import ferrum_chem
 
 
 SOURCE = (
-    "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">"
+    "<cdml xmlns='urn:ferrum:cdml'><molecule id=\"m\"><atom id=\"a\" name=\"C\">"
     "<point x=\"1\" y=\"2\"/></atom></molecule></cdml>"
 )
 
 BOND_SOURCE = (
-    '<cdml version="26.08"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">'
     '<atom id="a" name="C"><point x="1" y="2"/></atom>'
     '<atom id="b" name="O"><point x="3" y="2"/></atom>'
     '</molecule></cdml>'
 )
 
 COORDINATE_SOURCE = (
-    '<cdml version="26.08"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">'
     '<atom id="a" name="C"><point x="10" y="20"/></atom>'
     '<atom id="b" name="C"><point x="50" y="20"/></atom>'
     '<atom id="c" name="O"><point x="50" y="60"/></atom>'
@@ -35,7 +35,7 @@ COORDINATE_SOURCE = (
 )
 
 ATOM_PROPERTIES_SOURCE = (
-    '<cdml xmlns:v="urn:vendor"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><molecule id="m">'
     '<atom id="a" name="C" charge="2" valency="4" isotope="13" '
     'multiplicity="3" show="no" hydrogens="off" vendor_keep="yes">'
     '<point x="1" y="2"/><font family="Courier" size="11" '
@@ -44,7 +44,7 @@ ATOM_PROPERTIES_SOURCE = (
 )
 
 BOND_PROPERTIES_SOURCE = (
-    '<cdml xmlns:v="urn:vendor"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><molecule id="m">'
     '<atom id="a" name="C"><point x="1" y="2"/></atom>'
     '<atom id="b" name="O"><point x="20" y="2"/></atom>'
     '<bond id="ab" start="a" end="b" type="n1" line_width="1.5" '
@@ -53,7 +53,7 @@ BOND_PROPERTIES_SOURCE = (
 )
 
 HAWORTH_POSITION_SOURCE = (
-    '<cdml><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/></atom>'
+    '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/></atom>'
     '<atom id="b" name="O"><point x="1" y="0"/></atom>'
     '<bond start="a" end="b" haworth_position="front"/>'
     '<bond start="b" end="a" haworth_position="back"/>'
@@ -90,7 +90,7 @@ def test_direct_bond_gesture_binding_commits_one_normal_bond() -> None:
 
 
 def test_presentation_vector_binding_keeps_frozen_failure_and_commit_contract() -> None:
-    session = ferrum_chem.DocumentSession.load("<cdml><standard line_color='#123456' line_width='2'/></cdml>")
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'><standard line_color='#123456' line_width='2'/></cdml>")
     snapshot = session.snapshot()
     gesture = session.begin_presentation_vector_gesture_v1(
         snapshot.revision,
@@ -115,7 +115,7 @@ def test_presentation_vector_binding_keeps_frozen_failure_and_commit_contract() 
 
 def test_reaction_creation_uses_only_the_renderer_preflighted_python_route() -> None:
     source = (
-        '<cdml><molecule id="left"><atom id="left-a" name="C">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="left"><atom id="left-a" name="C">'
         '<point x="0" y="0"/></atom></molecule><molecule id="product">'
         '<atom id="product-a" name="O"><point x="100" y="0"/></atom></molecule>'
         '<arrow id="arrow"><point x="25" y="0"/><point x="75" y="0"/>'
@@ -136,7 +136,7 @@ def test_reaction_creation_uses_only_the_renderer_preflighted_python_route() -> 
 
 def test_reaction_authoring_choices_are_renderer_fenced_and_non_mutating() -> None:
     source = (
-        '<cdml><molecule id="left"><atom id="left-a" name="C">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="left"><atom id="left-a" name="C">'
         '<point x="0" y="0"/></atom></molecule><molecule id="product">'
         '<atom id="product-a" name="O"><point x="100" y="0"/></atom></molecule>'
         '<arrow id="arrow"><point x="25" y="0"/><point x="75" y="0"/></arrow>'
@@ -189,7 +189,7 @@ def test_reaction_authoring_choices_are_renderer_fenced_and_non_mutating() -> No
 
 def test_presentation_vector_bridge_receipts_preflight_and_fence_every_python_path() -> None:
     standard = (
-        '<cdml><standard line_color="#123456" line_width="2" '
+        '<cdml xmlns="urn:ferrum:cdml"><standard line_color="#123456" line_width="2" '
         'area_color="#ABCDEF"/></cdml>'
     )
     first = ferrum_chem.DocumentSession.load(standard)
@@ -247,7 +247,7 @@ def test_presentation_vector_bridge_receipts_preflight_and_fence_every_python_pa
     assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.replayed_gesture
 
     excluded = ferrum_chem.DocumentSession.load(
-        '<cdml><plus id="excluded"><point x="1" y="2"/>'
+        '<cdml xmlns="urn:ferrum:cdml"><plus id="excluded"><point x="1" y="2"/>'
         '<font family="Arial"/></plus></cdml>',
     )
     excluded_snapshot = excluded.snapshot()
@@ -269,7 +269,7 @@ def test_presentation_vector_bridge_receipts_preflight_and_fence_every_python_pa
 
 
 def test_text_placement_binding_uses_renderer_overlay_and_one_commit() -> None:
-    session = ferrum_chem.DocumentSession.load("<cdml><standard font_size='18' line_color='#123456'/></cdml>")
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'><standard font_size='18' line_color='#123456'/></cdml>")
     snapshot = session.snapshot()
     gesture = session.begin_text_placement_gesture_v1(
         snapshot.revision, snapshot.digest, 10.0, 20.0,
@@ -298,7 +298,7 @@ def test_text_placement_binding_uses_renderer_overlay_and_one_commit() -> None:
 
 def test_text_placement_custom_standard_refuses_before_mutation() -> None:
     session = ferrum_chem.DocumentSession.load(
-        '<cdml><standard font_family="No Such Face"/></cdml>',
+        '<cdml xmlns="urn:ferrum:cdml"><standard font_family="No Such Face"/></cdml>',
     )
     snapshot = session.snapshot()
     gesture = session.begin_text_placement_gesture_v1(
@@ -372,7 +372,7 @@ def test_direct_bond_gesture_binding_rejects_foreign_session_handles() -> None:
 
 def test_structure_path_target_is_display_only_and_cannot_create_a_delete_handle() -> None:
     session = ferrum_chem.DocumentSession.load(
-        "<cdml><molecule id=\"m\">"
+        "<cdml xmlns='urn:ferrum:cdml'><molecule id=\"m\">"
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>"
         "<atom id=\"b\" name=\"O\"><point x=\"30\" y=\"0\"/></atom>"
         "<bond id=\"ab\" type=\"w1\" start=\"a\" end=\"b\"/>"
@@ -554,7 +554,7 @@ def test_sdf_import_copies_complete_records_and_preserves_duplicate_property_ord
 def test_smiles_molecule_preparation_is_frozen_and_one_atomic_document_edit() -> None:
     placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
     molecule = ferrum_chem.prepare_smiles_molecule_v1("CCO", placement)
-    session = ferrum_chem.DocumentSession.load("<cdml/>")
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
     prepared = session.prepare_insert_molecule_v1(0, molecule)
     committed = session.commit_create_molecule(0, prepared)
     projection = committed.observation.projection
@@ -625,12 +625,12 @@ def test_load_returns_an_immutable_authoritative_snapshot() -> None:
     assert len(snapshot.digest) == 64
     assert snapshot.is_dirty is False
     with pytest.raises(AttributeError):
-        snapshot.cdml = "<cdml/>"
+        snapshot.cdml = "<cdml xmlns='urn:ferrum:cdml'/>"
 
 
 def test_malformed_cdml_maps_to_the_public_load_error() -> None:
     with pytest.raises(ferrum_chem.DocumentLoadError):
-        ferrum_chem.DocumentSession.load("<cdml><molecule></cdml>")
+        ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'><molecule></cdml>")
 
 
 def test_observation_and_stale_revision_conflict_are_typed() -> None:
@@ -691,7 +691,7 @@ def test_render_observation_preserves_typed_stale_and_closed_telex_contracts() -
 
 def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -> None:
     session = ferrum_chem.DocumentSession.load(
-        '<cdml><text id="label"><point x="10" y="20"/>'
+        '<cdml xmlns="urn:ferrum:cdml"><text id="label"><point x="10" y="20"/>'
         '<font size="18" color="#123456"/>'
         '<ftext>Line one\nH&lt;sub&gt;2&lt;/sub&gt;O</ftext></text></cdml>',
     )
@@ -719,7 +719,7 @@ def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -
 
 def test_presentation_polyline_is_frozen_revision_bound_and_source_ordered() -> None:
     session = ferrum_chem.DocumentSession.load(
-        "<cdml><polyline id=\"line\" spline=\"no\" line_color=\"#AbC\" width=\"2px\">"
+        "<cdml xmlns='urn:ferrum:cdml'><polyline id=\"line\" spline=\"no\" line_color=\"#AbC\" width=\"2px\">"
         "<point x=\"1cm\" y=\"2\"/><point x=\"3\" y=\"4\"/></polyline></cdml>"
     )
     observation = session.observe(0)
@@ -751,7 +751,7 @@ def test_presentation_polyline_is_frozen_revision_bound_and_source_ordered() -> 
 
 def test_presentation_polyline_idless_targets_and_invalid_geometry_remain_explicit() -> None:
     session = ferrum_chem.DocumentSession.load(
-        "<cdml><polyline><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline>"
+        "<cdml xmlns='urn:ferrum:cdml'><polyline><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline>"
         "<polyline id=\"bad\"><point x=\"NaN\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline>"
         "<polyline><point x=\"2\" y=\"2\"/><point x=\"3\" y=\"3\"/></polyline></cdml>"
     )
@@ -968,4 +968,3 @@ def test_bond_properties_are_one_frozen_atomic_edit_with_history(
         reopened_bond.source_type, reopened_bond.center, reopened_bond.line_width,
         reopened_bond.bond_width, reopened_bond.wedge_width, reopened_bond.color,
     ) == ("d2", True, 2.5, -4.0, 5.0, "#aabbcc")
-

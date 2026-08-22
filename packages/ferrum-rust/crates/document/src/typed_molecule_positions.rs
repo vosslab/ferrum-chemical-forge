@@ -332,5 +332,5 @@ fn unqualified_attribute<'a>(tree: &'a Xot, node: Node, expected: &str) -> Optio
 }
 
 fn valid_namespace(namespace: &str) -> bool {
-    namespace.is_empty() || namespace == CDML_NAMESPACE
+    namespace == CDML_NAMESPACE
 }

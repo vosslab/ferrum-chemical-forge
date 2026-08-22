@@ -68,7 +68,7 @@ fn engine() -> FixedCleanEngine {
 #[test]
 fn clean_geometry_commits_multiple_centroid_preserving_layouts_atomically() {
     let source = concat!(
-        "<cdml xmlns:v=\"urn:vendor\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\">",
         "<molecule id=\"first\" retained=\"yes\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\" z=\"7\"/>",
         "<v:note>keep</v:note></atom>",
@@ -127,7 +127,7 @@ fn clean_geometry_commits_multiple_centroid_preserving_layouts_atomically() {
 #[test]
 fn clean_geometry_validates_every_target_before_native_generation() {
     let source = concat!(
-        "<cdml><molecule id=\"good\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"good\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\">",
         "<point x=\"10\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule>",
@@ -155,7 +155,7 @@ fn clean_geometry_validates_every_target_before_native_generation() {
 #[test]
 fn clean_geometry_rejects_invalid_envelopes_before_native_generation() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     let engine = engine();
@@ -188,7 +188,7 @@ fn clean_geometry_rejects_invalid_envelopes_before_native_generation() {
 #[test]
 fn clean_geometry_rejects_a_malformed_native_coordinate_count() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\">",
         "<point x=\"10\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
@@ -218,7 +218,7 @@ fn clean_geometry_rejects_a_malformed_native_coordinate_count() {
 #[test]
 fn clean_geometry_rejects_stale_preparation_without_mutation() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\">",
         "<point x=\"10\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
@@ -263,7 +263,7 @@ fn clean_geometry_rejects_stale_preparation_without_mutation() {
 #[test]
 fn clean_geometry_equal_authored_coordinates_do_not_create_history() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
         "<point x=\"1.000cm\" y=\"2.000cm\"/></atom>",
         "<atom id=\"b\" name=\"N\"><point x=\"2.000cm\" y=\"2.000cm\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
@@ -297,7 +297,7 @@ fn clean_geometry_equal_authored_coordinates_do_not_create_history() {
 #[test]
 fn clean_geometry_rejects_a_later_count_mismatch_without_partial_mutation() {
     let source = concat!(
-        "<cdml><molecule id=\"first\"><atom id=\"a\" name=\"C\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"N\">",
         "<point x=\"10\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule>",

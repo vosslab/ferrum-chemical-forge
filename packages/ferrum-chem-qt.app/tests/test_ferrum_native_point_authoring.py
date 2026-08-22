@@ -12,7 +12,7 @@ import ferrum_qt.main_window
 import ferrum_qt.ferrum.document_tab
 
 
-_EDITABLE_CDML = """<cdml xmlns='http://www.freesoftware.fsf.org/bkchem/cdml'>
+_EDITABLE_CDML = """<cdml xmlns='urn:ferrum:cdml'>
   <molecule id='mol-1'>
     <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
   </molecule>
@@ -81,7 +81,6 @@ def test_add_atom_action_maps_one_view_click_to_the_rust_scene_point(
 		if prior_choices is not None:
 			window._drawing_parameters.set_element(prior_choices.element)
 			window._drawing_parameters.set_order_name(prior_choices.order_name)
-			window._drawing_parameters.set_presentation_name(prior_choices.presentation_name)
 		window.close()
 		window.deleteLater()
 

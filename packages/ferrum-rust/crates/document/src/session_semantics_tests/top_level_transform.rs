@@ -5,7 +5,7 @@ use crate::{
 };
 
 const MIXED_SOURCE: &str = concat!(
-    "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
     "<point x=\"1\" y=\"2\"/><mark type=\"plus\" x=\"1.5\" y=\"2.5\"/>",
     "</atom></molecule><plus id=\"p\" retained=\"yes\"><point x=\"5\" y=\"7\"/>",
     "<opaque kept=\"yes\"/></plus></cdml>",
@@ -54,16 +54,20 @@ fn rigid_translation_moves_molecule_and_presentation_and_history_restores_geomet
     };
     assert_authored_close(plus.anchor().x(), 8.0);
     assert_authored_close(plus.anchor().y(), 6.0);
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("retained=\"yes\""));
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("kept=\"yes\""));
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("retained=\"yes\"")
+    );
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("kept=\"yes\"")
+    );
 
     let undone = session.undo(1).expect("translation is one history entry");
     assert_eq!(
@@ -139,7 +143,7 @@ fn translation_anchor_is_canonical_and_rigid_across_mixed_roots() {
 #[test]
 fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
     let source = concat!(
-        "<cdml><plus id=\"a\"><point x=\"2\" y=\"4\"/></plus>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><plus id=\"a\"><point x=\"2\" y=\"4\"/></plus>",
         "<plus id=\"b\"><point x=\"8\" y=\"9\"/></plus></cdml>",
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
@@ -184,7 +188,7 @@ fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
 #[test]
 fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
@@ -241,7 +245,7 @@ fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
 #[test]
 fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
     let source = concat!(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"5\"/></atom>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"5\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"5\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
@@ -266,11 +270,13 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
             .y(),
         15.0,
     );
-    assert!(mirrored
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("id=\"owned\""));
+    assert!(
+        mirrored
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("id=\"owned\"")
+    );
 
     let mut vertical = DocumentSession::load(source).expect("fixture loads");
     let mirrored = vertical
@@ -285,17 +291,19 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
             .x(),
         20.0,
     );
-    assert!(!mirrored
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("id=\"owned\""));
+    assert!(
+        !mirrored
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("id=\"owned\"")
+    );
 }
 
 #[test]
 fn malformed_later_root_rejects_the_whole_transform() {
     let source = concat!(
-        "<cdml><plus id=\"good\"><point x=\"2\" y=\"4\"/></plus>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><plus id=\"good\"><point x=\"2\" y=\"4\"/></plus>",
         "<text id=\"bad\"><point x=\"8\" y=\"9\"/><point x=\"9\" y=\"9\"/>",
         "<ftext>bad geometry</ftext></text></cdml>",
     );
@@ -327,7 +335,7 @@ fn malformed_later_root_rejects_the_whole_transform() {
 #[test]
 fn translation_anchor_refuses_partial_brackets_without_changing_the_source() {
     let source = concat!(
-        "<cdml><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" spline=\"no\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" spline=\"no\">",
         "<point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/>",
         "<point x=\"1\" y=\"2\"/><point x=\"0\" y=\"3\"/></polyline>",
         "<polyline id=\"right\" bracket_pair=\"left\" bracket_side=\"right\" spline=\"no\">",

@@ -65,5 +65,5 @@ impl TypedDocument {
 }
 
 fn valid_namespace(namespace: &str) -> bool {
-    namespace.is_empty() || namespace == CDML_NAMESPACE
+    namespace == CDML_NAMESPACE
 }

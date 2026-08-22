@@ -12,11 +12,11 @@ import ferrum_qt.io.user_template_catalog
 
 
 _NAMED_TEMPLATE = (
-	'<cdml><molecule name="Named molecule"><atom id="atom">'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule name="Named molecule"><atom id="atom">'
 	'<point x="0cm" y="0cm"/></atom></molecule></cdml>'
 )
 _UNNAMED_TEMPLATE = (
-	'<cdml><molecule><atom id="atom"><point x="0cm" y="0cm"/>'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule><atom id="atom"><point x="0cm" y="0cm"/>'
 	'</atom></molecule></cdml>'
 )
 _RAW_BYTE_FILENAMES_SUPPORTED = (
@@ -63,7 +63,7 @@ def test_missing_directory_has_an_empty_catalog_snapshot(tmp_path: pathlib.Path)
 #============================================
 def test_bad_file_reports_failure_without_hiding_good_template(tmp_path: pathlib.Path) -> None:
 	"""Malformed files are isolated so neighboring eligible templates remain usable."""
-	(tmp_path / "broken.cdml").write_text("<cdml>", encoding="utf-8")
+	(tmp_path / "broken.cdml").write_text("<cdml xmlns='urn:ferrum:cdml'>", encoding="utf-8")
 	(tmp_path / "usable.cdml").write_text(_UNNAMED_TEMPLATE, encoding="utf-8")
 	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert tuple(entry.label for entry in snapshot.entries) == ("usable",)

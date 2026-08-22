@@ -8,7 +8,7 @@ import ferrum_chem
 
 
 _SOURCE = """\
-<cdml version="1.0"><molecule id="m1">
+<cdml xmlns="urn:ferrum:cdml" version="1.0"><molecule id="m1">
  <atom id="a1" name="N" charge="1" isotope="15" explicit_hydrogens="3">
   <point x="2.5" y="7.5"/>
  </atom>
@@ -144,17 +144,3 @@ def test_private_document_molfile_maps_surrogate_text_to_its_error() -> None:
 			ferrum_chem.MolblockVersionV1.v2000,
 		)
 	assert selector.value.reason == "molecule selector must be valid UTF-8 text"
-
-
-def test_private_document_molfile_is_discoverable_but_absent_from_stub() -> None:
-	"""The Qt-only operation is runtime-private rather than a wheel promise."""
-	assert "export_document_molecule_molblock_v1" in dir(ferrum_chem)
-	assert "DocumentMoleculeMolblockV1" in dir(ferrum_chem)
-	assert "publish_document_molecule_molblock_v1" in dir(ferrum_chem)
-	assert "DocumentMoleculeMolblockPublicationV1" in dir(ferrum_chem)
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-	assert "export_document_molecule_molblock_v1" not in stub
-	assert "DocumentMoleculeMolblockV1" not in stub
-	assert "publish_document_molecule_molblock_v1" not in stub
-	assert "DocumentMoleculeMolblockPublicationV1" not in stub

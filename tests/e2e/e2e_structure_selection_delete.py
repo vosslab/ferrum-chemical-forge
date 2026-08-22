@@ -12,7 +12,7 @@ import PySide6.QtWidgets
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 
-_CDML = """<cdml version='26.08'><molecule id='m'><atom id='a' name='C'><point x='0' y='0'/></atom><atom id='b' name='C'><point x='40' y='0'/></atom><atom id='c' name='O'><point x='80' y='0'/></atom><bond id='ab' start='a' end='b' type='n1'/><bond id='bc' start='b' end='c' type='n1'/></molecule></cdml>"""
+_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='m'><atom id='a' name='C'><point x='0' y='0'/></atom><atom id='b' name='C'><point x='40' y='0'/></atom><atom id='c' name='O'><point x='80' y='0'/></atom><bond id='ab' start='a' end='b' type='n1'/><bond id='bc' start='b' end='c' type='n1'/></molecule></cdml>"""
 
 def point(tab: object, identifier: str) -> PySide6.QtCore.QPoint:
 	observation = tab.observe_structure_interaction()

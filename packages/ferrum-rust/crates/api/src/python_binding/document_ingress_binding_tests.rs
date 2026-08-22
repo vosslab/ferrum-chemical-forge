@@ -13,10 +13,22 @@ const SINGLE_ATOM_SDF_V1: &str = concat!(
     "M  END\n",
     "$$$$\n",
 );
+const TWO_ATOM_CML_V1: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0"/><atom id="a2" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="1"/></bondArray></molecule></cml>"#;
 
 fn temporary_sdf_path() -> std::path::PathBuf {
     std::env::temp_dir().join(format!(
         "ferrum-pyo3-sdf-{}-{}.sdf",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("wall clock")
+            .as_nanos(),
+    ))
+}
+
+fn temporary_cml_path() -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "ferrum-pyo3-cml-{}-{}.cml",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -219,5 +231,74 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
             "replay cannot mutate the redeemed session"
         );
         fs::remove_file(path).expect("remove SDF");
+    });
+}
+
+#[test]
+fn cml_interchange_admission_observation_matches_committed_snapshot() {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+        super::super::binding::initialize(&module).expect("extension module registers");
+        let document_session = module.getattr("DocumentSession").expect("session type");
+        let descriptors = document_session
+            .call_method0("local_interchange_open_descriptors_v1")
+            .expect("descriptors issue");
+        let cml_handle = issued_descriptor(&descriptors, ".cml")
+            .getattr("route_handle")
+            .expect("CML route handle");
+        let path = temporary_cml_path();
+        fs::write(&path, TWO_ATOM_CML_V1).expect("write valid CML");
+
+        let prepared = document_session
+            .call_method1(
+                "prepare_local_interchange_file_v1",
+                (path.to_string_lossy().as_ref(), cml_handle),
+            )
+            .expect("registered CML descriptor prepares a new document");
+        let admission = prepared
+            .call_method0("take_admission_v1")
+            .expect("redeem CML admission");
+        assert_eq!(
+            admission
+                .get_item(3)
+                .expect("admitted source kind")
+                .extract::<String>()
+                .expect("admitted source kind is text"),
+            "cml",
+            "the CML descriptor authenticates the local origin provenance"
+        );
+        let snapshot = admission
+            .get_item(0)
+            .expect("admitted session")
+            .call_method0("snapshot")
+            .expect("committed session snapshot");
+        let observed_snapshot = admission
+            .get_item(1)
+            .expect("render observation")
+            .getattr("document")
+            .expect("observation document")
+            .getattr("snapshot")
+            .expect("observation snapshot");
+        assert_eq!(
+            snapshot
+                .getattr("revision")
+                .expect("committed revision")
+                .extract::<u64>()
+                .expect("committed revision is an integer"),
+            1,
+            "the imported record is the first history transition"
+        );
+        for fact in ["revision", "digest"] {
+            assert_eq!(
+                observed_snapshot
+                    .getattr(fact)
+                    .expect("observation fact")
+                    .to_string(),
+                snapshot.getattr(fact).expect("session fact").to_string(),
+                "the admission observation and session snapshot share {fact}"
+            );
+        }
+        fs::remove_file(path).expect("remove CML");
     });
 }

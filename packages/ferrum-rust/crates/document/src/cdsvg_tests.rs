@@ -6,7 +6,7 @@ use super::{
     measure_cdsvg_input_v1,
 };
 
-const CDML_NAMESPACE: &str = "http://www.freesoftware.fsf.org/bkchem/cdml";
+const CDML_NAMESPACE: &str = "urn:ferrum:cdml";
 
 #[test]
 fn extracts_the_canonical_cdml_payload_and_discards_rendered_svg() {

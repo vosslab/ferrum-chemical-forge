@@ -5,7 +5,7 @@ use super::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml><molecule id=\"first\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\">",
     "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\" z=\"1\"/></atom>",
     "<atom id=\"b\" name=\"O\"><point x=\"2\" y=\"0\" z=\"3\"/></atom>",
     "<bond id=\"ab\" type=\"n1\" start=\"a\" end=\"b\"/></molecule>",

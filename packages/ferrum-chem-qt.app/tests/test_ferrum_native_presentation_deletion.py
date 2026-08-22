@@ -33,7 +33,7 @@ def test_selected_text_deletion_updates_rust_scene_and_history(
 	"""The generic operation deletes one exact root and remains normally undoable."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml xmlns:v="urn:vendor"><text id="t"><point x="1" y="2"/>'
+		'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><text id="t"><point x="1" y="2"/>'
 		'<ftext>label</ftext></text><v:opaque retained-id="t"/>'
 		'<plus id="p"><point x="3" y="4"/></plus></cdml>',
 		"presentation.cdml",
@@ -68,7 +68,7 @@ def test_bracket_deletion_requires_and_accepts_the_complete_pair(
 	"""The Ferrum action cannot leave half of an authoritative bracket behind."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><polyline id="left" bracket_pair="left" bracket_side="left" spline="yes">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="left" bracket_pair="left" bracket_side="left" spline="yes">'
 		'<point x="0" y="0"/><point x="1" y="1"/><point x="1" y="2"/>'
 		'<point x="0" y="3"/></polyline><polyline id="right" bracket_pair="left" '
 		'bracket_side="right" spline="yes"><point x="4" y="0"/>'

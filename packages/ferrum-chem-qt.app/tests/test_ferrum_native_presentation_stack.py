@@ -48,7 +48,7 @@ def test_selected_roots_reorder_through_rust_and_retain_selection(
 	del qapp
 	import ferrum_chem
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml xmlns:v="urn:vendor"><arrow id="a"><point x="0" y="0"/>'
+		'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><arrow id="a"><point x="0" y="0"/>'
 		'<point x="1" y="1"/></arrow><v:opaque retained="yes"/>'
 		'<text id="t"><point x="2" y="2"/><ftext>note</ftext></text>'
 		'<plus id="p"><point x="3" y="3"/></plus></cdml>',
@@ -82,7 +82,7 @@ def test_partial_bracket_selection_is_not_exposed_for_stack_mutation(
 	"""The Ferrum route cannot separate one member of an authoritative bracket pair."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><polyline id="left" bracket_pair="left" bracket_side="left" spline="no">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="left" bracket_pair="left" bracket_side="left" spline="no">'
 		'<point x="0" y="0"/><point x="1" y="1"/><point x="1" y="2"/>'
 		'<point x="0" y="3"/></polyline><polyline id="right" bracket_pair="left" '
 		'bracket_side="right" spline="no"><point x="4" y="0"/>'

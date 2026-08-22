@@ -17,8 +17,8 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
 
 
-_EMPTY_CDML = '<cdml version="1.0"/>'
-_EDITABLE_CDML = """<cdml version='26.08'><molecule id='mol-1'>
+_EMPTY_CDML = '<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
+_EDITABLE_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='mol-1'>
   <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
 </molecule></cdml>"""
 
@@ -177,7 +177,7 @@ def test_open_in_current_tab_replaces_a_clean_saved_document_in_place(
 	incoming_path = tmp_path / "incoming.cdml"
 	target_path.write_text(_EDITABLE_CDML, encoding="utf-8")
 	incoming_path.write_text(
-		'<cdml version="1.0"><plus id="incoming"><point x="3" y="4"/></plus></cdml>',
+		'<cdml xmlns="urn:ferrum:cdml" version="1.0"><plus id="incoming"><point x="3" y="4"/></plus></cdml>',
 		encoding="utf-8",
 	)
 	window = _make_window(qapp)

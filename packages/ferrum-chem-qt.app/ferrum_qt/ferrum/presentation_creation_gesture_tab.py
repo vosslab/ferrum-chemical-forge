@@ -26,6 +26,49 @@ class FerrumNativePresentationCreationGestureTabMixin:
 		)
 
 	#============================================
+	def begin_curved_electron_arrow_gesture(
+			self, start: tuple[float, float], control: tuple[float, float],
+			) -> object:
+		"""Begin one Rust-owned quadratic electron-arrow gesture."""
+		self._require_mutable()
+		if not _is_exact_point(start) or not _is_exact_point(control):
+			raise TypeError("Ferrum electron-arrow points must be exact float pairs")
+		snapshot = self.current_snapshot
+		return self._session.begin_curved_electron_arrow_gesture_v1(
+			snapshot.revision, snapshot.digest, start[0], start[1], control[0], control[1],
+		)
+
+	#============================================
+	def preview_curved_electron_arrow_gesture(
+			self, gesture: object, end: tuple[float, float],
+			) -> object:
+		"""Return Rust's complete quadratic-arrow overlay for one endpoint."""
+		self._require_mutable()
+		if not _is_exact_point(end):
+			raise TypeError("Ferrum electron-arrow endpoint must be an exact float pair")
+		return self._session.preview_curved_electron_arrow_gesture_v1(gesture, end[0], end[1])
+
+	#============================================
+	def prepare_curved_electron_arrow_gesture(self, gesture: object, preview: object) -> object:
+		"""Preflight one opaque Rust quadratic electron-arrow candidate."""
+		self._require_mutable()
+		return self._session.prepare_curved_electron_arrow_gesture_v1(gesture, preview)
+
+	#============================================
+	def commit_curved_electron_arrow_gesture(self, prepared: object) -> object:
+		"""Commit one renderer-preflighted electron arrow and install Rust truth."""
+		self._require_mutable()
+		commit = self._session.commit_curved_electron_arrow_gesture_v1(prepared)
+		try:
+			self._install_mutation_result(commit.result, (("arrow", commit.identifier),))
+		except Exception as exc:
+			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
+				exc.accepted_receipt = commit
+			raise
+		return commit
+
+	#============================================
 	def _begin_straight_presentation_arrow_gesture(
 			self, kind: object, x: float, y: float, snap: object,
 			) -> object:
@@ -113,3 +156,12 @@ class FerrumNativePresentationCreationGestureTabMixin:
 				exc.accepted_receipt = commit
 			raise
 		return commit
+
+
+#============================================
+def _is_exact_point(value: object) -> bool:
+	"""Accept one immutable scene coordinate pair at the Qt/native boundary."""
+	return (
+		type(value) is tuple and len(value) == 2
+		and type(value[0]) is float and type(value[1]) is float
+	)

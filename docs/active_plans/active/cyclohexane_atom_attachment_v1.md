@@ -359,14 +359,9 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
 - Touch points: one `tests/e2e/e2e_cyclohexane_attachment.py`, docs, and `/private/tmp` receipt.
 - Depends on: WP-D1, to avoid using an E2E loop for unit diagnosis.
 - Acceptance criteria: the sole root E2E is an offscreen local-Qt harness using an inline CDML
-  document and a fresh exact native `ferrum_chem` wheel. Its manager-owned prerequisite invokes
-  `packages/ferrum-rust/tools/build_native_wheel.py build --output-root <fresh-root>
-  --sealed-input-root <validated-root>` with an explicit fresh output root and a manager-selected
-  manifest-validated sealed local input root; the builder JSON supplies the exact wheel path, never
-  timestamp discovery or a network download. The E2E creates a temporary
-  `--system-site-packages` venv, installs that exact wheel with `pip install --no-deps`, starts an
-  isolated offscreen child with only the current-checkout Qt package root on `sys.path`, and rejects
-  a checkout `ferrum_chem` import. It proves the Edit-menu hierarchy exposes exactly one visible,
+  document and the runtime staged by `./build.sh`. It starts an isolated offscreen child with the
+  staged `build/runtime/python` extension and current-checkout Qt package root on `PYTHONPATH`.
+  It proves the Edit-menu hierarchy exposes exactly one visible,
   enabled, checkable, initially unchecked `Attach Cyclohexane Ring` QAction with the window's
   shared action and exclusive-group ownership. It opens and closes the owning visible `QMenu` with
   the Qt event queue drained, then calls the canonical shared `QAction.trigger()` only after popup
@@ -379,9 +374,9 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   hit-test a native popup action row, so this local E2E proves real menu ownership and uses the
   QAction's platform-independent activation contract; desktop popup pointer behavior remains a
   separate platform-level concern.
-- Failure diagnostics: the manager pipeline reports selected sealed-input candidates and manifest
-  errors; build failures retain stderr and output root; bootstrap failures report interpreter,
-  PySide6 version, wheel path/digest, and `ferrum_chem.__file__`; interaction failures report Qt
+- Failure diagnostics: the manager pipeline reports local-runtime receipt failures; build failures
+  retain stderr; bootstrap failures report interpreter, PySide6 version, staged runtime path, and
+  `ferrum_chem.__file__`; interaction failures report Qt
   platform/version, deterministic probe state, and child stderr. The responsible owner repairs the
   owning layer and reruns its focused proof, not a retry or E2E fallback.
 - Evidence or review, when useful: independent reviewer reads the diff, plan, focused results, E2E
@@ -448,11 +443,10 @@ format: after save/reopen the result is an ordinary connected carbon cycle plus 
 ## Completion record
 
 The bounded shared-anchor C6 attachment slice is accepted on 2026-08-21. Final autonomous
-evidence is `/private/tmp/ferrum-cyclohexane-final-e2e-receipt.json`; it used the exact native
-wheel emitted by bare `./build.sh native`, with SHA-256
-`4a438e34473685700d76ae11d8489b4703bfb9c63b0549c39e278ba6ca221ddf`. The managed build-cache
-path replaces the earlier explicit sealed-root prerequisite, so normal builds require no
-operator-selected input root.
+evidence is `/private/tmp/ferrum-cyclohexane-final-e2e-receipt.json`. The historical wheel
+checksum below is retained only as chronology: wheel output was retired, so it is not a current
+acceptance input. Current reproduction starts with `./build.sh`, which stages the sealed runtime
+used by the local E2E without an operator-selected input root.
 
 The final local offscreen Qt workflow covered unarmed startup, Edit-menu action identity and
 post-popup canonical action activation, typed atom picking, Rust-owned preview and one commit,

@@ -3,15 +3,14 @@ use super::{
     XmlBudgetError, XmlInputBudgetV1, XmlInputError,
 };
 
-const SOURCE: &str =
-    r#"<cdml><molecule id="m"><atom id="a" name="C"><point x="1" y="2"/></atom></molecule></cdml>"#;
+const SOURCE: &str = r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="1" y="2"/></atom></molecule></cdml>"#;
 
 fn admitting_budget() -> XmlInputBudgetV1 {
     XmlInputBudgetV1 {
         max_utf8_bytes: SOURCE.len(),
         max_elements: 4,
         max_depth: 4,
-        max_attributes: 5,
+        max_attributes: 6,
         max_text_bytes: 0,
     }
 }
@@ -123,7 +122,8 @@ fn budgeted_parse_rejects_before_a_session_can_be_constructed() {
 
 #[test]
 fn budgeted_parse_preserves_dtd_rejection() {
-    let source = "<!DOCTYPE cdml [<!ENTITY hostile 'x'>]><cdml>&hostile;</cdml>";
+    let source =
+        "<!DOCTYPE cdml [<!ENTITY hostile 'x'>]><cdml xmlns=\"urn:ferrum:cdml\">&hostile;</cdml>";
     let budget = XmlInputBudgetV1 {
         max_utf8_bytes: source.len(),
         max_elements: 1,

@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn renderer_issued_preview_equals_the_committed_standard_plus() {
         let mut session =
-            DocumentSession::load("<cdml><standard font_size='18' line_color='#123456'/></cdml>")
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><standard font_size='18' line_color='#123456'/></cdml>")
                 .expect("fixture");
         let snapshot = session.snapshot().expect("snapshot");
         let gesture = begin_api_plus_gesture_v1(
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn generic_plus_persists_without_document_preview_geometry() {
-        let session = DocumentSession::load("<cdml/>").expect("fixture");
+        let session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("fixture");
         let snapshot = session.snapshot().expect("snapshot");
         let gesture = session
             .begin_presentation_creation_gesture_v1(

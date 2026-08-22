@@ -3,7 +3,7 @@
 the shipped groups.cdml template. License/provenance treatment: no verbatim template block or
 OASA production code is copied; the upstream BKChem application license is GPL-2.0-or-later.
 The central M1 documentation owner records the final redistribution disposition. -->
-<cdml version="0.8" xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">
+<cdml version="0.8" xmlns="urn:ferrum:cdml">
   <info><author_program version="0.2.0">BKchem</author_program></info>
   <viewport viewport="0.000000 0.000000 640.000000 480.000000"/>
   <molecule id="NO2" name="NO2">

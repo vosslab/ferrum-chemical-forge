@@ -3,9 +3,8 @@ use ferrum_document::DocumentSession;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
-const EMPTY: &str = "<cdml/>";
-const EXCLUDED: &str =
-    "<cdml><text id=\"bad\"><point x=\"1\" y=\"2\"/><ftext><b>x</b></ftext></text></cdml>";
+const EMPTY: &str = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
+const EXCLUDED: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"bad\"><point x=\"1\" y=\"2\"/><ftext><b>x</b></ftext></text></cdml>";
 
 fn digest(document: &str) -> String {
     DocumentSession::load(document)

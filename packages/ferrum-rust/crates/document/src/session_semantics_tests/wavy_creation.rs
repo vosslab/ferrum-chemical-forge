@@ -9,7 +9,7 @@ fn point(x: f64, y: f64) -> Point3V1 {
 
 #[test]
 fn prepared_wavy_creation_owns_geometry_identity_and_history() {
-    let source = "<cdml><opaque id=\"ferrum-presentation-v1-0\"><keep/></opaque></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><opaque id=\"ferrum-presentation-v1-0\"><keep/></opaque></cdml>";
     let mut session = DocumentSession::load(source).expect("source must load");
     let mut pending = session
         .prepare_create_wavy_v1(0, point(0.0, 0.0), point(48.0, 0.0))
@@ -61,7 +61,8 @@ fn prepared_wavy_creation_owns_geometry_identity_and_history() {
 
 #[test]
 fn short_wavy_uses_exact_endpoints_and_an_alternating_normal() {
-    let mut session = DocumentSession::load("<cdml/>").expect("source must load");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("source must load");
     let mut pending = session
         .prepare_create_wavy_v1(0, point(0.0, 0.0), point(24.0, 0.0))
         .expect("short Wavy gesture must prepare");
@@ -89,15 +90,20 @@ fn short_wavy_uses_exact_endpoints_and_an_alternating_normal() {
 
 #[test]
 fn invalid_or_stale_wavy_creation_never_mutates_or_consumes_the_next_identity() {
-    let mut session = DocumentSession::load("<cdml/>").expect("source must load");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("source must load");
     let before = session.snapshot().expect("snapshot");
-    assert!(session
-        .prepare_create_wavy_v1(0, point(1.0, 1.0), point(1.0, 1.0))
-        .is_err());
+    assert!(
+        session
+            .prepare_create_wavy_v1(0, point(1.0, 1.0), point(1.0, 1.0))
+            .is_err()
+    );
     let over_bound = 12.0 * (WAVY_MAX_SEGMENTS_V1 as f64 + 0.6);
-    assert!(session
-        .prepare_create_wavy_v1(0, point(0.0, 0.0), point(over_bound, 0.0))
-        .is_err());
+    assert!(
+        session
+            .prepare_create_wavy_v1(0, point(0.0, 0.0), point(over_bound, 0.0))
+            .is_err()
+    );
     assert_eq!(session.snapshot().expect("snapshot"), before);
 
     let mut pending = session

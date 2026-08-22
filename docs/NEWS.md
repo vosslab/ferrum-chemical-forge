@@ -2,9 +2,8 @@
 
 ## Unreleased pre-alpha work
 
-- Ferrum has source-accepted packaging and notice mechanisms for a proposed macOS arm64/CPython
-  3.12 two-wheel route. It remains pre-alpha: real offline artifact evidence and human
-  legal/release review are still required before any supported desktop-release announcement.
+- Ferrum's supported pre-production workflow is local: `./build.sh` creates the
+  runnable CLI and PySide6 app under `build/`, and `./all_test.sh` validates it.
 
 ## v26.08 - 2026-08-12
 

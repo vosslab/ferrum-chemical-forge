@@ -44,7 +44,7 @@ def test_native_plus_edit_updates_rust_and_retains_durable_selection(
 	"""A visible two-field edit commits once and installs its new rendered Plus."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><plus id="p" font_size="14" color="#000">'
+		'<cdml xmlns="urn:ferrum:cdml"><plus id="p" font_size="14" color="#000">'
 		'<point x="10" y="20"/></plus></cdml>',
 		"plus.cdml",
 	)
@@ -84,7 +84,7 @@ def test_native_plus_dialog_rejects_unrepresentable_source_without_mutation(
 	"""The integer form never rounds a valid fractional Rust source fact."""
 	del qapp
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><plus id="p" font_size="14.5"><point x="1" y="2"/></plus></cdml>',
+		'<cdml xmlns="urn:ferrum:cdml"><plus id="p" font_size="14.5"><point x="1" y="2"/></plus></cdml>',
 	)
 	plus = session.observe(0).projection.presentation_stack.roots[0].plus
 	with pytest.raises(ValueError, match="not representable"):

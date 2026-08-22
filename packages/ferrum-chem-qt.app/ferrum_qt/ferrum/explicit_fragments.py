@@ -311,7 +311,7 @@ class FerrumNativeExplicitFragmentsWindowMixin:
 			and not pending
 			and not busy
 			and self._native_tabs_by_page.get(tab) is tab
-			and not tab._disposed
+			and not tab.is_disposed
 			and not tab.requires_refresh
 			and self._active_native_tab() is tab
 			and tab.current_snapshot.revision == revision
@@ -326,7 +326,7 @@ class FerrumNativeExplicitFragmentsWindowMixin:
 		"""Restore canvas focus only when this remains the active live source."""
 		if (
 			self._native_tabs_by_page.get(tab) is tab
-			and not tab._disposed
+			and not tab.is_disposed
 			and self._active_native_tab() is tab
 		):
 			tab.view.viewport().setFocus()
@@ -372,5 +372,5 @@ class FerrumNativeExplicitFragmentsWindowMixin:
 	def _focus_explicit_fragment_source(self,
 			capture: FerrumNativeExplicitFragmentCapture) -> None:
 		"""Return keyboard focus only to a still-live captured source canvas."""
-		if capture.tab in self._native_tabs_by_page and not capture.tab._disposed:
+		if capture.tab in self._native_tabs_by_page and not capture.tab.is_disposed:
 			capture.tab.view.viewport().setFocus()

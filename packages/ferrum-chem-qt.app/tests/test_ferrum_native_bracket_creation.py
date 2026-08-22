@@ -35,7 +35,7 @@ def test_native_rectangular_bracket_uses_pair_facts_selection_and_history(
 	"""Create one pair and select both durable sides after authoritative render."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><standard line_width="2" line_color="#123456"/></cdml>',
+		'<cdml xmlns="urn:ferrum:cdml"><standard line_width="2" line_color="#123456"/></cdml>',
 		"bracket.cdml",
 	)
 	try:
@@ -80,7 +80,7 @@ def test_native_round_pair_uses_rust_issued_cubic_paths_without_fallback(
 	"""Create a round pair and render its Rust-issued sides as cubic paths."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml/>", "round-bracket.cdml",
+		"<cdml xmlns='urn:ferrum:cdml'/>", "round-bracket.cdml",
 	)
 	try:
 		result = tab.create_round_bracket(0.0, 0.0, 20.0, 20.0)

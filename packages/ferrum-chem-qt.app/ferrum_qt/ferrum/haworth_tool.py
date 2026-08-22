@@ -1,6 +1,7 @@
 """Ordinary Ferrum chooser and one-shot placement for closed D-glucose Haworth recipes."""
 
 import dataclasses
+import math
 
 import PySide6.QtCore
 import PySide6.QtGui
@@ -9,6 +10,69 @@ from ferrum_qt.dialogs.accessibility import finalize_dialog_accessibility
 
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.ferrum.haworth
+
+
+_PROJECTED_GEOMETRY_TOLERANCE_PX = 1.0
+
+
+def _projected_structure_occupies_haworth_location(tab: object,
+		viewport_point: PySide6.QtCore.QPoint,
+		anchor: PySide6.QtCore.QPointF) -> bool:
+	"""Return whether a Haworth click or its snap meets projected geometry.
+
+	Placement is stricter than selection: a structure may contain implicit atoms
+	without a durable graphics item.  This admission check supplements the normal
+	graphics hit stack without broadening any general canvas picker.
+	"""
+	placement_points = (
+		PySide6.QtCore.QPointF(viewport_point),
+		PySide6.QtCore.QPointF(tab.view.mapFromScene(anchor)),
+	)
+	atom_positions: dict[str, PySide6.QtCore.QPointF] = {}
+	for molecule in tab.current_document_observation().projection.molecules:
+		for atom in molecule.atoms:
+			position = PySide6.QtCore.QPointF(tab.view.mapFromScene(
+				PySide6.QtCore.QPointF(atom.position.x, atom.position.y),
+			))
+			if any(_device_points_coincide(point, position) for point in placement_points):
+				return True
+			if type(atom.source_id) is str and atom.source_id:
+				atom_positions[atom.source_id] = position
+		for bond in molecule.bonds:
+			start = atom_positions.get(bond.start.source_id)
+			end = atom_positions.get(bond.end.source_id)
+			if start is not None and end is not None and any(
+					_device_point_is_on_segment(point, start, end)
+					for point in placement_points
+			):
+				return True
+	return False
+
+
+def _device_points_coincide(left: PySide6.QtCore.QPointF,
+		right: PySide6.QtCore.QPointF) -> bool:
+	"""Compare device coordinates without relying on graphics-item visibility."""
+	return math.isclose(left.x(), right.x(), abs_tol=_PROJECTED_GEOMETRY_TOLERANCE_PX) and math.isclose(
+		left.y(), right.y(), abs_tol=_PROJECTED_GEOMETRY_TOLERANCE_PX,
+	)
+
+
+def _device_point_is_on_segment(point: PySide6.QtCore.QPointF,
+		start: PySide6.QtCore.QPointF, end: PySide6.QtCore.QPointF) -> bool:
+	"""Return whether a device point lies on the finite projected bond segment."""
+	delta_x = end.x() - start.x()
+	delta_y = end.y() - start.y()
+	length_squared = delta_x * delta_x + delta_y * delta_y
+	if length_squared <= _PROJECTED_GEOMETRY_TOLERANCE_PX ** 2:
+		return _device_points_coincide(point, start)
+	point_x = point.x() - start.x()
+	point_y = point.y() - start.y()
+	progress = point_x * delta_x + point_y * delta_y
+	tolerance = _PROJECTED_GEOMETRY_TOLERANCE_PX * math.sqrt(length_squared)
+	if progress < -tolerance or progress > length_squared + tolerance:
+		return False
+	cross_product = point_x * delta_y - point_y * delta_x
+	return cross_product * cross_product <= _PROJECTED_GEOMETRY_TOLERANCE_PX ** 2 * length_squared
 
 
 @dataclasses.dataclass
@@ -128,6 +192,7 @@ class FerrumNativeHaworthToolMixin:
 			or intent.tab.durable_structure_at_viewport_point(
 				intent.tab.view.mapFromScene(anchor),
 			) is not None
+			or _projected_structure_occupies_haworth_location(intent.tab, point, anchor)
 		):
 			self.statusBar().showMessage(self.tr("Choose an empty page location to insert a separate Haworth drawing."), 5000); return
 		try:

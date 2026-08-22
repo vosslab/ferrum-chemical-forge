@@ -25,7 +25,7 @@ def main() -> int:
 	root = pathlib.Path(tempfile.mkdtemp(prefix="ferrum-catalog-e2e-", dir=pathlib.Path.cwd()))
 	try:
 		window._show_edit_refusal = lambda _request: None
-		tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab("<cdml/>", "catalog-e2e.cdml")
+		tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab("<cdml xmlns='urn:ferrum:cdml'/>", "catalog-e2e.cdml")
 		window._register_native_tab(tab, activate=True)
 		palette = ferrum_qt.ferrum.catalog_palette.FerrumCatalogPalette(window)
 		palette.search.setText("benzene")

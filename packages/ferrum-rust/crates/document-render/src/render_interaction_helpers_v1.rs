@@ -14,6 +14,9 @@ pub(super) fn toggle_roots(
             current.push(candidate);
         }
     }
+    // Membership follows the gesture, while representation follows the
+    // document's Rust-owned canonical source order.
+    current.sort_by_key(|root| root.source_order);
     current
 }
 pub(super) fn square_bounds(x: f64, y: f64, radius: f64) -> RenderInteractionBoundsV1 {
@@ -439,6 +442,15 @@ pub(super) fn presentation_bounds_from_render(
                     axes.iter()
                         .flat_map(|axis| axis.points().iter())
                         .chain(heads.iter().flat_map(|head| head.points().iter())),
+                    arrow.stroke().width().value(),
+                )
+            }
+            ferrum_document::ArrowDisplayGeometryV1::Electron { axis_path, head, .. } => {
+                bounds_from_points(
+                    axis_path
+                        .points()
+                        .iter()
+                        .chain(head.points().iter()),
                     arrow.stroke().width().value(),
                 )
             }

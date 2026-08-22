@@ -5,13 +5,13 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    element_name, AtomPropertiesPatchV1, AtomPropertiesPatchV1Error, AtomPropertyChangeV1,
-    PositiveFiniteV1, Rgb24V1, VisibilityV1, CDML_NAMESPACE,
+    AtomPropertiesPatchV1, AtomPropertiesPatchV1Error, AtomPropertyChangeV1, CDML_NAMESPACE,
+    PositiveFiniteV1, Rgb24V1, VisibilityV1, element_name,
 };
 use xot::Xot;
 
 const PROPERTY_SOURCE: &str = concat!(
-    "<cdml xmlns:v=\"urn:vendor\"><molecule id=\"m\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\" charge=\"2\" valency=\"4\" isotope=\"13\" ",
     "multiplicity=\"3\" show=\"no\" hydrogens=\"off\" vendor_keep=\"yes\">",
     "<point x=\"1\" y=\"2\"/><font family=\"Courier\" size=\"11\" ",
@@ -152,6 +152,10 @@ fn atom_properties_intent_rejects_duplicates_and_invalid_scalar_meaning() {
         Err(AtomPropertiesPatchV1Error::InvalidElement)
     );
     assert_eq!(
+        AtomPropertiesPatchV1::new("a", vec![AtomPropertyChangeV1::Element("Xx".to_owned())]),
+        Err(AtomPropertiesPatchV1Error::InvalidElement)
+    );
+    assert_eq!(
         AtomPropertiesPatchV1::new("a", vec![AtomPropertyChangeV1::Isotope(Some(0))]),
         Err(AtomPropertiesPatchV1Error::ZeroIsotope)
     );
@@ -201,7 +205,7 @@ fn atom_properties_reject_unknown_atom_or_ambiguous_font_without_state_change() 
 #[test]
 fn atom_properties_create_a_canonical_font_without_disturbing_foreign_font_children() {
     let source = concat!(
-        "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+        "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
         "xmlns:f=\"urn:foreign\"><c:molecule id=\"m\"><c:atom id=\"a\" name=\"C\">",
         "<c:point x=\"1\" y=\"2\"/><f:font foreign_keep=\"yes\"><f:opaque/>",
         "</f:font><c:ftext>retained label</c:ftext></c:atom></c:molecule></c:cdml>"

@@ -38,9 +38,9 @@ What this table explicitly does not govern:
 Recognition is decided before any attribute is read.
 
 An element is recognized when its expanded name matches a documented CDML class:
-the local name is in the core element registry and the namespace is either the
-canonical CDML namespace `http://www.freesoftware.fsf.org/bkchem/cdml` or empty
-(legacy no-namespace CDML). This is the same boundary the reference reader uses in
+the local name is in the core element registry and the namespace is exactly the
+canonical Ferrum CDML namespace `urn:ferrum:cdml`. Historical BKChem and unqualified
+roots are rejected by ordinary Ferrum ingress. This replaces the broader boundary the reference reader uses in
 `OTHER_REPOS/bkchem-oasa/packages/oasa/oasa/cdml_xml.py`
 (`CDML_CORE_ELEMENT_NAMES`, `_is_core_cdml_element`) and in
 `OTHER_REPOS/bkchem-oasa/packages/oasa/oasa/cdml_writer.py:_direct_core_children`.

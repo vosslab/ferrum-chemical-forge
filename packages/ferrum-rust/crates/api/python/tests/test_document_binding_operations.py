@@ -10,19 +10,19 @@ import ferrum_chem
 
 
 SOURCE = (
-    "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">"
+    "<cdml xmlns='urn:ferrum:cdml'><molecule id=\"m\"><atom id=\"a\" name=\"C\">"
     "<point x=\"1\" y=\"2\"/></atom></molecule></cdml>"
 )
 
 BOND_SOURCE = (
-    '<cdml version="26.08"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">'
     '<atom id="a" name="C"><point x="1" y="2"/></atom>'
     '<atom id="b" name="O"><point x="3" y="2"/></atom>'
     '</molecule></cdml>'
 )
 
 COORDINATE_SOURCE = (
-    '<cdml version="26.08"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">'
     '<atom id="a" name="C"><point x="10" y="20"/></atom>'
     '<atom id="b" name="C"><point x="50" y="20"/></atom>'
     '<atom id="c" name="O"><point x="50" y="60"/></atom>'
@@ -32,7 +32,7 @@ COORDINATE_SOURCE = (
 )
 
 ATOM_PROPERTIES_SOURCE = (
-    '<cdml xmlns:v="urn:vendor"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><molecule id="m">'
     '<atom id="a" name="C" charge="2" valency="4" isotope="13" '
     'multiplicity="3" show="no" hydrogens="off" vendor_keep="yes">'
     '<point x="1" y="2"/><font family="Courier" size="11" '
@@ -41,7 +41,7 @@ ATOM_PROPERTIES_SOURCE = (
 )
 
 BOND_PROPERTIES_SOURCE = (
-    '<cdml xmlns:v="urn:vendor"><molecule id="m">'
+    '<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><molecule id="m">'
     '<atom id="a" name="C"><point x="1" y="2"/></atom>'
     '<atom id="b" name="O"><point x="20" y="2"/></atom>'
     '<bond id="ab" start="a" end="b" type="n1" line_width="1.5" '
@@ -50,7 +50,7 @@ BOND_PROPERTIES_SOURCE = (
 )
 
 HAWORTH_POSITION_SOURCE = (
-    '<cdml><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/></atom>'
+    '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/></atom>'
     '<atom id="b" name="O"><point x="1" y="0"/></atom>'
     '<bond start="a" end="b" haworth_position="front"/>'
     '<bond start="b" end="a" haworth_position="back"/>'
@@ -137,7 +137,7 @@ def test_bond_properties_reject_hostile_python_intent_without_mutation() -> None
 
 def test_atom_deletion_removes_incident_bonds_and_uses_one_history_entry() -> None:
     source = (
-        '<cdml><molecule id="m">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m">'
         '<atom id="a" name="C"><point x="1" y="2"/></atom>'
         '<atom id="b" name="O"><point x="3" y="2"/></atom>'
         '<bond id="ab" type="n1" start="a" end="b"/>'
@@ -158,7 +158,7 @@ def test_atom_deletion_removes_incident_bonds_and_uses_one_history_entry() -> No
 
 def test_bond_deletion_preserves_atoms_and_uses_one_history_entry() -> None:
     source = (
-        '<cdml><molecule id="m">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m">'
         '<atom id="a" name="C"><point x="1" y="2"/></atom>'
         '<atom id="b" name="O"><point x="3" y="2"/></atom>'
         '<bond id="ab" type="n1" start="a" end="b"/>'
@@ -181,7 +181,7 @@ def test_bond_deletion_preserves_atoms_and_uses_one_history_entry() -> None:
 
 def test_bond_order_change_is_typed_noop_aware_and_undoable() -> None:
     source = (
-        '<cdml><molecule id="m">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m">'
         '<atom id="a" name="C"><point x="1" y="2"/></atom>'
         '<atom id="b" name="O"><point x="20" y="2"/></atom>'
         '<bond id="ab" type="n1" start="a" end="b" retained="yes"/>'
@@ -223,6 +223,8 @@ def test_operation_validation_errors_are_specific_and_structured() -> None:
 
     with pytest.raises(ferrum_chem.InvalidAtomElementError):
         session.submit(0, set_atom("2"))
+    with pytest.raises(ferrum_chem.InvalidAtomElementError):
+        session.submit(0, set_atom("Xx"))
     with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as caught:
         session.submit(
             0,
@@ -455,7 +457,7 @@ def test_render_interaction_binding_uses_render_plan_authority() -> None:
     assert session.undo(1).observation.snapshot.revision == 2
 
     unsupported = ferrum_chem.DocumentSession.load(
-        '<cdml><molecule id="blocked"><atom id="a" name="C">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="blocked"><atom id="a" name="C">'
         '<point x="1" y="2"/><ftext><b>rich</b></ftext>'
         '</atom></molecule></cdml>'
     )
@@ -474,7 +476,7 @@ def test_render_interaction_binding_uses_render_plan_authority() -> None:
         )
     assert blocked_error.value.category == ferrum_chem.RenderInteractionCategoryV1.unrenderable_depiction
     display_only = ferrum_chem.DocumentSession.load(
-        '<cdml><plus><point x="4" y="5"/></plus></cdml>',
+        '<cdml xmlns="urn:ferrum:cdml"><plus><point x="4" y="5"/></plus></cdml>',
     )
     display_snapshot = display_only.snapshot()
     display_observation = display_only.observe_render_interaction_v1(
@@ -493,7 +495,7 @@ def test_render_interaction_binding_uses_render_plan_authority() -> None:
         )
     assert display_error.value.category == ferrum_chem.RenderInteractionCategoryV1.display_only
     fragment_reference = ferrum_chem.DocumentSession.load(
-        '<cdml><molecule id="m"><atom id="a" name="C">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
         '<point x="0" y="0"/></atom><fragment><bond id="m"/>'
         '</fragment></molecule></cdml>',
     )
@@ -529,7 +531,7 @@ def test_render_interaction_binding_uses_render_plan_authority() -> None:
 
 def test_render_interaction_binding_moves_molecule_and_plus_atomically() -> None:
     session = ferrum_chem.DocumentSession.load(
-        '<cdml><molecule id="m"><atom id="a" name="C">'
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
         '<point x="0" y="0"/></atom></molecule><plus id="p">'
         '<point x="40" y="0"/></plus></cdml>',
     )
@@ -560,6 +562,30 @@ def test_render_interaction_binding_moves_molecule_and_plus_atomically() -> None
     assert session.undo(1).observation.snapshot.revision == 2
 
 
+def test_render_interaction_binding_returns_toggled_roots_in_source_order() -> None:
+    session = ferrum_chem.DocumentSession.load(
+        '<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m1"><atom id="a1" name="C">'
+        '<point x="0" y="0"/></atom></molecule><molecule id="m2"><atom id="a2" '
+        'name="O"><point x="40" y="0"/></atom></molecule></cdml>',
+    )
+    snapshot = session.snapshot()
+    observation = session.observe_render_interaction_v1(snapshot.revision, snapshot.digest)
+    later = session.select_render_interaction_roots_v1(
+        observation, None,
+        ferrum_chem.RenderInteractionQueryV1.point(
+            40.0, 0.0, ferrum_chem.RenderInteractionModifierV1.replace,
+        ),
+    )
+    selection = session.select_render_interaction_roots_v1(
+        observation, later,
+        ferrum_chem.RenderInteractionQueryV1.point(
+            0.0, 0.0, ferrum_chem.RenderInteractionModifierV1.toggle,
+        ),
+    )
+
+    assert [root.identifier for root in selection.roots] == ["m1", "m2"]
+
+
 def test_render_interaction_binding_captures_raw_or_view_hex_grid_snap() -> None:
     session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
     initial = session.snapshot()
@@ -584,7 +610,7 @@ def test_render_interaction_binding_captures_raw_or_view_hex_grid_snap() -> None
 
 
 def test_presentation_creation_gesture_binding_owns_preview_and_canonical_arrow() -> None:
-    session = ferrum_chem.DocumentSession.load("<cdml/>")
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
     snapshot = session.snapshot()
     gesture = session.begin_presentation_creation_gesture_v1(
         snapshot.revision, snapshot.digest,
@@ -600,8 +626,8 @@ def test_presentation_creation_gesture_binding_owns_preview_and_canonical_arrow(
     assert type(preview.overlay) is ferrum_chem.NormalArrowGestureOverlayV1
     assert len(preview.overlay.heads) == 1
     assert len(preview.overlay.heads[0].vertices) == 3
-    assert preview.overlay.right > preview.overlay.end_x
-    assert abs(preview.overlay.end_x - 14.142) < 0.01
+    assert preview.overlay.right > preview.overlay.axis.end_x
+    assert abs(preview.overlay.axis.end_x - 8.485) < 0.01
     assert session.snapshot().revision == 0
     commit = session.commit_presentation_creation_gesture_v1(gesture, preview)
     assert commit.root.kind == ferrum_chem.PresentationGestureRootKindV1.arrow
@@ -614,7 +640,7 @@ def test_presentation_creation_gesture_binding_owns_preview_and_canonical_arrow(
 
 
 def test_equilibrium_creation_binding_requires_kind_owned_style() -> None:
-    session = ferrum_chem.DocumentSession.load("<cdml/>")
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
     snapshot = session.snapshot()
     gesture = session.begin_presentation_creation_gesture_v1(
         snapshot.revision, snapshot.digest,
@@ -636,8 +662,8 @@ def test_equilibrium_creation_binding_requires_kind_owned_style() -> None:
 
 
 def test_presentation_creation_gesture_binding_rejects_bad_handles_and_geometry() -> None:
-    first = ferrum_chem.DocumentSession.load("<cdml/>")
-    second = ferrum_chem.DocumentSession.load("<cdml/>")
+    first = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+    second = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
     first_snapshot = first.snapshot()
     second_snapshot = second.snapshot()
     first_gesture = first.begin_presentation_creation_gesture_v1(
@@ -671,7 +697,7 @@ def test_presentation_creation_gesture_binding_rejects_bad_handles_and_geometry(
 
 def test_dedicated_plus_placement_facade_commits_standard_plus() -> None:
     """Only the renderer-backed Plus facade persists one canonical root."""
-    session = ferrum_chem.DocumentSession.load("<cdml><standard font_size='18'/></cdml>")
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'><standard font_size='18'/></cdml>")
     snapshot = session.snapshot()
     assert not hasattr(ferrum_chem.PresentationGestureKindV1, "plus")
     gesture = session.begin_plus_placement_gesture_v1(
@@ -691,7 +717,7 @@ def test_dedicated_plus_placement_facade_commits_standard_plus() -> None:
 def test_dedicated_plus_preview_equals_the_committed_renderer() -> None:
     """The dedicated facade publishes only exact current renderer facts."""
     session = ferrum_chem.DocumentSession.load(
-        "<cdml><standard font_size='18' line_color='#123456'/></cdml>",
+        "<cdml xmlns='urn:ferrum:cdml'><standard font_size='18' line_color='#123456'/></cdml>",
     )
     snapshot = session.snapshot()
     gesture = session.begin_plus_placement_gesture_v1(
@@ -714,8 +740,8 @@ def test_dedicated_plus_preview_equals_the_committed_renderer() -> None:
 
 def test_dedicated_plus_facade_rejects_foreign_and_replayed_handles() -> None:
     """The Plus facade keeps both opaque halves bound to one session snapshot."""
-    first = ferrum_chem.DocumentSession.load("<cdml/>")
-    second = ferrum_chem.DocumentSession.load("<cdml/>")
+    first = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+    second = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
     first_snapshot = first.snapshot()
     gesture = first.begin_plus_placement_gesture_v1(
         first_snapshot.revision, first_snapshot.digest, 72.0, 36.0,
@@ -735,7 +761,7 @@ def test_presentation_creation_gesture_binding_rejects_bool_and_replay_without_m
         with pytest.raises(ferrum_chem.PresentationGestureError) as invalid:
             ferrum_chem.PresentationGestureSnapPolicyV1(**kwargs)
         assert invalid.value.category == ferrum_chem.PresentationGestureCategoryV1.invalid_snap_policy
-    session = ferrum_chem.DocumentSession.load("<cdml/>")
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
     snapshot = session.snapshot()
     gesture = session.begin_presentation_creation_gesture_v1(
         snapshot.revision, snapshot.digest,

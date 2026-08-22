@@ -124,7 +124,7 @@ impl TypedDocument {
 }
 
 pub(crate) fn valid_cdml_namespace(namespace: String) -> String {
-    if namespace.is_empty() || namespace == CDML_NAMESPACE {
+    if namespace == CDML_NAMESPACE {
         namespace
     } else {
         unreachable!("TypedDocument accepts only no-namespace or CDML roots")

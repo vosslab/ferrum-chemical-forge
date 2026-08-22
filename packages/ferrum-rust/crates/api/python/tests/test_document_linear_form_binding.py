@@ -1,14 +1,12 @@
 """Installed-extension checks for private native linear-form conversion."""
 
-from pathlib import Path
-
 import pytest
 
 import ferrum_chem
 
 
 _SOURCE = """\
-<cdml version="1.0"><molecule id="m">
+<cdml xmlns="urn:ferrum:cdml" version="1.0"><molecule id="m">
  <atom id="late" name="C"><point x="40" y="5"/></atom>
  <atom id="early" name="O"><point x="10" y="5"/></atom>
  <bond id="b" start="late" end="early" type="n1"/>
@@ -128,11 +126,3 @@ def test_private_linear_form_rejects_wrong_container_and_python_text(atoms: obje
 
 	assert caught.value.reason
 
-
-def test_private_linear_form_name_is_runtime_only() -> None:
-	"""The Qt-only method and exception remain outside the published wheel stub."""
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-
-	assert hasattr(ferrum_chem.DocumentSession, "convert_linear_form_v1")
-	assert all(name not in stub for name in ("convert_linear_form_v1", "DocumentLinearFormError"))

@@ -204,9 +204,9 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrum_document::{DirectBondSnapPolicyV1, DocumentObjectIdV1, DocumentSession};
+    use ferrum_document::{DirectBondSnapPolicyV1, DocumentSession};
 
-    const SOURCE: &str = "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"40\" y=\"0\"/></atom></molecule></cdml>";
+    const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"40\" y=\"0\"/></atom></molecule></cdml>";
 
     fn digest(session: &DocumentSession) -> String {
         session
@@ -220,12 +220,20 @@ mod tests {
 
     fn atom_ids(session: &DocumentSession) -> (String, String) {
         let observation = session.observe(0).expect("observation");
-        let atoms = observation.projection().molecules()[0].atoms();
-        let object_id = |index: usize| -> String {
-            let identifier: &DocumentObjectIdV1 = atoms[index].id().expect("direct atom");
-            identifier.as_str().to_owned()
+        let object_id = |source_id: &str| -> String {
+            observation
+                .projection()
+                .molecules()
+                .iter()
+                .flat_map(|molecule| molecule.atoms())
+                .find(|atom| atom.source_id() == Some(source_id))
+                .expect("projected atom has expected source ID")
+                .id()
+                .expect("projected atom has canonical ID")
+                .as_str()
+                .to_owned()
         };
-        (object_id(0), object_id(1))
+        (object_id("a"), object_id("b"))
     }
 
     fn bind_session(py: Python<'_>, session: DocumentSession) -> Py<PyDocumentSession> {
@@ -316,9 +324,9 @@ mod tests {
         revision: u64,
         digest: &str,
         start: Py<PyAny>,
+        presentation: PyDocumentBondPresentationV1,
     ) -> Py<PyAny> {
-        let presentation =
-            Py::new(py, PyDocumentBondPresentationV1::NormalSingle).expect("presentation binds");
+        let presentation = Py::new(py, presentation).expect("presentation binds");
         let snap = Py::new(
             py,
             PyDirectBondSnapPolicyV1 {
@@ -521,61 +529,181 @@ mod tests {
             let module = PyModule::new(py, "ferrum_chem").expect("extension module");
             super::super::binding::initialize(&module).expect("extension module registers");
 
-            for (start_is_new, end_is_new, expected_created) in [
-                (false, false, false),
-                (false, true, true),
-                (true, false, true),
+            for (presentation, expected_presentation) in [
+                (PyDocumentBondPresentationV1::NormalSingle, "normal_single"),
+                (PyDocumentBondPresentationV1::NormalDouble, "normal_double"),
+                (PyDocumentBondPresentationV1::NormalTriple, "normal_triple"),
             ] {
-                let document = DocumentSession::load(SOURCE).expect("session loads");
-                let (start_id, end_id) = atom_ids(&document);
-                let revision = document.snapshot().expect("snapshot").revision();
-                let expected_digest = digest(&document);
-                let session = bind_session(py, document);
-                let session = session.bind(py);
-                let start = if start_is_new {
-                    v2_new_end(&module, 20.0, 0.0)
-                } else {
-                    v2_existing_end(&module, &start_id)
-                };
-                let end = if end_is_new {
-                    v2_new_end(&module, 20.0, 0.0)
-                } else {
-                    v2_existing_end(&module, &end_id)
-                };
-                let gesture = begin_v2(py, session, revision, &expected_digest, start);
-                let admission = session
-                    .call_method1("admit_direct_bond_candidate_v2", (&gesture, &end))
-                    .expect("v2 candidate admits");
-                let receipt = session
-                    .call_method1("commit_direct_bond_admission_v2", (&admission,))
-                    .expect("v2 candidate commits");
-                assert_eq!(
-                    receipt
-                        .getattr("created_new_atom")
-                        .expect("creation fact exposes")
-                        .extract::<bool>()
-                        .expect("creation fact is boolean"),
-                    expected_created
-                );
-                if start_is_new && !end_is_new {
+                for (form, start_is_new, end_is_new, expected_created, expected_molecule) in [
+                    ("existing_existing", false, false, false, false),
+                    ("existing_new", false, true, true, false),
+                    ("new_existing", true, false, true, false),
+                    ("new_new", true, true, true, true),
+                ] {
+                    let document = DocumentSession::load(if form == "new_new" {
+                        "<cdml xmlns=\"urn:ferrum:cdml\"/>"
+                    } else {
+                        SOURCE
+                    })
+                    .expect("session loads");
+                    let endpoint_ids = if form == "new_new" {
+                        None
+                    } else {
+                        Some(atom_ids(&document))
+                    };
+                    let revision = document.snapshot().expect("snapshot").revision();
+                    let expected_digest = digest(&document);
+                    let session = bind_session(py, document);
+                    let session = session.bind(py);
+                    let start = if start_is_new {
+                        v2_new_end(&module, 80.0, 0.0)
+                    } else {
+                        v2_existing_end(
+                            &module,
+                            &endpoint_ids.as_ref().expect("existing start has IDs").0,
+                        )
+                    };
+                    let end = if end_is_new {
+                        v2_new_end(&module, 40.0, 0.0)
+                    } else {
+                        v2_existing_end(
+                            &module,
+                            &endpoint_ids.as_ref().expect("existing end has IDs").1,
+                        )
+                    };
+                    let gesture =
+                        begin_v2(py, session, revision, &expected_digest, start, presentation);
+                    let admission = session
+                        .call_method1("admit_direct_bond_candidate_v2", (&gesture, &end))
+                        .expect("v2 candidate admits");
                     assert_eq!(
-                        receipt
-                            .getattr("end_atom_identifier")
-                            .expect("release endpoint exposes")
+                        admission
+                            .getattr("overlay")
+                            .expect("overlay exposes")
+                            .getattr("presentation")
+                            .expect("presentation exposes")
                             .extract::<String>()
-                            .expect("release endpoint is text"),
-                        "b"
+                            .expect("presentation is text"),
+                        expected_presentation
                     );
+                    for forbidden in ["candidate", "fence", "capability", "session_origin"] {
+                        assert!(admission.getattr(forbidden).is_err());
+                    }
+                    let receipt = session
+                        .call_method1("commit_direct_bond_admission_v2", (&admission,))
+                        .expect("v2 candidate commits");
                     assert_eq!(
                         receipt
                             .getattr("created_new_atom")
                             .expect("creation fact exposes")
                             .extract::<bool>()
                             .expect("creation fact is boolean"),
-                        true
+                        expected_created
                     );
+                    assert_eq!(
+                        receipt
+                            .getattr("created_new_molecule")
+                            .expect("molecule fact exposes")
+                            .extract::<bool>()
+                            .expect("molecule fact is boolean"),
+                        expected_molecule
+                    );
+                    if matches!(form, "existing_existing" | "new_existing") {
+                        assert_eq!(
+                            receipt
+                                .getattr("end_atom_identifier")
+                                .expect("release endpoint exposes")
+                                .extract::<String>()
+                                .expect("release endpoint is text"),
+                            "b"
+                        );
+                    }
                 }
             }
+        });
+    }
+
+    #[test]
+    fn registered_direct_bond_v2_admission_is_opaque_and_refusal_is_mutation_free() {
+        Python::initialize();
+        Python::attach(|py| {
+            let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+            super::super::binding::initialize(&module).expect("extension module registers");
+
+            let document = DocumentSession::load(SOURCE).expect("session loads");
+            let (start, end) = atom_ids(&document);
+            let revision = document.snapshot().expect("snapshot").revision();
+            let expected_digest = digest(&document);
+            let session = bind_session(py, document);
+            let session = session.bind(py);
+            let start = v2_existing_end(&module, &start);
+            let valid_end = v2_existing_end(&module, &end);
+            let gesture = begin_v2(
+                py,
+                session,
+                revision,
+                &expected_digest,
+                start.clone_ref(py),
+                PyDocumentBondPresentationV1::NormalSingle,
+            );
+            let admission = session
+                .call_method1("admit_direct_bond_candidate_v2", (&gesture, &valid_end))
+                .expect("candidate admits");
+            assert!(admission.get_type().call0().is_err());
+            for forbidden in ["candidate", "fence", "capability", "session_origin"] {
+                assert!(admission.getattr(forbidden).is_err());
+            }
+
+            let before = session
+                .call_method0("snapshot")
+                .expect("snapshot before refusal");
+            let refusal = session
+                .call_method1("admit_direct_bond_candidate_v2", (&gesture, &start))
+                .expect("collapsed endpoint returns typed refusal");
+            assert_eq!(
+                *refusal
+                    .getattr("category")
+                    .expect("category attaches")
+                    .extract::<PyRef<'_, PyDirectBondAdmissionCategoryV1>>()
+                    .expect("category stays closed"),
+                PyDirectBondAdmissionCategoryV1::CollapsedEndpoint
+            );
+            assert_eq!(
+                refusal
+                    .getattr("recovery")
+                    .expect("recovery attaches")
+                    .extract::<PyRef<'_, PyDirectBondGestureRecoveryV1>>()
+                    .expect("recovery stays closed")
+                    .clone(),
+                PyDirectBondGestureRecoveryV1::AdjustEndpoint
+            );
+            let after = session
+                .call_method0("snapshot")
+                .expect("snapshot after refusal");
+            assert_eq!(
+                before
+                    .getattr("revision")
+                    .expect("revision exposes")
+                    .extract::<u64>()
+                    .expect("revision is numeric"),
+                after
+                    .getattr("revision")
+                    .expect("revision exposes")
+                    .extract::<u64>()
+                    .expect("revision is numeric")
+            );
+            assert_eq!(
+                before
+                    .getattr("cdml")
+                    .expect("CDML exposes")
+                    .extract::<String>()
+                    .expect("CDML is text"),
+                after
+                    .getattr("cdml")
+                    .expect("CDML exposes")
+                    .extract::<String>()
+                    .expect("CDML is text")
+            );
         });
     }
 }

@@ -19,10 +19,12 @@ use ferrum_render::{
 use thiserror::Error;
 
 mod catalog_placement_v2;
+mod curved_electron_arrow_gesture_v1;
 mod reaction_gesture_v1;
 mod reaction_lifecycle_v1;
 mod reaction_observation_v1;
 mod reaction_translation_v1;
+mod presentation_path_gesture_v1;
 mod render_interaction_v1;
 
 pub use catalog_placement_v2::{
@@ -31,6 +33,14 @@ pub use catalog_placement_v2::{
     PreparedCatalogPlacementV2, begin_catalog_placement_v2, cancel_catalog_placement_gesture_v2,
     commit_catalog_placement_v2, prepare_catalog_placement_v2, preview_catalog_placement_v2,
     release_catalog_placement_preview_v2,
+};
+pub use curved_electron_arrow_gesture_v1::{
+    CommittedCurvedElectronArrowV1, CurvedElectronArrowGestureCategoryV1,
+    CurvedElectronArrowGestureErrorV1, CurvedElectronArrowGestureRecoveryV1,
+    CurvedElectronArrowGestureV1, CurvedElectronArrowOverlayV1,
+    CurvedElectronArrowPreviewV1, PreparedCurvedElectronArrowV1,
+    begin_curved_electron_arrow_gesture_v1, commit_curved_electron_arrow_gesture_v1,
+    prepare_curved_electron_arrow_gesture_v1, preview_curved_electron_arrow_gesture_v1,
 };
 pub use reaction_gesture_v1::{
     CommittedReactionV1, PreparedReactionV1, ReactionCreateRequestV1, ReactionGestureCategoryV1,
@@ -51,6 +61,13 @@ pub use reaction_translation_v1::{
     CommittedReactionTranslationV1, PreparedReactionTranslationV1, ReactionTranslationGestureV1,
     ReactionTranslationPreviewV1, begin_reaction_translation_v1, commit_reaction_translation_v1,
     prepare_reaction_translation_v1, preview_reaction_translation_v1,
+};
+pub use presentation_path_gesture_v1::{
+    CommittedPresentationPathV1, PresentationPathAppearanceV1, PresentationPathPreviewV1,
+    PresentationPathRenderCategoryV1, PresentationPathRenderErrorV1, PresentationPathRenderGestureV1,
+    PresentationPathRenderRecoveryV1, PreparedPresentationPathV1, begin_presentation_path_gesture_v1,
+    commit_presentation_path_gesture_v1, prepare_presentation_path_gesture_v1,
+    preview_presentation_path_gesture_v1,
 };
 pub use render_interaction_v1::{
     CommittedRenderInteractionTranslationV1, CommittedStructureDeletionV1,
@@ -598,8 +615,7 @@ fn shape(
 mod tests {
     use super::*;
 
-    const EMPTY: &str =
-        r#"<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07"/>"#;
+    const EMPTY: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"/>"#;
 
     fn fence(session: &DocumentSession) -> DocumentFenceV1 {
         let snapshot = session.snapshot().expect("snapshot");
@@ -719,8 +735,7 @@ mod tests {
         // A known Plus root with an authored face passes complete-CDML preflight,
         // but V1 cannot provide a verified layout for that face. The compositor
         // therefore emits an explicit exclusion.
-        let source =
-            r#"<cdml><plus id="bad"><point x="1" y="2"/><font family="Arial"/></plus></cdml>"#;
+        let source = r#"<cdml xmlns="urn:ferrum:cdml"><plus id="bad"><point x="1" y="2"/><font family="Arial"/></plus></cdml>"#;
         let mut session = DocumentSession::load(source).expect("session");
         let gesture = begin_presentation_vector_gesture_v1(
             &session,

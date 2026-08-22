@@ -18,7 +18,7 @@ import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.molblock_import
 
 
-_EMPTY_CDML = "<cdml/>"
+_EMPTY_CDML = "<cdml xmlns='urn:ferrum:cdml'/>"
 
 
 @pytest.fixture

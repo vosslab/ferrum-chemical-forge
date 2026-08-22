@@ -21,7 +21,7 @@ import ferrum_qt.ferrum.selection_svg
 
 
 _SOURCE = """\
-<cdml version="26.07"><plus id="p"><point x="40" y="20"/></plus>
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><plus id="p"><point x="40" y="20"/></plus>
 <molecule id="near"><atom id="a" name="C"><point x="10" y="20"/></atom>
  <atom id="b" name="O"><point x="25" y="20"/></atom>
  <bond id="ab" start="a" end="b" type="n1"/></molecule>

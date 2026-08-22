@@ -11,7 +11,7 @@ use crate::presentation_creation_gesture_v1::PresentationGestureSessionOriginV1;
 use crate::text_placement_gesture_v1::TextPlacementSessionOriginV1;
 
 pub(crate) const EMPTY_DOCUMENT_SOURCE_V1: &str =
-    r#"<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07"/>"#;
+    r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"/>"#;
 
 impl DocumentSession {
     /// Create the canonical revision-zero baseline for one new empty CDML document.

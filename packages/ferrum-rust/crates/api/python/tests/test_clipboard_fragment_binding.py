@@ -1,14 +1,12 @@
 """Installed-extension checks for private native clipboard fragment extraction."""
 
-from pathlib import Path
-
 import pytest
 
 import ferrum_chem
 
 
 _SOURCE = """\
-<cdml version="26.07"><plus id="p"><point x="30" y="40"/></plus>
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><plus id="p"><point x="30" y="40"/></plus>
 <molecule id="m" name="chain">
  <atom id="a" name="C"><point x="0" y="0"/></atom>
  <atom id="b" name="N"><point x="10" y="0"/></atom>
@@ -85,12 +83,3 @@ def test_private_clipboard_binding_contains_invalid_python_and_rust_inputs() -> 
 			ferrum_chem.extract_document_clipboard_fragment_v1(observation, selected)
 		assert message in caught.value.reason
 
-
-def test_private_clipboard_names_are_discoverable_but_absent_from_wheel_stub() -> None:
-	"""The Qt-only extraction surface remains outside the published wheel stub."""
-	assert "extract_document_clipboard_fragment_v1" in dir(ferrum_chem)
-	assert "DocumentClipboardFragmentV1" in dir(ferrum_chem)
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-	assert "extract_document_clipboard_fragment_v1" not in stub
-	assert "DocumentClipboardFragment" not in stub

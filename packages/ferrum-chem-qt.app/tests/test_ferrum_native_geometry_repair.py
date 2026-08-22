@@ -16,19 +16,19 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 
 
-_TERMINAL_CDML = """<cdml><molecule id='m'>
+_TERMINAL_CDML = """<cdml xmlns="urn:ferrum:cdml"><molecule id='m'>
   <atom id='z' name='O'><point x='0.9659258262890683'
     y='-0.25881904510252074' z='3'/></atom>
   <atom id='a' name='C'><point x='0' y='0'/></atom>
   <bond id='az' start='a' end='z' type='n1'/>
 </molecule></cdml>"""
 
-_SNAP_CDML = """<cdml>
+_SNAP_CDML = """<cdml xmlns="urn:ferrum:cdml">
   <molecule id='first'><atom id='a' name='C'><point x='0.2' y='0.2'/></atom></molecule>
   <molecule id='second'><atom id='b' name='O'><point x='2.2' y='0.2'/></atom></molecule>
 </cdml>"""
 
-_RING_CDML = """<cdml><molecule id='ring'>
+_RING_CDML = """<cdml xmlns="urn:ferrum:cdml"><molecule id='ring'>
   <atom id='a' name='C'><point x='0' y='0'/></atom>
   <atom id='b' name='C'><point x='20' y='0'/></atom>
   <atom id='c' name='C'><point x='15' y='10'/></atom>
@@ -41,7 +41,7 @@ _RING_CDML = """<cdml><molecule id='ring'>
   <bond id='ds' start='d' end='side' type='n1'/>
 </molecule></cdml>"""
 
-_ANGLE_CDML = """<cdml><molecule id='m'>
+_ANGLE_CDML = """<cdml xmlns="urn:ferrum:cdml"><molecule id='m'>
   <atom id='root' name='C'><point x='0' y='0'/></atom>
   <atom id='z_first' name='N'><point x='10' y='1' z='3'/></atom>
   <atom id='a_second' name='O'><point x='10' y='2'/></atom>

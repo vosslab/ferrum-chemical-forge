@@ -24,7 +24,7 @@ import ferrum_qt.ferrum.window_refusals
 
 
 _SOURCE = """\
-<cdml version="26.07"><plus id="p"><point x="30" y="40"/></plus>
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><plus id="p"><point x="30" y="40"/></plus>
 <molecule id="m" name="chain">
  <atom id="a" name="C"><point x="0" y="0"/></atom>
  <atom id="b" name="N"><point x="10" y="0"/></atom>
@@ -392,8 +392,8 @@ def test_copy_then_paste_installs_translated_roots_and_selection(
 @pytest.mark.parametrize(
 	("source", "expected"),
 	(
-		(b"<cdml><molecule", "XML"),
-		(b"<cdml><paper type='A4'/></cdml>", "unsupported"),
+		(b"<cdml xmlns='urn:ferrum:cdml'><molecule", "XML"),
+		(b"<cdml xmlns='urn:ferrum:cdml'><paper type='A4'/></cdml>", "unsupported"),
 	),
 )
 def test_invalid_or_unsupported_cdml_does_not_mutate_destination(

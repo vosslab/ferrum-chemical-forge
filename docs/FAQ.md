@@ -45,6 +45,6 @@ suite. The implementation sequence and open milestones are in
 
 ## Is Ferrum ready for production?
 
-No. Ferrum is pre-alpha. The native-wheel proof is currently bounded to macOS arm64,
-and the desktop cutover is incomplete. [INSTALL.md](INSTALL.md) identifies the current
-source-install requirements and limits.
+No. Ferrum is pre-alpha and the desktop cutover is incomplete. It is developed
+and validated as a local checkout build; [INSTALL.md](INSTALL.md) identifies the
+current requirements and limits.

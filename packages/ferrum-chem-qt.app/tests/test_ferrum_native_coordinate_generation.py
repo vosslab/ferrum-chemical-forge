@@ -19,7 +19,7 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 
 
-_SOURCE = """<cdml version='26.08'><molecule id='mol-1' name='Ethanol'>
+_SOURCE = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='mol-1' name='Ethanol'>
   <atom id='atom-1' name='C'><point x='10' y='20'/></atom>
   <atom id='atom-2' name='C'><point x='55' y='25'/></atom>
   <atom id='atom-3' name='O'><point x='45' y='70'/></atom>

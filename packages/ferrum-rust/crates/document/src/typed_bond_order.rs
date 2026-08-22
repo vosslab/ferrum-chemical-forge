@@ -56,6 +56,6 @@ impl TypedDocument {
 
 fn is_cdml_element(tree: &Xot, node: xot::Node, expected: &str) -> bool {
     element_name(tree, node).is_some_and(|(local_name, namespace)| {
-        local_name == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+        local_name == expected && (namespace == CDML_NAMESPACE)
     })
 }

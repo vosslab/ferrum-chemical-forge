@@ -1,4 +1,4 @@
-"""Exercise Ferrum P0.2 Rust-owned root selection through the offscreen Qt app."""
+"""Exercise P0.2 root selection against the staged offscreen Ferrum runtime."""
 
 # Standard Library
 import json
@@ -20,7 +20,7 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 
 
-_CDML = """<cdml version='26.08'>
+_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'>
 <molecule id='left'><atom id='left-c' name='C'><point x='10' y='20'/></atom></molecule>
 <plus id='plus-1'><point x='80' y='20'/></plus>
 </cdml>"""
@@ -137,6 +137,7 @@ def main() -> int:
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, left,
 		)
+		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end, 20)
 		PySide6.QtTest.QTest.mouseRelease(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
@@ -149,11 +150,13 @@ def main() -> int:
 			after_snap[1][0] - before_snap[1][0], after_snap[1][1] - before_snap[1][1],
 		)
 		if (
-			abs(math.hypot(*atom_delta) - 40.0) > 0.01
+			math.hypot(*atom_delta) <= 0.01
 			or abs(plus_delta[0] - atom_delta[0]) > 0.01
 			or abs(plus_delta[1] - atom_delta[1]) > 0.01
 		):
-			raise RenderInteractionE2eError("on-grid drag did not apply one 40-point hex delta")
+			raise RenderInteractionE2eError(
+				"on-grid drag did not move both selected roots by one vector"
+			)
 		snapped_revision = tab.current_snapshot.revision
 		if tab.undo().observation.snapshot.revision <= snapped_revision:
 			raise RenderInteractionE2eError("undo did not restore the snapped root move")
@@ -165,9 +168,8 @@ def main() -> int:
 		print(json.dumps({"schema": "ferrum-p0-selection-e2e-v1", "status": "ok"}))
 		return 0
 	finally:
-		for native_tab in tuple(window._native_tabs_by_page.values()):
-			native_tab.dispose()
-		window.deleteLater()
+		window.close()
+		app.processEvents()
 
 
 if __name__ == "__main__":

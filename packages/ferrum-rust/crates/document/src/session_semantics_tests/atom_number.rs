@@ -2,7 +2,7 @@ use super::{DocumentSession, DocumentSessionError, SessionOperationError};
 use crate::{SessionOperation, SessionOperationV1, TypedDocumentError, VisibilityV1};
 
 const SOURCE: &str = concat!(
-    "<cdml version=\"26.07\"><molecule id=\"m\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
     "<opaque retained=\"yes\"/></atom></molecule>",
     "<molecule id=\"other\"><atom id=\"b\" name=\"O\">",
@@ -36,16 +36,20 @@ fn assign_clear_undo_and_redo_preserve_the_retained_atom() {
     let atom = &assigned.observation().projection().molecules()[0].atoms()[0];
     assert_eq!(atom.number(), Some(11));
     assert_eq!(atom.show_number(), Some(VisibilityV1::Disabled));
-    assert!(assigned
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("id=\"a\" name=\"C\" number=\"11\" show_number=\"no\""));
-    assert!(assigned
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("<opaque retained=\"yes\"/>"));
+    assert!(
+        assigned
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("id=\"a\" name=\"C\" number=\"11\" show_number=\"no\"")
+    );
+    assert!(
+        assigned
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("<opaque retained=\"yes\"/>")
+    );
 
     let cleared = session
         .submit(1, clear("m", "a"))
@@ -142,7 +146,7 @@ fn direct_legacy_number_mark_is_a_typed_atomic_failure() {
 #[test]
 fn alternate_canonical_prefix_is_mutated_by_expanded_name() {
     let source = concat!(
-        "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" version=\"26.07\">",
+        "<c:cdml xmlns:c=\"urn:ferrum:cdml\" version=\"26.07\">",
         "<c:molecule id=\"m\"><c:atom id=\"a\" name=\"C\">",
         "<c:point x=\"1\" y=\"2\"/><f:opaque xmlns:f=\"urn:foreign\"/>",
         "</c:atom></c:molecule></c:cdml>",

@@ -8,7 +8,7 @@ import ferrum_chem
 
 
 SOURCE = (
-	'<cdml><molecule id="left"><atom id="left-a" name="C">'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule id="left"><atom id="left-a" name="C">'
 	'<point x="0" y="0"/></atom></molecule>'
 	'<molecule id="right"><atom id="right-a" name="O">'
 	'<point x="100" y="0"/></atom></molecule>'

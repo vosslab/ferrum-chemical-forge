@@ -44,6 +44,9 @@ pub enum InterchangeFormatV1 {
     SdfV3000,
     #[serde(rename = "cdml")]
     Cdml,
+    /// Closed CML/CML2 simple-molecule import profile. This profile is input-only.
+    #[serde(rename = "cml_simple_molecule_import_v1")]
+    CmlSimpleMolecule,
 }
 impl InterchangeFormatV1 {
     #[must_use]
@@ -57,6 +60,7 @@ impl InterchangeFormatV1 {
             Self::SdfV2000 => "sdf_v2000",
             Self::SdfV3000 => "sdf_v3000",
             Self::Cdml => "cdml",
+            Self::CmlSimpleMolecule => "cml_simple_molecule_import_v1",
         }
     }
     fn is_single_record(self) -> bool {
@@ -139,6 +143,9 @@ pub fn decode_non_cdml_interchange_v1(
     if format == InterchangeFormatV1::Cdml {
         return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
     }
+    if format == InterchangeFormatV1::CmlSimpleMolecule {
+        return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
+    }
     enforce_input_limit(format, text)?;
     let records = match format {
         InterchangeFormatV1::Smiles => {
@@ -159,7 +166,9 @@ pub fn decode_non_cdml_interchange_v1(
         InterchangeFormatV1::SdfV2000 | InterchangeFormatV1::SdfV3000 => {
             crate::interchange_sdf::decode_sdf_interchange_v1(engine, text)?
         }
-        InterchangeFormatV1::Cdml => unreachable!("checked above"),
+        InterchangeFormatV1::Cdml | InterchangeFormatV1::CmlSimpleMolecule => {
+            unreachable!("checked above")
+        }
     };
     if records.is_empty() {
         return Err(InterchangeCodecErrorV1::NoMolecularRecords);
@@ -173,6 +182,9 @@ pub fn encode_non_cdml_interchange_v1(
     records: &[InterchangeRecordV1],
 ) -> Result<String, InterchangeCodecErrorV1> {
     if format == InterchangeFormatV1::Cdml {
+        return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
+    }
+    if format == InterchangeFormatV1::CmlSimpleMolecule {
         return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
     }
     if records.is_empty() {
@@ -205,7 +217,9 @@ pub fn encode_non_cdml_interchange_v1(
                 records,
             )?
         }
-        InterchangeFormatV1::Cdml => unreachable!("checked above"),
+        InterchangeFormatV1::Cdml | InterchangeFormatV1::CmlSimpleMolecule => {
+            unreachable!("checked above")
+        }
     };
     enforce_output_limit(format, &output)?;
     Ok(output)

@@ -13,7 +13,7 @@ import ferrum_qt.ferrum.window_refusals
 
 
 SOURCE = (
-	'<cdml xmlns:v="urn:vendor" version="26.07">'
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor" version="26.07">'
 	'<molecule id="m" name="before" role="source">'
 	'<atom id="a" name="C"><point x="1" y="2"/>'
 	'<v:opaque retained="yes"/></atom></molecule>'

@@ -43,7 +43,7 @@ pub use dto::{
     ReactionObserveRequestV1, ReactionTranslateRequestV1,
 };
 pub use execution::execute_operation_v1;
-#[cfg(any(test, feature = "response-size-e2e-harness"))]
+#[cfg(test)]
 pub(crate) use execution::execute_operation_with_runtime_and_smarts_response_limit_for_test;
 pub(crate) use execution::{
     canonical_protocol_envelope_json_v1, execute_operation_with_runtime_v1,

@@ -992,6 +992,65 @@ style-policy failures request a changed tool or style. After acceptance, the
 frontend reprojects from the snapshot and restores selection only by the durable
 selector through the root-interaction contract.
 
+## Polyline and Polygon creation gesture V1
+
+`presentation.path.gesture.v1` is the Rust-owned authoring route for one
+direct-root Polyline or Polygon. Begin receives the current revision/digest and
+one closed kind. Preview receives only the opaque originating gesture plus an
+ordered sequence of finite scene/PostScript points. It returns a Rust-resolved
+disposable overlay containing the accepted ordered points, closed-path fact,
+and appearance; it allocates no persistent identifier and edits no document.
+Polyline requires at least two points. Polygon requires at least three
+nondegenerate ordered points. Rust also owns the bounded point and extent
+limits, default stroke/fill policy, and every geometry refusal.
+
+Prepare accepts only the exact session's gesture/preview pair. It constructs
+the complete persistent candidate, preflights it through the renderer, and
+returns one opaque, fence-bound receipt. Commit consumes that receipt once and
+returns the durable direct-root selector with the ordinary accepted snapshot.
+It is the sole persistent mutation: validation, preflight, stale-session, and
+receipt failures are typed and atomic, leaving document content and history
+unchanged.
+
+Qt may collect click points, display the returned transient overlay, and offer
+the documented completion controls. It retains incomplete points until they
+form a valid Rust preview, then it submits only opaque handles. Escape, focus
+loss, tab close, tool change, and gesture disposal cancel without a commit.
+Qt must not derive or serialize path geometry, appearance, identifiers, CDML,
+or a recovery candidate. After success it discards the overlay, reprojects the
+returned snapshot, and restores selection only through the durable root
+selector. Geometry failures request adjusted points; stale or session failures
+request refresh and restart.
+
+## Curved electron arrow V1
+
+`presentation.electron-arrow.gesture.v1` is the Rust-owned authoring route for
+one direct-root curved electron arrow. Its persistent CDML grammar is exactly
+one `<arrow type="electron">` with three finite ordered `<point>` children:
+`start`, `control`, and `end`. The closed grammar accepts neither extra points
+nor another arrow type.
+
+Begin receives the current revision/digest. Preview receives only its opaque
+gesture and the three point roles. Rust owns quadratic geometry, its one-time
+cubic lowering, terminal-head derivation, bounds, style, identifier allocation,
+CDML serialization, renderer preflight, and every geometry refusal. It returns
+only a disposable Rust-resolved overlay; no preview mutates the document or
+allocates a persistent identifier.
+
+Prepare accepts only the exact gesture/preview pair and returns one opaque,
+fence-bound receipt. Commit consumes that receipt once, creates one history
+entry, and returns the accepted snapshot and durable root selector. Invalid
+points, stale sessions, renderer preflight failure, and receipt misuse are
+typed and atomic: document content and history remain unchanged.
+
+Qt captures the three scene points only. The first click records `start`; the
+second records `control` and begins the native gesture; preview comes only from
+Rust; the third records `end` and automatically commits the prepared receipt.
+Escape, focus loss, tab close, tool change, and gesture disposal cancel without
+a commit. Geometry refusals retain the appropriate recovery guidance; stale or
+session refusals refresh then restart. Qt never derives curve geometry, cubic
+controls, arrowhead, style, CDML, identifiers, or a replacement candidate.
+
 ## Restore, history, and saved state
 
 Restore copies a retained accepted snapshot into a new increasing revision; it

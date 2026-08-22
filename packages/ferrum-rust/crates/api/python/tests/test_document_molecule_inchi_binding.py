@@ -11,7 +11,7 @@ import ferrum_chem
 
 
 _STYLED_SOURCE = """\
-<cdml version="1.0"><molecule id="m1">
+<cdml xmlns="urn:ferrum:cdml" version="1.0"><molecule id="m1">
  <atom id="a1" name="C"><point x="10" y="20"/></atom>
  <atom id="a2" name="H"><point x="30" y="20"/></atom>
  <bond id="b1" start="a1" end="a2" type="w1"/>
@@ -90,11 +90,3 @@ def test_inchi_selector_surrogate_stays_in_the_operation_error_contract() -> Non
 
 
 #============================================
-def test_inchi_file_publisher_remains_outside_the_frozen_stub() -> None:
-	"""The new Qt file seam does not silently expand the public Python promise."""
-	stub_path = Path(__file__).resolve().parents[2] / "wheel_metadata" / "ferrum_chem.pyi"
-	stub = stub_path.read_text(encoding="utf-8")
-	assert "publish_document_molecule_inchi_v1" in dir(ferrum_chem)
-	assert "DocumentMoleculeInchiPublicationV1" in dir(ferrum_chem)
-	assert "publish_document_molecule_inchi_v1" not in stub
-	assert "DocumentMoleculeInchiPublicationV1" not in stub

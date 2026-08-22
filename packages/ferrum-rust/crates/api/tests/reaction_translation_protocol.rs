@@ -7,9 +7,9 @@ use ferrum_api::{
 };
 use ferrum_document::DocumentSession;
 
-const CDML_NAMESPACE: &str = "http://www.freesoftware.fsf.org/bkchem/cdml";
+const CDML_NAMESPACE: &str = "urn:ferrum:cdml";
 const SOURCE: &str = concat!(
-    "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\">",
+    "<c:cdml xmlns:c=\"urn:ferrum:cdml\">",
     "<c:molecule id=\"left\"><c:atom id=\"left-a\" name=\"C\"><c:point x=\"0\" y=\"0\"/>",
     "</c:atom></c:molecule><c:molecule id=\"right\"><c:atom id=\"right-a\" name=\"O\">",
     "<c:point x=\"100\" y=\"0\"/></c:atom></c:molecule><c:arrow id=\"arrow\">",
@@ -18,7 +18,7 @@ const SOURCE: &str = concat!(
     "<c:arrow idref=\"arrow\"/></c:reaction></c:cdml>"
 );
 const EXCLUDED_SOURCE: &str = concat!(
-    "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
     "</atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\">",
     "<point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/>",
     "<point x=\"75\" y=\"0\"/></arrow><plus id=\"bad\"><point x=\"1\" y=\"2\"/>",
@@ -146,7 +146,7 @@ fn protocol_moves_the_complete_prefixed_aggregate_for_free_and_hex_grid_snaps() 
         &coordinates(&free),
         &[(20.0, 10.0), (120.0, 10.0), (45.0, 10.0), (95.0, 10.0)],
     );
-    assert!(free.contains("xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\""));
+    assert!(free.contains("xmlns:c=\"urn:ferrum:cdml\""));
     for reference in ["idref=\"left\"", "idref=\"right\"", "idref=\"arrow\""] {
         assert!(free.contains(reference), "translation changed {reference}");
     }

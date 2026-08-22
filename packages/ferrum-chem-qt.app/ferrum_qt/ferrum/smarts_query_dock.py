@@ -3,13 +3,12 @@
 # Standard Library
 import math
 
-# PIP3 modules
-import ferrum_chem
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.ferrum.smarts_selected_root_capture
 
 
@@ -38,8 +37,8 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 			ferrum_qt.ferrum.smarts_selected_root_capture.
 			FerrumSmartsSelectedRootCaptureController(window, self)
 		)
-		window._set_interaction_capture_canceller_v1(
-			self._selected_capture._cancel_for_interaction_action_handoff_v1,
+		window._register_pointer_capture_canceller_v1(
+			self._selected_capture.cancel_for_pointer_authoring,
 		)
 		self._dock = PySide6.QtWidgets.QDockWidget(window.tr("SMARTS Query"), window)
 		self._dock.setObjectName("smarts-query-dock")
@@ -265,15 +264,16 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._clear_button.clicked.connect(
 			lambda: self._clear_results("dock_rerun", status=self.tr("SMARTS results cleared.")),
 		)
+		# itemActivated is the one canonical user route for mouse and keyboard activation.
+		# ASVS 2.3.1: redeem each opaque Rust receipt through one ordered UI path.
 		self._results.itemActivated.connect(self._show_item)
-		self._results.itemDoubleClicked.connect(lambda item, _column: self._show_item(item))
 		self._set_status(self.tr("Open a ready Ferrum drawing to search it."))
 
 	#============================================
 	def _activate_current_tab(self) -> None:
 		"""Bind only the current tab; old results are never restored across tabs."""
 		tab = getattr(self._window, "_active_native_tab")()
-		self._tab = None if tab is None or tab._disposed or tab.requires_refresh else tab
+		self._tab = None if tab is None or tab.is_disposed or tab.requires_refresh else tab
 		self._bind_active_tab_invalidation()
 		self._update_controls()
 
@@ -381,11 +381,12 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._busy = False
 		self._receipt = run.receipt
 		self._overlay_visible = False
-		self._populate_results(run)
+		status = self._populate_results(run)
 		self._update_controls()
+		self._set_status(status)
 
 	#============================================
-	def _populate_results(self, run: object) -> None:
+	def _populate_results(self, run: object) -> str:
 		"""Render copied summary facts in native-returned source order only."""
 		self._results.clear()
 		self._row_ordinals.clear()
@@ -428,14 +429,13 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 				ordinal += 1
 			group.setExpanded(True)
 		if molecule_count == 0:
-			self._set_status(self.tr("No matches in this drawing."))
-			return
+			return self.tr("No matches in this drawing.")
 		message = self.tr("Found {0} matches in {1} molecules.").format(match_count, molecule_count)
 		if truncated:
 			message += " " + self.tr("Additional matches not shown.")
 		if run.traversal == "incomplete":
 			message += " " + self.tr("Unexamined molecules may contain matches.")
-		self._set_status(message)
+		return message
 
 	#============================================
 	def _show_item(self, item: PySide6.QtWidgets.QTreeWidgetItem) -> None:
@@ -513,9 +513,9 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def _resolve_closed_failure_messages(self) -> tuple[tuple[object, object, object, str, bool], ...]:
 		"""Freeze the only accepted PyO3 outcome triples for this dock instance."""
-		category = getattr(ferrum_chem, "LiveDocumentSmartsCategoryV1", None)
-		reason = getattr(ferrum_chem, "LiveDocumentSmartsReasonV1", None)
-		recovery = getattr(ferrum_chem, "LiveDocumentSmartsRecoveryV1", None)
+		category = getattr(engine, "LiveDocumentSmartsCategoryV1", None)
+		reason = getattr(engine, "LiveDocumentSmartsReasonV1", None)
+		recovery = getattr(engine, "LiveDocumentSmartsRecoveryV1", None)
 		if category is None or reason is None or recovery is None:
 			return ()
 		members = (
@@ -628,11 +628,11 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._row_ordinals.clear()
 		self._results.clear()
 		self._retirement_blocked = False
-		self._tab = tab if tab is not None and not tab._disposed and not tab.requires_refresh else None
+		self._tab = tab if tab is not None and not tab.is_disposed and not tab.requires_refresh else None
 		self._bind_active_tab_invalidation()
+		self._update_controls()
 		if status is not None:
 			self._set_status(status)
-		self._update_controls()
 		return True
 
 	#============================================

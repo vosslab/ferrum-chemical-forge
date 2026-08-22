@@ -15,7 +15,7 @@ import ferrum_qt.ferrum.main_window
 
 
 _TEMPLATE = """\
-<cdml version="26.07"><standard line_width="9"/><paper id="paper"/>
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><standard line_width="9"/><paper id="paper"/>
 <molecule id="source" name="Reusable pair">
  <atom id="a" name="C"><point x="0" y="0"/></atom>
  <atom id="b" name="O"><point x="10" y="0"/></atom>
@@ -26,7 +26,7 @@ _TEMPLATE = """\
 
 #============================================
 def _window_with_tab(
-		directory: pathlib.Path, cdml: str = "<cdml version='26.07'/>",
+		directory: pathlib.Path, cdml: str = "<cdml xmlns='urn:ferrum:cdml' version='26.07'/>",
 		) -> tuple[object, object]:
 	"""Return one configured Ferrum window with a selected Rust-owned tab."""
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow(
@@ -107,7 +107,7 @@ def test_save_and_refresh_publish_eligible_snapshot_without_saving_document(
 			window.user_template_catalog.entries[0].label,
 		) == (True, _snapshot_facts(before), "Reusable pair")
 
-		(directory / "broken.cdml").write_text("<cdml>", encoding="utf-8")
+		(directory / "broken.cdml").write_text("<cdml xmlns='urn:ferrum:cdml'>", encoding="utf-8")
 		snapshot = window.refresh_user_templates()
 		assert (
 			bool(snapshot.entries),

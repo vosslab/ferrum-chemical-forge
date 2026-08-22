@@ -3,8 +3,8 @@
 use ferrum_core::BondOrder;
 
 use super::{
-    DocumentBondOrderV1, DocumentSession, DocumentSessionError, SessionOperation,
-    SessionOperationError, SessionOperationV1, DELETE_SOURCE,
+    DELETE_SOURCE, DocumentBondOrderV1, DocumentSession, DocumentSessionError, SessionOperation,
+    SessionOperationError, SessionOperationV1,
 };
 
 fn delete_bond(bond_id: &str) -> SessionOperation {
@@ -37,11 +37,13 @@ fn bond_deletion_removes_only_the_selected_bond_and_is_one_history_entry() {
             .collect::<Vec<_>>(),
         ["bc", "ac"]
     );
-    assert!(deleted
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("retained-bond=\"ab\""));
+    assert!(
+        deleted
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("retained-bond=\"ab\"")
+    );
 
     let undone = session.undo(1).expect("bond deletion must undo once");
     assert_eq!(
@@ -91,11 +93,13 @@ fn bond_order_change_is_typed_noop_aware_and_one_history_entry() {
     assert_eq!(changed.observation().snapshot().revision(), 1);
     assert_eq!(bond.order(), Some(BondOrder::Double));
     assert_eq!(bond.source_type(), Some("n2"));
-    assert!(changed
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("retained-bond=\"ab\""));
+    assert!(
+        changed
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("retained-bond=\"ab\"")
+    );
 
     let repeated = session
         .submit(1, set_bond_order("ab", DocumentBondOrderV1::Double))

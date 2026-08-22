@@ -1,5 +1,6 @@
 """Public Ferrum Qt window for the completed CDML slice."""
 # Standard Library
+import collections.abc
 import dataclasses
 import functools
 import pathlib
@@ -39,6 +40,7 @@ import ferrum_qt.ferrum.molecule_imports
 import ferrum_qt.ferrum.molecule_exports
 import ferrum_qt.ferrum.molfile_export
 import ferrum_qt.ferrum.sdf_export
+import ferrum_qt.ferrum.sdf_multi_export
 import ferrum_qt.ferrum.molecule_report
 import ferrum_qt.ferrum.molecule_name
 import ferrum_qt.ferrum.snapshot_export
@@ -46,6 +48,7 @@ import ferrum_qt.ferrum.recovery_export
 import ferrum_qt.ferrum.selection_svg
 import ferrum_qt.ferrum.interaction_action_handoff
 import ferrum_qt.ferrum.smarts_query_dock
+import ferrum_qt.ferrum.smarts_selected_root_contract
 import ferrum_qt.ferrum.view_controls
 import ferrum_qt.ferrum.user_templates as native_user_templates
 import ferrum_qt.ferrum.catalog_palette as native_catalog_palette
@@ -98,6 +101,7 @@ class FerrumNativeMainWindow(
 		ferrum_qt.ferrum.structure_selection.FerrumNativeStructureSelectionMixin,
 		ferrum_qt.ferrum.line_tools.FerrumNativeLineToolsMixin,
 		ferrum_qt.ferrum.molecule_imports.FerrumNativeMoleculeImportsMixin,
+		ferrum_qt.ferrum.sdf_multi_export.FerrumNativeMultiSdfExportMixin,
 		ferrum_qt.ferrum.sdf_export.FerrumNativeSdfExportMixin,
 		ferrum_qt.ferrum.molfile_export.FerrumNativeMolfileExportMixin,
 		ferrum_qt.ferrum.molecule_exports.FerrumNativeMoleculeExportsMixin,
@@ -146,6 +150,7 @@ class FerrumNativeMainWindow(
 		self._initialize_line_tools()
 		self._initialize_structure_selection()
 		self._initialize_molecule_imports()
+		self._initialize_multi_sdf_exports()
 		self._initialize_sdf_exports()
 		self._initialize_molfile_exports()
 		self._initialize_molecule_exports()
@@ -335,6 +340,7 @@ class FerrumNativeMainWindow(
 		self._build_catalog_template_action(chemistry_menu)
 		self._build_native_user_template_place_action(chemistry_menu)
 		self._build_molecule_import_actions(chemistry_menu)
+		self._build_multi_sdf_export_actions(chemistry_menu)
 		self._build_sdf_export_actions(chemistry_menu)
 		self._build_molfile_export_actions(chemistry_menu)
 		self._build_molecule_export_actions(chemistry_menu)
@@ -359,9 +365,72 @@ class FerrumNativeMainWindow(
 		self._interaction_action_handoff.add_registered_action_to_menu(menu, action)
 
 	#============================================
-	def _set_interaction_capture_canceller_v1(self, canceller: object | None) -> None:
-		"""Bind the current selected-root capture without exposing its state."""
-		self._interaction_action_handoff.set_capture_canceller(canceller)
+	def _register_pointer_capture_canceller_v1(self,
+			canceller: collections.abc.Callable[[bool], None]) -> None:
+		"""Register the selected-root capture in the window authoring transaction."""
+		self._interaction_action_handoff.register_pointer_capture_canceller(canceller)
+
+	#============================================
+	def begin_smarts_selected_root_capture(self) -> object:
+		"""Retire other pointer tools and expose one current canvas capture target."""
+		self.cancel_active_pointer_authoring()
+		tab = self._active_native_tab()
+		contract = ferrum_qt.ferrum.smarts_selected_root_contract
+		if tab is None or tab.is_disposed or tab.requires_refresh:
+			return contract.FerrumSmartsSelectedRootCaptureUnavailable(
+				self.tr("Open a ready Ferrum drawing, then choose one molecule on the canvas."),
+			)
+		return contract.FerrumSmartsSelectedRootCaptureTarget(tab, tab.view.viewport())
+
+	#============================================
+	def capture_smarts_selected_root_query(self, target: object,
+			point: PySide6.QtCore.QPoint) -> object:
+		"""Capture one Rust-owned molecule token through an authenticated target."""
+		contract = ferrum_qt.ferrum.smarts_selected_root_contract
+		tab = target.tab
+		if tab is not self._active_native_tab() or tab.is_disposed or tab.requires_refresh:
+			return contract.FerrumSmartsSelectedRootCaptureUnavailable(
+				self.tr("Molecule choice is no longer current. Choose one molecule again."),
+			)
+		selection = None
+		try:
+			observation = tab.observe_direct_root_interaction()
+			scene = tab.view.mapToScene(point)
+			selection = tab.select_direct_roots(
+				observation, None,
+				ferrum_qt.ferrum.engine.RenderInteractionQueryV1.point(
+					float(scene.x()), float(scene.y()),
+					ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace,
+				),
+			)
+			token = tab.capture_live_smarts_selected_query(selection)
+		except ferrum_qt.ferrum.engine.LiveDocumentSmartsError as error:
+			return contract.FerrumSmartsSelectedRootCaptureRejected(error)
+		finally:
+			selection = None
+		return contract.FerrumSmartsSelectedRootCaptureAccepted(tab, token)
+
+	#============================================
+	def run_smarts_selected_root_query(self, tab: object, token: object,
+			per_molecule_limit: int, total_limit: int) -> object:
+		"""Run an opaque selected-query token only through its live tab owner."""
+		if tab is not self._active_native_tab() or tab.is_disposed or tab.requires_refresh:
+			raise RuntimeError("Ferrum selected molecule query is no longer current")
+		return tab.run_live_smarts_selected_query_token(
+			token, per_molecule_limit, total_limit,
+		)
+
+	#============================================
+	def cancel_active_pointer_authoring(self, *, clear_status: bool = True) -> None:
+		"""Retire every transient canvas authoring owner in one fixed order."""
+		self._interaction_action_handoff.cancel_registered_pointer_capture(
+			clear_status=clear_status,
+		)
+		self._cancel_atom_insertion(clear_status=clear_status)
+		self._cancel_line_gesture(clear_status=clear_status)
+		self._cancel_structure_selection()
+		self._cancel_catalog_placement(clear_status=clear_status)
+		self._cancel_user_template_placement(clear_status=clear_status)
 
 	def _present_interaction_action_handoff_failure_v1(self, detail: str) -> None:
 		"""Present one shared handoff failure through the ordinary typed refusal route."""

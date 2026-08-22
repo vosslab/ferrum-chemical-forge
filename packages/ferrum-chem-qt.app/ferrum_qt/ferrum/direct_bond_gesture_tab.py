@@ -10,34 +10,35 @@ import PySide6.QtCore
 _DIRECT_BOND_IMPLICIT_ATOM_PICK_RADIUS_PX = 6
 
 
-@dataclasses.dataclass(frozen=True)
-class _DirectBondExistingAtom:
-	"""A direct-bond endpoint resolved to one durable source identifier."""
-	source_id: str
+class DirectBondEndpointAmbiguity(ValueError):
+	"""The pointer is not a verified existing atom or verified empty space."""
 
 
 @dataclasses.dataclass(frozen=True)
-class _DirectBondEmptySpace:
-	"""A direct-bond endpoint with no rendered or nearby installed atom."""
-
-
-@dataclasses.dataclass(frozen=True)
-class _DirectBondAmbiguous:
-	"""A direct-bond endpoint equally close to multiple implicit atoms."""
-
-
-_DIRECT_BOND_EMPTY_SPACE = _DirectBondEmptySpace()
-_DIRECT_BOND_AMBIGUOUS = _DirectBondAmbiguous()
+class DirectBondEndpoint:
+	"""One tab-resolved opaque Rust endpoint with an optional visible source ID."""
+	endpoint: object
+	source_id: str | None
 
 
 #============================================
 class FerrumNativeDirectBondGestureTabMixin:
 	"""Keep opaque direct-bond handles inside the tab's Rust session boundary."""
 	#============================================
-	def _classify_direct_bond_endpoint_at_viewport_point(
+	def direct_bond_endpoint_at_keyboard_scene_position(
+			self, point: PySide6.QtCore.QPointF,
+			) -> DirectBondEndpoint:
+		"""Resolve a keyboard cursor to one opaque Rust endpoint or ambiguity."""
+		self._require_live()
+		if not isinstance(point, PySide6.QtCore.QPointF):
+			raise TypeError("Ferrum keyboard direct-bond endpoint requires a QPointF")
+		return self.direct_bond_endpoint_at_viewport_point(self.view.mapFromScene(point))
+
+	#============================================
+	def direct_bond_endpoint_at_viewport_point(
 			self, point: PySide6.QtCore.QPoint,
-			) -> _DirectBondExistingAtom | _DirectBondEmptySpace | _DirectBondAmbiguous:
-		"""Classify a direct-bond endpoint without turning ambiguity into carbon.
+			) -> DirectBondEndpoint:
+		"""Resolve one pointer fact without turning ambiguous space into carbon.
 
 		Rendered atom hits retain precedence.  Without one, direct bonding may use
 		the same six-pixel unique-nearest projection tolerance as its origin picker.
@@ -49,7 +50,9 @@ class FerrumNativeDirectBondGestureTabMixin:
 			raise TypeError("Ferrum direct-bond endpoint hit testing requires a QPoint")
 		rendered_atom_id = self.durable_atom_at_viewport_point(point)
 		if rendered_atom_id is not None:
-			return _DirectBondExistingAtom(rendered_atom_id)
+			return DirectBondEndpoint(
+				self.direct_bond_existing_endpoint(rendered_atom_id), rendered_atom_id,
+			)
 		observation = self.current_document_observation()
 		radius_squared = _DIRECT_BOND_IMPLICIT_ATOM_PICK_RADIUS_PX ** 2
 		nearest_distance: int | None = None
@@ -74,12 +77,18 @@ class FerrumNativeDirectBondGestureTabMixin:
 				elif distance_squared == nearest_distance:
 					nearest_source_ids.append(atom.source_id)
 		if invalid_nearby_identity:
-			return _DIRECT_BOND_AMBIGUOUS
+			raise DirectBondEndpointAmbiguity()
 		if not nearest_source_ids:
-			return _DIRECT_BOND_EMPTY_SPACE
+			scene = self.view.mapToScene(point)
+			return DirectBondEndpoint(
+				self.direct_bond_new_endpoint(float(scene.x()), float(scene.y())), None,
+			)
 		if len(nearest_source_ids) == 1:
-			return _DirectBondExistingAtom(nearest_source_ids[0])
-		return _DIRECT_BOND_AMBIGUOUS
+			source_id = nearest_source_ids[0]
+			return DirectBondEndpoint(
+				self.direct_bond_existing_endpoint(source_id), source_id,
+			)
+		raise DirectBondEndpointAmbiguity()
 
 	#============================================
 	def begin_direct_bond_gesture(

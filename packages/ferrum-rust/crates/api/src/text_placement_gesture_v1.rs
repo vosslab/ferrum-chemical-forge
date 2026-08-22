@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn renderer_preview_matches_the_committed_text_render() {
         let mut session =
-            DocumentSession::load("<cdml><standard font_size='18' line_color='#123456'/></cdml>")
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><standard font_size='18' line_color='#123456'/></cdml>")
                 .expect("session");
         let snapshot = session.snapshot().expect("snapshot");
         let gesture = begin_api_text_placement_gesture_v1(

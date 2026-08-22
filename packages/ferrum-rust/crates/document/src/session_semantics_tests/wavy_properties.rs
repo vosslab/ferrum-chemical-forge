@@ -10,7 +10,7 @@ use crate::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml xmlns:v=\"urn:vendor\"><standard line_color=\"#123456\" line_width=\"1\"/>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><standard line_color=\"#123456\" line_width=\"1\"/>",
     "<polyline id=\"wave\" style=\"wavy\" color=\"#ABC\" keep=\"yes\">",
     "<point x=\"0\" y=\"0\"/><point x=\"3\" y=\"2\"/>",
     "<point x=\"6\" y=\"0\"/><v:opaque/><!--keep--></polyline>",

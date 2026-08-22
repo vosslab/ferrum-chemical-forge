@@ -10,6 +10,7 @@ mod document_interchange_import_v1;
 mod interchange_import_v1;
 mod plus_placement_gesture_v1;
 mod presentation_vector_gesture_v1;
+mod presentation_path_gesture_v1;
 mod protocol;
 #[cfg(feature = "python-binding")]
 mod python_extension_binding_v1;
@@ -65,6 +66,13 @@ pub use presentation_vector_gesture_v1::{
     begin_api_presentation_vector_gesture_v1, commit_api_presentation_vector_gesture_v1,
     prepare_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
 };
+pub use presentation_path_gesture_v1::{
+    ApiPresentationPathGestureV1, ApiPresentationPathPreparedV1, ApiPresentationPathPreviewV1,
+    CommittedPresentationPathV1, PresentationPathRenderCategoryV1, PresentationPathRenderErrorV1,
+    PresentationPathRenderRecoveryV1, begin_api_presentation_path_gesture_v1,
+    commit_api_presentation_path_gesture_v1, prepare_api_presentation_path_gesture_v1,
+    preview_api_presentation_path_gesture_v1,
+};
 pub use protocol::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
     CatalogPlacementRefusalV1, CatalogProvenanceSummaryV1, ChemistryConvertInputV1,
@@ -97,6 +105,8 @@ pub use protocol::{
     ReactionObserveRequestV1, ReactionTranslateRequestV1, execute_operation_v1,
     generated_operation_protocol_schema_v1, operation_protocol_schema_v1,
 };
+#[cfg(feature = "python-binding")]
+pub use python_extension_binding_v1::initialize_python_extension_v1;
 pub use reaction_aggregate_v1::{
     ApiPreparedReactionLifecycleV1, ApiPreparedReactionTranslationV1, ApiPreparedReactionV1,
     ApiReactionGestureV1, ApiReactionLifecycleGestureV1, ApiReactionTranslationGestureV1,

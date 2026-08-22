@@ -25,7 +25,7 @@ def _successive_observations() -> tuple[object, object]:
 	"""Return two real extension observations whose presentation root survives an edit."""
 	ferrum_chem = pytest.importorskip("ferrum_chem")
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><molecule id="m"><atom id="a" element="C">'
+		'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" element="C">'
 		'<point x="0" y="0"/></atom></molecule>'
 		'<polyline id="line" line_color="#112233" width="2">'
 		'<point x="1" y="2"/><point x="4" y="5"/></polyline></cdml>',
@@ -41,7 +41,7 @@ def _successive_observations() -> tuple[object, object]:
 def test_projects_actual_extension_stroke_source_order_and_durable_target() -> None:
 	"""A direct-wheel polyline becomes a selectable, noncosmetic scene item."""
 	observation = _observation(
-		'<cdml><polyline id="line" line_color="#112233" width="2">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="line" line_color="#112233" width="2">'
 		'<point x="1" y="2"/><point x="4" y="5"/></polyline></cdml>',
 	)
 	projection = ferrum_qt.canvas.ferrum_presentation_projection.build_presentation_projection(
@@ -57,7 +57,7 @@ def test_projects_actual_extension_stroke_source_order_and_durable_target() -> N
 def test_multisegment_polyline_preserves_every_authored_bend() -> None:
 	"""Qt follows the ordered Rust path rather than joining only its endpoints."""
 	observation = _observation(
-		'<cdml><polyline id="line" line_color="#112233" width="2">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="line" line_color="#112233" width="2">'
 		'<point x="1" y="2"/><point x="4" y="5"/>'
 		'<point x="2" y="7"/><point x="8" y="3"/></polyline></cdml>',
 	)
@@ -78,7 +78,7 @@ def test_vector_shapes_use_projected_bounds_points_stroke_fill_and_kind(
 	"""Closed vector roots use only the semantic geometry and appearance DTOs."""
 	del qapp
 	observation = _observation(
-		'<cdml><standard line_color="#123456" line_width="3" area_color="#abc"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><standard line_color="#123456" line_width="3" area_color="#abc"/>'
 		'<rect id="r" x1="10" y1="8" x2="2" y2="4" area_color="none"/>'
 		'<square id="s" x1="1" y1="2" x2="5" y2="6"/>'
 		'<oval id="o" x1="0" y1="0" x2="8" y2="4" area_color="#010203"/>'
@@ -116,7 +116,7 @@ def test_normal_arrow_uses_rust_axis_heads_and_reports_unsupported_families(
 	"""Qt paints supplied normal-arrow geometry and never substitutes retro art."""
 	del qapp
 	observation = _observation(
-		'<cdml><arrow id="a" type="normal" start="no" end="yes" spline="no" '
+		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal" start="no" end="yes" spline="no" '
 		'width="2" color="#123456" shape="(8,10,3)">'
 		'<point x="0" y="0"/><point x="40" y="0"/></arrow>'
 		'<arrow id="retro" type="retro"><point x="0" y="10"/>'
@@ -151,7 +151,7 @@ def test_mixed_render_scene_keeps_each_document_root_at_its_rust_order(
 	del qapp
 	ferrum_chem = pytest.importorskip("ferrum_chem")
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><molecule id="m1"><atom id="a1" element="C">'
+		'<cdml xmlns="urn:ferrum:cdml"><molecule id="m1"><atom id="a1" element="C">'
 		'<point x="0" y="0"/></atom></molecule>'
 		'<polyline id="p1" line_color="#112233" width="2">'
 		'<point x="1" y="2"/><point x="4" y="5"/></polyline>'
@@ -180,7 +180,7 @@ def test_fixed_plus_uses_verified_render_glyphs_anchor_and_explicit_paints(
 	del qapp
 	ferrum_chem = pytest.importorskip("ferrum_chem")
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><molecule id="m"><atom id="a" element="C">'
+		'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" element="C">'
 		'<point x="0" y="0"/></atom></molecule>'
 		'<plus id="p" font_size="18" color="#123456" background-color="#abcdef">'
 		'<point x="10" y="20"/></plus></cdml>',
@@ -214,7 +214,7 @@ def test_direct_text_uses_backend_glyph_layout_and_durable_selection(
 	del qapp
 	ferrum_chem = pytest.importorskip("ferrum_chem")
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><text id="label" background-color="#abcdef">'
+		'<cdml xmlns="urn:ferrum:cdml"><text id="label" background-color="#abcdef">'
 		'<point x="10" y="20"/><font size="18" color="#123456"/>'
 		'<ftext>Line one\nH&lt;sub&gt;2&lt;/sub&gt;O</ftext></text></cdml>',
 	)
@@ -236,10 +236,36 @@ def test_direct_text_uses_backend_glyph_layout_and_durable_selection(
 
 
 #============================================
+def test_render_projection_installs_fixed_plus_and_text_roots(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Valid native Text and plus DTOs install as their dedicated scene roots."""
+	del qapp
+	ferrum_chem = pytest.importorskip("ferrum_chem")
+	session = ferrum_chem.DocumentSession.load(
+		'<cdml xmlns="urn:ferrum:cdml"><plus id="p"><point x="1" y="2"/></plus>'
+		'<text id="t"><point x="3" y="4"/><ftext>label</ftext></text></cdml>',
+	)
+	projection = ferrum_qt.canvas.ferrum_render_projection.build_render_projection(
+		session.observe_render(0), ferrum_chem.verified_telex_regular(),
+	)
+	try:
+		assert {
+			type(item)
+			for item in projection.durable_items.values()
+		} == {
+			ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItem,
+			ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItem,
+		}
+	finally:
+		projection.dispose()
+
+
+#============================================
 def test_idless_root_is_projection_local_not_an_operation_target() -> None:
 	"""An id-less Rust root has no durable map entry or operation identifier."""
 	observation = _observation(
-		'<cdml><polyline line_color="#112233" width="2">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline line_color="#112233" width="2">'
 		'<point x="1" y="2"/><point x="4" y="5"/></polyline></cdml>',
 	)
 	projection = ferrum_qt.canvas.ferrum_presentation_projection.build_presentation_projection(
@@ -265,7 +291,7 @@ def test_stale_candidate_preserves_prior_scene_projection(
 	"""A duplicate or stale observation cannot disturb the current complete scene."""
 	del qapp
 	observation = _observation(
-		'<cdml><polyline id="line" line_color="#112233" width="2">'
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="line" line_color="#112233" width="2">'
 		'<point x="1" y="2"/><point x="4" y="5"/></polyline></cdml>',
 	)
 	scene = PySide6.QtWidgets.QGraphicsScene()

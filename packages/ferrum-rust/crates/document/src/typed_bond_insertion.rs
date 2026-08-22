@@ -168,7 +168,7 @@ fn is_cdml_element(tree: &Xot, node: xot::Node, expected: &str) -> bool {
 }
 
 fn valid_namespace(namespace: &str) -> bool {
-    namespace.is_empty() || namespace == CDML_NAMESPACE
+    namespace == CDML_NAMESPACE
 }
 
 fn endpoints_match(

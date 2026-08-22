@@ -123,6 +123,13 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		return PySide6.QtCore.QPointF(self._keyboard_cursor_scene)
 
 	#============================================
+	def keyboard_cursor_scene(self) -> PySide6.QtCore.QPointF | None:
+		"""Return a copy of the current disposable keyboard cursor position."""
+		if self._keyboard_cursor_scene is None:
+			return None
+		return PySide6.QtCore.QPointF(self._keyboard_cursor_scene)
+
+	#============================================
 	def hide_keyboard_cursor(self) -> None:
 		"""Retire only the disposable cursor marker, retaining its location."""
 		if self._keyboard_cursor_item is not None:

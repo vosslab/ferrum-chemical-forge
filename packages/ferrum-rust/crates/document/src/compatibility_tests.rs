@@ -1,6 +1,6 @@
 use super::{PersistentId, TypedClass, TypedDocument};
 
-const CDML_NAMESPACE: &str = "http://www.freesoftware.fsf.org/bkchem/cdml";
+const CDML_NAMESPACE: &str = "urn:ferrum:cdml";
 
 fn structural_facts(document: &TypedDocument) -> Vec<(u32, Option<String>, Vec<u32>)> {
     document
@@ -30,9 +30,9 @@ fn round_trip(source: &str) -> TypedDocument {
 }
 
 #[test]
-fn legacy_no_namespace_cdml_preserves_structure_order_and_persistent_ids() {
+fn canonical_ferrum_namespace_preserves_structure_order_and_persistent_ids() {
     let document = round_trip(
-        r#"<cdml version="26.02"><paper id="paper-1"/><molecule id="m1"><atom id="a1"/></molecule><arrow id="arrow-1"/></cdml>"#,
+        r#"<cdml xmlns="urn:ferrum:cdml" version="26.02"><paper id="paper-1"/><molecule id="m1"><atom id="a1"/></molecule><arrow id="arrow-1"/></cdml>"#,
     );
 
     assert_eq!(document.root().class(), TypedClass::Cdml);
@@ -54,6 +54,33 @@ fn legacy_no_namespace_cdml_preserves_structure_order_and_persistent_ids() {
             .path()
             .components(),
         &[1, 0]
+    );
+}
+
+#[test]
+fn unqualified_cdml_root_is_rejected() {
+    assert!(TypedDocument::parse("<cdml/>").is_err());
+}
+
+#[test]
+fn historic_bkchem_cdml_root_is_rejected() {
+    let historic_namespace = concat!("http://www.freesoftware.fsf.org/", "bkchem/cdml");
+    let source = format!(r#"<cdml xmlns="{historic_namespace}"/>"#);
+    assert!(TypedDocument::parse(&source).is_err());
+}
+
+#[test]
+fn foreign_descendant_remains_opaque_below_canonical_ferrum_root() {
+    let source = format!(
+        r#"<cdml xmlns="{CDML_NAMESPACE}" xmlns:v="urn:vendor"><molecule id="m1"/><v:payload id="vendor-id"><v:item/></v:payload></cdml>"#
+    );
+    let document = round_trip(&source);
+    let serialized = document.to_xml().expect("opaque content serializes");
+    assert!(serialized.contains("urn:vendor"));
+    assert!(serialized.contains("vendor-id"));
+    assert_eq!(
+        document.root().typed_children()[0].record().class(),
+        TypedClass::Molecule
     );
 }
 

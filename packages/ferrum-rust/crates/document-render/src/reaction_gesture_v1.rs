@@ -482,7 +482,7 @@ mod tests {
         DocumentSessionError, PresentationRecordKindV1, PresentationRootDeletionV1,
         SessionOperation, SessionOperationError, SessionOperationV1, TypedDocumentError,
     };
-    const SOURCE: &str = "<cdml><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"product\"><atom id=\"product-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow></cdml>";
+    const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"product\"><atom id=\"product-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow></cdml>";
     fn request() -> ReactionCreateRequestV1 {
         ReactionCreateRequestV1::new(
             0,
@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn bridge_accepts_prefixed_cdml_and_appends_one_core_reaction() {
         let source = concat!(
-            "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\">",
+            "<c:cdml xmlns:c=\"urn:ferrum:cdml\">",
             "<c:molecule id=\"left\"><c:atom id=\"left-a\" name=\"C\"><c:point x=\"0\" y=\"0\"/></c:atom></c:molecule>",
             "<c:molecule id=\"product\"><c:atom id=\"product-a\" name=\"O\"><c:point x=\"100\" y=\"0\"/></c:atom></c:molecule>",
             "<c:arrow id=\"arrow\"><c:point x=\"25\" y=\"0\"/><c:point x=\"75\" y=\"0\"/></c:arrow></c:cdml>"
@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn foreign_and_nested_reaction_lookalikes_never_enter_authoring_semantics() {
         let source = concat!(
-            "<cdml xmlns:v=\"urn:vendor\"><v:molecule id=\"left\"/>",
+            "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><v:molecule id=\"left\"/>",
             "<molecule id=\"product\"><atom id=\"product-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom><v:reaction id=\"nested\"><v:arrow idref=\"arrow\"/></v:reaction></molecule>",
             "<arrow id=\"arrow\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow>",
             "<v:reaction id=\"foreign\"><v:reactant idref=\"product\"/></v:reaction></cdml>"

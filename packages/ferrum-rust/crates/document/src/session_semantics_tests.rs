@@ -30,23 +30,23 @@ mod wavy_creation;
 mod wavy_properties;
 
 const SOURCE: &str = concat!(
-    "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
     "<point x=\"1\" y=\"2\"/></atom></molecule></cdml>"
 );
 
 const PREFIXED_SOURCE: &str = concat!(
-    "<cdml:cdml xmlns:cdml=\"http://www.freesoftware.fsf.org/bkchem/cdml\">",
+    "<cdml:cdml xmlns:cdml=\"urn:ferrum:cdml\">",
     "<cdml:molecule id=\"m\"/></cdml:cdml>"
 );
 
 const RESERVED_GENERATED_ID_SOURCE: &str = concat!(
-    "<cdml><opaque id=\"ferrum-atom-v1-0\"><retained/></opaque>",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><opaque id=\"ferrum-atom-v1-0\"><retained/></opaque>",
     "<molecule id=\"m\"><atom id=\"a\" name=\"C\">",
     "<point x=\"1\" y=\"2\"/></atom></molecule></cdml>"
 );
 
 const BOND_SOURCE: &str = concat!(
-    "<cdml version=\"26.08\"><molecule id=\"m\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom>",
     "<atom id=\"b\" name=\"O\"><point x=\"3\" y=\"2\"/></atom>",
     "</molecule><molecule id=\"other\">",
@@ -54,11 +54,10 @@ const BOND_SOURCE: &str = concat!(
     "</molecule></cdml>",
 );
 
-const MISSING_POINT_SOURCE: &str =
-    "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"/></molecule></cdml>";
+const MISSING_POINT_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"/></molecule></cdml>";
 
 const DELETE_SOURCE: &str = concat!(
-    "<cdml><molecule id=\"m\">",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom>",
     "<atom id=\"b\" name=\"O\"><point x=\"3\" y=\"2\"/></atom>",
     "<atom id=\"c\" name=\"N\"><point x=\"5\" y=\"2\"/></atom>",
@@ -161,11 +160,13 @@ fn typed_operation_is_revisioned_and_noop_is_history_free() {
     let changed = session.submit(0, set_atom("N")).expect("edit must succeed");
     assert_eq!(changed.observation().snapshot().revision(), 1);
     assert!(changed.observation().snapshot().is_dirty());
-    assert!(changed
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("name=\"N\""));
+    assert!(
+        changed
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("name=\"N\"")
+    );
     assert_eq!(
         changed.observation().snapshot().revision(),
         changed.observation().projection().revision()
@@ -203,11 +204,13 @@ fn atom_position_operation_is_finite_history_aware_and_preserves_point_structure
     let atom = &moved.observation().projection().molecules()[0].atoms()[0];
     assert_eq!(moved.observation().snapshot().revision(), 1);
     assert_eq!(atom.position(), Point3V1::new(7.5, 8.25, 0.0).unwrap());
-    assert!(moved
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("<point x=\"7.5\" y=\"8.25\"/>"));
+    assert!(
+        moved
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("<point x=\"7.5\" y=\"8.25\"/>")
+    );
 
     let undone = session.undo(1).expect("move must be undoable");
     assert_eq!(
@@ -308,11 +311,13 @@ fn backend_history_navigation_publishes_monotonic_revisions() {
     assert!(!session.can_undo());
     assert!(session.can_redo());
     assert_eq!(undone.observation().snapshot().revision(), 2);
-    assert!(undone
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("name=\"C\""));
+    assert!(
+        undone
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("name=\"C\"")
+    );
     assert_eq!(
         undone.observation().snapshot().digest(),
         undone.observation().projection().digest()
@@ -324,11 +329,13 @@ fn backend_history_navigation_publishes_monotonic_revisions() {
     assert!(session.can_undo());
     assert!(!session.can_redo());
     assert_eq!(redone.observation().snapshot().revision(), 3);
-    assert!(redone
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("name=\"N\""));
+    assert!(
+        redone
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("name=\"N\"")
+    );
     assert!(redone.observation().snapshot().is_dirty());
     assert_eq!(
         redone.observation().snapshot().digest(),
@@ -406,16 +413,20 @@ fn prepared_atom_creation_is_revision_bound_and_consumed_once() {
         .commit_create_atom(0, &mut pending)
         .expect("positioned candidate must commit");
     assert_eq!(accepted.observation().snapshot().revision(), 1);
-    assert!(accepted
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("id=\"ferrum-atom-v1-0\""));
-    assert!(accepted
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("x=\"3\" y=\"4\" z=\"0\""));
+    assert!(
+        accepted
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("id=\"ferrum-atom-v1-0\"")
+    );
+    assert!(
+        accepted
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("x=\"3\" y=\"4\" z=\"0\"")
+    );
     assert!(matches!(
         session.commit_create_atom(1, &mut pending),
         Err(DocumentSessionError::PreparedOperationConsumed)
@@ -435,11 +446,13 @@ fn foreign_session_rejection_preserves_the_owning_prepared_candidate() {
         foreign.commit_create_atom(0, &mut pending),
         Err(DocumentSessionError::PreparedOperationForeignSession)
     ));
-    assert!(!foreign
-        .snapshot()
-        .expect("foreign snapshot must work")
-        .cdml()
-        .contains("id=\"ferrum-atom-v1-0\""));
+    assert!(
+        !foreign
+            .snapshot()
+            .expect("foreign snapshot must work")
+            .cdml()
+            .contains("id=\"ferrum-atom-v1-0\"")
+    );
 
     let accepted = owner
         .commit_create_atom(0, &mut pending)
@@ -465,9 +478,11 @@ fn invalid_insert_position_is_rejected_before_preparation_or_session_mutation() 
     let molecule = molecule_object_id(&session, 0);
     let before = session.snapshot().expect("snapshot must work");
     assert!(Point3V1::new(f64::NAN, 4.0, 0.0).is_err());
-    assert!(session
-        .prepare_create_atom_v1(0, &molecule, "O", position())
-        .is_ok());
+    assert!(
+        session
+            .prepare_create_atom_v1(0, &molecule, "O", position())
+            .is_ok()
+    );
     assert_eq!(session.snapshot().expect("snapshot must work"), before);
 }
 
@@ -481,11 +496,13 @@ fn rejected_atom_creation_preserves_the_target_cdml_namespace() {
     let accepted = session.commit_create_atom(0, &mut pending).expect("commit");
     let snapshot = accepted.observation().snapshot();
     let reparsed = DocumentSession::load(snapshot.cdml()).expect("result must remain CDML");
-    assert!(reparsed
-        .snapshot()
-        .expect("reparsed snapshot must work")
-        .cdml()
-        .contains("<cdml:cdml"));
+    assert!(
+        reparsed
+            .snapshot()
+            .expect("reparsed snapshot must work")
+            .cdml()
+            .contains("<cdml:cdml")
+    );
 }
 
 #[test]
@@ -505,11 +522,13 @@ fn stale_or_rejected_atom_creation_does_not_consume_a_candidate() {
         session.commit_create_atom(changed.observation().snapshot().revision(), &mut pending),
         Err(DocumentSessionError::RevisionConflict { .. })
     ));
-    assert!(!session
-        .snapshot()
-        .expect("snapshot must work")
-        .cdml()
-        .contains("id=\"ferrum-atom-v1-0\""));
+    assert!(
+        !session
+            .snapshot()
+            .expect("snapshot must work")
+            .cdml()
+            .contains("id=\"ferrum-atom-v1-0\"")
+    );
     assert!(matches!(
         session.prepare_create_atom_v1(
             changed.observation().snapshot().revision(),
@@ -684,11 +703,13 @@ fn prepared_bond_is_foreign_safe_stale_safe_and_preserves_exact_order() {
         owner.commit_create_bond(changed.observation().snapshot().revision(), &mut pending),
         Err(DocumentSessionError::RevisionConflict { .. })
     ));
-    assert!(!owner
-        .snapshot()
-        .expect("snapshot must work")
-        .cdml()
-        .contains("<bond"));
+    assert!(
+        !owner
+            .snapshot()
+            .expect("snapshot must work")
+            .cdml()
+            .contains("<bond")
+    );
 }
 
 #[test]
@@ -779,15 +800,17 @@ fn bonded_atom_rejection_is_identity_safe_and_foreign_candidates_remain_retryabl
             SessionOperationError::InvalidCreateBondTarget(_)
         ))
     ));
-    assert!(owner
-        .prepare_create_bonded_atom_v2(
-            0,
-            &start,
-            "2",
-            position(),
-            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-        )
-        .is_err());
+    assert!(
+        owner
+            .prepare_create_bonded_atom_v2(
+                0,
+                &start,
+                "2",
+                position(),
+                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            )
+            .is_err()
+    );
 
     let mut pending = owner
         .prepare_create_bonded_atom_v2(
@@ -807,11 +830,13 @@ fn bonded_atom_rejection_is_identity_safe_and_foreign_candidates_remain_retryabl
     let accepted = owner
         .commit_create_bonded_atom(0, &mut pending)
         .expect("owner must retain its candidate");
-    assert!(accepted
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("id=\"ferrum-bond-v1-0\" type=\"n2\""));
+    assert!(
+        accepted
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("id=\"ferrum-bond-v1-0\" type=\"n2\"")
+    );
 }
 
 #[test]

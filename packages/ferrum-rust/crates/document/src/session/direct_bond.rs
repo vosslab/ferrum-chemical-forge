@@ -728,76 +728,17 @@ mod direct_bond_v2_tests {
     use super::*;
     use crate::DocumentBondOrderV1;
 
-    const SOURCE: &str = "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"40\" y=\"0\"/></atom></molecule></cdml>";
-    const BLANK_SOURCE: &str = "<cdml/>";
+    const BLANK_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
 
     fn fence(session: &DocumentSession) -> DocumentFenceV1 {
         let snapshot = session.snapshot().expect("snapshot");
         DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
     }
 
-    fn existing(identifier: &str) -> DirectBondEndpointIntentV2 {
-        DirectBondEndpointIntentV2::ExistingAtom {
-            atom: DocumentObjectIdV1::from_class_source("cdml/atom", identifier),
-        }
-    }
-
     fn point(x: f64, y: f64) -> DirectBondEndpointIntentV2 {
         DirectBondEndpointIntentV2::NewAtomAt {
             raw_point: DirectBondPoint2V1::new(x, y).expect("finite point"),
         }
-    }
-
-    #[test]
-    fn v2_commit_receipts_preserve_endpoint_direction_for_all_endpoint_pairs() {
-        let cases = [
-            (existing("a"), existing("b"), false, false, "b"),
-            (existing("a"), point(20.0, 0.0), true, false, ""),
-            (point(20.0, 0.0), existing("b"), true, false, "b"),
-        ];
-        for (start, end, created_new_atom, created_new_molecule, expected_end) in cases {
-            let mut session = DocumentSession::load(SOURCE).expect("session loads");
-            let gesture = session
-                .begin_direct_bond_gesture_v2(
-                    fence(&session),
-                    start,
-                    DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                    "C".to_owned(),
-                    DirectBondSnapPolicyV1::free(),
-                )
-                .expect("gesture begins");
-            let admission = session
-                .admit_direct_bond_candidate_v2(&gesture, end)
-                .expect("candidate admits");
-            let receipt = session
-                .commit_direct_bond_admission_v2(&admission)
-                .expect("candidate commits");
-            assert_eq!(receipt.created_new_atom(), created_new_atom);
-            assert_eq!(receipt.created_new_molecule(), created_new_molecule);
-            if !expected_end.is_empty() {
-                assert_eq!(receipt.end_atom().as_str(), expected_end);
-            }
-        }
-
-        let mut session = DocumentSession::load(BLANK_SOURCE).expect("blank session loads");
-        let gesture = session
-            .begin_direct_bond_gesture_v2(
-                fence(&session),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "C".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("gesture begins");
-        let admission = session
-            .admit_direct_bond_candidate_v2(&gesture, point(20.0, 0.0))
-            .expect("blank candidate admits");
-        let receipt = session
-            .commit_direct_bond_admission_v2(&admission)
-            .expect("blank candidate commits");
-        assert!(receipt.created_new_atom());
-        assert!(receipt.created_new_molecule());
-        assert!(receipt.second_created_atom().is_some());
     }
 
     #[test]

@@ -8,7 +8,7 @@ import pytest
 def test_rectangular_bracket_exposes_pair_identity_geometry_and_history() -> None:
 	"""Commit one backend-styled pair and retain its durable relationship."""
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><standard line_width="2" line_color="#123"/></cdml>',
+		'<cdml xmlns="urn:ferrum:cdml"><standard line_width="2" line_color="#123"/></cdml>',
 	)
 	bounds = ferrum_chem.DocumentBracketBoundsV1(0.0, 10.0, 100.0, 210.0)
 	prepared = session.prepare_create_bracket_v1(
@@ -40,7 +40,7 @@ def test_rectangular_bracket_exposes_pair_identity_geometry_and_history() -> Non
 
 def test_round_projects_exact_spline_sides_and_bad_intent_is_atomic() -> None:
 	"""Reject malformed bounds and project only the valid paired spline family."""
-	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
 	before = session.observe(0).snapshot
 	for bounds in (
 		(0.0, 0.0, float("inf"), 1.0),
@@ -69,7 +69,7 @@ def test_pair_properties_are_closed_atomic_and_update_both_members() -> None:
 	class TupleSubclass(tuple):
 		pass
 
-	session = ferrum_chem.DocumentSession.load("<cdml/>")
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
 	prepared = session.prepare_create_bracket_v1(
 		0,
 		ferrum_chem.DocumentBracketStyleV1.rectangular,

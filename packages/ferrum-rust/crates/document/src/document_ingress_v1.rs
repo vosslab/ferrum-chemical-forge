@@ -417,8 +417,8 @@ mod tests {
         load_document_reader_with_budget, load_document_utf8_bytes_with_budget,
     };
 
-    const CDML: &str = "<cdml version=\"1.0\"/>";
-    const CDSVG: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\"><cdml xmlns=\"http://www.freesoftware.fsf.org/bkchem/cdml\" version=\"1.0\"/></svg>";
+    const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>";
+    const CDSVG: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\"><cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/></svg>";
 
     fn budget(bytes: usize) -> XmlInputBudgetV1 {
         XmlInputBudgetV1 {
@@ -472,7 +472,7 @@ mod tests {
             }
         ));
 
-        let dtd = b"<!DOCTYPE cdml><cdml version=\"1.0\"/>";
+        let dtd = b"<!DOCTYPE cdml><cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>";
         let error = load_document_utf8_bytes_with_budget(dtd, cdml_format(dtd.len()))
             .expect_err("DTD must retain document-layer typed XML rejection");
         assert!(matches!(
@@ -483,7 +483,7 @@ mod tests {
             }
         ));
 
-        let malformed = b"<cdml version=\"1.0\">";
+        let malformed = b"<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\">";
         let error = load_document_utf8_bytes_with_budget(malformed, cdml_format(malformed.len()))
             .expect_err("malformed XML must remain a document-layer XML failure");
         assert!(matches!(

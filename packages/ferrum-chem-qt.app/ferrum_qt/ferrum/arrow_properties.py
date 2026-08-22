@@ -28,7 +28,13 @@ def dialog_model_from_projection(arrow: object) -> FerrumNativeArrowDialogModel:
 	import ferrum_qt.ferrum.engine as engine
 	if type(arrow) is not engine.ArrowProjectionV1:
 		raise TypeError("Ferrum Arrow properties require an exact Ferrum Arrow projection")
-	if type(arrow.start_head) is not bool or type(arrow.end_head) is not bool:
+	geometry = arrow.geometry
+	if type(geometry) is not engine.ArrowDisplayGeometryV1:
+		raise TypeError("selected Rust Arrow geometry must be an exact Ferrum geometry projection")
+	normal = geometry.normal
+	if geometry.kind != "normal" or type(normal) is not engine.NormalArrowDisplayGeometryV1:
+		raise ValueError("Arrow properties require selected normal Arrow geometry")
+	if type(normal.start_head) is not bool or type(normal.end_head) is not bool:
 		raise TypeError("selected Rust Arrow head facts must be exact booleans")
 	width = arrow.stroke.width
 	if (
@@ -42,7 +48,7 @@ def dialog_model_from_projection(arrow: object) -> FerrumNativeArrowDialogModel:
 	if type(color) is not str:
 		raise TypeError("selected Rust Arrow color must be a string")
 	return FerrumNativeArrowDialogModel(
-		arrow.start_head, arrow.end_head, width, color,
+		normal.start_head, normal.end_head, width, color,
 	)
 
 

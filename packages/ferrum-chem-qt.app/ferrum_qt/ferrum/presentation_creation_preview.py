@@ -40,6 +40,31 @@ def create_straight_presentation_arrow_overlay(
 
 
 #============================================
+def create_curved_electron_arrow_overlay(
+		tab: object, overlay: object,
+		) -> PySide6.QtWidgets.QGraphicsPathItem:
+	"""Paint only the cubic and head points issued by Rust for one electron arrow."""
+	scene = tab.view.scene()
+	if scene is None:
+		raise RuntimeError("Ferrum electron-arrow preview requires an installed scene")
+	path = PySide6.QtGui.QPainterPath()
+	path.moveTo(overlay.start_x, overlay.start_y)
+	path.cubicTo(
+		overlay.cubic_control_1_x, overlay.cubic_control_1_y,
+		overlay.cubic_control_2_x, overlay.cubic_control_2_y,
+		overlay.end_x, overlay.end_y,
+	)
+	_append_issued_point_sequence(path, overlay.head)
+	pen = PySide6.QtGui.QPen(PySide6.QtGui.QColor("#49719c"))
+	pen.setWidthF(1.5)
+	pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
+	item = scene.addPath(path, pen)
+	item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
+	item.setZValue(1_000_000.0)
+	return item
+
+
+#============================================
 def _append_issued_axis(path: PySide6.QtGui.QPainterPath, axis: object) -> None:
 	"""Append one Rust-issued axis without deriving endpoints in Qt."""
 	path.moveTo(axis.start_x, axis.start_y)
@@ -49,7 +74,13 @@ def _append_issued_axis(path: PySide6.QtGui.QPainterPath, axis: object) -> None:
 #============================================
 def _append_issued_polygon(path: PySide6.QtGui.QPainterPath, polygon: object) -> None:
 	"""Append one Rust-issued ordered head polygon without changing its geometry."""
-	vertices = polygon.vertices
+	_append_issued_point_sequence(path, polygon.vertices)
+
+
+#============================================
+def _append_issued_point_sequence(path: PySide6.QtGui.QPainterPath, points: object) -> None:
+	"""Append one ordered Rust-issued point sequence without calculating vertices."""
+	vertices = points
 	path.moveTo(vertices[0][0], vertices[0][1])
 	for x, y in vertices[1:]:
 		path.lineTo(x, y)

@@ -6,7 +6,7 @@ import ferrum_chem
 
 
 _SOURCE = """\
-<cdml version="26.08">
+<cdml xmlns="urn:ferrum:cdml" version="26.08">
  <molecule id="within">
   <atom id="within-c" name="C" explicit_hydrogens="4">
    <point x="0" y="0"/>
@@ -51,7 +51,7 @@ def test_private_bond_capacity_orders_roots_and_preserves_observation() -> None:
 def test_private_bond_capacity_refuses_incomplete_profile_without_partial_atoms() -> None:
 	"""Unsupported authored chemistry remains a root-level non-result."""
 	source = """\
-<cdml version="26.08"><molecule id="unsupported">
+<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="unsupported">
  <atom id="c1" name="C" valency="4"><point x="0" y="0"/></atom>
 </molecule></cdml>
 """
@@ -78,7 +78,7 @@ def test_private_bond_capacity_refuses_incomplete_profile_without_partial_atoms(
 def test_private_bond_capacity_retains_absent_and_authored_neutral_facts() -> None:
 	"""The read-only receipt keeps authored presence apart from calculation zero."""
 	source = """\
-<cdml version="26.08">
+<cdml xmlns="urn:ferrum:cdml" version="26.08">
  <molecule id="absent"><atom id="missing" name="C"><point x="0" y="0"/></atom></molecule>
  <molecule id="authored"><atom id="zero" name="C" charge="0" explicit_hydrogens="0">
   <point x="1" y="0"/>

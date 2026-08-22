@@ -396,15 +396,16 @@ pub(crate) enum SelectedDirectRootV1<'a> {
     One(&'a str),
 }
 
-pub(crate) fn selected_direct_root_v1<'a>(
-    session: &RenderInteractionSessionV1,
-    selection: &'a PySelection,
-) -> Result<SelectedDirectRootV1<'a>, RenderInteractionErrorV1> {
-    selected_direct_root_from_value_v1(session, &selection.value)
-}
-
 pub(crate) fn selection_value_v1(selection: &PySelection) -> &RenderInteractionSelectionV1 {
     &selection.value
+}
+
+#[cfg(test)]
+pub(crate) fn test_selection_from_value_v1(value: RenderInteractionSelectionV1) -> PySelection {
+    PySelection {
+        value,
+        roots: Vec::new(),
+    }
 }
 
 pub(crate) fn selected_direct_root_from_value_v1<'a>(
@@ -562,6 +563,17 @@ impl PyDocumentSession {
             )
             .map_err(|error| interaction_error(py, error))
             .and_then(|value| selection(py, value))
+    }
+    fn render_interaction_selection_contains_point_v1(
+        &self,
+        py: Python<'_>,
+        selection: PyRef<'_, PySelection>,
+        x: f64,
+        y: f64,
+    ) -> PyResult<bool> {
+        self.session
+            .render_interaction_selection_contains_point_v1(&selection.value, x, y)
+            .map_err(|error| interaction_error(py, error))
     }
     fn begin_render_interaction_translation_v1(
         &self,

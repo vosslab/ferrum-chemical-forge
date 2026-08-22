@@ -1,7 +1,9 @@
 use std::io::{Read, Write};
 
 use crate::cli::protocol::{run_protocol, write_protocol_schema};
-use crate::cli::verbs::{convert, coords, haworth, inspect, open, render, rewrite, validate};
+use crate::cli::verbs::{
+    convert, coords, document_export_sdf, haworth, inspect, open, render, rewrite, validate,
+};
 use crate::interchange_import_v1::{InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1};
 use crate::transport::errors::CliError;
 
@@ -12,8 +14,9 @@ pub(crate) mod verbs;
 
 pub use commands::Cli;
 pub(crate) use commands::{
-    ArtifactOutputFormat, Command, DocumentCommand, EngineCommand, InterchangeFormat,
-    NamedDocumentCommand, ProtocolCommand, ValidationLevel,
+    ArtifactOutputFormat, Command, DocumentCommand, InterchangeFormat, InterchangeInputFormat,
+    NamedDocumentCommand, ProtocolCommand, SdfVersion, ValidationLevel,
+    interchange_input_format_from_descriptor,
 };
 
 /// Execute accepted CLI arguments with caller-owned standard streams.
@@ -126,6 +129,20 @@ pub fn run(
             )?),
         },
         Command::Document { command } => match command {
+            DocumentCommand::ExportSdf {
+                input,
+                molecule_ids,
+                version,
+                output,
+            } => Ok(document_export_sdf::run(
+                &input,
+                &molecule_ids,
+                version,
+                &output,
+                stdin,
+                stdout,
+                stderr,
+            )?),
             DocumentCommand::Command { command } => match command {
                 NamedDocumentCommand::CatalogList { input, output }
                 | NamedDocumentCommand::CatalogInsert { input, output }
@@ -155,10 +172,6 @@ pub fn run(
                     stderr,
                 )?),
             },
-        },
-        Command::Engine { command } => match command {
-            EngineCommand::Install { bundle } => Ok(engine_bundle::install_bundle(&bundle)?),
-            EngineCommand::Status => Ok(engine_bundle::write_status(stdout)?),
         },
     }
 }
@@ -217,6 +230,25 @@ fn run_with_runtime_and_smarts_response_limit_for_test<
     response_limit: usize,
 ) -> Result<(), CliError> {
     match cli.command {
+        Command::Convert {
+            input,
+            output,
+            input_format,
+            output_format,
+            json,
+        } => Ok(convert::run_with_runtime_for_test(
+            convert::ConvertOptions {
+                input,
+                output,
+                input_format,
+                output_format,
+                json,
+            },
+            stdin,
+            stdout,
+            stderr,
+            runtime,
+        )?),
         Command::Document {
             command:
                 DocumentCommand::Command {
@@ -244,7 +276,7 @@ fn run_with_runtime_and_smarts_response_limit_for_test<
                 )
             }
         }
-        _ => panic!("controlled runtime is restricted to the named SMARTS CLI route"),
+        _ => panic!("controlled runtime is restricted to chemistry CLI routes"),
     }
 }
 
@@ -260,7 +292,8 @@ mod tests {
 
     use super::{Cli, interchange_open_descriptor_for_input, run};
 
-    const CDML: &str = "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
+    const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
+    const CML2: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0"/><atom id="a2" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="1"/></bondArray></molecule></cml>"#;
 
     #[test]
     fn interchange_open_resolves_every_registered_alias_and_suffix() {
@@ -322,7 +355,7 @@ mod tests {
     fn rewrite_emits_cdml_to_standard_output() {
         let (stdout, stderr) = run_from_stdin(&["ferrum", "rewrite", "-"]);
         let document = String::from_utf8(stdout).expect("rewritten CDML should be UTF-8");
-        assert!(document.starts_with("<cdml"));
+        assert!(document.starts_with("<cdml xmlns=\"urn:ferrum:cdml\""));
         assert!(stderr.is_empty());
     }
 
@@ -355,6 +388,97 @@ mod tests {
             );
             assert!(stderr.is_empty());
         }
+    }
+
+    struct CmlConvertEngine;
+
+    impl ChemEngine for CmlConvertEngine {
+        fn smiles_to_molecule(&self, _: &str) -> Result<SmilesMolecule, ChemistryError> {
+            Err(ChemistryError::OperationUnavailable {
+                operation: "smiles_to_molecule",
+            })
+        }
+
+        fn generate_2d_coordinates(&self, _: &MolGraph) -> Result<Coordinates, ChemistryError> {
+            Err(ChemistryError::OperationUnavailable {
+                operation: "generate_2d_coordinates",
+            })
+        }
+
+        fn molecule_to_smiles(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
+            assert_eq!(molecule.atoms().len(), 2);
+            assert_eq!(molecule.bonds().len(), 1);
+            Ok("CO".to_owned())
+        }
+
+        fn kekulize(&self, _: &MolGraph, _: KekulizeOptions) -> Result<MolGraph, ChemistryError> {
+            Err(ChemistryError::OperationUnavailable {
+                operation: "kekulize",
+            })
+        }
+    }
+
+    struct CmlConvertRuntime(CmlConvertEngine);
+
+    impl crate::protocol::runtime::ChemistryRuntimeV1 for CmlConvertRuntime {
+        fn with_engine<T>(
+            &self,
+            operation: impl FnOnce(
+                &dyn ChemEngine,
+            )
+                -> Result<T, crate::protocol::runtime::ChemistryRuntimeErrorV1>,
+        ) -> Result<T, crate::protocol::runtime::ChemistryRuntimeErrorV1> {
+            operation(&self.0)
+        }
+    }
+
+    #[test]
+    fn convert_accepts_registry_owned_cml2_and_exports_with_the_rust_engine() {
+        let cli =
+            Cli::try_parse_from(["ferrum", "convert", "-", "--from", "cml2", "--to", "smiles"])
+                .expect("CML2 alias should parse through the registry");
+        let mut stdin = CML2.as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        super::run_with_runtime_for_test(
+            cli,
+            &mut stdin,
+            &mut stdout,
+            &mut stderr,
+            &CmlConvertRuntime(CmlConvertEngine),
+        )
+        .expect("CML2 conversion should complete");
+        assert_eq!(stdout, b"CO");
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn convert_refuses_unsupported_cml_before_loading_or_using_the_engine() {
+        let cli = Cli::try_parse_from([
+            "ferrum", "convert", "-", "--from", "cml", "--to", "smiles", "--json",
+        ])
+        .expect("CML alias should parse through the registry");
+        let mut stdin =
+            b"<!DOCTYPE cml><cml xmlns=\"http://www.xml-cml.org/schema/cml2/core\"></cml>"
+                .as_slice();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        super::run_with_runtime_for_test(
+            cli,
+            &mut stdin,
+            &mut stdout,
+            &mut stderr,
+            &CmlConvertRuntime(CmlConvertEngine),
+        )
+        .expect("typed CML refusal should complete");
+        let envelope: serde_json::Value =
+            serde_json::from_slice(&stdout).expect("CML refusal is JSON");
+        assert_eq!(envelope["error"]["category"], "conversion_unsupported");
+        assert_eq!(
+            envelope["error"]["message"],
+            "interchange_import_refused:DtdForbidden"
+        );
+        assert!(stderr.is_empty());
     }
 
     #[test]

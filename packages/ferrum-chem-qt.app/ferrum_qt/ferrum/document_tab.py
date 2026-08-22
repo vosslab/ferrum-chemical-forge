@@ -32,6 +32,7 @@ import ferrum_qt.ferrum.direct_glycosidic_haworth_tab as native_direct_haworth_t
 import ferrum_qt.ferrum.direct_bond_gesture_tab as native_direct_bond_gesture_tab
 import ferrum_qt.ferrum.presentation_creation_gesture_tab as native_presentation_creation_gesture_tab
 import ferrum_qt.ferrum.presentation_vector_gesture_tab as native_presentation_vector_gesture_tab
+import ferrum_qt.ferrum.presentation_path_gesture_tab as native_presentation_path_gesture_tab
 import ferrum_qt.ferrum.direct_root_interaction_tab as native_direct_root_interaction_tab
 import ferrum_qt.ferrum.structure_interaction_tab as native_structure_interaction_tab
 import ferrum_qt.ferrum.sdf_insertion as native_sdf_insertion
@@ -112,6 +113,7 @@ class FerrumNativeDocumentTab(
 		native_direct_bond_gesture_tab.FerrumNativeDirectBondGestureTabMixin,
 		native_presentation_creation_gesture_tab.FerrumNativePresentationCreationGestureTabMixin,
 		native_presentation_vector_gesture_tab.FerrumNativePresentationVectorGestureTabMixin,
+		native_presentation_path_gesture_tab.FerrumNativePresentationPathGestureTabMixin,
 		native_text_placement_gesture_tab.FerrumNativeTextPlacementGestureTabMixin,
 		native_direct_root_interaction_tab.FerrumNativeDirectRootInteractionTabMixin,
 		native_structure_interaction_tab.FerrumNativeStructureInteractionTabMixin,
@@ -380,31 +382,24 @@ class FerrumNativeDocumentTab(
 		picked = self._durable_or_unique_projection_atom_at_viewport_point(point)
 		return picked.object_id if picked is not None else None
 
-	#============================================
-	def durable_direct_bond_start_atom_at_viewport_point(
-			self, point: PySide6.QtCore.QPoint,
-			) -> str | None:
-		"""Return one direct-bond start atom from a hit or nearby projection.
-
-		This narrow start-picker makes implicit carbons usable as Draw Bond origins.
-		It does not affect direct-bond endpoint hit testing or any other canvas tool.
-		"""
-		self._require_live()
-		if not isinstance(point, PySide6.QtCore.QPoint):
-			raise TypeError("Ferrum direct-bond start hit testing requires a QPoint")
-		picked = self._durable_or_unique_projection_atom_at_viewport_point(point)
-		return picked.source_id if picked is not None else None
-
-	#============================================
 	def _durable_or_unique_projection_atom_at_viewport_point(
 			self, point: PySide6.QtCore.QPoint,
 			) -> _ImplicitAtomPick | None:
 		"""Prefer one rendered atom, else one unique nearby projection atom."""
 		rendered_atom_id = self.durable_atom_at_viewport_point(point)
-		if rendered_atom_id is not None:
-			return _ImplicitAtomPick(rendered_atom_id, rendered_atom_id)
 		if self._document_observation is None:
 			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
+		if rendered_atom_id is not None:
+			rendered_atoms: list[_ImplicitAtomPick] = []
+			for molecule in self._document_observation.projection.molecules:
+				for atom in molecule.atoms:
+					if (
+						type(atom.id) is str and atom.id
+						and type(atom.source_id) is str and atom.source_id
+						and atom.source_id == rendered_atom_id
+					):
+						rendered_atoms.append(_ImplicitAtomPick(atom.id, atom.source_id))
+			return rendered_atoms[0] if len(rendered_atoms) == 1 else None
 		radius_squared = _IMPLICIT_ATOM_PICK_RADIUS_PX ** 2
 		nearest_distance: int | None = None
 		nearest_atoms: list[_ImplicitAtomPick] = []
@@ -764,17 +759,23 @@ class FerrumNativeDocumentTab(
 	def _install_mutation_result(self, result: object,
 			durable_selection: tuple[tuple[str, str], ...] | None = None) -> None:
 		"""Install a Rust-accepted result or retain exact recovery ownership."""
+		keyboard_cursor_scene = self._view.keyboard_cursor_scene()
 		authoritative = result.observation
 		self._pending_result = result
 		self._pending_snapshot = authoritative.snapshot
 		self._pending_durable_selection = durable_selection
 		try:
 			observation = self._publish_live_render_plan_v1(authoritative.snapshot.revision)
-			installed = self._install_observation(observation)
 		except FerrumNativeDocumentTabError as exc:
+			raise FerrumNativeDocumentTabMutationPresentationError(result) from exc
+		try:
+			installed = self._install_observation(observation)
+		except Exception as exc:
 			raise FerrumNativeDocumentTabMutationPresentationError(result) from exc
 		if not installed:
 			raise FerrumNativeDocumentTabMutationPresentationError(result)
+		if keyboard_cursor_scene is not None:
+			self._view.set_keyboard_cursor_scene(keyboard_cursor_scene)
 		self._restore_pending_durable_selection()
 		self._pending_result = None
 		self._pending_snapshot = None

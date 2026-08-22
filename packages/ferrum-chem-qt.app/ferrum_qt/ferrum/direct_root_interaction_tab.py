@@ -37,7 +37,13 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		commit = self._session.create_reaction_v1(
 			self.current_snapshot.revision, reactants, products, arrow, conditions, pluses,
 		)
-		self._install_mutation_result(commit.result)
+		try:
+			self._install_mutation_result(commit.result)
+		except Exception as exc:
+			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
+				exc.accepted_receipt = commit
+			raise
 		return commit
 
 	#============================================
@@ -126,6 +132,14 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		)
 
 	#============================================
+	def direct_root_selection_contains_point(
+			self, selection: object, x: float, y: float,
+			) -> bool:
+		"""Ask Rust whether a press lands on one current selected complete root."""
+		self._require_mutable()
+		return self._session.render_interaction_selection_contains_point_v1(selection, x, y)
+
+	#============================================
 	def begin_direct_root_translation(
 			self, selection: object, x: float, y: float, snap: object,
 			) -> object:
@@ -148,5 +162,11 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		"""Commit one checked Rust translation and install its observation."""
 		self._require_mutable()
 		commit = self._session.commit_render_interaction_translation_v1(gesture, preview)
-		self._install_mutation_result(commit.result)
+		try:
+			self._install_mutation_result(commit.result)
+		except Exception as exc:
+			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
+				exc.accepted_receipt = commit
+			raise
 		return commit

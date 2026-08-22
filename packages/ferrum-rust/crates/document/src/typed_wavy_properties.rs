@@ -82,9 +82,7 @@ fn has_unsupported_core_content(record: &TypedRecord) -> bool {
         .unrecognized_children()
         .iter()
         .any(|child| match child.node() {
-            UnrecognizedNode::Element { name, .. } => {
-                name.namespace().is_empty() || name.namespace() == CDML_NAMESPACE
-            }
+            UnrecognizedNode::Element { name, .. } => name.namespace() == CDML_NAMESPACE,
             UnrecognizedNode::Text(value) => !value.trim().is_empty(),
             UnrecognizedNode::Comment(_) | UnrecognizedNode::ProcessingInstruction { .. } => false,
         })
@@ -186,6 +184,6 @@ fn set(tree: &mut Xot, node: Node, name: &str, value: impl AsRef<str>) {
 
 fn is_cdml_element(tree: &Xot, node: Node, expected: &str) -> bool {
     element_name(tree, node).is_some_and(|(local_name, namespace)| {
-        local_name == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+        local_name == expected && (namespace == CDML_NAMESPACE)
     })
 }

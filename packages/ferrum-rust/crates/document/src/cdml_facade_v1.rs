@@ -274,7 +274,7 @@ fn count_typed_records(
 mod tests {
     use super::{XmlShape, inspect_cdml, validate_cdml, verify_cdml_rewrite};
 
-    const SIMPLE_CDML: &str = r#"<cdml version="0.16"><molecule id="m1"><atom id="a1" name="C"><point x="1" y="2"/></atom></molecule></cdml>"#;
+    const SIMPLE_CDML: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="0.16"><molecule id="m1"><atom id="a1" name="C"><point x="1" y="2"/></atom></molecule></cdml>"#;
 
     #[test]
     fn inspection_requires_core_projection_and_reports_owned_facts() {
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn structural_validation_does_not_require_resolved_core_endpoints() {
-        let source = r#"<cdml><molecule><atom id="a1"><point x="0" y="0"/></atom><bond start="a1" end="missing"/></molecule></cdml>"#;
+        let source = r#"<cdml xmlns="urn:ferrum:cdml"><molecule><atom id="a1"><point x="0" y="0"/></atom><bond start="a1" end="missing"/></molecule></cdml>"#;
 
         let structural = validate_cdml(source, false).expect("document structure validates");
         let error = validate_cdml(source, true).expect_err("core projection rejects endpoint");
@@ -300,8 +300,7 @@ mod tests {
 
     #[test]
     fn rewrite_check_observes_retained_opaque_payload() {
-        let source =
-            r#"<cdml xmlns:q="urn:test"><q:payload id="foreign"><q:item/></q:payload></cdml>"#;
+        let source = r#"<cdml xmlns="urn:ferrum:cdml" xmlns:q="urn:test"><q:payload id="foreign"><q:item/></q:payload></cdml>"#;
         let check = verify_cdml_rewrite(source).expect("opaque payload survives");
 
         assert!(check.valid);
@@ -312,11 +311,11 @@ mod tests {
     #[test]
     fn structural_shape_rejects_same_count_different_retained_facts() {
         let original = XmlShape::parse(
-            r#"<cdml xmlns:q="urn:vendor"><molecule id="m1"><atom id="a1" name="C"><point x="1" y="2"/></atom></molecule><q:payload state="kept">text</q:payload></cdml>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml" xmlns:q="urn:vendor"><molecule id="m1"><atom id="a1" name="C"><point x="1" y="2"/></atom></molecule><q:payload state="kept">text</q:payload></cdml>"#,
         )
         .expect("inline CDML parses");
         let changed = XmlShape::parse(
-            r#"<cdml xmlns:q="urn:vendor"><molecule id="m1"><atom id="a1" name="N"><point x="1" y="2"/></atom></molecule><q:payload state="changed">text</q:payload></cdml>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml" xmlns:q="urn:vendor"><molecule id="m1"><atom id="a1" name="N"><point x="1" y="2"/></atom></molecule><q:payload state="changed">text</q:payload></cdml>"#,
         )
         .expect("inline CDML parses");
 

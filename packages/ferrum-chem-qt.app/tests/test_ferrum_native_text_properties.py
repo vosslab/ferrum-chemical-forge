@@ -44,7 +44,7 @@ def test_native_text_edit_updates_rust_and_retains_durable_selection(
 	"""One representable run/font edit commits and installs its replacement item."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		'<cdml><text id="t"><point x="10" y="20"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="10" y="20"/>'
 		'<font size="12" color="#000"/><ftext>old</ftext></text></cdml>',
 		"text.cdml",
 	)
@@ -85,7 +85,7 @@ def test_native_text_edit_updates_rust_and_retains_durable_selection(
 def test_native_text_adapter_rejects_unrenderable_facts_without_mutation() -> None:
 	"""Unsupported face intent never reaches a Ferrum document operation."""
 	session = ferrum_chem.DocumentSession.load(
-		'<cdml><text id="t"><point x="0" y="0"/><font family="Arial"/>'
+		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="0" y="0"/><font family="Arial"/>'
 		'<ftext>text</ftext></text></cdml>',
 	)
 	text = session.observe(0).projection.presentation_stack.roots[0].text
@@ -94,7 +94,7 @@ def test_native_text_adapter_rejects_unrenderable_facts_without_mutation() -> No
 	assert session.snapshot().revision == 0
 
 	supported_session = ferrum_chem.DocumentSession.load(
-		'<cdml><text id="t"><point x="0" y="0"/><ftext>text</ftext></text></cdml>',
+		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="0" y="0"/><ftext>text</ftext></text></cdml>',
 	)
 	supported = supported_session.observe(0).projection.presentation_stack.roots[0].text
 	model = ferrum_qt.ferrum.text_properties.dialog_model_from_projection(supported)

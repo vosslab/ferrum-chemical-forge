@@ -174,7 +174,7 @@ fn preservation_only_containers_have_typed_identity_and_opaque_payloads() {
 
 #[test]
 fn excess_child_is_retained_with_a_non_demoting_diagnostic() {
-    let source = "<cdml><molecule><atom id=\"a\"><point x=\"1\" y=\"2\"/><point x=\"3\" y=\"4\"/></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"1\" y=\"2\"/><point x=\"3\" y=\"4\"/></atom></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("diagnostic source must type");
     let atom = child(
         child(document.root(), TypedClass::Molecule),
@@ -216,7 +216,7 @@ fn typed_documents_supply_the_validated_core_projection() {
 
 #[test]
 fn core_projection_reports_missing_required_geometry() {
-    let source = "<cdml><molecule><atom id=\"a\"/></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"/></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()
@@ -229,7 +229,7 @@ fn core_projection_reports_missing_required_geometry() {
 
 #[test]
 fn core_projection_reports_invalid_authored_scalars() {
-    let source = "<cdml><molecule><atom id=\"a\" charge=\"many\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\" charge=\"many\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()
@@ -246,7 +246,7 @@ fn core_projection_reports_invalid_authored_scalars() {
 
 #[test]
 fn core_projection_reports_unresolved_bond_endpoints() {
-    let source = "<cdml><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\" end=\"missing\"/></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\" end=\"missing\"/></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()
@@ -263,8 +263,7 @@ fn core_projection_reports_unresolved_bond_endpoints() {
 
 #[test]
 fn core_projection_reports_core_model_rejections() {
-    let source =
-        "<cdml><molecule><atom id=\"a\"><point x=\"NaN\" y=\"0\"/></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"NaN\" y=\"0\"/></atom></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()

@@ -10,6 +10,7 @@ use xot::Xot;
 
 use super::{
     CDML_NAMESPACE, TypedDocument, TypedDocumentError, XmlSerializationError, element_name,
+    ferrum_cdml_element_name, is_ferrum_cdml_name,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -292,7 +293,7 @@ struct DirectRootParseV1 {
 
 fn direct_root_node(tree: &Xot, node: xot::Node, source_order: u32) -> Option<DirectRootParseV1> {
     let (local, namespace) = element_name(tree, node)?;
-    let core = namespace.is_empty() || namespace == CDML_NAMESPACE;
+    let core = namespace == CDML_NAMESPACE;
     let kind = if core {
         match local.as_str() {
             "molecule" => DirectCdmlRootKindV1::Molecule,
@@ -334,7 +335,7 @@ fn parse_reaction(
         let Some((local, namespace)) = element_name(tree, child) else {
             continue;
         };
-        if !(namespace.is_empty() || namespace == CDML_NAMESPACE) {
+        if !(namespace == CDML_NAMESPACE) {
             diagnostics.push(ReactionDefinitionDiagnosticV1::UnknownRoleChild);
             continue;
         }
@@ -412,15 +413,12 @@ pub fn append_direct_cdml_reaction_v1(
     let root = tree
         .document_element(indexed.xml.document)
         .expect("a parsed CDML document has a root");
-    let namespace = element_name(tree, root)
-        .map(|(_, namespace)| namespace)
-        .unwrap_or_default();
-    let reaction_name = name(tree, "reaction", &namespace);
+    let reaction_name = ferrum_cdml_element_name(tree, "reaction");
     let reaction = tree.new_element(reaction_name);
     let id = tree.add_name("id");
     tree.set_attribute(reaction, id, reaction_id);
     for (role, identifier) in roles {
-        let child_name = name(tree, role.local_name(), &namespace);
+        let child_name = ferrum_cdml_element_name(tree, role.local_name());
         let child = tree.new_element(child_name);
         let idref = tree.add_name("idref");
         tree.set_attribute(child, idref, identifier);
@@ -460,15 +458,11 @@ pub fn replace_direct_cdml_reaction_members_v1(
         .children(root)
         .find(|child| {
             element_name(tree, *child).is_some_and(|(local, namespace)| {
-                local == "reaction"
-                    && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+                is_ferrum_cdml_name(&local, &namespace, "reaction")
                     && attribute(tree, *child, "id") == Some(reaction_id)
             })
         })
         .ok_or(DirectCdmlSemanticErrorV1::InvalidReactionDefinition)?;
-    let namespace = element_name(tree, reaction)
-        .map(|(_, namespace)| namespace)
-        .unwrap_or_default();
     let children = tree.children(reaction).collect::<Vec<_>>();
     for child in children {
         if is_reaction_role(tree, child) {
@@ -476,7 +470,7 @@ pub fn replace_direct_cdml_reaction_members_v1(
         }
     }
     for (role, identifier) in roles {
-        let child_name = name(tree, role.local_name(), &namespace);
+        let child_name = ferrum_cdml_element_name(tree, role.local_name());
         let child = tree.new_element(child_name);
         let idref = tree.add_name("idref");
         tree.set_attribute(child, idref, identifier);
@@ -510,8 +504,7 @@ pub fn delete_direct_cdml_reaction_definition_v1(
         .children(root)
         .find(|child| {
             element_name(tree, *child).is_some_and(|(local, namespace)| {
-                local == "reaction"
-                    && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+                is_ferrum_cdml_name(&local, &namespace, "reaction")
                     && attribute(tree, *child, "id") == Some(reaction_id)
             })
         })
@@ -523,7 +516,7 @@ pub fn delete_direct_cdml_reaction_definition_v1(
 
 fn direct_root(tree: &Xot, node: xot::Node) -> Option<DirectCdmlRootV1> {
     let (local, namespace) = element_name(tree, node)?;
-    let kind = if namespace.is_empty() || namespace == CDML_NAMESPACE {
+    let kind = if namespace == CDML_NAMESPACE {
         match local.as_str() {
             "molecule" => DirectCdmlRootKindV1::Molecule,
             "arrow" => DirectCdmlRootKindV1::Arrow,
@@ -556,7 +549,7 @@ fn is_reaction_role(tree: &Xot, node: xot::Node) -> bool {
         matches!(
             local.as_str(),
             "reactant" | "product" | "arrow" | "condition" | "plus"
-        ) && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+        ) && namespace == CDML_NAMESPACE
     })
 }
 
@@ -567,15 +560,6 @@ fn attribute<'a>(tree: &'a Xot, node: xot::Node, expected: &str) -> Option<&'a s
     })
 }
 
-fn name(tree: &mut Xot, local: &str, namespace: &str) -> xot::NameId {
-    if namespace.is_empty() {
-        tree.add_name(local)
-    } else {
-        let namespace = tree.add_namespace(namespace);
-        tree.add_name_ns(local, namespace)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -583,7 +567,7 @@ mod tests {
     #[test]
     fn index_ignores_foreign_and_nested_lookalikes_but_reserves_literal_ids() {
         let index = DirectCdmlSemanticIndexV1::parse(concat!(
-            "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+            "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
             "xmlns:v=\"urn:vendor\"><v:molecule id=\"foreign-molecule\"/>",
             "<c:molecule id=\"core\"><v:reaction id=\"nested\"/></c:molecule>",
             "<c:reaction id=\"r\"><c:arrow idref=\"arrow\"/>",
@@ -600,7 +584,7 @@ mod tests {
     #[test]
     fn typed_append_uses_the_root_namespace_and_retains_direct_child_order() {
         let source = concat!(
-            "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+            "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
             "xmlns:v=\"urn:vendor\"><v:note id=\"opaque\"/>",
             "<c:molecule id=\"m\"/></c:cdml>"
         );
@@ -620,7 +604,7 @@ mod tests {
     #[test]
     fn reaction_definition_is_namespace_aware_and_preserves_member_order() {
         let definitions = inspect_direct_reactions_v1(concat!(
-            "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" xmlns:v=\"urn:vendor\">",
+            "<c:cdml xmlns:c=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\">",
             "<c:molecule id=\"left\"/><c:molecule id=\"right\"/><c:arrow id=\"a\"/>",
             "<c:reaction id=\"r\"><c:reactant idref=\"left\"/><c:product idref=\"right\"/><c:arrow idref=\"a\"/></c:reaction>",
             "<v:reaction id=\"foreign\"><v:reactant idref=\"left\"/></v:reaction>",
@@ -643,7 +627,7 @@ mod tests {
 
     #[test]
     fn malformed_direct_reaction_is_retained_as_display_only_definition() {
-        let definitions = inspect_direct_reactions_v1("<cdml><reaction id=\"r\"><reactant idref=\"missing\"/><arrow idref=\"a\"/><arrow idref=\"a\"/></reaction><arrow id=\"a\"/></cdml>").expect("fixture parses");
+        let definitions = inspect_direct_reactions_v1("<cdml xmlns=\"urn:ferrum:cdml\"><reaction id=\"r\"><reactant idref=\"missing\"/><arrow idref=\"a\"/><arrow idref=\"a\"/></reaction><arrow id=\"a\"/></cdml>").expect("fixture parses");
         assert_eq!(definitions.len(), 1);
         assert!(!definitions[0].is_strict());
         assert!(

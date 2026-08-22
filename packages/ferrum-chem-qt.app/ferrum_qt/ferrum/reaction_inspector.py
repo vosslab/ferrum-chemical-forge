@@ -235,17 +235,13 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 	def refresh_action(self, action: PySide6.QtGui.QAction) -> None:
 		"""Expose inspection for any live mutable Ferrum tab."""
 		tab = self._window._active_native_tab()
-		action.setEnabled(tab is not None and not tab._disposed and not tab.requires_refresh)
+		action.setEnabled(tab is not None and not tab.is_disposed and not tab.requires_refresh)
 
 	#============================================
 	def open(self) -> None:
 		"""Open a fresh list view after retiring competing disposable tools."""
 		self.close()
-		for method_name in (
-			"_cancel_atom_insertion", "_cancel_line_gesture", "_cancel_structure_selection",
-			"_cancel_catalog_placement",
-		):
-			getattr(self._window, method_name, lambda: None)()
+		self._window.cancel_active_pointer_authoring()
 		tab = self._window._active_native_tab()
 		if tab is None:
 			return
@@ -308,7 +304,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		if dock is not None:
 			dock.hide()
 			dock.deleteLater()
-		if tab is not None and not tab._disposed:
+		if tab is not None and not tab.is_disposed:
 			tab.view.viewport().setFocus()
 
 	#============================================
@@ -348,7 +344,11 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		selected = self._reaction_id
 		try:
 			self._observation = self._tab.observe_reaction_list()
-		except Exception as exc:
+		except (
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._recover(exc)
 			return
 		self._list.blockSignals(True)
@@ -402,17 +402,17 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 	def _reaction(self) -> object:
 		"""Resolve the selected projection only from the active Rust list."""
 		if self._observation is None or self._reaction_id is None:
-			raise RuntimeError("select a reaction first")
+			raise _ReactionInspectorMembershipChangedError()
 		for reaction in self._observation.reactions:
 			if reaction.reaction_id == self._reaction_id:
 				return reaction
-		raise RuntimeError("the selected reaction is no longer in the current Rust observation")
+		raise _ReactionInspectorMembershipChangedError()
 
 	#============================================
 	def _selection(self) -> object:
 		"""Acquire a fresh opaque selection, never retaining it in Qt state."""
 		if self._tab is None or self._observation is None or self._reaction_id is None:
-			raise RuntimeError("refresh and select a reaction first")
+			raise _ReactionInspectorMembershipChangedError()
 		return self._tab.select_reaction(self._observation, self._reaction_id)
 
 	#============================================
@@ -437,7 +437,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			self._window.statusBar().showMessage(
 				self.tr("Highlighted all Rust-issued members of {0}.").format(reaction.reaction_id), 5000,
 			)
-		except Exception as exc:
+		except (
+			_ReactionInspectorMembershipChangedError,
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.RenderInteractionError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._recover(exc)
 
 	#============================================
@@ -448,7 +453,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		try:
 			reaction = self._reaction()
 			choices = self._tab.observe_reaction_authoring_choices()
-		except Exception as exc:
+		except (
+			_ReactionInspectorMembershipChangedError,
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.ReactionAuthoringChoicesError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._recover(exc)
 			return
 		try:
@@ -473,7 +483,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 				"Updated reaction roles", rehighlight=True,
 			)
 			return
-		except Exception as exc:
+		except (
+			_ReactionInspectorMembershipChangedError,
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._recover(exc)
 			return
 		self.refresh()
@@ -484,7 +499,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		"""Confirm and remove only the reaction record, retaining all member roots."""
 		try:
 			reaction = self._reaction()
-		except Exception as exc:
+		except _ReactionInspectorMembershipChangedError as exc:
 			self._recover(exc)
 			return
 		dialog = _ReactionDefinitionDeleteDialog(reaction.reaction_id, self._window)
@@ -495,7 +510,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError:
 			self._recover_accepted_mutation("Deleted the reaction definition", rehighlight=False)
 			return
-		except Exception as exc:
+		except (
+			_ReactionInspectorMembershipChangedError,
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._recover(exc)
 			return
 		self._window._replace_render_interaction_selection(None, self._tab)
@@ -514,7 +534,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError:
 			self._recover_accepted_mutation("Moved all reaction members", rehighlight=True)
 			return
-		except Exception as exc:
+		except (
+			_ReactionInspectorMembershipChangedError,
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._recover(exc)
 			return
 		self.refresh()

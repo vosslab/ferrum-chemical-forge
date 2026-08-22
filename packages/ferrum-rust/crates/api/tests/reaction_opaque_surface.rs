@@ -5,7 +5,7 @@ use ferrum_document::{DocumentFenceV1, DocumentSession};
 use ferrum_document_render::{begin_reaction_gesture_v1, prepare_reaction_gesture_v1};
 
 const OPAQUE_MARKER: &str = "FERRUM_REACTION_CANDIDATE_SECRET_9c324a";
-const SOURCE: &str = "<cdml><molecule id=\"left\" ferrum_marker=\"FERRUM_REACTION_CANDIDATE_SECRET_9c324a\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"product\"><atom id=\"product-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow></cdml>";
+const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\" ferrum_marker=\"FERRUM_REACTION_CANDIDATE_SECRET_9c324a\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"product\"><atom id=\"product-a\" name=\"O\"><point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/><point x=\"75\" y=\"0\"/></arrow></cdml>";
 
 fn request(revision: u64) -> ReactionCreateRequestV1 {
     ReactionCreateRequestV1::new(

@@ -11,13 +11,27 @@ pub(super) fn execute_chemistry_convert<R: ChemistryRuntimeV1>(
     {
         return execute_cdml_to_cdml_conversion(request);
     }
+    let cml_records = if request.input.format == InterchangeFormatV1::CmlSimpleMolecule {
+        Some(
+            crate::document_interchange_import_v1::decode_cml_simple_molecule_records_v1(
+                request.input.text.as_bytes(),
+            )
+            .map_err(ExecutionFailureV1::interchange_import_refusal)?,
+        )
+    } else {
+        None
+    };
     runtime
         .with_engine(|engine| {
-            let records =
-                match decode_interchange_v1(engine, request.input.format, &request.input.text) {
-                    Ok(records) => records,
-                    Err(error) => return Ok(Err(map_conversion_error(error))),
-                };
+            let records = match &cml_records {
+                Some(records) => records.clone(),
+                None => {
+                    match decode_interchange_v1(engine, request.input.format, &request.input.text) {
+                        Ok(records) => records,
+                        Err(error) => return Ok(Err(map_conversion_error(error))),
+                    }
+                }
+            };
             let record_count = records.len();
             let text = match encode_interchange_v1(engine, request.output_format, &records) {
                 Ok(text) => text,

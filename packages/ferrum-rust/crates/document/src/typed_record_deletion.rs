@@ -452,9 +452,8 @@ fn attribute<'a>(tree: &'a Xot, node: Node, expected: &str) -> Option<&'a str> {
     })
 }
 fn is_cdml_element(tree: &Xot, node: Node, expected: &str) -> bool {
-    element_name(tree, node).is_some_and(|(local, namespace)| {
-        local == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
-    })
+    element_name(tree, node)
+        .is_some_and(|(local, namespace)| local == expected && (namespace == CDML_NAMESPACE))
 }
 
 impl TypedDocument {

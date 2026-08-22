@@ -181,7 +181,7 @@ class FerrumPlusItem(PySide6.QtWidgets.QGraphicsObject):
 def _target(value: object, extension: object) -> object:
 	"""Authenticate the exact plus target through the presentation boundary."""
 	try:
-		target = ferrum_qt.canvas.ferrum_presentation_projection._target(
+		target = ferrum_qt.canvas.ferrum_presentation_projection.presentation_target_from_dto(
 			value, extension, "plus",
 		)
 	except (AttributeError, TypeError, ValueError) as exc:

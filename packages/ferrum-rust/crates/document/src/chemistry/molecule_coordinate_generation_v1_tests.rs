@@ -54,7 +54,7 @@ fn engine(points: &[(f64, f64)]) -> FixedCoordinateEngine {
 fn source(second_element: &str, bond_type: &str) -> String {
     format!(
         concat!(
-            "<cdml version=\"1.0\"><molecule id=\"m1\">",
+            "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
             "<atom id=\"a1\" name=\"C\"><point x=\"10\" y=\"20\" z=\"3\"/></atom>",
             "<atom id=\"a2\" name=\"{}\"><point x=\"50\" y=\"20\"/></atom>",
             "<bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"{}\"/>",

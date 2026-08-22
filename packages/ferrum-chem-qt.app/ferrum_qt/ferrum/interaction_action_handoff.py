@@ -1,6 +1,7 @@
 """Lifetime-safe handoff for Qt actions that take canvas interaction ownership."""
 
 # Standard Library
+import collections.abc
 import inspect
 import weakref
 
@@ -9,6 +10,17 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 import shiboken6
+
+
+#============================================
+class FerrumInteractionActionHandoffRefusal(Exception):
+	"""An intentional user-visible refusal from one pointer-owning action."""
+
+	def __init__(self, detail: str) -> None:
+		"""Create a refusal with the precise explanation shown by the window."""
+		if not isinstance(detail, str) or not detail:
+			raise ValueError("Ferrum interaction refusal detail must be nonempty text")
+		super().__init__(detail)
 
 
 #============================================
@@ -147,17 +159,17 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 			return
 		self._state = "running"
 		try:
-			self._handoff._before_incoming_action(self._checked)
-		except Exception as error:
-			self._fail("capture guard failed: " + str(error))
+			self._handoff._before_incoming_action(self._action, self._checked)
+		except FerrumInteractionActionHandoffRefusal as refusal:
+			self._fail(str(refusal))
 			return
 		try:
 			if self._accepts_checked:
 				self._handler(self._checked)
 			else:
 				self._handler()
-		except Exception as error:
-			self._fail("action handler failed: " + str(error))
+		except FerrumInteractionActionHandoffRefusal as refusal:
+			self._fail(str(refusal))
 			return
 		self._finish()
 
@@ -176,10 +188,7 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 		if self._action_is_live() and self._action.isCheckable():
 			self._action.setChecked(False)
 		self._cleanup()
-		try:
-			self._handoff._report_failure(detail)
-		except Exception:
-			return
+		self._handoff._report_failure(detail)
 
 	def _finish(self) -> None:
 		"""Release all retained Qt and Python state after a successful invocation."""
@@ -225,7 +234,7 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		self._failure_reporter = failure_reporter
 		self._popup_watchdog_ms = popup_watchdog_ms
 		self._owner_destroyed = False
-		self._cancel_capture: object | None = None
+		self._capture_canceller: collections.abc.Callable[[bool], None] | None = None
 		self._actions: dict[PySide6.QtGui.QAction, object] = {}
 		self._registered_action_menus: weakref.WeakKeyDictionary[
 			PySide6.QtGui.QAction, weakref.WeakSet[PySide6.QtWidgets.QMenu],
@@ -233,17 +242,23 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		self._continuations: dict[PySide6.QtGui.QAction, _PopupActionContinuation] = {}
 		self._popup_latches: weakref.WeakKeyDictionary[
 			PySide6.QtWidgets.QWidget, _PopupTerminalLatch] = weakref.WeakKeyDictionary()
-		self._application = PySide6.QtWidgets.QApplication.instance()
-		if self._application is None:
+		if PySide6.QtWidgets.QApplication.instance() is None:
 			raise RuntimeError("Ferrum interaction handoff requires QApplication")
-		self._application.installEventFilter(self)
 		owner.destroyed.connect(self._on_owner_destroyed)
 
-	def set_capture_canceller(self, canceller: object | None) -> None:
-		"""Install the one current temporary-capture cancellation client."""
-		if canceller is not None and not callable(canceller):
-			raise TypeError("Ferrum interaction cancellation client must be callable")
-		self._cancel_capture = canceller
+	def register_pointer_capture_canceller(self,
+			canceller: collections.abc.Callable[[bool], None]) -> None:
+		"""Register the one capture retired by the window authoring transaction."""
+		if not callable(canceller):
+			raise TypeError("Ferrum pointer capture canceller must be callable")
+		self._capture_canceller = canceller
+
+	#============================================
+	def cancel_registered_pointer_capture(self, *, clear_status: bool) -> None:
+		"""Retire the registered capture through its fixed explicit callback contract."""
+		canceller = self._capture_canceller
+		if canceller is not None:
+			canceller(clear_status)
 
 	def connect(self, action: PySide6.QtGui.QAction, handler: object) -> None:
 		"""Connect one pointer-owning action through its cancellation guard."""
@@ -313,17 +328,16 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 
 	def eventFilter(self, watched: PySide6.QtCore.QObject,
 			event: PySide6.QtCore.QEvent) -> bool:
-		"""Record popup terminals from Show through Hide before QAction dispatch."""
+		"""Record terminals only for popups explicitly owned by a handoff."""
 		if not isinstance(watched, PySide6.QtWidgets.QWidget):
 			return False
-		if not self._is_popup_widget(watched):
+		latch = self._popup_latches.get(watched)
+		if latch is None:
 			return False
 		if event.type() == PySide6.QtCore.QEvent.Type.Show:
-			self._popup_latch_for(watched).rearm_for_show()
+			latch.rearm_for_show()
 		elif event.type() == PySide6.QtCore.QEvent.Type.Hide:
-			latch = self._popup_latches.get(watched)
-			if latch is not None:
-				latch.mark_terminal()
+			latch.mark_terminal()
 		return False
 
 	def _popup_latch_for(self, popup: PySide6.QtWidgets.QWidget) -> _PopupTerminalLatch:
@@ -332,6 +346,7 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		if latch is None:
 			latch = _PopupTerminalLatch(self, popup)
 			self._popup_latches[popup] = latch
+			popup.installEventFilter(self)
 		return latch
 
 	def _release_popup_latch(self, latch: _PopupTerminalLatch) -> None:
@@ -341,18 +356,12 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 				del self._popup_latches[popup]
 				return
 
-	@staticmethod
-	def _is_popup_widget(widget: PySide6.QtWidgets.QWidget) -> bool:
-		"""Limit application-wide lifecycle bookkeeping to transient popup widgets."""
-		return isinstance(widget, PySide6.QtWidgets.QMenu) or (
-			widget.windowType() == PySide6.QtCore.Qt.WindowType.Popup
-		)
-
-	def _before_incoming_action(self, _checked: bool = False) -> None:
-		"""Retire selected-root capture synchronously before the tool handler."""
-		canceller = self._cancel_capture
-		if callable(canceller):
-			canceller()
+	def _before_incoming_action(self, action: PySide6.QtGui.QAction,
+			checked: bool = False) -> None:
+		"""Retire prior pointer ownership while preserving the incoming tool state."""
+		self._owner.cancel_active_pointer_authoring(clear_status=False)
+		if checked and action.isCheckable() and action.isEnabled():
+			action.setChecked(True)
 
 	def _release_continuation(self, action: PySide6.QtGui.QAction,
 			continuation: _PopupActionContinuation) -> None:
@@ -367,16 +376,12 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		if continuations is None:
 			return
 		self._owner_destroyed = True
-		application = self._application
-		if application is not None and shiboken6.isValid(application):
-			application.removeEventFilter(self)
-		self._application = None
 		for continuation in tuple(continuations.values()):
 			continuation.cancel()
 		self._actions.clear()
 		self._registered_action_menus.clear()
 		self._popup_latches.clear()
-		self._cancel_capture = None
+		self._capture_canceller = None
 
 	@PySide6.QtCore.Slot(PySide6.QtCore.QObject)
 	def _on_action_destroyed(self, destroyed_object: PySide6.QtCore.QObject) -> None:

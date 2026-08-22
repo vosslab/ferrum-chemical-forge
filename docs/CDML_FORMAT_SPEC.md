@@ -27,17 +27,16 @@ CDML is the serialization contract between:
 ### Namespace
 
 ```
-http://www.freesoftware.fsf.org/bkchem/cdml
+urn:ferrum:cdml
 ```
 
-The namespace URI is an identifier and may not be dereferenceable; it is kept
-for compatibility and identity, not as a guaranteed fetch target.
+The namespace URI is an identifier and may not be dereferenceable; it establishes
+Ferrum CDML vocabulary identity, not a guaranteed fetch target.
 
-The canonical namespace is required by the 26.07 authored profile. Its absence
-is accepted only as standalone legacy compatibility input; it is not a new
-authoring option. It is also required for embedded CDML inside SVG (CD-SVG).
-Ferrum may load standalone legacy CDML without the namespace. Embedded CDML in
-SVG requires the canonical namespace.
+Every ordinary Ferrum CDML document, including an embedded CD-SVG payload, must
+use the expanded root name `{urn:ferrum:cdml}cdml`. An unqualified root and the
+historic BKChem namespace are rejected. Foreign namespaces remain opaque only
+below a valid Ferrum root; they never become Ferrum CDML vocabulary.
 
 Documentation URL: [CDML_FORMAT_SPEC.md](https://github.com/vosslab/ferrum-chemical-forge/blob/main/docs/CDML_FORMAT_SPEC.md).
 
@@ -45,11 +44,10 @@ Documentation URL: [CDML_FORMAT_SPEC.md](https://github.com/vosslab/ferrum-chemi
 
 `26.07`
 
-`26.07` is the authored-current CDML profile. `26.02` and the earlier
-versions in the migration chain remain accepted compatibility inputs. The
-implemented writer/default, transformer, and focused-test wiring author new
-documents as 26.07 and preserve loaded supported-old and unknown-future root
-values unless the legacy transformer is explicitly invoked. `26.07` documents
+`26.07` is the authored-current CDML profile. Earlier profile versions remain
+accepted only when they use the canonical Ferrum root namespace. The implemented
+writer/default and focused-test wiring author new documents as 26.07 and preserve
+loaded supported-old and unknown-future root values. `26.07` documents
 and makes the authored profile explicit for long-standing direct-child order
 and opaque-preservation behavior; it does not reinterpret or alter the meaning
 of 26.02 documents.
@@ -71,7 +69,7 @@ A CDML document has the following top-level structure:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
-<cdml version="26.07" xmlns="http://www.freesoftware.fsf.org/bkchem/cdml">
+<cdml version="26.07" xmlns="urn:ferrum:cdml">
   <info>...</info>
   <metadata>
     <doc href="https://github.com/vosslab/ferrum-chemical-forge/blob/main/docs/CDML_FORMAT_SPEC.md"/>
@@ -113,8 +111,8 @@ covered separately by
 
 | Class | Meaning | Current evidence |
 |-------|---------|------------------|
-| Normative authored 26.07 | New documents use root `<cdml version="26.07">`, the canonical namespace, existing documented CDML vocabulary, and the preserved direct-child sequence. | Implemented writer/default and legacy-transformer wiring. |
-| Legacy-compatible input | Earlier chain versions, including `26.02`, and historical namespace/cardinality/order variants remain readable when accepted by compatibility handling. | Implemented migration chain and complete-document preservation behavior. |
+| Normative authored 26.07 | New documents use root `<cdml xmlns="urn:ferrum:cdml" version="26.07">`, the canonical namespace, existing documented CDML vocabulary, and the preserved direct-child sequence. | Implemented writer/default wiring. |
+| Supported profile input | Earlier profile versions and compatible cardinality/order variants remain readable when they use the canonical Ferrum root namespace. | Complete-document preservation behavior. |
 | Opaque preservation | Unknown elements, attributes, namespaces, and unsupported known content retain their XML meaning and sequence without CDML lookup, reference, or provisional-token semantics. Every literal `id` in an ID-definition position, including one in opaque content, reserves a document-wide collision name. | Complete-document backend preservation. |
 | Proposal | A possible future addition has no authored grammar or editor requirement until separately specified and implemented. | Proposal registry below. |
 
@@ -134,7 +132,7 @@ than a retired Python module, is the normative source for their meaning.
 
 | Profile | Behavioral question | Bounded implemented checks |
 |---------|---------------------|----------------------------|
-| `compat` | Can the complete document be safely parsed and preserved as compatible CDML? | CDML root/namespace and safe XML parsing. Historical versions, incomplete records, and opaque extension content remain preservation-compatible. |
+| `compat` | Can the complete document be safely parsed and preserved as Ferrum CDML? | Exact Ferrum CDML root/namespace and safe XML parsing. Historical profile versions, incomplete records, and opaque extension content remain preservation-compatible. |
 | `authored-26.07` | Does a newly authored document meet the implemented 26.07 safety/profile boundary? | `compat`, canonical root version and namespace, nonempty, non-whitespace durable IDs on selectable direct children, recognized-reference safety checks, and typed direct-root reaction-role targets. |
 
 The authored inspector is deliberately a bounded safety/profile checker, not a
@@ -216,7 +214,7 @@ own schema.
 |-----------|------|----------|---------|-------|
 | `version` | string | Yes | -- | Format version (e.g. `"26.07"`) |
 | `type` | enum | No | `"normal"` | `"normal"`, `"template"`, or `"standard"` |
-| `xmlns` | URI | Yes (authored 26.07) | -- | Legacy standalone input may omit it. |
+| `xmlns` | URI | Yes | -- | Must be exactly `urn:ferrum:cdml`. |
 
 ### `<metadata>`
 
@@ -1301,8 +1299,7 @@ outweighs the cost of maintaining another grammar artifact.
 
 If you generate CDML outside of Ferrum:
 
-1. Set `version="26.07"` on the root `<cdml>` element.
-2. Include the namespace: `xmlns="http://www.freesoftware.fsf.org/bkchem/cdml"`.
+1. Use the root `<cdml xmlns="urn:ferrum:cdml" version="26.07">`.
 3. Optionally include a documentation pointer:
    `<metadata><doc href="https://github.com/vosslab/ferrum-chemical-forge/blob/main/docs/CDML_FORMAT_SPEC.md"/></metadata>`.
 4. Use the current bond type format: `<type_char><order_digit>` (e.g. `"n1"`).

@@ -4,7 +4,7 @@ use super::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml version=\"1.0\"><opaque id=\"ferrum-molecule-v1-0\"/>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><opaque id=\"ferrum-molecule-v1-0\"/>",
     "<opaque id=\"ferrum-atom-v1-0\"/><opaque id=\"ferrum-bond-v1-0\"/></cdml>"
 );
 
@@ -89,10 +89,10 @@ fn complete_insertion_allocates_collision_free_ids_and_projects_exact_facts() {
 
 #[test]
 fn prepared_molecule_is_owner_bound_consumed_once_and_history_restorable() {
-    let mut owner =
-        DocumentSession::load("<cdml version=\"1.0\"/>").expect("owner fixture must load");
-    let mut foreign =
-        DocumentSession::load("<cdml version=\"1.0\"/>").expect("foreign fixture must load");
+    let mut owner = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
+        .expect("owner fixture must load");
+    let mut foreign = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
+        .expect("foreign fixture must load");
     let mut pending = owner
         .prepare_create_molecule_v1(0, &carbonyl())
         .expect("candidate must prepare");

@@ -15,7 +15,7 @@ use super::super::{
 use super::execute_document_smarts_query_v1;
 
 const SOURCE: &str = concat!(
-    "<cdml><molecule id=\"first\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom></molecule>",
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom></molecule>",
     "<molecule id=\"second\"><atom id=\"b\" name=\"O\"><point x=\"3\" y=\"4\"/></atom></molecule>",
     "<molecule id=\"third\"><atom id=\"c\" name=\"N\"><point x=\"5\" y=\"6\"/></atom></molecule></cdml>"
 );

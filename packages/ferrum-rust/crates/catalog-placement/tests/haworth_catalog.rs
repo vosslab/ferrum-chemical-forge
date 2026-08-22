@@ -21,7 +21,8 @@ fn fence(session: &DocumentSession) -> DocumentFenceV1 {
 #[test]
 fn closed_haworth_entries_compile_literal_coordinates_and_directed_stereo_tokens() {
     for key in KEYS {
-        let mut session = DocumentSession::load("<cdml/>").expect("empty CDML");
+        let mut session =
+            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty CDML");
         let gesture = begin_catalog_placement_v1(&session, fence(&session), key).expect("key");
         let preview = preview_catalog_placement_v1(
             &session,
@@ -71,7 +72,7 @@ fn closed_haworth_entries_compile_literal_coordinates_and_directed_stereo_tokens
 
 #[test]
 fn literal_haworth_namespace_reserves_opaque_declarations() {
-    let source = "<cdml><molecule id=\"host\"><atom id=\"host-a\" name=\"C\"><point x=\"0\" y=\"0\"/><opaque id=\"ferrum-catalog-d-glucose-haworth-1-a1\"><retained/></opaque></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"host\"><atom id=\"host-a\" name=\"C\"><point x=\"0\" y=\"0\"/><opaque id=\"ferrum-catalog-d-glucose-haworth-1-a1\"><retained/></opaque></atom></molecule></cdml>";
     let mut session = DocumentSession::load(source).expect("opaque source");
     let gesture = begin_catalog_placement_v1(&session, fence(&session), KEYS[0]).expect("key");
     let preview = preview_catalog_placement_v1(

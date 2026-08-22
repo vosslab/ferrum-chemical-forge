@@ -91,7 +91,8 @@ fn regular_ring_commit_is_reversible_and_reopens_as_an_ordinary_cycle() {
     let center = Point3V1::new(13.0, -7.0, 2.0).expect("finite centre");
     let ring = request(6, center);
     let vertices = ring.vertices().expect("ring vertices");
-    let mut session = DocumentSession::load("<cdml/>").expect("empty source loads");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty source loads");
     let mut pending = session
         .prepare_create_regular_ring_v1(0, ring)
         .expect("detached ring prepares");
@@ -141,7 +142,8 @@ fn regular_ring_commit_is_reversible_and_reopens_as_an_ordinary_cycle() {
 #[test]
 fn stale_regular_ring_receipt_preserves_current_document() {
     let center = Point3V1::new(0.0, 0.0, 0.0).expect("finite centre");
-    let mut session = DocumentSession::load("<cdml/>").expect("empty source loads");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty source loads");
     let mut stale = session
         .prepare_create_regular_ring_v1(0, request(6, center))
         .expect("first candidate prepares");

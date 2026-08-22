@@ -32,14 +32,25 @@ use crate::{
 enum LocalDocumentSourceKindV1 {
     Cdml,
     DecodedCdsvg,
+    Cml,
     Interchange,
 }
 
 impl LocalDocumentSourceKindV1 {
+    const fn for_interchange_descriptor(
+        descriptor: &crate::interchange_import_v1::InterchangeFormatDescriptorV1,
+    ) -> Self {
+        match descriptor.decoder() {
+            crate::interchange_import_v1::InterchangeDecoderKeyV1::CmlSimpleMolecule => Self::Cml,
+            crate::interchange_import_v1::InterchangeDecoderKeyV1::Sdf => Self::Interchange,
+        }
+    }
+
     const fn as_str(self) -> &'static str {
         match self {
             Self::Cdml => "cdml",
             Self::DecodedCdsvg => "decoded_cdsvg",
+            Self::Cml => "cml",
             Self::Interchange => "interchange",
         }
     }
@@ -403,20 +414,28 @@ pub(crate) fn prepare_local_interchange_file_v1(
 ) -> PyResult<PyPreparedLocalDocumentOpenV1> {
     let path = exact_path(py, path)?;
     let descriptor = local_interchange_descriptor(route_handle)?;
+    let source_kind = LocalDocumentSourceKindV1::for_interchange_descriptor(descriptor);
     let result = py.detach(move || {
         let (source, prepared) =
             crate::document_interchange_import_v1::prepare_local_interchange_new_document_v1(
                 descriptor,
                 &path,
-                &super::super::InstalledWheelInterchangeRuntimeResolverV1,
+                &super::super::StagedExtensionInterchangeRuntimeResolverV1,
             )
             .map_err(LocalInterchangePreparationError::Refused)?;
         let summary = super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1::from_summary(prepared.summary());
         let (session, _) = prepared
             .commit_and_take_session()
             .map_err(LocalInterchangePreparationError::Refused)?;
-        let observation =
-            observe_render_v1(&session, 0).map_err(LocalInterchangePreparationError::Render)?;
+        let post_import_snapshot = session
+            .snapshot()
+            .map_err(|_| LocalInterchangePreparationError::Refused(
+                InterchangeImportRefusalV1::for_reason(
+                    crate::interchange_import_v1::InterchangeImportRefusalReasonV1::InternalFailure,
+                ),
+            ))?;
+        let observation = observe_render_v1(&session, post_import_snapshot.revision())
+            .map_err(LocalInterchangePreparationError::Render)?;
         Ok::<_, LocalInterchangePreparationError>((
             session,
             observation,
@@ -437,7 +456,7 @@ pub(crate) fn prepare_local_interchange_file_v1(
                         ),
                     )
                 })?,
-            LocalDocumentSourceKindV1::Interchange,
+            source_kind,
             summary,
         ))
     });
@@ -514,7 +533,7 @@ fn prepare_local_document_file_v1(
             LocalDocumentSourceKindV1::DecodedCdsvg => {
                 prepare_local_decoded_cdsvg_file_with_origin_v1(&path)
             }
-            LocalDocumentSourceKindV1::Interchange => {
+            LocalDocumentSourceKindV1::Cml | LocalDocumentSourceKindV1::Interchange => {
                 unreachable!("interchange admission uses its dedicated Rust-owned bridge")
             }
         };

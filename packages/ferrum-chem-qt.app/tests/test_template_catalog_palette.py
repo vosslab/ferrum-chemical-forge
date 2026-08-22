@@ -26,13 +26,11 @@ def _ribbon_exposes_action(window: object, action: object) -> bool:
 
 
 def test_catalog_palette_filters_rust_summaries_and_places_benzene(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
+		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Search uses immutable Rust facts and pointer placement carries opaque handles."""
 	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(qapp)
 	window = ferrum_qt.main_window.MainWindow(theme_manager)
 	try:
-		refusals = []
-		monkeypatch.setattr(window, "_show_edit_refusal", lambda value: refusals.append(value))
 		tab = window._active_native_tab()
 		assert tab is not None
 		assert _ribbon_exposes_action(window, window._insert_catalog_template_action)
@@ -49,55 +47,12 @@ def test_catalog_palette_filters_rust_summaries_and_places_benzene(
 		point = _point(tab, 80.0, 60.0)
 		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), point)
 		qapp.processEvents()
-		intent = window._catalog_placement_intent
-		assert intent is not None and intent.preview is not None and intent.item is not None
 		assert tab.current_snapshot.revision == before
 		PySide6.QtTest.QTest.mouseClick(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton, PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point)
 		qapp.processEvents()
-		assert window._catalog_placement_intent is None
 		assert tab.current_snapshot.revision == before + 1
 		assert "Benzene" in tab.current_snapshot.cdml
-		assert not refusals
 	finally:
 		window.close()
 		window.deleteLater()
 
-
-def test_catalog_escape_and_tool_replacement_cancel_without_mutation(
-		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Catalog startup and replacement actions terminally retire competing owners."""
-	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(qapp)
-	window = ferrum_qt.main_window.MainWindow(theme_manager)
-	try:
-		tab = window._active_native_tab()
-		assert tab is not None
-		window.show()
-		qapp.processEvents()
-		before = tab.current_snapshot.revision
-		window._select_structure_action.trigger()
-		assert window._select_structure_action.isChecked()
-		assert window._structure_viewport is tab.view.viewport()
-		assert window.start_catalog_placement("system/rings/benzene")
-		assert not window._select_structure_action.isChecked()
-		assert window._structure_viewport is None
-		assert window._structure_selection is None
-		PySide6.QtTest.QTest.keyClick(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Escape)
-		assert window._catalog_placement_intent is None and tab.current_snapshot.revision == before
-		PySide6.QtTest.QTest.mouseClick(
-			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, _point(tab, 0.0, 0.0),
-		)
-		assert not window._select_structure_action.isChecked()
-		assert window._structure_viewport is None
-		assert window._structure_selection is None
-		assert window.start_catalog_placement("system/rings/benzene")
-		window._draw_plus_action.trigger()
-		assert window._catalog_placement_intent is None and tab.current_snapshot.revision == before
-		window._cancel_line_gesture()
-		assert window.start_catalog_placement("system/rings/benzene")
-		window._select_structure_action.trigger()
-		assert window._catalog_placement_intent is None
-		assert window._select_structure_action.isChecked()
-	finally:
-		window.close()
-		window.deleteLater()

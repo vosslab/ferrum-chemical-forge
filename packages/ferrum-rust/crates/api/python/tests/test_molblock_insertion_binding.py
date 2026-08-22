@@ -33,7 +33,7 @@ def test_bounded_molfile_prepares_and_commits_one_owned_molecule(
 	path = tmp_path / "ethanol.mol"
 	path.write_text(_ethanol_molblock(), encoding="utf-8")
 	prepared = ferrum_chem.prepare_molblock_file_v1(str(path), _placement())
-	session = ferrum_chem.DocumentSession.load('<cdml version="1.0"/>')
+	session = ferrum_chem.DocumentSession.load('<cdml xmlns="urn:ferrum:cdml" version="1.0"/>')
 	pending = session.prepare_insert_molecule_v1(0, prepared)
 	accepted = session.commit_create_molecule(0, pending)
 	molecule = accepted.observation.projection.molecules[0]
@@ -73,7 +73,7 @@ def test_prepared_molfile_cannot_commit_to_a_newer_revision(tmp_path: pathlib.Pa
 	path = tmp_path / "ethanol.mol"
 	path.write_text(_ethanol_molblock(), encoding="utf-8")
 	prepared = ferrum_chem.prepare_molblock_file_v1(str(path), _placement())
-	session = ferrum_chem.DocumentSession.load('<cdml version="1.0"/>')
+	session = ferrum_chem.DocumentSession.load('<cdml xmlns="urn:ferrum:cdml" version="1.0"/>')
 	pending = session.prepare_insert_molecule_v1(0, prepared)
 	other = ferrum_chem.prepare_smiles_molecule_v1("C", _placement())
 	other_pending = session.prepare_insert_molecule_v1(0, other)

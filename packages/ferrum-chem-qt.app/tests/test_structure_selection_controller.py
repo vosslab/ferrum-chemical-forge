@@ -11,6 +11,7 @@ import PySide6.QtCore
 import PySide6.QtTest
 import PySide6.QtWidgets
 import pytest
+import shiboken6
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab
@@ -18,20 +19,20 @@ import ferrum_qt.ferrum.engine
 import ferrum_qt.ferrum.main_window
 
 
-_CHAIN = """<cdml version='26.08'><molecule id='m'>
+_CHAIN = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='m'>
 <atom id='a' name='C'><point x='0' y='0'/></atom>
 <atom id='b' name='C'><point x='40' y='0'/></atom>
 <atom id='c' name='O'><point x='80' y='0'/></atom>
 <bond id='ab' start='a' end='b' type='n1'/><bond id='bc' start='b' end='c' type='n1'/>
 </molecule></cdml>"""
 
-_WEDGE = """<cdml><molecule id='m'>
+_WEDGE = """<cdml xmlns="urn:ferrum:cdml"><molecule id='m'>
 <atom id='a' name='C'><point x='0' y='0'/></atom>
 <atom id='b' name='O'><point x='30' y='0'/></atom>
 <bond id='ab' start='a' end='b' type='w1'/>
 </molecule></cdml>"""
 
-_TWO_MOLECULES = """<cdml><molecule id='left'>
+_TWO_MOLECULES = """<cdml xmlns="urn:ferrum:cdml"><molecule id='left'>
 <atom id='a' name='C'><point x='0' y='0'/></atom></molecule>
 <molecule id='right'><atom id='b' name='O'><point x='40' y='0'/></atom>
 </molecule></cdml>"""
@@ -94,8 +95,11 @@ def test_structure_click_marquee_shift_delete_and_undo(qapp: PySide6.QtWidgets.Q
 			"a", "b", "c", "ab", "bc",
 		}
 	finally:
+		window.close()
 		tab.dispose()
 		window.deleteLater()
+		qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+		qapp.processEvents()
 
 
 #============================================
@@ -120,42 +124,34 @@ def test_structure_delete_middle_atom_splits_and_undoes(
 		before_undo = tab.current_snapshot.revision
 		assert tab.undo().observation.snapshot.revision > before_undo
 	finally:
+		window.close()
 		tab.dispose()
 		window.deleteLater()
+		qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+		qapp.processEvents()
 
 
 #============================================
-def test_structure_refusal_uses_typed_display_and_same_molecule_recovery(
+def test_close_selected_structure_tab_retires_the_active_pointer_tool(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Map real frozen PyO3 category values to truthful controller recovery."""
+	"""Closing the active tab retires its visible canvas-tool ownership."""
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	wedge = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_WEDGE, "wedge.cdml")
-	two = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_TWO_MOLECULES, "two.cdml")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CHAIN, "chain.cdml")
+	window._register_native_tab(tab, activate=True)
+	window.show()
+	qapp.processEvents()
 	try:
-		observation = wedge.observe_structure_interaction()
-		target = next(value for value in observation.targets if value.identifier == "ab")
-		with pytest.raises(ferrum_qt.ferrum.engine.RenderInteractionError) as caught:
-			wedge.select_structure_interaction(
-				observation, None,
-				ferrum_qt.ferrum.engine.StructureInteractionQueryV1.point(
-					(target.bounds.left + target.bounds.right) / 2.0,
-					(target.bounds.top + target.bounds.bottom) / 2.0,
-					ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace,
-				),
-			)
-		assert "display-only" in window._structure_refusal(caught.value)
-
-		observation = two.observe_structure_interaction()
-		with pytest.raises(ferrum_qt.ferrum.engine.RenderInteractionError) as caught:
-			two.select_structure_interaction(
-				observation, None,
-				ferrum_qt.ferrum.engine.StructureInteractionQueryV1.marquee(
-					-10.0, -10.0, 50.0, 10.0,
-					ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace,
-				),
-			)
-		assert "one molecule" in window._structure_refusal(caught.value)
+		window._select_structure_action.trigger()
+		assert window._select_structure_action.isChecked()
+		window._close_action.trigger()
+		PySide6.QtCore.QCoreApplication.sendPostedEvents(
+			None, PySide6.QtCore.QEvent.Type.DeferredDelete,
+		)
+		qapp.processEvents()
+		assert not window._select_structure_action.isChecked() and window._structure_tab is None
+		assert not shiboken6.isValid(tab)
 	finally:
-		wedge.dispose()
-		two.dispose()
+		window.close()
 		window.deleteLater()
+		qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+		qapp.processEvents()

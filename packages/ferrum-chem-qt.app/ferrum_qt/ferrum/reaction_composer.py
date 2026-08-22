@@ -6,6 +6,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.ferrum.document_tab_errors
 import ferrum_qt.ferrum.engine
 
 
@@ -304,17 +305,13 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 	def refresh_action(self, action: PySide6.QtGui.QAction) -> None:
 		"""Keep the command reachable for a live tab and explain missing selection on use."""
 		tab = self._window._active_native_tab()
-		action.setEnabled(tab is not None and not tab._disposed and not tab.requires_refresh)
+		action.setEnabled(tab is not None and not tab.is_disposed and not tab.requires_refresh)
 
 	#============================================
 	def open(self) -> None:
 		"""Freeze current Rust choices after terminally retiring pointer authoring."""
 		self.close()
-		for method_name in (
-			"_cancel_atom_insertion", "_cancel_line_gesture", "_cancel_structure_selection",
-			"_cancel_catalog_placement",
-		):
-			getattr(self._window, method_name, lambda: None)()
+		self._window.cancel_active_pointer_authoring()
 		tab = self._window._active_native_tab()
 		selection = getattr(self._window, "_render_interaction_selection", None)
 		if tab is None or selection is None or not selection.roots:
@@ -325,10 +322,10 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		try:
 			choices = tab.observe_reaction_authoring_choices()
 			tab.validate_reaction_authoring_choices(choices)
-		except Exception as exc:
+		except ferrum_qt.ferrum.engine.ReactionAuthoringChoicesError:
 			self._window._replace_render_interaction_selection(None, tab)
 			self._window.statusBar().showMessage(
-				self.tr("Refresh and select the reaction members again: {0}").format(str(exc)), 5000,
+				self.tr("Refresh and select the reaction members again."), 5000,
 			)
 			return
 		selected_ids = {root.identifier for root in selection.roots}
@@ -417,7 +414,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		if tab is None:
 			return
 		self.close(restore_canvas_focus=False)
-		if self._window._active_native_tab() is tab and not tab._disposed:
+		if self._window._active_native_tab() is tab and not tab.is_disposed:
 			self._window._replace_render_interaction_selection(None, tab)
 			self._restore_canvas_focus(tab)
 		self._window.statusBar().showMessage(
@@ -430,7 +427,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 	def _restore_canvas_focus(self, tab: object | None) -> None:
 		"""Return keyboard ownership to the still-active Ferrum canvas when possible."""
 		if (
-			tab is None or tab._disposed or self._window._active_native_tab() is not tab
+			tab is None or tab.is_disposed or self._window._active_native_tab() is not tab
 			or not self._window.isActiveWindow()
 		):
 			return
@@ -468,17 +465,26 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		if not reactants or not products or arrow is None:
 			panel.show_refusal(self.tr("Choose the required reactant, product, and arrow roles."))
 			return
+		member_ids = reactants + products + [arrow] + pluses + conditions
 		try:
 			tab.validate_reaction_authoring_choices(choices)
 			commit = tab.create_reaction_v1(reactants, products, arrow, conditions, pluses)
-		except Exception as exc:
+		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError as exc:
+			self._recover_accepted_presentation_failure(tab, exc.accepted_receipt, member_ids)
+			return
+		except ferrum_qt.ferrum.engine.ReactionAuthoringChoicesError:
+			self._restart_after_typed_refusal()
+			return
+		except ferrum_qt.ferrum.engine.ReactionGestureError as exc:
 			self._handle_refusal(exc)
 			return
-		member_ids = reactants + products + [arrow] + pluses + conditions
 		self.close()
 		try:
 			self._restore_selection(tab, member_ids)
-		except Exception:
+		except (
+			ferrum_qt.ferrum.engine.RenderInteractionError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		):
 			self._window._replace_render_interaction_selection(None, tab)
 			recovered = tab.refresh_authoritative()
 			self._window.statusBar().showMessage(
@@ -493,6 +499,32 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 			self.tr("Created reaction {0}. {1} member roots are selected.").format(
 				commit.reaction_id, len(member_ids),
 			), 5000,
+		)
+		self._window._refresh_actions()
+
+	#============================================
+	def _recover_accepted_presentation_failure(
+			self, tab: object, commit: object, member_ids: list[str],
+			) -> None:
+		"""Refresh after a Rust-accepted reaction could not install its first scene."""
+		self.close()
+		self._window._replace_render_interaction_selection(None, tab)
+		recovered = tab.refresh_authoritative()
+		if recovered:
+			try:
+				self._restore_selection(tab, member_ids)
+			except (
+				ferrum_qt.ferrum.engine.RenderInteractionError,
+				ferrum_qt.ferrum.engine.RevisionConflictError,
+			):
+				self._window._replace_render_interaction_selection(None, tab)
+				recovered = False
+		self._window.statusBar().showMessage(
+			self.tr("Reaction {0} was created, but the authoritative display needs recovery.").format(
+				commit.reaction_id,
+			) if not recovered else self.tr(
+				"Reaction {0} was created. Refresh and select the reaction members again.",
+			).format(commit.reaction_id), 5000,
 		)
 		self._window._refresh_actions()
 
@@ -513,24 +545,38 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		self._window._replace_render_interaction_selection(selection, tab)
 
 	#============================================
-	def _handle_refusal(self, exc: Exception) -> None:
+	def _restart_after_typed_refusal(self) -> None:
+		"""Retire only a Rust-declared invalid authoring observation."""
+		tab = self._tab
+		self.close()
+		if tab is not None:
+			self._window._replace_render_interaction_selection(None, tab)
+		self._window.statusBar().showMessage(
+			self.tr("Refresh and select the reaction members again."), 5000,
+		)
+
+	#============================================
+	def _handle_refusal(self, exc: BaseException) -> None:
 		"""Map frozen Rust categories to either restart or inline correction."""
-		category = _enum_token(getattr(exc, "category", ""))
-		if category in {"stale_snapshot", "foreign_session", "replayed_gesture", "session_conflict"}:
-			tab = self._tab
-			self.close()
-			if tab is not None:
-				self._window._replace_render_interaction_selection(None, tab)
-			self._window.statusBar().showMessage(
-				self.tr("Refresh and select the reaction members again."), 5000,
-			)
+		category = exc.category
+		if category in {
+			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.stale_snapshot,
+			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.foreign_session,
+			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.replayed_gesture,
+			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.session_conflict,
+			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.missing_reaction,
+			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.membership_changed,
+		}:
+			self._restart_after_typed_refusal()
 			return
 		if self._panel is not None:
-			if category in {"unrenderable_document", "render_preparation"}:
+			if category in {
+				ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.unrenderable_document,
+				ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.render_preparation,
+				ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.renderer_exclusion,
+			}:
 				self._panel.show_refusal(self.tr(
 					"Choose renderable members. Rust rejected the current display preparation.",
 				))
 			else:
-				self._panel.show_refusal(
-					self.tr("Correct the selected reaction roles: {0}").format(str(exc)),
-				)
+				self._panel.show_refusal(self.tr("Correct the selected reaction roles."))

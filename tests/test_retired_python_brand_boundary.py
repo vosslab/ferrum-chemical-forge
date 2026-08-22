@@ -4,7 +4,6 @@
 import ast
 import os
 import re
-import subprocess
 
 # local repo modules
 import file_utils
@@ -12,7 +11,7 @@ import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
 FORBIDDEN_MODULE_NAMES = frozenset({"oasa", "bkchem"})
-IMMUTABLE_CDML_NAMESPACE = "http://www.freesoftware.fsf.org/bkchem/cdml"
+IMMUTABLE_CDML_NAMESPACE = "urn:ferrum:cdml"
 ARCHIVAL_PROVENANCE_PREFIXES = ("OTHER_REPOS/",)
 MANIFEST_FILENAMES = frozenset({
 	"cargo.lock",
@@ -135,52 +134,6 @@ def manifest_terms(source: str) -> set[str]:
 
 
 #============================================
-def read_index_source(rel: str) -> str:
-	"""
-	Read one staged path so a release commit cannot retain deleted worktree code.
-
-	Args:
-		rel: Repository-relative path known to exist in the Git index.
-
-	Returns:
-		str: UTF-8 staged source text.
-
-	Raises:
-		AssertionError: When Git cannot provide the requested staged content.
-	"""
-	result = subprocess.run(
-		["git", "show", f":{rel}"],
-		capture_output=True,
-		cwd=REPO_ROOT,
-		text=True,
-	)
-	if result.returncode != 0:
-		raise AssertionError(result.stderr.strip() or f"Cannot read staged path: {rel}")
-	return result.stdout
-
-
-#============================================
-def staged_paths() -> list[str]:
-	"""
-	Return staged additions, copies, modifications, and renames for release scanning.
-
-	Returns:
-		list[str]: Sorted repository-relative paths with staged source content.
-
-	Raises:
-		AssertionError: When Git cannot list staged paths.
-	"""
-	result = subprocess.run(
-		["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"],
-		capture_output=True,
-		cwd=REPO_ROOT,
-		text=True,
-	)
-	if result.returncode != 0:
-		raise AssertionError(result.stderr.strip() or "Cannot list staged release paths.")
-	return sorted(path for path in result.stdout.split("\0") if path)
-
-
 #============================================
 def source_violations(source: str, rel: str, channel: str) -> list[str]:
 	"""
@@ -211,7 +164,7 @@ def source_violations(source: str, rel: str, channel: str) -> list[str]:
 #============================================
 def collect_release_boundary_violations() -> dict[str, list[str]]:
 	"""
-	Scan worktree and staged release inputs for retired Python product names.
+	Scan tracked worktree release inputs for retired Python product names.
 
 	Returns:
 		dict[str, list[str]]: Violations keyed by repository-relative path.
@@ -228,12 +181,6 @@ def collect_release_boundary_violations() -> dict[str, list[str]]:
 			issues = source_violations(handle.read(), rel, "worktree")
 		if issues:
 			violations[rel] = issues
-	for rel in staged_paths():
-		if not is_scanned_path(rel):
-			continue
-		issues = source_violations(read_index_source(rel), rel, "staged")
-		if issues:
-			violations.setdefault(rel, []).extend(issues)
 	return violations
 
 

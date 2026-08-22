@@ -317,7 +317,7 @@ impl PyDocumentSession {
                 max_matches_per_molecule,
                 max_total_matches,
             )?;
-            let engine = super::super::installed_wheel_native_engine_v1().map_err(|_| {
+            let engine = super::super::staged_extension_native_engine_v1().map_err(|_| {
                 super::live_document_smarts_query_v1::LiveFailureV1::Unavailable(
                     super::live_document_smarts_query_v1::PyLiveDocumentSmartsReasonV1::NativeRuntimeUnavailable,
                 )
@@ -349,7 +349,7 @@ impl PyDocumentSession {
             max_matches_per_molecule,
             max_total_matches,
         )?;
-        let engine = super::super::installed_wheel_native_engine_v1().map_err(|_| {
+        let engine = super::super::staged_extension_native_engine_v1().map_err(|_| {
             super::live_document_smarts_query_v1::LiveFailureV1::Unavailable(
                 super::live_document_smarts_query_v1::PyLiveDocumentSmartsReasonV1::NativeRuntimeUnavailable,
             )

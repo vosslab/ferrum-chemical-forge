@@ -11,13 +11,13 @@ import pytest
 # local repo modules
 import ferrum_qt.config.preferences
 import ferrum_qt.main_window
-import ferrum_qt.ferrum.action_toolbar
+import ferrum_qt.ferrum.authoring_ribbon
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.preferences
-import ferrum_qt.ferrum.property_dock
+import ferrum_qt.widgets.property_dock
 
 
-_PROPERTY_CDML = """<cdml version='26.08'>
+_PROPERTY_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'>
 <molecule id='mol-1'><atom id='atom-c' name='C'><point x='10' y='20'/></atom>
 <atom id='atom-o' name='O'><point x='40' y='20'/></atom>
 <bond id='bond-co' start='atom-c' end='atom-o' type='n2'/></molecule></cdml>"""
@@ -93,24 +93,30 @@ def test_ordinary_startup_creates_a_native_empty_document(
 
 
 #============================================
-def test_main_toolbar_creates_a_document_and_remains_user_hideable(
+def test_authoring_ribbon_creates_a_document_and_remains_user_hideable(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""The visible toolbar performs a document command and can leave the workspace."""
+	"""The one visible authoring surface creates a document and can be hidden."""
 	window = _make_window(qapp)
 	window.show()
 	qapp.processEvents()
 	try:
-		toolbar = window.findChild(
-			ferrum_qt.ferrum.action_toolbar.FerrumNativeActionToolbar,
-			"native-main-action-toolbar",
+		ribbon = window.findChild(
+			ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon,
+			"ferrum-authoring-ribbon",
+		)
+		assert ribbon is not None
+		new_button = next(
+			button
+			for button in ribbon.findChildren(PySide6.QtWidgets.QToolButton)
+			if button.defaultAction() is window._action_new
 		)
 		before = window._tab_widget.count()
-		toolbar.widgetForAction(window._action_new).click()
+		new_button.click()
 		assert window._tab_widget.count() == before + 1
-		toggle = toolbar.toggleViewAction()
+		toggle = ribbon.toggleViewAction()
 		toggle.trigger()
-		assert not toolbar.isVisible()
+		assert not ribbon.isVisible()
 	finally:
 		window.close()
 
@@ -133,9 +139,10 @@ def test_properties_follow_the_selected_atom_across_document_tabs(
 		window._register_native_tab(second, activate=True)
 		second.select_atom("atom-o")
 		dock = window.findChild(
-			ferrum_qt.ferrum.property_dock.FerrumNativePropertyDock,
-			"native-properties-dock",
+			ferrum_qt.widgets.property_dock.PropertyDock,
+			"properties-dock",
 		)
+		assert dock is not None
 		assert "Element: O" in dock.summary_text
 		window._tab_widget.setCurrentWidget(first)
 		assert "Element: C" in dock.summary_text
@@ -245,38 +252,36 @@ def test_cancelled_ordinary_preferences_are_a_no_op(
 
 
 #============================================
-def test_accepted_native_shutdown_restores_the_visible_workspace_choice(
+def test_accepted_native_shutdown_restores_hidden_ribbon_and_property_dock(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""Hidden ordinary workspace clients remain hidden in the next window."""
+	"""The one authoring ribbon and the property dock retain hidden state."""
 	window = _make_window(qapp)
 	preferences = _PreferencesRecorder()
 	window._prefs = preferences
 	window.show()
 	qapp.processEvents()
-	window._native_action_toolbar.hide()
-	window._native_property_dock.hide()
-	editing_tools = next(
-		toolbar
-		for toolbar in window.findChildren(PySide6.QtWidgets.QToolBar)
-		if toolbar.accessibleName() == "Editing tools toolbar"
+	ribbon = window.findChild(
+		ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon,
+		"ferrum-authoring-ribbon",
 	)
-	editing_tools.toggleViewAction().trigger()
+	assert ribbon is not None
+	ribbon.hide()
+	window._native_property_dock.hide()
 	restored = None
 	try:
 		assert window.prepare_application_shutdown()
 		restored = _make_window(qapp)
 		restored._prefs = preferences
 		restored.restore_workspace()
-		restored_editing_tools = next(
-			toolbar
-			for toolbar in restored.findChildren(PySide6.QtWidgets.QToolBar)
-			if toolbar.accessibleName() == "Editing tools toolbar"
+		restored_ribbon = restored.findChild(
+			ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon,
+			"ferrum-authoring-ribbon",
 		)
+		assert restored_ribbon is not None
 		assert (
-			restored._native_action_toolbar.isHidden()
+			restored_ribbon.isHidden()
 			and restored._native_property_dock.isHidden()
-			and restored_editing_tools.isHidden()
 		)
 	finally:
 		window.close()

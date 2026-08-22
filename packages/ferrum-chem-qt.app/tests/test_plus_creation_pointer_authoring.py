@@ -8,7 +8,7 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
 
 
-_CDML = "<cdml xmlns='http://www.freesoftware.fsf.org/bkchem/cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>"
+_CDML = "<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>"
 
 
 def test_plus_click_commits_selects_and_remains_movable(
@@ -79,7 +79,7 @@ def test_plus_preview_uses_the_renderer_custom_rgb_paint(
 	"""Qt converts the renderer's closed RGB wire value before painting it."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml><standard line_color='#123456'/></cdml>", "plus-color.cdml",
+		"<cdml xmlns='urn:ferrum:cdml'><standard line_color='#123456'/></cdml>", "plus-color.cdml",
 	)
 	try:
 		window._register_native_tab(tab, activate=True)

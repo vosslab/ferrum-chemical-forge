@@ -25,14 +25,14 @@ import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.statusbar_view_controls
 
 
-_MOLECULE_CDML = """<cdml version='26.08'>
+_MOLECULE_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 <molecule id='mol-1'><atom id='atom-c' name='C'><point x='10' y='20'/></atom>
 <atom id='atom-o' name='O'><point x='40' y='20'/></atom>
 <bond id='bond-co' start='atom-c' end='atom-o' type='n2'/></molecule>
 <plus id='plus-1'><point x='80' y='40'/></plus></cdml>"""
 
 
-_EMPTY_CDML = "<cdml version='26.08'/>"
+_EMPTY_CDML = "<cdml xmlns='urn:ferrum:cdml' version='26.08'/>"
 
 
 #============================================
@@ -387,7 +387,7 @@ def test_next_drawing_choices_persist_across_native_windows_without_document_mut
 		qapp.processEvents()
 		assert second._drawing_parameters.snapshot() == (
 			ferrum_qt.ferrum.drawing_parameters.
-			FerrumNativeDrawingParametersSnapshot("O", "double", "normal")
+			FerrumNativeDrawingParametersSnapshot("O", "double")
 		)
 		assert (
 			first_tab.current_snapshot == first_snapshot
@@ -399,7 +399,6 @@ def test_next_drawing_choices_persist_across_native_windows_without_document_mut
 		if prior_choices is not None:
 			first._drawing_parameters.set_element(prior_choices.element)
 			first._drawing_parameters.set_order_name(prior_choices.order_name)
-			first._drawing_parameters.set_presentation_name(prior_choices.presentation_name)
 		if second is not None:
 			_close_window(second)
 		_close_window(first)

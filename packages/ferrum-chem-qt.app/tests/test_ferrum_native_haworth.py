@@ -95,7 +95,7 @@ def test_insert_haworth_ring_uses_visible_chooser_and_one_shot_rust_placement(
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml/>", "haworth.cdml",
+		"<cdml xmlns='urn:ferrum:cdml'/>", "haworth.cdml",
 	)
 	try:
 		window._register_native_tab(tab, activate=True)
@@ -141,11 +141,11 @@ def test_insert_haworth_ring_uses_visible_chooser_and_one_shot_rust_placement(
 def test_insert_haworth_ring_preserves_an_occupied_document_and_selection(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""A detached Haworth action leaves an occupied page and selection untouched."""
+	"""A detached Haworth action refuses an implicit carbon and preserves selection."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml><molecule id='m'><atom id='a' name='C'>"
+		"<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'>"
 		"<point x='10' y='20'/></atom></molecule></cdml>",
 		"occupied-haworth.cdml",
 	)
@@ -182,7 +182,7 @@ def test_insert_haworth_ring_refuses_a_bond_and_keeps_its_intent_armed(
 	window = ferrum_qt.main_window.MainWindow(object())
 	window.resize(1400, 900)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom>"
+		"<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom>"
 		"<atom id='b' name='C'><point x='50' y='20'/></atom>"
 		"<bond id='ab' start='a' end='b' type='n1'/></molecule></cdml>",
 		"occupied-haworth-bond.cdml",

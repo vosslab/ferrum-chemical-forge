@@ -9,10 +9,8 @@ import PySide6.QtCore
 
 _DEFAULT_ELEMENT = "C"
 _DEFAULT_ORDER = "single"
-_DEFAULT_PRESENTATION = "normal"
 _ELEMENT_KEY = "drawing/next_atom_element"
 _ORDER_KEY = "drawing/next_bond_order"
-_PRESENTATION_KEY = "drawing/next_bond_presentation"
 
 
 #============================================
@@ -22,7 +20,6 @@ class FerrumNativeDrawingParametersSnapshot:
 
 	element: str
 	order_name: str
-	presentation_name: str
 
 	#============================================
 	def bond_order(self) -> object:
@@ -41,10 +38,6 @@ class FerrumNativeDrawingParametersSnapshot:
 		"""Convert frozen next-drawing choices at the private PyO3 boundary."""
 		import ferrum_qt.ferrum.engine as engine
 		presentations = engine.DocumentBondPresentationV1
-		if self.presentation_name == "solid_wedge":
-			return presentations.solid_wedge
-		if self.presentation_name == "hashed_wedge":
-			return presentations.hashed_wedge
 		if self.order_name == "single":
 			return presentations.normal_single
 		if self.order_name == "double":
@@ -52,7 +45,6 @@ class FerrumNativeDrawingParametersSnapshot:
 		if self.order_name == "triple":
 			return presentations.normal_triple
 		raise ValueError("Ferrum drawing parameters contain an unknown presentation")
-
 
 #============================================
 def normalize_element(value: object) -> str | None:
@@ -93,12 +85,6 @@ class FerrumNativeDrawingParameters(PySide6.QtCore.QObject):
 		self._element = _DEFAULT_ELEMENT if element is None else element
 		order = self._read(_ORDER_KEY, _DEFAULT_ORDER)
 		self._order_name = order if order in ("single", "double", "triple") else _DEFAULT_ORDER
-		presentation = self._read(_PRESENTATION_KEY, _DEFAULT_PRESENTATION)
-		self._presentation_name = (
-			presentation
-			if presentation in ("normal", "solid_wedge", "hashed_wedge")
-			else _DEFAULT_PRESENTATION
-		)
 
 	#============================================
 	@classmethod
@@ -121,9 +107,7 @@ class FerrumNativeDrawingParameters(PySide6.QtCore.QObject):
 	#============================================
 	def snapshot(self) -> FerrumNativeDrawingParametersSnapshot:
 		"""Capture the effective values for one authoring intent."""
-		return FerrumNativeDrawingParametersSnapshot(
-			self._element, self._order_name, self._presentation_name,
-		)
+		return FerrumNativeDrawingParametersSnapshot(self._element, self._order_name)
 
 	#============================================
 	def set_element(self, value: object) -> bool:
@@ -143,19 +127,6 @@ class FerrumNativeDrawingParameters(PySide6.QtCore.QObject):
 			return False
 		self._order_name = value
 		self._persist(_ORDER_KEY, value)
-		self.changed.emit()
-		return True
-
-	#============================================
-	def set_presentation_name(self, value: object) -> bool:
-		"""Store one closed directed depiction preference for future gestures."""
-		if value not in ("normal", "solid_wedge", "hashed_wedge"):
-			return False
-		self._presentation_name = value
-		self._persist(_PRESENTATION_KEY, value)
-		if value != "normal":
-			self._order_name = "single"
-			self._persist(_ORDER_KEY, self._order_name)
 		self.changed.emit()
 		return True
 

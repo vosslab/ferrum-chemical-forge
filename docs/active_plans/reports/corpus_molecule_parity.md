@@ -18,13 +18,15 @@ exact field path, and every classification.
 The authoritative Rust reader, corpus, and accepted report are Ferrum files. They
 do not read, import, package, or locate `OTHER_REPOS/`. The live Python backend
 comparison runner and its dependency environment were retired after this report
-was accepted; the commands below remain a historical execution record.
+was accepted; the commands below remain a historical execution record, not a
+supported current-checkout workflow.
 
 For this completion run, OASA 26.8 was copied into that isolated environment from the
 read-only reference checkout and RDKit 2026.03.5 came from the repository Python 3.12
-environment. The installed copy no longer imports from the checkout. A fresh machine
-can install the same pinned published packages; deleting the checkout does not change
-Ferrum source, build, package, runtime, or permanent test inputs.
+environment. The installed copy no longer imports from the checkout. A fresh
+measurement requires an explicitly scoped evidence plan. The current checkout builds
+and tests Ferrum only through `./build.sh` and `./all_test.sh`; it does not recreate
+this retired oracle environment or install a package.
 
 ## Exact agreements
 
@@ -63,9 +65,9 @@ in Rust production code. The E2E runner separately reads a deliberately small se
 direct source facts with `xml.etree.ElementTree`; it is comparison evidence, not a
 runtime parser or a document model.
 
-## Reproduction
+## Historical reproduction
 
-Create the ignored oracle environment once, then run the comparison:
+The retired completion run created an ignored oracle environment, then ran:
 
 ```bash
 source source_me.sh && python3 -m venv tests/e2e/oracle/.venv

@@ -519,5 +519,5 @@ fn is_cdml_element(tree: &Xot, node: Node, expected: &str) -> bool {
 }
 
 fn valid_namespace(namespace: &str) -> bool {
-    namespace.is_empty() || namespace == CDML_NAMESPACE
+    namespace == CDML_NAMESPACE
 }

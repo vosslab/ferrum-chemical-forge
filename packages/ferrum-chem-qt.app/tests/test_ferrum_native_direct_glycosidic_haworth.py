@@ -130,7 +130,7 @@ def test_direct_glycosidic_action_arms_a_real_dialog_and_commits_on_empty_page(
 	"""One visible request reaches Rust's ordinary projection only after a page click."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml/>", "direct-haworth.cdml",
+		"<cdml xmlns='urn:ferrum:cdml'/>", "direct-haworth.cdml",
 	)
 	try:
 		window._register_native_tab(tab, activate=True)
@@ -160,7 +160,7 @@ def test_direct_glycosidic_escape_preserves_the_uncommitted_document(
 	"""Escape retires the captured receipt instead of creating or redirecting a drawing."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		"<cdml/>", "cancel-direct-haworth.cdml",
+		"<cdml xmlns='urn:ferrum:cdml'/>", "cancel-direct-haworth.cdml",
 	)
 	try:
 		window._register_native_tab(tab, activate=True)

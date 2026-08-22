@@ -57,15 +57,16 @@ input with no document mutation, public menu import, render, save, and reopen.
 The existing SMILES worker suite runs beside the Molfile suite to protect the
 shared lifecycle controller.
 
-The focused direct CPython 3.12 wheel has SHA-256
+The focused direct CPython 3.12 wheel historically had SHA-256
 `aefe9789f582b710c047bd1e570df424a510220886c0c3a2f2eb74c8fcab5232`.
 It contains the current root extension and the previously accepted RDKit
 2026.03.5 15-library closure. This is a source-bound test artifact, not a new
 cross-platform release receipt.
-The retained wheel is under
-`output_native_wheel/native-molfile-import-v1-20260812/wheelhouse/`; its
-disposable 415 MB staging tree and virtual environment were removed after the
-installed tests passed.
+It was retained under
+`output_native_wheel/native-molfile-import-v1-20260812/wheelhouse/`; that root,
+its disposable 415 MB staging tree, and its virtual environment were removed with
+the publication workflow. This is archival evidence only: current reproduction uses
+the staged local runtime from `./build.sh`, not wheel installation.
 
 Acceptance is semantic: atom and bond facts, coordinates, durable session
 mutation, revision behavior, and save/reopen are checked. There is no Molfile

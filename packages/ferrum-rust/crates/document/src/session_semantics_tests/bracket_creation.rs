@@ -15,7 +15,7 @@ fn properties(identifier: &str, changes: Vec<BracketPropertyChangeV1>) -> Sessio
 #[test]
 fn rectangular_bracket_creation_owns_pair_identity_geometry_standard_and_history() {
     let source = concat!(
-        "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+        "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
         "xmlns:v=\"urn:vendor\"><c:standard line_width=\"2\" ",
         "line_color=\"#123\"/><v:opaque id=\"ferrum-presentation-v1-0\">",
         "<v:keep/></v:opaque></c:cdml>",
@@ -39,8 +39,10 @@ fn rectangular_bracket_creation_owns_pair_identity_geometry_standard_and_history
         .commit_create_bracket(0, &mut pending)
         .expect("prepared pair must commit");
     let stack = result.observation().projection().presentation_stack();
-    let [PresentationRootProjectionV1::Polyline { polyline: left }, PresentationRootProjectionV1::Polyline { polyline: right }] =
-        stack.roots()
+    let [
+        PresentationRootProjectionV1::Polyline { polyline: left },
+        PresentationRootProjectionV1::Polyline { polyline: right },
+    ] = stack.roots()
     else {
         panic!("expected two rectangular bracket sides");
     };
@@ -79,13 +81,15 @@ fn rectangular_bracket_creation_owns_pair_identity_geometry_standard_and_history
     assert!(cdml.contains("urn:vendor"));
     assert!(cdml.contains("keep"));
     session.undo(1).expect("pair creation must undo atomically");
-    assert!(session
-        .observe(2)
-        .expect("undo observation")
-        .projection()
-        .presentation_stack()
-        .bracket_pairs()
-        .is_empty());
+    assert!(
+        session
+            .observe(2)
+            .expect("undo observation")
+            .projection()
+            .presentation_stack()
+            .bracket_pairs()
+            .is_empty()
+    );
     session.redo(2).expect("pair creation must redo atomically");
     assert_eq!(
         session
@@ -101,23 +105,26 @@ fn rectangular_bracket_creation_owns_pair_identity_geometry_standard_and_history
 
 #[test]
 fn round_projection_is_explicit_and_invalid_or_stale_requests_do_not_mutate() {
-    let mut session = DocumentSession::load("<cdml/>").expect("source must load");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("source must load");
     let before = session.snapshot().expect("snapshot");
     for bounds in [
         (0.0, 0.0, f64::INFINITY, 10.0),
         (1.0, 0.0, 1.0, 10.0),
         (2.0, 0.0, 1.0, 10.0),
     ] {
-        assert!(session
-            .prepare_create_bracket_v1(
-                0,
-                BracketStyleV1::Rectangular,
-                bounds.0,
-                bounds.1,
-                bounds.2,
-                bounds.3,
-            )
-            .is_err());
+        assert!(
+            session
+                .prepare_create_bracket_v1(
+                    0,
+                    BracketStyleV1::Rectangular,
+                    bounds.0,
+                    bounds.1,
+                    bounds.2,
+                    bounds.3,
+                )
+                .is_err()
+        );
     }
     assert_eq!(session.snapshot().expect("snapshot"), before);
 
@@ -143,8 +150,10 @@ fn round_projection_is_explicit_and_invalid_or_stale_requests_do_not_mutate() {
         panic!("expected one observed round relationship");
     };
     assert_eq!(pair.style(), BracketStyleV1::Round);
-    let [PresentationRootProjectionV1::RoundBracket { polyline: left }, PresentationRootProjectionV1::RoundBracket { polyline: right }] =
-        stack.roots()
+    let [
+        PresentationRootProjectionV1::RoundBracket { polyline: left },
+        PresentationRootProjectionV1::RoundBracket { polyline: right },
+    ] = stack.roots()
     else {
         panic!("expected two explicit round bracket spline sides");
     };
@@ -159,7 +168,7 @@ fn round_projection_is_explicit_and_invalid_or_stale_requests_do_not_mutate() {
 #[test]
 fn common_bracket_appearance_commits_once_preserves_content_and_follows_history() {
     let source = concat!(
-        "<cdml xmlns:v=\"urn:vendor\"><polyline id=\"left\" bracket_pair=\"left\" ",
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><polyline id=\"left\" bracket_pair=\"left\" ",
         "bracket_side=\"left\" spline=\"no\" width=\"1.0\" color=\"#ABC\" keep=\"yes\">",
         "<point x=\"1\" y=\"0\"/><point x=\"0\" y=\"0\"/>",
         "<point x=\"0\" y=\"10\"/><point x=\"1\" y=\"10\"/><v:opaque/>",
@@ -234,7 +243,7 @@ fn duplicate_malformed_unknown_and_stale_bracket_properties_are_atomic() {
         })
     );
     let malformed = concat!(
-        "<cdml><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" ",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" ",
         "spline=\"no\"><point x=\"0\" y=\"0\"/></polyline>",
         "<polyline id=\"right\" bracket_pair=\"left\" bracket_side=\"right\" ",
         "spline=\"no\"><point x=\"1\" y=\"0\"/></polyline></cdml>",
@@ -242,21 +251,24 @@ fn duplicate_malformed_unknown_and_stale_bracket_properties_are_atomic() {
     let mut session = DocumentSession::load(malformed).expect("source must load");
     let before = session.snapshot().expect("snapshot");
     for identifier in ["left", "missing"] {
-        assert!(session
-            .submit(
-                0,
-                properties(
-                    identifier,
-                    vec![BracketPropertyChangeV1::LineColor(
-                        Rgb24V1::new("#010203").unwrap(),
-                    )],
-                ),
-            )
-            .is_err());
+        assert!(
+            session
+                .submit(
+                    0,
+                    properties(
+                        identifier,
+                        vec![BracketPropertyChangeV1::LineColor(
+                            Rgb24V1::new("#010203").unwrap(),
+                        )],
+                    ),
+                )
+                .is_err()
+        );
         assert_eq!(session.snapshot().expect("snapshot"), before);
     }
 
-    let mut valid = DocumentSession::load("<cdml/>").expect("source must load");
+    let mut valid =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("source must load");
     let mut pending = valid
         .prepare_create_bracket_v1(0, BracketStyleV1::Rectangular, 0.0, 0.0, 10.0, 10.0)
         .expect("pair must prepare");

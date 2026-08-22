@@ -34,13 +34,11 @@ conversion, and wider CML semantics remain deferred.
 The bounded Qt File/Open extension is complete and accepted for the same
 closed CML/CML2 `new_document` profile. Interactive File/Open preserves the
 bootstrap tab and opens the admitted source in one clean CML tab. It uses the
-Rust-issued native route and installed native wheel; Qt does not parse CML or
+Rust-issued native route and the local runtime staged by `./build.sh`; Qt does not parse CML or
 claim a CDML save baseline for the imported source.
 
-The exact native-wheel end-to-end receipt is
-`/private/tmp/ferrum-cml-qt-new-document-e2e-receipt.json` (SHA-256
-`0ffbde86632859e355dacb2e7c21a54a9e7d1553d57607dd8f7dd28052b12e33`). The
-final independent re-review is
+The local-runtime end-to-end receipt is
+`/private/tmp/ferrum-cml-qt-new-document-e2e-receipt.json`. The final independent re-review is
 `/private/tmp/ferrum-cml-qt-new-document-final-rereview.md`.
 
 This acceptance remains deliberately bounded. CML append or current-tab
@@ -394,7 +392,7 @@ parser consumer that inline input cannot represent.
    receive a separately scoped later proof gate only when that behavior is
    implemented. They do not expand M2a.3a's E2E into a fixture matrix.
 
-Disposable build and wheel provenance belongs in `/private/tmp` and the active
+Disposable local-runtime provenance belongs in `/private/tmp` and the active
 plan report, not in `devel/`, fixtures, or ordinary tests.
 
 ## Implementation order

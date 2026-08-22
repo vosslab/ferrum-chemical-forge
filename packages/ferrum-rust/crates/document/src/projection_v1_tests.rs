@@ -6,7 +6,7 @@ use super::{
 use serde_json::Value;
 
 const DOCUMENT: &str = concat!(
-    r##"<c:cdml xmlns:c="http://www.freesoftware.fsf.org/bkchem/cdml" version="26.07">
+    r##"<c:cdml xmlns:c="urn:ferrum:cdml" version="26.07">
 <c:standard line_width="1.5" font_size="12" font_family="Fira Sans" "##,
     r##"line_color="#AABBCC"><c:bond width="6" wedge-width="5px" double-ratio="0.6"/>"##,
     r##"<c:atom show_hydrogens="yes"/></c:standard>
@@ -145,7 +145,7 @@ fn alternate_prefixes_do_not_change_projection() {
 #[test]
 fn absent_presentation_facts_remain_absent() {
     let document = TypedDocument::parse(
-        "<cdml><molecule><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     )
     .unwrap();
     let projection = projected(&document.to_xml().unwrap());
@@ -167,7 +167,7 @@ fn absent_presentation_facts_remain_absent() {
 #[test]
 fn haworth_depth_facts_project_and_survive_typed_round_trip() {
     let source = concat!(
-        "<cdml><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"O\"><point x=\"1\" y=\"0\"/></atom>",
         "<bond start=\"a\" end=\"b\" haworth_position=\"front\"/>",
         "<bond start=\"b\" end=\"a\" haworth_position=\"back\"/></molecule></cdml>",
@@ -193,7 +193,7 @@ fn haworth_depth_facts_project_and_survive_typed_round_trip() {
 #[test]
 fn malformed_haworth_depth_is_reported_without_source_coercion() {
     let source = concat!(
-        "<cdml><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"O\"><point x=\"1\" y=\"0\"/></atom>",
         "<bond start=\"a\" end=\"b\" haworth_position=\"side\"/></molecule></cdml>",
     );
@@ -227,7 +227,7 @@ fn malformed_haworth_depth_is_reported_without_source_coercion() {
 #[test]
 fn unsupported_endpoints_and_presentation_facts_become_ordered_issues() {
     let projection = projected(
-        "<cdml><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\"><point x=\"1\" y=\"0\"/></atom><group id=\"g\"/><bond start=\"a\" end=\"g\"/><bond start=\"a\" end=\"b\" line_width=\"0\" color=\"blue\"/></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\"><point x=\"1\" y=\"0\"/></atom><group id=\"g\"/><bond start=\"a\" end=\"g\"/><bond start=\"a\" end=\"b\" line_width=\"0\" color=\"blue\"/></molecule></cdml>",
     );
     assert_eq!(projection.molecules()[0].bonds().len(), 2);
     assert_eq!(
@@ -255,7 +255,7 @@ fn unsupported_endpoints_and_presentation_facts_become_ordered_issues() {
 #[test]
 fn all_bond_endpoint_cases_are_retained_in_source_encounter_order() {
     let projection = projected(
-        "<cdml><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\" end=\"missing\"/><atom id=\"b\" name=\"O\"><font size=\"0\"/><point x=\"1\" y=\"0\"/></atom><group id=\"g\"/><text id=\"t\"/><query id=\"q\"/><bond start=\"g\" end=\"t\"/><bond start=\"q\"/><bond end=\"a\"/></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\" end=\"missing\"/><atom id=\"b\" name=\"O\"><font size=\"0\"/><point x=\"1\" y=\"0\"/></atom><group id=\"g\"/><text id=\"t\"/><query id=\"q\"/><bond start=\"g\" end=\"t\"/><bond start=\"q\"/><bond end=\"a\"/></molecule></cdml>",
     );
     let bonds = projection.molecules()[0].bonds();
     assert_eq!(bonds.len(), 4);
@@ -286,7 +286,7 @@ fn all_bond_endpoint_cases_are_retained_in_source_encounter_order() {
 #[test]
 fn source_identity_is_validated_resolvable_and_stable_across_reparse_and_mutation() {
     let original = TypedDocument::parse(
-        "<cdml><molecule id=\"m\"><atom id=\"a/\u{03b2}\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a/\u{03b2}\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     )
     .unwrap();
     let first = projected(&original.to_xml().unwrap());
@@ -316,7 +316,7 @@ fn source_identity_is_validated_resolvable_and_stable_across_reparse_and_mutatio
 #[test]
 fn wire_serialization_has_closed_names_nulls_scalar_ids_and_issue_taxonomy() {
     let projection = projected(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\"/></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\"/></molecule></cdml>",
     );
     let wire = serde_json::to_value(projection).unwrap();
     assert_eq!(wire["schema"], "ferrum-document-projection-v1");
@@ -348,7 +348,7 @@ fn wire_serialization_has_closed_names_nulls_scalar_ids_and_issue_taxonomy() {
 #[test]
 fn pixel_widths_are_retained_as_positive_presentation_facts() {
     let projection = projected(
-        "<cdml><standard line_width=\"2.0px\"/><molecule><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><standard line_width=\"2.0px\"/><molecule><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     assert_eq!(
         projection
@@ -364,7 +364,7 @@ fn pixel_widths_are_retained_as_positive_presentation_facts() {
 #[test]
 fn malformed_required_positions_fail_without_nonfinite_projection() {
     let session = DocumentSession::load(
-        "<cdml><molecule><atom name=\"C\"><point x=\"NaN\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom name=\"C\"><point x=\"NaN\" y=\"0\"/></atom></molecule></cdml>",
     )
     .unwrap();
     let snapshot = session.snapshot().unwrap();
@@ -377,7 +377,7 @@ fn malformed_required_positions_fail_without_nonfinite_projection() {
 
 #[test]
 fn duplicate_idless_records_have_distinct_projection_keys_and_no_operation_ids() {
-    let source = "<cdml><molecule id=\"m\"><atom id=\"editable\" name=\"O\"><point x=\"1\" y=\"0\"/></atom><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom><group/><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom><group/></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"editable\" name=\"O\"><point x=\"1\" y=\"0\"/></atom><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom><group/><atom name=\"C\"><point x=\"0\" y=\"0\"/></atom><group/></molecule></cdml>";
     let mut session = DocumentSession::load(source).unwrap();
     let projection = session.observe(0).unwrap();
     let molecule = &projection.projection().molecules()[0];
@@ -416,7 +416,7 @@ fn duplicate_idless_records_have_distinct_projection_keys_and_no_operation_ids()
 #[test]
 fn root_issues_follow_root_encounter_order() {
     let projection = projected(
-        "<cdml><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\" end=\"unknown\"/></molecule><standard line_width=\"0\"/></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\" end=\"unknown\"/></molecule><standard line_width=\"0\"/></cdml>",
     );
     assert_eq!(
         projection
@@ -434,7 +434,7 @@ fn root_issues_follow_root_encounter_order() {
 #[test]
 fn session_observation_has_single_state_provenance_and_rejects_stale_reads() {
     let mut session = DocumentSession::load(
-        "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     )
     .unwrap();
     let before = session.observe(0).unwrap();
@@ -468,7 +468,7 @@ fn session_observation_has_single_state_provenance_and_rejects_stale_reads() {
 #[test]
 fn session_observation_keeps_authored_source_identity_for_direct_molecule_join() {
     let observation = crate::DocumentSession::load(concat!(
-        "<cdml><molecule id=\"authored-molecule\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"authored-molecule\">",
         "<atom id=\"atom-second\" name=\"O\"><point x=\"2\" y=\"0\"/></atom>",
         "<atom id=\"atom-first\" name=\"C\"><point x=\"1\" y=\"0\"/></atom>",
         "<bond id=\"bond\" start=\"atom-second\" end=\"atom-first\" type=\"n1\"/>",

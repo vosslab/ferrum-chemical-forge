@@ -14,7 +14,7 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
 
 
-_CDML = "<cdml xmlns='http://www.freesoftware.fsf.org/bkchem/cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>"
+_CDML = "<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>"
 
 
 #============================================

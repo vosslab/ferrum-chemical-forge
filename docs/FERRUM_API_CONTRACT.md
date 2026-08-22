@@ -14,7 +14,7 @@ schema is `ferrum-operation-request-v1`:
   "request_id": "caller-chosen-opaque-id",
   "operation": {
     "kind": "document.inspect",
-    "document": "<cdml/>"
+    "document": "<cdml xmlns=\"urn:ferrum:cdml\"/>"
   }
 }
 ```

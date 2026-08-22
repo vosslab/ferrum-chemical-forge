@@ -22,12 +22,16 @@ fn publication_remains_in_the_opened_parent_after_path_replacement() {
     fs::create_dir(&replacement_parent).expect("replacement parent must be creatable");
     let target = opened_parent.join("saved.cdml");
 
-    let result = publish_snapshot_with_after_parent_open(&target, "<cdml/>", || {
-        fs::rename(&opened_parent, &displaced_parent)
-            .expect("opened directory must move out of the visible path");
-        fs::rename(&replacement_parent, &opened_parent)
-            .expect("replacement directory must take the visible path");
-    });
+    let result = publish_snapshot_with_after_parent_open(
+        &target,
+        "<cdml xmlns=\"urn:ferrum:cdml\"/>",
+        || {
+            fs::rename(&opened_parent, &displaced_parent)
+                .expect("opened directory must move out of the visible path");
+            fs::rename(&replacement_parent, &opened_parent)
+                .expect("replacement directory must take the visible path");
+        },
+    );
 
     assert!(matches!(
         result,
@@ -36,7 +40,7 @@ fn publication_remains_in_the_opened_parent_after_path_replacement() {
     assert_eq!(
         fs::read_to_string(displaced_parent.join("saved.cdml"))
             .expect("opened directory must receive the replacement"),
-        "<cdml/>"
+        "<cdml xmlns=\"urn:ferrum:cdml\"/>"
     );
     assert!(!opened_parent.join("saved.cdml").exists());
     fs::remove_dir_all(root).expect("test directory cleanup must succeed");
@@ -49,8 +53,9 @@ fn missing_parent_is_a_pre_replacement_error() {
         .expect("temporary root must resolve without a symbolic link")
         .join("ferrum-document-missing-parent")
         .join("saved.cdml");
-    let error = publish_snapshot_with_after_parent_open(&path, "<cdml/>", || {})
-        .expect_err("missing parent must stop publication");
+    let error =
+        publish_snapshot_with_after_parent_open(&path, "<cdml xmlns=\"urn:ferrum:cdml\"/>", || {})
+            .expect_err("missing parent must stop publication");
     assert!(matches!(
         error,
         DocumentSessionError::PublishNotStarted { .. }
@@ -76,15 +81,19 @@ fn publication_accepts_a_concrete_nested_parent_chain() {
     fs::create_dir_all(&nested).expect("nested parent must create");
     let target = nested.join("saved.cdml");
 
-    let outcome = publish_snapshot_with_after_parent_open(&target, "<cdml/>", || {})
-        .expect("concrete nested parent must publish");
+    let outcome = publish_snapshot_with_after_parent_open(
+        &target,
+        "<cdml xmlns=\"urn:ferrum:cdml\"/>",
+        || {},
+    )
+    .expect("concrete nested parent must publish");
     assert!(matches!(
         outcome,
         PublicationDurability::Confirmed | PublicationDurability::DirectoryEntryUnconfirmed
     ));
     assert_eq!(
         fs::read_to_string(&target).expect("published nested file must read"),
-        "<cdml/>"
+        "<cdml xmlns=\"urn:ferrum:cdml\"/>"
     );
     fs::remove_dir_all(root).expect("test directory cleanup must succeed");
 }
@@ -102,10 +111,14 @@ fn final_entry_swap_is_rejected_through_the_retained_directory_descriptor() {
     fs::write(&target, "original").expect("target fixture must write");
     fs::write(&outside, "outside").expect("outside fixture must write");
 
-    let error = publish_snapshot_with_after_parent_open(&target, "<cdml/>", || {
-        fs::remove_file(&target).expect("target fixture must remove");
-        std::os::unix::fs::symlink(&outside, &target).expect("final symbolic link must create");
-    })
+    let error = publish_snapshot_with_after_parent_open(
+        &target,
+        "<cdml xmlns=\"urn:ferrum:cdml\"/>",
+        || {
+            fs::remove_file(&target).expect("target fixture must remove");
+            std::os::unix::fs::symlink(&outside, &target).expect("final symbolic link must create");
+        },
+    )
     .expect_err("final symbolic-link swap must be rejected");
     assert!(matches!(
         error,

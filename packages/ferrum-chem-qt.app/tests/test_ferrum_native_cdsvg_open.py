@@ -16,10 +16,10 @@ import ferrum_qt.ferrum.document_tab
 
 
 _CDSVG = """<svg xmlns="http://www.w3.org/2000/svg">
-<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="1.0">
+<cdml xmlns="urn:ferrum:cdml" version="1.0">
   <plus id="payload-fact"><point x="3" y="4"/></plus>
 </cdml><metadata>discarded wrapper content</metadata></svg>"""
-_CDML = """<cdml version="1.0"><molecule id="molecule-1">
+_CDML = """<cdml xmlns="urn:ferrum:cdml" version="1.0"><molecule id="molecule-1">
 <atom id="atom-c" name="C"><point x="1" y="2"/></atom>
 </molecule></cdml>"""
 

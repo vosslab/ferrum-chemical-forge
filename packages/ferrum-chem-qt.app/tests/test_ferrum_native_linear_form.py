@@ -14,7 +14,7 @@ import ferrum_qt.ferrum.window_refusals
 
 
 _SOURCE = """\
-<cdml version="26.07"><molecule id="m">
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><molecule id="m">
  <atom id="late" name="C"><point x="40" y="5"/></atom>
  <atom id="early" name="O"><point x="10" y="5"/></atom>
  <bond id="path" start="late" end="early" type="n1"/>
@@ -23,7 +23,7 @@ _SOURCE = """\
 """
 
 _BRANCH = """\
-<cdml version="26.07"><molecule id="branch">
+<cdml xmlns="urn:ferrum:cdml" version="26.07"><molecule id="branch">
  <atom id="a" name="C"><point x="0" y="0"/></atom>
  <atom id="b" name="C"><point x="10" y="0"/></atom>
  <atom id="c" name="N"><point x="20" y="5"/></atom>

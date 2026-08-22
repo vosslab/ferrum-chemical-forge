@@ -88,8 +88,6 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		)
 		self._keybinding_manager.setup_shortcuts()
 		self._authoring_ribbon = self._add_authoring_ribbon()
-		self._native_action_toolbar = self._authoring_ribbon
-		self._native_editing_tools_toolbar = self._authoring_ribbon
 		ferrum_qt.ferrum.window_shared_seams.install_shared_window_seams(
 			self, self._action_registry,
 		)
@@ -311,7 +309,23 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 
 	#============================================
 	def _refresh_actions(self, *_unused: object) -> None:
-		"""Keep an incomplete detached tab from enabling Ferrum edit commands.
+		"""Coalesce synchronous Qt layout callbacks into one settled action refresh."""
+		if getattr(self, "_action_refresh_in_progress", False):
+			self._action_refresh_requested = True
+			return
+		self._action_refresh_in_progress = True
+		try:
+			while True:
+				self._action_refresh_requested = False
+				self._refresh_actions_once(*_unused)
+				if not self._action_refresh_requested:
+					return
+		finally:
+			self._action_refresh_in_progress = False
+
+	#============================================
+	def _refresh_actions_once(self, *_unused: object) -> None:
+		"""Refresh every action against one stable tab observation.
 
 		A tab is registered before every optional projection capability has been
 		installed.  The ordinary host treats that state as non-editable instead of
@@ -339,7 +353,7 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		smarts = getattr(self, "_smarts_query_controller", None)
 		if smarts is not None:
 			smarts.refresh_action(
-				tab is not None and not tab._disposed,
+				tab is not None and not tab.is_disposed,
 				False if tab is None else tab.requires_refresh,
 				bool(getattr(smarts, "_busy", False)),
 			)

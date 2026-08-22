@@ -6,8 +6,7 @@ Ferrum Chemical Forge is a pre-alpha CDML chemical-drawing system with two
 separately licensed components:
 
 - Ferrum-Chem is the LGPL Rust workspace. It owns CDML documents, chemistry
-  boundaries, geometry, rendering operations, native artifact publication, and
-  the `ferrum` command-line tool.
+  boundaries, geometry, rendering operations, local runtime assembly, and the `ferrum` command-line tool.
 - Ferrum is the AGPL PySide6 desktop application. It has one packaged,
   Rust-native product route and presents Ferrum-owned documents through Qt.
 
@@ -62,11 +61,8 @@ existing broad extension namespace remains the Ferrum integration surface,
 not a blanket third-party API promise.
 
 Native chemistry adapters remain private to their owning Rust and Ferrum
-workflows; the shipping CLI has no adapter argument or discovery behavior. The
-native-wheel tooling in
-[../packages/ferrum-rust/tools/](../packages/ferrum-rust/tools/) verifies the
-packaged extension closure; it does not make a cross-platform desktop-release
-claim.
+workflows; the local CLI receives the repo-owned runtime assembled under
+`build/runtime/python/` and has no adapter argument or discovery behavior.
 
 ### Ferrum application
 
@@ -74,7 +70,7 @@ claim.
 declares one `ferrum-qt` console command. Its product startup chain is:
 
 ```text
-ferrum-qt
+build/bin/ferrum-qt
   -> ferrum_qt.cli
   -> ferrum_qt.app.main
   -> ferrum_qt.main_window.MainWindow
@@ -117,7 +113,7 @@ The ordinary desktop path is:
 
 ```text
 local CDML or decoded CD-SVG input
-  -> ferrum-qt
+  -> build/bin/ferrum-qt
   -> app.MainWindow
   -> FerrumNativeMainWindow and FerrumNativeDocumentTab
   -> ferrum_chem.DocumentSession
@@ -135,7 +131,7 @@ The public CLI path has no Python UI runtime, session, adapter, or Qt state:
 
 ```text
 one bounded JSON request
-  -> ferrum protocol
+  -> build/bin/ferrum protocol
   -> ferrum-api
   -> protocol_v1 owned-value executor
   -> CDML/document or complete-artifact operation
@@ -161,10 +157,9 @@ boundary, not a performance target.
 
 - Workspace crates use Cargo unit and integration tests from
   [../packages/ferrum-rust/](../packages/ferrum-rust/).
-- The wheel boundary is built by
-  [../packages/ferrum-rust/tools/build_native_wheel.py](../packages/ferrum-rust/tools/build_native_wheel.py)
-  and has root E2E coverage in
-  [../tests/e2e/e2e_native_wheel.py](../tests/e2e/e2e_native_wheel.py).
+- [../build.sh](../build.sh) assembles the local CLI, Qt launcher, extension,
+  and dynamic-library closure below `build/`; [../all_test.sh](../all_test.sh)
+  runs repository hygiene and product suites against that runtime.
 - Ferrum behavior tests live in
   [../packages/ferrum-chem-qt.app/tests/](../packages/ferrum-chem-qt.app/tests/).
   They exercise the ordinary product window and focused native boundaries.
@@ -191,5 +186,4 @@ boundary, not a performance target.
 
 - Complete the remaining codec, corpus, render-backend, domain, and platform
   work tracked in [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
-- Reconcile historical ABI evidence with the current adapter and wheel evidence
-  when the active plan next records that boundary.
+- Extend local-runtime validation as native adapter contracts evolve.

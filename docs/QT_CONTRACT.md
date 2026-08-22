@@ -399,21 +399,15 @@ state: Save, Save As, Change Element, Add Atom, Undo, Redo, and Close are
 disabled, Refresh Authoritative View is the recovery action, and the tab cannot
 close even if an accepted undo made the Rust document clean.
 
-`Draw Bond` captures one immutable Next Drawing snapshot at mouse press:
-element, normal order, and `DocumentBondPresentationV1`. The personal
-`Next presentation:` QSettings client offers Normal, Solid wedge from start
-atom, and Hashed wedge from start atom; directed choices use Single. It is
-shared by ordinary live windows, and changing it affects only the next press.
-Rust maps Normal to `n1`/`n2`/`n3`, SolidWedge to `w1`, and HashedWedge to
-`h1`. A directed gesture serializes its press/start atom as the narrow tip and
-its release or new atom as the wide base. Rust retains target validation,
-duplicate detection, candidate atomicity, provenance, history, selection, and
-the accepted render facts. The source-owned `native_directed_bond_preview_v1`
-receipt supplies V2 path or line operations; Qt copies those facts into a
-disposable preview and does not construct its own wedge geometry. QSettings
-preferences never enter CDML, `<standard>`, document state, history,
-dirty/save state, or selection. `w2`, `w3`, `h2`, `h3`, and all other styles
-remain outside this closed authoring contract.
+`Draw Bond` captures one immutable Next Drawing normal-order snapshot at mouse
+press. The shared QSettings client offers only Single, Double, and Triple;
+Rust maps those values to `n1`, `n2`, and `n3` for all four direct-bond endpoint
+forms. New endpoints are carbon in this bounded P0.1 route. Rust retains target
+validation, duplicate detection, candidate atomicity, provenance, history,
+selection, and accepted render facts; Qt owns only disposable feedback and
+preview objects. Personal preferences never enter CDML, `<standard>`, document
+state, history, dirty/save state, or selection. Directed direct-bond authoring
+requires a separate Rust-owned feature contract.
 
 Selected-bond Properties is a separate editor for one already-projected durable
 bond. Its native form offers only Normal, Solid wedge, and Hashed wedge;
@@ -427,9 +421,8 @@ compact client of that same shared application model, including at narrow
 window widths. Editing Tools projects the action at low priority; it adds no
 second preference or document owner. Escape in the focused client restores its
 accepted input and, for an active Draw Bond gesture, composes the shared Cancel
-Tool action. Directed armed and press-frozen feedback names Solid or Hashed
-wedge with Single, the narrow-tip-to-wide-base direction, and the frozen
-element for an empty-space endpoint.
+Tool action. Armed and press-frozen feedback names the selected normal order;
+an empty-space endpoint remains carbon in this bounded route.
 
 `Insert Cyclohexane Ring` is one shared Edit and Editing Tools QAction for a
 closed native detached-ring outcome. At an empty finite page location, its
@@ -468,7 +461,7 @@ QSettings state and no UI choice enters CDML, history, selection, or document da
 Generic codes/catalogs, other sugars, attachment/fusion, rotation/reflow, and general
 stereochemical inference require new contracts.
 
-The accepted current-source/installed-site walkthrough exercises all four chooser variants,
+The accepted current-source/staged-local-runtime walkthrough exercises all four chooser variants,
 one shared snap anchor, receipt-derived preview, and one authoritative commit. It verifies
 occupied-page, Cancel, Escape, and stale-intent preservation; public tab Undo/Redo restores
 semantic CDML and history even though revisions advance; and Save/reopen retains the inserted
@@ -493,11 +486,11 @@ delivery retire preview/intent without mutation or redirection. Rust owns graph 
 CDML, history, selection, persistence, and normal V2 q1/w1/n1 lowering; private PyO3 owns only
 the receipt seam. SMILES, names, parser coordinates, ring choice, preview state, and preferences
 remain outside CDML, QSettings, public `.pyi`, CLI, wire, and composite rendering. Compact
-semantic Rust/binding/Qt behaviors are permanent evidence. A sealed installed site passed the
+semantic Rust/binding/Qt behaviors are permanent evidence. A sealed local runtime passed the
 focused private/public suite (4 passed); the independent public walkthrough accepted blank and
 invalid inline accessible recovery, pointer-tool cancellation, valid occupied-location retry,
 selection, Escape/tab-switch/close containment, Undo/Redo, save/reopen, and normal V2
-receipt-only installation without a direct-glycosidic marker. Wheel/site mechanics,
+receipt-only installation without a direct-glycosidic marker. Local runtime mechanics,
 offscreen-focus behavior, screenshots, parser, visual, accessibility, and occupancy probes remain
 disposable.
 
@@ -516,7 +509,7 @@ QSettings, CDML, history, selection, public Python, CLI, or wire contract. Compa
 Rust/API/private-binding/public-action behavior tests are permanent, including a mixed-root public
 regression. The accepted public real-worker walkthrough exercises supported/no-excess/finding/Not checked
 reports, every assessed atom's authored charge/H supporting facts in a mixed excess root, direct-root
-order, depiction independence, lifecycle/nonmutation, and accessibility. Fresh wheel/site,
+order, depiction independence, lifecycle/nonmutation, and accessibility. Fresh local-runtime,
 visual, and timing observations remain disposable evidence.
 
 `Chemistry -> Molecule Report...` is an ordinary-native, read-only receipt viewer with one
@@ -554,7 +547,7 @@ refresh, and close retire a modal View without redirecting focus) and the stable
 (expected Rust errors retain the Create name/focus without exposing internal reasons). Installed
 public evidence accepted endpoint closure/source order, duplicate labels, blank retry/Cancel/stale
 containment, retained notice, View lifecycle, undo/redo, and save/reopen. Compact semantic
-Rust/binding/Qt tests are permanent evidence; wheel/site, screenshots, keyboard/accessibility,
+Rust/binding/Qt tests are permanent evidence; local-runtime, screenshots, keyboard/accessibility,
 visual, corpus, and timing observations remain disposable.
 
 ## Workers and UI thread
@@ -658,6 +651,13 @@ Open, Open in Current Tab, save/reopen, cancellation and stale fences, recovery 
 ordinary artifact export, and shutdown. There is no second editor, alternate session
 model, compatibility tab, or action-policy switch.
 
+Before a tab closes or the application shuts down, `MainWindow` retires every active
+canvas pointer owner for that tab, including `Select Structure`, before the tab disposes
+its viewport. The focused Qt behavior test
+`test_close_selected_structure_tab_retires_the_active_pointer_tool` is the permanent
+evidence for this ownership invariant; staged-local-runtime walkthroughs remain
+disposable integration evidence.
+
 The product accepts local CDML, the bounded decoded-CD-SVG profile, and the closed
 Rust-owned CML/CML2 simple-molecule profile. CML always converts into a clean new tab and
 never replaces the current tab; it has no CML Save baseline or export route. The product
@@ -676,7 +676,7 @@ requirements.
 Permanent tests stay small and behavior-focused: a supported native operation, typed
 refusal with preserved document state, and Rust/PyO3 contracts that can regress independently.
 They do not assert private worker wiring, module inventories, timing, fixed action counts,
-or visual bytes. Source/dependency inventories, fresh wheel or installed-site checks,
+or visual bytes. Source/dependency inventories, fresh staged-runtime checks,
 manual walkthroughs, screenshots, accessibility checks, and race observations are useful
 one-time implementation evidence, not permanent fast-suite gates.
 
@@ -688,7 +688,7 @@ Rust without losing CDML order, IDs, or opaque content. A bounded slice proves
 only the operations and document classes named by its receipt.
 
 Run focused Rust, PyO3, and offscreen Qt behavior tests for the changed slice.
-Use a managed end-to-end receipt for installed-wheel and visual evidence. Keep
+Use a managed end-to-end receipt for staged-local-runtime and visual evidence. Keep
 the fast suite free of timing, private-wiring, fixture-heavy, and exact-count
 checks. Follow the repository source-file guidance rather than treating a line
 count as a functional acceptance gate.

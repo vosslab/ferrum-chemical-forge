@@ -10,7 +10,7 @@ use crate::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml xmlns:v=\"urn:vendor\"><arrow id=\"a\" type=\"normal\" start=\"false\" ",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><arrow id=\"a\" type=\"normal\" start=\"false\" ",
     "end=\"true\" spline=\"0\" width=\"1px\" color=\"#000\" keep=\"yes\">",
     "<point x=\"0\" y=\"0\"/><v:opaque/><point x=\"40\" y=\"0\"/>",
     "</arrow><v:root/></cdml>"
@@ -88,16 +88,20 @@ fn arrow_properties_compare_historical_spellings_without_normalizing_them() {
         )
         .expect("semantic equal patch must be accepted");
     assert_eq!(result.observation().snapshot().revision(), 0);
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("start=\"false\""));
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("width=\"1px\""));
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("start=\"false\"")
+    );
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("width=\"1px\"")
+    );
 }
 
 #[test]

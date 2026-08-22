@@ -6,14 +6,14 @@ class FerrumNativeSmartsSelectedRootCaptureTabMixin:
 	"""Keep selected-query capture/run beside the tab-owned live session."""
 
 	#============================================
-	def _capture_live_smarts_selected_query_v1(self, selection: object) -> object:
+	def capture_live_smarts_selected_query(self, selection: object) -> object:
 		"""Consume one renderer selection and return only Rust's opaque query token."""
 		if self._disposed or self.requires_refresh:
 			raise RuntimeError("Ferrum document is not ready for molecule capture")
 		return self._session._capture_live_document_smarts_selected_query_v1(selection)
 
 	#============================================
-	def _run_live_smarts_selected_query_token_v1(self, token: object,
+	def run_live_smarts_selected_query_token(self, token: object,
 			per_molecule_limit: int, total_limit: int) -> object:
 		"""Run a token already minted for this tab without consulting generic selection."""
 		if self._disposed or self.requires_refresh:

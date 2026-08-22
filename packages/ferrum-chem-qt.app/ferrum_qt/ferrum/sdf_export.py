@@ -15,6 +15,7 @@ import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.ferrum.molecule_inspection
 from ferrum_qt.ferrum.molecule_exports import (
 	_FerrumNativeMoleculeExportWorker,
+	FerrumNativeMoleculeExportFailure,
 )
 
 
@@ -192,7 +193,7 @@ class FerrumNativeSdfExportMixin:
 		if (
 			self._active_native_tab() is not tab
 			or self._native_tabs_by_page.get(tab) is not tab
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return False
@@ -272,7 +273,7 @@ class FerrumNativeSdfExportMixin:
 		if (
 			tab not in self._native_tabs_by_page
 			or tab is not self._active_native_tab()
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return None
@@ -343,11 +344,14 @@ class FerrumNativeSdfExportMixin:
 
 	#============================================
 	def _on_document_sdf_export_failed(self, worker: object, failure: object) -> None:
-		"""Show one current noncancelled failure without fallback."""
+		"""Show one current closed worker failure or refuse a protocol violation."""
 		if self._current_sdf_export_intent(worker) is None:
 			self._show_stale_sdf_export()
 			return
-		self._show_edit_refusal(self._unavailable_edit_refusal(getattr(failure, "message", str(failure))))
+		if type(failure) is not FerrumNativeMoleculeExportFailure:
+			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an unexpected export failure."))
+			return
+		self._show_edit_refusal(self._unavailable_edit_refusal(failure.message))
 
 	#============================================
 	def _on_document_sdf_export_finished(self, worker: object) -> None:

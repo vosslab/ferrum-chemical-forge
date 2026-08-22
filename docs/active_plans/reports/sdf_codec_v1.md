@@ -64,16 +64,16 @@ The three-record corpus covers:
 - ammonium chloride with charge, a disconnected graph, and an empty value;
 - an isotope/chirality/atom-map molecule with two ordered properties.
 
-Both V2000 and V3000 pass under RDKit 2026.03.5 and 2026.03.4. The exact source tag
-and SHA in the native build receipt make this wheel reproducible; they are not a
-permanent compatibility ceiling. New native wheels should move to the current stable
-RDKit release while retaining the previous stable release as a compatibility check.
-The installed-wheel binding test separately proves that import retains repeated SDF
-property names as distinct ordered entries.
+Both V2000 and V3000 passed under RDKit 2026.03.5 and 2026.03.4 at the time of this
+measurement. The old source tag and SHA are archival facts, not a reproducible wheel
+recipe in the current checkout. Current development uses the local runtime staged by
+`./build.sh`; focused binding coverage proves that import retains repeated SDF property
+names as distinct ordered entries.
 
-## Wheel evidence
+## Retired wheel evidence
 
-The fresh macOS arm64 direct-extension wheel is:
+The following macOS arm64 direct-extension wheel was used for the historical
+measurement:
 
 ```text
 output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/
@@ -86,9 +86,9 @@ The wheel is 3.3 MB. Its 15-library closure contains `libferrum_chem.dylib` and
 14 RDKit libraries, with no RDKit Python package, compiled Boost library, Cairo, or
 FreeType dependency.
 
-The installed writer and reader pass before and after replacement with a separately
-built `RelWithDebInfo` adapter. The retained receipt is
-`output_native_wheel/evidence/native-wheel-e2e-receipt.json`.
+The writer and reader passed before and after replacement with a separately built
+`RelWithDebInfo` adapter. The recorded receipt path and wheel output root were removed
+with the retired publication workflow, so neither is present or reproducible now.
 
 ## Historical evidence
 

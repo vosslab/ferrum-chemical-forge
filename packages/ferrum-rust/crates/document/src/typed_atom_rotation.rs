@@ -174,7 +174,6 @@ fn unqualified_attribute<'a>(tree: &'a Xot, node: Node, expected: &str) -> Optio
 }
 
 fn is_core_element(tree: &Xot, node: Node, expected: &str) -> bool {
-    element_name(tree, node).is_some_and(|(name, namespace)| {
-        name == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
-    })
+    element_name(tree, node)
+        .is_some_and(|(name, namespace)| name == expected && (namespace == CDML_NAMESPACE))
 }

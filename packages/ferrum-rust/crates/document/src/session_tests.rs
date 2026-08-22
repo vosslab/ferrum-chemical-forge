@@ -4,11 +4,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::{DocumentSession, DocumentSessionError, TypedDocument, element_name};
 
-const CDML_NAMESPACE: &str = "http://www.freesoftware.fsf.org/bkchem/cdml";
+const CDML_NAMESPACE: &str = "urn:ferrum:cdml";
 
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
-const SOURCE: &str = r#"<cdml xmlns:vendor="urn:vendor"><molecule id="m"><atom id="a" name="C"><point x="1" y="2"/></atom></molecule><vendor:extension untouched="yes"><child/></vendor:extension></cdml>"#;
+const SOURCE: &str = r#"<cdml xmlns="urn:ferrum:cdml" xmlns:vendor="urn:vendor"><molecule id="m"><atom id="a" name="C"><point x="1" y="2"/></atom></molecule><vendor:extension untouched="yes"><child/></vendor:extension></cdml>"#;
 
 struct TestDirectory(PathBuf);
 
@@ -110,7 +110,7 @@ fn empty_document_constructor_reopens_as_a_clean_revision_zero_baseline() {
 #[test]
 fn invalid_cdml_is_reported_as_a_load_failure() {
     assert!(matches!(
-        DocumentSession::load("<cdml><molecule></cdml>"),
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule></cdml>"),
         Err(DocumentSessionError::Load(_))
     ));
     assert!(matches!(
@@ -118,7 +118,9 @@ fn invalid_cdml_is_reported_as_a_load_failure() {
         Err(DocumentSessionError::Load(_))
     ));
     assert!(matches!(
-        DocumentSession::load("<cdml><molecule id=\"same\"/><text id=\"same\"/></cdml>"),
+        DocumentSession::load(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"same\"/><text id=\"same\"/></cdml>"
+        ),
         Err(DocumentSessionError::Load(_))
     ));
 }

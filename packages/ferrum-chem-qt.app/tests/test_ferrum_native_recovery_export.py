@@ -20,7 +20,7 @@ import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.window_refusals
 
 
-_CDML = """<cdml version='26.08'><molecule id='mol-1'>
+_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'><molecule id='mol-1'>
   <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
 </molecule></cdml>"""
 

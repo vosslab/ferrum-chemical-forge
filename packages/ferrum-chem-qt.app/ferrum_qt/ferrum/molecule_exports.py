@@ -78,16 +78,18 @@ class _FerrumNativeMoleculeExportWorker(FerrumDetachedJobThread):
 	failed = PySide6.QtCore.Signal(object)
 
 	#============================================
-	def __init__(self, operation: object, arguments: tuple[object, ...]) -> None:
+	def __init__(
+			self, operation: object, arguments: tuple[object, ...],
+			failure_mapper: object | None = None,
+			) -> None:
 		"""Capture one operation and its immutable handle-free arguments."""
 		self._arguments = arguments
 		self._export_operation = operation
-		super().__init__(
-			lambda: self._export_operation(*self._arguments),
-			lambda error: FerrumNativeMoleculeExportFailure(
+		if failure_mapper is None:
+			failure_mapper = lambda error: FerrumNativeMoleculeExportFailure(
 				type(error).__name__, str(error),
-			),
-		)
+			)
+		super().__init__(lambda: self._export_operation(*self._arguments), failure_mapper)
 
 	#============================================
 	def _emit_success(self, result: object) -> None:
@@ -315,7 +317,7 @@ class FerrumNativeMoleculeExportsMixin:
 		if (
 			self._active_native_tab() is not tab
 			or self._native_tabs_by_page.get(tab) is not tab
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return False
@@ -394,7 +396,7 @@ class FerrumNativeMoleculeExportsMixin:
 		if (
 			self._active_native_tab() is not tab
 			or self._native_tabs_by_page.get(tab) is not tab
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return False
@@ -521,7 +523,7 @@ class FerrumNativeMoleculeExportsMixin:
 		if (
 			tab not in self._native_tabs_by_page
 			or tab is not self._active_native_tab()
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return None

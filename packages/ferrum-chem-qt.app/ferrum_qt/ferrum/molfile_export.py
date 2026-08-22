@@ -194,7 +194,7 @@ class FerrumNativeMolfileExportMixin:
 		if (
 			self._active_native_tab() is not tab
 			or self._native_tabs_by_page.get(tab) is not tab
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return False
@@ -278,7 +278,7 @@ class FerrumNativeMolfileExportMixin:
 		if (
 			tab not in self._native_tabs_by_page
 			or tab is not self._active_native_tab()
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return None

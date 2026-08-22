@@ -6,13 +6,13 @@ import ferrum_chem
 
 
 SOURCE = (
-	'<cdml xmlns:v="urn:vendor"><text id="t"><point x="1" y="2"/>'
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><text id="t"><point x="1" y="2"/>'
 	'<ftext>label</ftext></text><v:opaque retained-id="t"/>'
 	'<plus id="p"><point x="3" y="4"/></plus></cdml>'
 )
 
 BRACKET_SOURCE = (
-	'<cdml><polyline id="left" bracket_pair="left" bracket_side="left" spline="no">'
+	'<cdml xmlns="urn:ferrum:cdml"><polyline id="left" bracket_pair="left" bracket_side="left" spline="no">'
 	'<point x="0" y="0"/><point x="1" y="1"/><point x="1" y="2"/>'
 	'<point x="0" y="3"/></polyline><polyline id="right" bracket_pair="left" '
 	'bracket_side="right" spline="no"><point x="4" y="0"/>'

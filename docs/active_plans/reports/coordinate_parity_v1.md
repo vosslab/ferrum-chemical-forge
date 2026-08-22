@@ -2,7 +2,7 @@
 
 ## Verdict
 
-M4c passes for the currently supported macOS arm64 native-wheel proof. The recorded
+M4c passed for the historical macOS arm64 wheel proof. The recorded
 RDKit 2026.03.5 Python wrapper and the ABI-4 FCM1 wheel produced exactly equal x/y
 coordinates for every atom in six molecules. Five cases are asymmetric; benzene is
 retained only as a symmetric control.
@@ -39,14 +39,16 @@ decimal threshold unrelated to the represented values.
 
 ## Artifact
 
-The measured direct-extension wheel is
+The measured direct-extension wheel was
 `output_native_wheel/molblock-import-v1-rdkit-2026035-20260812/wheelhouse/` followed by
 `ferrum_chem-26.8.0-cp312-cp312-macosx_11_0_arm64.whl`. Its SHA-256 is
 `13de57cf0d95dc3f1755f14a1ca36350fe4db7dca43e3ab8ead0e3d0e74b3eda`.
 
-The receipt records the wheel, installed extension, RDKit Python binary, adapter,
-public header, Rust decoder, generator, and child-script digests. The repository test
-recomputes every source digest, so source drift invalidates this measurement.
+The receipt recorded the wheel, installed extension, RDKit Python binary, adapter,
+public header, Rust decoder, generator, and child-script digests. The wheel output root
+and its measurement harness were retired, so this artifact is not reproducible in the
+current checkout. A new measurement must be explicitly scoped; current local builds use
+`./build.sh` and its staged runtime.
 
 ## Historical evidence
 

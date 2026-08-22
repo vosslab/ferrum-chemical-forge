@@ -6,7 +6,7 @@ import ferrum_chem
 
 
 SOURCE = (
-	'<cdml xmlns:v="urn:vendor"><text id="label" background-color="#fff" keep="yes">'
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><text id="label" background-color="#fff" keep="yes">'
 	'<point x="10" y="20"/><font family="Arial" size="12" color="#000" '
 	'v:keep="yes"><v:font-child/></font><v:between/>'
 	'<ftext>old</ftext></text><v:root/></cdml>'

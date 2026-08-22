@@ -15,7 +15,7 @@ def _plus(observation: object) -> object:
 def test_plus_properties_are_atomic_frozen_and_revision_bound() -> None:
 	"""Apply one closed patch and preserve semantic state through history."""
 	source = (
-		'<cdml xmlns:v="urn:vendor"><plus id="p" font_size="14" color="#000" '
+		'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><plus id="p" font_size="14" color="#000" '
 		'keep="yes"><point x="10" y="20"/><v:opaque/></plus></cdml>'
 	)
 	session = ferrum_chem.DocumentSession.load(source)
@@ -44,7 +44,7 @@ def test_plus_properties_are_atomic_frozen_and_revision_bound() -> None:
 
 def test_plus_properties_reject_hostile_shapes_without_mutation() -> None:
 	"""Reject malformed intent, tuple subclasses, excess work, and stale edits."""
-	source = '<cdml><plus id="p"><point x="1" y="2"/></plus></cdml>'
+	source = '<cdml xmlns="urn:ferrum:cdml"><plus id="p"><point x="1" y="2"/></plus></cdml>'
 	session = ferrum_chem.DocumentSession.load(source)
 	change_type = ferrum_chem.DocumentPlusPropertyChangeV1
 	before = session.observe(0).snapshot

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 use xot::{Node, Xot};
 
-pub(crate) const CDML_NAMESPACE: &str = "http://www.freesoftware.fsf.org/bkchem/cdml";
+use super::{is_ferrum_cdml_name, is_ferrum_cdml_root};
 static NEXT_DOCUMENT_INSTANCE: AtomicU64 = AtomicU64::new(0);
 
 /// A nonblank persistent XML `id` exactly as it appeared in the source document.
@@ -58,7 +58,7 @@ impl fmt::Debug for ProvisionalToken {
     }
 }
 
-/// Stable position of a direct child element in the source `<cdml>` sequence.
+/// Stable position of a direct child element in the source `<cdml xmlns=\"urn:ferrum:cdml\">` sequence.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SourceOrder(u32);
 
@@ -323,7 +323,7 @@ impl IndexedDocument {
             .expect("a parsed XML document has a document element");
         let (root_name, namespace) =
             element_name(&xml.tree, root).expect("a document element is always an XML element");
-        if root_name != "cdml" || (!namespace.is_empty() && namespace != CDML_NAMESPACE) {
+        if !is_ferrum_cdml_root(&root_name, &namespace) {
             return Err(DocumentIdentityError::NotCdmlRoot {
                 root_name,
                 namespace,
@@ -554,8 +554,8 @@ fn is_fragment_id_reference(tree: &Xot, node: Node, context: CdmlIdentifierConte
     let Some((local_name, namespace)) = element_name(tree, node) else {
         return false;
     };
-    let core_namespace = |namespace: &str| namespace.is_empty() || namespace == CDML_NAMESPACE;
-    core_namespace(&namespace) && matches!(local_name.as_str(), "bond" | "vertex")
+    is_ferrum_cdml_name(&local_name, &namespace, "bond")
+        || is_ferrum_cdml_name(&local_name, &namespace, "vertex")
 }
 
 fn child_identifier_context(
@@ -566,15 +566,21 @@ fn child_identifier_context(
     let Some((local_name, namespace)) = element_name(tree, child) else {
         return CdmlIdentifierContextV1::Other;
     };
-    let core_namespace = namespace.is_empty() || namespace == CDML_NAMESPACE;
-    match (parent_context, core_namespace, local_name.as_str()) {
-        (CdmlIdentifierContextV1::CoreCdmlRoot, true, "molecule") => {
+    match parent_context {
+        CdmlIdentifierContextV1::CoreCdmlRoot
+            if is_ferrum_cdml_name(&local_name, &namespace, "molecule") =>
+        {
             CdmlIdentifierContextV1::CoreDirectMolecule
         }
-        (CdmlIdentifierContextV1::CoreDirectMolecule, true, "fragment") => {
+        CdmlIdentifierContextV1::CoreDirectMolecule
+            if is_ferrum_cdml_name(&local_name, &namespace, "fragment") =>
+        {
             CdmlIdentifierContextV1::CoreDirectFragment
         }
-        (CdmlIdentifierContextV1::CoreDirectFragment, true, "bond" | "vertex") => {
+        CdmlIdentifierContextV1::CoreDirectFragment
+            if is_ferrum_cdml_name(&local_name, &namespace, "bond")
+                || is_ferrum_cdml_name(&local_name, &namespace, "vertex") =>
+        {
             CdmlIdentifierContextV1::CoreFragmentMember
         }
         _ => CdmlIdentifierContextV1::Other,

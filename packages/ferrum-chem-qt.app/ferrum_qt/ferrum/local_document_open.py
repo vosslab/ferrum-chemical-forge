@@ -34,7 +34,7 @@ _CURRENT_TAB_REPLACEMENT_FILTER = "Ferrum chemical drawings (*.cdml *.svg);;All 
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class _LocalDocumentOpenIntent:
-	"""One immutable local-CDML request and its sole admission worker."""
+	"""One immutable local-document admission request and its sole worker."""
 
 	path: str
 	source_kind: _LocalDocumentSourceKind
@@ -109,7 +109,7 @@ class FerrumNativeLocalDocumentOpenMixin:
 
 	#============================================
 	def _initialize_local_document_open(self) -> None:
-		"""Create the sole local-CDML Open intent and Qt-thread relay."""
+		"""Create the sole local-document Open intent and Qt-thread relay."""
 		self._local_document_open_intent: _LocalDocumentOpenIntent | None = None
 		self._local_interchange_open_descriptors = tuple(
 			engine.DocumentSession.local_interchange_open_descriptors_v1(),
@@ -219,7 +219,7 @@ class FerrumNativeLocalDocumentOpenMixin:
 			type(target) is ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab
 			and target is self._active_native_tab()
 			and target in self._native_tabs_by_page
-			and not target._disposed
+			and not target.is_disposed
 			and not target.requires_refresh
 			and not self._tab_has_active_native_canvas_interaction(target)
 			and not ferrum_qt.ferrum.tab_operations.
@@ -283,8 +283,13 @@ class FerrumNativeLocalDocumentOpenMixin:
 			focus_target is not None
 			and self._tab_has_active_native_canvas_interaction(focus_target)
 		)
+		# File/Open is a terminal document command.  Capture the pre-cancellation
+		# activity only to preserve its NewTab/focus policy, then retire its
+		# transient pointer owners before detached Rust admission can change tabs.
+		if focus_busy:
+			self.cancel_active_pointer_authoring()
 		disposition = self._open_disposition_for_request(
-			source_kind, interactive and not force_new_tab,
+			source_kind, interactive and not force_new_tab and not focus_busy,
 		)
 		target = focus_target if disposition is _LocalDocumentOpenDisposition.REPLACE_PRISTINE_TARGET else None
 		target_revision, target_digest, target_canvas_idle = self._capture_pristine_target_fence(target)
@@ -498,7 +503,7 @@ class FerrumNativeLocalDocumentOpenMixin:
 			or target not in self._native_tabs_by_page
 			or self._tab_widget.currentWidget() is not target
 			or self._tab_widget.indexOf(target) != fence.index
-			or target._disposed
+			or target.is_disposed
 			or target.requires_refresh
 			or self._tab_has_active_native_canvas_interaction(target)
 			or ferrum_qt.ferrum.tab_operations.
@@ -566,7 +571,7 @@ class FerrumNativeLocalDocumentOpenMixin:
 				return False
 			self._replace_native_tab_at_index(fence.target, tab, fence.index)
 		except Exception:
-			if tab is not None and not tab._disposed:
+			if tab is not None and not tab.is_disposed:
 				tab.dispose()
 			self._report_local_document_installation_failed(intent)
 			return False
@@ -817,7 +822,12 @@ class FerrumNativeLocalDocumentOpenMixin:
 
 	#============================================
 	def _refresh_local_document_open_action(self) -> None:
-		"""Mirror the one-worker lifecycle onto Open and Cancel Open."""
+		"""Mirror the one-worker lifecycle onto Open and Cancel Open.
+
+		The window lifecycle coordinator owns invocation of this refresh.  Keeping
+		that direction one-way prevents line-tool action refreshes from recursively
+		re-entering the complete action refresh.
+		"""
 		intent = self._local_document_open_intent
 		shutdown = getattr(self, "_shutdown_prepared", False)
 		self._open_action.setEnabled(

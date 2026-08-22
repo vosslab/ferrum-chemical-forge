@@ -51,8 +51,11 @@ the `e2e_*` prefix as a secondary, human-readable convention.
 
 - Run a single shell runner: `bash tests/e2e/e2e_<name>.sh`.
 - Run a single Python runner: `source source_me.sh && python3 tests/e2e/e2e_<name>.py`.
-- Run all E2E tests: provide a `tests/e2e/run_all.sh` that iterates over the
-  `e2e_*` files and reports pass/fail for each.
+- Run the supported local CLI E2Es: `bash tests/e2e/run_all.sh`. It uses the
+  staged `build/bin/ferrum` executable and explicitly runs
+  `e2e_ferrum_verb_cli.py` and `e2e_document_export_sdf_cli.py`; run
+  `./build.sh` first. `./all_test.sh` invokes this runner after validating the
+  local launchers and runtime receipt.
 - For browser-driven Playwright runs, TypeScript repos include `PLAYWRIGHT_USAGE.md` in their propagated `docs/` folder.
 - Do not invoke E2E tests from `pytest tests/`. Keep the two suites separate.
 

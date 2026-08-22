@@ -2,24 +2,28 @@
 
 use ferrum_core::{BondOrder, BondStyle};
 use ferrum_document::{
-    ArrowDisplayGeometryV1, ArrowHeadPositionV1, ArrowHeadShapeV1, ArrowHeadV1, ArrowPathV1,
-    ArrowProjectionV1, AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointV1,
-    BondProjectionV1, BoxShapeProjectionV1, DocumentHaworthPositionV1, DocumentProjectionV1,
-    FontFactsV1, MoleculeProjectionV1, PlusProjectionV1, PolygonPathV1, PolygonProjectionV1,
-    PolylinePathV1, PolylineProjectionV1, PresentationBoundsV1, PresentationFactProvenanceV1,
-    PresentationFillV1, PresentationFontV1, PresentationProjectionIssueCodeV1,
-    PresentationProjectionIssueV1, PresentationRecordKindV1, PresentationStackProjectionV1,
-    PresentationStrokeV1, PresentationTargetV1, ProjectionIssueCodeV1, ProjectionIssueV1,
-    SessionDocumentObservationV1, VisibilityV1,
+    AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointV1, BondProjectionV1,
+    BoxShapeProjectionV1, DocumentHaworthPositionV1, DocumentProjectionV1, FontFactsV1,
+    MoleculeProjectionV1, PlusProjectionV1, PolygonPathV1, PolygonProjectionV1, PolylinePathV1,
+    PolylineProjectionV1, PresentationBoundsV1, PresentationFactProvenanceV1, PresentationFillV1,
+    PresentationFontV1, PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1,
+    PresentationRecordKindV1, PresentationStackProjectionV1, PresentationStrokeV1,
+    PresentationTargetV1, ProjectionIssueCodeV1, ProjectionIssueV1, SessionDocumentObservationV1,
+    VisibilityV1,
 };
 use pyo3::prelude::*;
 
+pub(crate) use super::arrow_projection_binding::{
+    PyArrowDisplayGeometryV1, PyArrowHeadShapeV1, PyArrowHeadV1, PyArrowPathV1,
+    PyArrowProjectionV1, PyEquilibriumArrowDisplayGeometryV1, PyNormalArrowDisplayGeometryV1,
+};
 use super::atom_mark_binding::PyAtomMarkKindV1;
 use super::binding::PyDocumentBondOrderV1;
 use super::binding::PyDocumentSnapshot;
 use super::bond_properties_binding::PyDocumentBondStyleV1;
 use super::bracket_binding::PyBracketPairProjectionV1;
 use super::drawing_standard_binding::PyDrawingStandardV1;
+pub(crate) use super::electron_arrow_projection_binding::PyElectronArrowDisplayGeometryV1;
 use super::paper_properties_binding::PyPaperLayoutProjectionV1;
 use super::presentation_root_binding::PyPresentationRootProjectionV1;
 
@@ -498,180 +502,6 @@ impl From<&PlusProjectionV1> for PyPlusProjectionV1 {
             },
             font: value.font().into(),
             background: value.background().into(),
-        }
-    }
-}
-
-/// Every ordered point of one supported normal-arrow path.
-#[pyclass(frozen, name = "ArrowPathV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyArrowPathV1 {
-    #[pyo3(get)]
-    pub(crate) points: Vec<PyPoint3V1>,
-}
-
-impl From<&ArrowPathV1> for PyArrowPathV1 {
-    fn from(value: &ArrowPathV1) -> Self {
-        Self {
-            points: value
-                .points()
-                .iter()
-                .map(|point| PyPoint3V1 {
-                    x: point.x(),
-                    y: point.y(),
-                    z: point.z(),
-                })
-                .collect(),
-        }
-    }
-}
-
-/// Explicit normal-arrow head dimensions copied from Rust.
-#[pyclass(frozen, name = "ArrowHeadShapeV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyArrowHeadShapeV1 {
-    #[pyo3(get)]
-    pub(crate) line_inset: f64,
-    #[pyo3(get)]
-    pub(crate) total_length: f64,
-    #[pyo3(get)]
-    pub(crate) half_width: f64,
-}
-
-impl From<ArrowHeadShapeV1> for PyArrowHeadShapeV1 {
-    fn from(value: ArrowHeadShapeV1) -> Self {
-        Self {
-            line_inset: value.line_inset(),
-            total_length: value.total_length(),
-            half_width: value.half_width(),
-        }
-    }
-}
-
-/// One backend-derived filled normal-arrow head polygon.
-#[pyclass(frozen, name = "ArrowHeadV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyArrowHeadV1 {
-    #[pyo3(get)]
-    pub(crate) position: String,
-    #[pyo3(get)]
-    pub(crate) points: Vec<PyPoint3V1>,
-}
-
-impl From<&ArrowHeadV1> for PyArrowHeadV1 {
-    fn from(value: &ArrowHeadV1) -> Self {
-        Self {
-            position: match value.position() {
-                ArrowHeadPositionV1::Start => "start",
-                ArrowHeadPositionV1::End => "end",
-            }
-            .to_owned(),
-            points: value
-                .points()
-                .iter()
-                .map(|point| PyPoint3V1 {
-                    x: point.x(),
-                    y: point.y(),
-                    z: point.z(),
-                })
-                .collect(),
-        }
-    }
-}
-
-/// Closed Python representation of Rust-issued arrow display geometry.
-#[pyclass(frozen, name = "ArrowDisplayGeometryV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyArrowDisplayGeometryV1 {
-    #[pyo3(get)]
-    pub(crate) kind: String,
-    #[pyo3(get)]
-    pub(crate) normal: Option<PyNormalArrowDisplayGeometryV1>,
-    #[pyo3(get)]
-    pub(crate) equilibrium: Option<PyEquilibriumArrowDisplayGeometryV1>,
-}
-
-#[pyclass(frozen, name = "NormalArrowDisplayGeometryV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyNormalArrowDisplayGeometryV1 {
-    #[pyo3(get)]
-    pub(crate) axis_path: PyArrowPathV1,
-    #[pyo3(get)]
-    pub(crate) head_shape: PyArrowHeadShapeV1,
-    #[pyo3(get)]
-    pub(crate) start_head: bool,
-    #[pyo3(get)]
-    pub(crate) end_head: bool,
-    #[pyo3(get)]
-    pub(crate) heads: Vec<PyArrowHeadV1>,
-}
-
-#[pyclass(
-    frozen,
-    name = "EquilibriumArrowDisplayGeometryV1",
-    skip_from_py_object
-)]
-#[derive(Clone)]
-pub(crate) struct PyEquilibriumArrowDisplayGeometryV1 {
-    #[pyo3(get)]
-    pub(crate) axes: Vec<PyArrowPathV1>,
-    #[pyo3(get)]
-    pub(crate) heads: Vec<PyArrowHeadV1>,
-}
-
-impl From<&ArrowDisplayGeometryV1> for PyArrowDisplayGeometryV1 {
-    fn from(value: &ArrowDisplayGeometryV1) -> Self {
-        match value {
-            ArrowDisplayGeometryV1::Normal {
-                axis_path,
-                head_shape,
-                start_head,
-                end_head,
-                heads,
-            } => Self {
-                kind: "normal".to_owned(),
-                normal: Some(PyNormalArrowDisplayGeometryV1 {
-                    axis_path: axis_path.into(),
-                    head_shape: (*head_shape).into(),
-                    start_head: *start_head,
-                    end_head: *end_head,
-                    heads: heads.iter().map(Into::into).collect(),
-                }),
-                equilibrium: None,
-            },
-            ArrowDisplayGeometryV1::Equilibrium { axes, heads } => Self {
-                kind: "equilibrium".to_owned(),
-                normal: None,
-                equilibrium: Some(PyEquilibriumArrowDisplayGeometryV1 {
-                    axes: axes.iter().map(Into::into).collect(),
-                    heads: heads.iter().map(Into::into).collect(),
-                }),
-            },
-        }
-    }
-}
-
-/// One direct-root Arrow with a closed kind-owned geometry payload.
-#[pyclass(frozen, name = "ArrowProjectionV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyArrowProjectionV1 {
-    #[pyo3(get)]
-    pub(crate) target: PyPresentationTargetV1,
-    #[pyo3(get)]
-    pub(crate) source_path: PyArrowPathV1,
-    #[pyo3(get)]
-    pub(crate) geometry: PyArrowDisplayGeometryV1,
-    #[pyo3(get)]
-    pub(crate) stroke: PyPresentationStrokeV1,
-}
-
-impl From<&ArrowProjectionV1> for PyArrowProjectionV1 {
-    fn from(value: &ArrowProjectionV1) -> Self {
-        Self {
-            target: value.target().into(),
-            source_path: value.source_path().into(),
-            geometry: value.geometry().into(),
-            stroke: value.stroke().into(),
         }
     }
 }

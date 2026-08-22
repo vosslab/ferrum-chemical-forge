@@ -10,7 +10,7 @@ import subprocess
 import ferrum_chem
 
 
-EMPTY = "<cdml/>"
+EMPTY = "<cdml xmlns='urn:ferrum:cdml'/>"
 
 
 def digest(document: str) -> str:

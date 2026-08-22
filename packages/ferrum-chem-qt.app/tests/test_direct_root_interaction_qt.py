@@ -4,7 +4,6 @@
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.ferrum.direct_root_interaction_tab
 import ferrum_qt.ferrum.direct_root_preview
 
 
@@ -57,38 +56,3 @@ def test_direct_root_bounds_preview_draws_only_issued_bounds(qapp: object) -> No
 	assert rectangle.width() == 30.0
 	assert rectangle.height() == 50.0
 
-
-#============================================
-def test_direct_root_tab_facade_delegates_opaque_handles() -> None:
-	"""The tab façade forwards opaque values without interpreting their contents."""
-	class Tab(ferrum_qt.ferrum.direct_root_interaction_tab.FerrumNativeDirectRootInteractionTabMixin):
-		def __init__(self) -> None:
-			self.current_snapshot = type("Snapshot", (), {"revision": 7, "digest": "d"})()
-			self._session = type("Session", (), {})()
-			self._session.observe_render_interaction_v1 = lambda revision, digest: (revision, digest)
-			self._session.select_render_interaction_roots_v1 = lambda observation, previous, query: (observation, previous, query)
-			self._session.begin_render_interaction_translation_v1 = lambda selection, x, y, snap: (selection, x, y, snap)
-			self._session.preview_render_interaction_translation_v1 = lambda gesture, x, y: (gesture, x, y)
-			self._session.commit_render_interaction_translation_v1 = lambda gesture, preview: type(
-				"Commit", (), {"result": (gesture, preview)},
-			)()
-			self.installed = None
-
-		def _require_mutable(self) -> None:
-			return None
-
-		def _install_mutation_result(self, result: object) -> None:
-			self.installed = result
-
-	tab = Tab()
-	observation = tab.observe_direct_root_interaction()
-	selection = tab.select_direct_roots(observation, None, "query")
-	gesture = tab.begin_direct_root_translation(selection, 1.0, 2.0, "snap")
-	preview = tab.preview_direct_root_translation(gesture, 3.0, 4.0)
-	commit = tab.commit_direct_root_translation(gesture, preview)
-	assert observation == (7, "d")
-	assert selection == (observation, None, "query")
-	assert gesture == (selection, 1.0, 2.0, "snap")
-	assert preview == (gesture, 3.0, 4.0)
-	assert tab.installed == (gesture, preview)
-	assert commit.result == (gesture, preview)

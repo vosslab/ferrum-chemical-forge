@@ -43,7 +43,7 @@ fn record(
 #[test]
 fn interchange_batch_commits_every_record_and_exact_ordered_metadata_once() {
     let source = concat!(
-        "<cdml version=\"1.0\"><opaque id=\"keep\">",
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><opaque id=\"keep\">",
         "<foreign payload=\"retained\"/></opaque></cdml>"
     );
     let batch = InterchangeRecordBatchInsertionV1::new(vec![
@@ -117,7 +117,8 @@ fn interchange_batch_grammar_and_stale_revision_fail_without_mutation() {
 
     let batch = InterchangeRecordBatchInsertionV1::new(vec![record("O", 1.0, "Oxygen", &[])])
         .expect("batch is nonempty");
-    let mut session = DocumentSession::load("<cdml/>").expect("fixture must load");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("fixture must load");
     let mut first = session
         .prepare_create_interchange_records_v1(0, &batch)
         .expect("initial batch must prepare");
@@ -142,8 +143,10 @@ fn interchange_batch_grammar_and_stale_revision_fail_without_mutation() {
 fn refused_and_dropped_interchange_preparation_preserves_ids_and_tokens() {
     let batch = InterchangeRecordBatchInsertionV1::new(vec![record("O", 1.0, "Oxygen", &[])])
         .expect("batch is nonempty");
-    let mut session = DocumentSession::load("<cdml/>").expect("session loads");
-    let mut control = DocumentSession::load("<cdml/>").expect("control session loads");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session loads");
+    let mut control =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("control session loads");
     let token_before = session.provisional_token_facts_for_test();
 
     let refused = session

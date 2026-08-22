@@ -216,7 +216,7 @@ class FerrumNativeSnapshotExportWindowMixin:
 		if (
 			tab is None
 			or self._native_tabs_by_page.get(tab) is not tab
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return None
@@ -260,7 +260,7 @@ class FerrumNativeSnapshotExportWindowMixin:
 		if (
 			self._active_native_tab() is not tab
 			or self._native_tabs_by_page.get(tab) is not tab
-			or tab._disposed
+			or tab.is_disposed
 			or tab.requires_refresh
 		):
 			return False

@@ -194,7 +194,7 @@ pub(crate) fn prepare_interchange_new_document_v1<R: ChemistryRuntimeV1>(
 ) -> Result<PreparedInterchangeNewDocumentV1, InterchangeImportRefusalV1> {
     match descriptor.decoder() {
         InterchangeDecoderKeyV1::CmlSimpleMolecule => {
-            let records = decode_cml_records(source.bytes())?;
+            let records = decode_cml_simple_molecule_records_v1(source.bytes())?;
             prepare_records(
                 descriptor,
                 records,
@@ -259,7 +259,11 @@ pub(crate) fn prepare_local_interchange_new_document_v1<R: LocalInterchangeRunti
     Ok((source, prepared))
 }
 
-fn decode_cml_records(
+/// Decode the registry-owned CML simple-molecule profile into reusable records.
+///
+/// Document import and chemistry conversion share this bridge so atom, bond,
+/// and coordinate lowering cannot diverge between their two public surfaces.
+pub(crate) fn decode_cml_simple_molecule_records_v1(
     source: &[u8],
 ) -> Result<Vec<InterchangeRecordV1>, InterchangeImportRefusalV1> {
     decode_cml_bytes_v1(source)
@@ -446,9 +450,93 @@ fn map_record_build_error(_error: InterchangeRecordBuildErrorV1) -> InterchangeI
 fn map_cml_decoder_reason(reason: CmlRefusalReasonV1) -> InterchangeImportRefusalReasonV1 {
     match reason {
         CmlRefusalReasonV1::InvalidUtf8 => InterchangeImportRefusalReasonV1::InvalidUtf8,
+        CmlRefusalReasonV1::InvalidXml => InterchangeImportRefusalReasonV1::InvalidXml,
+        CmlRefusalReasonV1::InvalidXmlDeclaration => {
+            InterchangeImportRefusalReasonV1::InvalidXmlDeclaration
+        }
+        CmlRefusalReasonV1::UnexpectedXmlText => {
+            InterchangeImportRefusalReasonV1::UnexpectedXmlText
+        }
+        CmlRefusalReasonV1::UnexpectedXmlNode => {
+            InterchangeImportRefusalReasonV1::UnexpectedXmlNode
+        }
+        CmlRefusalReasonV1::InvalidScalar => InterchangeImportRefusalReasonV1::InvalidScalar,
+        CmlRefusalReasonV1::InvalidCoordinate => {
+            InterchangeImportRefusalReasonV1::InvalidCoordinate
+        }
+        CmlRefusalReasonV1::CoordinateNotFinite => {
+            InterchangeImportRefusalReasonV1::CoordinateNotFinite
+        }
+        CmlRefusalReasonV1::CoordinateOutOfRange => {
+            InterchangeImportRefusalReasonV1::CoordinateOutOfRange
+        }
+        CmlRefusalReasonV1::DuplicateSourceId => {
+            InterchangeImportRefusalReasonV1::DuplicateSourceId
+        }
+        CmlRefusalReasonV1::DuplicateAtomId => InterchangeImportRefusalReasonV1::DuplicateAtomId,
+        CmlRefusalReasonV1::DanglingBond => InterchangeImportRefusalReasonV1::DanglingBond,
+        CmlRefusalReasonV1::SelfBond => InterchangeImportRefusalReasonV1::SelfBond,
+        CmlRefusalReasonV1::DuplicateBond => InterchangeImportRefusalReasonV1::DuplicateBond,
+        CmlRefusalReasonV1::InvalidGraph => InterchangeImportRefusalReasonV1::InvalidGraph,
+        CmlRefusalReasonV1::EmptyDocument => InterchangeImportRefusalReasonV1::EmptyDocument,
+        CmlRefusalReasonV1::NamespaceUnsupported => {
+            InterchangeImportRefusalReasonV1::NamespaceUnsupported
+        }
+        CmlRefusalReasonV1::RootUnsupported => InterchangeImportRefusalReasonV1::RootUnsupported,
+        CmlRefusalReasonV1::ProfileMismatch => InterchangeImportRefusalReasonV1::ProfileMismatch,
+        CmlRefusalReasonV1::AttributeUnsupported => {
+            InterchangeImportRefusalReasonV1::AttributeUnsupported
+        }
+        CmlRefusalReasonV1::ArrayAttributeUnsupported => {
+            InterchangeImportRefusalReasonV1::ArrayAttributeUnsupported
+        }
+        CmlRefusalReasonV1::UnrepresentedSemanticFact => {
+            InterchangeImportRefusalReasonV1::UnrepresentedSemanticFact
+        }
+        CmlRefusalReasonV1::DtdForbidden => InterchangeImportRefusalReasonV1::DtdForbidden,
+        CmlRefusalReasonV1::EntityForbidden => InterchangeImportRefusalReasonV1::EntityForbidden,
+        CmlRefusalReasonV1::ExternalResourceForbidden => {
+            InterchangeImportRefusalReasonV1::ExternalResourceForbidden
+        }
+        CmlRefusalReasonV1::XincludeForbidden => {
+            InterchangeImportRefusalReasonV1::XincludeForbidden
+        }
+        CmlRefusalReasonV1::StylesheetForbidden => {
+            InterchangeImportRefusalReasonV1::StylesheetForbidden
+        }
         CmlRefusalReasonV1::InputBytesLimit => InterchangeImportRefusalReasonV1::InputBytesLimit,
+        CmlRefusalReasonV1::XmlTextBytesLimit => {
+            InterchangeImportRefusalReasonV1::XmlTextBytesLimit
+        }
+        CmlRefusalReasonV1::XmlDeclarationLimit => {
+            InterchangeImportRefusalReasonV1::XmlDeclarationLimit
+        }
+        CmlRefusalReasonV1::CommentBytesLimit => {
+            InterchangeImportRefusalReasonV1::CommentBytesLimit
+        }
+        CmlRefusalReasonV1::PiBytesLimit => InterchangeImportRefusalReasonV1::PiBytesLimit,
+        CmlRefusalReasonV1::XmlElementLimit => InterchangeImportRefusalReasonV1::XmlElementLimit,
+        CmlRefusalReasonV1::XmlDepthLimit => InterchangeImportRefusalReasonV1::XmlDepthLimit,
+        CmlRefusalReasonV1::XmlAttributeLimit => {
+            InterchangeImportRefusalReasonV1::XmlAttributeLimit
+        }
+        CmlRefusalReasonV1::AttributeValueLimit => {
+            InterchangeImportRefusalReasonV1::AttributeValueLimit
+        }
+        CmlRefusalReasonV1::RecordLimit => InterchangeImportRefusalReasonV1::RecordLimit,
+        CmlRefusalReasonV1::AtomsPerRecordLimit => {
+            InterchangeImportRefusalReasonV1::AtomsPerRecordLimit
+        }
+        CmlRefusalReasonV1::AtomLimit => InterchangeImportRefusalReasonV1::AtomLimit,
+        CmlRefusalReasonV1::BondsPerRecordLimit => {
+            InterchangeImportRefusalReasonV1::BondsPerRecordLimit
+        }
+        CmlRefusalReasonV1::BondLimit => InterchangeImportRefusalReasonV1::BondLimit,
+        CmlRefusalReasonV1::SourceIdMapLimit => InterchangeImportRefusalReasonV1::SourceIdMapLimit,
+        CmlRefusalReasonV1::IdentifierBytesLimit => {
+            InterchangeImportRefusalReasonV1::IdentifierBytesLimit
+        }
         CmlRefusalReasonV1::InternalFailure => InterchangeImportRefusalReasonV1::InternalFailure,
-        _ => InterchangeImportRefusalReasonV1::CandidateValidationFailed,
     }
 }
 

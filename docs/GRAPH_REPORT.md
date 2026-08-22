@@ -1,5 +1,11 @@
 # Graph Report - ferrum-chemical-forge  (2026-08-19)
 
+> **Retired navigation snapshot.** This report predates removal of the
+> wheel-publication and installed-wheel test surfaces. Its wheel, release, and
+> installed-site nodes are stale and must not guide current work. Regenerate
+> Graphify output before using this report as a current code map; the supported
+> developer runtime is staged by `./build.sh` under `build/`.
+
 ## Corpus Check
 - cluster-only mode - file stats not available
 

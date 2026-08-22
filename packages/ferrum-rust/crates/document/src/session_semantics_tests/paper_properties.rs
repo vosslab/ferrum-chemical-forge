@@ -7,12 +7,12 @@ use super::{
     SessionOperationV1,
 };
 use crate::{
-    element_name, PaperDimensionsMmV1, PaperOrientationV1, PaperPageIssueV1,
-    PaperPropertiesPatchV1, PaperPropertiesPatchV1Error, PaperPropertyChangeV1,
+    PaperDimensionsMmV1, PaperOrientationV1, PaperPageIssueV1, PaperPropertiesPatchV1,
+    PaperPropertiesPatchV1Error, PaperPropertyChangeV1, element_name,
 };
 
 const EXISTING: &str = concat!(
-    "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+    "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
     "xmlns:v=\"urn:vendor\"><c:standard paper_type=\"Letter\" ",
     "paper_orientation=\"landscape\"/><c:paper type=\"legacy-preserve\" ",
     "orientation=\"portrait\" size_x=\"123\" size_y=\"456\" v:raw=\"keep\">",
@@ -31,7 +31,7 @@ fn operation(changes: Vec<PaperPropertyChangeV1>) -> SessionOperation {
 #[test]
 fn paper_projection_uses_first_core_records_and_valid_standard_defaults() {
     let source = concat!(
-        "<cdml xmlns:v=\"urn:vendor\"><v:paper type=\"vendor\"/>",
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><v:paper type=\"vendor\"/>",
         "<standard paper_type=\"Letter\" paper_orientation=\"landscape\"/>",
         "<viewport id=\"view\" viewport=\"1 2 3 4\"/></cdml>"
     );
@@ -61,7 +61,7 @@ fn paper_projection_uses_first_core_records_and_valid_standard_defaults() {
     assert_eq!(paper.digest(), observation.snapshot().digest());
 
     let fallback = DocumentSession::load(
-        "<cdml><standard paper_type=\"custom\" paper_orientation=\"sideways\"/></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><standard paper_type=\"custom\" paper_orientation=\"sideways\"/></cdml>",
     )
     .expect("fallback source must load");
     let paper = fallback
@@ -142,7 +142,7 @@ fn paper_patch_preserves_opaque_content_later_paper_order_and_history() {
 #[test]
 fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
     let source = concat!(
-        "<c:cdml xmlns:c=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+        "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
         "xmlns:v=\"urn:vendor\"><c:standard paper_type=\"Letter\" ",
         "paper_orientation=\"landscape\"/><v:note/><c:viewport/></c:cdml>"
     );
@@ -151,11 +151,13 @@ fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
         .submit(0, operation(vec![]))
         .expect("empty patch is accepted");
     assert_eq!(empty.observation().snapshot().revision(), 0);
-    assert!(!empty
-        .observation()
-        .projection()
-        .paper_layout()
-        .paper_present());
+    assert!(
+        !empty
+            .observation()
+            .projection()
+            .paper_layout()
+            .paper_present()
+    );
 
     let custom_size = PaperDimensionsMmV1::try_new(200.5, 300.25).unwrap();
     let custom = session

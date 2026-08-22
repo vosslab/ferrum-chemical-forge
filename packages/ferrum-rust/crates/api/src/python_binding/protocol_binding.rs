@@ -40,7 +40,7 @@ fn execute_operation_v1(py: Python<'_>, request_json: &str) -> PyResult<String> 
         ));
     }
     let request_json = request_json.to_owned();
-    let envelope = super::super::execute_operation_from_installed_wheel_v1(&request_json);
+    let envelope = super::super::execute_operation_from_staged_extension_v1(&request_json);
     let envelope = envelope.map_err(|error| protocol_input_error(py, error))?;
     serialize_protocol_envelope_v1(py, envelope)
 }
@@ -101,7 +101,7 @@ mod tests {
     use ferrum_chemistry::{ChemEngine, ChemistryError};
 
     const HOSTILE_RUNTIME_DETAIL: &str = "/private/ferrum/.dylibs/libferrum_chem.dylib: private_native_adapter dlopen native loader text";
-    const CDML: &str = "<cdml><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
+    const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
 
     struct HostileRuntime;
 

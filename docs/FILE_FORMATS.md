@@ -86,13 +86,13 @@ artifact rendering, chemistry conversion, and coordinate generation. See
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for the complete envelopes, categories,
 publication rules, and separate bounds that protect transport, CDML, interchange, and artifacts.
 
-The accepted ABI-4 FCM1 wheel evidence is limited to macOS arm64. Its packaging and
-licensing boundary is documented in [PROVENANCE.md](PROVENANCE.md); it is not a
-cross-platform release claim.
+The local native runtime is currently limited to macOS arm64. Its source and
+licensing boundary is documented in [PROVENANCE.md](PROVENANCE.md); this is not
+a cross-platform release claim.
 
 ## Unsupported formats
 
 Ferrum is not a general image, SVG, or compressed-SVG converter. `ferrum convert` accepts only
-its closed interchange vocabulary and needs the explicitly installed native engine; it is not a
+its closed interchange vocabulary and uses the native runtime created by `build.sh`; it is not a
 desktop import fallback. The current scope and remaining migration work are tracked in
 [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).

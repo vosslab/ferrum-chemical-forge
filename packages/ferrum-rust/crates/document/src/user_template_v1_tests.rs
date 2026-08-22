@@ -6,7 +6,7 @@ use super::{
 };
 
 const TEMPLATE: &str = concat!(
-    "<cdml xmlns=\"http://www.freesoftware.fsf.org/bkchem/cdml\" ",
+    "<cdml xmlns=\"urn:ferrum:cdml\" ",
     "xmlns:vendor=\"urn:vendor\" version=\"26.07\">",
     "<standard line_width=\"9\"/>",
     "<paper id=\"template-paper\" type=\"A4\"/>",
@@ -124,31 +124,31 @@ fn insertion_places_only_the_molecule_with_fresh_ids_as_one_history_step() {
 fn eligibility_rejects_content_that_cannot_be_a_detached_molecule_template() {
     let cases = [
         (
-            "<cdml><info/><molecule><atom><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><info/><molecule><atom><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
             "root",
         ),
         (
             concat!(
-                "<cdml><molecule><atom><point x=\"0\" y=\"0\"/></atom></molecule>",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom><point x=\"0\" y=\"0\"/></atom></molecule>",
                 "<molecule><atom><point x=\"1\" y=\"1\"/></atom></molecule></cdml>"
             ),
             "cardinality",
         ),
         (
             concat!(
-                "<cdml><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
                 "<template atom=\"a\"/></molecule></cdml>"
             ),
             "legacy",
         ),
-        ("<cdml><molecule/></cdml>", "atom"),
+        ("<cdml xmlns=\"urn:ferrum:cdml\"><molecule/></cdml>", "atom"),
         (
-            "<cdml><molecule><atom><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></atom></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></atom></molecule></cdml>",
             "point",
         ),
         (
             concat!(
-                "<cdml><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
                 "<bond start=\"a\" end=\"outside\"/></molecule></cdml>"
             ),
             "reference",

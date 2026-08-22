@@ -268,7 +268,7 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 		"""Reject redirected, closed, busy, or revision-stale source intent."""
 		tab = intent.tab
 		if (
-			self._native_tabs_by_page.get(tab) is not tab or tab._disposed
+			self._native_tabs_by_page.get(tab) is not tab or tab.is_disposed
 			or tab.requires_refresh or self._active_native_tab() is not tab
 		):
 			return False

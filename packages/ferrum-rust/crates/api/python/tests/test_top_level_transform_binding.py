@@ -7,7 +7,7 @@ import ferrum_chem
 
 
 SOURCE = (
-    '<cdml><molecule id="m"><atom id="a" name="C"><point x="1" y="2"/>'
+    '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="1" y="2"/>'
     '</atom></molecule><plus id="p"><point x="5" y="7"/></plus></cdml>'
 )
 AUTHORED_HALF_UNIT_POINTS = (0.001 * 72.0 / 2.54) / 2.0

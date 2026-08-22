@@ -123,7 +123,7 @@ fn validate_complete_bracket_deletion(
 
 fn is_cdml_element(tree: &Xot, node: xot::Node, expected: &str) -> bool {
     element_name(tree, node).is_some_and(|(local_name, namespace)| {
-        local_name == expected && (namespace.is_empty() || namespace == CDML_NAMESPACE)
+        local_name == expected && (namespace == CDML_NAMESPACE)
     })
 }
 
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn reaction_referenced_arrow_text_and_plus_are_atomic_presentation_refusals() {
-        let document = TypedDocument::parse("<cdml><arrow id=\"a\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><text id=\"t\"><point x=\"0\" y=\"10\"/><ftext>conditions</ftext></text><plus id=\"p\"><point x=\"20\" y=\"0\"/></plus><reaction id=\"r\"><arrow idref=\"a\"/><condition idref=\"t\"/><plus idref=\"p\"/></reaction></cdml>").expect("fixture parses");
+        let document = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"a\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><text id=\"t\"><point x=\"0\" y=\"10\"/><ftext>conditions</ftext></text><plus id=\"p\"><point x=\"20\" y=\"0\"/></plus><reaction id=\"r\"><arrow idref=\"a\"/><condition idref=\"t\"/><plus idref=\"p\"/></reaction></cdml>").expect("fixture parses");
         for (id, kind) in [
             ("a", PresentationRecordKindV1::Arrow),
             ("t", PresentationRecordKindV1::Text),

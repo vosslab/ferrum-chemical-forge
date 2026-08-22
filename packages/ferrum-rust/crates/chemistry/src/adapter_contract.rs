@@ -11,6 +11,12 @@ mod generated {
 /// ABI version required by [`crate::NativeChemEngine`].
 pub const ADAPTER_ABI_VERSION: u32 = generated::ADAPTER_ABI_VERSION;
 
+/// Maximum records accepted by one native SDF export request.
+///
+/// The generated C adapter header owns this ABI capacity. Higher-level
+/// services can validate against this value before allocating records.
+pub const NATIVE_SDF_MAX_RECORDS: usize = generated::FERRUM_CHEM_SDF_MAX_RECORDS as usize;
+
 pub(crate) use generated::{
     FERRUM_CHEM_ALL_KNOWN_CAPABILITIES, FERRUM_CHEM_BOND_DIRECTION_BEGINDASH,
     FERRUM_CHEM_BOND_DIRECTION_BEGINWEDGE, FERRUM_CHEM_BOND_DIRECTION_ENDDOWNRIGHT,

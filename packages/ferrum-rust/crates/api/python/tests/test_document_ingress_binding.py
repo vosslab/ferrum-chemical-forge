@@ -10,10 +10,10 @@ import pytest
 import ferrum_chem
 
 
-CDML = b'<cdml version="1.0"/>'
+CDML = b'<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
 CDSVG = (
 	b'<svg xmlns="http://www.w3.org/2000/svg">'
-	b'<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="1.0"/>'
+	b'<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
 	b'</svg>'
 )
 
@@ -91,7 +91,7 @@ def test_over_budget_utf8_and_dtd_fail_as_typed_input_without_session() -> None:
 		actual=None,
 		observed_at_least=None,
 	)
-	dtd = b'<!DOCTYPE cdml><cdml version="1.0"/>'
+	dtd = b'<!DOCTYPE cdml><cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
 	with pytest.raises(ferrum_chem.DocumentInputError) as dtd_error:
 		ferrum_chem.DocumentSession.load_utf8_bytes_with_budget(dtd, budget(len(dtd)))
 	assert_input_error_shape(
@@ -228,11 +228,11 @@ def test_decoded_cdsvg_profile_prepares_canonical_payload_with_one_use_identity(
 		b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>",
 		(
 			b'<svg xmlns="http://www.w3.org/2000/svg">'
-			b'<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="1.0"/>'
-			b'<cdml xmlns="http://www.freesoftware.fsf.org/bkchem/cdml" version="1.0"/>'
+			b'<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
+			b'<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
 			b"</svg>"
 		),
-		b'<svg xmlns="http://www.w3.org/2000/svg"><cdml version="1.0"/></svg>',
+		b'<svg xmlns="http://www.w3.org/2000/svg"><cdml xmlns="urn:foreign:cdml" version="1.0"/></svg>',
 	),
 )
 def test_decoded_cdsvg_profile_refuses_invalid_containers_before_receipt(

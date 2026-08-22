@@ -1,7 +1,7 @@
 use ferrum_document::{DocumentFenceV1, DocumentSession};
 
 fn main() {
-    let mut session = DocumentSession::load("<cdml/>").expect("empty CDML must load");
+    let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty CDML must load");
     let snapshot = session.snapshot().expect("new session must have a snapshot");
     let fence = DocumentFenceV1::new(snapshot.revision(), *snapshot.digest());
 
