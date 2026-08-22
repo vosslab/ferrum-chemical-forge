@@ -1,126 +1,94 @@
 # Native wheel build process
 
-`build.sh` is the sole developer entry point for a local Ferrum native wheel. It owns
-native source inputs, compiler staging, publication, cleanup, and disk admission. Do
-not invoke `build_native_wheel.py` with an `output_native_wheel/native-*` destination:
-that legacy rotating-output layout is rejected deliberately.
+`build.sh` is the developer entry point for local Ferrum artifacts. It owns source
+admission, compiler staging, paired wheel publication, cleanup, and disk admission.
+Do not invoke the native builder directly with an `output_native_wheel/native-*`
+destination: the retired rotating-output layout is deliberately rejected.
 
 ## Build commands
 
-The default command builds the CLI, native wheel, matching engine bundle, and Qt wheel:
+The supported commands are:
 
 ```bash
-./build.sh
-```
-
-Use a single target when only that artifact is needed:
-
-```bash
+./build.sh all
+./build.sh wheels
 ./build.sh cli
-./build.sh native
-./build.sh qt
 ```
 
-Run `./build.sh --help` for all supported target and input combinations. Native input
-selectors are mutually exclusive:
+`all` is the default. It builds the CLI and the paired native and Qt wheels. `wheels`
+builds and publishes the pair without the CLI. `cli` builds only `build/bin/ferrum` and
+does not publish a wheel. There are no `native` or `qt` targets.
+
+Native source selectors apply to `all` and `wheels` and are mutually exclusive:
 
 ```bash
-./build.sh native --native-sealed-input-root /absolute/path/to/sealed-native-input-root
-./build.sh native --native-source-archive-root /absolute/path/to/native-source-archives
+./build.sh wheels --native-sealed-input-root /absolute/path/to/sealed-native-input-root
+./build.sh wheels --native-source-archive-root /absolute/path/to/native-source-archives
 ```
 
-## Source input policy
+Without a selector, the builder creates a hash-verified, invocation-scoped archive cache
+under `build/native-source-archives/`. It is removed when the build succeeds, fails, or
+receives `TERM`, `INT`, or `HUP`. Explicit input roots are never removed; they are the
+reproducible offline-input contract.
 
-Without a selector, the native builder creates a profile-scoped, hash-verified source
-archive cache at `build/native-source-archives/`. It downloads only missing pinned
-archives for that invocation, then removes the managed cache when the native invocation
-finishes, fails, or receives `TERM`, `INT`, or `HUP`.
+## Publication contract
 
-The managed cache is therefore not an offline reuse mechanism. For a reproducible
-offline build, provide exactly one explicit input root:
-
-- `--native-sealed-input-root` uses one builder-validated sealed input root.
-- `--native-source-archive-root` uses a local directory of pinned source archives.
-
-`build.sh` never removes either explicit input root. They are the durable source-input
-contract; all managed caches are intentionally temporary.
-
-## Storage contract
-
-Each native build compiles only below `build/native-staging/`. The published artifact
-is one immutable payload selected through this stable path:
+Each wheel build stages below the build-owned `build/native-staging/` and
+`build/qt-staging/` roots, then publishes exactly one immutable native-plus-Qt pair.
+Select it only through:
 
 ```text
 output_native_wheel/current/
 ```
 
-`current` is an atomically replaced symbolic link, not a build worktree. Its sibling
-directory entry is replaced with Python `os.replace()`, which does not dereference an
-existing symlink-to-directory on macOS. The wrapper then requires `current` to name the
-newly validated payload exactly; a replacement or verification failure leaves the prior
-publication selected. The selected payload contains:
+`current` is atomically replaced after validation. It is not a mutable build directory
+and it is not safe to select old timestamped or `native-*` outputs. The selected pair
+contains:
 
 - `wheelhouse/ferrum_chem-*.whl`
+- `wheelhouse/ferrum_qt-*.whl`
 - `native-wheel-build-receipt.json`
+- `developer-wheel-publication-receipt.json`
 - `ferrum-engine-bundle/`
 
-The CLI and Qt artifacts are published separately at `build/bin/ferrum` and
-`output_native_wheel/current/wheelhouse/ferrum_qt-*.whl`. A successful default build
-publishes both wheels as one immutable pair selected by `current`; use only the exact
-paths and `developer-wheel-publication-receipt.json` below that path.
-do not choose a timestamped wheel from an old output directory.
+The publication receipt uses schema `ferrum-developer-wheel-publication-v4`. It binds
+the exact native and Qt wheel digests, native receipt, engine-bundle manifest, Rust
+source closure, and the admitted, staged, and final Qt worktree source-closure evidence.
+The builder rechecks Qt worktree closure immediately before the atomic `current` swap;
+live-worktree drift refuses publication and leaves the prior selected pair intact.
 
-Before every native build, `build.sh` removes only build-owned obsolete state:
+The canonical Qt staging inventory excludes generated `build/`, egg-info, caches, and
+bytecode. Every delivered `ferrum_qt/**` wheel member must map byte-for-byte to an
+admitted staged source member. Admitted sources may intentionally be absent from the
+wheel. The wheel's one generated dist-info tree is outside that payload boundary.
 
-- legacy `output_native_wheel/native-*` worktrees
-- unpublished or retired hidden native publications
-- prior native staging roots
-- the managed native source-archive cache
+Use the pair receipt as the selector for any installation or acceptance work. Do not
+combine the current native wheel with a Qt wheel from `build/wheelhouse/` or another
+publication.
 
-It preserves `output_native_wheel/current/` until a new publication has passed all
-artifact, receipt, engine-bundle, and copied-payload source-closure validation. The
-receipt records one canonical source-subset manifest from the completed
-`maturin-project/` staging tree, including the deterministic Maturin include and rpath
-transforms. It excludes only the builder-owned staged notice bundle and package
-`.dylibs` closure; wheelhouse, Cargo output, and the engine bundle are siblings outside
-that tree. Every other staged regular file is an admitted Ferrum source. The wrapper
-recomputes this exact manifest and checks the copied wheel digest and filename against
-the copied receipt in the same Python-owned transaction that atomically replaces
-`current`. It also
-parses the copied engine-bundle manifest and requires its exact regular-file member set
-and SHA-256 values.
+## Storage, budget, and cleanup
 
-## Disk budget
+Before a wheel build, `build.sh` removes only build-owned obsolete state: retired
+`output_native_wheel/native-*` worktrees, unpublished or retired publications, native
+staging roots, and the managed archive cache. It preserves `current` until the new pair
+is fully validated and atomically selected.
 
-Every non-help `build.sh` command measures the complete checkout with `du -sk`. Native
-targets first complete their owned cleanup, then the command refuses to start Cargo or
-the native builder when the checkout exceeds 20 GiB. The diagnostic includes `du -sh`
-output and remediation.
+Every non-help command measures the checkout with `du -sk`. `all` and `wheels` perform
+their owned cleanup first, then refuse to start native compilation when the checkout
+exceeds 20 GiB. The repository pytest guard enforces the same limit. An over-budget
+failure means some non-current generated data needs ownership-aware cleanup; do not
+delete source or the selected publication to bypass the guard.
 
-The repository also has a pytest budget guard for the same 20 GiB checkout limit. The
-build gate prevents new compiler work from worsening a large checkout; the pytest guard
-keeps accumulated generated data from being accepted unnoticed.
-
-An over-budget failure means state outside the one current publication remains. Remove
-only non-source, non-current generated data after identifying its owner, then rerun the
-same `build.sh` command. Manual cleanup is exceptional: ordinary native builds reclaim
-their own temporary state automatically.
-
-## Concurrency and signals
-
-Native builds acquire `build/native-build.lock` before preflight cleanup. The lock has
-an acquisition-specific owner token, so a waiting build cannot remove another build's
-staging tree, publication candidate, or lock. A stale lock is recovered only when its
-recorded process is absent.
-
-On normal completion, failure, `EXIT`, `TERM`, `INT`, or `HUP`, the active build cleans
-only its own staging root, managed cache, unpublished candidate, and retired payload.
-It leaves the valid `current` publication intact and releases its owned lock last.
+Wheel builds acquire `build/native-build.lock`. The lock has an acquisition-specific
+owner token, so a waiting build cannot remove another build's state. On normal exit,
+failure, `TERM`, `INT`, or `HUP`, the active build clears only its staging, managed
+cache, unpublished candidate, retired payload, and lock. Signal cleanup retains the
+valid `current` pair.
 
 ## Install local artifacts
 
-After a successful default build, install the published native and Qt wheels, then
-install the matching bundle for the CLI:
+After a successful paired build, install only the selected pair and its matching engine
+bundle:
 
 ```bash
 source source_me.sh && python3 -m pip install --force-reinstall --no-deps \
@@ -135,24 +103,39 @@ ferrum-qt
 This is a developer artifact flow. The broader release wheelhouse process is owned by
 `packages/ferrum-rust/tools/build_release_wheelhouse.py`.
 
-## Lifecycle verification
+## Verification boundaries
 
-`tests/e2e/e2e_build_sh_native_wrapper.sh` verifies the build contract without a real
-native compiler run. It covers one retained current publication, stale-output cleanup,
-builder-failure preservation, copied wheel, receipt, and engine-bundle mutation refusal before the
-pointer swap, disk-budget refusal before a builder starts, lock contention and ownership,
-and cleanup across interruption before and after publication. The builder self-test
-also proves that generated staged notices and `.dylibs` do not change the source subset,
-while staged or live-worktree authored-source mutation detected before the final
-publication transaction fails validation.
+`tests/e2e/e2e_build_sh_native_wrapper.sh` exercises wrapper cleanup, lock ownership,
+disk refusal, publication preservation, and signal handling without a native compile. It
+runs from `./all_test.sh` after the Python and Qt suites. Focused builder fixtures exercise
+atomic replacement failure and source-closure refusal.
 
-Before the staging rewrites, the builder records the regular worktree files admitted by
-its copy policy and verifies the raw staged copy against that manifest. The receipt
-retains both this worktree-input manifest and the post-rewrite staging manifest. The
-final publication transaction recomputes the live worktree manifest before selecting
-`current`, so an edit detected before that transaction refuses publication and leaves the
-prior `current` wheel selected. The receipt remains the durable authority for the immutable
-staged source snapshot; normal editors do not participate in the build lock. This is an
-integrity comparison at that final observed boundary, not an eternal lock on arbitrary
-worktree editors: a later edit is outside the completed publication transaction and belongs
-to the next build's source snapshot.
+Run the installed dual-wheel Qt E2E against the exact selected pair after a successful
+wheel build:
+
+```bash
+source source_me.sh && python3 packages/ferrum-chem-qt.app/tests/e2e/e2e_blank_canvas_direct_bond.py \
+  --native-wheel "$PWD"/output_native_wheel/current/wheelhouse/ferrum_chem-*.whl \
+  --qt-wheel "$PWD"/output_native_wheel/current/wheelhouse/ferrum_qt-*.whl
+```
+
+The E2E uses a fresh temporary virtual environment with system site packages only for the
+PySide6 runtime. It installs the selected Ferrum wheels with `--ignore-installed --no-deps`,
+proves that `ferrum_qt` originates from that fresh pair, verifies the complete Qt package
+member set and bytes, then exercises public UI behavior. These checks prove bounded
+contracts; they do not make a successful build or E2E claim until those commands run.
+
+Run the final live-SMARTS artifact-pair E2E against the same selected pair, matching
+engine bundle, and CLI:
+
+```bash
+source source_me.sh && python3 tests/e2e/e2e_smarts_final_live_combined.py \
+  --native-wheel "$PWD"/output_native_wheel/current/wheelhouse/ferrum_chem-*.whl \
+  --qt-wheel "$PWD"/output_native_wheel/current/wheelhouse/ferrum_qt-*.whl \
+  --bundle "$PWD"/output_native_wheel/current/ferrum-engine-bundle \
+  --cli "$PWD"/build/bin/ferrum
+```
+
+This is an explicit release/acceptance E2E, not a permanent `./all_test.sh` gate. Its
+single receipt preserves isolated CLI, PyO3, and real-Qt live-SMARTS evidence for the
+exact current publication without mutating the published artifacts.
