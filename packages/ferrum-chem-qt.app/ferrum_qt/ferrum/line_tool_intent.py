@@ -12,6 +12,8 @@ import PySide6.QtWidgets
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.rotation
+import ferrum_qt.ferrum.curved_equilibrium_arrow
+import ferrum_qt.ferrum.terminal_arrow
 import ferrum_qt.ferrum.translation
 
 
@@ -23,6 +25,9 @@ class _NativeLineTool(enum.Enum):
 	DRAW_ARROW = "draw_arrow"
 	DRAW_EQUILIBRIUM_ARROW = "draw_equilibrium_arrow"
 	DRAW_CURVED_ELECTRON_ARROW = "draw_curved_electron_arrow"
+	DRAW_CURVED_RETRO_ARROW = "draw_curved_retro_arrow"
+	DRAW_CURVED_REACTION_ARROW = "draw_curved_reaction_arrow"
+	DRAW_CURVED_EQUILIBRIUM_ARROW = "draw_curved_equilibrium_arrow"
 	DRAW_PLUS = "draw_plus"
 	DRAW_LINE = "draw_line"
 	DRAW_RECTANGLE = "draw_rectangle"
@@ -53,6 +58,9 @@ class _LineGestureIntent:
 	digest: str
 	tool: _NativeLineTool
 	drawing: ferrum_qt.ferrum.drawing_parameters.FerrumNativeDrawingParametersSnapshot | None = None
+	direct_bond_presentation: (
+		ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation
+	) = ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.NORMAL
 	start_atom_id: str | None = None
 	start_scene: PySide6.QtCore.QPointF | None = None
 	press_scene: PySide6.QtCore.QPointF | None = None
@@ -72,12 +80,16 @@ class _LineGestureIntent:
 	direct_bond_admission: object | None = None
 	presentation_gesture: object | None = None
 	presentation_preview: object | None = None
-	curved_electron_points: tuple[tuple[float, float], ...] = ()
+	curved_equilibrium_arrow: ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowState | None = None
+	terminal_arrow: ferrum_qt.ferrum.terminal_arrow.TerminalArrowState | None = None
 	vector_gesture: object | None = None
 	vector_preview: object | None = None
 	path_gesture: object | None = None
-	path_points: tuple[tuple[float, float], ...] = ()
+	path_progress: object | None = None
 	path_preview: object | None = None
+	# Transient Qt/QTest press/double-click de-duplication token, never durable
+	# geometry or Rust validation.
+	last_accepted_path_press_viewport: PySide6.QtCore.QPoint | None = None
 	text_gesture: object | None = None
 	text_preview: object | None = None
 	direct_root_observation: object | None = None

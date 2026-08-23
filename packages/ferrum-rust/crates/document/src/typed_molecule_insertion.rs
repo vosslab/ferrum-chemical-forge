@@ -73,7 +73,12 @@ impl TypedDocument {
             .xml
             .tree
             .set_attribute(molecule_node, names.id, molecule_id.as_str());
-        if let Some(record) = interchange_record
+        if let Some(name) = molecule.name() {
+            indexed
+                .xml
+                .tree
+                .set_attribute(molecule_node, names.name, name);
+        } else if let Some(record) = interchange_record
             && !record.title().is_empty()
             && xml_attribute_safe(record.title())
         {
@@ -92,10 +97,11 @@ impl TypedDocument {
                 .xml
                 .tree
                 .set_attribute(bond_node, names.id, bond_id.as_str());
-            indexed
-                .xml
-                .tree
-                .set_attribute(bond_node, names.bond_type, bond.order().cdml_token());
+            indexed.xml.tree.set_attribute(
+                bond_node,
+                names.bond_type,
+                bond.presentation().cdml_token(),
+            );
             indexed
                 .xml
                 .tree

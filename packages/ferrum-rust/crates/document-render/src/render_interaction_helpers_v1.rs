@@ -445,15 +445,20 @@ pub(super) fn presentation_bounds_from_render(
                     arrow.stroke().width().value(),
                 )
             }
-            ferrum_document::ArrowDisplayGeometryV1::Electron { axis_path, head, .. } => {
+            ferrum_document::ArrowDisplayGeometryV1::CurvedEquilibrium { axes, heads, .. } => {
                 bounds_from_points(
-                    axis_path
-                        .points()
-                        .iter()
-                        .chain(head.points().iter()),
+                    axes.iter()
+                        .flat_map(|axis| axis.points().iter())
+                        .chain(heads.iter().flat_map(|head| head.points().iter())),
                     arrow.stroke().width().value(),
                 )
             }
+            ferrum_document::ArrowDisplayGeometryV1::CurvedTerminal {
+                axis_path, head, ..
+            } => bounds_from_points(
+                axis_path.points().iter().chain(head.points().iter()),
+                arrow.stroke().width().value(),
+            ),
         },
         PresentationRootProjectionV1::Polyline { polyline }
         | PresentationRootProjectionV1::Wavy { polyline }

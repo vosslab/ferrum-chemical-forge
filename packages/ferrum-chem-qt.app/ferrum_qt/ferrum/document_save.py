@@ -167,7 +167,10 @@ class FerrumNativeDocumentSaveMixin:
 		import ferrum_qt.ferrum.engine as engine
 		if type(exc) is engine.PublicationPossiblyCompletedError:
 			outcome = ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.SAVE_POSSIBLY_COMPLETED
-		elif type(exc) is engine.PublicationNotStartedError:
+		elif type(exc) in (
+				engine.PublicationNotStartedError,
+				engine.InvalidDestinationError,
+				):
 			outcome = ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.SAVE_NOT_STARTED
 		else:
 			outcome = ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.SAVE_POSSIBLY_COMPLETED

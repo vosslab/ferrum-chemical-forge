@@ -5,9 +5,10 @@ use std::path::PathBuf;
 use ferrum_chemistry::{ChemistryError as RustChemistryError, NativeChemEngine};
 use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
 use ferrum_document::{
-    DocumentMoleculesSdfErrorV2, DocumentMoleculesSdfRequestV2, DocumentMoleculesSdfV2,
-    DocumentMoleculesSdfPublicationErrorV2, export_prepared_document_molecules_sdf_v2,
-    prepare_document_molecules_sdf_v2, publish_document_molecules_sdf_v2 as publish_sdf_receipt,
+    DocumentMoleculesSdfErrorV2, DocumentMoleculesSdfPublicationErrorV2,
+    DocumentMoleculesSdfRequestV2, DocumentMoleculesSdfV2,
+    export_prepared_document_molecules_sdf_v2, prepare_document_molecules_sdf_v2,
+    publish_document_molecules_sdf_v2 as publish_sdf_receipt,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;

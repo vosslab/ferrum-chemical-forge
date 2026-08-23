@@ -146,7 +146,7 @@ pub fn run(
             DocumentCommand::Command { command } => match command {
                 NamedDocumentCommand::CatalogList { input, output }
                 | NamedDocumentCommand::CatalogInsert { input, output }
-                | NamedDocumentCommand::PresentationVectorCreate { input, output }
+                | NamedDocumentCommand::PresentationAuthor { input, output }
                 | NamedDocumentCommand::DocumentMoleculeReport { input, output }
                 | NamedDocumentCommand::DocumentMoleculeSmartsQuery { input, output }
                 | NamedDocumentCommand::DocumentMoleculeInterchangeImport { input, output } => Ok(

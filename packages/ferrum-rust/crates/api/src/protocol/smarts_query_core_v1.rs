@@ -1,7 +1,7 @@
 //! Private, bounded document SMARTS execution over one owned snapshot.
 
 use ferrum_chemistry::{ChemEngine, SmartsMatchOptions};
-use ferrum_document::{SessionDocumentObservationV1, verify_molecule_observation_v1};
+use ferrum_document::{DocumentSession, DocumentSmartsSnapshotErrorV1};
 
 use super::{
     document_smarts_snapshot_v1::OwnedDocumentSmartsSnapshotV1,
@@ -22,13 +22,11 @@ const DEFAULT_TOTAL: u32 = 200;
 const SCHEMA: &str = "ferrum-document-molecule-smarts-query-v1";
 
 pub(super) fn execute_document_smarts_query_v1<R: ChemistryRuntimeV1>(
-    observation: &SessionDocumentObservationV1,
+    session: &DocumentSession,
     request: DocumentSmartsQueryRequestV1,
     runtime: &R,
 ) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
     let digest = parse_digest(&request.document.expected_digest_hex)?;
-    verify_molecule_observation_v1(observation, request.document.expected_revision, &digest)
-        .map_err(|_| ExecutionFailureV1::document_invalid("stale_document".to_owned()))?;
     let per = request
         .limits
         .max_matches_per_molecule
@@ -39,7 +37,15 @@ pub(super) fn execute_document_smarts_query_v1<R: ChemistryRuntimeV1>(
             "match_caps_inconsistent".to_owned(),
         ));
     }
-    let snapshot = OwnedDocumentSmartsSnapshotV1::from_accepted_observation_v1(observation)?;
+    let snapshot = session
+        .prepare_smarts_snapshot_v1(request.document.expected_revision)
+        .map(OwnedDocumentSmartsSnapshotV1::from_prepared_snapshot_v1)
+        .map_err(map_document_preparation)?;
+    if snapshot.digest() != &digest {
+        return Err(ExecutionFailureV1::document_invalid(
+            "stale_document".to_owned(),
+        ));
+    }
     let query_text = match request.query {
         DocumentSmartsQueryInputV1::Smarts { value } => {
             if value.is_empty() || value.len() > MAX_QUERY_BYTES || value.contains('\0') {
@@ -151,6 +157,16 @@ fn map_runtime(error: ChemistryRuntimeErrorV1) -> ExecutionFailureV1 {
     }
 }
 
-#[cfg(test)]
-#[path = "smarts_query_core_v1_tests.rs"]
-mod tests;
+fn map_document_preparation(error: DocumentSmartsSnapshotErrorV1) -> ExecutionFailureV1 {
+    match error {
+        DocumentSmartsSnapshotErrorV1::StaleRevision { .. } => {
+            ExecutionFailureV1::document_invalid("stale_document".to_owned())
+        }
+        DocumentSmartsSnapshotErrorV1::TargetLimitExceeded => {
+            ExecutionFailureV1::document_invalid("target_limit_exceeded".to_owned())
+        }
+        DocumentSmartsSnapshotErrorV1::UnsupportedDocument => {
+            ExecutionFailureV1::document_invalid("unsupported_document".to_owned())
+        }
+    }
+}

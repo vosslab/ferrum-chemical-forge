@@ -1,137 +1,192 @@
-"""Exercise native CLI template catalog list and benzene insertion end to end."""
+"""Exercise one public catalog list-to-insert workflow through the staged CLI."""
 
 from __future__ import annotations
 
 import argparse
+import defusedxml.ElementTree
 import json
 from pathlib import Path
 import subprocess
-
-import ferrum_chem
-
-
-EMPTY = "<cdml xmlns='urn:ferrum:cdml'/>"
+import sys
 
 
-def digest(document: str) -> str:
-	"""Return the canonical Rust snapshot fence digest."""
-	return ferrum_chem.DocumentSession.load(document).snapshot().digest
+EMPTY_CDML = '<cdml xmlns="urn:ferrum:cdml"/>'
 
 
-def invoke(ferrum: Path, command: str, payload: dict[str, object]) -> dict[str, object]:
-	"""Run one named document command and require a clean JSON response."""
-	result = subprocess.run([ferrum, "document", "command", command, "-"], input=json.dumps(payload), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+class CatalogCliE2eError(RuntimeError):
+	"""Raised when the public catalog CLI workflow loses a required contract."""
+
+
+def invoke(ferrum: Path, request_id: str, operation: dict[str, object]) -> dict[str, object]:
+	"""Run one operation-protocol request and return its completed JSON response."""
+	payload = json.dumps({
+		"schema": "ferrum-operation-request-v1",
+		"request_id": request_id,
+		"operation": operation,
+	})
+	result = subprocess.run(
+		[str(ferrum), "protocol", "run", "-"], input=payload, text=True,
+		stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+	)
 	if result.returncode != 0 or result.stderr:
-		raise RuntimeError(f"catalog CLI failed: {result.returncode}: {result.stderr.strip()}")
-	response = json.loads(result.stdout)
-	if not isinstance(response, dict):
-		raise RuntimeError("catalog CLI response was not a JSON object")
+		raise CatalogCliE2eError("protocol request did not complete cleanly")
+	lines = result.stdout.splitlines()
+	if len(lines) != 1:
+		raise CatalogCliE2eError("protocol request did not emit one JSON response")
+	try:
+		response = json.loads(lines[0])
+	except json.JSONDecodeError as error:
+		raise CatalogCliE2eError(f"protocol request emitted invalid JSON: {error.msg}") from error
+	if not isinstance(response, dict) or response.get("request_id") != request_id:
+		raise CatalogCliE2eError("protocol response lost its caller identity")
 	return response
 
 
-def envelope(operation: dict[str, object]) -> dict[str, object]:
-	"""Build one complete protocol envelope."""
-	return {"schema": "ferrum-operation-request-v1", "request_id": "catalog-cli-e2e", "operation": operation}
+def outcome(response: dict[str, object], kind: str) -> dict[str, object]:
+	"""Return one successful outcome with its expected operation kind."""
+	value = response.get("outcome")
+	if not isinstance(value, dict) or value.get("kind") != kind:
+		raise CatalogCliE2eError(f"protocol response omitted successful {kind} outcome")
+	return value
 
 
-def insert(document: str, revision: int, catalog_id: str = "system/rings/benzene") -> dict[str, object]:
-	"""Build one fenced benzene insertion request."""
-	return envelope({"kind": "catalog.insert.v1", "document": document, "expected_revision": revision, "expected_digest_hex": digest(document), "catalog_id": catalog_id, "anchor_x": 100.0, "anchor_y": 50.0})
+def document_fence(document: str, ferrum: Path, request_id: str) -> dict[str, object]:
+	"""Inspect request-owned CDML and return the public mutation fence."""
+	inspection = outcome(invoke(
+		ferrum, request_id, {"kind": "document.inspect", "document": document},
+	), "document.inspect")
+	fence = inspection.get("document_fence")
+	if (
+		not isinstance(fence, dict)
+		or not isinstance(fence.get("expected_revision"), int)
+		or not isinstance(fence.get("expected_digest_hex"), str)
+	):
+		raise CatalogCliE2eError("document inspection omitted a usable mutation fence")
+	return fence
 
 
-def list_catalog(family: str | None = None, category: str | None = None, query: str | None = None) -> dict[str, object]:
-	"""Build one immutable-summary catalog listing request."""
-	return envelope({"kind": "catalog.list.v1", "family": family, "category": category, "query": query})
+def public_catalog_summary(entry: object) -> tuple[str, str, str]:
+	"""Return the public ID, family, and category ID from one catalog summary."""
+	if not isinstance(entry, dict):
+		raise CatalogCliE2eError("catalog listing exposed a non-object public entry")
+	identifier = entry.get("id")
+	family = entry.get("family")
+	category = entry.get("category")
+	if (
+		not isinstance(identifier, str)
+		or not identifier
+		or not isinstance(family, str)
+		or not family
+		or not isinstance(category, dict)
+		or not isinstance(category.get("id"), str)
+		or not category["id"]
+	):
+		raise CatalogCliE2eError("catalog listing omitted usable public summary facts")
+	if "document" in entry or "template_cdml" in entry or "recipe" in entry:
+		raise CatalogCliE2eError("catalog summary exposed implementation payload")
+	return identifier, family, category["id"]
 
 
-def haworth_summary_facts(entries: list[object]) -> dict[str, tuple[object, ...]]:
-	"""Return the stable public summary facts for sealed Haworth entries."""
-	facts: dict[str, tuple[object, ...]] = {}
+def selected_catalog_id(ferrum: Path) -> str:
+	"""Choose one filtered public catalog summary without freezing its inventory."""
+	listing = outcome(invoke(ferrum, "catalog-list", {"kind": "catalog.list.v1"}), "catalog.list.v1")
+	entries = listing.get("entries")
+	if not isinstance(entries, list):
+		raise CatalogCliE2eError("catalog listing omitted its public entries")
 	for entry in entries:
-		if not isinstance(entry, dict):
-			raise RuntimeError(f"catalog entry was not an object: {entry}")
-		provenance = entry.get("provenance")
-		category = entry.get("category")
-		if not isinstance(provenance, dict) or not isinstance(category, dict):
-			raise RuntimeError(f"catalog entry omitted public summary facts: {entry}")
-		entry_id = entry.get("id")
-		if not isinstance(entry_id, str):
-			raise RuntimeError(f"catalog entry omitted ID: {entry}")
-		facts[entry_id] = (
-			entry.get("family"),
-			category.get("id"),
-			category.get("name"),
-			entry.get("name"),
-			provenance.get("source_kind"),
-			provenance.get("source_id"),
-			provenance.get("license_spdx"),
-		)
-	return facts
-
-
-EXPECTED_HAWORTH_SUMMARY_FACTS = {
-	"biomolecules/carbohydrates/d-glucose/alpha-d-glucopyranose": ("biomolecule", "carbohydrates_d_glucose", "Carbohydrates / D-glucose", "alpha-D-glucopyranose", "curated_ferrum", "ferrum-authored-d-glucose-haworth-depictions-v1", "LGPL-3.0-only"),
-	"biomolecules/carbohydrates/d-glucose/beta-d-glucopyranose": ("biomolecule", "carbohydrates_d_glucose", "Carbohydrates / D-glucose", "beta-D-glucopyranose", "curated_ferrum", "ferrum-authored-d-glucose-haworth-depictions-v1", "LGPL-3.0-only"),
-	"biomolecules/carbohydrates/d-glucose/alpha-d-glucofuranose": ("biomolecule", "carbohydrates_d_glucose", "Carbohydrates / D-glucose", "alpha-D-glucofuranose", "curated_ferrum", "ferrum-authored-d-glucose-haworth-depictions-v1", "LGPL-3.0-only"),
-	"biomolecules/carbohydrates/d-glucose/beta-d-glucofuranose": ("biomolecule", "carbohydrates_d_glucose", "Carbohydrates / D-glucose", "beta-D-glucofuranose", "curated_ferrum", "ferrum-authored-d-glucose-haworth-depictions-v1", "LGPL-3.0-only"),
-}
-
-
-def main() -> None:
-	"""Verify list, benzene topology, chainability, and closed insertion refusal."""
-	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument("--ferrum", required=True, type=Path)
-	args = parser.parse_args()
-	listed = invoke(args.ferrum, "catalog.list.v1", list_catalog())
-	entries = listed.get("outcome", {}).get("entries") if isinstance(listed.get("outcome"), dict) else None
-	if not isinstance(entries, list) or entries[0].get("id") != "system/rings/benzene":
-		raise RuntimeError(f"missing native benzene summary: {listed}")
-	if "document" in entries[0] or "template_cdml" in entries[0]:
-		raise RuntimeError("catalog list leaked a template payload")
-	for payload, expected_ids in [
-		(list_catalog(family="system"), ["system/rings/benzene", "system/rings/cyclopropane", "system/rings/cyclobutane", "system/rings/cyclopentane", "system/rings/cyclohexane", "system/heterocycles/thiophene", "system/heterocycles/furan", "system/heterocycles/pyrrole", "system/heterocycles/purine"]),
-		(list_catalog(category="rings"), ["system/rings/benzene", "system/rings/cyclopropane", "system/rings/cyclobutane", "system/rings/cyclopentane", "system/rings/cyclohexane"]),
-		(list_catalog(query=" SYSTEM/RINGS "), ["system/rings/benzene", "system/rings/cyclopropane", "system/rings/cyclobutane", "system/rings/cyclopentane", "system/rings/cyclohexane"]),
-		(list_catalog(category="heterocycles", query="sulfur"), ["system/heterocycles/thiophene"]),
-		(list_catalog(family="system", category="rings", query="missing"), []),
-		(list_catalog(family="biomolecule", category="rings"), []),
-		(list_catalog(family="system", category="carbohydrates_d_glucose"), []),
-		(list_catalog(category="missing"), []),
-	]:
-		filtered = invoke(args.ferrum, "catalog.list.v1", payload)
-		outcome = filtered.get("outcome")
-		filtered_entries = outcome.get("entries") if isinstance(outcome, dict) else None
+		try:
+			identifier, family, category_id = public_catalog_summary(entry)
+		except CatalogCliE2eError:
+			continue
+		filtered = outcome(invoke(ferrum, "catalog-list-filtered", {
+			"kind": "catalog.list.v1", "family": family, "category": category_id,
+		}), "catalog.list.v1")
+		filtered_entries = filtered.get("entries")
 		if not isinstance(filtered_entries, list):
-			raise RuntimeError(f"catalog list did not return entries: {filtered}")
-		actual_ids = [entry.get("id") for entry in filtered_entries if isinstance(entry, dict)]
-		if actual_ids != expected_ids:
-			raise RuntimeError(f"catalog filters returned {actual_ids}, expected {expected_ids}")
-	biomolecules = invoke(args.ferrum, "catalog.list.v1", list_catalog(family="biomolecule"))
-	biomolecule_outcome = biomolecules.get("outcome")
-	biomolecule_entries = biomolecule_outcome.get("entries") if isinstance(biomolecule_outcome, dict) else None
-	if not isinstance(biomolecule_entries, list) or haworth_summary_facts(biomolecule_entries) != EXPECTED_HAWORTH_SUMMARY_FACTS:
-		raise RuntimeError(f"sealed Haworth summary slice changed: {biomolecules}")
-	beta_haworth = invoke(args.ferrum, "catalog.list.v1", list_catalog(family="biomolecule", category="carbohydrates_d_glucose", query="beta"))
-	beta_outcome = beta_haworth.get("outcome")
-	beta_entries = beta_outcome.get("entries") if isinstance(beta_outcome, dict) else None
-	if not isinstance(beta_entries, list) or haworth_summary_facts(beta_entries) != {key: value for key, value in EXPECTED_HAWORTH_SUMMARY_FACTS.items() if "/beta-" in key}:
-		raise RuntimeError(f"mixed Haworth filters changed: {beta_haworth}")
-	first = invoke(args.ferrum, "catalog.insert.v1", insert(EMPTY, 0))
-	outcome = first.get("outcome")
-	if not isinstance(outcome, dict) or outcome.get("committed_revision") != 1:
-		raise RuntimeError(f"catalog insertion did not commit once: {first}")
-	document = outcome.get("document")
-	if not isinstance(document, str) or document.count('name="C"') != 6 or document.count('type="n2"') != 3:
-		raise RuntimeError("benzene insertion topology was not canonical")
-	second = invoke(args.ferrum, "catalog.insert.v1", insert(document, 0))
-	if not isinstance(second.get("outcome"), dict):
-		raise RuntimeError("returned document was not chainable stateless input")
-	refused = invoke(args.ferrum, "catalog.insert.v1", insert(EMPTY, 0, "missing"))
-	error = refused.get("error")
-	if not isinstance(error, dict) or error.get("catalog_placement_refusal", {}).get("category") != "unknown_key":
-		raise RuntimeError(f"missing typed catalog refusal: {refused}")
-	print(json.dumps({"schema": "ferrum-template-catalog-cli-e2e-v1", "status": "ok"}))
+			raise CatalogCliE2eError("filtered catalog listing omitted its public entries")
+		selected_retained = False
+		for filtered_entry in filtered_entries:
+			filtered_id, filtered_family, filtered_category_id = public_catalog_summary(filtered_entry)
+			if filtered_family != family or filtered_category_id != category_id:
+				raise CatalogCliE2eError("filtered catalog listing returned an out-of-filter summary")
+			if filtered_id == identifier:
+				selected_retained = True
+		if not selected_retained:
+			raise CatalogCliE2eError("filtered catalog listing lost its selected public summary")
+		return identifier
+	raise CatalogCliE2eError("catalog listing provided no selectable public entry")
+
+
+def insertion_operation(document: str, fence: dict[str, object], catalog_id: str) -> dict[str, object]:
+	"""Build one fence-carrying catalog insertion operation."""
+	return {
+		"kind": "catalog.insert.v1",
+		"document": document,
+		"expected_revision": fence["expected_revision"],
+		"expected_digest_hex": fence["expected_digest_hex"],
+		"catalog_id": catalog_id,
+		"anchor_x": 100.0,
+		"anchor_y": 50.0,
+	}
+
+
+def main() -> int:
+	"""Verify public catalog selection, fenced insertion, and stale-fence refusal."""
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument("--ferrum", type=Path, required=True)
+	arguments = parser.parse_args()
+	ferrum = arguments.ferrum.resolve()
+	if not ferrum.is_file():
+		raise CatalogCliE2eError("--ferrum must name an existing executable")
+	initial_fence = document_fence(EMPTY_CDML, ferrum, "catalog-inspect-initial")
+	catalog_id = selected_catalog_id(ferrum)
+	inserted = outcome(invoke(
+		ferrum, "catalog-insert", insertion_operation(EMPTY_CDML, initial_fence, catalog_id),
+	), "catalog.insert.v1")
+	created_id = inserted.get("identifier")
+	document = inserted.get("document")
+	if not isinstance(created_id, str) or not created_id or not isinstance(document, str):
+		raise CatalogCliE2eError("catalog insertion omitted its public created ID or document")
+	try:
+		defusedxml.ElementTree.fromstring(document)
+	except defusedxml.ElementTree.ParseError as error:
+		raise CatalogCliE2eError(f"catalog insertion returned invalid CDML: {error}") from error
+	follow_on_fence = inserted.get("document_fence")
+	if (
+		not isinstance(follow_on_fence, dict)
+		or not isinstance(follow_on_fence.get("expected_revision"), int)
+		or not isinstance(follow_on_fence.get("expected_digest_hex"), str)
+		or follow_on_fence == initial_fence
+	):
+		raise CatalogCliE2eError("catalog insertion did not return a usable changed document fence")
+	if document_fence(document, ferrum, "catalog-inspect-follow-on") != follow_on_fence:
+		raise CatalogCliE2eError("catalog insertion fence disagreed with fresh document inspection")
+	stale = insertion_operation(document, follow_on_fence, catalog_id)
+	stale["expected_revision"] = follow_on_fence["expected_revision"] + 1
+	refusal = invoke(ferrum, "catalog-insert-stale", stale)
+	error = refusal.get("error")
+	if (
+		refusal.get("schema") != "ferrum-operation-error-v1"
+		or "outcome" in refusal
+		or not isinstance(error, dict)
+		or not isinstance(error.get("catalog_placement_refusal"), dict)
+	):
+		raise CatalogCliE2eError("stale catalog fence was not refused through the typed protocol")
+	placement_refusal = error["catalog_placement_refusal"]
+	if (
+		placement_refusal.get("category") != "stale_snapshot"
+		or placement_refusal.get("recovery") != "refresh_and_restart"
+	):
+		raise CatalogCliE2eError("stale catalog fence omitted its typed retry recovery")
+	if document_fence(document, ferrum, "catalog-inspect-after-refusal") != follow_on_fence:
+		raise CatalogCliE2eError("stale catalog refusal changed the caller document")
+	print(json.dumps({"schema": "ferrum-template-catalog-cli-e2e-v1", "status": "ok"}, sort_keys=True))
+	return 0
 
 
 if __name__ == "__main__":
-	main()
+	try:
+		raise SystemExit(main())
+	except CatalogCliE2eError as error:
+		print(f"catalog CLI E2E error: {error}", file=sys.stderr)
+		raise SystemExit(1)

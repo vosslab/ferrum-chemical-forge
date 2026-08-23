@@ -42,6 +42,34 @@ class FerrumNativeLineToolActionsMixin:
 		))
 		self._connect_interaction_action_v1(self._draw_bond_action, self._on_toggle_draw_bond)
 		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_bond_action)
+		self._draw_solid_wedge_bond_action = PySide6.QtGui.QAction(
+			self.tr("Draw Solid Wedge Bond"), self,
+		)
+		self._draw_solid_wedge_bond_action.setCheckable(True)
+		self._draw_solid_wedge_bond_action.setToolTip(self.tr(
+			"Drag from the stereo tip to the stereo base. Creates a Rust-owned solid wedge bond; Escape cancels.",
+		))
+		self._draw_solid_wedge_bond_action.setStatusTip(self.tr(
+			"Draw a solid wedge from tip to base. Escape cancels.",
+		))
+		self._connect_interaction_action_v1(
+			self._draw_solid_wedge_bond_action, self._on_toggle_draw_solid_wedge_bond,
+		)
+		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_solid_wedge_bond_action)
+		self._draw_hashed_wedge_bond_action = PySide6.QtGui.QAction(
+			self.tr("Draw Hashed Wedge Bond"), self,
+		)
+		self._draw_hashed_wedge_bond_action.setCheckable(True)
+		self._draw_hashed_wedge_bond_action.setToolTip(self.tr(
+			"Drag from the stereo tip to the stereo base. Creates a Rust-owned hashed wedge bond; Escape cancels.",
+		))
+		self._draw_hashed_wedge_bond_action.setStatusTip(self.tr(
+			"Draw a hashed wedge from tip to base. Escape cancels.",
+		))
+		self._connect_interaction_action_v1(
+			self._draw_hashed_wedge_bond_action, self._on_toggle_draw_hashed_wedge_bond,
+		)
+		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_hashed_wedge_bond_action)
 		self._draw_arrow_action = PySide6.QtGui.QAction(self.tr("Draw Arrow"), self)
 		self._draw_arrow_action.setCheckable(True)
 		self._draw_arrow_action.setToolTip(self.tr(
@@ -82,6 +110,42 @@ class FerrumNativeLineToolActionsMixin:
 			self._on_toggle_draw_curved_electron_arrow,
 		)
 		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_curved_electron_arrow_action)
+		self._draw_curved_retro_arrow_action = PySide6.QtGui.QAction(
+			self.tr("Draw Curved Retro Arrow"), self,
+		)
+		self._draw_curved_retro_arrow_action.setCheckable(True)
+		self._draw_curved_retro_arrow_action.setToolTip(self.tr(
+			"Click start, bend, and endpoint to create one Rust-owned curved retro arrow; Esc cancels",
+		))
+		self._connect_interaction_action_v1(
+			self._draw_curved_retro_arrow_action,
+			self._on_toggle_draw_curved_retro_arrow,
+		)
+		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_curved_retro_arrow_action)
+		self._draw_curved_reaction_arrow_action = PySide6.QtGui.QAction(
+			self.tr("Draw Curved Reaction Arrow"), self,
+		)
+		self._draw_curved_reaction_arrow_action.setCheckable(True)
+		self._draw_curved_reaction_arrow_action.setToolTip(self.tr(
+			"Click start, bend, and endpoint to create one Rust-owned curved reaction arrow; Esc cancels",
+		))
+		self._connect_interaction_action_v1(
+			self._draw_curved_reaction_arrow_action,
+			self._on_toggle_draw_curved_reaction_arrow,
+		)
+		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_curved_reaction_arrow_action)
+		self._draw_curved_equilibrium_arrow_action = PySide6.QtGui.QAction(
+			self.tr("Draw Curved Equilibrium Arrow"), self,
+		)
+		self._draw_curved_equilibrium_arrow_action.setCheckable(True)
+		self._draw_curved_equilibrium_arrow_action.setToolTip(self.tr(
+			"Click start, bend, and endpoint to create one Rust-owned curved equilibrium arrow; Esc cancels",
+		))
+		self._connect_interaction_action_v1(
+			self._draw_curved_equilibrium_arrow_action,
+			self._on_toggle_draw_curved_equilibrium_arrow,
+		)
+		self._add_interaction_action_to_menu_v1(edit_menu, self._draw_curved_equilibrium_arrow_action)
 		self._draw_plus_action = PySide6.QtGui.QAction(self.tr("Draw Plus"), self)
 		self._draw_plus_action.setCheckable(True)
 		self._draw_plus_action.setToolTip(self.tr("Click to place one Plus; Escape cancels without changing the document"))
@@ -117,6 +181,9 @@ class FerrumNativeLineToolActionsMixin:
 		self._completion_click_actions = frozenset((
 			*self._draw_path_actions,
 			_NativeLineTool.DRAW_CURVED_ELECTRON_ARROW,
+			_NativeLineTool.DRAW_CURVED_RETRO_ARROW,
+			_NativeLineTool.DRAW_CURVED_REACTION_ARROW,
+			_NativeLineTool.DRAW_CURVED_EQUILIBRIUM_ARROW,
 		))
 		self._insert_text_action = PySide6.QtGui.QAction(self.tr("Insert Text"), self)
 		self._insert_text_action.setCheckable(True)
@@ -226,9 +293,14 @@ class FerrumNativeLineToolActionsMixin:
 	def _refresh_line_tool_actions(self, enabled: bool) -> None:
 		"""Apply the host's authoritative action policy to both pointer tools."""
 		self._draw_bond_action.setEnabled(enabled)
+		self._draw_solid_wedge_bond_action.setEnabled(enabled)
+		self._draw_hashed_wedge_bond_action.setEnabled(enabled)
 		self._draw_arrow_action.setEnabled(enabled)
 		self._draw_equilibrium_arrow_action.setEnabled(enabled)
 		self._draw_curved_electron_arrow_action.setEnabled(enabled)
+		self._draw_curved_retro_arrow_action.setEnabled(enabled)
+		self._draw_curved_reaction_arrow_action.setEnabled(enabled)
+		self._draw_curved_equilibrium_arrow_action.setEnabled(enabled)
 		self._draw_plus_action.setEnabled(enabled)
 		for action in self._draw_vector_actions.values():
 			action.setEnabled(enabled)
@@ -270,7 +342,32 @@ class FerrumNativeLineToolActionsMixin:
 		if not checked:
 			self._cancel_line_gesture()
 			return
-		self._activate_line_tool(_NativeLineTool.DRAW_BOND)
+		self._activate_line_tool(
+			_NativeLineTool.DRAW_BOND,
+			ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.NORMAL,
+		)
+
+	#============================================
+	def _on_toggle_draw_solid_wedge_bond(self, checked: bool) -> None:
+		"""Enter or leave the typed solid-wedge direct-bond authoring mode."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(
+			_NativeLineTool.DRAW_BOND,
+			ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.SOLID_WEDGE,
+		)
+
+	#============================================
+	def _on_toggle_draw_hashed_wedge_bond(self, checked: bool) -> None:
+		"""Enter or leave the typed hashed-wedge direct-bond authoring mode."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(
+			_NativeLineTool.DRAW_BOND,
+			ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.HASHED_WEDGE,
+		)
 
 	#============================================
 	def _on_toggle_draw_arrow(self, checked: bool) -> None:
@@ -295,6 +392,30 @@ class FerrumNativeLineToolActionsMixin:
 			self._cancel_line_gesture()
 			return
 		self._activate_line_tool(_NativeLineTool.DRAW_CURVED_ELECTRON_ARROW)
+
+	#============================================
+	def _on_toggle_draw_curved_retro_arrow(self, checked: bool) -> None:
+		"""Enter or leave Rust-owned three-point curved retro-arrow creation."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(_NativeLineTool.DRAW_CURVED_RETRO_ARROW)
+
+	#============================================
+	def _on_toggle_draw_curved_reaction_arrow(self, checked: bool) -> None:
+		"""Enter or leave Rust-owned three-point curved reaction-arrow creation."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(_NativeLineTool.DRAW_CURVED_REACTION_ARROW)
+
+	#============================================
+	def _on_toggle_draw_curved_equilibrium_arrow(self, checked: bool) -> None:
+		"""Enter or leave Rust-owned three-point curved-equilibrium creation."""
+		if not checked:
+			self._cancel_line_gesture()
+			return
+		self._activate_line_tool(_NativeLineTool.DRAW_CURVED_EQUILIBRIUM_ARROW)
 
 	#============================================
 	def _on_toggle_draw_plus(self, checked: bool) -> None:
@@ -391,7 +512,11 @@ class FerrumNativeLineToolActionsMixin:
 		self._activate_line_tool(_NativeLineTool.TRANSLATE_ROOTS)
 
 	#============================================
-	def _activate_line_tool(self, tool: _NativeLineTool) -> None:
+	def _activate_line_tool(self, tool: _NativeLineTool,
+			direct_bond_presentation: (
+				ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation
+				| None
+			) = None) -> None:
 		"""Install one exact line tool after cancelling every competing intent."""
 		self._cancel_atom_insertion()
 		getattr(self, "_cancel_structure_selection", lambda: None)()
@@ -402,13 +527,28 @@ class FerrumNativeLineToolActionsMixin:
 			self._cancel_line_gesture()
 			return
 		if tool is _NativeLineTool.DRAW_BOND:
-			action = self._draw_bond_action
+			if direct_bond_presentation is (
+				ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.SOLID_WEDGE
+			):
+				action = self._draw_solid_wedge_bond_action
+			elif direct_bond_presentation is (
+				ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.HASHED_WEDGE
+			):
+				action = self._draw_hashed_wedge_bond_action
+			else:
+				action = self._draw_bond_action
 		elif tool is _NativeLineTool.DRAW_ARROW:
 			action = self._draw_arrow_action
 		elif tool is _NativeLineTool.DRAW_EQUILIBRIUM_ARROW:
 			action = self._draw_equilibrium_arrow_action
 		elif tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
 			action = self._draw_curved_electron_arrow_action
+		elif tool is _NativeLineTool.DRAW_CURVED_RETRO_ARROW:
+			action = self._draw_curved_retro_arrow_action
+		elif tool is _NativeLineTool.DRAW_CURVED_REACTION_ARROW:
+			action = self._draw_curved_reaction_arrow_action
+		elif tool is _NativeLineTool.DRAW_CURVED_EQUILIBRIUM_ARROW:
+			action = self._draw_curved_equilibrium_arrow_action
 		elif tool is _NativeLineTool.DRAW_PLUS:
 			action = self._draw_plus_action
 		elif tool in self._draw_vector_actions:
@@ -436,8 +576,13 @@ class FerrumNativeLineToolActionsMixin:
 		action.setChecked(True)
 		snapshot = tab.current_snapshot
 		viewport = tab.view.viewport()
+		presentation = (
+			ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.NORMAL
+			if direct_bond_presentation is None else direct_bond_presentation
+		)
 		self._line_gesture_intent = _LineGestureIntent(
 			tab, viewport, snapshot.revision, snapshot.digest, tool,
+			direct_bond_presentation=presentation,
 		)
 		self._synchronize_mode_state()
 		self._refresh_cancel_tool_action()
@@ -448,7 +593,7 @@ class FerrumNativeLineToolActionsMixin:
 		tab.view.show_keyboard_cursor()
 		if tool is _NativeLineTool.DRAW_BOND:
 			drawing = self._drawing_parameters.snapshot()
-			message = self._draw_bond_feedback(drawing)
+			message = self._draw_bond_feedback(drawing, presentation)
 			self._draw_bond_action.setToolTip(message)
 		elif tool is _NativeLineTool.DRAW_ARROW:
 			message = self.tr("Draw Arrow: drag a straight normal reaction arrow; Esc cancels.")
@@ -456,6 +601,10 @@ class FerrumNativeLineToolActionsMixin:
 			message = self.tr("Draw Equilibrium Arrow: drag a straight equilibrium reaction arrow; Esc cancels.")
 		elif tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
 			message = self.tr("Draw Curved Electron Arrow: click start, bend, and endpoint; Esc cancels.")
+		elif tool is _NativeLineTool.DRAW_CURVED_RETRO_ARROW:
+			message = self.tr("Draw Curved Retro Arrow: click start, bend, and endpoint; Esc cancels.")
+		elif tool is _NativeLineTool.DRAW_CURVED_EQUILIBRIUM_ARROW:
+			message = self.tr("Draw Curved Equilibrium Arrow: click start, bend, and endpoint; Esc cancels.")
 		elif tool is _NativeLineTool.DRAW_PLUS:
 			message = self.tr("Draw Plus: click once to place a Plus; Esc cancels.")
 		elif tool in self._draw_vector_actions:
@@ -497,8 +646,13 @@ class FerrumNativeLineToolActionsMixin:
 			self,
 			drawing: ferrum_qt.ferrum.drawing_parameters.
 			FerrumNativeDrawingParametersSnapshot,
+			presentation: ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation,
 			) -> str:
 		"""Name the frozen Draw Bond contract in human wording."""
+		if presentation is not ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.NORMAL:
+			return self.tr(
+				"Draw {0} Bond: drag from stereo tip to stereo base; Esc cancels."
+			).format(presentation.description().title())
 		return self.tr(
 			"Draw Bond: Normal {0}; drag between atoms or empty canvas locations. "
 			"Shift+Arrow is fine movement; Esc cancels."

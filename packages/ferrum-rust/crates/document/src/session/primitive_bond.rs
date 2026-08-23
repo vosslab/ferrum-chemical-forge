@@ -185,6 +185,30 @@ impl DocumentSession {
         position: Point3V1,
         presentation: DocumentBondPresentationV1,
     ) -> Result<PendingCreateBondedAtom, DocumentSessionError> {
+        self.prepare_create_bonded_atom_oriented_v2(
+            expected_revision,
+            start_atom_object_id,
+            element,
+            position,
+            presentation,
+            false,
+        )
+    }
+
+    /// Prepare one atom-plus-bond insertion with explicit authored endpoint order.
+    ///
+    /// A directed presentation uses this order as its CDML tip-to-base direction.
+    /// Ordinary callers use `prepare_create_bonded_atom_v2`, which retains the
+    /// established existing-atom-to-new-atom order.
+    pub(crate) fn prepare_create_bonded_atom_oriented_v2(
+        &mut self,
+        expected_revision: u64,
+        start_atom_object_id: &DocumentObjectIdV1,
+        element: &str,
+        position: Point3V1,
+        presentation: DocumentBondPresentationV1,
+        new_atom_is_start: bool,
+    ) -> Result<PendingCreateBondedAtom, DocumentSessionError> {
         self.require_current(expected_revision)?;
         let (molecule_id, start_atom_id) = self.resolve_bond_atom(start_atom_object_id)?;
         let (identities, generated_ids) = self
@@ -203,6 +227,7 @@ impl DocumentSession {
                     element,
                     position,
                     presentation,
+                    new_atom_is_start,
                 ),
             )
             .map_err(SessionOperationError::Candidate)?;

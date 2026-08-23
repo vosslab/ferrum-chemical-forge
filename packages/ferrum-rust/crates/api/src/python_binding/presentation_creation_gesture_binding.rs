@@ -41,6 +41,7 @@ enum PyPresentationGestureCategoryV1 {
     StaleRevision,
     StaleDigest,
     ForeignSession,
+    ReplayedGesture,
     PreviewMismatch,
     NonFinitePoint,
     CollapsedEndpoint,
@@ -76,7 +77,7 @@ enum PyPresentationGestureRecoveryV1 {
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-enum PyPresentationGestureRootKindV1 {
+pub(crate) enum PyPresentationGestureRootKindV1 {
     Arrow,
 }
 #[pyclass(frozen, module = "ferrum_chem", name = "ArrowGestureStyleV1")]
@@ -208,9 +209,9 @@ pub(crate) struct PyPresentationCreationPreviewV1 {
 )]
 pub(crate) struct PyPresentationGestureRootSelectorV1 {
     #[pyo3(get)]
-    identifier: String,
+    pub(crate) identifier: String,
     #[pyo3(get)]
-    kind: Py<PyPresentationGestureRootKindV1>,
+    pub(crate) kind: Py<PyPresentationGestureRootKindV1>,
 }
 #[pyclass(frozen, module = "ferrum_chem", name = "PresentationGestureCommitV1")]
 pub(crate) struct PyPresentationGestureCommitV1 {
@@ -445,6 +446,9 @@ pub(crate) fn presentation_error(py: Python<'_>, error: PresentationGestureError
         }
         ferrum_document::PresentationGestureCategoryV1::ForeignSession => {
             PyPresentationGestureCategoryV1::ForeignSession
+        }
+        ferrum_document::PresentationGestureCategoryV1::ReplayedGesture => {
+            PyPresentationGestureCategoryV1::ReplayedGesture
         }
         ferrum_document::PresentationGestureCategoryV1::PreviewMismatch => {
             PyPresentationGestureCategoryV1::PreviewMismatch

@@ -1,12 +1,6 @@
 //! Immutable, revision-bound document observations for frontend projections.
 
-use ferrum_chemistry::MolGraph;
-use ferrum_core::RecordId;
-
-use super::{
-    DocumentProjectionV1, DocumentSnapshot, ProjectionError, TypedDocument,
-    document_molecule_graph_v1,
-};
+use super::{DocumentProjectionV1, DocumentSnapshot, ProjectionError, TypedDocument};
 
 /// The complete Rust-owned document observation available before render-plan
 /// resolution is part of the document dependency graph.
@@ -22,39 +16,6 @@ use super::{
 pub struct SessionDocumentObservationV1 {
     snapshot: DocumentSnapshot,
     projection: DocumentProjectionV1,
-    direct_molecule_graphs: Vec<ObservedDirectMoleculeGraphV1>,
-}
-
-/// Direct-molecule chemistry facts made while this observation was admitted.
-/// They are graph-position aligned and contain no renderer association.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ObservedDirectMoleculeGraphV1 {
-    // This is the authored identity domain used by renderer direct roots. It
-    // must never be replaced with the durable document object identity used
-    // only to lower this observation.
-    source_id: Option<String>,
-    source_order: u32,
-    graph: Option<MolGraph>,
-    graph_position_to_record_id: Vec<RecordId>,
-}
-
-impl ObservedDirectMoleculeGraphV1 {
-    #[must_use]
-    pub fn source_id(&self) -> Option<&str> {
-        self.source_id.as_deref()
-    }
-    #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
-    }
-    #[must_use]
-    pub fn graph(&self) -> Option<&MolGraph> {
-        self.graph.as_ref()
-    }
-    #[must_use]
-    pub fn graph_position_to_record_id(&self) -> &[RecordId] {
-        &self.graph_position_to_record_id
-    }
 }
 
 impl SessionDocumentObservationV1 {
@@ -70,36 +31,9 @@ impl SessionDocumentObservationV1 {
         debug_assert_eq!(snapshot.revision(), projection.revision());
         debug_assert_eq!(snapshot.digest(), projection.digest());
         debug_assert_eq!(snapshot.is_dirty(), projection.is_dirty());
-        let mut direct_molecule_graphs = Vec::new();
-        for root in projection.molecules() {
-            let Some(id) = root.id() else { continue };
-            let source_id = root
-                .source_id()
-                .filter(|source_id| !source_id.is_empty())
-                .map(ToOwned::to_owned);
-            let lowered = document
-                .core_molecule(id)
-                .ok()
-                .flatten()
-                .and_then(|molecule| document_molecule_graph_v1(&molecule).ok())
-                .map(|value| value.into_parts_with_atom_records());
-            let (graph, graph_position_to_record_id) = match lowered {
-                Some((graph, _edges, records)) if records.len() == graph.atoms().len() => {
-                    (Some(graph), records)
-                }
-                _ => (None, Vec::new()),
-            };
-            direct_molecule_graphs.push(ObservedDirectMoleculeGraphV1 {
-                source_id,
-                source_order: root.source_order(),
-                graph,
-                graph_position_to_record_id,
-            });
-        }
         Ok(Self {
             snapshot,
             projection,
-            direct_molecule_graphs,
         })
     }
 
@@ -113,11 +47,5 @@ impl SessionDocumentObservationV1 {
     #[must_use]
     pub fn projection(&self) -> &DocumentProjectionV1 {
         &self.projection
-    }
-
-    /// Exact direct-molecule graphs derived from this accepted retained state.
-    #[must_use]
-    pub fn direct_molecule_graphs_v1(&self) -> &[ObservedDirectMoleculeGraphV1] {
-        &self.direct_molecule_graphs
     }
 }

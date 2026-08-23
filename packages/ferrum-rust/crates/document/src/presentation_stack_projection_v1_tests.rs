@@ -89,6 +89,37 @@ fn normal_arrow_projects_source_axis_and_head_geometry_without_frontend_defaults
 }
 
 #[test]
+fn curved_terminal_arrows_use_one_display_variant_with_closed_identity() {
+    let observation = observed(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"electron\" type=\"electron\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"10\"/><point x=\"20\" y=\"0\"/></arrow><arrow id=\"retro\" type=\"retro\"><point x=\"30\" y=\"0\"/><point x=\"40\" y=\"10\"/><point x=\"50\" y=\"0\"/></arrow><arrow id=\"normal\" type=\"curved-normal\"><point x=\"60\" y=\"0\"/><point x=\"70\" y=\"10\"/><point x=\"80\" y=\"0\"/></arrow></cdml>",
+    );
+    let stack = observation.projection().presentation_stack();
+    let kinds: Vec<_> = stack
+        .roots()
+        .iter()
+        .map(|root| {
+            let crate::PresentationRootProjectionV1::Arrow { arrow } = root else {
+                panic!("expected terminal arrow root");
+            };
+            let crate::ArrowDisplayGeometryV1::CurvedTerminal { terminal_kind, .. } =
+                arrow.geometry()
+            else {
+                panic!("expected shared curved terminal geometry");
+            };
+            *terminal_kind
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![
+            crate::CurvedTerminalArrowDisplayKindV1::Electron,
+            crate::CurvedTerminalArrowDisplayKindV1::Retro,
+            crate::CurvedTerminalArrowDisplayKindV1::CurvedNormalReaction,
+        ]
+    );
+}
+
+#[test]
 fn electron_arrows_refuse_normal_head_facts_and_non_quadratic_cardinality() {
     let observation = observed(
         "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"head\" type=\"electron\" end=\"no\"><point x=\"0\" y=\"0\"/><point x=\"20\" y=\"10\"/><point x=\"40\" y=\"0\"/></arrow><arrow id=\"short\" type=\"electron\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"0\"/></arrow></cdml>",
@@ -112,6 +143,66 @@ fn electron_arrows_refuse_normal_head_facts_and_non_quadratic_cardinality() {
             .contains("no normal-arrow head facts")
     );
     assert!(stack.issues()[1].detail().contains("exactly three points"));
+}
+
+#[test]
+fn curved_equilibrium_arrow_has_a_direct_closed_three_point_profile() {
+    let accepted = observed(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"accepted\" type=\"curved-equilibrium\" width=\"2\" color=\"#123456\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"20\"/><point x=\"80\" y=\"0\"/></arrow></cdml>",
+    );
+    let stack = accepted.projection().presentation_stack();
+    let [PresentationRootProjectionV1::Arrow { arrow }] = stack.roots() else {
+        panic!("expected the direct curved-equilibrium root");
+    };
+    let crate::ArrowDisplayGeometryV1::CurvedEquilibrium { axes, heads, .. } = arrow.geometry()
+    else {
+        panic!("expected named two-lane curved-equilibrium geometry");
+    };
+    assert_eq!(axes[0].points().len(), 4);
+    assert_eq!(axes[1].points().len(), 4);
+    assert_eq!(heads[0].position(), super::ArrowHeadPositionV1::Start);
+    assert_eq!(heads[1].position(), super::ArrowHeadPositionV1::End);
+    assert!(stack.issues().is_empty());
+
+    let rejected = observed(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"equilibrium2\" type=\"equilibrium2\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"20\"/><point x=\"80\" y=\"0\"/></arrow><arrow id=\"facts\" type=\"curved-equilibrium\" spline=\"no\" start=\"yes\" end=\"yes\" shape=\"(8,10,3)\" properties=\"x\" association=\"reaction\" factory=\"generic\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"20\"/><point x=\"80\" y=\"0\"/></arrow></cdml>",
+    );
+    let rejected_stack = rejected.projection().presentation_stack();
+    assert!(rejected_stack.roots().is_empty());
+    assert_eq!(
+        rejected_stack
+            .issues()
+            .iter()
+            .map(|issue| issue.code())
+            .collect::<Vec<_>>(),
+        vec![
+            PresentationProjectionIssueCodeV1::UnsupportedArrowType,
+            PresentationProjectionIssueCodeV1::InvalidArrowFact,
+        ]
+    );
+
+    let rejected_geometry = observed(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"reverse\" type=\"curved-equilibrium\"><point x=\"0\" y=\"0\"/><point x=\"-10\" y=\"5\"/><point x=\"80\" y=\"0\"/></arrow><arrow id=\"cusp\" type=\"curved-equilibrium\"><point x=\"0\" y=\"0\"/><point x=\"0\" y=\"0\"/><point x=\"80\" y=\"0\"/></arrow></cdml>",
+    );
+    let rejected_geometry_stack = rejected_geometry.projection().presentation_stack();
+    assert!(rejected_geometry_stack.roots().is_empty());
+    assert_eq!(
+        rejected_geometry_stack
+            .issues()
+            .iter()
+            .map(|issue| issue.code())
+            .collect::<Vec<_>>(),
+        vec![
+            PresentationProjectionIssueCodeV1::InvalidArrowGeometry,
+            PresentationProjectionIssueCodeV1::InvalidArrowGeometry,
+        ]
+    );
+    assert!(
+        rejected_geometry_stack
+            .issues()
+            .iter()
+            .all(|issue| issue.detail().contains("endpoint tangents"))
+    );
 }
 
 #[test]
@@ -388,7 +479,7 @@ fn invalid_geometry_is_a_targeted_display_only_issue_without_fallback() {
             PresentationProjectionIssueCodeV1::UnsupportedSpline,
             PresentationProjectionIssueCodeV1::InvalidShapeGeometry,
             PresentationProjectionIssueCodeV1::InvalidPolygonGeometry,
-            PresentationProjectionIssueCodeV1::UnsupportedArrowType,
+            PresentationProjectionIssueCodeV1::InvalidArrowGeometry,
             PresentationProjectionIssueCodeV1::UnsupportedArrowSpline,
             PresentationProjectionIssueCodeV1::InvalidArrowFact,
             PresentationProjectionIssueCodeV1::InvalidArrowGeometry,

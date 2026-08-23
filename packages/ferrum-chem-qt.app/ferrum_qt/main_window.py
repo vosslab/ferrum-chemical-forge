@@ -172,6 +172,8 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		tools = (
 			(self._add_atom_action, "atom"),
 			(self._draw_bond_action, "single"),
+			(self._draw_solid_wedge_bond_action, "single"),
+			(self._draw_hashed_wedge_bond_action, "single"),
 			(self._draw_arrow_action, "arrow"),
 			(self._draw_plus_action, "plus"),
 			(self._insert_text_action, "text"),

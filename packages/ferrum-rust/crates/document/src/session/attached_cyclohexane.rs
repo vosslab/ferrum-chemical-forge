@@ -7,7 +7,7 @@ use super::{
     RevisionState, SessionDocumentObservationV1, SessionOperationResultV1,
 };
 use crate::{
-    Point3V1,
+    AuthoringCapabilityIssuerV1, Point3V1,
     attached_cyclohexane_v1::{
         AttachedCyclohexaneAnchorV1, AttachedCyclohexaneErrorV1, AttachedCyclohexaneIncidentBondV1,
         AttachedCyclohexaneReleaseV1, attached_cyclohexane_candidate_v1,
@@ -16,7 +16,7 @@ use crate::{
 
 /// Opaque one-use prepared shared-anchor C6 transition.
 pub struct PendingAttachedCyclohexaneV1 {
-    session_origin: u64,
+    session_issuer: AuthoringCapabilityIssuerV1,
     fence: DocumentFenceV1,
     candidate: Option<RevisionState>,
     preview_vertices: [Point3V1; 6],
@@ -135,7 +135,7 @@ impl DocumentSession {
             .try_reserve_append()
             .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
         Ok(PendingAttachedCyclohexaneV1 {
-            session_origin: self.bridge_session_origin,
+            session_issuer: self.authoring_capability_issuer.clone(),
             fence,
             candidate: Some(state),
             preview_vertices: candidate.vertices().to_owned(),
@@ -151,7 +151,10 @@ impl DocumentSession {
         if pending.candidate.is_none() {
             return Err(AttachedCyclohexaneSessionErrorV1::Retired);
         }
-        if pending.session_origin != self.bridge_session_origin {
+        if !pending
+            .session_issuer
+            .same_issuer(&self.authoring_capability_issuer)
+        {
             return Err(AttachedCyclohexaneSessionErrorV1::ForeignSession);
         }
         require_fence(self, pending.fence)?;
@@ -183,7 +186,10 @@ impl DocumentSession {
         &self,
         pending: &mut PendingAttachedCyclohexaneV1,
     ) -> Result<(), AttachedCyclohexaneSessionErrorV1> {
-        if pending.session_origin != self.bridge_session_origin {
+        if !pending
+            .session_issuer
+            .same_issuer(&self.authoring_capability_issuer)
+        {
             return Err(AttachedCyclohexaneSessionErrorV1::ForeignSession);
         }
         if pending.candidate.take().is_none() {

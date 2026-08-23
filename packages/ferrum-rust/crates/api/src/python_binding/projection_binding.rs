@@ -15,7 +15,9 @@ use pyo3::prelude::*;
 
 pub(crate) use super::arrow_projection_binding::{
     PyArrowDisplayGeometryV1, PyArrowHeadShapeV1, PyArrowHeadV1, PyArrowPathV1,
-    PyArrowProjectionV1, PyEquilibriumArrowDisplayGeometryV1, PyNormalArrowDisplayGeometryV1,
+    PyArrowProjectionV1, PyCurvedEquilibriumArrowDisplayGeometryV1,
+    PyCurvedTerminalArrowDisplayGeometryV1, PyCurvedTerminalArrowDisplayKindV1,
+    PyEquilibriumArrowDisplayGeometryV1, PyNormalArrowDisplayGeometryV1,
 };
 use super::atom_mark_binding::PyAtomMarkKindV1;
 use super::binding::PyDocumentBondOrderV1;
@@ -23,7 +25,6 @@ use super::binding::PyDocumentSnapshot;
 use super::bond_properties_binding::PyDocumentBondStyleV1;
 use super::bracket_binding::PyBracketPairProjectionV1;
 use super::drawing_standard_binding::PyDrawingStandardV1;
-pub(crate) use super::electron_arrow_projection_binding::PyElectronArrowDisplayGeometryV1;
 use super::paper_properties_binding::PyPaperLayoutProjectionV1;
 use super::presentation_root_binding::PyPresentationRootProjectionV1;
 

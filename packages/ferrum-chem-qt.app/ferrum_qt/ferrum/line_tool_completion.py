@@ -9,9 +9,10 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.ferrum.bond_preview
+import ferrum_qt.ferrum.direct_bond_gesture_tab
 import ferrum_qt.ferrum.direct_bond_preview
 import ferrum_qt.ferrum.direct_root_preview
+import ferrum_qt.ferrum.curved_equilibrium_arrow
 import ferrum_qt.ferrum.line_tool_intent
 import ferrum_qt.ferrum.presentation_creation_preview
 import ferrum_qt.ferrum.presentation_vector_preview
@@ -22,45 +23,124 @@ import ferrum_qt.ferrum.text_placement
 import ferrum_qt.ferrum.text_placement_preview
 import ferrum_qt.ferrum.top_level_transform
 import ferrum_qt.ferrum.translation
+import ferrum_qt.ferrum.terminal_arrow
 
 _NativeLineTool = ferrum_qt.ferrum.line_tool_intent._NativeLineTool
 _LineGestureIntent = ferrum_qt.ferrum.line_tool_intent._LineGestureIntent
 
 
+#============================================
+def direct_bond_commit_recovery_message(category: object, recovery: object) -> str | None:
+	"""Translate one complete native direct-bond commit recovery pair."""
+	import ferrum_qt.ferrum.engine as engine
+	if (
+		category in (
+			engine.DirectBondCommitCategoryV1.foreign_session,
+			engine.DirectBondCommitCategoryV1.replayed_receipt,
+			engine.DirectBondCommitCategoryV1.stale_revision,
+			engine.DirectBondCommitCategoryV1.stale_digest,
+		)
+		and recovery is engine.DirectBondCommitRecoveryV1.refresh_and_restart
+	):
+		return "Draw Bond is unchanged. Refresh the Rust view and start Draw Bond again."
+	if (
+		category is engine.DirectBondCommitCategoryV1.unrenderable_candidate
+		and recovery is engine.DirectBondCommitRecoveryV1.change_presentation
+	):
+		return "Draw Bond is unchanged. Choose a supported bond appearance and start Draw Bond again."
+	if (
+		category in (
+			engine.DirectBondCommitCategoryV1.identity_allocation_failed,
+			engine.DirectBondCommitCategoryV1.provisional_token_unavailable,
+			engine.DirectBondCommitCategoryV1.revision_exhausted,
+		)
+		and recovery is engine.DirectBondCommitRecoveryV1.report_conflict
+	):
+		return "Draw Bond is unchanged. Ferrum found a document conflict; refresh and review before trying again."
+	if (
+		category is engine.DirectBondCommitCategoryV1.candidate_application_failed
+		and recovery is engine.DirectBondCommitRecoveryV1.refresh_and_restart
+	):
+		return "Draw Bond is unchanged. Ferrum could not apply the bond; refresh and start Draw Bond again."
+	return None
+
+
 class FerrumNativeLineToolCompletionMixin:
 	"""Own specialised Rust preview and commit interactions."""
 	#============================================
-	def _update_curved_electron_arrow_gesture(self, intent: _LineGestureIntent,
+	def _update_direct_bond_gesture(self, intent: _LineGestureIntent,
 			viewport_point: PySide6.QtCore.QPoint) -> None:
-		"""Paint the exact Rust-issued quadratic arrow after start/control capture."""
+		"""Replace the preview with one exact Rust-admitted direct-bond candidate."""
+		gesture = intent.direct_bond_gesture
+		if gesture is None:
+			return
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
 			self._show_edit_refusal(self._unavailable_edit_refusal(
-				"The document changed during curved electron-arrow drawing; refresh and start again.",
+				"The document changed during Draw Bond; refresh and start again.",
 			))
 			return
-		if intent.presentation_gesture is None or len(intent.curved_electron_points) < 2:
+		import ferrum_qt.ferrum.engine as engine
+		try:
+			end_probe = intent.tab.direct_bond_pointer_probe_at_viewport_point(viewport_point)
+			outcome = intent.tab.admit_direct_bond_candidate(gesture, end_probe)
+		except engine.DirectBondPointerProbeErrorV3 as exc:
+			self._cancel_line_gesture()
+			self._show_direct_bond_refusal(exc)
 			return
-		end = intent.curved_electron_points[2] if len(intent.curved_electron_points) == 3 else None
+		except engine.DirectBondAdmissionRefusalV3 as exc:
+			self._cancel_line_gesture()
+			self._show_direct_bond_refusal(exc)
+			return
+		if type(outcome) is not engine.DirectBondAdmissionV3:
+			self._cancel_line_gesture()
+			raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
+		try:
+			overlay = ferrum_qt.ferrum.direct_bond_preview.create_overlay(
+				intent.tab, outcome.overlay,
+			)
+		except Exception:
+			self._cancel_line_gesture()
+			raise
+		self._retire_line_preview(intent.preview)
+		self._line_gesture_intent = dataclasses.replace(
+			intent, preview=overlay, direct_bond_admission=outcome,
+		)
+	#============================================
+	def _update_terminal_arrow_gesture(self, intent: _LineGestureIntent,
+			viewport_point: PySide6.QtCore.QPoint) -> None:
+		"""Paint one closed Rust-issued terminal arrow after start/control capture."""
+		state = intent.terminal_arrow
+		if state is None:
+			return
+		if not self._line_gesture_is_current(intent):
+			self._cancel_line_gesture()
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				f"The document changed during {state.kind.description} drawing; refresh and start again.",
+			))
+			return
+		if intent.presentation_gesture is None or len(state.points) < 2:
+			return
+		end = state.points[2] if len(state.points) == 3 else None
 		if end is None:
 			point = intent.tab.view.mapToScene(viewport_point)
 			end = (float(point.x()), float(point.y()))
-		import ferrum_qt.ferrum.engine as engine
 		try:
-			preview = intent.tab.preview_curved_electron_arrow_gesture(intent.presentation_gesture, end)
-			overlay = ferrum_qt.ferrum.presentation_creation_preview.create_curved_electron_arrow_overlay(
-				intent.tab, preview.overlay,
+			preview = intent.tab.preview_terminal_arrow_gesture(
+				state.kind, intent.presentation_gesture, end,
 			)
-		except engine.CurvedElectronArrowGestureError as exc:
-			if self._curved_electron_arrow_needs_endpoint(intent, exc):
+			overlay = ferrum_qt.ferrum.presentation_creation_preview.create_terminal_arrow_overlay(
+				intent.tab, state.kind, preview.overlay,
+			)
+		except Exception as exc:
+			if ferrum_qt.ferrum.terminal_arrow.needs_endpoint(state, exc):
 				self._retire_line_preview(intent.preview)
-				self._show_curved_electron_point_guidance(2)
+				self._show_terminal_arrow_point_guidance(state.kind, 2)
 				return
 			self._cancel_line_gesture(clear_status=False)
-			self._show_edit_refusal(self._curved_electron_arrow_refusal(exc))
-			return
-		except Exception:
-			self._cancel_line_gesture(clear_status=False)
+			if ferrum_qt.ferrum.terminal_arrow.is_native_error(state.kind, exc):
+				self._show_edit_refusal(self._terminal_arrow_refusal(state.kind, exc))
+				return
 			raise
 		self._retire_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
@@ -68,125 +148,227 @@ class FerrumNativeLineToolCompletionMixin:
 		)
 
 	#============================================
-	def _complete_curved_electron_arrow_gesture(self, intent: _LineGestureIntent) -> None:
-		"""Prepare and commit exactly one complete Rust quadratic-arrow receipt."""
-		if len(intent.curved_electron_points) < 3:
-			self._show_curved_electron_point_guidance(len(intent.curved_electron_points))
+	def _complete_terminal_arrow_gesture(self, intent: _LineGestureIntent) -> None:
+		"""Prepare, commit, and select one complete opaque terminal-arrow receipt."""
+		state = intent.terminal_arrow
+		if state is None:
 			return
-		self._update_curved_electron_arrow_gesture(intent, PySide6.QtCore.QPoint())
+		if len(state.points) < 3:
+			self._show_terminal_arrow_point_guidance(state.kind, len(state.points))
+			return
+		self._update_terminal_arrow_gesture(intent, PySide6.QtCore.QPoint())
 		current = self._line_gesture_intent
 		if current is None or current.presentation_gesture is None or current.presentation_preview is None:
 			return
-		import ferrum_qt.ferrum.engine as engine
+		current_state = current.terminal_arrow
+		if current_state is None:
+			return
 		try:
-			prepared = current.tab.prepare_curved_electron_arrow_gesture(
-				current.presentation_gesture, current.presentation_preview,
+			prepared = current.tab.prepare_terminal_arrow_gesture(
+				current_state.kind, current.presentation_gesture, current.presentation_preview,
 			)
 			self._reset_line_gesture_start()
-			commit = current.tab.commit_curved_electron_arrow_gesture(prepared)
+			commit = current.tab.commit_terminal_arrow_gesture(current_state.kind, prepared)
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			current.tab.refresh_authoritative()
 			self._finish_line_gesture(current, self.tr(
-				"Added one Ferrum curved electron arrow; the display was refreshed after installation recovery.",
+				f"Added one Ferrum {current_state.kind.description}; the display was refreshed after installation recovery.",
 			))
 			return
-		except engine.CurvedElectronArrowGestureError as exc:
+		except Exception as exc:
 			self._cancel_line_gesture()
 			self._refresh_actions()
-			self._show_edit_refusal(self._curved_electron_arrow_refusal(exc))
-			return
-		except Exception:
-			self._cancel_line_gesture()
-			self._refresh_actions()
+			if ferrum_qt.ferrum.terminal_arrow.is_native_error(current_state.kind, exc):
+				self._show_edit_refusal(self._terminal_arrow_refusal(current_state.kind, exc))
+				return
 			raise
 		try:
 			import ferrum_qt.ferrum.engine as engine
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(commit.identifier),
+				observation, None, engine.RenderInteractionQueryV1.root(
+					commit.root.identifier, engine.RenderInteractionModifierV1.replace,
+				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
 		except Exception:
 			self._replace_render_interaction_selection(None, current.tab)
 		self._finish_line_gesture(current, self.tr(
-			"Added one Ferrum curved electron arrow; click a new start point or press Esc.",
+			f"Added one Ferrum {current_state.kind.description}; click a new start point or press Esc.",
 		))
 
 	#============================================
-	@staticmethod
-	def _curved_electron_arrow_needs_endpoint(intent: _LineGestureIntent, error: Exception) -> bool:
-		"""Retain two-point authoring only for Rust's typed geometry correction route."""
-		import ferrum_qt.ferrum.engine as engine
-		return (
-			type(error) is engine.CurvedElectronArrowGestureError
-			and len(intent.curved_electron_points) == 2
-			and getattr(error, "category", None) in (
-				engine.CurvedElectronArrowGestureCategoryV1.collapsed_span,
-				engine.CurvedElectronArrowGestureCategoryV1.control_too_near_chord,
-			)
-			and getattr(error, "recovery", None)
-			== engine.CurvedElectronArrowGestureRecoveryV1.change_geometry
-		)
-
-	#============================================
-	def _show_curved_electron_point_guidance(self, point_count: int) -> None:
-		"""Explain the next finite point in the three-click electron-arrow contract."""
+	def _show_terminal_arrow_point_guidance(self,
+			kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind, point_count: int) -> None:
+		"""Explain the next finite point in one closed three-click arrow contract."""
 		remaining = 3 - point_count
 		if remaining > 0:
 			point_word = "point" if remaining == 1 else "points"
 			self.statusBar().showMessage(self.tr(
-				"Draw Curved Electron Arrow needs {0} more {1}; click start, bend, and endpoint in order."
-			).format(remaining, point_word), 5000)
+				"{0} needs {1} more {2}; click start, bend, and endpoint in order."
+			).format(kind.action_name, remaining, point_word), 5000)
 
 	#============================================
-	def _curved_electron_arrow_refusal(self, error: Exception) -> object:
-		"""Map only closed native electron-arrow categories to actionable text."""
-		import ferrum_qt.ferrum.engine as engine
-		category = getattr(error, "category", None)
-		if type(error) is engine.CurvedElectronArrowGestureError:
-			if category in (
-				engine.CurvedElectronArrowGestureCategoryV1.collapsed_span,
-				engine.CurvedElectronArrowGestureCategoryV1.control_too_near_chord,
-				engine.CurvedElectronArrowGestureCategoryV1.exceeds_geometry_limit,
-			):
-				message = "Curved electron arrow is unchanged. Choose a clearly curved, finite three-point gesture."
-			elif category in (
-				engine.CurvedElectronArrowGestureCategoryV1.stale_snapshot,
-				engine.CurvedElectronArrowGestureCategoryV1.session_conflict,
-			):
-				message = "Curved electron arrow is unchanged. Refresh the Rust view and start the tool again."
-			else:
-				message = "Curved electron arrow is unchanged. Adjust the three points and try again."
-		else:
-			message = "Curved electron arrow is unchanged. Restart the tool and try again."
-		return self._unavailable_edit_refusal(message)
-	#============================================
-	def _update_presentation_path_gesture(self, intent: _LineGestureIntent,
-			viewport_point: PySide6.QtCore.QPoint, include_pointer: bool) -> None:
-		"""Paint only one Rust-issued ordered Polyline or Polygon overlay."""
+	def _update_curved_equilibrium_arrow_gesture(self, intent: _LineGestureIntent,
+			viewport_point: PySide6.QtCore.QPoint) -> None:
+		"""Paint only the two cubic lanes and heads issued by Rust."""
+		state = intent.curved_equilibrium_arrow
+		if state is None:
+			return
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
 			self._show_edit_refusal(self._unavailable_edit_refusal(
-				"The document changed during path drawing; refresh the Rust view and start again.",
+				"The document changed during curved equilibrium arrow drawing; refresh and start again.",
 			))
 			return
-		if intent.path_gesture is None:
+		if intent.presentation_gesture is None or len(state.points) < 2:
 			return
-		points = intent.path_points
-		if include_pointer:
+		end = state.points[2] if len(state.points) == 3 else None
+		if end is None:
 			point = intent.tab.view.mapToScene(viewport_point)
-			points += ((float(point.x()), float(point.y())),)
+			end = (float(point.x()), float(point.y()))
 		try:
-			preview = intent.tab.preview_presentation_path_gesture(intent.path_gesture, points)
-			overlay = ferrum_qt.ferrum.presentation_path_preview.create_overlay(intent.tab, preview.overlay)
+			preview = intent.tab.preview_curved_equilibrium_arrow_gesture(
+				intent.presentation_gesture, end,
+			)
 		except Exception as exc:
-			if self._presentation_path_needs_more_points(intent, points, exc):
-				self._retire_line_preview(intent.preview)
-				self._show_presentation_path_point_guidance(intent.tool, len(points))
-				return
+			if not ferrum_qt.ferrum.curved_equilibrium_arrow.is_native_error(exc):
+				raise
 			self._cancel_line_gesture(clear_status=False)
-			self._show_edit_refusal(self._presentation_path_gesture_refusal(exc))
+			self._show_curved_equilibrium_arrow_refusal(exc)
+			return
+		overlay = ferrum_qt.ferrum.presentation_creation_preview.create_curved_equilibrium_arrow_overlay(
+			intent.tab, preview.overlay,
+		)
+		self._retire_line_preview(intent.preview)
+		self._line_gesture_intent = dataclasses.replace(
+			intent, preview=overlay, presentation_preview=preview,
+		)
+
+	#============================================
+	def _complete_curved_equilibrium_arrow_gesture(self, intent: _LineGestureIntent) -> None:
+		"""Prepare, commit, and select one opaque curved-equilibrium receipt."""
+		state = intent.curved_equilibrium_arrow
+		if state is None:
+			return
+		if len(state.points) < 3:
+			self._show_curved_equilibrium_arrow_point_guidance(len(state.points))
+			return
+		self._update_curved_equilibrium_arrow_gesture(intent, PySide6.QtCore.QPoint())
+		current = self._line_gesture_intent
+		if current is None or current.presentation_gesture is None or current.presentation_preview is None:
+			return
+		try:
+			prepared = current.tab.prepare_curved_equilibrium_arrow_gesture(
+				current.presentation_gesture, current.presentation_preview,
+			)
+			self._reset_line_gesture_start()
+			commit = current.tab.commit_curved_equilibrium_arrow_gesture(prepared)
+		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
+			self._replace_render_interaction_selection(None, current.tab)
+			recovered = current.tab.refresh_authoritative()
+			self._finish_line_gesture(current, self.tr(
+				"Added one Ferrum curved equilibrium arrow; the display was refreshed after installation recovery."
+				if recovered else
+				"Added one Ferrum curved equilibrium arrow. Display recovery is required before further editing.",
+			))
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"The curved equilibrium arrow was added. Ferrum refreshed the authoritative Rust display; select it again before moving it."
+				if recovered else
+				"The curved equilibrium arrow was added, but its authoritative display still needs recovery; refresh before saving or editing.",
+			))
+			return
+		except Exception as exc:
+			if not ferrum_qt.ferrum.curved_equilibrium_arrow.is_native_error(exc):
+				raise
+			self._cancel_line_gesture()
+			self._refresh_actions()
+			self._show_curved_equilibrium_arrow_refusal(exc)
+			return
+		try:
+			import ferrum_qt.ferrum.engine as engine
+			observation = current.tab.observe_direct_root_interaction()
+			selection = current.tab.select_direct_roots(
+				observation, None, engine.RenderInteractionQueryV1.root(
+					commit.root.identifier, engine.RenderInteractionModifierV1.replace,
+				),
+			)
+			self._replace_render_interaction_selection(selection, current.tab)
+		except Exception:
+			# The accepted Rust mutation remains durable, while selection is a separate
+			# authoritative observation. Recover the installed scene before describing success.
+			self._replace_render_interaction_selection(None, current.tab)
+			recovered = current.tab.refresh_authoritative()
+			self._finish_line_gesture(current, self.tr(
+				"Added one Ferrum curved equilibrium arrow; the display was refreshed after selection recovery."
+				if recovered else
+				"Added one Ferrum curved equilibrium arrow. Display recovery is required before further editing.",
+			))
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"The curved equilibrium arrow was added. Ferrum refreshed the authoritative Rust display; select it again before moving it."
+				if recovered else
+				"The curved equilibrium arrow was added, but its durable selection could not be restored; refresh or reopen before selecting or moving it.",
+			))
+			return
+		self._finish_line_gesture(current, self.tr(
+			"Added one Ferrum curved equilibrium arrow; click a new start point or press Esc.",
+		))
+
+	#============================================
+	def _show_curved_equilibrium_arrow_point_guidance(self, point_count: int) -> None:
+		"""Explain the remaining points in the dedicated three-click contract."""
+		remaining = 3 - point_count
+		if remaining <= 0:
+			return
+		point_word = "point" if remaining == 1 else "points"
+		self.statusBar().showMessage(self.tr(
+			"Draw Curved Equilibrium Arrow needs {0} more {1}; click start, bend, and endpoint in order."
+		).format(remaining, point_word), 5000)
+
+	#============================================
+	def _show_presentation_path_point_guidance(self,
+			tool: _NativeLineTool, progress: object) -> None:
+		"""State the remaining clicks for one Rust-owned open or closed path."""
+		remaining = progress.minimum_point_count - progress.accepted_point_count
+		if remaining <= 0:
+			return
+		point_word = "point" if remaining == 1 else "points"
+		path_name = "Polygon" if tool is _NativeLineTool.DRAW_POLYGON else "Polyline"
+		self.statusBar().showMessage(self.tr(
+			"Draw {0} needs {1} more {2}; click ordered points, then press Enter or double-click."
+		).format(path_name, remaining, point_word), 5000)
+
+	#============================================
+	def _update_presentation_path_gesture(self, intent: _LineGestureIntent,
+			viewport_point: PySide6.QtCore.QPoint | None) -> None:
+		"""Project only the exact Rust-issued open or closed path preview."""
+		if intent.path_gesture is None or intent.path_progress is None:
+			return
+		if not self._line_gesture_is_current(intent):
+			self._cancel_line_gesture()
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"The document changed during path drawing; refresh and start the tool again.",
+			))
+			return
+		hover = None
+		if viewport_point is not None:
+			point = intent.tab.view.mapToScene(viewport_point)
+			hover = (float(point.x()), float(point.y()))
+		import ferrum_qt.ferrum.engine as engine
+		try:
+			preview = intent.tab.preview_presentation_path_gesture(
+				intent.path_gesture, hover,
+			)
+			overlay = ferrum_qt.ferrum.presentation_path_preview.create_overlay(
+				intent.tab, preview,
+			)
+		except engine.PresentationPathGestureError as exc:
+			self._retire_line_preview(intent.preview)
+			self._line_gesture_intent = dataclasses.replace(
+				intent, preview=None, path_preview=None,
+			)
+			self._show_presentation_path_refusal(exc)
 			return
 		self._retire_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
@@ -195,13 +377,19 @@ class FerrumNativeLineToolCompletionMixin:
 
 	#============================================
 	def _complete_presentation_path_gesture(self, intent: _LineGestureIntent) -> None:
-		"""Preflight then commit the one opaque Rust multi-point receipt."""
-		if intent.path_gesture is None:
+		"""Preflight and commit one complete Rust-owned Polyline or Polygon."""
+		if intent.path_progress is None:
 			return
-		self._update_presentation_path_gesture(intent, PySide6.QtCore.QPoint(), False)
+		if not intent.path_progress.can_complete:
+			self._show_presentation_path_point_guidance(intent.tool, intent.path_progress)
+			return
+		self._update_presentation_path_gesture(
+			intent, None,
+		)
 		current = self._line_gesture_intent
-		if current is None or current.path_preview is None or current.path_gesture is None:
+		if current is None or current.path_gesture is None or current.path_preview is None:
 			return
+		import ferrum_qt.ferrum.engine as engine
 		try:
 			prepared = current.tab.prepare_presentation_path_gesture(
 				current.path_gesture, current.path_preview,
@@ -215,118 +403,70 @@ class FerrumNativeLineToolCompletionMixin:
 				"Added one Ferrum path; the display was refreshed after installation recovery.",
 			))
 			return
-		except Exception as exc:
-			self._cancel_line_gesture()
-			self._refresh_actions()
-			self._show_edit_refusal(self._vector_gesture_refusal(exc))
+		except engine.PresentationPathGestureError as exc:
+			if not self._presentation_path_refusal_allows_continuation(exc):
+				self._cancel_line_gesture()
+				self._refresh_actions()
+			self._show_presentation_path_refusal(exc)
 			return
 		try:
 			import ferrum_qt.ferrum.engine as engine
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(commit.identifier),
+				observation, None, engine.RenderInteractionQueryV1.root(
+					commit.identifier, engine.RenderInteractionModifierV1.replace,
+				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
 		except Exception:
 			self._replace_render_interaction_selection(None, current.tab)
 		self._finish_line_gesture(current, self.tr(
-			"Added one Ferrum path; click again or press Esc.",
-		))
+			"Added one Ferrum {0}; click a new start point or press Esc."
+		).format("Polygon" if current.tool is _NativeLineTool.DRAW_POLYGON else "Polyline"))
 
 	#============================================
-	def _presentation_path_needs_more_points(self, intent: _LineGestureIntent,
-			points: tuple[tuple[float, float], ...], error: Exception) -> bool:
-		"""Retain only Rust's typed pre-cardinality authoring state."""
+	def _show_presentation_path_refusal(self, error: Exception) -> None:
+		"""Show a typed path refusal without interrupting canvas authoring."""
+		self.statusBar().showMessage(self.tr(self._presentation_path_refusal(error)), 5000)
+
+	#============================================
+	def _presentation_path_refusal(self, error: Exception) -> str:
+		"""Translate typed native path facts into concise nonmodal guidance."""
 		import ferrum_qt.ferrum.engine as engine
-		minimum = 3 if intent.tool is _NativeLineTool.DRAW_POLYGON else 2
+		if type(error) is engine.PresentationPathGestureError:
+			if error.category == engine.PresentationPathGestureCategoryV1.incomplete:
+				return "Ferrum needs more ordered points before this path can be completed."
+			if error.recovery == engine.PresentationPathGestureRecoveryV1.change_geometry:
+				return "Ferrum rejected that point. Choose a different path point."
+			if error.recovery == engine.PresentationPathGestureRecoveryV1.refresh_and_restart:
+				return "The document changed during path drawing. Refresh and start the path again."
+			if error.recovery == engine.PresentationPathGestureRecoveryV1.document_unchanged:
+				return "Ferrum left the document unchanged. Start a new path when ready."
+		return "Ferrum could not complete this path."
+
+	#============================================
+	@staticmethod
+	def _presentation_path_refusal_allows_continuation(error: Exception) -> bool:
+		"""Keep the tool armed only when Rust requests a geometry correction."""
+		import ferrum_qt.ferrum.engine as engine
 		return (
 			type(error) is engine.PresentationPathGestureError
-			and len(points) < minimum
-			and getattr(error, "category", None)
-			== engine.PresentationPathGestureCategoryV1.invalid_geometry
-			and getattr(error, "recovery", None)
-			== engine.PresentationPathGestureRecoveryV1.change_geometry
+			and error.recovery == engine.PresentationPathGestureRecoveryV1.change_geometry
 		)
 
 	#============================================
-	def _show_presentation_path_point_guidance(self,
-			tool: _NativeLineTool, point_count: int) -> None:
-		"""Explain the next cardinality step without ending the active tool."""
-		minimum = 3 if tool is _NativeLineTool.DRAW_POLYGON else 2
-		remaining = minimum - point_count
-		if remaining <= 0:
-			return
-		tool_name = "Draw Polygon" if tool is _NativeLineTool.DRAW_POLYGON else "Draw Polyline"
-		point_word = "point" if remaining == 1 else "points"
-		self.statusBar().showMessage(self.tr(
-			"{0} needs {1} more {2}; click it, then press Enter or double-click to create the path."
-		).format(tool_name, remaining, point_word), 5000)
+	def _terminal_arrow_refusal(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
+			error: Exception) -> object:
+		"""Present a closed native terminal-arrow refusal without parsing error text."""
+		return self._unavailable_edit_refusal(
+			ferrum_qt.ferrum.terminal_arrow.refusal_message(kind, error),
+		)
 
 	#============================================
-	def _presentation_path_gesture_refusal(self, error: Exception) -> object:
-		"""Present every non-cardinality path failure through the typed refusal surface."""
-		import ferrum_qt.ferrum.engine as engine
-		category = getattr(error, "category", None)
-		if type(error) is engine.PresentationPathGestureError:
-			if category in (
-				engine.PresentationPathGestureCategoryV1.stale_snapshot,
-				engine.PresentationPathGestureCategoryV1.foreign_session,
-				engine.PresentationPathGestureCategoryV1.mismatched_preview,
-				engine.PresentationPathGestureCategoryV1.replayed_gesture,
-				engine.PresentationPathGestureCategoryV1.session_conflict,
-			):
-				message = "Path drawing is unchanged. Refresh the Rust view and start the tool again."
-			elif category == engine.PresentationPathGestureCategoryV1.render_preparation:
-				message = "Path drawing is unchanged. Ferrum could not prepare that path for display; restart the tool."
-			else:
-				message = "Path drawing is unchanged. Use distinct finite points and try again."
-		else:
-			message = "Path drawing is unchanged. Restart the tool and try again."
-		return self._unavailable_edit_refusal(message)
-
-	def _update_direct_bond_gesture(self, intent: _LineGestureIntent,
-			viewport_point: PySide6.QtCore.QPoint) -> None:
-		"""Admit one Rust candidate and project only its copied receipt overlay."""
-		if not self._line_gesture_is_current(intent):
-			self._cancel_line_gesture()
-			self._show_edit_refusal(self._unavailable_edit_refusal(
-				"The document changed during the gesture; no operation was accepted.",
-			))
-			return
-		gesture = intent.direct_bond_gesture
-		if gesture is None:
-			return
-		import ferrum_qt.ferrum.direct_bond_gesture_tab
-		try:
-			endpoint = intent.tab.direct_bond_endpoint_at_viewport_point(viewport_point)
-			outcome = intent.tab.admit_direct_bond_candidate(gesture, endpoint.endpoint)
-			self._retire_line_preview(intent.preview)
-			import ferrum_qt.ferrum.engine as engine
-			if type(outcome) is engine.DirectBondAdmissionRefusalV1:
-				self._cancel_line_gesture(clear_status=False)
-				self._show_edit_refusal(self._unavailable_edit_refusal(
-					self._direct_bond_refusal_message(outcome),
-					))
-				return
-			if type(outcome) is not engine.DirectBondAdmissionV2:
-				raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
-			overlay = ferrum_qt.ferrum.direct_bond_preview.create_overlay(
-				intent.tab, outcome.overlay,
-			)
-		except ferrum_qt.ferrum.direct_bond_gesture_tab.DirectBondEndpointAmbiguity:
-			self._retire_line_preview(intent.preview)
-			self._cancel_line_gesture(clear_status=False)
-			self._show_edit_refusal(self._unavailable_edit_refusal(
-				"Draw Bond is unchanged. Choose one atom clearly or an empty endpoint, then start again.",
-			))
-			return
-		except Exception:
-			self._retire_line_preview(intent.preview)
-			self._cancel_line_gesture(clear_status=False)
-			raise
-		self._line_gesture_intent = dataclasses.replace(
-			intent, preview=overlay, direct_bond_admission=outcome,
-		)
+	def _show_curved_equilibrium_arrow_refusal(self, error: Exception) -> None:
+		"""Show one typed geometry correction without interrupting canvas authoring."""
+		message = ferrum_qt.ferrum.curved_equilibrium_arrow.refusal_message(error)
+		self.statusBar().showMessage(self.tr(message), 5000)
 
 	#============================================
 	def _update_presentation_gesture(self, intent: _LineGestureIntent,
@@ -691,41 +831,67 @@ class FerrumNativeLineToolCompletionMixin:
 	def _direct_bond_refusal_message(refusal: object) -> str:
 		"""Explain a typed ordinary Rust endpoint refusal without parsing strings."""
 		import ferrum_qt.ferrum.engine as engine
-		if refusal.category in (
-			engine.DirectBondGestureCategoryV1.self_loop,
-			engine.DirectBondAdmissionCategoryV1.self_loop,
-		):
-			return "Choose a different atom or an empty endpoint, then start Draw Bond again."
-		if refusal.category in (
-			engine.DirectBondGestureCategoryV1.cross_molecule,
-			engine.DirectBondAdmissionCategoryV1.cross_molecule,
-		):
-			return "Choose an atom in the same molecule, then start Draw Bond again."
-		if refusal.category in (
-			engine.DirectBondGestureCategoryV1.duplicate_bond,
-			engine.DirectBondAdmissionCategoryV1.duplicate_bond,
-		):
-			return "Those atoms already have a bond. Choose another endpoint, then start Draw Bond again."
-		return "Choose a different Draw Bond endpoint, then start the tool again."
+		if type(refusal) is engine.DirectBondPointerProbeErrorV3:
+			if refusal.recovery == engine.DirectBondPointerProbeRecoveryV3.refresh_and_restart:
+				return "Refresh the Rust view and start Draw Bond again."
+			if refusal.category == engine.DirectBondPointerProbeCategoryV3.ambiguous_atom:
+				return "Choose one atom clearly or an empty endpoint, then start Draw Bond again."
+			if refusal.recovery == engine.DirectBondPointerProbeRecoveryV3.adjust_endpoint:
+				return "Choose a different atom or empty endpoint, then start Draw Bond again."
+			return "Choose a finite pointer position and start Draw Bond again."
+		if type(refusal) is engine.DirectBondAdmissionRefusalV3:
+			if (
+				refusal.category in (
+					engine.DirectBondAdmissionCategoryV3.self_loop,
+					engine.DirectBondAdmissionCategoryV3.unknown_start_atom,
+					engine.DirectBondAdmissionCategoryV3.unknown_end_atom,
+					engine.DirectBondAdmissionCategoryV3.invalid_endpoint_input,
+					engine.DirectBondAdmissionCategoryV3.collapsed_endpoint,
+					engine.DirectBondAdmissionCategoryV3.cross_molecule,
+					engine.DirectBondAdmissionCategoryV3.duplicate_bond,
+					engine.DirectBondAdmissionCategoryV3.exceeds_chemistry_capacity,
+					engine.DirectBondAdmissionCategoryV3.unsupported_chemistry_admission,
+				)
+				and refusal.recovery == engine.DirectBondAdmissionRecoveryV3.adjust_endpoint
+			):
+				return "Choose a different atom or empty endpoint, then start Draw Bond again."
+			if (
+				refusal.category in (
+					engine.DirectBondAdmissionCategoryV3.foreign_session,
+					engine.DirectBondAdmissionCategoryV3.stale_revision,
+					engine.DirectBondAdmissionCategoryV3.stale_digest,
+				)
+				and refusal.recovery == engine.DirectBondAdmissionRecoveryV3.refresh_and_restart
+			):
+				return "Refresh the Rust view and start Draw Bond again."
+			if (
+				refusal.category in (
+					engine.DirectBondAdmissionCategoryV3.unsupported_presentation,
+					engine.DirectBondAdmissionCategoryV3.unrenderable_candidate,
+				)
+				and refusal.recovery == engine.DirectBondAdmissionRecoveryV3.change_presentation
+			):
+				return "Choose a supported bond appearance and start Draw Bond again."
+			raise RuntimeError("Ferrum direct-bond admission refusal has an unknown contract pair")
+	#============================================
+	def _show_direct_bond_refusal(self, refusal: object) -> None:
+		"""Publish a typed bond refusal without blocking the canvas event loop."""
+		self.statusBar().showMessage(self.tr(
+			"Draw Bond refused: {0}"
+		).format(self._direct_bond_refusal_message(refusal)), 5000)
 
 	#============================================
 	@staticmethod
-	def _is_direct_bond_commit_refusal(error: Exception) -> bool:
-		"""Accept only closed native receipt-redemption failures for presentation."""
+	def _direct_bond_commit_recovery_message(error: Exception) -> str | None:
+		"""Translate the complete closed Rust receipt-recovery contract for the canvas."""
 		import ferrum_qt.ferrum.engine as engine
-		if type(error) not in (
-			engine.DirectBondGestureError,
-			engine.RevisionConflictError,
-		):
-			return False
-		return getattr(error, "category", None) in (
-			engine.DirectBondCommitCategoryV1.foreign_session,
-			engine.DirectBondCommitCategoryV1.stale_revision,
-			engine.DirectBondCommitCategoryV1.stale_digest,
-			engine.DirectBondCommitCategoryV1.identity_allocation_failed,
-			engine.DirectBondCommitCategoryV1.provisional_token_unavailable,
-			engine.DirectBondCommitCategoryV1.candidate_application_failed,
-			engine.DirectBondCommitCategoryV1.revision_exhausted,
-		)
+		if type(error) is not engine.DirectBondCommitError:
+			return None
+		return direct_bond_commit_recovery_message(error.category, error.recovery)
+
+	#============================================
+	def _show_direct_bond_commit_refusal(self, message: str) -> None:
+		"""Publish one typed receipt-redemption recovery without blocking the canvas."""
+		self._show_edit_refusal(self._unavailable_edit_refusal(message))
 
 	#============================================

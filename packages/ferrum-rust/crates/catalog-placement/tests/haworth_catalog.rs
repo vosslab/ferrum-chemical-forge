@@ -40,7 +40,8 @@ fn closed_haworth_entries_compile_literal_coordinates_and_directed_stereo_tokens
         assert_eq!(source.matches("<bond ").count(), 12);
         assert_eq!(source.matches("type=\"q1\"").count(), 1);
         assert_eq!(source.matches("type=\"w1\"").count(), 2);
-        assert_eq!(source.matches("position=\"front\"").count(), 3);
+        assert_eq!(source.matches("haworth_position=\"front\"").count(), 3);
+        assert!(accepted.identifier().starts_with("ferrum-molecule-v1-"));
         let molecule = accepted
             .result()
             .observation()
@@ -54,10 +55,16 @@ fn closed_haworth_entries_compile_literal_coordinates_and_directed_stereo_tokens
             .iter()
             .find(|bond| bond.source_type() == Some("q1"))
             .expect("front stroke bond");
-        let expected_start = format!("{}-a3", accepted.identifier());
-        let expected_end = format!("{}-a4", accepted.identifier());
-        assert_eq!(q1.start().source_id(), Some(expected_start.as_str()));
-        assert_eq!(q1.end().source_id(), Some(expected_end.as_str()));
+        assert!(
+            q1.start()
+                .source_id()
+                .is_some_and(|identifier| identifier.starts_with("ferrum-atom-v1-"))
+        );
+        assert!(
+            q1.end()
+                .source_id()
+                .is_some_and(|identifier| identifier.starts_with("ferrum-atom-v1-"))
+        );
         session.undo(1).expect("undo");
         let redone = session.redo(2).expect("redo");
         assert!(
@@ -71,8 +78,8 @@ fn closed_haworth_entries_compile_literal_coordinates_and_directed_stereo_tokens
 }
 
 #[test]
-fn literal_haworth_namespace_reserves_opaque_declarations() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"host\"><atom id=\"host-a\" name=\"C\"><point x=\"0\" y=\"0\"/><opaque id=\"ferrum-catalog-d-glucose-haworth-1-a1\"><retained/></opaque></atom></molecule></cdml>";
+fn haworth_catalog_uses_document_ids_which_respect_opaque_declarations() {
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"host\"><atom id=\"host-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><opaque id=\"ferrum-molecule-v1-0\"><retained/></opaque><opaque id=\"ferrum-atom-v1-0\"><retained/></opaque></cdml>";
     let mut session = DocumentSession::load(source).expect("opaque source");
     let gesture = begin_catalog_placement_v1(&session, fence(&session), KEYS[0]).expect("key");
     let preview = preview_catalog_placement_v1(
@@ -84,12 +91,33 @@ fn literal_haworth_namespace_reserves_opaque_declarations() {
     let mut prepared =
         prepare_catalog_placement_v1(&mut session, &gesture, &preview).expect("prepare");
     let committed = commit_catalog_placement_v1(&mut session, &mut prepared).expect("commit");
-    assert_ne!(committed.identifier(), "ferrum-catalog-d-glucose-haworth-1");
+    assert!(committed.identifier().starts_with("ferrum-molecule-v1-"));
+    assert_ne!(committed.identifier(), "ferrum-molecule-v1-0");
     assert!(
         session
             .snapshot()
             .expect("snapshot")
             .cdml()
-            .contains("<opaque id=\"ferrum-catalog-d-glucose-haworth-1-a1\"")
+            .contains("<opaque id=\"ferrum-molecule-v1-0\"")
     );
+}
+
+#[test]
+fn discarded_haworth_catalog_candidate_leaves_document_allocation_tentative() {
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty CDML");
+    let anchor = PresentationGesturePoint2V1::new(0.0, 0.0).expect("anchor");
+    let first = begin_catalog_placement_v1(&session, fence(&session), KEYS[0]).expect("gesture");
+    let first_preview = preview_catalog_placement_v1(&session, &first, anchor).expect("preview");
+    let discarded =
+        prepare_catalog_placement_v1(&mut session, &first, &first_preview).expect("candidate");
+    let identifier = discarded.identifier().to_owned();
+    drop(discarded);
+
+    let second = begin_catalog_placement_v1(&session, fence(&session), KEYS[0]).expect("gesture");
+    let second_preview = preview_catalog_placement_v1(&session, &second, anchor).expect("preview");
+    let mut accepted = prepare_catalog_placement_v1(&mut session, &second, &second_preview)
+        .expect("replacement candidate");
+    assert_eq!(accepted.identifier(), identifier);
+    commit_catalog_placement_v1(&mut session, &mut accepted).expect("commit");
 }

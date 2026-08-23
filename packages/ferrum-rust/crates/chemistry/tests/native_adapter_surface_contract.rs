@@ -26,6 +26,7 @@ constant MOLBLOCK_INSPECTION_SCHEMA_V1
 constant MOLBLOCK_MAX_INPUT_BYTES
 constant NATIVE_SMILES_MAX_INPUT_BYTES
 constant NATIVE_SMILES_MAX_OUTPUT_BYTES
+constant OXIDATION_STATE_CONVENTION_V1
 constant SDF_INSPECTION_SCHEMA_V1
 constant SDF_MAX_INPUT_BYTES
 constant SMILES_INSPECTION_SCHEMA_V1
@@ -48,6 +49,11 @@ enum MolGraphError
 enum MolblockExportError
 enum MolblockInspectionError
 enum MolblockVersion
+enum OxidationStateErrorV1
+enum OxidationStateObservationV1
+enum OxidationStateResourceV1
+struct OxidationStateRootAdmissionV1
+enum OxidationStateUnavailableReasonV1
 enum SdfError
 enum SdfExportError
 enum SdfInspectionError
@@ -67,6 +73,9 @@ function inspect_smiles
 function load_explicit_adapter
 function molblock_from_smiles
 function molecule_inspection_facts
+function admit_oxidation_state_root_v1
+function observe_admitted_oxidation_state_v1
+function observe_oxidation_state_v1
 function sdf_from_smiles
 function smarts_from_smiles
 function validate_inchi_input
@@ -147,10 +156,11 @@ fn workspace_has_no_raw_chemistry_sys_package_or_dependency() {
     let typed_consumer = check_consumer(
         "typed-chemistry",
         "ferrum-chemistry = { path = \"CHEMISTRY_PATH\" }",
-        "use ferrum_chemistry::{ChemEngine, NativeChemEngine, SmartsMatchOptions, SmartsMatchResult};\n\
+        "use ferrum_chemistry::{ChemEngine, NativeChemEngine, OxidationStateObservationV1, SmartsMatchOptions, SmartsMatchResult, observe_oxidation_state_v1};\n\
          fn accepts_typed_engine(_: &dyn ChemEngine) {}\n\
          fn accepts_match(_: SmartsMatchResult) {}\n\
-         fn main() { let _ = NativeChemEngine::load; let _ = SmartsMatchOptions::new; let _ = accepts_typed_engine; let _ = accepts_match; }\n",
+         fn accepts_oxidation(_: OxidationStateObservationV1) {}\n\
+         fn main() { let _ = NativeChemEngine::load; let _ = SmartsMatchOptions::new; let _ = observe_oxidation_state_v1; let _ = accepts_typed_engine; let _ = accepts_match; let _ = accepts_oxidation; }\n",
     );
     assert_success(
         &typed_consumer,

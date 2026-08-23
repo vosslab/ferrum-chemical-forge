@@ -5,6 +5,9 @@ use pyo3::prelude::*;
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::chemistry_binding::initialize(module)?;
     super::curved_electron_arrow_gesture_binding::initialize(module)?;
+    super::curved_normal_reaction_arrow_gesture_binding::initialize(module)?;
+    super::curved_equilibrium_arrow_gesture_binding::initialize(module)?;
+    super::curved_retro_arrow_gesture_binding::initialize(module)?;
     super::clipboard_fragment_binding::initialize(module)?;
     super::clipboard_cut_binding::initialize(module)?;
     super::clipboard_paste_binding::initialize(module)?;

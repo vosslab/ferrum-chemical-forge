@@ -48,9 +48,7 @@ impl StagedExtensionRuntimeV1 {
         // The local runtime stages the extension at the runtime root. The
         // sealed adapter closure is always relative to that admitted module.
         Ok(Self {
-            library_path: directory
-                .join(".dylibs")
-                .join("libferrum_chem.dylib"),
+            library_path: directory.join(".dylibs").join("libferrum_chem.dylib"),
         })
     }
 

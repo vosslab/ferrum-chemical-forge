@@ -9,16 +9,16 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.ferrum.bond_preview
-import ferrum_qt.ferrum.direct_bond_preview
 import ferrum_qt.ferrum.direct_bond_gesture_tab
 import ferrum_qt.ferrum.direct_root_preview
+import ferrum_qt.ferrum.curved_equilibrium_arrow
 import ferrum_qt.ferrum.line_tool_intent
 import ferrum_qt.ferrum.presentation_creation_preview
 import ferrum_qt.ferrum.presentation_vector_preview
 import ferrum_qt.ferrum.presentation_path_preview
 import ferrum_qt.ferrum.regular_ring
 import ferrum_qt.ferrum.rotation
+import ferrum_qt.ferrum.terminal_arrow
 import ferrum_qt.ferrum.text_placement
 import ferrum_qt.ferrum.text_placement_preview
 import ferrum_qt.ferrum.top_level_transform
@@ -48,6 +48,13 @@ class FerrumNativeLineToolPointerMixin:
 			):
 				self._complete_click_presentation_gesture(self._line_gesture_intent)
 				return True
+			if (
+				self._line_gesture_intent is not None
+				and self._line_gesture_intent.tool in self._draw_path_actions
+				and event.key() is PySide6.QtCore.Qt.Key.Key_Escape
+			):
+				self._cancel_presentation_path_gesture(self._line_gesture_intent)
+				return True
 			if self._keyboard_canvas_key_event(event):
 				return True
 			return super().eventFilter(watched, event)
@@ -68,6 +75,13 @@ class FerrumNativeLineToolPointerMixin:
 				and event.key() in (PySide6.QtCore.Qt.Key.Key_Return, PySide6.QtCore.Qt.Key.Key_Enter)
 			):
 				self._complete_click_presentation_gesture(self._line_gesture_intent)
+				return True
+			if (
+				self._line_gesture_intent is not None
+				and self._line_gesture_intent.tool in self._draw_path_actions
+				and event.key() is PySide6.QtCore.Qt.Key.Key_Escape
+			):
+				self._cancel_presentation_path_gesture(self._line_gesture_intent)
 				return True
 			if self._keyboard_canvas_key_event(event):
 				return True
@@ -90,8 +104,9 @@ class FerrumNativeLineToolPointerMixin:
 					and self._line_gesture_intent.tool in self._completion_click_actions
 					and (
 						self._line_gesture_intent.path_gesture is not None
-						or self._line_gesture_intent.presentation_gesture is not None
-						or self._line_gesture_intent.curved_electron_points
+					or self._line_gesture_intent.presentation_gesture is not None
+					or self._line_gesture_intent.curved_equilibrium_arrow is not None
+						or self._line_gesture_intent.terminal_arrow is not None
 					)
 				):
 					self._append_click_presentation_point(event)
@@ -105,9 +120,21 @@ class FerrumNativeLineToolPointerMixin:
 			if event.button() != PySide6.QtCore.Qt.MouseButton.LeftButton:
 				return False
 			if self._line_gesture_intent is not None and self._line_gesture_intent.tool in self._completion_click_actions:
-				self._append_click_presentation_point(event)
-				if self._line_gesture_intent is not None:
-					self._complete_click_presentation_gesture(self._line_gesture_intent)
+				if self._line_gesture_intent.tool in self._draw_path_actions:
+					current = self._line_gesture_intent
+					if (
+						current is not None
+						and event.position().toPoint()
+						!= current.last_accepted_path_press_viewport
+					):
+						self._append_presentation_path_point(event, record_press_token=False)
+					current = self._line_gesture_intent
+					if current is not None:
+						self._complete_click_presentation_gesture(current)
+				else:
+					self._append_click_presentation_point(event)
+					if self._line_gesture_intent is not None:
+						self._complete_click_presentation_gesture(self._line_gesture_intent)
 				return True
 		if event.type() == PySide6.QtCore.QEvent.Type.MouseMove:
 			try:
@@ -213,29 +240,56 @@ class FerrumNativeLineToolPointerMixin:
 			)
 			return
 		if intent.tool in self._draw_path_actions:
+			import ferrum_qt.ferrum.engine as engine
 			try:
-				import ferrum_qt.ferrum.engine as engine
 				kind = {
 					_NativeLineTool.DRAW_POLYLINE: engine.PresentationPathKindV1.polyline,
 					_NativeLineTool.DRAW_POLYGON: engine.PresentationPathKindV1.polygon,
 				}[intent.tool]
 				gesture = intent.tab.begin_presentation_path_gesture(kind)
-			except Exception as exc:
+				progress = intent.tab.add_presentation_path_gesture_point(
+					gesture, float(press_scene.x()), float(press_scene.y()),
+				)
+			except engine.PresentationPathGestureError as exc:
 				self._cancel_line_gesture()
-				self._show_edit_refusal(self._vector_gesture_refusal(exc))
+				self._show_presentation_path_refusal(exc)
 				return
 			self._line_gesture_intent = dataclasses.replace(
-				intent, press_scene=press_scene, path_gesture=gesture,
-				path_points=((float(press_scene.x()), float(press_scene.y())),),
+				intent, path_gesture=gesture,
+				path_progress=progress,
+				last_accepted_path_press_viewport=(
+					point if progress.accepted_point_count > 0 else None
+				),
 			)
-			self._show_presentation_path_point_guidance(intent.tool, 1)
+			self._show_presentation_path_point_guidance(intent.tool, progress)
+			self._update_presentation_path_gesture(self._line_gesture_intent, None)
 			return
-		if intent.tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
+		if intent.tool in (
+				_NativeLineTool.DRAW_CURVED_ELECTRON_ARROW,
+				_NativeLineTool.DRAW_CURVED_RETRO_ARROW,
+				_NativeLineTool.DRAW_CURVED_REACTION_ARROW,
+			):
+			kind = ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind.from_line_tool_value(
+				intent.tool.value,
+			)
 			self._line_gesture_intent = dataclasses.replace(
 				intent, press_scene=press_scene,
-				curved_electron_points=((float(press_scene.x()), float(press_scene.y())),),
+				terminal_arrow=ferrum_qt.ferrum.terminal_arrow.TerminalArrowState(
+					kind, ((float(press_scene.x()), float(press_scene.y())),),
+				),
 			)
-			self._show_curved_electron_point_guidance(1)
+			self._show_terminal_arrow_point_guidance(kind, 1)
+			return
+		if intent.tool is _NativeLineTool.DRAW_CURVED_EQUILIBRIUM_ARROW:
+			self._line_gesture_intent = dataclasses.replace(
+				intent, press_scene=press_scene,
+				curved_equilibrium_arrow=(
+					ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowState(
+						((float(press_scene.x()), float(press_scene.y())),),
+					)
+				),
+			)
+			self._show_curved_equilibrium_arrow_point_guidance(1)
 			return
 		if intent.tool is _NativeLineTool.DRAW_PLUS:
 			try:
@@ -347,38 +401,36 @@ class FerrumNativeLineToolPointerMixin:
 			return
 		if intent.tool is _NativeLineTool.DRAW_BOND:
 			try:
-				endpoint = intent.tab.direct_bond_endpoint_at_viewport_point(point)
-			except ferrum_qt.ferrum.direct_bond_gesture_tab.DirectBondEndpointAmbiguity:
-				self.statusBar().showMessage(
-					self.tr("Draw Bond needs one atom clearly or empty canvas."), 5000,
-				)
-				return
-			except Exception:
-				self._cancel_line_gesture()
-				raise
-			try:
-				# Freeze the current shared next-drawing choice only after a valid
-				# endpoint begins this gesture.
+				start_probe = intent.tab.direct_bond_pointer_probe_at_viewport_point(point)
+				# Freeze the current shared next-drawing choice with the V3 probe.
 				drawing = self._drawing_parameters.snapshot()
 				gesture = intent.tab.begin_direct_bond_gesture(
-					endpoint.endpoint, drawing.bond_presentation(),
+					start_probe,
+					drawing.bond_presentation(intent.direct_bond_presentation),
 					intent.tab.view.hex_grid_snap_enabled,
 				)
 			except Exception as exc:
 				self._cancel_line_gesture()
 				if not self._is_direct_bond_begin_refusal(exc):
 					raise
-				self._show_edit_refusal(self._unavailable_edit_refusal(
-					self._direct_bond_refusal_message(exc),
-				))
+				self._show_direct_bond_refusal(exc)
 				return
-			self.statusBar().showMessage(self.tr(
-				"Drawing a normal {0} bond. Release over an atom or empty space.",
-			).format(drawing.order_name))
+			presentation = intent.direct_bond_presentation.description()
+			message = (
+				self.tr("Drawing a normal {0} bond. Release over an atom or empty space.").format(
+					drawing.order_name,
+				)
+				if intent.direct_bond_presentation is (
+					ferrum_qt.ferrum.drawing_parameters.DirectBondPresentation.NORMAL
+				)
+				else self.tr(
+					"Drawing a {0} bond from stereo tip to base. Release over an atom or empty space."
+				).format(presentation)
+			)
+			self.statusBar().showMessage(message)
 			self._line_gesture_intent = dataclasses.replace(
 				intent,
 				drawing=drawing,
-				start_atom_id=endpoint.source_id,
 				start_scene=press_scene,
 				press_scene=press_scene,
 				direct_bond_gesture=gesture,
@@ -407,7 +459,7 @@ class FerrumNativeLineToolPointerMixin:
 				)
 			except Exception as exc:
 				self._cancel_line_gesture()
-				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+				self._show_direct_bond_refusal(exc)
 				return
 			self._line_gesture_intent = dataclasses.replace(
 				intent, start_scene=start_scene, press_scene=press_scene, preview=preview,
@@ -437,43 +489,64 @@ class FerrumNativeLineToolPointerMixin:
 	#============================================
 	@staticmethod
 	def _is_direct_bond_begin_refusal(error: Exception) -> bool:
-		"""Accept only native begin failures that the user can correct."""
+		"""Accept only typed V3 failures with a closed nonmodal recovery."""
 		import ferrum_qt.ferrum.engine as engine
-		if type(error) not in (
-			engine.DirectBondGestureError,
-			engine.RevisionConflictError,
-		):
-			return False
-		return getattr(error, "category", None) in (
-			engine.DirectBondGestureCategoryV1.stale_revision,
-			engine.DirectBondGestureCategoryV1.stale_digest,
-			engine.DirectBondGestureCategoryV1.unknown_start_atom,
-			engine.DirectBondGestureCategoryV1.unsupported_presentation,
-			engine.DirectBondGestureCategoryV1.non_finite_point,
-			engine.DirectBondGestureCategoryV1.invalid_snap_policy,
-			engine.DirectBondGestureCategoryV1.session_conflict,
+		return type(error) in (
+			engine.DirectBondPointerProbeErrorV3,
+			engine.DirectBondAdmissionRefusalV3,
 		)
 
 	#============================================
-	def _append_presentation_path_point(self, event: PySide6.QtGui.QMouseEvent) -> None:
-		"""Append one click to the transient ordered path without mutating Rust."""
+	def _append_presentation_path_point(self, event: PySide6.QtGui.QMouseEvent,
+			record_press_token: bool = True) -> bool:
+		"""Add one click through the opaque Rust path capability."""
 		intent = self._line_gesture_intent
 		if intent is None or intent.path_gesture is None:
-			return
-		point = intent.tab.view.mapToScene(event.position().toPoint())
-		coordinate = (float(point.x()), float(point.y()))
-		if intent.path_points and coordinate == intent.path_points[-1]:
-			return
+			return False
+		viewport_point = event.position().toPoint()
+		point = intent.tab.view.mapToScene(viewport_point)
+		accepted_point_count = intent.path_progress.accepted_point_count
+		import ferrum_qt.ferrum.engine as engine
+		try:
+			progress = intent.tab.add_presentation_path_gesture_point(
+				intent.path_gesture, float(point.x()), float(point.y()),
+			)
+		except engine.PresentationPathGestureError as exc:
+			if self._presentation_path_refusal_allows_continuation(exc):
+				self._line_gesture_intent = dataclasses.replace(
+					intent, last_accepted_path_press_viewport=None,
+				)
+				current = self._line_gesture_intent
+				if current is not None:
+					self._update_presentation_path_gesture(current, None)
+			else:
+				self._cancel_line_gesture(clear_status=False)
+			self._show_presentation_path_refusal(exc)
+			return False
+		last_accepted_path_press_viewport = intent.last_accepted_path_press_viewport
+		if record_press_token and progress.accepted_point_count > accepted_point_count:
+			last_accepted_path_press_viewport = viewport_point
 		self._line_gesture_intent = dataclasses.replace(
-			intent, path_points=intent.path_points + (coordinate,),
+			intent,
+			path_progress=progress,
+			last_accepted_path_press_viewport=last_accepted_path_press_viewport,
 		)
 		current = self._line_gesture_intent
-		minimum = 3 if intent.tool is _NativeLineTool.DRAW_POLYGON else 2
-		if current is not None and len(current.path_points) < minimum:
-			self._show_presentation_path_point_guidance(intent.tool, len(current.path_points))
-			return
-		if current is not None and len(current.path_points) >= minimum:
-			self._update_presentation_path_gesture(current, event.position().toPoint(), False)
+		if current is not None:
+			self._show_presentation_path_point_guidance(intent.tool, progress)
+			self._update_presentation_path_gesture(current, None)
+		return self._line_gesture_intent is not None
+
+	#============================================
+	def _cancel_presentation_path_gesture(self, intent: _LineGestureIntent) -> None:
+		"""Consume an active Rust path gesture before retiring its Qt routing state."""
+		if intent.path_gesture is not None:
+			import ferrum_qt.ferrum.engine as engine
+			try:
+				intent.tab.cancel_presentation_path_gesture(intent.path_gesture)
+			except engine.PresentationPathGestureError as exc:
+				self._show_presentation_path_refusal(exc)
+		self._cancel_line_gesture()
 
 	#============================================
 	def _append_click_presentation_point(self, event: PySide6.QtGui.QMouseEvent) -> None:
@@ -483,52 +556,56 @@ class FerrumNativeLineToolPointerMixin:
 			return
 		if intent.tool in self._draw_path_actions:
 			self._append_presentation_path_point(event)
-		elif intent.tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
-			self._append_curved_electron_arrow_point(event)
+		elif intent.terminal_arrow is not None:
+			self._append_terminal_arrow_point(event)
+		elif intent.curved_equilibrium_arrow is not None:
+			self._append_curved_equilibrium_arrow_point(event)
 
 	#============================================
-	def _append_curved_electron_arrow_point(self, event: PySide6.QtGui.QMouseEvent) -> None:
+	def _append_terminal_arrow_point(self, event: PySide6.QtGui.QMouseEvent) -> None:
 		"""Capture only start/control/end points; Rust owns all curve geometry."""
 		intent = self._line_gesture_intent
-		if intent is None:
+		if intent is None or intent.terminal_arrow is None:
 			return
 		point = intent.tab.view.mapToScene(event.position().toPoint())
 		coordinate = (float(point.x()), float(point.y()))
-		if coordinate in intent.curved_electron_points:
+		state = intent.terminal_arrow.append(coordinate)
+		if state is intent.terminal_arrow:
 			return
-		points = intent.curved_electron_points + (coordinate,)
-		if len(points) == 2:
-			import ferrum_qt.ferrum.engine as engine
+		if len(state.points) == 2:
 			try:
-				gesture = intent.tab.begin_curved_electron_arrow_gesture(points[0], points[1])
-			except engine.CurvedElectronArrowGestureError as exc:
+				gesture = intent.tab.begin_terminal_arrow_gesture(
+					state.kind, state.points[0], state.points[1],
+				)
+			except Exception as exc:
 				self._cancel_line_gesture(clear_status=False)
-				self._show_edit_refusal(self._curved_electron_arrow_refusal(exc))
-				return
-			except Exception:
-				self._cancel_line_gesture(clear_status=False)
+				if ferrum_qt.ferrum.terminal_arrow.is_native_error(state.kind, exc):
+					self._show_edit_refusal(self._terminal_arrow_refusal(state.kind, exc))
+					return
 				raise
 			self._line_gesture_intent = dataclasses.replace(
-				intent, curved_electron_points=points, presentation_gesture=gesture,
+				intent, terminal_arrow=state, presentation_gesture=gesture,
 			)
-			self._show_curved_electron_point_guidance(2)
+			self._show_terminal_arrow_point_guidance(state.kind, 2)
 			return
-		if len(points) == 3:
-			self._line_gesture_intent = dataclasses.replace(intent, curved_electron_points=points)
-			self._update_curved_electron_arrow_gesture(
+		if len(state.points) == 3:
+			self._line_gesture_intent = dataclasses.replace(intent, terminal_arrow=state)
+			self._update_terminal_arrow_gesture(
 				self._line_gesture_intent, event.position().toPoint(),
 			)
 			current = self._line_gesture_intent
 			if current is not None:
-				self._complete_curved_electron_arrow_gesture(current)
+				self._complete_terminal_arrow_gesture(current)
 
 	#============================================
 	def _complete_click_presentation_gesture(self, intent: _LineGestureIntent) -> None:
 		"""Complete the current click-driven path or quadratic-arrow contract."""
 		if intent.tool in self._draw_path_actions:
 			self._complete_presentation_path_gesture(intent)
-		elif intent.tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
-			self._complete_curved_electron_arrow_gesture(intent)
+		elif intent.terminal_arrow is not None:
+			self._complete_terminal_arrow_gesture(intent)
+		elif intent.curved_equilibrium_arrow is not None:
+			self._complete_curved_equilibrium_arrow_gesture(intent)
 
 	#============================================
 	def _update_line_gesture(self, event: PySide6.QtGui.QMouseEvent) -> None:
@@ -550,10 +627,13 @@ class FerrumNativeLineToolPointerMixin:
 			self._update_vector_gesture(intent, event.position().toPoint())
 			return
 		if intent is not None and intent.tool in self._draw_path_actions:
-			self._update_presentation_path_gesture(intent, event.position().toPoint(), True)
+			self._update_presentation_path_gesture(intent, event.position().toPoint())
 			return
-		if intent is not None and intent.tool is _NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
-			self._update_curved_electron_arrow_gesture(intent, event.position().toPoint())
+		if intent is not None and intent.terminal_arrow is not None:
+			self._update_terminal_arrow_gesture(intent, event.position().toPoint())
+			return
+		if intent is not None and intent.curved_equilibrium_arrow is not None:
+			self._update_curved_equilibrium_arrow_gesture(intent, event.position().toPoint())
 			return
 		if intent is not None and intent.tool is _NativeLineTool.ATTACH_CYCLOHEXANE_RING:
 			if intent.start_atom_id is None or intent.attached_cyclohexane_pending is not None:
@@ -597,7 +677,9 @@ class FerrumNativeLineToolPointerMixin:
 			return
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
-			self._show_edit_refusal(self._unavailable_edit_refusal("The document changed during the gesture; no operation was accepted."))
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"The document changed during the gesture; no operation was accepted.",
+			))
 			return
 		if not ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(intent.preview):
 			self._cancel_line_gesture()
@@ -611,6 +693,45 @@ class FerrumNativeLineToolPointerMixin:
 			intent.preview.setRect(_normalized_rect(intent.start_scene, current))
 		else:
 			self._update_line_preview(intent, current)
+
+	#============================================
+	def _append_curved_equilibrium_arrow_point(self, event: PySide6.QtGui.QMouseEvent) -> None:
+		"""Capture exactly three points for the dedicated Rust equilibrium lifecycle."""
+		intent = self._line_gesture_intent
+		if intent is None or intent.curved_equilibrium_arrow is None:
+			return
+		point = intent.tab.view.mapToScene(event.position().toPoint())
+		coordinate = (float(point.x()), float(point.y()))
+		state = intent.curved_equilibrium_arrow.append(coordinate)
+		if state is intent.curved_equilibrium_arrow:
+			return
+		if len(state.points) == 2:
+			try:
+				gesture = intent.tab.begin_curved_equilibrium_arrow_gesture(
+					state.points[0], state.points[1],
+				)
+			except Exception as exc:
+				self._cancel_line_gesture(clear_status=False)
+				if ferrum_qt.ferrum.curved_equilibrium_arrow.is_native_error(exc):
+					self._show_curved_equilibrium_arrow_refusal(exc)
+					return
+				raise
+			self._line_gesture_intent = dataclasses.replace(
+				intent, curved_equilibrium_arrow=state, presentation_gesture=gesture,
+			)
+			self._show_curved_equilibrium_arrow_point_guidance(2)
+			return
+		if len(state.points) == 3:
+			self._line_gesture_intent = dataclasses.replace(
+				intent, curved_equilibrium_arrow=state,
+			)
+			self._update_curved_equilibrium_arrow_gesture(
+				self._line_gesture_intent, event.position().toPoint(),
+			)
+			current = self._line_gesture_intent
+			if current is not None:
+				self._complete_curved_equilibrium_arrow_gesture(current)
+			return
 
 	#============================================
 	def _complete_line_gesture(self, event: PySide6.QtGui.QMouseEvent) -> None:
@@ -657,18 +778,20 @@ class FerrumNativeLineToolPointerMixin:
 			import ferrum_qt.ferrum.engine as engine
 			try:
 				commit = current.tab.commit_direct_bond_admission(admission)
-			except (engine.DirectBondGestureError, engine.RevisionConflictError) as exc:
-				if not self._is_direct_bond_commit_refusal(exc):
-					raise
+			except engine.DirectBondCommitError as exc:
+				message = self._direct_bond_commit_recovery_message(exc)
 				self._cancel_line_gesture()
 				self._refresh_actions()
-				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+				if message is None:
+					raise
+				self._show_direct_bond_commit_refusal(message)
 				return
+			presentation = current.direct_bond_presentation.description()
 			result_message = (
-				self.tr("Added one Ferrum carbon and normal bond; drag again or press Esc.")
+				self.tr("Added one Ferrum carbon and {0} bond; drag again or press Esc.")
 				if commit.created_new_atom
-				else self.tr("Added one Ferrum normal bond; drag again or press Esc.")
-			)
+				else self.tr("Added one Ferrum {0} bond; drag again or press Esc.")
+			).format(presentation)
 			self._finish_line_gesture(current, result_message)
 			return
 		if (
@@ -791,7 +914,6 @@ class FerrumNativeLineToolPointerMixin:
 				),
 			)
 			return
-		end_atom_id = intent.tab.durable_atom_at_viewport_point(release_point)
 		start_atom_id = intent.start_atom_id
 		assert start_atom_id is not None
 		if intent.tool is _NativeLineTool.MOVE_ATOM:
@@ -809,35 +931,6 @@ class FerrumNativeLineToolPointerMixin:
 			)
 			self._finish_line_gesture(intent, result_message)
 			return
-		if end_atom_id == start_atom_id:
-			self.statusBar().showMessage(
-				self.tr("Release Draw Bond on a different atom or in empty space."), 5000,
-			)
-			return
-		drawing = intent.drawing
-		if drawing is None:
-			raise RuntimeError("Ferrum Draw Bond gesture has no frozen drawing parameters")
-		presentation = drawing.bond_presentation()
-		try:
-			if end_atom_id is None:
-				intent.tab.add_bonded_atom_at(
-					start_atom_id, drawing.element, float(release_scene.x()),
-					float(release_scene.y()), presentation,
-				)
-				result_message = self.tr(
-					"Added one Ferrum {0} and {1} bond; drag again or press Esc."
-				).format(drawing.element, drawing.presentation_name.replace("_", " "))
-			else:
-				intent.tab.add_bond_between_atoms(start_atom_id, end_atom_id, presentation)
-				result_message = self.tr(
-					"Added one Ferrum {0} bond; drag again or press Esc."
-				).format(drawing.presentation_name.replace("_", " "))
-		except Exception as exc:
-			self._cancel_line_gesture()
-			self._refresh_actions()
-			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
-			return
-		self._finish_line_gesture(intent, result_message)
 
 	#============================================
 	def _line_gesture_preview_target(
@@ -850,8 +943,4 @@ class FerrumNativeLineToolPointerMixin:
 				raise RuntimeError("Ferrum Move Atom gesture has no captured start point")
 			target = intent.start_scene + raw_scene - intent.press_scene
 			return intent.tab.view.snap_authored_scene_point(target)
-		if intent.tool is _NativeLineTool.DRAW_BOND:
-			end_atom_id = intent.tab.durable_atom_at_viewport_point(viewport_point)
-			if end_atom_id is not None:
-				return intent.tab.durable_atom_scene_position(end_atom_id)
 		return intent.tab.view.snap_authored_scene_point(raw_scene)

@@ -6,12 +6,11 @@
 //! no reaction candidate, request, or reaction-specific commit capability.
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
 
 use ferrum_document::{
-    DirectCdmlRootKindV1, DirectCdmlSemanticIndexV1, DirectReactionRoleV1, DocumentFenceV1,
-    DocumentSession, SessionOperationResultV1, append_direct_cdml_reaction_v1,
+    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DirectCdmlRootKindV1,
+    DirectCdmlSemanticIndexV1, DirectReactionRoleV1, DocumentFenceV1, DocumentSession,
+    SessionOperationResultV1, append_direct_cdml_reaction_v1,
 };
 use ferrum_render::{
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
@@ -74,14 +73,11 @@ impl ReactionCreateRequestV1 {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) struct ReactionSessionOriginV1(pub(crate) u64);
 /// Opaque session-bound authoring capability. It deliberately has no public
 /// fields, candidate conversion, serialization, clone, or dereference route.
 #[derive(Debug)]
 pub struct ReactionGestureV1 {
-    origin: ReactionSessionOriginV1,
-    nonce: u64,
+    capability: AuthoringCapabilityV1,
     fence: DocumentFenceV1,
     request: ReactionCreateRequestV1,
 }
@@ -232,8 +228,7 @@ impl ReactionGestureErrorV1 {
 }
 
 struct ReactionRendererReceiptV1 {
-    origin: ReactionSessionOriginV1,
-    nonce: u64,
+    capability: AuthoringCapabilityV1,
     source_fence: DocumentFenceV1,
     candidate_revision: u64,
     candidate_digest: [u8; 32],
@@ -323,13 +318,6 @@ fn compile_candidate(
         .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
     Ok((candidate, reaction_id))
 }
-fn origin(session: &DocumentSession) -> ReactionSessionOriginV1 {
-    ReactionSessionOriginV1(session.bridge_session_origin_v1())
-}
-fn consumed() -> &'static Mutex<HashSet<(ReactionSessionOriginV1, u64)>> {
-    static VALUE: OnceLock<Mutex<HashSet<(ReactionSessionOriginV1, u64)>>> = OnceLock::new();
-    VALUE.get_or_init(|| Mutex::new(HashSet::new()))
-}
 fn require_fence(
     session: &DocumentSession,
     fence: DocumentFenceV1,
@@ -351,10 +339,8 @@ pub fn begin_reaction_gesture_v1(
     if request.expected_revision() != fence.revision() {
         return Err(ReactionGestureErrorV1::StaleSnapshot);
     }
-    static NEXT: AtomicU64 = AtomicU64::new(1);
     Ok(ReactionGestureV1 {
-        origin: origin(session),
-        nonce: NEXT.fetch_add(1, Ordering::Relaxed),
+        capability: session.authoring_capability_issuer_v1().issue(),
         fence,
         request,
     })
@@ -363,15 +349,23 @@ pub fn prepare_reaction_gesture_v1(
     session: &mut DocumentSession,
     gesture: &ReactionGestureV1,
 ) -> Result<PreparedReactionV1, ReactionGestureErrorV1> {
-    if gesture.origin != origin(session) {
+    if !gesture
+        .capability
+        .belongs_to(&session.authoring_capability_issuer_v1())
+    {
         return Err(ReactionGestureErrorV1::ForeignSession);
     }
-    if consumed()
-        .lock()
-        .expect("reaction receipt lock is not poisoned")
-        .contains(&(gesture.origin, gesture.nonce))
+    match gesture
+        .capability
+        .claim_for_commit(&session.authoring_capability_issuer_v1())
     {
-        return Err(ReactionGestureErrorV1::ReplayedGesture);
+        Ok(claim) => drop(claim),
+        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
+            return Err(ReactionGestureErrorV1::ForeignSession);
+        }
+        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
+            return Err(ReactionGestureErrorV1::ReplayedGesture);
+        }
     }
     require_fence(session, gesture.fence)?;
     let source = session
@@ -404,8 +398,7 @@ pub fn prepare_reaction_gesture_v1(
     Ok(PreparedReactionV1 {
         reaction_id: reaction_id.clone(),
         receipt: Some(ReactionRendererReceiptV1 {
-            origin: gesture.origin,
-            nonce: gesture.nonce,
+            capability: gesture.capability.clone(),
             source_fence: gesture.fence,
             candidate_revision: gesture
                 .fence
@@ -426,53 +419,66 @@ pub fn commit_reaction_gesture_v1(
 ) -> Result<CommittedReactionV1, ReactionGestureErrorV1> {
     let receipt = prepared
         .receipt
-        .as_ref()
+        .take()
         .ok_or(ReactionGestureErrorV1::ReplayedGesture)?;
-    if receipt.origin != origin(session) {
+    if !receipt
+        .capability
+        .belongs_to(&session.authoring_capability_issuer_v1())
+    {
+        prepared.receipt = Some(receipt);
         return Err(ReactionGestureErrorV1::ForeignSession);
     }
-    if consumed()
-        .lock()
-        .expect("reaction receipt lock is not poisoned")
-        .contains(&(receipt.origin, receipt.nonce))
+    let claim = match receipt
+        .capability
+        .claim_for_commit(&session.authoring_capability_issuer_v1())
     {
-        return Err(ReactionGestureErrorV1::ReplayedGesture);
+        Ok(claim) => claim,
+        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
+            unreachable!("owner checked above")
+        }
+        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
+            prepared.receipt = Some(receipt);
+            return Err(ReactionGestureErrorV1::ReplayedGesture);
+        }
+    };
+    let result = (|| {
+        require_fence(session, receipt.source_fence)?;
+        if receipt.reaction_id != prepared.reaction_id
+            || receipt.candidate_revision != receipt.source_fence.revision().saturating_add(1)
+            || receipt.contract.source() != receipt.candidate
+            || receipt
+                .plan
+                .outcomes()
+                .iter()
+                .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
+        {
+            return Err(ReactionGestureErrorV1::RenderPreparation);
+        }
+        let candidate_session = DocumentSession::load(&receipt.candidate)
+            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
+        let snapshot = candidate_session
+            .snapshot()
+            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
+        if *snapshot.digest() != receipt.candidate_digest {
+            return Err(ReactionGestureErrorV1::RenderPreparation);
+        }
+        session
+            .commit_complete_cdml_transaction_v1(receipt.source_fence, &receipt.candidate)
+            .map_err(|_| ReactionGestureErrorV1::SessionConflict)
+    })();
+    match result {
+        Ok(result) => {
+            claim.consume();
+            Ok(CommittedReactionV1 {
+                reaction_id: prepared.reaction_id.clone(),
+                result,
+            })
+        }
+        Err(error) => {
+            prepared.receipt = Some(receipt);
+            Err(error)
+        }
     }
-    require_fence(session, receipt.source_fence)?;
-    if receipt.reaction_id != prepared.reaction_id
-        || receipt.candidate_revision != receipt.source_fence.revision().saturating_add(1)
-        || receipt.contract.source() != receipt.candidate
-        || receipt
-            .plan
-            .outcomes()
-            .iter()
-            .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(ReactionGestureErrorV1::RenderPreparation);
-    }
-    let candidate_session = DocumentSession::load(&receipt.candidate)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let snapshot = candidate_session
-        .snapshot()
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    if *snapshot.digest() != receipt.candidate_digest {
-        return Err(ReactionGestureErrorV1::RenderPreparation);
-    }
-    let result = session
-        .commit_complete_cdml_transaction_v1(receipt.source_fence, &receipt.candidate)
-        .map_err(|_| ReactionGestureErrorV1::SessionConflict)?;
-    let consumed_receipt = prepared
-        .receipt
-        .take()
-        .expect("successful commit retains receipt");
-    consumed()
-        .lock()
-        .expect("reaction receipt lock is not poisoned")
-        .insert((consumed_receipt.origin, consumed_receipt.nonce));
-    Ok(CommittedReactionV1 {
-        reaction_id: prepared.reaction_id.clone(),
-        result,
-    })
 }
 
 #[cfg(test)]
@@ -504,9 +510,21 @@ mod tests {
         let gesture =
             begin_reaction_gesture_v1(&session, fence(&session), request()).expect("begin");
         let mut prepared = prepare_reaction_gesture_v1(&mut session, &gesture).expect("prepare");
+        let mut alias = prepare_reaction_gesture_v1(&mut session, &gesture).expect("alias prepare");
         let committed = commit_reaction_gesture_v1(&mut session, &mut prepared).expect("commit");
         assert_eq!(committed.reaction_id(), "rxn-1");
-        assert_eq!(committed.result().observation().snapshot().revision(), 1);
+        assert!(
+            committed
+                .result()
+                .observation()
+                .snapshot()
+                .cdml()
+                .contains("<reaction id=\"rxn-1\"")
+        );
+        assert!(matches!(
+            commit_reaction_gesture_v1(&mut session, &mut alias),
+            Err(ReactionGestureErrorV1::ReplayedGesture)
+        ));
         assert!(matches!(
             commit_reaction_gesture_v1(&mut session, &mut prepared),
             Err(ReactionGestureErrorV1::ReplayedGesture)

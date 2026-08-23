@@ -85,6 +85,28 @@ Rejected requests change neither the current document, revision, saved
 baseline, nor retained history. A revision conflict is also a rejection. There
 is no partial-success commit.
 
+`presentation.author.v1` is the stateless CLI/protocol route for one closed
+presentation mutation against request-owned CDML. Its variants are Vector,
+terminal Electron/Retro/Normal arrow, Curved Equilibrium arrow,
+Polyline/Polygon path, or DirectBond with explicit endpoints. It returns the
+accepted document and durable root result, never live gesture state. The
+protocol adapter creates and consumes session-local capabilities and pending
+reservations internally; callers receive neither. DirectBond input names
+existing atom IDs or finite new-atom points, so the route has no Qt pointer,
+viewport, hit-test, or preview dependency.
+
+`document.inspect` returns a `document_fence` from its admitted snapshot; later stateless mutations use its revision/digest plain facts, never session state.
+`catalog.insert.v1` returns changed CDML, created root ID, committed revision, and a fence for returned text.
+Its revision is zero with the returned CDML's digest because the next request starts
+in a fresh session. A stale catalog request is a typed refusal with no partial success result.
+
+`PresentationAppearanceV1` is a document-native value, not a caller XML
+fragment. Its RGB colors and bounded finite widths are validated before CDML
+assembly, so style text cannot introduce XML roots, identifiers, or structure.
+The document session reserves the candidate presentation ID transactionally:
+abandoned, stale, or refused candidates leave the allocator unchanged and may
+reuse that tentative ID; only a successful mutation advances it.
+
 After acceptance, the accepted snapshot remains authoritative even if a
 frontend cannot install its projection. Recovery is limited to exact
 reprojection of the accepted/current backend snapshot; retained projection
@@ -206,7 +228,7 @@ The backend exposes these behavioral operations:
 | Observe direct atom marks | Exact expected revision | Immutable normalized rendering facts, actionable durable addresses and same-type ordinals, plus display-only diagnostics | Invalid query or revision conflict |
 | Observe direct groups | Exact expected revision | Immutable visible group facts, unambiguous durable addresses only where selectable, exact implicit-expansion eligibility, and display-only diagnostics | Invalid query or revision conflict |
 | Observe molecule core | Exact expected revision | Immutable molecule, atom, bond, endpoint-order, and depiction facts with renderability, actionability, and diagnostics. Child actionability requires a unique durable direct-root molecule and child ID; a bond renders only when both endpoint IDs name one observed direct atom. | Invalid query or revision conflict |
-| Observe atom chemistry facts | Exact expected revision | Immutable complete-direct-graph atom facts associated by durable molecule/atom IDs plus source positions. Usable records include plain element and charge display facts, effective, occupied, and free valency, implicit hydrogen count, atomic number, and the backend's electronegativity-derived oxidation result; malformed, ambiguous, foreign, nested, preservation-only, or undecodable content remains display-only with diagnostics. | Invalid query or revision conflict |
+| Observe atom chemistry facts | Exact expected revision | Immutable complete-direct-graph atom facts associated by durable molecule/atom IDs plus source positions. Usable records include plain element and charge display facts, effective, occupied, and free valency, implicit hydrogen count, and atomic number; malformed, ambiguous, foreign, nested, preservation-only, or undecodable content remains display-only with diagnostics. | Invalid query or revision conflict |
 | Observe molecule render | Exact expected revision | Immutable atom and bond paint batches from that same canonical molecule snapshot. The closed grammar is line, polygon, circle, path, and structured text runs; geometry is finite and colors are explicit or use a semantic foreground/document-background role. | Invalid query, revision conflict, or render preparation failure |
 | Observe drawing standard | Exact expected revision | Immutable effective line, color, font, atom-hydrogen, and bond drawing defaults plus plain diagnostics | Invalid query or revision conflict |
 | Expand implicit group | Expected revision, one direct-root molecule ID, and one direct implicit-group ID with exactly one editable exterior bond | Immutable accepted snapshot and generated durable atom/bond IDs | Invalid request, unsupported target content, formula, geometry, bond, target, or revision conflict |
@@ -971,200 +993,6 @@ the established PostScript-point-to-centimetre conversion and moves every
 selected persistent coordinate pair by that offset. A numeric zero delta and
 identity scale remain stale-checked, history-free lexical no-ops.
 
-## Straight normal-arrow creation gesture V1
-
-`presentation.creation.gesture.v1` is the Rust-owned authoring route for one
-direct-root normal Arrow. Begin receives the current revision/digest, the closed
-`straight_normal_arrow` kind, a finite scene point, an exact Arrow head-style
-value, and a closed snap policy. Preview and commit consume only opaque handles.
-Preview returns the exact backend-resolved shaft, head vertices, bounds, width,
-and color for disposable frontend painting; it neither allocates an ID nor edits
-the document. Commit accepts only the originating session's exact current
-gesture/preview pair and returns one durable Arrow selector plus the ordinary
-accepted snapshot.
-
-Qt may map pointer coordinates and paint the returned overlay. It must not
-calculate Arrow geometry, snapping, default style, identifiers, or CDML. Escape,
-focus loss, tab close, tool changes, and handle disposal do not commit. Closed
-Rust gesture categories direct recovery: endpoint geometry failures request an
-adjusted endpoint, stale/session failures request refresh and restart, and
-style-policy failures request a changed tool or style. After acceptance, the
-frontend reprojects from the snapshot and restores selection only by the durable
-selector through the root-interaction contract.
-
-## Polyline and Polygon creation gesture V1
-
-`presentation.path.gesture.v1` is the Rust-owned authoring route for one
-direct-root Polyline or Polygon. Begin receives the current revision/digest and
-one closed kind. Preview receives only the opaque originating gesture plus an
-ordered sequence of finite scene/PostScript points. It returns a Rust-resolved
-disposable overlay containing the accepted ordered points, closed-path fact,
-and appearance; it allocates no persistent identifier and edits no document.
-Polyline requires at least two points. Polygon requires at least three
-nondegenerate ordered points. Rust also owns the bounded point and extent
-limits, default stroke/fill policy, and every geometry refusal.
-
-Prepare accepts only the exact session's gesture/preview pair. It constructs
-the complete persistent candidate, preflights it through the renderer, and
-returns one opaque, fence-bound receipt. Commit consumes that receipt once and
-returns the durable direct-root selector with the ordinary accepted snapshot.
-It is the sole persistent mutation: validation, preflight, stale-session, and
-receipt failures are typed and atomic, leaving document content and history
-unchanged.
-
-Qt may collect click points, display the returned transient overlay, and offer
-the documented completion controls. It retains incomplete points until they
-form a valid Rust preview, then it submits only opaque handles. Escape, focus
-loss, tab close, tool change, and gesture disposal cancel without a commit.
-Qt must not derive or serialize path geometry, appearance, identifiers, CDML,
-or a recovery candidate. After success it discards the overlay, reprojects the
-returned snapshot, and restores selection only through the durable root
-selector. Geometry failures request adjusted points; stale or session failures
-request refresh and restart.
-
-## Curved electron arrow V1
-
-`presentation.electron-arrow.gesture.v1` is the Rust-owned authoring route for
-one direct-root curved electron arrow. Its persistent CDML grammar is exactly
-one `<arrow type="electron">` with three finite ordered `<point>` children:
-`start`, `control`, and `end`. The closed grammar accepts neither extra points
-nor another arrow type.
-
-Begin receives the current revision/digest. Preview receives only its opaque
-gesture and the three point roles. Rust owns quadratic geometry, its one-time
-cubic lowering, terminal-head derivation, bounds, style, identifier allocation,
-CDML serialization, renderer preflight, and every geometry refusal. It returns
-only a disposable Rust-resolved overlay; no preview mutates the document or
-allocates a persistent identifier.
-
-Prepare accepts only the exact gesture/preview pair and returns one opaque,
-fence-bound receipt. Commit consumes that receipt once, creates one history
-entry, and returns the accepted snapshot and durable root selector. Invalid
-points, stale sessions, renderer preflight failure, and receipt misuse are
-typed and atomic: document content and history remain unchanged.
-
-Qt captures the three scene points only. The first click records `start`; the
-second records `control` and begins the native gesture; preview comes only from
-Rust; the third records `end` and automatically commits the prepared receipt.
-Escape, focus loss, tab close, tool change, and gesture disposal cancel without
-a commit. Geometry refusals retain the appropriate recovery guidance; stale or
-session refusals refresh then restart. Qt never derives curve geometry, cubic
-controls, arrowhead, style, CDML, identifiers, or a replacement candidate.
-
-## Restore, history, and saved state
-
-Restore copies a retained accepted snapshot into a new increasing revision; it
-does not move the revision counter backward. The immediate pre-restore content
-is retained as the one opposite restore target. A later restore replaces that
-opposite target, and a normal accepted edit clears it.
-
-The saved canonical-content baseline is independent of revision and undo
-history retention. A session begins with its initial canonical content as its
-saved baseline. `mark_saved` changes that baseline only after successful
-external publication of the exact current snapshot. Clean/dirty compares the
-current canonical content with this saved canonical content, not revision
-numbers. Therefore restoring saved content is clean even though restore creates
-a new revision.
-
-History capacity, eviction mechanics, and performance limits are implementation
-choices. They cannot change these observable rules: current content, the saved
-canonical baseline, and immediate restore recovery retain their stated
-semantics; an evicted older revision fails with the typed unavailable-revision
-error; and eviction never changes whether current content is clean or dirty.
-
-## External publication
-
-Ordinary Save for a synchronized frontend session publishes the exact current
-immutable backend snapshot, then marks that snapshot saved. A failure before
-replacement leaves the target and saved baseline unchanged. A failure after
-replacement but before baseline marking is a partial external result: the file
-may contain canonical CDML, but the saved baseline remains unchanged.
-
-Recovery Export writes an exact backend snapshot without changing backend or
-frontend session state, including the saved baseline, dirty state, revision,
-history, selection, or projection provenance. It is an export/recovery action,
-not ordinary Save and not evidence that a frontend projection is synchronized.
-
-## Visual artifact export
-
-Visual output captures one immutable backend snapshot exactly once, plus only
-durable selection IDs and scalar render options. The renderer returns artifact
-bytes or a caller-controlled artifact path together with typed failures and
-coverage warnings. It never receives a live frontend scene, document, widget,
-or graphics wrapper as persistent input. SVG, PNG, PDF, cropped SVG, and
-selected SVG therefore all describe the same captured revision; later scene or
-selection changes cannot alter the artifact.
-
-An unrenderable retained object produces a typed warning. Export never commits,
-marks saved, consumes a token, or falls back to a retained frontend projection.
-It publishes only after disposable render retirement; failure returns a typed
-render failure with any cleanup diagnostic.
-
-## Projection rules
-
-Frontends rebuild all-or-nothing from the accepted snapshot. They may reuse
-stable selection IDs, never old persistent objects, XML, or wrappers; failure
-requires exact-snapshot reprojection or an unavailable frontend state. Complete
-routes accept complete CDML; bounded routes accept documented IDs and scalars,
-produce canonical CDML internally, and keep previews transient.
-
-Direct atom-mark observations expose only actionable plain addresses, source
-positions, removal ordinals, diagnostics, and finite rendering facts. Raw mark
-XML remains backend-owned; legacy `atom_number` is a separate compatibility
-diagnostic.
-# Structural child selection and deletion
-
-Direct atom/bond selection is a fenced Rust interaction contract.  Qt may send
-only finite point or full-containment marquee coordinates plus replace/toggle;
-Rust issues all target bounds, target identity, one-molecule selection, and the
-atomic deletion receipt.  An atom target absorbs incident bonds during delete;
-an explicitly selected bond preserves both endpoint atoms.  Blank canvas is an
-ordinary empty selection.  Qt must clear a child selection after any commit,
-tab change, focus loss, or new render observation and must not use scene item
-selection, XML, or locally-derived bond topology as durable authority.
-
-## Molecule report core V1
-
-`document.molecule.report.v1` is the sole public read-only, revision-and-
-digest-fenced molecule-report route. Its request carries bounded complete CDML,
-unique durable direct-root molecule IDs, revision zero, and the input digest.
-`ferrum-document` remains the authority for retained snapshots, direct-root
-projection, typed-core corroboration, and fences. A private `ferrum-api`
-protocol enclave owns report graph preparation and the one trusted chemistry
-runtime callback. Neither crate exports a prepared report, graph, chemistry
-engine, callback, adapter path, or report executor.
-
-Each record always retains authenticated source identity, authored name when
-present, root order, atom count, bond count, canonical authored-element counts,
-and an authored charge only when every atom supplied a charge. Composition is optional: a
-graph that falls outside the closed composition vocabulary remains a successful
-record with bounded closed diagnostic findings. Neutral bond capacity is also a
-record facet and reports `within_capacity`, `exceeds_capacity`, or
-`not_checked`; an excess is a finding, not a request refusal. Combined
-composition is emitted only when at least two selected records all have a
-complete composition. Ferrum never aggregates a subset.
-
-The public protocol represents each available record composition as one
-all-or-none plain DTO: isotope- and
-charge-aware formula, net formal charge, average molecular weight in Da,
-monoisotopic mass in Da, and canonical formula-ordered isotope-aware element
-rows. Each row carries symbol, optional isotope mass number, atom count,
-average-mass contribution in Da, and mass percentage. All mass values are
-finite. An unavailable record composition is `null` with its closed finding;
-the required `aggregate` DTO is either `{"kind":"complete","composition":...}`
-or `{"kind":"omitted","reason":...}`. Its reason is closed to
-`fewer_than_two_selected` or `incomplete_record_composition`. No partial
-formula, subset mass, contradictory complete-and-omitted state, or open reason
-string is emitted.
-
-Report findings use Rust-owned closed code, severity, recovery, and location
-vocabularies. Optional detail is capped at 256 UTF-8 bytes, each record admits
-at most 64 findings, and a storage/capacity breach refuses the whole operation
-without mutation. Stale observations, digest mismatches, malformed admitted
-CDML, and non-direct/ambiguous selectors remain whole-request refusals. The
-protocol and CLI presentation layers serialize only the explicitly mapped
-source, capacity, finding, aggregate, and composition facts; they do not repeat
-CDML traversal or chemistry arithmetic. The named CLI route is `ferrum document
-command document.molecule.report.v1 REQUEST.json`; normal typed refusal paths
-remain read-only and never reveal CDML, a native-library location, or native
-diagnostic payloads.
+The bounded Rust-owned authoring lifecycles, durable presentation-ID
+reservations, and related session contracts continue in
+[CDML_AUTHORING_GESTURE_CONTRACT.md](CDML_AUTHORING_GESTURE_CONTRACT.md).

@@ -28,7 +28,7 @@ pub(crate) fn run(
     }
     match envelope {
         OperationProtocolEnvelopeV1::Success(response) => match response.outcome {
-            OperationProtocolOutcomeV1::Inspect { report } => write_pretty(&report, stdout),
+            OperationProtocolOutcomeV1::Inspect { report, .. } => write_pretty(&report, stdout),
             _ => Err(VerbCliError::UnexpectedOutcome),
         },
         OperationProtocolEnvelopeV1::Error(response) => {

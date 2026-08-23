@@ -196,37 +196,3 @@ def test_arrow_commit_remains_truthful_when_selection_recovery_fails(
 
 
 #============================================
-def test_arrow_commit_refreshes_after_projection_install_failure(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
-		) -> None:
-	"""A failed disposable install preserves the Rust Arrow and refreshes from it."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_EDITABLE_CDML, "arrow-install-recovery.cdml")
-	try:
-		refusals = []
-		monkeypatch.setattr(window, "_show_edit_refusal", lambda request: refusals.append(request))
-		window._register_native_tab(tab, activate=True)
-		window.show()
-		qapp.processEvents()
-		replace = tab._controller.replace
-		fail_once = [True]
-		def fail_first_install(*args: object, **kwargs: object) -> object:
-			if fail_once[0]:
-				fail_once[0] = False
-				raise RuntimeError("forced Qt projection installation failure")
-			return replace(*args, **kwargs)
-		monkeypatch.setattr(tab._controller, "replace", fail_first_install)
-		start, end = _scene_point(tab, 24.0, 30.0), _scene_point(tab, 124.0, 30.0)
-		window._draw_arrow_action.trigger()
-		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
-		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end)
-		PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end)
-		qapp.processEvents()
-		assert "<arrow" in tab.current_snapshot.cdml
-		assert not tab.requires_refresh and window._render_interaction_selection is None
-		assert refusals and "reaction arrow was added" in refusals[-1].technical_details.lower()
-	finally:
-		window.close()
-		window.deleteLater()

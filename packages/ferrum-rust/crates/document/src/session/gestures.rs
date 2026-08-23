@@ -6,7 +6,7 @@ impl DocumentSession {
         fence: DocumentFenceV1,
         anchor: PresentationGesturePoint2V1,
     ) -> Result<crate::TextPlacementGestureV1, crate::TextPlacementErrorV1> {
-        crate::text_placement_gesture_v1::begin(self.text_placement_origin, fence, anchor)
+        crate::text_placement_gesture_v1::begin(&self.authoring_capability_issuer, fence, anchor)
     }
 
     pub fn preview_text_placement_gesture_v1(
@@ -15,7 +15,7 @@ impl DocumentSession {
         content: crate::TextPlacementContentV1,
     ) -> Result<crate::TextPlacementPreviewV1, crate::TextPlacementErrorV1> {
         crate::text_placement_gesture_v1::preview(
-            self.text_placement_origin,
+            &self.authoring_capability_issuer,
             self.history.current().revision(),
             *self.history.current().digest(),
             gesture,
@@ -31,20 +31,25 @@ impl DocumentSession {
         use crate::text_placement_gesture_v1::{
             CommittedTextPlacementV1, TextPlacementErrorV1, belongs_to,
         };
-        if !belongs_to(self.text_placement_origin, gesture)
-            || !belongs_to(self.text_placement_origin, &preview.gesture)
+        if !belongs_to(&self.authoring_capability_issuer, gesture)
+            || !belongs_to(&self.authoring_capability_issuer, &preview.gesture)
         {
             return Err(TextPlacementErrorV1::ForeignSession);
         }
         if gesture.capability != preview.gesture.capability {
             return Err(TextPlacementErrorV1::MismatchedPreview);
         }
-        if self
-            .text_placement_consumed
-            .contains(&gesture.capability.nonce)
-        {
-            return Err(TextPlacementErrorV1::ReplayedGesture);
-        }
+        let claim = gesture
+            .capability
+            .claim_for_commit(&self.authoring_capability_issuer)
+            .map_err(|error| match error {
+                crate::AuthoringCapabilityAccessErrorV1::ForeignSession => {
+                    TextPlacementErrorV1::ForeignSession
+                }
+                crate::AuthoringCapabilityAccessErrorV1::Replayed => {
+                    TextPlacementErrorV1::ReplayedGesture
+                }
+            })?;
         if gesture.fence.revision() != self.history.current().revision()
             || gesture.fence.digest() != *self.history.current().digest()
         {
@@ -74,12 +79,15 @@ impl DocumentSession {
         let state = RevisionState::from_document(revision, candidate)
             .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
         self.generated_ids = next_ids;
-        self.text_placement_consumed
-            .insert(gesture.capability.nonce);
         self.history.append(state);
-        let result = self
-            .operation_result()
-            .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
+        let result = match self.operation_result() {
+            Ok(result) => result,
+            Err(_) => {
+                claim.consume();
+                return Err(TextPlacementErrorV1::SessionConflict);
+            }
+        };
+        claim.consume();
         Ok(CommittedTextPlacementV1::new(identifier, result))
     }
 
@@ -108,7 +116,7 @@ impl DocumentSession {
             return Err(PresentationGestureErrorV1::InvalidGestureStyle);
         }
         Ok(PresentationCreationGestureV1 {
-            capability: self.presentation_gesture_origin.issue_gesture(),
+            capability: self.authoring_capability_issuer.issue(),
             fence,
             kind,
             start,
@@ -121,7 +129,7 @@ impl DocumentSession {
         gesture: &PresentationCreationGestureV1,
         end: PresentationGesturePoint2V1,
     ) -> Result<PresentationCreationPreviewV1, PresentationGestureErrorV1> {
-        self.require_presentation_origin(gesture)?;
+        self.require_presentation_capability(gesture)?;
         self.require_presentation_fence(gesture.fence)?;
         presentation_creation_gesture_v1::preview(gesture.clone(), end)
     }
@@ -132,10 +140,21 @@ impl DocumentSession {
     ) -> Result<CommittedPresentationGestureV1, PresentationGestureErrorV1> {
         self.require_presentation_origin(gesture)?;
         self.require_presentation_origin(&preview.gesture)?;
-        self.require_presentation_fence(gesture.fence)?;
         if gesture.capability != preview.gesture.capability {
             return Err(PresentationGestureErrorV1::PreviewMismatch);
         }
+        let claim = gesture
+            .capability
+            .claim_for_commit(&self.authoring_capability_issuer)
+            .map_err(|error| match error {
+                crate::AuthoringCapabilityAccessErrorV1::ForeignSession => {
+                    PresentationGestureErrorV1::ForeignSession
+                }
+                crate::AuthoringCapabilityAccessErrorV1::Replayed => {
+                    PresentationGestureErrorV1::ReplayedGesture
+                }
+            })?;
+        self.require_presentation_fence(gesture.fence)?;
         let (identifier, next_ids) = self
             .generated_ids
             .reserve_presentation(self.history.current().document().indexed())
@@ -180,9 +199,14 @@ impl DocumentSession {
             .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
         self.generated_ids = next_ids;
         self.history.append(state);
-        let result = self
-            .operation_result()
-            .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
+        let result = match self.operation_result() {
+            Ok(result) => result,
+            Err(_) => {
+                claim.consume();
+                return Err(PresentationGestureErrorV1::SessionConflict);
+            }
+        };
+        claim.consume();
         Ok(CommittedPresentationGestureV1::new(
             gesture.kind,
             identifier,
@@ -195,12 +219,30 @@ impl DocumentSession {
     ) -> Result<(), PresentationGestureErrorV1> {
         if gesture
             .capability
-            .belongs_to(self.presentation_gesture_origin)
+            .belongs_to(&self.authoring_capability_issuer)
         {
             Ok(())
         } else {
             Err(PresentationGestureErrorV1::ForeignSession)
         }
+    }
+    fn require_presentation_capability(
+        &self,
+        gesture: &PresentationCreationGestureV1,
+    ) -> Result<(), PresentationGestureErrorV1> {
+        let claim = gesture
+            .capability
+            .claim_for_commit(&self.authoring_capability_issuer)
+            .map_err(|error| match error {
+                crate::AuthoringCapabilityAccessErrorV1::ForeignSession => {
+                    PresentationGestureErrorV1::ForeignSession
+                }
+                crate::AuthoringCapabilityAccessErrorV1::Replayed => {
+                    PresentationGestureErrorV1::ReplayedGesture
+                }
+            })?;
+        drop(claim);
+        Ok(())
     }
     fn require_presentation_fence(
         &self,

@@ -13,6 +13,13 @@ class FerrumNativeSmartsSelectedRootCaptureTabMixin:
 		return self._session._capture_live_document_smarts_selected_query_v1(selection)
 
 	#============================================
+	def live_smarts_selected_query_readiness_v1(self, token: object) -> object:
+		"""Read one opaque token's native admission state without consuming it."""
+		if self._disposed or self.requires_refresh:
+			raise RuntimeError("Ferrum document is not ready for SMARTS query")
+		return self._session._live_document_smarts_selected_readiness_v1(token)
+
+	#============================================
 	def run_live_smarts_selected_query_token(self, token: object,
 			per_molecule_limit: int, total_limit: int) -> object:
 		"""Run a token already minted for this tab without consulting generic selection."""

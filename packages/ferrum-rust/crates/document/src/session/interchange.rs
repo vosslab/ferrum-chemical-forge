@@ -1,8 +1,8 @@
 //! Revision-bound atomic insertion of complete ordered interchange records.
 
 use crate::{
-    InterchangeRecordBatchInsertionV1, PersistentId, SessionDocumentObservationV1,
-    SessionOperationError, SessionOperationResultV1,
+    AuthoringCapabilityIssuerV1, InterchangeRecordBatchInsertionV1, PersistentId,
+    SessionDocumentObservationV1, SessionOperationError, SessionOperationResultV1,
 };
 
 use super::{DocumentSession, DocumentSessionError, GeneratedIdSequences, RevisionState, prepared};
@@ -10,7 +10,7 @@ use super::{DocumentSession, DocumentSessionError, GeneratedIdSequences, Revisio
 /// A one-use, revision-bound prepared batch of complete interchange records.
 pub struct PendingCreateInterchangeBatchV1 {
     revision: u64,
-    session_origin: u64,
+    session_issuer: AuthoringCapabilityIssuerV1,
     tentative_generated_ids: GeneratedIdSequences,
     molecule_identifiers: Vec<PersistentId>,
     atom_identifiers: Vec<Vec<PersistentId>>,
@@ -116,7 +116,7 @@ impl DocumentSession {
             .map_err(DocumentSessionError::Projection)?;
         Ok(PendingCreateInterchangeBatchV1 {
             revision: expected_revision,
-            session_origin: self.bridge_session_origin,
+            session_issuer: self.authoring_capability_issuer.clone(),
             tentative_generated_ids: generated_ids,
             molecule_identifiers,
             atom_identifiers,
@@ -141,7 +141,10 @@ impl DocumentSession {
                 actual: expected_revision,
             });
         }
-        if pending.session_origin != self.bridge_session_origin {
+        if !pending
+            .session_issuer
+            .same_issuer(&self.authoring_capability_issuer)
+        {
             return Err(DocumentSessionError::PreparedOperationForeignSession);
         }
         self.history

@@ -5,6 +5,7 @@
 
 mod clean_geometry_v1;
 mod complete_graph_molecule_insertion_v1;
+mod document_atom_oxidation_observation_v1;
 mod document_bond_capacity_v1;
 mod document_molecule_composition_graph_v1;
 mod document_molecule_graph_v1;
@@ -37,6 +38,12 @@ pub use complete_graph_molecule_insertion_v1::{
     build_complete_graph_molecule_insertion_from_validated_facts_v1,
     build_complete_graph_molecule_insertion_v1, validate_supported_complete_graph_facts_v1,
     validate_supported_peptide_template_complete_graph_facts_v1,
+};
+pub(crate) use document_atom_oxidation_observation_v1::observe_current_document_atom_oxidation_v1;
+pub use document_atom_oxidation_observation_v1::{
+    DocumentAtomOxidationObservationRequestV1, DocumentAtomOxidationObservationV1,
+    DocumentAtomOxidationRefusalV1, DocumentAtomOxidationResourceV1, DocumentAtomOxidationResultV1,
+    DocumentAtomOxidationUnavailableReasonV1,
 };
 pub(crate) use document_bond_capacity_v1::evaluate_document_molecule_neutral_capacity_v1;
 pub use document_bond_capacity_v1::{

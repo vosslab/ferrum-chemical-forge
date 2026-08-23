@@ -1,10 +1,9 @@
 //! Rust-owned, revision-fenced straight normal-arrow authoring geometry.
 
 use crate::{
-    DocumentFenceV1, PersistentId, Point3V1, PresentationRecordKindV1, PresentationRootSelectorV1,
-    SessionOperationResultV1,
+    AuthoringCapabilityV1, DocumentFenceV1, PersistentId, Point3V1, PresentationRecordKindV1,
+    PresentationRootSelectorV1, SessionOperationResultV1,
 };
-use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 
 pub const ARROW_MINIMUM_LENGTH_PT_V1: f64 = 2.0;
@@ -100,34 +99,9 @@ impl PresentationGestureSnapPolicyV1 {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct PresentationGestureSessionOriginV1(u64);
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct PresentationGestureCapabilityV1 {
-    origin: PresentationGestureSessionOriginV1,
-    nonce: u64,
-}
-impl PresentationGestureSessionOriginV1 {
-    pub(crate) fn issue() -> Self {
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        Self(NEXT.fetch_add(1, Ordering::Relaxed))
-    }
-    pub(crate) fn issue_gesture(self) -> PresentationGestureCapabilityV1 {
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        PresentationGestureCapabilityV1 {
-            origin: self,
-            nonce: NEXT.fetch_add(1, Ordering::Relaxed),
-        }
-    }
-}
-impl PresentationGestureCapabilityV1 {
-    pub(crate) fn belongs_to(self, origin: PresentationGestureSessionOriginV1) -> bool {
-        self.origin == origin
-    }
-}
 #[derive(Clone, Debug, PartialEq)]
 pub struct PresentationCreationGestureV1 {
-    pub(crate) capability: PresentationGestureCapabilityV1,
+    pub(crate) capability: AuthoringCapabilityV1,
     pub(crate) fence: DocumentFenceV1,
     pub(crate) kind: PresentationGestureKindV1,
     pub(crate) start: PresentationGesturePoint2V1,
@@ -270,6 +244,7 @@ pub enum PresentationGestureCategoryV1 {
     StaleRevision,
     StaleDigest,
     ForeignSession,
+    ReplayedGesture,
     PreviewMismatch,
     NonFinitePoint,
     CollapsedEndpoint,
@@ -294,6 +269,8 @@ pub enum PresentationGestureErrorV1 {
     StaleDigest,
     #[error("presentation gesture belongs to a different document session")]
     ForeignSession,
+    #[error("presentation gesture was already redeemed")]
+    ReplayedGesture,
     #[error("presentation preview belongs to a different gesture")]
     PreviewMismatch,
     #[error("presentation gesture point is not finite")]
@@ -318,6 +295,7 @@ impl PresentationGestureErrorV1 {
             Self::StaleRevision => PresentationGestureCategoryV1::StaleRevision,
             Self::StaleDigest => PresentationGestureCategoryV1::StaleDigest,
             Self::ForeignSession => PresentationGestureCategoryV1::ForeignSession,
+            Self::ReplayedGesture => PresentationGestureCategoryV1::ReplayedGesture,
             Self::PreviewMismatch => PresentationGestureCategoryV1::PreviewMismatch,
             Self::NonFinitePoint => PresentationGestureCategoryV1::NonFinitePoint,
             Self::CollapsedEndpoint => PresentationGestureCategoryV1::CollapsedEndpoint,
@@ -334,6 +312,7 @@ impl PresentationGestureErrorV1 {
             Self::StaleRevision
             | Self::StaleDigest
             | Self::ForeignSession
+            | Self::ReplayedGesture
             | Self::PreviewMismatch => PresentationGestureRecoveryV1::RefreshAndRestart,
             Self::NonFinitePoint
             | Self::CollapsedEndpoint
@@ -519,8 +498,9 @@ mod tests {
     use super::*;
     #[test]
     fn snap_and_overlay_are_backend_owned() {
+        let issuer = crate::AuthoringCapabilityIssuerV1::new();
         let g = PresentationCreationGestureV1 {
-            capability: PresentationGestureSessionOriginV1::issue().issue_gesture(),
+            capability: issuer.issue(),
             fence: DocumentFenceV1::new(0, [0; 32]),
             kind: PresentationGestureKindV1::StraightNormalArrow,
             start: PresentationGesturePoint2V1::new(0.0, 0.0).unwrap(),
@@ -757,7 +737,7 @@ mod replay_tests {
     use crate::DocumentSession;
 
     #[test]
-    fn presentation_creation_gesture_replay_is_stale_and_non_mutating() {
+    fn presentation_creation_gesture_replay_is_terminal_and_non_mutating() {
         let mut session =
             DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
         let snapshot = session.snapshot().expect("snapshot");
@@ -782,7 +762,7 @@ mod replay_tests {
         let after = session.snapshot().expect("after commit");
         assert!(matches!(
             session.commit_presentation_creation_gesture_v1(&gesture, &preview),
-            Err(PresentationGestureErrorV1::StaleRevision)
+            Err(PresentationGestureErrorV1::ReplayedGesture)
         ));
         assert_eq!(session.snapshot().expect("replay does not mutate"), after);
     }

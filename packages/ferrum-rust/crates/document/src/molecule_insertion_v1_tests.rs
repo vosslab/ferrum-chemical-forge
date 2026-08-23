@@ -88,6 +88,29 @@ fn complete_insertion_allocates_collision_free_ids_and_projects_exact_facts() {
 }
 
 #[test]
+fn discarded_molecule_candidate_does_not_advance_generated_ids() {
+    let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
+        .expect("empty source loads");
+    let discarded = session
+        .prepare_create_molecule_v1(0, &carbonyl())
+        .expect("candidate prepares");
+    let identifier = discarded.molecule_identifier().as_str().to_owned();
+    drop(discarded);
+
+    let mut committed = session
+        .prepare_create_molecule_v1(0, &carbonyl())
+        .expect("replacement candidate prepares");
+    assert_eq!(committed.molecule_identifier().as_str(), identifier);
+    session
+        .commit_create_molecule(0, &mut committed)
+        .expect("replacement candidate commits");
+    let next = session
+        .prepare_create_molecule_v1(1, &carbonyl())
+        .expect("later candidate prepares");
+    assert_ne!(next.molecule_identifier().as_str(), identifier);
+}
+
+#[test]
 fn prepared_molecule_is_owner_bound_consumed_once_and_history_restorable() {
     let mut owner = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
         .expect("owner fixture must load");

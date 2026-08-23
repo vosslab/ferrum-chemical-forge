@@ -2,11 +2,10 @@
 
 use ferrum_document::{
     ArrowDisplayGeometryV1, ArrowHeadPositionV1, ArrowHeadShapeV1, ArrowHeadV1, ArrowPathV1,
-    ArrowProjectionV1,
+    ArrowProjectionV1, CurvedTerminalArrowDisplayKindV1,
 };
 use pyo3::prelude::*;
 
-use super::electron_arrow_projection_binding::PyElectronArrowDisplayGeometryV1;
 use super::projection_binding::{PyPoint3V1, PyPresentationStrokeV1, PyPresentationTargetV1};
 
 /// Every ordered point of one supported normal-arrow path.
@@ -96,7 +95,9 @@ pub(crate) struct PyArrowDisplayGeometryV1 {
     #[pyo3(get)]
     pub(crate) equilibrium: Option<PyEquilibriumArrowDisplayGeometryV1>,
     #[pyo3(get)]
-    pub(crate) electron: Option<PyElectronArrowDisplayGeometryV1>,
+    pub(crate) curved_equilibrium: Option<PyCurvedEquilibriumArrowDisplayGeometryV1>,
+    #[pyo3(get)]
+    pub(crate) curved_terminal: Option<PyCurvedTerminalArrowDisplayGeometryV1>,
 }
 
 #[pyclass(frozen, name = "NormalArrowDisplayGeometryV1", skip_from_py_object)]
@@ -127,6 +128,59 @@ pub(crate) struct PyEquilibriumArrowDisplayGeometryV1 {
     pub(crate) heads: Vec<PyArrowHeadV1>,
 }
 
+/// Rust-issued two-lane geometry for one quadratic curved equilibrium arrow.
+#[pyclass(
+    frozen,
+    name = "CurvedEquilibriumArrowDisplayGeometryV1",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(crate) struct PyCurvedEquilibriumArrowDisplayGeometryV1 {
+    #[pyo3(get)]
+    pub(crate) axes: Vec<PyArrowPathV1>,
+    #[pyo3(get)]
+    pub(crate) control: PyPoint3V1,
+    #[pyo3(get)]
+    pub(crate) heads: Vec<PyArrowHeadV1>,
+}
+
+/// Closed terminal-arrow family identity copied exactly from the Rust projection.
+#[pyclass(
+    frozen,
+    eq,
+    hash,
+    module = "ferrum_chem",
+    name = "CurvedTerminalArrowDisplayKindV1",
+    rename_all = "snake_case",
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub(crate) enum PyCurvedTerminalArrowDisplayKindV1 {
+    Electron,
+    Retro,
+    CurvedNormalReaction,
+}
+
+/// One Rust-issued curved terminal-arrow display payload for every family.
+#[pyclass(
+    frozen,
+    name = "CurvedTerminalArrowDisplayGeometryV1",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(crate) struct PyCurvedTerminalArrowDisplayGeometryV1 {
+    #[pyo3(get)]
+    pub(crate) kind: PyCurvedTerminalArrowDisplayKindV1,
+    #[pyo3(get)]
+    pub(crate) axis_path: PyArrowPathV1,
+    #[pyo3(get)]
+    pub(crate) control: PyPoint3V1,
+    #[pyo3(get)]
+    pub(crate) head_shape: PyArrowHeadShapeV1,
+    #[pyo3(get)]
+    pub(crate) head: PyArrowHeadV1,
+}
+
 impl From<&ArrowDisplayGeometryV1> for PyArrowDisplayGeometryV1 {
     fn from(value: &ArrowDisplayGeometryV1) -> Self {
         match value {
@@ -146,7 +200,8 @@ impl From<&ArrowDisplayGeometryV1> for PyArrowDisplayGeometryV1 {
                     heads: heads.iter().map(Into::into).collect(),
                 }),
                 equilibrium: None,
-                electron: None,
+                curved_equilibrium: None,
+                curved_terminal: None,
             },
             ArrowDisplayGeometryV1::Equilibrium { axes, heads } => Self {
                 kind: "equilibrium".to_owned(),
@@ -155,18 +210,51 @@ impl From<&ArrowDisplayGeometryV1> for PyArrowDisplayGeometryV1 {
                     axes: axes.iter().map(Into::into).collect(),
                     heads: heads.iter().map(Into::into).collect(),
                 }),
-                electron: None,
+                curved_equilibrium: None,
+                curved_terminal: None,
             },
-            ArrowDisplayGeometryV1::Electron {
+            ArrowDisplayGeometryV1::CurvedEquilibrium {
+                axes,
+                control,
+                heads,
+            } => Self {
+                kind: "curved_equilibrium".to_owned(),
+                normal: None,
+                equilibrium: None,
+                curved_equilibrium: Some(PyCurvedEquilibriumArrowDisplayGeometryV1 {
+                    axes: axes.iter().map(Into::into).collect(),
+                    control: PyPoint3V1 {
+                        x: control.x(),
+                        y: control.y(),
+                        z: control.z(),
+                    },
+                    heads: heads.iter().map(Into::into).collect(),
+                }),
+                curved_terminal: None,
+            },
+            ArrowDisplayGeometryV1::CurvedTerminal {
+                terminal_kind,
                 axis_path,
                 control,
                 head_shape,
                 head,
             } => Self {
-                kind: "electron".to_owned(),
+                kind: "curved_terminal".to_owned(),
                 normal: None,
                 equilibrium: None,
-                electron: Some(PyElectronArrowDisplayGeometryV1 {
+                curved_equilibrium: None,
+                curved_terminal: Some(PyCurvedTerminalArrowDisplayGeometryV1 {
+                    kind: match terminal_kind {
+                        CurvedTerminalArrowDisplayKindV1::Electron => {
+                            PyCurvedTerminalArrowDisplayKindV1::Electron
+                        }
+                        CurvedTerminalArrowDisplayKindV1::Retro => {
+                            PyCurvedTerminalArrowDisplayKindV1::Retro
+                        }
+                        CurvedTerminalArrowDisplayKindV1::CurvedNormalReaction => {
+                            PyCurvedTerminalArrowDisplayKindV1::CurvedNormalReaction
+                        }
+                    },
                     axis_path: axis_path.into(),
                     control: PyPoint3V1 {
                         x: control.x(),

@@ -424,12 +424,14 @@ class FerrumNativeLineToolInteractionMixin:
 			direct_bond_admission=None,
 			presentation_gesture=None,
 			presentation_preview=None,
-			curved_electron_points=(),
+			curved_equilibrium_arrow=None,
+			terminal_arrow=None,
 			vector_gesture=None,
 			vector_preview=None,
 			path_gesture=None,
-			path_points=(),
+			path_progress=None,
 			path_preview=None,
+			last_accepted_path_press_viewport=None,
 		)
 
 	#============================================
@@ -459,9 +461,14 @@ class FerrumNativeLineToolInteractionMixin:
 				return False
 		self._line_gesture_intent = None
 		self._draw_bond_action.setChecked(False)
+		self._draw_solid_wedge_bond_action.setChecked(False)
+		self._draw_hashed_wedge_bond_action.setChecked(False)
 		self._draw_arrow_action.setChecked(False)
 		self._draw_equilibrium_arrow_action.setChecked(False)
 		self._draw_curved_electron_arrow_action.setChecked(False)
+		self._draw_curved_retro_arrow_action.setChecked(False)
+		self._draw_curved_reaction_arrow_action.setChecked(False)
+		self._draw_curved_equilibrium_arrow_action.setChecked(False)
 		self._draw_plus_action.setChecked(False)
 		for action in self._draw_vector_actions.values():
 			action.setChecked(False)

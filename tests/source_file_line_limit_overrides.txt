@@ -8,6 +8,3 @@ docs/CHANGELOG-2026-08c.md
 # Adopted upstream normative CDML references retain their complete source bodies.
 docs/CDML_BACKEND_TO_FRONTEND_CONTRACT.md
 docs/CDML_FORMAT_SPEC.md
-
-# Graphify-generated navigation report; regenerate rather than hand-maintain.
-docs/GRAPH_REPORT.md

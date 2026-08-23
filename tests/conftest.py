@@ -52,6 +52,13 @@ collect_ignore = ["e2e", "playwright"]
 #   }
 REPO_HYGIENE_FILTERS = {}
 
+# Explicit repository-local modules that support tracked code before the
+# helper itself enters the tracked-file discovery set. Each key must map to
+# its concrete repo-relative Python source path.
+REPO_LOCAL_IMPORT_MODULES = {
+	"e2e_workspace": "tests/e2e/e2e_workspace.py",
+}
+
 
 # === OPTIONAL_HELPERS_MENU ===
 # See meta/docs/PROPAGATION_RULES.md for the managed-block propagation contract.

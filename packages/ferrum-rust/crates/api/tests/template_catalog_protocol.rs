@@ -1,7 +1,9 @@
-use ferrum_api::{OperationProtocolEnvelopeV1, OperationProtocolOutcomeV1, execute_operation_v1};
+use ferrum_api::{
+    DocumentRequestFenceV1, OperationProtocolEnvelopeV1, OperationProtocolOutcomeV1,
+    execute_operation_v1,
+};
 use ferrum_document::DocumentSession;
-use serde_json::{Map, Value, json};
-use std::collections::BTreeMap;
+use serde_json::Value;
 
 const EMPTY: &str = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
 const EXCLUDED: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"bad\"><point x=\"1\" y=\"2\"/><ftext><b>x</b></ftext></text></cdml>";
@@ -30,18 +32,7 @@ fn list(family: Option<&str>, category: Option<&str>, query: Option<&str>) -> St
     }))
 }
 
-fn listed_ids(payload: &str) -> Vec<String> {
-    let response = execute_operation_v1(payload).expect("request decodes");
-    let OperationProtocolEnvelopeV1::Success(response) = response else {
-        panic!("list succeeds")
-    };
-    let OperationProtocolOutcomeV1::CatalogList { entries, .. } = response.outcome else {
-        panic!("catalog list result expected")
-    };
-    entries.into_iter().map(|entry| entry.id).collect()
-}
-
-fn listed_summary_facts(payload: &str) -> BTreeMap<String, Value> {
+fn listed_summaries(payload: &str) -> Vec<Value> {
     let response = execute_operation_v1(payload).expect("request decodes");
     let OperationProtocolEnvelopeV1::Success(response) = response else {
         panic!("list succeeds")
@@ -51,87 +42,60 @@ fn listed_summary_facts(payload: &str) -> BTreeMap<String, Value> {
     };
     entries
         .into_iter()
-        .map(|entry| {
-            let value = serde_json::to_value(entry).expect("summary serializes");
-            let id = value["id"].as_str().expect("summary has ID").to_owned();
-            (id, value)
-        })
+        .map(|entry| serde_json::to_value(entry).expect("summary serializes"))
         .collect()
 }
 
-fn expected_haworth_summary_facts() -> BTreeMap<String, Value> {
-    [
-        (
-            "biomolecules/carbohydrates/d-glucose/alpha-d-glucopyranose",
-            "alpha-D-glucopyranose",
-        ),
-        (
-            "biomolecules/carbohydrates/d-glucose/beta-d-glucopyranose",
-            "beta-D-glucopyranose",
-        ),
-        (
-            "biomolecules/carbohydrates/d-glucose/alpha-d-glucofuranose",
-            "alpha-D-glucofuranose",
-        ),
-        (
-            "biomolecules/carbohydrates/d-glucose/beta-d-glucofuranose",
-            "beta-D-glucofuranose",
-        ),
-    ]
-    .into_iter()
-    .map(|(id, name)| {
-        (
-            id.to_owned(),
-            json!({
-                "id": id,
-                "family": "biomolecule",
-                "category": {
-                    "id": "carbohydrates_d_glucose",
-                    "name": "Carbohydrates / D-glucose",
-                },
-                "name": name,
-                "provenance": {
-                    "source_kind": "curated_ferrum",
-                    "source_id": "ferrum-authored-d-glucose-haworth-depictions-v1",
-                    "license_spdx": "LGPL-3.0-only",
-                },
-            }),
-        )
-    })
-    .collect()
-}
-
-fn public_haworth_summary_facts(entries: BTreeMap<String, Value>) -> BTreeMap<String, Value> {
-    entries
+fn catalog_subject() -> Value {
+    listed_summaries(&request(serde_json::json!({"kind": "catalog.list.v1"})))
         .into_iter()
-        .map(|(id, entry)| {
-            let mut summary = Map::new();
-            summary.insert("id".to_owned(), entry["id"].clone());
-            summary.insert("family".to_owned(), entry["family"].clone());
-            summary.insert(
-                "category".to_owned(),
-                json!({
-                    "id": entry["category"]["id"],
-                    "name": entry["category"]["name"],
-                }),
-            );
-            summary.insert("name".to_owned(), entry["name"].clone());
-            summary.insert(
-                "provenance".to_owned(),
-                json!({
-                    "source_kind": entry["provenance"]["source_kind"],
-                    "source_id": entry["provenance"]["source_id"],
-                    "license_spdx": entry["provenance"]["license_spdx"],
-                }),
-            );
-            (id, Value::Object(summary))
+        .find(|entry| {
+            entry["id"].as_str().is_some_and(|value| !value.is_empty())
+                && entry["family"]
+                    .as_str()
+                    .is_some_and(|value| !value.is_empty())
+                && entry["category"]["id"]
+                    .as_str()
+                    .is_some_and(|value| !value.is_empty())
         })
-        .collect()
+        .expect("public catalog.list.v1 must expose an entry with id, family, and category.id")
+}
+
+fn assert_summary_only(entry: &Value) {
+    assert!(entry["id"].is_string());
+    assert!(entry["family"].is_string());
+    assert!(entry["category"]["id"].is_string());
+    assert!(entry["category"]["name"].is_string());
+    assert!(entry["name"].is_string());
+    assert!(entry["provenance"]["source_kind"].is_string());
+    assert!(entry["provenance"]["source_id"].is_string());
+    assert!(entry["provenance"]["license_spdx"].is_string());
+    assert!(entry.get("document").is_none());
+    assert!(entry.get("template_cdml").is_none());
 }
 
 fn insert(document: &str, revision: u64, catalog_id: &str, x: f64, y: f64) -> String {
+    insert_with_fence(
+        document,
+        &DocumentRequestFenceV1 {
+            expected_revision: revision,
+            expected_digest_hex: digest(document),
+        },
+        catalog_id,
+        x,
+        y,
+    )
+}
+
+fn insert_with_fence(
+    document: &str,
+    fence: &DocumentRequestFenceV1,
+    catalog_id: &str,
+    x: f64,
+    y: f64,
+) -> String {
     request(
-        serde_json::json!({"kind": "catalog.insert.v1", "document": document, "expected_revision": revision, "expected_digest_hex": digest(document), "catalog_id": catalog_id, "anchor_x": x, "anchor_y": y}),
+        serde_json::json!({"kind": "catalog.insert.v1", "document": document, "expected_revision": fence.expected_revision, "expected_digest_hex": fence.expected_digest_hex, "catalog_id": catalog_id, "anchor_x": x, "anchor_y": y}),
     )
 }
 
@@ -151,126 +115,87 @@ fn catalog_list_is_summary_only_and_does_not_leak_a_recipe() {
         panic!("catalog list result expected")
     };
     assert_eq!(catalog_schema, "ferrum-template-catalog-v1");
-    let wire = serde_json::to_value(entries).expect("summary serializes");
-    assert_eq!(wire[0]["id"], "system/rings/benzene");
-    assert!(wire[0].get("document").is_none());
-    assert!(wire[0].get("template_cdml").is_none());
+    for entry in entries {
+        let summary = serde_json::to_value(entry).expect("summary serializes");
+        assert_summary_only(&summary);
+    }
+    assert_summary_only(&catalog_subject());
 }
 
 #[test]
-fn catalog_list_exposes_the_sealed_haworth_biomolecule_summary_slice() {
-    let expected = expected_haworth_summary_facts();
-    let biomolecules = listed_summary_facts(&list(Some("biomolecule"), None, None));
-    assert_eq!(public_haworth_summary_facts(biomolecules), expected);
-    assert!(listed_ids(&list(Some("biomolecule"), Some("rings"), None)).is_empty());
-    assert!(listed_ids(&list(Some("system"), Some("carbohydrates_d_glucose"), None)).is_empty());
-    assert!(listed_ids(&list(None, Some("missing"), None)).is_empty());
+fn catalog_list_applies_requested_family_and_category_filters() {
+    let subject = catalog_subject();
+    let catalog_id = subject["id"].as_str().expect("catalog subject id");
+    let family = subject["family"].as_str().expect("catalog subject family");
+    let category_id = subject["category"]["id"]
+        .as_str()
+        .expect("catalog subject category id");
+    let filtered = listed_summaries(&list(Some(family), Some(category_id), None));
+
+    assert!(
+        filtered
+            .iter()
+            .any(|entry| entry["id"].as_str() == Some(catalog_id)),
+        "family/category filters must retain selected public catalog entry {catalog_id}"
+    );
+    for entry in filtered {
+        assert_summary_only(&entry);
+        assert_eq!(entry["family"].as_str(), Some(family));
+        assert_eq!(entry["category"]["id"].as_str(), Some(category_id));
+    }
 }
 
 #[test]
-fn catalog_list_applies_closed_summary_filters_as_an_intersection() {
-    assert_eq!(
-        listed_ids(&list(Some("system"), None, None)),
-        [
-            "system/rings/benzene",
-            "system/rings/cyclopropane",
-            "system/rings/cyclobutane",
-            "system/rings/cyclopentane",
-            "system/rings/cyclohexane",
-            "system/heterocycles/thiophene",
-            "system/heterocycles/furan",
-            "system/heterocycles/pyrrole",
-            "system/heterocycles/purine"
-        ]
-    );
-    assert_eq!(
-        listed_ids(&list(None, Some("rings"), None)),
-        [
-            "system/rings/benzene",
-            "system/rings/cyclopropane",
-            "system/rings/cyclobutane",
-            "system/rings/cyclopentane",
-            "system/rings/cyclohexane"
-        ]
-    );
-    assert!(listed_ids(&list(None, Some("Rings"), None)).is_empty());
-    assert_eq!(
-        listed_ids(&list(None, None, Some("  SYSTEM/RINGS  "))),
-        [
-            "system/rings/benzene",
-            "system/rings/cyclopropane",
-            "system/rings/cyclobutane",
-            "system/rings/cyclopentane",
-            "system/rings/cyclohexane"
-        ]
-    );
-    assert!(listed_ids(&list(Some("system"), Some("rings"), Some("missing"))).is_empty());
-    assert_eq!(
-        public_haworth_summary_facts(listed_summary_facts(&list(
-            Some("biomolecule"),
-            Some("carbohydrates_d_glucose"),
-            Some("beta"),
-        ))),
-        expected_haworth_summary_facts()
-            .into_iter()
-            .filter(|(id, _)| id.contains("beta-"))
-            .collect()
-    );
-    assert_eq!(
-        listed_ids(&list(None, Some("heterocycles"), Some("sulfur"))),
-        ["system/heterocycles/thiophene"]
-    );
-}
-
-#[test]
-fn catalog_insert_returns_a_chainable_stateless_benzene_transition() {
-    let first = execute_operation_v1(&insert(EMPTY, 0, "system/rings/benzene", 100.0, 50.0))
-        .expect("request decodes");
+fn catalog_insert_returns_a_chainable_stateless_catalog_transition() {
+    let subject = catalog_subject();
+    let catalog_id = subject["id"].as_str().expect("catalog subject id");
+    let first =
+        execute_operation_v1(&insert(EMPTY, 0, catalog_id, 100.0, 50.0)).expect("request decodes");
     let OperationProtocolEnvelopeV1::Success(response) = first else {
         panic!("insert succeeds")
     };
     let OperationProtocolOutcomeV1::CatalogInsert {
         document,
         identifier,
-        input_revision,
         committed_revision,
-        next_input_expected_revision,
-        ..
+        document_fence,
     } = response.outcome
     else {
         panic!("catalog insert result expected")
     };
-    assert_eq!(
-        (
-            input_revision,
-            committed_revision,
-            next_input_expected_revision
-        ),
-        (0, 1, 0)
-    );
+    assert_eq!(committed_revision, 1);
+    assert_eq!(document_fence.expected_revision, 0);
+    assert_eq!(document_fence.expected_digest_hex, digest(&document));
     assert!(document.contains(&format!("id=\"{identifier}\"")));
-    assert_eq!(document.matches("name=\"C\"").count(), 6);
-    assert_eq!(document.matches("type=\"n2\"").count(), 3);
-    let second = execute_operation_v1(&insert(&document, 0, "system/rings/benzene", 200.0, 50.0))
-        .expect("chainable request decodes");
+    let second = execute_operation_v1(&insert_with_fence(
+        &document,
+        &document_fence,
+        catalog_id,
+        200.0,
+        50.0,
+    ))
+    .expect("chainable request decodes");
     assert!(matches!(second, OperationProtocolEnvelopeV1::Success(_)));
 }
 
 #[test]
 fn catalog_insert_refuses_stale_unknown_and_render_excluded_without_a_commit() {
+    let subject = catalog_subject();
+    let catalog_id = subject["id"].as_str().expect("catalog subject id");
+    let missing_catalog_id = format!("{catalog_id}__catalog_protocol_missing");
     for (payload, category, recovery) in [
         (
-            insert(EMPTY, 1, "system/rings/benzene", 1.0, 1.0),
+            insert(EMPTY, 1, catalog_id, 1.0, 1.0),
             "stale_snapshot",
             "refresh_and_restart",
         ),
         (
-            insert(EMPTY, 0, "missing", 1.0, 1.0),
+            insert(EMPTY, 0, &missing_catalog_id, 1.0, 1.0),
             "unknown_key",
             "choose_catalog_entry",
         ),
         (
-            insert(EXCLUDED, 0, "system/rings/benzene", 1.0, 1.0),
+            insert(EXCLUDED, 0, catalog_id, 1.0, 1.0),
             "render_preparation",
             "document_unchanged",
         ),

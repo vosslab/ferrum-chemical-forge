@@ -281,7 +281,7 @@ class AuthoringRibbon(PySide6.QtWidgets.QToolBar):
 		if active is None or not active.isChecked():
 			active = next((action for action, _icon in self._tool_actions if action.isChecked()), None)
 		uses_drawing_defaults = active is not None and active.text() in (
-			"Add Atom at Point", "Draw Bond",
+			"Add Atom at Point", "Draw Bond", "Draw Solid Wedge Bond", "Draw Hashed Wedge Bond",
 		)
 		self._drawing_parameters_client.setVisible(uses_drawing_defaults)
 		self._next_drawing_button.setVisible(uses_drawing_defaults)

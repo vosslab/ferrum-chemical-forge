@@ -380,6 +380,24 @@ impl PyDocumentSession {
             .capture_selected_query(py, &self.session, &selection)
     }
 
+    /// Check one opaque selected-query token without consuming it or exposing
+    /// any selection, document, or renderer facts.
+    fn _live_document_smarts_selected_readiness_v1(
+        &self,
+        py: Python<'_>,
+        selection: PyRef<
+            '_,
+            super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedQueryV1,
+        >,
+    ) -> PyResult<Py<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedReadinessV1>>
+    {
+        Py::new(
+            py,
+            self.live_smarts
+                .selected_readiness(&self.session, &selection),
+        )
+    }
+
     /// Redeem exactly one local receipt row into identity-free paint bounds.
     fn _show_live_document_smarts_match_v1(
         &mut self,

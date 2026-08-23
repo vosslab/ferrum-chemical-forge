@@ -53,8 +53,8 @@ when it has a typed Rust contract, a usable client, and durable evidence.
 ## Current state summary
 
 The current narrow core supports CDML lifecycle, bounded graph/codecs,
-coordinates, SVG/PDF/PNG, ordinary Rust session editing, and six protocol-backed
-CLI verbs.  The frontend inventory has 22 complete workflows, 8 deliberately
+coordinates, SVG/PDF/PNG, ordinary Rust session editing, and protocol-backed
+CLI operations.  The frontend inventory has 22 complete workflows, 8 deliberately
 different equivalents, and 23 missing workflows; 20 missing workflows require
 new Rust contracts.  P0 begins with a direct normal-bond gesture, then adds
 selected-root operations only after reliable render hit/bounds facts exist;
@@ -184,7 +184,7 @@ and unsupported inputs refuse before mutation or publication.
 ### M3: P1 presentation grammar
 
 P1.1 has an accepted Rust-first straight normal-arrow gesture backend and Qt
-controller. M3.P2 now adds the separate bounded `CurvedElectronArrowV1` slice:
+controller. M3.P2 delivers the separate bounded `CurvedElectronArrowV1` slice:
 one `<arrow type="electron">` with exact `start`, `control`, and `end` points.
 Rust owns quadratic geometry, cubic lowering, terminal-head derivation, style,
 renderer preflight, opaque receipt fencing, history, and atomic commit. Qt
@@ -192,10 +192,160 @@ captures three clicks, displays only the returned Rust preview, automatically
 commits click 3, and cancels with Escape. Native binding and staged Qt QAction
 evidence cover the closed lifecycle.
 
-The delivered slices do not claim spline, variable-point, curved reaction,
-equilibrium, retro, reaction-association, or other non-normal arrow families.
-Those remain separate parity work with their own record and interaction
-contracts.
+The completed M3 presentation families share the universal document-owned
+authoring-capability contract.
+Every supported opaque authoring receipt carries the nonserializable
+`AuthoringCapabilityV1` issued by its `DocumentSession`'s
+`AuthoringCapabilityIssuerV1`, beside route-specific revision/digest and
+session fences. This same authority covers text placement, straight
+presentation, catalog V1/V2, presentation vectors, DirectBond, terminal and
+equilibrium arrows, paths, and reaction create/lifecycle/translation. A foreign
+preview or prepare fails publicly as `ForeignSession` with `RefreshAndRestart`
+before candidate work; a foreign commit preserves the owner receipt. A claim
+moves only from `Available` to `Claimed`, becomes `Consumed` only after the
+owner transaction succeeds, and restores availability when an owner-side
+failure rolls it back. Capability identity, origin fencing, catalog preview
+leases, and durable CDML identifiers remain separate concerns. Catalog recipes
+lower to `MoleculeInsertionV1`; the receiving `DocumentSession` alone creates
+the opaque pending candidate and its molecule, atom, and bond identities.
+Tentative generated-ID sequences install only after its authoritative commit,
+so abandoned, discarded, and refused catalog candidates leave durable-ID
+allocation unchanged. `CatalogPreviewLeaseV2` remains renderer-local transient
+preview-retirement state rather than a document identity or authoring receipt.
+The same `DocumentSession` sequence authority issues presentation IDs through
+transactional `PendingCreatePresentationV1` reservations for terminal Electron,
+Retro, and Curved Normal arrows, Curved Equilibrium arrows, incremental
+Polyline/Polygon paths, and presentation vectors. The reservation installs only
+with the successful document mutation; previews and abandoned or refused
+candidates leave the sequence unchanged. Renderer routes consequently own no
+durable presentation counter.
+
+The CLI/protocol route `presentation.author.v1` now replaces the earlier
+vector-only operation. It accepts one request-owned document and one typed
+authoring request for Vector, terminal Electron/Retro/Normal arrow, Curved
+Equilibrium arrow, Polyline/Polygon path, or explicit-endpoint DirectBond.
+The adapter creates the short-lived live-session capability and reservation
+internally, commits one result, and returns only accepted document and durable
+root facts. DirectBond uses durable atom IDs or finite new-atom points, not Qt
+pointer state. `PresentationAppearanceV1` validates RGB and bounded width
+values at the document boundary, preventing style text from changing CDML/XML
+roots or IDs. A stale, refused, or abandoned pending presentation reservation
+leaves the allocator unchanged, so its tentative ID may be reissued.
+
+M3.P3 is the accepted bounded `CurvedRetroArrowV1` sibling slice. It authors one
+`<arrow type="retro">` with the same exact `start`, `control`, and `end`
+points. Rust uses the closed shared `CurvedTerminalArrowKindV1 { Electron,
+Retro }` model so persistent projection, renderer lowering, and transient
+preview receive one cubic axis and terminal head. The typed opaque
+begin/preview/prepare/commit lifecycle, revision/digest fence, one history
+entry, and atomic refusal behavior match M3.P2. Qt provides one named action,
+collects three clicks, renders only the returned preview, auto-commits click 3,
+and uses Escape to cancel. Focused Rust/document, PyO3, and offscreen
+staged-QAction evidence covers commit, cancellation, refusal, history, and
+save/reopen; the full local suite accepts this exact capability.
+
+M3.P3 excludes generic spline paths, variable point counts, start heads,
+property editing, and reaction association. CurvedNormal and
+CurvedEquilibrium retain their distinct dedicated contracts; CurvedRetro does
+not overload or subsume either arrow family.
+
+M3.P4 is the accepted bounded `CurvedNormalReactionArrowV1` sibling slice. It
+authors one direct-root `<arrow type="curved-normal">` with exactly `start`,
+`control`, and `end` points. It does not overload `<arrow type="normal">`.
+Rust owns the one quadratic-to-cubic axis, terminal-head geometry, renderer
+preflight, typed opaque begin/preview/prepare/commit lifecycle,
+revision/digest fence, one history entry, and atomic refusal behavior. Qt
+offers one named three-click action, paints only the native preview, commits
+only the native receipt on click three, and clears its transient capture with
+Escape. Focused Rust/document and PyO3 semantic evidence, an offscreen
+staged-QAction workflow for commit, cancellation, refusal, history, and
+save/reopen, and the full local suite accept this exact capability.
+
+M3.P4 excludes spline compatibility, variable point counts, configurable or
+start heads, property editing, reaction association, and a generic arrow
+factory. CurvedEquilibrium retains its distinct dedicated two-lane geometry
+contract; CurvedNormal does not overload or subsume it. CurvedRetro likewise
+remains a separate terminal-arrow contract.
+
+M3.P5 is the accepted bounded `CurvedEquilibriumArrowV1` slice. It authors one
+direct-root `<arrow type="curved-equilibrium">` with exact `start`, `control`,
+and `end` points. Rust owns two translated quadratic lanes, their one-time
+cubic lowering, two opposing heads, bounds, renderer preflight, the typed
+opaque begin/preview/prepare/commit lifecycle, revision/digest fence, one
+history entry, and atomic refusal behavior. The PyO3 overlay carries only
+Rust-issued `lower_axis`, `upper_axis`, `lower_head`, and `upper_head` facts.
+Qt integration captures the three coordinates, paints that frozen DTO, commits
+only the prepared receipt, and cancels transient capture with Escape.
+
+M3.P5 rejects `equilibrium2`, generic spline or variable-point semantics,
+`spline`, `start`, `end`, `shape`, `properties`, `association`, and `factory`
+facts. Normal-arrow head facts, configurable heads, property editing, reaction
+association, and generic arrow factories remain separate future contracts.
+Focused Rust/document and PyO3 evidence, the staged offscreen Qt workflow for
+commit, cancellation, refusal, history, and save/reopen, local CLI and Qt
+E2Es, and the current full local suite provide the validation receipt.
+
+M3.P6 is the supported bounded directed stereobond slice. `Draw Solid Wedge
+Bond` and `Draw Hashed Wedge Bond` use the public Rust V3
+`begin_direct_bond_gesture_v3 -> admit_direct_bond_candidate_v3 ->
+commit_direct_bond_admission_v3` lifecycle. Qt submits finite scene points,
+viewport-to-scene mappings, and exact `none`/unique/ambiguous hit evidence;
+Rust resolves every endpoint into `ExistingExisting`, `ExistingNew`,
+`NewExisting`, or `NewNew`. The V2 gesture lifecycle is retired and its
+resolved values are Rust-internal. V1 document, fence, presentation, snap, and
+commit values remain the current V3 commit taxonomy. Separately, `ferrum-document` exposes a
+native-Rust-only, renderer-neutral direct-bond mutation seam for noninteractive
+programmatic work. Its public endpoint input is already resolved to a durable
+atom ID or finite new-atom point; it has no Qt/PyO3 route and accepts no pointer
+probe, viewport transform, hit evidence, snap decision, overlay, render plan,
+or issued operation. Rust owns tolerance, ties, hit-ID validation,
+snap/new selection, fences, renderer-neutral candidate construction, direction,
+IDs, history, complete renderer preflight, immutable target-bond operations,
+durable projection, and rendering. Qt paints only admitted Rust operations.
+The authoring actions use the bounded Normal, Solid wedge, and Hashed wedge
+vocabulary; solid and hashed actions admit only covalent single `w1` and `h1`
+bonds with pointer start as CDML tip and pointer end as base. A V3 probe error
+and a post-resolution admission refusal have distinct typed nonmodal recovery;
+a valid same-atom attempt is `self_loop` / `adjust_endpoint`.
+`UnrenderableCandidate` is `ChangePresentation`. Escape and every typed refusal
+remain mutation-free. Existing Bond Properties retains its independently
+supported broader bond-style vocabulary; M3.P6 does not narrow that unrelated
+editor.
+
+M3.P6 excludes generic stereo/CIP semantics or inference, E/Z semantics,
+arbitrary bond styles or orders, and stereo import/export expansion. A fresh
+local build and `./all_test.sh` provide the current validation receipt.
+
+M3.P7 is the supported bounded Polyline/Polygon incremental-authoring slice.
+Its native contract is one opaque Rust-owned point-at-a-time transaction:
+`begin -> add accepted point -> progress -> optional-hover-preview -> prepare
+-> commit`, or `cancel`. Accepted points are durable candidate geometry; hover
+never persists. Rust derives overlay geometry and appearance, validates path
+cardinality and geometry, preflights the renderer, and enforces
+origin/revision/digest/preview/one-use fences. Cancellation is a typed
+`DocumentUnchanged` outcome.
+
+M3.P7 uses the same universal document-owned authoring capability as every
+other supported opaque authoring lifecycle. Its gesture, preview, and prepared
+aliases hold one `AuthoringCapabilityV1` allocation issued by the owning
+`DocumentSession`; `Available -> Claimed -> Consumed` supplies one-use
+redemption without a serializable nonce, process-wide allocator, or
+consumed-capability registry. Dropping an unsettled owner claim restores the
+receipt, foreign callers are fenced before candidate work, catalog preview
+leases remain preview-only supersession state, and durable CDML identifiers
+remain independent.
+
+PyO3 exposes this canonical opaque lifecycle and the full-vector preview bridge
+is retired. Qt exposes `Draw Polyline` and `Draw Polygon`, converts points to
+the scene, captures events, and presents user wording. Its only retained local
+coordinate is the transient accepted press used to de-duplicate real and QTest
+double-click delivery; Qt does not use it for geometry, validation, progress,
+or persistent state. Focused public binding and Qt behavior evidence, followed
+by a fresh local build and `./all_test.sh`, provide the current receipt.
+
+M3.P7 does not claim generic splines, variable-point-count grammar beyond the
+two named tools, path property editing, association semantics, or a generic
+presentation factory. Those are separate future contracts.
 
 **Depends on:** M1 and M2.  **Parallel-plan ready:** yes after record DTOs freeze.
 
@@ -206,6 +356,13 @@ selection affine transforms; and expanded object properties.
 
 Done when a reaction scheme with molecules, arrow, plus, text, brackets, and
 vectors survives edit, stacking, save/reopen, rich copy/paste, and SVG/PDF/PNG.
+Permanent vector-authoring coverage uses the registered root E2E lane and its
+lease-backed workspace, exercising only public Qt and Rust workflows rather
+than package-local scripts that write artifacts in the current directory.
+Text authoring uses focused rich-text and text-placement contract evidence.
+Its former root E2E was intentionally retired under the pytest permanent-test
+policy because nested synchronous modal orchestration is offscreen-platform
+fragile; it is neither skipped evidence nor a remaining required E2E lane.
 
 ### M4: P1 chemistry operation catalog
 
@@ -217,6 +374,11 @@ identifiers, aromatic/stereo/valence status); diagnostic findings/recovery;
 oxidation; SMARTS; known-group expansion; and a closed structure-name grammar,
 each with CLI and Qt information/check/find surfaces.
 
+SMARTS control refresh recomputes action eligibility without erasing an explicit
+terminal user outcome. In particular, clearing successful results remains
+visibly confirmed as completed after the control state refreshes. A public Qt
+widget regression covers that visible terminal-status behavior.
+
 Done when users can describe, validate, search, and where admitted name/expand
 structures; ambiguous/unavailable/resource-bounded calls return typed outcomes,
 never guesses.
@@ -226,6 +388,12 @@ never guesses.
 **Depends on:** M1, M2, M4.  **Parallel-plan ready:** yes after immutable catalog
 manifest and attachment DTOs are frozen.
 
+The shipped `catalog.list.v1` / `catalog.insert.v1` protocol contract and its
+lease-backed public E2E are completed prerequisites for this milestone. They
+establish bounded catalog discovery, fenced insertion, and typed stale refusal;
+they do not complete M5's palette, reaction, provenance, corpus, or user-workflow
+parity work.
+
 Deliver a versioned provenance-bearing template manifest; system and biomolecule
 palettes; user-template toolbar; reaction roots/import/export/templates;
 declarative carbohydrate schemas; expanded peptide/residue/termini profiles;
@@ -233,6 +401,9 @@ and named-group reference-data contracts.
 
 Done when curated templates, peptides, carbohydrates, and atom-mapped reactions
 can preview, attach, undo/redo, save/reopen, and exchange deterministically.
+Permanent template-catalog authoring coverage likewise runs through the
+lease-backed root E2E lane and public workflows, replacing package-local
+current-directory artifact scripts.
 
 ### M6: P2 usable application
 
@@ -333,35 +504,30 @@ Every completed milestone updates the capability matrix, CLI/Qt usage,
 architecture notes, changelog, and concise evidence report.  Each format,
 profile, catalog, and refusal code documents scope, source, limits, and recovery.
 
-## Patch plan and reporting format
+## Current next-work queue
 
-The next executable P0 patch is **P0.1: Next Drawing normal-order completion**.
-Keep the direct-bond gesture contract small and Rust-owned, with its explicit
-revision/digest fence, immutable handles, typed refusals, captured snap policy,
-pure admission receipt, and receipt-only atomic commit. Its closed endpoint
-matrix is `ExistingExisting`, `ExistingNew`, `NewExisting`, and `NewNew`; the
-last form is blank-canvas authoring. Retain only normal single, double, and
-triple presentations, with new endpoints fixed to carbon. Begin, preview, and
-admission allocate no IDs and change no session state; a valid receipt
-redemption creates one history entry. Complete the existing Qt controller by
-passing its immutable Next Drawing snapshot, rather than a fixed normal-single
-presentation, through the current-tab boundary. Add a compact Rust/PyO3
-order-by-endpoint matrix, focused Qt snapshot/lifecycle tests, and one isolated
-offscreen local-runtime E2E with temporary inline input. No manual gate, network
-route, persistent fixture, new action, dialog, shortcut, or Qt chemistry rule
-is part of this package. Interactive handles remain desktop-only, not
-CLI/protocol values.
+The historical P0.1 and P0.2 patch text is closed: normal-order direct-bond
+authoring and selected-root selection/translation have their Rust-owned
+contracts and acceptance evidence. The completed M3 presentation slices are
+also not a current patch queue. Their shared public CLI route is now
+`presentation.author.v1`, which accepts a request-owned fenced document and
+typed serializable intent rather than a live receipt.
 
-**P0.2 follows P0.1, not in parallel with it.** Add selected-root
-selection/marquee/translation only after render publishes reliable eligible-root
-hit, containment, and bounds facts. `RenderInteractionSelectionV1` is
-revision/digest-fenced and canonicalized by Rust, including mixed molecule and
-plus direct roots in Rust source order independently of click or marquee
-traversal order. Rust commits the complete selection translation atomically;
-Qt passes gestures, renders the returned observation, and has neither a shadow
-selection set nor transform authority. Acceptance requires matching Rust and
-PyO3 contract evidence plus focused Qt behavior proving click-order-independent
-source order, one atomic history transition, undo/redo, and reopen.
+The next confirmed work is the existing M4 chemistry-operation catalog. Start
+with one corpus-backed, bounded operation contract from the M4 scope, then add
+its Rust authority, stateless CLI route where applicable, and ordinary Qt
+workflow. Each candidate remains supported only after it has a typed refusal
+and recovery contract, a durable workflow proof, and an explicit statement of
+its limits. The current plan does not select a single M4 operation yet, so that
+choice must follow the M0 corpus and user-value evidence rather than a
+speculative implementation order.
+
+The subsequent confirmed queue remains M2 interchange/graph completion, M5
+catalogs and reactions, and M6 usable-application work. The completed catalog
+protocol prerequisite does not advance M5 beyond its remaining parity work.
+These milestones stay open until their declared parity claims have contract,
+client, corpus, and workflow evidence; this document does not claim complete
+OASA/BKChem parity.
 
 Implementation reports state: `Milestone`, `Work package`, `Contracts`, `User
 workflow`, `Changed files`, `Evidence run`, `Known limits`, and `Next dependency`.

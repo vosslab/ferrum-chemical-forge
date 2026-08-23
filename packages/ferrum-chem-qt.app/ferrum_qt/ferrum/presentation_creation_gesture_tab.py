@@ -1,5 +1,9 @@
 """Rust-owned presentation-creation gesture methods for one Ferrum tab."""
 
+# local repo modules
+import ferrum_qt.ferrum.curved_equilibrium_arrow
+import ferrum_qt.ferrum.terminal_arrow
+
 
 #============================================
 class FerrumNativePresentationCreationGestureTabMixin:
@@ -26,41 +30,95 @@ class FerrumNativePresentationCreationGestureTabMixin:
 		)
 
 	#============================================
-	def begin_curved_electron_arrow_gesture(
-			self, start: tuple[float, float], control: tuple[float, float],
-			) -> object:
-		"""Begin one Rust-owned quadratic electron-arrow gesture."""
+	def begin_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
+			start: tuple[float, float], control: tuple[float, float]) -> object:
+		"""Begin one explicit Rust terminal-arrow operation from two exact Qt points."""
 		self._require_mutable()
 		if not _is_exact_point(start) or not _is_exact_point(control):
-			raise TypeError("Ferrum electron-arrow points must be exact float pairs")
+			raise TypeError("Ferrum terminal-arrow points must be exact float pairs")
 		snapshot = self.current_snapshot
-		return self._session.begin_curved_electron_arrow_gesture_v1(
-			snapshot.revision, snapshot.digest, start[0], start[1], control[0], control[1],
+		return ferrum_qt.ferrum.terminal_arrow.TerminalArrowOperation.begin(
+			self._session, snapshot.revision, snapshot.digest, kind, start, control,
 		)
 
 	#============================================
-	def preview_curved_electron_arrow_gesture(
-			self, gesture: object, end: tuple[float, float],
-			) -> object:
-		"""Return Rust's complete quadratic-arrow overlay for one endpoint."""
+	def begin_curved_equilibrium_arrow_gesture(self, start: tuple[float, float],
+			control: tuple[float, float]) -> object:
+		"""Begin one dedicated Rust curved-equilibrium operation."""
+		self._require_mutable()
+		if not _is_exact_point(start) or not _is_exact_point(control):
+			raise TypeError("Ferrum curved-equilibrium points must be exact float pairs")
+		snapshot = self.current_snapshot
+		return ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowOperation.begin(
+			self._session, snapshot.revision, snapshot.digest, start, control,
+		)
+
+	#============================================
+	def preview_curved_equilibrium_arrow_gesture(self, gesture: object,
+			end: tuple[float, float]) -> object:
+		"""Return Rust's complete immutable two-lane equilibrium preview."""
 		self._require_mutable()
 		if not _is_exact_point(end):
-			raise TypeError("Ferrum electron-arrow endpoint must be an exact float pair")
-		return self._session.preview_curved_electron_arrow_gesture_v1(gesture, end[0], end[1])
+			raise TypeError("Ferrum curved-equilibrium endpoint must be an exact float pair")
+		return ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowOperation.preview(
+			self._session, gesture, end,
+		)
 
 	#============================================
-	def prepare_curved_electron_arrow_gesture(self, gesture: object, preview: object) -> object:
-		"""Preflight one opaque Rust quadratic electron-arrow candidate."""
+	def prepare_curved_equilibrium_arrow_gesture(self, gesture: object,
+			preview: object) -> object:
+		"""Renderer-preflight one opaque curved-equilibrium candidate."""
 		self._require_mutable()
-		return self._session.prepare_curved_electron_arrow_gesture_v1(gesture, preview)
+		return ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowOperation.prepare(
+			self._session, gesture, preview,
+		)
 
 	#============================================
-	def commit_curved_electron_arrow_gesture(self, prepared: object) -> object:
-		"""Commit one renderer-preflighted electron arrow and install Rust truth."""
+	def commit_curved_equilibrium_arrow_gesture(self, prepared: object) -> object:
+		"""Commit one prepared curved-equilibrium receipt and install Rust truth."""
 		self._require_mutable()
-		commit = self._session.commit_curved_electron_arrow_gesture_v1(prepared)
+		commit = ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowOperation.commit(
+			self._session, prepared,
+		)
 		try:
-			self._install_mutation_result(commit.result, (("arrow", commit.identifier),))
+			self._install_mutation_result(commit.result, (("arrow", commit.root.identifier),))
+		except Exception as exc:
+			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
+				exc.accepted_receipt = commit
+			raise
+		return commit
+
+	#============================================
+	def preview_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
+			gesture: object, end: tuple[float, float]) -> object:
+		"""Return Rust's complete immutable terminal-arrow overlay for one endpoint."""
+		self._require_mutable()
+		if not _is_exact_point(end):
+			raise TypeError("Ferrum terminal-arrow endpoint must be an exact float pair")
+		return ferrum_qt.ferrum.terminal_arrow.TerminalArrowOperation.preview(
+			self._session, kind, gesture, end,
+		)
+
+	#============================================
+	def prepare_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
+			gesture: object, preview: object) -> object:
+		"""Renderer-preflight one opaque terminal-arrow candidate."""
+		self._require_mutable()
+		return ferrum_qt.ferrum.terminal_arrow.TerminalArrowOperation.prepare(
+			self._session, kind, gesture, preview,
+		)
+
+	#============================================
+	def commit_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
+			prepared: object) -> object:
+		"""Commit one renderer-preflighted terminal arrow and install Rust truth."""
+		self._require_mutable()
+		commit = ferrum_qt.ferrum.terminal_arrow.TerminalArrowOperation.commit(
+			self._session, kind, prepared,
+		)
+		try:
+			self._install_mutation_result(commit.result, (("arrow", commit.root.identifier),))
 		except Exception as exc:
 			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
 			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):

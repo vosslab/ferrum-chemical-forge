@@ -12,27 +12,25 @@ use thiserror::Error;
 
 use super::identity_index::ProvisionalToken;
 use super::{
-    BracketInsertionV1, BracketStyleV1, DetachedRegularRingInsertionV1,
-    DocumentBondCapacityOutcomeV1, DocumentBondPresentationV1, DocumentObjectIdV1,
-    MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1, PersistentId, Point3V1,
-    PreparedStraightenDepictionsV1, ProjectionError, SessionDocumentObservationV1, TypedClass,
-    TypedDocument, TypedDocumentError, WavyInsertionV1, XmlSerializationError,
-    direct_bond_gesture_v1::{
-        self, CommittedDirectBondGestureV1, DirectBondAdmissionRefusalV1, DirectBondAdmissionV1,
-        DirectBondAdmittedCandidateV1, DirectBondCommitErrorV1, DirectBondEndIntentV1,
-        DirectBondGestureErrorV1, DirectBondGestureV1, DirectBondPoint2V1, DirectBondPreviewV1,
-        DirectBondSessionOriginV1, DirectBondSnapPolicyV1, DocumentFenceV1,
-    },
-    direct_bond_gesture_v2::{
+    AuthoringCapabilityIssuerV1, BracketInsertionV1, BracketStyleV1,
+    DetachedRegularRingInsertionV1, DocumentBondCapacityOutcomeV1, DocumentBondPresentationV1,
+    DocumentObjectIdV1, MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1,
+    PersistentId, Point3V1, PreparedStraightenDepictionsV1, ProjectionError,
+    SessionDocumentObservationV1, TypedClass, TypedDocument, TypedDocumentError, WavyInsertionV1,
+    XmlSerializationError,
+    direct_bond_mutation::{
         self, CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondAdmittedCandidateV2,
-        DirectBondEndpointIntentV2, DirectBondGestureV2,
+        DirectBondEndpointIntent, DirectBondGestureV2,
+    },
+    direct_bond_primitives_v1::{
+        DirectBondAdmissionRefusalV1, DirectBondCommitErrorV1, DirectBondGestureErrorV1,
+        DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentFenceV1,
     },
     generated_ids::GeneratedIdSequences,
     presentation_creation_gesture_v1::{
         self, CommittedPresentationGestureV1, PresentationCreationGestureV1,
         PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
-        PresentationGesturePoint2V1, PresentationGestureSessionOriginV1,
-        PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
+        PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
     },
     publication::{PublicationDurability, publish_snapshot},
     session_history::SessionHistory,
@@ -59,6 +57,7 @@ mod linear_form;
 mod molecule_batch_creation;
 mod molecule_creation;
 mod prepared;
+mod presentation_creation;
 mod primitive_bond;
 mod standalone_haworth;
 mod straighten;
@@ -82,6 +81,10 @@ pub use explicit_fragment::PendingCreateExplicitFragmentV1;
 pub use interchange::PendingCreateInterchangeBatchV1;
 pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
 pub use molecule_batch_creation::PendingCreateMoleculeBatchV1;
+pub use presentation_creation::{
+    PendingCreatePresentationV1, PresentationAppearanceV1, PresentationCreateErrorV1,
+    PresentationCreateRequestV1, PresentationVectorCreateKindV1,
+};
 pub use standalone_haworth::PendingStandaloneHaworthV1;
 pub use structural_deletion::PendingDeleteStructureV1;
 pub use user_template::DocumentUserTemplateResultV1;
@@ -206,6 +209,7 @@ pub struct PendingCreateMolecule {
     atom_identifiers: Vec<PersistentId>,
     bond_identifiers: Vec<PersistentId>,
     candidate: Option<RevisionState>,
+    tentative_generated_ids: GeneratedIdSequences,
 }
 
 impl std::fmt::Debug for PendingCreateMolecule {
@@ -238,6 +242,16 @@ impl PendingCreateMolecule {
     #[must_use]
     pub fn bond_identifiers(&self) -> &[PersistentId] {
         &self.bond_identifiers
+    }
+
+    /// Return the candidate observation used by a Rust-only pre-commit
+    /// admission boundary. Candidate XML and mutable session state remain
+    /// encapsulated by this opaque receipt.
+    #[must_use]
+    pub fn candidate_observation_v1(&self) -> Option<SessionDocumentObservationV1> {
+        let candidate = self.candidate.as_ref()?;
+        let snapshot = candidate.snapshot(true);
+        SessionDocumentObservationV1::from_state(candidate.document(), snapshot).ok()
     }
 }
 
@@ -422,26 +436,20 @@ pub enum DocumentSessionError {
 /// One authoritative retained CDML tree and its revision-bound transaction state.
 #[derive(Debug)]
 pub struct DocumentSession {
-    bridge_session_origin: u64,
+    authoring_capability_issuer: AuthoringCapabilityIssuerV1,
     history: SessionHistory,
     saved_baseline: SavedBaseline,
     generated_ids: GeneratedIdSequences,
-    direct_bond_origin: DirectBondSessionOriginV1,
-    presentation_gesture_origin: PresentationGestureSessionOriginV1,
-    text_placement_origin: crate::text_placement_gesture_v1::TextPlacementSessionOriginV1,
-    text_placement_consumed: std::collections::HashSet<u64>,
 }
 
 impl DocumentSession {
-    /// Stable process-local identity for a bridge-owned opaque capability.
+    /// Return this live session's opaque authoring-capability issuer.
     ///
-    /// This is not a document operation or durable document fact. It exists so
-    /// renderer-owning transaction bridges can survive ordinary Rust moves of a
-    /// session value without using a memory address as authority.
-    #[doc(hidden)]
+    /// The returned handle is process-local and identifies the session by its
+    /// allocation, not by durable document content or a serializable nonce.
     #[must_use]
-    pub const fn bridge_session_origin_v1(&self) -> u64 {
-        self.bridge_session_origin
+    pub fn authoring_capability_issuer_v1(&self) -> AuthoringCapabilityIssuerV1 {
+        self.authoring_capability_issuer.clone()
     }
 
     /// Return whether the current authoritative CDML index owns this durable ID.
@@ -529,6 +537,42 @@ impl DocumentSession {
     ) -> Result<SessionDocumentObservationV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
         self.document_observation()
+    }
+
+    /// Observe one selected direct-root atom with the oxidation V1 convention.
+    ///
+    /// The request is authenticated against this session's current revision and
+    /// digest. Root counts are admitted before a chemistry graph is materialized.
+    pub fn observe_atom_oxidation_v1(
+        &self,
+        request: &super::DocumentAtomOxidationObservationRequestV1,
+    ) -> Result<super::DocumentAtomOxidationResultV1, super::DocumentAtomOxidationRefusalV1> {
+        let current = self.history.current();
+        let snapshot = current.snapshot(!self.saved_baseline.is_current(current));
+        super::chemistry::observe_current_document_atom_oxidation_v1(
+            current.document(),
+            &snapshot,
+            request,
+        )
+    }
+
+    /// Prepare graph inputs for the SMARTS query operation at one exact revision.
+    pub fn prepare_smarts_snapshot_v1(
+        &self,
+        expected_revision: u64,
+    ) -> Result<super::PreparedDocumentSmartsSnapshotV1, super::DocumentSmartsSnapshotErrorV1> {
+        let current = self.history.current();
+        if current.revision() != expected_revision {
+            return Err(super::DocumentSmartsSnapshotErrorV1::StaleRevision {
+                expected: expected_revision,
+                actual: current.revision(),
+            });
+        }
+        let snapshot = current.snapshot(!self.saved_baseline.is_current(current));
+        super::document_smarts_snapshot_v1::prepare_smarts_snapshot_v1(
+            current.document(),
+            &snapshot,
+        )
     }
 
     /// Return whether the retained session history has an earlier state.

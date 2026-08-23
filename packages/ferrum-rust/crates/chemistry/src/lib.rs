@@ -15,6 +15,7 @@ mod interchange;
 mod interchange_sdf;
 mod model;
 mod native_engine;
+mod oxidation_state_v1;
 mod sdf;
 
 pub use crate::adapter::{ExplicitAdapterError, load_explicit_adapter};
@@ -57,6 +58,11 @@ pub use crate::native_engine::{
     INCHI_MAX_INPUT_BYTES, MOLBLOCK_MAX_INPUT_BYTES, NATIVE_SMILES_MAX_INPUT_BYTES,
     NATIVE_SMILES_MAX_OUTPUT_BYTES, NativeChemEngine, SDF_MAX_INPUT_BYTES, validate_inchi_input,
     validate_molblock_input, validate_molblock_title, validate_sdf_input, validate_smiles_input,
+};
+pub use crate::oxidation_state_v1::{
+    OXIDATION_STATE_CONVENTION_V1, OxidationStateErrorV1, OxidationStateObservationV1,
+    OxidationStateResourceV1, OxidationStateRootAdmissionV1, OxidationStateUnavailableReasonV1,
+    admit_oxidation_state_root_v1, observe_admitted_oxidation_state_v1, observe_oxidation_state_v1,
 };
 pub use crate::sdf::{ImportedSdfRecord, SdfError, SdfProperty, SdfRecord, compose_sdf_record};
 

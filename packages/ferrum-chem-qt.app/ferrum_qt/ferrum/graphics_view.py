@@ -58,6 +58,7 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		"""Initialize one view with no retained direct-zoom sequence anchor."""
 		super().__init__(parent)
 		self.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
+		self.viewport().setMouseTracking(True)
 		self.setAccessibleName(self.tr("Ferrum drawing canvas"))
 		self.setAccessibleDescription(self.tr(
 			"Document-space cursor. Arrow keys move by one grid increment; "

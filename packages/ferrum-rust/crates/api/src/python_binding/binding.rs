@@ -22,10 +22,11 @@ use super::presentation_root_binding::PyPresentationRootProjectionV1;
 use super::projection_binding::{
     PyArrowDisplayGeometryV1, PyArrowHeadShapeV1, PyArrowHeadV1, PyArrowPathV1,
     PyArrowProjectionV1, PyAtomMarkProjectionV1, PyAtomProjectionV1, PyBondEndpointV1,
-    PyBondProjectionV1, PyBoxShapeProjectionV1, PyDocumentHaworthPositionV1,
-    PyDocumentProjectionV1, PyElectronArrowDisplayGeometryV1, PyEquilibriumArrowDisplayGeometryV1, PyFontFactsV1,
-    PyMoleculeProjectionV1, PyNormalArrowDisplayGeometryV1, PyPlusProjectionV1, PyPoint3V1,
-    PyPolygonPathV1, PyPolygonProjectionV1, PyPolylinePathV1, PyPolylineProjectionV1,
+    PyBondProjectionV1, PyBoxShapeProjectionV1, PyCurvedEquilibriumArrowDisplayGeometryV1,
+    PyCurvedTerminalArrowDisplayGeometryV1, PyCurvedTerminalArrowDisplayKindV1,
+    PyDocumentHaworthPositionV1, PyDocumentProjectionV1, PyEquilibriumArrowDisplayGeometryV1,
+    PyFontFactsV1, PyMoleculeProjectionV1, PyNormalArrowDisplayGeometryV1, PyPlusProjectionV1,
+    PyPoint3V1, PyPolygonPathV1, PyPolygonProjectionV1, PyPolylinePathV1, PyPolylineProjectionV1,
     PyPresentationBoundsV1, PyPresentationFillV1, PyPresentationFontV1,
     PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1, PyPresentationStrokeV1,
     PyPresentationTargetV1, PyProjectionIssueV1, PySessionDocumentObservationV1,
@@ -112,6 +113,9 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDocumentSession>()?;
     module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsReceiptV1>()?;
     module
+        .add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedReadinessV1>(
+        )?;
+    module
         .add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsMoleculeSummaryV1>(
         )?;
     module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsRunSummaryV1>()?;
@@ -138,7 +142,9 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyArrowDisplayGeometryV1>()?;
     module.add_class::<PyNormalArrowDisplayGeometryV1>()?;
     module.add_class::<PyEquilibriumArrowDisplayGeometryV1>()?;
-    module.add_class::<PyElectronArrowDisplayGeometryV1>()?;
+    module.add_class::<PyCurvedEquilibriumArrowDisplayGeometryV1>()?;
+    module.add_class::<PyCurvedTerminalArrowDisplayKindV1>()?;
+    module.add_class::<PyCurvedTerminalArrowDisplayGeometryV1>()?;
     module.add_class::<PyArrowPathV1>()?;
     module.add_class::<PyArrowHeadShapeV1>()?;
     module.add_class::<PyArrowHeadV1>()?;

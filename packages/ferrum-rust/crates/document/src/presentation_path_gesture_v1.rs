@@ -39,8 +39,8 @@ impl PresentationPathGestureV1 {
             f64::NEG_INFINITY,
             f64::NEG_INFINITY,
         );
-        for pair in points.windows(2) {
-            if pair[0] == pair[1] {
+        for (index, point) in points.iter().enumerate() {
+            if points[..index].iter().any(|prior| prior == point) {
                 return Err(PresentationPathGestureErrorV1::DegenerateGeometry);
             }
         }
@@ -146,13 +146,36 @@ mod tests {
             Err(PresentationPathGestureErrorV1::InsufficientPoints)
         ));
         assert!(matches!(
-            PresentationPathGestureV1::new(PresentationPathKindV1::Polygon, vec![point(0.0, 0.0), point(1.0, 0.0), point(2.0, 0.0)]),
+            PresentationPathGestureV1::new(
+                PresentationPathKindV1::Polygon,
+                vec![point(0.0, 0.0), point(1.0, 0.0), point(2.0, 0.0)]
+            ),
+            Err(PresentationPathGestureErrorV1::DegenerateGeometry)
+        ));
+        assert!(matches!(
+            PresentationPathGestureV1::new(
+                PresentationPathKindV1::Polyline,
+                vec![point(0.0, 0.0), point(4.0, 0.0), point(0.0, 0.0)]
+            ),
+            Err(PresentationPathGestureErrorV1::DegenerateGeometry)
+        ));
+        assert!(matches!(
+            PresentationPathGestureV1::new(
+                PresentationPathKindV1::Polygon,
+                vec![
+                    point(0.0, 0.0),
+                    point(4.0, 0.0),
+                    point(0.0, 3.0),
+                    point(0.0, 0.0),
+                ]
+            ),
             Err(PresentationPathGestureErrorV1::DegenerateGeometry)
         ));
         let path = PresentationPathGestureV1::new(
             PresentationPathKindV1::Polygon,
             vec![point(0.0, 0.0), point(4.0, 0.0), point(0.0, 3.0)],
-        ).expect("triangle");
+        )
+        .expect("triangle");
         assert_eq!(path.points().len(), 3);
     }
 }

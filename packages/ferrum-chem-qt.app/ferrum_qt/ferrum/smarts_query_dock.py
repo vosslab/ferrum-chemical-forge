@@ -17,6 +17,11 @@ _TOTAL_LIMIT = 200
 
 
 #============================================
+class _FerrumSmartsRevealProjectionFailure(RuntimeError):
+	"""Report a known local canvas or paint-projection failure."""
+
+
+#============================================
 class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	"""Present copied live-query summaries without owning chemistry or document data."""
 
@@ -86,7 +91,8 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def open(self) -> None:
 		"""Show the dock without moving an intentional canvas capture away from it."""
-		self._activate_current_tab()
+		if not self._retirement_blocked:
+			self._activate_current_tab()
 		self._dock.show()
 		self._dock.raise_()
 		if self._selected_capture.is_armed_v1():
@@ -103,42 +109,30 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _deactivate_after_tab_retirement_v1(self, retirement_succeeded: bool) -> None:
-		"""Drop copied outgoing-tab state after the window made one native attempt.
-
-		The native window owns the one outgoing-tab retirement.  This method must
-		remain local: it forgets the receipt, overlay, rows, selected capture, and
-		callback binding even when that native attempt failed.  That prevents an
-		old drawing's result from appearing over the newly active drawing without
-		claiming a second native retirement can repair the failure.
-		"""
+		"""Release local state only after the window's native retirement succeeds."""
+		if not retirement_succeeded:
+			self._block_receipt_retirement_v1(self.tr(
+				"SMARTS results remain live in the previous drawing. Open this panel and choose "
+				"Clear results to retry, or refresh that drawing before editing.",
+			))
+			self._dock.hide()
+			return
 		self._run_token += 1
 		self._busy = False
-		self._receipt = None
 		self._cancel_selected_capture_v1(None)
 		self._clear_selected_query_token_v1()
-		self._overlay_visible = False
-		self._row_ordinals.clear()
-		self._results.clear()
-		self._retirement_blocked = False
-		self._tab = None
-		if retirement_succeeded:
-			self._set_status(self.tr("The active drawing changed. Run the query again."))
-		else:
-			self._set_status(self.tr(
-				"The previous drawing could not retire its SMARTS result. Refresh it before editing.",
-			))
-		self._update_controls()
-		# Qt has already made the incoming tab current before this post-retirement
-		# hook runs.  Keep the dock completely unbound while hiding it: its
-		# visibility callback must only see cleared outgoing state, never an
-		# incoming receipt or invalidation callback.
+		self._finish_receipt_retirement_v1()
+		self._update_controls(terminal_status=self.tr(
+			"The active drawing changed. Run the query again.",
+		))
 		self._dock.hide()
 		self._activate_after_tab_switch_v1()
 
 	#============================================
 	def _activate_after_tab_switch_v1(self) -> None:
 		"""Bind the incoming tab after the native window completed its switch fence."""
-		self._activate_current_tab()
+		if not self._retirement_blocked:
+			self._activate_current_tab()
 
 	#============================================
 	def close(self) -> None:
@@ -154,9 +148,8 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		"""Keep discovery available while refusing a query against an unready tab."""
 		if self._action is not None:
 			self._action.setEnabled(active and not pending and not busy)
-		if not active or pending:
-			self._set_status(self.tr("Open a ready Ferrum drawing to search it."))
-		self._update_controls()
+		status = self.tr("Open a ready Ferrum drawing to search it.") if not active or pending else None
+		self._update_controls(terminal_status=status)
 
 	#============================================
 	def eventFilter(self, watched: PySide6.QtCore.QObject,
@@ -272,7 +265,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def _activate_current_tab(self) -> None:
 		"""Bind only the current tab; old results are never restored across tabs."""
-		tab = getattr(self._window, "_active_native_tab")()
+		tab = self._window._active_native_tab()
 		self._tab = None if tab is None or tab.is_disposed or tab.requires_refresh else tab
 		self._bind_active_tab_invalidation()
 		self._update_controls()
@@ -283,18 +276,12 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		if self._bound_tab is self._tab:
 			return
 		if self._bound_tab is not None:
-			unbind = getattr(
-				self._bound_tab, "_bind_live_smarts_invalidation_callback_v1", None,
-			)
-			if callable(unbind):
-				unbind(None)
+			self._bound_tab._bind_live_smarts_invalidation_callback_v1(None)
 		self._bound_tab = self._tab
 		if self._bound_tab is not None:
-			bind = getattr(
-				self._bound_tab, "_bind_live_smarts_invalidation_callback_v1", None,
+			self._bound_tab._bind_live_smarts_invalidation_callback_v1(
+				self._on_live_smarts_query_invalidated_v1,
 			)
-			if callable(bind):
-				bind(self._on_live_smarts_query_invalidated_v1)
 
 	#============================================
 	def _on_live_smarts_query_invalidated_v1(self) -> None:
@@ -308,8 +295,9 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._row_ordinals.clear()
 		self._results.clear()
 		self._retirement_blocked = False
-		self._set_status(self.tr("The drawing changed. Run the query again."))
-		self._update_controls()
+		self._update_controls(
+			terminal_status=self.tr("The drawing changed. Run the query again."),
+		)
 
 	#============================================
 	def _source_changed(self, _checked: bool) -> None:
@@ -319,7 +307,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		else:
 			availability = self._selected_availability()
 			if not availability.available:
-				self._set_status(availability.recovery)
+				self._set_status(self._selected_recovery_guidance(availability))
 		self._update_controls()
 
 	#============================================
@@ -343,7 +331,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		else:
 			availability = self._selected_availability()
 			if not availability.available:
-				self._set_status(availability.recovery)
+				self._set_status(self._selected_recovery_guidance(availability))
 				self._update_controls()
 				return
 		if not self._clear_results("dock_rerun", status=None):
@@ -372,7 +360,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 				run = self._tab._session._run_live_document_smarts_query_v1(
 					query, _PER_MOLECULE_LIMIT, _TOTAL_LIMIT,
 				)
-		except Exception as error:
+		except engine.LiveDocumentSmartsError as error:
 			if token == self._run_token:
 				self._present_error(error)
 			return
@@ -382,8 +370,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._receipt = run.receipt
 		self._overlay_visible = False
 		status = self._populate_results(run)
-		self._update_controls()
-		self._set_status(status)
+		self._update_controls(terminal_status=status)
 
 	#============================================
 	def _populate_results(self, run: object) -> str:
@@ -448,17 +435,21 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._update_controls()
 		try:
 			paint = self._tab._session._show_live_document_smarts_match_v1(self._receipt, ordinal)
+		except engine.LiveDocumentSmartsError as error:
+			self._present_error(error, reveal=True)
+			return
+		try:
 			item_graphics = self._paint_item(paint)
 			scene = self._tab.view.scene()
 			if scene is None:
-				raise RuntimeError("no canvas")
+				raise _FerrumSmartsRevealProjectionFailure("Ferrum SMARTS canvas is unavailable")
 			if self._tab._live_smarts_overlay_item_v1 is None:
 				scene.addItem(item_graphics)
 				self._tab._install_live_smarts_query_overlay_v1(item_graphics, self._receipt)
 			else:
 				self._tab._replace_live_smarts_query_overlay_v1(item_graphics)
-		except Exception as error:
-			self._present_error(error, reveal=True)
+		except _FerrumSmartsRevealProjectionFailure:
+			self._recover_reveal_projection_failure_v1()
 			return
 		self._busy = False
 		item.setText(0, item.text(0) + self.tr(" (shown)"))
@@ -467,8 +458,26 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 			self.tr("Match shown; activate again to verify it remains available."),
 		)
 		self._overlay_visible = True
-		self._set_status(self.tr("Match shown."))
-		self._update_controls()
+		self._update_controls(terminal_status=self.tr("Match shown."))
+
+	#============================================
+	def _recover_reveal_projection_failure_v1(self) -> None:
+		"""Release a failed local reveal only after native receipt retirement succeeds."""
+		self._run_token += 1
+		self._busy = False
+		if self._receipt is not None and self._tab is not None:
+			retired = self._tab._retire_live_smarts_receipts_v1("dock_rerun")
+			if not retired:
+				self._block_receipt_retirement_v1(self.tr(
+					"SMARTS match display could not recover. Choose Clear results to retry, or "
+					"refresh the drawing before searching again.",
+				))
+				return
+		self._finish_receipt_retirement_v1()
+		self._update_controls(terminal_status=self.tr(
+			"SMARTS match display could not recover. Run the query again.",
+		))
+		self._raw_input.setFocus()
 
 	#============================================
 	def _paint_item(self, paint: object) -> PySide6.QtWidgets.QGraphicsItemGroup:
@@ -484,10 +493,10 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		for bounds in paint.atom_bounds:
 			left, top, right, bottom = (float(value) for value in bounds)
 			if not all(math.isfinite(value) for value in (left, top, right, bottom)):
-				raise ValueError("non-finite paint bounds")
+				raise _FerrumSmartsRevealProjectionFailure("non-finite paint bounds")
 			rect = PySide6.QtCore.QRectF(left, top, right - left, bottom - top).normalized()
 			if rect.isEmpty():
-				raise ValueError("empty paint bounds")
+				raise _FerrumSmartsRevealProjectionFailure("empty paint bounds")
 			child = PySide6.QtWidgets.QGraphicsRectItem(rect, root)
 			child.setPen(pen)
 			child.setBrush(PySide6.QtCore.Qt.BrushStyle.NoBrush)
@@ -495,7 +504,8 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		return root
 
 	#============================================
-	def _present_error(self, error: Exception, *, reveal: bool = False) -> None:
+	def _present_error(self, error: engine.LiveDocumentSmartsError,
+			*, reveal: bool = False) -> None:
 		"""Translate only closed bridge categories into plain-language recovery text."""
 		self._busy = False
 		if reveal:
@@ -505,34 +515,24 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 			self._raw_input.setFocus()
 			return
 		message, focus_query = self._closed_failure_message(error)
-		self._set_status(message)
 		if focus_query:
 			self._raw_input.setFocus()
-		self._update_controls()
+		self._update_controls(terminal_status=message)
 
 	#============================================
-	def _resolve_closed_failure_messages(self) -> tuple[tuple[object, object, object, str, bool], ...]:
+	def _resolve_closed_failure_messages(
+			self,
+			) -> tuple[tuple[
+				engine.LiveDocumentSmartsCategoryV1,
+				engine.LiveDocumentSmartsReasonV1,
+				engine.LiveDocumentSmartsRecoveryV1,
+				str,
+				bool,
+				], ...]:
 		"""Freeze the only accepted PyO3 outcome triples for this dock instance."""
-		category = getattr(engine, "LiveDocumentSmartsCategoryV1", None)
-		reason = getattr(engine, "LiveDocumentSmartsReasonV1", None)
-		recovery = getattr(engine, "LiveDocumentSmartsRecoveryV1", None)
-		if category is None or reason is None or recovery is None:
-			return ()
-		members = (
-			category.invalid_query, category.unsupported_document, category.resource_limit,
-			category.stale, category.unavailable, category.refused,
-			reason.empty_query, reason.query_too_long, reason.invalid_query,
-			reason.match_caps_inconsistent, reason.selected_root_empty,
-			reason.selected_root_multiple, reason.selected_source_not_molecule,
-			reason.unsupported_document, reason.stale_document, reason.stale_selection,
-			reason.foreign_selection, reason.plan_not_published,
-			reason.native_runtime_unavailable, reason.match_unavailable,
-			reason.receipt_unavailable, reason.paint_unavailable,
-			recovery.edit_query, recovery.reduce_scope, recovery.select_one_molecule,
-			recovery.refresh_and_rerun, recovery.retry,
-		)
-		if any(member is None for member in members):
-			return ()
+		category = engine.LiveDocumentSmartsCategoryV1
+		reason = engine.LiveDocumentSmartsReasonV1
+		recovery = engine.LiveDocumentSmartsRecoveryV1
 		return (
 			(category.invalid_query, reason.empty_query, recovery.edit_query,
 				self.tr("Enter a SMARTS expression, then choose Find."), True),
@@ -569,27 +569,31 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		)
 
 	#============================================
-	def _closed_failure_message(self, error: Exception) -> tuple[str, bool]:
-		"""Return only an exact documented error triple; unknown values are unavailable."""
-		category = getattr(error, "category", None)
-		reason = getattr(error, "reason", None)
-		recovery = getattr(error, "recovery", None)
+	def _closed_failure_message(
+			self, error: engine.LiveDocumentSmartsError,
+			) -> tuple[str, bool]:
+		"""Return the exact documented native failure triple or expose a contract error."""
+		return self._closed_failure_message_from_facts(
+			error.category, error.reason, error.recovery,
+		)
+
+	#============================================
+	def _closed_failure_message_from_facts(self, category: object, reason: object,
+			recovery: object) -> tuple[str, bool]:
+		"""Map one closed native failure triple or expose a bridge contract failure."""
 		for expected_category, expected_reason, expected_recovery, message, focus_query in self._closed_failure_messages:
 			if (category is expected_category or category == expected_category) and (
 				reason is expected_reason or reason == expected_reason
 			) and (recovery is expected_recovery or recovery == expected_recovery):
 				return message, focus_query
-		return self.tr("SMARTS search is temporarily unavailable. Try again."), False
+		raise RuntimeError("Ferrum returned an undocumented SMARTS failure triple")
 
 	#============================================
 	def _clear_only_overlay(self) -> bool:
 		"""Honor first Escape in a result leaf without retiring its query receipt."""
 		if self._tab is None:
 			return False
-		try:
-			if not self._tab._clear_live_smarts_query_overlay_v1():
-				raise RuntimeError()
-		except Exception:
+		if not self._tab._clear_live_smarts_query_overlay_v1():
 			self._set_status(self.tr(
 				"SMARTS highlight cannot be cleared. Refresh the drawing before searching again.",
 			))
@@ -597,9 +601,10 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 			self._update_controls()
 			return False
 		self._overlay_visible = False
-		self._set_status(self.tr("Match highlight cleared. Results remain available."))
 		self._results.setFocus()
-		self._update_controls()
+		self._update_controls(
+			terminal_status=self.tr("Match highlight cleared. Results remain available."),
+		)
 		return True
 
 	#============================================
@@ -609,36 +614,44 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._busy = False
 		tab = self._tab
 		if self._receipt is not None and tab is not None:
-			try:
-				if reason in ("tab_deactivated", "tab_disposed"):
-					retired = tab._retire_live_smarts_query_v1(reason)
-				else:
-					retired = tab._retire_live_smarts_receipts_v1(reason)
-				if not retired:
-					raise RuntimeError()
-			except Exception:
-				self._retirement_blocked = True
-				self._set_status(self.tr(
-					"SMARTS results cannot be cleared. Refresh the drawing before searching again.",
+			if reason in ("tab_deactivated", "tab_disposed"):
+				retired = tab._retire_live_smarts_query_v1(reason)
+			else:
+				retired = tab._retire_live_smarts_receipts_v1(reason)
+			if not retired:
+				self._block_receipt_retirement_v1(self.tr(
+					"SMARTS results cannot be cleared. Choose Clear results to retry, or refresh "
+					"the drawing before searching again.",
 				))
-				self._update_controls()
 				return False
+		self._finish_receipt_retirement_v1()
+		self._update_controls(terminal_status=status)
+		return True
+
+	#============================================
+	def _block_receipt_retirement_v1(self, message: str) -> None:
+		"""Preserve live receipt ownership until a deliberate native retry succeeds."""
+		self._busy = False
+		self._retirement_blocked = True
+		self._set_status(message)
+		self._update_controls()
+
+	#============================================
+	def _finish_receipt_retirement_v1(self) -> None:
+		"""Forget copied query state only after native retirement proved it unavailable."""
 		self._receipt = None
 		self._overlay_visible = False
 		self._row_ordinals.clear()
 		self._results.clear()
 		self._retirement_blocked = False
-		self._tab = tab if tab is not None and not tab.is_disposed and not tab.requires_refresh else None
+		self._tab = None
 		self._bind_active_tab_invalidation()
-		self._update_controls()
-		if status is not None:
-			self._set_status(status)
-		return True
+		self._activate_current_tab()
 
 	#============================================
 	def _on_visibility_changed(self, visible: bool) -> None:
 		"""Closing or hiding the dock cannot leave a receipt or overlay live."""
-		if not visible:
+		if not visible and not self._retirement_blocked:
 			self._clear_results("dock_rerun", status=None)
 
 	#============================================
@@ -648,44 +661,54 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._status.setAccessibleDescription(message)
 
 	#============================================
-	def _update_controls(self) -> None:
-		"""Make every state legible without a hidden cancellation path."""
+	def _update_controls(self, *, terminal_status: str | None = None) -> None:
+		"""Refresh eligibility, then preserve an explicit action outcome when supplied."""
 		ready = self._tab is not None and not self._busy and not self._retirement_blocked
 		raw = self._raw_source.isChecked()
 		availability = self._selected_availability()
-		selected_available = availability.available
+		selected_recovery = self._selected_recovery_guidance(availability)
 		self._raw_input.setEnabled(ready and raw)
 		self._choose_molecule_button.setEnabled(ready)
-		self._selected_source.setEnabled(ready and selected_available)
-		self._selected_source.setAccessibleDescription(availability.recovery)
+		self._selected_source.setEnabled(ready and availability.available)
+		self._selected_source.setAccessibleDescription(selected_recovery)
 		self._raw_source.setEnabled(ready)
 		self._find_button.setEnabled(
-			ready and (bool(self._raw_input.text().strip()) if raw else selected_available),
+			ready and (bool(self._raw_input.text().strip()) if raw else availability.available),
 		)
 		self._clear_button.setEnabled(not self._busy and self._receipt is not None)
 		self._results.setEnabled(
 			not self._busy and not self._retirement_blocked and self._receipt is not None,
 		)
-		if not raw and not selected_available and not self._busy and not self._retirement_blocked:
-			self._set_status(availability.recovery)
+		if not raw and not availability.available and not self._busy and not self._retirement_blocked:
+			self._set_status(selected_recovery)
+		if terminal_status is not None:
+			self._set_status(terminal_status)
 
 	#============================================
-	def _selected_availability(self) -> object:
-		"""Read only the copied tab-private readiness DTO, failing closed."""
-		if self._tab is None:
-			return type("Availability", (), {
-				"available": False,
-				"recovery": self.tr("Choose one direct molecule on the canvas to use it as the query."),
-			})()
-		if not self._selected_capture.is_ready_for(self._tab):
-			return type("Availability", (), {
-				"available": False,
-				"recovery": self.tr("Choose one direct molecule on the canvas to use it as the query."),
-			})()
-		return type("Availability", (), {
-			"available": True,
-			"recovery": self.tr("Chosen molecule is ready for this drawing."),
-		})()
+	def _selected_availability(self) -> (
+			ferrum_qt.ferrum.smarts_selected_root_capture.
+			FerrumSmartsSelectedQueryAvailabilityV1
+			):
+		"""Return copied controller-owned readiness without inspecting an opaque token."""
+		return self._selected_capture.selected_query_availability_v1(self._tab)
+
+	#============================================
+	def _selected_recovery_guidance(self, availability: (
+			ferrum_qt.ferrum.smarts_selected_root_capture.
+			FerrumSmartsSelectedQueryAvailabilityV1
+			)) -> str:
+		"""Map the selected-token availability DTO's closed native facts for display."""
+		facts = (availability.category, availability.reason, availability.recovery)
+		if availability.available:
+			if facts != (None, None, None):
+				raise RuntimeError("Ferrum returned available selected SMARTS readiness with failure facts")
+			return self.tr("Chosen molecule is ready for this drawing.")
+		if facts == (None, None, None):
+			return self.tr("Choose one direct molecule on the canvas to use it as the query.")
+		if None in facts:
+			raise RuntimeError("Ferrum returned incomplete selected SMARTS readiness facts")
+		message, _focus_query = self._closed_failure_message_from_facts(*facts)
+		return message
 
 	#============================================
 	def _begin_selected_capture_v1(self) -> None:
@@ -694,12 +717,13 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 			return
 		self._clear_selected_query_token_v1()
 		self._selected_capture.begin()
-		self._update_controls()
 
 	#============================================
 	def _selected_capture_started_v1(self) -> None:
 		"""Present capture guidance while the viewport exclusively owns the pointer."""
-		self._set_status(self.tr("Choose one direct molecule on the canvas. Esc or right-click cancels."))
+		self._update_controls(terminal_status=self.tr(
+			"Choose one direct molecule on the canvas. Esc or right-click cancels.",
+		))
 
 	#============================================
 	def _selected_capture_ready_v1(self, tab: object) -> None:
@@ -707,15 +731,15 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		if tab is not self._tab or not self._selected_capture.is_ready_for(tab):
 			return
 		self._selected_source.setChecked(True)
-		self._set_status(self.tr("Chosen molecule is ready. Choose Find to search this drawing."))
-		self._update_controls()
+		self._update_controls(terminal_status=self.tr(
+			"Chosen molecule is ready. Choose Find to search this drawing.",
+		))
 
 	#============================================
 	def _selected_capture_refused_v1(self, message: str) -> None:
 		"""Show only closed recovery language after an unsuccessful capture."""
 		self._clear_selected_query_token_v1()
-		self._set_status(message)
-		self._update_controls()
+		self._update_controls(terminal_status=message)
 
 	#============================================
 	def _cancel_selected_capture_v1(self, message: str | None) -> None:
@@ -728,20 +752,3 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._selected_capture.clear_ready_v1()
 
 	#============================================
-	def _selected_recovery_guidance(self, recovery: str) -> str:
-		"""Translate finite tab-private readiness codes into user-facing guidance."""
-		messages = {
-			"available": self.tr(
-				"Ferrum derives the selected molecule query privately and does not show its expression.",
-			),
-			"select_one_molecule": self.tr(
-				"Select one direct molecule to use it as the query.",
-			),
-			"document_not_ready": self.tr(
-				"The drawing is not ready. Refresh it, then select one direct molecule.",
-			),
-			"unavailable": self.tr("Selected-molecule SMARTS is unavailable. Try again."),
-		}
-		return messages.get(recovery, self.tr(
-			"Selected-molecule SMARTS is unavailable. Try again.",
-		))

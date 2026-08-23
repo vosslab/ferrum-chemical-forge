@@ -331,9 +331,9 @@ pub(crate) enum NamedDocumentCommand {
         #[arg(short, long, value_parser = output_file_path)]
         output: Option<PathBuf>,
     },
-    /// Create a standard-resolved direct-root presentation vector.
-    #[command(name = "presentation.vector.create.v1")]
-    PresentationVectorCreate {
+    /// Author one closed presentation family through the stateless protocol.
+    #[command(name = "presentation.author.v1")]
+    PresentationAuthor {
         /// Complete operation-protocol JSON request path, or `-` for standard input.
         input: PathBuf,
         /// Explicit JSON response destination, published safely.

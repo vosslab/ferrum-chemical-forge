@@ -211,7 +211,6 @@ impl DocumentSession {
             .document_mut()
             .try_issue_provisional_token()
             .map_err(SessionOperationError::Candidate)?;
-        self.generated_ids = generated_ids;
         Ok(PendingDirectHaworthV1 {
             pending: PendingCreateMolecule {
                 revision: expected_revision,
@@ -220,6 +219,7 @@ impl DocumentSession {
                 atom_identifiers: identities.atoms,
                 bond_identifiers: identities.bonds,
                 candidate: Some(candidate),
+                tentative_generated_ids: generated_ids,
             },
             prepared_receipt: Some(prepared_receipt),
         })

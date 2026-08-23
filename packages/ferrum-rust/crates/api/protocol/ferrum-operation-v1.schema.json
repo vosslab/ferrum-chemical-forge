@@ -577,6 +577,27 @@
       ],
       "type": "object"
     },
+    "DocumentRequestFenceV1": {
+      "additionalProperties": false,
+      "description": "Immutable request fence derived from one admitted document snapshot.\n\nThe caller keeps the original request-owned document and may submit these\nvalues unchanged to a subsequent document mutation.",
+      "properties": {
+        "expected_digest_hex": {
+          "description": "Lowercase hexadecimal SHA-256 digest of the admitted snapshot.",
+          "type": "string"
+        },
+        "expected_revision": {
+          "description": "Revision of the admitted snapshot.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "expected_digest_hex"
+      ],
+      "type": "object"
+    },
     "DocumentSmartsQueryDocumentV1": {
       "additionalProperties": false,
       "description": "Fenced request-owned document supplied to the SMARTS query operation.",
@@ -771,17 +792,26 @@
     },
     "InterchangeFormatV1": {
       "description": "Closed syntax vocabulary. `Cdml` is retained as a wire value for callers\nthat dispatch CDML composition outside this crate.",
-      "enum": [
-        "smiles",
-        "inchi_standard",
-        "inchi_fixed_h",
-        "molblock_v2000",
-        "molblock_v3000",
-        "sdf_v2000",
-        "sdf_v3000",
-        "cdml"
-      ],
-      "type": "string"
+      "oneOf": [
+        {
+          "enum": [
+            "smiles",
+            "inchi_standard",
+            "inchi_fixed_h",
+            "molblock_v2000",
+            "molblock_v3000",
+            "sdf_v2000",
+            "sdf_v3000",
+            "cdml"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "cml_simple_molecule_import_v1",
+          "description": "Closed CML/CML2 simple-molecule import profile. This profile is input-only.",
+          "type": "string"
+        }
+      ]
     },
     "MoleculeInspection": {
       "description": "One molecule's source-order summary.",
@@ -964,16 +994,16 @@
           ],
           "description": "Decoded operation kind when one was available."
         },
-        "presentation_vector_refusal": {
+        "presentation_author_refusal": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PresentationVectorRefusalV1"
+              "$ref": "#/$defs/PresentationAuthorRefusalV1"
             },
             {
               "type": "null"
             }
           ],
-          "description": "Closed vector gesture recovery facts when this operation refused one."
+          "description": "Closed presentation-authoring recovery facts when this operation refused one."
         },
         "reaction_refusal": {
           "anyOf": [
@@ -1138,21 +1168,13 @@
         },
         {
           "additionalProperties": false,
-          "description": "Create one direct-root presentation vector through the closed Rust gesture.",
+          "description": "Author one closed presentation family through a request-owned Rust session.",
           "properties": {
-            "appearance_policy": {
-              "$ref": "#/$defs/ProtocolPresentationVectorAppearancePolicyV1"
+            "authoring": {
+              "$ref": "#/$defs/PresentationAuthoringRequestV1"
             },
             "document": {
               "type": "string"
-            },
-            "end_x": {
-              "format": "double",
-              "type": "number"
-            },
-            "end_y": {
-              "format": "double",
-              "type": "number"
             },
             "expected_digest_hex": {
               "type": "string"
@@ -1163,20 +1185,8 @@
               "type": "integer"
             },
             "kind": {
-              "const": "presentation.vector.create.v1",
+              "const": "presentation.author.v1",
               "type": "string"
-            },
-            "start_x": {
-              "format": "double",
-              "type": "number"
-            },
-            "start_y": {
-              "format": "double",
-              "type": "number"
-            },
-            "vector_kind": {
-              "$ref": "#/$defs/ProtocolPresentationVectorKindV1",
-              "description": "Shape family. `kind` remains reserved by the tagged operation envelope."
             }
           },
           "required": [
@@ -1184,12 +1194,7 @@
             "document",
             "expected_revision",
             "expected_digest_hex",
-            "vector_kind",
-            "start_x",
-            "start_y",
-            "end_x",
-            "end_y",
-            "appearance_policy"
+            "authoring"
           ],
           "type": "object"
         },
@@ -1667,6 +1672,9 @@
           "additionalProperties": false,
           "description": "Semantic CDML inspection facts.",
           "properties": {
+            "document_fence": {
+              "$ref": "#/$defs/DocumentRequestFenceV1"
+            },
             "kind": {
               "const": "document.inspect",
               "type": "string"
@@ -1677,7 +1685,8 @@
           },
           "required": [
             "kind",
-            "report"
+            "report",
+            "document_fence"
           ],
           "type": "object"
         },
@@ -1817,52 +1826,58 @@
         },
         {
           "additionalProperties": false,
-          "description": "Accepted canonical vector document and its durable direct-root ID.",
+          "description": "Accepted authoring mutation, durable root facts, and stateless continuation.",
           "properties": {
+            "authoring_kind": {
+              "$ref": "#/$defs/PresentationAuthoringKindV1",
+              "description": "Closed authoring family that produced the accepted mutation."
+            },
             "committed_revision": {
               "description": "Revision of the local session commit represented by this result.",
               "format": "uint64",
               "minimum": 0,
               "type": "integer"
             },
-            "digest_hex": {
-              "type": "string"
+            "direct_bond": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PresentationAuthorDirectBondOutcomeV1"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Direct-bond facts present only for the direct-bond authoring family."
             },
             "document": {
+              "description": "Accepted canonical CDML for the next stateless request.",
               "type": "string"
+            },
+            "document_fence": {
+              "$ref": "#/$defs/DocumentRequestFenceV1",
+              "description": "Portable request fence for submitting this exact accepted document."
             },
             "identifier": {
+              "description": "Durable identifier of the committed direct root.",
               "type": "string"
-            },
-            "input_revision": {
-              "description": "Every stateless input is loaded as a fresh session at revision zero.",
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
             },
             "kind": {
-              "const": "presentation.vector.create.v1",
+              "const": "presentation.author.v1",
               "type": "string"
             },
-            "next_input_expected_revision": {
-              "description": "Required `expected_revision` if `document` is submitted in a new request.",
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "renderer_observation": {
-              "description": "Frozen renderer-owned observation of the exact accepted candidate."
+            "root_kind": {
+              "description": "Durable kind of the committed direct root.",
+              "type": "string"
             }
           },
           "required": [
             "kind",
+            "authoring_kind",
             "document",
             "identifier",
-            "input_revision",
+            "root_kind",
             "committed_revision",
-            "next_input_expected_revision",
-            "digest_hex",
-            "renderer_observation"
+            "document_fence"
           ],
           "type": "object"
         },
@@ -1904,38 +1919,27 @@
               "minimum": 0,
               "type": "integer"
             },
-            "digest_hex": {
-              "type": "string"
-            },
             "document": {
               "type": "string"
+            },
+            "document_fence": {
+              "$ref": "#/$defs/DocumentRequestFenceV1",
+              "description": "Portable request fence for submitting this exact changed document."
             },
             "identifier": {
               "type": "string"
             },
-            "input_revision": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
             "kind": {
               "const": "catalog.insert.v1",
               "type": "string"
-            },
-            "next_input_expected_revision": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
             }
           },
           "required": [
             "kind",
             "document",
             "identifier",
-            "input_revision",
             "committed_revision",
-            "next_input_expected_revision",
-            "digest_hex"
+            "document_fence"
           ],
           "type": "object"
         },
@@ -2321,22 +2325,228 @@
       ],
       "type": "object"
     },
-    "PresentationVectorRefusalV1": {
+    "PresentationAuthorDirectBondOutcomeV1": {
       "additionalProperties": false,
-      "description": "Typed refusal facts for `presentation.vector.create.v1`.",
+      "description": "Durable direct-bond result facts; identifiers come from the committed\ndocument session rather than the client request.",
       "properties": {
-        "category": {
-          "$ref": "#/$defs/ProtocolPresentationVectorGestureCategoryV1"
+        "created_new_atom": {
+          "type": "boolean"
         },
-        "recovery": {
-          "$ref": "#/$defs/ProtocolPresentationVectorGestureRecoveryV1"
+        "created_new_molecule": {
+          "type": "boolean"
+        },
+        "end_atom_identifier": {
+          "type": "string"
+        },
+        "second_created_atom_identifier": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
+        "end_atom_identifier",
+        "created_new_atom",
+        "created_new_molecule"
+      ],
+      "type": "object"
+    },
+    "PresentationAuthorPointV1": {
+      "additionalProperties": false,
+      "description": "One finite scene coordinate pair. The executor validates finite values\nbefore a renderer gesture receives them.",
+      "properties": {
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "PresentationAuthorRefusalV1": {
+      "additionalProperties": false,
+      "description": "Typed refusal facts for `presentation.author.v1`.",
+      "properties": {
+        "authoring_kind": {
+          "$ref": "#/$defs/PresentationAuthoringKindV1"
+        },
+        "category": {
+          "$ref": "#/$defs/ProtocolPresentationAuthorCategoryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolPresentationAuthorRecoveryV1"
+        }
+      },
+      "required": [
+        "authoring_kind",
         "category",
         "recovery"
       ],
       "type": "object"
+    },
+    "PresentationAuthoringKindV1": {
+      "description": "The closed authoring variant which produced a successful operation.",
+      "enum": [
+        "vector",
+        "curved_terminal_arrow",
+        "curved_equilibrium_arrow",
+        "path",
+        "direct_bond"
+      ],
+      "type": "string"
+    },
+    "PresentationAuthoringRequestV1": {
+      "description": "Closed presentation authoring vocabularies. Each variant owns only the\ngeometry and policy facts meaningful to its family.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "appearance_policy": {
+              "$ref": "#/$defs/ProtocolPresentationVectorAppearancePolicyV1"
+            },
+            "end": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            },
+            "kind": {
+              "const": "vector",
+              "type": "string"
+            },
+            "start": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            },
+            "vector_kind": {
+              "$ref": "#/$defs/ProtocolPresentationVectorKindV1"
+            }
+          },
+          "required": [
+            "kind",
+            "vector_kind",
+            "start",
+            "end",
+            "appearance_policy"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "control": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            },
+            "end": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            },
+            "kind": {
+              "const": "curved_terminal_arrow",
+              "type": "string"
+            },
+            "start": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            },
+            "terminal_kind": {
+              "$ref": "#/$defs/ProtocolCurvedTerminalArrowKindV1"
+            }
+          },
+          "required": [
+            "kind",
+            "terminal_kind",
+            "start",
+            "control",
+            "end"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "control": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            },
+            "end": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            },
+            "kind": {
+              "const": "curved_equilibrium_arrow",
+              "type": "string"
+            },
+            "start": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            }
+          },
+          "required": [
+            "kind",
+            "start",
+            "control",
+            "end"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "path",
+              "type": "string"
+            },
+            "path_kind": {
+              "$ref": "#/$defs/ProtocolPresentationPathKindV1"
+            },
+            "points": {
+              "items": {
+                "$ref": "#/$defs/PresentationAuthorPointV1"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "path_kind",
+            "points"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "end": {
+              "$ref": "#/$defs/ProtocolDirectBondEndpointV1"
+            },
+            "kind": {
+              "const": "direct_bond",
+              "type": "string"
+            },
+            "new_atom_element": {
+              "type": "string"
+            },
+            "presentation": {
+              "$ref": "#/$defs/ProtocolDirectBondPresentationV1"
+            },
+            "snap": {
+              "$ref": "#/$defs/ProtocolDirectBondSnapV1"
+            },
+            "start": {
+              "$ref": "#/$defs/ProtocolDirectBondEndpointV1"
+            }
+          },
+          "required": [
+            "kind",
+            "start",
+            "end",
+            "presentation",
+            "new_atom_element",
+            "snap"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "ProtocolArtifactFormatV1": {
       "description": "Closed complete-document artifact formats exposed by V1.",
@@ -2385,6 +2595,135 @@
         "document_unchanged"
       ],
       "type": "string"
+    },
+    "ProtocolCurvedTerminalArrowKindV1": {
+      "enum": [
+        "electron",
+        "retro",
+        "normal"
+      ],
+      "type": "string"
+    },
+    "ProtocolDirectBondEndpointV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "atom_id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "existing_atom",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "atom_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "new_atom",
+              "type": "string"
+            },
+            "point": {
+              "$ref": "#/$defs/PresentationAuthorPointV1"
+            }
+          },
+          "required": [
+            "kind",
+            "point"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ProtocolDirectBondOrderV1": {
+      "enum": [
+        "single",
+        "double",
+        "triple"
+      ],
+      "type": "string"
+    },
+    "ProtocolDirectBondPresentationV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "normal",
+              "type": "string"
+            },
+            "order": {
+              "$ref": "#/$defs/ProtocolDirectBondOrderV1"
+            }
+          },
+          "required": [
+            "kind",
+            "order"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "solid_wedge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "hashed_wedge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ProtocolDirectBondSnapV1": {
+      "additionalProperties": false,
+      "properties": {
+        "angle_increment_degrees": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "fixed_length_pt": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hex_grid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hex_grid"
+      ],
+      "type": "object"
     },
     "ProtocolErrorSchemaV1": {
       "description": "Closed V1 error schema identifiers.",
@@ -2442,8 +2781,8 @@
           "type": "string"
         },
         {
-          "const": "presentation.vector.create.v1",
-          "description": "`presentation.vector.create.v1`.",
+          "const": "presentation.author.v1",
+          "description": "`presentation.author.v1`.",
           "type": "string"
         },
         {
@@ -2473,37 +2812,50 @@
         }
       ]
     },
-    "ProtocolPresentationVectorAppearancePolicyV1": {
-      "enum": [
-        "effective_drawing_standard"
-      ],
-      "type": "string"
-    },
-    "ProtocolPresentationVectorGestureCategoryV1": {
-      "description": "Closed presentation-vector refusal categories.",
+    "ProtocolPresentationAuthorCategoryV1": {
+      "description": "Closed presentation-authoring refusal categories.",
       "enum": [
         "stale_snapshot",
         "foreign_session",
-        "mismatched_preview",
         "replayed_gesture",
         "invalid_point",
         "degenerate_geometry",
-        "unsupported_kind",
-        "unrenderable_standard",
+        "path_cardinality",
+        "invalid_endpoint",
+        "self_loop",
+        "duplicate_bond",
+        "cross_molecule",
+        "unsupported_presentation",
+        "unsupported_chemistry",
+        "capacity",
         "render_preparation",
         "session_conflict",
         "resource_exhausted"
       ],
       "type": "string"
     },
-    "ProtocolPresentationVectorGestureRecoveryV1": {
-      "description": "Closed recovery instructions for presentation-vector refusals.",
+    "ProtocolPresentationAuthorRecoveryV1": {
+      "description": "Closed recovery instructions for presentation-authoring refusals.",
       "enum": [
         "document_unchanged",
         "refresh_and_restart",
         "change_geometry",
-        "choose_supported_appearance",
-        "reduce_request"
+        "adjust_endpoint",
+        "change_presentation",
+        "report_conflict"
+      ],
+      "type": "string"
+    },
+    "ProtocolPresentationPathKindV1": {
+      "enum": [
+        "polyline",
+        "polygon"
+      ],
+      "type": "string"
+    },
+    "ProtocolPresentationVectorAppearancePolicyV1": {
+      "enum": [
+        "effective_drawing_standard"
       ],
       "type": "string"
     },

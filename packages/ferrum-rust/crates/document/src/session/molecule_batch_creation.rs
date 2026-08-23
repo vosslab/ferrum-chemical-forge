@@ -4,11 +4,11 @@ use super::{
     DocumentSession, DocumentSessionError, MoleculeInsertionV1, RevisionState,
     SessionDocumentObservationV1, SessionOperationError, SessionOperationResultV1,
 };
-use crate::generated_ids::GeneratedIdSequences;
+use crate::{AuthoringCapabilityIssuerV1, generated_ids::GeneratedIdSequences};
 
 /// Opaque prepared batch held by the document transaction owner.
 pub struct PendingCreateMoleculeBatchV1 {
-    session_origin: u64,
+    session_issuer: AuthoringCapabilityIssuerV1,
     revision: u64,
     candidate: Option<RevisionState>,
     next_generated_ids: GeneratedIdSequences,
@@ -81,7 +81,7 @@ impl DocumentSession {
         SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
             .map_err(DocumentSessionError::Projection)?;
         Ok(PendingCreateMoleculeBatchV1 {
-            session_origin: self.bridge_session_origin,
+            session_issuer: self.authoring_capability_issuer.clone(),
             revision: expected_revision,
             candidate: Some(candidate),
             next_generated_ids: generated_ids,
@@ -98,7 +98,10 @@ impl DocumentSession {
         if pending.candidate.is_none() {
             return Err(DocumentSessionError::PreparedOperationConsumed);
         }
-        if pending.session_origin != self.bridge_session_origin {
+        if !pending
+            .session_issuer
+            .same_issuer(&self.authoring_capability_issuer)
+        {
             return Err(DocumentSessionError::PreparedOperationForeignSession);
         }
         if pending.revision != expected_revision {

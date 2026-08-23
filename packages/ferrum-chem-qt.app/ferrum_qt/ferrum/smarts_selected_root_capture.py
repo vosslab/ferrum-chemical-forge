@@ -1,11 +1,25 @@
 """One-shot viewport capture for the private live SMARTS selected-query token."""
 
+# Standard Library
+import dataclasses
+
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.smarts_selected_root_contract
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumSmartsSelectedQueryAvailabilityV1:
+	"""Copied closed admission facts for one capture-owned opaque query token."""
+
+	available: bool
+	category: object | None
+	reason: object | None
+	recovery: object | None
 
 
 #============================================
@@ -56,6 +70,18 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 	def is_ready_for(self, tab: object) -> bool:
 		"""Expose only selected-source readiness to the presentation controller."""
 		return self._selected_query_token is not None and self._ready_tab is tab
+
+	#============================================
+	def selected_query_availability_v1(self, tab: object | None,
+			) -> FerrumSmartsSelectedQueryAvailabilityV1:
+		"""Copy native token admission facts after enforcing this owner's tab identity."""
+		token = self._selected_query_token
+		if token is None or self._ready_tab is not tab:
+			return FerrumSmartsSelectedQueryAvailabilityV1(False, None, None, None)
+		readiness = tab.live_smarts_selected_query_readiness_v1(token)
+		return FerrumSmartsSelectedQueryAvailabilityV1(
+			bool(readiness.available), readiness.category, readiness.reason, readiness.recovery,
+		)
 
 	#============================================
 	def is_armed_v1(self) -> bool:

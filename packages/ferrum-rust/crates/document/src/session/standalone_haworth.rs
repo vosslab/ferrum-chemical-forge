@@ -8,6 +8,7 @@ use super::*;
 use crate::standalone_haworth_insertion_v1::StandaloneHaworthInsertionV1;
 
 /// One opaque, one-use native standalone Haworth candidate.
+#[derive(Debug)]
 pub struct PendingStandaloneHaworthV1 {
     pub(super) pending: PendingCreateMolecule,
     recipe: StandaloneDGlucoseHaworthRecipeV1,
@@ -38,6 +39,12 @@ impl PendingStandaloneHaworthV1 {
     #[must_use]
     pub fn edges(&self) -> &[[usize; 2]] {
         &self.edges
+    }
+
+    /// Return the renderable candidate observation without exposing candidate XML.
+    #[must_use]
+    pub fn candidate_observation_v1(&self) -> Option<SessionDocumentObservationV1> {
+        self.pending.candidate_observation_v1()
     }
 }
 
@@ -93,7 +100,6 @@ impl DocumentSession {
         )
         .map_err(DocumentSessionError::Projection)?;
         let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.generated_ids = generated_ids;
         Ok(PendingStandaloneHaworthV1 {
             pending: PendingCreateMolecule {
                 revision: expected_revision,
@@ -102,6 +108,7 @@ impl DocumentSession {
                 atom_identifiers: identities.atoms,
                 bond_identifiers: identities.bonds,
                 candidate: Some(candidate),
+                tentative_generated_ids: generated_ids,
             },
             recipe,
             vertices,

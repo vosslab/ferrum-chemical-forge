@@ -583,13 +583,26 @@ base. Ferrum-Chem preserves the serialized order; it does not rederive it from
 X/Y geometry. This is the same order consumed by the filled and hashed wedge
 renderers, not an additional stereo record.
 
+The public V3 direct-bond authoring route,
+`begin_direct_bond_gesture_v3` -> `admit_direct_bond_candidate_v3` ->
+`commit_direct_bond_admission_v3`, writes its pointer start as `start` and its
+pointer end as `end` for both `w1` and `h1`. Thus `Draw Solid Wedge Bond` and
+`Draw Hashed Wedge Bond` always author from tip to base. This direction is a
+durable CDML depiction fact shared by admitted Rust operations, committed
+projection, and rendering; it is not inferred from a later stereochemical
+analysis. V2 gesture values and lifecycle remain internal Rust implementation
+details. The separate `ferrum-document` neutral mutation seam is native-Rust-
+only programmatic document work with already-resolved durable atom IDs or finite
+new-atom points; it is not an interactive gesture route and has no Qt/PyO3 API.
+
 `q1` Haworth front edges and `n*` ordinary bonds retain their existing ordered
 endpoint references but have no new wide/narrow interpretation. Every `q1`,
-`w1`, `h1`, and `n1` remains chemical order one. A caller that constructs a
-new directionless wedge may explicitly apply a geometry policy through the
-Ferrum-Chem bond-ordering helper. Any repair for historical documents whose producer
-did not provide meaningful wedge endpoint order must be an explicit,
-version-scoped migration choice, never normal authoritative CDML decoding.
+`w1`, `h1`, and `n1` remains chemical order one. Authored V3 wedges require
+the ordered tip-to-base endpoint contract; the route has no directionless input
+form or automatic endpoint reordering. Imported compatible CDML retains its
+serialized endpoint order. A repair for a historical producer that did not
+provide meaningful wedge order requires a separately declared, version-scoped
+migration; ordinary authoritative CDML decoding does not invent that order.
 
 ### Depiction attributes (optional)
 
@@ -930,6 +943,56 @@ remain compatible preservation input; they are not portable authored output.
 | `color` | string | -- | Line color |
 
 Children: two or more direct `<point>` elements defining the ordered path.
+
+### Authored curved-normal reaction-arrow profile
+
+`CurvedNormalReactionArrowV1` authors one direct-root arrow with the distinct
+`type="curved-normal"` value. It is a closed authored profile, not a curved
+interpretation of the generic `type="normal"` arrow above:
+
+```xml
+<arrow id="arr1" type="curved-normal" width="1.0" color="#000000">
+  <point x="0.000cm" y="0.000cm"/>
+  <point x="0.882cm" y="0.882cm"/>
+  <point x="1.764cm" y="0.000cm"/>
+</arrow>
+```
+
+The three ordered direct points are exactly `start`, `control`, and `end`.
+Their roles come only from that order; no role attributes are written. The
+profile prohibits `spline`, `start`, `end`, and `shape` facts. Rust supplies
+one fixed terminal head from the terminal tangent, so authored head facts are
+not part of this grammar. It does not accept extra points, variable point
+counts, a normal-arrow overload, property editing, or reaction association.
+Compatibility loading may preserve other historical arrow records, but they
+are not authored `CurvedNormalReactionArrowV1` output.
+
+### Authored curved-equilibrium arrow profile
+
+`CurvedEquilibriumArrowV1` authors one direct-root arrow with the distinct
+`type="curved-equilibrium"` value. It is a closed authored profile separate
+from both straight `type="equilibrium"` and terminal-arrow families:
+
+```xml
+<arrow id="arr1" type="curved-equilibrium" width="1.0" color="#000000">
+  <point x="0.000cm" y="0.000cm"/>
+  <point x="0.882cm" y="0.882cm"/>
+  <point x="1.764cm" y="0.000cm"/>
+</arrow>
+```
+
+The three ordered direct points are exactly `start`, `control`, and `end`.
+Their roles come only from order; no role attributes are written. Rust
+translates the authored quadratic into two cubic lanes and supplies one head
+at the lower-lane start plus one at the upper-lane end. The authored record
+contains neither those derived paths nor head geometry.
+
+The profile rejects every generic arrow fact outside its closed schema:
+`spline`, `start`, `end`, `shape`, `properties`, `association`, `factory`, and
+the `equilibrium2` spelling. It also rejects extra points, variable-point
+semantics, configurable head facts, and generic spline authoring. Compatibility
+loading may preserve historical arrow records outside this profile, but they
+are not authored `CurvedEquilibriumArrowV1` output.
 
 ### `<plus>`
 

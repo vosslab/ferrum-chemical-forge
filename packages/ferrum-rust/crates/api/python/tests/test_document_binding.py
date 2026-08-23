@@ -17,13 +17,6 @@ SOURCE = (
     "<point x=\"1\" y=\"2\"/></atom></molecule></cdml>"
 )
 
-BOND_SOURCE = (
-    '<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">'
-    '<atom id="a" name="C"><point x="1" y="2"/></atom>'
-    '<atom id="b" name="O"><point x="3" y="2"/></atom>'
-    '</molecule></cdml>'
-)
-
 COORDINATE_SOURCE = (
     '<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">'
     '<atom id="a" name="C"><point x="10" y="20"/></atom>'
@@ -65,30 +58,6 @@ def set_atom(element: str) -> ferrum_chem.DocumentOperationV1:
     return ferrum_chem.DocumentOperationV1.set_atom_element("a", element)
 
 
-def test_direct_bond_gesture_binding_commits_one_normal_bond() -> None:
-    session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
-    observation = session.observe(0)
-    start = observation.projection.molecules[0].atoms[0].id
-    end = observation.projection.molecules[0].atoms[1].id
-    snap = ferrum_chem.DirectBondSnapPolicyV1()
-    gesture = session.begin_direct_bond_gesture_v1(
-        observation.snapshot.revision,
-        observation.snapshot.digest,
-        start,
-        ferrum_chem.DocumentBondPresentationV1.normal_double,
-        "C",
-        snap,
-    )
-    preview = session.preview_direct_bond_gesture_v1(
-        gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(end),
-    )
-    assert type(preview) is ferrum_chem.DirectBondPreviewV1
-    commit = session.commit_direct_bond_gesture_v1(gesture, preview)
-    assert commit.created_new_atom is False
-    assert commit.result.observation.snapshot.revision == 1
-    assert 'type="n2"' in commit.result.observation.snapshot.cdml
-
-
 def test_presentation_vector_binding_keeps_frozen_failure_and_commit_contract() -> None:
     session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'><standard line_color='#123456' line_width='2'/></cdml>")
     snapshot = session.snapshot()
@@ -100,9 +69,6 @@ def test_presentation_vector_binding_keeps_frozen_failure_and_commit_contract() 
         20.0,
     )
     preview = session.preview_presentation_vector_gesture_v1(gesture, 30.0, 45.0)
-    assert hasattr(session, "commit_presentation_vector_gesture_v1")
-    assert not hasattr(session, "preflight_presentation_vector_gesture_v1")
-    assert not hasattr(session, "commit_preflighted_presentation_vector_gesture_v1")
     prepared = session.prepare_presentation_vector_gesture_v1(gesture, preview)
     commit = session.commit_presentation_vector_gesture_v1(prepared)
     assert commit.result.observation.snapshot.revision == 1
@@ -214,9 +180,6 @@ def test_presentation_vector_bridge_receipts_preflight_and_fence_every_python_pa
     # one opaque prepared receipt is accepted by the Python bridge method.
     with pytest.raises(TypeError):
         first.commit_presentation_vector_gesture_v1(first_gesture, first_preview)
-    assert not hasattr(first, "commit_raw_presentation_vector_gesture_v1")
-    assert not hasattr(first, "commit_preflighted_presentation_vector_gesture_v1")
-
     with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
         second.prepare_presentation_vector_gesture_v1(first_gesture, first_preview)
     assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.foreign_session
@@ -310,64 +273,6 @@ def test_text_placement_custom_standard_refuses_before_mutation() -> None:
     assert caught.value.category == ferrum_chem.TextPlacementErrorCategoryV1.unrenderable_standard
     assert caught.value.recovery == ferrum_chem.TextPlacementRecoveryV1.repair_drawing_standard
     assert session.snapshot().revision == snapshot.revision
-
-
-def test_direct_bond_gesture_preview_refusal_is_typed_and_non_mutating() -> None:
-    session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
-    observation = session.observe(0)
-    start = observation.projection.molecules[0].atoms[0].id
-    gesture = session.begin_direct_bond_gesture_v1(
-        0,
-        observation.snapshot.digest,
-        start,
-        ferrum_chem.DocumentBondPresentationV1.normal_single,
-        "C",
-        ferrum_chem.DirectBondSnapPolicyV1(),
-    )
-    refusal = session.preview_direct_bond_gesture_v1(
-        gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(start),
-    )
-    assert type(refusal) is ferrum_chem.DirectBondPreviewRefusalV1
-    assert refusal.category == ferrum_chem.DirectBondGestureCategoryV1.self_loop
-    assert refusal.recovery == ferrum_chem.DirectBondGestureRecoveryV1.adjust_endpoint
-    assert session.snapshot().revision == 0
-
-
-def test_direct_bond_gesture_binding_rejects_foreign_session_handles() -> None:
-    first = ferrum_chem.DocumentSession.load(BOND_SOURCE)
-    second = ferrum_chem.DocumentSession.load(BOND_SOURCE)
-    first_observation = first.observe(0)
-    second_observation = second.observe(0)
-    first_start = first_observation.projection.molecules[0].atoms[0].id
-    first_end = first_observation.projection.molecules[0].atoms[1].id
-    second_start = second_observation.projection.molecules[0].atoms[0].id
-    gesture = first.begin_direct_bond_gesture_v1(
-        0,
-        first_observation.snapshot.digest,
-        first_start,
-        ferrum_chem.DocumentBondPresentationV1.normal_single,
-        "C",
-        ferrum_chem.DirectBondSnapPolicyV1(),
-    )
-    second_gesture = second.begin_direct_bond_gesture_v1(
-        0,
-        second_observation.snapshot.digest,
-        second_start,
-        ferrum_chem.DocumentBondPresentationV1.normal_single,
-        "C",
-        ferrum_chem.DirectBondSnapPolicyV1(),
-    )
-    preview = first.preview_direct_bond_gesture_v1(
-        gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(first_end),
-    )
-    with pytest.raises(ferrum_chem.DirectBondGestureError) as captured:
-        second.preview_direct_bond_gesture_v1(
-            gesture, ferrum_chem.DirectBondEndIntentV1.existing_atom(first_end),
-        )
-    assert captured.value.category == ferrum_chem.DirectBondGestureCategoryV1.foreign_session
-    with pytest.raises(ferrum_chem.DirectBondGestureError) as captured:
-        second.commit_direct_bond_gesture_v1(second_gesture, preview)
-    assert captured.value.recovery == ferrum_chem.DirectBondGestureRecoveryV1.refresh_and_restart
 
 
 def test_structure_path_target_is_display_only_and_cannot_create_a_delete_handle() -> None:

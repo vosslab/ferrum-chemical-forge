@@ -27,6 +27,15 @@ impl RenderInteractionSessionV1 {
         self.origin
     }
 
+    /// Return the opaque document authoring authority for receipt lifecycles
+    /// that mutate this interaction session's embedded document.
+    #[must_use]
+    pub(crate) fn authoring_capability_issuer_v1(
+        &self,
+    ) -> ferrum_document::AuthoringCapabilityIssuerV1 {
+        self.session.authoring_capability_issuer_v1()
+    }
+
     /// Begin a presentation gesture using the same Rust render facts that the
     /// committed Plus will expose. Arrow geometry remains document-owned.
     pub fn begin_presentation_creation_gesture_v1(
@@ -39,6 +48,17 @@ impl RenderInteractionSessionV1 {
     ) -> Result<PresentationCreationGestureV1, PresentationGestureErrorV1> {
         self.session
             .begin_presentation_creation_gesture_v1(fence, kind, start, style, snap)
+    }
+
+    /// Prepare the current document revision for the public SMARTS operation.
+    ///
+    /// The document session owns target admission, graph construction, and
+    /// revision refusal. The renderer facade deliberately adds no policy.
+    pub fn prepare_smarts_snapshot_v1(
+        &self,
+        expected_revision: u64,
+    ) -> Result<PreparedDocumentSmartsSnapshotV1, DocumentSmartsSnapshotErrorV1> {
+        self.session.prepare_smarts_snapshot_v1(expected_revision)
     }
 
     pub fn observe_render_interaction_v1(

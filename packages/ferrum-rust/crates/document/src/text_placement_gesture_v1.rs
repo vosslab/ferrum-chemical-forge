@@ -1,36 +1,15 @@
 //! Opaque, revision-fenced standalone Text authoring transaction.
 
 use crate::{
-    AuthoredTextRunV1, AuthoredTextStyleV1, DocumentFenceV1, PresentationGesturePoint2V1, Rgb24V1,
-    normalize_authored_text_runs_v1,
+    AuthoredTextRunV1, AuthoredTextStyleV1, AuthoringCapabilityAccessErrorV1,
+    AuthoringCapabilityIssuerV1, AuthoringCapabilityV1, DocumentFenceV1,
+    PresentationGesturePoint2V1, Rgb24V1, normalize_authored_text_runs_v1,
 };
-use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct TextPlacementSessionOriginV1(u64);
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct TextPlacementCapabilityV1 {
-    pub(crate) origin: TextPlacementSessionOriginV1,
-    pub(crate) nonce: u64,
-}
-impl TextPlacementSessionOriginV1 {
-    pub(crate) fn issue() -> Self {
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        Self(NEXT.fetch_add(1, Ordering::Relaxed))
-    }
-    fn issue_gesture(self) -> TextPlacementCapabilityV1 {
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        TextPlacementCapabilityV1 {
-            origin: self,
-            nonce: NEXT.fetch_add(1, Ordering::Relaxed),
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextPlacementGestureV1 {
-    pub(crate) capability: TextPlacementCapabilityV1,
+    pub(crate) capability: AuthoringCapabilityV1,
     pub(crate) fence: DocumentFenceV1,
     pub(crate) anchor: PresentationGesturePoint2V1,
 }
@@ -185,7 +164,7 @@ impl TextPlacementErrorV1 {
     }
 }
 pub(crate) fn begin(
-    origin: TextPlacementSessionOriginV1,
+    issuer: &AuthoringCapabilityIssuerV1,
     fence: DocumentFenceV1,
     anchor: PresentationGesturePoint2V1,
 ) -> Result<TextPlacementGestureV1, TextPlacementErrorV1> {
@@ -193,21 +172,19 @@ pub(crate) fn begin(
         return Err(TextPlacementErrorV1::InvalidAnchor);
     }
     Ok(TextPlacementGestureV1 {
-        capability: origin.issue_gesture(),
+        capability: issuer.issue(),
         fence,
         anchor,
     })
 }
 pub(crate) fn preview(
-    origin: TextPlacementSessionOriginV1,
+    issuer: &AuthoringCapabilityIssuerV1,
     revision: u64,
     digest: [u8; 32],
     gesture: &TextPlacementGestureV1,
     content: TextPlacementContentV1,
 ) -> Result<TextPlacementPreviewV1, TextPlacementErrorV1> {
-    if gesture.capability.origin != origin {
-        return Err(TextPlacementErrorV1::ForeignSession);
-    }
+    require_capability(issuer, gesture)?;
     if gesture.fence.revision() != revision || gesture.fence.digest() != digest {
         return Err(TextPlacementErrorV1::StaleSnapshot);
     }
@@ -217,10 +194,28 @@ pub(crate) fn preview(
     })
 }
 pub(crate) fn belongs_to(
-    origin: TextPlacementSessionOriginV1,
+    issuer: &AuthoringCapabilityIssuerV1,
     gesture: &TextPlacementGestureV1,
 ) -> bool {
-    gesture.capability.origin == origin
+    gesture.capability.belongs_to(issuer)
+}
+
+pub(crate) fn require_capability(
+    issuer: &AuthoringCapabilityIssuerV1,
+    gesture: &TextPlacementGestureV1,
+) -> Result<(), TextPlacementErrorV1> {
+    match gesture.capability.claim_for_commit(issuer) {
+        Ok(claim) => {
+            drop(claim);
+            Ok(())
+        }
+        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
+            Err(TextPlacementErrorV1::ForeignSession)
+        }
+        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
+            Err(TextPlacementErrorV1::ReplayedGesture)
+        }
+    }
 }
 
 #[cfg(test)]

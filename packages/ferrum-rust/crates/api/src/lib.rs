@@ -9,8 +9,8 @@ mod cli;
 mod document_interchange_import_v1;
 mod interchange_import_v1;
 mod plus_placement_gesture_v1;
-mod presentation_vector_gesture_v1;
 mod presentation_path_gesture_v1;
+mod presentation_vector_gesture_v1;
 mod protocol;
 #[cfg(feature = "python-binding")]
 mod python_extension_binding_v1;
@@ -58,6 +58,15 @@ pub use plus_placement_gesture_v1::{
     ApiPlusGestureV1, ApiPlusOverlayV1, ApiPlusPreviewV1, begin_api_plus_gesture_v1,
     commit_api_plus_gesture_v1, preview_api_plus_gesture_v1,
 };
+pub use presentation_path_gesture_v1::{
+    ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, ApiPresentationPathPreparedV1,
+    CommittedPresentationPathV1, PresentationPathProgressV1, PresentationPathRenderCategoryV1,
+    PresentationPathRenderErrorV1, PresentationPathRenderRecoveryV1,
+    add_api_presentation_path_gesture_point_v1, begin_api_presentation_path_gesture_v1,
+    cancel_api_presentation_path_gesture_v1, commit_api_presentation_path_gesture_v1,
+    prepare_incremental_api_presentation_path_gesture_v1,
+    preview_incremental_api_presentation_path_gesture_v1,
+};
 pub use presentation_vector_gesture_v1::{
     ApiPresentationVectorGestureV1, ApiPresentationVectorPreparedV1,
     ApiPresentationVectorPreviewV1, CommittedPresentationVectorV1,
@@ -65,13 +74,6 @@ pub use presentation_vector_gesture_v1::{
     PresentationVectorGestureRecoveryV1, PresentationVectorKindV1, PresentationVectorOverlayV1,
     begin_api_presentation_vector_gesture_v1, commit_api_presentation_vector_gesture_v1,
     prepare_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
-};
-pub use presentation_path_gesture_v1::{
-    ApiPresentationPathGestureV1, ApiPresentationPathPreparedV1, ApiPresentationPathPreviewV1,
-    CommittedPresentationPathV1, PresentationPathRenderCategoryV1, PresentationPathRenderErrorV1,
-    PresentationPathRenderRecoveryV1, begin_api_presentation_path_gesture_v1,
-    commit_api_presentation_path_gesture_v1, prepare_api_presentation_path_gesture_v1,
-    preview_api_presentation_path_gesture_v1,
 };
 pub use protocol::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
@@ -86,19 +88,25 @@ pub use protocol::{
     DocumentMoleculeReportCompositionElementSummaryV1, DocumentMoleculeReportCompositionSummaryV1,
     DocumentMoleculeReportElementCountSummaryV1, DocumentMoleculeReportRecordSummaryV1,
     DocumentMoleculeReportRequestV1, DocumentMoleculeReportSummaryV1,
-    DocumentRenderArtifactRequestV1, DocumentRewriteRequestV1, DocumentSmartsQueryDocumentV1,
-    DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
-    DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
-    DocumentSmartsQueryTraversalSummaryV1, DocumentValidateRequestV1, MAX_REQUEST_ID_UTF8_BYTES_V1,
-    OPERATION_PROTOCOL_ERROR_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
-    OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1, OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1,
-    OperationProtocolEnvelopeV1, OperationProtocolErrorCategoryV1,
-    OperationProtocolErrorResponseV1, OperationProtocolInputErrorV1, OperationProtocolOperationV1,
-    OperationProtocolOutcomeV1, OperationProtocolRequestV1, OperationProtocolResponseV1,
-    PresentationVectorRefusalV1, ProtocolArtifactFormatV1, ProtocolCatalogFamilyV1,
-    ProtocolCatalogPlacementCategoryV1, ProtocolCatalogPlacementRecoveryV1, ProtocolErrorSchemaV1,
-    ProtocolOperationKindV1, ProtocolPresentationVectorGestureCategoryV1,
-    ProtocolPresentationVectorGestureRecoveryV1, ProtocolReactionDefinitionDispositionV1,
+    DocumentRenderArtifactRequestV1, DocumentRequestFenceV1, DocumentRewriteRequestV1,
+    DocumentSmartsQueryDocumentV1, DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1,
+    DocumentSmartsQueryMoleculeSummaryV1, DocumentSmartsQueryRequestV1,
+    DocumentSmartsQuerySummaryV1, DocumentSmartsQueryTraversalSummaryV1, DocumentValidateRequestV1,
+    MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
+    OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
+    OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OperationProtocolEnvelopeV1,
+    OperationProtocolErrorCategoryV1, OperationProtocolErrorResponseV1,
+    OperationProtocolInputErrorV1, OperationProtocolOperationV1, OperationProtocolOutcomeV1,
+    OperationProtocolRequestV1, OperationProtocolResponseV1, PresentationAuthorDirectBondOutcomeV1,
+    PresentationAuthorPointV1, PresentationAuthorRefusalV1, PresentationAuthorRequestV1,
+    PresentationAuthoringKindV1, PresentationAuthoringRequestV1, ProtocolArtifactFormatV1,
+    ProtocolCatalogFamilyV1, ProtocolCatalogPlacementCategoryV1,
+    ProtocolCatalogPlacementRecoveryV1, ProtocolCurvedTerminalArrowKindV1,
+    ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1, ProtocolDirectBondPresentationV1,
+    ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1, ProtocolOperationKindV1,
+    ProtocolPresentationAuthorCategoryV1, ProtocolPresentationAuthorRecoveryV1,
+    ProtocolPresentationPathKindV1, ProtocolPresentationVectorAppearancePolicyV1,
+    ProtocolPresentationVectorKindV1, ProtocolReactionDefinitionDispositionV1,
     ProtocolReactionTranslationSnapV1, ProtocolRequestSchemaV1, ProtocolResourceLimitReasonV1,
     ProtocolResponseSchemaV1, ProtocolValidationLevelV1, ReactionBoundsSummaryV1,
     ReactionMemberSummaryV1, ReactionObservationRequestV1, ReactionObservationSummaryV1,

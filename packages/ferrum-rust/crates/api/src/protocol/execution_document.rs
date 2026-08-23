@@ -1,6 +1,28 @@
 //! Request-owned document operation execution.
 
+use ferrum_document::inspect_cdml;
+
 use super::*;
+
+/// Inspect one admitted document and return the snapshot fence required by
+/// follow-up request-owned mutations.
+pub(super) fn execute_document_inspect(
+    source: &str,
+) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
+    let session = admit_document(source)?;
+    let snapshot = session
+        .snapshot()
+        .map_err(|error| ExecutionFailureV1::internal(error.to_string()))?;
+    let report = inspect_cdml(snapshot.cdml())
+        .map_err(|error| ExecutionFailureV1::document_invalid(error.to_string()))?;
+    Ok(OperationProtocolOutcomeV1::Inspect {
+        report,
+        document_fence: DocumentRequestFenceV1 {
+            expected_revision: snapshot.revision(),
+            expected_digest_hex: hex_digest(snapshot.digest()),
+        },
+    })
+}
 
 pub(super) fn execute_document_molecule_report<R: ChemistryRuntimeV1>(
     request: DocumentMoleculeReportRequestV1,
@@ -32,14 +54,7 @@ pub(super) fn execute_document_smarts_query<R: ChemistryRuntimeV1>(
         ));
     }
     let session = admit_document(&request.document.cdml)?;
-    let observation = session.observe(0).map_err(|_| {
-        ExecutionFailureV1::document_invalid("document observation was refused".to_owned())
-    })?;
-    super::super::smarts_query_core_v1::execute_document_smarts_query_v1(
-        &observation,
-        request,
-        runtime,
-    )
+    super::super::smarts_query_core_v1::execute_document_smarts_query_v1(&session, request, runtime)
 }
 
 pub(super) fn execute_document_molecule_interchange_import_envelope(
@@ -128,7 +143,7 @@ pub(super) fn interchange_import_error_envelope(
     request_id: &str,
     refusal: crate::InterchangeImportRefusalV1,
 ) -> OperationProtocolEnvelopeV1 {
-    vector_error_response(
+    operation_error_response(
         Some(request_id.to_owned()),
         Some(ProtocolOperationKindV1::DocumentMoleculeInterchangeImport),
         ExecutionFailureV1::interchange_import_refusal(refusal),

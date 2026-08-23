@@ -1,19 +1,15 @@
 //! Renderer-admitted translation of one complete strict reaction aggregate.
 
-use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
-
 use ferrum_document::{
-    DocumentFenceV1, DocumentSession, SessionOperation, SessionOperationResultV1,
-    SessionOperationV1, TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
+    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DocumentFenceV1, DocumentSession,
+    SessionOperation, SessionOperationResultV1, SessionOperationV1, TopLevelRootSelectorV1,
+    TopLevelTransformModeV1, TopLevelTransformV1,
 };
 use ferrum_render::{
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
     document_observation_from_accepted_operation_v1,
 };
 
-use crate::reaction_gesture_v1::ReactionSessionOriginV1;
 use crate::reaction_observation_v1::selected_reaction_member_ids_v1;
 use crate::{
     ReactionGestureErrorV1, ReactionSelectionV1, RenderInteractionErrorV1,
@@ -23,8 +19,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ReactionTranslationGestureV1 {
-    origin: ReactionSessionOriginV1,
-    nonce: u64,
+    capability: AuthoringCapabilityV1,
     fence: DocumentFenceV1,
     reaction_id: String,
     membership_digest: String,
@@ -81,8 +76,7 @@ impl CommittedReactionTranslationV1 {
     }
 }
 struct ReactionTranslationReceiptV1 {
-    origin: ReactionSessionOriginV1,
-    nonce: u64,
+    capability: AuthoringCapabilityV1,
     fence: DocumentFenceV1,
     reaction_id: String,
     membership_digest: String,
@@ -92,13 +86,6 @@ struct ReactionTranslationReceiptV1 {
     plan: DocumentRenderPlanV1,
 }
 
-fn origin(session: &RenderInteractionSessionV1) -> ReactionSessionOriginV1 {
-    ReactionSessionOriginV1(session.render_interaction_origin_v1())
-}
-fn consumed() -> &'static Mutex<HashSet<(ReactionSessionOriginV1, u64)>> {
-    static VALUE: OnceLock<Mutex<HashSet<(ReactionSessionOriginV1, u64)>>> = OnceLock::new();
-    VALUE.get_or_init(|| Mutex::new(HashSet::new()))
-}
 fn selection_error(error: RenderInteractionErrorV1) -> ReactionGestureErrorV1 {
     match error {
         RenderInteractionErrorV1::ForeignSession => ReactionGestureErrorV1::ForeignSession,
@@ -189,10 +176,8 @@ pub fn begin_reaction_translation_v1(
     let translation = session
         .begin_render_interaction_translation_v1(&selected, press_x, press_y, snap)
         .map_err(selection_error)?;
-    static NEXT: AtomicU64 = AtomicU64::new(1);
     Ok(ReactionTranslationGestureV1 {
-        origin: origin(session),
-        nonce: NEXT.fetch_add(1, Ordering::Relaxed),
+        capability: session.authoring_capability_issuer_v1().issue(),
         fence: selection.fence(),
         reaction_id: selection.reaction_id().to_owned(),
         membership_digest: selection.membership_digest().to_owned(),
@@ -206,7 +191,10 @@ pub fn preview_reaction_translation_v1(
     pointer_x: f64,
     pointer_y: f64,
 ) -> Result<ReactionTranslationPreviewV1, ReactionGestureErrorV1> {
-    if gesture.origin != origin(session) {
+    if !gesture
+        .capability
+        .belongs_to(&session.authoring_capability_issuer_v1())
+    {
         return Err(ReactionGestureErrorV1::ForeignSession);
     }
     require_definition(session, &gesture.reaction_id, &gesture.membership_digest)?;
@@ -220,15 +208,23 @@ pub fn prepare_reaction_translation_v1(
     gesture: &ReactionTranslationGestureV1,
     preview: &ReactionTranslationPreviewV1,
 ) -> Result<PreparedReactionTranslationV1, ReactionGestureErrorV1> {
-    if gesture.origin != origin(session) {
+    if !gesture
+        .capability
+        .belongs_to(&session.authoring_capability_issuer_v1())
+    {
         return Err(ReactionGestureErrorV1::ForeignSession);
     }
-    if consumed()
-        .lock()
-        .expect("reaction translation receipt lock")
-        .contains(&(gesture.origin, gesture.nonce))
+    match gesture
+        .capability
+        .claim_for_commit(&session.authoring_capability_issuer_v1())
     {
-        return Err(ReactionGestureErrorV1::ReplayedGesture);
+        Ok(claim) => drop(claim),
+        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
+            return Err(ReactionGestureErrorV1::ForeignSession);
+        }
+        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
+            return Err(ReactionGestureErrorV1::ReplayedGesture);
+        }
     }
     require_definition(session, &gesture.reaction_id, &gesture.membership_digest)?;
     session
@@ -278,8 +274,7 @@ pub fn prepare_reaction_translation_v1(
     Ok(PreparedReactionTranslationV1 {
         reaction_id: gesture.reaction_id.clone(),
         receipt: Some(ReactionTranslationReceiptV1 {
-            origin: gesture.origin,
-            nonce: gesture.nonce,
+            capability: gesture.capability.clone(),
             fence: gesture.fence,
             reaction_id: gesture.reaction_id.clone(),
             membership_digest: gesture.membership_digest.clone(),
@@ -296,53 +291,66 @@ pub fn commit_reaction_translation_v1(
 ) -> Result<CommittedReactionTranslationV1, ReactionGestureErrorV1> {
     let receipt = prepared
         .receipt
-        .as_ref()
+        .take()
         .ok_or(ReactionGestureErrorV1::ReplayedGesture)?;
-    if receipt.origin != origin(session) {
+    if !receipt
+        .capability
+        .belongs_to(&session.authoring_capability_issuer_v1())
+    {
+        prepared.receipt = Some(receipt);
         return Err(ReactionGestureErrorV1::ForeignSession);
     }
-    if consumed()
-        .lock()
-        .expect("reaction translation receipt lock")
-        .contains(&(receipt.origin, receipt.nonce))
+    let claim = match receipt
+        .capability
+        .claim_for_commit(&session.authoring_capability_issuer_v1())
     {
-        return Err(ReactionGestureErrorV1::ReplayedGesture);
+        Ok(claim) => claim,
+        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
+            unreachable!("owner checked above")
+        }
+        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
+            prepared.receipt = Some(receipt);
+            return Err(ReactionGestureErrorV1::ReplayedGesture);
+        }
+    };
+    let result = (|| {
+        require_definition(session, &receipt.reaction_id, &receipt.membership_digest)?;
+        if receipt.contract.source() != receipt.candidate
+            || receipt
+                .plan
+                .outcomes()
+                .iter()
+                .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
+        {
+            return Err(ReactionGestureErrorV1::RendererExclusion);
+        }
+        let candidate = DocumentSession::load(&receipt.candidate)
+            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
+        if *candidate
+            .snapshot()
+            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?
+            .digest()
+            != receipt.candidate_digest
+        {
+            return Err(ReactionGestureErrorV1::RenderPreparation);
+        }
+        session
+            .commit_complete_cdml_transaction_v1(receipt.fence, &receipt.candidate)
+            .map_err(|_| ReactionGestureErrorV1::SessionConflict)
+    })();
+    match result {
+        Ok(result) => {
+            claim.consume();
+            Ok(CommittedReactionTranslationV1 {
+                reaction_id: prepared.reaction_id.clone(),
+                result,
+            })
+        }
+        Err(error) => {
+            prepared.receipt = Some(receipt);
+            Err(error)
+        }
     }
-    require_definition(session, &receipt.reaction_id, &receipt.membership_digest)?;
-    if receipt.contract.source() != receipt.candidate
-        || receipt
-            .plan
-            .outcomes()
-            .iter()
-            .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(ReactionGestureErrorV1::RendererExclusion);
-    }
-    let candidate = DocumentSession::load(&receipt.candidate)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    if *candidate
-        .snapshot()
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?
-        .digest()
-        != receipt.candidate_digest
-    {
-        return Err(ReactionGestureErrorV1::RenderPreparation);
-    }
-    let result = session
-        .commit_complete_cdml_transaction_v1(receipt.fence, &receipt.candidate)
-        .map_err(|_| ReactionGestureErrorV1::SessionConflict)?;
-    let used = prepared
-        .receipt
-        .take()
-        .expect("successful translation retains receipt");
-    consumed()
-        .lock()
-        .expect("reaction translation receipt lock")
-        .insert((used.origin, used.nonce));
-    Ok(CommittedReactionTranslationV1 {
-        reaction_id: prepared.reaction_id.clone(),
-        result,
-    })
 }
 
 #[cfg(test)]

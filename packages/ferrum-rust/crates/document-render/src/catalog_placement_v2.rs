@@ -24,8 +24,9 @@ pub struct CatalogPlacementGestureV2 {
 }
 
 /// The renderer receipt is private, but lease ownership must remain shared by
-/// every opaque handle for a gesture.  A later pointer preview retires the
-/// former candidate before it can be prepared or committed.
+/// every opaque handle for a gesture. A later pointer preview retires the
+/// former candidate before it can be prepared. V1's authoring capability is
+/// the sole authority for document mutation.
 #[derive(Debug, Default)]
 struct CatalogPreviewLeaseV2 {
     next: u64,

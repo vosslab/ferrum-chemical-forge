@@ -6,14 +6,12 @@ use ferrum_document::{
     CdmlError, DocumentFenceV1, DocumentObjectIdV1, DocumentSession, InterchangeCodecErrorV1,
     InterchangeFormatV1, MoleculeCoordinateBatchUpdateV1, PresentationGesturePoint2V1,
     SessionOperation, TypedClass, TypedDocument, build_molecule_coordinate_update_v1,
-    decode_interchange_v1, encode_interchange_v1, inspect_cdml,
-    load_document_utf8_bytes_with_budget, local_cdml_ingress_format_v1, rewrite_cdml,
-    validate_cdml, verify_cdml_rewrite,
+    decode_interchange_v1, encode_interchange_v1, load_document_utf8_bytes_with_budget,
+    local_cdml_ingress_format_v1, rewrite_cdml, validate_cdml, verify_cdml_rewrite,
 };
 use ferrum_domain::{CatalogFamilyV1, catalog_manifest_v1, search_catalog_v1};
 use ferrum_render::{
-    DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1, DocumentRenderOutcomeV1,
-    compose_document_render_plan_v1, document_observation_from_accepted_operation_v1,
+    DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
     prepare_document_native_artifact_v1,
 };
 use serde::Deserialize;
@@ -24,8 +22,7 @@ use super::runtime::{ChemistryRuntimeErrorV1, ChemistryRuntimeV1, NoChemistryRun
 use super::schema::generated_operation_protocol_schema_v1;
 use crate::{
     CatalogPlacementCategoryV2, CatalogPlacementErrorV2, CatalogPlacementRecoveryV2,
-    PresentationVectorGestureCategoryV1, PresentationVectorGestureErrorV1,
-    PresentationVectorGestureRecoveryV1, PresentationVectorKindV1, ReactionDefinitionDispositionV1,
+    PresentationVectorGestureCategoryV1, PresentationVectorKindV1, ReactionDefinitionDispositionV1,
     ReactionGestureCategoryV1, ReactionGestureErrorV1, ReactionGestureRecoveryV1,
     ReactionMembershipPatchRequestV1, RenderInteractionGridSnapPolicyV1,
     RenderInteractionSessionV1, RenderInteractionSnapV1, begin_api_catalog_placement_v2,
@@ -48,6 +45,9 @@ mod execution_document;
 mod execution_failure;
 #[path = "execution_placement.rs"]
 mod execution_placement;
+#[path = "execution_presentation_author.rs"]
+mod execution_presentation_author;
+use execution_presentation_author::execute_presentation_author;
 #[path = "execution_reaction.rs"]
 mod execution_reaction;
 #[cfg(test)]
@@ -171,9 +171,7 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
     let kind = operation.kind();
     let result = match operation {
         OperationProtocolOperationV1::Inspect(request) => {
-            execute_document_operation(&request.document, |document| {
-                inspect_cdml(document).map(|report| OperationProtocolOutcomeV1::Inspect { report })
-            })
+            execute_document_inspect(&request.document)
         }
         OperationProtocolOperationV1::Validate(request) => {
             execute_document_operation(&request.document, |document| {
@@ -204,8 +202,8 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
         OperationProtocolOperationV1::GenerateCoordinates(request) => {
             execute_generate_coordinates(&request.document, runtime)
         }
-        OperationProtocolOperationV1::PresentationVectorCreate(request) => {
-            execute_presentation_vector_create(request)
+        OperationProtocolOperationV1::PresentationAuthor(request) => {
+            execute_presentation_author(request)
         }
         OperationProtocolOperationV1::CatalogList(request) => execute_catalog_list(request),
         OperationProtocolOperationV1::CatalogInsert(request) => execute_catalog_insert(request),
@@ -246,7 +244,7 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
             request_id,
             outcome,
         }),
-        Err(error) => vector_error_response(Some(request_id), Some(kind), error),
+        Err(error) => operation_error_response(Some(request_id), Some(kind), error),
     };
     if matches!(kind, ProtocolOperationKindV1::DocumentSmartsQuery) {
         admit_smarts_response_envelope_v1(envelope, DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1)
@@ -302,7 +300,7 @@ fn response_size_exceeded_error(request_id: Option<String>) -> OperationProtocol
             operation: Some(ProtocolOperationKindV1::DocumentSmartsQuery),
             message: "response_size_exceeded".to_owned(),
             resource_limit_reason: Some(ProtocolResourceLimitReasonV1::ResponseSizeExceeded),
-            presentation_vector_refusal: None,
+            presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
         },
@@ -334,14 +332,14 @@ fn error_response(
             operation,
             message: message.to_string(),
             resource_limit_reason: None,
-            presentation_vector_refusal: None,
+            presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
         },
     })
 }
 
-fn vector_error_response(
+fn operation_error_response(
     request_id: Option<String>,
     operation: Option<ProtocolOperationKindV1>,
     failure: ExecutionFailureV1,
@@ -354,7 +352,7 @@ fn vector_error_response(
             operation,
             message: failure.message,
             resource_limit_reason: None,
-            presentation_vector_refusal: failure.presentation_vector_refusal,
+            presentation_author_refusal: failure.presentation_author_refusal,
             catalog_placement_refusal: failure.catalog_placement_refusal,
             reaction_refusal: failure.reaction_refusal,
         },

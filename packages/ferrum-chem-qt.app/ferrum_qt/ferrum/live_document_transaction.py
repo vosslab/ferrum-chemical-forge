@@ -2,16 +2,6 @@
 
 # Standard Library
 import collections.abc
-import dataclasses
-
-
-#============================================
-@dataclasses.dataclass(frozen=True)
-class _LiveSmartsSelectedAvailabilityV1:
-	"""Copied selected-query availability with no root or selector facts."""
-
-	available: bool
-	recovery: str
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab_errors
@@ -133,61 +123,6 @@ class FerrumLiveDocumentTransactionMixin:
 		self._require_live_smarts_receipt_retirement_v1("dock_rerun")
 
 	#============================================
-	def _live_smarts_selected_query_availability_v1(self,
-			selection_provider: collections.abc.Callable[[], object | None],
-			) -> _LiveSmartsSelectedAvailabilityV1:
-		"""Return a copied, non-identifying selected-query readiness state.
-
-		The structural-selection owner supplies its existing transient selection only
-		for this synchronous check.  The dock receives neither that object nor any
-		durable/root facts, and native admission still repeats the validation.
-		"""
-		if self._disposed or self.requires_refresh:
-			return _LiveSmartsSelectedAvailabilityV1(False, "document_not_ready")
-		try:
-			selection = selection_provider()
-			targets = () if selection is None else tuple(selection.targets)
-			if len(targets) == 0:
-				return _LiveSmartsSelectedAvailabilityV1(False, "select_one_molecule")
-			if len(targets) != 1:
-				return _LiveSmartsSelectedAvailabilityV1(False, "select_one_molecule")
-			if targets[0].kind != "molecule":
-				return _LiveSmartsSelectedAvailabilityV1(False, "select_one_molecule")
-			return _LiveSmartsSelectedAvailabilityV1(True, "available")
-		except Exception:
-			return _LiveSmartsSelectedAvailabilityV1(False, "unavailable")
-		finally:
-			selection = None
-
-	#============================================
-	def _run_live_smarts_selected_query_v1(self,
-			selection_provider: collections.abc.Callable[[], object | None],
-			per_molecule_limit: int, total_limit: int) -> object:
-		"""Capture and consume the selected-query token in one tab-private call."""
-		self._require_live()
-		selection = None
-		selected_query = None
-		try:
-			selection = selection_provider()
-			capture = getattr(
-				self._live_document_session_v1,
-				"_capture_live_document_smarts_selected_query_v1",
-			)
-			run = getattr(self._live_document_session_v1,
-				"_run_live_document_smarts_query_v1")
-			if not callable(capture) or not callable(run):
-				raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
-					"Ferrum live SMARTS selected query is unavailable; refresh before editing.",
-				)
-			selected_query = capture(selection)
-			return run(selected_query, per_molecule_limit, total_limit)
-		finally:
-			# Neither the generic selection nor the opaque token may survive this
-			# boundary in a dock field, queued callback, or tab state.
-			selected_query = None
-			selection = None
-
-	#============================================
 	def _install_live_smarts_query_overlay_v1(self, item: object, receipt: object) -> int:
 		"""Commit the first paint for a freshly issued run without native retirement."""
 		if item is None or receipt is None:
@@ -262,7 +197,7 @@ class FerrumLiveDocumentTransactionMixin:
 				old_item.setParentItem(None)
 				removed_old_item = True
 			self._attach_live_smarts_overlay_item_v1(scene, item)
-		except Exception as exc:
+		except RuntimeError as exc:
 			self._remove_rejected_live_smarts_overlay_item_v1(item)
 			restored = True
 			if removed_old_item:
@@ -347,17 +282,6 @@ class FerrumLiveDocumentTransactionMixin:
 		"""Clear tab-owned transient state after one explicit native retirement call."""
 		if not self._live_smarts_retirement_available_v1:
 			return False
-		item = self._live_smarts_overlay_item_v1
-		if item is not None:
-			try:
-				scene = item.scene()
-				if scene is not None:
-					scene.removeItem(item)
-				item.setParentItem(None)
-			except RuntimeError:
-				# Qt may have already destroyed an item with a retiring scene.  Its
-				# absence still satisfies this idempotent visual-retirement contract.
-				pass
 		try:
 			retire = getattr(self._live_document_session_v1,
 				entry_point)
@@ -373,10 +297,23 @@ class FerrumLiveDocumentTransactionMixin:
 			return False
 		try:
 			retire()
-		except Exception as exc:
+		except RuntimeError as exc:
 			self._live_smarts_retirement_error_v1 = exc
 			self._live_smarts_retirement_available_v1 = False
 			return False
+		item = self._live_smarts_overlay_item_v1
+		if item is not None:
+			try:
+				scene = item.scene()
+				if scene is not None:
+					scene.removeItem(item)
+				item.setParentItem(None)
+			except RuntimeError as exc:
+				# The native receipt is already retired.  Keep every local owner until
+				# a refresh can reconcile this failed Qt-only detachment.
+				self._live_smarts_retirement_error_v1 = exc
+				self._live_smarts_retirement_available_v1 = False
+				return False
 		self._live_smarts_overlay_item_v1 = None
 		self._live_smarts_receipt_v1 = None
 		self._live_smarts_active_run_token_v1 = None

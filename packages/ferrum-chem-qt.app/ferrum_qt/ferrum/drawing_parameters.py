@@ -2,6 +2,7 @@
 
 # Standard Library
 import dataclasses
+import enum
 
 # PIP3 modules
 import PySide6.QtCore
@@ -11,6 +12,24 @@ _DEFAULT_ELEMENT = "C"
 _DEFAULT_ORDER = "single"
 _ELEMENT_KEY = "drawing/next_atom_element"
 _ORDER_KEY = "drawing/next_bond_order"
+
+
+#============================================
+class DirectBondPresentation(enum.Enum):
+	"""Closed presentation choices accepted by the direct-bond transaction."""
+
+	NORMAL = "normal"
+	SOLID_WEDGE = "solid_wedge"
+	HASHED_WEDGE = "hashed_wedge"
+
+	#============================================
+	def description(self) -> str:
+		"""Return the concise user-facing name for this bond presentation."""
+		if self is DirectBondPresentation.NORMAL:
+			return "normal"
+		if self is DirectBondPresentation.SOLID_WEDGE:
+			return "solid wedge"
+		return "hashed wedge"
 
 
 #============================================
@@ -34,10 +53,18 @@ class FerrumNativeDrawingParametersSnapshot:
 		raise ValueError("Ferrum drawing parameters contain an unknown bond order")
 
 	#============================================
-	def bond_presentation(self) -> object:
-		"""Convert frozen next-drawing choices at the private PyO3 boundary."""
+	def bond_presentation(self,
+			presentation: DirectBondPresentation = DirectBondPresentation.NORMAL,
+			) -> object:
+		"""Convert one closed direct-bond presentation at the private PyO3 boundary."""
 		import ferrum_qt.ferrum.engine as engine
 		presentations = engine.DocumentBondPresentationV1
+		if presentation is DirectBondPresentation.SOLID_WEDGE:
+			return presentations.solid_wedge
+		if presentation is DirectBondPresentation.HASHED_WEDGE:
+			return presentations.hashed_wedge
+		if presentation is not DirectBondPresentation.NORMAL:
+			raise ValueError("Ferrum drawing parameters contain an unknown bond presentation")
 		if self.order_name == "single":
 			return presentations.normal_single
 		if self.order_name == "double":

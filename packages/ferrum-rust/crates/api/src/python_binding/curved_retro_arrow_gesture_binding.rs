@@ -1,0 +1,305 @@
+//! Opaque PyO3 transport for renderer-preflighted quadratic retro arrows.
+
+use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
+use ferrum_document_render::{
+    CommittedCurvedRetroArrowV1, CurvedRetroArrowGestureCategoryV1, CurvedRetroArrowGestureErrorV1,
+    CurvedRetroArrowGestureRecoveryV1, CurvedRetroArrowGestureV1, CurvedRetroArrowPreviewV1,
+    PreparedCurvedRetroArrowV1, begin_curved_retro_arrow_gesture_v1,
+    commit_curved_retro_arrow_gesture_v1, prepare_curved_retro_arrow_gesture_v1,
+    preview_curved_retro_arrow_gesture_v1,
+};
+use pyo3::create_exception;
+use pyo3::prelude::*;
+
+use super::binding::{PyDocumentSession, PySessionOperationResultV1};
+use super::presentation_creation_gesture_binding::{
+    PyPresentationGestureRootKindV1, PyPresentationGestureRootSelectorV1, digest,
+};
+
+create_exception!(
+    ferrum_chem,
+    CurvedRetroArrowGestureError,
+    super::binding::DocumentError
+);
+
+#[pyclass(
+    frozen,
+    eq,
+    hash,
+    module = "ferrum_chem",
+    name = "CurvedRetroArrowGestureCategoryV1",
+    rename_all = "snake_case",
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum PyCurvedRetroArrowGestureCategoryV1 {
+    ForeignSession,
+    StaleSnapshot,
+    MismatchedPreview,
+    ReplayedGesture,
+    InvalidPoint,
+    CollapsedSpan,
+    ControlTooNearChord,
+    ExceedsGeometryLimit,
+    RenderPreparation,
+    SessionConflict,
+}
+
+#[pyclass(
+    frozen,
+    eq,
+    hash,
+    module = "ferrum_chem",
+    name = "CurvedRetroArrowGestureRecoveryV1",
+    rename_all = "snake_case",
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum PyCurvedRetroArrowGestureRecoveryV1 {
+    RefreshAndRestart,
+    ChangeGeometry,
+    DocumentUnchanged,
+}
+
+#[pyclass(unsendable, module = "ferrum_chem", name = "CurvedRetroArrowGestureV1")]
+pub(crate) struct PyCurvedRetroArrowGestureV1 {
+    gesture: CurvedRetroArrowGestureV1,
+}
+
+#[pyclass(frozen, module = "ferrum_chem", name = "CurvedRetroArrowOverlayV1")]
+pub(crate) struct PyCurvedRetroArrowOverlayV1 {
+    #[pyo3(get)]
+    pub start_x: f64,
+    #[pyo3(get)]
+    pub start_y: f64,
+    #[pyo3(get)]
+    pub control_x: f64,
+    #[pyo3(get)]
+    pub control_y: f64,
+    #[pyo3(get)]
+    pub end_x: f64,
+    #[pyo3(get)]
+    pub end_y: f64,
+    #[pyo3(get)]
+    pub cubic_control_1_x: f64,
+    #[pyo3(get)]
+    pub cubic_control_1_y: f64,
+    #[pyo3(get)]
+    pub cubic_control_2_x: f64,
+    #[pyo3(get)]
+    pub cubic_control_2_y: f64,
+    #[pyo3(get)]
+    pub head: Vec<(f64, f64)>,
+}
+
+#[pyclass(unsendable, module = "ferrum_chem", name = "CurvedRetroArrowPreviewV1")]
+pub(crate) struct PyCurvedRetroArrowPreviewV1 {
+    preview: CurvedRetroArrowPreviewV1,
+    #[pyo3(get)]
+    overlay: Py<PyCurvedRetroArrowOverlayV1>,
+}
+
+#[pyclass(
+    unsendable,
+    module = "ferrum_chem",
+    name = "PreparedCurvedRetroArrowV1"
+)]
+pub(crate) struct PyPreparedCurvedRetroArrowV1 {
+    prepared: PreparedCurvedRetroArrowV1,
+}
+
+#[pyclass(frozen, module = "ferrum_chem", name = "CurvedRetroArrowCommitV1")]
+pub(crate) struct PyCurvedRetroArrowCommitV1 {
+    #[pyo3(get)]
+    root: Py<PyPresentationGestureRootSelectorV1>,
+    #[pyo3(get)]
+    result: PySessionOperationResultV1,
+}
+
+#[pymethods]
+impl PyDocumentSession {
+    #[allow(clippy::too_many_arguments)]
+    fn begin_curved_retro_arrow_gesture_v1(
+        &self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        start_x: f64,
+        start_y: f64,
+        control_x: f64,
+        control_y: f64,
+    ) -> PyResult<PyCurvedRetroArrowGestureV1> {
+        let fence = DocumentFenceV1::new(expected_revision, digest(&expected_digest_hex)?);
+        begin_curved_retro_arrow_gesture_v1(
+            &self.session,
+            fence,
+            point(start_x, start_y, py)?,
+            point(control_x, control_y, py)?,
+        )
+        .map(|gesture| PyCurvedRetroArrowGestureV1 { gesture })
+        .map_err(|error| retro_error(py, error))
+    }
+
+    fn preview_curved_retro_arrow_gesture_v1(
+        &self,
+        py: Python<'_>,
+        gesture: PyRef<'_, PyCurvedRetroArrowGestureV1>,
+        end_x: f64,
+        end_y: f64,
+    ) -> PyResult<PyCurvedRetroArrowPreviewV1> {
+        preview_curved_retro_arrow_gesture_v1(
+            &self.session,
+            &gesture.gesture,
+            point(end_x, end_y, py)?,
+        )
+        .map(|preview| preview_to_python(py, preview))
+        .map_err(|error| retro_error(py, error))
+    }
+
+    fn prepare_curved_retro_arrow_gesture_v1(
+        &mut self,
+        py: Python<'_>,
+        gesture: PyRef<'_, PyCurvedRetroArrowGestureV1>,
+        preview: PyRef<'_, PyCurvedRetroArrowPreviewV1>,
+    ) -> PyResult<PyPreparedCurvedRetroArrowV1> {
+        prepare_curved_retro_arrow_gesture_v1(&mut self.session, &gesture.gesture, &preview.preview)
+            .map(|prepared| PyPreparedCurvedRetroArrowV1 { prepared })
+            .map_err(|error| retro_error(py, error))
+    }
+
+    fn commit_curved_retro_arrow_gesture_v1(
+        &mut self,
+        py: Python<'_>,
+        mut prepared: PyRefMut<'_, PyPreparedCurvedRetroArrowV1>,
+    ) -> PyResult<PyCurvedRetroArrowCommitV1> {
+        commit_curved_retro_arrow_gesture_v1(&mut self.session, &mut prepared.prepared)
+            .map(|value| commit_to_python(py, value))
+            .map_err(|error| retro_error(py, error))
+    }
+}
+
+fn point(x: f64, y: f64, py: Python<'_>) -> PyResult<PresentationGesturePoint2V1> {
+    PresentationGesturePoint2V1::new(x, y)
+        .map_err(|_| retro_error(py, CurvedRetroArrowGestureErrorV1::InvalidPoint))
+}
+
+fn preview_to_python(
+    py: Python<'_>,
+    preview: CurvedRetroArrowPreviewV1,
+) -> PyCurvedRetroArrowPreviewV1 {
+    let overlay = preview.overlay();
+    let value = PyCurvedRetroArrowOverlayV1 {
+        start_x: overlay.start().x(),
+        start_y: overlay.start().y(),
+        control_x: overlay.control().x(),
+        control_y: overlay.control().y(),
+        end_x: overlay.end().x(),
+        end_y: overlay.end().y(),
+        cubic_control_1_x: overlay.cubic_control_1().x(),
+        cubic_control_1_y: overlay.cubic_control_1().y(),
+        cubic_control_2_x: overlay.cubic_control_2().x(),
+        cubic_control_2_y: overlay.cubic_control_2().y(),
+        head: overlay
+            .head()
+            .iter()
+            .map(|point| (point.x(), point.y()))
+            .collect(),
+    };
+    PyCurvedRetroArrowPreviewV1 {
+        preview,
+        overlay: Py::new(py, value).expect("overlay allocates"),
+    }
+}
+
+fn commit_to_python(
+    py: Python<'_>,
+    value: CommittedCurvedRetroArrowV1,
+) -> PyCurvedRetroArrowCommitV1 {
+    PyCurvedRetroArrowCommitV1 {
+        root: Py::new(
+            py,
+            PyPresentationGestureRootSelectorV1 {
+                identifier: value.root().presentation_id().as_str().to_owned(),
+                kind: Py::new(py, PyPresentationGestureRootKindV1::Arrow)
+                    .expect("root kind allocates"),
+            },
+        )
+        .expect("root selector allocates"),
+        result: value.result().clone().into(),
+    }
+}
+
+fn retro_error(py: Python<'_>, error: CurvedRetroArrowGestureErrorV1) -> PyErr {
+    let category = match error.category() {
+        CurvedRetroArrowGestureCategoryV1::ForeignSession => {
+            PyCurvedRetroArrowGestureCategoryV1::ForeignSession
+        }
+        CurvedRetroArrowGestureCategoryV1::StaleSnapshot => {
+            PyCurvedRetroArrowGestureCategoryV1::StaleSnapshot
+        }
+        CurvedRetroArrowGestureCategoryV1::MismatchedPreview => {
+            PyCurvedRetroArrowGestureCategoryV1::MismatchedPreview
+        }
+        CurvedRetroArrowGestureCategoryV1::ReplayedGesture => {
+            PyCurvedRetroArrowGestureCategoryV1::ReplayedGesture
+        }
+        CurvedRetroArrowGestureCategoryV1::InvalidPoint => {
+            PyCurvedRetroArrowGestureCategoryV1::InvalidPoint
+        }
+        CurvedRetroArrowGestureCategoryV1::CollapsedSpan => {
+            PyCurvedRetroArrowGestureCategoryV1::CollapsedSpan
+        }
+        CurvedRetroArrowGestureCategoryV1::ControlTooNearChord => {
+            PyCurvedRetroArrowGestureCategoryV1::ControlTooNearChord
+        }
+        CurvedRetroArrowGestureCategoryV1::ExceedsGeometryLimit => {
+            PyCurvedRetroArrowGestureCategoryV1::ExceedsGeometryLimit
+        }
+        CurvedRetroArrowGestureCategoryV1::RenderPreparation => {
+            PyCurvedRetroArrowGestureCategoryV1::RenderPreparation
+        }
+        CurvedRetroArrowGestureCategoryV1::SessionConflict => {
+            PyCurvedRetroArrowGestureCategoryV1::SessionConflict
+        }
+    };
+    let recovery = match error.recovery() {
+        CurvedRetroArrowGestureRecoveryV1::RefreshAndRestart => {
+            PyCurvedRetroArrowGestureRecoveryV1::RefreshAndRestart
+        }
+        CurvedRetroArrowGestureRecoveryV1::ChangeGeometry => {
+            PyCurvedRetroArrowGestureRecoveryV1::ChangeGeometry
+        }
+        CurvedRetroArrowGestureRecoveryV1::DocumentUnchanged => {
+            PyCurvedRetroArrowGestureRecoveryV1::DocumentUnchanged
+        }
+    };
+    let exception = CurvedRetroArrowGestureError::new_err(error.to_string());
+    let value = exception.value(py);
+    value
+        .setattr(
+            "category",
+            Py::new(py, category).expect("category allocates"),
+        )
+        .expect("category attaches");
+    value
+        .setattr(
+            "recovery",
+            Py::new(py, recovery).expect("recovery allocates"),
+        )
+        .expect("recovery attaches");
+    exception
+}
+
+pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add(
+        "CurvedRetroArrowGestureError",
+        module.py().get_type::<CurvedRetroArrowGestureError>(),
+    )?;
+    module.add_class::<PyCurvedRetroArrowGestureCategoryV1>()?;
+    module.add_class::<PyCurvedRetroArrowGestureRecoveryV1>()?;
+    module.add_class::<PyCurvedRetroArrowGestureV1>()?;
+    module.add_class::<PyCurvedRetroArrowOverlayV1>()?;
+    module.add_class::<PyCurvedRetroArrowPreviewV1>()?;
+    module.add_class::<PyPreparedCurvedRetroArrowV1>()?;
+    module.add_class::<PyCurvedRetroArrowCommitV1>()
+}

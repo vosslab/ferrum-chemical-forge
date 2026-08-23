@@ -2,19 +2,18 @@
 
 use ferrum_core::{RecordId, RecordOrigin};
 use ferrum_render::{
-    BatchSpace, BondStyle, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
-    DocumentPlusRenderV1, MoleculeRenderPlan, Paint, PositiveFinite, RENDER_OBSERVATION_SCHEMA_V1,
-    RenderBatch, RenderDisplayLayerV1, RenderIssue, RenderIssueKind,
+    BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
+    DocumentPlusRenderV1, MoleculeRenderPlan, RENDER_OBSERVATION_SCHEMA_V1, RenderBatch,
+    RenderDisplayLayerV1, RenderIssue, RenderIssueKind,
     RenderObservationError as ApiRenderObservationError, RenderObservationV1, RenderOp,
-    RenderPoint, RenderTarget, Rgb24, TextOp, TextScript, VectorStrokeLineCapV1,
-    build_directed_bond_preview_ops, verified_telex_regular_v1,
+    RenderPoint, RenderTarget, TextOp, TextScript, VectorStrokeLineCapV1,
+    verified_telex_regular_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyTuple;
 
-use super::binding::PyDocumentBondPresentationV1;
 use super::binding::{FerrumError, map_document_error};
 
 create_exception!(ferrum_chem, RenderObservationError, FerrumError);
@@ -481,45 +480,6 @@ pub(crate) fn verified_telex_regular() -> PyResult<PyVerifiedTelexRegularV1> {
     })
 }
 
-/// Return source-owned V2 operations for one disposable directed-bond preview.
-#[pyfunction]
-pub(crate) fn native_directed_bond_preview_v1(
-    py: Python<'_>,
-    start_x: f64,
-    start_y: f64,
-    end_x: f64,
-    end_y: f64,
-    presentation: PyRef<'_, PyDocumentBondPresentationV1>,
-) -> PyResult<Py<PyTuple>> {
-    let style = match *presentation {
-        PyDocumentBondPresentationV1::SolidWedge => BondStyle::SolidWedge,
-        PyDocumentBondPresentationV1::HashedWedge => BondStyle::HashedWedge,
-        _ => {
-            return Err(RenderDepictionError::new_err(
-                "choose a directed wedge presentation for a directed bond preview",
-            ));
-        }
-    };
-    let start = RenderPoint::new(start_x, start_y)
-        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let end = RenderPoint::new(end_x, end_y)
-        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let width = PositiveFinite::new(1.0)
-        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let wedge_width = PositiveFinite::new(5.0)
-        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let paint = Paint::rgb24(
-        Rgb24::new("000000").map_err(|error| RenderDepictionError::new_err(error.to_string()))?,
-    );
-    let operations = build_directed_bond_preview_ops(style, start, end, width, wedge_width, paint)
-        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    let values = operations
-        .iter()
-        .map(|operation| operation_from(py, operation))
-        .collect::<PyResult<Vec<_>>>()?;
-    frozen_tuple(py, &values)
-}
-
 pub(crate) fn observation(
     py: Python<'_>,
     value: RenderObservationV1,
@@ -822,7 +782,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module.py().get_type::<RenderProvenanceError>(),
     )?;
     module.add_function(wrap_pyfunction!(verified_telex_regular, module)?)?;
-    module.add_function(wrap_pyfunction!(native_directed_bond_preview_v1, module)?)?;
     module.add_class::<PyRenderObservationV1>()?;
     module.add_class::<PyMoleculeRenderRootV1>()?;
     module.add_class::<PyDocumentMoleculeRenderPlanV2>()?;

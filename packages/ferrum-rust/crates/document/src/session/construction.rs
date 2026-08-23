@@ -1,14 +1,10 @@
 //! Authoritative document-session construction paths.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use super::{
     DocumentSession, DocumentSessionError, GeneratedIdSequences, RevisionState, SavedBaseline,
     SessionHistory, TypedDocument,
 };
-use crate::direct_bond_gesture_v1::DirectBondSessionOriginV1;
-use crate::presentation_creation_gesture_v1::PresentationGestureSessionOriginV1;
-use crate::text_placement_gesture_v1::TextPlacementSessionOriginV1;
+use crate::AuthoringCapabilityIssuerV1;
 
 pub(crate) const EMPTY_DOCUMENT_SOURCE_V1: &str =
     r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"/>"#;
@@ -40,19 +36,10 @@ impl DocumentSession {
             RevisionState::from_document(0, document).map_err(DocumentSessionError::Load)?;
         let saved_baseline = SavedBaseline::from_state(&initial);
         Ok(Self {
-            bridge_session_origin: next_bridge_session_origin(),
+            authoring_capability_issuer: AuthoringCapabilityIssuerV1::new(),
             history: SessionHistory::new(initial, 20),
             saved_baseline,
             generated_ids: GeneratedIdSequences::initial(),
-            direct_bond_origin: DirectBondSessionOriginV1::issue(),
-            presentation_gesture_origin: PresentationGestureSessionOriginV1::issue(),
-            text_placement_origin: TextPlacementSessionOriginV1::issue(),
-            text_placement_consumed: std::collections::HashSet::new(),
         })
     }
-}
-
-fn next_bridge_session_origin() -> u64 {
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    NEXT.fetch_add(1, Ordering::Relaxed)
 }

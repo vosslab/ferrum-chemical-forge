@@ -1,11 +1,10 @@
 //! Renderer-preflighted, Rust-owned quadratic electron-arrow authoring.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use ferrum_document::{
-    DocumentFenceV1, DocumentSession, Point3V1, PresentationGesturePoint2V1,
-    PresentationRecordKindV1, PresentationRootSelectorV1, SessionOperationResultV1,
-    electron_arrow_geometry_v1,
+    AuthoringCapabilityV1, CurvedTerminalArrowKindV1, DocumentFenceV1, DocumentSession,
+    PendingCreatePresentationV1, Point3V1, PresentationCreateErrorV1, PresentationCreateRequestV1,
+    PresentationGesturePoint2V1, PresentationRootSelectorV1, SessionOperationResultV1,
+    curved_terminal_arrow_geometry_v1,
 };
 use ferrum_render::{
     DocumentRenderOutcomeV1, compose_document_render_plan_v1,
@@ -19,8 +18,9 @@ const MAXIMUM_EXTENT_PT: f64 = 20_000.0;
 
 #[derive(Clone, Debug)]
 pub struct CurvedElectronArrowGestureV1 {
+    kind: CurvedTerminalArrowKindV1,
+    capability: AuthoringCapabilityV1,
     fence: DocumentFenceV1,
-    nonce: u64,
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
 }
@@ -78,15 +78,8 @@ impl CurvedElectronArrowPreviewV1 {
 
 #[derive(Debug)]
 pub struct PreparedCurvedElectronArrowV1 {
-    receipt: Option<CurvedElectronArrowReceiptV1>,
+    pending: Option<PendingCreatePresentationV1>,
     identifier: String,
-}
-
-#[derive(Debug)]
-struct CurvedElectronArrowReceiptV1 {
-    source_fence: DocumentFenceV1,
-    candidate: String,
-    candidate_digest: [u8; 32],
 }
 
 #[derive(Clone, Debug)]
@@ -108,6 +101,7 @@ impl CommittedCurvedElectronArrowV1 {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CurvedElectronArrowGestureCategoryV1 {
+    ForeignSession,
     StaleSnapshot,
     MismatchedPreview,
     ReplayedGesture,
@@ -128,23 +122,25 @@ pub enum CurvedElectronArrowGestureRecoveryV1 {
 
 #[derive(Clone, Debug, Error, PartialEq)]
 pub enum CurvedElectronArrowGestureErrorV1 {
-    #[error("curved electron-arrow snapshot is stale")]
+    #[error("curved terminal-arrow belongs to a different document session")]
+    ForeignSession,
+    #[error("curved terminal-arrow snapshot is stale")]
     StaleSnapshot,
-    #[error("curved electron-arrow preview belongs to a different gesture")]
+    #[error("curved terminal-arrow preview belongs to a different gesture")]
     MismatchedPreview,
-    #[error("curved electron-arrow receipt was already consumed")]
+    #[error("curved terminal-arrow receipt was already consumed")]
     ReplayedGesture,
-    #[error("curved electron-arrow point is invalid")]
+    #[error("curved terminal-arrow point is invalid")]
     InvalidPoint,
-    #[error("curved electron-arrow start and end are too close")]
+    #[error("curved terminal-arrow start and end are too close")]
     CollapsedSpan,
-    #[error("curved electron-arrow control point is too close to its chord")]
+    #[error("curved terminal-arrow control point is too close to its chord")]
     ControlTooNearChord,
-    #[error("curved electron-arrow exceeds the geometry limit")]
+    #[error("curved terminal-arrow exceeds the geometry limit")]
     ExceedsGeometryLimit,
-    #[error("curved electron-arrow candidate failed renderer preflight")]
+    #[error("curved terminal-arrow candidate failed renderer preflight")]
     RenderPreparation,
-    #[error("curved electron-arrow session transaction failed")]
+    #[error("curved terminal-arrow session transaction failed")]
     SessionConflict,
 }
 
@@ -152,6 +148,7 @@ impl CurvedElectronArrowGestureErrorV1 {
     #[must_use]
     pub const fn category(&self) -> CurvedElectronArrowGestureCategoryV1 {
         match self {
+            Self::ForeignSession => CurvedElectronArrowGestureCategoryV1::ForeignSession,
             Self::StaleSnapshot => CurvedElectronArrowGestureCategoryV1::StaleSnapshot,
             Self::MismatchedPreview => CurvedElectronArrowGestureCategoryV1::MismatchedPreview,
             Self::ReplayedGesture => CurvedElectronArrowGestureCategoryV1::ReplayedGesture,
@@ -168,7 +165,8 @@ impl CurvedElectronArrowGestureErrorV1 {
     #[must_use]
     pub const fn recovery(&self) -> CurvedElectronArrowGestureRecoveryV1 {
         match self {
-            Self::StaleSnapshot
+            Self::ForeignSession
+            | Self::StaleSnapshot
             | Self::MismatchedPreview
             | Self::ReplayedGesture
             | Self::SessionConflict => CurvedElectronArrowGestureRecoveryV1::RefreshAndRestart,
@@ -188,11 +186,27 @@ pub fn begin_curved_electron_arrow_gesture_v1(
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
 ) -> Result<CurvedElectronArrowGestureV1, CurvedElectronArrowGestureErrorV1> {
-    require_fence(session, fence)?;
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    Ok(CurvedElectronArrowGestureV1 {
+    begin_curved_terminal_arrow_gesture_v1(
+        session,
         fence,
-        nonce: NEXT.fetch_add(1, Ordering::Relaxed),
+        start,
+        control,
+        CurvedTerminalArrowKindV1::Electron,
+    )
+}
+
+fn begin_curved_terminal_arrow_gesture_v1(
+    session: &DocumentSession,
+    fence: DocumentFenceV1,
+    start: PresentationGesturePoint2V1,
+    control: PresentationGesturePoint2V1,
+    kind: CurvedTerminalArrowKindV1,
+) -> Result<CurvedElectronArrowGestureV1, CurvedElectronArrowGestureErrorV1> {
+    require_fence(session, fence)?;
+    Ok(CurvedElectronArrowGestureV1 {
+        kind,
+        capability: session.authoring_capability_issuer_v1().issue(),
+        fence,
         start,
         control,
     })
@@ -203,8 +217,14 @@ pub fn preview_curved_electron_arrow_gesture_v1(
     gesture: &CurvedElectronArrowGestureV1,
     end: PresentationGesturePoint2V1,
 ) -> Result<CurvedElectronArrowPreviewV1, CurvedElectronArrowGestureErrorV1> {
+    if !gesture
+        .capability
+        .belongs_to(&session.authoring_capability_issuer_v1())
+    {
+        return Err(CurvedElectronArrowGestureErrorV1::ForeignSession);
+    }
     require_fence(session, gesture.fence)?;
-    let overlay = geometry(gesture.start, gesture.control, end)?;
+    let overlay = geometry(gesture.kind, gesture.start, gesture.control, end)?;
     Ok(CurvedElectronArrowPreviewV1 {
         gesture: gesture.clone(),
         end,
@@ -217,23 +237,35 @@ pub fn prepare_curved_electron_arrow_gesture_v1(
     gesture: &CurvedElectronArrowGestureV1,
     preview: &CurvedElectronArrowPreviewV1,
 ) -> Result<PreparedCurvedElectronArrowV1, CurvedElectronArrowGestureErrorV1> {
-    if gesture.nonce != preview.gesture.nonce {
+    if !gesture
+        .capability
+        .belongs_to(&session.authoring_capability_issuer_v1())
+    {
+        return Err(CurvedElectronArrowGestureErrorV1::ForeignSession);
+    }
+    if !gesture
+        .capability
+        .same_capability(&preview.gesture.capability)
+    {
         return Err(CurvedElectronArrowGestureErrorV1::MismatchedPreview);
     }
     require_fence(session, gesture.fence)?;
-    let identifier = next_identifier(session);
-    let source = session
-        .snapshot()
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::SessionConflict)?
-        .cdml()
-        .to_owned();
-    let candidate = append_arrow(
-        &source,
-        &identifier,
-        gesture.start,
-        gesture.control,
-        preview.end,
-    )?;
+    let pending = session
+        .prepare_create_presentation_v1(
+            &gesture.capability,
+            gesture.fence,
+            PresentationCreateRequestV1::CurvedTerminalArrow {
+                kind: gesture.kind,
+                start: gesture.start,
+                control: gesture.control,
+                end: preview.end,
+            },
+        )
+        .map_err(map_presentation_create_error)?;
+    let identifier = pending.identifier().as_str().to_owned();
+    let candidate = pending
+        .candidate_cdml_for_render_preflight_v1()
+        .ok_or(CurvedElectronArrowGestureErrorV1::ReplayedGesture)?;
     ferrum_render_contract::preflight_complete_document_v1(&candidate)
         .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
     let candidate_session = DocumentSession::load(&candidate)
@@ -252,16 +284,8 @@ pub fn prepare_curved_electron_arrow_gesture_v1(
     {
         return Err(CurvedElectronArrowGestureErrorV1::RenderPreparation);
     }
-    let digest = *candidate_session
-        .snapshot()
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?
-        .digest();
     Ok(PreparedCurvedElectronArrowV1 {
-        receipt: Some(CurvedElectronArrowReceiptV1 {
-            source_fence: gesture.fence,
-            candidate,
-            candidate_digest: digest,
-        }),
+        pending: Some(pending),
         identifier,
     })
 }
@@ -270,28 +294,43 @@ pub fn commit_curved_electron_arrow_gesture_v1(
     session: &mut DocumentSession,
     prepared: &mut PreparedCurvedElectronArrowV1,
 ) -> Result<CommittedCurvedElectronArrowV1, CurvedElectronArrowGestureErrorV1> {
-    let receipt = prepared
-        .receipt
+    let mut pending = prepared
+        .pending
         .take()
         .ok_or(CurvedElectronArrowGestureErrorV1::ReplayedGesture)?;
-    require_fence(session, receipt.source_fence)?;
-    let candidate = DocumentSession::load(&receipt.candidate)
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
-    if *candidate
-        .snapshot()
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?
-        .digest()
-        != receipt.candidate_digest
-    {
-        return Err(CurvedElectronArrowGestureErrorV1::RenderPreparation);
+    let result = (|| {
+        session
+            .commit_create_presentation_v1(&mut pending)
+            .map_err(map_presentation_create_error)
+    })();
+    match result {
+        Ok(result) => {
+            let root = PresentationRootSelectorV1::new(&prepared.identifier, pending.root_kind())
+                .expect("generated electron arrow identifier is valid");
+            Ok(CommittedCurvedElectronArrowV1 { root, result })
+        }
+        Err(error) => {
+            prepared.pending = Some(pending);
+            Err(error)
+        }
     }
-    let result = session
-        .commit_complete_cdml_transaction_v1(receipt.source_fence, &receipt.candidate)
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::SessionConflict)?;
-    let root =
-        PresentationRootSelectorV1::new(&prepared.identifier, PresentationRecordKindV1::Arrow)
-            .expect("generated electron arrow identifier is valid");
-    Ok(CommittedCurvedElectronArrowV1 { root, result })
+}
+
+fn map_presentation_create_error(
+    error: PresentationCreateErrorV1,
+) -> CurvedElectronArrowGestureErrorV1 {
+    match error {
+        PresentationCreateErrorV1::ForeignSession => {
+            CurvedElectronArrowGestureErrorV1::ForeignSession
+        }
+        PresentationCreateErrorV1::StaleSnapshot => {
+            CurvedElectronArrowGestureErrorV1::StaleSnapshot
+        }
+        PresentationCreateErrorV1::Replayed => CurvedElectronArrowGestureErrorV1::ReplayedGesture,
+        PresentationCreateErrorV1::SessionConflict => {
+            CurvedElectronArrowGestureErrorV1::SessionConflict
+        }
+    }
 }
 
 fn require_fence(
@@ -307,6 +346,7 @@ fn require_fence(
 }
 
 fn geometry(
+    kind: CurvedTerminalArrowKindV1,
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
@@ -333,8 +373,9 @@ fn geometry(
     if tangent < MINIMUM_CONTROL_DISTANCE_PT {
         return Err(CurvedElectronArrowGestureErrorV1::ControlTooNearChord);
     }
-    let issued = electron_arrow_geometry_v1(point3(start), point3(control), point3(end))
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::ControlTooNearChord)?;
+    let issued =
+        curved_terminal_arrow_geometry_v1(kind, point3(start), point3(control), point3(end))
+            .map_err(|_| CurvedElectronArrowGestureErrorV1::ControlTooNearChord)?;
     let [_, cubic_control_1, cubic_control_2, _] = *issued.cubic_axis();
     let [tip, left, inner, right] = *issued.head();
     Ok(CurvedElectronArrowOverlayV1 {
@@ -355,40 +396,101 @@ fn point2(point: Point3V1) -> PresentationGesturePoint2V1 {
     PresentationGesturePoint2V1::new(point.x(), point.y()).expect("issued finite geometry")
 }
 
-fn next_identifier(session: &DocumentSession) -> String {
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    loop {
-        let identifier = format!("electron-arrow-{}", NEXT.fetch_add(1, Ordering::Relaxed));
-        if !session.contains_durable_id_v1(&identifier) {
-            return identifier;
-        }
-    }
-}
+/// Closed retro-arrow aliases retain the trusted opaque lifecycle while the
+/// document-owned policy selects the persisted `type="retro"` grammar.
+pub type CurvedRetroArrowGestureV1 = CurvedElectronArrowGestureV1;
+pub type CurvedRetroArrowPreviewV1 = CurvedElectronArrowPreviewV1;
+pub type CurvedRetroArrowOverlayV1 = CurvedElectronArrowOverlayV1;
+pub type PreparedCurvedRetroArrowV1 = PreparedCurvedElectronArrowV1;
+pub type CommittedCurvedRetroArrowV1 = CommittedCurvedElectronArrowV1;
+pub type CurvedRetroArrowGestureCategoryV1 = CurvedElectronArrowGestureCategoryV1;
+pub type CurvedRetroArrowGestureRecoveryV1 = CurvedElectronArrowGestureRecoveryV1;
+pub type CurvedRetroArrowGestureErrorV1 = CurvedElectronArrowGestureErrorV1;
 
-fn append_arrow(
-    source: &str,
-    id: &str,
+pub fn begin_curved_retro_arrow_gesture_v1(
+    session: &DocumentSession,
+    fence: DocumentFenceV1,
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
+) -> Result<CurvedRetroArrowGestureV1, CurvedRetroArrowGestureErrorV1> {
+    begin_curved_terminal_arrow_gesture_v1(
+        session,
+        fence,
+        start,
+        control,
+        CurvedTerminalArrowKindV1::Retro,
+    )
+}
+
+pub fn preview_curved_retro_arrow_gesture_v1(
+    session: &DocumentSession,
+    gesture: &CurvedRetroArrowGestureV1,
     end: PresentationGesturePoint2V1,
-) -> Result<String, CurvedElectronArrowGestureErrorV1> {
-    let arrow = format!(
-        "<arrow id=\"{id}\" type=\"electron\" width=\"1.0\" color=\"#000000\"><point x=\"{}\" y=\"{}\" z=\"0\"/><point x=\"{}\" y=\"{}\" z=\"0\"/><point x=\"{}\" y=\"{}\" z=\"0\"/></arrow>",
-        start.x(),
-        start.y(),
-        control.x(),
-        control.y(),
-        end.x(),
-        end.y()
-    );
-    if let Some(close) = source.rfind("</cdml") {
-        return Ok(format!("{}{}{}", &source[..close], arrow, &source[close..]));
-    }
-    let close = source
-        .rfind("/>")
-        .filter(|index| source[index + 2..].trim().is_empty())
-        .ok_or(CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
-    Ok(format!("{}>{}</cdml>", &source[..close], arrow))
+) -> Result<CurvedRetroArrowPreviewV1, CurvedRetroArrowGestureErrorV1> {
+    preview_curved_electron_arrow_gesture_v1(session, gesture, end)
+}
+
+pub fn prepare_curved_retro_arrow_gesture_v1(
+    session: &mut DocumentSession,
+    gesture: &CurvedRetroArrowGestureV1,
+    preview: &CurvedRetroArrowPreviewV1,
+) -> Result<PreparedCurvedRetroArrowV1, CurvedRetroArrowGestureErrorV1> {
+    prepare_curved_electron_arrow_gesture_v1(session, gesture, preview)
+}
+
+pub fn commit_curved_retro_arrow_gesture_v1(
+    session: &mut DocumentSession,
+    prepared: &mut PreparedCurvedRetroArrowV1,
+) -> Result<CommittedCurvedRetroArrowV1, CurvedRetroArrowGestureErrorV1> {
+    commit_curved_electron_arrow_gesture_v1(session, prepared)
+}
+
+/// Closed curved-normal-reaction-arrow aliases retain the shared opaque lifecycle.
+pub type CurvedNormalReactionArrowGestureV1 = CurvedElectronArrowGestureV1;
+pub type CurvedNormalReactionArrowPreviewV1 = CurvedElectronArrowPreviewV1;
+pub type CurvedNormalReactionArrowOverlayV1 = CurvedElectronArrowOverlayV1;
+pub type PreparedCurvedNormalReactionArrowV1 = PreparedCurvedElectronArrowV1;
+pub type CommittedCurvedNormalReactionArrowV1 = CommittedCurvedElectronArrowV1;
+pub type CurvedNormalReactionArrowGestureCategoryV1 = CurvedElectronArrowGestureCategoryV1;
+pub type CurvedNormalReactionArrowGestureRecoveryV1 = CurvedElectronArrowGestureRecoveryV1;
+pub type CurvedNormalReactionArrowGestureErrorV1 = CurvedElectronArrowGestureErrorV1;
+
+pub fn begin_curved_normal_reaction_arrow_gesture_v1(
+    session: &DocumentSession,
+    fence: DocumentFenceV1,
+    start: PresentationGesturePoint2V1,
+    control: PresentationGesturePoint2V1,
+) -> Result<CurvedNormalReactionArrowGestureV1, CurvedNormalReactionArrowGestureErrorV1> {
+    begin_curved_terminal_arrow_gesture_v1(
+        session,
+        fence,
+        start,
+        control,
+        CurvedTerminalArrowKindV1::Normal,
+    )
+}
+
+pub fn preview_curved_normal_reaction_arrow_gesture_v1(
+    session: &DocumentSession,
+    gesture: &CurvedNormalReactionArrowGestureV1,
+    end: PresentationGesturePoint2V1,
+) -> Result<CurvedNormalReactionArrowPreviewV1, CurvedNormalReactionArrowGestureErrorV1> {
+    preview_curved_electron_arrow_gesture_v1(session, gesture, end)
+}
+
+pub fn prepare_curved_normal_reaction_arrow_gesture_v1(
+    session: &mut DocumentSession,
+    gesture: &CurvedNormalReactionArrowGestureV1,
+    preview: &CurvedNormalReactionArrowPreviewV1,
+) -> Result<PreparedCurvedNormalReactionArrowV1, CurvedNormalReactionArrowGestureErrorV1> {
+    prepare_curved_electron_arrow_gesture_v1(session, gesture, preview)
+}
+
+pub fn commit_curved_normal_reaction_arrow_gesture_v1(
+    session: &mut DocumentSession,
+    prepared: &mut PreparedCurvedNormalReactionArrowV1,
+) -> Result<CommittedCurvedNormalReactionArrowV1, CurvedNormalReactionArrowGestureErrorV1> {
+    commit_curved_electron_arrow_gesture_v1(session, prepared)
 }
 
 #[cfg(test)]
@@ -402,6 +504,169 @@ mod tests {
         let snapshot = session.snapshot().unwrap();
         DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
     }
+
+    #[test]
+    fn retro_arrow_uses_the_shared_geometry_and_persists_its_closed_type() {
+        let mut session = DocumentSession::load(EMPTY).unwrap();
+        let gesture = begin_curved_retro_arrow_gesture_v1(
+            &session,
+            fence(&session),
+            point(0.0, 0.0),
+            point(20.0, 20.0),
+        )
+        .unwrap();
+        let preview =
+            preview_curved_retro_arrow_gesture_v1(&session, &gesture, point(40.0, 0.0)).unwrap();
+        assert_eq!(preview.overlay().cubic_control_1().x(), 13.333333333333332);
+        let mut prepared =
+            prepare_curved_retro_arrow_gesture_v1(&mut session, &gesture, &preview).unwrap();
+        let committed = commit_curved_retro_arrow_gesture_v1(&mut session, &mut prepared).unwrap();
+        assert!(
+            committed
+                .result()
+                .observation()
+                .snapshot()
+                .cdml()
+                .contains("type=\"retro\"")
+        );
+        assert!(matches!(
+            commit_curved_retro_arrow_gesture_v1(&mut session, &mut prepared),
+            Err(CurvedRetroArrowGestureErrorV1::ReplayedGesture)
+        ));
+    }
+
+    #[test]
+    fn shared_retro_error_uses_family_neutral_public_text() {
+        assert_eq!(
+            CurvedRetroArrowGestureErrorV1::ControlTooNearChord.to_string(),
+            "curved terminal-arrow control point is too close to its chord"
+        );
+        assert_eq!(
+            CurvedRetroArrowGestureErrorV1::ControlTooNearChord.category(),
+            CurvedRetroArrowGestureCategoryV1::ControlTooNearChord
+        );
+        assert_eq!(
+            CurvedRetroArrowGestureErrorV1::ControlTooNearChord.recovery(),
+            CurvedRetroArrowGestureRecoveryV1::ChangeGeometry
+        );
+    }
+
+    fn assert_foreign_session_rejects_terminal_arrow_family(
+        begin: fn(
+            &DocumentSession,
+            DocumentFenceV1,
+            PresentationGesturePoint2V1,
+            PresentationGesturePoint2V1,
+        )
+            -> Result<CurvedElectronArrowGestureV1, CurvedElectronArrowGestureErrorV1>,
+        preview: fn(
+            &DocumentSession,
+            &CurvedElectronArrowGestureV1,
+            PresentationGesturePoint2V1,
+        )
+            -> Result<CurvedElectronArrowPreviewV1, CurvedElectronArrowGestureErrorV1>,
+        prepare: fn(
+            &mut DocumentSession,
+            &CurvedElectronArrowGestureV1,
+            &CurvedElectronArrowPreviewV1,
+        )
+            -> Result<PreparedCurvedElectronArrowV1, CurvedElectronArrowGestureErrorV1>,
+        commit: fn(
+            &mut DocumentSession,
+            &mut PreparedCurvedElectronArrowV1,
+        )
+            -> Result<CommittedCurvedElectronArrowV1, CurvedElectronArrowGestureErrorV1>,
+    ) {
+        let mut owner = DocumentSession::load(EMPTY).unwrap();
+        let mut foreign = DocumentSession::load(EMPTY).unwrap();
+        let gesture = begin(&owner, fence(&owner), point(0.0, 0.0), point(20.0, 20.0)).unwrap();
+        assert!(matches!(
+            preview(&foreign, &gesture, point(40.0, 0.0)),
+            Err(CurvedElectronArrowGestureErrorV1::ForeignSession)
+        ));
+        let issued = preview(&owner, &gesture, point(40.0, 0.0)).unwrap();
+        assert!(matches!(
+            prepare(&mut foreign, &gesture, &issued),
+            Err(CurvedElectronArrowGestureErrorV1::ForeignSession)
+        ));
+        let mut prepared = prepare(&mut owner, &gesture, &issued).unwrap();
+        assert!(matches!(
+            commit(&mut foreign, &mut prepared),
+            Err(CurvedElectronArrowGestureErrorV1::ForeignSession)
+        ));
+        assert_eq!(foreign.snapshot().unwrap().revision(), 0);
+        assert_eq!(owner.snapshot().unwrap().revision(), 0);
+        assert_eq!(
+            commit(&mut owner, &mut prepared)
+                .unwrap()
+                .result()
+                .observation()
+                .snapshot()
+                .revision(),
+            1
+        );
+        assert!(matches!(
+            commit(&mut owner, &mut prepared),
+            Err(CurvedElectronArrowGestureErrorV1::ReplayedGesture)
+        ));
+    }
+
+    #[test]
+    fn terminal_arrow_families_fence_identical_foreign_sessions() {
+        assert_foreign_session_rejects_terminal_arrow_family(
+            begin_curved_electron_arrow_gesture_v1,
+            preview_curved_electron_arrow_gesture_v1,
+            prepare_curved_electron_arrow_gesture_v1,
+            commit_curved_electron_arrow_gesture_v1,
+        );
+        assert_foreign_session_rejects_terminal_arrow_family(
+            begin_curved_retro_arrow_gesture_v1,
+            preview_curved_retro_arrow_gesture_v1,
+            prepare_curved_retro_arrow_gesture_v1,
+            commit_curved_retro_arrow_gesture_v1,
+        );
+        assert_foreign_session_rejects_terminal_arrow_family(
+            begin_curved_normal_reaction_arrow_gesture_v1,
+            preview_curved_normal_reaction_arrow_gesture_v1,
+            prepare_curved_normal_reaction_arrow_gesture_v1,
+            commit_curved_normal_reaction_arrow_gesture_v1,
+        );
+    }
+
+    #[test]
+    fn curved_normal_reaction_arrow_persists_its_closed_type_and_geometry() {
+        let mut session = DocumentSession::load(EMPTY).unwrap();
+        let gesture = begin_curved_normal_reaction_arrow_gesture_v1(
+            &session,
+            fence(&session),
+            point(0.0, 0.0),
+            point(20.0, 20.0),
+        )
+        .unwrap();
+        let preview =
+            preview_curved_normal_reaction_arrow_gesture_v1(&session, &gesture, point(40.0, 0.0))
+                .unwrap();
+        assert_eq!(preview.overlay().cubic_control_1().x(), 13.333333333333332);
+        assert_eq!(preview.overlay().head().len(), 4);
+        let mut prepared =
+            prepare_curved_normal_reaction_arrow_gesture_v1(&mut session, &gesture, &preview)
+                .unwrap();
+        let committed =
+            commit_curved_normal_reaction_arrow_gesture_v1(&mut session, &mut prepared).unwrap();
+        assert!(
+            committed
+                .result()
+                .observation()
+                .snapshot()
+                .cdml()
+                .contains("type=\"curved-normal\"")
+        );
+        assert!(matches!(
+            commit_curved_normal_reaction_arrow_gesture_v1(&mut session, &mut prepared),
+            Err(CurvedNormalReactionArrowGestureErrorV1::ReplayedGesture)
+        ));
+    }
+
     #[test]
     fn quadratic_arrow_preflights_and_commits_one_semantic_root() {
         let mut session = DocumentSession::load(EMPTY).unwrap();
@@ -453,7 +718,7 @@ mod tests {
         let [ferrum_document::PresentationRootProjectionV1::Arrow { arrow }] = stack.roots() else {
             panic!("expected electron arrow");
         };
-        let ferrum_document::ArrowDisplayGeometryV1::Electron {
+        let ferrum_document::ArrowDisplayGeometryV1::CurvedTerminal {
             axis_path, head, ..
         } = arrow.geometry()
         else {

@@ -11,7 +11,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 mod dto_errors;
+mod presentation_author_dto;
 pub use dto_errors::*;
+pub use presentation_author_dto::*;
 
 /// Exact schema identifier accepted for V1 requests.
 pub const OPERATION_PROTOCOL_REQUEST_SCHEMA_V1: &str = "ferrum-operation-request-v1";
@@ -99,9 +101,9 @@ pub enum OperationProtocolOperationV1 {
     /// Regenerate all direct typed molecule coordinates as one document transition.
     #[serde(rename = "document.generate_coordinates")]
     GenerateCoordinates(DocumentGenerateCoordinatesRequestV1),
-    /// Create one direct-root presentation vector through the closed Rust gesture.
-    #[serde(rename = "presentation.vector.create.v1")]
-    PresentationVectorCreate(PresentationVectorCreateRequestV1),
+    /// Author one closed presentation family through a request-owned Rust session.
+    #[serde(rename = "presentation.author.v1")]
+    PresentationAuthor(PresentationAuthorRequestV1),
     /// List immutable Ferrum-authored template catalog summary facts.
     #[serde(rename = "catalog.list.v1")]
     CatalogList(CatalogListRequestV1),
@@ -219,39 +221,6 @@ pub struct DocumentGenerateCoordinatesRequestV1 {
     pub document: String,
 }
 
-/// Closed, stateless vector-authoring request.  Appearance is deliberately a
-/// policy token, never caller-supplied paint or XML.
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PresentationVectorCreateRequestV1 {
-    pub document: String,
-    pub expected_revision: u64,
-    pub expected_digest_hex: String,
-    /// Shape family. `kind` remains reserved by the tagged operation envelope.
-    pub vector_kind: ProtocolPresentationVectorKindV1,
-    pub start_x: f64,
-    pub start_y: f64,
-    pub end_x: f64,
-    pub end_y: f64,
-    pub appearance_policy: ProtocolPresentationVectorAppearancePolicyV1,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ProtocolPresentationVectorKindV1 {
-    Line,
-    Rectangle,
-    Square,
-    Oval,
-    Circle,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ProtocolPresentationVectorAppearancePolicyV1 {
-    EffectiveDrawingStandard,
-}
-
 /// Optional filters over immutable shipped template catalog summary facts.
 ///
 /// Family and category use exact closed identities. Query trims ASCII whitespace,
@@ -347,6 +316,19 @@ pub struct DocumentInspectRequestV1 {
     pub document: String,
 }
 
+/// Immutable request fence derived from one admitted document snapshot.
+///
+/// The caller keeps the original request-owned document and may submit these
+/// values unchanged to a subsequent document mutation.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentRequestFenceV1 {
+    /// Revision of the admitted snapshot.
+    pub expected_revision: u64,
+    /// Lowercase hexadecimal SHA-256 digest of the admitted snapshot.
+    pub expected_digest_hex: String,
+}
+
 /// Request payload for `document.validate`.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -426,7 +408,10 @@ pub enum ProtocolResponseSchemaV1 {
 pub enum OperationProtocolOutcomeV1 {
     /// Semantic CDML inspection facts.
     #[serde(rename = "document.inspect")]
-    Inspect { report: CdmlInspection },
+    Inspect {
+        report: CdmlInspection,
+        document_fence: DocumentRequestFenceV1,
+    },
     /// Validation facts plus the caller-selected protocol level.
     #[serde(rename = "document.validate")]
     Validate {
@@ -471,20 +456,24 @@ pub enum OperationProtocolOutcomeV1 {
         /// Number of direct typed molecular roots regenerated.
         regenerated_molecule_count: usize,
     },
-    /// Accepted canonical vector document and its durable direct-root ID.
-    #[serde(rename = "presentation.vector.create.v1")]
-    PresentationVectorCreate {
+    /// Accepted authoring mutation, durable root facts, and stateless continuation.
+    #[serde(rename = "presentation.author.v1")]
+    PresentationAuthor {
+        /// Closed authoring family that produced the accepted mutation.
+        authoring_kind: PresentationAuthoringKindV1,
+        /// Accepted canonical CDML for the next stateless request.
         document: String,
+        /// Durable identifier of the committed direct root.
         identifier: String,
-        /// Every stateless input is loaded as a fresh session at revision zero.
-        input_revision: u64,
+        /// Durable kind of the committed direct root.
+        root_kind: String,
         /// Revision of the local session commit represented by this result.
         committed_revision: u64,
-        /// Required `expected_revision` if `document` is submitted in a new request.
-        next_input_expected_revision: u64,
-        digest_hex: String,
-        /// Frozen renderer-owned observation of the exact accepted candidate.
-        renderer_observation: serde_json::Value,
+        /// Portable request fence for submitting this exact accepted document.
+        document_fence: DocumentRequestFenceV1,
+        /// Direct-bond facts present only for the direct-bond authoring family.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        direct_bond: Option<PresentationAuthorDirectBondOutcomeV1>,
     },
     /// Immutable shipped catalog facts, without recipe or CDML payloads.
     #[serde(rename = "catalog.list.v1")]
@@ -498,10 +487,9 @@ pub enum OperationProtocolOutcomeV1 {
     CatalogInsert {
         document: String,
         identifier: String,
-        input_revision: u64,
         committed_revision: u64,
-        next_input_expected_revision: u64,
-        digest_hex: String,
+        /// Portable request fence for submitting this exact changed document.
+        document_fence: DocumentRequestFenceV1,
     },
     #[serde(rename = "reaction.create.v1")]
     ReactionCreate {
@@ -867,7 +855,7 @@ impl OperationProtocolOperationV1 {
             Self::RenderArtifact(_) => ProtocolOperationKindV1::RenderArtifact,
             Self::ChemistryConvert(_) => ProtocolOperationKindV1::ChemistryConvert,
             Self::GenerateCoordinates(_) => ProtocolOperationKindV1::GenerateCoordinates,
-            Self::PresentationVectorCreate(_) => ProtocolOperationKindV1::PresentationVectorCreate,
+            Self::PresentationAuthor(_) => ProtocolOperationKindV1::PresentationAuthor,
             Self::CatalogList(_) => ProtocolOperationKindV1::CatalogList,
             Self::CatalogInsert(_) => ProtocolOperationKindV1::CatalogInsert,
             Self::ReactionCreate(_) => ProtocolOperationKindV1::ReactionCreate,

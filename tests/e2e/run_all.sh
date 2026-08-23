@@ -41,16 +41,24 @@ require_local_qt_runtime() {
 
 
 source "${REPO_ROOT}/source_me.sh"
+export PYTHONPATH="${LOCAL_PYTHON_ROOT}:${QT_SOURCE_ROOT}:${REPO_ROOT}/tests${PYTHONPATH:+:${PYTHONPATH}}"
+export QT_QPA_PLATFORM=offscreen
 require_local_cli
 require_local_qt_runtime
 
 run_e2e "Ferrum CLI verb E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_ferrum_verb_cli.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum CLI operation protocol E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_ferrum_protocol_v1.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum CLI template catalog E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum document SDF export E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_document_export_sdf_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum Qt render interaction E2E" \
-	env PYTHONPATH="${LOCAL_PYTHON_ROOT}:${QT_SOURCE_ROOT}" QT_QPA_PLATFORM=offscreen \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_render_interaction_selection.py"
 run_e2e "Ferrum Qt arrow authoring E2E" \
-	env PYTHONPATH="${LOCAL_PYTHON_ROOT}:${QT_SOURCE_ROOT}" QT_QPA_PLATFORM=offscreen \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_arrow_authoring.py"
+run_e2e "Ferrum Qt presentation vector authoring E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_presentation_vector_authoring.py"
+run_e2e "Ferrum Qt template catalog authoring E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_authoring.py"

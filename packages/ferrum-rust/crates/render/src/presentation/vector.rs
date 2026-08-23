@@ -43,38 +43,69 @@ fn arrow_root(arrow: &ArrowProjectionV1) -> Result<DocumentVectorRootV1, RenderE
         ArrowDisplayGeometryV1::Equilibrium { axes, heads } => {
             arrow_geometry_root(&stroke, axes, heads)
         }
-        ArrowDisplayGeometryV1::Electron { axis_path, head, .. } => {
-            electron_arrow_geometry_root(&stroke, axis_path, head)
+        ArrowDisplayGeometryV1::CurvedEquilibrium { axes, heads, .. } => {
+            cubic_arrow_geometry_root(&stroke, axes, heads, "curved equilibrium")
         }
+        ArrowDisplayGeometryV1::CurvedTerminal {
+            axis_path, head, ..
+        } => cubic_arrow_geometry_root(
+            &stroke,
+            std::slice::from_ref(axis_path),
+            std::slice::from_ref(head),
+            "curved terminal",
+        ),
     }
 }
 
-fn electron_arrow_geometry_root(
+fn cubic_arrow_geometry_root(
     stroke: &StrokeV1,
-    axis: &ferrum_document::ArrowPathV1,
-    head: &ferrum_document::ArrowHeadV1,
+    axes: &[ferrum_document::ArrowPathV1],
+    heads: &[ferrum_document::ArrowHeadV1],
+    arrow_family: &str,
 ) -> Result<DocumentVectorRootV1, RenderError> {
-    let [start, control_1, control_2, end] = axis.points() else {
-        return Err(RenderError::InvalidRequest(
-            "electron arrow axis must contain one cubic segment".to_owned(),
-        ));
-    };
-    let axis = DocumentVectorOpV1::path(
-        vec![
-            PathCommandV1::MoveTo(point(*start)?),
-            PathCommandV1::CubicTo {
-                control_1: point(*control_1)?,
-                control_2: point(*control_2)?,
-                end: point(*end)?,
-            },
-        ],
-        Some(stroke.clone()),
-        None,
-    )?;
-    let mut head_commands = Vec::new();
-    closed_points(&mut head_commands, head.points())?;
-    let head = DocumentVectorOpV1::path(head_commands, None, Some(stroke.paint().clone()))?;
-    DocumentVectorRootV1::new(vec![axis, head])
+    let mut operations = Vec::new();
+    operations
+        .try_reserve(axes.len() + usize::from(!heads.is_empty()))
+        .map_err(|_| RenderError::ResourceExhausted)?;
+    for axis in axes {
+        let [start, control_1, control_2, end] = axis.points() else {
+            return Err(RenderError::InvalidRequest(format!(
+                "{arrow_family} arrow axis must contain one cubic segment"
+            )));
+        };
+        operations.push(DocumentVectorOpV1::path(
+            vec![
+                PathCommandV1::MoveTo(point(*start)?),
+                PathCommandV1::CubicTo {
+                    control_1: point(*control_1)?,
+                    control_2: point(*control_2)?,
+                    end: point(*end)?,
+                },
+            ],
+            Some(stroke.clone()),
+            None,
+        )?);
+    }
+    if !heads.is_empty() {
+        let mut commands = Vec::new();
+        commands
+            .try_reserve(
+                heads
+                    .len()
+                    .checked_mul(5)
+                    .ok_or(RenderError::ResourceExhausted)?,
+            )
+            .map_err(|_| RenderError::ResourceExhausted)?;
+        for head in heads {
+            closed_points(&mut commands, head.points())?;
+        }
+        operations.push(DocumentVectorOpV1::path(
+            commands,
+            None,
+            Some(stroke.paint().clone()),
+        )?);
+    }
+    DocumentVectorRootV1::new(operations)
 }
 
 fn arrow_geometry_root(

@@ -37,7 +37,8 @@ the detailed commands, fixtures, measurements, and review findings.
 
 - **M4a:** A macOS arm64 source-built native-wheel route proved a package-relative,
   replaceable chemistry library. The initial two-library ABI-1 proof is historical;
-  its mechanism and limits are in [native wheel packaging](native_wheel_packaging.md).
+  its surviving engine-boundary evidence is in
+  [native_kekulization.md](native_kekulization.md).
 - **M4b-M4d:** The accepted adapter is a narrow `ChemEngine` boundary with owned
   `MolGraph` output. ABI-2 established GraphMol kekulization with stated defaults;
   ABI-4 carries complete graphs. The current direct extension is FCM1/ABI-4 against

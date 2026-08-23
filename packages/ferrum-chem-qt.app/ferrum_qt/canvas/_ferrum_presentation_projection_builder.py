@@ -519,7 +519,9 @@ def _build_arrow(root: object, extension: object) -> ArrowProjectionItem:
 	if type(geometry) is not extension.ArrowDisplayGeometryV1:
 		raise PresentationProjectionError("arrow geometry has the wrong DTO type")
 	if geometry.kind == "normal":
-		if geometry.equilibrium is not None or \
+		if any(value is not None for value in (
+			geometry.equilibrium, geometry.curved_equilibrium, geometry.curved_terminal,
+		)) or \
 				type(geometry.normal) is not extension.NormalArrowDisplayGeometryV1:
 			raise PresentationProjectionError("normal arrow geometry payload is invalid")
 		normal = geometry.normal
@@ -545,7 +547,9 @@ def _build_arrow(root: object, extension: object) -> ArrowProjectionItem:
 		if [head.position for head in heads] != expected_positions:
 			raise PresentationProjectionError("arrow head sequence differs from its flags")
 	elif geometry.kind == "equilibrium":
-		if geometry.normal is not None or \
+		if any(value is not None for value in (
+			geometry.normal, geometry.curved_equilibrium, geometry.curved_terminal,
+		)) or \
 				type(geometry.equilibrium) is not extension.EquilibriumArrowDisplayGeometryV1:
 			raise PresentationProjectionError("equilibrium arrow geometry payload is invalid")
 		equilibrium = geometry.equilibrium
@@ -556,19 +560,45 @@ def _build_arrow(root: object, extension: object) -> ArrowProjectionItem:
 		heads = equilibrium.heads
 		if [head.position for head in heads] != ["start", "end"]:
 			raise PresentationProjectionError("equilibrium arrow requires opposing issued heads")
-	elif geometry.kind == "electron":
-		if geometry.normal is not None or geometry.equilibrium is not None or \
-				type(geometry.electron) is not extension.ElectronArrowDisplayGeometryV1:
-			raise PresentationProjectionError("electron arrow geometry payload is invalid")
-		electron = geometry.electron
+	elif geometry.kind == "curved_equilibrium":
+		curved_equilibrium = geometry.curved_equilibrium
+		if any(value is not None for value in (
+				geometry.normal, geometry.equilibrium, geometry.curved_terminal,
+			)) or type(curved_equilibrium) is not extension.CurvedEquilibriumArrowDisplayGeometryV1:
+			raise PresentationProjectionError("curved equilibrium arrow geometry payload is invalid")
 		if len(source_points) != 3:
-			raise PresentationProjectionError("electron arrow source path requires three points")
-		axis_points = _arrow_points(electron.axis_path, extension, "electron axis")
+			raise PresentationProjectionError("curved equilibrium arrow source path requires three points")
+		if type(curved_equilibrium.axes) is not list or len(curved_equilibrium.axes) != 2:
+			raise PresentationProjectionError("curved equilibrium arrow requires two issued cubic axes")
+		axis_points = tuple(point for axis in curved_equilibrium.axes
+				for point in _arrow_points(axis, extension, "curved equilibrium arrow axis"))
+		if any(len(_arrow_points(axis, extension, "curved equilibrium arrow axis")) != 4
+				for axis in curved_equilibrium.axes):
+			raise PresentationProjectionError("curved equilibrium arrow axes require one cubic segment each")
+		heads = curved_equilibrium.heads
+		if [head.position for head in heads] != ["start", "end"]:
+			raise PresentationProjectionError("curved equilibrium arrow requires opposing issued heads")
+	elif geometry.kind == "curved_terminal":
+		terminal = geometry.curved_terminal
+		if geometry.normal is not None or geometry.equilibrium is not None or \
+				geometry.curved_equilibrium is not None or \
+				type(terminal) is not extension.CurvedTerminalArrowDisplayGeometryV1:
+			raise PresentationProjectionError("curved terminal arrow geometry payload is invalid")
+		if type(terminal.kind) is not extension.CurvedTerminalArrowDisplayKindV1 or \
+				terminal.kind not in (
+					extension.CurvedTerminalArrowDisplayKindV1.electron,
+					extension.CurvedTerminalArrowDisplayKindV1.retro,
+					extension.CurvedTerminalArrowDisplayKindV1.curved_normal_reaction,
+				):
+			raise PresentationProjectionError("curved terminal arrow kind is invalid")
+		if len(source_points) != 3:
+			raise PresentationProjectionError("curved terminal arrow source path requires three points")
+		axis_points = _arrow_points(terminal.axis_path, extension, "curved terminal arrow axis")
 		if len(axis_points) != 4:
-			raise PresentationProjectionError("electron arrow axis requires one issued cubic segment")
-		if type(electron.head) is not extension.ArrowHeadV1 or electron.head.position != "end":
-			raise PresentationProjectionError("electron arrow requires one terminal issued head")
-		heads = [electron.head]
+			raise PresentationProjectionError("curved terminal arrow axis requires one issued cubic segment")
+		if type(terminal.head) is not extension.ArrowHeadV1 or terminal.head.position != "end":
+			raise PresentationProjectionError("curved terminal arrow requires one terminal issued head")
+		heads = [terminal.head]
 	else:
 		raise PresentationProjectionError("arrow geometry kind is unknown")
 	if type(heads) is not list or any(type(head) is not extension.ArrowHeadV1 for head in heads):
@@ -595,6 +625,11 @@ def _build_arrow(root: object, extension: object) -> ArrowProjectionItem:
 			axis_path.moveTo(points[0])
 			for point in points[1:]:
 				axis_path.lineTo(point)
+	elif geometry.kind == "curved_equilibrium":
+		for axis in geometry.curved_equilibrium.axes:
+			points = _arrow_points(axis, extension, "curved equilibrium arrow axis")
+			axis_path.moveTo(points[0])
+			axis_path.cubicTo(points[1], points[2], points[3])
 	else:
 		axis_path.moveTo(axis_points[0])
 		axis_path.cubicTo(axis_points[1], axis_points[2], axis_points[3])
@@ -604,7 +639,7 @@ def _build_arrow(root: object, extension: object) -> ArrowProjectionItem:
 #============================================
 def _arrow_points(value: object, extension: object,
 		description: str) -> tuple[PySide6.QtCore.QPointF, ...]:
-	"""Validate one exact normal-arrow path payload."""
+	"""Validate one exact Rust-issued path payload for any ArrowPathV1 family."""
 	if type(value) is not extension.ArrowPathV1 or type(value.points) is not list:
 		raise PresentationProjectionError(f"arrow {description} path has the wrong DTO type")
 	if len(value.points) < 2:

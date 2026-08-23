@@ -110,22 +110,26 @@ def test_vector_shapes_use_projected_bounds_points_stroke_fill_and_kind(
 
 
 #============================================
-def test_normal_arrow_uses_rust_axis_heads_and_reports_unsupported_families(
+def test_normal_and_curved_terminal_arrows_use_rust_issued_geometry(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""Qt paints supplied normal-arrow geometry and never substitutes retro art."""
+	"""Qt paints each shared terminal-arrow DTO without substituting art."""
 	del qapp
 	observation = _observation(
 		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal" start="no" end="yes" spline="no" '
 		'width="2" color="#123456" shape="(8,10,3)">'
 		'<point x="0" y="0"/><point x="40" y="0"/></arrow>'
+		'<arrow id="electron" type="electron"><point x="0" y="-10"/>'
+		'<point x="20" y="-20"/><point x="40" y="-10"/></arrow>'
 		'<arrow id="retro" type="retro"><point x="0" y="10"/>'
-		'<point x="40" y="10"/></arrow></cdml>',
+		'<point x="20" y="20"/><point x="40" y="10"/></arrow>'
+		'<arrow id="normal" type="curved-normal"><point x="50" y="10"/>'
+		'<point x="70" y="20"/><point x="90" y="10"/></arrow></cdml>',
 	)
 	projection = ferrum_qt.canvas.ferrum_presentation_projection.build_presentation_projection(
 		observation,
 	)
-	assert len(projection.items) == 1
+	assert len(projection.items) == 4
 	item = projection.items[0]
 	assert isinstance(item, ferrum_qt.canvas.ferrum_presentation_projection.ArrowProjectionItem)
 	assert item.target.record_kind == "arrow" and item.target.source_order == 0
@@ -138,9 +142,8 @@ def test_normal_arrow_uses_rust_axis_heads_and_reports_unsupported_families(
 		for index in range(4)
 	] == [(40.0, 0.0), (30.0, 3.0), (32.0, 0.0), (30.0, -3.0)]
 	assert item.pen.color().name() == "#123456" and item.pen.widthF() == 2.0
-	assert [(issue.target.source_id, issue.code) for issue in projection.issues] == [
-		("retro", "unsupported_arrow_type"),
-	]
+	assert [item.target.source_id for item in projection.items[1:]] == ["electron", "retro", "normal"]
+	assert not projection.issues
 
 
 #============================================

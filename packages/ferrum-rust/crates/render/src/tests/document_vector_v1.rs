@@ -145,6 +145,43 @@ fn vector_filled_path_keeps_two_closed_subpaths_in_one_ordered_paint() {
 }
 
 #[test]
+fn curved_equilibrium_lowering_keeps_both_issued_axes_as_cubics() {
+    let session = ferrum_document::DocumentSession::load(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"equilibrium\" type=\"curved-equilibrium\" width=\"1\" color=\"#000000\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"20\"/><point x=\"80\" y=\"0\"/></arrow></cdml>",
+    )
+    .expect("closed curved equilibrium source");
+    let observation = session.observe(0).expect("initial observation");
+    let [root] = observation.projection().presentation_stack().roots() else {
+        panic!("one curved equilibrium root");
+    };
+    let lowered = lower_presentation_vector_v1(root).expect("curved equilibrium lowers");
+    let [lower_axis, upper_axis, heads] = lowered.operations() else {
+        panic!("two cubic lanes followed by both heads");
+    };
+    for axis in [lower_axis, upper_axis] {
+        assert!(matches!(
+            axis.commands(),
+            Some([PathCommandV1::MoveTo(_), PathCommandV1::CubicTo { .. }])
+        ));
+    }
+    assert!(matches!(
+        heads.commands(),
+        Some([
+            PathCommandV1::MoveTo(_),
+            PathCommandV1::LineTo(_),
+            PathCommandV1::LineTo(_),
+            PathCommandV1::LineTo(_),
+            PathCommandV1::Close,
+            PathCommandV1::MoveTo(_),
+            PathCommandV1::LineTo(_),
+            PathCommandV1::LineTo(_),
+            PathCommandV1::LineTo(_),
+            PathCommandV1::Close,
+        ])
+    ));
+}
+
+#[test]
 fn vector_ellipse_maps_explicit_geometry_and_paint() {
     let ellipse = DocumentVectorOpV1::ellipse(
         point(12.0, 15.0),

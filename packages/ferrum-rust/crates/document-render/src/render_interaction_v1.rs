@@ -12,11 +12,12 @@ use std::{
 
 use ferrum_document::{
     CompleteDocumentIdentityFactsV1, DirectCdmlRootKindV1, DirectCdmlSemanticIndexV1,
-    DocumentFenceV1, DocumentSession, Point3V1, PresentationCreationGestureV1,
-    PresentationGestureErrorV1, PresentationGestureKindV1, PresentationGesturePoint2V1,
-    PresentationGestureSnapPolicyV1, PresentationGestureStyleV1, PresentationRootProjectionV1,
-    SessionOperation, SessionOperationResultV1, SessionOperationV1, StructureDeletionReceiptV1,
-    TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
+    DocumentFenceV1, DocumentSession, DocumentSmartsSnapshotErrorV1, Point3V1,
+    PreparedDocumentSmartsSnapshotV1, PresentationCreationGestureV1, PresentationGestureErrorV1,
+    PresentationGestureKindV1, PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1,
+    PresentationGestureStyleV1, PresentationRootProjectionV1, SessionOperation,
+    SessionOperationResultV1, SessionOperationV1, StructureDeletionReceiptV1, TopLevelRootKindV1,
+    TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
 };
 use ferrum_geometry::{HexGrid, Point2};
 use ferrum_render::{

@@ -23,3 +23,6 @@ thiserror = { version = "*" }
 serde = { version = "*", features = ["derive"] }
 schemars = { version = "*" }
 xmlparser = { version = "*" }
+
+[dev-dependencies]
+serde_json = { version = "*" }

@@ -7,6 +7,21 @@ fn fence(session: &RenderInteractionSessionV1) -> DocumentFenceV1 {
 }
 
 #[test]
+fn render_session_exposes_revision_bound_smarts_preparation() {
+    let session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
+    let snapshot = session.snapshot().expect("snapshot");
+    let prepared = session
+        .prepare_smarts_snapshot_v1(snapshot.revision())
+        .expect("prepare current revision");
+    assert_eq!(prepared.revision(), snapshot.revision());
+    assert_eq!(prepared.digest(), snapshot.digest());
+    assert!(matches!(
+        session.prepare_smarts_snapshot_v1(snapshot.revision() + 1),
+        Err(DocumentSmartsSnapshotErrorV1::StaleRevision { .. })
+    ));
+}
+
+#[test]
 fn structural_line_hit_and_marquee_follow_the_rendered_stroke_not_its_box() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",

@@ -637,6 +637,11 @@ def test_presentation_creation_gesture_binding_owns_preview_and_canonical_arrow(
     assert 'width="1.0"' in cdml
     assert 'color="#000000"' in cdml
     assert "cm" in cdml
+    with pytest.raises(ferrum_chem.PresentationGestureError) as replayed:
+        session.commit_presentation_creation_gesture_v1(gesture, preview)
+    assert replayed.value.category == ferrum_chem.PresentationGestureCategoryV1.replayed_gesture
+    assert replayed.value.recovery == ferrum_chem.PresentationGestureRecoveryV1.refresh_and_restart
+    assert session.snapshot().cdml == cdml
 
 
 def test_equilibrium_creation_binding_requires_kind_owned_style() -> None:
@@ -753,7 +758,7 @@ def test_dedicated_plus_facade_rejects_foreign_and_replayed_handles() -> None:
     first.commit_plus_placement_gesture_v1(gesture, preview)
     with pytest.raises(ferrum_chem.PresentationGestureError) as replay:
         first.commit_plus_placement_gesture_v1(gesture, preview)
-    assert replay.value.category == ferrum_chem.PresentationGestureCategoryV1.stale_revision
+    assert replay.value.category == ferrum_chem.PresentationGestureCategoryV1.replayed_gesture
 
 
 def test_presentation_creation_gesture_binding_rejects_bool_and_replay_without_mutation() -> None:
@@ -774,6 +779,6 @@ def test_presentation_creation_gesture_binding_rejects_bool_and_replay_without_m
     after = session.snapshot()
     with pytest.raises(ferrum_chem.PresentationGestureError) as replay:
         session.commit_presentation_creation_gesture_v1(gesture, preview)
-    assert replay.value.category == ferrum_chem.PresentationGestureCategoryV1.stale_revision
+    assert replay.value.category == ferrum_chem.PresentationGestureCategoryV1.replayed_gesture
     assert session.snapshot().revision == after.revision
     assert session.snapshot().cdml == after.cdml

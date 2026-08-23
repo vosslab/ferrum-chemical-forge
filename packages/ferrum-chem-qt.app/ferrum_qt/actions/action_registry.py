@@ -197,6 +197,14 @@ def register_main_window_actions(window: object) -> ActionRegistry:
 		),
 		("mode.atom", "_add_atom_action", "Add Atom", "Activate atom drawing"),
 		("mode.draw", "_draw_bond_action", "Draw Bond", "Activate bond drawing"),
+		(
+			"mode.draw_solid_wedge", "_draw_solid_wedge_bond_action",
+			"Draw Solid Wedge Bond", "Activate solid-wedge bond drawing",
+		),
+		(
+			"mode.draw_hashed_wedge", "_draw_hashed_wedge_bond_action",
+			"Draw Hashed Wedge Bond", "Activate hashed-wedge bond drawing",
+		),
 		("mode.bracket", "_draw_bracket_action", "Draw Bracket", "Activate bracket drawing"),
 		("mode.edit", "_move_atom_action", "Move Atom", "Activate atom movement"),
 		(

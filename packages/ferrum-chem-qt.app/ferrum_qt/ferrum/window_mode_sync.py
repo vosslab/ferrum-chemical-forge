@@ -28,6 +28,12 @@ _LINE_TOOL_STATES = {
 		FerrumActiveToolState("arrow", "Draw Equilibrium Arrow"),
 	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_CURVED_ELECTRON_ARROW:
 		FerrumActiveToolState("arrow", "Draw Curved Electron Arrow"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_CURVED_RETRO_ARROW:
+		FerrumActiveToolState("arrow", "Draw Curved Retro Arrow"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_CURVED_REACTION_ARROW:
+		FerrumActiveToolState("arrow", "Draw Curved Reaction Arrow"),
+	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_CURVED_EQUILIBRIUM_ARROW:
+		FerrumActiveToolState("arrow", "Draw Curved Equilibrium Arrow"),
 	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_PLUS:
 		FerrumActiveToolState(None, "Draw Plus"),
 	ferrum_qt.ferrum.line_tool_intent._NativeLineTool.DRAW_LINE:

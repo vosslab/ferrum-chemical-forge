@@ -4,6 +4,8 @@ use schemars::JsonSchema;
 
 use serde::Serialize;
 
+use super::PresentationAuthoringKindV1;
+
 #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OperationProtocolErrorResponseV1 {
@@ -38,9 +40,9 @@ pub struct OperationProtocolErrorV1 {
     /// Closed reason for a resource-limit refusal when one is safe to expose.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_limit_reason: Option<ProtocolResourceLimitReasonV1>,
-    /// Closed vector gesture recovery facts when this operation refused one.
+    /// Closed presentation-authoring recovery facts when this operation refused one.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub presentation_vector_refusal: Option<PresentationVectorRefusalV1>,
+    pub presentation_author_refusal: Option<PresentationAuthorRefusalV1>,
     /// Closed catalog-placement recovery facts when this operation refused one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub catalog_placement_refusal: Option<CatalogPlacementRefusalV1>,
@@ -57,12 +59,13 @@ pub enum ProtocolResourceLimitReasonV1 {
     ResponseSizeExceeded,
 }
 
-/// Typed refusal facts for `presentation.vector.create.v1`.
+/// Typed refusal facts for `presentation.author.v1`.
 #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct PresentationVectorRefusalV1 {
-    pub category: ProtocolPresentationVectorGestureCategoryV1,
-    pub recovery: ProtocolPresentationVectorGestureRecoveryV1,
+pub struct PresentationAuthorRefusalV1 {
+    pub authoring_kind: PresentationAuthoringKindV1,
+    pub category: ProtocolPresentationAuthorCategoryV1,
+    pub recovery: ProtocolPresentationAuthorRecoveryV1,
 }
 
 /// Typed refusal facts for `catalog.insert.v1`.
@@ -131,32 +134,38 @@ pub enum ProtocolCatalogPlacementRecoveryV1 {
     DocumentUnchanged,
 }
 
-/// Closed presentation-vector refusal categories.
+/// Closed presentation-authoring refusal categories.
 #[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ProtocolPresentationVectorGestureCategoryV1 {
+pub enum ProtocolPresentationAuthorCategoryV1 {
     StaleSnapshot,
     ForeignSession,
-    MismatchedPreview,
     ReplayedGesture,
     InvalidPoint,
     DegenerateGeometry,
-    UnsupportedKind,
-    UnrenderableStandard,
+    PathCardinality,
+    InvalidEndpoint,
+    SelfLoop,
+    DuplicateBond,
+    CrossMolecule,
+    UnsupportedPresentation,
+    UnsupportedChemistry,
+    Capacity,
     RenderPreparation,
     SessionConflict,
     ResourceExhausted,
 }
 
-/// Closed recovery instructions for presentation-vector refusals.
+/// Closed recovery instructions for presentation-authoring refusals.
 #[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ProtocolPresentationVectorGestureRecoveryV1 {
+pub enum ProtocolPresentationAuthorRecoveryV1 {
     DocumentUnchanged,
     RefreshAndRestart,
     ChangeGeometry,
-    ChooseSupportedAppearance,
-    ReduceRequest,
+    AdjustEndpoint,
+    ChangePresentation,
+    ReportConflict,
 }
 
 /// Stable V1 error categories.
@@ -221,9 +230,9 @@ pub enum ProtocolOperationKindV1 {
     /// `document.generate_coordinates`.
     #[serde(rename = "document.generate_coordinates")]
     GenerateCoordinates,
-    /// `presentation.vector.create.v1`.
-    #[serde(rename = "presentation.vector.create.v1")]
-    PresentationVectorCreate,
+    /// `presentation.author.v1`.
+    #[serde(rename = "presentation.author.v1")]
+    PresentationAuthor,
     /// `catalog.list.v1`.
     #[serde(rename = "catalog.list.v1")]
     CatalogList,

@@ -77,7 +77,6 @@ impl DocumentSession {
         SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
             .map_err(DocumentSessionError::Projection)?;
         let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.generated_ids = generated_ids;
         Ok(PendingCreateMolecule {
             revision: expected_revision,
             token,
@@ -85,6 +84,7 @@ impl DocumentSession {
             atom_identifiers: identities.atoms,
             bond_identifiers: identities.bonds,
             candidate: Some(candidate),
+            tentative_generated_ids: generated_ids,
         })
     }
 
@@ -93,11 +93,13 @@ impl DocumentSession {
         expected_revision: u64,
         pending: &mut PendingCreateMolecule,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
+        let result = self.commit_prepared_candidate(
             expected_revision,
             pending.revision,
             &pending.token,
             &mut pending.candidate,
-        )
+        )?;
+        self.generated_ids = pending.tentative_generated_ids;
+        Ok(result)
     }
 }

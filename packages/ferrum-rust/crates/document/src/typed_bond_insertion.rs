@@ -13,6 +13,7 @@ pub(super) struct BondedAtomInsertion<'a> {
     element: &'a str,
     position: Point3V1,
     presentation: DocumentBondPresentationV1,
+    new_atom_is_start: bool,
 }
 
 impl<'a> BondedAtomInsertion<'a> {
@@ -22,6 +23,7 @@ impl<'a> BondedAtomInsertion<'a> {
         element: &'a str,
         position: Point3V1,
         presentation: DocumentBondPresentationV1,
+        new_atom_is_start: bool,
     ) -> Self {
         Self {
             atom_id,
@@ -29,6 +31,7 @@ impl<'a> BondedAtomInsertion<'a> {
             element,
             position,
             presentation,
+            new_atom_is_start,
         }
     }
 }
@@ -51,11 +54,16 @@ impl TypedDocument {
             insertion.element,
             insertion.position,
         )?;
+        let (bond_start, bond_end) = if insertion.new_atom_is_start {
+            (insertion.atom_id, start_atom_id)
+        } else {
+            (start_atom_id, insertion.atom_id)
+        };
         with_atom.with_insert_bond(
             molecule_id,
             insertion.bond_id,
-            start_atom_id,
-            insertion.atom_id,
+            bond_start,
+            bond_end,
             insertion.presentation,
         )
     }

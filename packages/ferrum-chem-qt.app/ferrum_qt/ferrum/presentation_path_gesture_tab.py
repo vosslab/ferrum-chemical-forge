@@ -3,7 +3,7 @@
 
 #============================================
 class FerrumNativePresentationPathGestureTabMixin:
-	"""Keep opaque renderer-preflighted path handles inside the tab boundary."""
+	"""Keep opaque incremental Rust path capabilities inside the tab boundary."""
 
 	#============================================
 	def begin_presentation_path_gesture(self, kind: object) -> object:
@@ -15,24 +15,29 @@ class FerrumNativePresentationPathGestureTabMixin:
 		)
 
 	#============================================
-	def preview_presentation_path_gesture(
-			self, gesture: object, points: tuple[tuple[float, float], ...],
-			) -> object:
-		"""Return one Rust-issued path preview for ordered exact scene points."""
+	def add_presentation_path_gesture_point(self, gesture: object,
+			x: float, y: float) -> object:
+		"""Add one exact scene point and return Rust-owned gesture progress."""
 		self._require_mutable()
-		if type(points) is not tuple or any(
-			type(point) is not tuple or len(point) != 2
-			or type(point[0]) is not float or type(point[1]) is not float
-			for point in points
-		):
-			raise TypeError("Ferrum path points must be ordered exact float pairs")
-		return self._session.preview_presentation_path_gesture_v1(gesture, points)
+		return self._session.add_presentation_path_gesture_point_v1(gesture, x, y)
+
+	#============================================
+	def preview_presentation_path_gesture(self, gesture: object,
+			hover: tuple[float, float] | None) -> object:
+		"""Return one Rust-issued overlay for accepted points and optional hover."""
+		self._require_mutable()
+		return self._session.preview_presentation_path_gesture_v1(gesture, hover)
 
 	#============================================
 	def prepare_presentation_path_gesture(self, gesture: object, preview: object) -> object:
 		"""Ask the Rust renderer bridge to preflight one opaque path candidate."""
 		self._require_mutable()
 		return self._session.prepare_presentation_path_gesture_v1(gesture, preview)
+
+	#============================================
+	def cancel_presentation_path_gesture(self, gesture: object) -> None:
+		"""Retire one opaque Rust path capability without changing the document."""
+		self._session.cancel_presentation_path_gesture_v1(gesture)
 
 	#============================================
 	def commit_presentation_path_gesture(self, prepared: object) -> object:

@@ -132,21 +132,11 @@ class FerrumKeyboardAuthoringMixin:
 				"The document changed before placement; start Draw Bond again.",
 			))
 			return
-		import ferrum_qt.ferrum.direct_bond_gesture_tab
 		try:
 			point = intent.tab.view.show_keyboard_cursor()
-			endpoint = intent.tab.direct_bond_endpoint_at_keyboard_scene_position(
+			probe = intent.tab.direct_bond_pointer_probe_at_keyboard_scene_position(
 				point,
 			)
-		except ferrum_qt.ferrum.direct_bond_gesture_tab.DirectBondEndpointAmbiguity:
-			self._cancel_line_gesture(clear_status=False)
-			self._refresh_actions()
-			self._synchronize_mode_state()
-			intent.tab.view.viewport().setFocus()
-			self._show_edit_refusal(self._unavailable_edit_refusal(
-				"Draw Bond is unchanged. Choose one atom clearly or an empty endpoint, then start again.",
-			))
-			return
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError as exc:
 			self._cancel_line_gesture(clear_status=False)
 			self._refresh_actions()
@@ -154,14 +144,12 @@ class FerrumKeyboardAuthoringMixin:
 			intent.tab.view.viewport().setFocus()
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 			return
-		atom_id = endpoint.source_id
 		if intent.direct_bond_gesture is None:
 			try:
-				# Freeze the shared next-drawing choice only after this valid
-				# keyboard endpoint has begun a Rust-owned gesture.
+				# Freeze the shared next-drawing choice with this V3 keyboard probe.
 				drawing = self._drawing_parameters.snapshot()
 				gesture = intent.tab.begin_direct_bond_gesture(
-					endpoint.endpoint, drawing.bond_presentation(),
+					probe, drawing.bond_presentation(),
 					intent.tab.view.hex_grid_snap_enabled,
 				)
 			except Exception as exc:
@@ -171,23 +159,16 @@ class FerrumKeyboardAuthoringMixin:
 				intent.tab.view.viewport().setFocus()
 				if not self._is_direct_bond_begin_refusal(exc):
 					raise
-				self._show_edit_refusal(self._unavailable_edit_refusal(
-					self._direct_bond_refusal_message(exc),
-				))
+				self._show_direct_bond_refusal(exc)
 				return
 			self._line_gesture_intent = dataclasses.replace(
 				intent,
-				start_atom_id=atom_id,
 				start_scene=point,
 				drawing=drawing,
 				direct_bond_gesture=gesture,
 			)
 			intent.tab.view.viewport().setFocus()
 			self.statusBar().showMessage(self.tr("Bond start selected. Move to a different endpoint and press Enter; Esc cancels."), 5000)
-			return
-		if atom_id is not None and atom_id == intent.start_atom_id:
-			intent.tab.view.viewport().setFocus()
-			self.statusBar().showMessage(self.tr("Choose a different bond endpoint, or press Esc to cancel Draw Bond."), 5000)
 			return
 		gesture = intent.direct_bond_gesture
 		if gesture is None:
@@ -200,31 +181,33 @@ class FerrumKeyboardAuthoringMixin:
 			return
 		import ferrum_qt.ferrum.engine as engine
 		try:
-			outcome = intent.tab.admit_direct_bond_candidate(gesture, endpoint.endpoint)
-			if type(outcome) is engine.DirectBondAdmissionRefusalV1:
-				self._cancel_line_gesture(clear_status=False)
-				self._refresh_actions()
-				self._synchronize_mode_state()
-				intent.tab.view.viewport().setFocus()
-				self._show_edit_refusal(self._unavailable_edit_refusal(
-					self._direct_bond_refusal_message(outcome),
-				))
-				return
-			if type(outcome) is not engine.DirectBondAdmissionV2:
+			outcome = intent.tab.admit_direct_bond_candidate(gesture, probe)
+			if type(outcome) is not engine.DirectBondAdmissionV3:
 				raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
 			intent.tab.commit_direct_bond_admission(outcome)
-		except (engine.DirectBondGestureError, engine.RevisionConflictError) as exc:
-			if not self._is_direct_bond_commit_refusal(exc):
-				self._cancel_line_gesture(clear_status=False)
-				self._refresh_actions()
-				self._synchronize_mode_state()
-				intent.tab.view.viewport().setFocus()
-				raise
+		except engine.DirectBondPointerProbeErrorV3 as exc:
 			self._cancel_line_gesture(clear_status=False)
 			self._refresh_actions()
 			self._synchronize_mode_state()
 			intent.tab.view.viewport().setFocus()
-			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			self._show_direct_bond_refusal(exc)
+			return
+		except engine.DirectBondAdmissionRefusalV3 as exc:
+			self._cancel_line_gesture(clear_status=False)
+			self._refresh_actions()
+			self._synchronize_mode_state()
+			intent.tab.view.viewport().setFocus()
+			self._show_direct_bond_refusal(exc)
+			return
+		except engine.DirectBondCommitError as exc:
+			message = self._direct_bond_commit_recovery_message(exc)
+			self._cancel_line_gesture(clear_status=False)
+			self._refresh_actions()
+			self._synchronize_mode_state()
+			intent.tab.view.viewport().setFocus()
+			if message is None:
+				raise
+			self._show_direct_bond_commit_refusal(message)
 			return
 		except Exception:
 			self._cancel_line_gesture(clear_status=False)

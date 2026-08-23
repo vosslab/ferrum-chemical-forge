@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use thiserror::Error;
 
-use super::Point3V1;
+use super::{DocumentBondPresentationV1, Point3V1};
 
 /// One atom in a complete detached molecule insertion.
 #[derive(Clone, Debug, PartialEq)]
@@ -110,13 +110,43 @@ pub struct MoleculeInsertionBondV1 {
     start: usize,
     end: usize,
     order: DocumentBondOrderV1,
+    presentation: DocumentBondPresentationV1,
 }
 
 impl MoleculeInsertionBondV1 {
     /// Construct one bond. Endpoint range and duplicate-edge checks occur on the molecule.
     #[must_use]
     pub const fn new(start: usize, end: usize, order: DocumentBondOrderV1) -> Self {
-        Self { start, end, order }
+        Self {
+            start,
+            end,
+            order,
+            presentation: DocumentBondPresentationV1::Normal(order),
+        }
+    }
+
+    /// Construct one bond with its exact persisted presentation.
+    ///
+    /// Directed wedge presentations remain single covalent bonds while retaining
+    /// their authored endpoint direction through CDML serialization.
+    #[must_use]
+    pub const fn new_with_presentation(
+        start: usize,
+        end: usize,
+        presentation: DocumentBondPresentationV1,
+    ) -> Self {
+        let order = match presentation {
+            DocumentBondPresentationV1::Normal(order) => order,
+            DocumentBondPresentationV1::SolidWedge | DocumentBondPresentationV1::HashedWedge => {
+                DocumentBondOrderV1::Single
+            }
+        };
+        Self {
+            start,
+            end,
+            order,
+            presentation,
+        }
     }
 
     /// Return the first zero-based atom index.
@@ -136,6 +166,12 @@ impl MoleculeInsertionBondV1 {
     pub const fn order(&self) -> DocumentBondOrderV1 {
         self.order
     }
+
+    /// Return the exact authored presentation used for CDML persistence.
+    #[must_use]
+    pub const fn presentation(&self) -> DocumentBondPresentationV1 {
+        self.presentation
+    }
 }
 
 /// One complete, validated molecule ready for session-owned identity allocation.
@@ -143,6 +179,7 @@ impl MoleculeInsertionBondV1 {
 pub struct MoleculeInsertionV1 {
     atoms: Vec<MoleculeInsertionAtomV1>,
     bonds: Vec<MoleculeInsertionBondV1>,
+    name: Option<String>,
 }
 
 impl MoleculeInsertionV1 {
@@ -178,7 +215,11 @@ impl MoleculeInsertionV1 {
                 });
             }
         }
-        Ok(Self { atoms, bonds })
+        Ok(Self {
+            atoms,
+            bonds,
+            name: None,
+        })
     }
 
     /// Return atoms in their durable source order.
@@ -192,6 +233,26 @@ impl MoleculeInsertionV1 {
     pub fn bonds(&self) -> &[MoleculeInsertionBondV1] {
         &self.bonds
     }
+
+    /// Attach one validated human-readable molecule name for CDML persistence.
+    pub fn with_name(mut self, name: impl Into<String>) -> Result<Self, MoleculeInsertionV1Error> {
+        let name = name.into();
+        if name.is_empty()
+            || name.chars().any(|character| {
+                character.is_control() || matches!(character, '<' | '>' | '&' | '\'' | '"')
+            })
+        {
+            return Err(MoleculeInsertionV1Error::InvalidName { name });
+        }
+        self.name = Some(name);
+        Ok(self)
+    }
+
+    /// Return the optional validated molecule name.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
 }
 
 /// Rejection of molecule facts before document mutation or identity allocation.
@@ -200,6 +261,9 @@ pub enum MoleculeInsertionV1Error {
     /// An element spelling is blank or contains non-letter characters.
     #[error("molecule insertion element is invalid: {element}")]
     InvalidElement { element: String },
+    /// A molecule name cannot be safely persisted as an XML attribute.
+    #[error("molecule insertion name is invalid")]
+    InvalidName { name: String },
     /// Isotope zero is the absence sentinel rather than an authored isotope.
     #[error("molecule insertion isotope must be positive when present")]
     ZeroIsotope,

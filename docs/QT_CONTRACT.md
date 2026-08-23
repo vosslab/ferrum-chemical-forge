@@ -406,15 +406,32 @@ forms. New endpoints are carbon in this bounded P0.1 route. Rust retains target
 validation, duplicate detection, candidate atomicity, provenance, history,
 selection, and accepted render facts; Qt owns only disposable feedback and
 preview objects. Personal preferences never enter CDML, `<standard>`, document
-state, history, dirty/save state, or selection. Directed direct-bond authoring
-requires a separate Rust-owned feature contract.
+state, history, dirty/save state, or selection.
+
+Directed direct-bond authoring uses the public Rust V3 pointer-probe lifecycle:
+`begin_direct_bond_gesture_v3`, `admit_direct_bond_candidate_v3`, then
+`commit_direct_bond_admission_v3`. Qt supplies a finite scene point,
+viewport-to-scene mapping, and exact `none`/unique/ambiguous scene-hit evidence
+for each pointer event. Rust resolves tolerance, ties, direct-hit identity,
+snap/new endpoint choice, all endpoint forms, fencing, candidate construction,
+renderer preflight, and the immutable operations Qt paints. Qt neither scans
+projected atoms nor applies endpoint geometry. A probe error and a
+post-resolution admission refusal are separate typed native outcomes with
+closed nonmodal recovery. A same-atom directed gesture is `self_loop` with
+`adjust_endpoint`, not malformed pointer input. The V2 gesture lifecycle is
+retired and its resolved values are internal Rust details. V1 document, fence,
+presentation, snap, and commit values remain the V3 commit taxonomy. The
+separate public `ferrum-document`
+neutral seam is native-Rust-only, noninteractive programmatic mutation with
+already-resolved durable atom IDs or finite new-atom points; it accepts no UI
+facts and has no Qt/PyO3 route.
 
 Selected-bond Properties is a separate editor for one already-projected durable
-bond. Its native form offers only Normal, Solid wedge, and Hashed wedge;
-directed styles require Single and are the only styles with a wedge-width edit.
-Qt submits changes through the existing revision-bound Rust property patch and
-replaces from the accepted projection without repairing historical styles or
-inferring endpoint direction.
+bond. It retains its independently supported broader Rust-owned style
+vocabulary; the bounded Normal/Solid-wedge/Hashed-wedge vocabulary describes
+the M3.P6 authoring actions, not this editor. Qt submits changes through the
+existing revision-bound Rust property patch and replaces from the accepted
+projection without repairing historical styles or inferring endpoint direction.
 
 `Edit -> Next Drawing...` is the standard MainWindow-owned labelled route to a
 compact client of that same shared application model, including at narrow

@@ -1,4 +1,4 @@
-"""Disposable Qt projection of Rust-issued straight presentation-arrow overlays."""
+"""Disposable Qt projection of Rust-issued straight and curved arrow overlays."""
 
 # PIP3 modules
 import PySide6.QtCore
@@ -7,6 +7,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.engine
+import ferrum_qt.ferrum.terminal_arrow
 
 
 #============================================
@@ -40,13 +41,22 @@ def create_straight_presentation_arrow_overlay(
 
 
 #============================================
-def create_curved_electron_arrow_overlay(
-		tab: object, overlay: object,
+def create_terminal_arrow_overlay(
+		tab: object, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind, overlay: object,
 		) -> PySide6.QtWidgets.QGraphicsPathItem:
-	"""Paint only the cubic and head points issued by Rust for one electron arrow."""
+	"""Paint only the cubic and head points issued by Rust for one terminal arrow."""
 	scene = tab.view.scene()
 	if scene is None:
-		raise RuntimeError("Ferrum electron-arrow preview requires an installed scene")
+		raise RuntimeError("Ferrum terminal-arrow preview requires an installed scene")
+	engine = ferrum_qt.ferrum.engine
+	if kind is ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind.ELECTRON:
+		expected_type = engine.CurvedElectronArrowOverlayV1
+	elif kind is ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind.RETRO:
+		expected_type = engine.CurvedRetroArrowOverlayV1
+	else:
+		expected_type = engine.CurvedNormalReactionArrowOverlayV1
+	if type(overlay) is not expected_type:
+		raise TypeError(f"Ferrum {kind.description} preview requires its exact Rust projection")
 	path = PySide6.QtGui.QPainterPath()
 	path.moveTo(overlay.start_x, overlay.start_y)
 	path.cubicTo(
@@ -65,10 +75,55 @@ def create_curved_electron_arrow_overlay(
 
 
 #============================================
+def create_curved_equilibrium_arrow_overlay(
+		tab: object, overlay: object,
+		) -> PySide6.QtWidgets.QGraphicsItemGroup:
+	"""Paint the two cubic lanes and heads issued by Rust without deriving geometry."""
+	scene = tab.view.scene()
+	if scene is None:
+		raise RuntimeError("Ferrum curved-equilibrium preview requires an installed scene")
+	engine = ferrum_qt.ferrum.engine
+	if type(overlay) is not engine.CurvedEquilibriumArrowOverlayV1:
+		raise TypeError("Ferrum curved-equilibrium preview requires its exact Rust projection")
+	axis_path = PySide6.QtGui.QPainterPath()
+	_append_issued_cubic_axis(axis_path, overlay.lower_axis)
+	_append_issued_cubic_axis(axis_path, overlay.upper_axis)
+	head_path = PySide6.QtGui.QPainterPath()
+	_append_issued_point_sequence(head_path, overlay.lower_head)
+	_append_issued_point_sequence(head_path, overlay.upper_head)
+	pen = PySide6.QtGui.QPen(PySide6.QtGui.QColor("#49719c"))
+	pen.setWidthF(1.5)
+	pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
+	group = PySide6.QtWidgets.QGraphicsItemGroup()
+	scene.addItem(group)
+	axis_item = PySide6.QtWidgets.QGraphicsPathItem(axis_path, group)
+	axis_item.setPen(pen)
+	axis_item.setBrush(PySide6.QtCore.Qt.BrushStyle.NoBrush)
+	head_item = PySide6.QtWidgets.QGraphicsPathItem(head_path, group)
+	head_item.setPen(PySide6.QtCore.Qt.PenStyle.NoPen)
+	head_item.setBrush(PySide6.QtGui.QBrush(pen.color()))
+	for item in (axis_item, head_item, group):
+		item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
+	group.setZValue(1_000_000.0)
+	return group
+
+
+#============================================
 def _append_issued_axis(path: PySide6.QtGui.QPainterPath, axis: object) -> None:
 	"""Append one Rust-issued axis without deriving endpoints in Qt."""
 	path.moveTo(axis.start_x, axis.start_y)
 	path.lineTo(axis.end_x, axis.end_y)
+
+
+#============================================
+def _append_issued_cubic_axis(path: PySide6.QtGui.QPainterPath, points: object) -> None:
+	"""Append one exact four-point cubic axis issued by Rust."""
+	if type(points) is not list or len(points) != 4:
+		raise TypeError("Ferrum curved-equilibrium preview requires one four-point cubic axis")
+	path.moveTo(points[0][0], points[0][1])
+	path.cubicTo(
+		points[1][0], points[1][1], points[2][0], points[2][1], points[3][0], points[3][1],
+	)
 
 
 #============================================

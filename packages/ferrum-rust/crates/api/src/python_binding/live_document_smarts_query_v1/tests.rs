@@ -1,6 +1,6 @@
 use super::{
     LiveDocumentSmartsBridgeV1, LiveFailureV1, LiveSmartsReadinessV1,
-    PyLiveDocumentSmartsCategoryV1, PyLiveDocumentSmartsReasonV1,
+    PyLiveDocumentSmartsCategoryV1, PyLiveDocumentSmartsReasonV1, PyLiveDocumentSmartsRecoveryV1,
     PyLiveDocumentSmartsSelectedQueryV1,
 };
 use crate::{RenderInteractionModifierV1, RenderInteractionQueryV1, RenderInteractionSessionV1};
@@ -18,6 +18,10 @@ const SOURCE: &str = concat!(
 const PARTIAL_RENDER_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
     "<ftext><b>rich label</b></ftext></atom></molecule></cdml>"
+);
+const MUTATED_SOURCE: &str = concat!(
+    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"3\" y=\"2\"/>",
+    "</atom></molecule></cdml>"
 );
 const MUTATED_PARTIAL_RENDER_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
@@ -190,6 +194,120 @@ fn selected_query_capture_refuses_an_empty_root_before_issuance() {
             PyLiveDocumentSmartsReasonV1::SelectedRootEmpty
         );
     });
+}
+
+fn selected_query_token(
+    session: &RenderInteractionSessionV1,
+    bridge: &LiveDocumentSmartsBridgeV1,
+    expected: DocumentFenceV1,
+) -> PyLiveDocumentSmartsSelectedQueryV1 {
+    let observation = session
+        .observe_render_interaction_v1(expected)
+        .expect("renderer observation");
+    let selection = session
+        .select_render_interaction_roots_v1(
+            &observation,
+            None,
+            RenderInteractionQueryV1::Root {
+                identifier: "m".to_owned(),
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("one selected molecule");
+    PyLiveDocumentSmartsSelectedQueryV1 {
+        issuer: bridge.issuer.clone(),
+        selection,
+    }
+}
+
+#[test]
+fn selected_readiness_is_available_without_consuming_the_token() {
+    pyo3::Python::initialize();
+    pyo3::Python::attach(|py| {
+        let session = session();
+        let expected = fence(&session);
+        let mut bridge = LiveDocumentSmartsBridgeV1::new();
+        bridge
+            .publish(&session, expected.revision())
+            .expect("published renderer plan");
+        let selected = selected_query_token(&session, &bridge, expected);
+
+        let readiness = bridge.selected_readiness(&session, &selected);
+        assert!(readiness.available);
+        assert!(readiness.reason.is_none());
+
+        bridge
+            .run_selected(py, &session, &ReceiptLifecycleEngine, &selected, 1, 1)
+            .expect("readiness does not consume a valid selected token");
+    });
+}
+
+#[test]
+fn selected_readiness_reports_foreign_and_invalid_token_admission_failures() {
+    let session = session();
+    let expected = fence(&session);
+    let mut owner = LiveDocumentSmartsBridgeV1::new();
+    owner
+        .publish(&session, expected.revision())
+        .expect("published renderer plan");
+    let selected = selected_query_token(&session, &owner, expected);
+
+    let foreign = LiveDocumentSmartsBridgeV1::new().selected_readiness(&session, &selected);
+    assert_eq!(
+        foreign.reason,
+        Some(PyLiveDocumentSmartsReasonV1::ForeignSelection)
+    );
+
+    let observation = session
+        .observe_render_interaction_v1(expected)
+        .expect("renderer observation");
+    let empty = session
+        .select_render_interaction_roots_v1(
+            &observation,
+            None,
+            RenderInteractionQueryV1::Point {
+                x: 1000.0,
+                y: 1000.0,
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("blank canvas produces an empty renderer selection");
+    let invalid = PyLiveDocumentSmartsSelectedQueryV1 {
+        issuer: owner.issuer.clone(),
+        selection: empty,
+    };
+    let readiness = owner.selected_readiness(&session, &invalid);
+    assert_eq!(
+        (readiness.category, readiness.reason, readiness.recovery),
+        (
+            Some(PyLiveDocumentSmartsCategoryV1::Refused),
+            Some(PyLiveDocumentSmartsReasonV1::SelectedRootEmpty),
+            Some(PyLiveDocumentSmartsRecoveryV1::SelectOneMolecule),
+        )
+    );
+}
+
+#[test]
+fn selected_readiness_reports_a_stale_token() {
+    let mut session = session();
+    let expected = fence(&session);
+    let mut bridge = LiveDocumentSmartsBridgeV1::new();
+    bridge
+        .publish(&session, expected.revision())
+        .expect("published renderer plan");
+    let selected = selected_query_token(&session, &bridge, expected);
+    session
+        .commit_complete_cdml_transaction_v1(expected, MUTATED_SOURCE)
+        .expect("changed document commits");
+
+    let readiness = bridge.selected_readiness(&session, &selected);
+    assert_eq!(
+        (readiness.category, readiness.reason),
+        (
+            Some(PyLiveDocumentSmartsCategoryV1::Stale),
+            Some(PyLiveDocumentSmartsReasonV1::StaleSelection),
+        )
+    );
 }
 
 #[test]

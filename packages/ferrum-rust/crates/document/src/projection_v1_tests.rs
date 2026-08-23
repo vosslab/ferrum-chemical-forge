@@ -481,12 +481,4 @@ fn session_observation_keeps_authored_source_identity_for_direct_molecule_join()
     let root = &observation.projection().molecules()[0];
     assert_ne!(root.id().unwrap().as_str(), "authored-molecule");
     assert_eq!(root.source_id(), Some("authored-molecule"));
-
-    let observed = &observation.direct_molecule_graphs_v1()[0];
-    assert_eq!(observed.source_id(), Some("authored-molecule"));
-    let graph = observed.graph().unwrap();
-    let anchors = observed.graph_position_to_record_id();
-    assert_eq!(graph.atoms().len(), 2);
-    assert_eq!(anchors.len(), graph.atoms().len());
-    assert_ne!(anchors[0], anchors[1]);
 }

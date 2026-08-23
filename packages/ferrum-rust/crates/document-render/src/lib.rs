@@ -4,13 +4,12 @@
 //! vector-specific capability, candidate, renderer admission proof, and receipt,
 //! so a vector gesture cannot reach a generic commit without complete rendering.
 
-use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
-
 use ferrum_document::{
-    DocumentFenceV1, DocumentSession, PresentationGesturePoint2V1, PresentationRecordKindV1,
-    PresentationRootSelectorV1, SessionOperationResultV1, TransparentOrRgb24V1,
+    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityIssuerV1, AuthoringCapabilityV1,
+    DocumentFenceV1, DocumentSession, GeometricLineWidthV1, PendingCreatePresentationV1,
+    PresentationAppearanceV1, PresentationCreateErrorV1, PresentationCreateRequestV1,
+    PresentationGesturePoint2V1, PresentationRootSelectorV1, PresentationVectorCreateKindV1,
+    Rgb24V1, SessionOperationResultV1, TransparentOrRgb24V1,
 };
 use ferrum_render::{
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
@@ -20,11 +19,17 @@ use thiserror::Error;
 
 mod catalog_placement_v2;
 mod curved_electron_arrow_gesture_v1;
+mod curved_equilibrium_arrow_gesture_v1;
+mod direct_bond_admission_v3;
+mod direct_bond_explicit_v1;
+mod direct_bond_pointer_v3;
+mod direct_bond_probe_resolution_v3;
+mod direct_bond_v3_lifecycle;
+mod presentation_path_gesture_v1;
 mod reaction_gesture_v1;
 mod reaction_lifecycle_v1;
 mod reaction_observation_v1;
 mod reaction_translation_v1;
-mod presentation_path_gesture_v1;
 mod render_interaction_v1;
 
 pub use catalog_placement_v2::{
@@ -35,12 +40,55 @@ pub use catalog_placement_v2::{
     release_catalog_placement_preview_v2,
 };
 pub use curved_electron_arrow_gesture_v1::{
-    CommittedCurvedElectronArrowV1, CurvedElectronArrowGestureCategoryV1,
+    CommittedCurvedElectronArrowV1, CommittedCurvedNormalReactionArrowV1,
+    CommittedCurvedRetroArrowV1, CurvedElectronArrowGestureCategoryV1,
     CurvedElectronArrowGestureErrorV1, CurvedElectronArrowGestureRecoveryV1,
-    CurvedElectronArrowGestureV1, CurvedElectronArrowOverlayV1,
-    CurvedElectronArrowPreviewV1, PreparedCurvedElectronArrowV1,
-    begin_curved_electron_arrow_gesture_v1, commit_curved_electron_arrow_gesture_v1,
-    prepare_curved_electron_arrow_gesture_v1, preview_curved_electron_arrow_gesture_v1,
+    CurvedElectronArrowGestureV1, CurvedElectronArrowOverlayV1, CurvedElectronArrowPreviewV1,
+    CurvedNormalReactionArrowGestureCategoryV1, CurvedNormalReactionArrowGestureErrorV1,
+    CurvedNormalReactionArrowGestureRecoveryV1, CurvedNormalReactionArrowGestureV1,
+    CurvedNormalReactionArrowOverlayV1, CurvedNormalReactionArrowPreviewV1,
+    CurvedRetroArrowGestureCategoryV1, CurvedRetroArrowGestureErrorV1,
+    CurvedRetroArrowGestureRecoveryV1, CurvedRetroArrowGestureV1, CurvedRetroArrowOverlayV1,
+    CurvedRetroArrowPreviewV1, PreparedCurvedElectronArrowV1, PreparedCurvedNormalReactionArrowV1,
+    PreparedCurvedRetroArrowV1, begin_curved_electron_arrow_gesture_v1,
+    begin_curved_normal_reaction_arrow_gesture_v1, begin_curved_retro_arrow_gesture_v1,
+    commit_curved_electron_arrow_gesture_v1, commit_curved_normal_reaction_arrow_gesture_v1,
+    commit_curved_retro_arrow_gesture_v1, prepare_curved_electron_arrow_gesture_v1,
+    prepare_curved_normal_reaction_arrow_gesture_v1, prepare_curved_retro_arrow_gesture_v1,
+    preview_curved_electron_arrow_gesture_v1, preview_curved_normal_reaction_arrow_gesture_v1,
+    preview_curved_retro_arrow_gesture_v1,
+};
+pub use curved_equilibrium_arrow_gesture_v1::{
+    CommittedCurvedEquilibriumArrowV1, CurvedEquilibriumArrowGestureCategoryV1,
+    CurvedEquilibriumArrowGestureErrorV1, CurvedEquilibriumArrowGestureRecoveryV1,
+    CurvedEquilibriumArrowGestureV1, CurvedEquilibriumArrowOverlayV1,
+    CurvedEquilibriumArrowPreviewV1, PreparedCurvedEquilibriumArrowV1,
+    begin_curved_equilibrium_arrow_gesture_v1, commit_curved_equilibrium_arrow_gesture_v1,
+    prepare_curved_equilibrium_arrow_gesture_v1, preview_curved_equilibrium_arrow_gesture_v1,
+};
+pub use direct_bond_admission_v3::{
+    admit_direct_bond_candidate_v3, begin_direct_bond_gesture_v3, commit_direct_bond_admission_v3,
+};
+pub use direct_bond_explicit_v1::{DirectBondExplicitErrorV1, author_direct_bond_explicit_v1};
+pub use direct_bond_pointer_v3::{
+    CommittedDirectBondGestureV3, DirectBondAdmissionCategoryV3, DirectBondAdmissionErrorV3,
+    DirectBondAdmissionRecoveryV3, DirectBondAdmissionRefusalV3, DirectBondAdmissionV3,
+    DirectBondGestureV3, DirectBondOverlayV3, DirectBondPointerHitStateV3,
+    DirectBondPointerProbeCategoryV3, DirectBondPointerProbeErrorV3,
+    DirectBondPointerProbeRecoveryV3, DirectBondPointerProbeV3, DirectBondViewportToSceneV3,
+};
+pub use direct_bond_v3_lifecycle::{
+    CommittedDirectBondGesture, DirectBondCommitCategoryV1, DirectBondCommitError,
+    DirectBondCommitRecoveryV1,
+};
+pub use presentation_path_gesture_v1::{
+    CommittedPresentationPathV1, PreparedPresentationPathV1, PresentationPathAppearanceV1,
+    PresentationPathOverlayV1, PresentationPathProgressV1, PresentationPathRenderCategoryV1,
+    PresentationPathRenderErrorV1, PresentationPathRenderGestureV1,
+    PresentationPathRenderRecoveryV1, add_presentation_path_gesture_point_v1,
+    begin_presentation_path_gesture_v1, cancel_presentation_path_gesture_v1,
+    commit_presentation_path_gesture_v1, prepare_incremental_presentation_path_gesture_v1,
+    preview_incremental_presentation_path_gesture_v1,
 };
 pub use reaction_gesture_v1::{
     CommittedReactionV1, PreparedReactionV1, ReactionCreateRequestV1, ReactionGestureCategoryV1,
@@ -61,13 +109,6 @@ pub use reaction_translation_v1::{
     CommittedReactionTranslationV1, PreparedReactionTranslationV1, ReactionTranslationGestureV1,
     ReactionTranslationPreviewV1, begin_reaction_translation_v1, commit_reaction_translation_v1,
     prepare_reaction_translation_v1, preview_reaction_translation_v1,
-};
-pub use presentation_path_gesture_v1::{
-    CommittedPresentationPathV1, PresentationPathAppearanceV1, PresentationPathPreviewV1,
-    PresentationPathRenderCategoryV1, PresentationPathRenderErrorV1, PresentationPathRenderGestureV1,
-    PresentationPathRenderRecoveryV1, PreparedPresentationPathV1, begin_presentation_path_gesture_v1,
-    commit_presentation_path_gesture_v1, prepare_presentation_path_gesture_v1,
-    preview_presentation_path_gesture_v1,
 };
 pub use render_interaction_v1::{
     CommittedRenderInteractionTranslationV1, CommittedStructureDeletionV1,
@@ -97,22 +138,22 @@ pub enum PresentationVectorKindV1 {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PresentationVectorAppearanceV1 {
-    stroke_color: String,
-    stroke_width: f64,
-    fill_color: Option<String>,
+    stroke_color: Rgb24V1,
+    stroke_width: GeometricLineWidthV1,
+    fill_color: Option<Rgb24V1>,
 }
 impl PresentationVectorAppearanceV1 {
     #[must_use]
     pub fn stroke_color(&self) -> &str {
-        &self.stroke_color
+        self.stroke_color.as_str()
     }
     #[must_use]
-    pub const fn stroke_width(&self) -> f64 {
-        self.stroke_width
+    pub fn stroke_width(&self) -> f64 {
+        self.stroke_width.value()
     }
     #[must_use]
     pub fn fill_color(&self) -> Option<&str> {
-        self.fill_color.as_deref()
+        self.fill_color.as_ref().map(Rgb24V1::as_str)
     }
 }
 
@@ -143,8 +184,7 @@ impl PresentationVectorOverlayV1 {
 
 #[derive(Clone, Debug)]
 pub struct PresentationVectorGestureV1 {
-    origin: BridgeSessionOriginV1,
-    nonce: u64,
+    capability: AuthoringCapabilityV1,
     fence: DocumentFenceV1,
     kind: PresentationVectorKindV1,
     start: PresentationGesturePoint2V1,
@@ -165,7 +205,6 @@ impl PresentationVectorPreviewV1 {
 #[derive(Debug)]
 pub struct PreparedPresentationVectorV1 {
     receipt: Option<RendererPreflightReceiptV1>,
-    kind: PresentationVectorKindV1,
     identifier: String,
 }
 #[derive(Clone, Debug)]
@@ -271,47 +310,19 @@ impl PresentationVectorGestureErrorV1 {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-struct BridgeSessionOriginV1(u64);
-
 /// Nonconstructible proof that one exact candidate completed both preflight
 /// stages with no renderer exclusion. It remains entirely bridge-private.
 #[derive(Debug)]
 struct RendererPreflightReceiptV1 {
-    origin: BridgeSessionOriginV1,
-    nonce: u64,
-    source_fence: DocumentFenceV1,
-    candidate_revision: u64,
-    candidate_digest: [u8; 32],
-    root_identifier: String,
-    candidate: String,
+    pending: PendingCreatePresentationV1,
     contract: ferrum_render_contract::PreflightedDocumentRenderV1,
     plan: DocumentRenderPlanV1,
 }
 
-#[must_use]
-fn origin(session: &DocumentSession) -> BridgeSessionOriginV1 {
-    BridgeSessionOriginV1(session.bridge_session_origin_v1())
+fn authoring_issuer(session: &DocumentSession) -> AuthoringCapabilityIssuerV1 {
+    session.authoring_capability_issuer_v1()
 }
 
-fn consumed() -> &'static Mutex<HashSet<(BridgeSessionOriginV1, u64)>> {
-    static CONSUMED: OnceLock<Mutex<HashSet<(BridgeSessionOriginV1, u64)>>> = OnceLock::new();
-    CONSUMED.get_or_init(|| Mutex::new(HashSet::new()))
-}
-
-fn is_consumed(origin: BridgeSessionOriginV1, nonce: u64) -> bool {
-    consumed()
-        .lock()
-        .expect("bridge consumed-capability lock is not poisoned")
-        .contains(&(origin, nonce))
-}
-
-fn consume(origin: BridgeSessionOriginV1, nonce: u64) {
-    consumed()
-        .lock()
-        .expect("bridge consumed-capability lock is not poisoned")
-        .insert((origin, nonce));
-}
 fn require_fence(
     session: &DocumentSession,
     fence: DocumentFenceV1,
@@ -331,10 +342,8 @@ pub fn begin_presentation_vector_gesture_v1(
     start: PresentationGesturePoint2V1,
 ) -> Result<PresentationVectorGestureV1, PresentationVectorGestureErrorV1> {
     require_fence(session, fence)?;
-    static NEXT: AtomicU64 = AtomicU64::new(1);
     Ok(PresentationVectorGestureV1 {
-        origin: origin(session),
-        nonce: NEXT.fetch_add(1, Ordering::Relaxed),
+        capability: authoring_issuer(session).issue(),
         fence,
         kind,
         start,
@@ -352,16 +361,18 @@ fn resolve_appearance(
     let standard = observation.projection().drawing_standard();
     let stroke_color = standard
         .and_then(|value| value.line_color())
-        .map_or("#000000", |value| value.as_str())
-        .to_owned();
+        .cloned()
+        .unwrap_or_else(|| Rgb24V1::new("#000000").expect("closed built-in colour"));
     let stroke_width = standard
         .and_then(|value| value.line_width())
         .map_or(1.0, |value| value.value());
+    let stroke_width = GeometricLineWidthV1::new(stroke_width)
+        .ok_or(PresentationVectorGestureErrorV1::UnrenderableStandard)?;
     let fill_color = standard
         .and_then(|value| value.area_color())
         .and_then(|value| match value {
             TransparentOrRgb24V1::Transparent => None,
-            TransparentOrRgb24V1::Rgb24(color) => Some(color.as_str().to_owned()),
+            TransparentOrRgb24V1::Rgb24(color) => Some(color.clone()),
         });
     Ok(PresentationVectorAppearanceV1 {
         stroke_color,
@@ -374,7 +385,7 @@ pub fn preview_presentation_vector_gesture_v1(
     gesture: &PresentationVectorGestureV1,
     raw_end: PresentationGesturePoint2V1,
 ) -> Result<PresentationVectorPreviewV1, PresentationVectorGestureErrorV1> {
-    if gesture.origin != origin(session) {
+    if !gesture.capability.belongs_to(&authoring_issuer(session)) {
         return Err(PresentationVectorGestureErrorV1::ForeignSession);
     }
     require_fence(session, gesture.fence)?;
@@ -429,39 +440,46 @@ pub fn prepare_presentation_vector_gesture_v1(
     gesture: &PresentationVectorGestureV1,
     preview: &PresentationVectorPreviewV1,
 ) -> Result<PreparedPresentationVectorV1, PresentationVectorGestureErrorV1> {
-    if gesture.origin != origin(session) || preview.gesture.origin != origin(session) {
+    let issuer = authoring_issuer(session);
+    if !gesture.capability.belongs_to(&issuer) || !preview.gesture.capability.belongs_to(&issuer) {
         return Err(PresentationVectorGestureErrorV1::ForeignSession);
     }
-    if gesture.nonce != preview.gesture.nonce {
+    if !gesture
+        .capability
+        .same_capability(&preview.gesture.capability)
+    {
         return Err(PresentationVectorGestureErrorV1::MismatchedPreview);
     }
-    if is_consumed(gesture.origin, gesture.nonce) {
-        return Err(PresentationVectorGestureErrorV1::ReplayedGesture);
+    match gesture.capability.claim_for_commit(&issuer) {
+        Ok(claim) => drop(claim),
+        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
+            return Err(PresentationVectorGestureErrorV1::ForeignSession);
+        }
+        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
+            return Err(PresentationVectorGestureErrorV1::ReplayedGesture);
+        }
     }
     require_fence(session, gesture.fence)?;
-    static NEXT_ID: AtomicU64 = AtomicU64::new(1);
-    let source = session
-        .snapshot()
-        .map_err(|_| PresentationVectorGestureErrorV1::SessionConflict)?
-        .cdml()
-        .to_owned();
-    let identifier = loop {
-        let id = format!(
-            "presentation-vector-{}",
-            NEXT_ID.fetch_add(1, Ordering::Relaxed)
-        );
-        if !session.contains_durable_id_v1(&id) {
-            break id;
-        }
-    };
-    let candidate = insert_vector(
-        &source,
-        &identifier,
-        gesture.kind,
-        gesture.start,
-        preview.end,
-        &gesture.appearance,
-    )?;
+    let pending = session
+        .prepare_create_presentation_v1(
+            &gesture.capability,
+            gesture.fence,
+            PresentationCreateRequestV1::Vector {
+                kind: vector_kind(gesture.kind),
+                start: gesture.start,
+                end: preview.end,
+                appearance: PresentationAppearanceV1::new(
+                    gesture.appearance.stroke_color.clone(),
+                    gesture.appearance.stroke_width,
+                    gesture.appearance.fill_color.clone(),
+                ),
+            },
+        )
+        .map_err(map_presentation_create_error)?;
+    let identifier = pending.identifier().as_str().to_owned();
+    let candidate = pending
+        .candidate_cdml_for_render_preflight_v1()
+        .ok_or(PresentationVectorGestureErrorV1::ReplayedGesture)?;
     let contract = ferrum_render_contract::preflight_complete_document_v1(&candidate)
         .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
     let candidate_session = DocumentSession::load(&candidate)
@@ -480,27 +498,12 @@ pub fn prepare_presentation_vector_gesture_v1(
     {
         return Err(PresentationVectorGestureErrorV1::RenderPreparation);
     }
-    let candidate_snapshot = candidate_session
-        .snapshot()
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    let candidate_revision = gesture
-        .fence
-        .revision()
-        .checked_add(1)
-        .ok_or(PresentationVectorGestureErrorV1::SessionConflict)?;
     Ok(PreparedPresentationVectorV1 {
         receipt: Some(RendererPreflightReceiptV1 {
-            origin: gesture.origin,
-            nonce: gesture.nonce,
-            source_fence: gesture.fence,
-            candidate_revision,
-            candidate_digest: *candidate_snapshot.digest(),
-            root_identifier: identifier.clone(),
-            candidate,
+            pending,
             contract,
             plan,
         }),
-        kind: gesture.kind,
         identifier,
     })
 }
@@ -508,118 +511,228 @@ pub fn commit_presentation_vector_gesture_v1(
     session: &mut DocumentSession,
     prepared: &mut PreparedPresentationVectorV1,
 ) -> Result<CommittedPresentationVectorV1, PresentationVectorGestureErrorV1> {
-    let receipt = prepared
+    let mut receipt = prepared
         .receipt
         .take()
         .ok_or(PresentationVectorGestureErrorV1::ReplayedGesture)?;
-    if receipt.origin != origin(session) {
-        prepared.receipt = Some(receipt);
-        return Err(PresentationVectorGestureErrorV1::ForeignSession);
+    let candidate = receipt
+        .pending
+        .candidate_cdml_for_render_preflight_v1()
+        .ok_or(PresentationVectorGestureErrorV1::ReplayedGesture)?;
+    let result = (|| {
+        if receipt.pending.identifier().as_str() != prepared.identifier
+            || receipt.contract.source() != candidate
+            || receipt
+                .plan
+                .outcomes()
+                .iter()
+                .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
+        {
+            return Err(PresentationVectorGestureErrorV1::RenderPreparation);
+        }
+        session
+            .commit_create_presentation_v1(&mut receipt.pending)
+            .map_err(map_presentation_create_error)
+    })();
+    match result {
+        Ok(result) => {
+            let root =
+                PresentationRootSelectorV1::new(&prepared.identifier, receipt.pending.root_kind())
+                    .expect("bridge generated a valid identifier");
+            Ok(CommittedPresentationVectorV1 { root, result })
+        }
+        Err(error) => {
+            prepared.receipt = Some(receipt);
+            Err(error)
+        }
     }
-    if is_consumed(receipt.origin, receipt.nonce) {
-        return Err(PresentationVectorGestureErrorV1::ReplayedGesture);
-    }
-    require_fence(session, receipt.source_fence)?;
-    if receipt.root_identifier != prepared.identifier
-        || receipt.candidate_revision != receipt.source_fence.revision().saturating_add(1)
-        || receipt.contract.source() != receipt.candidate
-        || receipt
-            .plan
-            .outcomes()
-            .iter()
-            .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(PresentationVectorGestureErrorV1::RenderPreparation);
-    }
-    let candidate_session = DocumentSession::load(&receipt.candidate)
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    let candidate_snapshot = candidate_session
-        .snapshot()
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    if *candidate_snapshot.digest() != receipt.candidate_digest {
-        return Err(PresentationVectorGestureErrorV1::RenderPreparation);
-    }
-    let result = session
-        .commit_complete_cdml_transaction_v1(receipt.source_fence, &receipt.candidate)
-        .map_err(|_| PresentationVectorGestureErrorV1::SessionConflict)?;
-    consume(receipt.origin, receipt.nonce);
-    let kind = match prepared.kind {
-        PresentationVectorKindV1::Line => PresentationRecordKindV1::Polyline,
-        PresentationVectorKindV1::Rectangle => PresentationRecordKindV1::Rectangle,
-        PresentationVectorKindV1::Square => PresentationRecordKindV1::Square,
-        PresentationVectorKindV1::Oval => PresentationRecordKindV1::Oval,
-        PresentationVectorKindV1::Circle => PresentationRecordKindV1::Circle,
-    };
-    let root = PresentationRootSelectorV1::new(&prepared.identifier, kind)
-        .expect("bridge generated a valid identifier");
-    Ok(CommittedPresentationVectorV1 { root, result })
 }
 
-fn insert_vector(
-    source: &str,
-    id: &str,
-    kind: PresentationVectorKindV1,
-    start: PresentationGesturePoint2V1,
-    end: PresentationGesturePoint2V1,
-    appearance: &PresentationVectorAppearanceV1,
-) -> Result<String, PresentationVectorGestureErrorV1> {
-    let geometry = match kind {
-        PresentationVectorKindV1::Line => format!(
-            "<polyline id=\"{id}\" spline=\"0\" line_color=\"{}\" width=\"{}\"><point x=\"{}\" y=\"{}\" z=\"0\"/><point x=\"{}\" y=\"{}\" z=\"0\"/></polyline>",
-            appearance.stroke_color,
-            appearance.stroke_width,
-            start.x(),
-            start.y(),
-            end.x(),
-            end.y()
-        ),
-        PresentationVectorKindV1::Rectangle => shape("rect", id, start, end, appearance),
-        PresentationVectorKindV1::Square => shape("square", id, start, end, appearance),
-        PresentationVectorKindV1::Oval => shape("oval", id, start, end, appearance),
-        PresentationVectorKindV1::Circle => shape("circle", id, start, end, appearance),
-    };
-    if let Some(close) = source.rfind("</cdml") {
-        return Ok(format!(
-            "{}{}{}",
-            &source[..close],
-            geometry,
-            &source[close..]
-        ));
+fn vector_kind(kind: PresentationVectorKindV1) -> PresentationVectorCreateKindV1 {
+    match kind {
+        PresentationVectorKindV1::Line => PresentationVectorCreateKindV1::Line,
+        PresentationVectorKindV1::Rectangle => PresentationVectorCreateKindV1::Rectangle,
+        PresentationVectorKindV1::Square => PresentationVectorCreateKindV1::Square,
+        PresentationVectorKindV1::Oval => PresentationVectorCreateKindV1::Oval,
+        PresentationVectorKindV1::Circle => PresentationVectorCreateKindV1::Circle,
     }
-    let self_close = source
-        .rfind("/>")
-        .filter(|index| source[index + 2..].trim().is_empty())
-        .ok_or(PresentationVectorGestureErrorV1::RenderPreparation)?;
-    Ok(format!("{}>{}</cdml>", &source[..self_close], geometry))
 }
-fn shape(
-    tag: &str,
-    id: &str,
-    start: PresentationGesturePoint2V1,
-    end: PresentationGesturePoint2V1,
-    appearance: &PresentationVectorAppearanceV1,
-) -> String {
-    format!(
-        "<{tag} id=\"{id}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" line_color=\"{}\" width=\"{}\" area_color=\"{}\"/>",
-        start.x(),
-        start.y(),
-        end.x(),
-        end.y(),
-        appearance.stroke_color,
-        appearance.stroke_width,
-        appearance.fill_color.as_deref().unwrap_or("none")
-    )
+
+fn map_presentation_create_error(
+    error: PresentationCreateErrorV1,
+) -> PresentationVectorGestureErrorV1 {
+    match error {
+        PresentationCreateErrorV1::ForeignSession => {
+            PresentationVectorGestureErrorV1::ForeignSession
+        }
+        PresentationCreateErrorV1::StaleSnapshot => PresentationVectorGestureErrorV1::StaleSnapshot,
+        PresentationCreateErrorV1::Replayed => PresentationVectorGestureErrorV1::ReplayedGesture,
+        PresentationCreateErrorV1::SessionConflict => {
+            PresentationVectorGestureErrorV1::SessionConflict
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ferrum_document::{
+        DirectBondEndpointIntent, DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentBondOrderV1,
+        DocumentBondPresentationV1,
+    };
 
     const EMPTY: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"/>"#;
 
     fn fence(session: &DocumentSession) -> DocumentFenceV1 {
         let snapshot = session.snapshot().expect("snapshot");
         DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
+    }
+
+    fn point(x: f64, y: f64) -> PresentationGesturePoint2V1 {
+        PresentationGesturePoint2V1::new(x, y).expect("finite test point")
+    }
+
+    fn commit_terminal_arrow(
+        session: &mut DocumentSession,
+        begin: fn(
+            &DocumentSession,
+            DocumentFenceV1,
+            PresentationGesturePoint2V1,
+            PresentationGesturePoint2V1,
+        )
+            -> Result<CurvedElectronArrowGestureV1, CurvedElectronArrowGestureErrorV1>,
+        preview: fn(
+            &DocumentSession,
+            &CurvedElectronArrowGestureV1,
+            PresentationGesturePoint2V1,
+        )
+            -> Result<CurvedElectronArrowPreviewV1, CurvedElectronArrowGestureErrorV1>,
+        prepare: fn(
+            &mut DocumentSession,
+            &CurvedElectronArrowGestureV1,
+            &CurvedElectronArrowPreviewV1,
+        )
+            -> Result<PreparedCurvedElectronArrowV1, CurvedElectronArrowGestureErrorV1>,
+        commit: fn(
+            &mut DocumentSession,
+            &mut PreparedCurvedElectronArrowV1,
+        )
+            -> Result<CommittedCurvedElectronArrowV1, CurvedElectronArrowGestureErrorV1>,
+    ) {
+        let gesture = begin(session, fence(session), point(0.0, 0.0), point(20.0, 20.0))
+            .expect("terminal gesture");
+        let issued = preview(session, &gesture, point(40.0, 0.0)).expect("terminal preview");
+        let mut receipt = prepare(session, &gesture, &issued).expect("terminal receipt");
+        commit(session, &mut receipt).expect("terminal commit");
+    }
+
+    #[test]
+    fn shared_capabilities_do_not_replay_across_authoring_families() {
+        let mut session = DocumentSession::load(EMPTY).expect("session");
+
+        let equilibrium = begin_curved_equilibrium_arrow_gesture_v1(
+            &session,
+            fence(&session),
+            point(0.0, 0.0),
+            point(40.0, 20.0),
+        )
+        .expect("equilibrium gesture");
+        let equilibrium_preview =
+            preview_curved_equilibrium_arrow_gesture_v1(&session, &equilibrium, point(80.0, 0.0))
+                .expect("equilibrium preview");
+        let mut equilibrium_receipt = prepare_curved_equilibrium_arrow_gesture_v1(
+            &mut session,
+            &equilibrium,
+            &equilibrium_preview,
+        )
+        .expect("equilibrium receipt");
+        commit_curved_equilibrium_arrow_gesture_v1(&mut session, &mut equilibrium_receipt)
+            .expect("equilibrium commit");
+
+        commit_terminal_arrow(
+            &mut session,
+            begin_curved_electron_arrow_gesture_v1,
+            preview_curved_electron_arrow_gesture_v1,
+            prepare_curved_electron_arrow_gesture_v1,
+            commit_curved_electron_arrow_gesture_v1,
+        );
+        commit_terminal_arrow(
+            &mut session,
+            begin_curved_retro_arrow_gesture_v1,
+            preview_curved_retro_arrow_gesture_v1,
+            prepare_curved_retro_arrow_gesture_v1,
+            commit_curved_retro_arrow_gesture_v1,
+        );
+        commit_terminal_arrow(
+            &mut session,
+            begin_curved_normal_reaction_arrow_gesture_v1,
+            preview_curved_normal_reaction_arrow_gesture_v1,
+            prepare_curved_normal_reaction_arrow_gesture_v1,
+            commit_curved_normal_reaction_arrow_gesture_v1,
+        );
+
+        let direct_bond = direct_bond_v3_lifecycle::begin_direct_bond_v3_lifecycle(
+            &session,
+            fence(&session),
+            DirectBondEndpointIntent::NewAtomAt {
+                raw_point: DirectBondPoint2V1::new(0.0, 90.0).expect("direct-bond point"),
+            },
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            "C".to_owned(),
+            DirectBondSnapPolicyV1::free(),
+        )
+        .expect("direct-bond gesture");
+        let mut direct_admission = direct_bond_v3_lifecycle::admit_direct_bond_candidate(
+            &session,
+            &direct_bond,
+            DirectBondEndpointIntent::NewAtomAt {
+                raw_point: DirectBondPoint2V1::new(40.0, 90.0).expect("direct-bond point"),
+            },
+        )
+        .expect("direct-bond admission");
+        let direct_committed = direct_bond_v3_lifecycle::commit_direct_bond_admission(
+            &mut session,
+            &mut direct_admission,
+        )
+        .expect("direct-bond commit");
+
+        let vector = begin_presentation_vector_gesture_v1(
+            &session,
+            fence(&session),
+            PresentationVectorKindV1::Line,
+            point(0.0, 30.0),
+        )
+        .expect("vector gesture");
+        let vector_preview =
+            preview_presentation_vector_gesture_v1(&session, &vector, point(40.0, 30.0))
+                .expect("vector preview");
+        let mut vector_receipt =
+            prepare_presentation_vector_gesture_v1(&mut session, &vector, &vector_preview)
+                .expect("vector receipt");
+        commit_presentation_vector_gesture_v1(&mut session, &mut vector_receipt)
+            .expect("vector commit");
+
+        let mut path = begin_presentation_path_gesture_v1(
+            &session,
+            fence(&session),
+            ferrum_document::PresentationPathKindV1::Polyline,
+        )
+        .expect("path gesture");
+        for vertex in [point(0.0, 60.0), point(40.0, 60.0)] {
+            add_presentation_path_gesture_point_v1(&session, &mut path, vertex)
+                .expect("path vertex");
+        }
+        let path_preview = preview_incremental_presentation_path_gesture_v1(&session, &path, None)
+            .expect("path preview");
+        let mut path_receipt =
+            prepare_incremental_presentation_path_gesture_v1(&mut session, &path, &path_preview)
+                .expect("path receipt");
+        commit_presentation_path_gesture_v1(&mut session, &mut path_receipt).expect("path commit");
+
+        let source = session.snapshot().expect("snapshot").cdml().to_owned();
+        assert!(source.contains("type=\"curved-equilibrium\""));
+        assert!(source.contains("<polyline"));
+        assert!(source.contains(direct_committed.bond().as_str()));
     }
 
     #[test]

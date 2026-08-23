@@ -67,74 +67,11 @@ pub(super) fn execute_catalog_insert(
     Ok(OperationProtocolOutcomeV1::CatalogInsert {
         document: snapshot.cdml().to_owned(),
         identifier: committed.identifier().to_owned(),
-        input_revision: 0,
         committed_revision: snapshot.revision(),
-        next_input_expected_revision: 0,
-        digest_hex: hex_digest(snapshot.digest()),
-    })
-}
-
-pub(super) fn execute_presentation_vector_create(
-    request: PresentationVectorCreateRequestV1,
-) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
-    match request.appearance_policy {
-        ProtocolPresentationVectorAppearancePolicyV1::EffectiveDrawingStandard => {}
-    }
-    if request.expected_revision != 0 {
-        return Err(ExecutionFailureV1::vector_refusal(
-            PresentationVectorGestureErrorV1::StaleSnapshot,
-        ));
-    }
-    let mut session = admit_document(&request.document)?;
-    let digest = parse_digest_hex(&request.expected_digest_hex)?;
-    let kind = match request.vector_kind {
-        ProtocolPresentationVectorKindV1::Line => PresentationVectorKindV1::Line,
-        ProtocolPresentationVectorKindV1::Rectangle => PresentationVectorKindV1::Rectangle,
-        ProtocolPresentationVectorKindV1::Square => PresentationVectorKindV1::Square,
-        ProtocolPresentationVectorKindV1::Oval => PresentationVectorKindV1::Oval,
-        ProtocolPresentationVectorKindV1::Circle => PresentationVectorKindV1::Circle,
-    };
-    let start =
-        PresentationGesturePoint2V1::new(request.start_x, request.start_y).map_err(|_| {
-            ExecutionFailureV1::document_invalid("vector start point must be finite".to_owned())
-        })?;
-    let end = PresentationGesturePoint2V1::new(request.end_x, request.end_y).map_err(|_| {
-        ExecutionFailureV1::document_invalid("vector end point must be finite".to_owned())
-    })?;
-    let fence = DocumentFenceV1::new(request.expected_revision, digest);
-    let gesture = begin_api_presentation_vector_gesture_v1(&session, fence, kind, start)
-        .map_err(ExecutionFailureV1::vector_refusal)?;
-    let preview = preview_api_presentation_vector_gesture_v1(&session, &gesture, end)
-        .map_err(ExecutionFailureV1::vector_refusal)?;
-    let mut prepared = prepare_api_presentation_vector_gesture_v1(&mut session, &gesture, &preview)
-        .map_err(ExecutionFailureV1::vector_refusal)?;
-    let committed = commit_api_presentation_vector_gesture_v1(&mut session, &mut prepared)
-        .map_err(ExecutionFailureV1::vector_refusal)?;
-    let renderer_observation =
-        document_observation_from_accepted_operation_v1(committed.result().observation())
-            .map_err(|error| ExecutionFailureV1::internal(error.to_string()))?;
-    let plan = compose_document_render_plan_v1(&renderer_observation)
-        .map_err(|error| ExecutionFailureV1::internal(error.to_string()))?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(ExecutionFailureV1::internal(
-            "renderer-preflighted vector commit produced an excluded root".to_owned(),
-        ));
-    }
-    let immutable_renderer_observation = serde_json::to_value(renderer_observation.wire())
-        .map_err(|error| ExecutionFailureV1::internal(error.to_string()))?;
-    let snapshot = committed.result().observation().snapshot();
-    Ok(OperationProtocolOutcomeV1::PresentationVectorCreate {
-        document: snapshot.cdml().to_owned(),
-        identifier: committed.root().presentation_id().as_str().to_owned(),
-        input_revision: 0,
-        committed_revision: snapshot.revision(),
-        next_input_expected_revision: 0,
-        digest_hex: hex_digest(snapshot.digest()),
-        renderer_observation: immutable_renderer_observation,
+        document_fence: DocumentRequestFenceV1 {
+            expected_revision: 0,
+            expected_digest_hex: hex_digest(snapshot.digest()),
+        },
     })
 }
 

@@ -161,6 +161,55 @@ operation `kind`, and error `category`, not diagnostic text. The complete
 request and response contract is in
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md).
 
+## Fenced document commands
+
+`inspect --json` returns a `document_fence`. Use its revision and digest with the same input
+document in a later request-owned document command. This local workflow authors one vector:
+
+```bash
+build/bin/ferrum inspect drawing.cdml --json > inspect.json
+jq -n --rawfile document drawing.cdml --slurpfile inspected inspect.json \
+  '{kind: "presentation.author.v1", document: $document,
+    expected_revision: $inspected[0].outcome.document_fence.expected_revision,
+    expected_digest_hex: $inspected[0].outcome.document_fence.expected_digest_hex,
+    authoring: {kind: "vector", vector_kind: "line",
+      start: {x: 0.0, y: 0.0}, end: {x: 40.0, y: 0.0},
+      appearance_policy: "effective_drawing_standard"}}' > author.json
+build/bin/ferrum document command presentation.author.v1 author.json > author-result.json
+```
+
+The generic author result is defined by the generated
+[ferrum-operation-v1.schema.json](../packages/ferrum-rust/crates/api/protocol/ferrum-operation-v1.schema.json).
+Use its returned document for a subsequent stateless request. Do not depend on internal
+authoring capabilities, reservations, or live-session state.
+
+This equivalent local workflow inserts a catalog entry at a finite document coordinate:
+
+```bash
+build/bin/ferrum inspect drawing.cdml --json > inspect.json
+jq -n --rawfile document drawing.cdml --slurpfile inspected inspect.json \
+  '{kind: "catalog.insert.v1", document: $document,
+    expected_revision: $inspected[0].outcome.document_fence.expected_revision,
+    expected_digest_hex: $inspected[0].outcome.document_fence.expected_digest_hex,
+    catalog_id: "system/rings/benzene", anchor_x: 100.0, anchor_y: 50.0}' > catalog.json
+build/bin/ferrum document command catalog.insert.v1 catalog.json > catalog-result.json
+```
+
+A stale catalog fence returns no success outcome. Its nested facts have this shape:
+
+```json
+{
+  "error": {
+    "catalog_placement_refusal": {
+      "category": "stale_snapshot",
+      "recovery": "refresh_and_restart"
+    }
+  }
+}
+```
+
+Refresh with `inspect --json`, rebuild the operation JSON from the returned fence, and retry.
+
 ## Machine protocol
 
 The lower-level protocol command accepts one UTF-8 JSON request and emits one

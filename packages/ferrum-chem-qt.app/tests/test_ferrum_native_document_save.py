@@ -1,30 +1,24 @@
-"""Architecture coverage for isolated Ferrum document publication."""
+"""Behavior coverage for isolated Ferrum document publication."""
 
-# Standard Library
-import pathlib
+# PIP3 modules
+import ferrum_chem
 
-
-#============================================
-def test_document_save_mixin_owns_no_document_admission() -> None:
-	"""Publication support cannot acquire a second local-document ingress path."""
-	path = pathlib.Path(__file__).parents[1] / "ferrum_qt" / "ferrum" / "document_save.py"
-	source = path.read_text(encoding="utf-8")
-	assert "class FerrumNativeDocumentSaveMixin" in source
-	for forbidden in (
-		"open_file_path", "open_native_cdml_path", "_open_native_cdml",
-		"_prepare_local_cdml_admission", "prepare_local_cdml_file_v1",
-	):
-		assert forbidden not in source
-
+# local repo modules
+import ferrum_qt.ferrum.document_save
 
 #============================================
-def test_main_window_has_one_generic_local_document_admission_owner() -> None:
-	"""Normal File/Open resolves through the descriptor-dispatched local owner only."""
-	package = pathlib.Path(__file__).parents[1] / "ferrum_qt" / "ferrum"
-	main_window = (package / "main_window.py").read_text(encoding="utf-8")
-	local_open = (package / "local_document_open.py").read_text(encoding="utf-8")
-	assert "FerrumNativeLocalDocumentOpenMixin" in main_window
-	assert "FerrumNativeDocumentSaveMixin" in main_window
-	assert "window_native_files" not in main_window
-	assert "def open_file_path(" in local_open
-	assert "def open_native_cdml_path(" not in local_open
+def test_invalid_destination_save_error_reports_not_started() -> None:
+	"""A native pre-write destination refusal cannot be presented as completion."""
+	requests = []
+
+	class SaveErrorWindow(ferrum_qt.ferrum.document_save.FerrumNativeDocumentSaveMixin):
+		"""Capture the public refusal request without a Qt modal."""
+
+		def _show_refusal(self, request: object) -> None:
+			"""Record the typed request sent to the presentation boundary."""
+			requests.append(request)
+
+	window = SaveErrorWindow()
+	error = ferrum_chem.InvalidDestinationError("/private/tmp/arrow.cdml", "rejected")
+	assert not window._report_native_save_error("/private/tmp/arrow.cdml", error)
+	assert requests[-1].outcome.value == "save_not_started"

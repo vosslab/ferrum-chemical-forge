@@ -103,8 +103,6 @@ pub use direct_glycosidic_haworth::{
     DirectGlycosidicHaworthRenderPlanV1, DirectGlycosidicHaworthRenderRequestV1,
     lower_direct_glycosidic_haworth_v1,
 };
-/// Source-owned directed stereo-bond geometry for committed batches and previews.
-pub use directed_stereo_bond::build_directed_bond_preview_ops;
 /// Document-aware depiction, observation, plan composition, and artifact lowering.
 pub use document::artifact::native::{
     DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,

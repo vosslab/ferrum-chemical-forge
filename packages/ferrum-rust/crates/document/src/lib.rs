@@ -16,6 +16,7 @@ mod atom_rotation_v1;
 #[allow(dead_code)] // WP-A1 private topology is consumed by the later session capability.
 mod attached_cyclohexane_v1;
 mod authored_text_v1;
+mod authoring_capability_v1;
 mod bond_presentation_v1;
 mod bond_properties_patch_v1;
 mod bracket_insertion_v1;
@@ -31,13 +32,15 @@ mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
 mod clipboard_paste_v1;
 mod core_projection;
-mod direct_bond_gesture_v1;
-mod direct_bond_gesture_v2;
+mod curved_equilibrium_arrow_geometry_v1;
+mod direct_bond_mutation;
+mod direct_bond_primitives_v1;
 mod direct_cdml_semantic_index_v1;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
 mod document_explicit_fragment_api_v1;
 mod document_ingress_v1;
+mod document_smarts_snapshot_v1;
 mod drawing_standard_patch_v1;
 mod equilibrium_arrow_geometry_v1;
 mod explicit_fragment_v1;
@@ -146,6 +149,10 @@ pub use attached_cyclohexane_v1::{AttachedCyclohexaneErrorV1, AttachedCyclohexan
 pub use authored_text_v1::{
     AuthoredTextRunV1, AuthoredTextStyleV1, normalize_authored_text_runs_v1,
 };
+pub use authoring_capability_v1::{
+    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityClaimV1, AuthoringCapabilityIssuerV1,
+    AuthoringCapabilityV1,
+};
 pub use bond_presentation_v1::DocumentBondPresentationV1;
 pub use bond_properties_patch_v1::{
     BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, DocumentBondStyleV1,
@@ -183,17 +190,15 @@ pub use clipboard_paste_v1::{
     prepare_document_clipboard_paste_v1,
 };
 pub use core_projection::{CoreProjection, CoreProjectionError};
-pub use direct_bond_gesture_v1::{
-    CommittedDirectBondGestureV1, DirectBondAdmissionRefusalV1, DirectBondAdmissionV1,
-    DirectBondCommitErrorV1, DirectBondEndIntentV1, DirectBondEndpointV1, DirectBondGestureErrorV1,
-    DirectBondGestureV1, DirectBondOverlayV1, DirectBondPoint2V1, DirectBondPreviewV1,
-    DirectBondSnapPolicyV1, DocumentFenceV1,
+pub use curved_equilibrium_arrow_geometry_v1::{
+    CurvedEquilibriumArrowEndHeadLaneV1, CurvedEquilibriumArrowGeometryErrorV1,
+    CurvedEquilibriumArrowGeometryV1, CurvedEquilibriumArrowStartHeadLaneV1,
+    curved_equilibrium_arrow_geometry_v1,
 };
-#[cfg(test)]
-mod direct_bond_v2_matrix_tests;
-pub use direct_bond_gesture_v2::{
-    CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondEndpointIntentV2,
-    DirectBondGestureV2, DirectBondOverlayV2,
+pub use direct_bond_mutation::{DirectBondEndpointIntent, DirectBondMutationCandidate};
+pub use direct_bond_primitives_v1::{
+    DirectBondAdmissionRefusalV1, DirectBondCommitErrorV1, DirectBondGestureErrorV1,
+    DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentFenceV1,
 };
 pub use direct_cdml_semantic_index_v1::{
     DirectCdmlRootKindV1, DirectCdmlRootV1, DirectCdmlSemanticErrorV1, DirectCdmlSemanticIndexV1,
@@ -221,6 +226,9 @@ pub use document_ingress_v1::{
     load_document_file_for_publication_with_budget, load_document_file_with_budget,
     load_document_reader_with_budget, load_document_utf8_bytes_with_budget,
     read_regular_file_with_origin_with_budget,
+};
+pub use document_smarts_snapshot_v1::{
+    DocumentSmartsSnapshotErrorV1, DocumentSmartsTargetV1, PreparedDocumentSmartsSnapshotV1,
 };
 pub use drawing_standard_patch_v1::{
     DrawingStandardPatchV1, DrawingStandardPatchV1Error, DrawingStandardPropertyChangeV1,
@@ -297,7 +305,8 @@ pub use plus_properties_patch_v1::{
 };
 pub use presentation_arrow_projection_v1::{
     ArrowDisplayGeometryV1, ArrowHeadPositionV1, ArrowHeadShapeV1, ArrowHeadV1, ArrowPathV1,
-    ArrowProjectionV1, ElectronArrowGeometryV1, electron_arrow_geometry_v1,
+    ArrowProjectionV1, CurvedTerminalArrowDisplayKindV1, CurvedTerminalArrowGeometryV1,
+    CurvedTerminalArrowKindV1, curved_terminal_arrow_geometry_v1,
 };
 pub use presentation_creation_gesture_v1::{
     ArrowGestureStyleV1, CommittedPresentationGestureV1, PresentationCreationGestureV1,
@@ -308,8 +317,8 @@ pub use presentation_creation_gesture_v1::{
 };
 pub use presentation_path_gesture_v1::{
     PRESENTATION_PATH_MAXIMUM_EXTENT_PT_V1, PRESENTATION_PATH_MAXIMUM_POINTS_V1,
-    PresentationPathGestureCategoryV1, PresentationPathGestureErrorV1, PresentationPathGestureRecoveryV1,
-    PresentationPathGestureV1, PresentationPathKindV1,
+    PresentationPathGestureCategoryV1, PresentationPathGestureErrorV1,
+    PresentationPathGestureRecoveryV1, PresentationPathGestureV1, PresentationPathKindV1,
 };
 pub use presentation_plus_projection_v1::{PlusProjectionV1, PresentationFontV1};
 pub use presentation_root_deletion_v1::{
@@ -347,10 +356,10 @@ pub use projection_v1::{
 pub use publication::{
     DocumentMoleculeInchiPublicationErrorV1, DocumentMoleculeMolblockPublicationErrorV1,
     DocumentMoleculeSdfPublicationErrorV1, DocumentMoleculeSmilesPublicationErrorV1,
-    DocumentMoleculesSdfPublicationErrorV2,
-    PublicationDurability, publish_document_molecule_inchi_v1,
-    publish_document_molecule_molblock_v1, publish_document_molecule_sdf_v1,
-    publish_document_molecule_smiles_v1, publish_document_molecules_sdf_v2,
+    DocumentMoleculesSdfPublicationErrorV2, PublicationDurability,
+    publish_document_molecule_inchi_v1, publish_document_molecule_molblock_v1,
+    publish_document_molecule_sdf_v1, publish_document_molecule_smiles_v1,
+    publish_document_molecules_sdf_v2,
 };
 pub use regular_ring_insertion_v1::{
     DetachedRegularRingInsertionV1, RegularRingInsertionErrorV1, RegularRingOrientationV1,
@@ -370,7 +379,11 @@ pub use session::{
     PendingLinearFormConvertV1, PendingStandaloneHaworthV1, PreparedLinearFormConvertResultV1,
     Publication, SaveOutcome,
 };
-pub use session_observation::{ObservedDirectMoleculeGraphV1, SessionDocumentObservationV1};
+pub use session::{
+    PendingCreatePresentationV1, PresentationAppearanceV1, PresentationCreateErrorV1,
+    PresentationCreateRequestV1, PresentationVectorCreateKindV1,
+};
+pub use session_observation::SessionDocumentObservationV1;
 pub use session_operation::{
     SessionOperation, SessionOperationError, SessionOperationResultV1, SessionOperationV1,
 };
