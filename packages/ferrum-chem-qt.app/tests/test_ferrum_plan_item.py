@@ -234,7 +234,7 @@ def _observation_and_batches() -> tuple[RenderObservationV1, BatchFixtureV2, Bat
 		plan,
 	)
 	observation = RenderObservationV1(
-		"ferrum-render-observation-v1",
+		"ferrum-document-render-observation-v1",
 		SessionDocumentObservationV1(DocumentSnapshotV1(7, digest)),
 		"ferrum-depiction-profile-v1", (entry,), (), (), (), None,
 	)

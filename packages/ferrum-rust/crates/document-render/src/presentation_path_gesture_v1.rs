@@ -8,10 +8,6 @@ use ferrum_document::{
     PresentationPathKindV1, PresentationRootSelectorV1, Rgb24V1, SessionOperationResultV1,
     TransparentOrRgb24V1,
 };
-use ferrum_render::{
-    DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
-    document_observation_from_accepted_operation_v1,
-};
 use thiserror::Error;
 
 use super::require_fence;
@@ -112,7 +108,7 @@ impl PresentationPathOverlayV1 {
 #[derive(Debug)]
 /// Renderer-preflighted path awaiting one commit; unsuccessful commits preserve it for retry.
 pub struct PreparedPresentationPathV1 {
-    receipt: Option<PathRendererReceiptV1>,
+    receipt: Option<PendingCreatePresentationV1>,
     identifier: String,
 }
 #[derive(Clone, Debug)]
@@ -199,13 +195,6 @@ impl PresentationPathRenderErrorV1 {
             Self::RenderPreparation => PresentationPathRenderRecoveryV1::DocumentUnchanged,
         }
     }
-}
-
-#[derive(Debug)]
-struct PathRendererReceiptV1 {
-    pending: PendingCreatePresentationV1,
-    contract: ferrum_render_contract::PreflightedDocumentRenderV1,
-    plan: DocumentRenderPlanV1,
 }
 
 /// Begin a session-fenced incremental path from one current document snapshot.
@@ -348,33 +337,8 @@ fn prepare_path(
         )
         .map_err(map_presentation_create_error)?;
     let identifier = pending.identifier().as_str().to_owned();
-    let candidate = pending
-        .candidate_cdml_for_render_preflight_v1()
-        .ok_or(PresentationPathRenderErrorV1::ReplayedGesture)?;
-    let contract = ferrum_render_contract::preflight_complete_document_v1(&candidate)
-        .map_err(|_| PresentationPathRenderErrorV1::RenderPreparation)?;
-    let candidate_session = DocumentSession::load(&candidate)
-        .map_err(|_| PresentationPathRenderErrorV1::RenderPreparation)?;
-    let observation = candidate_session
-        .observe(0)
-        .map_err(|_| PresentationPathRenderErrorV1::RenderPreparation)?;
-    let render_observation = document_observation_from_accepted_operation_v1(&observation)
-        .map_err(|_| PresentationPathRenderErrorV1::RenderPreparation)?;
-    let plan = compose_document_render_plan_v1(&render_observation)
-        .map_err(|_| PresentationPathRenderErrorV1::RenderPreparation)?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(PresentationPathRenderErrorV1::RenderPreparation);
-    }
     Ok(PreparedPresentationPathV1 {
-        receipt: Some(PathRendererReceiptV1 {
-            pending,
-            contract,
-            plan,
-        }),
+        receipt: Some(pending),
         identifier,
     })
 }
@@ -428,35 +392,24 @@ pub fn commit_presentation_path_gesture_v1(
     session: &mut DocumentSession,
     prepared: &mut PreparedPresentationPathV1,
 ) -> Result<CommittedPresentationPathV1, PresentationPathRenderErrorV1> {
-    let mut receipt = prepared
+    let mut pending = prepared
         .receipt
         .take()
         .ok_or(PresentationPathRenderErrorV1::ReplayedGesture)?;
-    let candidate = receipt
-        .pending
-        .candidate_cdml_for_render_preflight_v1()
-        .ok_or(PresentationPathRenderErrorV1::ReplayedGesture)?;
-    if receipt.pending.identifier().as_str() != prepared.identifier
-        || receipt.contract.source() != candidate
-        || receipt
-            .plan
-            .outcomes()
-            .iter()
-            .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
+    if pending.identifier().as_str() != prepared.identifier {
         return Err(PresentationPathRenderErrorV1::RenderPreparation);
     }
     let result = session
-        .commit_create_presentation_v1(&mut receipt.pending)
+        .commit_create_presentation_v1(&mut pending)
         .map_err(map_presentation_create_error);
     let result = match result {
         Ok(result) => result,
         Err(error) => {
-            prepared.receipt = Some(receipt);
+            prepared.receipt = Some(pending);
             return Err(error);
         }
     };
-    let root = PresentationRootSelectorV1::new(&prepared.identifier, receipt.pending.root_kind())
+    let root = PresentationRootSelectorV1::new(&prepared.identifier, pending.root_kind())
         .expect("prepared receipt contains a valid generated selector");
     Ok(CommittedPresentationPathV1 { root, result })
 }
@@ -470,6 +423,9 @@ fn map_presentation_create_error(
         PresentationCreateErrorV1::Replayed => PresentationPathRenderErrorV1::ReplayedGesture,
         PresentationCreateErrorV1::SessionConflict => {
             PresentationPathRenderErrorV1::SessionConflict
+        }
+        PresentationCreateErrorV1::RendererAdmission => {
+            PresentationPathRenderErrorV1::RenderPreparation
         }
     }
 }
@@ -656,8 +612,11 @@ mod tests {
             PresentationPathKindV1::Polyline,
         )
         .expect("stale gesture");
+        let mut revision_advance = session
+            .prepare_complete_cdml_mutation_v1(fence(&session), before.cdml())
+            .expect("prepare revision advance");
         session
-            .commit_complete_cdml_transaction_v1(fence(&session), before.cdml())
+            .commit_complete_cdml_mutation_v1(&mut revision_advance)
             .expect("advance revision");
         let after_advance = session.snapshot().expect("advanced snapshot");
         assert!(matches!(
@@ -801,8 +760,11 @@ mod tests {
         );
 
         let before_advance = session.snapshot().expect("before advance");
+        let mut revision_advance = session
+            .prepare_complete_cdml_mutation_v1(fence(&session), before_advance.cdml())
+            .expect("prepare revision advance");
         session
-            .commit_complete_cdml_transaction_v1(fence(&session), before_advance.cdml())
+            .commit_complete_cdml_mutation_v1(&mut revision_advance)
             .expect("advance revision");
         let advanced = session.snapshot().expect("advanced");
         assert!(matches!(

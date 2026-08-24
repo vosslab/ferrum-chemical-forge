@@ -1,9 +1,10 @@
 //! Transactional document-owned creation of durable presentation roots.
 
 use super::{
-    DocumentFenceV1, DocumentSession, GeneratedIdSequences, PersistentId, RevisionState,
-    SessionDocumentObservationV1, SessionOperationResultV1,
+    AdmittedSessionTransitionRefusalV1, DocumentFenceV1, DocumentSession, PersistentId,
+    PreparedSessionTransitionV1, RevisionState, SessionOperationResultV1,
 };
+use crate::DocumentSessionError;
 use crate::{
     AuthoringCapabilityAccessErrorV1, AuthoringCapabilityIssuerV1, AuthoringCapabilityV1,
     CurvedTerminalArrowKindV1, GeometricLineWidthV1, PresentationGesturePoint2V1,
@@ -245,9 +246,7 @@ pub struct PendingCreatePresentationV1 {
     session_issuer: AuthoringCapabilityIssuerV1,
     capability: AuthoringCapabilityV1,
     fence: DocumentFenceV1,
-    candidate: Option<RevisionState>,
-    operation: Option<SessionOperationResultV1>,
-    tentative_generated_ids: GeneratedIdSequences,
+    transition: PreparedSessionTransitionV1,
     identifier: PersistentId,
     root_kind: PresentationRecordKindV1,
 }
@@ -257,7 +256,7 @@ impl std::fmt::Debug for PendingCreatePresentationV1 {
         formatter
             .debug_struct("PendingCreatePresentationV1")
             .field("revision", &self.fence.revision())
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -274,17 +273,6 @@ impl PendingCreatePresentationV1 {
     pub const fn root_kind(&self) -> PresentationRecordKindV1 {
         self.root_kind
     }
-
-    /// Return a render-preflight serialization of this opaque Rust receipt.
-    ///
-    /// This is intentionally a Rust-only boundary: PyO3 exposes neither this receipt
-    /// nor this candidate serialization.
-    #[must_use]
-    pub fn candidate_cdml_for_render_preflight_v1(&self) -> Option<String> {
-        self.candidate
-            .as_ref()
-            .map(|state| state.snapshot(true).cdml().to_owned())
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
@@ -297,6 +285,8 @@ pub enum PresentationCreateErrorV1 {
     Replayed,
     #[error("presentation creation session transaction failed")]
     SessionConflict,
+    #[error("presentation candidate was refused by renderer admission")]
+    RendererAdmission,
 }
 
 impl DocumentSession {
@@ -311,36 +301,39 @@ impl DocumentSession {
             return Err(PresentationCreateErrorV1::ForeignSession);
         }
         require_fence(self, fence)?;
-        let (identifier, tentative_generated_ids) = self
-            .generated_ids
-            .reserve_presentation(self.history.current().document().indexed())
+        let (identifier, effects) = self
+            .reserve_generated_ids_for_transition_v1(|sequences, indexed| {
+                sequences.reserve_presentation(indexed)
+            })
             .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        let source = self.history.current().snapshot(true).cdml().to_owned();
+        let source = self
+            .snapshot()
+            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?
+            .cdml()
+            .to_owned();
         let candidate_cdml = request
             .append_to(&source, &identifier)
             .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
         let document = TypedDocument::parse(&candidate_cdml)
             .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
         let revision = self
-            .history
-            .current()
-            .next_revision()
+            .next_revision_v1()
             .ok_or(PresentationCreateErrorV1::SessionConflict)?;
         let candidate = RevisionState::from_document(revision, document)
             .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        let snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        let observation = SessionDocumentObservationV1::from_state(candidate.document(), snapshot)
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        self.history
-            .try_reserve_append()
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
+        let transition = self
+            .prepare_changed_session_transition_v1(
+                fence.revision(),
+                fence.digest(),
+                candidate,
+                effects,
+            )
+            .map_err(map_prepare_error)?;
         Ok(PendingCreatePresentationV1 {
             session_issuer: self.authoring_capability_issuer.clone(),
             capability: capability.clone(),
             fence,
-            candidate: Some(candidate),
-            operation: Some(SessionOperationResultV1::new(observation)),
-            tentative_generated_ids,
+            transition,
             identifier,
             root_kind: request.root_kind(),
         })
@@ -351,7 +344,7 @@ impl DocumentSession {
         &mut self,
         pending: &mut PendingCreatePresentationV1,
     ) -> Result<SessionOperationResultV1, PresentationCreateErrorV1> {
-        if pending.candidate.is_none() || pending.operation.is_none() {
+        if pending.transition.is_consumed_v1() {
             return Err(PresentationCreateErrorV1::Replayed);
         }
         if !pending
@@ -372,26 +365,37 @@ impl DocumentSession {
                 }
                 AuthoringCapabilityAccessErrorV1::Replayed => PresentationCreateErrorV1::Replayed,
             })?;
-        require_fence(self, pending.fence)?;
-        let token =
-            super::prepared::issue_prepared_token(self.history.current_mut().document_mut())
-                .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        self.history
-            .current()
-            .document()
-            .verify_provisional_token(&token)
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        self.history
-            .current_mut()
-            .document_mut()
-            .consume_provisional_token(&token)
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        let state = pending.candidate.take().expect("live receipt was checked");
-        let operation = pending.operation.take().expect("live receipt was checked");
-        self.history.append_reserved(state);
-        self.generated_ids = pending.tentative_generated_ids;
+        let operation = self
+            .commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(map_commit_error)?;
         claim.consume();
         Ok(operation)
+    }
+}
+
+fn map_prepare_error(error: DocumentSessionError) -> PresentationCreateErrorV1 {
+    match error {
+        DocumentSessionError::RendererAdmission => PresentationCreateErrorV1::RendererAdmission,
+        _ => PresentationCreateErrorV1::SessionConflict,
+    }
+}
+
+fn map_commit_error(error: AdmittedSessionTransitionRefusalV1) -> PresentationCreateErrorV1 {
+    match error {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            PresentationCreateErrorV1::ForeignSession
+        }
+        AdmittedSessionTransitionRefusalV1::Replayed => PresentationCreateErrorV1::Replayed,
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            PresentationCreateErrorV1::StaleSnapshot
+        }
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            PresentationCreateErrorV1::RendererAdmission
+        }
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability
+        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            PresentationCreateErrorV1::SessionConflict
+        }
     }
 }
 
@@ -399,8 +403,9 @@ fn require_fence(
     session: &DocumentSession,
     fence: DocumentFenceV1,
 ) -> Result<(), PresentationCreateErrorV1> {
-    let current = session.history.current();
-    if current.revision() != fence.revision() || *current.digest() != fence.digest() {
+    if session.current_revision_v1() != fence.revision()
+        || session.current_digest_v1() != fence.digest()
+    {
         return Err(PresentationCreateErrorV1::StaleSnapshot);
     }
     Ok(())
@@ -463,6 +468,27 @@ mod tests {
             session.commit_create_presentation_v1(&mut pending),
             Err(PresentationCreateErrorV1::Replayed)
         ));
+    }
+
+    #[test]
+    fn renderer_admission_observation_is_the_exact_committed_candidate() {
+        let mut session = DocumentSession::load(EMPTY).expect("session");
+        let capability = session.authoring_capability_issuer_v1().issue();
+        let mut pending = session
+            .prepare_create_presentation_v1(&capability, fence(&session), request())
+            .expect("reservation");
+        let expected = pending
+            .transition
+            .metadata_v1()
+            .expect("live transition metadata")
+            .observation()
+            .clone();
+
+        let committed = session
+            .commit_create_presentation_v1(&mut pending)
+            .expect("commit");
+
+        assert_eq!(committed.observation(), &expected);
     }
 
     #[test]

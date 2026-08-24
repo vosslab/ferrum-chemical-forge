@@ -19,15 +19,14 @@ impl DocumentSession {
         minimize_rotation: bool,
     ) -> Result<PreparedStraightenDepictionsV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
-        let current = self.history.current();
         if molecule_ids.is_empty() {
             return Err(SessionOperationError::InvalidStraightenDepiction(
                 "whole-depiction straightening requires at least one molecule".to_owned(),
             )
             .into());
         }
-        let direct_molecule_count = current
-            .document()
+        let direct_molecule_count = self
+            .current_document_v1()
             .root()
             .children_of(TypedClass::Molecule)
             .count();
@@ -48,8 +47,8 @@ impl DocumentSession {
                 .into());
             }
             let object_key = object_id.as_str().to_owned();
-            let record = current
-                .document()
+            let record = self
+                .current_document_v1()
                 .resolve_document_object_id(&object_id)
                 .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_key.clone()))?;
             if record.class() != TypedClass::Molecule {
@@ -73,7 +72,7 @@ impl DocumentSession {
             .into_iter()
             .map(|(source_id, object_id)| {
                 super::super::straighten_depiction_update_v1::prepare_molecule(
-                    current.document(),
+                    self.current_document_v1(),
                     &source_id,
                     object_id,
                     minimize_rotation,
@@ -81,9 +80,13 @@ impl DocumentSession {
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(SessionOperationError::Candidate)?;
-        PreparedStraightenDepictionsV1::new(current.revision(), *current.digest(), molecules)
-            .map_err(|error| {
-                SessionOperationError::InvalidStraightenDepiction(error.to_string()).into()
-            })
+        PreparedStraightenDepictionsV1::new(
+            self.current_revision_v1(),
+            self.current_digest_v1(),
+            molecules,
+        )
+        .map_err(|error| {
+            SessionOperationError::InvalidStraightenDepiction(error.to_string()).into()
+        })
     }
 }

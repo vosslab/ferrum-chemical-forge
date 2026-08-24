@@ -94,6 +94,6 @@ pub(super) fn parse_digest_hex(value: &str) -> Result<[u8; 32], ExecutionFailure
     Ok(digest)
 }
 
-pub(super) fn hex_digest(digest: &[u8; 32]) -> String {
+pub(crate) fn hex_digest(digest: &[u8; 32]) -> String {
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }

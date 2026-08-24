@@ -608,8 +608,8 @@ class FerrumNativeDocumentTab(
 		if type(molecule) is not engine.MoleculeInsertionV1:
 			raise TypeError("Ferrum molecule insertion requires exact frozen Ferrum data")
 		revision = self.current_snapshot.revision
-		prepared = self._session.prepare_insert_molecule_v1(revision, molecule)
-		result = self._session.commit_create_molecule(revision, prepared)
+		prepared = self._session.prepare_admitted_molecule_insertion_v1(revision, molecule)
+		result = self._session.commit_admitted_molecule_insertion_v1(revision, prepared)
 		self._install_mutation_result(result)
 		return result
 
@@ -741,17 +741,18 @@ class FerrumNativeDocumentTab(
 	def _install_observation(self, observation: object) -> bool:
 		"""Install exactly one current render observation through a provenance latch."""
 		self._require_live()
-		snapshot = observation.document.snapshot
+		render_observation = observation.render_observation
+		snapshot = render_observation.document.snapshot
 		latch = ferrum_qt.canvas.ferrum_render_projection.RenderProjectionLatch(
 			snapshot.revision, snapshot.digest, self._controller.generation,
 		)
 		installed = self._install_published_render_plan_v1(
-			self._controller.replace, observation, latch,
+			self._controller.replace, render_observation, latch, observation.presentation_plan,
 		)
 		if installed:
 			self._snapshot = snapshot
-			self._document_observation = observation.document
-			self._render_observation = observation
+			self._document_observation = render_observation.document
+			self._render_observation = render_observation
 			self._connect_current_selection_scene()
 		return installed
 
@@ -870,9 +871,8 @@ class FerrumNativeDocumentTab(
 	#============================================
 	def _retire_partial_resources(self) -> None:
 		"""Dispose partial projection resources after construction failure."""
-		retire = getattr(self, "_retire_live_smarts_query_v1", None)
-		if retire is not None:
-			retire("construction_failure")
+		if getattr(self, "_session", None) is not None:
+			self._retire_live_smarts_query_v1("construction_failure")
 		controller = getattr(self, "_controller", None)
 		if controller is not None:
 			controller.dispose()

@@ -36,7 +36,7 @@ const SOURCE: &str = concat!(
 
 const PREFIXED_SOURCE: &str = concat!(
     "<cdml:cdml xmlns:cdml=\"urn:ferrum:cdml\">",
-    "<cdml:molecule id=\"m\"/></cdml:cdml>"
+    "<cdml:molecule id=\"m\"><cdml:atom id=\"a\" name=\"C\"><cdml:point x=\"0\" y=\"0\"/></cdml:atom></cdml:molecule></cdml:cdml>"
 );
 
 const RESERVED_GENERATED_ID_SOURCE: &str = concat!(
@@ -591,7 +591,8 @@ fn create_atom_requires_a_current_durable_molecule_selector() {
         ))
     ));
 
-    let unknown = DocumentObjectIdV1::from_class_source(TypedClass::Molecule.name(), "missing");
+    let unknown = DocumentObjectIdV1::from_class_source(TypedClass::Molecule.name(), "missing")
+        .expect("nonempty primitives produce a durable identity");
     assert!(matches!(
         session.prepare_create_atom_v1(0, &unknown, "O", position()),
         Err(DocumentSessionError::Operation(

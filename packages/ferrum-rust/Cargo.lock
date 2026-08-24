@@ -337,8 +337,6 @@ version = "26.8.0"
 dependencies = [
  "ferrum-document",
  "ferrum-domain",
- "ferrum-render",
- "ferrum-render-contract",
  "thiserror",
 ]
 
@@ -371,9 +369,10 @@ version = "26.8.0"
 dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
- "ferrum-document-model",
+ "ferrum-document-projection",
  "ferrum-domain",
  "ferrum-geometry",
+ "ferrum-render",
  "getrandom 0.4.3",
  "proptest",
  "rustix",
@@ -391,9 +390,19 @@ name = "ferrum-document-model"
 version = "26.8.0"
 dependencies = [
  "serde",
- "serde_json",
+ "sha2",
  "thiserror",
  "xmlparser",
+]
+
+[[package]]
+name = "ferrum-document-projection"
+version = "26.8.0"
+dependencies = [
+ "ferrum-core",
+ "ferrum-document-model",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -407,7 +416,6 @@ dependencies = [
  "ferrum-domain",
  "ferrum-geometry",
  "ferrum-render",
- "ferrum-render-contract",
  "thiserror",
  "xmlparser",
 ]
@@ -439,9 +447,11 @@ version = "26.8.0"
 dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
- "ferrum-document",
+ "ferrum-document-model",
+ "ferrum-document-projection",
  "ferrum-domain",
  "ferrum-geometry",
+ "ferrum-render-contract",
  "pdf-writer",
  "png",
  "rustix",
@@ -457,10 +467,6 @@ dependencies = [
 [[package]]
 name = "ferrum-render-contract"
 version = "26.8.0"
-dependencies = [
- "ferrum-document-model",
- "thiserror",
-]
 
 [[package]]
 name = "fixedbitset"

@@ -8,6 +8,7 @@ pub(super) struct GeneratedIdSequences {
     molecule: Option<u64>,
     atom: Option<u64>,
     bond: Option<u64>,
+    compact_group: Option<u64>,
     presentation: Option<u64>,
     fragment: Option<u64>,
     fragment_import: Option<u64>,
@@ -19,6 +20,7 @@ impl GeneratedIdSequences {
             molecule: Some(0),
             atom: Some(0),
             bond: Some(0),
+            compact_group: Some(0),
             presentation: Some(0),
             fragment: Some(0),
             fragment_import: Some(0),
@@ -47,6 +49,7 @@ impl GeneratedIdSequences {
                 molecule,
                 atom,
                 bond,
+                compact_group: self.compact_group,
                 presentation: self.presentation,
                 fragment: self.fragment,
                 fragment_import: self.fragment_import,
@@ -89,6 +92,30 @@ impl GeneratedIdSequences {
             .try_into()
             .expect("one requested bond identity produces one result");
         Ok((identifier, Self { bond, ..self }))
+    }
+
+    /// Reserve one first-class compact-group identity without advancing the
+    /// sequence until the owning prepared transaction commits.
+    pub(super) fn reserve_compact_group(
+        self,
+        indexed: &IndexedDocument,
+    ) -> Result<(PersistentId, Self), SessionOperationError> {
+        let (groups, compact_group) = allocate(
+            indexed,
+            GeneratedIdKind::CompactGroup,
+            self.compact_group,
+            1,
+        )?;
+        let [identifier] = groups
+            .try_into()
+            .expect("one requested compact-group identity produces one result");
+        Ok((
+            identifier,
+            Self {
+                compact_group,
+                ..self
+            },
+        ))
     }
 
     pub(super) fn reserve_bonded_atom(
@@ -228,6 +255,7 @@ enum GeneratedIdKind {
     Molecule,
     Atom,
     Bond,
+    CompactGroup,
     Presentation,
     #[cfg_attr(not(test), allow(dead_code))]
     Fragment,
@@ -240,6 +268,7 @@ impl GeneratedIdKind {
             Self::Molecule => "ferrum-molecule-v1-",
             Self::Atom => "ferrum-atom-v1-",
             Self::Bond => "ferrum-bond-v1-",
+            Self::CompactGroup => "ferrum-compact-group-v1-",
             Self::Presentation => "ferrum-presentation-v1-",
             Self::Fragment => "ferrum-fragment-v1-",
             Self::FragmentImport => "ferrum-import-v1-",
@@ -251,6 +280,7 @@ impl GeneratedIdKind {
             Self::Molecule => SessionOperationError::MoleculeIdentifierExhausted,
             Self::Atom => SessionOperationError::AtomIdentifierExhausted,
             Self::Bond => SessionOperationError::BondIdentifierExhausted,
+            Self::CompactGroup => SessionOperationError::GeneratedIdentifierAllocationFailed,
             Self::Presentation => SessionOperationError::PresentationIdentifierExhausted,
             Self::Fragment => SessionOperationError::FragmentIdentifierExhausted,
             Self::FragmentImport => SessionOperationError::FragmentImportIdentifierExhausted,

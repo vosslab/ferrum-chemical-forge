@@ -44,7 +44,7 @@ class RichTextDialog(FerrumAccessibleDialog):
 	#============================================
 	def __init__(
 			self, runs: tuple[tuple[str, tuple[str, ...]], ...],
-			font_family: str = "Arial", font_size: int = 12, font_color: str = "#000000",
+			font_size: int = 12, font_color: str = "#000000",
 			parent: PySide6.QtWidgets.QWidget | None = None,
 			*, capabilities: RichTextDialogCapabilities | None = None,
 			initial_text_selected: bool = False,
@@ -56,7 +56,6 @@ class RichTextDialog(FerrumAccessibleDialog):
 		self._build_ui()
 		self._apply_capabilities(capabilities or RichTextDialogCapabilities())
 		self._install_runs(runs)
-		self._font_combo.setCurrentFont(PySide6.QtGui.QFont(font_family))
 		self._font_spin.setValue(font_size)
 		self._color = PySide6.QtGui.QColor(font_color).name()
 		self._update_color_button()
@@ -70,13 +69,12 @@ class RichTextDialog(FerrumAccessibleDialog):
 
 	#============================================
 	def _apply_capabilities(self, capabilities: RichTextDialogCapabilities) -> None:
-		"""Disable unsupported choices visibly without changing the legacy default."""
+		"""Expose only controls that the current backend contract can preserve."""
 		if type(capabilities) is not RichTextDialogCapabilities:
 			raise TypeError("Rich Text capabilities must use the closed dialog profile")
 		for enabled, control in (
 			(capabilities.bold, self._bold_button),
 			(capabilities.italic, self._italic_button),
-			(capabilities.font_family, self._font_combo),
 		):
 			control.setEnabled(enabled)
 			if not enabled:
@@ -103,9 +101,11 @@ class RichTextDialog(FerrumAccessibleDialog):
 		toolbar.addStretch()
 		layout.addLayout(toolbar)
 		form = PySide6.QtWidgets.QFormLayout()
-		self._font_combo = PySide6.QtWidgets.QFontComboBox(self)
-		self._font_combo.setAccessibleName("Font family")
-		form.addRow("Font family:", self._font_combo)
+		self._font_face = PySide6.QtWidgets.QLabel("Telex Regular (bundled)", self)
+		self._font_face.setAccessibleName("Typeface")
+		self._font_face.setAccessibleDescription("Renderer-owned bundled typeface")
+		self._font_face.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.NoFocus)
+		form.addRow("Typeface:", self._font_face)
 		self._font_spin = PySide6.QtWidgets.QSpinBox(self)
 		self._font_spin.setAccessibleName("Font size")
 		self._font_spin.setRange(4, 144)
@@ -153,7 +153,6 @@ class RichTextDialog(FerrumAccessibleDialog):
 	def font_values(self) -> dict[str, object]:
 		"""Return the dialog's canonical plain root-font values."""
 		return {
-			"font_family": self._font_combo.currentFont().family().strip(),
 			"font_size": self._font_spin.value(),
 			"font_color": self._color.lower(),
 		}

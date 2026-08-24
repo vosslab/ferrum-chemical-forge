@@ -1,0 +1,206 @@
+use ferrum_document_projection::{
+    ArrowHeadShapeV1, ArrowProjectionV1, Point3V1, PositiveFiniteV1, PresentationFactProvenanceV1,
+    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
+    PresentationStrokeV1, PresentationTargetV1, Rgb24V1,
+};
+
+use crate::{
+    PRESENTATION_RENDER_PLAN_SCHEMA_V1, PathCommandV1, PresentationRenderRootV1, RenderError,
+    RenderPoint, render_presentation_stack_v1,
+};
+
+#[test]
+fn renderer_plan_preserves_source_order_targets_and_finite_arrow_bounds() {
+    let stack = stack(vec![arrow(2, false, true), arrow(7, false, false)]);
+
+    let plan = render_presentation_stack_v1(&stack).expect("typed stack renders");
+
+    assert_eq!(plan.schema(), PRESENTATION_RENDER_PLAN_SCHEMA_V1);
+    assert_eq!(plan.revision(), 19);
+    assert_eq!(plan.digest(), &[9; 32]);
+    assert_eq!(
+        plan.roots()
+            .iter()
+            .map(|root| root.target().source_order())
+            .collect::<Vec<_>>(),
+        vec![2, 7]
+    );
+    for root in plan.roots() {
+        let bounds = root.bounds();
+        assert!(
+            [bounds.left(), bounds.top(), bounds.right(), bounds.bottom()]
+                .into_iter()
+                .all(f64::is_finite)
+        );
+    }
+}
+
+#[test]
+fn normal_head_policy_changes_issued_arrow_operations() {
+    let with_head = render_presentation_stack_v1(&stack(vec![arrow(2, false, true)]))
+        .expect("headed arrow renders");
+    let without_head = render_presentation_stack_v1(&stack(vec![arrow(2, false, false)]))
+        .expect("headless arrow renders");
+
+    let has_filled_head = |root: &PresentationRenderRootV1| {
+        root.vector()
+            .expect("arrow is vector-backed")
+            .operations()
+            .iter()
+            .any(|operation| operation.fill().is_some())
+    };
+    assert!(has_filled_head(&with_head.roots()[0]));
+    assert!(!has_filled_head(&without_head.roots()[0]));
+}
+
+#[test]
+fn short_normal_arrow_retains_a_positive_shaft_and_proportional_heads() {
+    let authored_shape = ArrowHeadShapeV1::new(8.0, 10.0, 3.0).expect("fixed head shape");
+    let root = PresentationRootProjectionV1::Arrow {
+        arrow: ArrowProjectionV1::normal(
+            target(2, PresentationRecordKindV1::Arrow),
+            vec![point(0.0, 0.0), point(1.0, 1.0)],
+            authored_shape,
+            true,
+            true,
+            stroke(),
+        )
+        .expect("noncollapsed short arrow is valid semantic input"),
+    };
+
+    let plan = render_presentation_stack_v1(&stack(vec![root]))
+        .expect("short normal arrow receives renderer geometry");
+    let operations = plan.roots()[0]
+        .vector()
+        .expect("arrow is vector-backed")
+        .operations();
+    let (axis_start, axis_end) = open_segment(
+        operations[0]
+            .commands()
+            .expect("normal arrow axis is a path"),
+    );
+    assert!(distance(axis_start, axis_end) > 0.0);
+
+    let head_commands = operations[1]
+        .commands()
+        .expect("normal arrow heads are a path");
+    for commands in [&head_commands[..5], &head_commands[5..]] {
+        let (tip, base_a, axis, base_b) = closed_head(commands);
+        let base_midpoint = RenderPoint::new(
+            (base_a.x() + base_b.x()) / 2.0,
+            (base_a.y() + base_b.y()) / 2.0,
+        )
+        .expect("head midpoint is finite");
+        let total_length = distance(tip, base_midpoint);
+        let inset = distance(tip, axis);
+        let half_width = distance(base_a, base_b) / 2.0;
+        assert_ratio(
+            inset / total_length,
+            authored_shape.line_inset() / authored_shape.total_length(),
+        );
+        assert_ratio(
+            half_width / total_length,
+            authored_shape.half_width() / authored_shape.total_length(),
+        );
+    }
+}
+
+#[test]
+fn incomplete_round_bracket_projection_is_a_closed_renderer_refusal() {
+    let root = PresentationRootProjectionV1::RoundBracket {
+        polyline: ferrum_document_projection::PolylineProjectionV1::new(
+            target(3, PresentationRecordKindV1::Polyline),
+            ferrum_document_projection::PolylinePathV1::try_new(vec![
+                point(1.0, 1.0),
+                point(2.0, 2.0),
+            ])
+            .expect("two-point polyline is a valid generic path"),
+            stroke(),
+        )
+        .expect("valid generic polyline projection"),
+    };
+
+    assert!(matches!(
+        render_presentation_stack_v1(&stack(vec![root])),
+        Err(RenderError::InvalidRequest(_))
+    ));
+}
+
+fn stack(roots: Vec<PresentationRootProjectionV1>) -> PresentationStackProjectionV1 {
+    PresentationStackProjectionV1::new(19, [9; 32], roots, Vec::new(), Vec::new())
+        .expect("root set has no bracket-pair contract")
+}
+
+fn arrow(source_order: u32, start_head: bool, end_head: bool) -> PresentationRootProjectionV1 {
+    PresentationRootProjectionV1::Arrow {
+        arrow: ArrowProjectionV1::normal(
+            target(source_order, PresentationRecordKindV1::Arrow),
+            vec![
+                point(0.0, source_order.into()),
+                point(40.0, source_order.into()),
+            ],
+            ArrowHeadShapeV1::new(8.0, 10.0, 3.0).expect("fixed head shape"),
+            start_head,
+            end_head,
+            stroke(),
+        )
+        .expect("finite nondegenerate arrow"),
+    }
+}
+
+fn target(source_order: u32, record_kind: PresentationRecordKindV1) -> PresentationTargetV1 {
+    serde_json::from_value(serde_json::json!({
+        "id": null,
+        "projection_key": format!("ferrum-projection-local-v1/{source_order}"),
+        "source_id": null,
+        "source_order": source_order,
+        "record_kind": record_kind,
+    }))
+    .expect("valid local target")
+}
+
+fn stroke() -> PresentationStrokeV1 {
+    PresentationStrokeV1::new(
+        Rgb24V1::new("#000000".to_owned()).expect("RGB"),
+        PresentationFactProvenanceV1::Builtin,
+        PositiveFiniteV1::new(1.0).expect("positive width"),
+        PresentationFactProvenanceV1::Builtin,
+    )
+    .expect("built-in stroke")
+}
+
+fn point(x: f64, y: f64) -> Point3V1 {
+    Point3V1::new(x, y, 0.0).expect("finite point")
+}
+
+fn open_segment(commands: &[PathCommandV1]) -> (RenderPoint, RenderPoint) {
+    let [PathCommandV1::MoveTo(start), PathCommandV1::LineTo(end)] = commands else {
+        panic!("normal arrow axis must contain one line segment");
+    };
+    (*start, *end)
+}
+
+fn closed_head(commands: &[PathCommandV1]) -> (RenderPoint, RenderPoint, RenderPoint, RenderPoint) {
+    let [
+        PathCommandV1::MoveTo(tip),
+        PathCommandV1::LineTo(base_a),
+        PathCommandV1::LineTo(axis),
+        PathCommandV1::LineTo(base_b),
+        PathCommandV1::Close,
+    ] = commands
+    else {
+        panic!("normal arrow head must be one closed quadrilateral");
+    };
+    (*tip, *base_a, *axis, *base_b)
+}
+
+fn distance(first: RenderPoint, second: RenderPoint) -> f64 {
+    (first.x() - second.x()).hypot(first.y() - second.y())
+}
+
+fn assert_ratio(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() < 1.0e-12,
+        "{actual} != {expected}"
+    );
+}

@@ -1,27 +1,21 @@
 //! Private Rust-owned Direct-Glycosidic Haworth delivery seam.
 
-use std::collections::BTreeMap;
-
 use ferrum_chemistry::{ChemistryError, NativeChemEngine};
 use ferrum_document::{DocumentSessionError, PendingDirectHaworthV1, Point3V1};
-use ferrum_domain::haworth::{
-    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthBondStyleV1,
-};
+use ferrum_domain::haworth::DirectGlycosidicHaworthAuthoringReceiptV1;
 use ferrum_domain::haworth::{
     DirectHaworthFromSmilesBuildErrorV1, build_direct_haworth_from_smiles_v1,
 };
 use ferrum_geometry::{MoleculePlacementV1, Point2 as MoleculePlacementPointV1};
 use ferrum_render::{
-    BondStyle, LineOp, Paint, PositiveFinite, RenderOp, RenderPoint, Rgb24,
-    build_haworth_front_preview_ops,
+    DocumentRenderContentV1, DocumentRenderIdentityV1, preview_root_render_overlay_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
 
 use super::{
     binding::{PyDocumentSession, PySessionOperationResultV1},
-    render_binding::{PyRenderOperationV2, operation_from},
+    render_binding::{PyRenderPlanV2, plan_from},
 };
 
 create_exception!(ferrum_chem, DirectHaworthError, super::binding::FerrumError);
@@ -32,31 +26,6 @@ create_exception!(ferrum_chem, DirectHaworthReceiptError, DirectHaworthError);
 
 const OPERATION: &str = "prepare_direct_haworth_from_smiles_v1";
 const NATIVE_HAWORTH_BOND_LENGTH_PT: f64 = 40.0;
-const PREVIEW_LINE_WIDTH_PT: f64 = 1.0;
-const PREVIEW_WEDGE_WIDTH_PT: f64 = 5.0;
-
-/// A frozen source-owned V2 preview tier with no mutable geometry authority.
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "DirectHaworthPreviewBatchV2",
-    skip_from_py_object
-)]
-#[derive(Clone)]
-pub(crate) struct PyDirectHaworthPreviewBatchV2 {
-    #[pyo3(get)]
-    display_layer: String,
-    operations: Vec<PyRenderOperationV2>,
-}
-
-#[pymethods]
-impl PyDirectHaworthPreviewBatchV2 {
-    #[getter]
-    fn operations(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        super::render_binding::frozen_tuple(py, &self.operations)
-    }
-}
-
 /// Opaque parsed direct-Haworth source receipt, before any document mutation.
 #[pyclass(
     frozen,
@@ -88,15 +57,8 @@ pub(crate) struct PyPreparedDirectHaworthInsertionV1 {
     atom_identifiers: Vec<String>,
     #[pyo3(get)]
     bond_identifiers: Vec<String>,
-    preview_batches: Vec<PyDirectHaworthPreviewBatchV2>,
-}
-
-#[pymethods]
-impl PyPreparedDirectHaworthInsertionV1 {
-    #[getter]
-    fn preview_batches(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        super::render_binding::frozen_tuple(py, &self.preview_batches)
-    }
+    #[pyo3(get)]
+    preview_plan: PyRenderPlanV2,
 }
 
 /// Parse and classify one structural SMILES string without touching a document.
@@ -147,11 +109,11 @@ impl PyDocumentSession {
             return Err(receipt_error(py, "the document changed before placement"));
         }
         let receipt = prepared.receipt.clone();
-        let preview_batches = preview_batches(py, &receipt, anchor)?;
         let pending = self
             .session
             .prepare_create_direct_haworth_v1(expected_revision, &receipt, anchor)
             .map_err(|error| map_session_error(py, error))?;
+        let preview_plan = preview_plan(py, &pending)?;
         Ok(PyPreparedDirectHaworthInsertionV1 {
             source_revision: expected_revision,
             source_digest: hex_digest(snapshot.digest()),
@@ -166,7 +128,7 @@ impl PyDocumentSession {
                 .iter()
                 .map(|identifier| identifier.as_str().to_owned())
                 .collect(),
-            preview_batches,
+            preview_plan,
             pending,
         })
     }
@@ -252,6 +214,10 @@ fn map_session_error(py: Python<'_>, error: DocumentSessionError) -> PyErr {
         DocumentSessionError::Operation(_) => {
             receipt_error(py, "the direct Haworth candidate could not be accepted")
         }
+        DocumentSessionError::RendererAdmission => receipt_error(
+            py,
+            "the direct Haworth candidate cannot be rendered completely",
+        ),
         DocumentSessionError::RevisionExhausted => {
             resource_error(py, "the document cannot reserve another revision")
         }
@@ -275,83 +241,18 @@ fn map_session_error(py: Python<'_>, error: DocumentSessionError) -> PyErr {
     }
 }
 
-fn preview_batches(
-    py: Python<'_>,
-    receipt: &DirectGlycosidicHaworthAuthoringReceiptV1,
-    anchor: Point3V1,
-) -> PyResult<Vec<PyDirectHaworthPreviewBatchV2>> {
-    let mut atom_indexes = BTreeMap::new();
-    for (index, atom) in receipt.atoms_in_canonical_order().iter().enumerate() {
-        atom_indexes.insert(atom.source_atom_identity().clone(), index);
-    }
-    let width = PositiveFinite::new(PREVIEW_LINE_WIDTH_PT)
-        .map_err(|_| receipt_error(py, "direct Haworth preview is unavailable"))?;
-    let wedge_width = PositiveFinite::new(PREVIEW_WEDGE_WIDTH_PT)
-        .map_err(|_| receipt_error(py, "direct Haworth preview is unavailable"))?;
-    let paint = Paint::rgb24(
-        Rgb24::new("000000")
-            .map_err(|_| receipt_error(py, "direct Haworth preview is unavailable"))?,
-    );
-    receipt
-        .bonds_in_canonical_order()
-        .iter()
-        .map(|bond| {
-            let [start_id, end_id] = bond.endpoints();
-            let start = *atom_indexes
-                .get(start_id)
-                .ok_or_else(|| receipt_error(py, "direct Haworth preview receipt is invalid"))?;
-            let end = *atom_indexes
-                .get(end_id)
-                .ok_or_else(|| receipt_error(py, "direct Haworth preview receipt is invalid"))?;
-            let start = receipt.atoms_in_canonical_order()[start].local();
-            let end = receipt.atoms_in_canonical_order()[end].local();
-            let start = RenderPoint::new(start.x + anchor.x(), start.y + anchor.y())
-                .map_err(|_| receipt_error(py, "direct Haworth preview receipt is invalid"))?;
-            let end = RenderPoint::new(end.x + anchor.x(), end.y + anchor.y())
-                .map_err(|_| receipt_error(py, "direct Haworth preview receipt is invalid"))?;
-            let (display_layer, operations) = match bond.token() {
-                DirectGlycosidicHaworthBondStyleV1::N1 => (
-                    "ordinary",
-                    vec![RenderOp::Line(
-                        LineOp::new(start, end, width, paint.clone(), 10).map_err(|_| {
-                            receipt_error(py, "direct Haworth preview is unavailable")
-                        })?,
-                    )],
-                ),
-                DirectGlycosidicHaworthBondStyleV1::Q1 => (
-                    "haworth_front_stroke",
-                    build_haworth_front_preview_ops(
-                        BondStyle::HaworthFrontStroke,
-                        start,
-                        end,
-                        width,
-                        wedge_width,
-                        paint.clone(),
-                    )
-                    .map_err(|_| receipt_error(py, "direct Haworth preview is unavailable"))?,
-                ),
-                DirectGlycosidicHaworthBondStyleV1::W1 => (
-                    "haworth_front_wedge",
-                    build_haworth_front_preview_ops(
-                        BondStyle::HaworthFrontWedge,
-                        start,
-                        end,
-                        width,
-                        wedge_width,
-                        paint.clone(),
-                    )
-                    .map_err(|_| receipt_error(py, "direct Haworth preview is unavailable"))?,
-                ),
-            };
-            Ok(PyDirectHaworthPreviewBatchV2 {
-                display_layer: display_layer.to_owned(),
-                operations: operations
-                    .iter()
-                    .map(|operation| operation_from(py, operation))
-                    .collect::<PyResult<_>>()?,
-            })
-        })
-        .collect()
+fn preview_plan(py: Python<'_>, pending: &PendingDirectHaworthV1) -> PyResult<PyRenderPlanV2> {
+    let identity = DocumentRenderIdentityV1::durable(pending.molecule_identifier().as_str())
+        .map_err(|_| receipt_error(py, "renderer plan did not preserve the pending molecule"))?;
+    let overlay = preview_root_render_overlay_v1(pending.render_plan_v1(), &identity)
+        .map_err(|_| receipt_error(py, "renderer plan did not preserve the pending molecule"))?;
+    let DocumentRenderContentV1::Molecule(plan) = overlay.content() else {
+        return Err(receipt_error(
+            py,
+            "renderer plan did not preserve the pending molecule",
+        ));
+    };
+    plan_from(py, plan)
 }
 
 fn input_error(py: Python<'_>, reason: &str) -> PyErr {

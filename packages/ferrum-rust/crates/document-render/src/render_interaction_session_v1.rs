@@ -66,19 +66,57 @@ impl RenderInteractionSessionV1 {
         fence: DocumentFenceV1,
     ) -> Result<RenderInteractionObservationV1, RenderInteractionErrorV1> {
         self.require_fence(fence)?;
-        let rendered = observe_render_v1(&self.session, fence.revision())
+        let rendered = self
+            .session
+            .observe_render_v1(fence.revision())
             .map_err(|_| RenderInteractionErrorV1::Observation)?;
+        let presentation_plan =
+            render_presentation_stack_v1(rendered.document().projection().presentation_stack())
+                .map_err(|_| RenderInteractionErrorV1::Observation)?;
+        self.observe_render_interaction_with_presentation_plan_v1(fence, &presentation_plan)
+    }
+
+    /// Build one fenced interaction observation from a renderer-issued presentation plan.
+    ///
+    /// The plan has no mutation authority. This boundary accepts it only when its
+    /// immutable provenance matches the session observation exactly, so canvas and
+    /// interaction consumers cannot combine roots from different document states.
+    pub fn observe_render_interaction_with_presentation_plan_v1(
+        &self,
+        fence: DocumentFenceV1,
+        presentation_plan: &PresentationRenderPlanV1,
+    ) -> Result<RenderInteractionObservationV1, RenderInteractionErrorV1> {
+        self.require_fence(fence)?;
+        let rendered = self
+            .session
+            .observe_render_v1(fence.revision())
+            .map_err(|_| RenderInteractionErrorV1::Observation)?;
+        self.observe_render_interaction_from_rendered_plan_v1(fence, &rendered, presentation_plan)
+    }
+
+    fn observe_render_interaction_from_rendered_plan_v1(
+        &self,
+        fence: DocumentFenceV1,
+        rendered: &DocumentRenderObservationV1,
+        presentation_plan: &PresentationRenderPlanV1,
+    ) -> Result<RenderInteractionObservationV1, RenderInteractionErrorV1> {
         if rendered.document().snapshot().revision() != fence.revision() {
             return Err(RenderInteractionErrorV1::StaleRevision);
         }
         if rendered.document().snapshot().digest() != &fence.digest() {
             return Err(RenderInteractionErrorV1::StaleDigest);
         }
+        if presentation_plan.revision() != fence.revision() {
+            return Err(RenderInteractionErrorV1::StaleRevision);
+        }
+        if presentation_plan.digest() != &fence.digest() {
+            return Err(RenderInteractionErrorV1::StaleDigest);
+        }
         let identities = self
             .session
             .observe_complete_document_identity_facts_v1(fence.revision())
             .map_err(|_| RenderInteractionErrorV1::SessionConflict)?;
-        let (roots, exclusions) = roots_from_render(&rendered, &identities);
+        let (roots, exclusions) = roots_from_render(rendered, presentation_plan, &identities);
         Ok(RenderInteractionObservationV1 {
             origin: self.origin,
             capability: NEXT_CAPABILITY.fetch_add(1, Ordering::Relaxed),
@@ -288,7 +326,9 @@ impl RenderInteractionSessionV1 {
         fence: DocumentFenceV1,
     ) -> Result<StructureInteractionObservationV1, RenderInteractionErrorV1> {
         self.require_fence(fence)?;
-        let rendered = observe_render_v1(&self.session, fence.revision())
+        let rendered = self
+            .session
+            .observe_render_v1(fence.revision())
             .map_err(|_| RenderInteractionErrorV1::Observation)?;
         if rendered.document().snapshot().digest() != &fence.digest() {
             return Err(RenderInteractionErrorV1::StaleDigest);
@@ -319,12 +359,30 @@ impl RenderInteractionSessionV1 {
                 });
             }
             let Some(plan) = rendered
+                .resolved()
                 .molecule_plans()
                 .iter()
                 .find(|entry| entry.molecule().source_id() == Some(molecule_id))
             else {
                 continue;
             };
+            for group in plan.compact_group_primitives() {
+                let bounds = group.bounds();
+                let anchor = group.anchor();
+                targets.push(StructureInteractionTargetV1 {
+                    molecule_id: molecule_id.to_owned(),
+                    identifier: group.identifier().to_owned(),
+                    source_order: group.target().source_order(),
+                    kind: StructureTargetKindV1::CompactGroup,
+                    bounds: RenderInteractionBoundsV1 {
+                        left: anchor.x() + bounds.min_x(),
+                        top: anchor.y() + bounds.min_y(),
+                        right: anchor.x() + bounds.max_x(),
+                        bottom: anchor.y() + bounds.max_y(),
+                    },
+                    geometry: StructureInteractionGeometryV1::CompactGroup,
+                });
+            }
             for bond in molecule.bonds() {
                 let Some(identifier) = bond.source_id() else {
                     continue;
@@ -352,7 +410,7 @@ impl RenderInteractionSessionV1 {
                         }
                         RenderOp::Path(path) => {
                             has_path = true;
-                            primitive_bounds.push(path_bounds(path));
+                            primitive_bounds.push(path_bounds(&path));
                         }
                         RenderOp::Text(_) | RenderOp::Mask(_) | RenderOp::Ellipse(_) => {}
                     }
@@ -404,13 +462,18 @@ impl RenderInteractionSessionV1 {
                 if !x.is_finite() || !y.is_finite() {
                     return Err(RenderInteractionErrorV1::NonFinitePoint);
                 }
-                let atoms = observation
+                let atom_or_group = observation
                     .targets
                     .iter()
-                    .filter(|target| target.kind == StructureTargetKindV1::Atom && target.hit(x, y))
+                    .filter(|target| {
+                        matches!(
+                            target.kind,
+                            StructureTargetKindV1::Atom | StructureTargetKindV1::CompactGroup
+                        ) && target.hit(x, y)
+                    })
                     .cloned()
                     .collect::<Vec<_>>();
-                let values = if atoms.is_empty() {
+                let values = if atom_or_group.is_empty() {
                     let bonds = observation
                         .targets
                         .iter()
@@ -428,7 +491,7 @@ impl RenderInteractionSessionV1 {
                     }
                     bonds
                 } else {
-                    atoms
+                    atom_or_group
                 };
                 (values, modifier == RenderInteractionModifierV1::Toggle)
             }
@@ -527,13 +590,19 @@ impl RenderInteractionSessionV1 {
             .filter(|target| target.kind == StructureTargetKindV1::Bond)
             .map(|target| target.identifier.clone())
             .collect::<Vec<_>>();
-        if selection.targets.iter().any(|target| {
-            !matches!(
-                target.kind,
-                StructureTargetKindV1::Atom | StructureTargetKindV1::Bond
-            )
-        }) {
+        if selection
+            .targets
+            .iter()
+            .any(|target| target.kind == StructureTargetKindV1::DisplayOnly)
+        {
             return Err(RenderInteractionErrorV1::DisplayOnly);
+        }
+        if selection
+            .targets
+            .iter()
+            .any(|target| target.kind == StructureTargetKindV1::CompactGroup)
+        {
+            return Err(RenderInteractionErrorV1::UnsupportedTarget);
         }
         let mut pending = self
             .session
@@ -543,12 +612,12 @@ impl RenderInteractionSessionV1 {
                 atom_ids,
                 bond_ids,
             )
-            .map_err(|_| RenderInteractionErrorV1::UnsupportedTarget)?;
+            .map_err(structure_deletion_prepare_error)?;
         let receipt = pending.receipt().clone();
         let result = self
             .session
             .commit_delete_structure_v1(selection.fence.revision(), &mut pending)
-            .map_err(|_| RenderInteractionErrorV1::SessionConflict)?;
+            .map_err(structure_deletion_commit_error)?;
         let (removed_atoms, removed_bonds, components) = structure_deletion_receipt(receipt);
         Ok(CommittedStructureDeletionV1 {
             result,
@@ -896,6 +965,20 @@ impl RenderInteractionSessionV1 {
             return Err(RenderInteractionErrorV1::SelectionChanged);
         }
         self.require_fence(value.fence)
+    }
+}
+
+fn structure_deletion_prepare_error(error: DocumentSessionError) -> RenderInteractionErrorV1 {
+    match error {
+        DocumentSessionError::RendererAdmission => RenderInteractionErrorV1::UnrenderableCandidate,
+        _ => RenderInteractionErrorV1::UnsupportedTarget,
+    }
+}
+
+fn structure_deletion_commit_error(error: DocumentSessionError) -> RenderInteractionErrorV1 {
+    match error {
+        DocumentSessionError::RendererAdmission => RenderInteractionErrorV1::UnrenderableCandidate,
+        _ => RenderInteractionErrorV1::SessionConflict,
     }
 }
 impl Deref for RenderInteractionSessionV1 {

@@ -202,6 +202,10 @@ class FerrumNativeStructureSelectionMixin:
 			return self.tr(
 				"Selection and drawing unchanged. This target is display-only; change presentation first.",
 			)
+		if category == engine.RenderInteractionCategoryV1.unrenderable_candidate:
+			return self.tr(
+				"Selection and drawing unchanged. The resulting structure cannot be rendered; change presentation first.",
+			)
 		if category == engine.RenderInteractionCategoryV1.cross_molecule_selection:
 			return self.tr(
 				"Selection and drawing unchanged. Structural edits must stay within one molecule.",
@@ -210,7 +214,16 @@ class FerrumNativeStructureSelectionMixin:
 
 	#============================================
 	def _replace_structure_selection(self, selection: object | None, tab: object) -> None:
-		"""Project only backend-issued structure bounds as a disposable overlay."""
+		"""Publish durable targets before retaining Rust's opaque selection handle."""
+		import ferrum_qt.ferrum.engine as engine
+		durable_targets: list[tuple[str, str]] = []
+		if selection is not None:
+			for target in selection.targets:
+				if target.kind == engine.StructureTargetKindV1.atom:
+					durable_targets.append(("atom", target.identifier))
+				elif target.kind == engine.StructureTargetKindV1.bond:
+					durable_targets.append(("bond", target.identifier))
+		tab._require_projection().select_durable(tuple(durable_targets))
 		self._retire_line_preview(self._structure_selection_item)
 		self._structure_selection = selection
 		self._structure_selection_item = None if selection is None else (

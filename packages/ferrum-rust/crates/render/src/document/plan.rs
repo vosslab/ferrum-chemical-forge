@@ -7,24 +7,26 @@ use crate::{
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, DocumentRenderRootV1, DocumentTextOpV1,
     GlyphBounds, RenderError, RenderProvenance, RenderRevision, RenderViewportV1,
 };
-use ferrum_document::{MoleculeProjectionV1, PresentationRootProjectionV1, PresentationTargetV1};
+use ferrum_document_projection::{
+    MoleculeProjectionV1, PresentationRootProjectionV1, PresentationTargetV1,
+};
 use thiserror::Error;
 
 use crate::presentation::vector::lower_presentation_vector_v1;
-use crate::{DepictionSuppressionV1, RenderObservationV1};
+use crate::{DepictionSuppressionV1, ResolvedDocumentRenderV1};
 
 /// Compose one authoritative observation into a renderer-neutral page plan.
 ///
 /// This in-process boundary owns the merge of direct document roots. It never reads
 /// CDML, re-lays out text, or infers a visual replacement for an excluded root.
 pub fn compose_document_render_plan_v1(
-    observation: &RenderObservationV1,
+    observation: &ResolvedDocumentRenderV1,
 ) -> Result<DocumentRenderPlanV1, DocumentRenderPlanCompositionError> {
     if let Some(suppression) = observation.suppression() {
         return Err(DocumentRenderPlanCompositionError::Suppressed { suppression });
     }
 
-    let projection = observation.document().projection();
+    let projection = observation.projection();
     let page = projection.paper_layout().page();
     let viewport = page_viewport(
         page.scene_left(),
@@ -33,8 +35,8 @@ pub fn compose_document_render_plan_v1(
         page.scene_bottom(),
     )?;
     let provenance = RenderProvenance::new(
-        RenderRevision::new(observation.document().snapshot().revision())?,
-        *observation.document().snapshot().digest(),
+        RenderRevision::new(observation.projection().revision())?,
+        *observation.projection().digest(),
     );
 
     let mut molecule_plans = HashMap::new();

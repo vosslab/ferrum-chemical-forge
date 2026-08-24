@@ -8,7 +8,7 @@ use crate::{
     PathKindV1, PresentationPathErrorV1, PresentationPathV1, RenderError, RenderPoint,
     lower_authored_control_path_v1,
 };
-use ferrum_document::{Point3V1, PolylineProjectionV1};
+use ferrum_document_projection::{Point3V1, PolylineProjectionV1};
 use thiserror::Error;
 
 /// Failure while composing a document presentation path for a renderer.

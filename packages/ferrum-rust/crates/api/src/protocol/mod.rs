@@ -3,9 +3,13 @@
 //! Public DTOs and schema generation stay separate from execution so the
 //! portable wire contract remains easy to audit independently of adapter use.
 
+mod document_atom_oxidation_v1;
+mod document_hydrogen_materialization_v1;
 pub(crate) mod document_smarts_snapshot_v1;
 mod dto;
 mod execution;
+#[cfg(feature = "python-binding")]
+pub(crate) mod live_document_operation_v1;
 mod molecule_report_core_v1;
 pub(crate) mod runtime;
 mod schema;
@@ -15,19 +19,25 @@ pub use dto::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
     CatalogPlacementRefusalV1, CatalogProvenanceSummaryV1, ChemistryConvertInputV1,
     ChemistryConvertRequestV1, DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
+    DocumentAtomOxidationObservationOutcomeV1, DocumentAtomOxidationObservationV1,
+    DocumentAtomOxidationObserveRequestV1, DocumentAtomOxidationUnavailableReasonV1,
     DocumentGenerateCoordinatesRequestV1, DocumentInspectRequestV1,
     DocumentInterchangeImportLossReportV1, DocumentInterchangeImportSummaryV1,
     DocumentInterchangeLossCategoryV1, DocumentInterchangeProvenanceV1,
-    DocumentInterchangeSourceKindV1, DocumentMoleculeInterchangeImportRequestV1,
+    DocumentInterchangeSourceKindV1, DocumentMoleculeHydrogenMaterializationOutcomeV1,
+    DocumentMoleculeHydrogenMaterializationRequestV1,
+    DocumentMoleculeHydrogenMaterializationResultV1,
+    DocumentMoleculeHydrogenMaterializationUnavailableReasonV1,
+    DocumentMoleculeInterchangeImportRequestV1,
     DocumentMoleculeReportAggregateOmissionReasonSummaryV1,
     DocumentMoleculeReportAggregateOutcomeSummaryV1,
     DocumentMoleculeReportCompositionElementSummaryV1, DocumentMoleculeReportCompositionSummaryV1,
     DocumentMoleculeReportElementCountSummaryV1, DocumentMoleculeReportRecordSummaryV1,
     DocumentMoleculeReportRequestV1, DocumentMoleculeReportSummaryV1,
     DocumentRenderArtifactRequestV1, DocumentRequestFenceV1, DocumentRewriteRequestV1,
-    DocumentSmartsQueryDocumentV1, DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1,
-    DocumentSmartsQueryMoleculeSummaryV1, DocumentSmartsQueryRequestV1,
-    DocumentSmartsQuerySummaryV1, DocumentSmartsQueryTraversalSummaryV1, DocumentValidateRequestV1,
+    DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
+    DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
+    DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1, DocumentValidateRequestV1,
     MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
     OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
     OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OperationProtocolEnvelopeV1,

@@ -6,8 +6,8 @@
 use thiserror::Error;
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
-mod render_model_v1;
-pub use render_model_v1::*;
+mod compact_group_catalog_v1;
+pub use compact_group_catalog_v1::*;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompleteCdmlDocumentV1 {

@@ -57,6 +57,6 @@ def test_supported_template_prepares_and_commits_an_ordinary_molecule() -> None:
 	prepared = ferrum_chem.prepare_supported_peptide_template_molecule_v1("ANKLE", _placement())
 	assert isinstance(prepared, ferrum_chem.MoleculeInsertionV1)
 	session = ferrum_chem.DocumentSession.load('<cdml xmlns="urn:ferrum:cdml" version="1.0"/>')
-	pending = session.prepare_insert_molecule_v1(0, prepared)
-	accepted = session.commit_create_molecule(0, pending)
+	pending = session.prepare_admitted_molecule_insertion_v1(0, prepared)
+	accepted = session.commit_admitted_molecule_insertion_v1(0, pending)
 	assert len(accepted.observation.projection.molecules) == 1

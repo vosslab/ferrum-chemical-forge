@@ -1,6 +1,6 @@
 //! Immutable, revision-bound document observations for frontend projections.
 
-use super::{DocumentProjectionV1, DocumentSnapshot, ProjectionError, TypedDocument};
+use super::{DocumentProjectionV1, DocumentSnapshot, ProjectionError};
 
 /// The complete Rust-owned document observation available before render-plan
 /// resolution is part of the document dependency graph.
@@ -19,15 +19,13 @@ pub struct SessionDocumentObservationV1 {
 }
 
 impl SessionDocumentObservationV1 {
-    /// Construct an observation from one retained document state and snapshot.
+    /// Construct an observation from one authoritative retained snapshot.
     ///
     /// This is crate-private so foreign clients cannot forge matching-looking
     /// revision or digest provenance.
-    pub(crate) fn from_state(
-        document: &TypedDocument,
-        snapshot: DocumentSnapshot,
-    ) -> Result<Self, ProjectionError> {
-        let projection = DocumentProjectionV1::from_snapshot(document, &snapshot)?;
+    pub(crate) fn from_snapshot(snapshot: DocumentSnapshot) -> Result<Self, ProjectionError> {
+        let projection =
+            crate::projection_adapter::document_projection_from_snapshot_v1(&snapshot)?;
         debug_assert_eq!(snapshot.revision(), projection.revision());
         debug_assert_eq!(snapshot.digest(), projection.digest());
         debug_assert_eq!(snapshot.is_dirty(), projection.is_dirty());

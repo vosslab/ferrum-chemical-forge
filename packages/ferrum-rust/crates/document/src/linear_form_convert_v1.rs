@@ -434,7 +434,7 @@ mod tests {
     use super::*;
 
     fn selector(document: &TypedDocument) -> DocumentObjectIdV1 {
-        DocumentObjectIdV1::from_record(
+        crate::document_object_id_from_record_v1(
             document
                 .root()
                 .children_of(TypedClass::Molecule)
@@ -621,7 +621,7 @@ mod tests {
             r#"</molecule></cdml>"#,
         );
         let document = TypedDocument::parse(source).expect("typed document");
-        let atom_selector = DocumentObjectIdV1::from_record(
+        let atom_selector = crate::document_object_id_from_record_v1(
             document
                 .root()
                 .children_of(TypedClass::Molecule)

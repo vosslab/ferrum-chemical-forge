@@ -14,10 +14,7 @@ use ferrum_document::{
 use pyo3::prelude::*;
 
 pub(crate) use super::arrow_projection_binding::{
-    PyArrowDisplayGeometryV1, PyArrowHeadShapeV1, PyArrowHeadV1, PyArrowPathV1,
-    PyArrowProjectionV1, PyCurvedEquilibriumArrowDisplayGeometryV1,
-    PyCurvedTerminalArrowDisplayGeometryV1, PyCurvedTerminalArrowDisplayKindV1,
-    PyEquilibriumArrowDisplayGeometryV1, PyNormalArrowDisplayGeometryV1,
+    PyArrowHeadShapeV1, PyArrowPathV1, PyArrowProjectionKindV1, PyArrowProjectionV1,
 };
 use super::atom_mark_binding::PyAtomMarkKindV1;
 use super::binding::PyDocumentBondOrderV1;
@@ -43,7 +40,7 @@ pub(crate) struct PyPoint3V1 {
 #[derive(Clone)]
 pub(crate) struct PyFontFactsV1 {
     #[pyo3(get)]
-    pub(crate) family: Option<String>,
+    pub(crate) font_face_id: String,
     #[pyo3(get)]
     pub(crate) size: Option<f64>,
     #[pyo3(get)]
@@ -454,7 +451,7 @@ pub(crate) struct PyPresentationFontV1 {
     #[pyo3(get)]
     pub(crate) family: Option<String>,
     #[pyo3(get)]
-    pub(crate) family_provenance: String,
+    pub(crate) font_face_provenance: String,
     #[pyo3(get)]
     pub(crate) size: f64,
     #[pyo3(get)]
@@ -468,8 +465,9 @@ pub(crate) struct PyPresentationFontV1 {
 impl From<&PresentationFontV1> for PyPresentationFontV1 {
     fn from(value: &PresentationFontV1) -> Self {
         Self {
-            family: value.family().map(str::to_owned),
-            family_provenance: presentation_fact_provenance(value.family_provenance()).to_owned(),
+            font_face_id: value.font_face().id().to_owned(),
+            font_face_provenance: presentation_fact_provenance(value.font_face_provenance())
+                .to_owned(),
             size: value.size().value(),
             size_provenance: presentation_fact_provenance(value.size_provenance()).to_owned(),
             color: value.color().as_str().to_owned(),
@@ -778,6 +776,7 @@ fn presentation_issue_code(value: PresentationProjectionIssueCodeV1) -> &'static
         PresentationProjectionIssueCodeV1::InvalidTextGeometry => "invalid_text_geometry",
         PresentationProjectionIssueCodeV1::InvalidTextContent => "invalid_text_content",
         PresentationProjectionIssueCodeV1::InvalidFontFact => "invalid_font_fact",
+        PresentationProjectionIssueCodeV1::UnsupportedTextFace => "unsupported_text_face",
         PresentationProjectionIssueCodeV1::InvalidPolylineGeometry => "invalid_polyline_geometry",
         PresentationProjectionIssueCodeV1::InvalidShapeGeometry => "invalid_shape_geometry",
         PresentationProjectionIssueCodeV1::InvalidPolygonGeometry => "invalid_polygon_geometry",

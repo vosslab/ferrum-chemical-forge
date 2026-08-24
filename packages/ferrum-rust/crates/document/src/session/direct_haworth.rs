@@ -106,30 +106,39 @@ fn committed_result(
 
 /// A one-use closed direct-Haworth candidate.
 pub struct PendingDirectHaworthV1 {
-    pub(super) pending: PendingCreateMolecule,
+    molecule_identifier: PersistentId,
+    atom_identifiers: Vec<PersistentId>,
+    bond_identifiers: Vec<PersistentId>,
     pub(super) prepared_receipt: Option<PreparedDirectHaworthReceiptV1>,
+    transition: PreparedSessionTransitionV1,
+    render_plan: ferrum_render::DocumentRenderPlanV1,
 }
 
 impl std::fmt::Debug for PendingDirectHaworthV1 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingDirectHaworthV1")
-            .field("pending", &self.pending)
+            .field("molecule_identifier", &self.molecule_identifier)
             .finish()
     }
 }
 impl PendingDirectHaworthV1 {
     #[must_use]
     pub fn molecule_identifier(&self) -> &PersistentId {
-        self.pending.molecule_identifier()
+        &self.molecule_identifier
     }
     #[must_use]
     pub fn atom_identifiers(&self) -> &[PersistentId] {
-        self.pending.atom_identifiers()
+        &self.atom_identifiers
     }
     #[must_use]
     pub fn bond_identifiers(&self) -> &[PersistentId] {
-        self.pending.bond_identifiers()
+        &self.bond_identifiers
+    }
+    /// Return the immutable renderer-issued plan for the exact pending candidate.
+    #[must_use]
+    pub fn render_plan_v1(&self) -> &ferrum_render::DocumentRenderPlanV1 {
+        &self.render_plan
     }
 }
 
@@ -142,7 +151,7 @@ impl DocumentSession {
     ) -> Result<super::super::ReobservedDirectHaworthV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
         let extracted = super::super::direct_haworth_reobservation_v1::extract(
-            self.history.current().document(),
+            self.current_document_v1(),
             molecule,
         )?;
         let observation = self.document_observation()?;
@@ -160,15 +169,12 @@ impl DocumentSession {
         let insertion = DirectHaworthInsertionV1::from_receipt(receipt, anchor)
             .map_err(DocumentSessionError::Operation)?;
         self.require_current(expected_revision)?;
-        let (identities, generated_ids) = self.generated_ids.reserve_molecule(
-            self.history.current().document().indexed(),
-            insertion.atom_count(),
-            insertion.bond_count(),
-        )?;
+        let (identities, effects) =
+            self.reserve_generated_ids_for_transition_v1(|sequences, indexed| {
+                sequences.reserve_molecule(indexed, insertion.atom_count(), insertion.bond_count())
+            })?;
         let candidate = self
-            .history
-            .current()
-            .document()
+            .current_document_v1()
             .with_insert_direct_haworth(
                 &identities.molecule,
                 &identities.atoms,
@@ -185,17 +191,10 @@ impl DocumentSession {
         )
         .map_err(DocumentSessionError::Operation)?;
         let revision = self
-            .history
-            .current()
-            .next_revision()
+            .next_revision_v1()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let _observation = SessionDocumentObservationV1::from_state(
-            candidate.document(),
-            candidate.snapshot(!self.saved_baseline.is_current(&candidate)),
-        )
-        .map_err(DocumentSessionError::Projection)?;
         let prepared_receipt = insertion
             .prepared_receipt(
                 receipt,
@@ -205,23 +204,48 @@ impl DocumentSession {
                 anchor,
             )
             .map_err(DocumentSessionError::Operation)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .try_issue_provisional_token()
-            .map_err(SessionOperationError::Candidate)?;
+        let token_effect = self
+            .issue_transition_provisional_token_effect_v1()
+            .map_err(|error| {
+                DocumentSessionError::Operation(
+                    SessionOperationError::InvalidDirectHaworthInsertion(error.to_string()),
+                )
+            })?;
+        let effects = Self::compose_transition_effects_v1(effects, token_effect).map_err(|_| {
+            DocumentSessionError::Operation(SessionOperationError::InvalidDirectHaworthInsertion(
+                "conflicting deferred Haworth transition effects".to_owned(),
+            ))
+        })?;
+        let transition = self
+            .prepare_changed_session_transition_v1(
+                expected_revision,
+                self.current_digest_v1(),
+                candidate,
+                effects,
+            )
+            .map_err(|error| match error {
+                DocumentSessionError::RendererAdmission => DocumentSessionError::Operation(
+                    SessionOperationError::InvalidDirectHaworthInsertion(
+                        "candidate was refused by renderer admission".to_owned(),
+                    ),
+                ),
+                other => DocumentSessionError::Operation(
+                    SessionOperationError::InvalidDirectHaworthInsertion(other.to_string()),
+                ),
+            })?;
+        let render_plan = transition
+            .metadata_v1()
+            .expect("live transition metadata")
+            .renderer_plan()
+            .expect("changed Haworth transition has a renderer plan")
+            .clone();
         Ok(PendingDirectHaworthV1 {
-            pending: PendingCreateMolecule {
-                revision: expected_revision,
-                token,
-                molecule_identifier: identities.molecule,
-                atom_identifiers: identities.atoms,
-                bond_identifiers: identities.bonds,
-                candidate: Some(candidate),
-                tentative_generated_ids: generated_ids,
-            },
+            molecule_identifier: identities.molecule,
+            atom_identifiers: identities.atoms,
+            bond_identifiers: identities.bonds,
             prepared_receipt: Some(prepared_receipt),
+            transition,
+            render_plan,
         })
     }
     /// Commit one closed direct-Haworth candidate and return its exact accepted observation.
@@ -233,11 +257,24 @@ impl DocumentSession {
         let Some(prepared) = pending.prepared_receipt.take() else {
             return Err(DocumentSessionError::PreparedOperationConsumed);
         };
-        match self.commit_create_molecule(expected_revision, &mut pending.pending) {
+        if let Err(error) = self.require_current(expected_revision) {
+            pending.prepared_receipt = Some(prepared);
+            return Err(error);
+        }
+        match self.commit_session_operation_transition_v1(&mut pending.transition) {
             Ok(operation) => Ok(committed_result(operation, prepared)),
+            Err(AdmittedSessionTransitionRefusalV1::StaleSnapshot) => {
+                pending.prepared_receipt = Some(prepared);
+                Err(DocumentSessionError::RevisionConflict {
+                    expected: expected_revision,
+                    actual: self.current_revision_v1(),
+                })
+            }
             Err(error) => {
                 pending.prepared_receipt = Some(prepared);
-                Err(error)
+                Err(DocumentSessionError::Operation(
+                    SessionOperationError::InvalidDirectHaworthInsertion(format!("{error:?}")),
+                ))
             }
         }
     }

@@ -5,7 +5,7 @@ use crate::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><!--header--><info/><molecule id=\"m\"/>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><!--header--><info/><molecule id=\"m\"><atom id=\"m-atom\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
     "<arrow id=\"a\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></arrow>",
     "<v:opaque retained=\"yes\"/><text id=\"t\"><point x=\"2\" y=\"2\"/>",
     "<ftext>note</ftext></text><plus id=\"p\"><point x=\"3\" y=\"3\"/></plus>",

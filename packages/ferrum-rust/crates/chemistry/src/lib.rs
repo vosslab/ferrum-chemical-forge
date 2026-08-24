@@ -59,6 +59,12 @@ pub use crate::native_engine::{
     NATIVE_SMILES_MAX_OUTPUT_BYTES, NativeChemEngine, SDF_MAX_INPUT_BYTES, validate_inchi_input,
     validate_molblock_input, validate_molblock_title, validate_sdf_input, validate_smiles_input,
 };
+pub use crate::ordinary_attachment_capacity_v1::{
+    OrdinaryAttachmentAnchorV1, OrdinaryAttachmentBondOrderV1,
+    OrdinaryAttachmentCapacityAdmissionV1, OrdinaryAttachmentCapacityOutcomeV1,
+    OrdinaryAttachmentCapacityReasonV1, OrdinaryAttachmentCapacityRecoveryV1,
+    OrdinaryAttachmentProfileV1, admit_ordinary_attachment_capacity_v1,
+};
 pub use crate::oxidation_state_v1::{
     OXIDATION_STATE_CONVENTION_V1, OxidationStateErrorV1, OxidationStateObservationV1,
     OxidationStateResourceV1, OxidationStateRootAdmissionV1, OxidationStateUnavailableReasonV1,
@@ -117,3 +123,4 @@ pub(crate) use crate::adapter_contract::{
     FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES, FERRUM_CHEM_TEXT_WIRE_VERSION,
     FERRUM_CHEM_TITLED_MOLBLOCK_REQUEST_HEADER_BYTES, FERRUM_CHEM_TITLED_MOLBLOCK_WIRE_VERSION,
 };
+mod ordinary_attachment_capacity_v1;

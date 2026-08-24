@@ -460,8 +460,8 @@ def test_smiles_molecule_preparation_is_frozen_and_one_atomic_document_edit() ->
     placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
     molecule = ferrum_chem.prepare_smiles_molecule_v1("CCO", placement)
     session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
-    prepared = session.prepare_insert_molecule_v1(0, molecule)
-    committed = session.commit_create_molecule(0, prepared)
+    prepared = session.prepare_admitted_molecule_insertion_v1(0, molecule)
+    committed = session.commit_admitted_molecule_insertion_v1(0, prepared)
     projection = committed.observation.projection
 
     assert (molecule.atom_count, molecule.bond_count) == (3, 2)
@@ -472,7 +472,7 @@ def test_smiles_molecule_preparation_is_frozen_and_one_atomic_document_edit() ->
     with pytest.raises(AttributeError):
         molecule.atom_count = 9
     with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
-        session.commit_create_molecule(1, prepared)
+        session.commit_admitted_molecule_insertion_v1(1, prepared)
     assert session.undo(1).observation.projection.molecules == []
     assert len(session.redo(2).observation.projection.molecules) == 1
 

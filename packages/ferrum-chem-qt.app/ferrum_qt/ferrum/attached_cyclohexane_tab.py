@@ -25,20 +25,11 @@ class FerrumNativeAttachedCyclohexaneTabMixin:
 			float(release.x()), float(release.y()),
 		)
 
-	def preview_attached_cyclohexane(self, pending: object) -> tuple[PySide6.QtCore.QPointF, ...]:
-		"""Copy and validate Rust preview vertices before Qt paints them."""
+	def preview_attached_cyclohexane(self, pending: object) -> object:
+		"""Return the immutable Rust renderer plan for one paint-only overlay."""
 		self._require_mutable()
 		preview = self._session._preview_attach_cyclohexane_v1(pending)
-		vertices = tuple(
-			PySide6.QtCore.QPointF(float(vertex.x), float(vertex.y))
-			for vertex in preview.vertices
-		)
-		if len(vertices) != 6 or any(
-			not math.isfinite(vertex.x()) or not math.isfinite(vertex.y())
-			for vertex in vertices
-		):
-			raise ValueError("Ferrum attachment preview is unavailable; try again.")
-		return vertices
+		return preview.plan
 
 	def commit_attached_cyclohexane(self, pending: object) -> object:
 		"""Commit once, then reobserve the authoritative Rust document."""

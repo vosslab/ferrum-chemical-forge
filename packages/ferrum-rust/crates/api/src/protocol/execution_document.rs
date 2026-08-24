@@ -57,6 +57,12 @@ pub(super) fn execute_document_smarts_query<R: ChemistryRuntimeV1>(
     super::super::smarts_query_core_v1::execute_document_smarts_query_v1(&session, request, runtime)
 }
 
+pub(super) fn execute_document_atom_oxidation_observe(
+    request: DocumentAtomOxidationObserveRequestV1,
+) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
+    crate::protocol::document_atom_oxidation_v1::execute_document_atom_oxidation_observe(request)
+}
+
 pub(super) fn execute_document_molecule_interchange_import_envelope(
     request_id: &str,
     request: DocumentMoleculeInterchangeImportRequestV1,
@@ -231,7 +237,7 @@ pub(super) fn execute_render_artifact(
     })
 }
 
-pub(super) fn admit_document(source: &str) -> Result<DocumentSession, ExecutionFailureV1> {
+pub(crate) fn admit_document(source: &str) -> Result<DocumentSession, ExecutionFailureV1> {
     load_document_utf8_bytes_with_budget(source.as_bytes(), local_cdml_ingress_format_v1())
         .map_err(|error| ExecutionFailureV1::document_admission(error.to_string()))
 }

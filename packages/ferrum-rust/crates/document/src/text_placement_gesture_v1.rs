@@ -1,9 +1,8 @@
 //! Opaque, revision-fenced standalone Text authoring transaction.
 
 use crate::{
-    AuthoredTextRunV1, AuthoredTextStyleV1, AuthoringCapabilityAccessErrorV1,
-    AuthoringCapabilityIssuerV1, AuthoringCapabilityV1, DocumentFenceV1,
-    PresentationGesturePoint2V1, Rgb24V1, normalize_authored_text_runs_v1,
+    AuthoredTextRunV1, AuthoredTextStyleV1, AuthoringCapabilityIssuerV1, AuthoringCapabilityV1,
+    DocumentFenceV1, PresentationGesturePoint2V1, Rgb24V1, normalize_authored_text_runs_v1,
 };
 use thiserror::Error;
 
@@ -61,11 +60,6 @@ impl TextPlacementContentV1 {
     pub fn color(&self) -> Option<&Rgb24V1> {
         self.color.as_ref()
     }
-}
-#[derive(Clone, Debug, PartialEq)]
-pub struct TextPlacementPreviewV1 {
-    pub(crate) gesture: TextPlacementGestureV1,
-    pub(crate) content: TextPlacementContentV1,
 }
 #[derive(Clone, Debug)]
 pub struct CommittedTextPlacementV1 {
@@ -177,47 +171,6 @@ pub(crate) fn begin(
         anchor,
     })
 }
-pub(crate) fn preview(
-    issuer: &AuthoringCapabilityIssuerV1,
-    revision: u64,
-    digest: [u8; 32],
-    gesture: &TextPlacementGestureV1,
-    content: TextPlacementContentV1,
-) -> Result<TextPlacementPreviewV1, TextPlacementErrorV1> {
-    require_capability(issuer, gesture)?;
-    if gesture.fence.revision() != revision || gesture.fence.digest() != digest {
-        return Err(TextPlacementErrorV1::StaleSnapshot);
-    }
-    Ok(TextPlacementPreviewV1 {
-        gesture: gesture.clone(),
-        content,
-    })
-}
-pub(crate) fn belongs_to(
-    issuer: &AuthoringCapabilityIssuerV1,
-    gesture: &TextPlacementGestureV1,
-) -> bool {
-    gesture.capability.belongs_to(issuer)
-}
-
-pub(crate) fn require_capability(
-    issuer: &AuthoringCapabilityIssuerV1,
-    gesture: &TextPlacementGestureV1,
-) -> Result<(), TextPlacementErrorV1> {
-    match gesture.capability.claim_for_commit(issuer) {
-        Ok(claim) => {
-            drop(claim);
-            Ok(())
-        }
-        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
-            Err(TextPlacementErrorV1::ForeignSession)
-        }
-        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
-            Err(TextPlacementErrorV1::ReplayedGesture)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,14 +197,14 @@ mod tests {
                 PresentationGesturePoint2V1::new(72.0, 36.0).expect("point"),
             )
             .expect("gesture");
-        let preview = session
-            .preview_text_placement_gesture_v1(
+        let mut preview = session
+            .prepare_text_placement_gesture_v1(
                 &gesture,
                 content(vec![AuthoredTextStyleV1::Subscript]),
             )
             .expect("preview");
         let commit = session
-            .commit_text_placement_gesture_v1(&gesture, &preview)
+            .commit_text_placement_gesture_v1(&mut preview)
             .expect("commit");
         assert_eq!(commit.result().observation().snapshot().revision(), 1);
         let cdml = commit.result().observation().snapshot().cdml();
@@ -260,7 +213,7 @@ mod tests {
             "{cdml}"
         );
         assert!(matches!(
-            session.commit_text_placement_gesture_v1(&gesture, &preview),
+            session.commit_text_placement_gesture_v1(&mut preview),
             Err(TextPlacementErrorV1::ReplayedGesture)
         ));
         assert_eq!(session.snapshot().expect("snapshot").revision(), 1);
@@ -302,11 +255,11 @@ mod tests {
         .expect("content");
         assert_eq!(content.runs().len(), 3);
         assert_eq!(content.runs()[1].text(), "2O");
-        let preview = session
-            .preview_text_placement_gesture_v1(&gesture, content)
+        let mut preview = session
+            .prepare_text_placement_gesture_v1(&gesture, content)
             .expect("preview");
         let commit = session
-            .commit_text_placement_gesture_v1(&gesture, &preview)
+            .commit_text_placement_gesture_v1(&mut preview)
             .expect("commit");
         assert!(
             commit

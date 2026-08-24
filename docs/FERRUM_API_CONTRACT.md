@@ -44,6 +44,7 @@ The V1 operation set is closed:
 | `catalog.list.v1` | no document input | immutable catalog schema, version, and entry summaries |
 | `catalog.insert.v1` | `document`, revision/digest fence, catalog ID, finite anchor | changed `document`, `identifier`, `committed_revision`, `document_fence` |
 | `document.molecule.smarts.query.v1` | admitted document and bounded raw or selected SMARTS query | bounded, non-redeemable query summary |
+| `document.atom.oxidation.observe.v1` | fenced `document`, durable direct-root `molecule_id`, durable `atom_id` | one fenced accepted oxidation number or closed unavailable reason |
 
 The closed interchange format names are `smiles`, `inchi_standard`, `inchi_fixed_h`,
 `molblock_v2000`, `molblock_v3000`, `sdf_v2000`, `sdf_v3000`, and `cdml`. Render formats are `svg`,
@@ -82,6 +83,35 @@ The generated [ferrum-operation-v1.schema.json](../packages/ferrum-rust/crates/a
 defines the current request and response fields for this closed operation and for
 `presentation.author.v1` outcomes.
 
+### Atom oxidation observation
+
+`document.atom.oxidation.observe.v1` reads one selected durable atom in one durable direct-root
+molecule from a caller-supplied, revision-and-digest-fenced CDML snapshot. Its operation payload
+contains exactly `document { cdml, expected_revision, expected_digest_hex }`, `molecule_id`, and
+`atom_id`. It never changes CDML, document revision, history, selection, renderer state, or atom
+marks.
+
+The completed `observation` always repeats its source revision and digest, molecule and atom IDs,
+and document-root order. It uses the closed convention
+`formal-electron-assignment-hcno-v1`: the whole direct root must be a fully materialized H/C/N/O
+graph with explicit formal charges and explicit hydrogen topology. For this V1 profile, each
+hydrogen is an explicit H atom vertex, and every atom records an authored explicit-hydrogen fact
+of zero. Implicit, omitted, or aggregate hydrogen representation is unavailable as
+`hydrogen_topology_unsupported`. An accepted result has
+`status: "accepted"` and one signed `oxidation_number`. An unsupported whole-root fact instead
+has `status: "unavailable"` and exactly one closed `unavailable_reason`, with no number. The
+closed reasons are `element_outside_profile`, `formal_charge_unavailable`,
+`hydrogen_topology_unsupported`, `aromaticity_unsupported`, `radical_unsupported`,
+`bond_order_unavailable`, `bond_order_unsupported`, `non_atom_vertex_unsupported`,
+`coordination_or_delocalization_unsupported`, `component_invariant_failed`, and
+`arithmetic_overflow`.
+
+An unavailable result is a completed observation, not a refusal. A stale fence, unknown atom,
+non-direct molecule, atom/root mismatch, unsupported document, or bounded-resource refusal uses
+the ordinary typed error envelope instead. Clients must use the error category and recovery facts,
+not diagnostic text, to decide whether to refresh the source, select another atom, or reduce the
+request.
+
 ## Success and error data
 
 A successful envelope has this shape:
@@ -111,7 +141,9 @@ A typed refusal has this shape; `request_id` is present only when the envelope a
 Stable error categories are `invalid_request`, `unsupported_protocol_version`,
 `document_admission_failed`, `document_invalid`, `render_unsupported`, `render_failed`,
 `chemistry_unavailable`, `conversion_failed`, `conversion_unsupported`,
-`coordinate_generation_failed`, `resource_limit`, and `internal_failure`.
+`coordinate_generation_failed`, `resource_limit`, `internal_failure`, `stale_document`,
+`atom_not_found`, `molecule_not_direct_root`, `atom_not_in_selected_molecule`,
+`unsupported_document`, and `cancelled_before_dispatch`.
 
 When `presentation.author.v1` refuses after envelope admission, its error includes typed
 `presentation_author_refusal` facts: an authoring kind, a closed category, and a recovery action.
@@ -140,6 +172,12 @@ complete operation JSON object, just as `protocol run` does, so a script can use
 `--json`, inspection and validation print their reports while result-producing commands emit raw
 text or artifact bytes. Named output uses safe publication and cannot replace a retained source or
 observed hard-link alias.
+
+`ferrum document-atom-oxidation-observe --request PATH` accepts one complete
+`ferrum-operation-request-v1` envelope for `document.atom.oxidation.observe.v1`; `--request -`
+reads that envelope from standard input. It writes one canonical JSON success or typed-refusal
+envelope and a trailing newline to standard output. An accepted result and a typed domain refusal
+both exit `0`; malformed, unreadable, over-budget, or invalid UTF-8 input is a transport failure.
 
 CLI exit `0` means a completed success or typed refusal. Exit `1` is an input, processing, or
 confirmed publication failure; exit `2` is a usage failure; exit `3` means publication may have

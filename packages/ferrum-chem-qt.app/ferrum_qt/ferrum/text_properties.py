@@ -88,10 +88,8 @@ def dialog_model_from_projection(text: object) -> FerrumNativeTextDialogModel:
 	import ferrum_qt.ferrum.engine as engine
 	if type(text) is not engine.TextProjectionV1:
 		raise TypeError("Ferrum Text properties require an exact Ferrum Text projection")
-	if text.font.family is not None:
-		raise ValueError(
-			"selected Text uses a font family that the verified Ferrum renderer cannot preserve",
-		)
+	if text.font.font_face_id != "telex_regular_v1":
+		raise ValueError("selected Text has an unsupported_text_face")
 	size = text.font.size
 	if type(size) is not float or not size.is_integer() or not 4 <= size <= 144:
 		raise ValueError("selected Rust Text font size is not representable by this dialog")
@@ -200,7 +198,7 @@ def _on_edit_text_properties(window: object) -> None:
 		),
 	)
 	dialog = ferrum_qt.dialogs.rich_text_dialog.RichTextDialog(
-		model.runs, "Telex", model.font_size, model.color, window,
+		model.runs, model.font_size, model.color, window,
 		capabilities=capabilities,
 	)
 	if dialog.exec() != PySide6.QtWidgets.QDialog.DialogCode.Accepted:

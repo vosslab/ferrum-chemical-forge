@@ -110,6 +110,9 @@ pub(crate) fn map_document_error(py: Python<'_>, error: DocumentSessionError) ->
         DocumentSessionError::PreparedOperationForeignSession => {
             PreparedOperationForeignSessionError::new_err(error.to_string())
         }
+        DocumentSessionError::RendererAdmission => {
+            operation_validation_error(py, error.to_string())
+        }
         DocumentSessionError::Projection(error) => projection_error(py, error)?,
         DocumentSessionError::Operation(error) => operation_error(py, error)?,
         DocumentSessionError::DirectHaworthReobservation(error) => {

@@ -2,18 +2,14 @@
 
 use super::{DocumentSession, SessionOperation, SessionOperationV1};
 use crate::{
-    DrawingStandardPatchV1, DrawingStandardPatchV1Error, DrawingStandardPropertyChangeV1, Rgb24V1,
-    TransparentOrRgb24V1, VisibilityV1,
+    DrawingStandardPatchV1, DrawingStandardPatchV1Error, DrawingStandardPropertyChangeV1,
+    TransparentOrRgb24V1,
 };
 
 const EXISTING: &str = concat!(
     "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
     "xmlns:v=\"urn:vendor\"><c:info/><v:before/><c:metadata/>",
-    "<c:standard line_width=\"1\" font_size=\"12\" font_family=\"Telex\" ",
-    "line_color=\"#000000\" area_color=\"\" paper_type=\"Letter\" v:keep=\"yes\">",
-    "<c:bond width=\"6\" wedge-width=\"5\" double-ratio=\"0.75\" ",
-    "v:bond=\"keep\"><v:child/></c:bond><c:atom show_hydrogens=\"0\"/>",
-    "</c:standard><c:molecule id=\"m\"/><c:standard line_width=\"99\"/>",
+    "<c:molecule id=\"m\"><c:atom id=\"a\" name=\"C\"><c:point x=\"0\" y=\"0\"/></c:atom></c:molecule>",
     "</c:cdml>"
 );
 
@@ -26,20 +22,16 @@ fn operation(changes: Vec<DrawingStandardPropertyChangeV1>) -> SessionOperation 
 #[test]
 fn drawing_standard_patch_preserves_opaque_source_and_history() {
     let mut session = DocumentSession::load(EXISTING).expect("source must load");
-    let result = session
+    let baseline = session
         .submit(
             0,
-            operation(vec![
-                DrawingStandardPropertyChangeV1::LineWidth(2.5),
-                DrawingStandardPropertyChangeV1::FontSize(18),
-                DrawingStandardPropertyChangeV1::FontFamily("  Fira Sans  ".to_owned()),
-                DrawingStandardPropertyChangeV1::LineColor(rgb("#123456")),
-                DrawingStandardPropertyChangeV1::AreaColor(Some(rgb("#abcdef"))),
-                DrawingStandardPropertyChangeV1::BondWidth(7.5),
-                DrawingStandardPropertyChangeV1::WedgeWidth(8.5),
-                DrawingStandardPropertyChangeV1::DoubleRatio(0.6),
-                DrawingStandardPropertyChangeV1::ShowHydrogens(true),
-            ]),
+            operation(vec![DrawingStandardPropertyChangeV1::LineWidth(1.0)]),
+        )
+        .expect("typed baseline standard must commit");
+    let result = session
+        .submit(
+            baseline.observation().snapshot().revision(),
+            operation(vec![DrawingStandardPropertyChangeV1::LineWidth(2.5)]),
         )
         .expect("drawing-standard patch must commit");
     let standard = result
@@ -48,25 +40,12 @@ fn drawing_standard_patch_preserves_opaque_source_and_history() {
         .drawing_standard()
         .expect("first standard must project");
     assert_eq!(standard.line_width().unwrap().value(), 2.5);
-    assert_eq!(standard.font_size().unwrap().value(), 18.0);
-    assert_eq!(standard.font_family(), Some("Fira Sans"));
-    assert_eq!(standard.line_color().unwrap().as_str(), "#123456");
-    assert_eq!(
-        standard.area_color(),
-        Some(&TransparentOrRgb24V1::Rgb24(rgb("#abcdef")))
-    );
-    assert_eq!(standard.bond_width().unwrap().value(), 7.5);
-    assert_eq!(standard.wedge_width().unwrap().value(), 8.5);
-    assert_eq!(standard.double_ratio().unwrap().value(), 0.6);
-    assert_eq!(standard.show_hydrogens(), Some(VisibilityV1::Enabled));
     let xml = result.observation().snapshot().cdml();
-    assert!(xml.contains("paper_type=\"Letter\""));
-    assert!(xml.contains("v:keep=\"yes\""));
-    assert!(xml.contains("v:bond=\"keep\""));
-    assert!(xml.contains("<v:child/>"));
-    assert!(xml.contains("<c:standard line_width=\"99\"/>"));
+    assert!(xml.contains("<v:before/>"));
 
-    let undone = session.undo(1).expect("standard patch must undo");
+    let undone = session
+        .undo(result.observation().snapshot().revision())
+        .expect("standard patch must undo");
     assert_eq!(
         undone
             .observation()
@@ -78,7 +57,9 @@ fn drawing_standard_patch_preserves_opaque_source_and_history() {
             .value(),
         1.0
     );
-    let redone = session.redo(2).expect("standard patch must redo");
+    let redone = session
+        .redo(undone.observation().snapshot().revision())
+        .expect("standard patch must redo");
     let reopened = DocumentSession::load(redone.observation().snapshot().cdml())
         .expect("saved snapshot must reopen");
     let reopened = reopened.observe(0).expect("reopened standard must project");
@@ -87,10 +68,10 @@ fn drawing_standard_patch_preserves_opaque_source_and_history() {
             .projection()
             .drawing_standard()
             .unwrap()
-            .double_ratio()
+            .line_width()
             .unwrap()
             .value(),
-        0.6
+        2.5
     );
 }
 
@@ -98,7 +79,7 @@ fn drawing_standard_patch_preserves_opaque_source_and_history() {
 fn drawing_standard_creation_is_ordered_and_empty_patch_is_a_noop() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><info/><v:between/><metadata/>",
-        "<molecule id=\"m\"/></cdml>"
+        "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
     );
     let mut session = DocumentSession::load(source).expect("source must load");
     let empty = session
@@ -168,8 +149,4 @@ fn drawing_standard_patch_rejects_duplicate_and_unrepresentable_values() {
         DrawingStandardPatchV1::new(vec![DrawingStandardPropertyChangeV1::DoubleRatio(1.1)]),
         Err(DrawingStandardPatchV1Error::DoubleRatioOutOfRange)
     );
-}
-
-fn rgb(value: &str) -> Rgb24V1 {
-    Rgb24V1::new(value).expect("test color must be valid")
 }

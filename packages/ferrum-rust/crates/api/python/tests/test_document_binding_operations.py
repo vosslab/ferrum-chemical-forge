@@ -621,13 +621,10 @@ def test_presentation_creation_gesture_binding_owns_preview_and_canonical_arrow(
         ),
     )
     preview = session.preview_presentation_creation_gesture_v1(gesture, 8.0, 9.0)
-    assert preview.overlay.color == "#000000"
-    assert preview.overlay.width == 1.0
-    assert type(preview.overlay) is ferrum_chem.NormalArrowGestureOverlayV1
-    assert len(preview.overlay.heads) == 1
-    assert len(preview.overlay.heads[0].vertices) == 3
-    assert preview.overlay.right > preview.overlay.axis.end_x
-    assert abs(preview.overlay.axis.end_x - 8.485) < 0.01
+    assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+    assert len(preview.plan.roots) == 1
+    assert len(preview.plan.roots[0].vector_operations) == 2
+    assert preview.plan.roots[0].bounds.right > 14.0
     assert session.snapshot().revision == 0
     commit = session.commit_presentation_creation_gesture_v1(gesture, preview)
     assert commit.root.kind == ferrum_chem.PresentationGestureRootKindV1.arrow
@@ -653,8 +650,8 @@ def test_equilibrium_creation_binding_requires_kind_owned_style() -> None:
         0.0, 0.0, None, ferrum_chem.PresentationGestureSnapPolicyV1(),
     )
     preview = session.preview_presentation_creation_gesture_v1(gesture, 40.0, 0.0)
-    assert type(preview.overlay) is ferrum_chem.EquilibriumArrowGestureOverlayV1
-    assert len((preview.overlay.lower_axis, preview.overlay.upper_axis)) == 2
+    assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+    assert len(preview.plan.roots[0].vector_operations) == 3
     with pytest.raises(ferrum_chem.PresentationGestureError) as invalid:
         session.begin_presentation_creation_gesture_v1(
             snapshot.revision, snapshot.digest,

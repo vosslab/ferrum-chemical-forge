@@ -4,9 +4,9 @@ use crate::{
     Paint, PositiveFinite, PresentationTextOp, PresentationTextSourceRun, RenderError, RenderPoint,
     Rgb24, TextScript, VerifiedTelexGlyphMetrics,
 };
-use ferrum_document::{
-    PresentationRecordKindV1, PresentationTargetV1, PresentationTextStyleV1,
-    Rgb24V1 as DocumentRgb24V1, TextProjectionV1,
+use ferrum_document_projection::{
+    PresentationFontFaceV1, PresentationRecordKindV1, PresentationTargetV1,
+    PresentationTextStyleV1, Rgb24V1 as DocumentRgb24V1, TextProjectionV1,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -46,6 +46,9 @@ impl DocumentTextRenderV1 {
         text: &TextProjectionV1,
         metrics: &VerifiedTelexGlyphMetrics,
     ) -> Result<Self, RenderError> {
+        match text.font().font_face() {
+            PresentationFontFaceV1::TelexRegularV1 => {}
+        }
         let source_runs = source_runs(text)?;
         let foreground = paint(text.font().color())?;
         let layout = metrics.layout_presentation_text(

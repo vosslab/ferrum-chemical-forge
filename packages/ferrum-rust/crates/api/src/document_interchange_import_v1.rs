@@ -10,7 +10,7 @@ use ferrum_chemistry::{
 use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
 use ferrum_document::{
     DocumentIngressErrorV1, DocumentSession, InterchangeRecordBuildErrorV1,
-    PendingCreateInterchangeBatchV1, build_interchange_record_batch_insertion_v1,
+    PendingAdmittedInterchangeBatchV1, build_interchange_record_batch_insertion_v1,
     read_regular_file_with_origin_with_budget,
 };
 use ferrum_geometry::{MoleculePlacementV1, Point2};
@@ -158,7 +158,7 @@ const fn generic_source_refusal() -> InterchangeImportRefusalV1 {
 pub(crate) struct PreparedInterchangeNewDocumentV1 {
     session: DocumentSession,
     baseline_revision: u64,
-    pending: PendingCreateInterchangeBatchV1,
+    pending: PendingAdmittedInterchangeBatchV1,
     summary: DocumentInterchangeImportSummaryV1,
 }
 
@@ -173,7 +173,7 @@ impl PreparedInterchangeNewDocumentV1 {
     ) -> Result<(DocumentSession, DocumentInterchangeImportSummaryV1), InterchangeImportRefusalV1>
     {
         self.session
-            .commit_create_interchange_records_v1(self.baseline_revision, &mut self.pending)
+            .commit_admitted_interchange_records_v1(self.baseline_revision, &mut self.pending)
             .map_err(|_| {
                 InterchangeImportRefusalV1::for_reason(
                     InterchangeImportRefusalReasonV1::InternalFailure,
@@ -327,7 +327,7 @@ fn prepare_records(
         InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
     })?;
     let pending = session
-        .prepare_create_interchange_records_v1(baseline.revision(), &batch)
+        .prepare_admitted_interchange_records_v1(baseline.revision(), &batch)
         .map_err(|_| generic_source_refusal())?;
     let (document_revision, digest) =
         pending.candidate_revision_and_digest_v1().ok_or_else(|| {

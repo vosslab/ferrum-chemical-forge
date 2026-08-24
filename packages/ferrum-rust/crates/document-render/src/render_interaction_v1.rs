@@ -12,17 +12,17 @@ use std::{
 
 use ferrum_document::{
     CompleteDocumentIdentityFactsV1, DirectCdmlRootKindV1, DirectCdmlSemanticIndexV1,
-    DocumentFenceV1, DocumentSession, DocumentSmartsSnapshotErrorV1, Point3V1,
-    PreparedDocumentSmartsSnapshotV1, PresentationCreationGestureV1, PresentationGestureErrorV1,
-    PresentationGestureKindV1, PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1,
-    PresentationGestureStyleV1, PresentationRootProjectionV1, SessionOperation,
-    SessionOperationResultV1, SessionOperationV1, StructureDeletionReceiptV1, TopLevelRootKindV1,
-    TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
+    DocumentFenceV1, DocumentRenderObservationV1, DocumentSession, DocumentSessionError,
+    DocumentSmartsSnapshotErrorV1, PreparedDocumentSmartsSnapshotV1, PresentationCreationGestureV1,
+    PresentationGestureErrorV1, PresentationGestureKindV1, PresentationGesturePoint2V1,
+    PresentationGestureSnapPolicyV1, PresentationGestureStyleV1, PresentationRecordKindV1,
+    SessionOperation, SessionOperationResultV1, SessionOperationV1, StructureDeletionReceiptV1,
+    TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
 };
 use ferrum_geometry::{HexGrid, Point2};
 use ferrum_render::{
-    PathOpV2, RenderObservationV1, RenderOp, ScenePathCommandV2,
-    measure_molecule_render_plan_bounds_v1, observe_render_v1,
+    PathOpV2, PresentationRenderPlanV1, PresentationRenderRootV1, RenderOp, ScenePathCommandV2,
+    measure_molecule_render_plan_bounds_v1, render_presentation_stack_v1,
 };
 use thiserror::Error;
 
@@ -380,6 +380,8 @@ pub struct RenderInteractionSelectionV1 {
 pub enum StructureTargetKindV1 {
     Atom,
     Bond,
+    /// A first-class compact-group label derived by the Rust renderer.
+    CompactGroup,
     /// The renderer produced a non-line bond primitive that P0.3 must not
     /// reinterpret as an editable centerline.  It remains a durable,
     /// render-derived hit target so the caller receives a typed refusal.
@@ -400,6 +402,7 @@ pub struct StructureInteractionTargetV1 {
 enum StructureInteractionGeometryV1 {
     Atom { x: f64, y: f64 },
     Bond { segments: Vec<StructureSegmentV1> },
+    CompactGroup,
     DisplayOnly,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -439,6 +442,7 @@ impl StructureInteractionTargetV1 {
             StructureInteractionGeometryV1::Bond { segments } => segments.iter().any(|segment| {
                 segment_distance(x, y, *segment) <= HIT_SLOP_PT_V1.max(segment.stroke_radius)
             }),
+            StructureInteractionGeometryV1::CompactGroup => self.bounds.contains_point(x, y),
             StructureInteractionGeometryV1::DisplayOnly => self.bounds.contains_point(x, y),
         }
     }
@@ -460,6 +464,7 @@ impl StructureInteractionTargetV1 {
                     && rectangle.top + segment.stroke_radius <= segment.end_y
                     && segment.end_y <= rectangle.bottom - segment.stroke_radius
             }),
+            StructureInteractionGeometryV1::CompactGroup => self.bounds.contained_by(rectangle),
             StructureInteractionGeometryV1::DisplayOnly => self.bounds.contained_by(rectangle),
         }
     }
@@ -658,6 +663,8 @@ pub enum RenderInteractionErrorV1 {
     Observation,
     #[error("the document session rejected the authorized interaction commit")]
     SessionConflict,
+    #[error("the prospective structural deletion cannot be rendered")]
+    UnrenderableCandidate,
     #[error("structural selection cannot span more than one direct molecule")]
     CrossMoleculeSelection,
     #[error("a structural target no longer belongs to the observed molecule")]

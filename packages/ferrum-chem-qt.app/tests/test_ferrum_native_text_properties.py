@@ -82,16 +82,13 @@ def test_native_text_edit_updates_rust_and_retains_durable_selection(
 
 
 #============================================
-def test_native_text_adapter_rejects_unrenderable_facts_without_mutation() -> None:
-	"""Unsupported face intent never reaches a Ferrum document operation."""
-	session = ferrum_chem.DocumentSession.load(
-		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="0" y="0"/><font family="Arial"/>'
-		'<ftext>text</ftext></text></cdml>',
-	)
-	text = session.observe(0).projection.presentation_stack.roots[0].text
-	with pytest.raises(ValueError, match="cannot preserve"):
-		ferrum_qt.ferrum.text_properties.dialog_model_from_projection(text)
-	assert session.snapshot().revision == 0
+def test_native_text_adapter_refuses_unsupported_face_before_session_creation() -> None:
+	"""Unsupported family input has no session whose current drawing could change."""
+	with pytest.raises(ValueError, match="unsupported_text_face"):
+		ferrum_chem.DocumentSession.load(
+			'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="0" y="0"/>'
+			'<font family="Arial"/><ftext>text</ftext></text></cdml>',
+		)
 
 	supported_session = ferrum_chem.DocumentSession.load(
 		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="0" y="0"/><ftext>text</ftext></text></cdml>',

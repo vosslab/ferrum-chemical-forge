@@ -1,8 +1,8 @@
 //! Closed Python Text edit values and bounded operation construction.
 
 use ferrum_document::{
-    Rgb24V1, SessionOperation, SessionOperationV1, TextEditRunV1, TextEditStyleV1,
-    TextPropertiesPatchV1, TextPropertyChangeV1,
+    PresentationFontFaceV1, Rgb24V1, SessionOperation, SessionOperationV1, TextEditRunV1,
+    TextEditStyleV1, TextPropertiesPatchV1, TextPropertyChangeV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyInt, PyTuple};
@@ -133,10 +133,12 @@ impl PyDocumentTextPropertyChangeV1 {
         text_property_change(py, TextPropertyChangeV1::Runs(runs))
     }
 
-    /// Replace or clear the optional direct font family.
+    /// Select the stable backend-owned face identity.
     #[staticmethod]
-    fn font_family(py: Python<'_>, value: Option<String>) -> PyResult<Self> {
-        text_property_change(py, TextPropertyChangeV1::FontFamily(value))
+    fn font_face_id(py: Python<'_>, value: String) -> PyResult<Self> {
+        let face = PresentationFontFaceV1::from_id(&value)
+            .ok_or_else(|| operation_validation_error(py, "unsupported_text_face".to_owned()))?;
+        text_property_change(py, TextPropertyChangeV1::FontFace(face))
     }
 
     /// Replace the direct font's integer size from 4 through 144.

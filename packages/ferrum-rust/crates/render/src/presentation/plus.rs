@@ -4,8 +4,9 @@ use crate::{
     GlyphBounds, Paint, PositiveFinite, RenderError, RenderPoint, Rgb24, TextOp,
     VerifiedTelexGlyphMetrics,
 };
-use ferrum_document::{
-    PlusProjectionV1, PresentationRecordKindV1, PresentationTargetV1, Rgb24V1 as DocumentRgb24V1,
+use ferrum_document_projection::{
+    PlusProjectionV1, PresentationFontFaceV1, PresentationRecordKindV1, PresentationTargetV1,
+    Rgb24V1 as DocumentRgb24V1,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -107,6 +108,9 @@ impl DocumentPlusRenderV1 {
         plus: &PlusProjectionV1,
         metrics: &VerifiedTelexGlyphMetrics,
     ) -> Result<Self, RenderError> {
+        match plus.font().font_face() {
+            PresentationFontFaceV1::TelexRegularV1 => {}
+        }
         let foreground = paint(plus.font().color())?;
         let layout = metrics
             .layout_centered_plus(PositiveFinite::new(plus.font().size().value())?, foreground)?;

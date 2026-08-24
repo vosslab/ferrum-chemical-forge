@@ -72,16 +72,29 @@ def _render_reopened_document(
 
 
 #============================================
-def _curved_equilibrium_geometry(observation: object) -> object | None:
-	"""Return one typed curved-equilibrium geometry from a Rust observation."""
-	for root in observation.projection.presentation_stack.roots:
-		if (
-			root.kind == "arrow" and root.arrow is not None and
-			root.arrow.geometry.kind == "curved_equilibrium" and
-			root.arrow.geometry.curved_equilibrium is not None
+def _has_curved_equilibrium_render_plan(session: object) -> bool:
+	"""Report whether one fenced renderer plan paints the authored equilibrium arrow."""
+	snapshot = session.snapshot()
+	plan = session.observe_presentation_render_plan_v1(snapshot.revision, snapshot.digest)
+	for root in plan.roots:
+		if root.kind != "vector":
+			continue
+		cubic_paths = [
+			operation for operation in root.vector_operations
+			if operation.kind == "path" and any(
+				command.kind == "cubic_to" for command in operation.commands
+			)
+		]
+		filled_heads = [
+			operation for operation in root.vector_operations
+			if operation.kind == "path" and operation.stroke is None and operation.fill is not None
+		]
+		if len(cubic_paths) == 2 and any(
+			sum(command.kind == "close" for command in operation.commands) == 2
+			for operation in filled_heads
 		):
-			return root.arrow.geometry.curved_equilibrium
-	return None
+			return True
+	return False
 
 
 #============================================
@@ -158,14 +171,13 @@ def main() -> int:
 					PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
 				)
 			app.processEvents()
-			if _curved_equilibrium_geometry(tab.current_document_observation()) is None:
-				raise RuntimeError("public Curved Equilibrium authoring did not install its typed Rust arrow")
 			if not window.save_active_to_path(str(path)):
 				raise RuntimeError("public Save did not publish the curved equilibrium arrow")
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
-			curved_equilibrium_geometry = _curved_equilibrium_geometry(reopened.observe(0))
-			if curved_equilibrium_geometry is None:
-				raise RuntimeError("Rust reopen did not retain a typed curved-equilibrium arrow root")
+			if not _has_curved_equilibrium_render_plan(reopened):
+				raise RuntimeError(
+				"renderer plan did not paint the curved-equilibrium shafts and terminal heads"
+			)
 			ferrum = _REPOSITORY_ROOT / "build" / "bin" / "ferrum"
 			curved_equilibrium_svg = _render_reopened_document(ferrum, path, "svg")
 			if not _svg_is_parseable(curved_equilibrium_svg):

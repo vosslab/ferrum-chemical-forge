@@ -42,9 +42,9 @@ impl From<&PresentationTextRunV1> for PyPresentationTextRunV1 {
 #[derive(Clone)]
 pub(crate) struct PyPresentationTextFontV1 {
     #[pyo3(get)]
-    family: Option<String>,
+    font_face_id: String,
     #[pyo3(get)]
-    family_provenance: String,
+    font_face_provenance: String,
     #[pyo3(get)]
     size: f64,
     #[pyo3(get)]
@@ -58,8 +58,8 @@ pub(crate) struct PyPresentationTextFontV1 {
 impl From<&PresentationTextFontV1> for PyPresentationTextFontV1 {
     fn from(value: &PresentationTextFontV1) -> Self {
         Self {
-            family: value.family().map(str::to_owned),
-            family_provenance: provenance(value.family_provenance()).to_owned(),
+            font_face_id: value.font_face().id().to_owned(),
+            font_face_provenance: provenance(value.font_face_provenance()).to_owned(),
             size: value.size().value(),
             size_provenance: provenance(value.size_provenance()).to_owned(),
             color: value.color().as_str().to_owned(),

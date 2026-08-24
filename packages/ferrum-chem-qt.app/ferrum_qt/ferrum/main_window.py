@@ -15,6 +15,7 @@ import ferrum_qt.ferrum.document_save
 import ferrum_qt.bridge.insertion_placement
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.atom_properties
@@ -42,6 +43,10 @@ import ferrum_qt.ferrum.molfile_export
 import ferrum_qt.ferrum.sdf_export
 import ferrum_qt.ferrum.sdf_multi_export
 import ferrum_qt.ferrum.molecule_report
+import ferrum_qt.ferrum.atom_oxidation
+import ferrum_qt.ferrum.explicit_hydrogen
+import ferrum_qt.ferrum.document_installation
+import ferrum_qt.ferrum.operation_presentation
 import ferrum_qt.ferrum.molecule_name
 import ferrum_qt.ferrum.snapshot_export
 import ferrum_qt.ferrum.recovery_export
@@ -106,6 +111,8 @@ class FerrumNativeMainWindow(
 		ferrum_qt.ferrum.molfile_export.FerrumNativeMolfileExportMixin,
 		ferrum_qt.ferrum.molecule_exports.FerrumNativeMoleculeExportsMixin,
 		ferrum_qt.ferrum.molecule_report.FerrumNativeMoleculeReportMixin,
+		ferrum_qt.ferrum.atom_oxidation.FerrumNativeAtomOxidationMixin,
+		ferrum_qt.ferrum.explicit_hydrogen.FerrumNativeExplicitHydrogenWindowMixin,
 		ferrum_qt.ferrum.molecule_name.FerrumNativeMoleculeNameWindowMixin,
 		ferrum_qt.ferrum.linear_form.FerrumNativeLinearFormWindowMixin,
 		ferrum_qt.ferrum.coordinate_generation.
@@ -123,6 +130,9 @@ class FerrumNativeMainWindow(
 
 	local_document_open_completed = PySide6.QtCore.Signal(str, bool)
 	local_document_open_queue_drained = PySide6.QtCore.Signal(bool)
+	operation_presentation_completed = PySide6.QtCore.Signal(object)
+	document_installation_completed = PySide6.QtCore.Signal(object)
+	document_import_retired = PySide6.QtCore.Signal()
 
 	def __init__(
 			self, parent: PySide6.QtWidgets.QWidget | None = None, *,
@@ -155,6 +165,8 @@ class FerrumNativeMainWindow(
 		self._initialize_molfile_exports()
 		self._initialize_molecule_exports()
 		self._initialize_molecule_inspection()
+		self._initialize_atom_oxidation()
+		self._initialize_explicit_hydrogen()
 		self._initialize_native_clipboard()
 		self._initialize_coordinate_generation()
 		self._initialize_snapshot_exports()
@@ -181,6 +193,97 @@ class FerrumNativeMainWindow(
 		self.setStatusBar(ferrum_qt.widgets.status_bar.StatusBar(self))
 		self._install_native_view_status_controls()
 		self._refresh_actions()
+
+	#============================================
+	def _queue_operation_presentation_v1(self, tab: object, operation_kind: str,
+			terminal_kind: str, document_effect: str, source_revision: int,
+			source_digest_hex: str) -> None:
+		"""Publish after a modeless operation outcome receives one Qt event turn."""
+		PySide6.QtCore.QTimer.singleShot(0, functools.partial(
+			self._publish_operation_presentation_v1,
+			tab, operation_kind, terminal_kind, document_effect,
+			source_revision, source_digest_hex,
+		))
+
+	#============================================
+	def _publish_operation_presentation_v1(self, tab: object, operation_kind: str,
+			terminal_kind: str, document_effect: str, source_revision: int,
+			source_digest_hex: str) -> bool:
+		"""Emit one visible operation receipt only for its still-live source tab."""
+		if PySide6.QtCore.QThread.currentThread() != self.thread():
+			return False
+		if (
+			tab is None
+			or self._native_tabs_by_page.get(tab) is not tab
+			or tab.is_disposed
+		):
+			return False
+		try:
+			snapshot = tab.current_snapshot
+		except native_document_tab_errors.FerrumNativeDocumentTabError:
+			return False
+		if document_effect == "unchanged" and (
+			snapshot.revision != source_revision or snapshot.digest != source_digest_hex
+		):
+			return False
+		if document_effect == "updated" and (
+			snapshot.revision == source_revision and snapshot.digest == source_digest_hex
+		):
+			return False
+		receipt = ferrum_qt.ferrum.operation_presentation.FerrumOperationPresentationV1(
+			ferrum_qt.ferrum.operation_presentation.SCHEMA,
+			operation_kind,
+			terminal_kind,
+			document_effect,
+			source_revision,
+			source_digest_hex,
+			snapshot.revision,
+			snapshot.digest,
+		)
+		self.operation_presentation_completed.emit(receipt)
+		return True
+
+	#============================================
+	def _publish_document_installation_v1(self, tab: object,
+			installation_kind: str, source_revision: int, source_digest_hex: str,
+			expected_revision: int, expected_digest_hex: str,
+			installed_record_count: int) -> bool:
+		"""Publish one receipt after its exact Rust target reaches the live scene."""
+		if PySide6.QtCore.QThread.currentThread() != self.thread():
+			return False
+		if (
+			tab is None
+			or self._native_tabs_by_page.get(tab) is not tab
+			or tab.is_disposed
+		):
+			return False
+		try:
+			snapshot = tab.current_snapshot
+		except native_document_tab_errors.FerrumNativeDocumentTabError:
+			return False
+		if (
+			snapshot.revision != expected_revision
+			or snapshot.digest != expected_digest_hex
+		):
+			return False
+		summary = (
+			ferrum_qt.ferrum.document_installation.
+			accessible_summary_for_installation_kind(
+				installation_kind, installed_record_count,
+			)
+		)
+		receipt = ferrum_qt.ferrum.document_installation.FerrumDocumentInstallationV1(
+			ferrum_qt.ferrum.document_installation.SCHEMA,
+			installation_kind,
+			source_revision,
+			source_digest_hex,
+			snapshot.revision,
+			snapshot.digest,
+			installed_record_count,
+			summary,
+		)
+		self.document_installation_completed.emit(receipt)
+		return True
 
 	def _build_actions(self) -> None:
 		"""Create Ferrum file and bounded Rust edit actions."""
@@ -345,6 +448,8 @@ class FerrumNativeMainWindow(
 		self._build_molfile_export_actions(chemistry_menu)
 		self._build_molecule_export_actions(chemistry_menu)
 		self._build_molecule_inspection_actions(chemistry_menu)
+		self._build_atom_oxidation_action(chemistry_menu)
+		self._build_explicit_hydrogen_action(chemistry_menu)
 		self._build_molecule_name_action(chemistry_menu)
 		self._build_linear_form_action(chemistry_menu)
 		self._build_explicit_fragment_actions(chemistry_menu)

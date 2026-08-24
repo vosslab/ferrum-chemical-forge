@@ -2,11 +2,14 @@
 
 use ferrum_catalog_placement::{
     CatalogPlacementCategoryV1, CatalogPlacementErrorV1, CatalogPlacementGestureV1,
-    CatalogPlacementPreviewV1, CatalogPlacementRecoveryV1, CommittedCatalogPlacementV1,
-    PreparedCatalogPlacementV1, begin_catalog_placement_v1, commit_catalog_placement_v1,
-    prepare_catalog_placement_v1, preview_catalog_placement_v1,
+    CatalogPlacementPreviewV1, CatalogPlacementRecoveryV1, begin_catalog_placement_v1,
+    catalog_molecule_placement_gesture_v1, preview_catalog_placement_v1,
+    resolve_catalog_placement_v1,
 };
-use ferrum_document::{DocumentFenceV1, DocumentSession, PresentationGesturePoint2V1};
+use ferrum_document::{
+    DocumentFenceV1, DocumentSession, PendingCatalogMoleculePlacementV1,
+    PresentationGesturePoint2V1,
+};
 use ferrum_render::{
     DocumentRenderContentV1, DocumentRenderOutcomeV1, MoleculeRenderPlan, RenderRootOverlayV1,
     preview_root_render_overlay_v1,
@@ -23,10 +26,10 @@ pub struct CatalogPlacementGestureV2 {
     lease: Arc<Mutex<CatalogPreviewLeaseV2>>,
 }
 
-/// The renderer receipt is private, but lease ownership must remain shared by
-/// every opaque handle for a gesture. A later pointer preview retires the
-/// former candidate before it can be prepared. V1's authoring capability is
-/// the sole authority for document mutation.
+/// The document pending value is opaque, while lease ownership remains shared
+/// by every gesture handle. A later pointer preview retires the former pending
+/// value before it can be prepared. The document session is the sole mutation
+/// authority.
 #[derive(Debug, Default)]
 struct CatalogPreviewLeaseV2 {
     next: u64,
@@ -38,7 +41,7 @@ struct CatalogPreviewLeaseV2 {
 #[derive(Debug)]
 pub struct CatalogPlacementPreviewV2 {
     overlay: RenderRootOverlayV1,
-    prepared: Option<PreparedCatalogPlacementV1>,
+    pending: Option<PendingCatalogMoleculePlacementV1>,
     lease: Arc<Mutex<CatalogPreviewLeaseV2>>,
     lease_id: u64,
 }
@@ -60,21 +63,24 @@ impl CatalogPlacementPreviewV2 {
 
 #[derive(Debug)]
 pub struct PreparedCatalogPlacementV2 {
-    inner: Option<PreparedCatalogPlacementV1>,
+    pending: Option<PendingCatalogMoleculePlacementV1>,
 }
 
 #[derive(Clone, Debug)]
-pub struct CommittedCatalogPlacementV2(CommittedCatalogPlacementV1);
+pub struct CommittedCatalogPlacementV2 {
+    identifier: String,
+    result: ferrum_document::SessionOperationResultV1,
+}
 
 impl CommittedCatalogPlacementV2 {
     #[must_use]
     pub fn identifier(&self) -> &str {
-        self.0.identifier()
+        &self.identifier
     }
 
     #[must_use]
     pub fn result(&self) -> &ferrum_document::SessionOperationResultV1 {
-        self.0.result()
+        &self.result
     }
 }
 
@@ -89,8 +95,8 @@ pub fn begin_catalog_placement_v2(
     })
 }
 
-/// Build once: V1's prepared receipt owns the candidate and complete renderer
-/// plan before the selected root is exposed as a draw-only overlay.
+/// Build one document-owned pending candidate before exposing its draw-only
+/// renderer overlay.
 pub fn preview_catalog_placement_v2(
     session: &mut DocumentSession,
     gesture: &CatalogPlacementGestureV2,
@@ -113,10 +119,14 @@ pub fn preview_catalog_placement_v2(
     };
     let preview: CatalogPlacementPreviewV1 =
         preview_catalog_placement_v1(session, &gesture.inner, anchor)?;
-    let prepared = prepare_catalog_placement_v1(session, &gesture.inner, &preview)?;
-    let plan = prepared
-        .render_plan()
-        .ok_or(CatalogPlacementErrorV1::ReplayedGesture)?;
+    let request = resolve_catalog_placement_v1(&gesture.inner, &preview)?;
+    let pending = session
+        .prepare_catalog_molecule_placement_v1(
+            catalog_molecule_placement_gesture_v1(&gesture.inner),
+            request,
+        )
+        .map_err(catalog_error_from_document)?;
+    let plan = pending.render_plan_v1();
     // Catalog V1 appends exactly one direct root at the end of the canonical
     // candidate. Use the identity issued by that composed plan rather than
     // reconstructing one from a catalog string; this also preserves a
@@ -131,7 +141,7 @@ pub fn preview_catalog_placement_v2(
         .map_err(|_| CatalogPlacementErrorV1::RenderPreparation)?;
     Ok(CatalogPlacementPreviewV2 {
         overlay,
-        prepared: Some(prepared),
+        pending: Some(pending),
         lease: Arc::clone(&gesture.lease),
         lease_id,
     })
@@ -153,29 +163,30 @@ pub fn prepare_catalog_placement_v2(
     if lease.cancelled || lease.active != Some(preview.lease_id) {
         return Err(CatalogPlacementErrorV1::ReplayedGesture);
     }
-    let inner = preview
-        .prepared
+    let pending = preview
+        .pending
         .take()
         .ok_or(CatalogPlacementErrorV1::ReplayedGesture)?;
     lease.active = None;
-    Ok(PreparedCatalogPlacementV2 { inner: Some(inner) })
+    Ok(PreparedCatalogPlacementV2 {
+        pending: Some(pending),
+    })
 }
 
 pub fn commit_catalog_placement_v2(
     session: &mut DocumentSession,
     prepared: &mut PreparedCatalogPlacementV2,
 ) -> Result<CommittedCatalogPlacementV2, CatalogPlacementErrorV2> {
-    let mut inner = prepared
-        .inner
+    let mut pending = prepared
+        .pending
         .take()
         .ok_or(CatalogPlacementErrorV1::ReplayedGesture)?;
-    match commit_catalog_placement_v1(session, &mut inner) {
-        Ok(value) => Ok(CommittedCatalogPlacementV2(value)),
+    let identifier = pending.identifier().to_owned();
+    match session.commit_catalog_molecule_placement_v1(&mut pending) {
+        Ok(result) => Ok(CommittedCatalogPlacementV2 { identifier, result }),
         Err(error) => {
-            // V1 consumes its receipt only after the atomic document commit.
-            // Every refusal leaves it valid, so V2 must return ownership.
-            prepared.inner = Some(inner);
-            Err(error)
+            prepared.pending = Some(pending);
+            Err(catalog_error_from_document(error))
         }
     }
 }
@@ -186,13 +197,35 @@ pub fn release_catalog_placement_preview_v2(preview: &mut CatalogPlacementPrevie
     {
         lease.active = None;
     }
-    preview.prepared = None;
+    preview.pending = None;
 }
 
 pub fn cancel_catalog_placement_gesture_v2(gesture: CatalogPlacementGestureV2) {
     if let Ok(mut lease) = gesture.lease.lock() {
         lease.cancelled = true;
         lease.active = None;
+    }
+}
+
+fn catalog_error_from_document(
+    error: ferrum_document::CatalogMoleculePlacementRefusalV1,
+) -> CatalogPlacementErrorV1 {
+    match error {
+        ferrum_document::CatalogMoleculePlacementRefusalV1::StaleSnapshot => {
+            CatalogPlacementErrorV1::StaleSnapshot
+        }
+        ferrum_document::CatalogMoleculePlacementRefusalV1::ForeignSession => {
+            CatalogPlacementErrorV1::ForeignSession
+        }
+        ferrum_document::CatalogMoleculePlacementRefusalV1::ReplayedGesture => {
+            CatalogPlacementErrorV1::ReplayedGesture
+        }
+        ferrum_document::CatalogMoleculePlacementRefusalV1::RendererAdmission => {
+            CatalogPlacementErrorV1::RenderPreparation
+        }
+        ferrum_document::CatalogMoleculePlacementRefusalV1::SessionConflict => {
+            CatalogPlacementErrorV1::SessionConflict
+        }
     }
 }
 
@@ -294,8 +327,11 @@ mod tests {
         let mut prepared =
             prepare_catalog_placement_v2(&mut session, &gesture, &mut preview).expect("prepared");
 
+        let mut external_change = session
+            .prepare_complete_cdml_mutation_v1(fence(&session), HOST_DOCUMENT)
+            .expect("prepare external document change");
         session
-            .commit_complete_cdml_transaction_v1(fence(&session), HOST_DOCUMENT)
+            .commit_complete_cdml_mutation_v1(&mut external_change)
             .expect("external document change");
         assert!(matches!(
             commit_catalog_placement_v2(&mut session, &mut prepared),

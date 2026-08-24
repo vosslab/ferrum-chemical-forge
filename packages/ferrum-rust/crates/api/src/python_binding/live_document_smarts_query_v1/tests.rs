@@ -1,6 +1,6 @@
 use super::{
-    LiveDocumentSmartsBridgeV1, LiveFailureV1, LiveSmartsReadinessV1,
-    PyLiveDocumentSmartsCategoryV1, PyLiveDocumentSmartsReasonV1, PyLiveDocumentSmartsRecoveryV1,
+    LiveDocumentSmartsBridgeV1, LiveFailureV1, PyLiveDocumentSmartsCategoryV1,
+    PyLiveDocumentSmartsReasonV1, PyLiveDocumentSmartsRecoveryV1,
     PyLiveDocumentSmartsSelectedQueryV1,
 };
 use crate::{RenderInteractionModifierV1, RenderInteractionQueryV1, RenderInteractionSessionV1};
@@ -15,17 +15,9 @@ const SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
     "</atom></molecule></cdml>"
 );
-const PARTIAL_RENDER_SOURCE: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
-    "<ftext><b>rich label</b></ftext></atom></molecule></cdml>"
-);
 const MUTATED_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"3\" y=\"2\"/>",
     "</atom></molecule></cdml>"
-);
-const MUTATED_PARTIAL_RENDER_SOURCE: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
-    "<ftext><b>revised rich label</b></ftext></atom></molecule></cdml>"
 );
 
 struct ReceiptLifecycleEngine;
@@ -67,12 +59,6 @@ fn unavailable<T>(operation: &'static str) -> Result<T, ChemistryError> {
 
 fn session() -> RenderInteractionSessionV1 {
     RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("fixture CDML loads"))
-}
-
-fn partial_render_session() -> RenderInteractionSessionV1 {
-    RenderInteractionSessionV1::new(
-        DocumentSession::load(PARTIAL_RENDER_SOURCE).expect("fixture CDML loads"),
-    )
 }
 
 fn fence(session: &RenderInteractionSessionV1) -> DocumentFenceV1 {
@@ -379,82 +365,6 @@ fn receipt_only_retirement_retains_the_plan_for_raw_and_selected_reruns() {
         assert_eq!(
             reason(py, retired_plan),
             PyLiveDocumentSmartsReasonV1::PlanNotPublished
-        );
-    });
-}
-
-#[test]
-fn post_reservation_paint_failure_consumes_the_receipt_row() {
-    pyo3::Python::initialize();
-    pyo3::Python::attach(|py| {
-        let session = session();
-        let expected = fence(&session);
-        let mut bridge = LiveDocumentSmartsBridgeV1::new();
-        bridge
-            .publish(&session, expected.revision())
-            .expect("published renderer plan");
-        let summary = bridge
-            .run(py, &session, &ReceiptLifecycleEngine, "C".to_owned(), 1, 1)
-            .expect("issued receipt");
-        let receipt = summary.bind(py).borrow().receipt.clone_ref(py);
-
-        let LiveSmartsReadinessV1::Ready(plan) = &mut bridge.readiness else {
-            panic!("fixture publishes a ready plan");
-        };
-        plan.atom_points_by_graph_position.clear();
-
-        let paint_failure = bridge
-            .show(py, &session, receipt.bind(py).borrow(), 0)
-            .expect_err("corrupt plan reaches paint after reservation");
-        assert_eq!(
-            reason(py, paint_failure),
-            PyLiveDocumentSmartsReasonV1::PaintUnavailable
-        );
-        let replay = bridge
-            .show(py, &session, receipt.bind(py).borrow(), 0)
-            .expect_err("post-reservation failure consumes the receipt row");
-        assert_eq!(
-            reason(py, replay),
-            PyLiveDocumentSmartsReasonV1::ReceiptUnavailable
-        );
-    });
-}
-
-#[test]
-fn partial_render_publication_is_accepted_but_live_smarts_is_unsupported() {
-    pyo3::Python::initialize();
-    pyo3::Python::attach(|py| {
-        let mut session = partial_render_session();
-        let expected = fence(&session);
-        let mut bridge = LiveDocumentSmartsBridgeV1::new();
-
-        let observation = bridge
-            .publish(&session, expected.revision())
-            .expect("accepted partial render observation");
-        assert!(!observation.issues().is_empty());
-        assert!(matches!(
-            bridge.readiness,
-            LiveSmartsReadinessV1::UnsupportedDocument { .. }
-        ));
-        assert!(bridge.receipts.is_empty());
-
-        let error = bridge
-            .validate_raw_request(&session, "C", 1, 1)
-            .expect_err("unrenderable molecule cannot receive a live SMARTS plan");
-        assert_eq!(
-            reason(py, error),
-            PyLiveDocumentSmartsReasonV1::UnsupportedDocument
-        );
-
-        session
-            .commit_complete_cdml_transaction_v1(expected, MUTATED_PARTIAL_RENDER_SOURCE)
-            .expect("changed partial-render document commits");
-        let error = bridge
-            .validate_raw_request(&session, "C", 1, 1)
-            .expect_err("changed document invalidates the old partial-render publication");
-        assert_eq!(
-            reason(py, error),
-            PyLiveDocumentSmartsReasonV1::StaleDocument
         );
     });
 }

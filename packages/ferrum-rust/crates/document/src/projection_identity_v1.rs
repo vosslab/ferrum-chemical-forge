@@ -1,117 +1,71 @@
-//! Durable and projection-local identities carried by document projections.
+//! Document-private adaptation from retained typed records to lower identity values.
 
-use serde::Serialize;
-use thiserror::Error;
+use ferrum_document_projection::{DocumentObjectIdV1, ProjectionError, ProjectionLocalObjectKeyV1};
 
 use crate::TypedRecord;
 
-/// An opaque, versioned selector for one durable typed record.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct DocumentObjectIdV1(String);
-
-impl DocumentObjectIdV1 {
-    pub(crate) fn from_record(record: &TypedRecord) -> Option<Self> {
-        let source_id = record.attribute("id")?;
-        Some(Self::from_class_source(record.class().name(), source_id))
-    }
-
-    pub(crate) fn from_class_source(class: &str, source_id: &str) -> Self {
-        Self(format!(
-            "ferrum-document-object-v1/{}/source/{}",
-            hex(class.as_bytes()),
-            hex(source_id.as_bytes())
-        ))
-    }
-
-    /// Parse a validated V1 document-object selector.
-    pub fn parse(value: impl Into<String>) -> Result<Self, DocumentObjectIdV1Error> {
-        let value = value.into();
-        let mut components = value.split('/');
-        let Some(prefix) = components.next() else {
-            return Err(DocumentObjectIdV1Error::InvalidWireKey);
-        };
-        let Some(class) = components.next() else {
-            return Err(DocumentObjectIdV1Error::InvalidWireKey);
-        };
-        let Some(origin) = components.next() else {
-            return Err(DocumentObjectIdV1Error::InvalidWireKey);
-        };
-        let Some(payload) = components.next() else {
-            return Err(DocumentObjectIdV1Error::InvalidWireKey);
-        };
-        if prefix != "ferrum-document-object-v1"
-            || components.next().is_some()
-            || !valid_hex(class)
-            || origin != "source"
-            || !valid_hex(payload)
-        {
-            return Err(DocumentObjectIdV1Error::InvalidWireKey);
-        }
-        Ok(Self(value))
-    }
-
-    /// Return the stable opaque wire key.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// Failure while decoding an opaque V1 document-object selector.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-pub enum DocumentObjectIdV1Error {
-    /// The selector did not use the exact closed V1 grammar.
-    #[error("invalid ferrum document object V1 wire key")]
-    InvalidWireKey,
-}
-
-fn valid_hex(value: &str) -> bool {
-    !value.is_empty()
-        && value.len().is_multiple_of(2)
-        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-/// An explicitly projection-local key that never selects a session operation.
-///
-/// It distinguishes records which lack an authored durable source identity. Its
-/// structural spelling is intentionally local to this immutable projection and
-/// may change after structural edits.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct ProjectionLocalObjectKeyV1(String);
-
-impl ProjectionLocalObjectKeyV1 {
-    pub(crate) fn from_record(record: &TypedRecord) -> Self {
-        let path = record
-            .path()
-            .components()
-            .iter()
-            .map(u32::to_string)
-            .collect::<Vec<_>>()
-            .join(".");
-        Self(format!("ferrum-projection-local-v1/{path}"))
-    }
-
-    pub(crate) fn parse(value: String) -> Option<Self> {
-        let path = value.strip_prefix("ferrum-projection-local-v1/")?;
-        (!path.is_empty() && path.split('.').all(valid_local_path_component)).then_some(Self(value))
-    }
-
-    /// Return the projection-local wire key.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-fn valid_local_path_component(component: &str) -> bool {
-    component
-        .parse::<u32>()
+/// Derive a durable lower identity from one retained typed record.
+pub(crate) fn document_object_id_from_record_v1(
+    record: &TypedRecord,
+) -> Option<DocumentObjectIdV1> {
+    projection_document_object_id_from_record_v1(record)
         .ok()
-        .is_some_and(|number| number.to_string() == component)
+        .flatten()
+}
+
+/// Derive a durable identity for a projection without erasing malformed source facts.
+pub(crate) fn projection_document_object_id_from_record_v1(
+    record: &TypedRecord,
+) -> Result<Option<DocumentObjectIdV1>, ProjectionError> {
+    record
+        .attribute("id")
+        .map(|source_id| {
+            DocumentObjectIdV1::from_class_source(record.class().name(), source_id).map_err(
+                |error| ProjectionError::InvalidValue {
+                    context: record.path().to_string(),
+                    field: "id",
+                    value: format!("{source_id:?}: {error}"),
+                },
+            )
+        })
+        .transpose()
+}
+
+/// Derive a projection-local lower identity from one retained typed record.
+pub(crate) fn projection_local_object_key_from_record_v1(
+    record: &TypedRecord,
+) -> Result<ProjectionLocalObjectKeyV1, ProjectionError> {
+    ProjectionLocalObjectKeyV1::from_path_components(record.path().components()).map_err(|error| {
+        ProjectionError::InvalidValue {
+            context: record.path().to_string(),
+            field: "projection path",
+            value: error.to_string(),
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{TypedClass, TypedDocument};
+
+    use super::document_object_id_from_record_v1;
+
+    #[test]
+    fn typed_record_derives_a_durable_lower_identity() {
+        let document =
+            TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>")
+                .expect("typed document must parse");
+        let molecule = document
+            .root()
+            .children_of(TypedClass::Molecule)
+            .next()
+            .expect("typed document must retain its molecule");
+
+        assert_eq!(
+            document_object_id_from_record_v1(molecule)
+                .expect("authored ID must derive a durable identity")
+                .as_str(),
+            "ferrum-document-object-v1/63646d6c2f6d6f6c6563756c65/source/6d",
+        );
+    }
 }

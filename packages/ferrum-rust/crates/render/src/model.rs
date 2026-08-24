@@ -701,7 +701,7 @@ impl RenderTarget {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
 pub enum BatchSpace {
-    /// Text operations move with a finite atom anchor.
+    /// Annotation operations move with a finite durable object anchor.
     AtomLocal { anchor: RenderPoint },
     /// Bond operations use accepted document-scene coordinates directly.
     Scene,
@@ -742,7 +742,7 @@ pub struct RenderBatch {
 }
 
 impl RenderBatch {
-    /// Construct one complete, type-safe atom or bond batch.
+    /// Construct one complete, type-safe atom, compact-group, or bond batch.
     pub fn new(
         target: RenderTarget,
         coordinate_space: BatchSpace,
@@ -759,7 +759,7 @@ impl RenderBatch {
             ));
         }
         match (&coordinate_space, target.record_id.kind()) {
-            (BatchSpace::AtomLocal { .. }, RecordKind::Atom)
+            (BatchSpace::AtomLocal { .. }, RecordKind::Atom | RecordKind::Group)
                 if operations.iter().all(|op| {
                     matches!(
                         op,
@@ -775,7 +775,7 @@ impl RenderBatch {
                     .all(|op| matches!(op, RenderOp::Line(_) | RenderOp::Path(_))) => {}
             (BatchSpace::AtomLocal { .. }, _) => {
                 return Err(RenderError::InvalidRequest(
-                    "atom-local batch requires an atom target and annotation operations".to_owned(),
+                    "object-local batch requires an atom or compact-group target and annotation operations".to_owned(),
                 ));
             }
             (BatchSpace::Scene, _) => {

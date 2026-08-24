@@ -210,6 +210,47 @@ A stale catalog fence returns no success outcome. Its nested facts have this sha
 
 Refresh with `inspect --json`, rebuild the operation JSON from the returned fence, and retry.
 
+### Atom oxidation observation
+
+`document.atom.oxidation.observe.v1` reads one selected durable atom from one direct-root
+molecule without changing the document. Build one complete fenced protocol request from the
+current CDML, its `document_fence`, and durable molecule and atom identifiers from the current
+document observation. Do not reuse a fence or identifier after changing the source document.
+
+```json
+{
+  "schema": "ferrum-operation-request-v1",
+  "request_id": "local-oxidation-observation",
+  "operation": {
+    "kind": "document.atom.oxidation.observe.v1",
+    "document": {
+      "cdml": "<current CDML text>",
+      "expected_revision": 0,
+      "expected_digest_hex": "current-lowercase-sha256"
+    },
+    "molecule_id": "current-direct-root-id",
+    "atom_id": "current-atom-id"
+  }
+}
+```
+
+Use the named local CLI route with a request file or standard input:
+
+```bash
+build/bin/ferrum document-atom-oxidation-observe --request oxidation.json
+cat oxidation.json | build/bin/ferrum document-atom-oxidation-observe --request -
+```
+
+The response is one canonical protocol envelope. An accepted observation contains a signed
+oxidation number under the `formal-electron-assignment-hcno-v1` convention. A completed
+`unavailable` observation contains one closed reason instead of a number when the whole root is
+outside the materialized H/C/N/O profile. V1 requires each hydrogen to be an explicit H atom
+vertex and every atom to record an authored explicit-hydrogen fact of zero; implicit, omitted, or
+aggregate hydrogen representation completes as `hydrogen_topology_unsupported`. A stale source
+or invalid durable address is a typed refusal, so refresh the document and create a fresh request
+rather than interpreting it as an unavailable chemistry result. See
+[FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for exact fields and refusal categories.
+
 ## Machine protocol
 
 The lower-level protocol command accepts one UTF-8 JSON request and emits one

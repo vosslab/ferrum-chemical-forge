@@ -529,6 +529,26 @@ reports, every assessed atom's authored charge/H supporting facts in a mixed exc
 order, depiction independence, lifecycle/nonmutation, and accessibility. Fresh local-runtime,
 visual, and timing observations remain disposable evidence.
 
+`Chemistry -> Atom Oxidation State...` is a read-only Rust protocol client for exactly one
+selected durable atom in one direct-root molecule. It is enabled only for a current, eligible
+Ferrum tab with one resolved atom selection and no conflicting document operation. Rust alone
+evaluates the complete materialized H/C/N/O root under
+`formal-electron-assignment-hcno-v1`; Qt sends one fenced public
+`document.atom.oxidation.observe.v1` request through `execute_operation_v1` and presents the
+typed response without deriving chemistry or adding a mark. The modeless accessible `Atom
+Oxidation State` dialog displays the atom and source revision, selectable read-only details, a
+visible source-status label, `Run Again`, and `Close`. An accepted observation displays its signed
+number and convention; an unavailable observation displays its closed reason and recovery. A
+typed refusal is displayed as a failed observation rather than as chemical unavailability.
+
+The dialog is source-bound historical context. If its captured document changes, requires refresh,
+or loses its revision/digest fence, the details remain selectable and the source status states that
+the result is from an earlier revision. `Run Again` recaptures exactly the original active source
+tab's current single-atom selection and fresh fence; it is disabled while that source is inactive,
+stale, unavailable, or lacks one eligible atom. Closing the source tab retires the dialog. The
+interaction never redirects a result or rerun to another tab and never changes CDML, history,
+selection, or renderer state.
+
 `Chemistry -> Molecule Report...` is an ordinary-native, read-only receipt viewer with one
 source-bound modeless lifecycle. The dialog may remain visible as historical context when the
 author changes tabs, but `Run again` is enabled only while its captured source tab is still the

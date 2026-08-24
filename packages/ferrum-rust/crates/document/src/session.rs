@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
+use renderer_admitted_pending_v1::RendererAdmittedPendingV1;
+
 use super::identity_index::ProvisionalToken;
 use super::{
     AuthoringCapabilityIssuerV1, BracketInsertionV1, BracketStyleV1,
@@ -18,52 +20,61 @@ use super::{
     PersistentId, Point3V1, PreparedStraightenDepictionsV1, ProjectionError,
     SessionDocumentObservationV1, TypedClass, TypedDocument, TypedDocumentError, WavyInsertionV1,
     XmlSerializationError,
-    direct_bond_mutation::{
-        self, CommittedDirectBondGestureV2, DirectBondAdmissionV2, DirectBondAdmittedCandidateV2,
-        DirectBondEndpointIntent, DirectBondGestureV2,
-    },
     direct_bond_primitives_v1::{
         DirectBondAdmissionRefusalV1, DirectBondCommitErrorV1, DirectBondGestureErrorV1,
         DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentFenceV1,
     },
     generated_ids::GeneratedIdSequences,
     presentation_creation_gesture_v1::{
-        self, CommittedPresentationGestureV1, PresentationCreationGestureV1,
-        PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
-        PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
+        CommittedPresentationGestureV1, PresentationCreationGestureV1, PresentationGestureErrorV1,
+        PresentationGestureKindV1, PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1,
+        PresentationGestureStyleV1,
     },
     publication::{PublicationDurability, publish_snapshot},
-    session_history::SessionHistory,
-    session_operation::{
-        Candidate, SessionOperation, SessionOperationError, SessionOperationResultV1,
-        SessionOperationV1,
-    },
+    session_operation::{SessionOperation, SessionOperationError, SessionOperationResultV1},
     session_state::{RevisionState, SavedBaseline},
     typed_bond_insertion::BondedAtomInsertion,
 };
 
+mod admitted_molecule_insertion;
+mod admitted_transition_v1;
 #[doc(hidden)]
 pub mod attached_cyclohexane;
 mod bracket;
+mod catalog_molecule_placement;
 mod clipboard;
 mod clipboard_cut;
+mod compact_group_materialization;
+mod compact_group_placement;
+mod complete_cdml_mutation;
 mod construction;
 mod direct_bond;
 mod direct_haworth;
 mod explicit_fragment;
 mod gestures;
+mod hydrogen_materialization;
 mod interchange;
 mod linear_form;
+#[cfg(test)]
 mod molecule_batch_creation;
 mod molecule_creation;
 mod prepared;
 mod presentation_creation;
+mod presentation_gesture;
 mod primitive_bond;
+mod renderer_admitted_pending_v1;
 mod standalone_haworth;
 mod straighten;
 mod structural_deletion;
+mod text_placement;
 mod user_template;
 mod wavy;
+#[allow(unused_imports)]
+pub use admitted_molecule_insertion::{
+    PendingAdmittedInterchangeBatchV1, PendingAdmittedMoleculeInsertionV1,
+};
+use admitted_transition_v1::SessionTransitionEffectsV1;
+pub use admitted_transition_v1::{AdmittedSessionTransitionRefusalV1, PreparedSessionTransitionV1};
 /// Concrete internal Rust transaction seam for the API-owned attached-C6 bridge.
 ///
 /// This remains public because `ferrum-api` must retain and redeem the opaque prepared
@@ -72,21 +83,38 @@ mod wavy;
 /// and atomic commit authority.
 pub use attached_cyclohexane::{AttachedCyclohexaneSessionErrorV1, PendingAttachedCyclohexaneV1};
 pub use bracket::PendingCreateBracket;
+pub use catalog_molecule_placement::{
+    CatalogMoleculePlacementGestureV1, CatalogMoleculePlacementRefusalV1,
+    CatalogMoleculePlacementRequestV1, PendingCatalogMoleculePlacementV1,
+};
 pub use clipboard::DocumentClipboardPasteResultV1;
+pub use compact_group_materialization::{
+    CompactGroupMaterializationRefusalV1, CompactGroupMaterializationRequestV1,
+    CompactGroupMaterializationResultV1, PendingCompactGroupMaterializationV1,
+};
+pub use compact_group_placement::{
+    CompactGroupPlacementModeV1, CompactGroupPlacementRefusalV1, CompactGroupPlacementRequestV1,
+    PendingCompactGroupPlacementV1,
+};
+pub use complete_cdml_mutation::{CompleteCdmlMutationRefusalV1, PendingCompleteCdmlMutationV1};
+#[allow(unused_imports)]
+pub use direct_bond::PendingDirectBondMutationV1;
 pub use direct_haworth::{
     CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, PendingDirectHaworthV1,
 };
 #[allow(unused_imports)]
 pub use explicit_fragment::PendingCreateExplicitFragmentV1;
-pub use interchange::PendingCreateInterchangeBatchV1;
+pub use hydrogen_materialization::PendingHydrogenMaterializationV1;
+pub(crate) use interchange::PendingCreateInterchangeBatchV1;
 pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
-pub use molecule_batch_creation::PendingCreateMoleculeBatchV1;
 pub use presentation_creation::{
     PendingCreatePresentationV1, PresentationAppearanceV1, PresentationCreateErrorV1,
     PresentationCreateRequestV1, PresentationVectorCreateKindV1,
 };
+pub use presentation_gesture::PendingPresentationGestureV1;
 pub use standalone_haworth::PendingStandaloneHaworthV1;
 pub use structural_deletion::PendingDeleteStructureV1;
+pub use text_placement::PendingTextPlacementV1;
 pub use user_template::DocumentUserTemplateResultV1;
 pub use wavy::PendingCreateWavy;
 
@@ -178,49 +206,39 @@ impl Publication {
 }
 
 pub struct PendingCreateAtom {
-    revision: u64,
-    token: ProvisionalToken,
     identifier: PersistentId,
-    candidate: Option<RevisionState>,
+    transition: PreparedSessionTransitionV1,
 }
 
 /// A one-use, revision-bound prepared bond insertion.
 pub struct PendingCreateBond {
-    revision: u64,
-    token: ProvisionalToken,
     identifier: PersistentId,
-    candidate: Option<RevisionState>,
+    transition: PreparedSessionTransitionV1,
 }
 
 /// A one-use, revision-bound prepared atom-plus-bond insertion.
 pub struct PendingCreateBondedAtom {
-    revision: u64,
-    token: ProvisionalToken,
     atom_identifier: PersistentId,
     bond_identifier: PersistentId,
-    candidate: Option<RevisionState>,
+    transition: PreparedSessionTransitionV1,
 }
 
 /// A one-use, revision-bound prepared complete molecule insertion.
-pub struct PendingCreateMolecule {
-    revision: u64,
-    token: ProvisionalToken,
+pub(crate) struct PendingCreateMolecule {
     molecule_identifier: PersistentId,
     atom_identifiers: Vec<PersistentId>,
     bond_identifiers: Vec<PersistentId>,
-    candidate: Option<RevisionState>,
-    tentative_generated_ids: GeneratedIdSequences,
+    transition: PreparedSessionTransitionV1,
 }
 
 impl std::fmt::Debug for PendingCreateMolecule {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingCreateMolecule")
-            .field("revision", &self.revision)
             .field("molecule_identifier", &self.molecule_identifier)
             .field("atom_count", &self.atom_identifiers.len())
             .field("bond_count", &self.bond_identifiers.len())
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -228,19 +246,19 @@ impl std::fmt::Debug for PendingCreateMolecule {
 impl PendingCreateMolecule {
     /// Return the durable molecule ID created when this candidate is committed.
     #[must_use]
-    pub fn molecule_identifier(&self) -> &PersistentId {
+    pub(crate) fn molecule_identifier(&self) -> &PersistentId {
         &self.molecule_identifier
     }
 
     /// Return durable atom IDs in inserted source order.
     #[must_use]
-    pub fn atom_identifiers(&self) -> &[PersistentId] {
+    pub(crate) fn atom_identifiers(&self) -> &[PersistentId] {
         &self.atom_identifiers
     }
 
     /// Return durable bond IDs in inserted source order.
     #[must_use]
-    pub fn bond_identifiers(&self) -> &[PersistentId] {
+    pub(crate) fn bond_identifiers(&self) -> &[PersistentId] {
         &self.bond_identifiers
     }
 
@@ -248,10 +266,10 @@ impl PendingCreateMolecule {
     /// admission boundary. Candidate XML and mutable session state remain
     /// encapsulated by this opaque receipt.
     #[must_use]
-    pub fn candidate_observation_v1(&self) -> Option<SessionDocumentObservationV1> {
-        let candidate = self.candidate.as_ref()?;
-        let snapshot = candidate.snapshot(true);
-        SessionDocumentObservationV1::from_state(candidate.document(), snapshot).ok()
+    pub(crate) fn candidate_observation_v1(&self) -> Option<SessionDocumentObservationV1> {
+        self.transition
+            .metadata_v1()
+            .map(|metadata| metadata.observation().clone())
     }
 }
 
@@ -259,9 +277,8 @@ impl std::fmt::Debug for PendingCreateAtom {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingCreateAtom")
-            .field("revision", &self.revision)
             .field("identifier", &self.identifier)
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -278,9 +295,8 @@ impl std::fmt::Debug for PendingCreateBond {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingCreateBond")
-            .field("revision", &self.revision)
             .field("identifier", &self.identifier)
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -297,10 +313,9 @@ impl std::fmt::Debug for PendingCreateBondedAtom {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingCreateBondedAtom")
-            .field("revision", &self.revision)
             .field("atom_identifier", &self.atom_identifier)
             .field("bond_identifier", &self.bond_identifier)
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -355,6 +370,10 @@ pub enum DocumentSessionError {
     /// A typed operation was rejected before a state transition.
     #[error(transparent)]
     Operation(#[from] SessionOperationError),
+    /// The renderer rejected the exact prospective document state before it could
+    /// become a visible prepared operation.
+    #[error("renderer rejected the prospective document state")]
+    RendererAdmission,
     /// Projection extraction rejected a required retained document fact.
     ///
     /// The enclosed [`ProjectionError`] remains the error source, preserving its
@@ -437,7 +456,9 @@ pub enum DocumentSessionError {
 #[derive(Debug)]
 pub struct DocumentSession {
     authoring_capability_issuer: AuthoringCapabilityIssuerV1,
-    history: SessionHistory,
+    renderer_admission_issuer: u64,
+    next_renderer_admission_sequence: u64,
+    admitted_history: admitted_transition_v1::AdmittedHistoryV1,
     saved_baseline: SavedBaseline,
     generated_ids: GeneratedIdSequences,
 }
@@ -461,14 +482,7 @@ impl DocumentSession {
     pub fn contains_durable_id_v1(&self, identifier: &str) -> bool {
         PersistentId::new(identifier.to_owned())
             .ok()
-            .is_some_and(|id| {
-                self.history
-                    .current()
-                    .document()
-                    .indexed()
-                    .resolve_id(&id)
-                    .is_some()
-            })
+            .is_some_and(|id| self.current_index_v1().resolve_id(&id).is_some())
     }
     /// Begin one opaque direct-root Text placement.  The returned token has no
     /// XML or mutable document state and is valid only for this exact snapshot.
@@ -479,7 +493,7 @@ impl DocumentSession {
         targets: Vec<super::TopLevelRootSelectorV1>,
     ) -> Result<super::TopLevelTranslationAnchorV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
-        let current = self.history.current();
+        let current = self.current_state_v1();
         current
             .document()
             .top_level_translation_anchor_v1(current.revision(), *current.digest(), targets)
@@ -490,44 +504,8 @@ impl DocumentSession {
 
     /// Produce an owned structural serialization of the retained tree.
     pub fn snapshot(&self) -> Result<DocumentSnapshot, DocumentSessionError> {
-        let current = self.history.current();
+        let current = self.current_state_v1();
         Ok(current.snapshot(!self.saved_baseline.is_current(current)))
-    }
-
-    /// Commit one complete, already-admitted CDML replacement as the next revision.
-    ///
-    /// This is the generic compatibility transaction for complete CDML clients.
-    /// It deliberately knows nothing about tools, gestures, render preflight, or
-    /// durable-ID allocation. Tool-specific owners must validate their exact
-    /// candidate before calling this method.
-    pub fn commit_complete_cdml_transaction_v1(
-        &mut self,
-        fence: DocumentFenceV1,
-        candidate_cdml: &str,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(fence.revision())?;
-        if *self.history.current().digest() != fence.digest() {
-            return Err(DocumentSessionError::RevisionConflict {
-                expected: fence.revision(),
-                actual: self.history.current().revision(),
-            });
-        }
-        let document = TypedDocument::parse(candidate_cdml).map_err(DocumentSessionError::Load)?;
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let state =
-            RevisionState::from_document(revision, document).map_err(DocumentSessionError::Load)?;
-        let snapshot = state.snapshot(!self.saved_baseline.is_current(&state));
-        SessionDocumentObservationV1::from_state(state.document(), snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        self.history
-            .try_reserve_append()
-            .map_err(|_| SessionOperationError::HistoryResourceExhausted)?;
-        self.history.append_reserved(state);
-        self.operation_result()
     }
 
     /// Observe the current state through one revision-bound immutable envelope.
@@ -547,7 +525,7 @@ impl DocumentSession {
         &self,
         request: &super::DocumentAtomOxidationObservationRequestV1,
     ) -> Result<super::DocumentAtomOxidationResultV1, super::DocumentAtomOxidationRefusalV1> {
-        let current = self.history.current();
+        let current = self.current_state_v1();
         let snapshot = current.snapshot(!self.saved_baseline.is_current(current));
         super::chemistry::observe_current_document_atom_oxidation_v1(
             current.document(),
@@ -561,7 +539,7 @@ impl DocumentSession {
         &self,
         expected_revision: u64,
     ) -> Result<super::PreparedDocumentSmartsSnapshotV1, super::DocumentSmartsSnapshotErrorV1> {
-        let current = self.history.current();
+        let current = self.current_state_v1();
         if current.revision() != expected_revision {
             return Err(super::DocumentSmartsSnapshotErrorV1::StaleRevision {
                 expected: expected_revision,
@@ -578,13 +556,13 @@ impl DocumentSession {
     /// Return whether the retained session history has an earlier state.
     #[must_use]
     pub fn can_undo(&self) -> bool {
-        self.history.undo_target().is_some()
+        self.has_undo_history_v1()
     }
 
     /// Return whether the retained session history has a later state.
     #[must_use]
     pub fn can_redo(&self) -> bool {
-        self.history.redo_target().is_some()
+        self.has_redo_history_v1()
     }
 
     /// Observe complete-document literal-ID ambiguity facts at one exact revision.
@@ -597,47 +575,20 @@ impl DocumentSession {
     ) -> Result<super::CompleteDocumentIdentityFactsV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
         Ok(self
-            .history
-            .current()
-            .document()
-            .indexed()
+            .current_index_v1()
             .complete_document_identity_facts_v1())
     }
 
-    /// Apply one narrow typed operation with optimistic revision control.
+    /// Apply one narrow typed operation through renderer admission.
+    ///
+    /// This compatibility spelling delegates to the opaque admitted-transition
+    /// boundary and never appends a raw operation candidate directly.
     pub fn submit(
         &mut self,
         expected_revision: u64,
         operation: SessionOperation,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        if let SessionOperation::V1(SessionOperationV1::DeleteStructure {
-            molecule_id,
-            atom_ids,
-            bond_ids,
-        }) = &operation
-        {
-            let mut pending = self.prepare_delete_structure_v1(
-                expected_revision,
-                molecule_id.clone(),
-                atom_ids.clone(),
-                bond_ids.clone(),
-            )?;
-            return self.commit_delete_structure_v1(expected_revision, &mut pending);
-        }
-        let current = self.history.current();
-        match operation.prepare(current.document(), current.revision(), current.digest())? {
-            Candidate::NoChange => self.operation_result(),
-            Candidate::Changed(document) => {
-                let revision = current
-                    .next_revision()
-                    .ok_or(DocumentSessionError::RevisionExhausted)?;
-                let state = RevisionState::from_document(revision, *document)
-                    .map_err(DocumentSessionError::Load)?;
-                self.history.append(state);
-                self.operation_result()
-            }
-        }
+        self.execute_session_operation_transition_v1(expected_revision, operation)
     }
 
     /// Navigate to the preceding retained logical state as a new monotonic revision.
@@ -645,24 +596,10 @@ impl DocumentSession {
         &mut self,
         expected_revision: u64,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        let source = self
-            .history
-            .undo_target()
-            .ok_or(DocumentSessionError::HistoryUnavailable)?
-            .canonical_cdml()
-            .to_owned();
-        let next_revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let document = TypedDocument::parse(&source).map_err(DocumentSessionError::Load)?;
-        self.history.move_undo();
-        let state = RevisionState::from_document(next_revision, document)
-            .map_err(DocumentSessionError::Load)?;
-        self.history.replace_current(state);
-        self.operation_result()
+        self.execute_history_navigation_transition_v1(
+            expected_revision,
+            admitted_transition_v1::HistoryNavigationDirectionV1::Undo,
+        )
     }
 
     /// Navigate to the succeeding retained logical state as a new monotonic revision.
@@ -670,24 +607,10 @@ impl DocumentSession {
         &mut self,
         expected_revision: u64,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        let source = self
-            .history
-            .redo_target()
-            .ok_or(DocumentSessionError::HistoryUnavailable)?
-            .canonical_cdml()
-            .to_owned();
-        let next_revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let document = TypedDocument::parse(&source).map_err(DocumentSessionError::Load)?;
-        self.history.move_redo();
-        let state = RevisionState::from_document(next_revision, document)
-            .map_err(DocumentSessionError::Load)?;
-        self.history.replace_current(state);
-        self.operation_result()
+        self.execute_history_navigation_transition_v1(
+            expected_revision,
+            admitted_transition_v1::HistoryNavigationDirectionV1::Redo,
+        )
     }
 
     /// Prepare one V1 free-standing atom insertion at the current revision.
@@ -712,27 +635,42 @@ impl DocumentSession {
     }
 
     fn require_fence(&self, fence: DocumentFenceV1) -> Result<(), DirectBondGestureErrorV1> {
-        if self.history.current().revision() != fence.revision() {
+        if self.current_revision_v1() != fence.revision() {
             return Err(DirectBondGestureErrorV1::StaleRevision);
         }
-        if *self.history.current().digest() != fence.digest() {
+        if self.current_digest_v1() != fence.digest() {
             return Err(DirectBondGestureErrorV1::StaleDigest);
         }
         Ok(())
     }
 
-    fn direct_atom_point(&self, object_id: &DocumentObjectIdV1) -> Option<DirectBondPoint2V1> {
-        let target = self
-            .history
-            .current()
-            .document()
-            .resolve_document_object_id(object_id)?;
+    fn direct_atom_point(
+        &self,
+        object_id: &DocumentObjectIdV1,
+    ) -> Result<Option<DirectBondPoint2V1>, crate::ProjectionError> {
+        let Some(target) = self
+            .current_document_v1()
+            .resolve_document_object_id(object_id)
+        else {
+            return Ok(None);
+        };
         if target.class() != TypedClass::Atom {
-            return None;
+            return Ok(None);
         }
-        let point_record = target.children_of(TypedClass::Point).next()?;
-        let point = super::projection_v1::point(point_record).ok()?;
-        DirectBondPoint2V1::new(point.x(), point.y()).ok()
+        let point_record = target
+            .children_of(TypedClass::Point)
+            .next()
+            .ok_or_else(|| crate::ProjectionError::MissingPoint {
+                context: format!("direct-bond endpoint {}", object_id.as_str()),
+            })?;
+        let point = super::projection_v1::point(point_record)?;
+        DirectBondPoint2V1::new(point.x(), point.y())
+            .map(Some)
+            .map_err(|error| crate::ProjectionError::InvalidValue {
+                context: format!("direct-bond endpoint {}", object_id.as_str()),
+                field: "point",
+                value: error.to_string(),
+            })
     }
 
     fn reject_existing_bond_for_object_ids(
@@ -746,7 +684,7 @@ impl DocumentSession {
     }
 
     fn require_current(&self, expected_revision: u64) -> Result<(), DocumentSessionError> {
-        let actual = self.history.current().revision();
+        let actual = self.current_revision_v1();
         if actual == expected_revision {
             Ok(())
         } else {
@@ -763,9 +701,9 @@ impl DocumentSession {
     }
 
     fn document_observation(&self) -> Result<SessionDocumentObservationV1, DocumentSessionError> {
-        let current = self.history.current();
+        let current = self.current_state_v1();
         let snapshot = current.snapshot(!self.saved_baseline.is_current(current));
-        SessionDocumentObservationV1::from_state(current.document(), snapshot)
+        SessionDocumentObservationV1::from_snapshot(snapshot)
             .map_err(DocumentSessionError::Projection)
     }
 
@@ -778,7 +716,7 @@ impl DocumentSession {
         let snapshot = self.snapshot()?;
         let durability = publish_snapshot(path, snapshot.cdml())?;
         if durability == PublicationDurability::Confirmed {
-            self.saved_baseline = SavedBaseline::from_state(self.history.current());
+            self.saved_baseline = SavedBaseline::from_state(self.current_state_v1());
         }
         let current = self.snapshot()?;
         Ok(Publication::from_durability(snapshot, current, durability))
@@ -786,7 +724,7 @@ impl DocumentSession {
 
     #[cfg(test)]
     pub(super) fn set_revision_for_test(&mut self, revision: u64) {
-        self.history.current_mut().set_revision_for_test(revision);
+        self.set_current_revision_for_test_v1(revision);
     }
 
     #[cfg(test)]
@@ -796,7 +734,7 @@ impl DocumentSession {
     ) -> Result<Publication, DocumentSessionError> {
         let published = self.snapshot()?;
         if durability == PublicationDurability::Confirmed {
-            self.saved_baseline = SavedBaseline::from_state(self.history.current());
+            self.saved_baseline = SavedBaseline::from_state(self.current_state_v1());
         }
         let current = self.snapshot()?;
         Ok(Publication::from_durability(published, current, durability))

@@ -5,7 +5,8 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 use super::{
-    AuthoredTextRunV1, AuthoredTextStyleV1, PersistentId, Rgb24V1, normalize_authored_text_runs_v1,
+    AuthoredTextRunV1, AuthoredTextStyleV1, PersistentId, PresentationFontFaceV1, Rgb24V1,
+    normalize_authored_text_runs_v1,
 };
 
 /// Minimum Text font size represented by the established CDML editor control.
@@ -23,8 +24,8 @@ pub type TextEditRunV1 = AuthoredTextRunV1;
 pub enum TextPropertyChangeV1 {
     /// Replace the complete formatted character run sequence.
     Runs(Vec<TextEditRunV1>),
-    /// Replace or clear the optional direct font family.
-    FontFamily(Option<String>),
+    /// Select the closed semantic face emitted with its canonical CDML spelling.
+    FontFace(PresentationFontFaceV1),
     /// Replace the direct font's integer size.
     FontSize(u16),
     /// Replace the direct font's foreground colour.
@@ -37,7 +38,7 @@ impl TextPropertyChangeV1 {
     fn kind(&self) -> TextPropertyKindV1 {
         match self {
             Self::Runs(_) => TextPropertyKindV1::Runs,
-            Self::FontFamily(_) => TextPropertyKindV1::FontFamily,
+            Self::FontFace(_) => TextPropertyKindV1::FontFace,
             Self::FontSize(_) => TextPropertyKindV1::FontSize,
             Self::Color(_) => TextPropertyKindV1::Color,
             Self::BackgroundColor(_) => TextPropertyKindV1::BackgroundColor,
@@ -48,7 +49,7 @@ impl TextPropertyChangeV1 {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum TextPropertyKindV1 {
     Runs,
-    FontFamily,
+    FontFace,
     FontSize,
     Color,
     BackgroundColor,
@@ -58,7 +59,7 @@ impl TextPropertyKindV1 {
     const fn name(self) -> &'static str {
         match self {
             Self::Runs => "runs",
-            Self::FontFamily => "font family",
+            Self::FontFace => "font face",
             Self::FontSize => "font size",
             Self::Color => "color",
             Self::BackgroundColor => "background color",
@@ -91,13 +92,6 @@ impl TextPropertiesPatchV1 {
             }
             match change {
                 TextPropertyChangeV1::Runs(runs) => normalize_runs(runs)?,
-                TextPropertyChangeV1::FontFamily(Some(value)) => {
-                    let trimmed = value.trim();
-                    if trimmed.is_empty() {
-                        return Err(TextPropertiesPatchV1Error::BlankFontFamily);
-                    }
-                    *value = trimmed.to_owned();
-                }
                 TextPropertyChangeV1::FontSize(value)
                     if !(MIN_TEXT_FONT_SIZE_V1..=MAX_TEXT_FONT_SIZE_V1).contains(value) =>
                 {
@@ -147,9 +141,6 @@ pub enum TextPropertiesPatchV1Error {
     /// The complete replacement has no visible character.
     #[error("Text content must contain a visible character")]
     BlankText,
-    /// Font family cannot be blank after trimming.
-    #[error("Text font family must not be blank")]
-    BlankFontFamily,
     /// Font size falls outside the established editable CDML range.
     #[error("Text font size must be from 4 through 144")]
     FontSizeOutOfRange,

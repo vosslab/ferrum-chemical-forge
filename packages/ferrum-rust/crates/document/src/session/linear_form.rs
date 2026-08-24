@@ -1,30 +1,22 @@
-//! Revision-bound transaction ownership for native linear-form conversion.
+//! Revision-bound linear-form conversion over the generic admitted transition.
 
 use super::{
-    DocumentObjectIdV1, DocumentSession, DocumentSessionError, GeneratedIdSequences, PersistentId,
-    ProvisionalToken, RevisionState, SessionDocumentObservationV1, SessionOperationError,
-    SessionOperationResultV1,
+    AdmittedSessionTransitionRefusalV1, DocumentObjectIdV1, DocumentSession, DocumentSessionError,
+    PersistentId, PreparedSessionTransitionV1, RevisionState, SessionOperationError,
+    SessionOperationResultV1, SessionTransitionEffectsV1,
 };
 use crate::linear_form_convert_v1::{LinearFormCandidateV1, LinearFormDocumentErrorV1};
 
-/// A one-use, revision-bound native linear-form candidate.
-///
-/// The receipt is deliberately not `Clone`: its detached revision, opaque token,
-/// precomputed result, and optional tentative fragment sequence have one owner.
+/// A one-use native linear-form conversion with its durable fragment identity.
 pub struct PendingLinearFormConvertV1 {
     revision: u64,
-    token: ProvisionalToken,
     fragment_id: PersistentId,
-    candidate: Option<RevisionState>,
-    operation: Option<SessionOperationResultV1>,
-    tentative_generated_ids: Option<GeneratedIdSequences>,
+    transition: PreparedSessionTransitionV1,
 }
 
 /// The complete outcome of classifying one native linear-form request.
 pub enum PreparedLinearFormConvertResultV1 {
-    /// The authoritative current state already has the canonical conversion.
     NoChange(Box<SessionOperationResultV1>),
-    /// A detached changed state awaits its one authenticated commit.
     Pending(Box<PendingLinearFormConvertV1>),
 }
 
@@ -43,13 +35,12 @@ impl std::fmt::Debug for PendingLinearFormConvertV1 {
             .debug_struct("PendingLinearFormConvertV1")
             .field("revision", &self.revision)
             .field("fragment_id", &self.fragment_id)
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
 
 impl PendingLinearFormConvertV1 {
-    /// Return the exact generated-record ID that the committed candidate owns.
     #[must_use]
     pub fn fragment_id(&self) -> &PersistentId {
         &self.fragment_id
@@ -58,9 +49,6 @@ impl PendingLinearFormConvertV1 {
 
 impl DocumentSession {
     /// Classify and prepare one exact selected-atom native linear-form conversion.
-    ///
-    /// A no-change answer is returned immediately from the authoritative current
-    /// state. Changed candidates own their token until successful commit or drop.
     pub fn prepare_convert_linear_form_v1(
         &mut self,
         expected_revision: u64,
@@ -72,25 +60,25 @@ impl DocumentSession {
             return Err(SessionOperationError::EmptyLinearFormSelection.into());
         }
         let classified = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .prepare_linear_form_convert_v1(molecule_object_id, selected_atoms)
             .map_err(map_linear_form_error)?;
-        let (classified, tentative_generated_ids) = match classified {
+        let (classified, effects) = match classified {
             LinearFormCandidateV1::NeedFragmentId => {
-                let (fragment_id, sequences) = self
-                    .generated_ids
-                    .reserve_fragment(self.history.current().document().indexed())?;
+                let (fragment_id, effects) =
+                    self.reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                        let (fragment_id, next) = ids.reserve_fragment(indexed)?;
+                        Ok((fragment_id, next))
+                    })?;
                 let candidate = self
-                    .history
-                    .current()
+                    .current_state_v1()
                     .document()
                     .apply_linear_form_convert_v1(molecule_object_id, selected_atoms, &fragment_id)
                     .map_err(map_linear_form_error)?;
-                (candidate, Some(sequences))
+                (candidate, effects)
             }
-            other => (other, None),
+            other => (other, SessionTransitionEffectsV1::none()),
         };
         let LinearFormCandidateV1::Repair {
             candidate,
@@ -102,34 +90,28 @@ impl DocumentSession {
                 .map(Box::new)
                 .map(PreparedLinearFormConvertResultV1::NoChange);
         };
-        let revision = self
-            .history
-            .current()
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let candidate = RevisionState::from_document(revision, *candidate)
+        let (source_revision, source_digest, revision) = {
+            let current = self.current_state_v1();
+            (
+                current.revision(),
+                *current.digest(),
+                current.next_revision(),
+            )
+        };
+        let revision = revision.ok_or(DocumentSessionError::RevisionExhausted)?;
+        let state = RevisionState::from_document(revision, *candidate)
             .map_err(DocumentSessionError::Load)?;
-        let snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        let observation = SessionDocumentObservationV1::from_state(candidate.document(), snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let operation = SessionOperationResultV1::new(observation);
-        self.history
-            .try_reserve_append()
-            .map_err(|_| SessionOperationError::HistoryResourceExhausted)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .try_issue_provisional_token()
-            .map_err(SessionOperationError::Candidate)?;
+        let transition = self.prepare_changed_session_transition_v1(
+            source_revision,
+            source_digest,
+            state,
+            effects,
+        )?;
         Ok(PreparedLinearFormConvertResultV1::Pending(Box::new(
             PendingLinearFormConvertV1 {
                 revision: expected_revision,
-                token,
                 fragment_id,
-                candidate: Some(candidate),
-                operation: Some(operation),
-                tentative_generated_ids,
+                transition,
             },
         )))
     }
@@ -140,8 +122,7 @@ impl DocumentSession {
         expected_revision: u64,
         pending: &mut PendingLinearFormConvertV1,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        if pending.candidate.is_none() {
+        if pending.transition.is_consumed_v1() {
             return Err(DocumentSessionError::PreparedOperationConsumed);
         }
         if pending.revision != expected_revision {
@@ -150,33 +131,8 @@ impl DocumentSession {
                 actual: expected_revision,
             });
         }
-        self.history
-            .current()
-            .document()
-            .verify_provisional_token(&pending.token)
-            .map_err(super::prepared::map_prepared_token_error)?;
-        self.history
-            .try_reserve_append()
-            .map_err(|_| SessionOperationError::HistoryResourceExhausted)?;
-        let (Some(state), Some(operation)) = (pending.candidate.take(), pending.operation.take())
-        else {
-            return Err(DocumentSessionError::PreparedOperationConsumed);
-        };
-        if let Err(error) = self
-            .history
-            .current_mut()
-            .document_mut()
-            .consume_provisional_token(&pending.token)
-        {
-            pending.candidate = Some(state);
-            pending.operation = Some(operation);
-            return Err(SessionOperationError::Candidate(error).into());
-        }
-        self.history.append_reserved(state);
-        if let Some(generated_ids) = pending.tentative_generated_ids.take() {
-            self.generated_ids = generated_ids;
-        }
-        Ok(operation)
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, pending.revision, refusal))
     }
 }
 
@@ -187,6 +143,34 @@ fn map_linear_form_error(error: LinearFormDocumentErrorV1) -> DocumentSessionErr
         }
         LinearFormDocumentErrorV1::Document(error) => {
             SessionOperationError::Candidate(error).into()
+        }
+    }
+}
+
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
+        }
+        AdmittedSessionTransitionRefusalV1::Replayed
+        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
+        }
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
+        }
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
         }
     }
 }

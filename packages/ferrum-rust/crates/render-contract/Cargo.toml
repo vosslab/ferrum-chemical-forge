@@ -11,7 +11,3 @@ publish.workspace = true
 
 [lints]
 workspace = true
-
-[dependencies]
-ferrum-document-model = { path = "../document-model" }
-thiserror = { version = "*" }

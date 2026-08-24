@@ -3,8 +3,9 @@
 use thiserror::Error;
 
 use super::{
-    DocumentFenceV1, DocumentObjectIdV1, DocumentSession, GeneratedIdSequences, PersistentId,
-    RevisionState, SessionDocumentObservationV1, SessionOperationResultV1,
+    AdmittedSessionTransitionRefusalV1, DocumentFenceV1, DocumentObjectIdV1, DocumentSession,
+    PersistentId, PreparedSessionTransitionV1, RevisionState, SessionDocumentObservationV1,
+    SessionOperationResultV1,
 };
 use crate::{
     AuthoringCapabilityIssuerV1, Point3V1,
@@ -13,14 +14,15 @@ use crate::{
         AttachedCyclohexaneReleaseV1, attached_cyclohexane_candidate_v1,
     },
 };
+use ferrum_render::{DocumentRenderContentV1, DocumentRenderOutcomeV1, MoleculeRenderPlan};
 
 /// Opaque one-use prepared shared-anchor C6 transition.
 pub struct PendingAttachedCyclohexaneV1 {
     session_issuer: AuthoringCapabilityIssuerV1,
     fence: DocumentFenceV1,
-    candidate: Option<RevisionState>,
-    preview_vertices: [Point3V1; 6],
-    next_generated_ids: GeneratedIdSequences,
+    transition: PreparedSessionTransitionV1,
+    molecule_source_order: u32,
+    render_plan: ferrum_render::DocumentRenderPlanV1,
 }
 
 impl std::fmt::Debug for PendingAttachedCyclohexaneV1 {
@@ -28,16 +30,30 @@ impl std::fmt::Debug for PendingAttachedCyclohexaneV1 {
         formatter
             .debug_struct("PendingAttachedCyclohexaneV1")
             .field("revision", &self.fence.revision())
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
 
 impl PendingAttachedCyclohexaneV1 {
-    /// Return copied C6 preview coordinates while this candidate remains live.
+    /// Return the renderer-issued molecule plan while this candidate remains live.
     #[must_use]
-    pub fn preview_vertices(&self) -> Option<&[Point3V1; 6]> {
-        self.candidate.as_ref().map(|_| &self.preview_vertices)
+    pub fn render_plan_v1(&self) -> Option<&MoleculeRenderPlan> {
+        if self.transition.is_consumed_v1() {
+            return None;
+        }
+        self.render_plan.outcomes().iter().find_map(|outcome| {
+            let DocumentRenderOutcomeV1::Root(root) = outcome else {
+                return None;
+            };
+            if root.source_order() != self.molecule_source_order {
+                return None;
+            }
+            let DocumentRenderContentV1::Molecule(plan) = root.content() else {
+                return None;
+            };
+            Some(plan)
+        })
     }
 }
 
@@ -58,6 +74,8 @@ pub enum AttachedCyclohexaneSessionErrorV1 {
     IneligibleAnchor,
     #[error("cyclohexane attachment pose is invalid")]
     InvalidPose,
+    #[error("cyclohexane attachment candidate could not be rendered completely")]
+    RendererAdmission,
     #[error("cyclohexane attachment session conflict")]
     SessionConflict,
 }
@@ -89,30 +107,27 @@ impl DocumentSession {
         )
         .map_err(map_core_error)?;
 
-        let indexed = self.history.current().document().indexed();
-        let mut next_generated_ids = self.generated_ids;
-        let mut atom_ids = Vec::with_capacity(5);
-        let mut bond_ids = Vec::with_capacity(6);
-        for _ in 0..5 {
-            let (identifier, next) = next_generated_ids
-                .reserve_atom(indexed)
-                .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-            atom_ids.push(identifier);
-            next_generated_ids = next;
-        }
-        for _ in 0..6 {
-            let (identifier, next) = next_generated_ids
-                .reserve_bond(indexed)
-                .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-            bond_ids.push(identifier);
-            next_generated_ids = next;
-        }
+        let ((atom_ids, bond_ids), effects) = self
+            .reserve_generated_ids_for_transition_v1(|mut sequences, indexed| {
+                let mut atom_ids = Vec::with_capacity(5);
+                let mut bond_ids = Vec::with_capacity(6);
+                for _ in 0..5 {
+                    let (identifier, next) = sequences.reserve_atom(indexed)?;
+                    atom_ids.push(identifier);
+                    sequences = next;
+                }
+                for _ in 0..6 {
+                    let (identifier, next) = sequences.reserve_bond(indexed)?;
+                    bond_ids.push(identifier);
+                    sequences = next;
+                }
+                Ok(((atom_ids, bond_ids), sequences))
+            })
+            .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
         let atom_ids: [PersistentId; 5] = atom_ids.try_into().expect("fixed C6 atom reservation");
         let bond_ids: [PersistentId; 6] = bond_ids.try_into().expect("fixed C6 bond reservation");
         let document = self
-            .history
-            .current()
-            .document()
+            .current_document_v1()
             .with_attach_cyclohexane_v1(
                 &resolved.molecule_id,
                 &resolved.anchor_id,
@@ -122,24 +137,25 @@ impl DocumentSession {
             )
             .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
         let revision = self
-            .history
-            .current()
-            .next_revision()
+            .next_revision_v1()
             .ok_or(AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
         let state = RevisionState::from_document(revision, document)
             .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-        let snapshot = state.snapshot(!self.saved_baseline.is_current(&state));
-        SessionDocumentObservationV1::from_state(state.document(), snapshot)
-            .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-        self.history
-            .try_reserve_append()
-            .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
+        let transition = self
+            .prepare_changed_session_transition_v1(fence.revision(), fence.digest(), state, effects)
+            .map_err(map_prepare_error)?;
+        let render_plan = transition
+            .metadata_v1()
+            .expect("live transition metadata")
+            .renderer_plan()
+            .expect("changed C6 transition has a renderer plan")
+            .clone();
         Ok(PendingAttachedCyclohexaneV1 {
             session_issuer: self.authoring_capability_issuer.clone(),
             fence,
-            candidate: Some(state),
-            preview_vertices: candidate.vertices().to_owned(),
-            next_generated_ids,
+            transition,
+            molecule_source_order: resolved.molecule_source_order,
+            render_plan,
         })
     }
 
@@ -148,7 +164,7 @@ impl DocumentSession {
         &mut self,
         pending: &mut PendingAttachedCyclohexaneV1,
     ) -> Result<SessionOperationResultV1, AttachedCyclohexaneSessionErrorV1> {
-        if pending.candidate.is_none() {
+        if pending.transition.is_consumed_v1() {
             return Err(AttachedCyclohexaneSessionErrorV1::Retired);
         }
         if !pending
@@ -157,33 +173,13 @@ impl DocumentSession {
         {
             return Err(AttachedCyclohexaneSessionErrorV1::ForeignSession);
         }
-        require_fence(self, pending.fence)?;
-        let token =
-            super::prepared::issue_prepared_token(self.history.current_mut().document_mut())
-                .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-        self.history
-            .current()
-            .document()
-            .verify_provisional_token(&token)
-            .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-        self.history
-            .current_mut()
-            .document_mut()
-            .consume_provisional_token(&token)
-            .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-        self.generated_ids = pending.next_generated_ids;
-        let state = pending
-            .candidate
-            .take()
-            .expect("live candidate checked above");
-        self.history.append_reserved(state);
-        self.operation_result()
-            .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(map_commit_error)
     }
 
     /// Retire one preview without requiring that its document is still current.
     pub fn retire_attach_cyclohexane_v1(
-        &self,
+        &mut self,
         pending: &mut PendingAttachedCyclohexaneV1,
     ) -> Result<(), AttachedCyclohexaneSessionErrorV1> {
         if !pending
@@ -192,10 +188,41 @@ impl DocumentSession {
         {
             return Err(AttachedCyclohexaneSessionErrorV1::ForeignSession);
         }
-        if pending.candidate.take().is_none() {
+        if pending.transition.is_consumed_v1() {
             return Err(AttachedCyclohexaneSessionErrorV1::Retired);
         }
-        Ok(())
+        self.retire_session_operation_transition_v1(&mut pending.transition)
+            .map_err(map_commit_error)
+    }
+}
+
+fn map_prepare_error(error: super::DocumentSessionError) -> AttachedCyclohexaneSessionErrorV1 {
+    match error {
+        super::DocumentSessionError::RendererAdmission => {
+            AttachedCyclohexaneSessionErrorV1::RendererAdmission
+        }
+        _ => AttachedCyclohexaneSessionErrorV1::SessionConflict,
+    }
+}
+
+fn map_commit_error(
+    error: AdmittedSessionTransitionRefusalV1,
+) -> AttachedCyclohexaneSessionErrorV1 {
+    match error {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            AttachedCyclohexaneSessionErrorV1::ForeignSession
+        }
+        AdmittedSessionTransitionRefusalV1::Replayed => AttachedCyclohexaneSessionErrorV1::Retired,
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            AttachedCyclohexaneSessionErrorV1::StaleRevision
+        }
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            AttachedCyclohexaneSessionErrorV1::RendererAdmission
+        }
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability
+        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            AttachedCyclohexaneSessionErrorV1::SessionConflict
+        }
     }
 }
 
@@ -203,11 +230,10 @@ fn require_fence(
     session: &DocumentSession,
     fence: DocumentFenceV1,
 ) -> Result<(), AttachedCyclohexaneSessionErrorV1> {
-    let current = session.history.current();
-    if current.revision() != fence.revision() {
+    if session.current_revision_v1() != fence.revision() {
         return Err(AttachedCyclohexaneSessionErrorV1::StaleRevision);
     }
-    if *current.digest() != fence.digest() {
+    if session.current_digest_v1() != fence.digest() {
         return Err(AttachedCyclohexaneSessionErrorV1::StaleDigest);
     }
     Ok(())
@@ -215,6 +241,7 @@ fn require_fence(
 
 struct ResolvedAnchorV1 {
     molecule_id: PersistentId,
+    molecule_source_order: u32,
     anchor_id: PersistentId,
     position: Point3V1,
     element: String,
@@ -270,6 +297,7 @@ fn resolve_anchor(
         .ok_or(AttachedCyclohexaneSessionErrorV1::IneligibleAnchor)?;
     Ok(ResolvedAnchorV1 {
         molecule_id,
+        molecule_source_order: molecule.source_order(),
         anchor_id: atom_id,
         position: atom.position(),
         element: element.to_owned(),
@@ -342,7 +370,8 @@ mod tests {
             )
             .expect("prepare");
         assert_eq!(session.snapshot().expect("prepare snapshot"), before);
-        let preview = *pending.preview_vertices().expect("live preview");
+        let preview = pending.render_plan_v1().expect("renderer-admitted preview");
+        assert!(!preview.batches().is_empty());
         let result = session
             .commit_attach_cyclohexane_v1(&mut pending)
             .expect("commit");
@@ -352,7 +381,6 @@ mod tests {
         let molecule = &result.observation().projection().molecules()[0];
         assert_eq!(molecule.atoms().len(), 6);
         assert_eq!(molecule.bonds().len(), 6);
-        assert_eq!(molecule.atoms()[1].position(), preview[1]);
         assert_eq!(
             molecule
                 .bonds()

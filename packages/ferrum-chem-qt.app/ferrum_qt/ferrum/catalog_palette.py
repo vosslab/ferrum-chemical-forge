@@ -295,16 +295,26 @@ class FerrumNativeCatalogPlacementWindowMixin:
 				return
 			receipt = intent.tab.prepare_catalog_placement(intent.gesture, intent.preview)
 			self._cancel_catalog_placement(False)
-			intent.tab.commit_catalog_placement(receipt)
+			commit = intent.tab.commit_catalog_placement(receipt)
 		except Exception as error:
 			self._cancel_catalog_placement(False)
 			if hasattr(error, "accepted_receipt") and intent is not None:
 				message = "Template was placed, but the display still needs recovery."
+				commit = error.accepted_receipt
 				try:
 					if intent.tab.refresh_authoritative():
 						message = "Template was placed; Ferrum refreshed the authoritative Rust display."
 				except Exception:
 					pass
+				if message.startswith("Template was placed; "):
+					self.statusBar().showMessage(self.tr(message), 5000)
+					self._refresh_actions()
+					target = commit.result.observation.snapshot
+					self._publish_document_installation_v1(
+						intent.tab, "catalog_template", intent.revision, intent.digest,
+						target.revision, target.digest, 1,
+					)
+					return
 				self._show_edit_refusal(self._unavailable_edit_refusal(message))
 			else:
 				self._show_edit_refusal(self._unavailable_edit_refusal(str(error)))
@@ -312,6 +322,11 @@ class FerrumNativeCatalogPlacementWindowMixin:
 			return
 		self.statusBar().showMessage(self.tr("Placed one Ferrum template."), 5000)
 		self._refresh_actions()
+		target = commit.result.observation.snapshot
+		self._publish_document_installation_v1(
+			intent.tab, "catalog_template", intent.revision, intent.digest,
+			target.revision, target.digest, 1,
+		)
 
 	def _catalog_preview_item(self, scene: PySide6.QtWidgets.QGraphicsScene | None, preview: object) -> PySide6.QtWidgets.QGraphicsItemGroup | None:
 		if scene is None:

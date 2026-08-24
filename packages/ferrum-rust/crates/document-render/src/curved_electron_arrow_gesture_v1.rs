@@ -1,15 +1,13 @@
 //! Renderer-preflighted, Rust-owned quadratic electron-arrow authoring.
 
 use ferrum_document::{
-    AuthoringCapabilityV1, CurvedTerminalArrowKindV1, DocumentFenceV1, DocumentSession,
-    PendingCreatePresentationV1, Point3V1, PresentationCreateErrorV1, PresentationCreateRequestV1,
-    PresentationGesturePoint2V1, PresentationRootSelectorV1, SessionOperationResultV1,
-    curved_terminal_arrow_geometry_v1,
+    ArrowProjectionKindV1, AuthoringCapabilityV1, CurvedTerminalArrowKindV1, DocumentFenceV1,
+    DocumentSession, PendingCreatePresentationV1, Point3V1, PositiveFiniteV1,
+    PresentationArrowPreviewRequestV1, PresentationCreateErrorV1, PresentationCreateRequestV1,
+    PresentationFactProvenanceV1, PresentationGesturePoint2V1, PresentationRootSelectorV1,
+    PresentationStrokeV1, Rgb24V1, SessionOperationResultV1,
 };
-use ferrum_render::{
-    DocumentRenderOutcomeV1, compose_document_render_plan_v1,
-    document_observation_from_accepted_operation_v1,
-};
+use ferrum_render::{PresentationRenderPlanV1, lower_arrow_preview_v1};
 use thiserror::Error;
 
 const MINIMUM_SPAN_PT: f64 = 2.0;
@@ -29,50 +27,13 @@ pub struct CurvedElectronArrowGestureV1 {
 pub struct CurvedElectronArrowPreviewV1 {
     gesture: CurvedElectronArrowGestureV1,
     end: PresentationGesturePoint2V1,
-    overlay: CurvedElectronArrowOverlayV1,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CurvedElectronArrowOverlayV1 {
-    start: PresentationGesturePoint2V1,
-    control: PresentationGesturePoint2V1,
-    end: PresentationGesturePoint2V1,
-    cubic_control_1: PresentationGesturePoint2V1,
-    cubic_control_2: PresentationGesturePoint2V1,
-    head: [PresentationGesturePoint2V1; 4],
-}
-
-impl CurvedElectronArrowOverlayV1 {
-    #[must_use]
-    pub const fn start(&self) -> PresentationGesturePoint2V1 {
-        self.start
-    }
-    #[must_use]
-    pub const fn control(&self) -> PresentationGesturePoint2V1 {
-        self.control
-    }
-    #[must_use]
-    pub const fn end(&self) -> PresentationGesturePoint2V1 {
-        self.end
-    }
-    #[must_use]
-    pub const fn cubic_control_1(&self) -> PresentationGesturePoint2V1 {
-        self.cubic_control_1
-    }
-    #[must_use]
-    pub const fn cubic_control_2(&self) -> PresentationGesturePoint2V1 {
-        self.cubic_control_2
-    }
-    #[must_use]
-    pub const fn head(&self) -> &[PresentationGesturePoint2V1; 4] {
-        &self.head
-    }
+    plan: PresentationRenderPlanV1,
 }
 
 impl CurvedElectronArrowPreviewV1 {
     #[must_use]
-    pub const fn overlay(&self) -> &CurvedElectronArrowOverlayV1 {
-        &self.overlay
+    pub const fn plan(&self) -> &PresentationRenderPlanV1 {
+        &self.plan
     }
 }
 
@@ -224,11 +185,11 @@ pub fn preview_curved_electron_arrow_gesture_v1(
         return Err(CurvedElectronArrowGestureErrorV1::ForeignSession);
     }
     require_fence(session, gesture.fence)?;
-    let overlay = geometry(gesture.kind, gesture.start, gesture.control, end)?;
+    let plan = preview_plan(gesture.kind, gesture.start, gesture.control, end)?;
     Ok(CurvedElectronArrowPreviewV1 {
         gesture: gesture.clone(),
         end,
-        overlay,
+        plan,
     })
 }
 
@@ -263,27 +224,6 @@ pub fn prepare_curved_electron_arrow_gesture_v1(
         )
         .map_err(map_presentation_create_error)?;
     let identifier = pending.identifier().as_str().to_owned();
-    let candidate = pending
-        .candidate_cdml_for_render_preflight_v1()
-        .ok_or(CurvedElectronArrowGestureErrorV1::ReplayedGesture)?;
-    ferrum_render_contract::preflight_complete_document_v1(&candidate)
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
-    let candidate_session = DocumentSession::load(&candidate)
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
-    let observation = candidate_session
-        .observe(0)
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
-    let render_observation = document_observation_from_accepted_operation_v1(&observation)
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
-    let plan = compose_document_render_plan_v1(&render_observation)
-        .map_err(|_| CurvedElectronArrowGestureErrorV1::RenderPreparation)?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(CurvedElectronArrowGestureErrorV1::RenderPreparation);
-    }
     Ok(PreparedCurvedElectronArrowV1 {
         pending: Some(pending),
         identifier,
@@ -294,6 +234,16 @@ pub fn commit_curved_electron_arrow_gesture_v1(
     session: &mut DocumentSession,
     prepared: &mut PreparedCurvedElectronArrowV1,
 ) -> Result<CommittedCurvedElectronArrowV1, CurvedElectronArrowGestureErrorV1> {
+    if prepared
+        .pending
+        .as_ref()
+        .ok_or(CurvedElectronArrowGestureErrorV1::ReplayedGesture)?
+        .identifier()
+        .as_str()
+        != prepared.identifier
+    {
+        return Err(CurvedElectronArrowGestureErrorV1::RenderPreparation);
+    }
     let mut pending = prepared
         .pending
         .take()
@@ -330,6 +280,9 @@ fn map_presentation_create_error(
         PresentationCreateErrorV1::SessionConflict => {
             CurvedElectronArrowGestureErrorV1::SessionConflict
         }
+        PresentationCreateErrorV1::RendererAdmission => {
+            CurvedElectronArrowGestureErrorV1::RenderPreparation
+        }
     }
 }
 
@@ -345,12 +298,12 @@ fn require_fence(
         .ok_or(CurvedElectronArrowGestureErrorV1::StaleSnapshot)
 }
 
-fn geometry(
+fn preview_plan(
     kind: CurvedTerminalArrowKindV1,
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
-) -> Result<CurvedElectronArrowOverlayV1, CurvedElectronArrowGestureErrorV1> {
+) -> Result<PresentationRenderPlanV1, CurvedElectronArrowGestureErrorV1> {
     let dx = end.x() - start.x();
     let dy = end.y() - start.y();
     let span = dx.hypot(dy);
@@ -373,34 +326,36 @@ fn geometry(
     if tangent < MINIMUM_CONTROL_DISTANCE_PT {
         return Err(CurvedElectronArrowGestureErrorV1::ControlTooNearChord);
     }
-    let issued =
-        curved_terminal_arrow_geometry_v1(kind, point3(start), point3(control), point3(end))
-            .map_err(|_| CurvedElectronArrowGestureErrorV1::ControlTooNearChord)?;
-    let [_, cubic_control_1, cubic_control_2, _] = *issued.cubic_axis();
-    let [tip, left, inner, right] = *issued.head();
-    Ok(CurvedElectronArrowOverlayV1 {
-        start,
-        control,
-        end,
-        cubic_control_1: point2(cubic_control_1),
-        cubic_control_2: point2(cubic_control_2),
-        head: [point2(tip), point2(left), point2(inner), point2(right)],
-    })
+    let request = PresentationArrowPreviewRequestV1::new(
+        vec![point3(start), point3(control), point3(end)],
+        ArrowProjectionKindV1::CurvedTerminal {
+            terminal_kind: kind,
+        },
+        builtin_stroke(),
+    )
+    .map_err(|_| CurvedElectronArrowGestureErrorV1::InvalidPoint)?;
+    lower_arrow_preview_v1(&request)
+        .map_err(|_| CurvedElectronArrowGestureErrorV1::ControlTooNearChord)
 }
 
 fn point3(point: PresentationGesturePoint2V1) -> Point3V1 {
     Point3V1::new(point.x(), point.y(), 0.0).expect("validated finite geometry")
 }
 
-fn point2(point: Point3V1) -> PresentationGesturePoint2V1 {
-    PresentationGesturePoint2V1::new(point.x(), point.y()).expect("issued finite geometry")
+fn builtin_stroke() -> PresentationStrokeV1 {
+    PresentationStrokeV1::new(
+        Rgb24V1::new("#000000").expect("closed builtin arrow color is valid"),
+        PresentationFactProvenanceV1::Builtin,
+        PositiveFiniteV1::new(1.0).expect("closed builtin arrow width is positive"),
+        PresentationFactProvenanceV1::Builtin,
+    )
+    .expect("closed builtin arrow stroke is coherent")
 }
 
 /// Closed retro-arrow aliases retain the trusted opaque lifecycle while the
 /// document-owned policy selects the persisted `type="retro"` grammar.
 pub type CurvedRetroArrowGestureV1 = CurvedElectronArrowGestureV1;
 pub type CurvedRetroArrowPreviewV1 = CurvedElectronArrowPreviewV1;
-pub type CurvedRetroArrowOverlayV1 = CurvedElectronArrowOverlayV1;
 pub type PreparedCurvedRetroArrowV1 = PreparedCurvedElectronArrowV1;
 pub type CommittedCurvedRetroArrowV1 = CommittedCurvedElectronArrowV1;
 pub type CurvedRetroArrowGestureCategoryV1 = CurvedElectronArrowGestureCategoryV1;
@@ -448,7 +403,6 @@ pub fn commit_curved_retro_arrow_gesture_v1(
 /// Closed curved-normal-reaction-arrow aliases retain the shared opaque lifecycle.
 pub type CurvedNormalReactionArrowGestureV1 = CurvedElectronArrowGestureV1;
 pub type CurvedNormalReactionArrowPreviewV1 = CurvedElectronArrowPreviewV1;
-pub type CurvedNormalReactionArrowOverlayV1 = CurvedElectronArrowOverlayV1;
 pub type PreparedCurvedNormalReactionArrowV1 = PreparedCurvedElectronArrowV1;
 pub type CommittedCurvedNormalReactionArrowV1 = CommittedCurvedElectronArrowV1;
 pub type CurvedNormalReactionArrowGestureCategoryV1 = CurvedElectronArrowGestureCategoryV1;
@@ -496,6 +450,10 @@ pub fn commit_curved_normal_reaction_arrow_gesture_v1(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        RenderInteractionModifierV1, RenderInteractionQueryV1, RenderInteractionSessionV1,
+    };
+    use ferrum_document::TopLevelRootKindV1;
     const EMPTY: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"/>"#;
     fn point(x: f64, y: f64) -> PresentationGesturePoint2V1 {
         PresentationGesturePoint2V1::new(x, y).expect("point")
@@ -517,7 +475,6 @@ mod tests {
         .unwrap();
         let preview =
             preview_curved_retro_arrow_gesture_v1(&session, &gesture, point(40.0, 0.0)).unwrap();
-        assert_eq!(preview.overlay().cubic_control_1().x(), 13.333333333333332);
         let mut prepared =
             prepare_curved_retro_arrow_gesture_v1(&mut session, &gesture, &preview).unwrap();
         let committed = commit_curved_retro_arrow_gesture_v1(&mut session, &mut prepared).unwrap();
@@ -634,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn curved_normal_reaction_arrow_persists_its_closed_type_and_geometry() {
+    fn curved_normal_reaction_arrow_persists_its_closed_type() {
         let mut session = DocumentSession::load(EMPTY).unwrap();
         let gesture = begin_curved_normal_reaction_arrow_gesture_v1(
             &session,
@@ -646,8 +603,6 @@ mod tests {
         let preview =
             preview_curved_normal_reaction_arrow_gesture_v1(&session, &gesture, point(40.0, 0.0))
                 .unwrap();
-        assert_eq!(preview.overlay().cubic_control_1().x(), 13.333333333333332);
-        assert_eq!(preview.overlay().head().len(), 4);
         let mut prepared =
             prepare_curved_normal_reaction_arrow_gesture_v1(&mut session, &gesture, &preview)
                 .unwrap();
@@ -695,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_and_committed_projection_issue_the_same_electron_geometry() {
+    fn committed_curved_electron_arrow_uses_plan_backed_point_and_marquee_selection() {
         let mut session = DocumentSession::load(EMPTY).unwrap();
         let gesture = begin_curved_electron_arrow_gesture_v1(
             &session,
@@ -708,49 +663,53 @@ mod tests {
             preview_curved_electron_arrow_gesture_v1(&session, &gesture, point(60.0, 0.0)).unwrap();
         let mut prepared =
             prepare_curved_electron_arrow_gesture_v1(&mut session, &gesture, &preview).unwrap();
-        let committed =
+        let _committed =
             commit_curved_electron_arrow_gesture_v1(&mut session, &mut prepared).unwrap();
-        let stack = committed
-            .result()
-            .observation()
-            .projection()
-            .presentation_stack();
-        let [ferrum_document::PresentationRootProjectionV1::Arrow { arrow }] = stack.roots() else {
-            panic!("expected electron arrow");
+        let snapshot = session.snapshot().expect("current snapshot");
+        let plan = ferrum_render::render_presentation_stack_v1(
+            session
+                .observe(snapshot.revision())
+                .expect("current observation")
+                .projection()
+                .presentation_stack(),
+        )
+        .expect("curved electron semantic projection renders");
+        let interaction = RenderInteractionSessionV1::new(session);
+        let fence = DocumentFenceV1::new(snapshot.revision(), *snapshot.digest());
+        let observation = interaction
+            .observe_render_interaction_with_presentation_plan_v1(fence, &plan)
+            .expect("renderer-issued plan admits interaction");
+        let [arrow] = observation.roots() else {
+            panic!("expected one interaction arrow root");
         };
-        let ferrum_document::ArrowDisplayGeometryV1::CurvedTerminal {
-            axis_path, head, ..
-        } = arrow.geometry()
-        else {
-            panic!("expected electron geometry");
-        };
-        assert_eq!(
-            axis_path
-                .points()
-                .iter()
-                .map(|point| (point.x(), point.y()))
-                .collect::<Vec<_>>(),
-            [
-                preview.overlay().start(),
-                preview.overlay().cubic_control_1(),
-                preview.overlay().cubic_control_2(),
-                preview.overlay().end()
-            ]
-            .map(|point| (point.x(), point.y()))
-            .to_vec(),
-        );
-        assert_eq!(
-            head.points()
-                .iter()
-                .map(|point| (point.x(), point.y()))
-                .collect::<Vec<_>>(),
-            preview
-                .overlay()
-                .head()
-                .iter()
-                .map(|point| (point.x(), point.y()))
-                .collect::<Vec<_>>(),
-        );
+        assert_eq!(arrow.kind(), TopLevelRootKindV1::Arrow);
+        let bounds = arrow.bounds();
+        let point_selection = interaction
+            .select_render_interaction_roots_v1(
+                &observation,
+                None,
+                RenderInteractionQueryV1::Point {
+                    x: (bounds.left() + bounds.right()) / 2.0,
+                    y: (bounds.top() + bounds.bottom()) / 2.0,
+                    modifier: RenderInteractionModifierV1::Replace,
+                },
+            )
+            .expect("renderer plan bounds select the arrow");
+        assert_eq!(point_selection.roots().len(), 1);
+        let marquee_selection = interaction
+            .select_render_interaction_roots_v1(
+                &observation,
+                None,
+                RenderInteractionQueryV1::Marquee {
+                    left: bounds.left(),
+                    top: bounds.top(),
+                    right: bounds.right(),
+                    bottom: bounds.bottom(),
+                    modifier: RenderInteractionModifierV1::Replace,
+                },
+            )
+            .expect("renderer plan bounds marquee-select the arrow");
+        assert_eq!(marquee_selection.roots().len(), 1);
     }
 
     #[test]

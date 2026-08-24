@@ -129,8 +129,8 @@ class FerrumNativeLineToolCompletionMixin:
 			preview = intent.tab.preview_terminal_arrow_gesture(
 				state.kind, intent.presentation_gesture, end,
 			)
-			overlay = ferrum_qt.ferrum.presentation_creation_preview.create_terminal_arrow_overlay(
-				intent.tab, state.kind, preview.overlay,
+			overlay = ferrum_qt.ferrum.presentation_creation_preview.create_arrow_preview(
+				intent.tab, preview.plan,
 			)
 		except Exception as exc:
 			if ferrum_qt.ferrum.terminal_arrow.needs_endpoint(state, exc):
@@ -238,8 +238,8 @@ class FerrumNativeLineToolCompletionMixin:
 			self._cancel_line_gesture(clear_status=False)
 			self._show_curved_equilibrium_arrow_refusal(exc)
 			return
-		overlay = ferrum_qt.ferrum.presentation_creation_preview.create_curved_equilibrium_arrow_overlay(
-			intent.tab, preview.overlay,
+		overlay = ferrum_qt.ferrum.presentation_creation_preview.create_arrow_preview(
+			intent.tab, preview.plan,
 		)
 		self._retire_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
@@ -486,8 +486,8 @@ class FerrumNativeLineToolCompletionMixin:
 			preview = intent.tab.preview_straight_presentation_arrow_gesture(
 				gesture, float(point.x()), float(point.y()),
 			)
-			overlay = ferrum_qt.ferrum.presentation_creation_preview.create_straight_presentation_arrow_overlay(
-				intent.tab, preview.overlay,
+			overlay = ferrum_qt.ferrum.presentation_creation_preview.create_arrow_preview(
+				intent.tab, preview.plan,
 			)
 		except Exception as exc:
 			self._cancel_line_gesture(clear_status=False)

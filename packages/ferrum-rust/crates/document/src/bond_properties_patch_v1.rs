@@ -2,27 +2,10 @@
 
 use std::collections::HashSet;
 
-use serde::Serialize;
 use thiserror::Error;
 
 use super::{DocumentBondOrderV1, PersistentId, PositiveFiniteV1, Rgb24V1};
-
-/// A finite scalar whose sign is meaningful and whose magnitude is nonzero.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
-pub struct NonZeroFiniteV1(f64);
-
-impl NonZeroFiniteV1 {
-    /// Construct a finite nonzero scalar without discarding its sign.
-    pub fn new(value: f64) -> Option<Self> {
-        (value.is_finite() && value != 0.0).then_some(Self(value))
-    }
-
-    /// Return the carried signed scalar.
-    #[must_use]
-    pub fn value(self) -> f64 {
-        self.0
-    }
-}
+pub use ferrum_document_projection::NonZeroFiniteV1;
 
 /// A closed CDML bond depiction prefix supported by the V1 editor.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

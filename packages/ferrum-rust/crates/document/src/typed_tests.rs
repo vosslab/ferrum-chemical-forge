@@ -1,12 +1,11 @@
 use std::collections::BTreeSet;
 
 use super::{
-    CoreProjectionError, PersistentId, TypedClass, TypedDiagnosticKind, TypedDocument, TypedRecord,
-    UnrecognizedNode,
+    CoreProjectionError, DocumentSession, DocumentSessionError, PersistentId, TypedClass,
+    TypedDiagnosticKind, TypedDocument, TypedDocumentError, TypedRecord, UnrecognizedNode,
 };
 
 const AUTHORED: &str = include_str!("../../../../../tests/e2e/corpus/authored_document_forms.cdml");
-const LEGACY: &str = include_str!("../../../../../tests/e2e/corpus/legacy_groups_template.cdml");
 const OPAQUE: &str =
     include_str!("../../../../../tests/e2e/corpus/opaque_namespace_preservation.cdml");
 
@@ -195,23 +194,21 @@ fn excess_child_is_retained_with_a_non_demoting_diagnostic() {
 }
 
 #[test]
-fn typed_documents_supply_the_validated_core_projection() {
-    let authored = TypedDocument::parse(AUTHORED).expect("authored corpus must type");
-    let projection = authored
+fn atom_only_typed_documents_supply_the_validated_core_projection() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><molecule id=\"root\">",
+        "<atom id=\"carbon\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "</molecule></cdml>",
+    );
+    let document = TypedDocument::parse(source).expect("atom-only source must type");
+    let projection = document
         .core_projection()
-        .expect("authored molecule must project");
+        .expect("atom-only molecule must project");
     assert_eq!(projection.document_version(), Some("26.07"));
     assert_eq!(projection.molecules().len(), 1);
     assert_eq!(projection.molecules()[0].atoms().len(), 1);
-    assert_eq!(projection.molecules()[0].bonds().len(), 3);
-
-    let legacy = TypedDocument::parse(LEGACY).expect("legacy corpus must type");
-    let projection = legacy
-        .core_projection()
-        .expect("legacy molecule must project");
-    assert_eq!(projection.document_version(), Some("0.8"));
-    assert_eq!(projection.molecules()[0].atoms().len(), 3);
-    assert_eq!(projection.molecules()[0].bonds().len(), 2);
+    assert!(projection.molecules()[0].groups().is_empty());
+    assert!(projection.molecules()[0].bonds().is_empty());
 }
 
 #[test]
@@ -269,4 +266,66 @@ fn core_projection_reports_core_model_rejections() {
         .core_projection()
         .expect_err("nonfinite geometry cannot project");
     assert!(matches!(error, CoreProjectionError::Model { .. }));
+}
+
+#[test]
+fn typed_admission_rejects_invalid_atom_multiplicity_before_load_or_projection() {
+    for value in ["legacy", "0", "+1", "65536"] {
+        let source = format!(
+            concat!(
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
+                "<atom id=\"a\" name=\"C\" multiplicity=\"{value}\">",
+                "<point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
+            ),
+            value = value,
+        );
+        assert!(matches!(
+            TypedDocument::parse(&source),
+            Err(TypedDocumentError::InvalidAtomMultiplicity { atom_id, value: actual })
+                if atom_id == "a" && actual == value
+        ));
+        assert!(matches!(
+            DocumentSession::load(&source),
+            Err(DocumentSessionError::Load(TypedDocumentError::InvalidAtomMultiplicity {
+                atom_id,
+                value: actual,
+            })) if atom_id == "a" && actual == value
+        ));
+    }
+
+    let valid = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\" multiplicity=\"65535\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    let document = TypedDocument::parse(valid).expect("positive u16 multiplicity must be admitted");
+    let serialized = document.to_xml().expect("admitted document must serialize");
+    TypedDocument::parse(&serialized).expect("admitted multiplicity must round-trip");
+}
+
+#[test]
+fn typed_admission_rejects_vertexless_direct_molecule_roots_but_keeps_blank_documents() {
+    let blank = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
+        .expect("blank canvas document must remain valid");
+    assert!(blank.root().typed_children().is_empty());
+    DocumentSession::create_empty_document_v1().expect("blank canvas session must be valid");
+
+    for source in [
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"empty\"/></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"bond-only\"><bond start=\"a\" end=\"b\"/></molecule></cdml>",
+    ] {
+        assert!(matches!(
+            TypedDocument::parse(source),
+            Err(TypedDocumentError::EmptyDirectMolecule { molecule_id })
+                if molecule_id == "empty" || molecule_id == "bond-only"
+        ));
+    }
+
+    for vertex in [
+        "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<compact-group id=\"g\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"0\" y=\"0\"/></compact-group>",
+        "<text id=\"t\"><point x=\"0\" y=\"0\"/></text>",
+        "<query id=\"q\"><point x=\"0\" y=\"0\"/></query>",
+    ] {
+        let source = format!(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">{vertex}</molecule></cdml>"
+        );
+        TypedDocument::parse(&source).expect("supported typed molecular vertex must admit root");
+    }
 }

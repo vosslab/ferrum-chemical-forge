@@ -1,6 +1,6 @@
 //! Generic prepared interchange transactions exposed to Python.
 
-use ferrum_document::{InterchangeRecordBatchInsertionV1, PendingCreateInterchangeBatchV1};
+use ferrum_document::{InterchangeRecordBatchInsertionV1, PendingAdmittedInterchangeBatchV1};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
@@ -38,17 +38,17 @@ impl PyInterchangeRecordBatchInsertionV1 {
 #[pyclass(
     unsendable,
     module = "ferrum_chem",
-    name = "PreparedInterchangeRecordInsertion"
+    name = "AdmittedInterchangeRecordInsertionV1"
 )]
-pub(crate) struct PyPreparedInterchangeRecordInsertion {
-    pub(crate) pending: PendingCreateInterchangeBatchV1,
+pub(crate) struct PyAdmittedInterchangeRecordInsertionV1 {
+    pub(crate) pending: PendingAdmittedInterchangeBatchV1,
     molecule_identifiers: Vec<String>,
     atom_identifiers: Vec<Vec<String>>,
     bond_identifiers: Vec<Vec<String>>,
 }
 
-impl PyPreparedInterchangeRecordInsertion {
-    pub(crate) fn new(pending: PendingCreateInterchangeBatchV1) -> Self {
+impl PyAdmittedInterchangeRecordInsertionV1 {
+    pub(crate) fn new(pending: PendingAdmittedInterchangeBatchV1) -> Self {
         let molecule_identifiers = pending
             .molecule_identifiers()
             .iter()
@@ -66,7 +66,7 @@ impl PyPreparedInterchangeRecordInsertion {
 }
 
 #[pymethods]
-impl PyPreparedInterchangeRecordInsertion {
+impl PyAdmittedInterchangeRecordInsertionV1 {
     /// Return durable molecule IDs in exact source-record order.
     #[getter]
     fn molecule_identifiers(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
@@ -108,6 +108,6 @@ fn nested_tuple(py: Python<'_>, groups: &[Vec<String>]) -> PyResult<Py<PyTuple>>
 
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyInterchangeRecordBatchInsertionV1>()?;
-    module.add_class::<PyPreparedInterchangeRecordInsertion>()?;
+    module.add_class::<PyAdmittedInterchangeRecordInsertionV1>()?;
     Ok(())
 }

@@ -19,7 +19,7 @@ def prepare_recipe(tab: object, recipe: str,
 def create_preview(tab: object, prepared: object) -> PySide6.QtWidgets.QGraphicsItemGroup:
 	"""Paint only frozen Rust V2 operations, including Haworth cap and layer facts."""
 	group = PySide6.QtWidgets.QGraphicsItemGroup()
-	for batch in prepared.preview_batches:
+	for batch in prepared.preview_plan.batches:
 		layer = {"ordinary": 0.0, "haworth_front_stroke": 0.1,
 			"haworth_front_wedge": 0.2}.get(batch.display_layer)
 		if layer is None:

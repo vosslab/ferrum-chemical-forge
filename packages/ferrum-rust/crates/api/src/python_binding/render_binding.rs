@@ -1,13 +1,15 @@
 //! Frozen Python DTOs for the API-owned final render observation.
 
 use ferrum_core::{RecordId, RecordOrigin};
+use ferrum_document::{
+    DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1, DocumentRenderObservationErrorV1,
+    DocumentRenderObservationV1,
+};
 use ferrum_render::{
     BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
-    DocumentPlusRenderV1, MoleculeRenderPlan, RENDER_OBSERVATION_SCHEMA_V1, RenderBatch,
-    RenderDisplayLayerV1, RenderIssue, RenderIssueKind,
-    RenderObservationError as ApiRenderObservationError, RenderObservationV1, RenderOp,
-    RenderPoint, RenderTarget, TextOp, TextScript, VectorStrokeLineCapV1,
-    verified_telex_regular_v1,
+    DocumentPlusRenderV1, MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1, RenderIssue,
+    RenderIssueKind, RenderOp, RenderPoint, RenderTarget, TextOp, TextScript,
+    VectorStrokeLineCapV1, verified_telex_regular_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -482,52 +484,37 @@ pub(crate) fn verified_telex_regular() -> PyResult<PyVerifiedTelexRegularV1> {
 
 pub(crate) fn observation(
     py: Python<'_>,
-    value: RenderObservationV1,
+    value: DocumentRenderObservationV1,
 ) -> PyResult<PyRenderObservationV1> {
-    let molecule_plans = value
+    let resolved = value.resolved();
+    let molecule_plans = resolved
         .molecule_plans()
         .iter()
         .map(|entry| document_molecule_plan_from(py, entry))
         .collect::<PyResult<_>>()?;
     Ok(PyRenderObservationV1 {
-        schema: RENDER_OBSERVATION_SCHEMA_V1.to_owned(),
+        schema: DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1.to_owned(),
         document: value.document().clone().into(),
-        profile: value.profile().schema().to_owned(),
+        profile: resolved.profile().schema().to_owned(),
         molecule_plans,
-        plus_renders: value.plus_renders().iter().map(plus_from).collect(),
-        text_renders: value.text_renders().iter().map(Into::into).collect(),
-        issues: value.issues().iter().map(issue_from).collect(),
-        suppression: value.suppression().map(suppression_name),
+        plus_renders: resolved.plus_renders().iter().map(plus_from).collect(),
+        text_renders: resolved.text_renders().iter().map(Into::into).collect(),
+        issues: resolved.issues().iter().map(issue_from).collect(),
+        suppression: resolved.suppression().map(suppression_name),
     })
 }
 
-pub(crate) fn result(
+pub(crate) fn error_result(
     py: Python<'_>,
-    value: Result<RenderObservationV1, ApiRenderObservationError>,
-) -> PyResult<PyRenderObservationV1> {
-    match value {
-        Ok(render_observation) => observation(py, render_observation),
-        Err(error) => Err(error_result(py, error)?),
-    }
-}
-
-pub(crate) fn error_result(py: Python<'_>, error: ApiRenderObservationError) -> PyResult<PyErr> {
+    error: DocumentRenderObservationErrorV1,
+) -> PyResult<PyErr> {
     match error {
-        ApiRenderObservationError::Document(error) => map_document_error(py, error),
-        ApiRenderObservationError::Depiction(error) => {
+        DocumentRenderObservationErrorV1::Document(error) => map_document_error(py, error),
+        DocumentRenderObservationErrorV1::Render(error) => {
             Ok(RenderDepictionError::new_err(error.to_string()))
         }
-        ApiRenderObservationError::ProvenanceMismatch => Ok(RenderProvenanceError::new_err(
+        DocumentRenderObservationErrorV1::ProvenanceMismatch => Ok(RenderProvenanceError::new_err(
             "render observation provenance did not match its authoritative document",
-        )),
-        ApiRenderObservationError::MoleculeRootMismatch => Ok(RenderProvenanceError::new_err(
-            "render molecule roots did not match the authoritative document projection",
-        )),
-        ApiRenderObservationError::PlusRootMismatch => Ok(RenderProvenanceError::new_err(
-            "render plus roots did not match the authoritative document projection",
-        )),
-        ApiRenderObservationError::TextRootMismatch => Ok(RenderProvenanceError::new_err(
-            "render Text roots did not match the authoritative document projection",
         )),
     }
 }
@@ -718,7 +705,7 @@ fn path_from(path: &ferrum_render::PathOpV2) -> PyPathOpV2 {
     }
 }
 
-fn plus_from(value: &DocumentPlusRenderV1) -> PyDocumentPlusRenderV1 {
+pub(crate) fn plus_from(value: &DocumentPlusRenderV1) -> PyDocumentPlusRenderV1 {
     let bounds = value.bounds();
     PyDocumentPlusRenderV1 {
         target: value.target().into(),

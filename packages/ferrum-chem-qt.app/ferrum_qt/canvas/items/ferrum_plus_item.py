@@ -11,7 +11,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_telex
-import ferrum_qt.canvas.ferrum_presentation_projection
+import ferrum_qt.canvas.ferrum_presentation_target
 import ferrum_qt.canvas.telex_glyph_outline
 
 
@@ -181,7 +181,7 @@ class FerrumPlusItem(PySide6.QtWidgets.QGraphicsObject):
 def _target(value: object, extension: object) -> object:
 	"""Authenticate the exact plus target through the presentation boundary."""
 	try:
-		target = ferrum_qt.canvas.ferrum_presentation_projection.presentation_target_from_dto(
+		target = ferrum_qt.canvas.ferrum_presentation_target.presentation_target_from_dto(
 			value, extension, "plus",
 		)
 	except (AttributeError, TypeError, ValueError) as exc:

@@ -5,15 +5,16 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    PresentationFactProvenanceV1, PresentationRootProjectionV1, Rgb24V1, TextEditRunV1,
-    TextEditStyleV1, TextPropertiesPatchV1, TextPropertiesPatchV1Error, TextPropertyChangeV1,
+    PresentationFactProvenanceV1, PresentationFontFaceV1, PresentationRootProjectionV1, Rgb24V1,
+    TextEditRunV1, TextEditStyleV1, TextPropertiesPatchV1, TextPropertiesPatchV1Error,
+    TextPropertyChangeV1,
 };
 
 const SOURCE: &str = concat!(
     "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
     "xmlns:v=\"urn:vendor\"><c:text id=\"t\" background-color=\"#fff\" keep=\"yes\">",
     "<c:point x=\"10\" y=\"20\"/><v:between retained=\"yes\"/>",
-    "<c:font family=\"Arial\" size=\"12\" color=\"#000\" v:font-keep=\"yes\">",
+    "<c:font family=\"Telex\" size=\"12\" color=\"#000\" v:font-keep=\"yes\">",
     "<v:font-child/></c:font><c:ftext>old</c:ftext></c:text><v:root/></c:cdml>",
 );
 
@@ -45,7 +46,7 @@ fn text_properties_commit_semantic_runs_preserve_extensions_and_follow_history()
     ];
     let changes = vec![
         TextPropertyChangeV1::Runs(runs),
-        TextPropertyChangeV1::FontFamily(None),
+        TextPropertyChangeV1::FontFace(PresentationFontFaceV1::TelexRegularV1),
         TextPropertyChangeV1::FontSize(18),
         TextPropertyChangeV1::Color(Rgb24V1::new("#AbC").unwrap()),
         TextPropertyChangeV1::BackgroundColor(None),
@@ -56,7 +57,7 @@ fn text_properties_commit_semantic_runs_preserve_extensions_and_follow_history()
         .expect("patch must commit");
     let projected = text(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert_eq!(projected.font().family(), None);
+    assert_eq!(projected.font().font_face().id(), "telex_regular_v1");
     assert_eq!(projected.font().size().value(), 18.0);
     assert_eq!(projected.font().color().as_str(), "#aabbcc");
     assert_eq!(projected.background().color(), None);
@@ -87,6 +88,14 @@ fn text_properties_commit_semantic_runs_preserve_extensions_and_follow_history()
 
 #[test]
 fn text_properties_reject_invalid_intent_and_targets_without_mutation() {
+    assert!(matches!(
+        DocumentSession::load(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"t\"><point x=\"0\" y=\"0\"/><font family=\"Arial\"/><ftext>x</ftext></text></cdml>"
+        ),
+        Err(DocumentSessionError::Load(
+            TypedDocumentError::UnsupportedTextFace { .. }
+        ))
+    ));
     assert_eq!(
         TextEditRunV1::new(
             "x",
@@ -135,6 +144,21 @@ fn text_properties_reject_invalid_intent_and_targets_without_mutation() {
         ))
     ));
     assert_eq!(ambiguous.snapshot().expect("snapshot"), before);
+}
+
+#[test]
+fn typed_text_face_alias_is_canonicalized_before_session_state_exists() {
+    let session = DocumentSession::load(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"t\"><point x=\"0\" y=\"0\"/><font family=\"Telex Regular\"/><ftext>x</ftext></text></cdml>",
+    )
+    .expect("approved Telex alias must load");
+    assert!(
+        session
+            .snapshot()
+            .expect("snapshot")
+            .cdml()
+            .contains("family=\"Telex\"")
+    );
 }
 
 #[test]

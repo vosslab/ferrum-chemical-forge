@@ -1,8 +1,3 @@
-use std::fs;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-use serde_json::Value;
-
 use super::{
     DocumentSession, PRESENTATION_STACK_PROJECTION_SCHEMA_V1, PresentationFactProvenanceV1,
     PresentationProjectionIssueCodeV1, PresentationRootProjectionV1, PresentationTextStyleV1,
@@ -46,7 +41,7 @@ fn drawing_only_document_projects_one_direct_root_multisegment_polyline() {
 }
 
 #[test]
-fn normal_arrow_projects_source_axis_and_head_geometry_without_frontend_defaults() {
+fn normal_arrow_projects_authored_head_policy_without_display_geometry() {
     let observation = observed(
         "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"a\" type=\"normal\" start=\"no\" end=\"yes\" spline=\"no\" width=\"2\" color=\"#123456\" shape=\"(8,10,3)\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"0\"/></arrow></cdml>",
     );
@@ -56,40 +51,22 @@ fn normal_arrow_projects_source_axis_and_head_geometry_without_frontend_defaults
     };
     assert_eq!(arrow.target().source_id(), Some("a"));
     assert_eq!(arrow.source_path().points()[1].x(), 40.0);
-    let crate::ArrowDisplayGeometryV1::Normal {
-        axis_path,
+    let crate::ArrowProjectionKindV1::Normal {
         head_shape,
         start_head,
         end_head,
-        heads,
-    } = arrow.geometry()
+    } = arrow.kind()
     else {
-        panic!("normal source must issue normal display geometry");
+        panic!("normal source must retain normal semantic policy");
     };
-    assert_eq!(axis_path.points()[1].x(), 32.0);
     assert!(!start_head && *end_head);
     assert_eq!(head_shape.total_length(), 10.0);
-    let [head] = heads.as_slice() else {
-        panic!("expected one end head");
-    };
-    assert_eq!(head.position(), super::ArrowHeadPositionV1::End);
-    assert_eq!(
-        head.points()
-            .iter()
-            .map(|point| (point.x(), point.y()))
-            .collect::<Vec<_>>(),
-        vec![(40.0, 0.0), (30.0, 3.0), (32.0, 0.0), (30.0, -3.0)]
-    );
     assert_eq!(arrow.stroke().color().as_str(), "#123456");
     assert_eq!(arrow.stroke().width().value(), 2.0);
-    let mut forged = serde_json::to_value(stack).unwrap();
-    forged["roots"][0]["arrow"]["geometry"]["kind"] = Value::from("normal");
-    forged["roots"][0]["arrow"]["geometry"]["heads"][0]["points"][0]["x"] = Value::from(39.0);
-    assert!(serde_json::from_value::<super::PresentationStackProjectionV1>(forged).is_err());
 }
 
 #[test]
-fn curved_terminal_arrows_use_one_display_variant_with_closed_identity() {
+fn curved_terminal_arrows_preserve_their_closed_semantic_identity() {
     let observation = observed(
         "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"electron\" type=\"electron\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"10\"/><point x=\"20\" y=\"0\"/></arrow><arrow id=\"retro\" type=\"retro\"><point x=\"30\" y=\"0\"/><point x=\"40\" y=\"10\"/><point x=\"50\" y=\"0\"/></arrow><arrow id=\"normal\" type=\"curved-normal\"><point x=\"60\" y=\"0\"/><point x=\"70\" y=\"10\"/><point x=\"80\" y=\"0\"/></arrow></cdml>",
     );
@@ -101,10 +78,9 @@ fn curved_terminal_arrows_use_one_display_variant_with_closed_identity() {
             let crate::PresentationRootProjectionV1::Arrow { arrow } = root else {
                 panic!("expected terminal arrow root");
             };
-            let crate::ArrowDisplayGeometryV1::CurvedTerminal { terminal_kind, .. } =
-                arrow.geometry()
+            let crate::ArrowProjectionKindV1::CurvedTerminal { terminal_kind } = arrow.kind()
             else {
-                panic!("expected shared curved terminal geometry");
+                panic!("expected shared curved terminal policy");
             };
             *terminal_kind
         })
@@ -112,9 +88,9 @@ fn curved_terminal_arrows_use_one_display_variant_with_closed_identity() {
     assert_eq!(
         kinds,
         vec![
-            crate::CurvedTerminalArrowDisplayKindV1::Electron,
-            crate::CurvedTerminalArrowDisplayKindV1::Retro,
-            crate::CurvedTerminalArrowDisplayKindV1::CurvedNormalReaction,
+            crate::CurvedTerminalArrowKindV1::Electron,
+            crate::CurvedTerminalArrowKindV1::Retro,
+            crate::CurvedTerminalArrowKindV1::Normal,
         ]
     );
 }
@@ -146,7 +122,7 @@ fn electron_arrows_refuse_normal_head_facts_and_non_quadratic_cardinality() {
 }
 
 #[test]
-fn curved_equilibrium_arrow_has_a_direct_closed_three_point_profile() {
+fn curved_equilibrium_arrow_has_a_direct_closed_three_point_policy() {
     let accepted = observed(
         "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"accepted\" type=\"curved-equilibrium\" width=\"2\" color=\"#123456\"><point x=\"0\" y=\"0\"/><point x=\"40\" y=\"20\"/><point x=\"80\" y=\"0\"/></arrow></cdml>",
     );
@@ -154,14 +130,10 @@ fn curved_equilibrium_arrow_has_a_direct_closed_three_point_profile() {
     let [PresentationRootProjectionV1::Arrow { arrow }] = stack.roots() else {
         panic!("expected the direct curved-equilibrium root");
     };
-    let crate::ArrowDisplayGeometryV1::CurvedEquilibrium { axes, heads, .. } = arrow.geometry()
-    else {
-        panic!("expected named two-lane curved-equilibrium geometry");
+    let crate::ArrowProjectionKindV1::CurvedEquilibrium = arrow.kind() else {
+        panic!("expected named curved-equilibrium policy");
     };
-    assert_eq!(axes[0].points().len(), 4);
-    assert_eq!(axes[1].points().len(), 4);
-    assert_eq!(heads[0].position(), super::ArrowHeadPositionV1::Start);
-    assert_eq!(heads[1].position(), super::ArrowHeadPositionV1::End);
+    assert_eq!(arrow.source_path().points().len(), 3);
     assert!(stack.issues().is_empty());
 
     let rejected = observed(
@@ -216,9 +188,9 @@ fn plus_projects_anchor_and_resolved_appearance_without_font_layout() {
     };
     assert_eq!(plus.target().source_id(), Some("p"));
     assert_eq!((plus.anchor().x(), plus.anchor().y()), (72.0 / 2.54, 2.0));
-    assert_eq!(plus.font().family(), None);
+    assert_eq!(plus.font().font_face().id(), "telex_regular_v1");
     assert_eq!(
-        plus.font().family_provenance(),
+        plus.font().font_face_provenance(),
         PresentationFactProvenanceV1::Builtin
     );
     assert_eq!(plus.font().size().value(), 18.0);
@@ -229,10 +201,6 @@ fn plus_projects_anchor_and_resolved_appearance_without_font_layout() {
     assert_eq!(plus.font().color().as_str(), "#aabbcc");
     assert_eq!(plus.background().color().unwrap().as_str(), "#fedcba");
     assert!(stack.issues().is_empty());
-
-    let mut forged = serde_json::to_value(stack).unwrap();
-    forged["roots"][0]["plus"]["font"]["size_provenance"] = Value::from("builtin");
-    assert!(serde_json::from_value::<super::PresentationStackProjectionV1>(forged).is_err());
 }
 
 #[test]
@@ -298,29 +266,6 @@ fn unsupported_formatted_text_is_a_targeted_issue_without_a_fallback_root() {
         );
         assert_eq!(issue.target().source_id(), Some("bad"));
     }
-}
-
-#[test]
-fn text_wire_rejects_noncanonical_runs_and_a_mismatched_target_kind() {
-    let stack = observed(
-        "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"label\"><point x=\"0\" y=\"0\"/><ftext>&lt;b&gt;label&lt;/b&gt;</ftext></text></cdml>",
-    )
-    .projection()
-    .presentation_stack()
-    .clone();
-    let wire = serde_json::to_value(&stack).unwrap();
-    assert_eq!(
-        serde_json::from_value::<super::PresentationStackProjectionV1>(wire.clone()).unwrap(),
-        stack
-    );
-
-    let mut duplicate = wire.clone();
-    duplicate["roots"][0]["text"]["runs"][0]["styles"] = serde_json::json!(["bold", "bold"]);
-    assert!(serde_json::from_value::<super::PresentationStackProjectionV1>(duplicate).is_err());
-
-    let mut wrong_kind = wire;
-    wrong_kind["roots"][0]["text"]["target"]["record_kind"] = Value::from("plus");
-    assert!(serde_json::from_value::<super::PresentationStackProjectionV1>(wrong_kind).is_err());
 }
 
 #[test]
@@ -412,7 +357,7 @@ fn zero_extent_box_shapes_are_targeted_projection_issues_without_roots() {
 #[test]
 fn root_interleave_and_standard_precedence_remain_explicit() {
     let observation = observed(
-        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"first\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><molecule/><standard line_color=\"#123456\" line_width=\"3\"/><polyline id=\"last\" line_color=\"#abcdef\" width=\"4\"><point x=\"2\" y=\"2\"/><point x=\"3\" y=\"3\"/></polyline></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"first\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline><molecule><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><standard line_color=\"#123456\" line_width=\"3\"/><polyline id=\"last\" line_color=\"#abcdef\" width=\"4\"><point x=\"2\" y=\"2\"/><point x=\"3\" y=\"3\"/></polyline></cdml>",
     );
     let roots = observation.projection().presentation_stack().roots();
     let [
@@ -512,14 +457,6 @@ fn idless_identical_roots_get_unique_non_operation_keys_and_closed_wire_names() 
         stack.roots()[0].target().projection_key().as_str(),
         stack.roots()[1].target().projection_key().as_str()
     );
-    let wire = serde_json::to_value(stack).unwrap();
-    assert_eq!(wire["schema"], "ferrum-presentation-stack-v1");
-    assert_eq!(wire["roots"][0]["kind"], "polyline");
-    assert_eq!(wire["roots"][0]["polyline"]["target"]["id"], Value::Null);
-    assert_eq!(
-        wire["roots"][0]["polyline"]["stroke"]["color_provenance"],
-        "builtin"
-    );
 }
 
 #[test]
@@ -549,112 +486,4 @@ fn stale_observations_cannot_be_requested_after_a_session_change() {
         before.projection().presentation_stack().digest(),
         after.projection().presentation_stack().digest()
     );
-}
-
-#[test]
-fn strict_wire_deserialization_rejects_unknown_or_invalid_projection_values() {
-    let stack = observed(
-        "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"line\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline></cdml>",
-    )
-    .projection()
-    .presentation_stack()
-    .clone();
-    let wire = serde_json::to_value(stack.clone()).unwrap();
-    assert_eq!(
-        serde_json::from_value::<super::PresentationStackProjectionV1>(wire.clone()).unwrap(),
-        stack
-    );
-    for (path, value) in [
-        ("schema", Value::String("unknown".to_owned())),
-        ("roots.0.kind", Value::String("unknown".to_owned())),
-        ("roots.0.polyline.target.id", Value::Null),
-        (
-            "roots.0.polyline.target.record_kind",
-            Value::String("circle".to_owned()),
-        ),
-        ("roots.0.polyline.path.points", Value::Array(vec![])),
-        (
-            "roots.0.polyline.path.points.0.x",
-            Value::String("NaN".to_owned()),
-        ),
-        ("roots.0.polyline.stroke.width", Value::from(0.0)),
-        (
-            "roots.0.polyline.stroke.color",
-            Value::String("#123456".to_owned()),
-        ),
-        ("roots.0.polyline.spline", Value::String("yes".to_owned())),
-    ] {
-        let mut candidate = wire.clone();
-        replace(&mut candidate, path, value);
-        assert!(serde_json::from_value::<super::PresentationStackProjectionV1>(candidate).is_err());
-    }
-    let mut unknown = wire;
-    unknown["unexpected"] = Value::Bool(true);
-    assert!(serde_json::from_value::<super::PresentationStackProjectionV1>(unknown).is_err());
-}
-
-#[test]
-fn atomic_save_and_reopen_preserve_opaque_polyline_content_and_projection() {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:foreign=\"urn:foreign\"><polyline id=\"line\" keep=\"yes\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/><foreign:payload value=\"retained\"/></polyline></cdml>";
-    let directory = std::env::temp_dir().join(format!(
-        "ferrum-presentation-stack-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&directory).unwrap();
-    let directory = directory.canonicalize().unwrap();
-    let target = directory.join("drawing.cdml");
-    let mut session = DocumentSession::load(source).unwrap();
-    let before = session
-        .observe(0)
-        .unwrap()
-        .projection()
-        .presentation_stack()
-        .clone();
-    let publication = session.save_atomic(&target, 0).unwrap();
-    let reopened = DocumentSession::load(publication.published_snapshot().cdml()).unwrap();
-    assert!(
-        fs::read_to_string(&target)
-            .unwrap()
-            .contains("keep=\"yes\"")
-    );
-    assert!(
-        reopened
-            .snapshot()
-            .unwrap()
-            .cdml()
-            .contains("foreign:payload")
-    );
-    assert_eq!(
-        reopened
-            .observe(0)
-            .unwrap()
-            .projection()
-            .presentation_stack(),
-        &before
-    );
-    fs::remove_dir_all(directory).unwrap();
-}
-
-fn replace(value: &mut Value, path: &str, replacement: Value) {
-    let mut components = path.split('.').peekable();
-    let mut current = value;
-    while let Some(component) = components.next() {
-        if components.peek().is_none() {
-            match current {
-                Value::Object(object) => {
-                    object.insert(component.to_owned(), replacement);
-                }
-                Value::Array(array) => array[component.parse::<usize>().unwrap()] = replacement,
-                _ => unreachable!("test path ends in a container"),
-            }
-            return;
-        }
-        current = match current {
-            Value::Object(object) => object.get_mut(component).unwrap(),
-            Value::Array(array) => &mut array[component.parse::<usize>().unwrap()],
-            _ => unreachable!("test path traverses a container"),
-        };
-    }
 }

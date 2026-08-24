@@ -1,23 +1,23 @@
 //! Renderer-preflighted ownership for vector authoring transactions.
 //!
-//! `ferrum-document` owns generic CDML state transitions. This crate owns every
-//! vector-specific capability, candidate, renderer admission proof, and receipt,
-//! so a vector gesture cannot reach a generic commit without complete rendering.
+//! `ferrum-document` owns visual transaction admission and CDML state transitions.
+//! This crate owns vector-specific gesture capability and preview interpretation.
 
 use ferrum_document::{
     AuthoringCapabilityAccessErrorV1, AuthoringCapabilityIssuerV1, AuthoringCapabilityV1,
-    DocumentFenceV1, DocumentSession, GeometricLineWidthV1, PendingCreatePresentationV1,
+    DocumentFenceV1, DocumentSession, DocumentSessionError, GeometricLineWidthV1,
+    PendingCreatePresentationV1,
     PresentationAppearanceV1, PresentationCreateErrorV1, PresentationCreateRequestV1,
     PresentationGesturePoint2V1, PresentationRootSelectorV1, PresentationVectorCreateKindV1,
-    Rgb24V1, SessionOperationResultV1, TransparentOrRgb24V1,
-};
-use ferrum_render::{
-    DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
-    document_observation_from_accepted_operation_v1,
+    Rgb24V1, SessionOperationResultV1, TransparentOrRgb24V1, TypedDocumentError,
 };
 use thiserror::Error;
 
 mod catalog_placement_v2;
+mod compact_group_materialization_v1;
+#[cfg(test)]
+mod compact_group_materialization_v1_tests;
+mod compact_group_placement_v1;
 mod curved_electron_arrow_gesture_v1;
 mod curved_equilibrium_arrow_gesture_v1;
 mod direct_bond_admission_v3;
@@ -25,6 +25,7 @@ mod direct_bond_explicit_v1;
 mod direct_bond_pointer_v3;
 mod direct_bond_probe_resolution_v3;
 mod direct_bond_v3_lifecycle;
+mod hydrogen_materialization_v1;
 mod presentation_path_gesture_v1;
 mod reaction_gesture_v1;
 mod reaction_lifecycle_v1;
@@ -39,16 +40,24 @@ pub use catalog_placement_v2::{
     commit_catalog_placement_v2, prepare_catalog_placement_v2, preview_catalog_placement_v2,
     release_catalog_placement_preview_v2,
 };
+pub use compact_group_materialization_v1::{
+    CommittedCompactGroupMaterializationV1, CompactGroupMaterializationErrorV1,
+    PreparedCompactGroupMaterializationV1, commit_compact_group_materialization_v1,
+    prepare_compact_group_materialization_v1,
+};
+pub use compact_group_placement_v1::{
+    CompactGroupPlacementErrorV1, PreparedCompactGroupPlacementV1,
+    commit_compact_group_placement_v1, prepare_compact_group_placement_v1,
+};
 pub use curved_electron_arrow_gesture_v1::{
     CommittedCurvedElectronArrowV1, CommittedCurvedNormalReactionArrowV1,
     CommittedCurvedRetroArrowV1, CurvedElectronArrowGestureCategoryV1,
     CurvedElectronArrowGestureErrorV1, CurvedElectronArrowGestureRecoveryV1,
-    CurvedElectronArrowGestureV1, CurvedElectronArrowOverlayV1, CurvedElectronArrowPreviewV1,
+    CurvedElectronArrowGestureV1, CurvedElectronArrowPreviewV1,
     CurvedNormalReactionArrowGestureCategoryV1, CurvedNormalReactionArrowGestureErrorV1,
     CurvedNormalReactionArrowGestureRecoveryV1, CurvedNormalReactionArrowGestureV1,
-    CurvedNormalReactionArrowOverlayV1, CurvedNormalReactionArrowPreviewV1,
-    CurvedRetroArrowGestureCategoryV1, CurvedRetroArrowGestureErrorV1,
-    CurvedRetroArrowGestureRecoveryV1, CurvedRetroArrowGestureV1, CurvedRetroArrowOverlayV1,
+    CurvedNormalReactionArrowPreviewV1, CurvedRetroArrowGestureCategoryV1,
+    CurvedRetroArrowGestureErrorV1, CurvedRetroArrowGestureRecoveryV1, CurvedRetroArrowGestureV1,
     CurvedRetroArrowPreviewV1, PreparedCurvedElectronArrowV1, PreparedCurvedNormalReactionArrowV1,
     PreparedCurvedRetroArrowV1, begin_curved_electron_arrow_gesture_v1,
     begin_curved_normal_reaction_arrow_gesture_v1, begin_curved_retro_arrow_gesture_v1,
@@ -61,10 +70,10 @@ pub use curved_electron_arrow_gesture_v1::{
 pub use curved_equilibrium_arrow_gesture_v1::{
     CommittedCurvedEquilibriumArrowV1, CurvedEquilibriumArrowGestureCategoryV1,
     CurvedEquilibriumArrowGestureErrorV1, CurvedEquilibriumArrowGestureRecoveryV1,
-    CurvedEquilibriumArrowGestureV1, CurvedEquilibriumArrowOverlayV1,
-    CurvedEquilibriumArrowPreviewV1, PreparedCurvedEquilibriumArrowV1,
-    begin_curved_equilibrium_arrow_gesture_v1, commit_curved_equilibrium_arrow_gesture_v1,
-    prepare_curved_equilibrium_arrow_gesture_v1, preview_curved_equilibrium_arrow_gesture_v1,
+    CurvedEquilibriumArrowGestureV1, CurvedEquilibriumArrowPreviewV1,
+    PreparedCurvedEquilibriumArrowV1, begin_curved_equilibrium_arrow_gesture_v1,
+    commit_curved_equilibrium_arrow_gesture_v1, prepare_curved_equilibrium_arrow_gesture_v1,
+    preview_curved_equilibrium_arrow_gesture_v1,
 };
 pub use direct_bond_admission_v3::{
     admit_direct_bond_candidate_v3, begin_direct_bond_gesture_v3, commit_direct_bond_admission_v3,
@@ -80,6 +89,11 @@ pub use direct_bond_pointer_v3::{
 pub use direct_bond_v3_lifecycle::{
     CommittedDirectBondGesture, DirectBondCommitCategoryV1, DirectBondCommitError,
     DirectBondCommitRecoveryV1,
+};
+pub use hydrogen_materialization_v1::{
+    CommittedHydrogenMaterializationV1, HydrogenMaterializationErrorV1,
+    PreparedHydrogenMaterializationV1, commit_hydrogen_materialization_v1,
+    prepare_hydrogen_materialization_v1,
 };
 pub use presentation_path_gesture_v1::{
     CommittedPresentationPathV1, PreparedPresentationPathV1, PresentationPathAppearanceV1,
@@ -204,7 +218,7 @@ impl PresentationVectorPreviewV1 {
 }
 #[derive(Debug)]
 pub struct PreparedPresentationVectorV1 {
-    receipt: Option<RendererPreflightReceiptV1>,
+    receipt: Option<PendingCreatePresentationV1>,
     identifier: String,
 }
 #[derive(Clone, Debug)]
@@ -308,15 +322,6 @@ impl PresentationVectorGestureErrorV1 {
             Self::ResourceExhausted => PresentationVectorGestureRecoveryV1::ReduceRequest,
         }
     }
-}
-
-/// Nonconstructible proof that one exact candidate completed both preflight
-/// stages with no renderer exclusion. It remains entirely bridge-private.
-#[derive(Debug)]
-struct RendererPreflightReceiptV1 {
-    pending: PendingCreatePresentationV1,
-    contract: ferrum_render_contract::PreflightedDocumentRenderV1,
-    plan: DocumentRenderPlanV1,
 }
 
 fn authoring_issuer(session: &DocumentSession) -> AuthoringCapabilityIssuerV1 {
@@ -477,33 +482,8 @@ pub fn prepare_presentation_vector_gesture_v1(
         )
         .map_err(map_presentation_create_error)?;
     let identifier = pending.identifier().as_str().to_owned();
-    let candidate = pending
-        .candidate_cdml_for_render_preflight_v1()
-        .ok_or(PresentationVectorGestureErrorV1::ReplayedGesture)?;
-    let contract = ferrum_render_contract::preflight_complete_document_v1(&candidate)
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    let candidate_session = DocumentSession::load(&candidate)
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    let observation = candidate_session
-        .observe(0)
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    let render_observation = document_observation_from_accepted_operation_v1(&observation)
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    let plan = compose_document_render_plan_v1(&render_observation)
-        .map_err(|_| PresentationVectorGestureErrorV1::RenderPreparation)?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(PresentationVectorGestureErrorV1::RenderPreparation);
-    }
     Ok(PreparedPresentationVectorV1 {
-        receipt: Some(RendererPreflightReceiptV1 {
-            pending,
-            contract,
-            plan,
-        }),
+        receipt: Some(pending),
         identifier,
     })
 }
@@ -511,38 +491,26 @@ pub fn commit_presentation_vector_gesture_v1(
     session: &mut DocumentSession,
     prepared: &mut PreparedPresentationVectorV1,
 ) -> Result<CommittedPresentationVectorV1, PresentationVectorGestureErrorV1> {
-    let mut receipt = prepared
+    let mut pending = prepared
         .receipt
         .take()
         .ok_or(PresentationVectorGestureErrorV1::ReplayedGesture)?;
-    let candidate = receipt
-        .pending
-        .candidate_cdml_for_render_preflight_v1()
-        .ok_or(PresentationVectorGestureErrorV1::ReplayedGesture)?;
+    if pending.identifier().as_str() != prepared.identifier {
+        return Err(PresentationVectorGestureErrorV1::RenderPreparation);
+    }
     let result = (|| {
-        if receipt.pending.identifier().as_str() != prepared.identifier
-            || receipt.contract.source() != candidate
-            || receipt
-                .plan
-                .outcomes()
-                .iter()
-                .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-        {
-            return Err(PresentationVectorGestureErrorV1::RenderPreparation);
-        }
         session
-            .commit_create_presentation_v1(&mut receipt.pending)
+            .commit_create_presentation_v1(&mut pending)
             .map_err(map_presentation_create_error)
     })();
     match result {
         Ok(result) => {
-            let root =
-                PresentationRootSelectorV1::new(&prepared.identifier, receipt.pending.root_kind())
-                    .expect("bridge generated a valid identifier");
+            let root = PresentationRootSelectorV1::new(&prepared.identifier, pending.root_kind())
+                .expect("bridge generated a valid identifier");
             Ok(CommittedPresentationVectorV1 { root, result })
         }
         Err(error) => {
-            prepared.receipt = Some(receipt);
+            prepared.receipt = Some(pending);
             Err(error)
         }
     }
@@ -569,6 +537,9 @@ fn map_presentation_create_error(
         PresentationCreateErrorV1::Replayed => PresentationVectorGestureErrorV1::ReplayedGesture,
         PresentationCreateErrorV1::SessionConflict => {
             PresentationVectorGestureErrorV1::SessionConflict
+        }
+        PresentationCreateErrorV1::RendererAdmission => {
+            PresentationVectorGestureErrorV1::RenderPreparation
         }
     }
 }
@@ -630,9 +601,10 @@ mod tests {
     fn shared_capabilities_do_not_replay_across_authoring_families() {
         let mut session = DocumentSession::load(EMPTY).expect("session");
 
+        let equilibrium_fence = fence(&session);
         let equilibrium = begin_curved_equilibrium_arrow_gesture_v1(
-            &session,
-            fence(&session),
+            &mut session,
+            equilibrium_fence,
             point(0.0, 0.0),
             point(40.0, 20.0),
         )
@@ -683,7 +655,7 @@ mod tests {
         )
         .expect("direct-bond gesture");
         let mut direct_admission = direct_bond_v3_lifecycle::admit_direct_bond_candidate(
-            &session,
+            &mut session,
             &direct_bond,
             DirectBondEndpointIntent::NewAtomAt {
                 raw_point: DirectBondPoint2V1::new(40.0, 90.0).expect("direct-bond point"),
@@ -833,8 +805,11 @@ mod tests {
         let mut prepared = prepare_presentation_vector_gesture_v1(&mut session, &gesture, &preview)
             .expect("prepare");
         let source = session.snapshot().expect("snapshot").cdml().to_owned();
+        let mut generic_transition = session
+            .prepare_complete_cdml_mutation_v1(expected, &source)
+            .expect("prepare generic transition");
         session
-            .commit_complete_cdml_transaction_v1(expected, &source)
+            .commit_complete_cdml_mutation_v1(&mut generic_transition)
             .expect("generic transition");
         assert!(matches!(
             commit_presentation_vector_gesture_v1(&mut session, &mut prepared),
@@ -844,29 +819,14 @@ mod tests {
     }
 
     #[test]
-    fn bridge_refuses_compositor_exclusion_without_mutation() {
-        // A known Plus root with an authored face passes complete-CDML preflight,
-        // but V1 cannot provide a verified layout for that face. The compositor
-        // therefore emits an explicit exclusion.
+    fn unsupported_text_face_is_refused_before_vector_gesture_session_exists() {
         let source = r#"<cdml xmlns="urn:ferrum:cdml"><plus id="bad"><point x="1" y="2"/><font family="Arial"/></plus></cdml>"#;
-        let mut session = DocumentSession::load(source).expect("session");
-        let gesture = begin_presentation_vector_gesture_v1(
-            &session,
-            fence(&session),
-            PresentationVectorKindV1::Line,
-            PresentationGesturePoint2V1::new(1.0, 2.0).expect("point"),
-        )
-        .expect("gesture");
-        let preview = preview_presentation_vector_gesture_v1(
-            &session,
-            &gesture,
-            PresentationGesturePoint2V1::new(8.0, 9.0).expect("point"),
-        )
-        .expect("preview");
         assert!(matches!(
-            prepare_presentation_vector_gesture_v1(&mut session, &gesture, &preview),
-            Err(PresentationVectorGestureErrorV1::RenderPreparation)
+            DocumentSession::load(source),
+            Err(DocumentSessionError::Load(TypedDocumentError::UnsupportedTextFace {
+                root_id,
+                family,
+            })) if root_id == "bad" && family == "Arial"
         ));
-        assert_eq!(session.snapshot().expect("snapshot").revision(), 0);
     }
 }

@@ -78,7 +78,7 @@ pub(crate) fn prepare_smarts_snapshot_v1(
     snapshot: &DocumentSnapshot,
 ) -> Result<PreparedDocumentSmartsSnapshotV1, DocumentSmartsSnapshotErrorV1> {
     let mut targets = Vec::new();
-    for root in crate::DocumentProjectionV1::from_snapshot(document, snapshot)
+    for root in crate::projection_adapter::document_projection_from_snapshot_v1(snapshot)
         .map_err(|_| DocumentSmartsSnapshotErrorV1::UnsupportedDocument)?
         .molecules()
     {

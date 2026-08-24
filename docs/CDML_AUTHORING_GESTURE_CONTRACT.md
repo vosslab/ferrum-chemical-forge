@@ -26,9 +26,9 @@ only a successful commit advances the durable sequence.
 direct-root normal Arrow. Begin receives the current revision/digest, the closed
 `straight_normal_arrow` kind, a finite scene point, an exact Arrow head-style
 value, and a closed snap policy. Preview and commit consume only opaque handles.
-Preview returns the exact backend-resolved shaft, head vertices, bounds, width,
-and color for disposable frontend painting; it neither allocates an ID nor edits
-the document. Commit accepts only the originating session's exact current
+Preview returns renderer-issued plan operations and bounds for disposable
+frontend painting; it neither allocates an ID nor edits the document. Commit
+accepts only the originating session's exact current
 gesture/preview pair and returns one durable Arrow selector plus the ordinary
 accepted snapshot.
 
@@ -96,11 +96,11 @@ own contracts.
 `direct_bond.gesture.v3` is the public Rust-owned route for one direct
 covalent bond with a closed drawing presentation. Its lifecycle is
 `begin_direct_bond_gesture_v3`, `admit_direct_bond_candidate_v3`, and
-`commit_direct_bond_admission_v3`. Admission performs renderer preflight
-internally: it resolves the second pointer probe, materializes the
-renderer-neutral candidate, validates the complete render plan, and retains an
-opaque admission with exact immutable target-bond operations. Commit consumes
-that admission once. The visible preview is the admission's retained
+`commit_direct_bond_admission_v3`. Admission resolves the second pointer probe
+and asks the document session to construct a renderer-admitted pending
+mutation. The renderer validates the complete plan and issues the opaque
+overlay operations; the document retains and later redeems the exact proof.
+Commit consumes that pending mutation once. The visible preview is its retained
 operations; it is not a separate public raw-preview API.
 
 Qt submits only a frozen `DirectBondPointerProbeV3`: a finite scene point, the
@@ -109,18 +109,19 @@ evidence of `none`, one unique atom ID, or ambiguity. Qt owns the pointer
 event, scene mapping, and item attribution. Rust owns nearest-target tolerance,
 tie and ambiguity rules, hit-ID validation against the fenced projection,
 snap-or-new choice, all endpoint forms, revision/digest fencing, candidate
-construction, renderer preflight, and the issued operations.
+construction, document-owned renderer admission, and the issued operations.
 The V2 gesture lifecycle is retired and its resolved values remain internal
 Rust values; there is no Qt or Python interactive V2 route. V1 document,
 fence, presentation, snap, and commit values remain the V3 commit taxonomy.
-Separately, `ferrum-document` exposes
-native-Rust-only, renderer-neutral direct-bond mutation for noninteractive
-programmatic work. Its input is an already-resolved durable atom ID or finite
+Separately, `ferrum-document` exposes native-Rust-only, interaction-neutral
+direct-bond mutation for noninteractive programmatic work. Its input is an
+already-resolved durable atom ID or finite
 new-atom point, never a pointer probe, viewport transform, hit evidence,
 snap/tolerance decision, overlay request, render plan, or issued operation.
 Rust validates the revision/digest and session-origin fence, owns chemistry,
-identity, history, and CDML mutation, and returns typed refusal without
-mutation. This neutral seam has no PyO3 or Qt route.
+identity, renderer-admitted pending mutation, history, and CDML mutation, and
+returns typed refusal without mutation. This interaction-neutral seam has no
+Qt or PyO3 pointer input and accepts no render-plan input.
 
 The first and second resolved probes respectively create the internal
 `ExistingExisting`, `ExistingNew`, `NewExisting`, or `NewNew` form. The M3.P6
@@ -191,12 +192,12 @@ one direct-root curved retro arrow. Its persistent CDML grammar is exactly one
 another arrow type.
 
 Electron and retro arrows share the closed Rust
-`CurvedTerminalArrowKindV1 { Electron, Retro, Normal }` model. For each kind, Rust
-owns quadratic geometry, its one-time cubic lowering, terminal-head derivation,
-bounds, style, identifier allocation, CDML serialization, renderer preflight,
-and every geometry refusal. The persistent projection, renderer, and disposable
-preview consume that same cubic axis and terminal-head result; no frontend
-derives a parallel curve or head.
+`CurvedTerminalArrowKindV1 { Electron, Retro, Normal }` model. For each kind,
+Rust owns semantic path admission, style, identifier allocation, CDML
+serialization, renderer preflight, and every geometry refusal. The renderer
+issues the cubic axis, terminal head, and bounds as plan operations for preview
+and final painting; the persistent projection retains authored curve facts and
+no frontend derives a parallel curve or head.
 
 Begin receives the current revision/digest. Preview receives only its opaque
 gesture and the three point roles. Prepare accepts only the exact
@@ -308,11 +309,11 @@ three finite ordered direct `<point>` children: `start`, `control`, and `end`.
 It is neither an `equilibrium2` spelling nor an overload of a straight
 `type="equilibrium"` arrow.
 
-Rust derives two translated quadratic lanes, lowers each once to a cubic, and
-issues two opposing terminal heads: one at the lower-lane start and one at the
-upper-lane end. The disposable overlay exposes `lower_axis`, `upper_axis`,
-`lower_head`, and `upper_head`; durable projection and renderer consume the
-same Rust-issued geometry. Rust owns geometry admission, bounds, style,
+The renderer derives two translated quadratic lanes, lowers each to a cubic,
+and issues two opposing terminal heads: one at the lower-lane start and one at
+the upper-lane end. Preview and final painting consume those renderer-issued
+plan operations; the durable projection retains authored curve facts. Rust owns
+geometry admission, bounds, style,
 identifier allocation, CDML serialization, renderer preflight, revision/digest
 fencing, and atomic history commit.
 

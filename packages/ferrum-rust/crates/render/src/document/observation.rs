@@ -3,11 +3,11 @@
 use std::collections::HashSet;
 
 use crate::{
-    MoleculeRenderPlan, RenderBatch, RenderError, RenderIssue, RenderProvenance, RenderRevision,
+    CompactGroupRenderPrimitiveV1, MoleculeRenderPlan, RenderBatch, RenderError, RenderIssue,
+    RenderProvenance, RenderRevision,
 };
-use ferrum_document::{
-    DocumentSession, DocumentSessionError, MoleculeProjectionV1, PresentationRootProjectionV1,
-    SessionDocumentObservationV1,
+use ferrum_document_projection::{
+    DocumentProjectionV1, MoleculeProjectionV1, PresentationRootProjectionV1,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// Closed schema identifier for the final API-owned render observation.
-pub const RENDER_OBSERVATION_SCHEMA_V1: &str = "ferrum-render-observation-v1";
+pub const RESOLVED_DOCUMENT_RENDER_SCHEMA_V1: &str = "ferrum-resolved-document-render-v1";
 
 /// Document-root identity and order for one molecule render plan.
 ///
@@ -124,16 +124,20 @@ impl<'de> Deserialize<'de> for MoleculeRenderRootV1 {
 pub struct DocumentMoleculeRenderPlanV2 {
     molecule: MoleculeRenderRootV1,
     plan: MoleculeRenderPlan,
+    #[serde(skip, default)]
+    compact_group_primitives: Vec<CompactGroupRenderPrimitiveV1>,
 }
 
 impl DocumentMoleculeRenderPlanV2 {
     pub(crate) fn from_projection(
         molecule: &MoleculeProjectionV1,
         plan: MoleculeRenderPlan,
+        compact_group_primitives: Vec<CompactGroupRenderPrimitiveV1>,
     ) -> Self {
         Self {
             molecule: MoleculeRenderRootV1::from_projection(molecule),
             plan,
+            compact_group_primitives,
         }
     }
 
@@ -167,6 +171,12 @@ impl DocumentMoleculeRenderPlanV2 {
         self.plan.batches()
     }
 
+    /// Return first-class compact-group render primitives in molecule source order.
+    #[must_use]
+    pub fn compact_group_primitives(&self) -> &[CompactGroupRenderPrimitiveV1] {
+        &self.compact_group_primitives
+    }
+
     /// Return molecule-local targets that were deliberately excluded.
     #[must_use]
     pub fn issues(&self) -> &[RenderIssue] {
@@ -181,8 +191,8 @@ impl DocumentMoleculeRenderPlanV2 {
 /// and lowers the projection. It therefore has no API for combining separately-read
 /// snapshots, projections, resolutions, or plans.
 #[derive(Debug)]
-pub struct RenderObservationV1 {
-    document: SessionDocumentObservationV1,
+pub struct ResolvedDocumentRenderV1 {
+    projection: DocumentProjectionV1,
     profile: DepictionProfileV1,
     molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
@@ -191,41 +201,37 @@ pub struct RenderObservationV1 {
     suppression: Option<DepictionSuppressionV1>,
 }
 
-impl RenderObservationV1 {
-    fn from_document(
-        document: SessionDocumentObservationV1,
+impl ResolvedDocumentRenderV1 {
+    fn from_projection(
+        projection: DocumentProjectionV1,
         profile: DepictionProfileV1,
-    ) -> Result<Self, RenderObservationError> {
-        let resolution = render_document_projection_v1(document.projection(), &profile)?;
-        let revision = document.snapshot().revision();
-        let digest = document.snapshot().digest();
+    ) -> Result<Self, ResolvedDocumentRenderErrorV1> {
+        let resolution = render_document_projection_v1(&projection, &profile)?;
+        let revision = projection.revision();
+        let digest = projection.digest();
         let render_revision = RenderRevision::new(revision)
-            .map_err(|_| RenderObservationError::ProvenanceMismatch)?;
-        if document.projection().revision() != revision || document.projection().digest() != digest
-        {
-            return Err(RenderObservationError::ProvenanceMismatch);
-        }
+            .map_err(|_| ResolvedDocumentRenderErrorV1::ProvenanceMismatch)?;
         if resolution.projection_revision() != revision || resolution.projection_digest() != digest
         {
-            return Err(RenderObservationError::ProvenanceMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::ProvenanceMismatch);
         }
         if resolution.plans().iter().any(|entry| {
             entry.plan().revision() != render_revision
                 || entry.plan().provenance().digest() != *digest
         }) {
-            return Err(RenderObservationError::ProvenanceMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::ProvenanceMismatch);
         }
-        validate_projection_plan_roots(document.projection().molecules(), resolution.plans())?;
+        validate_projection_plan_roots(projection.molecules(), resolution.plans())?;
         validate_projection_plus_roots(
-            document.projection().presentation_stack().roots(),
+            projection.presentation_stack().roots(),
             resolution.plus_renders(),
         )?;
         validate_projection_text_roots(
-            document.projection().presentation_stack().roots(),
+            projection.presentation_stack().roots(),
             resolution.text_renders(),
         )?;
         Ok(Self {
-            document,
+            projection,
             profile,
             molecule_plans: resolution.plans().to_vec(),
             plus_renders: resolution.plus_renders().to_vec(),
@@ -237,8 +243,8 @@ impl RenderObservationV1 {
 
     /// Return the one authoritative document observation that produced every plan.
     #[must_use]
-    pub fn document(&self) -> &SessionDocumentObservationV1 {
-        &self.document
+    pub const fn projection(&self) -> &DocumentProjectionV1 {
+        &self.projection
     }
 
     /// Return the closed profile used to resolve document presentation facts.
@@ -279,12 +285,12 @@ impl RenderObservationV1 {
 
     /// Return the frozen, validated render-facing wire DTO.
     #[must_use]
-    pub fn wire(&self) -> RenderObservationWireV1 {
-        RenderObservationWireV1 {
-            schema: RENDER_OBSERVATION_SCHEMA_V1.to_owned(),
+    pub fn wire(&self) -> ResolvedDocumentRenderWireV1 {
+        ResolvedDocumentRenderWireV1 {
+            schema: RESOLVED_DOCUMENT_RENDER_SCHEMA_V1.to_owned(),
             document: RenderDocumentProvenanceV1 {
-                revision: self.document.snapshot().revision(),
-                digest: *self.document.snapshot().digest(),
+                revision: self.projection.revision(),
+                digest: *self.projection.digest(),
             },
             profile: self.profile.schema().to_owned(),
             molecule_plans: self.molecule_plans.clone(),
@@ -296,36 +302,17 @@ impl RenderObservationV1 {
     }
 }
 
-/// Lower the immutable post-operation observation with Ferrum's closed profile.
-///
-/// This is deliberately narrower than [`observe_render_v1`]: a committed
-/// operation has already supplied the one authoritative observation, so this
-/// projection must not re-observe a mutable [`DocumentSession`].
-pub fn derive_render_observation_from_accepted_operation_v1(
-    observation: &SessionDocumentObservationV1,
-) -> Result<RenderObservationV1, RenderObservationError> {
-    RenderObservationV1::from_document(observation.clone(), DepictionProfileV1::ferrum_default())
-}
-
-/// Obtain and lower exactly one revision-guarded session observation.
-///
-/// `expected_revision` is required, including for an initial session where the valid
-/// expected value is zero. The closed depiction entry loads and verifies the only Telex
-/// asset itself; this API accepts no font path, environment, or system-font selector.
-pub fn observe_render_v1(
-    session: &DocumentSession,
-    expected_revision: u64,
-) -> Result<RenderObservationV1, RenderObservationError> {
-    let document = session.observe(expected_revision)?;
-    RenderObservationV1::from_document(document, DepictionProfileV1::ferrum_default())
+/// Resolve one lower immutable document projection without session authority.
+pub fn resolve_document_render_v1(
+    projection: DocumentProjectionV1,
+    profile: DepictionProfileV1,
+) -> Result<ResolvedDocumentRenderV1, ResolvedDocumentRenderErrorV1> {
+    ResolvedDocumentRenderV1::from_projection(projection, profile)
 }
 
 /// Failure while producing one final render observation.
 #[derive(Debug, Error)]
-pub enum RenderObservationError {
-    /// The request did not name the current authoritative document revision.
-    #[error(transparent)]
-    Document(#[from] DocumentSessionError),
+pub enum ResolvedDocumentRenderErrorV1 {
     /// Closed depiction resolution rejected lower-level rendering.
     #[error(transparent)]
     Depiction(#[from] DepictionError),
@@ -369,10 +356,10 @@ impl RenderDocumentProvenanceV1 {
 ///
 /// The DTO contains render-facing immutable provenance rather than a deserializable
 /// document authority. Decoding it can validate what a frontend received, but cannot
-/// forge a `SessionDocumentObservationV1` or submit a session operation.
+/// forge a `DocumentProjectionV1` or submit a session operation.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct RenderObservationWireV1 {
+pub struct ResolvedDocumentRenderWireV1 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
@@ -385,7 +372,7 @@ pub struct RenderObservationWireV1 {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct UncheckedRenderObservationWireV1 {
+struct UncheckedResolvedDocumentRenderWireV1 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
@@ -396,9 +383,9 @@ struct UncheckedRenderObservationWireV1 {
     suppression: Option<DepictionSuppressionV1>,
 }
 
-impl RenderObservationWireV1 {
-    fn from_unchecked(wire: UncheckedRenderObservationWireV1) -> Result<Self, String> {
-        let UncheckedRenderObservationWireV1 {
+impl ResolvedDocumentRenderWireV1 {
+    fn from_unchecked(wire: UncheckedResolvedDocumentRenderWireV1) -> Result<Self, String> {
+        let UncheckedResolvedDocumentRenderWireV1 {
             schema,
             document,
             profile,
@@ -408,7 +395,7 @@ impl RenderObservationWireV1 {
             issues,
             suppression,
         } = wire;
-        if schema != RENDER_OBSERVATION_SCHEMA_V1 || profile != DEPICTION_PROFILE_SCHEMA_V1 {
+        if schema != RESOLVED_DOCUMENT_RENDER_SCHEMA_V1 || profile != DEPICTION_PROFILE_SCHEMA_V1 {
             return Err("unknown render-observation schema or depiction profile".to_owned());
         }
         if molecule_plans.iter().any(|entry| {
@@ -472,20 +459,22 @@ impl RenderObservationWireV1 {
     }
 }
 
-impl<'de> Deserialize<'de> for RenderObservationWireV1 {
+impl<'de> Deserialize<'de> for ResolvedDocumentRenderWireV1 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        Self::from_unchecked(UncheckedRenderObservationWireV1::deserialize(deserializer)?)
-            .map_err(serde::de::Error::custom)
+        Self::from_unchecked(UncheckedResolvedDocumentRenderWireV1::deserialize(
+            deserializer,
+        )?)
+        .map_err(serde::de::Error::custom)
     }
 }
 
 fn validate_projection_plus_roots(
     roots: &[PresentationRootProjectionV1],
     renders: &[DocumentPlusRenderV1],
-) -> Result<(), RenderObservationError> {
+) -> Result<(), ResolvedDocumentRenderErrorV1> {
     let pluses = roots.iter().filter_map(|root| match root {
         PresentationRootProjectionV1::Plus { plus } => Some(plus),
         _ => None,
@@ -499,10 +488,10 @@ fn validate_projection_plus_roots(
             pluses.next();
         }
         let Some(plus) = pluses.next() else {
-            return Err(RenderObservationError::PlusRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::PlusRootMismatch);
         };
         if plus.target() != render.target() {
-            return Err(RenderObservationError::PlusRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::PlusRootMismatch);
         }
     }
     Ok(())
@@ -511,7 +500,7 @@ fn validate_projection_plus_roots(
 fn validate_projection_text_roots(
     roots: &[PresentationRootProjectionV1],
     renders: &[DocumentTextRenderV1],
-) -> Result<(), RenderObservationError> {
+) -> Result<(), ResolvedDocumentRenderErrorV1> {
     let texts = roots.iter().filter_map(|root| match root {
         PresentationRootProjectionV1::Text { text } => Some(text),
         _ => None,
@@ -525,10 +514,10 @@ fn validate_projection_text_roots(
             texts.next();
         }
         let Some(text) = texts.next() else {
-            return Err(RenderObservationError::TextRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::TextRootMismatch);
         };
         if text.target() != render.target() {
-            return Err(RenderObservationError::TextRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::TextRootMismatch);
         }
     }
     Ok(())
@@ -537,7 +526,7 @@ fn validate_projection_text_roots(
 fn validate_projection_plan_roots(
     molecules: &[MoleculeProjectionV1],
     plans: &[DocumentMoleculeRenderPlanV2],
-) -> Result<(), RenderObservationError> {
+) -> Result<(), ResolvedDocumentRenderErrorV1> {
     let mut molecule_index = 0;
     for entry in plans {
         while molecule_index < molecules.len()
@@ -546,10 +535,10 @@ fn validate_projection_plan_roots(
             molecule_index += 1;
         }
         let Some(molecule) = molecules.get(molecule_index) else {
-            return Err(RenderObservationError::MoleculeRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
         };
         if MoleculeRenderRootV1::from_projection(molecule) != *entry.molecule() {
-            return Err(RenderObservationError::MoleculeRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
         }
         molecule_index += 1;
     }

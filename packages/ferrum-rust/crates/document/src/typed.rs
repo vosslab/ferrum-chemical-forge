@@ -9,7 +9,7 @@ use super::identity_index::ProvisionalToken;
 use super::typed_schema::typed_attribute_names;
 use super::{
     CDML_NAMESPACE, ElementPath, IndexedDocument, IndexedDocumentError, PersistentId, Point3V1,
-    TypedDiagnostic, TypedDiagnosticKind, TypedDocumentError,
+    TypedDiagnostic, TypedDiagnosticKind, TypedDocumentError, element_name,
 };
 
 pub use super::typed_class::TypedClass;
@@ -291,7 +291,14 @@ impl TypedDocument {
         Self::from_indexed(indexed)
     }
 
-    pub(crate) fn from_indexed(indexed: IndexedDocument) -> Result<Self, TypedDocumentError> {
+    pub(crate) fn from_indexed(mut indexed: IndexedDocument) -> Result<Self, TypedDocumentError> {
+        let tree = &indexed.xml.tree;
+        let root_node = tree
+            .document_element(indexed.xml.document)
+            .expect("an indexed XML document has a document element");
+        let root = project_record(tree, root_node, TypedClass::Cdml, Vec::new())?;
+        validate_canonical_values(&root)?;
+        canonicalize_presentation_face_aliases(&mut indexed);
         let tree = &indexed.xml.tree;
         let root_node = tree
             .document_element(indexed.xml.document)
@@ -522,6 +529,122 @@ impl TypedDocument {
     }
 }
 
+/// Serialize every admitted presentation-face alias as the one canonical CDML spelling.
+fn canonicalize_presentation_face_aliases(indexed: &mut IndexedDocument) {
+    let tree = &mut indexed.xml.tree;
+    let root = tree
+        .document_element(indexed.xml.document)
+        .expect("an indexed XML document has a document element");
+    let family_name = tree.add_name("family");
+    let roots = tree.children(root).collect::<Vec<_>>();
+    for presentation in roots {
+        let is_presentation = element_name(tree, presentation).is_some_and(|(local, namespace)| {
+            namespace == CDML_NAMESPACE && matches!(local.as_str(), "text" | "plus")
+        });
+        if !is_presentation {
+            continue;
+        }
+        let fonts = tree.children(presentation).collect::<Vec<_>>();
+        for font in fonts {
+            let is_font = element_name(tree, font)
+                .is_some_and(|(local, namespace)| namespace == CDML_NAMESPACE && local == "font");
+            if !is_font {
+                continue;
+            }
+            let Some(family) = tree.get_attribute(font, family_name) else {
+                continue;
+            };
+            if let Some(face) = super::PresentationFontFaceV1::from_cdml_family(family) {
+                tree.set_attribute(font, family_name, face.cdml_family());
+            }
+        }
+    }
+}
+
+/// Enforce facts whose meaning is shared by every typed-document consumer.
+///
+/// This runs after structural projection so raw XML indexing remains lossless, while
+/// every typed document, detached candidate, and reconstructed revision shares the
+/// same semantic admission boundary.
+fn validate_canonical_values(root: &TypedRecord) -> Result<(), TypedDocumentError> {
+    validate_record_values(root)?;
+    validate_presentation_faces(root)?;
+    for child in root.children_of(TypedClass::Molecule) {
+        let molecule = child;
+        if molecule.typed_children().iter().any(|child| {
+            matches!(
+                child.record().class(),
+                TypedClass::Atom
+                    | TypedClass::CompactGroup
+                    | TypedClass::MoleculeText
+                    | TypedClass::Query
+            )
+        }) {
+            continue;
+        }
+        return Err(TypedDocumentError::EmptyDirectMolecule {
+            molecule_id: typed_record_id(molecule),
+        });
+    }
+    Ok(())
+}
+
+/// Admit presentation faces before a document, session, or candidate can exist.
+fn validate_presentation_faces(root: &TypedRecord) -> Result<(), TypedDocumentError> {
+    for root in root.typed_children() {
+        if !matches!(
+            root.record().class(),
+            TypedClass::CanvasText | TypedClass::CanvasPlus
+        ) {
+            continue;
+        }
+        for font in root.record().children_of(TypedClass::Font) {
+            let Some(family) = font.attribute("family") else {
+                continue;
+            };
+            if super::PresentationFontFaceV1::from_cdml_family(family).is_none() {
+                return Err(TypedDocumentError::UnsupportedTextFace {
+                    root_id: typed_record_id(root.record()),
+                    family: family.to_owned(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_record_values(record: &TypedRecord) -> Result<(), TypedDocumentError> {
+    if record.class() == TypedClass::Atom {
+        validate_atom_multiplicity(record)?;
+    }
+    for child in record.typed_children() {
+        validate_record_values(child.record())?;
+    }
+    Ok(())
+}
+
+fn validate_atom_multiplicity(record: &TypedRecord) -> Result<(), TypedDocumentError> {
+    let Some(value) = record.attribute("multiplicity") else {
+        return Ok(());
+    };
+    let is_positive_u16 = value.bytes().all(|byte| byte.is_ascii_digit())
+        && value.parse::<u16>().is_ok_and(|parsed| parsed > 0);
+    if is_positive_u16 {
+        return Ok(());
+    }
+    Err(TypedDocumentError::InvalidAtomMultiplicity {
+        atom_id: typed_record_id(record),
+        value: value.to_owned(),
+    })
+}
+
+fn typed_record_id(record: &TypedRecord) -> String {
+    record
+        .attribute("id")
+        .unwrap_or("<unidentified>")
+        .to_owned()
+}
+
 fn project_record(
     tree: &Xot,
     node: Node,
@@ -605,6 +728,8 @@ fn project_record(
         }
     }
 
+    validate_compact_group_content(class, &typed_children, &unrecognized_children)?;
+
     Ok(TypedRecord {
         class,
         path: ElementPath(path),
@@ -615,6 +740,25 @@ fn project_record(
         unrecognized_children,
         diagnostics,
     })
+}
+
+fn validate_compact_group_content(
+    class: TypedClass,
+    typed_children: &[TypedChild],
+    unrecognized_children: &[UnrecognizedChild],
+) -> Result<(), TypedDocumentError> {
+    if class != TypedClass::CompactGroup {
+        return Ok(());
+    }
+    let has_exactly_one_anchor = matches!(typed_children, [child]
+        if child.record().class() == TypedClass::Point);
+    let has_only_whitespace = unrecognized_children.iter().all(
+        |child| matches!(child.node(), UnrecognizedNode::Text(text) if text.trim().is_empty()),
+    );
+    if has_exactly_one_anchor && has_only_whitespace {
+        return Ok(());
+    }
+    Err(TypedDocumentError::UndeclaredCompactGroupContent)
 }
 
 fn project_attributes(
@@ -634,6 +778,11 @@ fn project_attributes(
         let reference = tree
             .name_ref(name, node)
             .map_err(TypedDocumentError::AttributeName)?;
+        if class == TypedClass::CompactGroup {
+            return Err(TypedDocumentError::UndeclaredCompactGroupAttribute {
+                attribute: reference.full_name().into_owned(),
+            });
+        }
         unknown.push(UnknownAttribute {
             qualified_name: reference.full_name().into_owned(),
             expanded_name: ExpandedName {
@@ -742,6 +891,7 @@ fn child_local_name(class: TypedClass) -> &'static str {
         TypedClass::StandardBond | TypedClass::Bond | TypedClass::FragmentBond => "bond",
         TypedClass::StandardArrow | TypedClass::CanvasArrow | TypedClass::ReactionArrow => "arrow",
         TypedClass::StandardAtom | TypedClass::Atom => "atom",
+        TypedClass::CompactGroup => "compact-group",
         TypedClass::Paper => "paper",
         TypedClass::Viewport => "viewport",
         TypedClass::Molecule => "molecule",
@@ -802,6 +952,7 @@ fn permitted_children(class: TypedClass) -> &'static [TypedClass] {
         C::Molecule => &[
             C::Template,
             C::Atom,
+            C::CompactGroup,
             C::Group,
             C::MoleculeText,
             C::Query,
@@ -821,7 +972,7 @@ fn permitted_children(class: TypedClass) -> &'static [TypedClass] {
             C::ReactionPlus,
         ],
         C::Atom => &[C::Point, C::Font, C::FormattedText, C::Mark],
-        C::Group | C::Query => &[C::Point],
+        C::CompactGroup | C::Group | C::Query => &[C::Point],
         C::Fragment => &[
             C::FragmentName,
             C::FragmentBond,
@@ -837,7 +988,7 @@ fn child_cardinality(parent: TypedClass, child: TypedClass) -> (u32, Option<u32>
     match (parent, child) {
         (C::CanvasArrow, C::Point) | (C::Polyline, C::Point) => (2, None),
         (C::Polygon, C::Point) => (3, None),
-        (C::Atom | C::Group | C::MoleculeText | C::Query, C::Point)
+        (C::Atom | C::CompactGroup | C::Group | C::MoleculeText | C::Query, C::Point)
         | (C::CanvasPlus | C::CanvasText, C::Point) => (1, Some(1)),
         (C::Atom | C::MoleculeText | C::CanvasPlus | C::CanvasText, C::Font)
         | (C::Atom | C::MoleculeText | C::CanvasText, C::FormattedText)

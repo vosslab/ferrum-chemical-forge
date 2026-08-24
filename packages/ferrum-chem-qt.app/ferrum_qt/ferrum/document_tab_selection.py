@@ -1,11 +1,27 @@
 """Selection-backed Ferrum document-tab actions."""
 
+# Standard Library
+import dataclasses
+
 # local repo modules
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 
 
 #============================================
 FerrumNativeDocumentTabError = native_document_tab_errors.FerrumNativeDocumentTabError
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumSelectedMoleculeAtomAddress:
+	"""Public selected-atom address and installed document fence for chemistry."""
+
+	document: str
+	revision: int
+	digest: str
+	molecule_id: str
+	atom_id: str
+	document_root_order: int
 
 
 #============================================
@@ -313,3 +329,51 @@ class FerrumNativeDocumentSelectionMixin:
 		result = self._session.submit(self.current_snapshot.revision, operation)
 		self._install_mutation_result(result, (("bond", selected),))
 		return result
+	#============================================
+	def selected_molecule_atom_address(self) -> FerrumSelectedMoleculeAtomAddress:
+		"""Resolve one selected atom through the current durable document projection."""
+		self._require_mutable()
+		selected = self._require_projection().selected_durable_targets()
+		if (
+			len(selected) != 1
+			or selected[0].kind != "atom"
+			or type(selected[0].identifier) is not str
+			or not selected[0].identifier
+			or type(selected[0].source_order) is not int
+		):
+			raise FerrumNativeDocumentTabError(
+				"select exactly one current durable atom for a chemistry operation",
+			)
+		target = selected[0]
+		observation = self.current_document_observation()
+		matches = []
+		for document_root_order, molecule in enumerate(observation.projection.molecules):
+			for atom in molecule.atoms:
+				if (
+					atom.source_id == target.identifier
+					and atom.source_order == target.source_order
+				):
+					matches.append((document_root_order, molecule, atom))
+		if len(matches) != 1:
+			raise FerrumNativeDocumentTabError(
+				"selected atom does not map to one current durable document projection",
+			)
+		document_root_order, molecule, atom = matches[0]
+		if (
+			type(molecule.id) is not str
+			or not molecule.id
+			or type(atom.id) is not str
+			or not atom.id
+		):
+			raise FerrumNativeDocumentTabError(
+				"selected atom projection lacks durable document object identifiers",
+			)
+		snapshot = self.current_snapshot
+		return FerrumSelectedMoleculeAtomAddress(
+			snapshot.cdml,
+			snapshot.revision,
+			snapshot.digest,
+			molecule.id,
+			atom.id,
+			document_root_order,
+		)

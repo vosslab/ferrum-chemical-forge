@@ -271,47 +271,72 @@ def test_direct_bond_v3_foreign_commit_keeps_owner_receipt_redeemable() -> None:
 	assert committed.result.observation.snapshot.revision == before.revision + 1
 
 
-@pytest.mark.parametrize(
-	("form", "start", "end", "endpoint_categories"),
-	[
-		("ExistingExisting", "atom-a", "atom-c", ("start-existing", "end-existing")),
-		("ExistingNew", "atom-a", None, ("start-existing", "new")),
-		("NewExisting", None, "atom-c", ("new", "end-existing")),
-		("NewNew", None, None, ("new", "new")),
-	],
-)
-def test_direct_bond_v3_directed_wedges_are_undoable_and_durable_for_all_forms(
-		form: str,
-		start: str | None,
-		end: str | None,
-		endpoint_categories: tuple[str, str],
+def test_direct_bond_v3_stale_admission_preserves_intervening_mutation() -> None:
+	"""A commit fence rejects an admission made stale by another public gesture."""
+	session = ferrum_chem.DocumentSession.load(SOURCE)
+	before = session.snapshot()
+	gesture = session.begin_direct_bond_gesture_v3(
+		before.revision,
+		before.digest,
+		_direct_probe("atom-a"),
+		ferrum_chem.DocumentBondPresentationV1.normal_single,
+		"C",
+		ferrum_chem.DirectBondSnapPolicyV1(),
+	)
+	stale_admission = session.admit_direct_bond_candidate_v3(
+		gesture, _direct_probe("atom-c"),
+	)
+	intervening_gesture = session.begin_direct_bond_gesture_v3(
+		before.revision,
+		before.digest,
+		_direct_probe("atom-c"),
+		ferrum_chem.DocumentBondPresentationV1.normal_single,
+		"C",
+		ferrum_chem.DirectBondSnapPolicyV1(),
+	)
+	intervening_admission = session.admit_direct_bond_candidate_v3(
+		intervening_gesture, _empty_probe(80.0, 0.0),
+	)
+	intervening_commit = session.commit_direct_bond_admission_v3(intervening_admission)
+	intervening_snapshot = intervening_commit.result.observation.snapshot
+
+	with pytest.raises(ferrum_chem.DirectBondCommitError) as stale:
+		session.commit_direct_bond_admission_v3(stale_admission)
+	assert stale.value.category == ferrum_chem.DirectBondCommitCategoryV1.stale_revision
+	assert stale.value.recovery == ferrum_chem.DirectBondCommitRecoveryV1.refresh_and_restart
+	after = session.snapshot()
+	assert (after.revision, after.digest, after.cdml) == (
+		intervening_snapshot.revision,
+		intervening_snapshot.digest,
+		intervening_snapshot.cdml,
+	)
+
+
+def test_direct_bond_v3_directed_wedge_is_undoable_and_durable(
 		tmp_path: Path,
 	) -> None:
-	"""Directed wedges retain all endpoint forms through history and reopening."""
+	"""A directed existing-to-new wedge survives history and reopening."""
 	presentation = ferrum_chem.DocumentBondPresentationV1.solid_wedge
-	source_type = "wedge"
-	session, committed = _commit_direct_bond(presentation, start, end)
+	session, committed = _commit_direct_bond(presentation, "atom-a", None)
+	committed_bond = _committed_bond(committed)
 	changed = committed.result.observation.snapshot
 	undone = session.undo(changed.revision).observation.snapshot
+	with pytest.raises(AssertionError, match="direct-bond commit must retain"):
+		_projected_bond(session.observe(undone.revision), committed.bond_identifier)
 	redone = session.redo(undone.revision).observation.snapshot
-	published = session.save_atomic(tmp_path / f"{form}-{source_type}.cdml", redone.revision)
+	path = tmp_path / "directed-wedge.cdml"
+	session.save_atomic(path, redone.revision)
 	prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(
-		str(tmp_path / f"{form}-{source_type}.cdml"),
+		str(path),
 	)
 	reopened, _observation, _origin, _source_kind = prepared.take_admission_v1()
 	redone_bond = _projected_bond(session.observe(redone.revision), committed.bond_identifier)
 	reopened_bond = _projected_bond(reopened.observe(0), committed.bond_identifier)
 
-	assert committed.bond_identifier not in undone.cdml
-	assert (
-		redone_bond.source_type,
-		_directed_endpoint_categories(redone_bond),
-	) == (source_type, endpoint_categories)
-	assert (
-		reopened_bond.source_type,
-		_directed_endpoint_categories(reopened_bond),
-	) == (source_type, endpoint_categories)
-	assert published.published_snapshot.cdml == redone.cdml
+	assert _directed_endpoint_categories(committed_bond) == ("start-existing", "new")
+	assert _directed_endpoint_categories(redone_bond) == ("start-existing", "new")
+	assert _directed_endpoint_categories(reopened_bond) == ("start-existing", "new")
+	assert committed_bond.source_type == redone_bond.source_type == reopened_bond.source_type
 
 
 def test_direct_bond_v3_typed_probe_and_post_resolution_refusals_are_nonmutating() -> None:

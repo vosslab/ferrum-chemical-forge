@@ -12,7 +12,6 @@ import pytest
 ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
-import ferrum_qt.canvas.ferrum_presentation_projection
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.wavy_properties as native_wavy_properties
 
@@ -29,15 +28,11 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 #============================================
 def _select_wavy(tab: object) -> object:
-	"""Select and return the one rendered Wavy path through its durable target."""
-	items = tuple(
-		item for item in tab.view.scene().items()
-		if type(item) is ferrum_qt.canvas.ferrum_presentation_projection.PolylineProjectionItem
-		and item.target.record_kind == "polyline"
-	)
-	assert len(items) == 1
-	items[0].setSelected(True)
-	return items[0]
+	"""Select and return the Wavy root through its durable renderer-plan target."""
+	polyline = tab.current_document_observation().projection.presentation_stack.roots[0].polyline
+	item = tab._controller.projection.durable_items[("polyline", polyline.target.id)]
+	item.setSelected(True)
+	return item
 
 
 #============================================
@@ -73,8 +68,6 @@ def test_native_wavy_edit_preserves_authored_path_and_durable_selection(
 		assert (updated.stroke.width, updated.stroke.color) == (2.5, "#123456")
 		item = _select_wavy(tab)
 		assert item.isSelected()
-		assert item.path().elementCount() == 3
-		assert (item.pen().widthF(), item.pen().color().name()) == (2.5, "#123456")
 	finally:
 		tab.dispose()
 

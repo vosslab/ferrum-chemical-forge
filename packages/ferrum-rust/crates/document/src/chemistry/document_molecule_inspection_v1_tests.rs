@@ -1,4 +1,4 @@
-use crate::{DocumentObjectIdV1, DocumentSession};
+use crate::{DocumentObjectIdV1, DocumentSession, DocumentSessionError, TypedDocumentError};
 
 use super::{
     DOCUMENT_MOLECULE_INSPECTION_SCHEMA_V1, DocumentMoleculeInspectionErrorV1,
@@ -142,6 +142,7 @@ fn atom_selectors_are_not_inspectable_molecule_roots() {
 fn opaque_nested_looking_and_foreign_selectors_are_not_direct_roots() {
     let nested_source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\">",
+        "<atom id=\"direct\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<molecule id=\"nested\">",
         "<atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "</molecule></molecule></cdml>"
@@ -205,12 +206,12 @@ fn missing_and_invalid_elements_remain_typed_source_failures() {
 }
 
 #[test]
-fn empty_and_unresolved_retained_graph_facts_never_make_a_receipt() {
+fn invalid_roots_and_unresolved_retained_graph_facts_never_make_a_receipt() {
     let empty = "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"m1\"/></cdml>";
-    let (observation, request) = observation_and_request(empty);
     assert!(matches!(
-        inspect_document_molecule_v1(&observation, &request),
-        Err(DocumentMoleculeInspectionErrorV1::EmptyMolecule)
+        DocumentSession::load(empty),
+        Err(DocumentSessionError::Load(TypedDocumentError::EmptyDirectMolecule { molecule_id }))
+            if molecule_id == "m1"
     ));
 
     let unresolved = concat!(

@@ -569,7 +569,7 @@ mod tests {
         let index = DirectCdmlSemanticIndexV1::parse(concat!(
             "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
             "xmlns:v=\"urn:vendor\"><v:molecule id=\"foreign-molecule\"/>",
-            "<c:molecule id=\"core\"><v:reaction id=\"nested\"/></c:molecule>",
+            "<c:molecule id=\"core\"><c:atom id=\"core-atom\" name=\"C\"><c:point x=\"0\" y=\"0\"/></c:atom><v:reaction id=\"nested\"/></c:molecule>",
             "<c:reaction id=\"r\"><c:arrow idref=\"arrow\"/>",
             "<v:plus idref=\"foreign\"/></c:reaction></c:cdml>"
         ))
@@ -586,7 +586,7 @@ mod tests {
         let source = concat!(
             "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
             "xmlns:v=\"urn:vendor\"><v:note id=\"opaque\"/>",
-            "<c:molecule id=\"m\"/></c:cdml>"
+            "<c:molecule id=\"m\"><c:atom id=\"m-atom\" name=\"C\"><c:point x=\"0\" y=\"0\"/></c:atom></c:molecule></c:cdml>"
         );
         let candidate = append_direct_cdml_reaction_v1(
             source,
@@ -605,10 +605,10 @@ mod tests {
     fn reaction_definition_is_namespace_aware_and_preserves_member_order() {
         let definitions = inspect_direct_reactions_v1(concat!(
             "<c:cdml xmlns:c=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\">",
-            "<c:molecule id=\"left\"/><c:molecule id=\"right\"/><c:arrow id=\"a\"/>",
+            "<c:molecule id=\"left\"><c:atom id=\"left-atom\" name=\"C\"><c:point x=\"0\" y=\"0\"/></c:atom></c:molecule><c:molecule id=\"right\"><c:atom id=\"right-atom\" name=\"O\"><c:point x=\"1\" y=\"0\"/></c:atom></c:molecule><c:arrow id=\"a\"/>",
             "<c:reaction id=\"r\"><c:reactant idref=\"left\"/><c:product idref=\"right\"/><c:arrow idref=\"a\"/></c:reaction>",
             "<v:reaction id=\"foreign\"><v:reactant idref=\"left\"/></v:reaction>",
-            "<c:molecule id=\"nested\"><c:reaction id=\"nested-r\"/></c:molecule></c:cdml>"
+            "<c:molecule id=\"nested\"><c:atom id=\"nested-atom\" name=\"N\"><c:point x=\"2\" y=\"0\"/></c:atom><c:reaction id=\"nested-r\"/></c:molecule></c:cdml>"
         )).expect("fixture parses");
         assert_eq!(definitions.len(), 1);
         let definition = &definitions[0];

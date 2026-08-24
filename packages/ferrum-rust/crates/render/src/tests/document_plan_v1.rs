@@ -291,3 +291,75 @@ fn document_plan_rejects_invalid_page_before_svg_emission() {
         Err(RenderError::InvalidRequest(_))
     ));
 }
+
+#[test]
+fn complete_document_admission_binds_one_exact_supported_candidate() {
+    let source = provenance(71);
+    let admitted_plan = DocumentRenderPlanV1::new(
+        source,
+        page(),
+        vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            1,
+            identity("admitted"),
+            DocumentRenderContentV1::Molecule(empty_molecule(source)),
+        ))],
+    )
+    .expect("supported complete plan");
+    let equal_content_plan = admitted_plan.clone();
+    let candidate = DocumentRenderCandidateV1::from_complete_plan(
+        admitted_plan,
+        DocumentRenderPendingIdentityV1::new(1, 1),
+    )
+    .expect("candidate has no excluded roots");
+    let receipt =
+        admit_document_render_candidate_v1(&candidate).expect("renderer admits complete candidate");
+
+    assert_eq!(receipt.plan(), candidate.plan());
+
+    let equal_content_different_pending = DocumentRenderCandidateV1::from_complete_plan(
+        equal_content_plan,
+        DocumentRenderPendingIdentityV1::new(1, 2),
+    )
+    .expect("equal content remains independently renderable");
+    assert!(matches!(
+        receipt.verify_candidate_v1(&equal_content_different_pending),
+        Err(DocumentRenderAdmissionErrorV1::CandidateMismatch)
+    ));
+
+    let substituted_plan = DocumentRenderPlanV1::new(
+        source,
+        page(),
+        vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            1,
+            identity("substituted"),
+            DocumentRenderContentV1::Molecule(empty_molecule(source)),
+        ))],
+    )
+    .expect("same-provenance replacement plan");
+    let substituted = DocumentRenderCandidateV1::from_complete_plan(
+        substituted_plan,
+        DocumentRenderPendingIdentityV1::new(1, 3),
+    )
+    .expect("replacement candidate is independently renderable");
+    assert!(matches!(
+        receipt.verify_candidate_v1(&substituted),
+        Err(DocumentRenderAdmissionErrorV1::CandidateMismatch)
+    ));
+
+    let excluded_plan = DocumentRenderPlanV1::new(
+        source,
+        page(),
+        vec![DocumentRenderOutcomeV1::Exclusion(
+            DocumentRenderExclusionV1::new(1, identity("excluded"), "unsupported")
+                .expect("excluded root"),
+        )],
+    )
+    .expect("well-formed excluded plan");
+    assert!(matches!(
+        DocumentRenderCandidateV1::from_complete_plan(
+            excluded_plan,
+            DocumentRenderPendingIdentityV1::new(1, 4),
+        ),
+        Err(DocumentRenderAdmissionErrorV1::ExcludedRoots)
+    ));
+}

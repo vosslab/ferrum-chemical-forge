@@ -17,6 +17,8 @@ import pytest
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.smiles_import
+import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 _EMPTY_CDML = "<cdml xmlns='urn:ferrum:cdml'/>"
@@ -111,6 +113,18 @@ def test_cancel_after_native_completion_still_drops_queued_document_delivery(
 	window.deleteLater()
 
 
+#============================================
+def _window_action(window: PySide6.QtWidgets.QMainWindow,
+		text: str) -> PySide6.QtGui.QAction:
+	"""Return one ordinary visible window action by its accessible label."""
+	action = next(
+		action for action in window.findChildren(PySide6.QtGui.QAction)
+		if action.text() == text
+	)
+	return action
+
+
+#============================================
 #============================================
 def test_public_native_action_imports_renders_and_round_trips_cco(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,

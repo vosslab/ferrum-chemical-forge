@@ -15,6 +15,20 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
+    /// Materialize one selected molecule's hydrogens through the frozen protocol route.
+    #[command(name = "document-molecule-hydrogen-materialize")]
+    DocumentMoleculeHydrogenMaterialize {
+        /// Complete operation-protocol JSON request path, or `-` for standard input.
+        #[arg(long)]
+        request: PathBuf,
+    },
+    /// Observe one selected atom's oxidation state through the frozen protocol route.
+    #[command(name = "document-atom-oxidation-observe")]
+    DocumentAtomOxidationObserve {
+        /// Complete operation-protocol JSON request path, or `-` for standard input.
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Inspect one CDML document and print its semantic report.
     #[command(after_help = "Example:\n  ferrum inspect drawing.cdml")]
     Inspect {

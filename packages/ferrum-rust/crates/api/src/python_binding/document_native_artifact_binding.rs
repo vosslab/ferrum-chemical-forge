@@ -6,10 +6,9 @@
 
 use std::path::PathBuf;
 
-use ferrum_document::artifact_publication_v1::ArtifactPublicationDurabilityV1;
-use ferrum_render::{
+use ferrum_document::{
     DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
-    PreparedDocumentNativeArtifactV1,
+    PreparedDocumentNativeArtifactV1, artifact_publication_v1::ArtifactPublicationDurabilityV1,
     prepare_document_native_artifact_v1 as prepare_native_artifact,
     publish_prepared_document_native_artifact_v1 as publish_native_artifact,
 };

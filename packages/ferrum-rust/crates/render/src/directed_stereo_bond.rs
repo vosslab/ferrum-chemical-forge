@@ -2,9 +2,10 @@
 
 use ferrum_geometry::Vector2;
 
+use crate::bond_style::BondStyle;
 use crate::{
-    BondStyle, LineOp, Paint, PathOpV2, PositiveFinite, RenderError, RenderIssueKind, RenderOp,
-    RenderPoint, ScenePathCommandV2,
+    LineOp, Paint, PathOpV2, PositiveFinite, RenderError, RenderIssueKind, RenderOp, RenderPoint,
+    ScenePathCommandV2,
 };
 
 /// Maximum useful hatch strokes for one ordinary directed bond.

@@ -2,12 +2,11 @@
 //!
 //! The entry point stays absent from the wheel stub, CLI, serde, and wire APIs.
 
-use ferrum_document::{DocumentObjectIdV1, SessionDocumentObservationV1};
-use ferrum_render::{
-    DocumentRenderIdentityV1, DocumentSelectionSvgRootV1, DocumentSelectionSvgV1,
-    DocumentSvgSelectionV1, LOCAL_SVG_COMPLETED_BYTES_V1, SvgOutputBudgetV1,
-    render_document_selection_to_svg_v1,
+use ferrum_document::{
+    DocumentObjectIdV1, DocumentSelectionSvgRootV1, DocumentSelectionSvgV1, DocumentSvgSelectionV1,
+    SessionDocumentObservationV1, render_document_selection_to_svg_v1,
 };
+use ferrum_render::{DocumentRenderIdentityV1, LOCAL_SVG_COMPLETED_BYTES_V1, SvgOutputBudgetV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString, PyTuple};
@@ -191,7 +190,7 @@ fn root_to_python(
     Ok(PyDocumentSelectionSvgRootV1 {
         source_order: root.source_order(),
         identity_kind: copied(py, identity_kind)?,
-        identity: copied(py, identity)?,
+        identity: copied(py, &identity)?,
     })
 }
 

@@ -99,6 +99,13 @@ pub(crate) fn typed_attribute_names(class: TypedClass) -> &'static [&'static str
             "isotope",
             "explicit_hydrogens",
         ],
+        C::CompactGroup => &[
+            "id",
+            "version",
+            "catalog-key",
+            "attachment-index",
+            "orientation-degrees",
+        ],
         C::Group => &[
             "id",
             "name",

@@ -135,19 +135,12 @@ fn receipt_for_forms(
 fn direct_haworth_commit_owns_one_complete_ordered_molecule_and_exact_provenance() {
     let receipt = receipt();
     let anchor = Point3V1::new(11.0, -7.0, 2.0).expect("anchor");
-    let mut session = DocumentSession::load(LEGACY_ISSUE_SOURCE).expect("source loads");
-    assert!(
-        !session
-            .observe(0)
-            .expect("baseline projection")
-            .projection()
-            .issues()
-            .is_empty()
-    );
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty source loads");
 
     let mut pending = session
         .prepare_create_direct_haworth_v1(0, &receipt, anchor)
-        .expect("unrelated legacy issue must not reject direct candidate");
+        .expect("renderable direct candidate prepares");
     let result = session
         .commit_create_direct_haworth_v1(0, &mut pending)
         .expect("prepared candidate commits");
@@ -157,7 +150,7 @@ fn direct_haworth_commit_owns_one_complete_ordered_molecule_and_exact_provenance
     assert_eq!(committed.digest(), operation.snapshot().digest());
 
     let projection = operation.projection();
-    assert_eq!(projection.molecules().len(), 2);
+    assert_eq!(projection.molecules().len(), 1);
     let molecule = projection
         .molecules()
         .iter()
@@ -369,10 +362,11 @@ fn direct_haworth_pending_is_retryable_before_success_and_reopens_with_same_fact
 }
 
 #[test]
-fn direct_haworth_reobservation_recovers_a_saved_closed_profile_with_unrelated_issue() {
+fn direct_haworth_reobservation_recovers_a_saved_closed_profile() {
     let receipt = receipt();
     let anchor = Point3V1::new(3.0, 5.0, 2.0).expect("anchor");
-    let mut session = DocumentSession::load(LEGACY_ISSUE_SOURCE).expect("source loads");
+    let mut session =
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("empty source loads");
     let mut pending = session
         .prepare_create_direct_haworth_v1(0, &receipt, anchor)
         .expect("prepare");
@@ -400,9 +394,9 @@ fn direct_haworth_reobservation_recovers_a_saved_closed_profile_with_unrelated_i
         .clone();
     let reobserved = reopened
         .observe_direct_glycosidic_haworth_v1(0, &selected)
-        .expect("closed saved profile re-observes despite unrelated issue");
+        .expect("closed saved profile re-observes");
     assert_eq!(reobserved.molecule(), &selected);
-    assert_eq!(reobserved.root_order(), 1);
+    assert_eq!(reobserved.root_order(), 0);
     assert_eq!(
         reobserved.atom_identifiers(),
         committed.receipt().atom_identifiers()
@@ -457,6 +451,24 @@ fn direct_haworth_reobservation_recovers_a_saved_closed_profile_with_unrelated_i
             ..reobserved.atom_identifiers().len() as u32 + reobserved.bond_facts().len() as u32)
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn direct_haworth_refuses_an_unrenderable_complete_candidate_without_mutation() {
+    let receipt = receipt();
+    let anchor = Point3V1::new(3.0, 5.0, 2.0).expect("anchor");
+    let mut session = DocumentSession::load(LEGACY_ISSUE_SOURCE).expect("source loads");
+    let baseline = session.snapshot().expect("baseline snapshot");
+
+    let error = session
+        .prepare_create_direct_haworth_v1(0, &receipt, anchor)
+        .expect_err("renderer admission rejects a complete candidate with excluded roots");
+
+    assert_eq!(
+        error.to_string(),
+        "invalid direct Haworth insertion: candidate was refused by renderer admission"
+    );
+    assert_eq!(session.snapshot().expect("refusal is inert"), baseline);
 }
 
 #[test]
@@ -615,7 +627,8 @@ fn direct_haworth_reobservation_stale_foreign_and_non_molecule_selectors_do_not_
         .id()
         .expect("atom selector")
         .clone();
-    let foreign = super::super::DocumentObjectIdV1::from_class_source("molecule", "foreign");
+    let foreign = super::super::DocumentObjectIdV1::from_class_source("molecule", "foreign")
+        .expect("nonempty primitives produce a durable identity");
     for (revision, selector) in [(1, &atom), (0, &atom), (0, &foreign)] {
         assert!(
             session

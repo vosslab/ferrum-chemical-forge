@@ -1,8 +1,10 @@
 """Contract tests for local runtime freshness receipt logic."""
 
 import sysconfig
+import stat
 from pathlib import Path
 
+import engine_lib.local_runtime_launcher as launcher
 import engine_lib.local_runtime_receipt as receipt
 import pytest
 
@@ -30,8 +32,8 @@ def test_local_cargo_source_digest_changes_when_selected_source_changes(
 
 #============================================
 def test_local_cargo_source_digest_ignores_a_dev_only_package_edit(
-		tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-	) -> None:
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
 	"""A release receipt excludes sources reachable only through dev dependencies."""
 	api = _write_cargo_package(tmp_path, "api", "pub fn api() {}\n")
 	dev_helper = _write_cargo_package(tmp_path, "dev-helper", "pub fn fixture() { 1; }\n")
@@ -69,8 +71,8 @@ def test_local_runtime_receipt_rejects_a_changed_staged_artifact(
 
 #============================================
 def test_local_runtime_receipt_rejects_a_changed_engine_bundle(
-		tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-	) -> None:
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
 	"""A modified CLI chemistry closure cannot pass the local runtime gate."""
 	runtime_root = _write_runtime_tree(tmp_path)
 	monkeypatch.setattr(receipt, "local_runtime_inputs", lambda: {"input": "v1"})
@@ -82,14 +84,68 @@ def test_local_runtime_receipt_rejects_a_changed_engine_bundle(
 
 #============================================
 def test_local_runtime_receipt_requires_executable_launchers(
-		tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-	) -> None:
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
 	"""Receipt creation refuses a local launcher lacking its executable mode."""
 	runtime_root = _write_runtime_tree(tmp_path)
 	(runtime_root.parents[1] / "bin/ferrum-qt").chmod(0o644)
 	monkeypatch.setattr(receipt, "local_runtime_inputs", lambda: {"input": "v1"})
 	with pytest.raises(receipt.LocalRuntimeReceiptError, match="gui must be executable"):
 		receipt.write_local_runtime_receipt(runtime_root)
+
+
+#============================================
+def test_gui_launcher_is_owner_private_and_executable(tmp_path: Path) -> None:
+	"""The generated local launcher is usable only by its creating user."""
+	launcher_path = tmp_path / "bin/ferrum-qt"
+	launcher_path.parent.mkdir()
+	launcher.write_gui_launcher(launcher_path)
+	mode = stat.S_IMODE(launcher_path.stat().st_mode)
+	assert mode & stat.S_IRWXU == stat.S_IRWXU
+	assert mode & (stat.S_IRWXG | stat.S_IRWXO) == 0
+
+
+#============================================
+def test_local_runtime_import_rejects_an_extension_from_another_location(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""The local build accepts only the extension staged in its runtime root."""
+	runtime_root = _write_runtime_tree(tmp_path)
+	monkeypatch.setattr(receipt, "local_runtime_inputs", lambda: {"input": "v1"})
+	receipt.write_local_runtime_receipt(runtime_root)
+	foreign_extension = tmp_path / "installed/ferrum_chem.so"
+	foreign_extension.parent.mkdir()
+	foreign_extension.write_bytes(b"foreign-extension")
+	monkeypatch.setattr(
+		receipt,
+		"_run_extension_import_probe",
+		lambda _root, _expected: {
+			"module_file": str(foreign_extension),
+			"document_session_members": ["can_undo", "can_redo"],
+		},
+	)
+	with pytest.raises(receipt.LocalRuntimeReceiptError, match="different ferrum_chem"):
+		receipt.validate_local_runtime_import(runtime_root)
+
+
+#============================================
+def test_local_runtime_import_rejects_a_stale_document_session_surface(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""The build does not publish an extension missing current session members."""
+	runtime_root = _write_runtime_tree(tmp_path)
+	monkeypatch.setattr(receipt, "local_runtime_inputs", lambda: {"input": "v1"})
+	receipt.write_local_runtime_receipt(runtime_root)
+	monkeypatch.setattr(
+		receipt,
+		"_run_extension_import_probe",
+		lambda _root, expected: {
+			"module_file": str(expected),
+			"document_session_members": ["can_undo"],
+		},
+	)
+	with pytest.raises(receipt.LocalRuntimeReceiptError, match="can_redo"):
+		receipt.validate_local_runtime_import(runtime_root)
 
 
 #============================================
@@ -104,8 +160,8 @@ def _write_cargo_package(root: Path, name: str, source: str) -> Path:
 
 #============================================
 def _cargo_metadata_for(
-		root: Path, dependencies: list[tuple[Path, str]],
-	) -> dict[str, object]:
+	root: Path, dependencies: list[tuple[Path, str]],
+) -> dict[str, object]:
 	"""Model the relevant Cargo resolve edges without running Cargo in unit tests."""
 	packages = [root, *(package for package, _ in dependencies)]
 	return {
@@ -143,3 +199,24 @@ def _write_runtime_tree(root: Path) -> Path:
 	engine_bundle.mkdir()
 	(engine_bundle / "libferrum_chem.dylib").write_bytes(b"engine-adapter-v1")
 	return runtime_root
+
+
+#============================================
+def test_local_runtime_receipt_rejects_changed_launcher_specification_source(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A changed source launcher contract invalidates an otherwise intact runtime."""
+	runtime_root = _write_runtime_tree(tmp_path)
+	specification = tmp_path / "engine_lib/local_runtime_launcher.py"
+	specification.parent.mkdir()
+	specification.write_text("launcher specification v1\n", encoding="utf-8")
+	monkeypatch.setattr(receipt, "_LOCAL_GUI_LAUNCHER_SPECIFICATION", specification)
+	monkeypatch.setattr(
+		receipt,
+		"local_runtime_inputs",
+		lambda: {"launcher_specification_sha256": receipt.local_launcher_specification_sha256()},
+	)
+	receipt.write_local_runtime_receipt(runtime_root)
+	specification.write_text("launcher specification v2\n", encoding="utf-8")
+	with pytest.raises(receipt.LocalRuntimeReceiptError, match="does not match"):
+		receipt.validate_local_runtime_receipt(runtime_root)

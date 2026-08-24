@@ -1,9 +1,10 @@
 //! Opaque PyO3 seam for Rust-owned direct straight normal-arrow authoring.
 
 use super::binding::{PyDocumentSession, PySessionOperationResultV1};
+use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
 use ferrum_document::{
-    ArrowGestureStyleV1, DocumentFenceV1, PresentationCreationGestureV1,
-    PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
+    ArrowGestureStyleV1, DocumentFenceV1, PendingPresentationGestureV1,
+    PresentationCreationGestureV1, PresentationGestureErrorV1, PresentationGestureKindV1,
     PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
 };
 use pyo3::create_exception;
@@ -126,81 +127,15 @@ impl PyPresentationGestureSnapPolicyV1 {
 pub(crate) struct PyPresentationCreationGestureV1 {
     gesture: PresentationCreationGestureV1,
 }
-#[pyclass(frozen, module = "ferrum_chem", name = "PresentationGestureAxisPathV1")]
-pub(crate) struct PyPresentationGestureAxisPathV1 {
-    #[pyo3(get)]
-    start_x: f64,
-    #[pyo3(get)]
-    start_y: f64,
-    #[pyo3(get)]
-    end_x: f64,
-    #[pyo3(get)]
-    end_y: f64,
-}
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "PresentationGestureHeadPolygonV1"
-)]
-pub(crate) struct PyPresentationGestureHeadPolygonV1 {
-    #[pyo3(get)]
-    vertices: Vec<(f64, f64)>,
-}
-#[pyclass(frozen, module = "ferrum_chem", name = "NormalArrowGestureOverlayV1")]
-pub(crate) struct PyNormalArrowGestureOverlayV1 {
-    #[pyo3(get)]
-    axis: Py<PyPresentationGestureAxisPathV1>,
-    #[pyo3(get)]
-    heads: Vec<Py<PyPresentationGestureHeadPolygonV1>>,
-    #[pyo3(get)]
-    left: f64,
-    #[pyo3(get)]
-    top: f64,
-    #[pyo3(get)]
-    right: f64,
-    #[pyo3(get)]
-    bottom: f64,
-    #[pyo3(get)]
-    width: f64,
-    #[pyo3(get)]
-    color: String,
-}
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "EquilibriumArrowGestureOverlayV1"
-)]
-pub(crate) struct PyEquilibriumArrowGestureOverlayV1 {
-    #[pyo3(get)]
-    lower_axis: Py<PyPresentationGestureAxisPathV1>,
-    #[pyo3(get)]
-    upper_axis: Py<PyPresentationGestureAxisPathV1>,
-    #[pyo3(get)]
-    source_head: Py<PyPresentationGestureHeadPolygonV1>,
-    #[pyo3(get)]
-    destination_head: Py<PyPresentationGestureHeadPolygonV1>,
-    #[pyo3(get)]
-    left: f64,
-    #[pyo3(get)]
-    top: f64,
-    #[pyo3(get)]
-    right: f64,
-    #[pyo3(get)]
-    bottom: f64,
-    #[pyo3(get)]
-    width: f64,
-    #[pyo3(get)]
-    color: String,
-}
 #[pyclass(
     unsendable,
     module = "ferrum_chem",
     name = "PresentationCreationPreviewV1"
 )]
 pub(crate) struct PyPresentationCreationPreviewV1 {
-    preview: PresentationCreationPreviewV1,
+    preview: PendingPresentationGestureV1,
     #[pyo3(get)]
-    overlay: Py<PyAny>,
+    plan: PyPresentationRenderPlanV1,
 }
 #[pyclass(
     frozen,
@@ -224,7 +159,7 @@ pub(crate) struct PyPresentationGestureCommitV1 {
 impl PyDocumentSession {
     #[allow(clippy::too_many_arguments)]
     fn begin_presentation_creation_gesture_v1(
-        &self,
+        &mut self,
         py: Python<'_>,
         expected_revision: u64,
         expected_digest_hex: String,
@@ -268,7 +203,7 @@ impl PyDocumentSession {
             .map_err(|error| presentation_error(py, error))
     }
     fn preview_presentation_creation_gesture_v1(
-        &self,
+        &mut self,
         py: Python<'_>,
         gesture: PyRef<'_, PyPresentationCreationGestureV1>,
         end_x: f64,
@@ -277,7 +212,7 @@ impl PyDocumentSession {
         let end = PresentationGesturePoint2V1::new(end_x, end_y)
             .map_err(|error| presentation_error(py, error))?;
         self.session
-            .preview_presentation_creation_gesture_v1(&gesture.gesture, end)
+            .prepare_presentation_creation_gesture_v1(&gesture.gesture, end)
             .map_err(|error| presentation_error(py, error))
             .and_then(|value| preview(py, value))
     }
@@ -285,10 +220,16 @@ impl PyDocumentSession {
         &mut self,
         py: Python<'_>,
         gesture: PyRef<'_, PyPresentationCreationGestureV1>,
-        preview: PyRef<'_, PyPresentationCreationPreviewV1>,
+        mut preview: PyRefMut<'_, PyPresentationCreationPreviewV1>,
     ) -> PyResult<PyPresentationGestureCommitV1> {
+        if !preview.preview.matches(&gesture.gesture) {
+            return Err(presentation_error(
+                py,
+                PresentationGestureErrorV1::PreviewMismatch,
+            ));
+        }
         self.session
-            .commit_presentation_creation_gesture_v1(&gesture.gesture, &preview.preview)
+            .commit_presentation_creation_gesture_v1(&mut preview.preview)
             .map(|commit| {
                 let kind = match commit.root().kind() {
                     ferrum_document::PresentationRecordKindV1::Arrow => {
@@ -322,94 +263,11 @@ fn optional_u16(py: Python<'_>, value: Option<&Bound<'_, PyAny>>) -> PyResult<Op
     }
 }
 fn preview(
-    py: Python<'_>,
-    value: PresentationCreationPreviewV1,
+    _py: Python<'_>,
+    value: PendingPresentationGestureV1,
 ) -> PyResult<PyPresentationCreationPreviewV1> {
-    let overlay = value
-        .overlay()
-        .expect("generic Python gestures are Arrow-only");
-    let bounds = overlay.bounds();
-    use ferrum_document::PresentationGestureOverlayGeometryV1;
-    let axis = |points: [ferrum_document::PresentationGesturePoint2V1; 2]| {
-        Py::new(
-            py,
-            PyPresentationGestureAxisPathV1 {
-                start_x: points[0].x(),
-                start_y: points[0].y(),
-                end_x: points[1].x(),
-                end_y: points[1].y(),
-            },
-        )
-    };
-    let head = |points: Vec<ferrum_document::PresentationGesturePoint2V1>| {
-        Py::new(
-            py,
-            PyPresentationGestureHeadPolygonV1 {
-                vertices: points
-                    .into_iter()
-                    .map(|point| (point.x(), point.y()))
-                    .collect(),
-            },
-        )
-    };
-    let fixed = (
-        bounds.left(),
-        bounds.top(),
-        bounds.right(),
-        bounds.bottom(),
-        overlay.width(),
-        overlay.color().to_owned(),
-    );
-    let overlay: Py<PyAny> = match overlay.geometry() {
-        PresentationGestureOverlayGeometryV1::Normal {
-            axis: issued_axis,
-            heads,
-        } => {
-            let axis = axis(*issued_axis)?;
-            let heads = heads
-                .iter()
-                .map(|points| head(points.to_vec()))
-                .collect::<PyResult<Vec<_>>>()?;
-            Py::new(
-                py,
-                PyNormalArrowGestureOverlayV1 {
-                    axis,
-                    heads,
-                    left: fixed.0,
-                    top: fixed.1,
-                    right: fixed.2,
-                    bottom: fixed.3,
-                    width: fixed.4,
-                    color: fixed.5,
-                },
-            )?
-            .into_any()
-        }
-        PresentationGestureOverlayGeometryV1::Equilibrium { axes, heads } => {
-            let lower_axis = axis(axes[0])?;
-            let upper_axis = axis(axes[1])?;
-            let source_head = head(heads[0].to_vec())?;
-            let destination_head = head(heads[1].to_vec())?;
-            Py::new(
-                py,
-                PyEquilibriumArrowGestureOverlayV1 {
-                    lower_axis,
-                    upper_axis,
-                    source_head,
-                    destination_head,
-                    left: fixed.0,
-                    top: fixed.1,
-                    right: fixed.2,
-                    bottom: fixed.3,
-                    width: fixed.4,
-                    color: fixed.5,
-                },
-            )?
-            .into_any()
-        }
-    };
     Ok(PyPresentationCreationPreviewV1 {
-        overlay,
+        plan: value.plan().into(),
         preview: value,
     })
 }
@@ -517,10 +375,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyArrowGestureStyleV1>()?;
     module.add_class::<PyPresentationGestureSnapPolicyV1>()?;
     module.add_class::<PyPresentationCreationGestureV1>()?;
-    module.add_class::<PyPresentationGestureAxisPathV1>()?;
-    module.add_class::<PyPresentationGestureHeadPolygonV1>()?;
-    module.add_class::<PyNormalArrowGestureOverlayV1>()?;
-    module.add_class::<PyEquilibriumArrowGestureOverlayV1>()?;
     module.add_class::<PyPresentationCreationPreviewV1>()?;
     module.add_class::<PyPresentationGestureRootSelectorV1>()?;
     module.add_class::<PyPresentationGestureCommitV1>()

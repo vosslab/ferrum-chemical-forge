@@ -38,8 +38,8 @@ the edition-2024 workspace. Its crates divide responsibility as follows:
 - [../packages/ferrum-rust/crates/geometry/](../packages/ferrum-rust/crates/geometry/),
   [../packages/ferrum-rust/crates/domain/](../packages/ferrum-rust/crates/domain/),
   and [../packages/ferrum-rust/crates/render/](../packages/ferrum-rust/crates/render/)
-  supply display geometry, higher-level domain utilities, and typed render and
-  presentation operations.
+  supply lower geometry values, higher-level domain utilities, and renderer-owned
+  typed render and presentation operations.
 - [../packages/ferrum-rust/crates/api/](../packages/ferrum-rust/crates/api/)
   composes those crates into the `ferrum` executable and its document-native
   artifact publication boundary. Its `protocol_v1` module owns the closed,
@@ -50,9 +50,9 @@ the edition-2024 workspace. Its crates divide responsibility as follows:
 
 [../packages/ferrum-rust/crates/api/python/](../packages/ferrum-rust/crates/api/python/)
 builds the direct `ferrum_chem` PyO3 extension. It exposes typed document
-sessions, render observations, display geometry, chemistry DTOs, and native
-artifact preparation and publication to Python. Qt uses this extension rather
-than parsing a product document itself.
+sessions, fenced render observations, renderer-issued presentation plans,
+chemistry DTOs, and native artifact preparation and publication to Python. Qt
+uses this extension rather than parsing a product document itself.
 
 The extension's V1 public automation additions are deliberately narrower:
 `execute_operation_v1`, `operation_protocol_schema_v1`, and
@@ -102,10 +102,18 @@ Rust render observations cross into Qt through
 [../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_render_projection.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_render_projection.py)
 and
 [../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_projection.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_projection.py).
-Rust supplies ordered geometry and resolved presentation facts. Qt creates the
-disposable graphics-scene projection and manages graphics retirement through
+Rust supplies the frozen renderer plan as Qt's sole visual scene input. The
+same accepted observation fence publishes both that plan and SMARTS results.
+Qt creates the disposable graphics-scene projection and manages graphics retirement through
 [../packages/ferrum-chem-qt.app/ferrum_qt/canvas/graphics_retirement.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/graphics_retirement.py).
 Qt is therefore a presentation client, not a second CDML document model.
+
+The renderer-admission target is renderer-mints/document-redeems: `ferrum-render`
+mints an opaque proof for a candidate bound to a `ferrum-document` issuer and
+sequence identity, and `ferrum-document` privately redeems it during commit.
+`ferrum-document-render`, Python, and Qt receive opaque prepared interaction
+handles and never receive the proof. The completed old-wrapper routes still
+need relocation from `ferrum-document-render` to reach this target.
 
 ## Data flow
 

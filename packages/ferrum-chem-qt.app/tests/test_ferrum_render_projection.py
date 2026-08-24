@@ -173,7 +173,7 @@ def _observation(identifier: str | None = "bond-1", revision: int = 5) -> _Obser
 	molecule = _MoleculeRoot("molecule-1", "ferrum-projection-local-v1/0", "m1", 1)
 	paper = _PaperLayout("ferrum-document-paper-layout-v1", revision, digest, _PaperPage())
 	document = _Document(_Snapshot(revision, digest), _Projection(revision, digest, paper))
-	return _Observation("ferrum-render-observation-v1", document, (_MoleculePlan(molecule, plan),))
+	return _Observation("ferrum-document-render-observation-v1", document, (_MoleculePlan(molecule, plan),))
 
 
 #============================================
@@ -440,7 +440,7 @@ def test_production_entrance_rejects_fixture_impostor(
 	del qapp
 	with pytest.raises(ferrum_qt.canvas.ferrum_telex.FerrumTelexError):
 		ferrum_qt.canvas.ferrum_render_projection.build_render_projection(
-			_observation(), _telex(),
+			_observation(), _telex(), object(),
 		)
 
 
@@ -452,7 +452,7 @@ def test_public_entrances_expose_no_fixture_validator_argument(
 	del qapp
 	with pytest.raises(TypeError):
 		ferrum_qt.canvas.ferrum_render_projection.build_render_projection(
-			_observation(), _telex(), _test_observation_validator,
+			_observation(), _telex(), object(), validator=_test_observation_validator,
 		)
 	with pytest.raises(TypeError):
 		ferrum_qt.canvas.ferrum_render_projection.FerrumRenderProjectionController(

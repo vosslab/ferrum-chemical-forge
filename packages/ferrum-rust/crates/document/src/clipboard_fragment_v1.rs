@@ -494,7 +494,7 @@ fn closed_structure(
 ) -> Result<ClosedStructure, DocumentClipboardFragmentErrorV1> {
     let mut copied_atom_source_ids = BTreeSet::new();
     for atom in atoms {
-        let object = DocumentObjectIdV1::from_record(atom)
+        let object = crate::document_object_id_from_record_v1(atom)
             .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         if selected_atoms.contains(&object) {
             copied_atom_source_ids.insert(
@@ -504,7 +504,7 @@ fn closed_structure(
         }
     }
     for bond in bonds {
-        let object = DocumentObjectIdV1::from_record(bond)
+        let object = crate::document_object_id_from_record_v1(bond)
             .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         if selected_bonds.contains(&object) {
             copied_atom_source_ids.insert(
@@ -521,7 +521,7 @@ fn closed_structure(
     let mut copied_bonds = Vec::new();
     let mut keep_children = Vec::new();
     for record in atoms.iter().chain(bonds.iter()) {
-        let object = DocumentObjectIdV1::from_record(record)
+        let object = crate::document_object_id_from_record_v1(record)
             .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         let keep = match record.class() {
             TypedClass::Atom => copied_atom_source_ids.contains(
@@ -570,13 +570,13 @@ fn ensure_connected(
         }
         let current_record = atoms
             .iter()
-            .find(|atom| DocumentObjectIdV1::from_record(atom).as_ref() == Some(current))
+            .find(|atom| crate::document_object_id_from_record_v1(atom).as_ref() == Some(current))
             .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         let current_source = current_record
             .attribute("id")
             .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         for bond in bonds {
-            let bond_object = DocumentObjectIdV1::from_record(bond)
+            let bond_object = crate::document_object_id_from_record_v1(bond)
                 .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
             if !copied_bonds.contains(&bond_object) {
                 continue;
@@ -600,7 +600,7 @@ fn ensure_connected(
             let neighbour_object = atoms
                 .iter()
                 .find(|atom| atom.attribute("id") == Some(neighbour))
-                .and_then(|atom| DocumentObjectIdV1::from_record(atom))
+                .and_then(|atom| crate::document_object_id_from_record_v1(atom))
                 .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
             if let Some(copied) = copied_atoms
                 .iter()

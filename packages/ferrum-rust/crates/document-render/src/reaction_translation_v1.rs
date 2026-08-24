@@ -1,15 +1,14 @@
 //! Renderer-admitted translation of one complete strict reaction aggregate.
 
+#[cfg(test)]
+use ferrum_document::DocumentSession;
 use ferrum_document::{
-    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DocumentFenceV1, DocumentSession,
-    SessionOperation, SessionOperationResultV1, SessionOperationV1, TopLevelRootSelectorV1,
+    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DocumentFenceV1,
+    PendingCompleteCdmlMutationV1, SessionOperationResultV1, TopLevelRootSelectorV1,
     TopLevelTransformModeV1, TopLevelTransformV1,
 };
-use ferrum_render::{
-    DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
-    document_observation_from_accepted_operation_v1,
-};
 
+use crate::reaction_gesture_v1::map_complete_cdml_mutation_refusal_v1;
 use crate::reaction_observation_v1::selected_reaction_member_ids_v1;
 use crate::{
     ReactionGestureErrorV1, ReactionSelectionV1, RenderInteractionErrorV1,
@@ -41,8 +40,10 @@ impl ReactionTranslationPreviewV1 {
     }
 }
 pub struct PreparedReactionTranslationV1 {
-    receipt: Option<ReactionTranslationReceiptV1>,
+    pending: Option<PendingCompleteCdmlMutationV1>,
+    capability: AuthoringCapabilityV1,
     reaction_id: String,
+    membership_digest: String,
 }
 impl std::fmt::Debug for PreparedReactionTranslationV1 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -51,7 +52,7 @@ impl std::fmt::Debug for PreparedReactionTranslationV1 {
             .field("reaction_id", &self.reaction_id)
             .field(
                 "state",
-                &if self.receipt.is_some() {
+                &if self.pending.is_some() {
                     "prepared"
                 } else {
                     "consumed"
@@ -75,17 +76,6 @@ impl CommittedReactionTranslationV1 {
         &self.result
     }
 }
-struct ReactionTranslationReceiptV1 {
-    capability: AuthoringCapabilityV1,
-    fence: DocumentFenceV1,
-    reaction_id: String,
-    membership_digest: String,
-    candidate: String,
-    candidate_digest: [u8; 32],
-    contract: ferrum_render_contract::PreflightedDocumentRenderV1,
-    plan: DocumentRenderPlanV1,
-}
-
 fn selection_error(error: RenderInteractionErrorV1) -> ReactionGestureErrorV1 {
     match error {
         RenderInteractionErrorV1::ForeignSession => ReactionGestureErrorV1::ForeignSession,
@@ -230,11 +220,6 @@ pub fn prepare_reaction_translation_v1(
     session
         .validate_render_interaction_translation_preview_v1(&gesture.translation, &preview.preview)
         .map_err(selection_error)?;
-    let source = session
-        .snapshot()
-        .map_err(|_| ReactionGestureErrorV1::SessionConflict)?
-        .cdml()
-        .to_owned();
     let transform = TopLevelTransformV1::new(
         gesture.targets.clone(),
         TopLevelTransformModeV1::Translate {
@@ -243,64 +228,32 @@ pub fn prepare_reaction_translation_v1(
         },
     )
     .map_err(|_| ReactionGestureErrorV1::MembershipChanged)?;
-    let mut candidate_session =
-        DocumentSession::load(&source).map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    candidate_session
-        .submit(
-            0,
-            SessionOperation::V1(SessionOperationV1::TransformTopLevelRoots { transform }),
-        )
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let candidate_snapshot = candidate_session
-        .snapshot()
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let candidate = candidate_snapshot.cdml().to_owned();
-    let contract = ferrum_render_contract::preflight_complete_document_v1(&candidate)
-        .map_err(|_| ReactionGestureErrorV1::UnrenderableDocument)?;
-    let observation = candidate_session
-        .observe(candidate_snapshot.revision())
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let rendering = document_observation_from_accepted_operation_v1(&observation)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let plan = compose_document_render_plan_v1(&rendering)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(ReactionGestureErrorV1::RendererExclusion);
-    }
+    let pending = session
+        .prepare_top_level_transform_complete_cdml_mutation_v1(gesture.fence, &transform)
+        .map_err(map_complete_cdml_mutation_refusal_v1)?;
     Ok(PreparedReactionTranslationV1 {
         reaction_id: gesture.reaction_id.clone(),
-        receipt: Some(ReactionTranslationReceiptV1 {
-            capability: gesture.capability.clone(),
-            fence: gesture.fence,
-            reaction_id: gesture.reaction_id.clone(),
-            membership_digest: gesture.membership_digest.clone(),
-            candidate,
-            candidate_digest: *candidate_snapshot.digest(),
-            contract,
-            plan,
-        }),
+        membership_digest: gesture.membership_digest.clone(),
+        capability: gesture.capability.clone(),
+        pending: Some(pending),
     })
 }
 pub fn commit_reaction_translation_v1(
     session: &mut RenderInteractionSessionV1,
     prepared: &mut PreparedReactionTranslationV1,
 ) -> Result<CommittedReactionTranslationV1, ReactionGestureErrorV1> {
-    let receipt = prepared
-        .receipt
+    let mut pending = prepared
+        .pending
         .take()
         .ok_or(ReactionGestureErrorV1::ReplayedGesture)?;
-    if !receipt
+    if !prepared
         .capability
         .belongs_to(&session.authoring_capability_issuer_v1())
     {
-        prepared.receipt = Some(receipt);
+        prepared.pending = Some(pending);
         return Err(ReactionGestureErrorV1::ForeignSession);
     }
-    let claim = match receipt
+    let claim = match prepared
         .capability
         .claim_for_commit(&session.authoring_capability_issuer_v1())
     {
@@ -309,34 +262,15 @@ pub fn commit_reaction_translation_v1(
             unreachable!("owner checked above")
         }
         Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
-            prepared.receipt = Some(receipt);
+            prepared.pending = Some(pending);
             return Err(ReactionGestureErrorV1::ReplayedGesture);
         }
     };
     let result = (|| {
-        require_definition(session, &receipt.reaction_id, &receipt.membership_digest)?;
-        if receipt.contract.source() != receipt.candidate
-            || receipt
-                .plan
-                .outcomes()
-                .iter()
-                .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-        {
-            return Err(ReactionGestureErrorV1::RendererExclusion);
-        }
-        let candidate = DocumentSession::load(&receipt.candidate)
-            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-        if *candidate
-            .snapshot()
-            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?
-            .digest()
-            != receipt.candidate_digest
-        {
-            return Err(ReactionGestureErrorV1::RenderPreparation);
-        }
+        require_definition(session, &prepared.reaction_id, &prepared.membership_digest)?;
         session
-            .commit_complete_cdml_transaction_v1(receipt.fence, &receipt.candidate)
-            .map_err(|_| ReactionGestureErrorV1::SessionConflict)
+            .commit_complete_cdml_mutation_v1(&mut pending)
+            .map_err(map_complete_cdml_mutation_refusal_v1)
     })();
     match result {
         Ok(result) => {
@@ -347,7 +281,7 @@ pub fn commit_reaction_translation_v1(
             })
         }
         Err(error) => {
-            prepared.receipt = Some(receipt);
+            prepared.pending = Some(pending);
             Err(error)
         }
     }

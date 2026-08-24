@@ -72,7 +72,7 @@ fn historic_bkchem_cdml_root_is_rejected() {
 #[test]
 fn foreign_descendant_remains_opaque_below_canonical_ferrum_root() {
     let source = format!(
-        r#"<cdml xmlns="{CDML_NAMESPACE}" xmlns:v="urn:vendor"><molecule id="m1"/><v:payload id="vendor-id"><v:item/></v:payload></cdml>"#
+        r#"<cdml xmlns="{CDML_NAMESPACE}" xmlns:v="urn:vendor"><molecule id="m1"><atom id="a1" name="C"><point x="0" y="0"/></atom></molecule><v:payload id="vendor-id"><v:item/></v:payload></cdml>"#
     );
     let document = round_trip(&source);
     let serialized = document.to_xml().expect("opaque content serializes");

@@ -1,176 +1,330 @@
+//! Document-owned renderer-admitted direct-bond transaction.
+
+use ferrum_render::target_operations_for_document_bond_v1;
+
 use super::*;
-use crate::direct_bond_mutation::DirectBondMutationCandidate;
+use crate::direct_bond_mutation::{CommittedDirectBondGestureV2, DirectBondEndpointIntent};
+use crate::{AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1};
 
-fn same_point(first: DirectBondPoint2V1, second: DirectBondPoint2V1) -> bool {
-    first.x() == second.x() && first.y() == second.y()
+#[derive(Clone, Debug, PartialEq)]
+struct DirectBondGestureV2 {
+    fence: DocumentFenceV1,
+    start: DirectBondEndpointIntent,
+    presentation: DocumentBondPresentationV1,
+    new_atom_element: String,
+    snap: DirectBondSnapPolicyV1,
 }
 
-fn snap_point(
+#[derive(Clone, Debug, PartialEq)]
+enum DirectBondCandidateV2 {
+    ExistingExisting {
+        start: DocumentObjectIdV1,
+        end: DocumentObjectIdV1,
+        presentation: DocumentBondPresentationV1,
+    },
+    ExistingNew {
+        existing: DocumentObjectIdV1,
+        point: DirectBondPoint2V1,
+        element: String,
+        presentation: DocumentBondPresentationV1,
+        new_atom_is_start: bool,
+    },
+    NewExisting {
+        existing: DocumentObjectIdV1,
+        point: DirectBondPoint2V1,
+        element: String,
+        presentation: DocumentBondPresentationV1,
+        new_atom_is_start: bool,
+    },
+    NewNew {
+        start: DirectBondPoint2V1,
+        end: DirectBondPoint2V1,
+        element: String,
+        presentation: DocumentBondPresentationV1,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct DirectBondSemanticCandidateV1 {
+    candidate: DirectBondCandidateV2,
     start: DirectBondPoint2V1,
-    raw: DirectBondPoint2V1,
-    policy: DirectBondSnapPolicyV1,
-) -> Result<DirectBondPoint2V1, DirectBondGestureErrorV1> {
-    let mut dx = raw.x() - start.x();
-    let mut dy = raw.y() - start.y();
-    let mut length = dx.hypot(dy);
-    if let Some(increment) = policy.angle_increment_degrees()
-        && length > 0.0
-    {
-        let step = f64::from(increment).to_radians();
-        let angle = dy.atan2(dx);
-        let snapped = (angle / step).round() * step;
-        dx = length * snapped.cos();
-        dy = length * snapped.sin();
-    }
-    if let Some(fixed) = policy.fixed_length_pt() {
-        if length == 0.0 {
-            return Err(DirectBondGestureErrorV1::CollapsedEndpoint);
-        }
-        length = fixed;
-        let scale = length / dx.hypot(dy);
-        dx *= scale;
-        dy *= scale;
-    }
-    if policy.hex_grid() {
-        const GRID: f64 = 10.0;
-        dx = (dx / GRID).round() * GRID;
-        dy = (dy / GRID).round() * GRID;
-    }
-    DirectBondPoint2V1::new(start.x() + dx, start.y() + dy)
+    end: DirectBondPoint2V1,
 }
 
-fn map_direct_bond_commit_error(error: DocumentSessionError) -> DirectBondCommitErrorV1 {
-    match error {
-        DocumentSessionError::RevisionConflict { .. } => DirectBondCommitErrorV1::StaleRevision,
-        DocumentSessionError::RevisionExhausted => DirectBondCommitErrorV1::RevisionExhausted,
-        DocumentSessionError::Operation(
-            SessionOperationError::AtomIdentifierExhausted
-            | SessionOperationError::BondIdentifierExhausted
-            | SessionOperationError::GeneratedIdentifierAllocationFailed,
-        ) => DirectBondCommitErrorV1::IdentityAllocationFailed,
-        DocumentSessionError::Operation(SessionOperationError::HistoryResourceExhausted) => {
-            DirectBondCommitErrorV1::ProvisionalTokenUnavailable
-        }
-        _ => DirectBondCommitErrorV1::CandidateApplicationFailed,
+/// Opaque document-owned direct-bond transaction with its admitted transition.
+#[derive(Debug)]
+pub struct PendingDirectBondMutationV1 {
+    issuer: AuthoringCapabilityIssuerV1,
+    capability: AuthoringCapabilityV1,
+    fence: DocumentFenceV1,
+    transition: PreparedSessionTransitionV1,
+    bond: PersistentId,
+    end_atom: PersistentId,
+    second_created_atom: Option<PersistentId>,
+    created_new_atom: bool,
+    created_new_molecule: bool,
+    start: DirectBondPoint2V1,
+    end: DirectBondPoint2V1,
+    presentation: DocumentBondPresentationV1,
+    operations: Vec<ferrum_render::RenderOp>,
+}
+
+impl PendingDirectBondMutationV1 {
+    #[must_use]
+    pub fn start_v1(&self) -> DirectBondPoint2V1 {
+        self.start
+    }
+    #[must_use]
+    pub fn end_v1(&self) -> DirectBondPoint2V1 {
+        self.end
+    }
+    #[must_use]
+    pub const fn presentation_v1(&self) -> DocumentBondPresentationV1 {
+        self.presentation
+    }
+    #[must_use]
+    pub fn renderer_operations_v1(&self) -> &[ferrum_render::RenderOp] {
+        &self.operations
     }
 }
 
-/// A one-use, revision-bound prepared atom insertion.
-///
-/// The token is intentionally opaque. It originates from the exact current
-/// document, can be committed only at its prepared revision, and is consumed only
-/// after the fully validated candidate is accepted.
 impl DocumentSession {
-    /// Materialize one native, noninteractive direct-bond candidate without mutation.
-    ///
-    /// The caller supplies explicitly resolved durable atom IDs or finite
-    /// new-atom points. Rust validates them against this session's fenced
-    /// document and owns chemistry, identity allocation, history, and durable
-    /// CDML mutation. This is not a pointer gesture API and is not exposed to
-    /// Qt or PyO3.
-    pub fn materialize_direct_bond_mutation(
-        &self,
+    /// Prepare one semantic direct bond, then bind its exact candidate to a renderer proof.
+    #[allow(clippy::too_many_arguments)]
+    pub fn prepare_direct_bond_mutation_v1(
+        &mut self,
+        capability: AuthoringCapabilityV1,
         fence: DocumentFenceV1,
         start: DirectBondEndpointIntent,
         end: DirectBondEndpointIntent,
         presentation: DocumentBondPresentationV1,
         new_atom_element: String,
         snap: DirectBondSnapPolicyV1,
-    ) -> Result<DirectBondMutationCandidate, DirectBondAdmissionRefusalV1> {
+    ) -> Result<PendingDirectBondMutationV1, DirectBondAdmissionRefusalV1> {
+        if !capability.belongs_to(&self.authoring_capability_issuer) {
+            return Err(DirectBondAdmissionRefusalV1::ForeignSession);
+        }
         let gesture = self
             .begin_direct_bond_mutation(fence, start, presentation, new_atom_element, snap)
-            .map_err(|error| match error {
-                DirectBondGestureErrorV1::StaleRevision => {
-                    DirectBondAdmissionRefusalV1::StaleRevision
-                }
-                DirectBondGestureErrorV1::StaleDigest => DirectBondAdmissionRefusalV1::StaleDigest,
-                _ => DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission,
-            })?;
-        self.materialize_direct_bond_mutation_internal(&gesture, end)
-    }
-
-    fn materialize_direct_bond_mutation_internal(
-        &self,
-        gesture: &DirectBondGestureV2,
-        end: DirectBondEndpointIntent,
-    ) -> Result<DirectBondMutationCandidate, DirectBondAdmissionRefusalV1> {
-        let _admission = self.admit_direct_bond_candidate_v2(gesture, end.clone())?;
-        let source = self
-            .snapshot()
-            .map_err(|_| DirectBondAdmissionRefusalV1::StaleRevision)?
-            .cdml()
-            .to_owned();
-        let mut candidate_session = DocumentSession::load(&source)
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        let candidate_snapshot = candidate_session
-            .snapshot()
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        let candidate_gesture = candidate_session
-            .begin_direct_bond_mutation(
-                DocumentFenceV1::new(candidate_snapshot.revision(), *candidate_snapshot.digest()),
-                gesture.start.clone(),
-                gesture.presentation,
-                gesture.new_atom_element.clone(),
-                gesture.snap,
+            .map_err(map_gesture_refusal)?;
+        let admitted = self.admit_direct_bond_candidate_v2(&gesture, end)?;
+        let source_digest = self.current_digest_v1();
+        let built = self.build_direct_bond_candidate(&admitted.candidate)?;
+        let transition = self
+            .prepare_changed_session_transition_v1(
+                fence.revision(),
+                source_digest,
+                built.candidate,
+                built.effects,
             )
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        let candidate_admission = candidate_session
-            .admit_direct_bond_candidate_v2(&candidate_gesture, end)
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        let committed = candidate_session
-            .commit_direct_bond_admission_v2(&candidate_admission)
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        let candidate_snapshot = candidate_session
-            .snapshot()
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        Ok(DirectBondMutationCandidate::new(
-            self.authoring_capability_issuer.issue(),
-            gesture.fence,
-            _admission.overlay().start(),
-            _admission.overlay().end(),
-            candidate_snapshot.cdml().to_owned(),
-            *candidate_snapshot.digest(),
-            committed.bond().clone(),
-            committed.end_atom().clone(),
-            committed.second_created_atom().cloned(),
-            committed.created_new_atom(),
-            committed.created_new_molecule(),
-        ))
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        let metadata = transition
+            .metadata_v1()
+            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        let plan = metadata
+            .renderer_plan()
+            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        let operations = target_operations_for_document_bond_v1(plan, built.bond.as_str())
+            .filter(|operations| !operations.is_empty())
+            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        Ok(PendingDirectBondMutationV1 {
+            issuer: self.authoring_capability_issuer.clone(),
+            capability,
+            fence,
+            transition,
+            bond: built.bond,
+            end_atom: built.end_atom,
+            second_created_atom: built.second_created_atom,
+            created_new_atom: built.created_new_atom,
+            created_new_molecule: built.created_new_molecule,
+            start: admitted.start,
+            end: admitted.end,
+            presentation: gesture.presentation,
+            operations,
+        })
     }
 
-    pub fn commit_direct_bond_mutation(
+    /// Redeem the exact renderer proof immediately before the atomic history append.
+    pub fn commit_direct_bond_mutation_v1(
         &mut self,
-        candidate: &DirectBondMutationCandidate,
-    ) -> Result<SessionOperationResultV1, DirectBondCommitErrorV1> {
-        let claim = candidate
+        pending: &mut PendingDirectBondMutationV1,
+    ) -> Result<CommittedDirectBondGestureV2, DirectBondCommitErrorV1> {
+        if !pending
+            .issuer
+            .same_issuer(&self.authoring_capability_issuer)
+            || !pending
+                .capability
+                .belongs_to(&self.authoring_capability_issuer)
+        {
+            return Err(DirectBondCommitErrorV1::ForeignSession);
+        }
+        let claim = pending
             .capability
             .claim_for_commit(&self.authoring_capability_issuer)
             .map_err(|error| match error {
-                crate::AuthoringCapabilityAccessErrorV1::ForeignSession => {
+                AuthoringCapabilityAccessErrorV1::ForeignSession => {
                     DirectBondCommitErrorV1::ForeignSession
                 }
-                crate::AuthoringCapabilityAccessErrorV1::Replayed => {
+                AuthoringCapabilityAccessErrorV1::Replayed => {
                     DirectBondCommitErrorV1::ReplayedReceipt
                 }
             })?;
-        let verified = DocumentSession::load(candidate.candidate_cdml_for_render_bridge())
-            .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
-        if *verified
-            .snapshot()
-            .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?
-            .digest()
-            != candidate.candidate_digest_for_render_bridge()
-        {
-            return Err(DirectBondCommitErrorV1::CandidateApplicationFailed);
+        if pending.transition.is_consumed_v1() {
+            return Err(DirectBondCommitErrorV1::ReplayedReceipt);
         }
-        let result = self
-            .commit_complete_cdml_transaction_v1(
-                candidate.source_fence_for_render_bridge(),
-                candidate.candidate_cdml_for_render_bridge(),
-            )
-            .map_err(map_direct_bond_commit_error)?;
+        self.require_direct_bond_commit_fence(pending.fence)?;
+        let operation = self
+            .commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
         claim.consume();
-        Ok(result)
+        Ok(CommittedDirectBondGestureV2::new(
+            pending.bond.clone(),
+            pending.end_atom.clone(),
+            pending.second_created_atom.clone(),
+            pending.created_new_atom,
+            pending.created_new_molecule,
+            operation,
+        ))
+    }
+
+    fn build_direct_bond_candidate(
+        &self,
+        candidate: &DirectBondCandidateV2,
+    ) -> Result<BuiltDirectBondCandidateV1, DirectBondAdmissionRefusalV1> {
+        let revision = self
+            .current_state_v1()
+            .next_revision()
+            .ok_or(DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+        let document = self.current_document_v1();
+        match candidate {
+            DirectBondCandidateV2::ExistingExisting {
+                start,
+                end,
+                presentation,
+            } => {
+                let (molecule, start_id) = self
+                    .resolve_bond_atom(start)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnknownStartAtom)?;
+                let (_, end_atom) = self
+                    .resolve_bond_atom(end)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnknownEndAtom)?;
+                let (bond, effects) = self
+                    .reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                        ids.reserve_bond(indexed)
+                    })
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+                let typed = document
+                    .with_insert_bond(&molecule, &bond, &start_id, &end_atom, *presentation)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+                Ok(BuiltDirectBondCandidateV1::new(
+                    revision, typed, effects, bond, end_atom, None, false, false,
+                )?)
+            }
+            DirectBondCandidateV2::ExistingNew {
+                existing,
+                point,
+                element,
+                presentation,
+                new_atom_is_start,
+            }
+            | DirectBondCandidateV2::NewExisting {
+                existing,
+                point,
+                element,
+                presentation,
+                new_atom_is_start,
+            } => {
+                let (molecule, existing_id) = self
+                    .resolve_bond_atom(existing)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnknownStartAtom)?;
+                let (identities, effects) = self
+                    .reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                        ids.reserve_bonded_atom(indexed)
+                    })
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+                let position = Point3V1::new(point.x(), point.y(), 0.0)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?;
+                let typed = document
+                    .with_insert_bonded_atom(
+                        &molecule,
+                        &existing_id,
+                        BondedAtomInsertion::new(
+                            &identities.atom,
+                            &identities.bond,
+                            element,
+                            position,
+                            *presentation,
+                            *new_atom_is_start,
+                        ),
+                    )
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+                let end_atom = if matches!(candidate, DirectBondCandidateV2::NewExisting { .. }) {
+                    existing_id
+                } else {
+                    identities.atom.clone()
+                };
+                Ok(BuiltDirectBondCandidateV1::new(
+                    revision,
+                    typed,
+                    effects,
+                    identities.bond,
+                    end_atom,
+                    None,
+                    true,
+                    false,
+                )?)
+            }
+            DirectBondCandidateV2::NewNew {
+                start,
+                end,
+                element,
+                presentation,
+            } => {
+                let (identities, effects) = self
+                    .reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                        ids.reserve_molecule(indexed, 2, 1)
+                    })
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+                let atom = |point: DirectBondPoint2V1| {
+                    MoleculeInsertionAtomV1::new(
+                        element,
+                        Point3V1::new(point.x(), point.y(), 0.0)
+                            .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?,
+                        None,
+                        None,
+                        None,
+                    )
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)
+                };
+                let molecule = MoleculeInsertionV1::new(
+                    vec![atom(*start)?, atom(*end)?],
+                    vec![MoleculeInsertionBondV1::new_with_presentation(
+                        0,
+                        1,
+                        *presentation,
+                    )],
+                )
+                .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+                let typed = document
+                    .with_insert_molecule(
+                        &identities.molecule,
+                        &identities.atoms,
+                        &identities.bonds,
+                        &molecule,
+                    )
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+                Ok(BuiltDirectBondCandidateV1::new(
+                    revision,
+                    typed,
+                    effects,
+                    identities.bonds[0].clone(),
+                    identities.atoms[1].clone(),
+                    Some(identities.atoms[0].clone()),
+                    true,
+                    true,
+                )?)
+            }
+        }
     }
 
     fn begin_direct_bond_mutation(
@@ -195,66 +349,44 @@ impl DocumentSession {
         &self,
         gesture: &DirectBondGestureV2,
         end: DirectBondEndpointIntent,
-    ) -> Result<DirectBondAdmissionV2, DirectBondAdmissionRefusalV1> {
+    ) -> Result<DirectBondSemanticCandidateV1, DirectBondAdmissionRefusalV1> {
         self.require_direct_bond_admission_fence(gesture.fence)?;
-        let endpoint_point = |intent: &DirectBondEndpointIntent| -> Result<DirectBondPoint2V1, DirectBondAdmissionRefusalV1> { match intent { DirectBondEndpointIntent::ExistingAtom { atom } => self.direct_atom_point(atom).ok_or(DirectBondAdmissionRefusalV1::UnknownEndAtom), DirectBondEndpointIntent::NewAtomAt { raw_point } => Ok(*raw_point) } };
-        let raw_start = endpoint_point(&gesture.start)
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnknownStartAtom)?;
-        let raw_end = endpoint_point(&end)?;
-        if matches!(
-            (&gesture.start, &end),
-            (
-                DirectBondEndpointIntent::ExistingAtom { atom: start },
-                DirectBondEndpointIntent::ExistingAtom { atom: finish },
-            ) if start == finish
-        ) {
+        let point_for = |intent: &DirectBondEndpointIntent, unknown| match intent {
+            DirectBondEndpointIntent::ExistingAtom { atom } => self
+                .direct_atom_point(atom)
+                .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?
+                .ok_or(unknown),
+            DirectBondEndpointIntent::NewAtomAt { raw_point } => Ok(*raw_point),
+        };
+        let raw_start = point_for(
+            &gesture.start,
+            DirectBondAdmissionRefusalV1::UnknownStartAtom,
+        )?;
+        let raw_end = point_for(&end, DirectBondAdmissionRefusalV1::UnknownEndAtom)?;
+        if matches!((&gesture.start, &end), (DirectBondEndpointIntent::ExistingAtom { atom: a }, DirectBondEndpointIntent::ExistingAtom { atom: b }) if a == b)
+        {
             return Err(DirectBondAdmissionRefusalV1::SelfLoop);
         }
-        let (start_point, end_point) = match (&gesture.start, &end) {
-            (
-                DirectBondEndpointIntent::ExistingAtom { .. },
-                DirectBondEndpointIntent::NewAtomAt { raw_point },
-            ) => (
-                raw_start,
-                snap_point(raw_start, *raw_point, gesture.snap)
-                    .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?,
-            ),
-            (
-                DirectBondEndpointIntent::NewAtomAt { raw_point },
-                DirectBondEndpointIntent::ExistingAtom { .. },
-            ) => (
-                snap_point(raw_end, *raw_point, gesture.snap)
-                    .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?,
-                raw_end,
-            ),
-            (
-                DirectBondEndpointIntent::NewAtomAt { .. },
-                DirectBondEndpointIntent::NewAtomAt { raw_point },
-            ) => (
-                raw_start,
-                snap_point(raw_start, *raw_point, gesture.snap)
-                    .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?,
-            ),
-            _ => (raw_start, raw_end),
-        };
-        if same_point(start_point, end_point) {
+        let (start, finish) =
+            snapped_endpoints(raw_start, raw_end, &gesture.start, &end, gesture.snap)?;
+        if start.x() == finish.x() && start.y() == finish.y() {
             return Err(DirectBondAdmissionRefusalV1::CollapsedEndpoint);
         }
         let candidate = match (&gesture.start, &end) {
             (
                 DirectBondEndpointIntent::ExistingAtom { atom: start },
-                DirectBondEndpointIntent::ExistingAtom { atom: finish },
+                DirectBondEndpointIntent::ExistingAtom { atom: end },
             ) => {
                 let (molecule, start_id) = self
                     .resolve_bond_atom(start)
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnknownStartAtom)?;
-                let (end_molecule, end_id) = self
-                    .resolve_bond_atom(finish)
+                let (other, end_id) = self
+                    .resolve_bond_atom(end)
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnknownEndAtom)?;
-                if molecule != end_molecule {
+                if molecule != other {
                     return Err(DirectBondAdmissionRefusalV1::CrossMolecule);
                 }
-                self.reject_existing_bond_for_object_ids(start, finish)
+                self.reject_existing_bond_for_object_ids(start, end)
                     .map_err(|_| DirectBondAdmissionRefusalV1::DuplicateBond)?;
                 self.admit_direct_bond_existing_chemistry(
                     &molecule,
@@ -262,9 +394,9 @@ impl DocumentSession {
                     &end_id,
                     gesture.presentation,
                 )?;
-                DirectBondAdmittedCandidateV2::ExistingExisting {
+                DirectBondCandidateV2::ExistingExisting {
                     start: start.clone(),
-                    end: finish.clone(),
+                    end: end.clone(),
                     presentation: gesture.presentation,
                 }
             }
@@ -272,20 +404,20 @@ impl DocumentSession {
                 DirectBondEndpointIntent::ExistingAtom { atom },
                 DirectBondEndpointIntent::NewAtomAt { .. },
             ) => {
-                let (molecule, existing_id) = self
+                let (molecule, id) = self
                     .resolve_bond_atom(atom)
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnknownStartAtom)?;
                 self.admit_direct_bond_new_chemistry(
                     &molecule,
-                    &existing_id,
+                    &id,
                     &gesture.new_atom_element,
-                    end_point,
+                    finish,
                     gesture.presentation,
                     false,
                 )?;
-                DirectBondAdmittedCandidateV2::ExistingNew {
+                DirectBondCandidateV2::ExistingNew {
                     existing: atom.clone(),
-                    new_point: end_point,
+                    point: finish,
                     element: gesture.new_atom_element.clone(),
                     presentation: gesture.presentation,
                     new_atom_is_start: false,
@@ -295,20 +427,20 @@ impl DocumentSession {
                 DirectBondEndpointIntent::NewAtomAt { .. },
                 DirectBondEndpointIntent::ExistingAtom { atom },
             ) => {
-                let (molecule, existing_id) = self
+                let (molecule, id) = self
                     .resolve_bond_atom(atom)
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnknownEndAtom)?;
                 self.admit_direct_bond_new_chemistry(
                     &molecule,
-                    &existing_id,
+                    &id,
                     &gesture.new_atom_element,
-                    start_point,
+                    start,
                     gesture.presentation,
                     true,
                 )?;
-                DirectBondAdmittedCandidateV2::NewExisting {
-                    new_point: start_point,
+                DirectBondCandidateV2::NewExisting {
                     existing: atom.clone(),
+                    point: start,
                     element: gesture.new_atom_element.clone(),
                     presentation: gesture.presentation,
                     new_atom_is_start: true,
@@ -320,226 +452,98 @@ impl DocumentSession {
             ) => {
                 self.admit_direct_bond_new_molecule_chemistry(
                     &gesture.new_atom_element,
-                    start_point,
-                    end_point,
+                    start,
+                    finish,
                     gesture.presentation,
                 )?;
-                DirectBondAdmittedCandidateV2::NewNew {
-                    start: start_point,
-                    end: end_point,
+                DirectBondCandidateV2::NewNew {
+                    start,
+                    end: finish,
                     element: gesture.new_atom_element.clone(),
                     presentation: gesture.presentation,
                 }
             }
         };
-        Ok(direct_bond_mutation::admission(
-            gesture,
+        Ok(DirectBondSemanticCandidateV1 {
             candidate,
-            start_point,
-            end_point,
-        ))
+            start,
+            end: finish,
+        })
     }
 
-    fn commit_direct_bond_admission_v2(
-        &mut self,
-        admission: &DirectBondAdmissionV2,
-    ) -> Result<CommittedDirectBondGestureV2, DirectBondCommitErrorV1> {
-        self.require_direct_bond_commit_fence(admission.fence)?;
-        match &admission.candidate {
-            DirectBondAdmittedCandidateV2::ExistingExisting {
-                start,
-                end,
-                presentation,
-            } => {
-                let (_, end_id) = self
-                    .resolve_bond_atom(end)
-                    .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
-                let mut pending = self
-                    .prepare_create_bond_v2(admission.fence.revision(), start, end, *presentation)
-                    .map_err(map_direct_bond_commit_error)?;
-                let bond = pending.identifier().clone();
-                let result = self
-                    .commit_create_bond(admission.fence.revision(), &mut pending)
-                    .map_err(map_direct_bond_commit_error)?;
-                Ok(CommittedDirectBondGestureV2::new(
-                    bond, end_id, None, false, false, result,
-                ))
-            }
-            DirectBondAdmittedCandidateV2::ExistingNew {
-                existing,
-                new_point,
-                element,
-                presentation,
-                new_atom_is_start,
-            } => {
-                let position = Point3V1::new(new_point.x(), new_point.y(), 0.0)
-                    .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
-                let mut pending = self
-                    .prepare_create_bonded_atom_oriented_v2(
-                        admission.fence.revision(),
-                        existing,
-                        element,
-                        position,
-                        *presentation,
-                        *new_atom_is_start,
-                    )
-                    .map_err(map_direct_bond_commit_error)?;
-                let atom = pending.atom_identifier().clone();
-                let bond = pending.bond_identifier().clone();
-                let result = self
-                    .commit_create_bonded_atom(admission.fence.revision(), &mut pending)
-                    .map_err(map_direct_bond_commit_error)?;
-                Ok(CommittedDirectBondGestureV2::new(
-                    bond, atom, None, true, false, result,
-                ))
-            }
-            DirectBondAdmittedCandidateV2::NewExisting {
-                new_point,
-                existing,
-                element,
-                presentation,
-                new_atom_is_start,
-            } => {
-                let (_, end_id) = self
-                    .resolve_bond_atom(existing)
-                    .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
-                let position = Point3V1::new(new_point.x(), new_point.y(), 0.0)
-                    .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
-                let mut pending = self
-                    .prepare_create_bonded_atom_oriented_v2(
-                        admission.fence.revision(),
-                        existing,
-                        element,
-                        position,
-                        *presentation,
-                        *new_atom_is_start,
-                    )
-                    .map_err(map_direct_bond_commit_error)?;
-                let bond = pending.bond_identifier().clone();
-                let result = self
-                    .commit_create_bonded_atom(admission.fence.revision(), &mut pending)
-                    .map_err(map_direct_bond_commit_error)?;
-                Ok(CommittedDirectBondGestureV2::new(
-                    bond, end_id, None, true, false, result,
-                ))
-            }
-            DirectBondAdmittedCandidateV2::NewNew {
-                start,
-                end,
-                element,
-                presentation,
-            } => {
-                let make_atom = |point: DirectBondPoint2V1| -> Result<MoleculeInsertionAtomV1, DirectBondCommitErrorV1> { MoleculeInsertionAtomV1::new(element, Point3V1::new(point.x(), point.y(), 0.0).map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?, None, None, None).map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed) };
-                let molecule = MoleculeInsertionV1::new(
-                    vec![make_atom(*start)?, make_atom(*end)?],
-                    vec![MoleculeInsertionBondV1::new_with_presentation(
-                        0,
-                        1,
-                        *presentation,
-                    )],
-                )
-                .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
-                let mut pending = self
-                    .prepare_create_molecule_v1(admission.fence.revision(), &molecule)
-                    .map_err(map_direct_bond_commit_error)?;
-                let atoms = pending.atom_identifiers().to_vec();
-                let bond = pending.bond_identifiers()[0].clone();
-                let result = self
-                    .commit_create_molecule(admission.fence.revision(), &mut pending)
-                    .map_err(map_direct_bond_commit_error)?;
-                Ok(CommittedDirectBondGestureV2::new(
-                    bond,
-                    atoms[1].clone(),
-                    Some(atoms[0].clone()),
-                    true,
-                    true,
-                    result,
-                ))
-            }
-        }
-    }
     fn require_direct_bond_admission_fence(
         &self,
         fence: DocumentFenceV1,
     ) -> Result<(), DirectBondAdmissionRefusalV1> {
-        if self.history.current().revision() != fence.revision() {
+        if self.current_revision_v1() != fence.revision() {
             return Err(DirectBondAdmissionRefusalV1::StaleRevision);
         }
-        if *self.history.current().digest() != fence.digest() {
+        if self.current_digest_v1() != fence.digest() {
             return Err(DirectBondAdmissionRefusalV1::StaleDigest);
         }
         Ok(())
     }
-
     fn require_direct_bond_commit_fence(
         &self,
         fence: DocumentFenceV1,
     ) -> Result<(), DirectBondCommitErrorV1> {
-        if self.history.current().revision() != fence.revision() {
+        if self.current_revision_v1() != fence.revision() {
             return Err(DirectBondCommitErrorV1::StaleRevision);
         }
-        if *self.history.current().digest() != fence.digest() {
+        if self.current_digest_v1() != fence.digest() {
             return Err(DirectBondCommitErrorV1::StaleDigest);
         }
         Ok(())
     }
-
     fn admit_direct_bond_existing_chemistry(
         &self,
-        molecule_id: &PersistentId,
-        start_atom_id: &PersistentId,
-        end_atom_id: &PersistentId,
+        molecule: &PersistentId,
+        start: &PersistentId,
+        end: &PersistentId,
         presentation: DocumentBondPresentationV1,
     ) -> Result<(), DirectBondAdmissionRefusalV1> {
-        let bond_id = PersistentId::new("ferrum-direct-bond-admission-bond")
-            .expect("static direct-bond admission identifier is nonblank");
+        let bond =
+            PersistentId::new("ferrum-direct-bond-admission-bond").expect("static identifier");
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
-            .with_insert_bond(
-                molecule_id,
-                &bond_id,
-                start_atom_id,
-                end_atom_id,
-                presentation,
-            )
+            .with_insert_bond(molecule, &bond, start, end, presentation)
             .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        self.require_admitted_direct_bond_capacity(&candidate, molecule_id)
+        self.require_admitted_direct_bond_capacity(&candidate, molecule)
     }
-
     fn admit_direct_bond_new_chemistry(
         &self,
-        molecule_id: &PersistentId,
-        start_atom_id: &PersistentId,
+        molecule: &PersistentId,
+        start: &PersistentId,
         element: &str,
         point: DirectBondPoint2V1,
         presentation: DocumentBondPresentationV1,
         new_atom_is_start: bool,
     ) -> Result<(), DirectBondAdmissionRefusalV1> {
-        let atom_id = PersistentId::new("ferrum-direct-bond-admission-atom")
-            .expect("static direct-bond admission identifier is nonblank");
-        let bond_id = PersistentId::new("ferrum-direct-bond-admission-bond")
-            .expect("static direct-bond admission identifier is nonblank");
+        let atom =
+            PersistentId::new("ferrum-direct-bond-admission-atom").expect("static identifier");
+        let bond =
+            PersistentId::new("ferrum-direct-bond-admission-bond").expect("static identifier");
         let position = Point3V1::new(point.x(), point.y(), 0.0)
             .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?;
-        let insertion = BondedAtomInsertion::new(
-            &atom_id,
-            &bond_id,
-            element,
-            position,
-            presentation,
-            new_atom_is_start,
-        );
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
-            .with_insert_bonded_atom(molecule_id, start_atom_id, insertion)
+            .with_insert_bonded_atom(
+                molecule,
+                start,
+                BondedAtomInsertion::new(
+                    &atom,
+                    &bond,
+                    element,
+                    position,
+                    presentation,
+                    new_atom_is_start,
+                ),
+            )
             .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-        self.require_admitted_direct_bond_capacity(&candidate, molecule_id)
+        self.require_admitted_direct_bond_capacity(&candidate, molecule)
     }
-
     fn admit_direct_bond_new_molecule_chemistry(
         &self,
         element: &str,
@@ -547,19 +551,28 @@ impl DocumentSession {
         end: DirectBondPoint2V1,
         presentation: DocumentBondPresentationV1,
     ) -> Result<(), DirectBondAdmissionRefusalV1> {
-        let molecule_id = PersistentId::new("ferrum-direct-bond-admission-molecule")
-            .expect("static direct-bond admission identifier is nonblank");
-        let atom_ids = [
+        let molecule_id =
+            PersistentId::new("ferrum-direct-bond-admission-molecule").expect("static identifier");
+        let atoms = [
             PersistentId::new("ferrum-direct-bond-admission-start-atom")
-                .expect("static direct-bond admission identifier is nonblank"),
-            PersistentId::new("ferrum-direct-bond-admission-end-atom")
-                .expect("static direct-bond admission identifier is nonblank"),
+                .expect("static identifier"),
+            PersistentId::new("ferrum-direct-bond-admission-end-atom").expect("static identifier"),
         ];
-        let bond_ids = [PersistentId::new("ferrum-direct-bond-admission-bond")
-            .expect("static direct-bond admission identifier is nonblank")];
-        let make_atom = |point: DirectBondPoint2V1| -> Result<MoleculeInsertionAtomV1, DirectBondAdmissionRefusalV1> { MoleculeInsertionAtomV1::new(element, Point3V1::new(point.x(), point.y(), 0.0).map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?, None, None, None).map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission) };
+        let bonds =
+            [PersistentId::new("ferrum-direct-bond-admission-bond").expect("static identifier")];
+        let atom = |point: DirectBondPoint2V1| {
+            MoleculeInsertionAtomV1::new(
+                element,
+                Point3V1::new(point.x(), point.y(), 0.0)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)?,
+                None,
+                None,
+                None,
+            )
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)
+        };
         let molecule = MoleculeInsertionV1::new(
-            vec![make_atom(start)?, make_atom(end)?],
+            vec![atom(start)?, atom(end)?],
             vec![MoleculeInsertionBondV1::new_with_presentation(
                 0,
                 1,
@@ -568,23 +581,21 @@ impl DocumentSession {
         )
         .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
-            .with_insert_molecule(&molecule_id, &atom_ids, &bond_ids, &molecule)
+            .with_insert_molecule(&molecule_id, &atoms, &bonds, &molecule)
             .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
         self.require_admitted_direct_bond_capacity(&candidate, &molecule_id)
     }
-
     fn require_admitted_direct_bond_capacity(
         &self,
         candidate: &TypedDocument,
-        molecule_id: &PersistentId,
+        molecule: &PersistentId,
     ) -> Result<(), DirectBondAdmissionRefusalV1> {
-        let molecule_object =
-            DocumentObjectIdV1::from_class_source("cdml/molecule", molecule_id.as_str());
+        let object = DocumentObjectIdV1::from_class_source("cdml/molecule", molecule.as_str())
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
         let molecule = candidate
-            .core_molecule(&molecule_object)
+            .core_molecule(&object)
             .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?
             .ok_or(DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
         match crate::chemistry::evaluate_document_molecule_neutral_capacity_v1(&molecule) {
@@ -599,197 +610,102 @@ impl DocumentSession {
     }
 }
 
-#[cfg(test)]
-mod direct_bond_v2_tests {
-    use super::*;
-    use crate::DocumentBondOrderV1;
-
-    const BLANK_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
-
-    fn fence(session: &DocumentSession) -> DocumentFenceV1 {
-        let snapshot = session.snapshot().expect("snapshot");
-        DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
+struct BuiltDirectBondCandidateV1 {
+    candidate: RevisionState,
+    effects: SessionTransitionEffectsV1,
+    bond: PersistentId,
+    end_atom: PersistentId,
+    second_created_atom: Option<PersistentId>,
+    created_new_atom: bool,
+    created_new_molecule: bool,
+}
+impl BuiltDirectBondCandidateV1 {
+    fn new(
+        revision: u64,
+        document: TypedDocument,
+        effects: SessionTransitionEffectsV1,
+        bond: PersistentId,
+        end_atom: PersistentId,
+        second_created_atom: Option<PersistentId>,
+        created_new_atom: bool,
+        created_new_molecule: bool,
+    ) -> Result<Self, DirectBondAdmissionRefusalV1> {
+        Ok(Self {
+            candidate: RevisionState::from_document(revision, document)
+                .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?,
+            effects,
+            bond,
+            end_atom,
+            second_created_atom,
+            created_new_atom,
+            created_new_molecule,
+        })
     }
+}
 
-    fn point(x: f64, y: f64) -> DirectBondEndpointIntent {
-        DirectBondEndpointIntent::NewAtomAt {
-            raw_point: DirectBondPoint2V1::new(x, y).expect("finite point"),
+fn snapped_endpoints(
+    start: DirectBondPoint2V1,
+    end: DirectBondPoint2V1,
+    start_intent: &DirectBondEndpointIntent,
+    end_intent: &DirectBondEndpointIntent,
+    policy: DirectBondSnapPolicyV1,
+) -> Result<(DirectBondPoint2V1, DirectBondPoint2V1), DirectBondAdmissionRefusalV1> {
+    let snap = |origin, raw| {
+        snap_point(origin, raw, policy)
+            .map_err(|_| DirectBondAdmissionRefusalV1::InvalidEndpointInput)
+    };
+    match (start_intent, end_intent) {
+        (
+            DirectBondEndpointIntent::ExistingAtom { .. },
+            DirectBondEndpointIntent::NewAtomAt { .. },
+        ) => Ok((start, snap(start, end)?)),
+        (
+            DirectBondEndpointIntent::NewAtomAt { .. },
+            DirectBondEndpointIntent::ExistingAtom { .. },
+        ) => Ok((snap(end, start)?, end)),
+        (
+            DirectBondEndpointIntent::NewAtomAt { .. },
+            DirectBondEndpointIntent::NewAtomAt { .. },
+        ) => Ok((start, snap(start, end)?)),
+        _ => Ok((start, end)),
+    }
+}
+fn snap_point(
+    start: DirectBondPoint2V1,
+    raw: DirectBondPoint2V1,
+    policy: DirectBondSnapPolicyV1,
+) -> Result<DirectBondPoint2V1, DirectBondGestureErrorV1> {
+    let mut dx = raw.x() - start.x();
+    let mut dy = raw.y() - start.y();
+    let mut length = dx.hypot(dy);
+    if let Some(increment) = policy.angle_increment_degrees()
+        && length > 0.0
+    {
+        let step = f64::from(increment).to_radians();
+        let angle = (dy.atan2(dx) / step).round() * step;
+        dx = length * angle.cos();
+        dy = length * angle.sin();
+    }
+    if let Some(fixed) = policy.fixed_length_pt() {
+        if length == 0.0 {
+            return Err(DirectBondGestureErrorV1::CollapsedEndpoint);
         }
+        length = fixed;
+        let scale = length / dx.hypot(dy);
+        dx *= scale;
+        dy *= scale;
     }
-
-    #[test]
-    fn v2_blank_new_new_commit_has_one_undoable_history_transition() {
-        let mut session = DocumentSession::load(BLANK_SOURCE).expect("blank session loads");
-        let blank_snapshot = session.snapshot().expect("blank snapshot");
-        assert!(!session.can_undo());
-        assert!(!session.can_redo());
-
-        let gesture = session
-            .begin_direct_bond_mutation(
-                fence(&session),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "C".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("gesture begins");
-        let admission = session
-            .admit_direct_bond_candidate_v2(&gesture, point(20.0, 0.0))
-            .expect("blank candidate admits");
-        session
-            .commit_direct_bond_admission_v2(&admission)
-            .expect("blank candidate commits");
-        let committed_snapshot = session.snapshot().expect("committed snapshot");
-        assert_ne!(committed_snapshot.cdml(), blank_snapshot.cdml());
-        assert!(session.can_undo());
-        assert!(!session.can_redo());
-
-        session
-            .undo(committed_snapshot.revision())
-            .expect("commit undoes");
-        assert_eq!(
-            session.snapshot().expect("undone snapshot").cdml(),
-            blank_snapshot.cdml()
-        );
-        assert!(!session.can_undo());
-        assert!(session.can_redo());
-
-        let undone_snapshot = session.snapshot().expect("undone snapshot");
-        session
-            .redo(undone_snapshot.revision())
-            .expect("commit redoes");
-        assert_eq!(
-            session.snapshot().expect("redone snapshot").cdml(),
-            committed_snapshot.cdml()
-        );
-        assert!(session.can_undo());
-        assert!(!session.can_redo());
+    if policy.hex_grid() {
+        const GRID: f64 = 10.0;
+        dx = (dx / GRID).round() * GRID;
+        dy = (dy / GRID).round() * GRID;
     }
-
-    #[test]
-    fn v2_rejected_blank_candidate_does_not_consume_commit_identity_or_history_state() {
-        let mut rejected = DocumentSession::load(BLANK_SOURCE).expect("blank session loads");
-        let snapshot = rejected.snapshot().expect("snapshot before refusal");
-        let token_before = rejected.provisional_token_facts_for_test();
-        let rejected_gesture = rejected
-            .begin_direct_bond_mutation(
-                fence(&rejected),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "Xx".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("gesture begins");
-        assert_eq!(
-            rejected.admit_direct_bond_candidate_v2(&rejected_gesture, point(20.0, 0.0)),
-            Err(DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)
-        );
-        assert_eq!(
-            rejected.snapshot().expect("snapshot after refusal"),
-            snapshot
-        );
-        assert_eq!(rejected.provisional_token_facts_for_test(), token_before);
-
-        let valid_gesture = rejected
-            .begin_direct_bond_mutation(
-                fence(&rejected),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "C".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("valid gesture begins");
-        let valid_admission = rejected
-            .admit_direct_bond_candidate_v2(&valid_gesture, point(20.0, 0.0))
-            .expect("valid candidate admits");
-        let rejected_receipt = rejected
-            .commit_direct_bond_admission_v2(&valid_admission)
-            .expect("valid candidate commits");
-
-        let mut control = DocumentSession::load(BLANK_SOURCE).expect("control session loads");
-        let control_gesture = control
-            .begin_direct_bond_mutation(
-                fence(&control),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "C".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("control gesture begins");
-        let control_admission = control
-            .admit_direct_bond_candidate_v2(&control_gesture, point(20.0, 0.0))
-            .expect("control candidate admits");
-        let control_receipt = control
-            .commit_direct_bond_admission_v2(&control_admission)
-            .expect("control candidate commits");
-        assert_eq!(rejected_receipt.bond(), control_receipt.bond());
-        assert_eq!(rejected_receipt.end_atom(), control_receipt.end_atom());
-        assert_eq!(
-            rejected_receipt.second_created_atom(),
-            control_receipt.second_created_atom()
-        );
-        assert_eq!(rejected_receipt.result(), control_receipt.result());
-    }
-
-    #[test]
-    fn v2_admitted_blank_candidate_drop_does_not_consume_commit_identity_or_history_state() {
-        let mut dropped = DocumentSession::load(BLANK_SOURCE).expect("blank session loads");
-        let snapshot = dropped.snapshot().expect("snapshot before admission");
-        let token_before = dropped.provisional_token_facts_for_test();
-        let dropped_gesture = dropped
-            .begin_direct_bond_mutation(
-                fence(&dropped),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "C".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("gesture begins");
-        let dropped_admission = dropped
-            .admit_direct_bond_candidate_v2(&dropped_gesture, point(20.0, 0.0))
-            .expect("candidate admits");
-        drop(dropped_admission);
-        assert_eq!(dropped.snapshot().expect("snapshot after drop"), snapshot);
-        assert_eq!(dropped.provisional_token_facts_for_test(), token_before);
-
-        let valid_gesture = dropped
-            .begin_direct_bond_mutation(
-                fence(&dropped),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "C".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("valid gesture begins");
-        let valid_admission = dropped
-            .admit_direct_bond_candidate_v2(&valid_gesture, point(20.0, 0.0))
-            .expect("valid candidate admits");
-        let dropped_receipt = dropped
-            .commit_direct_bond_admission_v2(&valid_admission)
-            .expect("valid candidate commits");
-
-        let mut control = DocumentSession::load(BLANK_SOURCE).expect("control session loads");
-        let control_gesture = control
-            .begin_direct_bond_mutation(
-                fence(&control),
-                point(0.0, 0.0),
-                DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-                "C".to_owned(),
-                DirectBondSnapPolicyV1::free(),
-            )
-            .expect("control gesture begins");
-        let control_admission = control
-            .admit_direct_bond_candidate_v2(&control_gesture, point(20.0, 0.0))
-            .expect("control candidate admits");
-        let control_receipt = control
-            .commit_direct_bond_admission_v2(&control_admission)
-            .expect("control candidate commits");
-        assert_eq!(dropped_receipt.bond(), control_receipt.bond());
-        assert_eq!(dropped_receipt.end_atom(), control_receipt.end_atom());
-        assert_eq!(
-            dropped_receipt.second_created_atom(),
-            control_receipt.second_created_atom()
-        );
-        assert_eq!(dropped_receipt.result(), control_receipt.result());
+    DirectBondPoint2V1::new(start.x() + dx, start.y() + dy)
+}
+fn map_gesture_refusal(error: DirectBondGestureErrorV1) -> DirectBondAdmissionRefusalV1 {
+    match error {
+        DirectBondGestureErrorV1::StaleRevision => DirectBondAdmissionRefusalV1::StaleRevision,
+        DirectBondGestureErrorV1::StaleDigest => DirectBondAdmissionRefusalV1::StaleDigest,
+        _ => DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission,
     }
 }

@@ -633,3 +633,46 @@ fn atom_bond_request_requires_typed_kinds_unique_order_and_explicit_label_facts(
         .is_err()
     );
 }
+
+#[test]
+fn normal_atom_bonds_render_while_missing_compact_group_geometry_is_a_closed_issue() {
+    let first = atom_target("first", 1, 0.0, 0.0);
+    let second = atom_target("second", 2, 40.0, 0.0);
+    let normal = BondRenderTarget::new(
+        target(RecordKind::Bond, "normal", 3),
+        first.target().record_id().clone(),
+        second.target().record_id().clone(),
+        BondStyle::NormalSingle,
+        TargetVisibility::Visible,
+    )
+    .expect("normal bond target");
+    let exterior = BondRenderTarget::new(
+        target(RecordKind::Bond, "exterior", 4),
+        second.target().record_id().clone(),
+        target(RecordKind::Group, "compact", 5).record_id().clone(),
+        BondStyle::NormalSingle,
+        TargetVisibility::Visible,
+    )
+    .expect("compact exterior bond target");
+    let request = AtomBondRenderRequest::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [9; 32]),
+        vec![first, second],
+        vec![normal, exterior],
+        atom_bond_font(),
+        size(1.0),
+        size(6.0),
+        paint("000000"),
+    )
+    .expect("request");
+    let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("plan");
+    assert!(
+        plan.batches()
+            .iter()
+            .any(|batch| batch.target().source_order() == 3)
+    );
+    assert!(matches!(
+        plan.issues()[0].kind(),
+        RenderIssueKind::UnrenderableTarget { reason }
+            if reason.contains("second bond endpoint has no renderable geometry")
+    ));
+}

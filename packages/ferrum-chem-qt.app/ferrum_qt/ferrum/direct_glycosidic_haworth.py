@@ -11,7 +11,7 @@ import ferrum_qt.canvas.items.ferrum_plan_item
 def create_preview(tab: object, prepared: object) -> PySide6.QtWidgets.QGraphicsItemGroup:
 	"""Paint only the frozen V2 operations supplied by Rust's anchored receipt."""
 	group = PySide6.QtWidgets.QGraphicsItemGroup()
-	for batch in prepared.preview_batches:
+	for batch in prepared.preview_plan.batches:
 		layer = {
 			"ordinary": 0.0,
 			"haworth_front_stroke": 0.1,

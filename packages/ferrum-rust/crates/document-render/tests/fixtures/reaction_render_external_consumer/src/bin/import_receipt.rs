@@ -1,5 +1,5 @@
-use ferrum_document_render::ReactionRendererReceiptV1;
+use ferrum_document::RendererAdmittedPendingV1;
 
 fn main() {
-    let _receipt: Option<ReactionRendererReceiptV1> = None;
+	let _receipt: Option<RendererAdmittedPendingV1> = None;
 }

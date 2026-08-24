@@ -23,6 +23,7 @@ import ferrum_qt.ferrum.text_placement
 import ferrum_qt.ferrum.text_placement_preview
 import ferrum_qt.ferrum.top_level_transform
 import ferrum_qt.ferrum.translation
+import ferrum_qt.canvas.items.ferrum_plan_item
 from ferrum_qt.ferrum.line_tool_interaction import _normalized_rect
 
 _NativeLineTool = ferrum_qt.ferrum.line_tool_intent._NativeLineTool
@@ -643,17 +644,20 @@ class FerrumNativeLineToolPointerMixin:
 					intent.start_atom_id,
 					intent.tab.view.mapToScene(event.position().toPoint()),
 				)
-				vertices = intent.tab.preview_attached_cyclohexane(pending)
-				path = PySide6.QtGui.QPainterPath(vertices[0])
-				for vertex in vertices[1:]:
-					path.lineTo(vertex)
-				path.closeSubpath()
-				pen = PySide6.QtGui.QPen(PySide6.QtGui.QColor("#49719c"))
-				pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
-				pen.setWidthF(1.5)
-				preview = intent.tab.view.scene().addPath(path, pen)
+				plan = intent.tab.preview_attached_cyclohexane(pending)
+				scene = intent.tab.view.scene()
+				if scene is None:
+					raise ValueError("Ferrum attachment preview requires an installed scene.")
+				preview = PySide6.QtWidgets.QGraphicsItemGroup()
+				for index in range(len(plan.batches)):
+					item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem(
+						plan, index, intent.tab._controller._telex_resource,
+					)
+					item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
+					preview.addToGroup(item)
 				preview.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 				preview.setZValue(1_000_000.0)
+				scene.addItem(preview)
 			except Exception as exc:
 				self._cancel_line_gesture()
 				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))

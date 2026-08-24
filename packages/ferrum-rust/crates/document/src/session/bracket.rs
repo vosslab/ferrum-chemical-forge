@@ -2,27 +2,23 @@
 
 use super::{
     BracketInsertionV1, BracketStyleV1, DocumentSession, DocumentSessionError, PersistentId,
-    ProvisionalToken, RevisionState, SessionDocumentObservationV1, SessionOperationError,
-    SessionOperationResultV1,
+    PreparedSessionTransitionV1, RevisionState, SessionOperationError, SessionOperationResultV1,
 };
 
 /// A one-use, revision-bound prepared bracket-pair insertion.
 pub struct PendingCreateBracket {
-    revision: u64,
-    token: ProvisionalToken,
     left_identifier: PersistentId,
     right_identifier: PersistentId,
-    candidate: Option<RevisionState>,
+    transition: PreparedSessionTransitionV1,
 }
 
 impl std::fmt::Debug for PendingCreateBracket {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingCreateBracket")
-            .field("revision", &self.revision)
             .field("left_identifier", &self.left_identifier)
             .field("right_identifier", &self.right_identifier)
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -61,38 +57,31 @@ impl DocumentSession {
         self.require_current(expected_revision)?;
         let insertion = BracketInsertionV1::new(style, left, top, right, bottom)
             .map_err(|error| SessionOperationError::InvalidBracketInsertion(error.to_string()))?;
-        let ([left_identifier, right_identifier], generated_ids) = self
-            .generated_ids
-            .reserve_presentations(self.history.current().document().indexed())?;
+        let ([left_identifier, right_identifier], effects) = self
+            .reserve_generated_ids_for_transition_v1(|sequences, indexed| {
+                sequences.reserve_presentations(indexed)
+            })?;
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .with_insert_bracket(&left_identifier, &right_identifier, &insertion)
             .map_err(SessionOperationError::Candidate)?;
         let revision = self
-            .history
-            .current()
+            .current_state_v1()
             .next_revision()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .try_issue_provisional_token()
-            .map_err(SessionOperationError::Candidate)?;
-        self.generated_ids = generated_ids;
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            self.current_digest_v1(),
+            candidate,
+            effects,
+        )?;
         Ok(PendingCreateBracket {
-            revision: expected_revision,
-            token,
             left_identifier,
             right_identifier,
-            candidate: Some(candidate),
+            transition,
         })
     }
 
@@ -102,11 +91,36 @@ impl DocumentSession {
         expected_revision: u64,
         pending: &mut PendingCreateBracket,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
+        self.require_current(expected_revision)?;
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
+    }
+}
+
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: super::AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        super::AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
+        }
+        super::AdmittedSessionTransitionRefusalV1::Replayed
+        | super::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
+        }
+        super::AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
+        }
+        super::AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        super::AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
+        }
     }
 }

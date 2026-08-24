@@ -36,6 +36,9 @@ impl CoreProjection {
 /// A typed document could not supply a valid `ferrum-core` graph.
 #[derive(Debug, Error)]
 pub enum CoreProjectionError {
+    /// A first-class compact-group record could not satisfy its closed V1 contract.
+    #[error(transparent)]
+    CompactGroup(#[from] crate::ProjectionError),
     /// A field required by the core projection is absent.
     #[error("{context}: required field {field} is absent")]
     MissingField {
@@ -198,7 +201,21 @@ fn load_vertices(
                 );
                 vertices.atoms.push(atom);
             }
-            TypedClass::Group | TypedClass::MoleculeText | TypedClass::Query => {
+            TypedClass::CompactGroup => {
+                // Validate the compact record in its document-owned projection lane before
+                // retaining only its durable non-atom identity in the core topology.
+                crate::compact_group_projection_v1::compact_group(child)?;
+                let kind = RecordKind::Group;
+                let vertex = load_non_atom_vertex(record, kind, used_identities)?;
+                used_identities.insert(vertex.identity().clone());
+                register_reference(
+                    &mut vertices.references,
+                    vertex.source_id(),
+                    vertex_reference(kind, vertex.identity().clone()),
+                );
+                vertices.groups.push(vertex);
+            }
+            TypedClass::MoleculeText | TypedClass::Query => {
                 let kind = vertex_kind(record.class());
                 let vertex = load_non_atom_vertex(record, kind, used_identities)?;
                 used_identities.insert(vertex.identity().clone());
@@ -448,7 +465,7 @@ where
 
 fn vertex_kind(class: TypedClass) -> RecordKind {
     match class {
-        TypedClass::Group => RecordKind::Group,
+        TypedClass::CompactGroup => RecordKind::Group,
         TypedClass::MoleculeText => RecordKind::Text,
         TypedClass::Query => RecordKind::Query,
         _ => unreachable!("only molecule-local non-atom classes are converted"),

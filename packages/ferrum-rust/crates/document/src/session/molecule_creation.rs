@@ -2,12 +2,12 @@
 
 use super::{
     DetachedRegularRingInsertionV1, DocumentSession, DocumentSessionError, MoleculeInsertionV1,
-    PendingCreateMolecule, PersistentId, RevisionState, SessionDocumentObservationV1,
-    SessionOperationError, SessionOperationResultV1, TypedDocument, prepared,
+    PendingCreateMolecule, PersistentId, RevisionState, SessionOperationError,
+    SessionOperationResultV1, TypedDocument,
 };
 
 impl DocumentSession {
-    pub fn prepare_create_molecule_v1(
+    pub(crate) fn prepare_create_molecule_v1(
         &mut self,
         expected_revision: u64,
         molecule: &MoleculeInsertionV1,
@@ -25,7 +25,7 @@ impl DocumentSession {
     }
 
     /// Prepare one complete detached regular ring. Rust owns its geometry and IDs.
-    pub fn prepare_create_regular_ring_v1(
+    pub(crate) fn prepare_create_regular_ring_v1(
         &mut self,
         expected_revision: u64,
         request: DetachedRegularRingInsertionV1,
@@ -54,52 +54,72 @@ impl DocumentSession {
         ) -> Result<TypedDocument, SessionOperationError>,
     {
         self.require_current(expected_revision)?;
-        let (identities, generated_ids) = self.generated_ids.reserve_molecule(
-            self.history.current().document().indexed(),
-            atom_count,
-            bond_count,
-        )?;
+        let (identities, effects) =
+            self.reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                ids.reserve_molecule(indexed, atom_count, bond_count)
+            })?;
         let candidate = writer(
-            self.history.current().document(),
+            self.current_document_v1(),
             &identities.molecule,
             &identities.atoms,
             &identities.bonds,
         )
         .map_err(DocumentSessionError::Operation)?;
         let revision = self
-            .history
-            .current()
+            .current_state_v1()
             .next_revision()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            self.current_digest_v1(),
+            candidate,
+            effects,
+        )?;
         Ok(PendingCreateMolecule {
-            revision: expected_revision,
-            token,
             molecule_identifier: identities.molecule,
             atom_identifiers: identities.atoms,
             bond_identifiers: identities.bonds,
-            candidate: Some(candidate),
-            tentative_generated_ids: generated_ids,
+            transition,
         })
     }
 
-    pub fn commit_create_molecule(
+    pub(crate) fn commit_create_molecule(
         &mut self,
         expected_revision: u64,
         pending: &mut PendingCreateMolecule,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        let result = self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )?;
-        self.generated_ids = pending.tentative_generated_ids;
-        Ok(result)
+        self.require_current(expected_revision)?;
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
+    }
+}
+
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: super::AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        super::AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
+        }
+        super::AdmittedSessionTransitionRefusalV1::Replayed
+        | super::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
+        }
+        super::AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
+        }
+        super::AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        super::AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
+        }
     }
 }

@@ -34,8 +34,8 @@ def test_sdf_batch_is_frozen_ordered_and_one_document_history_step() -> None:
 	session = ferrum_chem.DocumentSession.load(
 		"<cdml xmlns='urn:ferrum:cdml'><opaque payload=\"retained\"/></cdml>",
 	)
-	prepared = session.prepare_insert_interchange_records_v1(0, batch)
-	result = session.commit_create_interchange_records_v1(0, prepared)
+	prepared = session.prepare_admitted_interchange_records_v1(0, batch)
+	result = session.commit_admitted_interchange_records_v1(0, prepared)
 
 	assert batch.record_count == 2
 	assert tuple(len(record) for record in prepared.atom_identifiers) == (3, 1)

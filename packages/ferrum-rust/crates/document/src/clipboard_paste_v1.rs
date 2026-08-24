@@ -246,7 +246,7 @@ pub(super) fn compose_clipboard_paste_candidate_v1(
             .map(|child| child.record())
             .find(|record| record.attribute("id") == Some(generated.as_str()))
             .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
-        let object_id = DocumentObjectIdV1::from_record(record)
+        let object_id = crate::document_object_id_from_record_v1(record)
             .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
         inserted_roots.push(DocumentClipboardPastedRootV1 {
             object_id,

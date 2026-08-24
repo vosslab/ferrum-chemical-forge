@@ -10,10 +10,10 @@ use ferrum_document::{
     prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_with_origin_v1,
 };
 use ferrum_document::{
-    CdsvgExtractionError, DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1,
-    XmlInputError,
+    CdsvgExtractionError, DocumentRenderObservationErrorV1, DocumentRenderObservationV1,
+    DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1, XmlInputError,
+    observe_document_render_v1,
 };
-use ferrum_render::{RenderObservationError, RenderObservationV1, observe_render_v1};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyInt, PyString};
@@ -182,7 +182,7 @@ impl PyPreparedLocalDocumentOpenV1 {
 
 enum LocalDocumentOpenPreparationError {
     Ingress(DocumentIngressErrorV1),
-    Render(RenderObservationError),
+    Render(DocumentRenderObservationErrorV1),
 }
 
 /// One complete caller-owned XML resource budget.
@@ -434,7 +434,7 @@ pub(crate) fn prepare_local_interchange_file_v1(
                     crate::interchange_import_v1::InterchangeImportRefusalReasonV1::InternalFailure,
                 ),
             ))?;
-        let observation = observe_render_v1(&session, post_import_snapshot.revision())
+        let observation = observe_document_render_v1(&session, post_import_snapshot.revision())
             .map_err(LocalInterchangePreparationError::Render)?;
         Ok::<_, LocalInterchangePreparationError>((
             session,
@@ -518,7 +518,7 @@ fn local_interchange_descriptor(
 
 enum LocalInterchangePreparationError {
     Refused(InterchangeImportRefusalV1),
-    Render(RenderObservationError),
+    Render(DocumentRenderObservationErrorV1),
 }
 
 fn prepare_local_document_file_v1(
@@ -538,12 +538,12 @@ fn prepare_local_document_file_v1(
             }
         };
         let (session, origin) = preparation.map_err(LocalDocumentOpenPreparationError::Ingress)?;
-        let observation =
-            observe_render_v1(&session, 0).map_err(LocalDocumentOpenPreparationError::Render)?;
+        let observation = observe_document_render_v1(&session, 0)
+            .map_err(LocalDocumentOpenPreparationError::Render)?;
         Ok::<
             (
                 DocumentSession,
-                RenderObservationV1,
+                DocumentRenderObservationV1,
                 RetainedSourceFileGuardV1,
             ),
             LocalDocumentOpenPreparationError,

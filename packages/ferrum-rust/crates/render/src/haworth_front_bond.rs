@@ -2,8 +2,9 @@
 
 use ferrum_geometry::Vector2;
 
+use crate::bond_style::BondStyle;
 use crate::{
-    BatchSpace, BondStyle, Paint, PathOpV2, PositiveFinite, RenderBatch, RenderDisplayLayerV1,
+    BatchSpace, Paint, PathOpV2, PositiveFinite, RenderBatch, RenderDisplayLayerV1,
     RenderIssueKind, RenderOp, RenderPoint, RenderTarget, ScenePathCommandV2, ScenePathStrokeV2,
     VectorStrokeLineCapV1,
 };

@@ -8,9 +8,11 @@ use std::collections::{HashMap, HashSet};
 use ferrum_chemistry::{
     ChemEngine, ChemistryError, SmartsMatchOptions, SmartsMatchUnavailableReason,
 };
-use ferrum_render::{
-    BatchSpace, RenderObservationV1, document_observation_from_accepted_operation_v1,
+use ferrum_document::{
+    DocumentRenderObservationV1, SessionDocumentObservationV1,
+    derive_document_render_observation_from_accepted_operation_v1,
 };
+use ferrum_render::BatchSpace;
 use getrandom::fill;
 use pyo3::{create_exception, prelude::*};
 
@@ -317,25 +319,37 @@ impl LiveDocumentSmartsBridgeV1 {
 
     /// Create the only plan from one accepted observation. The generation is
     /// advanced and old receipts retired before the replacement is attempted.
+    #[cfg(test)]
     pub(crate) fn publish(
         &mut self,
         session: &RenderInteractionSessionV1,
         expected_revision: u64,
-    ) -> PyResult<RenderObservationV1> {
+    ) -> PyResult<DocumentRenderObservationV1> {
+        let observation = session
+            .observe(expected_revision)
+            .map_err(|_| unavailable_failure().into_pyerr())?;
+        self.publish_from_observation(session, observation)
+    }
+
+    /// Initialize this private bridge from an observation already admitted by
+    /// the public session boundary, retaining that exact fence for the render
+    /// observation and SMARTS snapshot.
+    pub(crate) fn publish_from_observation(
+        &mut self,
+        session: &RenderInteractionSessionV1,
+        observation: SessionDocumentObservationV1,
+    ) -> PyResult<DocumentRenderObservationV1> {
         self.retire();
         self.next_generation = self
             .next_generation
             .checked_add(1)
             .ok_or_else(|| unavailable_failure().into_pyerr())?;
-        let observation = session
-            .observe(expected_revision)
-            .map_err(|_| unavailable_failure().into_pyerr())?;
-        let rendered = document_observation_from_accepted_operation_v1(&observation)
+        let rendered = derive_document_render_observation_from_accepted_operation_v1(&observation)
             .map_err(|_| unavailable_failure().into_pyerr())?;
         let document = observation.snapshot();
         let revision = document.revision();
         let digest = *document.digest();
-        let snapshot = match session.prepare_smarts_snapshot_v1(expected_revision) {
+        let snapshot = match session.prepare_smarts_snapshot_v1(revision) {
             Ok(prepared) => OwnedDocumentSmartsSnapshotV1::from_prepared_snapshot_v1(prepared),
             Err(_) => {
                 self.readiness = LiveSmartsReadinessV1::UnsupportedDocument { revision, digest };
@@ -351,7 +365,7 @@ impl LiveDocumentSmartsBridgeV1 {
             }
         }
         let mut anchors = HashMap::new();
-        for plan in rendered.molecule_plans() {
+        for plan in rendered.resolved().molecule_plans() {
             for batch in plan.batches() {
                 let BatchSpace::AtomLocal { anchor } = batch.coordinate_space() else {
                     continue;

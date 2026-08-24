@@ -7,6 +7,7 @@ import json
 import os
 import stat
 import subprocess
+import sys
 import sysconfig
 import tempfile
 from pathlib import Path
@@ -16,12 +17,13 @@ from engine_lib.native_engine_receipt import directory_tree_sha256, native_polic
 
 
 LOCAL_RUNTIME_RECEIPT_FILENAME = "ferrum-local-runtime-receipt.json"
-LOCAL_RUNTIME_RECEIPT_SCHEMA = "ferrum-local-runtime-receipt-v1"
+LOCAL_RUNTIME_RECEIPT_SCHEMA = "ferrum-local-runtime-receipt-v2"
 LOCAL_ENGINE_BUNDLE_DIRECTORY_NAME = "engine-v1"
 _CARGO_ROOT = Path(__file__).resolve().parents[1]
 _REPO_ROOT = _CARGO_ROOT.parents[1]
 _BUILD_PACKAGES = (_CARGO_ROOT / "crates/api", _CARGO_ROOT / "crates/api-python")
 _RELEASE_DEPENDENCY_KINDS = frozenset((None, "build"))
+_LOCAL_GUI_LAUNCHER_SPECIFICATION = _CARGO_ROOT / "engine_lib/local_runtime_launcher.py"
 
 
 class LocalRuntimeReceiptError(RuntimeError):
@@ -184,10 +186,19 @@ def local_runtime_inputs() -> dict[str, str]:
 	)))
 	return {
 		"cargo_source_sha256": local_cargo_source_sha256(),
+		"launcher_specification_sha256": local_launcher_specification_sha256(),
 		"native_builder_sha256": _files_sha256(builder_files, "local native builder source"),
 		"native_policy_sha256": native_policy_sha256(FERRUM_RDKIT_PROFILE),
 		"native_source_sha256": directory_tree_sha256(native_source, "Ferrum native source"),
 	}
+
+
+#============================================
+def local_launcher_specification_sha256() -> str:
+	"""Fingerprint the source-owned GUI launcher contract before it is generated."""
+	return _sha256_file(
+		_LOCAL_GUI_LAUNCHER_SPECIFICATION, "local GUI launcher specification"
+	)
 
 
 #============================================
@@ -299,3 +310,84 @@ def validate_local_runtime_receipt(runtime_root: Path) -> None:
 		raise LocalRuntimeReceiptError(
 			"local runtime receipt does not match current Cargo/native inputs or staged artifacts"
 		)
+
+
+#============================================
+def validate_local_runtime_import(runtime_root: Path) -> None:
+	"""Prove Python imports the exact staged extension and its required surface.
+
+	The receipt establishes artifact and source identities. This second gate uses a
+	new interpreter with the staged runtime as its only explicit import root, so a
+	successful local build cannot silently resolve an installed or stale extension.
+	"""
+	runtime_root = runtime_root.resolve()
+	validate_local_runtime_receipt(runtime_root)
+	expected_extension = local_extension_path(runtime_root)
+	probe = _run_extension_import_probe(runtime_root, expected_extension)
+	module_file = probe.get("module_file")
+	if not isinstance(module_file, str):
+		raise LocalRuntimeReceiptError("staged extension import did not report its module file")
+	try:
+		actual_extension = Path(module_file).resolve(strict=True)
+	except OSError as error:
+		raise LocalRuntimeReceiptError(
+			"staged extension import reported an unreadable module file"
+		) from error
+	if actual_extension != expected_extension:
+		raise LocalRuntimeReceiptError(
+			"Python imported a different ferrum_chem extension than the staged runtime"
+		)
+	members = probe.get("document_session_members")
+	if not isinstance(members, list) or not all(isinstance(member, str) for member in members):
+		raise LocalRuntimeReceiptError(
+			"staged extension import did not report its DocumentSession surface"
+		)
+	missing = sorted({"can_redo", "can_undo"}.difference(members))
+	if missing:
+		raise LocalRuntimeReceiptError(
+			"staged ferrum_chem extension is missing required DocumentSession members: "
+			+ ", ".join(missing)
+		)
+
+
+#============================================
+def _run_extension_import_probe(runtime_root: Path, expected_extension: Path) -> dict[str, object]:
+	"""Import the staged extension in an isolated subprocess and return its facts."""
+	probe = (
+		"import importlib, json, pathlib, sys; "
+		"module = importlib.import_module('ferrum_chem'); "
+		"session = module.DocumentSession; "
+		"print(json.dumps({'module_file': str(pathlib.Path(module.__file__).resolve()), "
+		"'document_session_members': [name for name in ('can_undo', 'can_redo') "
+		"if hasattr(session, name)]}, sort_keys=True))"
+	)
+	environment = os.environ.copy()
+	environment.pop("PYTHONHOME", None)
+	environment["PYTHONPATH"] = str(runtime_root)
+	environment["PYTHONDONTWRITEBYTECODE"] = "1"
+	try:
+		result = subprocess.run(
+			(sys.executable, "-c", probe, str(expected_extension)),
+			cwd=runtime_root,
+			env=environment,
+			check=False,
+			capture_output=True,
+			text=True,
+		)
+	except OSError as error:
+		raise LocalRuntimeReceiptError("cannot start Python to import staged ferrum_chem") from error
+	if result.returncode != 0:
+		diagnostics = result.stderr.strip() or result.stdout.strip()
+		raise LocalRuntimeReceiptError(
+			"cannot import staged ferrum_chem: "
+			+ (diagnostics or "Python exited without diagnostics")
+		)
+	try:
+		payload = json.loads(result.stdout)
+	except json.JSONDecodeError as error:
+		raise LocalRuntimeReceiptError(
+			"staged extension import did not produce an identity receipt"
+		) from error
+	if not isinstance(payload, dict):
+		raise LocalRuntimeReceiptError("staged extension import produced an invalid identity receipt")
+	return payload

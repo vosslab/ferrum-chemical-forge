@@ -15,6 +15,7 @@ use super::binding::{PyDocumentSession, PySessionOperationResultV1};
 use super::presentation_creation_gesture_binding::{
     PyPresentationGestureRootKindV1, PyPresentationGestureRootSelectorV1, digest,
 };
+use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
 
 create_exception!(
     ferrum_chem,
@@ -70,32 +71,6 @@ pub(crate) struct PyCurvedElectronArrowGestureV1 {
     gesture: CurvedElectronArrowGestureV1,
 }
 
-#[pyclass(frozen, module = "ferrum_chem", name = "CurvedElectronArrowOverlayV1")]
-pub(crate) struct PyCurvedElectronArrowOverlayV1 {
-    #[pyo3(get)]
-    pub start_x: f64,
-    #[pyo3(get)]
-    pub start_y: f64,
-    #[pyo3(get)]
-    pub control_x: f64,
-    #[pyo3(get)]
-    pub control_y: f64,
-    #[pyo3(get)]
-    pub end_x: f64,
-    #[pyo3(get)]
-    pub end_y: f64,
-    #[pyo3(get)]
-    pub cubic_control_1_x: f64,
-    #[pyo3(get)]
-    pub cubic_control_1_y: f64,
-    #[pyo3(get)]
-    pub cubic_control_2_x: f64,
-    #[pyo3(get)]
-    pub cubic_control_2_y: f64,
-    #[pyo3(get)]
-    pub head: Vec<(f64, f64)>,
-}
-
 #[pyclass(
     unsendable,
     module = "ferrum_chem",
@@ -104,7 +79,7 @@ pub(crate) struct PyCurvedElectronArrowOverlayV1 {
 pub(crate) struct PyCurvedElectronArrowPreviewV1 {
     preview: CurvedElectronArrowPreviewV1,
     #[pyo3(get)]
-    overlay: Py<PyCurvedElectronArrowOverlayV1>,
+    plan: PyPresentationRenderPlanV1,
 }
 
 #[pyclass(
@@ -193,30 +168,12 @@ fn point(x: f64, y: f64, py: Python<'_>) -> PyResult<PresentationGesturePoint2V1
 }
 
 fn preview_to_python(
-    py: Python<'_>,
+    _py: Python<'_>,
     preview: CurvedElectronArrowPreviewV1,
 ) -> PyCurvedElectronArrowPreviewV1 {
-    let overlay = preview.overlay();
-    let value = PyCurvedElectronArrowOverlayV1 {
-        start_x: overlay.start().x(),
-        start_y: overlay.start().y(),
-        control_x: overlay.control().x(),
-        control_y: overlay.control().y(),
-        end_x: overlay.end().x(),
-        end_y: overlay.end().y(),
-        cubic_control_1_x: overlay.cubic_control_1().x(),
-        cubic_control_1_y: overlay.cubic_control_1().y(),
-        cubic_control_2_x: overlay.cubic_control_2().x(),
-        cubic_control_2_y: overlay.cubic_control_2().y(),
-        head: overlay
-            .head()
-            .iter()
-            .map(|point| (point.x(), point.y()))
-            .collect(),
-    };
     PyCurvedElectronArrowPreviewV1 {
+        plan: preview.plan().into(),
         preview,
-        overlay: Py::new(py, value).expect("overlay allocates"),
     }
 }
 
@@ -307,7 +264,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCurvedElectronArrowGestureCategoryV1>()?;
     module.add_class::<PyCurvedElectronArrowGestureRecoveryV1>()?;
     module.add_class::<PyCurvedElectronArrowGestureV1>()?;
-    module.add_class::<PyCurvedElectronArrowOverlayV1>()?;
     module.add_class::<PyCurvedElectronArrowPreviewV1>()?;
     module.add_class::<PyPreparedCurvedElectronArrowV1>()?;
     module.add_class::<PyCurvedElectronArrowCommitV1>()

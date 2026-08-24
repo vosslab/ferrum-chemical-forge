@@ -30,10 +30,13 @@
 
 mod atom_bond;
 mod authored_direct_glycosidic_haworth;
+mod bond_style;
+mod compact_group;
 mod composite_recording_v1;
 mod direct_draw_stream_v1;
 mod direct_glycosidic_haworth;
 mod directed_stereo_bond;
+mod document_admission_v1;
 mod document_artifact_v1;
 mod document_bond_replacement_v1;
 mod document_content_bounds_v1;
@@ -57,23 +60,16 @@ mod standalone_text;
 mod svg_backend;
 mod verified_telex_glyph_metrics;
 mod document {
-    pub(crate) mod artifact {
-        pub(crate) mod native;
-        pub(crate) mod pdf;
-        pub(crate) mod png;
-        pub(crate) mod svg;
-    }
-    pub(crate) mod complete_plan;
     pub(crate) mod depiction_profile;
     pub(crate) mod observation;
     pub(crate) mod plan;
-    pub(crate) mod selection_svg;
 }
 mod font {
     pub(crate) mod telex;
 }
 mod presentation {
     pub(crate) mod path;
+    pub(crate) mod plan;
     pub(crate) mod plus;
     pub(crate) mod text;
     pub(crate) mod vector;
@@ -82,14 +78,18 @@ mod presentation {
 /// Atom and bond source facts plus their render-plan builder.
 pub use atom_bond::{
     AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts,
-    AtomMarkRenderKind, AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, BondStyle,
-    TargetVisibility, build_atom_bond_plan,
+    AtomMarkRenderKind, AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, TargetVisibility,
+    build_atom_bond_plan,
 };
 /// In-process-only renderer profile for durable committed direct Haworth facts.
 pub use authored_direct_glycosidic_haworth::{
     AuthoredDirectGlycosidicHaworthRenderPlanV1, AuthoredDirectGlycosidicHaworthRenderRequestV1,
     lower_authored_direct_glycosidic_haworth_v1,
 };
+/// Closed bond-style vocabulary shared by renderer lowerers.
+pub use bond_style::BondStyle;
+/// Closed compact-group label primitives issued from typed document projections.
+pub use compact_group::{CompactGroupBondEndpointV1, CompactGroupRenderPrimitiveV1};
 /// Internal desktop paint recording of an authenticated whole-document composite.
 pub use composite_recording_v1::{
     CompositeFillRuleV1, CompositeFillV1, CompositeLineCapV1, CompositeLineJoinV1,
@@ -103,38 +103,24 @@ pub use direct_glycosidic_haworth::{
     DirectGlycosidicHaworthRenderPlanV1, DirectGlycosidicHaworthRenderRequestV1,
     lower_direct_glycosidic_haworth_v1,
 };
-/// Document-aware depiction, observation, plan composition, and artifact lowering.
-pub use document::artifact::native::{
-    DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
-    PreparedDocumentNativeArtifactV1, prepare_document_native_artifact_v1,
-    publish_prepared_document_native_artifact_v1,
-};
-pub use document::artifact::pdf::{DocumentPdfArtifactErrorV1, render_document_session_to_pdf_v1};
-pub use document::artifact::png::{DocumentPngArtifactErrorV1, render_document_session_to_png_v1};
-pub use document::artifact::svg::{DocumentSvgArtifactErrorV1, render_document_session_to_svg_v1};
-pub use document::complete_plan::{
-    CompleteDocumentRenderPlanErrorV1, compose_complete_document_render_plan_v1,
-};
+/// Immutable document projection resolver, render plans, and byte sinks.
 pub use document::depiction_profile::{
     DEPICTION_PROFILE_SCHEMA_V1, DEPICTION_RESOLUTION_SCHEMA_V1, DepictionError,
     DepictionIssueCodeV1, DepictionIssueV1, DepictionProfileV1, DepictionResolutionV1,
-    DepictionSuppressionV1, HydrogenVisibilityV1, render_document_projection_v1,
+    DepictionSuppressionV1, DirectGlycosidicHaworthStyleV1, render_document_projection_v1,
+    resolve_direct_glycosidic_haworth_style_v1,
 };
-#[doc(hidden)]
-pub use document::depiction_profile::{
-    DirectGlycosidicHaworthStyleV1, resolve_direct_glycosidic_haworth_style_v1,
-};
-#[doc(hidden)]
-pub use document::observation::derive_render_observation_from_accepted_operation_v1 as document_observation_from_accepted_operation_v1;
 pub use document::observation::{
-    DocumentMoleculeRenderPlanV2, MoleculeRenderRootV1, RENDER_OBSERVATION_SCHEMA_V1,
-    RenderDocumentProvenanceV1, RenderObservationError, RenderObservationV1,
-    RenderObservationWireV1, observe_render_v1,
+    DocumentMoleculeRenderPlanV2, MoleculeRenderRootV1, RESOLVED_DOCUMENT_RENDER_SCHEMA_V1,
+    RenderDocumentProvenanceV1, ResolvedDocumentRenderErrorV1, ResolvedDocumentRenderV1,
+    ResolvedDocumentRenderWireV1, resolve_document_render_v1,
 };
 pub use document::plan::{DocumentRenderPlanCompositionError, compose_document_render_plan_v1};
-pub use document::selection_svg::{
-    DOCUMENT_SELECTION_SVG_SCHEMA_V1, DocumentSelectionSvgErrorV1, DocumentSelectionSvgRootV1,
-    DocumentSelectionSvgV1, DocumentSvgSelectionV1, render_document_selection_to_svg_v1,
+/// Opaque renderer admission for immutable complete-document candidates.
+pub use document_admission_v1::{
+    AdmittedDocumentRenderCandidateV1, DOCUMENT_RENDER_ADMISSION_SCHEMA_V1,
+    DocumentRenderAdmissionErrorV1, DocumentRenderCandidateV1, DocumentRenderPendingIdentityV1,
+    admit_document_render_candidate_v1, target_operations_for_document_bond_v1,
 };
 /// Renderer-neutral receipt for a completed whole-page artifact.
 pub use document_artifact_v1::{DocumentRenderArtifactV1, DocumentRenderReportV1};
@@ -192,7 +178,13 @@ pub use presentation::path::{
     PresentationPathCompositionErrorV1, lower_presentation_points_path_v1,
     lower_presentation_polyline_path_v1,
 };
+/// Pure renderer-owned plan for one immutable presentation stack.
+pub use presentation::plan::{
+    PRESENTATION_RENDER_PLAN_SCHEMA_V1, PresentationRenderBoundsV1, PresentationRenderPlanV1,
+    PresentationRenderRootV1, lower_arrow_preview_v1, render_presentation_stack_v1,
+};
 pub use presentation::plus::{DocumentPlusRenderV1, PresentationTextBoundsV1};
+/// Renderer-owned geometry for interactive curved terminal-arrow previews.
 pub use presentation::text::DocumentTextRenderV1;
 #[doc(hidden)]
 pub use presentation::vector::lower_presentation_vector_v1;

@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{PersistentId, Rgb24V1};
+use super::{PersistentId, PresentationFontFaceV1, Rgb24V1};
 
 /// Minimum editable Plus font size documented by the CDML V1 contract.
 pub const MIN_PLUS_FONT_SIZE_V1: u16 = 4;
@@ -14,8 +14,8 @@ pub const MAX_PLUS_FONT_SIZE_V1: u16 = 144;
 /// One supported durable direct-root Plus property change.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlusPropertyChangeV1 {
-    /// Replace the optional direct child font family.
-    FontFamily(String),
+    /// Select the closed semantic face emitted with its canonical CDML spelling.
+    FontFace(PresentationFontFaceV1),
     /// Replace the root-authoritative integer font size.
     FontSize(u16),
     /// Replace the root-authoritative foreground colour.
@@ -27,7 +27,7 @@ pub enum PlusPropertyChangeV1 {
 impl PlusPropertyChangeV1 {
     fn kind(&self) -> PlusPropertyKindV1 {
         match self {
-            Self::FontFamily(_) => PlusPropertyKindV1::FontFamily,
+            Self::FontFace(_) => PlusPropertyKindV1::FontFace,
             Self::FontSize(_) => PlusPropertyKindV1::FontSize,
             Self::Color(_) => PlusPropertyKindV1::Color,
             Self::BackgroundColor(_) => PlusPropertyKindV1::BackgroundColor,
@@ -37,7 +37,7 @@ impl PlusPropertyChangeV1 {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum PlusPropertyKindV1 {
-    FontFamily,
+    FontFace,
     FontSize,
     Color,
     BackgroundColor,
@@ -46,7 +46,7 @@ enum PlusPropertyKindV1 {
 impl PlusPropertyKindV1 {
     fn name(self) -> &'static str {
         match self {
-            Self::FontFamily => "font family",
+            Self::FontFace => "font face",
             Self::FontSize => "font size",
             Self::Color => "color",
             Self::BackgroundColor => "background color",
@@ -78,13 +78,6 @@ impl PlusPropertiesPatchV1 {
                 });
             }
             match change {
-                PlusPropertyChangeV1::FontFamily(value) => {
-                    let trimmed = value.trim();
-                    if trimmed.is_empty() {
-                        return Err(PlusPropertiesPatchV1Error::BlankFontFamily);
-                    }
-                    *value = trimmed.to_owned();
-                }
                 PlusPropertyChangeV1::FontSize(value)
                     if !(MIN_PLUS_FONT_SIZE_V1..=MAX_PLUS_FONT_SIZE_V1).contains(value) =>
                 {
@@ -115,9 +108,6 @@ pub enum PlusPropertiesPatchV1Error {
     /// The durable direct-root Plus identifier is invalid.
     #[error("Plus properties require a valid persistent Plus ID")]
     InvalidPlusId,
-    /// Font family cannot be blank after trimming.
-    #[error("Plus font family must not be blank")]
-    BlankFontFamily,
     /// Font size falls outside the documented editable CDML range.
     #[error("Plus font size must be from 4 through 144")]
     FontSizeOutOfRange,

@@ -1,16 +1,15 @@
 """Visible Rust-owned straight normal-Arrow pointer authoring."""
 
 # PIP3 modules
-import types
-
 import PySide6.QtCore
 import PySide6.QtTest
 import PySide6.QtWidgets
+import ferrum_chem
 
 # local repo modules
+import ferrum_qt.canvas.ferrum_presentation_render_plan
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.engine
-import ferrum_qt.ferrum.presentation_creation_preview
 import ferrum_qt.main_window
 
 
@@ -26,38 +25,6 @@ def _scene_point(tab: object, x: float, y: float) -> PySide6.QtCore.QPoint:
 
 
 #============================================
-def test_arrow_preview_dispatches_each_closed_rust_overlay_variant(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
-		) -> None:
-	"""The Qt painter accepts the two canonical closed PyO3 overlay variants."""
-	del qapp
-	scene = PySide6.QtWidgets.QGraphicsScene()
-	tab = types.SimpleNamespace(view=PySide6.QtWidgets.QGraphicsView(scene))
-	axis = types.SimpleNamespace(start_x=0.0, start_y=0.0, end_x=10.0, end_y=0.0)
-	head = types.SimpleNamespace(vertices=[(10.0, 0.0), (8.0, -2.0), (8.0, 2.0)])
-	normal_type = type("NormalArrowGestureOverlayV1", (), {})
-	equilibrium_type = type("EquilibriumArrowGestureOverlayV1", (), {})
-	monkeypatch.setattr(ferrum_qt.ferrum.engine, "NormalArrowGestureOverlayV1", normal_type,
-		raising=False)
-	monkeypatch.setattr(ferrum_qt.ferrum.engine, "EquilibriumArrowGestureOverlayV1", equilibrium_type,
-		raising=False)
-	normal = normal_type()
-	normal.axis, normal.heads, normal.color, normal.width = axis, [head], "000000", 1.0
-	equilibrium = equilibrium_type()
-	equilibrium.lower_axis, equilibrium.upper_axis = axis, axis
-	equilibrium.source_head, equilibrium.destination_head = head, head
-	equilibrium.color, equilibrium.width = "000000", 1.0
-	normal_item = ferrum_qt.ferrum.presentation_creation_preview.create_straight_presentation_arrow_overlay(
-		tab, normal,
-	)
-	equilibrium_item = ferrum_qt.ferrum.presentation_creation_preview.create_straight_presentation_arrow_overlay(
-		tab, equilibrium,
-	)
-	assert normal_item.path().elementCount() > 0
-	assert equilibrium_item.path().elementCount() > normal_item.path().elementCount()
-
-
-#============================================
 def test_arrow_drag_uses_rust_preview_commits_and_selects_durable_root(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
 		) -> None:
@@ -65,6 +32,18 @@ def test_arrow_drag_uses_rust_preview_commits_and_selects_durable_root(
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_EDITABLE_CDML, "arrow.cdml")
 	try:
+		preview_plans = []
+		build_plan = (
+			ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan
+		)
+		def record_preview_plan(plan: object, telex: object) -> object:
+			preview_plans.append(plan)
+			return build_plan(plan, telex)
+		monkeypatch.setattr(
+			ferrum_qt.canvas.ferrum_presentation_render_plan,
+			"build_presentation_render_plan",
+			record_preview_plan,
+		)
 		refusals = []
 		monkeypatch.setattr(window, "_show_edit_refusal", lambda request: refusals.append(request))
 		window._register_native_tab(tab, activate=True)
@@ -86,6 +65,7 @@ def test_arrow_drag_uses_rust_preview_commits_and_selects_durable_root(
 		qapp.processEvents()
 		assert tab.current_snapshot.revision == before
 		assert window._line_gesture_intent.presentation_preview is not None
+		assert type(preview_plans[-1]) is ferrum_chem.PresentationRenderPlanV1
 		PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end)
 		qapp.processEvents()

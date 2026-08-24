@@ -367,6 +367,8 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 			return True
 		if self._cancel_local_document_open_for_close():
 			return False
+		if self._cancel_molecule_imports_for_close():
+			return False
 		if any(tab.requires_refresh or tab.is_dirty for tab in self._native_tabs_by_page.values()):
 			return False
 		for tab in tuple(self._native_tabs_by_page.values()):

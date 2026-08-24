@@ -9,11 +9,11 @@ use ferrum_document::{
     decode_interchange_v1, encode_interchange_v1, load_document_utf8_bytes_with_budget,
     local_cdml_ingress_format_v1, rewrite_cdml, validate_cdml, verify_cdml_rewrite,
 };
-use ferrum_domain::{CatalogFamilyV1, catalog_manifest_v1, search_catalog_v1};
-use ferrum_render::{
+use ferrum_document::{
     DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
     prepare_document_native_artifact_v1,
 };
+use ferrum_domain::{CatalogFamilyV1, catalog_manifest_v1, search_catalog_v1};
 use serde::Deserialize;
 
 use super::dto::*;
@@ -54,9 +54,12 @@ mod execution_reaction;
 #[path = "execution_tests.rs"]
 mod execution_tests;
 
+use super::document_hydrogen_materialization_v1::execute_document_molecule_hydrogen_materialize;
 use execution_chemistry::*;
+pub(crate) use execution_document::admit_document;
 use execution_document::*;
 pub(super) use execution_failure::ExecutionFailureV1;
+pub(crate) use execution_placement::hex_digest;
 use execution_placement::*;
 use execution_reaction::*;
 
@@ -76,7 +79,10 @@ pub(crate) fn execute_operation_with_runtime_v1<R: ChemistryRuntimeV1>(
     request_json: &str,
     runtime: &R,
 ) -> Result<OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1> {
-    execute_operation_with_runtime_and_smarts_response_limit_v1(
+    // The V1 protocol currently applies its shared bounded-response policy to
+    // SMARTS query and atom-oxidation observation.  The public constant keeps
+    // its established name; its value is the shared operation response budget.
+    execute_operation_with_runtime_and_shared_response_budget_v1(
         request_json,
         runtime,
         DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
@@ -91,67 +97,89 @@ pub(crate) fn execute_operation_with_runtime_and_smarts_response_limit_for_test<
     runtime: &R,
     response_limit: usize,
 ) -> Result<OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1> {
-    execute_operation_with_runtime_and_smarts_response_limit_v1(
+    execute_operation_with_runtime_and_shared_response_budget_v1(
         request_json,
         runtime,
         response_limit,
     )
 }
 
-fn execute_operation_with_runtime_and_smarts_response_limit_v1<R: ChemistryRuntimeV1>(
+fn execute_operation_with_runtime_and_shared_response_budget_v1<R: ChemistryRuntimeV1>(
     request_json: &str,
     runtime: &R,
-    smarts_response_limit: usize,
+    shared_response_budget: usize,
 ) -> Result<OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1> {
+    let request = match admit_operation_request_v1(request_json)? {
+        OperationProtocolAdmissionV1::Response(response) => return Ok(response),
+        OperationProtocolAdmissionV1::Request(request) => request,
+    };
+    let operation_kind = request.operation.kind();
+    let envelope = execute_admitted_operation(request.request_id, request.operation, runtime);
+    Ok(admit_shared_response_budget_v1(
+        envelope,
+        operation_kind,
+        shared_response_budget,
+    ))
+}
+
+/// Result of the shared V1 envelope-admission stage.
+pub(crate) enum OperationProtocolAdmissionV1 {
+    /// One complete, schema-admitted operation ready for an execution context.
+    Request(OperationProtocolRequestV1),
+    /// One typed envelope refusal produced before an operation exists.
+    Response(OperationProtocolEnvelopeV1),
+}
+
+/// Parse and admit the common V1 envelope before selecting an execution context.
+pub(crate) fn admit_operation_request_v1(
+    request_json: &str,
+) -> Result<OperationProtocolAdmissionV1, OperationProtocolInputErrorV1> {
     ensure_request_json_budget(request_json, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1)?;
     let value = serde_json::from_str::<serde_json::Value>(request_json)?;
     let wire = match serde_json::from_value::<WireRequestEnvelopeV1>(value) {
         Ok(wire) => wire,
         Err(error) => {
-            return Ok(error_response(
+            return Ok(OperationProtocolAdmissionV1::Response(error_response(
                 None,
                 None,
                 OperationProtocolErrorCategoryV1::InvalidRequest,
                 error,
-            ));
+            )));
         }
     };
     if wire.request_id.len() > MAX_REQUEST_ID_UTF8_BYTES_V1 {
-        return Ok(error_response(
+        return Ok(OperationProtocolAdmissionV1::Response(error_response(
             None,
             None,
             OperationProtocolErrorCategoryV1::ResourceLimit,
             format!("request identifier exceeds the {MAX_REQUEST_ID_UTF8_BYTES_V1}-byte V1 limit"),
-        ));
+        )));
     }
     if wire.schema != OPERATION_PROTOCOL_REQUEST_SCHEMA_V1 {
-        return Ok(error_response(
+        return Ok(OperationProtocolAdmissionV1::Response(error_response(
             Some(wire.request_id),
             None,
             OperationProtocolErrorCategoryV1::UnsupportedProtocolVersion,
             "unsupported protocol schema identifier",
-        ));
+        )));
     }
     let operation = match serde_json::from_value::<OperationProtocolOperationV1>(wire.operation) {
         Ok(operation) => operation,
         Err(error) => {
-            return Ok(error_response(
+            return Ok(OperationProtocolAdmissionV1::Response(error_response(
                 Some(wire.request_id),
                 None,
                 OperationProtocolErrorCategoryV1::InvalidRequest,
                 error,
-            ));
+            )));
         }
     };
-    let request = OperationProtocolRequestV1 {
-        schema: ProtocolRequestSchemaV1::V1,
-        request_id: wire.request_id,
-        operation,
-    };
-    let envelope = execute_admitted_operation(request.request_id, request.operation, runtime);
-    Ok(admit_smarts_response_envelope_v1(
-        envelope,
-        smarts_response_limit,
+    Ok(OperationProtocolAdmissionV1::Request(
+        OperationProtocolRequestV1 {
+            schema: ProtocolRequestSchemaV1::V1,
+            request_id: wire.request_id,
+            operation,
+        },
     ))
 }
 
@@ -230,6 +258,12 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
         OperationProtocolOperationV1::DocumentSmartsQuery(request) => {
             execute_document_smarts_query(request, runtime)
         }
+        OperationProtocolOperationV1::DocumentAtomOxidationObserve(request) => {
+            execute_document_atom_oxidation_observe(request)
+        }
+        OperationProtocolOperationV1::DocumentMoleculeHydrogenMaterialize(request) => {
+            execute_document_molecule_hydrogen_materialize(request)
+        }
         OperationProtocolOperationV1::DocumentMoleculeInterchangeImport(request) => {
             return execute_document_molecule_interchange_import_envelope(
                 &request_id,
@@ -246,35 +280,19 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
         }),
         Err(error) => operation_error_response(Some(request_id), Some(kind), error),
     };
-    if matches!(kind, ProtocolOperationKindV1::DocumentSmartsQuery) {
-        admit_smarts_response_envelope_v1(envelope, DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1)
-    } else {
-        envelope
-    }
+    envelope
 }
 
-fn admit_smarts_response_envelope_v1(
+pub(crate) fn admit_shared_response_budget_v1(
     envelope: OperationProtocolEnvelopeV1,
-    response_limit: usize,
+    operation: ProtocolOperationKindV1,
+    shared_response_budget: usize,
 ) -> OperationProtocolEnvelopeV1 {
-    let is_smarts_query = matches!(
-        &envelope,
-        OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
-            outcome: OperationProtocolOutcomeV1::DocumentSmartsQuery { .. },
-            ..
-        }) | OperationProtocolEnvelopeV1::Error(OperationProtocolErrorResponseV1 {
-            error: OperationProtocolErrorV1 {
-                operation: Some(ProtocolOperationKindV1::DocumentSmartsQuery),
-                ..
-            },
-            ..
-        })
-    );
-    if !is_smarts_query {
+    if !uses_shared_response_budget_v1(operation) {
         return envelope;
     }
     if canonical_protocol_envelope_json_v1(&envelope)
-        .is_ok_and(|bytes| bytes.len() <= response_limit)
+        .is_ok_and(|bytes| bytes.len() <= shared_response_budget)
     {
         return envelope;
     }
@@ -282,7 +300,21 @@ fn admit_smarts_response_envelope_v1(
         OperationProtocolEnvelopeV1::Success(response) => Some(response.request_id),
         OperationProtocolEnvelopeV1::Error(response) => response.request_id,
     };
-    response_size_exceeded_error(request_id)
+    response_size_exceeded_error(request_id, operation)
+}
+
+/// Closed V1 admission policy for operations whose result volume is bounded.
+///
+/// The current shared budget covers SMARTS result enumeration, oxidation
+/// observation, and explicit-hydrogen materialization. New operations must opt in here deliberately rather than
+/// inheriting a bound from a similarly shaped response.
+const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> bool {
+    matches!(
+        operation,
+        ProtocolOperationKindV1::DocumentSmartsQuery
+            | ProtocolOperationKindV1::DocumentAtomOxidationObserve
+            | ProtocolOperationKindV1::DocumentMoleculeHydrogenMaterialize
+    )
 }
 
 pub(crate) fn canonical_protocol_envelope_json_v1(
@@ -291,15 +323,21 @@ pub(crate) fn canonical_protocol_envelope_json_v1(
     serde_json::to_vec(envelope)
 }
 
-fn response_size_exceeded_error(request_id: Option<String>) -> OperationProtocolEnvelopeV1 {
+fn response_size_exceeded_error(
+    request_id: Option<String>,
+    operation: ProtocolOperationKindV1,
+) -> OperationProtocolEnvelopeV1 {
     OperationProtocolEnvelopeV1::Error(OperationProtocolErrorResponseV1 {
         schema: ProtocolErrorSchemaV1::V1,
         request_id,
         error: OperationProtocolErrorV1 {
             category: OperationProtocolErrorCategoryV1::ResourceLimit,
-            operation: Some(ProtocolOperationKindV1::DocumentSmartsQuery),
+            operation: Some(operation),
             message: "response_size_exceeded".to_owned(),
-            resource_limit_reason: Some(ProtocolResourceLimitReasonV1::ResponseSizeExceeded),
+            resource_limit: Some(ProtocolResourceLimitRefusalV1 {
+                reason: ProtocolResourceLimitReasonV1::ResponseSizeExceeded,
+                recovery: ProtocolResourceLimitRecoveryV1::ReduceRequestedResult,
+            }),
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -307,7 +345,7 @@ fn response_size_exceeded_error(request_id: Option<String>) -> OperationProtocol
     })
 }
 
-fn ensure_request_json_budget(
+pub(crate) fn ensure_request_json_budget(
     request_json: &str,
     limit: usize,
 ) -> Result<(), OperationProtocolInputErrorV1> {
@@ -331,7 +369,7 @@ fn error_response(
             category,
             operation,
             message: message.to_string(),
-            resource_limit_reason: None,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -339,7 +377,7 @@ fn error_response(
     })
 }
 
-fn operation_error_response(
+pub(crate) fn operation_error_response(
     request_id: Option<String>,
     operation: Option<ProtocolOperationKindV1>,
     failure: ExecutionFailureV1,
@@ -351,7 +389,7 @@ fn operation_error_response(
             category: failure.category,
             operation,
             message: failure.message,
-            resource_limit_reason: None,
+            resource_limit: failure.resource_limit,
             presentation_author_refusal: failure.presentation_author_refusal,
             catalog_placement_refusal: failure.catalog_placement_refusal,
             reaction_refusal: failure.reaction_refusal,

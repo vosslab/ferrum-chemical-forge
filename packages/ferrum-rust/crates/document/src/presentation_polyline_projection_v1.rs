@@ -1,12 +1,13 @@
 //! Shared point, polyline, and stroke projection for direct-root presentations.
 
-use super::presentation_stack_projection_v1::{
+use super::presentation_stack_projection_v1::presentation_target_from_child_v1;
+use super::{
+    Point3V1, PositiveFiniteV1, Rgb24V1, TypedChild, TypedClass, TypedDocument, TypedRecord,
+};
+use ferrum_document_projection::{
     PolylinePathV1, PolylineProjectionV1, PresentationFactProvenanceV1,
     PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationStrokeV1,
     PresentationTargetV1,
-};
-use super::{
-    Point3V1, PositiveFiniteV1, Rgb24V1, TypedChild, TypedClass, TypedDocument, TypedRecord,
 };
 
 const POINTS_PER_CENTIMETRE: f64 = 72.0 / 2.54;
@@ -43,8 +44,24 @@ pub(crate) fn polyline(
     defaults: RootStrokeDefaultsV1<'_>,
     round_bracket_member: bool,
     issues: &mut Vec<PresentationProjectionIssueV1>,
+) -> Result<Option<(PolylineProjectionKindV1, PolylineProjectionV1)>, crate::ProjectionError> {
+    let target = presentation_target_from_child_v1(child)?;
+    Ok(polyline_with_target(
+        child,
+        target,
+        defaults,
+        round_bracket_member,
+        issues,
+    ))
+}
+
+fn polyline_with_target(
+    child: &TypedChild,
+    target: PresentationTargetV1,
+    defaults: RootStrokeDefaultsV1<'_>,
+    round_bracket_member: bool,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
 ) -> Option<(PolylineProjectionKindV1, PolylineProjectionV1)> {
-    let target = PresentationTargetV1::from_child(child);
     let record = child.record();
     let is_wavy = record.attribute("style") == Some("wavy");
     let is_spline = spline(record);
@@ -77,7 +94,19 @@ pub(crate) fn polyline(
     };
     Some((
         kind,
-        PolylineProjectionV1::new(target, PolylinePathV1::new(points), stroke),
+        match PolylinePathV1::try_new(points)
+            .and_then(|path| PolylineProjectionV1::new(target.clone(), path, stroke.clone()))
+        {
+            Ok(polyline) => polyline,
+            Err(error) => {
+                issues.push(PresentationProjectionIssueV1::new(
+                    target,
+                    PresentationProjectionIssueCodeV1::InvalidPolylineGeometry,
+                    error.to_string(),
+                ));
+                return None;
+            }
+        },
     ))
 }
 
@@ -152,6 +181,7 @@ pub(crate) fn stroke_with_color_field(
         color(record, defaults.standard, target, issues, root_color_field);
     let (width, width_provenance) = width(record, defaults.standard, target, issues);
     PresentationStrokeV1::new(color, color_provenance, width, width_provenance)
+        .expect("typed-CDML stroke resolution always selects valid closed facts")
 }
 
 fn color(

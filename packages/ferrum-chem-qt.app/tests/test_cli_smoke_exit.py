@@ -21,6 +21,19 @@ def test_cli_accepts_a_positive_smoke_exit_duration(monkeypatch: pytest.MonkeyPa
 
 
 #============================================
+def test_cli_help_advertises_the_documented_public_command(
+		monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+		) -> None:
+	"""Module launch help retains the public Ferrum command identity."""
+	monkeypatch.setattr(sys, "argv", ["__main__.py", "--help"])
+
+	with pytest.raises(SystemExit):
+		ferrum_qt.cli.parse_args()
+
+	assert "usage: ferrum-qt " in capsys.readouterr().out
+
+
+#============================================
 def test_cli_accepts_a_receipt_only_with_a_positive_smoke_timer(
 		monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path,
 		) -> None:

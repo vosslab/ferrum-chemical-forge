@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use super::{
     binding::PyDocumentSession,
     document_error_binding::{RevisionConflictError, document_object_id},
-    projection_binding::PyPoint3V1,
+    render_binding::{PyRenderPlanV2, plan_from},
 };
 
 create_exception!(
@@ -38,6 +38,7 @@ enum PyAttachedCyclohexaneCategoryV1 {
     UnknownAnchor,
     IneligibleAnchor,
     InvalidPose,
+    RendererAdmission,
     SessionConflict,
 }
 
@@ -51,7 +52,7 @@ pub(crate) struct PyPendingAttachedCyclohexaneV1 {
     pending: PendingAttachedCyclohexaneV1,
 }
 
-/// Finite Rust-issued C6 geometry for a paint-only native-tab preview.
+/// Immutable renderer-issued C6 overlay for native-tab paint-only replay.
 #[pyclass(
     frozen,
     module = "ferrum_chem",
@@ -60,7 +61,7 @@ pub(crate) struct PyPendingAttachedCyclohexaneV1 {
 )]
 pub(crate) struct PyAttachedCyclohexanePreviewV1 {
     #[pyo3(get)]
-    vertices: Vec<PyPoint3V1>,
+    plan: PyRenderPlanV2,
 }
 
 /// Identity-free authoritative facts after the one committed transition.
@@ -103,7 +104,7 @@ impl PyDocumentSession {
         py: Python<'_>,
         pending: PyRef<'_, PyPendingAttachedCyclohexaneV1>,
     ) -> PyResult<PyAttachedCyclohexanePreviewV1> {
-        preview(&pending.pending).map_err(|error| attached_error(py, error))
+        preview(py, &pending.pending)
     }
 
     /// Commit the private C6 candidate once and return identity-free outcome facts.
@@ -137,19 +138,15 @@ fn begin(
 }
 
 fn preview(
+    py: Python<'_>,
     pending: &PendingAttachedCyclohexaneV1,
-) -> Result<PyAttachedCyclohexanePreviewV1, AttachedCyclohexaneSessionErrorV1> {
-    let vertices = pending
-        .preview_vertices()
-        .ok_or(AttachedCyclohexaneSessionErrorV1::Retired)?
-        .iter()
-        .map(|point| PyPoint3V1 {
-            x: point.x(),
-            y: point.y(),
-            z: point.z(),
-        })
-        .collect();
-    Ok(PyAttachedCyclohexanePreviewV1 { vertices })
+) -> PyResult<PyAttachedCyclohexanePreviewV1> {
+    let plan = pending
+        .render_plan_v1()
+        .ok_or_else(|| attached_error(py, AttachedCyclohexaneSessionErrorV1::Retired))?;
+    let plan = plan_from(py, plan)
+        .map_err(|_| attached_error(py, AttachedCyclohexaneSessionErrorV1::RendererAdmission))?;
+    Ok(PyAttachedCyclohexanePreviewV1 { plan })
 }
 
 fn commit(
@@ -191,6 +188,9 @@ fn category(error: AttachedCyclohexaneSessionErrorV1) -> PyAttachedCyclohexaneCa
         }
         AttachedCyclohexaneSessionErrorV1::InvalidPose => {
             PyAttachedCyclohexaneCategoryV1::InvalidPose
+        }
+        AttachedCyclohexaneSessionErrorV1::RendererAdmission => {
+            PyAttachedCyclohexaneCategoryV1::RendererAdmission
         }
         AttachedCyclohexaneSessionErrorV1::SessionConflict => {
             PyAttachedCyclohexaneCategoryV1::SessionConflict
@@ -314,8 +314,9 @@ mod tests {
         let owner_fence = fence(&owner);
         let owner_anchor = anchor(&owner);
         let mut pending = begin(&mut owner, owner_fence, owner_anchor, release()).expect("begin");
-        let preview_facts = preview(&pending.pending).expect("preview facts");
-        assert_eq!(preview_facts.vertices.len(), 6);
+        Python::attach(|py| {
+            preview(py, &pending.pending).expect("renderer plan preview");
+        });
         assert!(matches!(
             commit(&mut foreign, &mut pending.pending),
             Err(AttachedCyclohexaneSessionErrorV1::ForeignSession)
@@ -326,10 +327,10 @@ mod tests {
         );
         cancel(&owner, &mut pending.pending).expect("cancel");
         assert_eq!(owner.snapshot().expect("cancel unchanged"), owner_before);
-        assert!(matches!(
-            preview(&pending.pending),
-            Err(AttachedCyclohexaneSessionErrorV1::Retired)
-        ));
+        Python::attach(|py| match preview(py, &pending.pending) {
+            Err(error) => assert!(error.is_instance_of::<AttachedCyclohexaneAttachmentError>(py)),
+            Ok(_) => panic!("retired candidate must refuse preview"),
+        });
         assert!(matches!(
             commit(&mut owner, &mut pending.pending),
             Err(AttachedCyclohexaneSessionErrorV1::Retired)

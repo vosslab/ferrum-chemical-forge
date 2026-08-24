@@ -10,14 +10,12 @@ use std::hash::{Hash, Hasher};
 use ferrum_document::{
     AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DirectCdmlRootKindV1,
     DirectCdmlSemanticIndexV1, DirectReactionMemberV1, DirectReactionRoleV1, DocumentFenceV1,
-    DocumentSession, SessionOperationResultV1, delete_direct_cdml_reaction_definition_v1,
-    inspect_direct_reactions_v1, replace_direct_cdml_reaction_members_v1,
-};
-use ferrum_render::{
-    DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
-    document_observation_from_accepted_operation_v1,
+    DocumentSession, PendingCompleteCdmlMutationV1, SessionOperationResultV1,
+    delete_direct_cdml_reaction_definition_v1, inspect_direct_reactions_v1,
+    replace_direct_cdml_reaction_members_v1,
 };
 
+use crate::reaction_gesture_v1::map_complete_cdml_mutation_refusal_v1;
 use crate::{
     ReactionGestureErrorV1, ReactionSelectionV1, RenderInteractionErrorV1,
     RenderInteractionSessionV1,
@@ -120,8 +118,10 @@ enum ReactionLifecycleOperationV1 {
     DeleteDefinition,
 }
 pub struct PreparedReactionLifecycleV1 {
-    receipt: Option<ReactionLifecycleReceiptV1>,
+    pending: Option<PendingCompleteCdmlMutationV1>,
+    capability: AuthoringCapabilityV1,
     reaction_id: String,
+    membership_digest: String,
 }
 impl std::fmt::Debug for PreparedReactionLifecycleV1 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -129,7 +129,7 @@ impl std::fmt::Debug for PreparedReactionLifecycleV1 {
             .field("reaction_id", &self.reaction_id)
             .field(
                 "state",
-                &if self.receipt.is_some() {
+                &if self.pending.is_some() {
                     "prepared"
                 } else {
                     "consumed"
@@ -153,18 +153,6 @@ impl CommittedReactionLifecycleV1 {
         &self.result
     }
 }
-struct ReactionLifecycleReceiptV1 {
-    capability: AuthoringCapabilityV1,
-    source_fence: DocumentFenceV1,
-    candidate_revision: u64,
-    candidate_digest: [u8; 32],
-    reaction_id: String,
-    old_membership_digest: String,
-    candidate: String,
-    contract: ferrum_render_contract::PreflightedDocumentRenderV1,
-    plan: DocumentRenderPlanV1,
-}
-
 fn require_fence(
     session: &DocumentSession,
     fence: DocumentFenceV1,
@@ -337,62 +325,32 @@ pub fn prepare_reaction_lifecycle_v1(
     if candidate == source {
         return Err(ReactionGestureErrorV1::InvalidRequest);
     }
-    let contract = ferrum_render_contract::preflight_complete_document_v1(&candidate)
-        .map_err(|_| ReactionGestureErrorV1::UnrenderableDocument)?;
-    let candidate_session =
-        DocumentSession::load(&candidate).map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let observation = candidate_session
-        .observe(0)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let render_observation = document_observation_from_accepted_operation_v1(&observation)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    let plan = compose_document_render_plan_v1(&render_observation)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(ReactionGestureErrorV1::RendererExclusion);
-    }
-    let snapshot = candidate_session
-        .snapshot()
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
+    let pending = session
+        .prepare_complete_cdml_mutation_v1(gesture.fence, &candidate)
+        .map_err(map_complete_cdml_mutation_refusal_v1)?;
     Ok(PreparedReactionLifecycleV1 {
         reaction_id: gesture.reaction_id.clone(),
-        receipt: Some(ReactionLifecycleReceiptV1 {
-            capability: gesture.capability.clone(),
-            source_fence: gesture.fence,
-            candidate_revision: gesture
-                .fence
-                .revision()
-                .checked_add(1)
-                .ok_or(ReactionGestureErrorV1::SessionConflict)?,
-            candidate_digest: *snapshot.digest(),
-            reaction_id: gesture.reaction_id.clone(),
-            old_membership_digest: gesture.membership_digest.clone(),
-            candidate,
-            contract,
-            plan,
-        }),
+        membership_digest: gesture.membership_digest.clone(),
+        pending: Some(pending),
+        capability: gesture.capability.clone(),
     })
 }
 pub fn commit_reaction_lifecycle_v1(
     session: &mut RenderInteractionSessionV1,
     prepared: &mut PreparedReactionLifecycleV1,
 ) -> Result<CommittedReactionLifecycleV1, ReactionGestureErrorV1> {
-    let receipt = prepared
-        .receipt
+    let mut pending = prepared
+        .pending
         .take()
         .ok_or(ReactionGestureErrorV1::ReplayedGesture)?;
-    if !receipt
+    if !prepared
         .capability
         .belongs_to(&session.authoring_capability_issuer_v1())
     {
-        prepared.receipt = Some(receipt);
+        prepared.pending = Some(pending);
         return Err(ReactionGestureErrorV1::ForeignSession);
     }
-    let claim = match receipt
+    let claim = match prepared
         .capability
         .claim_for_commit(&session.authoring_capability_issuer_v1())
     {
@@ -401,46 +359,20 @@ pub fn commit_reaction_lifecycle_v1(
             unreachable!("owner checked above")
         }
         Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
-            prepared.receipt = Some(receipt);
+            prepared.pending = Some(pending);
             return Err(ReactionGestureErrorV1::ReplayedGesture);
         }
     };
     let result = (|| {
-        require_fence(session, receipt.source_fence)?;
         let source = session
             .snapshot()
             .map_err(|_| ReactionGestureErrorV1::SessionConflict)?
             .cdml()
             .to_owned();
-        validate_definition(
-            &source,
-            &receipt.reaction_id,
-            &receipt.old_membership_digest,
-        )?;
-        if receipt.reaction_id != prepared.reaction_id
-            || receipt.candidate_revision != receipt.source_fence.revision().saturating_add(1)
-            || receipt.contract.source() != receipt.candidate
-            || receipt
-                .plan
-                .outcomes()
-                .iter()
-                .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-        {
-            return Err(ReactionGestureErrorV1::RendererExclusion);
-        }
-        let candidate_session = DocumentSession::load(&receipt.candidate)
-            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-        if *candidate_session
-            .snapshot()
-            .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?
-            .digest()
-            != receipt.candidate_digest
-        {
-            return Err(ReactionGestureErrorV1::RenderPreparation);
-        }
+        validate_definition(&source, &prepared.reaction_id, &prepared.membership_digest)?;
         session
-            .commit_complete_cdml_transaction_v1(receipt.source_fence, &receipt.candidate)
-            .map_err(|_| ReactionGestureErrorV1::SessionConflict)
+            .commit_complete_cdml_mutation_v1(&mut pending)
+            .map_err(map_complete_cdml_mutation_refusal_v1)
     })();
     match result {
         Ok(result) => {
@@ -451,7 +383,7 @@ pub fn commit_reaction_lifecycle_v1(
             })
         }
         Err(error) => {
-            prepared.receipt = Some(receipt);
+            prepared.pending = Some(pending);
             Err(error)
         }
     }

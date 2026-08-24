@@ -6,7 +6,8 @@ use super::{
 };
 use crate::{
     CDML_NAMESPACE, PlusPropertiesPatchV1, PlusPropertiesPatchV1Error, PlusPropertyChangeV1,
-    PresentationFactProvenanceV1, PresentationRootProjectionV1, Rgb24V1, element_name,
+    PresentationFactProvenanceV1, PresentationFontFaceV1, PresentationRootProjectionV1, Rgb24V1,
+    element_name,
 };
 use xot::Xot;
 
@@ -35,7 +36,7 @@ fn plus(observation: &crate::SessionDocumentObservationV1) -> &crate::PlusProjec
 #[test]
 fn plus_properties_commit_once_preserve_extensions_and_follow_history() {
     let changes = vec![
-        PlusPropertyChangeV1::FontFamily("  Telex  ".to_owned()),
+        PlusPropertyChangeV1::FontFace(PresentationFontFaceV1::TelexRegularV1),
         PlusPropertyChangeV1::FontSize(18),
         PlusPropertyChangeV1::Color(Rgb24V1::new("#AbC").unwrap()),
         PlusPropertyChangeV1::BackgroundColor(None),
@@ -46,11 +47,11 @@ fn plus_properties_commit_once_preserve_extensions_and_follow_history() {
         .expect("patch must commit");
     let projected = plus(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert_eq!(projected.font().family(), Some("Telex"));
+    assert_eq!(projected.font().font_face().id(), "telex_regular_v1");
     assert_eq!(projected.font().size().value(), 18.0);
     assert_eq!(projected.font().color().as_str(), "#aabbcc");
     assert_eq!(
-        projected.font().family_provenance(),
+        projected.font().font_face_provenance(),
         PresentationFactProvenanceV1::Root
     );
     assert_eq!(projected.background().color(), None);
@@ -84,9 +85,15 @@ fn plus_properties_commit_once_preserve_extensions_and_follow_history() {
     );
 
     let undone = session.undo(1).expect("one patch must undo once");
-    assert_eq!(plus(undone.observation()).font().family(), None);
+    assert_eq!(
+        plus(undone.observation()).font().font_face().id(),
+        "telex_regular_v1"
+    );
     let redone = session.redo(2).expect("one patch must redo once");
-    assert_eq!(plus(redone.observation()).font().family(), Some("Telex"));
+    assert_eq!(
+        plus(redone.observation()).font().font_face().id(),
+        "telex_regular_v1"
+    );
 }
 
 #[test]
@@ -104,13 +111,6 @@ fn plus_properties_reject_invalid_intent_and_targets_without_mutation() {
             ],
         ),
         Err(PlusPropertiesPatchV1Error::DuplicateChange { property: "color" })
-    );
-    assert_eq!(
-        PlusPropertiesPatchV1::new(
-            "p",
-            vec![PlusPropertyChangeV1::FontFamily("   ".to_owned())],
-        ),
-        Err(PlusPropertiesPatchV1Error::BlankFontFamily)
     );
 
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
@@ -130,14 +130,16 @@ fn plus_properties_reject_invalid_intent_and_targets_without_mutation() {
 
     let ambiguous_source = SOURCE.replace(
         "<v:opaque retained=\"yes\"/>",
-        "<c:font family=\"one\"/><c:font family=\"two\"/><v:opaque retained=\"yes\"/>",
+        "<c:font/><c:font/><v:opaque retained=\"yes\"/>",
     );
     let mut ambiguous = DocumentSession::load(&ambiguous_source).expect("source loads");
     let before = ambiguous.snapshot().expect("snapshot");
     assert!(matches!(
         ambiguous.submit(
             0,
-            patch(vec![PlusPropertyChangeV1::FontFamily("Telex".to_owned())])
+            patch(vec![PlusPropertyChangeV1::FontFace(
+                PresentationFontFaceV1::TelexRegularV1
+            )])
         ),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(TypedDocumentError::AmbiguousPlusFonts(_))

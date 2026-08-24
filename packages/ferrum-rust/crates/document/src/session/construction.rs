@@ -2,9 +2,12 @@
 
 use super::{
     DocumentSession, DocumentSessionError, GeneratedIdSequences, RevisionState, SavedBaseline,
-    SessionHistory, TypedDocument,
+    TypedDocument,
 };
 use crate::AuthoringCapabilityIssuerV1;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_RENDERER_ADMISSION_ISSUER_V1: AtomicU64 = AtomicU64::new(1);
 
 pub(crate) const EMPTY_DOCUMENT_SOURCE_V1: &str =
     r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"/>"#;
@@ -37,7 +40,10 @@ impl DocumentSession {
         let saved_baseline = SavedBaseline::from_state(&initial);
         Ok(Self {
             authoring_capability_issuer: AuthoringCapabilityIssuerV1::new(),
-            history: SessionHistory::new(initial, 20),
+            renderer_admission_issuer: NEXT_RENDERER_ADMISSION_ISSUER_V1
+                .fetch_add(1, Ordering::Relaxed),
+            next_renderer_admission_sequence: 1,
+            admitted_history: super::admitted_transition_v1::initial_admitted_history_v1(initial),
             saved_baseline,
             generated_ids: GeneratedIdSequences::initial(),
         })

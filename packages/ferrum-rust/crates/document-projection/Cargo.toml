@@ -1,0 +1,19 @@
+[package]
+name = "ferrum-document-projection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrum-core = { path = "../core" }
+ferrum-document-model = { path = "../document-model" }
+serde = { version = "*", features = ["derive"] }
+thiserror = { version = "*" }

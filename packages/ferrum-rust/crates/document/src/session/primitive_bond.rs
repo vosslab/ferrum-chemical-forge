@@ -10,17 +10,16 @@ impl DocumentSession {
     ) -> Result<PendingCreateAtom, DocumentSessionError> {
         self.require_current(expected_revision)?;
         let molecule_id = self.resolve_molecule_id(molecule_object_id)?;
-        let (atom_id, generated_ids) = self
-            .generated_ids
-            .reserve_atom(self.history.current().document().indexed())?;
+        let (atom_id, effects) =
+            self.reserve_generated_ids_for_transition_v1(|ids, indexed| ids.reserve_atom(indexed))?;
         let pending = self.prepare_create_atom_candidate(
             expected_revision,
             &molecule_id,
             atom_id,
             element,
             position,
+            effects,
         )?;
-        self.generated_ids = generated_ids;
         Ok(pending)
     }
 
@@ -31,29 +30,28 @@ impl DocumentSession {
         atom_id: PersistentId,
         element: &str,
         position: Point3V1,
+        effects: SessionTransitionEffectsV1,
     ) -> Result<PendingCreateAtom, DocumentSessionError> {
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .with_insert_atom(molecule_id, &atom_id, element, position)
             .map_err(SessionOperationError::Candidate)?;
         let revision = self
-            .history
-            .current()
+            .current_state_v1()
             .next_revision()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            self.current_digest_v1(),
+            candidate,
+            effects,
+        )?;
         Ok(PendingCreateAtom {
-            revision: expected_revision,
-            token,
             identifier: atom_id,
-            candidate: Some(candidate),
+            transition,
         })
     }
 
@@ -63,8 +61,7 @@ impl DocumentSession {
     ) -> Result<PersistentId, SessionOperationError> {
         let object_id = molecule_object_id.as_str().to_owned();
         let record = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .resolve_document_object_id(molecule_object_id)
             .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_id.clone()))?;
@@ -89,12 +86,9 @@ impl DocumentSession {
         expected_revision: u64,
         pending: &mut PendingCreateAtom,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
+        self.require_current(expected_revision)?;
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
     }
 
     /// Prepare one molecule-local bond insertion at the current revision.
@@ -122,12 +116,10 @@ impl DocumentSession {
             return Err(SessionOperationError::CreateBondAcrossMolecules.into());
         }
         self.reject_existing_bond(&start_molecule, &start_atom, &end_atom)?;
-        let (bond_id, generated_ids) = self
-            .generated_ids
-            .reserve_bond(self.history.current().document().indexed())?;
+        let (bond_id, effects) =
+            self.reserve_generated_ids_for_transition_v1(|ids, indexed| ids.reserve_bond(indexed))?;
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .with_insert_bond(
                 &start_molecule,
@@ -138,22 +130,20 @@ impl DocumentSession {
             )
             .map_err(SessionOperationError::Candidate)?;
         let revision = self
-            .history
-            .current()
+            .current_state_v1()
             .next_revision()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.generated_ids = generated_ids;
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            self.current_digest_v1(),
+            candidate,
+            effects,
+        )?;
         Ok(PendingCreateBond {
-            revision: expected_revision,
-            token,
             identifier: bond_id,
-            candidate: Some(candidate),
+            transition,
         })
     }
 
@@ -163,12 +153,9 @@ impl DocumentSession {
         expected_revision: u64,
         pending: &mut PendingCreateBond,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
+        self.require_current(expected_revision)?;
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
     }
 
     /// Prepare one atom and its bond to an existing durable atom as one edit.
@@ -211,12 +198,12 @@ impl DocumentSession {
     ) -> Result<PendingCreateBondedAtom, DocumentSessionError> {
         self.require_current(expected_revision)?;
         let (molecule_id, start_atom_id) = self.resolve_bond_atom(start_atom_object_id)?;
-        let (identities, generated_ids) = self
-            .generated_ids
-            .reserve_bonded_atom(self.history.current().document().indexed())?;
+        let (identities, effects) =
+            self.reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                ids.reserve_bonded_atom(indexed)
+            })?;
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .with_insert_bonded_atom(
                 &molecule_id,
@@ -232,23 +219,21 @@ impl DocumentSession {
             )
             .map_err(SessionOperationError::Candidate)?;
         let revision = self
-            .history
-            .current()
+            .current_state_v1()
             .next_revision()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.generated_ids = generated_ids;
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            self.current_digest_v1(),
+            candidate,
+            effects,
+        )?;
         Ok(PendingCreateBondedAtom {
-            revision: expected_revision,
-            token,
             atom_identifier: identities.atom,
             bond_identifier: identities.bond,
-            candidate: Some(candidate),
+            transition,
         })
     }
 
@@ -258,12 +243,9 @@ impl DocumentSession {
         expected_revision: u64,
         pending: &mut PendingCreateBondedAtom,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
+        self.require_current(expected_revision)?;
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
     }
 
     pub(super) fn resolve_bond_atom(
@@ -271,7 +253,7 @@ impl DocumentSession {
         object_id: &DocumentObjectIdV1,
     ) -> Result<(PersistentId, PersistentId), SessionOperationError> {
         let object_key = object_id.as_str().to_owned();
-        let document = self.history.current().document();
+        let document = self.current_document_v1();
         let target = document
             .resolve_document_object_id(object_id)
             .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_key.clone()))?;
@@ -308,7 +290,7 @@ impl DocumentSession {
         start_atom_id: &PersistentId,
         end_atom_id: &PersistentId,
     ) -> Result<(), SessionOperationError> {
-        let document = self.history.current().document();
+        let document = self.current_document_v1();
         let molecule = document
             .root()
             .children_of(TypedClass::Molecule)
@@ -338,44 +320,36 @@ impl DocumentSession {
 
     #[cfg(test)]
     pub(crate) fn provisional_token_facts_for_test(&self) -> (u64, usize, usize) {
-        self.history
-            .current()
-            .document()
+        self.current_document_v1()
             .indexed()
             .provisional_token_facts_for_test()
     }
+}
 
-    pub(super) fn commit_prepared_candidate(
-        &mut self,
-        expected_revision: u64,
-        prepared_revision: u64,
-        token: &ProvisionalToken,
-        candidate: &mut Option<RevisionState>,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        if candidate.is_none() {
-            return Err(DocumentSessionError::PreparedOperationConsumed);
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
         }
-        if prepared_revision != expected_revision {
-            return Err(DocumentSessionError::RevisionConflict {
-                expected: prepared_revision,
-                actual: expected_revision,
-            });
+        AdmittedSessionTransitionRefusalV1::Replayed
+        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
         }
-        self.history
-            .current()
-            .document()
-            .verify_provisional_token(token)
-            .map_err(prepared::map_prepared_token_error)?;
-        self.history
-            .current_mut()
-            .document_mut()
-            .consume_provisional_token(token)
-            .map_err(SessionOperationError::Candidate)?;
-        let state = candidate
-            .take()
-            .expect("the candidate presence check established this invariant");
-        self.history.append(state);
-        self.operation_result()
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
+        }
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
+        }
     }
 }

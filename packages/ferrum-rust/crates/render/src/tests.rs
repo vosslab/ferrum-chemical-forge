@@ -4,6 +4,8 @@
 mod atom_bond_layout;
 #[path = "tests/composite_recording_v1.rs"]
 mod composite_recording_v1;
+#[path = "tests/depiction_profile_v1.rs"]
+mod depiction_profile_v1;
 #[path = "tests/direct_glycosidic_haworth.rs"]
 mod direct_glycosidic_haworth;
 #[path = "tests/document_artifact_v1.rs"]
@@ -22,5 +24,7 @@ mod model_contract;
 mod pdf_backend;
 #[path = "tests/presentation_path_v1.rs"]
 mod presentation_path_v1;
+#[path = "tests/presentation_plan_v1.rs"]
+mod presentation_plan_v1;
 #[path = "tests/svg_backend.rs"]
 mod svg_backend;

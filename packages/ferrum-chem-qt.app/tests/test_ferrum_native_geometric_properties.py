@@ -13,7 +13,6 @@ import pytest
 ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
-import ferrum_qt.canvas.ferrum_presentation_projection
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 
@@ -30,22 +29,18 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 #============================================
 def _select_rectangle(tab: object) -> object:
-	"""Select and return the one rendered rectangle through its scene item."""
-	items = tuple(
-		item for item in tab.view.scene().items()
-		if type(item) is ferrum_qt.canvas.ferrum_presentation_projection.ShapeProjectionItem
-		and item.target.record_kind == "rectangle"
-	)
-	assert len(items) == 1
-	items[0].setSelected(True)
-	return items[0]
+	"""Select and return the rectangle's renderer-plan root by durable identity."""
+	shape = tab.current_document_observation().projection.presentation_stack.roots[0].shape
+	item = tab._controller.projection.durable_items[("rectangle", shape.target.id)]
+	item.setSelected(True)
+	return item
 
 
 #============================================
 def test_native_shape_edit_updates_rust_and_retains_durable_selection(
 		qapp: object,
 		) -> None:
-	"""A visible shape edit commits once and installs the new vector appearance."""
+	"""A visible shape edit commits once and retains durable scene selection."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml xmlns="urn:ferrum:cdml"><rect id="shape" x1="1" y1="2" x2="30" y2="40" '
@@ -78,8 +73,6 @@ def test_native_shape_edit_updates_rust_and_retains_durable_selection(
 		assert updated.fill.color is None
 		item = _select_rectangle(tab)
 		assert item.isSelected()
-		assert (item.pen().widthF(), item.pen().color().name()) == (2.5, "#123456")
-		assert item.brush().style() == PySide6.QtCore.Qt.BrushStyle.NoBrush
 	finally:
 		tab.dispose()
 

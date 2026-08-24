@@ -6,7 +6,6 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # PIP3 modules
-import PySide6.QtGui
 import PySide6.QtWidgets
 import pytest
 
@@ -77,7 +76,7 @@ def test_native_rectangular_bracket_uses_pair_facts_selection_and_history(
 def test_native_round_pair_uses_rust_issued_cubic_paths_without_fallback(
 		qapp: object,
 		) -> None:
-	"""Create a round pair and render its Rust-issued sides as cubic paths."""
+	"""Create a round pair and retain both renderer-plan targets as selection."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "round-bracket.cdml",
@@ -92,17 +91,5 @@ def test_native_round_pair_uses_rust_issued_cubic_paths_without_fallback(
 		]
 		assert stack.issues == []
 		assert len(tab._controller.projection.selected_durable_targets()) == 2
-		items = tuple(
-			item for item in tab.view.scene().items()
-			if type(item) is (
-				ferrum_qt.canvas.ferrum_presentation_projection.PolylineProjectionItem
-			)
-		)
-		assert len(items) == 2
-		assert all(
-			item.path().elementAt(1).type
-			== PySide6.QtGui.QPainterPath.ElementType.CurveToElement
-			for item in items
-		)
 	finally:
 		tab.dispose()

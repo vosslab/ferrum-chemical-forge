@@ -1,15 +1,13 @@
 //! Renderer-preflighted, Rust-owned quadratic equilibrium-arrow authoring.
 
 use ferrum_document::{
-    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, CurvedEquilibriumArrowGeometryErrorV1,
-    DocumentFenceV1, DocumentSession, PendingCreatePresentationV1, Point3V1,
-    PresentationCreateErrorV1, PresentationCreateRequestV1, PresentationGesturePoint2V1,
-    PresentationRootSelectorV1, SessionOperationResultV1, curved_equilibrium_arrow_geometry_v1,
+    ArrowProjectionKindV1, AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1,
+    DocumentFenceV1, DocumentSession, PendingCreatePresentationV1, Point3V1, PositiveFiniteV1,
+    PresentationArrowPreviewRequestV1, PresentationCreateErrorV1, PresentationCreateRequestV1,
+    PresentationFactProvenanceV1, PresentationGesturePoint2V1, PresentationRootSelectorV1,
+    PresentationStrokeV1, Rgb24V1, SessionOperationResultV1,
 };
-use ferrum_render::{
-    DocumentRenderOutcomeV1, compose_document_render_plan_v1,
-    document_observation_from_accepted_operation_v1,
-};
+use ferrum_render::{PresentationRenderPlanV1, lower_arrow_preview_v1};
 use thiserror::Error;
 
 const MAXIMUM_EXTENT_PT: f64 = 20_000.0;
@@ -28,55 +26,13 @@ pub struct CurvedEquilibriumArrowGestureV1 {
 pub struct CurvedEquilibriumArrowPreviewV1 {
     gesture: CurvedEquilibriumArrowGestureV1,
     end: PresentationGesturePoint2V1,
-    overlay: CurvedEquilibriumArrowOverlayV1,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CurvedEquilibriumArrowOverlayV1 {
-    start: PresentationGesturePoint2V1,
-    control: PresentationGesturePoint2V1,
-    end: PresentationGesturePoint2V1,
-    lower_axis: [PresentationGesturePoint2V1; 4],
-    upper_axis: [PresentationGesturePoint2V1; 4],
-    lower_head: [PresentationGesturePoint2V1; 4],
-    upper_head: [PresentationGesturePoint2V1; 4],
-}
-
-impl CurvedEquilibriumArrowOverlayV1 {
-    #[must_use]
-    pub const fn start(&self) -> PresentationGesturePoint2V1 {
-        self.start
-    }
-    #[must_use]
-    pub const fn control(&self) -> PresentationGesturePoint2V1 {
-        self.control
-    }
-    #[must_use]
-    pub const fn end(&self) -> PresentationGesturePoint2V1 {
-        self.end
-    }
-    #[must_use]
-    pub const fn lower_axis(&self) -> &[PresentationGesturePoint2V1; 4] {
-        &self.lower_axis
-    }
-    #[must_use]
-    pub const fn upper_axis(&self) -> &[PresentationGesturePoint2V1; 4] {
-        &self.upper_axis
-    }
-    #[must_use]
-    pub const fn lower_head(&self) -> &[PresentationGesturePoint2V1; 4] {
-        &self.lower_head
-    }
-    #[must_use]
-    pub const fn upper_head(&self) -> &[PresentationGesturePoint2V1; 4] {
-        &self.upper_head
-    }
+    plan: PresentationRenderPlanV1,
 }
 
 impl CurvedEquilibriumArrowPreviewV1 {
     #[must_use]
-    pub const fn overlay(&self) -> &CurvedEquilibriumArrowOverlayV1 {
-        &self.overlay
+    pub const fn plan(&self) -> &PresentationRenderPlanV1 {
+        &self.plan
     }
 }
 
@@ -218,11 +174,11 @@ pub fn preview_curved_equilibrium_arrow_gesture_v1(
         return Err(CurvedEquilibriumArrowGestureErrorV1::ForeignSession);
     }
     require_fence(session, gesture.fence)?;
-    let overlay = geometry(gesture.start, gesture.control, end)?;
+    let plan = preview_plan(gesture.start, gesture.control, end)?;
     Ok(CurvedEquilibriumArrowPreviewV1 {
         gesture: gesture.clone(),
         end,
-        overlay,
+        plan,
     })
 }
 
@@ -275,27 +231,6 @@ pub fn prepare_curved_equilibrium_arrow_gesture_v1(
         )
         .map_err(map_presentation_create_error)?;
     let identifier = pending.identifier().as_str().to_owned();
-    let candidate = pending
-        .candidate_cdml_for_render_preflight_v1()
-        .ok_or(CurvedEquilibriumArrowGestureErrorV1::ReplayedGesture)?;
-    ferrum_render_contract::preflight_complete_document_v1(&candidate)
-        .map_err(|_| CurvedEquilibriumArrowGestureErrorV1::RenderPreparation)?;
-    let candidate_session = DocumentSession::load(&candidate)
-        .map_err(|_| CurvedEquilibriumArrowGestureErrorV1::RenderPreparation)?;
-    let observation = candidate_session
-        .observe(0)
-        .map_err(|_| CurvedEquilibriumArrowGestureErrorV1::RenderPreparation)?;
-    let render_observation = document_observation_from_accepted_operation_v1(&observation)
-        .map_err(|_| CurvedEquilibriumArrowGestureErrorV1::RenderPreparation)?;
-    let plan = compose_document_render_plan_v1(&render_observation)
-        .map_err(|_| CurvedEquilibriumArrowGestureErrorV1::RenderPreparation)?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(CurvedEquilibriumArrowGestureErrorV1::RenderPreparation);
-    }
     Ok(PreparedCurvedEquilibriumArrowV1 {
         pending: Some(pending),
         identifier,
@@ -309,6 +244,16 @@ pub fn commit_curved_equilibrium_arrow_gesture_v1(
     session: &mut DocumentSession,
     prepared: &mut PreparedCurvedEquilibriumArrowV1,
 ) -> Result<CommittedCurvedEquilibriumArrowV1, CurvedEquilibriumArrowGestureErrorV1> {
+    if prepared
+        .pending
+        .as_ref()
+        .ok_or(CurvedEquilibriumArrowGestureErrorV1::ReplayedGesture)?
+        .identifier()
+        .as_str()
+        != prepared.identifier
+    {
+        return Err(CurvedEquilibriumArrowGestureErrorV1::RenderPreparation);
+    }
     let mut pending = prepared
         .pending
         .take()
@@ -347,6 +292,9 @@ fn map_presentation_create_error(
         PresentationCreateErrorV1::SessionConflict => {
             CurvedEquilibriumArrowGestureErrorV1::SessionConflict
         }
+        PresentationCreateErrorV1::RendererAdmission => {
+            CurvedEquilibriumArrowGestureErrorV1::RenderPreparation
+        }
     }
 }
 
@@ -362,52 +310,50 @@ fn require_fence(
         .ok_or(CurvedEquilibriumArrowGestureErrorV1::StaleSnapshot)
 }
 
-fn geometry(
+fn preview_plan(
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
-) -> Result<CurvedEquilibriumArrowOverlayV1, CurvedEquilibriumArrowGestureErrorV1> {
+) -> Result<PresentationRenderPlanV1, CurvedEquilibriumArrowGestureErrorV1> {
     if [start, control, end]
         .into_iter()
         .any(|point| point.x().abs() > MAXIMUM_EXTENT_PT || point.y().abs() > MAXIMUM_EXTENT_PT)
     {
         return Err(CurvedEquilibriumArrowGestureErrorV1::ExceedsGeometryLimit);
     }
-    let issued = curved_equilibrium_arrow_geometry_v1(point3(start), point3(control), point3(end))
-        .map_err(geometry_error)?;
-    Ok(CurvedEquilibriumArrowOverlayV1 {
-        start,
-        control,
-        end,
-        lower_axis: issued.lower().axis().map(point2),
-        upper_axis: issued.upper().axis().map(point2),
-        lower_head: issued.lower().head().map(point2),
-        upper_head: issued.upper().head().map(point2),
-    })
-}
-
-fn geometry_error(
-    error: CurvedEquilibriumArrowGeometryErrorV1,
-) -> CurvedEquilibriumArrowGestureErrorV1 {
-    match error {
-        CurvedEquilibriumArrowGeometryErrorV1::InvalidPoint => {
-            CurvedEquilibriumArrowGestureErrorV1::InvalidPoint
-        }
-        CurvedEquilibriumArrowGeometryErrorV1::CollapsedSpan => {
-            CurvedEquilibriumArrowGestureErrorV1::CollapsedSpan
-        }
-        CurvedEquilibriumArrowGeometryErrorV1::ControlTooNearChord => {
-            CurvedEquilibriumArrowGestureErrorV1::ControlTooNearChord
-        }
+    let dx = end.x() - start.x();
+    let dy = end.y() - start.y();
+    let span = dx.hypot(dy);
+    if !span.is_finite() || span < 2.0 {
+        return Err(CurvedEquilibriumArrowGestureErrorV1::CollapsedSpan);
     }
+    let control_distance =
+        ((control.x() - start.x()) * dy - (control.y() - start.y()) * dx).abs() / span;
+    if !control_distance.is_finite() || control_distance < 1.0 {
+        return Err(CurvedEquilibriumArrowGestureErrorV1::ControlTooNearChord);
+    }
+    let request = PresentationArrowPreviewRequestV1::new(
+        vec![point3(start), point3(control), point3(end)],
+        ArrowProjectionKindV1::CurvedEquilibrium,
+        builtin_stroke(),
+    )
+    .map_err(|_| CurvedEquilibriumArrowGestureErrorV1::InvalidPoint)?;
+    lower_arrow_preview_v1(&request)
+        .map_err(|_| CurvedEquilibriumArrowGestureErrorV1::ControlTooNearChord)
 }
 
 fn point3(point: PresentationGesturePoint2V1) -> Point3V1 {
     Point3V1::new(point.x(), point.y(), 0.0).expect("validated finite geometry")
 }
 
-fn point2(point: Point3V1) -> PresentationGesturePoint2V1 {
-    PresentationGesturePoint2V1::new(point.x(), point.y()).expect("issued finite geometry")
+fn builtin_stroke() -> PresentationStrokeV1 {
+    PresentationStrokeV1::new(
+        Rgb24V1::new("#000000").expect("closed builtin arrow color is valid"),
+        PresentationFactProvenanceV1::Builtin,
+        PositiveFiniteV1::new(1.0).expect("closed builtin arrow width is positive"),
+        PresentationFactProvenanceV1::Builtin,
+    )
+    .expect("closed builtin arrow stroke is coherent")
 }
 
 #[cfg(test)]
@@ -426,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn curved_equilibrium_authoring_issues_two_renderable_lanes_and_commits_closed_cdml() {
+    fn curved_equilibrium_authoring_commits_closed_cdml() {
         for control_y in [12.0, 35.0] {
             let mut session = DocumentSession::load(EMPTY).expect("empty session");
             let gesture = begin_curved_equilibrium_arrow_gesture_v1(
@@ -439,14 +385,6 @@ mod tests {
             let preview =
                 preview_curved_equilibrium_arrow_gesture_v1(&session, &gesture, point(80.0, 0.0))
                     .expect("valid preview");
-            assert!(
-                preview
-                    .overlay()
-                    .lower_axis()
-                    .iter()
-                    .chain(preview.overlay().upper_axis().iter())
-                    .all(|point| point.x().is_finite() && point.y().is_finite())
-            );
             let mut prepared =
                 prepare_curved_equilibrium_arrow_gesture_v1(&mut session, &gesture, &preview)
                     .expect("renderer-preflighted receipt");

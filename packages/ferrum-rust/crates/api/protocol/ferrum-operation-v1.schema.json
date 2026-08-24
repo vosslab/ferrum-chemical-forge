@@ -218,6 +218,122 @@
       ],
       "type": "object"
     },
+    "DocumentAtomOxidationObservationV1": {
+      "description": "Completed V1 oxidation observation for one fenced durable atom selection.",
+      "oneOf": [
+        {
+          "properties": {
+            "oxidation_number": {
+              "format": "int16",
+              "maximum": 32767,
+              "minimum": -32768,
+              "type": "integer"
+            },
+            "status": {
+              "const": "accepted",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "oxidation_number"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "unavailable_reason": {
+              "$ref": "#/$defs/DocumentAtomOxidationUnavailableReasonV1"
+            }
+          },
+          "required": [
+            "status",
+            "unavailable_reason"
+          ],
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "atom_id": {
+          "type": "string"
+        },
+        "convention": {
+          "type": "string"
+        },
+        "document_root_order": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "molecule_id": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_digest_hex": {
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "source_revision",
+        "source_digest_hex",
+        "molecule_id",
+        "atom_id",
+        "document_root_order",
+        "convention"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "DocumentAtomOxidationObserveRequestV1": {
+      "additionalProperties": false,
+      "description": "Stateless selected-atom oxidation observation over one fenced document snapshot.",
+      "properties": {
+        "atom_id": {
+          "type": "string"
+        },
+        "document": {
+          "$ref": "#/$defs/DocumentSnapshotRequestV1"
+        },
+        "molecule_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "document",
+        "molecule_id",
+        "atom_id"
+      ],
+      "type": "object"
+    },
+    "DocumentAtomOxidationUnavailableReasonV1": {
+      "description": "Closed root-profile reasons for a completed unavailable observation.",
+      "enum": [
+        "element_outside_profile",
+        "formal_charge_unavailable",
+        "hydrogen_topology_unsupported",
+        "aromaticity_unsupported",
+        "radical_unsupported",
+        "bond_order_unavailable",
+        "bond_order_unsupported",
+        "non_atom_vertex_unsupported",
+        "coordination_or_delocalization_unsupported",
+        "component_invariant_failed",
+        "arithmetic_overflow"
+      ],
+      "type": "string"
+    },
     "DocumentInterchangeImportLossReportV1": {
       "additionalProperties": false,
       "description": "Closed loss facts for the public interchange-import summary.",
@@ -325,6 +441,145 @@
         "request_text",
         "regular_file",
         "standard_input"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeHydrogenMaterializationRequestV1": {
+      "additionalProperties": false,
+      "description": "Stateless renderer-safe hydrogen materialization request over one fenced root.",
+      "properties": {
+        "anchor_atom_id": {
+          "type": "string"
+        },
+        "document": {
+          "$ref": "#/$defs/DocumentSnapshotRequestV1"
+        },
+        "molecule_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "document",
+        "molecule_id",
+        "anchor_atom_id"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeHydrogenMaterializationResultV1": {
+      "description": "Completed V1 materialization for one fenced durable root and anchor.",
+      "oneOf": [
+        {
+          "properties": {
+            "added_hydrogen_count": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "document": {
+              "type": "string"
+            },
+            "document_fence": {
+              "$ref": "#/$defs/DocumentRequestFenceV1"
+            },
+            "status": {
+              "const": "applied",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "added_hydrogen_count",
+            "document",
+            "document_fence"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "added_hydrogen_count": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "document": {
+              "type": "string"
+            },
+            "document_fence": {
+              "$ref": "#/$defs/DocumentRequestFenceV1"
+            },
+            "status": {
+              "const": "no_op",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "added_hydrogen_count",
+            "document",
+            "document_fence"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "unavailable_reason": {
+              "$ref": "#/$defs/DocumentMoleculeHydrogenMaterializationUnavailableReasonV1"
+            }
+          },
+          "required": [
+            "status",
+            "unavailable_reason"
+          ],
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "anchor_atom_id": {
+          "type": "string"
+        },
+        "molecule_id": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_digest_hex": {
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "source_revision",
+        "source_digest_hex",
+        "molecule_id",
+        "anchor_atom_id"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "DocumentMoleculeHydrogenMaterializationUnavailableReasonV1": {
+      "description": "Closed source-profile reasons for a completed unavailable materialization.",
+      "enum": [
+        "element_outside_profile",
+        "nonzero_formal_charge",
+        "nonzero_explicit_hydrogens",
+        "unsupported_bond_or_radical",
+        "existing_hydrogen_topology",
+        "valence_exceeded",
+        "unsupported_document",
+        "resource_limit",
+        "unrenderable_candidate",
+        "oxidation_postcondition",
+        "render_preparation"
       ],
       "type": "string"
     },
@@ -598,29 +853,6 @@
       ],
       "type": "object"
     },
-    "DocumentSmartsQueryDocumentV1": {
-      "additionalProperties": false,
-      "description": "Fenced request-owned document supplied to the SMARTS query operation.",
-      "properties": {
-        "cdml": {
-          "type": "string"
-        },
-        "expected_digest_hex": {
-          "type": "string"
-        },
-        "expected_revision": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "cdml",
-        "expected_revision",
-        "expected_digest_hex"
-      ],
-      "type": "object"
-    },
     "DocumentSmartsQueryInputV1": {
       "description": "One exact query representation admitted by the SMARTS query operation.",
       "oneOf": [
@@ -713,7 +945,7 @@
       "description": "Stateless V1 SMARTS query request. It has no renderer, receipt, or runtime value.",
       "properties": {
         "document": {
-          "$ref": "#/$defs/DocumentSmartsQueryDocumentV1"
+          "$ref": "#/$defs/DocumentSnapshotRequestV1"
         },
         "limits": {
           "$ref": "#/$defs/DocumentSmartsQueryLimitsV1",
@@ -789,6 +1021,29 @@
           "type": "object"
         }
       ]
+    },
+    "DocumentSnapshotRequestV1": {
+      "additionalProperties": false,
+      "description": "Fenced request-owned document supplied to stateless document observations.",
+      "properties": {
+        "cdml": {
+          "type": "string"
+        },
+        "expected_digest_hex": {
+          "type": "string"
+        },
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cdml",
+        "expected_revision",
+        "expected_digest_hex"
+      ],
+      "type": "object"
     },
     "InterchangeFormatV1": {
       "description": "Closed syntax vocabulary. `Cdml` is retained as a wire value for callers\nthat dispatch CDML composition outside this crate.",
@@ -873,6 +1128,17 @@
     "OperationProtocolErrorCategoryV1": {
       "description": "Stable V1 error categories.",
       "oneOf": [
+        {
+          "enum": [
+            "stale_document",
+            "atom_not_found",
+            "molecule_not_direct_root",
+            "atom_not_in_selected_molecule",
+            "unsupported_document",
+            "cancelled_before_dispatch"
+          ],
+          "type": "string"
+        },
         {
           "const": "invalid_request",
           "description": "The JSON envelope or closed operation payload was invalid.",
@@ -1016,16 +1282,16 @@
           ],
           "description": "Closed reaction authoring recovery facts when this operation refused one."
         },
-        "resource_limit_reason": {
+        "resource_limit": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ProtocolResourceLimitReasonV1"
+              "$ref": "#/$defs/ProtocolResourceLimitRefusalV1"
             },
             {
               "type": "null"
             }
           ],
-          "description": "Closed reason for a resource-limit refusal when one is safe to expose."
+          "description": "Closed resource refusal facts when one is safe to expose."
         }
       },
       "required": [
@@ -1615,7 +1881,7 @@
           "description": "Search direct molecules from one bounded, request-owned document.",
           "properties": {
             "document": {
-              "$ref": "#/$defs/DocumentSmartsQueryDocumentV1"
+              "$ref": "#/$defs/DocumentSnapshotRequestV1"
             },
             "kind": {
               "const": "document.molecule.smarts.query.v1",
@@ -1636,6 +1902,58 @@
             "kind",
             "document",
             "query"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Observe one selected atom's oxidation state from a fenced document snapshot.",
+          "properties": {
+            "atom_id": {
+              "type": "string"
+            },
+            "document": {
+              "$ref": "#/$defs/DocumentSnapshotRequestV1"
+            },
+            "kind": {
+              "const": "document.atom.oxidation.observe.v1",
+              "type": "string"
+            },
+            "molecule_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "molecule_id",
+            "atom_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Materialize one selected direct root's neutral hydrogen topology.",
+          "properties": {
+            "anchor_atom_id": {
+              "type": "string"
+            },
+            "document": {
+              "$ref": "#/$defs/DocumentSnapshotRequestV1"
+            },
+            "kind": {
+              "const": "document.molecule.hydrogen.materialize.v1",
+              "type": "string"
+            },
+            "molecule_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "molecule_id",
+            "anchor_atom_id"
           ],
           "type": "object"
         },
@@ -2259,6 +2577,42 @@
         },
         {
           "additionalProperties": false,
+          "description": "One typed selected-atom oxidation observation.",
+          "properties": {
+            "kind": {
+              "const": "document.atom.oxidation.observe.v1",
+              "type": "string"
+            },
+            "observation": {
+              "$ref": "#/$defs/DocumentAtomOxidationObservationV1"
+            }
+          },
+          "required": [
+            "kind",
+            "observation"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "One renderer-safe explicit-hydrogen materialization result.",
+          "properties": {
+            "kind": {
+              "const": "document.molecule.hydrogen.materialize.v1",
+              "type": "string"
+            },
+            "materialization": {
+              "$ref": "#/$defs/DocumentMoleculeHydrogenMaterializationResultV1"
+            }
+          },
+          "required": [
+            "kind",
+            "materialization"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Bounded interchange import summary without a document artifact or identifiers.",
           "properties": {
             "kind": {
@@ -2806,6 +3160,16 @@
           "type": "string"
         },
         {
+          "const": "document.atom.oxidation.observe.v1",
+          "description": "`document.atom.oxidation.observe.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "document.molecule.hydrogen.materialize.v1",
+          "description": "`document.molecule.hydrogen.materialize.v1`.",
+          "type": "string"
+        },
+        {
           "const": "document.molecule.interchange.import.v1",
           "description": "`document.molecule.interchange.import.v1`.",
           "type": "string"
@@ -2929,8 +3293,55 @@
           "const": "response_size_exceeded",
           "description": "The exact canonical SMARTS result envelope exceeded its public budget.",
           "type": "string"
+        },
+        {
+          "const": "oxidation_root_atoms_exceeded",
+          "description": "The selected oxidation root exceeds the atom admission bound.",
+          "type": "string"
+        },
+        {
+          "const": "oxidation_root_bonds_exceeded",
+          "description": "The selected oxidation root exceeds the bond admission bound.",
+          "type": "string"
+        },
+        {
+          "const": "oxidation_root_components_exceeded",
+          "description": "The selected oxidation root exceeds the component admission bound.",
+          "type": "string"
         }
       ]
+    },
+    "ProtocolResourceLimitRecoveryV1": {
+      "description": "Closed recovery instructions for protocol-wide resource-limit refusals.",
+      "oneOf": [
+        {
+          "const": "reduce_requested_result",
+          "description": "Reduce the requested result before retrying.",
+          "type": "string"
+        },
+        {
+          "const": "use_smaller_root",
+          "description": "Select a smaller direct molecule root before retrying.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProtocolResourceLimitRefusalV1": {
+      "additionalProperties": false,
+      "description": "Typed public facts for a protocol-wide resource-limit refusal.",
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/ProtocolResourceLimitReasonV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolResourceLimitRecoveryV1"
+        }
+      },
+      "required": [
+        "reason",
+        "recovery"
+      ],
+      "type": "object"
     },
     "ProtocolResponseSchemaV1": {
       "description": "Closed V1 success schema identifiers.",
@@ -3154,6 +3565,12 @@
   "description": "A completed operation response or typed protocol refusal.",
   "title": "Ferrum operation protocol V1",
   "x-ferrum-roots": {
+    "document_atom_oxidation_observe_request": {
+      "$ref": "#/$defs/DocumentAtomOxidationObserveRequestV1"
+    },
+    "document_molecule_hydrogen_materialization_request": {
+      "$ref": "#/$defs/DocumentMoleculeHydrogenMaterializationRequestV1"
+    },
     "document_smarts_query_request": {
       "$ref": "#/$defs/DocumentSmartsQueryRequestV1"
     },

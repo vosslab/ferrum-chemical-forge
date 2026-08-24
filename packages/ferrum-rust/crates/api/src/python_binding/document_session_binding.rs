@@ -1,9 +1,9 @@
 use crate::RenderInteractionSessionV1;
 use ferrum_document::{
-    DocumentBondOrderV1, DocumentBondPresentationV1, DocumentSession, DocumentSnapshot,
-    PendingCreateAtom, PendingCreateBond, PendingCreateBondedAtom, PendingCreateMolecule,
-    PendingCreateWavy, Point3V1, Publication, SaveOutcome, SessionOperation,
-    SessionOperationResultV1, SessionOperationV1,
+    DocumentBondOrderV1, DocumentBondPresentationV1, DocumentRenderObservationV1, DocumentSession,
+    DocumentSnapshot, PendingAdmittedMoleculeInsertionV1, PendingCreateAtom, PendingCreateBond,
+    PendingCreateBondedAtom, PendingCreateWavy, Point3V1, Publication, SaveOutcome,
+    SessionOperation, SessionOperationResultV1, SessionOperationV1,
 };
 use pyo3::prelude::*;
 
@@ -13,7 +13,7 @@ use super::bracket_binding::{
 use super::document_error_binding::{document_object_id, document_result, projection_error};
 use super::document_operation_binding::PyDocumentOperationV1;
 use super::interchange_insertion_binding::{
-    PyInterchangeRecordBatchInsertionV1, PyPreparedInterchangeRecordInsertion,
+    PyAdmittedInterchangeRecordInsertionV1, PyInterchangeRecordBatchInsertionV1,
 };
 use super::molecule_coordinate_binding::{
     PyPreparedCleanGeometryV1, PyPreparedMoleculeCoordinatesV1,
@@ -227,10 +227,14 @@ pub(crate) struct PyPreparedBondedAtomInsertion {
     bond_identifier: String,
 }
 
-/// Opaque one-use prepared complete molecule insertion.
-#[pyclass(unsendable, module = "ferrum_chem", name = "PreparedMoleculeInsertion")]
-pub(crate) struct PyPreparedMoleculeInsertion {
-    pending: PendingCreateMolecule,
+/// Opaque one-use renderer-admitted complete molecule insertion.
+#[pyclass(
+    unsendable,
+    module = "ferrum_chem",
+    name = "AdmittedMoleculeInsertionV1"
+)]
+pub(crate) struct PyAdmittedMoleculeInsertionV1 {
+    pending: PendingAdmittedMoleculeInsertionV1,
     #[pyo3(get)]
     molecule_identifier: String,
 }
@@ -245,6 +249,7 @@ pub(crate) struct PyPreparedMoleculeInsertion {
 pub(crate) struct PyDocumentSession {
     pub(crate) session: RenderInteractionSessionV1,
     live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1,
+    pub(crate) published_presentation_plan: Option<ferrum_render::PresentationRenderPlanV1>,
 }
 
 impl PyDocumentSession {
@@ -252,7 +257,32 @@ impl PyDocumentSession {
         Self {
             session: RenderInteractionSessionV1::new(session),
             live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1::new(),
+            published_presentation_plan: None,
         }
+    }
+
+    /// Publish one renderer observation, presentation plan, and live SMARTS
+    /// bridge from the same accepted document observation.
+    pub(crate) fn publish_live_render_plan_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+    ) -> PyResult<DocumentRenderObservationV1> {
+        let accepted = document_result(py, self.session.observe(expected_revision))?;
+        let observation = self
+            .live_smarts
+            .publish_from_observation(&self.session, accepted)?;
+        let plan =
+            match super::presentation_render_plan_binding::plan_from_observation(&observation) {
+                Ok(plan) => plan,
+                Err(error) => {
+                    self.live_smarts.retire();
+                    self.published_presentation_plan = None;
+                    return Err(error);
+                }
+            };
+        self.published_presentation_plan = Some(plan);
+        Ok(observation)
     }
 }
 
@@ -268,6 +298,7 @@ impl PyDocumentSession {
         Ok(Self {
             session: RenderInteractionSessionV1::new(session),
             live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1::new(),
+            published_presentation_plan: None,
         })
     }
 
@@ -281,6 +312,7 @@ impl PyDocumentSession {
         Ok(Self {
             session: RenderInteractionSessionV1::new(session),
             live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1::new(),
+            published_presentation_plan: None,
         })
     }
 
@@ -411,6 +443,7 @@ impl PyDocumentSession {
     /// Invalidate all live SMARTS receipts before a view lifecycle transition.
     fn _retire_live_document_smarts_query_v1(&mut self) {
         self.live_smarts.retire();
+        self.published_presentation_plan = None;
     }
 
     /// Invalidate only derived live SMARTS receipts after query-level UI
@@ -427,7 +460,7 @@ impl PyDocumentSession {
         py: Python<'_>,
         expected_revision: u64,
     ) -> PyResult<PyRenderObservationV1> {
-        let observation = self.live_smarts.publish(&self.session, expected_revision)?;
+        let observation = self.publish_live_render_plan_v1(py, expected_revision)?;
         render_binding::observation(py, observation)
     }
 
@@ -442,14 +475,12 @@ impl PyDocumentSession {
 
     /// Return one complete frozen API-owned depiction observation for this revision.
     fn observe_render(
-        &self,
+        &mut self,
         py: Python<'_>,
         expected_revision: u64,
     ) -> PyResult<PyRenderObservationV1> {
-        render_binding::result(
-            py,
-            ferrum_render::observe_render_v1(&self.session, expected_revision),
-        )
+        let observation = self.publish_live_render_plan_v1(py, expected_revision)?;
+        render_binding::observation(py, observation)
     }
 
     /// Submit one closed V1 operation against an exact expected revision.
@@ -861,65 +892,65 @@ impl PyDocumentSession {
     }
 
     /// Prepare one worker-built molecule against an exact current revision.
-    fn prepare_insert_molecule_v1(
+    fn prepare_admitted_molecule_insertion_v1(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
         molecule: PyRef<'_, PyMoleculeInsertionV1>,
-    ) -> PyResult<PyPreparedMoleculeInsertion> {
+    ) -> PyResult<PyAdmittedMoleculeInsertionV1> {
         let pending = document_result(
             py,
             self.session
-                .prepare_create_molecule_v1(expected_revision, molecule.insertion()),
+                .prepare_admitted_molecule_insertion_v1(expected_revision, molecule.insertion()),
         )?;
         let molecule_identifier = pending.molecule_identifier().as_str().to_owned();
-        Ok(PyPreparedMoleculeInsertion {
+        Ok(PyAdmittedMoleculeInsertionV1 {
             pending,
             molecule_identifier,
         })
     }
 
     /// Commit one complete prepared molecule exactly once at its prepared revision.
-    fn commit_create_molecule(
+    fn commit_admitted_molecule_insertion_v1(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
-        mut prepared: PyRefMut<'_, PyPreparedMoleculeInsertion>,
+        mut prepared: PyRefMut<'_, PyAdmittedMoleculeInsertionV1>,
     ) -> PyResult<PySessionOperationResultV1> {
         document_result(
             py,
             self.session
-                .commit_create_molecule(expected_revision, &mut prepared.pending),
+                .commit_admitted_molecule_insertion_v1(expected_revision, &mut prepared.pending),
         )
         .map(Into::into)
     }
 
     /// Prepare every worker-built interchange record as one exact-revision transaction.
-    fn prepare_insert_interchange_records_v1(
+    fn prepare_admitted_interchange_records_v1(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
         batch: PyRef<'_, PyInterchangeRecordBatchInsertionV1>,
-    ) -> PyResult<PyPreparedInterchangeRecordInsertion> {
+    ) -> PyResult<PyAdmittedInterchangeRecordInsertionV1> {
         let pending = document_result(
             py,
             self.session
-                .prepare_create_interchange_records_v1(expected_revision, batch.batch()),
+                .prepare_admitted_interchange_records_v1(expected_revision, batch.batch()),
         )?;
-        Ok(PyPreparedInterchangeRecordInsertion::new(pending))
+        Ok(PyAdmittedInterchangeRecordInsertionV1::new(pending))
     }
 
     /// Commit one complete prepared interchange batch exactly once.
-    fn commit_create_interchange_records_v1(
+    fn commit_admitted_interchange_records_v1(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
-        mut prepared: PyRefMut<'_, PyPreparedInterchangeRecordInsertion>,
+        mut prepared: PyRefMut<'_, PyAdmittedInterchangeRecordInsertionV1>,
     ) -> PyResult<PySessionOperationResultV1> {
         document_result(
             py,
             self.session
-                .commit_create_interchange_records_v1(expected_revision, &mut prepared.pending),
+                .commit_admitted_interchange_records_v1(expected_revision, &mut prepared.pending),
         )
         .map(Into::into)
     }

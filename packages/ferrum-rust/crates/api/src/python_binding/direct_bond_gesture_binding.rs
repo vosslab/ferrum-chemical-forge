@@ -40,13 +40,13 @@ impl PyDocumentSession {
     }
 
     fn admit_direct_bond_candidate_v3(
-        &self,
+        &mut self,
         py: Python<'_>,
         gesture: PyRef<'_, PyDirectBondGestureV3>,
         end: PyRef<'_, PyDirectBondPointerProbeV3>,
     ) -> PyResult<PyDirectBondAdmissionV3> {
         let admission = ferrum_document_render::admit_direct_bond_candidate_v3(
-            &self.session,
+            &mut self.session,
             &gesture.gesture,
             end.probe.clone(),
         )

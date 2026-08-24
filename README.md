@@ -7,6 +7,9 @@ converting, and drawing durable CDML records.
 > application together with their private native runtime.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
+![Ferrum workspace showing an authored carbonyl fragment](docs/screenshots/workspace.png)
+![Ferrum canvas after cyclohexane insertion](docs/screenshots/inserted_cyclohexane.png)
+![Ferrum SMARTS query dock showing a completed carbon match](docs/screenshots/smarts_result.png)
 <!-- screenshots:end -->
 
 ## Start with a document

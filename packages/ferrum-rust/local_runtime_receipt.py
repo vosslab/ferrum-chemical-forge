@@ -9,7 +9,7 @@ from pathlib import Path
 from engine_lib.local_runtime_receipt import (
 	LocalRuntimeReceiptError,
 	local_extension_path,
-	validate_local_runtime_receipt,
+	validate_local_runtime_import,
 	write_local_runtime_receipt,
 )
 
@@ -27,7 +27,7 @@ def main() -> int:
 		elif arguments.command == "write":
 			write_local_runtime_receipt(arguments.runtime_root)
 		else:
-			validate_local_runtime_receipt(arguments.runtime_root)
+			validate_local_runtime_import(arguments.runtime_root)
 	except LocalRuntimeReceiptError as error:
 		print(f"local runtime receipt error: {error}", file=sys.stderr)
 		return 1

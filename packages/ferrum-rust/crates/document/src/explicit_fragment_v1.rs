@@ -218,7 +218,7 @@ pub fn observe_explicit_fragments_v1(
     let mut records = Vec::new();
     let mut retained = false;
     for molecule in document.root().children_of(TypedClass::Molecule) {
-        let Some(molecule_id) = DocumentObjectIdV1::from_record(molecule) else {
+        let Some(molecule_id) = crate::document_object_id_from_record_v1(molecule) else {
             continue;
         };
         for fragment in molecule.children_of(TypedClass::Fragment) {

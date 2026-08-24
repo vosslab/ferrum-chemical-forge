@@ -1,25 +1,22 @@
 //! Revision-bound preparation and commit for one Rust-owned Wavy root.
 
 use super::{
-    DocumentSession, DocumentSessionError, PersistentId, Point3V1, ProvisionalToken, RevisionState,
-    SessionDocumentObservationV1, SessionOperationError, SessionOperationResultV1, WavyInsertionV1,
+    DocumentSession, DocumentSessionError, PersistentId, Point3V1, PreparedSessionTransitionV1,
+    RevisionState, SessionOperationError, SessionOperationResultV1, WavyInsertionV1,
 };
 
 /// A one-use, revision-bound prepared Wavy insertion.
 pub struct PendingCreateWavy {
-    revision: u64,
-    token: ProvisionalToken,
     identifier: PersistentId,
-    candidate: Option<RevisionState>,
+    transition: PreparedSessionTransitionV1,
 }
 
 impl std::fmt::Debug for PendingCreateWavy {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingCreateWavy")
-            .field("revision", &self.revision)
             .field("identifier", &self.identifier)
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -43,37 +40,30 @@ impl DocumentSession {
         self.require_current(expected_revision)?;
         let insertion = WavyInsertionV1::new(start, end)
             .map_err(|error| SessionOperationError::InvalidWavyInsertion(error.to_string()))?;
-        let (identifier, generated_ids) = self
-            .generated_ids
-            .reserve_presentation(self.history.current().document().indexed())?;
+        let (identifier, effects) =
+            self.reserve_generated_ids_for_transition_v1(|sequences, indexed| {
+                sequences.reserve_presentation(indexed)
+            })?;
         let candidate = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .with_insert_wavy(&identifier, &insertion)
             .map_err(SessionOperationError::Candidate)?;
         let revision = self
-            .history
-            .current()
+            .current_state_v1()
             .next_revision()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token = self
-            .history
-            .current_mut()
-            .document_mut()
-            .try_issue_provisional_token()
-            .map_err(SessionOperationError::Candidate)?;
-        self.generated_ids = generated_ids;
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            self.current_digest_v1(),
+            candidate,
+            effects,
+        )?;
         Ok(PendingCreateWavy {
-            revision: expected_revision,
-            token,
             identifier,
-            candidate: Some(candidate),
+            transition,
         })
     }
 
@@ -83,11 +73,36 @@ impl DocumentSession {
         expected_revision: u64,
         pending: &mut PendingCreateWavy,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.commit_prepared_candidate(
-            expected_revision,
-            pending.revision,
-            &pending.token,
-            &mut pending.candidate,
-        )
+        self.require_current(expected_revision)?;
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
+    }
+}
+
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: super::AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        super::AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
+        }
+        super::AdmittedSessionTransitionRefusalV1::Replayed
+        | super::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
+        }
+        super::AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
+        }
+        super::AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        super::AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
+        }
     }
 }

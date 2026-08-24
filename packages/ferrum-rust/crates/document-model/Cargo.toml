@@ -14,6 +14,6 @@ workspace = true
 
 [dependencies]
 serde = { version = "*", features = ["derive"] }
-serde_json = { version = "*", features = ["float_roundtrip"] }
 xmlparser = { version = "*" }
 thiserror = { version = "*" }
+sha2 = { version = "*" }

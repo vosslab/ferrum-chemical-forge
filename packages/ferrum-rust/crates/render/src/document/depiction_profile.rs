@@ -3,15 +3,16 @@
 use crate::{
     AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts,
     AtomMarkRenderKind, AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, BondStyle,
-    FerrumFontEnvironmentV1, FontFace, Paint, PositiveFinite, RenderPoint, RenderProvenance,
-    RenderRevision, RenderTarget, Rgb24, TargetVisibility, VerifiedTelexGlyphMetrics,
-    build_atom_bond_plan,
+    CompactGroupRenderPrimitiveV1, FerrumFontEnvironmentV1, FontFace, Paint, PositiveFinite,
+    RenderPoint, RenderProvenance, RenderRevision, RenderTarget, Rgb24, TargetVisibility,
+    VerifiedTelexGlyphMetrics, build_atom_bond_plan,
 };
 use ferrum_core::{BondOrder, BondStyle as DocumentBondStyle, Identifier, RecordId, RecordKind};
-use ferrum_document::{
+use ferrum_document_projection::{
     AtomMarkKindV1, AtomProjectionV1, BondEndpointKindV1, BondProjectionV1,
-    DocumentHaworthPositionV1, DocumentProjectionV1, PresentationRootProjectionV1,
-    ProjectionIssueCodeV1, Rgb24V1 as DocumentRgb24V1, TransparentOrRgb24V1, VisibilityV1,
+    DocumentHaworthPositionV1, DocumentObjectIdV1, DocumentProjectionV1,
+    PresentationRootProjectionV1, ProjectionIssueCodeV1, Rgb24V1 as DocumentRgb24V1,
+    TransparentOrRgb24V1, VisibilityV1,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -98,14 +99,6 @@ impl DepictionProfileV1 {
     pub const fn schema(&self) -> &'static str {
         DEPICTION_PROFILE_SCHEMA_V1
     }
-}
-
-/// The closed hydrogen-display policy selected by the Ferrum V1 profile.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HydrogenVisibilityV1 {
-    /// Hide explicit hydrogen labels unless the atom author explicitly enables them.
-    HiddenUnlessAtomEnabled,
 }
 
 /// Stable profile-resolution diagnostic categories.
@@ -290,20 +283,15 @@ fn render_with_verified_telex_metrics(
     }
     for molecule in projection.molecules() {
         let mut atoms = Vec::new();
+        let mut endpoint_targets = std::collections::HashMap::new();
         for atom in molecule.atoms() {
             match resolve_atom(atom, projection, profile) {
-                Ok(target) => atoms.push(target),
-                Err(issue) => issues.push(issue),
-            }
-        }
-        let atom_ids = atoms
-            .iter()
-            .map(|atom| (atom.target().record_id().clone(), atom.target().clone()))
-            .collect::<std::collections::HashMap<_, _>>();
-        let mut bonds = Vec::new();
-        for bond in molecule.bonds() {
-            match resolve_bond(bond, &atom_ids, projection, profile) {
-                Ok(target) => bonds.push(target),
+                Ok(target) => {
+                    if let Some(id) = atom.id() {
+                        endpoint_targets.insert(id.clone(), target.target().clone());
+                    }
+                    atoms.push(target);
+                }
                 Err(issue) => issues.push(issue),
             }
         }
@@ -335,6 +323,30 @@ fn render_with_verified_telex_metrics(
                 continue;
             }
         };
+        let mut compact_group_primitives = Vec::new();
+        compact_group_primitives
+            .try_reserve(molecule.compact_groups().len())
+            .map_err(|_| crate::RenderError::ResourceExhausted)?;
+        for group in molecule.compact_groups() {
+            compact_group_primitives.push(CompactGroupRenderPrimitiveV1::from_projection(
+                group,
+                metrics,
+                line_paint.clone(),
+            )?);
+        }
+        endpoint_targets.extend(
+            compact_group_primitives
+                .iter()
+                .zip(molecule.compact_groups())
+                .map(|(primitive, group)| (group.id().clone(), primitive.target().clone())),
+        );
+        let mut bonds = Vec::new();
+        for bond in molecule.bonds() {
+            match resolve_bond(bond, &endpoint_targets, projection, profile) {
+                Ok(target) => bonds.push(target),
+                Err(issue) => issues.push(issue),
+            }
+        }
         let request = AtomBondRenderRequest::new(
             RenderProvenance::new(
                 RenderRevision::new(projection.revision())?,
@@ -345,45 +357,45 @@ fn render_with_verified_telex_metrics(
             font,
             line_width,
             bond_lane_spacing,
-            line_paint,
+            line_paint.clone(),
+        )?
+        .with_compact_group_endpoints(
+            compact_group_primitives
+                .iter()
+                .map(CompactGroupRenderPrimitiveV1::bond_endpoint)
+                .collect::<Result<Vec<_>, _>>()?,
+        )?;
+        let base_plan = build_atom_bond_plan(&request, metrics)?;
+        let mut batches = base_plan.batches().to_vec();
+        batches.extend(
+            compact_group_primitives
+                .iter()
+                .map(|group| group.batch().clone()),
+        );
+        batches.sort_by_key(|batch| batch.target().source_order());
+        let plan = crate::MoleculeRenderPlan::new(
+            base_plan.provenance(),
+            batches,
+            base_plan.issues().to_vec(),
         )?;
         plans.push(DocumentMoleculeRenderPlanV2::from_projection(
             molecule,
-            build_atom_bond_plan(&request, metrics)?,
+            plan,
+            compact_group_primitives,
         ));
     }
     for root in projection.presentation_stack().roots() {
         match root {
             PresentationRootProjectionV1::Plus { plus } => {
-                if let Some(family) = plus.font().family() {
-                    issues.push(issue(
-                        DepictionIssueCodeV1::UnsupportedAuthoredFontFamily,
-                        plus.target().projection_key().as_str(),
-                        format!(
-                            "plus font family {family:?} cannot replace ferrum-telex-regular-v1"
-                        ),
-                    ));
-                    continue;
-                }
                 plus_renders.push(DocumentPlusRenderV1::from_projection(plus, metrics)?);
             }
             PresentationRootProjectionV1::Text { text } => {
-                if let Some(family) = text.font().family() {
-                    issues.push(issue(
-                        DepictionIssueCodeV1::UnsupportedAuthoredFontFamily,
-                        text.target().projection_key().as_str(),
-                        format!(
-                            "Text font family {family:?} cannot replace ferrum-telex-regular-v1"
-                        ),
-                    ));
-                    continue;
-                }
                 if text.runs().iter().any(|run| {
                     run.styles().iter().any(|style| {
                         matches!(
                             style,
-                            ferrum_document::PresentationTextStyleV1::Bold
-                                | ferrum_document::PresentationTextStyleV1::Italic
+                            ferrum_document_projection::PresentationTextStyleV1::Bold
+                                | ferrum_document_projection::PresentationTextStyleV1::Italic
                         )
                     })
                 }) {
@@ -573,13 +585,13 @@ fn render_mark_kind(kind: AtomMarkKindV1) -> AtomMarkRenderKind {
 
 fn resolve_bond(
     bond: &BondProjectionV1,
-    atoms: &std::collections::HashMap<RecordId, RenderTarget>,
+    endpoints: &std::collections::HashMap<DocumentObjectIdV1, RenderTarget>,
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
 ) -> Result<BondRenderTarget, DepictionIssueV1> {
     let target = bond_target(bond)?;
-    let first = endpoint_record(bond.start(), atoms, bond.projection_key().as_str())?;
-    let second = endpoint_record(bond.end(), atoms, bond.projection_key().as_str())?;
+    let first = endpoint_record(bond.start(), endpoints, bond.projection_key().as_str())?;
+    let second = endpoint_record(bond.end(), endpoints, bond.projection_key().as_str())?;
     if let Some(value) = bond.bond_width().filter(|value| value.value() < 0.0) {
         // A negative CDML bond_width selects an uncentered double-bond lane side.
         // This profile cannot lower that direction yet.  Keep the authoritative
@@ -676,7 +688,7 @@ fn bond_target(bond: &BondProjectionV1) -> Result<RenderTarget, DepictionIssueV1
 }
 
 fn record_target(
-    durable: Option<&ferrum_document::DocumentObjectIdV1>,
+    durable: Option<&ferrum_document_projection::DocumentObjectIdV1>,
     source_id: Option<&str>,
     source_order: u32,
     kind: RecordKind,
@@ -710,40 +722,37 @@ fn record_target(
 }
 
 fn endpoint_record(
-    endpoint: &ferrum_document::BondEndpointV1,
-    atoms: &std::collections::HashMap<RecordId, RenderTarget>,
+    endpoint: &ferrum_document_projection::BondEndpointV1,
+    endpoints: &std::collections::HashMap<DocumentObjectIdV1, RenderTarget>,
     local: &str,
 ) -> Result<RecordId, DepictionIssueV1> {
-    if endpoint.kind() != BondEndpointKindV1::Atom {
-        return Err(issue(
-            DepictionIssueCodeV1::UnsupportedFeature,
-            local,
-            "bond endpoint is not a renderable atom",
-        ));
-    }
-    let source = endpoint.source_id().ok_or_else(|| {
+    let kind = match endpoint.kind() {
+        BondEndpointKindV1::Atom => RecordKind::Atom,
+        BondEndpointKindV1::Group => RecordKind::Group,
+        _ => {
+            return Err(issue(
+                DepictionIssueCodeV1::UnsupportedFeature,
+                local,
+                "bond endpoint is not a renderable atom or compact group",
+            ));
+        }
+    };
+    let object_id = endpoint.object_id().ok_or_else(|| {
         issue(
             DepictionIssueCodeV1::UnsupportedFeature,
             local,
-            "bond endpoint has no source ID",
+            "bond endpoint has no durable document identity",
         )
     })?;
-    let identifier = Identifier::new(source).map_err(|error| {
-        issue(
-            DepictionIssueCodeV1::UnsupportedFeature,
-            local,
-            error.to_string(),
-        )
-    })?;
-    let record = RecordId::from_source(RecordKind::Atom, &identifier);
-    atoms
-        .contains_key(&record)
-        .then_some(record)
+    endpoints
+        .get(object_id)
+        .filter(|target| target.record_id().kind() == kind)
+        .map(|target| target.record_id().clone())
         .ok_or_else(|| {
             issue(
                 DepictionIssueCodeV1::UnsupportedFeature,
                 local,
-                "bond endpoint has no renderable durable atom",
+                "bond endpoint has no renderable durable atom or compact group",
             )
         })
 }
@@ -751,7 +760,7 @@ fn endpoint_record(
 fn resolved_font(
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
-    local: Option<&ferrum_document::FontFactsV1>,
+    local: Option<&ferrum_document_projection::FontFactsV1>,
     label_mask: Option<&TransparentOrRgb24V1>,
 ) -> Result<AtomLabelFontProfile, DepictionIssueV1> {
     let family = local.and_then(|font| font.family()).or_else(|| {

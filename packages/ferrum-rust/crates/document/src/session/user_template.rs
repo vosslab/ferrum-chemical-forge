@@ -1,4 +1,4 @@
-//! Immediate authenticated transaction ownership for native user templates.
+//! User-template placement through the generic admitted transition boundary.
 
 use ferrum_geometry::Point2;
 
@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    DocumentSession, DocumentSessionError, RevisionState, SessionDocumentObservationV1,
+    AdmittedSessionTransitionRefusalV1, DocumentSession, DocumentSessionError, RevisionState,
     SessionOperationError, SessionOperationResultV1,
 };
 
@@ -19,19 +19,14 @@ pub struct DocumentUserTemplateResultV1 {
 }
 
 impl DocumentUserTemplateResultV1 {
-    /// Return the complete post-insertion observation.
     #[must_use]
     pub fn operation_result(&self) -> &SessionOperationResultV1 {
         &self.operation
     }
-
-    /// Consume the receipt and return its authoritative observation wrapper.
     #[must_use]
     pub fn into_operation_result(self) -> SessionOperationResultV1 {
         self.operation
     }
-
-    /// Return the fresh durable molecule installed by this insertion.
     #[must_use]
     pub fn inserted_molecule(&self) -> &DocumentUserTemplateInsertedMoleculeV1 {
         &self.inserted_molecule
@@ -39,7 +34,7 @@ impl DocumentUserTemplateResultV1 {
 }
 
 impl DocumentSession {
-    /// Place one admitted user template as one authenticated history transition.
+    /// Place one immutable user template through renderer admission.
     pub fn insert_document_user_template_v1(
         &mut self,
         expected_revision: u64,
@@ -48,36 +43,73 @@ impl DocumentSession {
         anchor: Point2,
     ) -> Result<DocumentUserTemplateResultV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
-        let current = self.history.current();
-        if current.digest() != expected_digest {
+        if self.current_state_v1().digest() != expected_digest {
             return Err(DocumentUserTemplateErrorV1::DigestMismatch.into());
         }
-        let (generated, tentative_generated_ids) = self
-            .generated_ids
-            .reserve_fragment_import(current.document().indexed(), plan.declared_id_count())?;
+        let (generated, effects, source_revision, source_digest, revision) = {
+            let (generated, effects) =
+                self.reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                    ids.reserve_fragment_import(indexed, plan.declared_id_count())
+                })?;
+            let current = self.current_state_v1();
+            (
+                generated,
+                effects,
+                current.revision(),
+                *current.digest(),
+                current.next_revision(),
+            )
+        };
+        let revision = revision.ok_or(DocumentSessionError::RevisionExhausted)?;
         let (candidate, inserted_molecule) =
             super::super::user_template_v1::compose_document_user_template_candidate_v1(
-                current.document(),
+                self.current_state_v1().document(),
                 plan,
                 &generated,
                 anchor,
             )?;
-        let revision = current
-            .next_revision()
-            .ok_or(DocumentSessionError::RevisionExhausted)?;
-        let candidate = RevisionState::from_document(revision, candidate)
+        let state = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        let observation = SessionDocumentObservationV1::from_state(candidate.document(), snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        self.history
-            .try_reserve_append()
-            .map_err(|_| SessionOperationError::HistoryResourceExhausted)?;
-        self.history.append_reserved(candidate);
-        self.generated_ids = tentative_generated_ids;
+        let mut transition = self.prepare_changed_session_transition_v1(
+            source_revision,
+            source_digest,
+            state,
+            effects,
+        )?;
+        let operation = self
+            .commit_session_operation_transition_v1(&mut transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))?;
         Ok(DocumentUserTemplateResultV1 {
-            operation: SessionOperationResultV1::new(observation),
+            operation,
             inserted_molecule,
         })
+    }
+}
+
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
+        }
+        AdmittedSessionTransitionRefusalV1::Replayed
+        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
+        }
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
+        }
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
+        }
     }
 }

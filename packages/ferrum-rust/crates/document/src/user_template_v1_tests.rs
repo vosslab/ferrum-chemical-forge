@@ -141,7 +141,6 @@ fn eligibility_rejects_content_that_cannot_be_a_detached_molecule_template() {
             ),
             "legacy",
         ),
-        ("<cdml xmlns=\"urn:ferrum:cdml\"><molecule/></cdml>", "atom"),
         (
             "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></atom></molecule></cdml>",
             "point",

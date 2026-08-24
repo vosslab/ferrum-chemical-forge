@@ -1,58 +1,119 @@
-"""Visible Rust-owned shipped-template authoring through Ferrum Qt."""
+"""Public Qt coverage for Rust-owned catalog placement."""
 
+# Standard Library
+import os
+
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+# PIP3 modules
 import PySide6.QtCore
+import PySide6.QtGui
 import PySide6.QtTest
 import PySide6.QtWidgets
+import pytest
 
+# local repo modules
 import ferrum_qt.ferrum.catalog_palette
-import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.document_installation
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
 
 
-def _point(tab: object, x: float, y: float) -> PySide6.QtCore.QPoint:
-	return tab.view.mapFromScene(PySide6.QtCore.QPointF(x, y))
+@pytest.fixture
+def qapp() -> PySide6.QtWidgets.QApplication:
+	"""Provide the ordinary offscreen application host."""
+	app = PySide6.QtWidgets.QApplication.instance()
+	if app is None:
+		app = PySide6.QtWidgets.QApplication([])
+	return app
 
 
 #============================================
-def _ribbon_exposes_action(window: object, action: object) -> bool:
-	"""Return whether one visible Authoring Ribbon button owns the QAction."""
-	return any(
-		button.defaultAction() is action
-		for button in window._authoring_ribbon.findChildren(
-			PySide6.QtWidgets.QToolButton,
-		)
+def _canvas(window: PySide6.QtWidgets.QMainWindow) -> PySide6.QtWidgets.QGraphicsView:
+	"""Find the product's declared drawing canvas through public Qt metadata."""
+	return next(
+		view for view in window.findChildren(PySide6.QtWidgets.QGraphicsView)
+		if view.accessibleName() == "Ferrum drawing canvas"
 	)
 
 
-def test_catalog_palette_filters_rust_summaries_and_places_benzene(
-		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Search uses immutable Rust facts and pointer placement carries opaque handles."""
-	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(qapp)
-	window = ferrum_qt.main_window.MainWindow(theme_manager)
+#============================================
+def _action(window: PySide6.QtWidgets.QMainWindow,
+		text: str) -> PySide6.QtGui.QAction:
+	"""Find one visible application action by its public label."""
+	return next(action for action in window.findChildren(PySide6.QtGui.QAction)
+		if action.text() == text)
+
+
+#============================================
+def _catalog_key(qtbot: object,
+		window: PySide6.QtWidgets.QMainWindow) -> str:
+	"""Choose one matching catalog entry through its public dialog controls."""
+	palette = ferrum_qt.ferrum.catalog_palette.FerrumCatalogPalette(window)
 	try:
-		tab = window._active_native_tab()
-		assert tab is not None
-		assert _ribbon_exposes_action(window, window._insert_catalog_template_action)
-		palette = ferrum_qt.ferrum.catalog_palette.FerrumCatalogPalette(window)
-		palette.search.setText("benzene")
-		qapp.processEvents()
-		assert palette.selected_key() == "system/rings/benzene"
-		assert "benzene" in palette.results.currentItem().text().lower()
-		assert "provenance" in palette.results.currentItem().toolTip().lower()
-		assert window.start_catalog_placement(palette.selected_key())
-		window.show()
-		qapp.processEvents()
-		before = tab.current_snapshot.revision
-		point = _point(tab, 80.0, 60.0)
-		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), point)
-		qapp.processEvents()
-		assert tab.current_snapshot.revision == before
-		PySide6.QtTest.QTest.mouseClick(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton, PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point)
-		qapp.processEvents()
-		assert tab.current_snapshot.revision == before + 1
-		assert "Benzene" in tab.current_snapshot.cdml
+		search = next(
+			widget for widget in palette.findChildren(PySide6.QtWidgets.QLineEdit)
+			if widget.accessibleName() == "Search templates"
+		)
+		results = next(
+			widget for widget in palette.findChildren(PySide6.QtWidgets.QListWidget)
+			if widget.accessibleName() == "Ferrum template results"
+		)
+		search.setText("benzene")
+		assert results.currentItem() is not None
+		assert "benzene" in results.currentItem().text().lower()
+		place_button = next(
+			button for button in palette.findChildren(PySide6.QtWidgets.QPushButton)
+			if button.text() == "Place on Canvas"
+		)
+		with qtbot.waitSignal(palette.finished, timeout=1000):
+			PySide6.QtTest.QTest.mouseClick(
+				place_button, PySide6.QtCore.Qt.MouseButton.LeftButton,
+			)
+		key = palette.selected_key()
+		assert type(key) is str and key
+		return key
+	finally:
+		palette.deleteLater()
+
+
+#============================================
+def test_catalog_placement_receipt_enables_the_next_canvas_interaction(
+		qapp: PySide6.QtWidgets.QApplication, qtbot: object,
+		) -> None:
+	"""A catalog receipt fences one ordinary follow-up selection interaction."""
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	qtbot.addWidget(window)
+	window.show()
+	try:
+		key = _catalog_key(qtbot, window)
+		canvas = _canvas(window)
+		point = canvas.viewport().rect().center()
+		with qtbot.waitSignal(window.document_installation_completed, timeout=10000) as completed:
+			assert window.start_catalog_placement(key)
+			PySide6.QtTest.QTest.mouseClick(
+				canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
+			)
+		receipt = completed.args[0]
+		assert type(receipt) is ferrum_qt.ferrum.document_installation.FerrumDocumentInstallationV1
+		assert receipt.installation_kind == "catalog_template"
+		assert receipt.current_revision > receipt.source_revision
+		assert receipt.current_digest_hex != receipt.source_digest_hex
+		assert receipt.installed_record_count == 1
+		assert receipt.accessible_summary == "Ferrum installed one catalog template."
+
+		select = _action(window, "Select Structure")
+		assert select.isEnabled()
+		select.trigger()
+		assert select.isChecked()
+		PySide6.QtTest.QTest.mouseClick(
+			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
+		)
 	finally:
 		window.close()
 		window.deleteLater()
-

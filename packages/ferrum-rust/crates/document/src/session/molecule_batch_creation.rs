@@ -1,25 +1,20 @@
 //! One atomic document transition for a nonempty batch of complete molecules.
 
 use super::{
-    DocumentSession, DocumentSessionError, MoleculeInsertionV1, RevisionState,
-    SessionDocumentObservationV1, SessionOperationError, SessionOperationResultV1,
+    AdmittedSessionTransitionRefusalV1, DocumentSession, DocumentSessionError, MoleculeInsertionV1,
+    PreparedSessionTransitionV1, RevisionState, SessionOperationError, SessionOperationResultV1,
 };
-use crate::{AuthoringCapabilityIssuerV1, generated_ids::GeneratedIdSequences};
 
 /// Opaque prepared batch held by the document transaction owner.
-pub struct PendingCreateMoleculeBatchV1 {
-    session_issuer: AuthoringCapabilityIssuerV1,
-    revision: u64,
-    candidate: Option<RevisionState>,
-    next_generated_ids: GeneratedIdSequences,
+pub(crate) struct PendingCreateMoleculeBatchV1 {
+    transition: PreparedSessionTransitionV1,
 }
 
 impl std::fmt::Debug for PendingCreateMoleculeBatchV1 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingCreateMoleculeBatchV1")
-            .field("revision", &self.revision)
-            .field("is_resolved", &self.candidate.is_none())
+            .field("is_resolved", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -27,9 +22,9 @@ impl std::fmt::Debug for PendingCreateMoleculeBatchV1 {
 impl PendingCreateMoleculeBatchV1 {
     /// Return pre-commit candidate facts for response admission only.
     #[must_use]
-    pub fn candidate_revision_and_digest_v1(&self) -> Option<(u64, [u8; 32])> {
-        self.candidate.as_ref().map(|candidate| {
-            let snapshot = candidate.snapshot(true);
+    pub(crate) fn candidate_revision_and_digest_v1(&self) -> Option<(u64, [u8; 32])> {
+        self.transition.metadata_v1().map(|metadata| {
+            let snapshot = metadata.observation().snapshot();
             (snapshot.revision(), *snapshot.digest())
         })
     }
@@ -37,7 +32,7 @@ impl PendingCreateMoleculeBatchV1 {
 
 impl DocumentSession {
     /// Prepare one nonempty molecule batch as exactly one candidate revision.
-    pub fn prepare_create_molecule_batch_v1(
+    pub(crate) fn prepare_create_molecule_batch_v1(
         &mut self,
         expected_revision: u64,
         molecules: &[MoleculeInsertionV1],
@@ -46,8 +41,9 @@ impl DocumentSession {
             return Err(DocumentSessionError::EmptyMoleculeBatch);
         }
         self.require_current(expected_revision)?;
-        let current = self.history.current();
-        let mut generated_ids = self.generated_ids;
+        let (mut generated_ids, effects) =
+            self.reserve_generated_ids_for_transition_v1(|ids, _| Ok((ids, ids)))?;
+        let current = self.current_state_v1();
         let mut candidate = None;
         for molecule in molecules {
             let (identities, next_generated_ids) = generated_ids.reserve_molecule(
@@ -77,58 +73,52 @@ impl DocumentSession {
             candidate.expect("nonempty molecule batch produces a candidate"),
         )
         .map_err(DocumentSessionError::Load)?;
-        let candidate_snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        SessionDocumentObservationV1::from_state(candidate.document(), candidate_snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        Ok(PendingCreateMoleculeBatchV1 {
-            session_issuer: self.authoring_capability_issuer.clone(),
-            revision: expected_revision,
-            candidate: Some(candidate),
-            next_generated_ids: generated_ids,
-        })
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            *current.digest(),
+            candidate,
+            effects.installing_generated_ids(generated_ids),
+        )?;
+        Ok(PendingCreateMoleculeBatchV1 { transition })
     }
 
     /// Commit one prepared molecule batch as exactly one document history transition.
-    pub fn commit_create_molecule_batch_v1(
+    pub(crate) fn commit_create_molecule_batch_v1(
         &mut self,
         expected_revision: u64,
         pending: &mut PendingCreateMoleculeBatchV1,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
-        if pending.candidate.is_none() {
-            return Err(DocumentSessionError::PreparedOperationConsumed);
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
+    }
+}
+
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
         }
-        if !pending
-            .session_issuer
-            .same_issuer(&self.authoring_capability_issuer)
-        {
-            return Err(DocumentSessionError::PreparedOperationForeignSession);
+        AdmittedSessionTransitionRefusalV1::Replayed
+        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
         }
-        if pending.revision != expected_revision {
-            return Err(DocumentSessionError::RevisionConflict {
-                expected: pending.revision,
-                actual: expected_revision,
-            });
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
         }
-        let token =
-            super::prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
-        self.history
-            .current()
-            .document()
-            .verify_provisional_token(&token)
-            .map_err(super::prepared::map_prepared_token_error)?;
-        self.history
-            .current_mut()
-            .document_mut()
-            .consume_provisional_token(&token)
-            .map_err(SessionOperationError::Candidate)?;
-        self.generated_ids = pending.next_generated_ids;
-        let state = pending
-            .candidate
-            .take()
-            .expect("the candidate presence check established this invariant");
-        self.history.append(state);
-        self.operation_result()
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
+        }
     }
 }
 

@@ -46,6 +46,7 @@ enum PyCategory {
     DisplayOnly,
     Observation,
     SessionConflict,
+    UnrenderableCandidate,
     CrossMoleculeSelection,
     UnsupportedTarget,
 }
@@ -137,6 +138,7 @@ enum PyGridSnapPolicy {
 enum PyStructureTargetKind {
     Atom,
     Bond,
+    CompactGroup,
     DisplayOnly,
 }
 impl From<PyModifier> for RenderInteractionModifierV1 {
@@ -168,6 +170,7 @@ fn structure_kind(value: StructureTargetKindV1) -> PyStructureTargetKind {
     match value {
         StructureTargetKindV1::Atom => PyStructureTargetKind::Atom,
         StructureTargetKindV1::Bond => PyStructureTargetKind::Bond,
+        StructureTargetKindV1::CompactGroup => PyStructureTargetKind::CompactGroup,
         StructureTargetKindV1::DisplayOnly => PyStructureTargetKind::DisplayOnly,
     }
 }
@@ -838,6 +841,7 @@ fn category(error: &RenderInteractionErrorV1) -> PyCategory {
         RenderInteractionErrorV1::DisplayOnly => PyCategory::DisplayOnly,
         RenderInteractionErrorV1::Observation => PyCategory::Observation,
         RenderInteractionErrorV1::SessionConflict => PyCategory::SessionConflict,
+        RenderInteractionErrorV1::UnrenderableCandidate => PyCategory::UnrenderableCandidate,
         RenderInteractionErrorV1::CrossMoleculeSelection => PyCategory::CrossMoleculeSelection,
         RenderInteractionErrorV1::UnsupportedTarget => PyCategory::UnsupportedTarget,
         RenderInteractionErrorV1::UnsupportedDocument => PyCategory::Observation,
@@ -858,6 +862,7 @@ fn recovery(error: &RenderInteractionErrorV1) -> PyRecovery {
         RenderInteractionErrorV1::UnrenderableDepiction
         | RenderInteractionErrorV1::AmbiguousRootIdentifier
         | RenderInteractionErrorV1::DisplayOnly
+        | RenderInteractionErrorV1::UnrenderableCandidate
         | RenderInteractionErrorV1::UnsupportedTarget => PyRecovery::ChangePresentation,
         RenderInteractionErrorV1::PreviewMismatch
         | RenderInteractionErrorV1::Observation

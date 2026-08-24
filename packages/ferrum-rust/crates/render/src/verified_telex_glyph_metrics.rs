@@ -1,7 +1,12 @@
 //! Pure-Rust TrueType design metrics for Ferrum's closed Telex V1 resource.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
+use ferrum_document_model::CompactGroupCatalogKeyV1;
+use ferrum_render_contract::{
+    TELEX_REGULAR_RESOURCE_ID_V1, TELEX_REGULAR_SHA256_V1, TelexScalarCapabilityV1,
+    classify_telex_scalar_v1, validate_telex_text_segments_v1,
+};
 use ttf_parser::{Face, GlyphId};
 
 use crate::glyph_metrics::LaidOutAtomLabel;
@@ -37,7 +42,10 @@ pub(crate) fn is_verified_outlineless_whitespace_glyph(
     let Ok(glyph_id) = u16::try_from(glyph_index) else {
         return false;
     };
-    scalar.is_whitespace() && face.glyph_index(scalar) == Some(GlyphId(glyph_id))
+    matches!(
+        classify_telex_scalar_v1(scalar),
+        Some(TelexScalarCapabilityV1::WhitespaceAdvanceOnly)
+    ) && face.glyph_index(scalar) == Some(GlyphId(glyph_id))
 }
 
 impl GlyphRunMetrics {
@@ -104,7 +112,7 @@ impl FontBaselineMetrics {
 /// The verified resource has UPM 1000 and no kerning table.  V1 deliberately
 /// permits only a scalar-to-one-glyph mapping; it does not promise shaping,
 /// fallback, or font discovery.  Geometry is design metrics multiplied by the
-/// requested size and run scale.  The V1 receipt fixes these semantics for the
+/// requested size and run scale. The V1 contract fixes these semantics for the
 /// closed Telex corpus.
 #[derive(Debug)]
 pub struct VerifiedTelexGlyphMetrics {
@@ -117,6 +125,7 @@ impl VerifiedTelexGlyphMetrics {
     pub fn new(environment: &FerrumFontEnvironmentV1) -> Result<Self, RenderError> {
         let descriptor = environment.descriptor(FerrumFontId::TelexRegular);
         let face = open_face(descriptor.data())?;
+        verify_telex_contract(descriptor, &face)?;
         let units_per_em = f64::from(face.units_per_em());
         if !units_per_em.is_finite() || units_per_em <= 0.0 {
             return Err(RenderError::InvalidRequest(
@@ -190,6 +199,7 @@ impl VerifiedTelexGlyphMetrics {
         size: PositiveFinite,
         paint: Paint,
     ) -> Result<CenteredTextLayout, RenderError> {
+        validate_telex_text_segments_v1(["+"]).map_err(telex_admission_error)?;
         let scale = PositiveFinite::new(1.0)?;
         let layout = self.layout_unshaped_run("+", size, scale)?;
         let center_x = (layout.min_x + layout.max_x) / 2.0;
@@ -197,6 +207,46 @@ impl VerifiedTelexGlyphMetrics {
         let origin = RenderPoint::new(-center_x, -center_y)?;
         let run = TextRun::new(
             "+",
+            TextScript::Baseline,
+            RenderPoint::new(0.0, 0.0)?,
+            layout.glyphs,
+            scale,
+        )?;
+        let operation = TextOp::new(
+            origin,
+            vec![run],
+            FontFace::telex_regular(),
+            size,
+            paint,
+            20,
+        )?;
+        let bounds = GlyphBounds::new(
+            layout.min_x - center_x,
+            layout.min_y - center_y,
+            layout.max_x - center_x,
+            layout.max_y - center_y,
+        )?;
+        Ok(CenteredTextLayout::new(operation, bounds))
+    }
+
+    /// Lay out one closed compact-group label around an anchor-local origin.
+    ///
+    /// The accepted labels are derived solely from the document compact-group
+    /// catalog. This is not a general rich-text entry point.
+    pub(crate) fn layout_centered_compact_group_label(
+        &self,
+        catalog_key: CompactGroupCatalogKeyV1,
+        size: PositiveFinite,
+        paint: Paint,
+    ) -> Result<CenteredTextLayout, RenderError> {
+        let label = catalog_key.label();
+        let scale = PositiveFinite::new(1.0)?;
+        let layout = self.layout_unshaped_run(label, size, scale)?;
+        let center_x = (layout.min_x + layout.max_x) / 2.0;
+        let center_y = (layout.min_y + layout.max_y) / 2.0;
+        let origin = RenderPoint::new(-center_x, -center_y)?;
+        let run = TextRun::new(
+            label,
             TextScript::Baseline,
             RenderPoint::new(0.0, 0.0)?,
             layout.glyphs,
@@ -231,6 +281,8 @@ impl VerifiedTelexGlyphMetrics {
         size: PositiveFinite,
         paint: Paint,
     ) -> Result<PresentationTextLayout, RenderError> {
+        validate_telex_text_segments_v1(source_runs.iter().map(PresentationTextSourceRun::text))
+            .map_err(telex_admission_error)?;
         if source_runs.is_empty()
             || !source_runs
                 .iter()
@@ -364,7 +416,8 @@ impl VerifiedTelexGlyphMetrics {
     ) -> Result<(), RenderError> {
         if !is_v1_text_run(text, script) {
             return Err(RenderError::InvalidRequest(
-                "text run is outside the closed V1 atom-label or plus grammar".to_owned(),
+                "text run is outside the closed V1 atom-label, compact-group, or plus grammar"
+                    .to_owned(),
             ));
         }
         if glyphs != self.v1_glyphs_for_run(text, size, scale)? {
@@ -553,7 +606,7 @@ impl VerifiedTelexGlyphMetrics {
 fn is_v1_text_run(text: &str, script: TextScript) -> bool {
     match script {
         TextScript::Baseline => {
-            if text == "+" {
+            if text == "+" || CompactGroupCatalogKeyV1::from_label(text).is_some() {
                 return true;
             }
             let mut scalars = text.chars();
@@ -597,6 +650,8 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
                 "verified Telex glyph metrics require ferrum-telex-regular-v1".to_owned(),
             ));
         }
+        validate_telex_text_segments_v1(label.text_pieces().iter().map(|(text, _)| text.as_str()))
+            .map_err(telex_admission_error)?;
         let script_scale = PositiveFinite::new(0.65)?;
         let baseline = self.baseline_metrics(font.size())?;
         let pieces = label.text_pieces();
@@ -682,6 +737,7 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
             ));
         }
         let text = number.to_string();
+        validate_telex_text_segments_v1([text.as_str()]).map_err(telex_admission_error)?;
         let scale = PositiveFinite::new(1.0)?;
         let layout = self.layout_unshaped_run(&text, font.size(), scale)?;
         TextRun::new(
@@ -691,6 +747,72 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
             layout.glyphs,
             scale,
         )
+    }
+}
+
+fn telex_admission_error(error: ferrum_render_contract::TelexTextExclusionV1) -> RenderError {
+    RenderError::InvalidRequest(format!("Telex text admission rejected input: {error:?}"))
+}
+
+fn verify_telex_contract(
+    descriptor: &crate::FontAssetDescriptor,
+    face: &Face<'_>,
+) -> Result<(), RenderError> {
+    if descriptor.id().resource_id() != TELEX_REGULAR_RESOURCE_ID_V1
+        || descriptor.sha256() != TELEX_REGULAR_SHA256_V1
+    {
+        return Err(RenderError::InvalidRequest(
+            "verified Telex asset does not match the shared admission resource".to_owned(),
+        ));
+    }
+    static VERIFIED: OnceLock<Result<(), String>> = OnceLock::new();
+    VERIFIED
+        .get_or_init(|| verify_telex_scalar_table(face))
+        .as_ref()
+        .map_err(|detail| {
+            RenderError::InvalidRequest(format!("Telex admission contract mismatch: {detail}"))
+        })
+        .copied()
+}
+
+fn verify_telex_scalar_table(face: &Face<'_>) -> Result<(), String> {
+    for value in 0_u32..=char::MAX as u32 {
+        let Some(scalar) = char::from_u32(value) else {
+            continue;
+        };
+        if scalar.is_control() {
+            continue;
+        }
+        let physical = face
+            .glyph_index(scalar)
+            .filter(|glyph| glyph.0 != 0)
+            .and_then(|glyph| {
+                let advance = face.glyph_hor_advance(glyph)?;
+                (advance > 0).then_some((glyph, face.glyph_bounding_box(glyph)))
+            });
+        let expected = classify_telex_scalar_v1(scalar);
+        match (expected, physical) {
+            (Some(TelexScalarCapabilityV1::Outlined), Some((_, Some(_)))) => {}
+            (Some(TelexScalarCapabilityV1::WhitespaceAdvanceOnly), Some((_, None)))
+                if scalar.is_whitespace() => {}
+            (Some(TelexScalarCapabilityV1::LineFeed), None) => {}
+            (None, None) => {}
+            (expected, physical) => {
+                return Err(format!(
+                    "scalar U+{value:04X} has contract {expected:?} but physical capability {}",
+                    physical_capability_name(physical)
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn physical_capability_name(value: Option<(GlyphId, Option<ttf_parser::Rect>)>) -> &'static str {
+    match value {
+        Some((_, Some(_))) => "outlined",
+        Some((_, None)) => "outline-less",
+        None => "absent-or-nonadvancing",
     }
 }
 

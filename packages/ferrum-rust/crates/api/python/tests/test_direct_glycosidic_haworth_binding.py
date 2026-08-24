@@ -105,7 +105,7 @@ def test_private_direct_haworth_receipt_previews_and_commits_rust_owned_profile(
 	)
 
 	assert parsed.local_scale > 0.0
-	assert {batch.display_layer for batch in prepared.preview_batches} == {
+	assert {batch.display_layer for batch in prepared.preview_plan.batches} == {
 		"ordinary", "haworth_front_stroke", "haworth_front_wedge",
 	}
 	assert _is_direct_glycosidic_profile(molecule)

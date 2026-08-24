@@ -1,279 +1,34 @@
-//! Resolved source facts for one direct-root CDML Text label.
+//! Typed-CDML adapter for immutable Text projection values.
 
-use serde::{Deserialize, Deserializer, Serialize};
+use ferrum_document_projection::{
+    PresentationFactProvenanceV1, PresentationFillV1, PresentationFontFaceV1,
+    PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationTargetV1,
+    PresentationTextFontV1, PresentationTextRunV1, PresentationTextStyleV1, TextProjectionV1,
+};
 use xmlparser::{ElementEnd, Reference, Stream, Token, Tokenizer};
 
 use super::presentation_polyline_projection_v1::{RootStrokeDefaultsV1, point};
-use super::presentation_shape_projection_v1::PresentationFillV1;
-use super::presentation_stack_projection_v1::{
-    PresentationFactProvenanceV1, PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1,
-    PresentationTargetV1,
-};
-use super::{Point3V1, PositiveFiniteV1, Rgb24V1, TypedChild, TypedClass, TypedRecord};
+use super::presentation_stack_projection_v1::presentation_target_from_child_v1;
+use super::{PositiveFiniteV1, Rgb24V1, TypedChild, TypedClass, TypedRecord};
 
 const BUILTIN_TEXT_FONT_SIZE: f64 = 12.0;
 const BUILTIN_TEXT_COLOR: &str = "#000000";
-
-/// One supported formatting fact carried by a CDML formatted-text run.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PresentationTextStyleV1 {
-    /// Bold authored text. Rendering requires a verified bold face.
-    Bold,
-    /// Italic authored text. Rendering requires a verified italic face.
-    Italic,
-    /// Lowered script rendered with the regular face.
-    Subscript,
-    /// Raised script rendered with the regular face.
-    Superscript,
-}
-
-/// One nonempty normalized character-data run and its closed style set.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct PresentationTextRunV1 {
-    text: String,
-    styles: Vec<PresentationTextStyleV1>,
-}
-
-/// Complete resolved font facts for one direct-root Text label.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct PresentationTextFontV1 {
-    family: Option<String>,
-    family_provenance: PresentationFactProvenanceV1,
-    size: PositiveFiniteV1,
-    size_provenance: PresentationFactProvenanceV1,
-    color: Rgb24V1,
-    color_provenance: PresentationFactProvenanceV1,
-}
-
-impl<'de> Deserialize<'de> for PresentationTextFontV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = TextFontWireV1::deserialize(deserializer)?;
-        let family = wire.family.map(|value| value.trim().to_owned());
-        if family.as_ref().is_some_and(String::is_empty)
-            || (family.is_none()
-                != (wire.family_provenance == PresentationFactProvenanceV1::Builtin))
-        {
-            return Err(serde::de::Error::custom(
-                "presentation Text font family does not match its provenance",
-            ));
-        }
-        let size = PositiveFiniteV1::new(wire.size)
-            .ok_or_else(|| serde::de::Error::custom("invalid presentation Text font size"))?;
-        if wire.size_provenance == PresentationFactProvenanceV1::Builtin
-            && size.value() != BUILTIN_TEXT_FONT_SIZE
-        {
-            return Err(serde::de::Error::custom(
-                "built-in Text font size must use the closed V1 value",
-            ));
-        }
-        let color = Rgb24V1::new(wire.color)
-            .ok_or_else(|| serde::de::Error::custom("invalid presentation Text font colour"))?;
-        if wire.color_provenance == PresentationFactProvenanceV1::Builtin
-            && color.as_str() != BUILTIN_TEXT_COLOR
-        {
-            return Err(serde::de::Error::custom(
-                "built-in Text font colour must use the closed V1 value",
-            ));
-        }
-        Ok(Self {
-            family,
-            family_provenance: wire.family_provenance,
-            size,
-            size_provenance: wire.size_provenance,
-            color,
-            color_provenance: wire.color_provenance,
-        })
-    }
-}
-
-impl PresentationTextFontV1 {
-    /// Return an authored or standard font family, or `None` for Ferrum Telex.
-    #[must_use]
-    pub fn family(&self) -> Option<&str> {
-        self.family.as_deref()
-    }
-
-    /// Return the precedence source for the family decision.
-    #[must_use]
-    pub const fn family_provenance(&self) -> PresentationFactProvenanceV1 {
-        self.family_provenance
-    }
-
-    /// Return the positive finite display size.
-    #[must_use]
-    pub const fn size(&self) -> PositiveFiniteV1 {
-        self.size
-    }
-
-    /// Return the precedence source for the display size.
-    #[must_use]
-    pub const fn size_provenance(&self) -> PresentationFactProvenanceV1 {
-        self.size_provenance
-    }
-
-    /// Return the explicit foreground colour.
-    #[must_use]
-    pub fn color(&self) -> &Rgb24V1 {
-        &self.color
-    }
-
-    /// Return the precedence source for the foreground colour.
-    #[must_use]
-    pub const fn color_provenance(&self) -> PresentationFactProvenanceV1 {
-        self.color_provenance
-    }
-}
-
-impl<'de> Deserialize<'de> for PresentationTextRunV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = TextRunWireV1::deserialize(deserializer)?;
-        Self::new(wire.text, wire.styles).map_err(serde::de::Error::custom)
-    }
-}
-
-impl PresentationTextRunV1 {
-    fn new(text: String, styles: Vec<PresentationTextStyleV1>) -> Result<Self, String> {
-        if text.is_empty() {
-            return Err("presentation text runs must not be empty".to_owned());
-        }
-        if styles.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err("presentation text styles must use canonical unique order".to_owned());
-        }
-        if styles.contains(&PresentationTextStyleV1::Subscript)
-            && styles.contains(&PresentationTextStyleV1::Superscript)
-        {
-            return Err("presentation text cannot combine subscript and superscript".to_owned());
-        }
-        Ok(Self { text, styles })
-    }
-
-    /// Return rendered character data, not XML source.
-    #[must_use]
-    pub fn text(&self) -> &str {
-        &self.text
-    }
-
-    /// Return the canonical unique style set in bold, italic, sub, sup order.
-    #[must_use]
-    pub fn styles(&self) -> &[PresentationTextStyleV1] {
-        &self.styles
-    }
-}
-
-/// One direct-root Text label before verified font layout.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct TextProjectionV1 {
-    target: PresentationTargetV1,
-    anchor: Point3V1,
-    runs: Vec<PresentationTextRunV1>,
-    font: PresentationTextFontV1,
-    background: PresentationFillV1,
-}
-
-impl<'de> Deserialize<'de> for TextProjectionV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = TextProjectionWireV1::deserialize(deserializer)?;
-        validate_runs(&wire.runs).map_err(serde::de::Error::custom)?;
-        Ok(Self {
-            target: wire.target,
-            anchor: wire.anchor.into_point().map_err(serde::de::Error::custom)?,
-            runs: wire.runs,
-            font: wire.font,
-            background: wire.background,
-        })
-    }
-}
-
-impl TextProjectionV1 {
-    /// Return durable-or-local identity and root source order.
-    #[must_use]
-    pub fn target(&self) -> &PresentationTargetV1 {
-        &self.target
-    }
-
-    /// Return the authored scene anchor for the first text line.
-    #[must_use]
-    pub const fn anchor(&self) -> Point3V1 {
-        self.anchor
-    }
-
-    /// Return normalized source runs in rendered character order.
-    #[must_use]
-    pub fn runs(&self) -> &[PresentationTextRunV1] {
-        &self.runs
-    }
-
-    /// Return fully resolved source font facts.
-    #[must_use]
-    pub fn font(&self) -> &PresentationTextFontV1 {
-        &self.font
-    }
-
-    /// Return the explicit optional background fact.
-    #[must_use]
-    pub fn background(&self) -> &PresentationFillV1 {
-        &self.background
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct TextRunWireV1 {
-    text: String,
-    styles: Vec<PresentationTextStyleV1>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct TextFontWireV1 {
-    family: Option<String>,
-    family_provenance: PresentationFactProvenanceV1,
-    size: f64,
-    size_provenance: PresentationFactProvenanceV1,
-    color: String,
-    color_provenance: PresentationFactProvenanceV1,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct TextProjectionWireV1 {
-    target: PresentationTargetV1,
-    anchor: PointWireV1,
-    runs: Vec<PresentationTextRunV1>,
-    font: PresentationTextFontV1,
-    background: PresentationFillV1,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PointWireV1 {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl PointWireV1 {
-    fn into_point(self) -> Result<Point3V1, String> {
-        Point3V1::new(self.x, self.y, self.z).map_err(|error| error.to_string())
-    }
-}
 
 pub(crate) fn text(
     child: &TypedChild,
     defaults: RootStrokeDefaultsV1<'_>,
     issues: &mut Vec<PresentationProjectionIssueV1>,
+) -> Result<Option<TextProjectionV1>, crate::ProjectionError> {
+    let target = presentation_target_from_child_v1(child)?;
+    Ok(text_with_target(child, target, defaults, issues))
+}
+
+fn text_with_target(
+    child: &TypedChild,
+    target: PresentationTargetV1,
+    defaults: RootStrokeDefaultsV1<'_>,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
 ) -> Option<TextProjectionV1> {
-    let target = PresentationTargetV1::from_child(child);
     let record = child.record();
     let points = record.children_of(TypedClass::Point).collect::<Vec<_>>();
     if points.len() != 1 {
@@ -338,13 +93,9 @@ pub(crate) fn text(
         ));
         return None;
     }
-    Some(TextProjectionV1 {
-        font: resolve_font(fonts.first().copied(), defaults.standard, &target, issues),
-        background: resolve_background(record, &target, issues),
-        target,
-        anchor,
-        runs,
-    })
+    let font = resolve_font(fonts.first().copied(), defaults.standard, &target, issues);
+    let background = resolve_background(record, &target, issues);
+    TextProjectionV1::try_new(target, anchor, runs, font, background).ok()
 }
 
 fn resolve_font(
@@ -353,25 +104,26 @@ fn resolve_font(
     target: &PresentationTargetV1,
     issues: &mut Vec<PresentationProjectionIssueV1>,
 ) -> PresentationTextFontV1 {
-    let (family, family_provenance) = family(font, standard, target, issues);
+    let (font_face, font_face_provenance) = font_face(font, standard, target, issues);
     let (size, size_provenance) = size(font, standard, target, issues);
     let (color, color_provenance) = color(font, standard, target, issues);
-    PresentationTextFontV1 {
-        family,
-        family_provenance,
+    PresentationTextFontV1::try_new(
+        font_face,
+        font_face_provenance,
         size,
         size_provenance,
         color,
         color_provenance,
-    }
+    )
+    .expect("typed-CDML font resolution always selects valid closed facts")
 }
 
-fn family(
+fn font_face(
     font: Option<&TypedRecord>,
     standard: Option<&TypedRecord>,
     target: &PresentationTargetV1,
     issues: &mut Vec<PresentationProjectionIssueV1>,
-) -> (Option<String>, PresentationFactProvenanceV1) {
+) -> (PresentationFontFaceV1, PresentationFactProvenanceV1) {
     for (record, field, provenance) in [
         (font, "family", PresentationFactProvenanceV1::Root),
         (
@@ -383,17 +135,19 @@ fn family(
         let Some(value) = record.and_then(|record| record.attribute(field)) else {
             continue;
         };
-        let value = value.trim();
-        if !value.is_empty() {
-            return (Some(value.to_owned()), provenance);
+        if let Some(face) = PresentationFontFaceV1::from_cdml_family(value) {
+            return (face, provenance);
         }
         issues.push(PresentationProjectionIssueV1::new(
             target.clone(),
-            PresentationProjectionIssueCodeV1::InvalidFontFact,
-            format!("{field} must not be blank"),
+            PresentationProjectionIssueCodeV1::UnsupportedTextFace,
+            format!("unsupported_text_face: {field} must be Telex Regular (bundled)"),
         ));
     }
-    (None, PresentationFactProvenanceV1::Builtin)
+    (
+        PresentationFontFaceV1::TelexRegularV1,
+        PresentationFactProvenanceV1::Builtin,
+    )
 }
 
 fn size(
@@ -466,20 +220,24 @@ fn resolve_background(
     issues: &mut Vec<PresentationProjectionIssueV1>,
 ) -> PresentationFillV1 {
     let Some(value) = root.attribute("background-color") else {
-        return PresentationFillV1::resolved(None, PresentationFactProvenanceV1::Builtin);
+        return PresentationFillV1::try_new(None, PresentationFactProvenanceV1::Builtin)
+            .expect("closed built-in transparent fill is valid");
     };
     if value.is_empty() || value == "none" {
-        return PresentationFillV1::resolved(None, PresentationFactProvenanceV1::Root);
+        return PresentationFillV1::try_new(None, PresentationFactProvenanceV1::Root)
+            .expect("transparent root fill is valid");
     }
     if let Some(color) = Rgb24V1::new(value) {
-        return PresentationFillV1::resolved(Some(color), PresentationFactProvenanceV1::Root);
+        return PresentationFillV1::try_new(Some(color), PresentationFactProvenanceV1::Root)
+            .expect("validated root fill colour is valid");
     }
     issues.push(PresentationProjectionIssueV1::new(
         target.clone(),
         PresentationProjectionIssueCodeV1::InvalidFillFact,
         "background-color must be empty, none, #rgb, or #rrggbb",
     ));
-    PresentationFillV1::resolved(None, PresentationFactProvenanceV1::Builtin)
+    PresentationFillV1::try_new(None, PresentationFactProvenanceV1::Builtin)
+        .expect("closed built-in transparent fill is valid")
 }
 
 fn validate_runs(runs: &[PresentationTextRunV1]) -> Result<(), String> {
@@ -598,11 +356,16 @@ fn append_text(
     if text.is_empty() {
         return Ok(());
     }
-    if let Some(previous) = runs.last_mut().filter(|run| run.styles == styles) {
-        previous.text.push_str(&text);
+    if let Some(previous) = runs
+        .last_mut()
+        .filter(|run| run.styles() == styles.as_slice())
+    {
+        let merged = format!("{}{}", previous.text(), text);
+        *previous =
+            PresentationTextRunV1::try_new(merged, styles).map_err(|error| error.to_string())?;
         return Ok(());
     }
-    runs.push(PresentationTextRunV1::new(text, styles)?);
+    runs.push(PresentationTextRunV1::try_new(text, styles).map_err(|error| error.to_string())?);
     Ok(())
 }
 

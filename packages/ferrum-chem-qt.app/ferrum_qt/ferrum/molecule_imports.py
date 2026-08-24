@@ -30,6 +30,33 @@ class _MoleculeImportIntent:
 
 
 #============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class _MoleculeImportRetirement:
+	"""One worker awaiting its authoritative Qt destruction acknowledgement."""
+
+	kind: str
+	worker: PySide6.QtCore.QThread
+
+
+#============================================
+class _MoleculeImportRetirementAcknowledgement(PySide6.QtCore.QObject):
+	"""Bind one Qt destruction signal to its exact immutable retirement state."""
+
+	#============================================
+	def __init__(self, owner: object, retirement: _MoleculeImportRetirement) -> None:
+		"""Retain one authoritative terminal callback until Qt deletes its worker."""
+		super().__init__(owner)
+		self._owner = owner
+		self._retirement = retirement
+
+	#============================================
+	@PySide6.QtCore.Slot()
+	def on_worker_destroyed(self) -> None:
+		"""Acknowledge the captured retirement after QObject destruction completes."""
+		self._owner._on_import_worker_destroyed(self._retirement, self)
+
+
+#============================================
 class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 	"""Deliver worker outcomes to the owning window on the Qt thread."""
 
@@ -129,7 +156,6 @@ class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 		"""Release the exact peptide-template worker that has stopped."""
 		self._owner._finish_import("peptide", self.sender())
 
-
 #============================================
 class FerrumNativeMoleculeImportsMixin:
 	"""Own asynchronous text and bounded local-file molecule imports.
@@ -147,6 +173,10 @@ class FerrumNativeMoleculeImportsMixin:
 		self._molblock_import_intent: _MoleculeImportIntent | None = None
 		self._sdf_import_intent: _MoleculeImportIntent | None = None
 		self._peptide_import_intent: _MoleculeImportIntent | None = None
+		self._molecule_import_retirement: _MoleculeImportRetirement | None = None
+		self._molecule_import_retirement_acknowledgement: (
+			_MoleculeImportRetirementAcknowledgement | None
+		) = None
 		self._molecule_import_relay = _MoleculeImportDeliveryRelay(self)
 
 	#============================================
@@ -209,7 +239,7 @@ class FerrumNativeMoleculeImportsMixin:
 			self._molblock_import_intent,
 			self._sdf_import_intent,
 			self._peptide_import_intent,
-		))
+		)) or self._molecule_import_retirement is not None
 
 	#============================================
 	def _on_import_smiles(self) -> None:
@@ -502,28 +532,28 @@ class FerrumNativeMoleculeImportsMixin:
 	def _on_smiles_prepared(self, worker: object, molecule: object) -> None:
 		"""Commit one still-current SMILES result."""
 		self._commit_prepared_import(
-			self._smiles_import_intent, worker, molecule, "SMILES",
+			self._smiles_import_intent, worker, molecule, "SMILES", "smiles_import",
 		)
 
 	#============================================
 	def _on_inchi_prepared(self, worker: object, molecule: object) -> None:
 		"""Commit one still-current InChI result."""
 		self._commit_prepared_import(
-			self._inchi_import_intent, worker, molecule, "InChI",
+			self._inchi_import_intent, worker, molecule, "InChI", "inchi_import",
 		)
 
 	#============================================
 	def _on_molblock_prepared(self, worker: object, molecule: object) -> None:
 		"""Commit one still-current bounded molfile result."""
 		self._commit_prepared_import(
-			self._molblock_import_intent, worker, molecule, "Molfile",
+			self._molblock_import_intent, worker, molecule, "Molfile", "molfile_import",
 		)
 
 	#============================================
 	def _on_sdf_prepared(self, worker: object, batch: object) -> None:
 		"""Commit one still-current complete SDF batch."""
 		self._commit_prepared_import(
-			self._sdf_import_intent, worker, batch, "SDF",
+			self._sdf_import_intent, worker, batch, "SDF", "sdf_import",
 		)
 
 	#============================================
@@ -531,11 +561,13 @@ class FerrumNativeMoleculeImportsMixin:
 		"""Commit one still-current strict peptide-template result."""
 		self._commit_prepared_import(
 			self._peptide_import_intent, worker, molecule, "Peptide Template",
+			"peptide_template_import",
 		)
 
 	#============================================
 	def _commit_prepared_import(self, intent: _MoleculeImportIntent | None,
-			worker: object, molecule: object, label: str) -> None:
+			worker: object, molecule: object, label: str,
+			installation_kind: str) -> None:
 		"""Commit only a worker result whose tab revision and digest remain current."""
 		if intent is None or worker is not intent.worker:
 			return
@@ -556,9 +588,9 @@ class FerrumNativeMoleculeImportsMixin:
 			return
 		try:
 			if label == "SDF":
-				tab.insert_prepared_sdf_records(molecule)
+				result = tab.insert_prepared_sdf_records(molecule)
 			else:
-				tab.insert_prepared_molecule(molecule)
+				result = tab.insert_prepared_molecule(molecule)
 		except Exception as exc:
 			self._refresh_actions()
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
@@ -570,6 +602,12 @@ class FerrumNativeMoleculeImportsMixin:
 		)
 		self.statusBar().showMessage(self.tr(message), 5000)
 		self._refresh_actions()
+		target = result.observation.snapshot
+		record_count = molecule.record_count if label == "SDF" else 1
+		self._publish_document_installation_v1(
+			tab, installation_kind, intent.revision, intent.digest,
+			target.revision, target.digest, record_count,
+		)
 
 	#============================================
 	def _on_smiles_failed(self, worker: object, failure: object) -> None:
@@ -616,16 +654,35 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def _finish_import(self, kind: str, worker: object) -> None:
-		"""Release exactly the worker that emitted this finished signal."""
+		"""Begin Qt-owned terminal retirement for one exact stopped worker."""
 		attribute = f"_{kind}_import_intent"
 		intent = getattr(self, attribute)
 		if intent is None or worker is not intent.worker:
 			return
 		setattr(self, attribute, None)
+		retirement = _MoleculeImportRetirement(kind, intent.worker)
+		self._molecule_import_retirement = retirement
+		acknowledgement = _MoleculeImportRetirementAcknowledgement(self, retirement)
+		self._molecule_import_retirement_acknowledgement = acknowledgement
+		intent.worker.destroyed.connect(acknowledgement.on_worker_destroyed)
 		if intent.worker.delivery_cancelled:
 			self.statusBar().showMessage(self.tr(f"{kind.capitalize()} import cancelled."), 5000)
 		intent.worker.deleteLater()
 		self._refresh_actions()
+
+	#============================================
+	def _on_import_worker_destroyed(self, retirement: _MoleculeImportRetirement,
+			acknowledgement: _MoleculeImportRetirementAcknowledgement) -> None:
+		"""Publish retirement only after its exact queued worker deletion completes."""
+		if self._molecule_import_retirement is not retirement:
+			return
+		if self._molecule_import_retirement_acknowledgement is not acknowledgement:
+			return
+		self._molecule_import_retirement = None
+		self._molecule_import_retirement_acknowledgement = None
+		acknowledgement.deleteLater()
+		self._refresh_actions()
+		self.document_import_retired.emit()
 
 	#============================================
 	def _cancel_smiles_import(self) -> None:
@@ -714,6 +771,12 @@ class FerrumNativeMoleculeImportsMixin:
 	#============================================
 	def _cancel_molecule_imports_for_close(self) -> bool:
 		"""Cancel live delivery and tell the host to ignore this close attempt."""
+		if self._molecule_import_retirement is not None:
+			self.statusBar().showMessage(
+				self.tr("Ferrum is completing import cleanup; close again after it finishes."),
+				0,
+			)
+			return True
 		for label, intent, cancel in (
 			("SMILES", self._smiles_import_intent, self._cancel_smiles_import),
 			("InChI", self._inchi_import_intent, self._cancel_inchi_import),
@@ -723,6 +786,11 @@ class FerrumNativeMoleculeImportsMixin:
 		):
 			if intent is not None:
 				cancel()
-				self._show_edit_refusal(self._unavailable_edit_refusal(f"Ferrum cancelled delivery; close again after {label} work finishes."))
+				self.statusBar().showMessage(
+					self.tr(
+						f"Ferrum cancelled {label} delivery; close again after it finishes."
+					),
+					0,
+				)
 				return True
 		return False

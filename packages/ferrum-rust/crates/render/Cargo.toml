@@ -17,7 +17,9 @@ ferrum-core = { path = "../core" }
 ferrum-chemistry = { path = "../chemistry" }
 ferrum-geometry = { path = "../geometry" }
 ferrum-domain = { path = "../domain" }
-ferrum-document = { path = "../document" }
+ferrum-document-projection = { path = "../document-projection" }
+ferrum-document-model = { path = "../document-model" }
+ferrum-render-contract = { path = "../render-contract" }
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*", features = ["float_roundtrip"] }
 thiserror = { version = "*" }

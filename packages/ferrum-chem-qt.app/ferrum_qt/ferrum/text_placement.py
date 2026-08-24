@@ -93,6 +93,6 @@ def dialog_for_placement(model: FerrumTextPlacementDialogModel, parent: object) 
 		),
 	)
 	return ferrum_qt.dialogs.rich_text_dialog.RichTextDialog(
-		model.runs, "Telex", model.font_size, model.color, parent,
+		model.runs, model.font_size, model.color, parent,
 		capabilities=capabilities, initial_text_selected=True,
 	)

@@ -32,13 +32,13 @@ fn arrow(observation: &crate::SessionDocumentObservationV1) -> &crate::ArrowProj
 }
 
 fn normal_head_flags(observation: &crate::SessionDocumentObservationV1) -> (bool, bool) {
-    let crate::ArrowDisplayGeometryV1::Normal {
+    let crate::ArrowProjectionKindV1::Normal {
         start_head,
         end_head,
         ..
-    } = arrow(observation).geometry()
+    } = arrow(observation).kind()
     else {
-        panic!("normal Arrow properties require normal display geometry");
+        panic!("normal Arrow properties require normal semantic policy");
     };
     (*start_head, *end_head)
 }
@@ -67,9 +67,9 @@ fn arrow_properties_commit_once_preserve_extensions_and_follow_history() {
     assert!(cdml.contains("<v:root"));
 
     let undone = session.undo(1).expect("one patch must undo once");
-    assert_eq!(normal_head_flags(undone.observation()).0, false);
+    assert!(!normal_head_flags(undone.observation()).0);
     let redone = session.redo(2).expect("one patch must redo once");
-    assert_eq!(normal_head_flags(redone.observation()).0, true);
+    assert!(normal_head_flags(redone.observation()).0);
 }
 
 #[test]

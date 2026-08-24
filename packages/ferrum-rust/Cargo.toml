@@ -5,6 +5,7 @@ members = [
     "crates/chemistry",
     "crates/core",
     "crates/document",
+    "crates/document-projection",
     "crates/document-render",
     "crates/catalog-placement",
     "crates/document-model",

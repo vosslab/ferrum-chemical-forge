@@ -4,14 +4,9 @@ use super::binding::{PyDocumentSession, PySessionOperationResultV1};
 use super::presentation_creation_gesture_binding::digest;
 use super::presentation_text_render_binding::PyDocumentTextRenderV1;
 use super::text_properties_binding::PyDocumentTextEditRunV1;
-use crate::{
-    ApiTextPlacementGestureV1, ApiTextPlacementPreviewV1, begin_api_text_placement_gesture_v1,
-    commit_api_text_placement_gesture_v1, preview_api_text_placement_gesture_v1,
-    text_placement_defaults_v1,
-};
 use ferrum_document::{
-    DocumentFenceV1, PresentationGesturePoint2V1, Rgb24V1, TextPlacementContentV1,
-    TextPlacementErrorV1,
+    DocumentFenceV1, PendingTextPlacementV1, PresentationGesturePoint2V1, Rgb24V1,
+    TextPlacementContentV1, TextPlacementErrorV1, TextPlacementGestureV1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -65,11 +60,11 @@ enum PyTextPlacementRecoveryV1 {
 }
 #[pyclass(unsendable, module = "ferrum_chem", name = "TextPlacementGestureV1")]
 pub(crate) struct PyTextPlacementGestureV1 {
-    gesture: ApiTextPlacementGestureV1,
+    gesture: TextPlacementGestureV1,
 }
 #[pyclass(unsendable, module = "ferrum_chem", name = "TextPlacementPreviewV1")]
 pub(crate) struct PyTextPlacementPreviewV1 {
-    preview: ApiTextPlacementPreviewV1,
+    preview: PendingTextPlacementV1,
     #[pyo3(get)]
     overlay: PyDocumentTextRenderV1,
 }
@@ -105,7 +100,7 @@ pub(crate) struct PyTextPlacementCommitV1 {
 #[pymethods]
 impl PyDocumentSession {
     fn begin_text_placement_gesture_v1(
-        &self,
+        &mut self,
         py: Python<'_>,
         expected_revision: u64,
         expected_digest_hex: String,
@@ -114,16 +109,16 @@ impl PyDocumentSession {
     ) -> PyResult<PyTextPlacementGestureV1> {
         let anchor = PresentationGesturePoint2V1::new(x, y)
             .map_err(|_| text_error(py, TextPlacementErrorV1::InvalidAnchor))?;
-        begin_api_text_placement_gesture_v1(
-            &self.session,
-            DocumentFenceV1::new(expected_revision, digest(&expected_digest_hex)?),
-            anchor,
-        )
-        .map(|gesture| PyTextPlacementGestureV1 { gesture })
-        .map_err(|error| text_error(py, error))
+        self.session
+            .begin_text_placement_gesture_v1(
+                DocumentFenceV1::new(expected_revision, digest(&expected_digest_hex)?),
+                anchor,
+            )
+            .map(|gesture| PyTextPlacementGestureV1 { gesture })
+            .map_err(|error| text_error(py, error))
     }
     fn preview_text_placement_gesture_v1(
-        &self,
+        &mut self,
         py: Python<'_>,
         gesture: PyRef<'_, PyTextPlacementGestureV1>,
         runs: &Bound<'_, PyAny>,
@@ -147,7 +142,8 @@ impl PyDocumentSession {
             .transpose()?;
         let content = TextPlacementContentV1::new(runs, font_size, color)
             .map_err(|error| text_error(py, error))?;
-        preview_api_text_placement_gesture_v1(&self.session, &gesture.gesture, content)
+        self.session
+            .prepare_text_placement_gesture_v1(&gesture.gesture, content)
             .map(|preview| PyTextPlacementPreviewV1 {
                 overlay: preview.overlay().into(),
                 preview,
@@ -155,20 +151,22 @@ impl PyDocumentSession {
             .map_err(|error| text_error(py, error))
     }
     fn text_placement_defaults_v1(
-        &self,
+        &mut self,
         py: Python<'_>,
         gesture: PyRef<'_, PyTextPlacementGestureV1>,
     ) -> PyResult<PyTextPlacementDefaultsV1> {
-        text_placement_defaults_v1(&self.session, &gesture.gesture)
+        let run = ferrum_document::AuthoredTextRunV1::new("Text", Vec::new())
+            .expect("fixed default valid");
+        let pending = self.session.prepare_text_placement_gesture_v1(
+            &gesture.gesture,
+            TextPlacementContentV1::new(vec![run.clone()], None, None)
+                .map_err(|error| text_error(py, error))?,
+        );
+        pending
             .map(|value| PyTextPlacementDefaultsV1 {
-                runs: value
-                    .runs()
-                    .iter()
-                    .cloned()
-                    .map(|run| PyDocumentTextEditRunV1 { run })
-                    .collect(),
-                font_size: value.font_size(),
-                color: value.color().to_owned(),
+                runs: vec![PyDocumentTextEditRunV1 { run }],
+                font_size: value.overlay().operation().size().get(),
+                color: format!("#{}", value.overlay().operation().paint().color().as_str()),
                 bold_supported: false,
                 italic_supported: false,
                 font_family_supported: false,
@@ -179,9 +177,13 @@ impl PyDocumentSession {
         &mut self,
         py: Python<'_>,
         gesture: PyRef<'_, PyTextPlacementGestureV1>,
-        preview: PyRef<'_, PyTextPlacementPreviewV1>,
+        mut preview: PyRefMut<'_, PyTextPlacementPreviewV1>,
     ) -> PyResult<PyTextPlacementCommitV1> {
-        commit_api_text_placement_gesture_v1(&mut self.session, &gesture.gesture, &preview.preview)
+        if !preview.preview.matches(&gesture.gesture) {
+            return Err(text_error(py, TextPlacementErrorV1::MismatchedPreview));
+        }
+        self.session
+            .commit_text_placement_gesture_v1(&mut preview.preview)
             .map(|value| PyTextPlacementCommitV1 {
                 identifier: value.identifier().to_owned(),
                 result: value.result().clone().into(),

@@ -3,6 +3,7 @@
 use schemars::SchemaGenerator;
 
 use super::dto::{
+    DocumentAtomOxidationObserveRequestV1, DocumentMoleculeHydrogenMaterializationRequestV1,
     DocumentSmartsQueryRequestV1, OperationProtocolEnvelopeV1, OperationProtocolErrorResponseV1,
     OperationProtocolRequestV1, OperationProtocolResponseV1,
 };
@@ -15,6 +16,10 @@ pub fn generated_operation_protocol_schema_v1() -> serde_json::Value {
     let success_response = generator.subschema_for::<OperationProtocolResponseV1>();
     let error_response = generator.subschema_for::<OperationProtocolErrorResponseV1>();
     let document_smarts_query_request = generator.subschema_for::<DocumentSmartsQueryRequestV1>();
+    let document_atom_oxidation_observe_request =
+        generator.subschema_for::<DocumentAtomOxidationObserveRequestV1>();
+    let document_molecule_hydrogen_materialization_request =
+        generator.subschema_for::<DocumentMoleculeHydrogenMaterializationRequestV1>();
     let mut root = generator.into_root_schema_for::<OperationProtocolEnvelopeV1>();
     root.insert(
         "title".to_owned(),
@@ -27,6 +32,8 @@ pub fn generated_operation_protocol_schema_v1() -> serde_json::Value {
             "success_response": success_response,
             "error_response": error_response,
             "document_smarts_query_request": document_smarts_query_request,
+            "document_atom_oxidation_observe_request": document_atom_oxidation_observe_request,
+            "document_molecule_hydrogen_materialization_request": document_molecule_hydrogen_materialization_request,
         }),
     );
     root.into()

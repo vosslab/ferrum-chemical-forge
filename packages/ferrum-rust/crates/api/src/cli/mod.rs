@@ -27,6 +27,12 @@ pub fn run(
     stderr: &mut dyn Write,
 ) -> Result<(), CliError> {
     match cli.command {
+        Command::DocumentMoleculeHydrogenMaterialize { request } => {
+            Ok(run_protocol(&request, None, stdin, stdout, stderr)?)
+        }
+        Command::DocumentAtomOxidationObserve { request } => {
+            Ok(run_protocol(&request, None, stdin, stdout, stderr)?)
+        }
         Command::Inspect {
             document,
             input_format: _,

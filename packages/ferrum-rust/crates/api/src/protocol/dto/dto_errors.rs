@@ -37,9 +37,9 @@ pub struct OperationProtocolErrorV1 {
     pub operation: Option<ProtocolOperationKindV1>,
     /// Human-readable diagnostic detail.
     pub message: String,
-    /// Closed reason for a resource-limit refusal when one is safe to expose.
+    /// Closed resource refusal facts when one is safe to expose.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub resource_limit_reason: Option<ProtocolResourceLimitReasonV1>,
+    pub resource_limit: Option<ProtocolResourceLimitRefusalV1>,
     /// Closed presentation-authoring recovery facts when this operation refused one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub presentation_author_refusal: Option<PresentationAuthorRefusalV1>,
@@ -51,12 +51,36 @@ pub struct OperationProtocolErrorV1 {
     pub reaction_refusal: Option<ReactionRefusalV1>,
 }
 
+/// Typed public facts for a protocol-wide resource-limit refusal.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProtocolResourceLimitRefusalV1 {
+    pub reason: ProtocolResourceLimitReasonV1,
+    pub recovery: ProtocolResourceLimitRecoveryV1,
+}
+
 /// Closed public reasons for protocol-wide resource-limit refusals.
 #[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProtocolResourceLimitReasonV1 {
     /// The exact canonical SMARTS result envelope exceeded its public budget.
     ResponseSizeExceeded,
+    /// The selected oxidation root exceeds the atom admission bound.
+    OxidationRootAtomsExceeded,
+    /// The selected oxidation root exceeds the bond admission bound.
+    OxidationRootBondsExceeded,
+    /// The selected oxidation root exceeds the component admission bound.
+    OxidationRootComponentsExceeded,
+}
+
+/// Closed recovery instructions for protocol-wide resource-limit refusals.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolResourceLimitRecoveryV1 {
+    /// Reduce the requested result before retrying.
+    ReduceRequestedResult,
+    /// Select a smaller direct molecule root before retrying.
+    UseSmallerRoot,
 }
 
 /// Typed refusal facts for `presentation.author.v1`.
@@ -204,6 +228,18 @@ pub enum OperationProtocolErrorCategoryV1 {
     /// Existing resource policy or derived base64 completion limits refused work.
     #[serde(rename = "resource_limit")]
     ResourceLimit,
+    #[serde(rename = "stale_document")]
+    StaleDocument,
+    #[serde(rename = "atom_not_found")]
+    AtomNotFound,
+    #[serde(rename = "molecule_not_direct_root")]
+    MoleculeNotDirectRoot,
+    #[serde(rename = "atom_not_in_selected_molecule")]
+    AtomNotInSelectedMolecule,
+    #[serde(rename = "unsupported_document")]
+    UnsupportedDocument,
+    #[serde(rename = "cancelled_before_dispatch")]
+    CancelledBeforeDispatch,
     /// An unexpected owned-value executor failure occurred.
     #[serde(rename = "internal_failure")]
     InternalFailure,
@@ -259,6 +295,12 @@ pub enum ProtocolOperationKindV1 {
     /// `document.molecule.smarts.query.v1`.
     #[serde(rename = "document.molecule.smarts.query.v1")]
     DocumentSmartsQuery,
+    /// `document.atom.oxidation.observe.v1`.
+    #[serde(rename = "document.atom.oxidation.observe.v1")]
+    DocumentAtomOxidationObserve,
+    /// `document.molecule.hydrogen.materialize.v1`.
+    #[serde(rename = "document.molecule.hydrogen.materialize.v1")]
+    DocumentMoleculeHydrogenMaterialize,
     /// `document.molecule.interchange.import.v1`.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport,

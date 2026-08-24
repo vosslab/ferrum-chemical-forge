@@ -2,6 +2,7 @@ use crate::{
     AtomLabelFacts, AtomLabelFontProfile, FerrumFontEnvironmentV1, FontFace, GlyphMetrics, Paint,
     PositiveFinite, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
 };
+use ferrum_render_contract::{TELEX_REGULAR_RESOURCE_ID_V1, TELEX_REGULAR_SHA256_V1};
 
 fn paint() -> Paint {
     Paint::rgb24(Rgb24::new("000000").expect("test rgb"))
@@ -18,14 +19,18 @@ fn size(value: f64) -> PositiveFinite {
 fn bundled_telex_asset_matches_its_closed_resource_contract() {
     let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
     let asset = environment.descriptor(crate::FerrumFontId::TelexRegular);
-    assert_eq!(asset.id().resource_id(), "ferrum-telex-regular-v1");
+    assert_eq!(asset.id().resource_id(), TELEX_REGULAR_RESOURCE_ID_V1);
     assert_eq!(asset.bytes(), 38_940);
-    assert_eq!(
-        asset.sha256(),
-        "eeaa2d17d105b6b46e5368ecd990f5b19c50131ff922dbf79bfb9bb45c249871"
-    );
+    assert_eq!(asset.sha256(), TELEX_REGULAR_SHA256_V1);
     assert_eq!(asset.family(), "Telex");
     assert_eq!(asset.postscript_name(), "Telex-Regular");
+}
+
+#[test]
+fn bundled_telex_font_matches_the_shared_scalar_capability_table() {
+    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
+    VerifiedTelexGlyphMetrics::new(&environment)
+        .expect("bundled Telex must satisfy every shared scalar capability");
 }
 
 #[test]

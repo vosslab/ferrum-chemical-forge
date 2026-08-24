@@ -5,7 +5,7 @@ use ferrum_chemistry::{
     OxidationStateUnavailableReasonV1, admit_oxidation_state_root_v1,
     observe_admitted_oxidation_state_v1,
 };
-use ferrum_core::{Identifier, RecordOrigin};
+use ferrum_core::{Identifier, RecordId, RecordKind};
 use thiserror::Error;
 
 use crate::{DocumentObjectIdV1, DocumentSnapshot, TypedClass, TypedDocument};
@@ -169,9 +169,16 @@ pub(crate) fn observe_current_document_atom_oxidation_v1(
     let root_source = root
         .attribute("id")
         .ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?;
-    let atom_source = selected
-        .attribute("id")
-        .ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?;
+    let selected_atom_record_id = RecordId::from_source(
+        RecordKind::Atom,
+        &Identifier::new(
+            selected
+                .attribute("id")
+                .ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?
+                .to_owned(),
+        )
+        .map_err(|_| DocumentAtomOxidationRefusalV1::DirectRootMismatch)?,
+    );
     if let Some(reason) = selected_root_profile_unavailability_v1(root) {
         return Ok(unavailable(reason));
     }
@@ -187,9 +194,10 @@ pub(crate) fn observe_current_document_atom_oxidation_v1(
         Err(error) => return Ok(unavailable(map_lowering(error)?)),
     };
     let (graph, _, records) = lowered.into_parts_with_atom_records();
-    let selected_position = records.iter().position(|record| {
-        matches!(record.origin(), RecordOrigin::Source(source) if source.as_str() == atom_source)
-    }).ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?;
+    let selected_position = records
+        .iter()
+        .position(|record| record == &selected_atom_record_id)
+        .ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?;
     match observe_admitted_oxidation_state_v1(&admission, &graph, selected_position) {
         Ok(value) => Ok(DocumentAtomOxidationResultV1::Observation(map_observation(
             value,

@@ -1,642 +1,263 @@
-//! Closed normal-arrow projection with backend-derived head geometry.
+//! Typed-CDML adapter for immutable arrow projection values.
 
-use serde::{Deserialize, Deserializer, Serialize};
+pub use ferrum_document_projection::{
+    ArrowHeadShapeV1, ArrowPathV1, ArrowProjectionKindV1, ArrowProjectionV1,
+    CurvedTerminalArrowKindV1,
+};
+
+use ferrum_document_projection::Point3V1;
 
 use super::presentation_polyline_projection_v1::{
     RootStrokeDefaultsV1, points, stroke_with_color_field,
 };
-use super::presentation_stack_projection_v1::{
+use super::presentation_stack_projection_v1::presentation_target_from_child_v1;
+use super::{TypedChild, TypedRecord};
+use ferrum_document_projection::{
     PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationStrokeV1,
     PresentationTargetV1,
 };
-use super::{Point3V1, TypedChild, TypedRecord};
 
 const DEFAULT_HEAD_LINE_INSET: f64 = 8.0;
 const DEFAULT_HEAD_TOTAL_LENGTH: f64 = 10.0;
 const DEFAULT_HEAD_HALF_WIDTH: f64 = 3.0;
 
-/// The ordered finite source path retained by a supported normal arrow.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct ArrowPathV1 {
-    points: Vec<Point3V1>,
-}
-
-impl<'de> Deserialize<'de> for ArrowPathV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = ArrowPathWireV1::deserialize(deserializer)?;
-        Self::from_wire(wire).map_err(serde::de::Error::custom)
-    }
-}
-
-impl ArrowPathV1 {
-    fn from_wire(wire: ArrowPathWireV1) -> Result<Self, serde::de::value::Error> {
-        if wire.points.len() < 2 {
-            return Err(serde::de::Error::custom(
-                "arrow path requires at least two finite points",
-            ));
-        }
-        Ok(Self {
-            points: wire
-                .points
-                .into_iter()
-                .map(PointWireV1::into_point)
-                .collect::<Result<_, _>>()?,
-        })
-    }
-
-    #[must_use]
-    pub fn points(&self) -> &[Point3V1] {
-        &self.points
-    }
-}
-
-/// Validated normal-arrow head dimensions in scene points.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
-pub struct ArrowHeadShapeV1 {
-    line_inset: f64,
-    total_length: f64,
-    half_width: f64,
-}
-
-impl<'de> Deserialize<'de> for ArrowHeadShapeV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = ArrowHeadShapeWireV1::deserialize(deserializer)?;
-        Self::new(wire.line_inset, wire.total_length, wire.half_width)
-            .ok_or_else(|| serde::de::Error::custom("invalid normal-arrow head dimensions"))
-    }
-}
-
-impl ArrowHeadShapeV1 {
-    fn new(line_inset: f64, total_length: f64, half_width: f64) -> Option<Self> {
-        (line_inset.is_finite()
-            && total_length.is_finite()
-            && half_width.is_finite()
-            && line_inset > 0.0
-            && total_length >= line_inset
-            && half_width > 0.0)
-            .then_some(Self {
-                line_inset,
-                total_length,
-                half_width,
-            })
-    }
-
-    #[must_use]
-    pub fn line_inset(self) -> f64 {
-        self.line_inset
-    }
-
-    #[must_use]
-    pub fn total_length(self) -> f64 {
-        self.total_length
-    }
-
-    #[must_use]
-    pub fn half_width(self) -> f64 {
-        self.half_width
-    }
-}
-
-/// The endpoint at which one normal-arrow head polygon is anchored.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ArrowHeadPositionV1 {
-    Start,
-    End,
-}
-
-/// One filled four-point normal-arrow head polygon.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct ArrowHeadV1 {
-    position: ArrowHeadPositionV1,
-    points: [Point3V1; 4],
-}
-
-/// Closed policy for the curved terminal-arrow families supported by CDML V1.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CurvedTerminalArrowKindV1 {
-    Electron,
-    Retro,
-    Normal,
-}
-
-/// Closed display identity for curved terminal arrows after geometry is issued.
-///
-/// This deliberately names the user-visible curved normal reaction family rather
-/// than reusing the construction policy's shorter internal `Normal` variant.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CurvedTerminalArrowDisplayKindV1 {
-    Electron,
-    Retro,
-    CurvedNormalReaction,
-}
-
-impl CurvedTerminalArrowKindV1 {
-    #[must_use]
-    pub const fn cdml_type(self) -> &'static str {
-        match self {
-            Self::Electron => "electron",
-            Self::Retro => "retro",
-            Self::Normal => "curved-normal",
-        }
-    }
-}
-
-/// Fixed document-owned cubic and terminal-head geometry for a curved terminal arrow.
-///
-/// Curved terminal-arrow families have no authored head facts. Keeping their
-/// quadratic lowering here gives persisted projections and live render gestures
-/// one authoritative geometric result.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CurvedTerminalArrowGeometryV1 {
-    cubic_axis: [Point3V1; 4],
-    head: [Point3V1; 4],
-}
-
-impl CurvedTerminalArrowGeometryV1 {
-    #[must_use]
-    pub fn cubic_axis(&self) -> &[Point3V1; 4] {
-        &self.cubic_axis
-    }
-
-    #[must_use]
-    pub fn head(&self) -> &[Point3V1; 4] {
-        &self.head
-    }
-}
-
-/// Lower one validated quadratic curved terminal-arrow source path to its cubic axis
-/// and fixed terminal head.
-pub fn curved_terminal_arrow_geometry_v1(
-    kind: CurvedTerminalArrowKindV1,
-    start: Point3V1,
-    control: Point3V1,
-    end: Point3V1,
-) -> Result<CurvedTerminalArrowGeometryV1, String> {
-    let _ = kind;
-    let first_control = Point3V1::new(
-        start.x() + (2.0 / 3.0) * (control.x() - start.x()),
-        start.y() + (2.0 / 3.0) * (control.y() - start.y()),
-        start.z() + (2.0 / 3.0) * (control.z() - start.z()),
-    )
-    .map_err(|error| error.to_string())?;
-    let second_control = Point3V1::new(
-        end.x() + (2.0 / 3.0) * (control.x() - end.x()),
-        end.y() + (2.0 / 3.0) * (control.y() - end.y()),
-        end.z() + (2.0 / 3.0) * (control.z() - end.z()),
-    )
-    .map_err(|error| error.to_string())?;
-    let (_, head) = head_geometry(control, end, curved_terminal_arrow_head_shape_v1())?;
-    Ok(CurvedTerminalArrowGeometryV1 {
-        cubic_axis: [start, first_control, second_control, end],
-        head,
-    })
-}
-
-impl<'de> Deserialize<'de> for ArrowHeadV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = ArrowHeadWireV1::deserialize(deserializer)?;
-        Ok(Self {
-            position: wire.position,
-            points: wire
-                .points
-                .map(PointWireV1::into_point)
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(serde::de::Error::custom)?
-                .try_into()
-                .expect("four wire points remain four validated points"),
-        })
-    }
-}
-
-impl ArrowHeadV1 {
-    #[must_use]
-    pub fn position(&self) -> ArrowHeadPositionV1 {
-        self.position
-    }
-
-    #[must_use]
-    pub fn points(&self) -> &[Point3V1; 4] {
-        &self.points
-    }
-}
-
-/// Closed backend-issued display geometry for one semantic Arrow root.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ArrowDisplayGeometryV1 {
-    Normal {
-        axis_path: ArrowPathV1,
-        head_shape: ArrowHeadShapeV1,
-        start_head: bool,
-        end_head: bool,
-        heads: Vec<ArrowHeadV1>,
-    },
-    Equilibrium {
-        axes: [ArrowPathV1; 2],
-        heads: [ArrowHeadV1; 2],
-    },
-    /// Two quadratic lanes with opposed equilibrium heads, lowered to cubics.
-    CurvedEquilibrium {
-        axes: [ArrowPathV1; 2],
-        control: Point3V1,
-        heads: [ArrowHeadV1; 2],
-    },
-    /// One closed family of semantic quadratics lowered to exact cubic axes.
-    CurvedTerminal {
-        terminal_kind: CurvedTerminalArrowDisplayKindV1,
-        axis_path: ArrowPathV1,
-        control: Point3V1,
-        head_shape: ArrowHeadShapeV1,
-        head: ArrowHeadV1,
-    },
-}
-
-/// One supported non-spline direct-root Arrow with kind-owned display geometry.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct ArrowProjectionV1 {
-    target: PresentationTargetV1,
-    source_path: ArrowPathV1,
-    geometry: ArrowDisplayGeometryV1,
-    stroke: PresentationStrokeV1,
-}
-
-impl<'de> Deserialize<'de> for ArrowProjectionV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = ArrowProjectionWireV1::deserialize(deserializer)?;
-        let (axis_path, heads) = arrow_geometry(
-            &wire.source_path.points,
-            wire.head_shape,
-            wire.start_head,
-            wire.end_head,
-        )
-        .map_err(serde::de::Error::custom)?;
-        if wire.axis_path != axis_path || wire.heads != heads {
-            return Err(serde::de::Error::custom(
-                "normal-arrow display geometry does not match its source facts",
-            ));
-        }
-        Ok(Self {
-            target: wire.target,
-            source_path: wire.source_path,
-            geometry: ArrowDisplayGeometryV1::Normal {
-                axis_path,
-                head_shape: wire.head_shape,
-                start_head: wire.start_head,
-                end_head: wire.end_head,
-                heads,
-            },
-            stroke: wire.stroke,
-        })
-    }
-}
-
-impl ArrowProjectionV1 {
-    #[must_use]
-    pub fn target(&self) -> &PresentationTargetV1 {
-        &self.target
-    }
-
-    #[must_use]
-    pub fn source_path(&self) -> &ArrowPathV1 {
-        &self.source_path
-    }
-
-    #[must_use]
-    pub fn geometry(&self) -> &ArrowDisplayGeometryV1 {
-        &self.geometry
-    }
-
-    #[must_use]
-    pub fn stroke(&self) -> &PresentationStrokeV1 {
-        &self.stroke
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ArrowPathWireV1 {
-    points: Vec<PointWireV1>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PointWireV1 {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl PointWireV1 {
-    fn into_point(self) -> Result<Point3V1, serde::de::value::Error> {
-        Point3V1::new(self.x, self.y, self.z)
-            .map_err(|error| serde::de::Error::custom(error.to_string()))
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ArrowHeadShapeWireV1 {
-    line_inset: f64,
-    total_length: f64,
-    half_width: f64,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ArrowHeadWireV1 {
-    position: ArrowHeadPositionV1,
-    points: [PointWireV1; 4],
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ArrowProjectionWireV1 {
-    target: PresentationTargetV1,
-    source_path: ArrowPathV1,
-    axis_path: ArrowPathV1,
-    head_shape: ArrowHeadShapeV1,
-    start_head: bool,
-    end_head: bool,
-    heads: Vec<ArrowHeadV1>,
-    stroke: PresentationStrokeV1,
-}
-
 pub(crate) fn arrow(
     child: &TypedChild,
     defaults: RootStrokeDefaultsV1<'_>,
     issues: &mut Vec<PresentationProjectionIssueV1>,
+) -> Result<Option<ArrowProjectionV1>, crate::ProjectionError> {
+    let target = presentation_target_from_child_v1(child)?;
+    Ok(match child.record().attribute("type").unwrap_or("normal") {
+        "normal" => normal_arrow(child.record(), target, defaults, issues),
+        "equilibrium" => equilibrium_arrow(child.record(), target, defaults, issues),
+        "curved-equilibrium" => curved_equilibrium_arrow(child.record(), target, defaults, issues),
+        "electron" => curved_terminal_arrow(
+            child.record(),
+            target,
+            defaults,
+            issues,
+            CurvedTerminalArrowKindV1::Electron,
+        ),
+        "retro" => curved_terminal_arrow(
+            child.record(),
+            target,
+            defaults,
+            issues,
+            CurvedTerminalArrowKindV1::Retro,
+        ),
+        "curved-normal" => curved_terminal_arrow(
+            child.record(),
+            target,
+            defaults,
+            issues,
+            CurvedTerminalArrowKindV1::Normal,
+        ),
+        other => unsupported_arrow(target, issues, other),
+    })
+}
+
+fn normal_arrow(
+    record: &TypedRecord,
+    target: PresentationTargetV1,
+    defaults: RootStrokeDefaultsV1<'_>,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
 ) -> Option<ArrowProjectionV1> {
-    let target = PresentationTargetV1::from_child(child);
-    let record = child.record();
-    let arrow_type = record.attribute("type").unwrap_or("normal");
-    if !matches!(
-        arrow_type,
-        "normal" | "equilibrium" | "electron" | "retro" | "curved-normal" | "curved-equilibrium"
-    ) {
+    if !is_nonspline(record) {
         issues.push(PresentationProjectionIssueV1::new(
             target,
-            PresentationProjectionIssueCodeV1::UnsupportedArrowType,
-            "this arrow family has no closed V1 display geometry",
+            PresentationProjectionIssueCodeV1::UnsupportedArrowSpline,
+            "normal arrow spline must be absent, no, false, or 0",
         ));
         return None;
     }
-    if !matches!(
-        arrow_type,
-        "electron" | "retro" | "curved-normal" | "curved-equilibrium"
+    let source_points = match points(record, 2, "arrow") {
+        Ok(points) => points,
+        Err(detail) => return invalid_geometry(target, issues, detail.to_string()),
+    };
+    let (start_head, end_head) = match normal_heads(record) {
+        Ok(heads) => heads,
+        Err(detail) => return invalid_fact(target, issues, detail),
+    };
+    let shape = match head_shape(record) {
+        Ok(shape) => shape,
+        Err(detail) => return invalid_fact(target, issues, detail),
+    };
+    let stroke = stroke(record, defaults, &target, issues);
+    match ArrowProjectionV1::normal(
+        target.clone(),
+        source_points,
+        shape,
+        start_head,
+        end_head,
+        stroke,
     ) {
-        let spline = match boolean(record, "spline", false) {
-            Ok(value) => value,
-            Err(detail) => {
-                issues.push(PresentationProjectionIssueV1::new(
-                    target,
-                    PresentationProjectionIssueCodeV1::InvalidArrowFact,
-                    detail,
-                ));
-                return None;
-            }
-        };
-        if spline {
-            issues.push(PresentationProjectionIssueV1::new(
-                target,
-                PresentationProjectionIssueCodeV1::UnsupportedArrowSpline,
-                "normal-arrow spline interpolation is preserved but not rendered by V1",
-            ));
-            return None;
-        }
-    } else if record.attribute("spline").is_some() {
+        Ok(projection) => Some(projection),
+        Err(detail) => invalid_geometry(target, issues, detail.to_string()),
+    }
+}
+
+fn equilibrium_arrow(
+    record: &TypedRecord,
+    target: PresentationTargetV1,
+    defaults: RootStrokeDefaultsV1<'_>,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
+) -> Option<ArrowProjectionV1> {
+    if !is_nonspline(record) {
+        issues.push(PresentationProjectionIssueV1::new(
+            target,
+            PresentationProjectionIssueCodeV1::UnsupportedArrowSpline,
+            "equilibrium arrow spline must be absent, no, false, or 0",
+        ));
+        return None;
+    }
+    if has_normal_head_facts(record) {
         return invalid_fact(
             target,
-            "curved terminal arrows have explicit quadratic geometry and no spline fact".to_owned(),
             issues,
+            "equilibrium arrows have no normal-arrow head facts",
         );
     }
-    let source_points = match points(record, 2, "arrow") {
-        Ok(value)
-            if (matches!(
-                arrow_type,
-                "electron" | "retro" | "curved-normal" | "curved-equilibrium"
-            ) && value.len() == 3)
-                || (!matches!(
-                    arrow_type,
-                    "electron" | "retro" | "curved-normal" | "curved-equilibrium"
-                ) && value.len() == 2) =>
-        {
-            value
-        }
-        Ok(_) => {
-            return invalid_geometry(
-                target,
-                if arrow_type == "curved-equilibrium" {
-                    "curved equilibrium arrows require exactly three points: start, control, and end"
-                        .to_owned()
-                } else if matches!(arrow_type, "electron" | "retro" | "curved-normal") {
-                    "curved terminal arrows require exactly three points: start, control, and end"
-                        .to_owned()
-                } else {
-                    "straight arrows require exactly two points".to_owned()
-                },
-                issues,
-            );
-        }
-        Err(detail) => return invalid_geometry(target, detail, issues),
+    let source_points = match exact_points(record, "equilibrium arrow", 2) {
+        Ok(points) => points,
+        Err(detail) => return invalid_geometry(target, issues, detail.to_string()),
     };
-    if arrow_type == "equilibrium" {
-        if ["start", "end", "shape"]
-            .into_iter()
-            .any(|field| record.attribute(field).is_some())
-        {
-            return invalid_fact(
-                target,
-                "equilibrium arrows cannot carry normal-arrow head facts".to_owned(),
-                issues,
-            );
-        }
-        let start = source_points[0];
-        let end = source_points[1];
-        let issued = match crate::equilibrium_arrow_geometry_v1::geometry(start, end) {
-            Ok(value) => value,
-            Err(detail) => return invalid_geometry(target, detail.to_string(), issues),
-        };
-        let axes = issued.axes.map(|points| ArrowPathV1 {
-            points: points.to_vec(),
-        });
-        let heads = [
-            ArrowHeadV1 {
-                position: ArrowHeadPositionV1::Start,
-                points: issued.heads[0],
-            },
-            ArrowHeadV1 {
-                position: ArrowHeadPositionV1::End,
-                points: issued.heads[1],
-            },
-        ];
-        let stroke = stroke_with_color_field(record, defaults, &target, issues, "color");
-        return Some(ArrowProjectionV1 {
-            stroke,
+    let [_start, _end] = source_points.as_slice() else {
+        return invalid_geometry(
             target,
-            source_path: ArrowPathV1 {
-                points: source_points,
-            },
-            geometry: ArrowDisplayGeometryV1::Equilibrium { axes, heads },
-        });
+            issues,
+            "equilibrium arrow requires exactly two points",
+        );
+    };
+    let stroke = stroke(record, defaults, &target, issues);
+    let source_path = match ArrowPathV1::try_new(source_points) {
+        Ok(path) => path,
+        Err(detail) => return invalid_geometry(target, issues, detail.to_string()),
+    };
+    match ArrowProjectionV1::try_new(
+        target.clone(),
+        source_path,
+        ArrowProjectionKindV1::Equilibrium,
+        stroke,
+    ) {
+        Ok(projection) => Some(projection),
+        Err(detail) => invalid_geometry(target, issues, detail.to_string()),
     }
-    if arrow_type == "curved-equilibrium" {
-        if [
-            "spline",
-            "start",
-            "end",
-            "shape",
-            "properties",
-            "association",
-            "factory",
-        ]
-        .into_iter()
-        .any(|field| record.attribute(field).is_some())
-        {
-            return invalid_fact(target, "curved equilibrium arrows have fixed opposing heads and no normal-arrow head facts".to_owned(), issues);
-        }
-        let [start, control, end] = source_points.as_slice() else {
-            unreachable!("curved equilibrium point cardinality was checked above");
-        };
-        let issued = match crate::curved_equilibrium_arrow_geometry_v1(*start, *control, *end) {
-            Ok(value) => value,
-            Err(detail) => return invalid_geometry(target, detail.to_string(), issues),
-        };
-        let stroke = stroke_with_color_field(record, defaults, &target, issues, "color");
-        return Some(ArrowProjectionV1 {
+}
+
+fn curved_terminal_arrow(
+    record: &TypedRecord,
+    target: PresentationTargetV1,
+    defaults: RootStrokeDefaultsV1<'_>,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
+    kind: CurvedTerminalArrowKindV1,
+) -> Option<ArrowProjectionV1> {
+    if has_normal_head_facts(record) {
+        return invalid_fact(
             target,
-            source_path: ArrowPathV1 {
-                points: source_points.clone(),
-            },
-            geometry: ArrowDisplayGeometryV1::CurvedEquilibrium {
-                axes: [issued.lower().axis(), issued.upper().axis()].map(|points| ArrowPathV1 {
-                    points: points.to_vec(),
-                }),
-                control: *control,
-                heads: [
-                    ArrowHeadV1 {
-                        position: ArrowHeadPositionV1::Start,
-                        points: *issued.lower().head(),
-                    },
-                    ArrowHeadV1 {
-                        position: ArrowHeadPositionV1::End,
-                        points: *issued.upper().head(),
-                    },
-                ],
-            },
-            stroke,
-        });
+            issues,
+            "curved terminal arrows have no normal-arrow head facts",
+        );
     }
-    if matches!(arrow_type, "electron" | "retro" | "curved-normal") {
-        if ["start", "end", "shape"]
-            .into_iter()
-            .any(|field| record.attribute(field).is_some())
-        {
-            return invalid_fact(
-                target,
-                "curved terminal arrows use one fixed terminal head and no normal-arrow head facts"
-                    .to_owned(),
-                issues,
-            );
-        }
-        let [start, control, end] = source_points.as_slice() else {
-            unreachable!("curved terminal point cardinality was checked above");
-        };
-        let kind = match arrow_type {
-            "electron" => CurvedTerminalArrowKindV1::Electron,
-            "retro" => CurvedTerminalArrowKindV1::Retro,
-            "curved-normal" => CurvedTerminalArrowKindV1::Normal,
-            _ => unreachable!("closed curved terminal-arrow grammar was matched"),
-        };
-        let issued = match curved_terminal_arrow_geometry_v1(kind, *start, *control, *end) {
-            Ok(value) => value,
-            Err(detail) => return invalid_geometry(target, detail, issues),
-        };
-        let stroke = stroke_with_color_field(record, defaults, &target, issues, "color");
-        return Some(ArrowProjectionV1 {
+    if record.children_of(super::TypedClass::Point).count() != 3 {
+        return invalid_geometry(
             target,
-            source_path: ArrowPathV1 {
-                points: source_points.clone(),
-            },
-            geometry: ArrowDisplayGeometryV1::CurvedTerminal {
-                terminal_kind: match arrow_type {
-                    "electron" => CurvedTerminalArrowDisplayKindV1::Electron,
-                    "retro" => CurvedTerminalArrowDisplayKindV1::Retro,
-                    "curved-normal" => CurvedTerminalArrowDisplayKindV1::CurvedNormalReaction,
-                    _ => unreachable!("closed curved terminal-arrow grammar was matched"),
-                },
-                axis_path: ArrowPathV1 {
-                    points: issued.cubic_axis.to_vec(),
-                },
-                control: *control,
-                head_shape: curved_terminal_arrow_head_shape_v1(),
-                head: ArrowHeadV1 {
-                    position: ArrowHeadPositionV1::End,
-                    points: issued.head,
-                },
-            },
-            stroke,
-        });
+            issues,
+            "curved terminal arrow requires exactly three points",
+        );
     }
-    let start_head = match boolean(record, "start", false) {
-        Ok(value) => value,
-        Err(detail) => return invalid_fact(target, detail, issues),
+    let source_points = match exact_points(record, "curved terminal arrow", 3) {
+        Ok(points) => points,
+        Err(detail) => return invalid_geometry(target, issues, detail.to_string()),
     };
-    let end_head = match boolean(record, "end", true) {
-        Ok(value) => value,
-        Err(detail) => return invalid_fact(target, detail, issues),
+    let [_start, _control, _end] = source_points.as_slice() else {
+        return invalid_geometry(
+            target,
+            issues,
+            "curved terminal arrow requires exactly three points",
+        );
     };
-    let head_shape = match head_shape(record) {
-        Ok(value) => value,
-        Err(detail) => return invalid_fact(target, detail, issues),
+    let stroke = stroke(record, defaults, &target, issues);
+    let source_path = match ArrowPathV1::try_new(source_points) {
+        Ok(path) => path,
+        Err(detail) => return invalid_geometry(target, issues, detail.to_string()),
     };
-    let (axis_path, heads) = match arrow_geometry(&source_points, head_shape, start_head, end_head)
-    {
-        Ok(value) => value,
-        Err(detail) => {
-            issues.push(PresentationProjectionIssueV1::new(
-                target,
-                PresentationProjectionIssueCodeV1::InvalidArrowGeometry,
-                detail,
-            ));
-            return None;
-        }
+    match ArrowProjectionV1::try_new(
+        target.clone(),
+        source_path,
+        ArrowProjectionKindV1::CurvedTerminal {
+            terminal_kind: kind,
+        },
+        stroke,
+    ) {
+        Ok(projection) => Some(projection),
+        Err(detail) => invalid_geometry(target, issues, detail.to_string()),
+    }
+}
+
+fn curved_equilibrium_arrow(
+    record: &TypedRecord,
+    target: PresentationTargetV1,
+    defaults: RootStrokeDefaultsV1<'_>,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
+) -> Option<ArrowProjectionV1> {
+    if has_nonterminal_facts(record) {
+        return invalid_fact(
+            target,
+            issues,
+            "curved-equilibrium arrows have no normal-arrow or association facts",
+        );
+    }
+    let source_points = match exact_points(record, "curved-equilibrium arrow", 3) {
+        Ok(points) => points,
+        Err(detail) => return invalid_geometry(target, issues, detail.to_string()),
     };
-    Some(ArrowProjectionV1 {
-        stroke: stroke_with_color_field(record, defaults, &target, issues, "color"),
+    let [start, control, end] = source_points.as_slice() else {
+        return invalid_geometry(
+            target,
+            issues,
+            "curved-equilibrium arrow requires exactly three points",
+        );
+    };
+    if !forward_tangents(*start, *control, *end) {
+        return invalid_geometry(
+            target,
+            issues,
+            "curved-equilibrium endpoint tangents must point along the start-to-end direction",
+        );
+    }
+    let stroke = stroke(record, defaults, &target, issues);
+    let source_path = match ArrowPathV1::try_new(source_points) {
+        Ok(path) => path,
+        Err(detail) => return invalid_geometry(target, issues, detail.to_string()),
+    };
+    match ArrowProjectionV1::try_new(
+        target.clone(),
+        source_path,
+        ArrowProjectionKindV1::CurvedEquilibrium,
+        stroke,
+    ) {
+        Ok(projection) => Some(projection),
+        Err(detail) => invalid_geometry(target, issues, detail.to_string()),
+    }
+}
+
+fn unsupported_arrow(
+    target: PresentationTargetV1,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
+    kind: &str,
+) -> Option<ArrowProjectionV1> {
+    issues.push(PresentationProjectionIssueV1::new(
         target,
-        source_path: ArrowPathV1 {
-            points: source_points,
-        },
-        geometry: ArrowDisplayGeometryV1::Normal {
-            axis_path,
-            head_shape,
-            start_head,
-            end_head,
-            heads,
-        },
-    })
+        PresentationProjectionIssueCodeV1::UnsupportedArrowType,
+        format!("unsupported arrow type {kind:?}"),
+    ));
+    None
 }
 
 fn invalid_geometry(
     target: PresentationTargetV1,
-    detail: String,
     issues: &mut Vec<PresentationProjectionIssueV1>,
+    detail: impl Into<String>,
 ) -> Option<ArrowProjectionV1> {
     issues.push(PresentationProjectionIssueV1::new(
         target,
@@ -648,8 +269,8 @@ fn invalid_geometry(
 
 fn invalid_fact(
     target: PresentationTargetV1,
-    detail: String,
     issues: &mut Vec<PresentationProjectionIssueV1>,
+    detail: impl Into<String>,
 ) -> Option<ArrowProjectionV1> {
     issues.push(PresentationProjectionIssueV1::new(
         target,
@@ -659,106 +280,96 @@ fn invalid_fact(
     None
 }
 
-fn boolean(record: &TypedRecord, field: &'static str, default: bool) -> Result<bool, String> {
-    let Some(value) = record.attribute(field) else {
-        return Ok(default);
-    };
-    match value.to_ascii_lowercase().as_str() {
-        "1" | "both" | "true" | "yes" => Ok(true),
-        "0" | "false" | "no" => Ok(false),
-        _ => Err(format!("arrow {field} must be a supported yes/no value")),
+fn is_nonspline(record: &TypedRecord) -> bool {
+    matches!(
+        record.attribute("spline"),
+        None | Some("no" | "false" | "0")
+    )
+}
+
+fn normal_heads(record: &TypedRecord) -> Result<(bool, bool), String> {
+    Ok((
+        head_fact(record, "start")?.unwrap_or(false),
+        head_fact(record, "end")?.unwrap_or(true),
+    ))
+}
+
+fn head_fact(record: &TypedRecord, field: &'static str) -> Result<Option<bool>, String> {
+    match record.attribute(field) {
+        None => Ok(None),
+        Some("yes" | "true" | "1") => Ok(Some(true)),
+        Some("no" | "false" | "0") => Ok(Some(false)),
+        Some(_) => Err(format!("{field} must be yes, no, true, false, 1, or 0")),
     }
 }
 
 fn head_shape(record: &TypedRecord) -> Result<ArrowHeadShapeV1, String> {
     let Some(value) = record.attribute("shape") else {
-        return Ok(ArrowHeadShapeV1 {
-            line_inset: DEFAULT_HEAD_LINE_INSET,
-            total_length: DEFAULT_HEAD_TOTAL_LENGTH,
-            half_width: DEFAULT_HEAD_HALF_WIDTH,
-        });
+        return ArrowHeadShapeV1::new(
+            DEFAULT_HEAD_LINE_INSET,
+            DEFAULT_HEAD_TOTAL_LENGTH,
+            DEFAULT_HEAD_HALF_WIDTH,
+        )
+        .ok_or_else(|| "closed default arrow head shape is invalid".to_owned());
     };
-    let inner = value
+    let Some(value) = value
         .strip_prefix('(')
         .and_then(|value| value.strip_suffix(')'))
-        .ok_or_else(|| "arrow shape must be a three-number parenthesized tuple".to_owned())?;
-    let values = inner
-        .split(',')
-        .map(str::trim)
-        .map(str::parse::<f64>)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "arrow shape contains an invalid number".to_owned())?;
-    let [line_inset, total_length, half_width] = values.as_slice() else {
-        return Err("arrow shape requires exactly three numbers".to_owned());
+    else {
+        return Err("shape must be (line_inset,total_length,half_width)".to_owned());
     };
-    ArrowHeadShapeV1::new(*line_inset, *total_length, *half_width).ok_or_else(|| {
-        "arrow shape requires positive finite width and total length at least its line inset"
-            .to_owned()
+    let values = value.split(',').map(str::trim).collect::<Vec<_>>();
+    let [line_inset, total_length, half_width] = values.as_slice() else {
+        return Err("shape must be (line_inset,total_length,half_width)".to_owned());
+    };
+    let parse = |value: &str| value.parse::<f64>().ok();
+    ArrowHeadShapeV1::new(
+        parse(line_inset).unwrap_or(f64::NAN),
+        parse(total_length).unwrap_or(f64::NAN),
+        parse(half_width).unwrap_or(f64::NAN),
+    )
+    .ok_or_else(|| {
+        "shape dimensions must be finite, positive, and total_length >= line_inset".to_owned()
     })
 }
 
-fn curved_terminal_arrow_head_shape_v1() -> ArrowHeadShapeV1 {
-    ArrowHeadShapeV1 {
-        line_inset: DEFAULT_HEAD_LINE_INSET,
-        total_length: DEFAULT_HEAD_TOTAL_LENGTH,
-        half_width: DEFAULT_HEAD_HALF_WIDTH,
-    }
+fn exact_points(
+    record: &TypedRecord,
+    kind: &'static str,
+    count: usize,
+) -> Result<Vec<Point3V1>, String> {
+    let points = points(record, 2, kind)?;
+    (points.len() == count)
+        .then_some(points)
+        .ok_or_else(|| format!("{kind} requires exactly {count} points"))
 }
 
-fn arrow_geometry(
-    source: &[Point3V1],
-    shape: ArrowHeadShapeV1,
-    start_head: bool,
-    end_head: bool,
-) -> Result<(ArrowPathV1, Vec<ArrowHeadV1>), String> {
-    if source.len() < 2 {
-        return Err("arrow geometry requires at least two points".to_owned());
-    }
-    let mut axis = source.to_vec();
-    let mut heads = Vec::new();
-    if start_head {
-        let (axis_point, points) = head_geometry(source[1], source[0], shape)?;
-        axis[0] = axis_point;
-        heads.push(ArrowHeadV1 {
-            position: ArrowHeadPositionV1::Start,
-            points,
-        });
-    }
-    if end_head {
-        let last = source.len() - 1;
-        let (axis_point, points) = head_geometry(source[last - 1], source[last], shape)?;
-        axis[last] = axis_point;
-        heads.push(ArrowHeadV1 {
-            position: ArrowHeadPositionV1::End,
-            points,
-        });
-    }
-    Ok((ArrowPathV1 { points: axis }, heads))
+fn has_normal_head_facts(record: &TypedRecord) -> bool {
+    ["start", "end", "shape"]
+        .into_iter()
+        .any(|field| record.attribute(field).is_some())
 }
 
-fn head_geometry(
-    before: Point3V1,
-    tip: Point3V1,
-    shape: ArrowHeadShapeV1,
-) -> Result<(Point3V1, [Point3V1; 4]), String> {
-    let dx = tip.x() - before.x();
-    let dy = tip.y() - before.y();
-    let length = dx.hypot(dy);
-    if !length.is_finite() || length == 0.0 {
-        return Err("an active arrow head requires a nonzero finite endpoint segment".to_owned());
-    }
-    let ux = dx / length;
-    let uy = dy / length;
-    let point = |distance: f64, offset: f64| {
-        Point3V1::new(
-            tip.x() - (distance * ux) - (offset * uy),
-            tip.y() - (distance * uy) + (offset * ux),
-            tip.z(),
-        )
-        .map_err(|error| error.to_string())
-    };
-    let inner = point(shape.line_inset, 0.0)?;
-    let left = point(shape.total_length, shape.half_width)?;
-    let right = point(shape.total_length, -shape.half_width)?;
-    Ok((inner, [tip, left, inner, right]))
+fn has_nonterminal_facts(record: &TypedRecord) -> bool {
+    has_normal_head_facts(record)
+        || ["spline", "properties", "association", "factory"]
+            .into_iter()
+            .any(|field| record.attribute(field).is_some())
+}
+
+fn forward_tangents(start: Point3V1, control: Point3V1, end: Point3V1) -> bool {
+    let chord_x = end.x() - start.x();
+    let chord_y = end.y() - start.y();
+    let start_dot = (control.x() - start.x()) * chord_x + (control.y() - start.y()) * chord_y;
+    let end_dot = (end.x() - control.x()) * chord_x + (end.y() - control.y()) * chord_y;
+    start_dot.is_finite() && end_dot.is_finite() && start_dot > 0.0 && end_dot > 0.0
+}
+
+fn stroke(
+    record: &TypedRecord,
+    defaults: RootStrokeDefaultsV1<'_>,
+    target: &PresentationTargetV1,
+    issues: &mut Vec<PresentationProjectionIssueV1>,
+) -> PresentationStrokeV1 {
+    stroke_with_color_field(record, defaults, target, issues, "color")
 }

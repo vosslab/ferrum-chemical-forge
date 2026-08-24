@@ -6,12 +6,24 @@ use super::*;
 pub(crate) struct ExecutionFailureV1 {
     pub(super) category: OperationProtocolErrorCategoryV1,
     pub(super) message: String,
+    pub(super) resource_limit: Option<ProtocolResourceLimitRefusalV1>,
     pub(super) presentation_author_refusal: Option<PresentationAuthorRefusalV1>,
     pub(super) catalog_placement_refusal: Option<CatalogPlacementRefusalV1>,
     pub(super) reaction_refusal: Option<ReactionRefusalV1>,
 }
 
 impl ExecutionFailureV1 {
+    pub(crate) fn invalid_request(message: impl Into<String>) -> Self {
+        Self {
+            category: OperationProtocolErrorCategoryV1::InvalidRequest,
+            message: message.into(),
+            resource_limit: None,
+            presentation_author_refusal: None,
+            catalog_placement_refusal: None,
+            reaction_refusal: None,
+        }
+    }
+
     pub(super) fn interchange_import_refusal(refusal: crate::InterchangeImportRefusalV1) -> Self {
         let category = match refusal.category() {
             crate::InterchangeImportRefusalCategoryV1::ConversionFailed => {
@@ -34,6 +46,7 @@ impl ExecutionFailureV1 {
         Self {
             category,
             message: format!("interchange_import_refused:{:?}", refusal.reason()),
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -43,6 +56,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::DocumentAdmissionFailed,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -53,6 +67,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::DocumentInvalid,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -63,6 +78,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::RenderUnsupported,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -73,6 +89,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::RenderFailed,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -83,6 +100,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::ChemistryUnavailable,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -97,6 +115,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::ConversionFailed,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -107,6 +126,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::ConversionUnsupported,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -117,6 +137,7 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::CoordinateGenerationFailed,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -127,16 +148,120 @@ impl ExecutionFailureV1 {
         Self {
             category: OperationProtocolErrorCategoryV1::ResourceLimit,
             message: message.into(),
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
         }
     }
 
-    pub(super) fn internal(message: String) -> Self {
+    pub(crate) fn oxidation_resource_limit(
+        resource: ferrum_document::DocumentAtomOxidationResourceV1,
+    ) -> Self {
+        let reason = match resource {
+            ferrum_document::DocumentAtomOxidationResourceV1::Atoms => {
+                ProtocolResourceLimitReasonV1::OxidationRootAtomsExceeded
+            }
+            ferrum_document::DocumentAtomOxidationResourceV1::Bonds => {
+                ProtocolResourceLimitReasonV1::OxidationRootBondsExceeded
+            }
+            ferrum_document::DocumentAtomOxidationResourceV1::Components => {
+                ProtocolResourceLimitReasonV1::OxidationRootComponentsExceeded
+            }
+        };
+        Self {
+            category: OperationProtocolErrorCategoryV1::ResourceLimit,
+            message: "selected oxidation root exceeds the supported resource bound".to_owned(),
+            resource_limit: Some(ProtocolResourceLimitRefusalV1 {
+                reason,
+                recovery: ProtocolResourceLimitRecoveryV1::UseSmallerRoot,
+            }),
+            presentation_author_refusal: None,
+            catalog_placement_refusal: None,
+            reaction_refusal: None,
+        }
+    }
+
+    pub(crate) fn oxidation_refusal(
+        refusal: ferrum_document::DocumentAtomOxidationRefusalV1,
+    ) -> Self {
+        let category = match refusal {
+            ferrum_document::DocumentAtomOxidationRefusalV1::StaleObservation
+            | ferrum_document::DocumentAtomOxidationRefusalV1::DigestMismatch => {
+                OperationProtocolErrorCategoryV1::StaleDocument
+            }
+            ferrum_document::DocumentAtomOxidationRefusalV1::UnknownAtom => {
+                OperationProtocolErrorCategoryV1::AtomNotFound
+            }
+            ferrum_document::DocumentAtomOxidationRefusalV1::UnknownDirectMolecule => {
+                OperationProtocolErrorCategoryV1::MoleculeNotDirectRoot
+            }
+            ferrum_document::DocumentAtomOxidationRefusalV1::AtomNotInSelectedRoot => {
+                OperationProtocolErrorCategoryV1::AtomNotInSelectedMolecule
+            }
+            ferrum_document::DocumentAtomOxidationRefusalV1::UnsupportedDocument => {
+                OperationProtocolErrorCategoryV1::UnsupportedDocument
+            }
+            ferrum_document::DocumentAtomOxidationRefusalV1::DirectRootMismatch
+            | ferrum_document::DocumentAtomOxidationRefusalV1::InvalidAuthenticatedGraph => {
+                OperationProtocolErrorCategoryV1::InternalFailure
+            }
+        };
+        let message = match category {
+            OperationProtocolErrorCategoryV1::InternalFailure => {
+                "oxidation observation could not complete".to_owned()
+            }
+            _ => refusal.to_string(),
+        };
+        Self {
+            category,
+            message,
+            resource_limit: None,
+            presentation_author_refusal: None,
+            catalog_placement_refusal: None,
+            reaction_refusal: None,
+        }
+    }
+
+    pub(crate) fn hydrogen_materialization_refusal(
+        refusal: ferrum_document::DocumentMoleculeHydrogenMaterializationRefusalV1,
+    ) -> Self {
+        let category = match refusal {
+            ferrum_document::DocumentMoleculeHydrogenMaterializationRefusalV1::StaleObservation
+            | ferrum_document::DocumentMoleculeHydrogenMaterializationRefusalV1::DigestMismatch => {
+                OperationProtocolErrorCategoryV1::StaleDocument
+            }
+            ferrum_document::DocumentMoleculeHydrogenMaterializationRefusalV1::UnknownDirectMolecule => {
+                OperationProtocolErrorCategoryV1::MoleculeNotDirectRoot
+            }
+            ferrum_document::DocumentMoleculeHydrogenMaterializationRefusalV1::UnknownAnchorAtom => {
+                OperationProtocolErrorCategoryV1::AtomNotFound
+            }
+            ferrum_document::DocumentMoleculeHydrogenMaterializationRefusalV1::AnchorNotInSelectedRoot => {
+                OperationProtocolErrorCategoryV1::AtomNotInSelectedMolecule
+            }
+            _ => OperationProtocolErrorCategoryV1::InternalFailure,
+        };
+        let message = if matches!(category, OperationProtocolErrorCategoryV1::InternalFailure) {
+            "hydrogen materialization could not complete".to_owned()
+        } else {
+            refusal.to_string()
+        };
+        Self {
+            category,
+            message,
+            resource_limit: None,
+            presentation_author_refusal: None,
+            catalog_placement_refusal: None,
+            reaction_refusal: None,
+        }
+    }
+
+    pub(crate) fn internal(message: String) -> Self {
         Self {
             category: OperationProtocolErrorCategoryV1::InternalFailure,
             message,
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
@@ -161,6 +286,7 @@ impl ExecutionFailureV1 {
         Self {
             category: error_category,
             message,
+            resource_limit: None,
             presentation_author_refusal: Some(PresentationAuthorRefusalV1 {
                 authoring_kind,
                 category,
@@ -180,6 +306,7 @@ impl ExecutionFailureV1 {
                 _ => OperationProtocolErrorCategoryV1::DocumentInvalid,
             },
             message: error.to_string(),
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: Some(CatalogPlacementRefusalV1 {
                 category: catalog_category(error.category()),
@@ -199,6 +326,7 @@ impl ExecutionFailureV1 {
                 _ => OperationProtocolErrorCategoryV1::DocumentInvalid,
             },
             message: error.to_string(),
+            resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: Some(ReactionRefusalV1 {

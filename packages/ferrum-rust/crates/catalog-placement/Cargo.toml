@@ -13,6 +13,4 @@ workspace = true
 [dependencies]
 ferrum-document = { path = "../document" }
 ferrum-domain = { path = "../domain" }
-ferrum-render = { path = "../render" }
-ferrum-render-contract = { path = "../render-contract" }
 thiserror = { version = "*" }

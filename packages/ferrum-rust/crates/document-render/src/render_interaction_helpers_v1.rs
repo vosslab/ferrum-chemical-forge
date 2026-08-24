@@ -175,14 +175,15 @@ pub(super) fn toggle_structure_targets(
     current
 }
 pub(super) fn roots_from_render(
-    rendered: &RenderObservationV1,
+    rendered: &DocumentRenderObservationV1,
+    presentation_plan: &PresentationRenderPlanV1,
     identities: &CompleteDocumentIdentityFactsV1,
 ) -> (
     Vec<RenderInteractionRootV1>,
     Vec<RenderInteractionExclusionV1>,
 ) {
     let mut planned = HashMap::new();
-    for entry in rendered.molecule_plans() {
+    for entry in rendered.resolved().molecule_plans() {
         let Some(identifier) = entry.molecule().source_id() else {
             continue;
         };
@@ -226,12 +227,7 @@ pub(super) fn roots_from_render(
             });
         }
     }
-    for root in rendered
-        .document()
-        .projection()
-        .presentation_stack()
-        .roots()
-    {
+    for root in presentation_plan.roots() {
         let target = root.target();
         let diagnostic_identifier = target.source_id().map_or_else(
             || target.projection_key().as_str().to_owned(),
@@ -244,14 +240,14 @@ pub(super) fn roots_from_render(
             });
             continue;
         };
-        let bounds = presentation_bounds_from_render(root, rendered);
+        let bounds = presentation_bounds_from_plan(root);
         let exclusion = root_exclusion_reason(identifier, identities, bounds.as_ref());
         if let Some(bounds) = bounds.filter(|_| exclusion.is_none()) {
             roots.push(RenderInteractionRootV1 {
                 identifier: identifier.to_owned(),
                 source_order: target.source_order(),
                 bounds,
-                kind: presentation_root_kind(root),
+                kind: presentation_root_kind(target.record_kind()),
             });
         }
         if let Some(reason) = exclusion
@@ -285,19 +281,17 @@ pub(super) fn roots_from_render(
     (roots, exclusions)
 }
 
-pub(super) fn presentation_root_kind(root: &PresentationRootProjectionV1) -> TopLevelRootKindV1 {
-    match root {
-        PresentationRootProjectionV1::Arrow { .. } => TopLevelRootKindV1::Arrow,
-        PresentationRootProjectionV1::Plus { .. } => TopLevelRootKindV1::Plus,
-        PresentationRootProjectionV1::Text { .. } => TopLevelRootKindV1::Text,
-        PresentationRootProjectionV1::Rectangle { .. } => TopLevelRootKindV1::Rectangle,
-        PresentationRootProjectionV1::Square { .. } => TopLevelRootKindV1::Square,
-        PresentationRootProjectionV1::Oval { .. } => TopLevelRootKindV1::Oval,
-        PresentationRootProjectionV1::Circle { .. } => TopLevelRootKindV1::Circle,
-        PresentationRootProjectionV1::Polygon { .. } => TopLevelRootKindV1::Polygon,
-        PresentationRootProjectionV1::Polyline { .. }
-        | PresentationRootProjectionV1::Wavy { .. }
-        | PresentationRootProjectionV1::RoundBracket { .. } => TopLevelRootKindV1::Polyline,
+pub(super) fn presentation_root_kind(kind: PresentationRecordKindV1) -> TopLevelRootKindV1 {
+    match kind {
+        PresentationRecordKindV1::Arrow => TopLevelRootKindV1::Arrow,
+        PresentationRecordKindV1::Plus => TopLevelRootKindV1::Plus,
+        PresentationRecordKindV1::Text => TopLevelRootKindV1::Text,
+        PresentationRecordKindV1::Rectangle => TopLevelRootKindV1::Rectangle,
+        PresentationRecordKindV1::Square => TopLevelRootKindV1::Square,
+        PresentationRecordKindV1::Oval => TopLevelRootKindV1::Oval,
+        PresentationRecordKindV1::Circle => TopLevelRootKindV1::Circle,
+        PresentationRecordKindV1::Polygon => TopLevelRootKindV1::Polygon,
+        PresentationRecordKindV1::Polyline => TopLevelRootKindV1::Polyline,
     }
 }
 
@@ -412,114 +406,16 @@ pub(super) fn reaction_choice_label(
     format!("{name} {identifier}")
 }
 
-pub(super) fn presentation_bounds_from_render(
-    root: &PresentationRootProjectionV1,
-    rendered: &RenderObservationV1,
+pub(super) fn presentation_bounds_from_plan(
+    root: &PresentationRenderRootV1,
 ) -> Option<RenderInteractionBoundsV1> {
-    match root {
-        PresentationRootProjectionV1::Plus { plus } => rendered
-            .plus_renders()
-            .iter()
-            .find(|value| value.target().projection_key() == plus.target().projection_key())
-            .map(|value| text_bounds(value.anchor().x(), value.anchor().y(), value.bounds())),
-        PresentationRootProjectionV1::Text { text } => rendered
-            .text_renders()
-            .iter()
-            .find(|value| value.target().projection_key() == text.target().projection_key())
-            .map(|value| text_bounds(value.anchor().x(), value.anchor().y(), value.bounds())),
-        PresentationRootProjectionV1::Arrow { arrow } => match arrow.geometry() {
-            ferrum_document::ArrowDisplayGeometryV1::Normal {
-                axis_path, heads, ..
-            } => bounds_from_points(
-                axis_path
-                    .points()
-                    .iter()
-                    .chain(heads.iter().flat_map(|head| head.points().iter())),
-                arrow.stroke().width().value(),
-            ),
-            ferrum_document::ArrowDisplayGeometryV1::Equilibrium { axes, heads } => {
-                bounds_from_points(
-                    axes.iter()
-                        .flat_map(|axis| axis.points().iter())
-                        .chain(heads.iter().flat_map(|head| head.points().iter())),
-                    arrow.stroke().width().value(),
-                )
-            }
-            ferrum_document::ArrowDisplayGeometryV1::CurvedEquilibrium { axes, heads, .. } => {
-                bounds_from_points(
-                    axes.iter()
-                        .flat_map(|axis| axis.points().iter())
-                        .chain(heads.iter().flat_map(|head| head.points().iter())),
-                    arrow.stroke().width().value(),
-                )
-            }
-            ferrum_document::ArrowDisplayGeometryV1::CurvedTerminal {
-                axis_path, head, ..
-            } => bounds_from_points(
-                axis_path.points().iter().chain(head.points().iter()),
-                arrow.stroke().width().value(),
-            ),
-        },
-        PresentationRootProjectionV1::Polyline { polyline }
-        | PresentationRootProjectionV1::Wavy { polyline }
-        | PresentationRootProjectionV1::RoundBracket { polyline } => bounds_from_points(
-            polyline.path().points().iter(),
-            polyline.stroke().width().value(),
-        ),
-        PresentationRootProjectionV1::Rectangle { shape }
-        | PresentationRootProjectionV1::Square { shape }
-        | PresentationRootProjectionV1::Oval { shape }
-        | PresentationRootProjectionV1::Circle { shape } => {
-            let bounds = shape.bounds();
-            Some(inflate_bounds(
-                RenderInteractionBoundsV1 {
-                    left: bounds.left(),
-                    top: bounds.top(),
-                    right: bounds.right(),
-                    bottom: bounds.bottom(),
-                },
-                shape.stroke().width().value(),
-            ))
-        }
-        PresentationRootProjectionV1::Polygon { polygon } => bounds_from_points(
-            polygon.path().points().iter(),
-            polygon.stroke().width().value(),
-        ),
-    }
-}
-
-pub(super) fn text_bounds(
-    anchor_x: f64,
-    anchor_y: f64,
-    bounds: ferrum_render::PresentationTextBoundsV1,
-) -> RenderInteractionBoundsV1 {
-    RenderInteractionBoundsV1 {
-        left: anchor_x + bounds.left(),
-        top: anchor_y + bounds.top(),
-        right: anchor_x + bounds.right(),
-        bottom: anchor_y + bounds.bottom(),
-    }
-}
-
-pub(super) fn bounds_from_points<'a>(
-    points: impl Iterator<Item = &'a Point3V1>,
-    stroke_width: f64,
-) -> Option<RenderInteractionBoundsV1> {
-    let mut points = points.peekable();
-    let first = *points.peek()?;
-    let mut bounds = RenderInteractionBoundsV1 {
-        left: first.x(),
-        top: first.y(),
-        right: first.x(),
-        bottom: first.y(),
-    };
-    for point in points {
-        bounds.left = bounds.left.min(point.x());
-        bounds.top = bounds.top.min(point.y());
-        bounds.right = bounds.right.max(point.x());
-        bounds.bottom = bounds.bottom.max(point.y());
-    }
-    Some(inflate_bounds(bounds, stroke_width))
+    let bounds = root.bounds();
+    Some(RenderInteractionBoundsV1 {
+        left: bounds.left(),
+        top: bounds.top(),
+        right: bounds.right(),
+        bottom: bounds.bottom(),
+    })
 }
 
 pub(super) fn inflate_bounds(

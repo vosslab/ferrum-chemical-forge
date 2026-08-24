@@ -27,7 +27,7 @@ impl TypedDocument {
         let font_change = patch
             .changes()
             .iter()
-            .any(|change| matches!(change, PlusPropertyChangeV1::FontFamily(_)));
+            .any(|change| matches!(change, PlusPropertyChangeV1::FontFace(_)));
         let font = editable_font(
             &mut indexed.xml.tree,
             plus,
@@ -98,11 +98,11 @@ fn editable_font(
 fn apply_changes(tree: &mut Xot, plus: Node, font: Option<Node>, changes: &[PlusPropertyChangeV1]) {
     for change in changes {
         match change {
-            PlusPropertyChangeV1::FontFamily(value) => set(
+            PlusPropertyChangeV1::FontFace(value) => set(
                 tree,
                 font.expect("family edits resolve one direct font"),
                 "family",
-                value,
+                value.cdml_family(),
             ),
             PlusPropertyChangeV1::FontSize(value) => {
                 set(tree, plus, "font_size", value.to_string())

@@ -21,34 +21,33 @@ pub(crate) fn atom_marks(
         .filter_map(|child| {
             let record = child.record();
             let Some(source_kind) = record.attribute("type") else {
-                issues.push(ProjectionIssueV1::new(
-                    ProjectionIssueCodeV1::InvalidPresentationFact,
-                    record,
-                    "atom mark type is absent",
-                ));
+                invalid(issues, record, "atom mark type is absent");
                 return None;
             };
             let Some(kind) = AtomMarkKindV1::parse(source_kind) else {
-                issues.push(ProjectionIssueV1::new(
-                    ProjectionIssueCodeV1::InvalidPresentationFact,
+                invalid(
+                    issues,
                     record,
                     format!("atom mark type {source_kind:?} is unsupported"),
-                ));
+                );
                 return None;
             };
             let ordinal = *ordinals.entry(kind).or_default();
             *ordinals.entry(kind).or_default() = ordinal.saturating_add(1);
             let (angle_degrees, radial_offset) = geometry(atom_position, record, issues);
-            Some(AtomMarkProjectionV1 {
-                kind,
-                source_order: child.position(),
-                same_type_ordinal: ordinal,
-                angle_degrees,
-                radial_offset,
-                size: positive(record, "size", default_size(kind), issues),
-                draw_circle: circle(record, issues),
-                line_width: positive(record, "line_width", 1.0, issues),
-            })
+            Some(
+                AtomMarkProjectionV1::new(
+                    kind,
+                    child.position(),
+                    ordinal,
+                    angle_degrees,
+                    radial_offset,
+                    positive(record, "size", default_size(kind), issues),
+                    circle(record, issues),
+                    positive(record, "line_width", 1.0, issues),
+                )
+                .expect("document adapter supplies finite nonnegative atom-mark geometry"),
+            )
         })
         .collect()
 }
@@ -147,9 +146,12 @@ fn positive(
 }
 
 fn invalid(issues: &mut Vec<ProjectionIssueV1>, record: &TypedRecord, detail: impl Into<String>) {
-    issues.push(ProjectionIssueV1::new(
-        ProjectionIssueCodeV1::InvalidPresentationFact,
-        record,
-        detail,
-    ));
+    issues.push(
+        ProjectionIssueV1::try_new(
+            ProjectionIssueCodeV1::InvalidPresentationFact,
+            record.path().to_string(),
+            detail.into(),
+        )
+        .expect("typed record paths are nonempty structural locations"),
+    );
 }

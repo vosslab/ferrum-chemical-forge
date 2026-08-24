@@ -14,15 +14,17 @@ def test_curved_terminal_projection_uses_one_closed_python_payload() -> None:
 		"<arrow id='normal' type='curved-normal'><point x='60' y='0'/><point x='70' y='10'/><point x='80' y='0'/></arrow>"
 		"</cdml>",
 	)
-	roots = session.observe(0).projection.presentation_stack.roots
-	geometries = [root.arrow.geometry for root in roots]
-	terminal = [geometry.curved_terminal for geometry in geometries]
-	assert [geometry.kind for geometry in geometries] == ["curved_terminal"] * 3
-	assert all(type(value) is ferrum_chem.CurvedTerminalArrowDisplayGeometryV1 for value in terminal)
-	assert [value.kind for value in terminal] == [
-		ferrum_chem.CurvedTerminalArrowDisplayKindV1.electron,
-		ferrum_chem.CurvedTerminalArrowDisplayKindV1.retro,
-		ferrum_chem.CurvedTerminalArrowDisplayKindV1.curved_normal_reaction,
+	observation = session.observe(0)
+	arrows = [root.arrow for root in observation.projection.presentation_stack.roots]
+	assert [arrow.kind.kind for arrow in arrows] == ["curved_terminal"] * 3
+	assert [arrow.kind.terminal_kind for arrow in arrows] == ["electron", "retro", "normal"]
+	assert [len(arrow.source_path.points) for arrow in arrows] == [3, 3, 3]
+	plan = session.observe_presentation_render_plan_v1(
+		observation.snapshot.revision, observation.snapshot.digest,
+	)
+	assert [root.target.source_id for root in plan.roots] == ["electron", "retro", "normal"]
+	assert [[operation.kind for operation in root.vector_operations] for root in plan.roots] == [
+		["path", "path"], ["path", "path"], ["path", "path"],
 	]
 
 
@@ -206,6 +208,8 @@ def test_terminal_arrow_foreign_commit_keeps_owner_receipt_redeemable(
 	foreign = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml' version='26.07'/>")
 	gesture = begin(owner, owner.snapshot())
 	value = preview(owner, gesture)
+	assert type(value.plan) is ferrum_chem.PresentationRenderPlanV1
+	assert len(value.plan.roots[0].vector_operations) == 2
 	prepared = prepare(owner, gesture, value)
 	with pytest.raises(error_type) as captured:
 		commit(foreign, prepared)
@@ -293,6 +297,8 @@ def test_curved_retro_arrow_binding_persists_only_the_closed_three_point_type() 
 		snapshot.revision, snapshot.digest, 0.0, 0.0, 10.0, 10.0,
 	)
 	preview = session.preview_curved_retro_arrow_gesture_v1(gesture, 20.0, 0.0)
+	assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+	assert len(preview.plan.roots[0].vector_operations) == 2
 	prepared = session.prepare_curved_retro_arrow_gesture_v1(gesture, preview)
 	commit = session.commit_curved_retro_arrow_gesture_v1(prepared)
 	assert isinstance(commit.root, ferrum_chem.PresentationGestureRootSelectorV1)
@@ -319,14 +325,16 @@ def test_curved_retro_arrow_error_keeps_shared_typed_facts_without_electron_copy
 	assert captured.value.recovery == ferrum_chem.CurvedRetroArrowGestureRecoveryV1.change_geometry
 
 
-def test_curved_normal_reaction_arrow_lifecycle_persists_closed_geometry() -> None:
-	"""Commit one curved normal arrow with Rust-issued cubic and terminal head geometry."""
+def test_curved_normal_reaction_arrow_lifecycle_persists_closed_renderer_plan() -> None:
+	"""Commit one curved normal arrow through its public renderer-owned plan."""
 	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml' version='26.07'/>")
 	snapshot = session.snapshot()
 	gesture = session.begin_curved_normal_reaction_arrow_gesture_v1(
 		snapshot.revision, snapshot.digest, 0.0, 0.0, 10.0, 10.0,
 	)
 	preview = session.preview_curved_normal_reaction_arrow_gesture_v1(gesture, 20.0, 0.0)
+	assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+	assert len(preview.plan.roots[0].vector_operations) == 2
 	prepared = session.prepare_curved_normal_reaction_arrow_gesture_v1(gesture, preview)
 	commit = session.commit_curved_normal_reaction_arrow_gesture_v1(prepared)
 	assert '<arrow id="' in commit.result.observation.snapshot.cdml
@@ -354,7 +362,7 @@ def test_curved_normal_reaction_arrow_refusals_are_typed_and_non_mutating() -> N
 	assert captured.value.category == ferrum_chem.CurvedNormalReactionArrowGestureCategoryV1.stale_snapshot
 
 
-def test_curved_equilibrium_arrow_lifecycle_issues_two_rust_owned_lanes() -> None:
+def test_curved_equilibrium_arrow_lifecycle_issues_one_renderer_plan() -> None:
 	"""Commit one curved-equilibrium arrow through its opaque native receipt."""
 	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml' version='26.07'/>")
 	snapshot = session.snapshot()
@@ -362,16 +370,23 @@ def test_curved_equilibrium_arrow_lifecycle_issues_two_rust_owned_lanes() -> Non
 		snapshot.revision, snapshot.digest, 0.0, 0.0, 40.0, 20.0,
 	)
 	preview = session.preview_curved_equilibrium_arrow_gesture_v1(gesture, 80.0, 0.0)
+	assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+	assert len(preview.plan.roots[0].vector_operations) == 3
 	prepared = session.prepare_curved_equilibrium_arrow_gesture_v1(gesture, preview)
 	commit = session.commit_curved_equilibrium_arrow_gesture_v1(prepared)
-	geometry = commit.result.observation.projection.presentation_stack.roots[0].arrow.geometry
-	issued = geometry.curved_equilibrium
-	assert geometry.kind == "curved_equilibrium"
-	assert issued is not None
+	observation = commit.result.observation
+	arrow = observation.projection.presentation_stack.roots[0].arrow
+	assert (arrow.kind.kind, len(arrow.source_path.points)) == ("curved_equilibrium", 3)
 	assert isinstance(commit.root, ferrum_chem.PresentationGestureRootSelectorV1)
 	assert commit.root.kind == ferrum_chem.PresentationGestureRootKindV1.arrow
 	assert f'id="{commit.root.identifier}"' in commit.result.observation.snapshot.cdml
 	assert 'type="curved-equilibrium"' in commit.result.observation.snapshot.cdml
+	plan = session.observe_presentation_render_plan_v1(
+		observation.snapshot.revision, observation.snapshot.digest,
+	)
+	root, = plan.roots
+	assert root.target.source_id == commit.root.identifier
+	assert [operation.kind for operation in root.vector_operations] == ["path"] * 3
 	with pytest.raises(ferrum_chem.CurvedEquilibriumArrowGestureError) as captured:
 		session.commit_curved_equilibrium_arrow_gesture_v1(prepared)
 	assert captured.value.category == ferrum_chem.CurvedEquilibriumArrowGestureCategoryV1.replayed_gesture

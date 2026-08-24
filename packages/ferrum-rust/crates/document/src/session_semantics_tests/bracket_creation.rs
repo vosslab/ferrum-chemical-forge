@@ -4,6 +4,7 @@ use super::super::{
     PresentationRootProjectionV1, PresentationStackProjectionV1, Rgb24V1, SessionOperation,
     SessionOperationV1,
 };
+use ferrum_document_projection::PresentationBracketStyleV1;
 
 fn properties(identifier: &str, changes: Vec<BracketPropertyChangeV1>) -> SessionOperation {
     SessionOperation::V1(SessionOperationV1::SetBracketProperties {
@@ -57,7 +58,7 @@ fn rectangular_bracket_creation_owns_pair_identity_geometry_standard_and_history
             "ferrum-presentation-v1-2".to_owned()
         ]
     );
-    assert_eq!(pair.style(), BracketStyleV1::Rectangular);
+    assert_eq!(pair.style(), PresentationBracketStyleV1::Rectangular);
     assert_eq!(pair.line_width().unwrap().value(), 2.0);
     assert_eq!(pair.line_color().unwrap().as_str(), "#112233");
     assert_eq!(
@@ -149,7 +150,7 @@ fn round_projection_is_explicit_and_invalid_or_stale_requests_do_not_mutate() {
     let [pair] = stack.bracket_pairs() else {
         panic!("expected one observed round relationship");
     };
-    assert_eq!(pair.style(), BracketStyleV1::Round);
+    assert_eq!(pair.style(), PresentationBracketStyleV1::Round);
     let [
         PresentationRootProjectionV1::RoundBracket { polyline: left },
         PresentationRootProjectionV1::RoundBracket { polyline: right },

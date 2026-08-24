@@ -8,9 +8,8 @@
 
 mod arrow_properties_patch_v1;
 pub mod artifact_publication_v1;
+mod atom_mark_action_v1;
 mod atom_mark_projection;
-mod atom_mark_v1;
-mod atom_projection_v1;
 mod atom_properties_patch_v1;
 mod atom_rotation_v1;
 #[allow(dead_code)] // WP-A1 private topology is consumed by the later session capability.
@@ -31,8 +30,11 @@ mod clean_geometry_update_v1;
 mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
 mod clipboard_paste_v1;
+mod compact_group_projection_v1;
+mod compact_group_v1;
+#[cfg(test)]
+mod compact_group_v1_tests;
 mod core_projection;
-mod curved_equilibrium_arrow_geometry_v1;
 mod direct_bond_mutation;
 mod direct_bond_primitives_v1;
 mod direct_cdml_semantic_index_v1;
@@ -42,11 +44,11 @@ mod document_explicit_fragment_api_v1;
 mod document_ingress_v1;
 mod document_smarts_snapshot_v1;
 mod drawing_standard_patch_v1;
-mod equilibrium_arrow_geometry_v1;
 mod explicit_fragment_v1;
 mod generated_ids;
 mod geometric_properties_patch_v1;
 mod geometry_repair_v1;
+mod hydrogen_materialization_v1;
 mod identity_index;
 mod interchange;
 mod linear_form_convert_v1;
@@ -68,7 +70,7 @@ mod presentation_shape_projection_v1;
 mod presentation_stack_projection_v1;
 mod presentation_stack_reorder_v1;
 mod presentation_text_projection_v1;
-mod presentation_v1;
+mod projection_adapter;
 mod projection_identity_v1;
 mod projection_v1;
 mod publication;
@@ -79,11 +81,10 @@ mod regular_ring_insertion_v1_tests;
 
 mod interchange_record_insertion_v1;
 mod interchange_record_metadata_v1;
-mod render_document_model_v1;
-mod reports_v1;
 #[doc(hidden)]
-pub mod session;
-mod session_history;
+pub mod rendering;
+mod reports_v1;
+mod session;
 mod session_observation;
 mod session_operation;
 mod session_state;
@@ -108,6 +109,8 @@ mod typed_bond_properties;
 mod typed_bracket_insertion;
 mod typed_bracket_properties;
 mod typed_class;
+mod typed_compact_group_insertion;
+mod typed_compact_group_materialization;
 mod typed_coordinate;
 mod typed_diagnostic;
 mod typed_document_error;
@@ -139,8 +142,7 @@ mod xml_input_budget_v1;
 pub use arrow_properties_patch_v1::{
     ArrowLineWidthV1, ArrowPropertiesPatchV1, ArrowPropertiesPatchV1Error, ArrowPropertyChangeV1,
 };
-pub use atom_mark_v1::{AtomMarkActionV1, AtomMarkKindV1, AtomMarkProjectionV1};
-pub use atom_projection_v1::AtomProjectionV1;
+pub use atom_mark_action_v1::AtomMarkActionV1;
 pub use atom_properties_patch_v1::{
     AtomPropertiesPatchV1, AtomPropertiesPatchV1Error, AtomPropertyChangeV1,
 };
@@ -159,7 +161,6 @@ pub use bond_properties_patch_v1::{
     NonZeroFiniteV1,
 };
 pub use bracket_insertion_v1::{BracketInsertionV1, BracketInsertionV1Error, BracketStyleV1};
-pub use bracket_pair_projection_v1::BracketPairProjectionV1;
 pub use bracket_properties_patch_v1::{
     BracketPropertiesPatchV1, BracketPropertiesPatchV1Error, BracketPropertyChangeV1,
 };
@@ -189,13 +190,11 @@ pub use clipboard_paste_v1::{
     DocumentClipboardPastePlanV1, DocumentClipboardPasteRootV1, DocumentClipboardPastedRootV1,
     prepare_document_clipboard_paste_v1,
 };
-pub use core_projection::{CoreProjection, CoreProjectionError};
-pub use curved_equilibrium_arrow_geometry_v1::{
-    CurvedEquilibriumArrowEndHeadLaneV1, CurvedEquilibriumArrowGeometryErrorV1,
-    CurvedEquilibriumArrowGeometryV1, CurvedEquilibriumArrowStartHeadLaneV1,
-    curved_equilibrium_arrow_geometry_v1,
+pub use compact_group_v1::{
+    CompactGroupAttachmentV1, CompactGroupCatalogKeyV1, CompactGroupV1, CompactGroupV1Error,
 };
-pub use direct_bond_mutation::{DirectBondEndpointIntent, DirectBondMutationCandidate};
+pub use core_projection::{CoreProjection, CoreProjectionError};
+pub use direct_bond_mutation::{CommittedDirectBondGestureV2, DirectBondEndpointIntent};
 pub use direct_bond_primitives_v1::{
     DirectBondAdmissionRefusalV1, DirectBondCommitErrorV1, DirectBondGestureErrorV1,
     DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentFenceV1,
@@ -239,11 +238,50 @@ pub use explicit_fragment_v1::{
     DocumentExplicitFragmentErrorV1, DocumentExplicitFragmentObservationV1,
     DocumentExplicitFragmentRecordV1, observe_explicit_fragments_v1,
 };
+pub use ferrum_document_projection::BracketPairProjectionV1;
+pub use ferrum_document_projection::{
+    ArrowHeadShapeV1, ArrowPathV1, ArrowProjectionKindV1, ArrowProjectionV1,
+    ArrowProjectionV1Error, CurvedTerminalArrowKindV1, PresentationArrowPreviewRequestV1,
+};
+pub use ferrum_document_projection::{
+    AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointKindV1, BondEndpointV1,
+    BondProjectionV1, CompactGroupProjectionV1, DocumentHaworthPositionV1, DocumentObjectIdV1,
+    DocumentObjectIdV1Error, DrawingStandardV1, FontFactsV1, MoleculeProjectionV1,
+    MoleculeProjectionV1Error, PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributesV1,
+    PaperLayoutProjectionV1, PaperOrientationV1, PaperPageIssueV1, PaperPageV1, Point3V1,
+    PositiveFiniteV1, PresentationLengthUnitV1, PresentationLengthV1, ProjectionError,
+    ProjectionLocalObjectKeyV1, ProjectionLocalObjectKeyV1Error, Rgb24V1, RichTextV1,
+    TransparentOrRgb24V1, ViewportAttributesV1, VisibilityV1,
+};
+pub use ferrum_document_projection::{
+    BoxShapeProjectionV1, PolygonPathV1, PolygonProjectionV1, PresentationBoundsV1,
+    PresentationFillV1,
+};
+pub use ferrum_document_projection::{
+    DOCUMENT_PROJECTION_SCHEMA_V1, DocumentProjectionProvenanceV1, DocumentProjectionV1,
+    DocumentProjectionV1Error, ProjectionIssueCodeV1, ProjectionIssueV1, ProjectionIssueV1Error,
+};
+pub use ferrum_document_projection::{
+    PRESENTATION_STACK_PROJECTION_SCHEMA_V1, PolylinePathV1, PolylineProjectionV1,
+    PresentationBracketStyleV1, PresentationFactProvenanceV1, PresentationFontFaceV1,
+    PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationRecordKindV1,
+    PresentationRootProjectionV1, PresentationStackProjectionV1,
+    PresentationStackProjectionV1Error, PresentationStrokeV1, PresentationTargetV1,
+};
+pub use ferrum_document_projection::{PlusProjectionV1, PresentationFontV1};
+pub use ferrum_document_projection::{
+    PresentationTextFontV1, PresentationTextRunV1, PresentationTextStyleV1, TextProjectionV1,
+};
 pub use geometric_properties_patch_v1::{
     GeometricLineWidthV1, GeometricPropertiesPatchV1, GeometricPropertiesPatchV1Error,
     GeometricPropertyChangeV1,
 };
 pub use geometry_repair_v1::{GeometryRepairKindV1, GeometryRepairV1, GeometryRepairV1Error};
+pub use hydrogen_materialization_v1::{
+    DocumentMoleculeHydrogenMaterializationRefusalV1,
+    DocumentMoleculeHydrogenMaterializationRequestV1,
+    DocumentMoleculeHydrogenMaterializationResultV1,
+};
 pub use identity_index::{
     CompleteDocumentIdentityFactsV1, DocumentIdentityError, DocumentRecord, ElementPath,
     IndexedDocument, IndexedDocumentError, PersistentId, ResolvedId, SourceOrder, XmlDocument,
@@ -291,9 +329,7 @@ pub use operations::{
     prepare_user_template_v1, set_document_molecule_name_v1,
 };
 pub use paper_properties_v1::{
-    PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributesV1, PaperLayoutProjectionV1,
-    PaperOrientationV1, PaperPageIssueV1, PaperPageV1, PaperPropertiesPatchV1,
-    PaperPropertiesPatchV1Error, PaperPropertyChangeV1, ViewportAttributesV1,
+    PaperPropertiesPatchV1, PaperPropertiesPatchV1Error, PaperPropertyChangeV1,
 };
 pub use paper_size_v1::{
     PaperDimensionsMmV1, PaperDimensionsMmV1Error, PaperSizeV1, paper_size_catalog_v1,
@@ -303,55 +339,26 @@ pub use plus_properties_patch_v1::{
     MAX_PLUS_FONT_SIZE_V1, MIN_PLUS_FONT_SIZE_V1, PlusPropertiesPatchV1,
     PlusPropertiesPatchV1Error, PlusPropertyChangeV1,
 };
-pub use presentation_arrow_projection_v1::{
-    ArrowDisplayGeometryV1, ArrowHeadPositionV1, ArrowHeadShapeV1, ArrowHeadV1, ArrowPathV1,
-    ArrowProjectionV1, CurvedTerminalArrowDisplayKindV1, CurvedTerminalArrowGeometryV1,
-    CurvedTerminalArrowKindV1, curved_terminal_arrow_geometry_v1,
-};
 pub use presentation_creation_gesture_v1::{
     ArrowGestureStyleV1, CommittedPresentationGestureV1, PresentationCreationGestureV1,
     PresentationCreationPreviewV1, PresentationGestureCategoryV1, PresentationGestureErrorV1,
-    PresentationGestureKindV1, PresentationGestureOverlayGeometryV1, PresentationGestureOverlayV1,
-    PresentationGesturePoint2V1, PresentationGestureRecoveryV1, PresentationGestureSnapPolicyV1,
-    PresentationGestureStyleV1,
+    PresentationGestureKindV1, PresentationGesturePoint2V1, PresentationGestureRecoveryV1,
+    PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
 };
 pub use presentation_path_gesture_v1::{
     PRESENTATION_PATH_MAXIMUM_EXTENT_PT_V1, PRESENTATION_PATH_MAXIMUM_POINTS_V1,
     PresentationPathGestureCategoryV1, PresentationPathGestureErrorV1,
     PresentationPathGestureRecoveryV1, PresentationPathGestureV1, PresentationPathKindV1,
 };
-pub use presentation_plus_projection_v1::{PlusProjectionV1, PresentationFontV1};
 pub use presentation_root_deletion_v1::{
     PresentationRootDeletionSetV1, PresentationRootDeletionSetV1Error, PresentationRootDeletionV1,
     PresentationRootDeletionV1Error, PresentationRootSelectorV1, PresentationRootSelectorV1Error,
 };
-pub use presentation_shape_projection_v1::{
-    BoxShapeProjectionV1, PolygonPathV1, PolygonProjectionV1, PresentationBoundsV1,
-    PresentationFillV1,
-};
-pub use presentation_stack_projection_v1::{
-    PRESENTATION_STACK_PROJECTION_SCHEMA_V1, PolylinePathV1, PolylineProjectionV1,
-    PresentationFactProvenanceV1, PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1,
-    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
-    PresentationStrokeV1, PresentationTargetV1,
-};
 pub use presentation_stack_reorder_v1::{
     PresentationStackOrderV1, PresentationStackReorderV1, PresentationStackReorderV1Error,
 };
-pub use presentation_text_projection_v1::{
-    PresentationTextFontV1, PresentationTextRunV1, PresentationTextStyleV1, TextProjectionV1,
-};
-pub use presentation_v1::{
-    DrawingStandardV1, FontFactsV1, PositiveFiniteV1, PresentationLengthUnitV1,
-    PresentationLengthV1, Rgb24V1, RichTextV1, TransparentOrRgb24V1, VisibilityV1,
-};
-pub use projection_identity_v1::{
-    DocumentObjectIdV1, DocumentObjectIdV1Error, ProjectionLocalObjectKeyV1,
-};
-pub use projection_v1::{
-    BondEndpointKindV1, BondEndpointV1, BondProjectionV1, DOCUMENT_PROJECTION_SCHEMA_V1,
-    DocumentHaworthPositionV1, DocumentProjectionV1, MoleculeProjectionV1, Point3V1,
-    ProjectionError, ProjectionIssueCodeV1, ProjectionIssueV1,
+pub(crate) use projection_identity_v1::{
+    document_object_id_from_record_v1, projection_local_object_key_from_record_v1,
 };
 pub use publication::{
     DocumentMoleculeInchiPublicationErrorV1, DocumentMoleculeMolblockPublicationErrorV1,
@@ -365,24 +372,46 @@ pub use regular_ring_insertion_v1::{
     DetachedRegularRingInsertionV1, RegularRingInsertionErrorV1, RegularRingOrientationV1,
     RegularRingSizeV1,
 };
-pub use render_document_model_v1::{
-    RenderDocumentModelConversionErrorV1, render_document_model_from_observation_v1,
+pub use rendering::{
+    CompleteDocumentRenderPlanErrorV1, DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1,
+    DOCUMENT_SELECTION_SVG_SCHEMA_V1, DocumentNativeArtifactErrorV1,
+    DocumentNativeArtifactProfileV1, DocumentPdfArtifactErrorV1, DocumentPngArtifactErrorV1,
+    DocumentRenderObservationErrorV1, DocumentRenderObservationV1, DocumentRenderObservationWireV1,
+    DocumentSelectionSvgErrorV1, DocumentSelectionSvgRootV1, DocumentSelectionSvgV1,
+    DocumentSvgArtifactErrorV1, DocumentSvgSelectionV1, PreparedDocumentNativeArtifactV1,
+    compose_complete_document_render_plan_v1,
+    derive_document_render_observation_from_accepted_operation_v1, observe_document_render_v1,
+    prepare_document_native_artifact_v1, publish_prepared_document_native_artifact_v1,
+    render_document_selection_to_svg_v1, render_document_session_to_pdf_v1,
+    render_document_session_to_png_v1, render_document_session_to_svg_v1,
 };
 pub use reports_v1::{CdmlInspection, CdmlValidation, MoleculeInspection, RewriteCheck};
+pub use session::PendingDirectBondMutationV1;
+pub use session::PendingHydrogenMaterializationV1;
+pub use session::{AdmittedSessionTransitionRefusalV1, PreparedSessionTransitionV1};
 pub use session::{
-    AttachedCyclohexaneSessionErrorV1, CommittedDirectHaworthResultV1, CommittedDirectHaworthV1,
+    AttachedCyclohexaneSessionErrorV1, CatalogMoleculePlacementGestureV1,
+    CatalogMoleculePlacementRefusalV1, CatalogMoleculePlacementRequestV1,
+    CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, CompactGroupPlacementModeV1,
+    CompactGroupPlacementRefusalV1, CompactGroupPlacementRequestV1, CompleteCdmlMutationRefusalV1,
     DocumentClipboardPasteResultV1, DocumentSession, DocumentSessionError, DocumentSnapshot,
-    DocumentUserTemplateResultV1, PendingAttachedCyclohexaneV1, PendingCreateAtom,
-    PendingCreateBond, PendingCreateBondedAtom, PendingCreateBracket,
-    PendingCreateInterchangeBatchV1, PendingCreateMolecule, PendingCreateMoleculeBatchV1,
-    PendingCreateWavy, PendingDeleteStructureV1, PendingDirectHaworthV1,
+    DocumentUserTemplateResultV1, PendingAdmittedInterchangeBatchV1,
+    PendingAdmittedMoleculeInsertionV1, PendingAttachedCyclohexaneV1,
+    PendingCatalogMoleculePlacementV1, PendingCompactGroupPlacementV1,
+    PendingCompleteCdmlMutationV1, PendingCreateAtom, PendingCreateBond, PendingCreateBondedAtom,
+    PendingCreateBracket, PendingCreateWavy, PendingDeleteStructureV1, PendingDirectHaworthV1,
     PendingLinearFormConvertV1, PendingStandaloneHaworthV1, PreparedLinearFormConvertResultV1,
     Publication, SaveOutcome,
+};
+pub use session::{
+    CompactGroupMaterializationRefusalV1, CompactGroupMaterializationRequestV1,
+    CompactGroupMaterializationResultV1, PendingCompactGroupMaterializationV1,
 };
 pub use session::{
     PendingCreatePresentationV1, PresentationAppearanceV1, PresentationCreateErrorV1,
     PresentationCreateRequestV1, PresentationVectorCreateKindV1,
 };
+pub use session::{PendingPresentationGestureV1, PendingTextPlacementV1};
 pub use session_observation::SessionDocumentObservationV1;
 pub use session_operation::{
     SessionOperation, SessionOperationError, SessionOperationResultV1, SessionOperationV1,
@@ -393,7 +422,7 @@ pub use straighten_depiction_update_v1::{
 };
 pub use text_placement_gesture_v1::{
     CommittedTextPlacementV1, TextPlacementContentV1, TextPlacementErrorCategoryV1,
-    TextPlacementErrorV1, TextPlacementGestureV1, TextPlacementPreviewV1, TextPlacementRecoveryV1,
+    TextPlacementErrorV1, TextPlacementGestureV1, TextPlacementRecoveryV1,
 };
 pub use text_properties_patch_v1::{
     MAX_TEXT_FONT_SIZE_V1, MIN_TEXT_FONT_SIZE_V1, TextEditRunV1, TextEditStyleV1,
@@ -431,6 +460,7 @@ pub(crate) use cdml_namespace_v1::{
     CDML_NAMESPACE, ferrum_cdml_element_name, is_ferrum_cdml_name, is_ferrum_cdml_root,
 };
 pub(crate) use identity_index::element_name;
+pub(crate) use typed_compact_group_materialization::CompactGroupMaterializationSourceV1;
 
 #[cfg(test)]
 mod compatibility_tests;
@@ -463,6 +493,9 @@ mod publication_tests;
 
 #[cfg(test)]
 mod projection_v1_tests;
+
+#[cfg(test)]
+mod session_observation_tests;
 
 #[cfg(test)]
 mod presentation_stack_projection_v1_tests;

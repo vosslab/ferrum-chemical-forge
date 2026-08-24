@@ -20,6 +20,5 @@ ferrum-document = { path = "../document" }
 ferrum-domain = { path = "../domain" }
 ferrum-geometry = { path = "../geometry" }
 ferrum-render = { path = "../render" }
-ferrum-render-contract = { path = "../render-contract" }
 xmlparser = "*"
 thiserror = { version = "*" }

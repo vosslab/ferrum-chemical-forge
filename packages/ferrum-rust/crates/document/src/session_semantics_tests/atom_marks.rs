@@ -164,28 +164,13 @@ fn invalid_geometry_and_scalar_bounds_never_change_authoritative_state() {
 }
 
 #[test]
-fn charge_mark_preserves_unrelated_legacy_multiplicity_and_returns_an_observation() {
+fn invalid_legacy_multiplicity_is_rejected_before_mark_mutation_can_start() {
     let source = SOURCE.replace("name=\"C\"", "name=\"C\" multiplicity=\"legacy\"");
-    let mut session = DocumentSession::load(&source).expect("source must load");
-    let added = session
-        .submit(
-            0,
-            operation(AtomMarkActionV1::Add, AtomMarkKindV1::Plus, None),
-        )
-        .expect("plus addresses charge without normalizing multiplicity");
-    let observation = added.observation();
-    let atom = &observation.projection().molecules()[0].atoms()[0];
-
-    assert_eq!((atom.formal_charge(), atom.multiplicity()), (Some(1), None));
-    assert_eq!(atom.marks()[0].kind(), AtomMarkKindV1::Plus);
-    assert!(
-        observation
-            .snapshot()
-            .cdml()
-            .contains("multiplicity=\"legacy\"")
-    );
-    assert!(observation.projection().issues().iter().any(|issue| {
-        issue.code() == crate::ProjectionIssueCodeV1::InvalidPresentationFact
-            && issue.detail().contains("multiplicity")
-    }));
+    assert!(matches!(
+        DocumentSession::load(&source),
+        Err(DocumentSessionError::Load(TypedDocumentError::InvalidAtomMultiplicity {
+            atom_id,
+            value,
+        })) if atom_id == "a" && value == "legacy"
+    ));
 }

@@ -29,22 +29,15 @@ def _is_carbon_single_cycle(molecule: object) -> bool:
 	return all(degree == 2 for degree in degrees.values())
 
 
-def _point_coordinates(points: object) -> list[tuple[float, float, float]]:
-	"""Compare copied immutable coordinates, not Python wrapper identity."""
-	return [(point.x, point.y, point.z) for point in points]
-
-
-def test_private_regular_ring_receipt_projects_rust_vertices_and_durable_cycle() -> None:
-	"""One private receipt carries the preview geometry that Rust commits as CDML."""
+def test_admitted_regular_ring_receipt_uses_renderer_plan_and_durable_cycle() -> None:
+	"""One receipt exposes renderer operations and commits one durable carbon cycle."""
 	session = ferrum_chem.DocumentSession.create_empty_document_v1()
-	prepared = session.prepare_create_regular_ring_v1(0, 6, 13.0, -7.0, 4.0)
-	result = session.commit_create_regular_ring_v1(0, prepared)
+	prepared = session.prepare_admitted_regular_ring_insertion_v1(0, 6, 13.0, -7.0, 4.0)
+	result = session.commit_admitted_regular_ring_insertion_v1(0, prepared)
 	molecule = result.observation.projection.molecules[0]
 
 	assert _is_carbon_single_cycle(molecule)
-	assert _point_coordinates(atom.position for atom in molecule.atoms) == _point_coordinates(
-		prepared.vertices,
-	)
+	assert prepared.render_plan.batches
 
 
 def test_private_regular_ring_refusal_preserves_current_snapshot() -> None:
@@ -52,13 +45,13 @@ def test_private_regular_ring_refusal_preserves_current_snapshot() -> None:
 	session = ferrum_chem.DocumentSession.create_empty_document_v1()
 	baseline = session.snapshot()
 	with pytest.raises(ferrum_chem.OperationValidationError):
-		session.prepare_create_regular_ring_v1(0, 6, 0.0, 0.0, float("inf"))
+		session.prepare_admitted_regular_ring_insertion_v1(0, 6, 0.0, 0.0, float("inf"))
 	assert _snapshot_facts(session.snapshot()) == _snapshot_facts(baseline)
 
-	stale = session.prepare_create_regular_ring_v1(0, 6, 0.0, 0.0, 4.0)
-	accepted = session.prepare_create_regular_ring_v1(0, 6, 20.0, 0.0, 4.0)
-	session.commit_create_regular_ring_v1(0, accepted)
+	stale = session.prepare_admitted_regular_ring_insertion_v1(0, 6, 0.0, 0.0, 4.0)
+	accepted = session.prepare_admitted_regular_ring_insertion_v1(0, 6, 20.0, 0.0, 4.0)
+	session.commit_admitted_regular_ring_insertion_v1(0, accepted)
 	before_refusal = session.snapshot()
 	with pytest.raises(ferrum_chem.RevisionConflictError):
-		session.commit_create_regular_ring_v1(1, stale)
+		session.commit_admitted_regular_ring_insertion_v1(1, stale)
 	assert _snapshot_facts(session.snapshot()) == _snapshot_facts(before_refusal)

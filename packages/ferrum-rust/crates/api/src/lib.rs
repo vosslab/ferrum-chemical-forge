@@ -8,7 +8,6 @@ mod catalog_placement_v2;
 mod cli;
 mod document_interchange_import_v1;
 mod interchange_import_v1;
-mod plus_placement_gesture_v1;
 mod presentation_path_gesture_v1;
 mod presentation_vector_gesture_v1;
 mod protocol;
@@ -21,7 +20,6 @@ pub use ferrum_document_render::{
     ReactionDefinitionDispositionV1, ReactionListObservationV1, ReactionMemberObservationV1,
     ReactionObservationV1, ReactionSelectionV1,
 };
-mod text_placement_gesture_v1;
 mod transport;
 
 pub use catalog_placement_v2::{
@@ -54,10 +52,6 @@ pub use interchange_import_v1::{
     InterchangeImportRefusalReasonV1, InterchangeImportRefusalV1, InterchangeSemanticLossPolicyV1,
     SDF_IMPORT_FORMAT_V1, SDF_IMPORT_PROFILE_V1,
 };
-pub use plus_placement_gesture_v1::{
-    ApiPlusGestureV1, ApiPlusOverlayV1, ApiPlusPreviewV1, begin_api_plus_gesture_v1,
-    commit_api_plus_gesture_v1, preview_api_plus_gesture_v1,
-};
 pub use presentation_path_gesture_v1::{
     ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, ApiPresentationPathPreparedV1,
     CommittedPresentationPathV1, PresentationPathProgressV1, PresentationPathRenderCategoryV1,
@@ -79,6 +73,8 @@ pub use protocol::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
     CatalogPlacementRefusalV1, CatalogProvenanceSummaryV1, ChemistryConvertInputV1,
     ChemistryConvertRequestV1, DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
+    DocumentAtomOxidationObservationOutcomeV1, DocumentAtomOxidationObservationV1,
+    DocumentAtomOxidationObserveRequestV1, DocumentAtomOxidationUnavailableReasonV1,
     DocumentGenerateCoordinatesRequestV1, DocumentInspectRequestV1,
     DocumentInterchangeImportLossReportV1, DocumentInterchangeImportSummaryV1,
     DocumentInterchangeLossCategoryV1, DocumentInterchangeProvenanceV1,
@@ -89,9 +85,9 @@ pub use protocol::{
     DocumentMoleculeReportElementCountSummaryV1, DocumentMoleculeReportRecordSummaryV1,
     DocumentMoleculeReportRequestV1, DocumentMoleculeReportSummaryV1,
     DocumentRenderArtifactRequestV1, DocumentRequestFenceV1, DocumentRewriteRequestV1,
-    DocumentSmartsQueryDocumentV1, DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1,
-    DocumentSmartsQueryMoleculeSummaryV1, DocumentSmartsQueryRequestV1,
-    DocumentSmartsQuerySummaryV1, DocumentSmartsQueryTraversalSummaryV1, DocumentValidateRequestV1,
+    DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
+    DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
+    DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1, DocumentValidateRequestV1,
     MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
     OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
     OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OperationProtocolEnvelopeV1,
@@ -127,9 +123,4 @@ pub use reaction_aggregate_v1::{
     commit_api_reaction_translation_v1, prepare_api_reaction_gesture_v1,
     prepare_api_reaction_lifecycle_v1, prepare_api_reaction_translation_v1,
     preview_api_reaction_translation_v1,
-};
-pub use text_placement_gesture_v1::{
-    ApiTextPlacementDefaultsV1, ApiTextPlacementGestureV1, ApiTextPlacementPreviewV1,
-    begin_api_text_placement_gesture_v1, commit_api_text_placement_gesture_v1,
-    preview_api_text_placement_gesture_v1, text_placement_defaults_v1,
 };

@@ -20,16 +20,14 @@ use super::document_operation_binding::PyDocumentOperationV1;
 pub(crate) use super::document_session_binding::*;
 use super::presentation_root_binding::PyPresentationRootProjectionV1;
 use super::projection_binding::{
-    PyArrowDisplayGeometryV1, PyArrowHeadShapeV1, PyArrowHeadV1, PyArrowPathV1,
-    PyArrowProjectionV1, PyAtomMarkProjectionV1, PyAtomProjectionV1, PyBondEndpointV1,
-    PyBondProjectionV1, PyBoxShapeProjectionV1, PyCurvedEquilibriumArrowDisplayGeometryV1,
-    PyCurvedTerminalArrowDisplayGeometryV1, PyCurvedTerminalArrowDisplayKindV1,
-    PyDocumentHaworthPositionV1, PyDocumentProjectionV1, PyEquilibriumArrowDisplayGeometryV1,
-    PyFontFactsV1, PyMoleculeProjectionV1, PyNormalArrowDisplayGeometryV1, PyPlusProjectionV1,
-    PyPoint3V1, PyPolygonPathV1, PyPolygonProjectionV1, PyPolylinePathV1, PyPolylineProjectionV1,
-    PyPresentationBoundsV1, PyPresentationFillV1, PyPresentationFontV1,
-    PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1, PyPresentationStrokeV1,
-    PyPresentationTargetV1, PyProjectionIssueV1, PySessionDocumentObservationV1,
+    PyArrowHeadShapeV1, PyArrowPathV1, PyArrowProjectionKindV1, PyArrowProjectionV1,
+    PyAtomMarkProjectionV1, PyAtomProjectionV1, PyBondEndpointV1, PyBondProjectionV1,
+    PyBoxShapeProjectionV1, PyDocumentHaworthPositionV1, PyDocumentProjectionV1, PyFontFactsV1,
+    PyMoleculeProjectionV1, PyPlusProjectionV1, PyPoint3V1, PyPolygonPathV1, PyPolygonProjectionV1,
+    PyPolylinePathV1, PyPolylineProjectionV1, PyPresentationBoundsV1, PyPresentationFillV1,
+    PyPresentationFontV1, PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1,
+    PyPresentationStrokeV1, PyPresentationTargetV1, PyProjectionIssueV1,
+    PySessionDocumentObservationV1,
 };
 use super::render_binding;
 
@@ -111,6 +109,8 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::attached_cyclohexane_binding::initialize(module)?;
     super::document_native_artifact_binding::register(module)?;
     module.add_class::<PyDocumentSession>()?;
+    module
+        .add_class::<super::live_document_operation_binding::PyLiveDocumentOperationReceiptV1>()?;
     module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsReceiptV1>()?;
     module
         .add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedReadinessV1>(
@@ -136,18 +136,13 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPresentationStackProjectionV1>()?;
     module.add_class::<PyBracketPairProjectionV1>()?;
     module.add_class::<PyPresentationRootProjectionV1>()?;
+    super::presentation_render_plan_binding::initialize(module)?;
     super::presentation_path_binding::register(module)?;
     super::presentation_text_binding::register(module)?;
     module.add_class::<PyArrowProjectionV1>()?;
-    module.add_class::<PyArrowDisplayGeometryV1>()?;
-    module.add_class::<PyNormalArrowDisplayGeometryV1>()?;
-    module.add_class::<PyEquilibriumArrowDisplayGeometryV1>()?;
-    module.add_class::<PyCurvedEquilibriumArrowDisplayGeometryV1>()?;
-    module.add_class::<PyCurvedTerminalArrowDisplayKindV1>()?;
-    module.add_class::<PyCurvedTerminalArrowDisplayGeometryV1>()?;
+    module.add_class::<PyArrowProjectionKindV1>()?;
     module.add_class::<PyArrowPathV1>()?;
     module.add_class::<PyArrowHeadShapeV1>()?;
-    module.add_class::<PyArrowHeadV1>()?;
     module.add_class::<PyPlusProjectionV1>()?;
     module.add_class::<PyPresentationFontV1>()?;
     module.add_class::<PyPolylineProjectionV1>()?;
@@ -205,14 +200,12 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDocumentBondStyleV1>()?;
     module.add_class::<PyPreparedBondInsertion>()?;
     module.add_class::<PyPreparedBondedAtomInsertion>()?;
-    module.add_class::<PyPreparedMoleculeInsertion>()?;
-    module.add_class::<super::regular_ring_binding::PyPreparedRegularRingInsertionV1>()?;
+    module.add_class::<PyAdmittedMoleculeInsertionV1>()?;
+    module.add_class::<super::regular_ring_binding::PyAdmittedRegularRingInsertionV1>()?;
     module
         .add_class::<super::standalone_haworth_binding::PyPreparedStandaloneHaworthInsertionV1>()?;
-    module.add_class::<super::standalone_haworth_binding::PyStandaloneHaworthPreviewBatchV2>()?;
     module.add_class::<super::direct_haworth_binding::PyPreparedDirectHaworthFromSmilesV1>()?;
     module.add_class::<super::direct_haworth_binding::PyPreparedDirectHaworthInsertionV1>()?;
-    module.add_class::<super::direct_haworth_binding::PyDirectHaworthPreviewBatchV2>()?;
     module.add_class::<PyPublication>()?;
     module.add_class::<PySaveOutcome>()?;
     render_binding::initialize(module)

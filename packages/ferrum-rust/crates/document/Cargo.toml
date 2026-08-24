@@ -17,11 +17,11 @@ ferrum-core = { path = "../core" }
 ferrum-chemistry = { path = "../chemistry" }
 ferrum-domain = { path = "../domain" }
 ferrum-geometry = { path = "../geometry" }
-ferrum-document-model = { path = "../document-model" }
+ferrum-document-projection = { path = "../document-projection" }
+ferrum-render = { path = "../render" }
 getrandom = { version = "*" }
 rustix = { version = "*", features = ["fs"] }
 serde = { version = "*", features = ["derive"] }
-serde_json = { version = "*", features = ["float_roundtrip"] }
 schemars = { version = "*" }
 sha2 = { version = "*" }
 thiserror = { version = "*" }

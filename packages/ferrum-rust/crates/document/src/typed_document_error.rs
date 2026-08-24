@@ -7,6 +7,36 @@ use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
 /// Parse or typed-projection failure.
 #[derive(Debug, Error)]
 pub enum TypedDocumentError {
+    /// A direct Text or Plus requested a font outside the bundled closed face set.
+    #[error("unsupported_text_face for {root_id}: {family:?}; use Telex Regular (bundled)")]
+    UnsupportedTextFace {
+        /// Authored direct-root identifier, or a stable fallback when absent.
+        root_id: String,
+        /// Exact rejected authored family spelling.
+        family: String,
+    },
+    /// A typed atom's authored multiplicity is not a positive 16-bit integer.
+    #[error(
+        "typed atom {atom_id} has invalid multiplicity {value:?}; expected a positive 16-bit integer"
+    )]
+    InvalidAtomMultiplicity {
+        /// Authored atom ID, or a stable descriptive fallback when absent.
+        atom_id: String,
+        /// Exact retained lexical value.
+        value: String,
+    },
+    /// A direct molecule root has no typed vertex representable by the molecular model.
+    #[error(
+        "typed direct molecule {molecule_id} has no supported molecular vertex; expected atom, compact-group, text, or query"
+    )]
+    EmptyDirectMolecule {
+        /// Authored molecule ID, or a stable descriptive fallback when absent.
+        molecule_id: String,
+    },
+    /// A compact-group materialization target or retained source fact is outside
+    /// the closed internal experiment contract.
+    #[error("compact-group materialization has unsupported retained facts: {0}")]
+    InvalidCompactGroupMaterialization(PersistentId),
     /// A structural deletion request did not name one eligible direct-root molecule.
     #[error("structural deletion molecule is not one eligible direct-root molecule: {0}")]
     InvalidStructureDeletionMolecule(PersistentId),
@@ -61,6 +91,15 @@ pub enum TypedDocumentError {
     /// A namespaced unknown attribute had no usable in-scope prefix.
     #[error("cannot retain an unknown CDML attribute name: {0}")]
     AttributeName(#[source] xot::Error),
+    /// A first-class compact-group V1 record carried an undeclared attribute.
+    #[error("compact-group V1 has an undeclared attribute: {attribute}")]
+    UndeclaredCompactGroupAttribute {
+        /// Attribute spelling as authored in the retained XML.
+        attribute: String,
+    },
+    /// A first-class compact-group V1 record carried content outside its one anchor point.
+    #[error("compact-group V1 has undeclared content")]
+    UndeclaredCompactGroupContent,
     /// A retained tree could not be structurally serialized for a typed mutation.
     #[error("cannot serialize retained CDML: {0}")]
     Serialize(#[from] super::XmlSerializationError),

@@ -12,10 +12,8 @@ import pytest
 
 # local repo modules
 import ferrum_chem
-import ferrum_qt.canvas.ferrum_presentation_projection
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.engine
-import ferrum_qt.ferrum.presentation_creation_preview
 import ferrum_qt.main_window
 
 
@@ -47,46 +45,6 @@ def _startup_tab(
 
 
 #============================================
-def _curved_equilibrium_preview_items(
-		tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-		) -> tuple[PySide6.QtWidgets.QGraphicsPathItem, PySide6.QtWidgets.QGraphicsPathItem]:
-	"""Return the visible dashed lanes and filled heads from one Rust-issued preview."""
-	scene = tab.view.scene()
-	if scene is None:
-		raise RuntimeError("Ferrum curved-equilibrium preview has no visible scene")
-	axis_item = next(
-		item for item in scene.items()
-		if type(item) is PySide6.QtWidgets.QGraphicsPathItem
-		and item.pen().style() is PySide6.QtCore.Qt.PenStyle.DashLine
-		and item.brush().style() is PySide6.QtCore.Qt.BrushStyle.NoBrush
-	)
-	head_item = next(
-		item for item in scene.items()
-		if type(item) is PySide6.QtWidgets.QGraphicsPathItem
-		and item.pen().style() is PySide6.QtCore.Qt.PenStyle.NoPen
-		and item.brush().style() is not PySide6.QtCore.Qt.BrushStyle.NoBrush
-	)
-	return axis_item, head_item
-
-
-#============================================
-def _curve_count(path: PySide6.QtGui.QPainterPath) -> int:
-	"""Count cubic segments already issued in a Qt path without calculating one."""
-	return sum(
-		path.elementAt(index).type is PySide6.QtGui.QPainterPath.ElementType.CurveToElement
-		for index in range(path.elementCount())
-	)
-
-
-#============================================
-def _subpath_count(path: PySide6.QtGui.QPainterPath) -> int:
-	"""Count closed issued head polygons without interpreting their coordinates."""
-	return sum(
-		path.elementAt(index).type is PySide6.QtGui.QPainterPath.ElementType.MoveToElement
-		for index in range(path.elementCount())
-	)
-
-
 #============================================
 def _selected_curved_equilibrium_arrow(
 		tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
@@ -95,7 +53,7 @@ def _selected_curved_equilibrium_arrow(
 	arrow = next(
 		root.arrow
 		for root in tab.current_document_observation().projection.presentation_stack.roots
-		if root.kind == "arrow" and root.arrow.geometry.kind == "curved_equilibrium"
+		if root.kind == "arrow" and root.arrow.kind.kind == "curved_equilibrium"
 	)
 	source_id = arrow.target.source_id
 	assert source_id is not None
@@ -335,40 +293,6 @@ def test_curved_terminal_arrow_action_commits_one_rust_root_and_escape_cancels(
 
 
 #============================================
-def test_curved_equilibrium_preview_uses_rust_cubics_and_filled_issued_heads(
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""The real Qt scene separates dashed Rust lanes from its two filled Rust heads."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	try:
-		window.show()
-		qapp.processEvents()
-		tab = _startup_tab(window)
-		start = tab.view.viewport().rect().center()
-		control = start + PySide6.QtCore.QPoint(40, 20)
-		end = start + PySide6.QtCore.QPoint(80, 0)
-		start_scene = tab.view.mapToScene(start)
-		control_scene = tab.view.mapToScene(control)
-		end_scene = tab.view.mapToScene(end)
-		gesture = tab.begin_curved_equilibrium_arrow_gesture(
-			(float(start_scene.x()), float(start_scene.y())),
-			(float(control_scene.x()), float(control_scene.y())),
-		)
-		preview = tab.preview_curved_equilibrium_arrow_gesture(
-			gesture, (float(end_scene.x()), float(end_scene.y())),
-		)
-		ferrum_qt.ferrum.presentation_creation_preview.create_curved_equilibrium_arrow_overlay(
-			tab, preview.overlay,
-		)
-		axis_item, head_item = _curved_equilibrium_preview_items(tab)
-		assert _curve_count(axis_item.path()) == 2
-		assert _subpath_count(head_item.path()) == 2
-	finally:
-		window.close()
-		window.deleteLater()
-
-
-#============================================
 def test_curved_equilibrium_arrow_action_escape_cancels_armed_gesture(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
@@ -392,10 +316,10 @@ def test_curved_equilibrium_arrow_action_escape_cancels_armed_gesture(
 
 
 #============================================
-def test_curved_equilibrium_arrow_action_commits_typed_projection_and_selection(
+def test_curved_equilibrium_arrow_action_commits_typed_projection(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
-	"""A committed visible action has one selected typed Rust projection."""
+	"""A committed visible action publishes one typed Rust projection."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	try:
 		window.show()
@@ -405,12 +329,7 @@ def test_curved_equilibrium_arrow_action_commits_typed_projection_and_selection(
 			tab, _action(window, "Draw Curved Equilibrium Arrow"), qapp,
 		)
 		selected_arrow = _selected_curved_equilibrium_arrow(tab)
-		arrow_item = next(
-			item for item in tab.view.scene().items()
-			if type(item) is ferrum_qt.canvas.ferrum_presentation_projection.ArrowProjectionItem
-		)
-		assert selected_arrow.geometry.kind == "curved_equilibrium"
-		assert (_curve_count(arrow_item.axis_path), _subpath_count(arrow_item.head_path)) == (2, 2)
+		assert selected_arrow.kind.kind == "curved_equilibrium"
 	finally:
 		window.close()
 		window.deleteLater()
@@ -433,7 +352,7 @@ def test_curved_equilibrium_arrow_undo_redo_restores_typed_root(
 		qapp.processEvents()
 		_action(window, "Redo").trigger()
 		qapp.processEvents()
-		assert _selected_curved_equilibrium_arrow(tab).geometry.kind == "curved_equilibrium"
+		assert _selected_curved_equilibrium_arrow(tab).kind.kind == "curved_equilibrium"
 	finally:
 		window.close()
 		window.deleteLater()

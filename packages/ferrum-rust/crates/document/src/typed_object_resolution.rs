@@ -21,7 +21,7 @@ fn find_record_by_object_id<'a>(
     record: &'a TypedRecord,
     object_id: &DocumentObjectIdV1,
 ) -> Option<&'a TypedRecord> {
-    if DocumentObjectIdV1::from_record(record).as_ref() == Some(object_id) {
+    if crate::document_object_id_from_record_v1(record).as_ref() == Some(object_id) {
         return Some(record);
     }
     record

@@ -1,19 +1,15 @@
 //! One-use session ownership for planned direct-molecule structural deletion.
 
 use super::{
-    DocumentSession, DocumentSessionError, GeneratedIdSequences, PersistentId, ProvisionalToken,
-    RevisionState, SessionDocumentObservationV1, SessionOperationError, SessionOperationResultV1,
+    AdmittedSessionTransitionRefusalV1, DocumentSession, DocumentSessionError, PersistentId,
+    PreparedSessionTransitionV1, RevisionState, SessionOperationError, SessionOperationResultV1,
 };
 use crate::StructureDeletionReceiptV1;
 
 /// A revision-bound structural deletion candidate with session-owned split IDs.
 pub struct PendingDeleteStructureV1 {
-    revision: u64,
-    token: ProvisionalToken,
     receipt: StructureDeletionReceiptV1,
-    candidate: Option<RevisionState>,
-    operation: Option<SessionOperationResultV1>,
-    tentative_generated_ids: GeneratedIdSequences,
+    transition: PreparedSessionTransitionV1,
 }
 
 impl PendingDeleteStructureV1 {
@@ -51,40 +47,34 @@ impl DocumentSession {
                 SessionOperationError::UnknownBond("invalid structural bond".to_owned())
             })?;
         let plan = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .prepare_delete_structure(molecule, atoms, bonds)
             .map_err(SessionOperationError::Candidate)?;
-        let (later_ids, tentative_generated_ids) = self.generated_ids.reserve_molecule_roots(
-            self.history.current().document().indexed(),
-            plan.additional_molecule_count(),
-        )?;
+        let (later_ids, effects) =
+            self.reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                ids.reserve_molecule_roots(indexed, plan.additional_molecule_count())
+            })?;
         let (document, receipt) = self
-            .history
-            .current()
+            .current_state_v1()
             .document()
             .commit_delete_structure(&plan, &later_ids)
             .map_err(SessionOperationError::Candidate)?;
         let revision = self
-            .history
-            .current()
+            .current_state_v1()
             .next_revision()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate =
             RevisionState::from_document(revision, document).map_err(DocumentSessionError::Load)?;
-        let snapshot = candidate.snapshot(!self.saved_baseline.is_current(&candidate));
-        let observation = SessionDocumentObservationV1::from_state(candidate.document(), snapshot)
-            .map_err(DocumentSessionError::Projection)?;
-        let token =
-            super::prepared::issue_prepared_token(self.history.current_mut().document_mut())?;
+        let transition = self.prepare_changed_session_transition_v1(
+            expected_revision,
+            self.current_digest_v1(),
+            candidate,
+            effects,
+        )?;
         Ok(PendingDeleteStructureV1 {
-            revision: expected_revision,
-            token,
             receipt,
-            candidate: Some(candidate),
-            operation: Some(SessionOperationResultV1::new(observation)),
-            tentative_generated_ids,
+            transition,
         })
     }
 
@@ -95,39 +85,35 @@ impl DocumentSession {
         pending: &mut PendingDeleteStructureV1,
     ) -> Result<SessionOperationResultV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
-        if pending.candidate.is_none() {
-            return Err(DocumentSessionError::PreparedOperationConsumed);
+        self.commit_session_operation_transition_v1(&mut pending.transition)
+            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
+    }
+}
+
+fn map_transition_refusal(
+    session: &DocumentSession,
+    expected_revision: u64,
+    refusal: AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+    match refusal {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            DocumentSessionError::PreparedOperationForeignSession
         }
-        if pending.revision != expected_revision {
-            return Err(DocumentSessionError::RevisionConflict {
-                expected: pending.revision,
-                actual: expected_revision,
-            });
+        AdmittedSessionTransitionRefusalV1::Replayed
+        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            DocumentSessionError::PreparedOperationConsumed
         }
-        self.history
-            .current()
-            .document()
-            .verify_provisional_token(&pending.token)
-            .map_err(super::prepared::map_prepared_token_error)?;
-        self.history
-            .try_reserve_append()
-            .map_err(|_| SessionOperationError::HistoryResourceExhausted)?;
-        let (Some(state), Some(operation)) = (pending.candidate.take(), pending.operation.take())
-        else {
-            return Err(DocumentSessionError::PreparedOperationConsumed);
-        };
-        if let Err(error) = self
-            .history
-            .current_mut()
-            .document_mut()
-            .consume_provisional_token(&pending.token)
-        {
-            pending.candidate = Some(state);
-            pending.operation = Some(operation);
-            return Err(SessionOperationError::Candidate(error).into());
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: session.current_revision_v1(),
+            }
         }
-        self.history.append_reserved(state);
-        self.generated_ids = pending.tentative_generated_ids;
-        Ok(operation)
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            DocumentSessionError::RendererAdmission
+        }
+        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+            SessionOperationError::HistoryResourceExhausted.into()
+        }
     }
 }

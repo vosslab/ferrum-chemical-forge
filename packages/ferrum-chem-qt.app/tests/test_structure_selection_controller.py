@@ -74,6 +74,7 @@ def test_structure_click_marquee_shift_delete_and_undo(qapp: PySide6.QtWidgets.Q
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, atom_b,
 		)
+		assert window._change_element_action.isEnabled()
 		PySide6.QtTest.QTest.mouseClick(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier, bond_ab,

@@ -1,7 +1,8 @@
 //! Closed Python Plus-property changes and bounded operation construction.
 
 use ferrum_document::{
-    PlusPropertiesPatchV1, PlusPropertyChangeV1, Rgb24V1, SessionOperation, SessionOperationV1,
+    PlusPropertiesPatchV1, PlusPropertyChangeV1, PresentationFontFaceV1, Rgb24V1, SessionOperation,
+    SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyInt, PyTuple};
@@ -22,10 +23,12 @@ pub(crate) struct PyDocumentPlusPropertyChangeV1 {
 
 #[pymethods]
 impl PyDocumentPlusPropertyChangeV1 {
-    /// Replace the optional direct child font family.
+    /// Select the stable backend-owned face identity.
     #[staticmethod]
-    fn font_family(py: Python<'_>, value: String) -> PyResult<Self> {
-        plus_property_change(py, PlusPropertyChangeV1::FontFamily(value))
+    fn font_face_id(py: Python<'_>, value: String) -> PyResult<Self> {
+        let face = PresentationFontFaceV1::from_id(&value)
+            .ok_or_else(|| operation_validation_error(py, "unsupported_text_face".to_owned()))?;
+        plus_property_change(py, PlusPropertyChangeV1::FontFace(face))
     }
 
     /// Replace the documented integer root font size from 4 through 144.

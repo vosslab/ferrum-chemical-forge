@@ -324,7 +324,7 @@ pub(crate) fn validate_candidate(
         [0; 32],
         true,
     );
-    let observation = SessionDocumentObservationV1::from_state(document, snapshot)
+    let observation = SessionDocumentObservationV1::from_snapshot(snapshot)
         .map_err(|error| invalid_error(error.to_string()))?;
     let projected = observation
         .projection()

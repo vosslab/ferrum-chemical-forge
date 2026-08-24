@@ -1,27 +1,22 @@
-//! Renderer-preflighted placement for Ferrum-authored catalog recipes.
+//! Closed recipe and preview geometry for Ferrum-authored catalog placement.
 //!
-//! Haworth entries stay out of this catalog: their native receipts retain
-//! stereochemical display tokens which ordinary detached CDML cannot yet carry.
+//! The document session owns candidate construction, renderer admission, and
+//! atomic mutation for both ordinary molecule and standalone Haworth requests.
 use ferrum_document::{
-    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DocumentFenceV1, DocumentSession,
-    MoleculeInsertionAtomV1, MoleculeInsertionBondOrderV1, MoleculeInsertionBondV1,
-    MoleculeInsertionV1, PendingCreateMolecule, PendingStandaloneHaworthV1, Point3V1,
-    PresentationGesturePoint2V1, SessionOperationResultV1,
+    CatalogMoleculePlacementGestureV1, CatalogMoleculePlacementRefusalV1,
+    CatalogMoleculePlacementRequestV1, DocumentFenceV1, DocumentSession, MoleculeInsertionAtomV1,
+    MoleculeInsertionBondOrderV1, MoleculeInsertionBondV1, MoleculeInsertionV1, Point3V1,
+    PresentationGesturePoint2V1,
 };
 use ferrum_domain::{
     CatalogEntrySummaryV1, CatalogRecipeKindV1, catalog_entry_v1,
     haworth::{StandaloneDGlucoseHaworthRecipeV1, standalone_d_glucose_haworth_recipe_v1},
 };
-use ferrum_render::{
-    DocumentRenderOutcomeV1, DocumentRenderPlanV1, compose_document_render_plan_v1,
-    document_observation_from_accepted_operation_v1,
-};
 use thiserror::Error;
 
 #[derive(Clone, Debug)]
 pub struct CatalogPlacementGestureV1 {
-    capability: AuthoringCapabilityV1,
-    fence: DocumentFenceV1,
+    placement: CatalogMoleculePlacementGestureV1,
     key: String,
     entry: CatalogEntrySummaryV1,
 }
@@ -35,37 +30,6 @@ pub struct CatalogPlacementPreviewV1 {
 pub struct CatalogPlacementOverlayV1 {
     pub atom_points: Vec<(f64, f64)>,
     pub bond_segments: Vec<(f64, f64, f64, f64)>,
-}
-#[derive(Debug)]
-pub struct PreparedCatalogPlacementV1 {
-    receipt: Option<CatalogReceiptV1>,
-    identifier: String,
-}
-#[derive(Clone, Debug)]
-pub struct CommittedCatalogPlacementV1 {
-    identifier: String,
-    result: SessionOperationResultV1,
-}
-impl CommittedCatalogPlacementV1 {
-    pub fn identifier(&self) -> &str {
-        &self.identifier
-    }
-    pub fn result(&self) -> &SessionOperationResultV1 {
-        &self.result
-    }
-}
-impl PreparedCatalogPlacementV1 {
-    /// Expose only the renderer-issued candidate plan needed by catalog V2.
-    /// Candidate CDML and its preflight proof stay private to this crate.
-    #[must_use]
-    pub fn render_plan(&self) -> Option<&DocumentRenderPlanV1> {
-        self.receipt.as_ref().map(|receipt| &receipt.plan)
-    }
-
-    #[must_use]
-    pub fn identifier(&self) -> &str {
-        &self.identifier
-    }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CatalogPlacementCategoryV1 {
@@ -123,36 +87,6 @@ impl CatalogPlacementErrorV1 {
                 CatalogPlacementRecoveryV1::DocumentUnchanged
             }
             _ => CatalogPlacementRecoveryV1::RefreshAndRestart,
-        }
-    }
-}
-#[derive(Debug)]
-struct CatalogReceiptV1 {
-    capability: AuthoringCapabilityV1,
-    fence: DocumentFenceV1,
-    key: String,
-    identifier: String,
-    pending: CatalogPendingV1,
-    plan: DocumentRenderPlanV1,
-}
-#[derive(Debug)]
-enum CatalogPendingV1 {
-    Molecule(PendingCreateMolecule),
-    StandaloneHaworth(PendingStandaloneHaworthV1),
-}
-
-impl CatalogPendingV1 {
-    fn identifier(&self) -> &str {
-        match self {
-            Self::Molecule(pending) => pending.molecule_identifier().as_str(),
-            Self::StandaloneHaworth(pending) => pending.molecule_identifier().as_str(),
-        }
-    }
-
-    fn candidate_observation(&self) -> Option<ferrum_document::SessionDocumentObservationV1> {
-        match self {
-            Self::Molecule(pending) => pending.candidate_observation_v1(),
-            Self::StandaloneHaworth(pending) => pending.candidate_observation_v1(),
         }
     }
 }
@@ -263,32 +197,33 @@ fn recipe(kind: CatalogRecipeKindV1) -> Recipe {
         }
     }
 }
-fn capability_error(error: AuthoringCapabilityAccessErrorV1) -> CatalogPlacementErrorV1 {
+fn document_refusal(error: CatalogMoleculePlacementRefusalV1) -> CatalogPlacementErrorV1 {
     match error {
-        AuthoringCapabilityAccessErrorV1::ForeignSession => CatalogPlacementErrorV1::ForeignSession,
-        AuthoringCapabilityAccessErrorV1::Replayed => CatalogPlacementErrorV1::ReplayedGesture,
+        CatalogMoleculePlacementRefusalV1::StaleSnapshot => CatalogPlacementErrorV1::StaleSnapshot,
+        CatalogMoleculePlacementRefusalV1::ForeignSession => {
+            CatalogPlacementErrorV1::ForeignSession
+        }
+        CatalogMoleculePlacementRefusalV1::ReplayedGesture => {
+            CatalogPlacementErrorV1::ReplayedGesture
+        }
+        CatalogMoleculePlacementRefusalV1::RendererAdmission => {
+            CatalogPlacementErrorV1::RenderPreparation
+        }
+        CatalogMoleculePlacementRefusalV1::SessionConflict => {
+            CatalogPlacementErrorV1::SessionConflict
+        }
     }
-}
-fn fence(
-    session: &DocumentSession,
-    expected: DocumentFenceV1,
-) -> Result<(), CatalogPlacementErrorV1> {
-    let snapshot = session
-        .snapshot()
-        .map_err(|_| CatalogPlacementErrorV1::SessionConflict)?;
-    (snapshot.revision() == expected.revision() && snapshot.digest() == &expected.digest())
-        .then_some(())
-        .ok_or(CatalogPlacementErrorV1::StaleSnapshot)
 }
 pub fn begin_catalog_placement_v1(
     session: &DocumentSession,
     expected: DocumentFenceV1,
     key: &str,
 ) -> Result<CatalogPlacementGestureV1, CatalogPlacementErrorV1> {
-    fence(session, expected)?;
+    let placement = session
+        .begin_catalog_molecule_placement_v1(expected)
+        .map_err(document_refusal)?;
     Ok(CatalogPlacementGestureV1 {
-        capability: session.authoring_capability_issuer_v1().issue(),
-        fence: expected,
+        placement,
         key: key.to_owned(),
         entry: catalog_entry_v1(key).ok_or(CatalogPlacementErrorV1::UnknownKey)?,
     })
@@ -298,13 +233,9 @@ pub fn preview_catalog_placement_v1(
     gesture: &CatalogPlacementGestureV1,
     anchor: PresentationGesturePoint2V1,
 ) -> Result<CatalogPlacementPreviewV1, CatalogPlacementErrorV1> {
-    if !gesture
-        .capability
-        .belongs_to(&session.authoring_capability_issuer_v1())
-    {
-        return Err(CatalogPlacementErrorV1::ForeignSession);
-    }
-    fence(session, gesture.fence)?;
+    session
+        .validate_catalog_molecule_placement_v1(&gesture.placement)
+        .map_err(document_refusal)?;
     Ok(CatalogPlacementPreviewV1 {
         gesture: gesture.clone(),
         anchor,
@@ -319,123 +250,41 @@ impl CatalogPlacementPreviewV1 {
         &self.overlay
     }
 }
-pub fn prepare_catalog_placement_v1(
-    session: &mut DocumentSession,
+/// Resolve the exact document request represented by one catalog preview.
+pub fn resolve_catalog_placement_v1(
     gesture: &CatalogPlacementGestureV1,
     preview: &CatalogPlacementPreviewV1,
-) -> Result<PreparedCatalogPlacementV1, CatalogPlacementErrorV1> {
-    let issuer = session.authoring_capability_issuer_v1();
-    if !gesture.capability.belongs_to(&issuer) || !preview.gesture.capability.belongs_to(&issuer) {
-        return Err(CatalogPlacementErrorV1::ForeignSession);
-    }
+) -> Result<CatalogMoleculePlacementRequestV1, CatalogPlacementErrorV1> {
     if !gesture
-        .capability
-        .same_capability(&preview.gesture.capability)
+        .placement
+        .same_gesture_v1(&preview.gesture.placement)
         || gesture.key != preview.gesture.key
     {
         return Err(CatalogPlacementErrorV1::MismatchedPreview);
     }
-    fence(session, gesture.fence)?;
-    let pending = match gesture.entry.recipe() {
-        CatalogRecipeKindV1::HaworthBiomolecule(value) => CatalogPendingV1::StandaloneHaworth(
-            session
-                .prepare_create_standalone_haworth_v1(
-                    gesture.fence.revision(),
-                    value,
-                    Point3V1::new(preview.anchor.x(), preview.anchor.y(), 0.0)
-                        .map_err(|_| CatalogPlacementErrorV1::InvalidPoint)?,
-                )
-                .map_err(|_| CatalogPlacementErrorV1::SessionConflict)?,
-        ),
+    let request = match gesture.entry.recipe() {
+        CatalogRecipeKindV1::HaworthBiomolecule(value) => {
+            CatalogMoleculePlacementRequestV1::StandaloneHaworth {
+                recipe: value,
+                anchor: Point3V1::new(preview.anchor.x(), preview.anchor.y(), 0.0)
+                    .map_err(|_| CatalogPlacementErrorV1::InvalidPoint)?,
+            }
+        }
         kind => {
             let recipe = recipe(kind);
             let molecule = lower_recipe(gesture.entry, recipe, preview.anchor)?;
-            CatalogPendingV1::Molecule(
-                session
-                    .prepare_create_molecule_v1(gesture.fence.revision(), &molecule)
-                    .map_err(|_| CatalogPlacementErrorV1::SessionConflict)?,
-            )
+            CatalogMoleculePlacementRequestV1::Molecule(molecule)
         }
     };
-    let identifier = pending.identifier().to_owned();
-    let observation = pending
-        .candidate_observation()
-        .ok_or(CatalogPlacementErrorV1::RenderPreparation)?;
-    let render = document_observation_from_accepted_operation_v1(&observation)
-        .map_err(|_| CatalogPlacementErrorV1::RenderPreparation)?;
-    let plan = compose_document_render_plan_v1(&render)
-        .map_err(|_| CatalogPlacementErrorV1::RenderPreparation)?;
-    if plan
-        .outcomes()
-        .iter()
-        .any(|o| matches!(o, DocumentRenderOutcomeV1::Exclusion(_)))
-    {
-        return Err(CatalogPlacementErrorV1::RenderPreparation);
-    }
-    Ok(PreparedCatalogPlacementV1 {
-        identifier: identifier.clone(),
-        receipt: Some(CatalogReceiptV1 {
-            capability: gesture.capability.clone(),
-            fence: gesture.fence,
-            key: gesture.key.clone(),
-            identifier,
-            pending,
-            plan,
-        }),
-    })
+    Ok(request)
 }
-pub fn commit_catalog_placement_v1(
-    session: &mut DocumentSession,
-    prepared: &mut PreparedCatalogPlacementV1,
-) -> Result<CommittedCatalogPlacementV1, CatalogPlacementErrorV1> {
-    let (capability, receipt_fence) = {
-        let receipt = prepared
-            .receipt
-            .as_ref()
-            .ok_or(CatalogPlacementErrorV1::ReplayedGesture)?;
-        if catalog_entry_v1(&receipt.key).is_none()
-            || receipt.identifier != prepared.identifier
-            || receipt.identifier != receipt.pending.identifier()
-            || receipt
-                .plan
-                .outcomes()
-                .iter()
-                .any(|outcome| matches!(outcome, DocumentRenderOutcomeV1::Exclusion(_)))
-        {
-            return Err(CatalogPlacementErrorV1::RenderPreparation);
-        }
-        (receipt.capability.clone(), receipt.fence)
-    };
-    let issuer = session.authoring_capability_issuer_v1();
-    if !capability.belongs_to(&issuer) {
-        return Err(CatalogPlacementErrorV1::ForeignSession);
-    }
-    let claim = capability
-        .claim_for_commit(&issuer)
-        .map_err(capability_error)?;
-    fence(session, receipt_fence)?;
-    let result = match &mut prepared
-        .receipt
-        .as_mut()
-        .ok_or(CatalogPlacementErrorV1::ReplayedGesture)?
-        .pending
-    {
-        CatalogPendingV1::Molecule(pending) => session
-            .commit_create_molecule(receipt_fence.revision(), pending)
-            .map_err(|_| CatalogPlacementErrorV1::SessionConflict),
-        CatalogPendingV1::StandaloneHaworth(pending) => session
-            .commit_create_standalone_haworth_v1(receipt_fence.revision(), pending)
-            .map_err(|_| CatalogPlacementErrorV1::SessionConflict),
-    }?;
-    let receipt = prepared
-        .receipt
-        .take()
-        .ok_or(CatalogPlacementErrorV1::ReplayedGesture)?;
-    claim.consume();
-    Ok(CommittedCatalogPlacementV1 {
-        identifier: receipt.identifier,
-        result,
-    })
+
+/// Return the document-owned capability carried by a catalog selection.
+#[must_use]
+pub fn catalog_molecule_placement_gesture_v1(
+    gesture: &CatalogPlacementGestureV1,
+) -> &CatalogMoleculePlacementGestureV1 {
+    &gesture.placement
 }
 fn local(recipe: Recipe) -> Vec<(f64, f64)> {
     match recipe.shape {
@@ -562,134 +411,23 @@ fn haworth_overlay(
 mod tests {
     use super::*;
     const EMPTY: &str = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
-    fn strictly_cross(left: (f64, f64, f64, f64), right: (f64, f64, f64, f64)) -> bool {
-        fn side(ax: f64, ay: f64, bx: f64, by: f64, px: f64, py: f64) -> f64 {
-            (bx - ax) * (py - ay) - (by - ay) * (px - ax)
-        }
-        let (ax, ay, bx, by) = left;
-        let (cx, cy, dx, dy) = right;
-        let first = side(ax, ay, bx, by, cx, cy);
-        let second = side(ax, ay, bx, by, dx, dy);
-        let third = side(cx, cy, dx, dy, ax, ay);
-        let fourth = side(cx, cy, dx, dy, bx, by);
-        first * second < 0.0 && third * fourth < 0.0
-    }
     fn current(s: &DocumentSession) -> DocumentFenceV1 {
         let q = s.snapshot().expect("snapshot");
         DocumentFenceV1::new(q.revision(), *q.digest())
     }
-    #[test]
-    fn each_curated_system_recipe_has_topology_geometry_and_preflighted_commit() {
-        for (key, elements, edges) in [
-            (
-                "system/rings/benzene",
-                &["C", "C", "C", "C", "C", "C"][..],
-                B6,
-            ),
-            ("system/rings/cyclopropane", &["C", "C", "C"][..], S3),
-            ("system/rings/cyclobutane", &["C", "C", "C", "C"][..], S4),
-            (
-                "system/rings/cyclopentane",
-                &["C", "C", "C", "C", "C"][..],
-                S5,
-            ),
-            (
-                "system/rings/cyclohexane",
-                &["C", "C", "C", "C", "C", "C"][..],
-                S6,
-            ),
-            (
-                "system/heterocycles/thiophene",
-                &["S", "C", "C", "C", "C"][..],
-                H5,
-            ),
-            (
-                "system/heterocycles/furan",
-                &["O", "C", "C", "C", "C"][..],
-                H5,
-            ),
-            (
-                "system/heterocycles/pyrrole",
-                &["N", "C", "C", "C", "C"][..],
-                H5,
-            ),
-            (
-                "system/heterocycles/purine",
-                &["N", "C", "N", "C", "C", "N", "C", "N", "C"][..],
-                PURINE,
-            ),
-        ] {
-            let mut s = DocumentSession::load(EMPTY).expect("session");
-            let g = begin_catalog_placement_v1(&s, current(&s), key).expect("gesture");
-            let authored = recipe(g.entry.recipe());
-            assert_eq!(authored.elements, elements, "{key} elements");
-            assert_eq!(authored.edges, edges, "{key} bonds and orders");
-            let p = preview_catalog_placement_v1(
-                &s,
-                &g,
-                PresentationGesturePoint2V1::new(100.0, 50.0).expect("point"),
+
+    fn pending(
+        session: &mut DocumentSession,
+        gesture: &CatalogPlacementGestureV1,
+        preview: &CatalogPlacementPreviewV1,
+    ) -> ferrum_document::PendingCatalogMoleculePlacementV1 {
+        let request = resolve_catalog_placement_v1(gesture, preview).expect("catalog request");
+        session
+            .prepare_catalog_molecule_placement_v1(
+                catalog_molecule_placement_gesture_v1(gesture),
+                request,
             )
-            .expect("preview");
-            assert_eq!(
-                (
-                    p.overlay().atom_points.len(),
-                    p.overlay().bond_segments.len()
-                ),
-                (elements.len(), edges.len())
-            );
-            let centroid = p
-                .overlay()
-                .atom_points
-                .iter()
-                .fold((0.0, 0.0), |sum, point| (sum.0 + point.0, sum.1 + point.1));
-            assert!(
-                (centroid.0 / elements.len() as f64 - 100.0).abs() < 0.001,
-                "{key} x centroid"
-            );
-            assert!(
-                (centroid.1 / elements.len() as f64 - 50.0).abs() < 0.001,
-                "{key} y centroid"
-            );
-            assert!(p.overlay().bond_segments.iter().all(|(x, y, u, v)| {
-                x.is_finite()
-                    && y.is_finite()
-                    && u.is_finite()
-                    && v.is_finite()
-                    && (((u - x).powi(2) + (v - y).powi(2)).sqrt() - 40.0).abs() < 0.001
-            }));
-            for (left_index, left) in edges.iter().enumerate() {
-                for (right_index, right) in edges.iter().enumerate().skip(left_index + 1) {
-                    if [left.0, left.1].contains(&right.0) || [left.0, left.1].contains(&right.1) {
-                        continue;
-                    }
-                    assert!(
-                        !strictly_cross(
-                            p.overlay().bond_segments[left_index],
-                            p.overlay().bond_segments[right_index],
-                        ),
-                        "{key} bonds {left_index} and {right_index} cross"
-                    );
-                }
-            }
-            let mut r = prepare_catalog_placement_v1(&mut s, &g, &p).expect("prepare");
-            let c = commit_catalog_placement_v1(&mut s, &mut r).expect("commit");
-            assert!(c.identifier().starts_with("ferrum-molecule-v1-"));
-            assert!(
-                c.result()
-                    .observation()
-                    .snapshot()
-                    .cdml()
-                    .contains(c.identifier())
-            );
-            assert!(
-                c.result()
-                    .observation()
-                    .snapshot()
-                    .cdml()
-                    .contains(&format!("name=\"{}\"", g.entry.label()))
-            );
-            assert!(s.undo(1).is_ok());
-        }
+            .expect("document pending")
     }
     #[test]
     fn catalog_uses_document_owned_ids_and_discarded_candidates_do_not_advance_them() {
@@ -702,8 +440,7 @@ mod tests {
             .expect("gesture");
         let first_preview =
             preview_catalog_placement_v1(&session, &first, anchor).expect("preview");
-        let discarded =
-            prepare_catalog_placement_v1(&mut session, &first, &first_preview).expect("candidate");
+        let discarded = pending(&mut session, &first, &first_preview);
         let discarded_identifier = discarded.identifier().to_owned();
         drop(discarded);
 
@@ -712,11 +449,13 @@ mod tests {
                 .expect("gesture");
         let second_preview =
             preview_catalog_placement_v1(&session, &second, anchor).expect("preview");
-        let mut prepared = prepare_catalog_placement_v1(&mut session, &second, &second_preview)
-            .expect("candidate");
+        let mut prepared = pending(&mut session, &second, &second_preview);
         assert_eq!(prepared.identifier(), discarded_identifier);
-        let committed = commit_catalog_placement_v1(&mut session, &mut prepared).expect("commit");
-        assert!(committed.identifier().starts_with("ferrum-molecule-v1-"));
+        let committed_identifier = prepared.identifier().to_owned();
+        session
+            .commit_catalog_molecule_placement_v1(&mut prepared)
+            .expect("commit");
+        assert!(committed_identifier.starts_with("ferrum-molecule-v1-"));
         let ordinary = lower_recipe(
             catalog_entry_v1("system/rings/cyclopropane").expect("catalog entry"),
             recipe(CatalogRecipeKindV1::Cyclopropane),
@@ -724,12 +463,9 @@ mod tests {
         )
         .expect("ordinary molecule");
         let pending = session
-            .prepare_create_molecule_v1(current(&session).revision(), &ordinary)
+            .prepare_admitted_molecule_insertion_v1(current(&session).revision(), &ordinary)
             .expect("next candidate");
-        assert_ne!(
-            pending.molecule_identifier().as_str(),
-            committed.identifier()
-        );
+        assert_ne!(pending.molecule_identifier().as_str(), committed_identifier);
     }
 
     #[test]
@@ -746,20 +482,24 @@ mod tests {
         ));
         let preview = preview_catalog_placement_v1(&owner, &gesture, anchor).expect("preview");
         assert!(matches!(
-            prepare_catalog_placement_v1(&mut foreign, &gesture, &preview),
-            Err(CatalogPlacementErrorV1::ForeignSession)
+            foreign.prepare_catalog_molecule_placement_v1(
+                catalog_molecule_placement_gesture_v1(&gesture),
+                resolve_catalog_placement_v1(&gesture, &preview).expect("request"),
+            ),
+            Err(CatalogMoleculePlacementRefusalV1::ForeignSession)
         ));
-        let mut prepared =
-            prepare_catalog_placement_v1(&mut owner, &gesture, &preview).expect("owner prepared");
+        let mut prepared = pending(&mut owner, &gesture, &preview);
         assert!(matches!(
-            commit_catalog_placement_v1(&mut foreign, &mut prepared),
-            Err(CatalogPlacementErrorV1::ForeignSession)
+            foreign.commit_catalog_molecule_placement_v1(&mut prepared),
+            Err(CatalogMoleculePlacementRefusalV1::ForeignSession)
         ));
         assert_eq!(foreign.snapshot().expect("foreign snapshot").revision(), 0);
-        commit_catalog_placement_v1(&mut owner, &mut prepared).expect("owner retry commits");
+        owner
+            .commit_catalog_molecule_placement_v1(&mut prepared)
+            .expect("owner retry commits");
         assert!(matches!(
-            commit_catalog_placement_v1(&mut owner, &mut prepared),
-            Err(CatalogPlacementErrorV1::ReplayedGesture)
+            owner.commit_catalog_molecule_placement_v1(&mut prepared),
+            Err(CatalogMoleculePlacementRefusalV1::ReplayedGesture)
         ));
     }
 }

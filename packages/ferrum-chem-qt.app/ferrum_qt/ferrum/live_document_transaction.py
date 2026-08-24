@@ -2,9 +2,19 @@
 
 # Standard Library
 import collections.abc
+import dataclasses
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab_errors
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumPublishedRenderPlanV1:
+	"""One same-fence full observation plus renderer-owned presentation paint plan."""
+
+	render_observation: object
+	presentation_plan: object
 
 
 #============================================
@@ -360,20 +370,29 @@ class FerrumLiveDocumentTransactionMixin:
 
 	#============================================
 	def _publish_live_render_plan_v1(self, expected_revision: int) -> object:
-		"""Publish one API-owned live plan before Qt installs its observation."""
+		"""Publish one same-fence scene observation and renderer presentation plan."""
 		try:
-			publish = getattr(self._session,
-				"_publish_live_render_plan_v1")
+			snapshot = self._live_document_session_v1.snapshot()
+			if snapshot.revision != expected_revision:
+				raise ValueError("document revision changed before renderer-plan publication")
+			publish = getattr(self._live_document_session_v1,
+				"observe_presentation_render_plan_v1")
+			observe_render = getattr(self._live_document_session_v1, "observe_render")
 		except AttributeError as exc:
 			raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
 				"Ferrum live render-plan publication is unavailable; refresh before editing.",
 			) from exc
-		if not callable(publish):
+		if not callable(publish) or not callable(observe_render):
 			raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
 				"Ferrum live render-plan publication is unavailable; refresh before editing.",
 			)
 		try:
-			return self._retire_then_reproject_document_v1(publish, expected_revision)
+			return self._retire_then_reproject_document_v1(
+				lambda: FerrumPublishedRenderPlanV1(
+					observe_render(expected_revision),
+					publish(expected_revision, snapshot.digest),
+				),
+			)
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError:
 			raise
 		except Exception as exc:

@@ -2,7 +2,8 @@
 
 use ferrum_document::{
     BracketPairProjectionV1, BracketPropertiesPatchV1, BracketPropertyChangeV1, BracketStyleV1,
-    GeometricLineWidthV1, PendingCreateBracket, Rgb24V1, SessionOperation, SessionOperationV1,
+    GeometricLineWidthV1, PendingCreateBracket, PresentationBracketStyleV1, Rgb24V1,
+    SessionOperation, SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyString, PyTuple};
@@ -97,8 +98,8 @@ impl From<&BracketPairProjectionV1> for PyBracketPairProjectionV1 {
             pair_id: value.pair_id().to_owned(),
             member_ids: value.member_ids().to_vec(),
             style: match value.style() {
-                BracketStyleV1::Rectangular => PyDocumentBracketStyleV1::Rectangular,
-                BracketStyleV1::Round => PyDocumentBracketStyleV1::Round,
+                PresentationBracketStyleV1::Rectangular => PyDocumentBracketStyleV1::Rectangular,
+                PresentationBracketStyleV1::Round => PyDocumentBracketStyleV1::Round,
             },
             line_width: value.line_width().map(|width| width.value()),
             line_color: value.line_color().map(|color| color.as_str().to_owned()),

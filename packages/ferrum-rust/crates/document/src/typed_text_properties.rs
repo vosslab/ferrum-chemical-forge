@@ -27,7 +27,7 @@ impl TypedDocument {
         let create_font = patch.changes().iter().any(|change| {
             matches!(
                 change,
-                TextPropertyChangeV1::FontFamily(Some(_))
+                TextPropertyChangeV1::FontFace(_)
                     | TextPropertyChangeV1::FontSize(_)
                     | TextPropertyChangeV1::Color(_)
             )
@@ -121,17 +121,12 @@ fn apply_changes(
     for change in changes {
         match change {
             TextPropertyChangeV1::Runs(runs) => replace_runs(tree, ftext, runs, text_id)?,
-            TextPropertyChangeV1::FontFamily(Some(value)) => set(
+            TextPropertyChangeV1::FontFace(value) => set(
                 tree,
                 font.expect("family edits resolve one direct font"),
                 "family",
-                value,
+                value.cdml_family(),
             ),
-            TextPropertyChangeV1::FontFamily(None) => {
-                if let Some(font) = font {
-                    remove(tree, font, "family");
-                }
-            }
             TextPropertyChangeV1::FontSize(value) => set(
                 tree,
                 font.expect("size edits resolve one direct font"),
@@ -211,11 +206,6 @@ const fn style_tag(style: TextEditStyleV1) -> &'static str {
 fn set(tree: &mut Xot, node: Node, name: &str, value: impl AsRef<str>) {
     let name = tree.add_name(name);
     tree.set_attribute(node, name, value.as_ref());
-}
-
-fn remove(tree: &mut Xot, node: Node, name: &str) {
-    let name = tree.add_name(name);
-    tree.remove_attribute(node, name);
 }
 
 fn element_name_id(tree: &mut Xot, local_name: &str, namespace: &str) -> xot::NameId {

@@ -15,7 +15,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.graphics_retirement
-import ferrum_qt.canvas.ferrum_presentation_projection
+import ferrum_qt.canvas.ferrum_presentation_render_plan
 import ferrum_qt.canvas.ferrum_telex
 import ferrum_qt.canvas.items.ferrum_plan_item
 import ferrum_qt.canvas.items.ferrum_paper_item
@@ -23,7 +23,7 @@ import ferrum_qt.canvas.items.ferrum_plus_item
 import ferrum_qt.canvas.items.ferrum_text_item
 
 
-_OBSERVATION_SCHEMA = "ferrum-render-observation-v1"
+_OBSERVATION_SCHEMA = "ferrum-document-render-observation-v1"
 _PLAN_SCHEMA = "ferrum-render-plan-v2"
 _PAPER_SCHEMA = "ferrum-document-paper-layout-v1"
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -37,9 +37,9 @@ PlanItemFactory = collections.abc.Callable[
 	[object, int, object, PySide6.QtWidgets.QGraphicsItem],
 	PySide6.QtWidgets.QGraphicsItem,
 ]
-PresentationFactory = collections.abc.Callable[
+PresentationSceneFactory = collections.abc.Callable[
 	[object],
-	ferrum_qt.canvas.ferrum_presentation_projection.FerrumPresentationProjection,
+	ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene,
 ]
 PaperItemFactory = collections.abc.Callable[
 	[object], ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
@@ -103,7 +103,7 @@ class FerrumRenderProjection:
 	digest: str
 	paper: ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem
 	presentation: (
-		ferrum_qt.canvas.ferrum_presentation_projection.FerrumPresentationProjection | None
+		ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene | None
 	)
 	roots: tuple[PySide6.QtWidgets.QGraphicsItem, ...]
 	molecule_roots: dict[PySide6.QtWidgets.QGraphicsItemGroup, MoleculeRootKey]
@@ -165,7 +165,7 @@ class FerrumRenderProjectionController:
 			view, telex_resource, telex, _require_pyo3_observation,
 			ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
 			ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
-			_build_presentation_projection,
+			lambda plan: _build_presentation_scene(plan, telex_resource),
 		)
 
 	#============================================
@@ -173,7 +173,7 @@ class FerrumRenderProjectionController:
 			telex_resource: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
 			validator: ObservationValidator, item_factory: PlanItemFactory,
 			paper_factory: PaperItemFactory,
-			presentation_factory: PresentationFactory | None) -> None:
+			presentation_factory: PresentationSceneFactory | None) -> None:
 		"""Initialize the production controller or the private fixture seam."""
 		if not isinstance(view, PySide6.QtWidgets.QGraphicsView):
 			raise TypeError("Ferrum render projection controller requires a graphics view")
@@ -197,7 +197,8 @@ class FerrumRenderProjectionController:
 		return self._generation
 
 	#============================================
-	def replace(self, observation: object, latch: RenderProjectionLatch) -> bool:
+	def replace(self, observation: object, latch: RenderProjectionLatch,
+			presentation_plan: object | None = None) -> bool:
 		"""Build then install one current observation without disturbing prior state."""
 		if self._disposed or latch.generation != self._generation:
 			return False
@@ -205,6 +206,7 @@ class FerrumRenderProjectionController:
 			prepared = _build_render_projection(
 				observation, self._telex_resource, self._telex, self._validator,
 				self._item_factory, self._paper_factory, self._presentation_factory,
+				presentation_plan,
 			)
 		except FerrumRenderProjectionError:
 			return False
@@ -275,14 +277,15 @@ def _build_fixture_controller(view: PySide6.QtWidgets.QGraphicsView,
 
 
 #============================================
-def build_render_projection(observation: object, telex_resource: object) -> FerrumRenderProjection:
+def build_render_projection(observation: object, telex_resource: object,
+		presentation_plan: object) -> FerrumRenderProjection:
 	"""Validate one whole observation and return a fully populated detached scene."""
 	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
 	return _build_render_projection(
 		observation, telex_resource, telex, _require_pyo3_observation,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
-		_build_presentation_projection,
+		lambda plan: _build_presentation_scene(plan, telex_resource), presentation_plan,
 	)
 
 
@@ -290,7 +293,7 @@ def build_render_projection(observation: object, telex_resource: object) -> Ferr
 def _build_fixture_render_projection(observation: object,
 		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
 		validator: ObservationValidator,
-		presentation_factory: PresentationFactory | None = None,
+		presentation_factory: PresentationSceneFactory | None = None,
 		) -> FerrumRenderProjection:
 	"""Build fixture DTOs only through an explicitly private test seam."""
 	return _build_render_projection(
@@ -306,7 +309,8 @@ def _build_render_projection(observation: object, telex_resource: object,
 		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
 		validator: ObservationValidator, item_factory: PlanItemFactory,
 		paper_factory: PaperItemFactory,
-		presentation_factory: PresentationFactory | None) -> FerrumRenderProjection:
+		presentation_factory: PresentationSceneFactory | None,
+		presentation_plan: object | None = None) -> FerrumRenderProjection:
 	"""Build a validated observation after its caller selected the entry contract."""
 	if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 		raise FerrumRenderProjectionError("render projection requires verified Telex")
@@ -315,6 +319,9 @@ def _build_render_projection(observation: object, telex_resource: object,
 			observation, validator,
 		)
 	)
+	if presentation_factory is not None:
+		plus_renders = ()
+		text_renders = ()
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	paper: ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem | None = None
 	roots: list[PySide6.QtWidgets.QGraphicsItem] = []
@@ -365,10 +372,12 @@ def _build_render_projection(observation: object, telex_resource: object,
 				items.append(item)
 			all_issues.extend(plan_issues)
 		if presentation_factory is not None:
-			presentation = presentation_factory(getattr(observation, "document", None))
+			if presentation_plan is None:
+				raise FerrumRenderProjectionError("renderer presentation plan is required")
+			presentation = presentation_factory(presentation_plan)
 			if presentation.revision != revision or presentation.digest != digest:
 				raise FerrumRenderProjectionError(
-					"presentation projection provenance differs from render observation",
+					"presentation scene provenance differs from render observation",
 				)
 			if len(presentation.roots) != len(presentation.items):
 				raise FerrumRenderProjectionError("presentation root ownership is incomplete")
@@ -445,7 +454,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 		TypeError,
 		ValueError,
 		FerrumRenderProjectionError,
-		ferrum_qt.canvas.ferrum_presentation_projection.PresentationProjectionError,
+		ferrum_qt.canvas.ferrum_presentation_render_plan.PresentationRenderPlanError,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItemError,
 		ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItemError,
 		ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItemError,
@@ -685,7 +694,7 @@ def _digest(value: object) -> str:
 def _retire_failed_projection(
 		scene: PySide6.QtWidgets.QGraphicsScene,
 		presentation: (
-			ferrum_qt.canvas.ferrum_presentation_projection.FerrumPresentationProjection
+			ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene
 			| None
 		),
 		) -> None:
@@ -703,12 +712,12 @@ def _retire_failed_projection(
 
 
 #============================================
-def _build_presentation_projection(
-		document_observation: object,
-		) -> ferrum_qt.canvas.ferrum_presentation_projection.FerrumPresentationProjection:
-	"""Build presentation roots from the same authoritative document observation."""
-	return ferrum_qt.canvas.ferrum_presentation_projection.build_presentation_projection(
-		document_observation,
+def _build_presentation_scene(
+		presentation_plan: object, telex_resource: object,
+		) -> ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene:
+	"""Build presentation roots solely from the renderer-issued immutable plan."""
+	return ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
+		presentation_plan, telex_resource,
 	)
 
 

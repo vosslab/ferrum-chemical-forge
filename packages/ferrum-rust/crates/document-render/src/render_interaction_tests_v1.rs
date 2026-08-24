@@ -1,4 +1,5 @@
 use super::*;
+use ferrum_document::PresentationRootProjectionV1;
 const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m1\"><atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"a2\" name=\"O\"><point x=\"20\" y=\"0\"/></atom><bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"n1\"/></molecule><molecule id=\"m2\"><atom id=\"a3\" name=\"N\"><point x=\"60\" y=\"0\"/></atom></molecule></cdml>";
 const MIXED_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"molecule\"><atom id=\"atom\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><plus id=\"plus\"><point x=\"40\" y=\"0\"/></plus></cdml>";
 fn fence(session: &RenderInteractionSessionV1) -> DocumentFenceV1 {
@@ -135,6 +136,145 @@ fn structural_path_bond_is_a_typed_display_only_target() {
         Err(RenderInteractionErrorV1::DisplayOnly)
     ));
 }
+
+#[test]
+fn compact_group_render_primitive_is_visible_and_selectable_without_changing_atom_selection() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"molecule\">",
+        "<atom id=\"atom\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"45\"><point x=\"36\" y=\"18\"/></compact-group>",
+        "</molecule></cdml>",
+    );
+    let session = RenderInteractionSessionV1::new(DocumentSession::load(source).expect("load"));
+    let snapshot = session.snapshot().expect("snapshot");
+    let rendered = session
+        .observe_render_v1(snapshot.revision())
+        .expect("render");
+    let plan = rendered
+        .resolved()
+        .molecule_plans()
+        .first()
+        .expect("molecule plan");
+    let primitive = plan
+        .compact_group_primitives()
+        .first()
+        .expect("typed compact-group render primitive");
+    let bounds = primitive.bounds();
+    assert!(
+        [
+            bounds.min_x(),
+            bounds.min_y(),
+            bounds.max_x(),
+            bounds.max_y()
+        ]
+        .into_iter()
+        .all(f64::is_finite)
+    );
+    assert!(bounds.min_x() < bounds.max_x() && bounds.min_y() < bounds.max_y());
+
+    let observation = session
+        .observe_structure_interaction_v1(fence(&session))
+        .expect("interaction observation");
+    let group = observation
+        .targets()
+        .iter()
+        .find(|target| target.kind() == StructureTargetKindV1::CompactGroup)
+        .expect("visible compact-group target");
+    let group_bounds = group.bounds();
+    let selected_group = session
+        .select_structure_interaction_v1(
+            &observation,
+            None,
+            StructureInteractionQueryV1::Point {
+                x: (group_bounds.left() + group_bounds.right()) / 2.0,
+                y: (group_bounds.top() + group_bounds.bottom()) / 2.0,
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("group selection");
+    assert_eq!(selected_group.targets().len(), 1);
+    assert_eq!(
+        selected_group.targets()[0].kind(),
+        StructureTargetKindV1::CompactGroup
+    );
+    assert_eq!(selected_group.targets()[0].identifier(), group.identifier());
+
+    let selected_atom = session
+        .select_structure_interaction_v1(
+            &observation,
+            None,
+            StructureInteractionQueryV1::Point {
+                x: 0.0,
+                y: 0.0,
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("atom selection");
+    assert_eq!(selected_atom.targets().len(), 1);
+    assert_eq!(
+        selected_atom.targets()[0].kind(),
+        StructureTargetKindV1::Atom
+    );
+}
+
+#[test]
+fn typed_compact_group_exterior_bond_reaches_the_complete_document_render_plan() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"molecule\">",
+        "<atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"36\" y=\"0\"/></compact-group>",
+        "<bond id=\"attachment\" start=\"anchor\" end=\"group\" type=\"n1\"/>",
+        "</molecule></cdml>",
+    );
+    let session = RenderInteractionSessionV1::new(DocumentSession::load(source).expect("load"));
+    let snapshot = session.snapshot().expect("snapshot");
+    let rendered = session
+        .observe_render_v1(snapshot.revision())
+        .expect("render");
+    let molecule = rendered
+        .resolved()
+        .molecule_plans()
+        .first()
+        .expect("molecule render plan");
+    let group = molecule
+        .compact_group_primitives()
+        .first()
+        .expect("visible compact-group primitive");
+    let endpoint = group.bond_endpoint().expect("compact-group endpoint");
+    let bond = molecule
+        .batches()
+        .iter()
+        .find(|batch| batch.target().record_id().kind() == ferrum_core::RecordKind::Bond)
+        .expect("normal exterior bond batch");
+    let line = bond
+        .operations()
+        .iter()
+        .find_map(|operation| match operation {
+            ferrum_render::RenderOp::Line(line) => Some(line),
+            _ => None,
+        })
+        .expect("normal exterior line");
+    assert!(
+        [
+            endpoint.position().x(),
+            endpoint.position().y(),
+            line.start().x(),
+            line.start().y(),
+            line.end().x(),
+            line.end().y(),
+        ]
+        .into_iter()
+        .all(f64::is_finite)
+    );
+    let observation = session
+        .observe_structure_interaction_v1(fence(&session))
+        .expect("interaction observation");
+    assert!(observation.targets().iter().any(|target| {
+        target.kind() == StructureTargetKindV1::CompactGroup
+            && target.identifier() == group.identifier()
+    }));
+}
+
 #[test]
 fn render_plan_controls_point_marquee_translate_and_undo() {
     let mut session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
@@ -193,6 +333,96 @@ fn render_plan_controls_point_marquee_translate_and_undo() {
             .revision(),
         2
     );
+}
+
+#[test]
+fn interaction_refuses_renderer_plan_with_stale_provenance() {
+    let mut session =
+        RenderInteractionSessionV1::new(DocumentSession::load(MIXED_SOURCE).expect("load"));
+    let snapshot = session.snapshot().expect("snapshot");
+    let stale_plan = ferrum_render::render_presentation_stack_v1(
+        session
+            .observe(snapshot.revision())
+            .expect("document observation")
+            .projection()
+            .presentation_stack(),
+    )
+    .expect("current semantic stack renders");
+    let observation = session
+        .observe_render_interaction_v1(fence(&session))
+        .expect("observe");
+    let selection = session
+        .select_render_interaction_roots_v1(
+            &observation,
+            None,
+            RenderInteractionQueryV1::Root {
+                identifier: "molecule".to_owned(),
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("select molecule");
+    let gesture = session
+        .begin_render_interaction_translation_v1(
+            &selection,
+            0.0,
+            0.0,
+            RenderInteractionSnapV1::free(),
+        )
+        .expect("begin translation");
+    let preview = session
+        .preview_render_interaction_translation_v1(&gesture, 5.0, 0.0)
+        .expect("preview translation");
+    session
+        .commit_render_interaction_translation_v1(&gesture, &preview)
+        .expect("advance revision");
+    assert!(matches!(
+        session.observe_render_interaction_with_presentation_plan_v1(fence(&session), &stale_plan),
+        Err(RenderInteractionErrorV1::StaleRevision)
+    ));
+
+    let mut other = RenderInteractionSessionV1::new(
+        DocumentSession::load(MIXED_SOURCE).expect("other document"),
+    );
+    let other_observation = other
+        .observe_render_interaction_v1(fence(&other))
+        .expect("other observation");
+    let other_selection = other
+        .select_render_interaction_roots_v1(
+            &other_observation,
+            None,
+            RenderInteractionQueryV1::Root {
+                identifier: "molecule".to_owned(),
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("select other molecule");
+    let other_gesture = other
+        .begin_render_interaction_translation_v1(
+            &other_selection,
+            0.0,
+            0.0,
+            RenderInteractionSnapV1::free(),
+        )
+        .expect("begin other translation");
+    let other_preview = other
+        .preview_render_interaction_translation_v1(&other_gesture, 7.0, 0.0)
+        .expect("preview other translation");
+    other
+        .commit_render_interaction_translation_v1(&other_gesture, &other_preview)
+        .expect("advance other revision");
+    let other_snapshot = other.snapshot().expect("other snapshot");
+    let other_plan = ferrum_render::render_presentation_stack_v1(
+        other
+            .observe(other_snapshot.revision())
+            .expect("other observation")
+            .projection()
+            .presentation_stack(),
+    )
+    .expect("other semantic stack renders");
+    assert!(matches!(
+        session.observe_render_interaction_with_presentation_plan_v1(fence(&session), &other_plan),
+        Err(RenderInteractionErrorV1::StaleDigest)
+    ));
 }
 
 #[test]

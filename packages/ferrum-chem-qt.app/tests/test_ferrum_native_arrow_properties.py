@@ -12,7 +12,6 @@ import pytest
 ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
-import ferrum_qt.canvas.ferrum_presentation_projection
 import ferrum_qt.ferrum.arrow_properties
 import ferrum_qt.ferrum.document_tab
 
@@ -29,20 +28,20 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 #============================================
 def _select_arrow(tab: object) -> None:
-	"""Select the one rendered Arrow through its actual scene item."""
-	items = tuple(
+	"""Select the one visible Arrow through the public graphics scene."""
+	selectable = tuple(
 		item for item in tab.view.scene().items()
-		if type(item) is ferrum_qt.canvas.ferrum_presentation_projection.ArrowProjectionItem
+		if item.flags() & PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
 	)
-	assert len(items) == 1
-	items[0].setSelected(True)
+	assert len(selectable) == 1
+	selectable[0].setSelected(True)
 
 
 #============================================
 def test_native_arrow_edit_updates_rust_and_retains_durable_selection(
 		qapp: object,
 		) -> None:
-	"""A visible normal-Arrow edit commits once and installs new Rust geometry."""
+	"""A visible normal-Arrow edit commits once and retains its durable selection."""
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal" start="no" end="yes" '
@@ -73,16 +72,10 @@ def test_native_arrow_edit_updates_rust_and_retains_durable_selection(
 		assert result.observation.snapshot.revision == 1
 		assert tab.has_one_selected_arrow()
 		updated = tab.selected_arrow_projection()
-		assert updated.geometry.kind == "normal"
-		assert updated.geometry.normal is not None
-		assert (updated.geometry.normal.start_head, updated.geometry.normal.end_head) == (True, False)
+		assert updated.kind.kind == "normal"
+		assert (updated.kind.start_head, updated.kind.end_head) == (True, False)
 		assert (updated.stroke.width, updated.stroke.color) == (2.5, "#123456")
-		item = next(
-			item for item in tab.view.scene().items()
-			if type(item) is ferrum_qt.canvas.ferrum_presentation_projection.ArrowProjectionItem
-		)
-		assert item.isSelected()
-		assert (item.pen.widthF(), item.pen.color().name()) == (2.5, "#123456")
+		assert len(tab.view.scene().selectedItems()) == 1
 	finally:
 		tab.dispose()
 

@@ -80,7 +80,7 @@ fn begin_direct_bond_error_v3(error: DirectBondGestureErrorV1) -> DirectBondAdmi
 }
 
 pub fn admit_direct_bond_candidate_v3(
-    session: &DocumentSession,
+    session: &mut DocumentSession,
     gesture: &DirectBondGestureV3,
     end: DirectBondPointerProbeV3,
 ) -> Result<DirectBondAdmissionV3, DirectBondAdmissionErrorV3> {
@@ -171,7 +171,7 @@ mod tests {
                 DirectBondSnapPolicyV1::free(),
             )
             .unwrap_or_else(|error| panic!("{name} begins: {error}"));
-            let mut admission = admit_direct_bond_candidate_v3(&session, &gesture, end)
+            let mut admission = admit_direct_bond_candidate_v3(&mut session, &gesture, end)
                 .unwrap_or_else(|error| panic!("{name} admits: {error}"));
             assert!(
                 !admission.overlay().operations().is_empty(),
@@ -193,7 +193,7 @@ mod tests {
             DocumentBondPresentationV1::SolidWedge,
             DocumentBondPresentationV1::HashedWedge,
         ] {
-            let session = DocumentSession::load(SOURCE).expect("session");
+            let mut session = DocumentSession::load(SOURCE).expect("session");
             let before = session.snapshot().expect("before snapshot");
             let gesture = begin_direct_bond_gesture_v3(
                 &session,
@@ -204,9 +204,9 @@ mod tests {
                 DirectBondSnapPolicyV1::free(),
             )
             .expect("gesture begins");
-            let refusal =
-                admit_direct_bond_candidate_v3(&session, &gesture, direct_atom(&session, "atom-a"))
-                    .expect_err("same atom must be refused");
+            let end = direct_atom(&session, "atom-a");
+            let refusal = admit_direct_bond_candidate_v3(&mut session, &gesture, end)
+                .expect_err("same atom must be refused");
             assert!(matches!(
                 refusal,
                 DirectBondAdmissionErrorV3::Refusal(DirectBondAdmissionRefusalV3::SelfLoop)
@@ -229,15 +229,15 @@ mod tests {
             DirectBondSnapPolicyV1::free(),
         )
         .expect("gesture begins");
-        let mut admission =
-            admit_direct_bond_candidate_v3(&session, &gesture, direct_atom(&session, "atom-c"))
-                .expect("candidate preflights");
+        let end = direct_atom(&session, "atom-c");
+        let mut admission = admit_direct_bond_candidate_v3(&mut session, &gesture, end)
+            .expect("candidate preflights");
         commit_direct_bond_admission_v3(&mut session, &mut admission).expect("admission commits");
         let committed = session.snapshot().expect("committed snapshot");
 
-        let replay =
-            admit_direct_bond_candidate_v3(&session, &gesture, direct_atom(&session, "atom-c"))
-                .expect_err("consumed gesture refuses before stale endpoint preflight");
+        let replay_end = direct_atom(&session, "atom-c");
+        let replay = admit_direct_bond_candidate_v3(&mut session, &gesture, replay_end)
+            .expect_err("consumed gesture refuses before stale endpoint preflight");
         assert!(matches!(
             replay,
             DirectBondAdmissionErrorV3::Refusal(DirectBondAdmissionRefusalV3::ReplayedGesture)
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn pointer_probe_v3_uses_native_nearest_tie_transform_and_grid_policy() {
-        let session = DocumentSession::load(SOURCE).expect("session");
+        let mut session = DocumentSession::load(SOURCE).expect("session");
         let near = no_hit(43.0, 0.0);
         let gesture = begin_direct_bond_gesture_v3(
             &session,
@@ -260,7 +260,7 @@ mod tests {
             DirectBondSnapPolicyV1::free(),
         )
         .expect("near point resolves to atom");
-        let admission = admit_direct_bond_candidate_v3(&session, &gesture, no_hit(80.0, 0.0))
+        let admission = admit_direct_bond_candidate_v3(&mut session, &gesture, no_hit(80.0, 0.0))
             .expect("candidate");
         assert_eq!(admission.overlay().start_x(), 40.0);
 
@@ -310,10 +310,11 @@ mod tests {
             DirectBondSnapPolicyV1::free(),
         )
         .expect("identity begin");
-        let zoom_admission = admit_direct_bond_candidate_v3(&session, &zoom_gesture, zoom_probe)
-            .expect("zoom admission");
+        let zoom_admission =
+            admit_direct_bond_candidate_v3(&mut session, &zoom_gesture, zoom_probe)
+                .expect("zoom admission");
         let identity_admission =
-            admit_direct_bond_candidate_v3(&session, &identity_gesture, identity_probe)
+            admit_direct_bond_candidate_v3(&mut session, &identity_gesture, identity_probe)
                 .expect("identity admission");
         assert_eq!(
             (
@@ -339,7 +340,7 @@ mod tests {
         )
         .expect("grid begin");
         let mut grid_admission =
-            admit_direct_bond_candidate_v3(&grid_session, &grid_gesture, no_hit(14.0, 6.0))
+            admit_direct_bond_candidate_v3(&mut grid_session, &grid_gesture, no_hit(14.0, 6.0))
                 .expect("grid admission");
         assert_eq!(
             (

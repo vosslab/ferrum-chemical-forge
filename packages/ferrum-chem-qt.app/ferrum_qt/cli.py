@@ -17,6 +17,7 @@ def parse_args() -> argparse.Namespace:
 		Parsed argument namespace with version flag and file list.
 	"""
 	parser = argparse.ArgumentParser(
+		prog="ferrum-qt",
 		description="Ferrum - 2D molecular structure editor",
 	)
 	parser.add_argument(

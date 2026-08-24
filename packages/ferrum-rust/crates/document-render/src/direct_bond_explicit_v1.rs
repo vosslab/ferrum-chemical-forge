@@ -1,8 +1,9 @@
 //! Explicit-endpoint direct-bond authoring for stateless Rust clients.
 //!
 //! This boundary accepts semantic document endpoints only. Pointer probing and
-//! viewport coordinates remain a UI concern; the renderer still owns one
-//! preflighted candidate and the document session owns the resulting mutation.
+//! viewport coordinates remain a UI concern. The document session owns the
+//! renderer-admitted pending candidate and resulting mutation; the renderer
+//! admits and verifies the complete plan.
 
 use ferrum_document::{
     DirectBondAdmissionRefusalV1, DirectBondEndpointIntent, DirectBondGestureErrorV1,
@@ -29,8 +30,9 @@ pub enum DirectBondExplicitErrorV1 {
 /// Author one direct bond from explicit endpoint intent in a single lifecycle.
 ///
 /// The caller never receives a capability, candidate, preview, or commit
-/// receipt. Failure leaves the supplied session unchanged until the final
-/// receipt redemption succeeds.
+/// receipt. Failed admission leaves document content, history, and durable
+/// generated IDs unchanged; the private admission sequence may advance before
+/// the final receipt redemption succeeds.
 pub fn author_direct_bond_explicit_v1(
     session: &mut DocumentSession,
     fence: DocumentFenceV1,
