@@ -9,10 +9,10 @@ use crate::{
     DocumentMoleculeInspectionErrorV1, DocumentObjectIdV1, DocumentSession, DocumentSessionError,
     DocumentUserTemplateErrorV1, DocumentUserTemplatePlanV1, DocumentUserTemplateResultV1,
     PersistentId, PreparedLinearFormConvertResultV1, SessionDocumentObservationV1,
-    SessionOperation, SessionOperationResultV1, SessionOperationV1, TopLevelRootSelectorV1,
-    TopLevelTranslationAnchorV1, XmlInputBudgetV1, direct_projection_molecule_v1,
-    prepare_document_clipboard_cut_v1, prepare_document_clipboard_paste_v1,
-    prepare_document_user_template_v1, verify_molecule_observation_v1,
+    SessionOperation, SessionOperationResultV1, SessionOperationV1, XmlInputBudgetV1,
+    direct_projection_molecule_v1, prepare_document_clipboard_cut_v1,
+    prepare_document_clipboard_paste_v1, prepare_document_user_template_v1,
+    verify_molecule_observation_v1,
 };
 
 pub const DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1: &str = "ferrum-document-clipboard-paste-profile-v1";
@@ -112,14 +112,6 @@ pub fn apply_user_template_v1(
         .map_err(Into::into)
 }
 
-pub fn observe_top_level_translation_anchor_v1(
-    session: &DocumentSession,
-    expected_revision: u64,
-    targets: Vec<TopLevelRootSelectorV1>,
-) -> Result<TopLevelTranslationAnchorV1, DocumentSessionError> {
-    session.observe_top_level_translation_anchor_v1(expected_revision, targets)
-}
-
 /// Immutable exact intent for one direct-root authored-name replacement or clear.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentMoleculeNameRequestV1 {
@@ -184,7 +176,7 @@ pub fn set_document_molecule_name_v1(
     direct_projection_molecule_v1(observation.projection(), &request.molecule_id)?;
     let name = (!request.name.is_empty()).then_some(request.name);
     session
-        .submit(
+        .apply_document_operation_v1(
             request.expected_revision,
             SessionOperation::V1(SessionOperationV1::SetMoleculeName {
                 molecule_id: request.molecule_id,

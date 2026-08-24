@@ -19,6 +19,7 @@ ferrum-domain = { path = "../domain" }
 ferrum-geometry = { path = "../geometry" }
 ferrum-document-projection = { path = "../document-projection" }
 ferrum-render = { path = "../render" }
+ferrum-render-contract = { path = "../render-contract" }
 getrandom = { version = "*" }
 rustix = { version = "*", features = ["fs"] }
 serde = { version = "*", features = ["derive"] }

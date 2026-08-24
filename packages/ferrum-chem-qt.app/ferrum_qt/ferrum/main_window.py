@@ -132,7 +132,6 @@ class FerrumNativeMainWindow(
 	local_document_open_queue_drained = PySide6.QtCore.Signal(bool)
 	operation_presentation_completed = PySide6.QtCore.Signal(object)
 	document_installation_completed = PySide6.QtCore.Signal(object)
-	document_import_retired = PySide6.QtCore.Signal()
 
 	def __init__(
 			self, parent: PySide6.QtWidgets.QWidget | None = None, *,

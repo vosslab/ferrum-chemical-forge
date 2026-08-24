@@ -34,14 +34,14 @@ fn exact_name_clear_undo_redo_and_reopen_preserve_retained_content() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let identifier = molecule_id(&session, 0, 0);
     let spaced = session
-        .submit(0, set_name(identifier.clone(), Some("  ")))
+        .apply_document_operation_v1(0, set_name(identifier.clone(), Some("  ")))
         .expect("whitespace name must persist");
     let spaced_cdml = spaced.observation().snapshot().cdml();
     assert!(spaced_cdml.contains("id=\"m\" name=\"  \" role=\"source\""));
     assert!(spaced_cdml.contains("<v:opaque retained=\"yes\"/>"));
 
     let cleared = session
-        .submit(1, set_name(identifier, None))
+        .apply_document_operation_v1(1, set_name(identifier, None))
         .expect("empty name intent must clear the attribute");
     assert_eq!(
         cleared.observation().projection().molecules()[0].name(),
@@ -76,7 +76,7 @@ fn exact_same_name_and_absent_clear_are_history_free() {
     let identifier = molecule_id(&session, 0, 0);
     let before = session.snapshot().expect("snapshot must work");
     let same = session
-        .submit(0, set_name(identifier, Some("old")))
+        .apply_document_operation_v1(0, set_name(identifier, Some("old")))
         .expect("same name must be accepted");
     assert_eq!(same.observation().snapshot(), &before);
 
@@ -85,7 +85,7 @@ fn exact_same_name_and_absent_clear_are_history_free() {
     let identifier = molecule_id(&unnamed, 0, 0);
     let before = unnamed.snapshot().expect("snapshot must work");
     let same = unnamed
-        .submit(0, set_name(identifier, Some("")))
+        .apply_document_operation_v1(0, set_name(identifier, Some("")))
         .expect("absent clear must be accepted");
     assert_eq!(same.observation().snapshot(), &before);
 }
@@ -109,7 +109,7 @@ fn wrong_kind_foreign_and_invalid_name_leave_state_unchanged() {
     .expect("test selector is valid");
     for operation in [set_name(atom_id, Some("x")), set_name(foreign, Some("x"))] {
         assert!(matches!(
-            session.submit(0, operation),
+            session.apply_document_operation_v1(0, operation),
             Err(DocumentSessionError::Operation(
                 SessionOperationError::UnknownMolecule
             ))
@@ -118,7 +118,7 @@ fn wrong_kind_foreign_and_invalid_name_leave_state_unchanged() {
     }
     let identifier = molecule_id(&session, 0, 0);
     assert!(matches!(
-        session.submit(0, set_name(identifier, Some("bad\u{0}name"))),
+        session.apply_document_operation_v1(0, set_name(identifier, Some("bad\u{0}name"))),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(_)
         ))
@@ -137,7 +137,7 @@ fn alternate_canonical_prefix_is_mutated_by_expanded_name() {
     let mut session = DocumentSession::load(source).expect("source must load");
     let identifier = molecule_id(&session, 0, 0);
     let changed = session
-        .submit(0, set_name(identifier, Some("after")))
+        .apply_document_operation_v1(0, set_name(identifier, Some("after")))
         .expect("prefixed molecule must be editable");
     let cdml = changed.observation().snapshot().cdml();
     assert!(cdml.contains("name=\"after\""));

@@ -94,6 +94,7 @@ def test_catalog_placement_receipt_enables_the_next_canvas_interaction(
 		point = canvas.viewport().rect().center()
 		with qtbot.waitSignal(window.document_installation_completed, timeout=10000) as completed:
 			assert window.start_catalog_placement(key)
+			PySide6.QtTest.QTest.mouseMove(canvas.viewport(), point)
 			PySide6.QtTest.QTest.mouseClick(
 				canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,

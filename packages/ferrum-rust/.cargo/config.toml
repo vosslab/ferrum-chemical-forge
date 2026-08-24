@@ -1,4 +1,6 @@
-# Keep the standalone PyO3 workspace and the main workspace on one local cache.
-# Sealed wheel builds set CARGO_TARGET_DIR explicitly and remain isolated.
+# Cargo discovers this configuration from both Ferrum Rust workspaces. Keep all
+# ordinary developer compiler state in the repository-owned disposable build
+# work area rather than beside source packages. Front doors that need isolated
+# work state set CARGO_TARGET_DIR to another owned build/ child and clean it.
 [build]
-target-dir = "target"
+target-dir = "../../build/.cargo-target"

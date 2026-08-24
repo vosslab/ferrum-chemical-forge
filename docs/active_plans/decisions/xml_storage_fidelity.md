@@ -12,15 +12,14 @@ when parsed and serialized through `xot`.
 
 ## Experiment
 
-On 2026-08-03, a one-time Rust probe parsed, serialized, reparsed, and structurally compared all
-three current M1d corpus documents:
+On 2026-08-03, a one-time Rust probe parsed, serialized, reparsed, and structurally compared
+two documents later retired from the external corpus and one legacy probe:
 
-- [authored_document_forms.cdml](../../../tests/e2e/corpus/authored_document_forms.cdml): OK,
-  3,994 source bytes to 3,953 serialized bytes.
-- [legacy_groups_template.cdml](../../../tests/e2e/corpus/legacy_groups_template.cdml): OK,
-  1,095 source bytes to 1,054 serialized bytes.
-- [opaque_namespace_preservation.cdml](../../../tests/e2e/corpus/opaque_namespace_preservation.cdml): OK,
-  893 source bytes to 851 serialized bytes.
+- Retired authored-document profile: OK, 3,994 source bytes to 3,953 serialized bytes.
+- Retired `legacy_groups_template.cdml` probe: OK, 1,095 source bytes to 1,054 serialized bytes.
+  It was removed because no test or runtime consumer used it, so this result is historical rather
+  than active-corpus evidence.
+- Retired opaque-namespace profile: OK, 893 source bytes to 851 serialized bytes.
 
 The comparison checked document and child order; expanded namespace URI plus local name for
 elements and attributes; attribute value sets; text nodes, including mixed-content tails;
@@ -29,7 +28,10 @@ spelling and attribute order.
 
 ## Achieved fidelity
 
-The experiment establishes structural retention for the current three-fixture corpus:
+The experiment establishes historical structural-retention evidence only. The retired profiles
+now live as compact inline XML beside the semantic assertions in
+`packages/ferrum-rust/crates/document/src/typed_tests.rs`; the retired legacy-probe result is
+also historical context only:
 
 - Unrecognized elements and nested foreign-namespace content survive.
 - Namespace identities survive even where multiple prefixes name the same URI.

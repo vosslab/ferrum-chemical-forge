@@ -76,14 +76,11 @@ not only to the `<mark>` example.
 
 ## Assignment table
 
-`Corpus` names the fixture that evidences the class:
-[authored_document_forms.cdml](../../../tests/e2e/corpus/authored_document_forms.cdml)
-(`authored`),
-[legacy_groups_template.cdml](../../../tests/e2e/corpus/legacy_groups_template.cdml)
-(`legacy`), and
-[opaque_namespace_preservation.cdml](../../../tests/e2e/corpus/opaque_namespace_preservation.cdml)
-(`opaque`). `reference only` marks a class found in reference material but in no
-fixture.
+`Corpus` names a historical profile that originally evidenced the class: `authored` or `opaque`.
+Those external corpus files are retired; their compact XML now lives inline with the semantic
+assertions in `packages/ferrum-rust/crates/document/src/typed_tests.rs`. `legacy` identifies
+historical evidence from the retired `legacy_groups_template.cdml` probe. `reference only` marks
+a class found in reference material but in no historical profile.
 
 Attribute lists are the documented typed fields. Every attribute not listed goes
 to that record's unknown-attribute bag.

@@ -32,7 +32,7 @@ fn patch(changes: Vec<BondPropertyChangeV1>) -> SessionOperation {
 fn bond_properties_commit_once_preserve_extensions_and_follow_history() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(vec![
                 BondPropertyChangeV1::Order(DocumentBondOrderV1::Triple),
@@ -78,7 +78,7 @@ fn bond_properties_commit_once_preserve_extensions_and_follow_history() {
 fn bond_properties_preserve_known_component_and_clear_optional_facts() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(vec![
                 BondPropertyChangeV1::Order(DocumentBondOrderV1::Single),
@@ -100,7 +100,7 @@ fn bond_properties_preserve_known_component_and_clear_optional_facts() {
     assert_eq!(bond.color(), None);
 
     let styled = session
-        .submit(
+        .apply_document_operation_v1(
             1,
             patch(vec![BondPropertyChangeV1::Style(
                 DocumentBondStyleV1::HaworthFront,
@@ -129,7 +129,7 @@ fn haworth_front_rejects_non_single_final_type_without_state_change() {
     let mut style_session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let style_before = style_session.snapshot().expect("snapshot");
     assert!(matches!(
-        style_session.submit(
+        style_session.apply_document_operation_v1(
             0,
             patch(vec![BondPropertyChangeV1::Style(
                 DocumentBondStyleV1::HaworthFront,
@@ -145,7 +145,7 @@ fn haworth_front_rejects_non_single_final_type_without_state_change() {
     let mut order_session = DocumentSession::load(&haworth_source).expect("source must load");
     let order_before = order_session.snapshot().expect("snapshot");
     assert!(matches!(
-        order_session.submit(
+        order_session.apply_document_operation_v1(
             0,
             patch(vec![BondPropertyChangeV1::Order(
                 DocumentBondOrderV1::Double,
@@ -163,7 +163,7 @@ fn presentation_only_patch_leaves_opaque_type_untouched() {
     let source = PROPERTY_SOURCE.replace("type=\"w2\"", "type=\"mystery77\"");
     let mut session = DocumentSession::load(&source).expect("opaque type remains retained");
     let changed = session
-        .submit(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
+        .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
         .expect("presentation patch does not interpret type");
     let bond = &changed.observation().projection().molecules()[0].bonds()[0];
     assert_eq!(bond.source_type(), Some("mystery77"));
@@ -173,10 +173,12 @@ fn presentation_only_patch_leaves_opaque_type_untouched() {
 #[test]
 fn empty_and_equal_bond_properties_patches_are_history_free() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
-    let empty = session.submit(0, patch(Vec::new())).expect("empty patch");
+    let empty = session
+        .apply_document_operation_v1(0, patch(Vec::new()))
+        .expect("empty patch");
     assert_eq!(empty.observation().snapshot().revision(), 0);
     let equal = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(vec![BondPropertyChangeV1::Style(
                 DocumentBondStyleV1::Wedge,
@@ -211,7 +213,7 @@ fn bond_properties_reject_invalid_intent_target_and_type_without_state_change() 
         BondPropertiesPatchV1::new("missing", vec![BondPropertyChangeV1::Center(Some(true))])
             .expect("intent is independently valid");
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetBondProperties { patch: unknown })
         ),
@@ -225,7 +227,7 @@ fn bond_properties_reject_invalid_intent_target_and_type_without_state_change() 
     let mut unsupported = DocumentSession::load(&source).expect("legacy source remains retained");
     let before = unsupported.snapshot().expect("snapshot");
     assert!(matches!(
-        unsupported.submit(
+        unsupported.apply_document_operation_v1(
             0,
             patch(vec![BondPropertyChangeV1::Order(
                 DocumentBondOrderV1::Single
@@ -242,11 +244,12 @@ fn bond_properties_reject_invalid_intent_target_and_type_without_state_change() 
 fn stale_bond_properties_patch_does_not_change_authoritative_snapshot() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     session
-        .submit(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
+        .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
         .expect("initial patch must commit");
     let before = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.submit(0, patch(vec![BondPropertyChangeV1::Center(Some(false))])),
+        session
+            .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(false))])),
         Err(DocumentSessionError::RevisionConflict {
             expected: 0,
             actual: 1
@@ -268,7 +271,7 @@ fn bond_properties_mutate_alternate_cdml_namespace_without_disturbing_opaque_con
     );
     let mut session = DocumentSession::load(source).expect("namespaced source must load");
     let changed = session
-        .submit(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
+        .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
         .expect("namespaced bond property patch must commit");
     let projection = &changed.observation().projection().molecules()[0].bonds()[0];
     assert_eq!(projection.source_id(), Some("ab"));

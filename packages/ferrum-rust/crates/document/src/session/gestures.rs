@@ -35,18 +35,19 @@ impl DocumentSession {
         presentation_gesture::begin(self, fence, kind, start, style, snap)
     }
 
-    pub fn prepare_presentation_creation_gesture_v1(
-        &mut self,
+    pub fn preview_presentation_creation_gesture_v1(
+        &self,
         gesture: &PresentationCreationGestureV1,
         end: PresentationGesturePoint2V1,
-    ) -> Result<PendingPresentationGestureV1, PresentationGestureErrorV1> {
-        presentation_gesture::prepare(self, gesture, end)
+    ) -> Result<PresentationCreationPreviewV1, PresentationGestureErrorV1> {
+        presentation_gesture::preview(self, gesture, end)
     }
 
-    pub fn commit_presentation_creation_gesture_v1(
-        &mut self,
-        pending: &mut PendingPresentationGestureV1,
-    ) -> Result<CommittedPresentationGestureV1, PresentationGestureErrorV1> {
-        presentation_gesture::commit(self, pending)
+    pub fn resolve_presentation_creation_gesture_v1(
+        &self,
+        gesture: &PresentationCreationGestureV1,
+        preview: &PresentationCreationPreviewV1,
+    ) -> Result<SessionOperationTransitionRequestV1, PresentationGestureErrorV1> {
+        presentation_gesture::resolve(self, gesture, preview)
     }
 }

@@ -10,23 +10,24 @@ class FerrumNativeDirectGlycosidicHaworthTabMixin:
 		import ferrum_qt.ferrum.engine as engine
 		return engine.prepare_direct_haworth_from_smiles_v1(smiles)
 
-	def prepare_direct_glycosidic_haworth_placement(self, source: object,
+	def resolve_direct_glycosidic_haworth_transition(self, source: object,
 			anchor_x: float, anchor_y: float) -> object:
-		"""Ask Rust to bind one opaque source receipt to one exact anchor."""
+		"""Resolve source and anchor into the generic document transition."""
 		self._require_mutable()
-		return self._session.prepare_create_direct_haworth_v1(
+		return self._session.resolve_direct_haworth_transition_v1(
 			self.current_snapshot.revision, source, anchor_x, anchor_y,
 		)
 
-	def commit_direct_glycosidic_haworth(self, prepared: object) -> object:
-		"""Commit one authenticated Rust receipt and install its normal observation."""
+	def prepare_direct_glycosidic_haworth_transition(self, request: object) -> object:
+		"""Prepare one Haworth request through generic authority."""
 		self._require_mutable()
-		import ferrum_qt.ferrum.engine as engine
-		if type(prepared) is not engine.PreparedDirectHaworthInsertionV1:
-			raise TypeError("Ferrum direct-glycosidic Haworth requires a Rust receipt")
-		result = self._session.commit_create_direct_haworth_v1(
-			self.current_snapshot.revision, prepared,
-		)
-		selection = tuple(("atom", identifier) for identifier in prepared.atom_identifiers)
+		return self._session.prepare_session_operation_transition_v1(request)
+
+	def commit_direct_glycosidic_haworth_transition(self, prepared: object) -> object:
+		"""Redeem one renderer-admitted generic Haworth transition."""
+		self._require_mutable()
+		result = self._session.commit_session_operation_transition_v1(prepared)
+		selection = tuple(("atom", identifier)
+			for identifier in result.outcome.molecule_inserted.atom_identifiers)
 		self._install_mutation_result(result, selection)
 		return result

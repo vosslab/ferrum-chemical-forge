@@ -27,7 +27,7 @@ def test_wavy_properties_preserve_authored_path_and_history() -> None:
 		"wave",
 		(change_type.line_width(2.5), change_type.line_color("#445566")),
 	)
-	changed = session.submit(0, operation).observation
+	changed = session.apply_document_operation_v1(0, operation).observation
 	wavy = _wavy(changed)
 	assert [(point.x, point.y) for point in wavy.path.points] == [
 		(0.0, 0.0), (3.0, 2.0), (6.0, 0.0),
@@ -70,7 +70,7 @@ def test_wavy_properties_reject_hostile_or_wrong_targets_atomically() -> None:
 			identifier, (change_type.line_width(2.0),),
 		)
 		with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as error:
-			session.submit(0, operation)
+			session.apply_document_operation_v1(0, operation)
 		assert error.value.object_id == identifier
 		assert session.observe(0).snapshot.digest == before.digest
 

@@ -1,12 +1,13 @@
 use ferrum_document_projection::{
-    ArrowHeadShapeV1, ArrowProjectionV1, Point3V1, PositiveFiniteV1, PresentationFactProvenanceV1,
+    ArrowHeadShapeV1, ArrowProjectionV1, PlusProjectionV1, Point3V1, PositiveFiniteV1,
+    PresentationFactProvenanceV1, PresentationFillV1, PresentationFontFaceV1, PresentationFontV1,
     PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
-    PresentationStrokeV1, PresentationTargetV1, Rgb24V1,
+    PresentationStrokeV1, PresentationTargetV1, ProjectionLocalObjectKeyV1, Rgb24V1,
 };
 
 use crate::{
     PRESENTATION_RENDER_PLAN_SCHEMA_V1, PathCommandV1, PresentationRenderRootV1, RenderError,
-    RenderPoint, render_presentation_stack_v1,
+    RenderPoint, lower_standard_plus_preview_v1, render_presentation_stack_v1,
 };
 
 #[test]
@@ -126,6 +127,26 @@ fn incomplete_round_bracket_projection_is_a_closed_renderer_refusal() {
     ));
 }
 
+#[test]
+fn standard_plus_preview_uses_the_committed_builtin_plus_rendering_without_identity() {
+    let anchor = RenderPoint::new(18.0, 24.0).expect("finite preview anchor");
+    let preview = lower_standard_plus_preview_v1(anchor).expect("standard Plus preview");
+    let committed =
+        render_presentation_stack_v1(&stack(vec![PresentationRootProjectionV1::Plus {
+            plus: standard_plus(anchor),
+        }]))
+        .expect("standard Plus root renders");
+
+    assert_eq!(preview.schema(), PRESENTATION_RENDER_PLAN_SCHEMA_V1);
+    assert_eq!(preview.revision(), 0);
+    assert_eq!(preview.digest(), &[0; 32]);
+    assert_eq!(preview.roots(), committed.roots());
+    let root = &preview.roots()[0];
+    assert_eq!(root.target().id(), None);
+    assert_eq!(root.target().source_id(), None);
+    assert_eq!(root.target().record_kind(), PresentationRecordKindV1::Plus);
+}
+
 fn stack(roots: Vec<PresentationRootProjectionV1>) -> PresentationStackProjectionV1 {
     PresentationStackProjectionV1::new(19, [9; 32], roots, Vec::new(), Vec::new())
         .expect("root set has no bracket-pair contract")
@@ -157,6 +178,36 @@ fn target(source_order: u32, record_kind: PresentationRecordKindV1) -> Presentat
         "record_kind": record_kind,
     }))
     .expect("valid local target")
+}
+
+fn standard_plus(anchor: RenderPoint) -> PlusProjectionV1 {
+    let target = PresentationTargetV1::try_new(
+        None,
+        ProjectionLocalObjectKeyV1::from_path_components(&[0])
+            .expect("preview target has a nonempty local path"),
+        None,
+        0,
+        PresentationRecordKindV1::Plus,
+    )
+    .expect("synthetic preview target");
+    let font = PresentationFontV1::try_new(
+        PresentationFontFaceV1::TelexRegularV1,
+        PresentationFactProvenanceV1::Builtin,
+        PositiveFiniteV1::new(14.0).expect("built-in Plus font size"),
+        PresentationFactProvenanceV1::Builtin,
+        Rgb24V1::new("#000000").expect("built-in Plus colour"),
+        PresentationFactProvenanceV1::Builtin,
+    )
+    .expect("built-in Plus font");
+    let background = PresentationFillV1::try_new(None, PresentationFactProvenanceV1::Builtin)
+        .expect("built-in Plus background");
+    PlusProjectionV1::try_new(
+        target,
+        Point3V1::new(anchor.x(), anchor.y(), 0.0).expect("finite preview anchor"),
+        font,
+        background,
+    )
+    .expect("standard Plus projection")
 }
 
 fn stroke() -> PresentationStrokeV1 {

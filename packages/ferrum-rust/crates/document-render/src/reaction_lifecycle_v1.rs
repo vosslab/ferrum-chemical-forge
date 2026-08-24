@@ -8,14 +8,12 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 use ferrum_document::{
-    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DirectCdmlRootKindV1,
-    DirectCdmlSemanticIndexV1, DirectReactionMemberV1, DirectReactionRoleV1, DocumentFenceV1,
-    DocumentSession, PendingCompleteCdmlMutationV1, SessionOperationResultV1,
-    delete_direct_cdml_reaction_definition_v1, inspect_direct_reactions_v1,
-    replace_direct_cdml_reaction_members_v1,
+    AuthoringCapabilityV1, DeleteReactionV1, DirectReactionMemberV1, DirectReactionRoleV1,
+    DocumentFenceV1, DocumentSession, ReplaceReactionMembersV1, SessionOperation,
+    SessionOperationTransitionRequestV1, SessionOperationV1, inspect_direct_reactions_v1,
 };
 
-use crate::reaction_gesture_v1::map_complete_cdml_mutation_refusal_v1;
+use crate::reaction_gesture_v1::map_document_operation_error_v1;
 use crate::{
     ReactionGestureErrorV1, ReactionSelectionV1, RenderInteractionErrorV1,
     RenderInteractionSessionV1,
@@ -117,42 +115,6 @@ enum ReactionLifecycleOperationV1 {
     Patch(ReactionMembershipPatchRequestV1),
     DeleteDefinition,
 }
-pub struct PreparedReactionLifecycleV1 {
-    pending: Option<PendingCompleteCdmlMutationV1>,
-    capability: AuthoringCapabilityV1,
-    reaction_id: String,
-    membership_digest: String,
-}
-impl std::fmt::Debug for PreparedReactionLifecycleV1 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PreparedReactionLifecycleV1")
-            .field("reaction_id", &self.reaction_id)
-            .field(
-                "state",
-                &if self.pending.is_some() {
-                    "prepared"
-                } else {
-                    "consumed"
-                },
-            )
-            .finish()
-    }
-}
-#[derive(Clone, Debug)]
-pub struct CommittedReactionLifecycleV1 {
-    reaction_id: String,
-    result: SessionOperationResultV1,
-}
-impl CommittedReactionLifecycleV1 {
-    #[must_use]
-    pub fn reaction_id(&self) -> &str {
-        &self.reaction_id
-    }
-    #[must_use]
-    pub fn result(&self) -> &SessionOperationResultV1 {
-        &self.result
-    }
-}
 fn require_fence(
     session: &DocumentSession,
     fence: DocumentFenceV1,
@@ -205,42 +167,6 @@ fn lifecycle_selection_error(error: RenderInteractionErrorV1) -> ReactionGesture
         _ => ReactionGestureErrorV1::RendererExclusion,
     }
 }
-fn compile_patch(
-    source: &str,
-    reaction_id: &str,
-    request: &ReactionMembershipPatchRequestV1,
-) -> Result<String, ReactionGestureErrorV1> {
-    request.validate()?;
-    let index = DirectCdmlSemanticIndexV1::parse(source)
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)?;
-    for (role, id) in request.roles() {
-        let target = index
-            .roots()
-            .iter()
-            .find(|root| root.identifier() == Some(id.as_str()))
-            .ok_or(ReactionGestureErrorV1::MissingTarget)?;
-        let kind = match role {
-            DirectReactionRoleV1::Reactant | DirectReactionRoleV1::Product => {
-                DirectCdmlRootKindV1::Molecule
-            }
-            DirectReactionRoleV1::Arrow => DirectCdmlRootKindV1::Arrow,
-            DirectReactionRoleV1::Condition => DirectCdmlRootKindV1::Text,
-            DirectReactionRoleV1::Plus => DirectCdmlRootKindV1::Plus,
-        };
-        if target.kind() != kind {
-            return Err(ReactionGestureErrorV1::WrongTargetKind);
-        }
-        if index.roots().iter().any(|root| {
-            root.kind() == DirectCdmlRootKindV1::Reaction
-                && root.identifier() != Some(reaction_id)
-                && root.reaction_members().iter().any(|member| member == &id)
-        }) {
-            return Err(ReactionGestureErrorV1::CrossReactionReuse);
-        }
-    }
-    replace_direct_cdml_reaction_members_v1(source, reaction_id, &request.roles())
-        .map_err(|_| ReactionGestureErrorV1::RenderPreparation)
-}
 fn begin(
     session: &RenderInteractionSessionV1,
     selection: &ReactionSelectionV1,
@@ -256,7 +182,7 @@ fn begin(
         return Err(ReactionGestureErrorV1::StaleSnapshot);
     }
     Ok(ReactionLifecycleGestureV1 {
-        capability: session.authoring_capability_issuer_v1().issue(),
+        capability: session.issue_authoring_capability_v1(),
         fence,
         reaction_id: selection.reaction_id().to_owned(),
         membership_digest: selection.membership_digest().to_owned(),
@@ -284,28 +210,11 @@ pub fn begin_reaction_definition_delete_v1(
         ReactionLifecycleOperationV1::DeleteDefinition,
     )
 }
-pub fn prepare_reaction_lifecycle_v1(
-    session: &mut RenderInteractionSessionV1,
-    gesture: &ReactionLifecycleGestureV1,
-) -> Result<PreparedReactionLifecycleV1, ReactionGestureErrorV1> {
-    if !gesture
-        .capability
-        .belongs_to(&session.authoring_capability_issuer_v1())
-    {
-        return Err(ReactionGestureErrorV1::ForeignSession);
-    }
-    match gesture
-        .capability
-        .claim_for_commit(&session.authoring_capability_issuer_v1())
-    {
-        Ok(claim) => drop(claim),
-        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
-            return Err(ReactionGestureErrorV1::ForeignSession);
-        }
-        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
-            return Err(ReactionGestureErrorV1::ReplayedGesture);
-        }
-    }
+/// Consume one lifecycle gesture into the opaque generic session request.
+pub fn resolve_reaction_lifecycle_v1(
+    session: &RenderInteractionSessionV1,
+    gesture: ReactionLifecycleGestureV1,
+) -> Result<SessionOperationTransitionRequestV1, ReactionGestureErrorV1> {
     require_fence(session, gesture.fence)?;
     let source = session
         .snapshot()
@@ -313,85 +222,37 @@ pub fn prepare_reaction_lifecycle_v1(
         .cdml()
         .to_owned();
     validate_definition(&source, &gesture.reaction_id, &gesture.membership_digest)?;
-    let candidate = match &gesture.operation {
+    let operation = match &gesture.operation {
         ReactionLifecycleOperationV1::Patch(request) => {
-            compile_patch(&source, &gesture.reaction_id, request)?
+            ReplaceReactionMembersV1::new(gesture.reaction_id.clone(), request.roles())
+                .map(SessionOperationV1::ReplaceReactionMembersV1)
+                .map_err(|error| {
+                    map_document_operation_error_v1(
+                        ferrum_document::DocumentSessionError::Operation(error.into()),
+                    )
+                })?
         }
         ReactionLifecycleOperationV1::DeleteDefinition => {
-            delete_direct_cdml_reaction_definition_v1(&source, &gesture.reaction_id)
-                .map_err(|_| ReactionGestureErrorV1::InvalidRequest)?
+            DeleteReactionV1::new(gesture.reaction_id.clone())
+                .map(SessionOperationV1::DeleteReactionV1)
+                .map_err(|error| {
+                    map_document_operation_error_v1(
+                        ferrum_document::DocumentSessionError::Operation(error.into()),
+                    )
+                })?
         }
     };
-    if candidate == source {
-        return Err(ReactionGestureErrorV1::InvalidRequest);
-    }
-    let pending = session
-        .prepare_complete_cdml_mutation_v1(gesture.fence, &candidate)
-        .map_err(map_complete_cdml_mutation_refusal_v1)?;
-    Ok(PreparedReactionLifecycleV1 {
-        reaction_id: gesture.reaction_id.clone(),
-        membership_digest: gesture.membership_digest.clone(),
-        pending: Some(pending),
-        capability: gesture.capability.clone(),
-    })
-}
-pub fn commit_reaction_lifecycle_v1(
-    session: &mut RenderInteractionSessionV1,
-    prepared: &mut PreparedReactionLifecycleV1,
-) -> Result<CommittedReactionLifecycleV1, ReactionGestureErrorV1> {
-    let mut pending = prepared
-        .pending
-        .take()
-        .ok_or(ReactionGestureErrorV1::ReplayedGesture)?;
-    if !prepared
-        .capability
-        .belongs_to(&session.authoring_capability_issuer_v1())
-    {
-        prepared.pending = Some(pending);
-        return Err(ReactionGestureErrorV1::ForeignSession);
-    }
-    let claim = match prepared
-        .capability
-        .claim_for_commit(&session.authoring_capability_issuer_v1())
-    {
-        Ok(claim) => claim,
-        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
-            unreachable!("owner checked above")
-        }
-        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
-            prepared.pending = Some(pending);
-            return Err(ReactionGestureErrorV1::ReplayedGesture);
-        }
-    };
-    let result = (|| {
-        let source = session
-            .snapshot()
-            .map_err(|_| ReactionGestureErrorV1::SessionConflict)?
-            .cdml()
-            .to_owned();
-        validate_definition(&source, &prepared.reaction_id, &prepared.membership_digest)?;
-        session
-            .commit_complete_cdml_mutation_v1(&mut pending)
-            .map_err(map_complete_cdml_mutation_refusal_v1)
-    })();
-    match result {
-        Ok(result) => {
-            claim.consume();
-            Ok(CommittedReactionLifecycleV1 {
-                reaction_id: prepared.reaction_id.clone(),
-                result,
-            })
-        }
-        Err(error) => {
-            prepared.pending = Some(pending);
-            Err(error)
-        }
-    }
+    Ok(SessionOperationTransitionRequestV1::new(
+        gesture.fence.revision(),
+        SessionOperation::V1(operation),
+        ferrum_document::TransitionAuthorizationV1::authoring_capability(gesture.capability),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ferrum_document::{AdmittedSessionTransitionRefusalV1, SessionOperationOutcomeV1};
 
     const SOURCE: &str = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"la\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
@@ -428,20 +289,29 @@ mod tests {
         .expect("request");
         let gesture =
             begin_reaction_membership_patch_v1(&session, &selection, request).expect("begin");
-        let mut prepared = prepare_reaction_lifecycle_v1(&mut session, &gesture).expect("prepare");
-        let committed = commit_reaction_lifecycle_v1(&mut session, &mut prepared).expect("commit");
-        assert_eq!(committed.result().observation().snapshot().revision(), 1);
+        let request = resolve_reaction_lifecycle_v1(&session, gesture).expect("resolve");
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(request)
+            .expect("prepare");
+        let committed = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("commit");
+        assert!(matches!(
+            committed.outcome(),
+            SessionOperationOutcomeV1::ReactionMembershipReplacedV1(outcome)
+                if outcome.reaction_id() == "r"
+        ));
+        assert_eq!(committed.observation().snapshot().revision(), 1);
         assert!(
             committed
-                .result()
                 .observation()
                 .snapshot()
                 .cdml()
                 .contains("product idref=\"third\"")
         );
         assert!(matches!(
-            commit_reaction_lifecycle_v1(&mut session, &mut prepared),
-            Err(ReactionGestureErrorV1::ReplayedGesture)
+            session.commit_session_operation_transition_v1(&mut prepared),
+            Err(AdmittedSessionTransitionRefusalV1::Replayed)
         ));
     }
 
@@ -451,9 +321,19 @@ mod tests {
             RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
         let selection = selection(&session);
         let gesture = begin_reaction_definition_delete_v1(&session, &selection).expect("begin");
-        let mut prepared = prepare_reaction_lifecycle_v1(&mut session, &gesture).expect("prepare");
-        let committed = commit_reaction_lifecycle_v1(&mut session, &mut prepared).expect("commit");
-        let cdml = committed.result().observation().snapshot().cdml();
+        let request = resolve_reaction_lifecycle_v1(&session, gesture).expect("resolve");
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(request)
+            .expect("prepare");
+        let committed = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("commit");
+        assert!(matches!(
+            committed.outcome(),
+            SessionOperationOutcomeV1::ReactionDefinitionDeletedV1(outcome)
+                if outcome.reaction_id() == "r"
+        ));
+        let cdml = committed.observation().snapshot().cdml();
         assert!(!cdml.contains("<reaction"));
         assert!(cdml.contains("molecule id=\"left\""));
         assert!(cdml.contains("arrow id=\"a\""));
@@ -506,8 +386,13 @@ mod tests {
         let gesture =
             begin_reaction_membership_patch_v1(&owner, &committed_selection, committed_request)
                 .expect("begin current selection");
-        let mut prepared = prepare_reaction_lifecycle_v1(&mut owner, &gesture).expect("prepare");
-        commit_reaction_lifecycle_v1(&mut owner, &mut prepared).expect("commit");
+        let request = resolve_reaction_lifecycle_v1(&owner, gesture).expect("resolve");
+        let mut prepared = owner
+            .prepare_session_operation_transition_v1(request)
+            .expect("prepare");
+        owner
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("commit");
         let owner_before = owner.snapshot().expect("owner snapshot");
         let stale_request = ReactionMembershipPatchRequestV1::new(
             0,
@@ -566,18 +451,22 @@ mod tests {
         .expect("request");
         let gesture =
             begin_reaction_membership_patch_v1(&owner, &selected, request).expect("begin");
-        let mut prepared = prepare_reaction_lifecycle_v1(&mut owner, &gesture).expect("prepare");
+        let request = resolve_reaction_lifecycle_v1(&owner, gesture).expect("resolve");
+        let mut prepared = owner
+            .prepare_session_operation_transition_v1(request)
+            .expect("prepare");
         let foreign_before = foreign.snapshot().expect("foreign snapshot");
         assert!(matches!(
-            commit_reaction_lifecycle_v1(&mut foreign, &mut prepared),
-            Err(ReactionGestureErrorV1::ForeignSession)
+            foreign.commit_session_operation_transition_v1(&mut prepared),
+            Err(AdmittedSessionTransitionRefusalV1::ForeignSession)
         ));
         assert_eq!(
             foreign.snapshot().expect("foreign unchanged").digest(),
             foreign_before.digest()
         );
-        let committed =
-            commit_reaction_lifecycle_v1(&mut owner, &mut prepared).expect("owner retry");
-        assert_eq!(committed.result().observation().snapshot().revision(), 1);
+        let committed = owner
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("owner retry");
+        assert_eq!(committed.observation().snapshot().revision(), 1);
     }
 }

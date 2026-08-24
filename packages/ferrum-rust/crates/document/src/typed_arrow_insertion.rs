@@ -1,9 +1,9 @@
 //! Canonical direct-root arrow insertion owned by the typed CDML layer.
 use super::{
     PersistentId, PresentationGesturePoint2V1, TypedDocument, TypedDocumentError, element_name,
+    typed_coordinate::canonical_authored_coordinate,
 };
 use xot::Xot;
-const POINTS_PER_CM: f64 = 72.0 / 2.54;
 impl TypedDocument {
     pub(crate) fn with_insert_straight_equilibrium_arrow(
         &self,
@@ -81,11 +81,11 @@ impl TypedDocument {
             indexed
                 .xml
                 .tree
-                .set_attribute(node, x, format!("{:.3}cm", point.x() / POINTS_PER_CM));
+                .set_attribute(node, x, canonical_authored_coordinate(point.x()));
             indexed
                 .xml
                 .tree
-                .set_attribute(node, y, format!("{:.3}cm", point.y() / POINTS_PER_CM));
+                .set_attribute(node, y, canonical_authored_coordinate(point.y()));
             indexed
                 .xml
                 .tree

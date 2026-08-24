@@ -92,7 +92,7 @@ fn clean_geometry_commits_multiple_centroid_preserving_layouts_atomically() {
         .expect("both layouts prepare");
     assert_eq!(engine.calls.get(), 2);
     let repaired = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetCleanGeometry { update }),
         )
@@ -233,7 +233,7 @@ fn clean_geometry_rejects_stale_preparation_without_mutation() {
     let update = build_clean_geometry_update_v1(&engine, &observation, &[molecule_id], 10.0)
         .expect("clean geometry prepares");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetAtomElement {
                 atom_id: "a".to_owned(),
@@ -247,7 +247,7 @@ fn clean_geometry_rejects_stale_preparation_without_mutation() {
 
     assert!(
         session
-            .submit(
+            .apply_document_operation_v1(
                 changed.revision(),
                 SessionOperation::V1(SessionOperationV1::SetCleanGeometry { update }),
             )
@@ -285,7 +285,7 @@ fn clean_geometry_equal_authored_coordinates_do_not_create_history() {
     .expect("valid batch");
 
     let unchanged = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetCleanGeometry { update }),
         )
@@ -337,7 +337,7 @@ fn clean_geometry_rejects_a_later_count_mismatch_without_partial_mutation() {
 
     assert!(
         session
-            .submit(
+            .apply_document_operation_v1(
                 0,
                 SessionOperation::V1(SessionOperationV1::SetCleanGeometry { update }),
             )

@@ -1,6 +1,8 @@
 use super::{
-    DocumentSession, DocumentSessionError, MoleculeInsertionAtomV1, MoleculeInsertionBondOrderV1,
-    MoleculeInsertionBondV1, MoleculeInsertionV1, MoleculeInsertionV1Error, Point3V1,
+    AdmittedSessionTransitionRefusalV1, DocumentBondOrderV1, DocumentSession,
+    MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1,
+    MoleculeInsertionV1Error, Point3V1, SessionOperation, SessionOperationOutcomeV1,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
 
 const SOURCE: &str = concat!(
@@ -8,51 +10,48 @@ const SOURCE: &str = concat!(
     "<opaque id=\"ferrum-atom-v1-0\"/><opaque id=\"ferrum-bond-v1-0\"/></cdml>"
 );
 
-fn atom(
-    element: &str,
-    x: f64,
-    charge: Option<i32>,
-    isotope: Option<u16>,
-    hydrogens: Option<u16>,
-) -> MoleculeInsertionAtomV1 {
+fn atom(element: &str, x: f64) -> MoleculeInsertionAtomV1 {
     MoleculeInsertionAtomV1::new(
         element,
-        Point3V1::new(x, 20.0, 0.0).expect("test position is finite"),
-        charge,
-        isotope,
-        hydrogens,
+        Point3V1::new(x, 20.0, 0.0).expect("finite test position"),
+        None,
+        None,
+        None,
     )
-    .expect("test atom is valid")
+    .expect("valid test atom")
 }
 
 fn carbonyl() -> MoleculeInsertionV1 {
     MoleculeInsertionV1::new(
-        vec![
-            atom("C", 10.0, None, None, None),
-            atom("O", 30.0, Some(-1), Some(18), Some(1)),
-        ],
+        vec![atom("C", 10.0), atom("O", 30.0)],
         vec![MoleculeInsertionBondV1::new(
             0,
             1,
-            MoleculeInsertionBondOrderV1::Double,
+            DocumentBondOrderV1::Double,
         )],
     )
-    .expect("test graph is valid")
+    .expect("valid test graph")
+}
+
+fn request(revision: u64, molecule: MoleculeInsertionV1) -> SessionOperationTransitionRequestV1 {
+    SessionOperationTransitionRequestV1::new(
+        revision,
+        SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(molecule)),
+        TransitionAuthorizationV1::None,
+    )
 }
 
 #[test]
 fn insertion_graph_rejects_ambiguous_or_impossible_edges() {
-    let atoms = vec![atom("C", 0.0, None, None, None)];
-    let self_bond = MoleculeInsertionV1::new(
-        atoms.clone(),
-        vec![MoleculeInsertionBondV1::new(
-            0,
-            0,
-            MoleculeInsertionBondOrderV1::Single,
-        )],
-    );
     assert_eq!(
-        self_bond,
+        MoleculeInsertionV1::new(
+            vec![atom("C", 0.0)],
+            vec![MoleculeInsertionBondV1::new(
+                0,
+                0,
+                DocumentBondOrderV1::Single,
+            )],
+        ),
         Err(MoleculeInsertionV1Error::SelfBond { atom: 0 })
     );
     assert_eq!(
@@ -62,79 +61,73 @@ fn insertion_graph_rejects_ambiguous_or_impossible_edges() {
 }
 
 #[test]
-fn complete_insertion_allocates_collision_free_ids_and_projects_exact_facts() {
-    let mut session = DocumentSession::load(SOURCE).expect("fixture must load");
-    let mut pending = session
-        .prepare_create_molecule_v1(0, &carbonyl())
-        .expect("complete candidate must prepare");
-    assert_eq!(
-        pending.molecule_identifier().as_str(),
-        "ferrum-molecule-v1-1"
-    );
-    assert_eq!(pending.atom_identifiers()[0].as_str(), "ferrum-atom-v1-1");
-    assert_eq!(pending.bond_identifiers()[0].as_str(), "ferrum-bond-v1-1");
+fn generic_molecule_insertion_publishes_ids_only_after_commit_and_is_one_history_step() {
+    let mut session = DocumentSession::load(SOURCE).expect("source loads");
+    let baseline = session.snapshot().expect("baseline snapshot");
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(request(0, carbonyl()))
+        .expect("generic transition prepares");
+    assert_eq!(session.snapshot().expect("preparation is inert"), baseline);
 
     let accepted = session
-        .commit_create_molecule(0, &mut pending)
-        .expect("prepared molecule must commit");
-    let observation = accepted.observation();
-    let inserted = &observation.projection().molecules()[0];
-    assert_eq!(inserted.source_id(), Some("ferrum-molecule-v1-1"));
-    assert_eq!(inserted.atoms()[1].element(), Some("O"));
-    assert_eq!(inserted.atoms()[1].formal_charge(), Some(-1));
-    assert_eq!(inserted.atoms()[1].explicit_hydrogens(), Some(1));
-    assert_eq!(inserted.bonds()[0].source_type(), Some("n2"));
-    assert!(observation.snapshot().cdml().contains("isotope=\"18\""));
-}
-
-#[test]
-fn discarded_molecule_candidate_does_not_advance_generated_ids() {
-    let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
-        .expect("empty source loads");
-    let discarded = session
-        .prepare_create_molecule_v1(0, &carbonyl())
-        .expect("candidate prepares");
-    let identifier = discarded.molecule_identifier().as_str().to_owned();
-    drop(discarded);
-
-    let mut committed = session
-        .prepare_create_molecule_v1(0, &carbonyl())
-        .expect("replacement candidate prepares");
-    assert_eq!(committed.molecule_identifier().as_str(), identifier);
-    session
-        .commit_create_molecule(0, &mut committed)
-        .expect("replacement candidate commits");
-    let next = session
-        .prepare_create_molecule_v1(1, &carbonyl())
-        .expect("later candidate prepares");
-    assert_ne!(next.molecule_identifier().as_str(), identifier);
-}
-
-#[test]
-fn prepared_molecule_is_owner_bound_consumed_once_and_history_restorable() {
-    let mut owner = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
-        .expect("owner fixture must load");
-    let mut foreign = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
-        .expect("foreign fixture must load");
-    let mut pending = owner
-        .prepare_create_molecule_v1(0, &carbonyl())
-        .expect("candidate must prepare");
-    assert!(matches!(
-        foreign.commit_create_molecule(0, &mut pending),
-        Err(DocumentSessionError::PreparedOperationForeignSession)
-    ));
-    let accepted = owner
-        .commit_create_molecule(0, &mut pending)
-        .expect("owner can still accept candidate");
-    assert!(matches!(
-        owner.commit_create_molecule(accepted.observation().snapshot().revision(), &mut pending),
-        Err(DocumentSessionError::PreparedOperationConsumed)
-    ));
-    let undone = owner.undo(1).expect("accepted molecule must be undoable");
-    assert!(undone.observation().projection().molecules().is_empty());
-    let redone = owner.redo(2).expect("accepted molecule must be redoable");
+        .commit_session_operation_transition_v1(&mut prepared)
+        .expect("generic transition commits");
+    let SessionOperationOutcomeV1::MoleculeInsertedV1(outcome) = accepted.outcome() else {
+        panic!("commit publishes molecule insertion facts");
+    };
     assert_eq!(
-        redone.observation().projection().molecules()[0].source_id(),
-        Some("ferrum-molecule-v1-0")
+        outcome.molecule_identifier().as_str(),
+        "ferrum-molecule-v1-1"
+    );
+    assert_eq!(outcome.atom_identifiers()[0].as_str(), "ferrum-atom-v1-1");
+    assert_eq!(outcome.atom_identifiers()[1].as_str(), "ferrum-atom-v1-2");
+    assert_eq!(outcome.bond_identifiers()[0].as_str(), "ferrum-bond-v1-1");
+    assert_eq!(accepted.observation().snapshot().revision(), 1);
+    assert!(
+        session
+            .undo(1)
+            .expect("one insertion undoes")
+            .observation()
+            .projection()
+            .molecules()
+            .is_empty()
+    );
+}
+
+#[test]
+fn generic_molecule_transition_refusals_leave_state_and_id_allocation_unchanged() {
+    let mut owner = DocumentSession::create_empty_document_v1().expect("owner creates");
+    let mut foreign = DocumentSession::create_empty_document_v1().expect("foreign creates");
+    let mut prepared = owner
+        .prepare_session_operation_transition_v1(request(0, carbonyl()))
+        .expect("transition prepares");
+    let baseline = owner.snapshot().expect("baseline snapshot");
+    assert_eq!(
+        foreign.commit_session_operation_transition_v1(&mut prepared),
+        Err(AdmittedSessionTransitionRefusalV1::ForeignSession)
+    );
+    assert_eq!(
+        owner.snapshot().expect("foreign refusal is inert"),
+        baseline
+    );
+    owner
+        .retire_session_operation_transition_v1(&mut prepared)
+        .expect("transition retires");
+    assert_eq!(
+        owner.commit_session_operation_transition_v1(&mut prepared),
+        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+    );
+    let mut fresh = owner
+        .prepare_session_operation_transition_v1(request(0, carbonyl()))
+        .expect("equivalent request prepares after retirement");
+    let accepted = owner
+        .commit_session_operation_transition_v1(&mut fresh)
+        .expect("fresh transition commits");
+    let SessionOperationOutcomeV1::MoleculeInsertedV1(outcome) = accepted.outcome() else {
+        panic!("committed outcome is molecule insertion");
+    };
+    assert_eq!(
+        outcome.molecule_identifier().as_str(),
+        "ferrum-molecule-v1-0"
     );
 }

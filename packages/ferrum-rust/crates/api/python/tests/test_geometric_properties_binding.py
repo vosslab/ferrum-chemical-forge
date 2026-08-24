@@ -29,7 +29,7 @@ def test_geometric_properties_are_atomic_frozen_and_history_aware() -> None:
 	operation = ferrum_chem.DocumentOperationV1.set_geometric_properties(
 		"shape", changes,
 	)
-	changed = session.submit(0, operation).observation
+	changed = session.apply_document_operation_v1(0, operation).observation
 	shape = _rectangle(changed)
 	assert changed.snapshot.revision == 1
 	assert (shape.stroke.width, shape.stroke.color) == (2.5, "#445566")
@@ -83,11 +83,11 @@ def test_geometric_properties_reject_hostile_or_inapplicable_intent() -> None:
 			identifier, (change,),
 		)
 		with pytest.raises(ferrum_chem.OperationValidationError):
-			session.submit(0, operation)
+			session.apply_document_operation_v1(0, operation)
 		assert session.observe(0).snapshot.digest == before.digest
 	unknown = ferrum_chem.DocumentOperationV1.set_geometric_properties(
 		"missing", (change_type.line_width(2.0),),
 	)
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as error:
-		session.submit(0, unknown)
+		session.apply_document_operation_v1(0, unknown)
 	assert error.value.object_id == "missing"

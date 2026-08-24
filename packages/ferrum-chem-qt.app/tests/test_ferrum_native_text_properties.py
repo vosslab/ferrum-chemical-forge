@@ -84,7 +84,7 @@ def test_native_text_edit_updates_rust_and_retains_durable_selection(
 #============================================
 def test_native_text_adapter_refuses_unsupported_face_before_session_creation() -> None:
 	"""Unsupported family input has no session whose current drawing could change."""
-	with pytest.raises(ValueError, match="unsupported_text_face"):
+	with pytest.raises(ferrum_chem.DocumentLoadError, match="unsupported_text_face"):
 		ferrum_chem.DocumentSession.load(
 			'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="0" y="0"/>'
 			'<font family="Arial"/><ftext>text</ftext></text></cdml>',

@@ -93,7 +93,10 @@ fn text_with_target(
         ));
         return None;
     }
-    let font = resolve_font(fonts.first().copied(), defaults.standard, &target, issues);
+    let Some(font) = resolve_font(fonts.first().copied(), defaults.standard, &target, issues)
+    else {
+        return None;
+    };
     let background = resolve_background(record, &target, issues);
     TextProjectionV1::try_new(target, anchor, runs, font, background).ok()
 }
@@ -103,19 +106,21 @@ fn resolve_font(
     standard: Option<&TypedRecord>,
     target: &PresentationTargetV1,
     issues: &mut Vec<PresentationProjectionIssueV1>,
-) -> PresentationTextFontV1 {
-    let (font_face, font_face_provenance) = font_face(font, standard, target, issues);
+) -> Option<PresentationTextFontV1> {
+    let (font_face, font_face_provenance) = font_face(font, standard, target, issues)?;
     let (size, size_provenance) = size(font, standard, target, issues);
     let (color, color_provenance) = color(font, standard, target, issues);
-    PresentationTextFontV1::try_new(
-        font_face,
-        font_face_provenance,
-        size,
-        size_provenance,
-        color,
-        color_provenance,
+    Some(
+        PresentationTextFontV1::try_new(
+            font_face,
+            font_face_provenance,
+            size,
+            size_provenance,
+            color,
+            color_provenance,
+        )
+        .expect("typed-CDML font resolution always selects valid closed facts"),
     )
-    .expect("typed-CDML font resolution always selects valid closed facts")
 }
 
 fn font_face(
@@ -123,7 +128,7 @@ fn font_face(
     standard: Option<&TypedRecord>,
     target: &PresentationTargetV1,
     issues: &mut Vec<PresentationProjectionIssueV1>,
-) -> (PresentationFontFaceV1, PresentationFactProvenanceV1) {
+) -> Option<(PresentationFontFaceV1, PresentationFactProvenanceV1)> {
     for (record, field, provenance) in [
         (font, "family", PresentationFactProvenanceV1::Root),
         (
@@ -136,18 +141,19 @@ fn font_face(
             continue;
         };
         if let Some(face) = PresentationFontFaceV1::from_cdml_family(value) {
-            return (face, provenance);
+            return Some((face, provenance));
         }
         issues.push(PresentationProjectionIssueV1::new(
             target.clone(),
             PresentationProjectionIssueCodeV1::UnsupportedTextFace,
             format!("unsupported_text_face: {field} must be Telex Regular (bundled)"),
         ));
+        return None;
     }
-    (
+    Some((
         PresentationFontFaceV1::TelexRegularV1,
         PresentationFactProvenanceV1::Builtin,
-    )
+    ))
 }
 
 fn size(

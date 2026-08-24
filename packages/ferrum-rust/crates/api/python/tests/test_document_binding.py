@@ -58,28 +58,7 @@ def set_atom(element: str) -> ferrum_chem.DocumentOperationV1:
     return ferrum_chem.DocumentOperationV1.set_atom_element("a", element)
 
 
-def test_presentation_vector_binding_keeps_frozen_failure_and_commit_contract() -> None:
-    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'><standard line_color='#123456' line_width='2'/></cdml>")
-    snapshot = session.snapshot()
-    gesture = session.begin_presentation_vector_gesture_v1(
-        snapshot.revision,
-        snapshot.digest,
-        ferrum_chem.PresentationVectorKindV1.rectangle,
-        10.0,
-        20.0,
-    )
-    preview = session.preview_presentation_vector_gesture_v1(gesture, 30.0, 45.0)
-    prepared = session.prepare_presentation_vector_gesture_v1(gesture, preview)
-    commit = session.commit_presentation_vector_gesture_v1(prepared)
-    assert commit.result.observation.snapshot.revision == 1
-    assert 'line_color="#123456"' in commit.result.observation.snapshot.cdml
-    with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
-        session.commit_presentation_vector_gesture_v1(prepared)
-    assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.replayed_gesture
-    assert captured.value.recovery == ferrum_chem.PresentationVectorGestureRecoveryV1.refresh_and_restart
-
-
-def test_reaction_creation_uses_only_the_renderer_preflighted_python_route() -> None:
+def test_reaction_creation_resolves_to_the_generic_transition_route() -> None:
     source = (
         '<cdml xmlns="urn:ferrum:cdml"><molecule id="left"><atom id="left-a" name="C">'
         '<point x="0" y="0"/></atom></molecule><molecule id="product">'
@@ -88,16 +67,17 @@ def test_reaction_creation_uses_only_the_renderer_preflighted_python_route() -> 
         '</arrow></cdml>'
     )
     session = ferrum_chem.DocumentSession.load(source)
-    commit = session.create_reaction_v1(0, ["left"], ["product"], "arrow", [], [])
-    assert commit.reaction_id == "rxn-1"
-    assert commit.result.observation.snapshot.revision == 1
-    assert '<reaction id="rxn-1"' in commit.result.observation.snapshot.cdml
-    assert not hasattr(session, "commit_raw_reaction_v1")
-    assert not hasattr(session, "commit_preflighted_reaction_v1")
-    with pytest.raises(ferrum_chem.ReactionGestureError) as captured:
-        session.create_reaction_v1(1, ["missing"], ["product"], "arrow", [], [])
-    assert captured.value.category == ferrum_chem.ReactionRefusalCategoryV1.missing_target
-    assert captured.value.recovery == ferrum_chem.ReactionRefusalRecoveryV1.correct_selectors
+    snapshot = session.snapshot()
+    gesture = session.begin_reaction_gesture_v1(
+        snapshot.revision, snapshot.digest, ["left"], ["product"], "arrow", [], [],
+    )
+    request = session.resolve_reaction_gesture_v1(gesture)
+    prepared = session.prepare_session_operation_transition_v1(request)
+    commit = session.commit_session_operation_transition_v1(prepared)
+    assert commit.outcome.kind == "reaction_created_v1"
+    assert commit.outcome.reaction_created.reaction_id == "rxn-1"
+    assert commit.observation.snapshot.revision == 1
+    assert '<reaction id="rxn-1"' in commit.observation.snapshot.cdml
 
 
 def test_reaction_authoring_choices_are_renderer_fenced_and_non_mutating() -> None:
@@ -140,95 +120,29 @@ def test_reaction_authoring_choices_are_renderer_fenced_and_non_mutating() -> No
     assert "<rect" not in annotation.label
     assert not hasattr(annotation, "cdml")
     session.validate_reaction_authoring_choices_v1(choices)
-    commit = session.submit(
-        0, ferrum_chem.DocumentOperationV1.set_atom_element("left-a", "N"),
+    with pytest.raises(ferrum_chem.OperationValidationError):
+        session.apply_document_operation_v1(
+            0, ferrum_chem.DocumentOperationV1.set_atom_element("left-a", "N"),
+        )
+    rejected = session.snapshot()
+    assert (rejected.revision, rejected.digest) == (snapshot.revision, snapshot.digest)
+
+    renderable = ferrum_chem.DocumentSession.load(SOURCE)
+    renderable_snapshot = renderable.snapshot()
+    renderable_choices = renderable.observe_reaction_authoring_choices_v1(
+        renderable_snapshot.revision, renderable_snapshot.digest,
+    )
+    commit = renderable.apply_document_operation_v1(
+        0, ferrum_chem.DocumentOperationV1.set_atom_element("a", "N"),
     )
     assert commit.observation.snapshot.revision == 1
     with pytest.raises(ferrum_chem.ReactionAuthoringChoicesError) as captured:
-        session.validate_reaction_authoring_choices_v1(choices)
+        renderable.validate_reaction_authoring_choices_v1(renderable_choices)
     assert captured.value.category == ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.stale_snapshot
-    other = ferrum_chem.DocumentSession.load(source)
+    other = ferrum_chem.DocumentSession.load(SOURCE)
     with pytest.raises(ferrum_chem.ReactionAuthoringChoicesError) as captured:
-        other.validate_reaction_authoring_choices_v1(choices)
+        other.validate_reaction_authoring_choices_v1(renderable_choices)
     assert captured.value.category == ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.foreign_session
-
-
-def test_presentation_vector_bridge_receipts_preflight_and_fence_every_python_path() -> None:
-    standard = (
-        '<cdml xmlns="urn:ferrum:cdml"><standard line_color="#123456" line_width="2" '
-        'area_color="#ABCDEF"/></cdml>'
-    )
-    first = ferrum_chem.DocumentSession.load(standard)
-    second = ferrum_chem.DocumentSession.load(standard)
-    first_snapshot = first.snapshot()
-    second_snapshot = second.snapshot()
-    first_gesture = first.begin_presentation_vector_gesture_v1(
-        first_snapshot.revision,
-        first_snapshot.digest,
-        ferrum_chem.PresentationVectorKindV1.oval,
-        10.0,
-        20.0,
-    )
-    first_preview = first.preview_presentation_vector_gesture_v1(
-        first_gesture, 40.0, 60.0,
-    )
-    assert first_preview.overlay.stroke_color == "#123456"
-    assert first_preview.overlay.stroke_width == 2.0
-    assert first_preview.overlay.fill_color == "#abcdef"
-
-    # The former raw `(gesture, preview)` commit is not a client surface: only
-    # one opaque prepared receipt is accepted by the Python bridge method.
-    with pytest.raises(TypeError):
-        first.commit_presentation_vector_gesture_v1(first_gesture, first_preview)
-    with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
-        second.prepare_presentation_vector_gesture_v1(first_gesture, first_preview)
-    assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.foreign_session
-    assert second.snapshot().revision == second_snapshot.revision
-
-    mismatch_gesture = first.begin_presentation_vector_gesture_v1(
-        first_snapshot.revision,
-        first_snapshot.digest,
-        ferrum_chem.PresentationVectorKindV1.oval,
-        10.0,
-        20.0,
-    )
-    mismatch_preview = first.preview_presentation_vector_gesture_v1(mismatch_gesture, 40.0, 60.0)
-    with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
-        first.prepare_presentation_vector_gesture_v1(first_gesture, mismatch_preview)
-    assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.mismatched_preview
-    assert first.snapshot().revision == first_snapshot.revision
-
-    prepared = first.prepare_presentation_vector_gesture_v1(first_gesture, first_preview)
-    commit = first.commit_presentation_vector_gesture_v1(prepared)
-    assert commit.kind == ferrum_chem.PresentationVectorKindV1.oval
-    assert commit.result.observation.snapshot.revision == 1
-    assert 'line_color="#123456"' in commit.result.observation.snapshot.cdml
-    assert 'width="2"' in commit.result.observation.snapshot.cdml
-    assert 'area_color="#abcdef"' in commit.result.observation.snapshot.cdml
-    with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
-        first.commit_presentation_vector_gesture_v1(prepared)
-    assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.replayed_gesture
-
-    excluded = ferrum_chem.DocumentSession.load(
-        '<cdml xmlns="urn:ferrum:cdml"><plus id="excluded"><point x="1" y="2"/>'
-        '<font family="Arial"/></plus></cdml>',
-    )
-    excluded_snapshot = excluded.snapshot()
-    excluded_gesture = excluded.begin_presentation_vector_gesture_v1(
-        excluded_snapshot.revision,
-        excluded_snapshot.digest,
-        ferrum_chem.PresentationVectorKindV1.line,
-        10.0,
-        20.0,
-    )
-    excluded_preview = excluded.preview_presentation_vector_gesture_v1(
-        excluded_gesture, 40.0, 60.0,
-    )
-    with pytest.raises(ferrum_chem.PresentationVectorGestureError) as captured:
-        excluded.prepare_presentation_vector_gesture_v1(excluded_gesture, excluded_preview)
-    assert captured.value.category == ferrum_chem.PresentationVectorGestureCategoryV1.render_preparation
-    assert captured.value.recovery == ferrum_chem.PresentationVectorGestureRecoveryV1.document_unchanged
-    assert excluded.snapshot().revision == excluded_snapshot.revision
 
 
 def test_text_placement_binding_uses_renderer_overlay_and_one_commit() -> None:
@@ -460,19 +374,22 @@ def test_smiles_molecule_preparation_is_frozen_and_one_atomic_document_edit() ->
     placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
     molecule = ferrum_chem.prepare_smiles_molecule_v1("CCO", placement)
     session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
-    prepared = session.prepare_admitted_molecule_insertion_v1(0, molecule)
-    committed = session.commit_admitted_molecule_insertion_v1(0, prepared)
+    operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
+    prepared = session.prepare_session_operation_transition_v1(
+        operation.transition_request_v1(0))
+    committed = session.commit_session_operation_transition_v1(prepared)
     projection = committed.observation.projection
 
     assert (molecule.atom_count, molecule.bond_count) == (3, 2)
-    assert prepared.molecule_identifier.startswith("ferrum-molecule-v1-")
+    assert committed.outcome.molecule_inserted.molecule_identifier.startswith(
+        "ferrum-molecule-v1-")
     assert committed.observation.snapshot.revision == 1
     assert tuple(atom.element for atom in projection.molecules[0].atoms) == ("C", "C", "O")
     assert len(projection.molecules[0].bonds) == 2
     with pytest.raises(AttributeError):
         molecule.atom_count = 9
     with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
-        session.commit_admitted_molecule_insertion_v1(1, prepared)
+        session.commit_session_operation_transition_v1(prepared)
     assert session.undo(1).observation.projection.molecules == []
     assert len(session.redo(2).observation.projection.molecules) == 1
 
@@ -549,7 +466,7 @@ def test_observation_and_stale_revision_conflict_are_typed() -> None:
     assert observed.projection.molecules[0].atoms[0].position.x == 1.0
     with pytest.raises(AttributeError):
         observed.projection.molecules = []
-    changed = session.submit(0, set_atom("N")).observation.snapshot
+    changed = session.apply_document_operation_v1(0, set_atom("N")).observation.snapshot
     assert changed.revision == 1
 
     with pytest.raises(ferrum_chem.RevisionConflictError) as caught:
@@ -674,13 +591,13 @@ def test_presentation_polyline_idless_targets_and_invalid_geometry_remain_explic
 def test_noop_and_mutation_follow_the_revision_and_dirty_contract() -> None:
     session = ferrum_chem.DocumentSession.load(SOURCE)
     baseline = session.snapshot()
-    no_change = session.submit(0, set_atom("C")).observation.snapshot
+    no_change = session.apply_document_operation_v1(0, set_atom("C")).observation.snapshot
 
     assert no_change.revision == baseline.revision
     assert no_change.digest == baseline.digest
     assert no_change.is_dirty is False
 
-    changed = session.submit(no_change.revision, set_atom("N")).observation.snapshot
+    changed = session.apply_document_operation_v1(no_change.revision, set_atom("N")).observation.snapshot
     assert changed.revision == 1
     assert changed.is_dirty is True
     assert 'name="N"' in changed.cdml
@@ -688,7 +605,7 @@ def test_noop_and_mutation_follow_the_revision_and_dirty_contract() -> None:
 
 def test_undo_and_redo_create_monotonic_revisions() -> None:
     session = ferrum_chem.DocumentSession.load(SOURCE)
-    changed = session.submit(0, set_atom("N")).observation.snapshot
+    changed = session.apply_document_operation_v1(0, set_atom("N")).observation.snapshot
     undone = session.undo(changed.revision).observation.snapshot
     redone = session.redo(undone.revision).observation.snapshot
 
@@ -703,18 +620,18 @@ def test_history_availability_getters_follow_cursor_and_discarded_branch() -> No
     session = ferrum_chem.DocumentSession.load(SOURCE)
     assert session.can_undo is False and session.can_redo is False
 
-    changed = session.submit(0, set_atom("N")).observation.snapshot
+    changed = session.apply_document_operation_v1(0, set_atom("N")).observation.snapshot
     assert session.can_undo is True and session.can_redo is False
     undone = session.undo(changed.revision).observation.snapshot
     assert session.can_undo is False and session.can_redo is True
-    session.submit(undone.revision, set_atom("O"))
+    session.apply_document_operation_v1(undone.revision, set_atom("O"))
     assert session.can_undo is True and session.can_redo is False
 
 
 def test_atom_position_operation_is_finite_revisioned_and_undoable() -> None:
     session = ferrum_chem.DocumentSession.load(SOURCE)
     operation = ferrum_chem.DocumentOperationV1.set_atom_position("a", 7.5, 8.25, 0.0)
-    moved = session.submit(0, operation).observation
+    moved = session.apply_document_operation_v1(0, operation).observation
 
     assert ferrum_chem.DocumentOperationV1.__module__ == "ferrum_chem"
     assert moved.snapshot.revision == 1
@@ -744,8 +661,10 @@ def test_atom_properties_are_one_frozen_atomic_edit_with_history(
         change_type.label_color("#A0B1c2"),
     )
     session = ferrum_chem.DocumentSession.load(ATOM_PROPERTIES_SOURCE)
+    loaded_atom = session.observe(0).projection.molecules[0].atoms[0]
+    assert (loaded_atom.label_font.family, loaded_atom.label_font.size) == ("Courier", 11.0)
     operation = ferrum_chem.DocumentOperationV1.set_atom_properties("a", changes)
-    changed = session.submit(0, operation).observation
+    changed = session.apply_document_operation_v1(0, operation).observation
     atom = changed.projection.molecules[0].atoms[0]
 
     assert change_type.__module__ == "ferrum_chem"
@@ -800,7 +719,7 @@ def test_atom_properties_reject_ambiguous_or_invalid_python_intent() -> None:
     with pytest.raises(AttributeError):
         charge.value = 2
 
-    no_change = session.submit(
+    no_change = session.apply_document_operation_v1(
         0, ferrum_chem.DocumentOperationV1.set_atom_properties("a", ()),
     ).observation.snapshot
     assert no_change.revision == 0 and no_change.is_dirty is False
@@ -808,7 +727,7 @@ def test_atom_properties_reject_ambiguous_or_invalid_python_intent() -> None:
 
 def test_atom_number_is_frozen_revisioned_and_exactly_typed() -> None:
     session = ferrum_chem.DocumentSession.load(SOURCE)
-    assigned = session.submit(
+    assigned = session.apply_document_operation_v1(
         0, ferrum_chem.DocumentOperationV1.set_atom_number("m", "a", 17, False),
     ).observation
     atom = assigned.projection.molecules[0].atoms[0]
@@ -816,7 +735,7 @@ def test_atom_number_is_frozen_revisioned_and_exactly_typed() -> None:
     assert 'number="17" show_number="no"' in assigned.snapshot.cdml
     assert session.undo(1).observation.projection.molecules[0].atoms[0].number is None
     assert session.redo(2).observation.projection.molecules[0].atoms[0].number == 17
-    cleared = session.submit(
+    cleared = session.apply_document_operation_v1(
         3, ferrum_chem.DocumentOperationV1.clear_atom_number("m", "a"),
     ).observation
     assert (
@@ -846,7 +765,7 @@ def test_bond_properties_are_one_frozen_atomic_edit_with_history(
         change_type.color("#aBc"),
     )
     session = ferrum_chem.DocumentSession.load(BOND_PROPERTIES_SOURCE)
-    changed = session.submit(
+    changed = session.apply_document_operation_v1(
         0, ferrum_chem.DocumentOperationV1.set_bond_properties("ab", changes),
     ).observation
     bond = changed.projection.molecules[0].bonds[0]

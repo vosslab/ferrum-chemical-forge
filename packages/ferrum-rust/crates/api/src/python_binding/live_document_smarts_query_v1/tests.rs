@@ -8,18 +8,16 @@ use ferrum_chemistry::{
     ChemEngine, ChemistryError, Coordinates, KekulizeOptions, MolGraph, SmartsMatchOptions,
     SmartsMatchResult, SmilesMolecule,
 };
-use ferrum_document::{DocumentFenceV1, DocumentSession};
+use ferrum_document::{
+    DocumentFenceV1, DocumentSession, Point3V1, SessionOperation,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
+};
 use pyo3::types::PyAnyMethods;
 
 const SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
     "</atom></molecule></cdml>"
 );
-const MUTATED_SOURCE: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"3\" y=\"2\"/>",
-    "</atom></molecule></cdml>"
-);
-
 struct ReceiptLifecycleEngine;
 
 impl ChemEngine for ReceiptLifecycleEngine {
@@ -282,8 +280,18 @@ fn selected_readiness_reports_a_stale_token() {
         .publish(&session, expected.revision())
         .expect("published renderer plan");
     let selected = selected_query_token(&session, &bridge, expected);
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+            expected.revision(),
+            SessionOperation::V1(SessionOperationV1::SetAtomPosition {
+                atom_id: "a".to_owned(),
+                position: Point3V1::new(3.0, 2.0, 0.0).expect("finite replacement point"),
+            }),
+            TransitionAuthorizationV1::None,
+        ))
+        .expect("changed document prepares");
     session
-        .commit_complete_cdml_transaction_v1(expected, MUTATED_SOURCE)
+        .commit_session_operation_transition_v1(&mut prepared)
         .expect("changed document commits");
 
     let readiness = bridge.selected_readiness(&session, &selected);

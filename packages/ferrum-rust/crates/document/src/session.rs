@@ -14,19 +14,18 @@ use renderer_admitted_pending_v1::RendererAdmittedPendingV1;
 
 use super::identity_index::ProvisionalToken;
 use super::{
-    AuthoringCapabilityIssuerV1, BracketInsertionV1, BracketStyleV1,
-    DetachedRegularRingInsertionV1, DocumentBondCapacityOutcomeV1, DocumentBondPresentationV1,
-    DocumentObjectIdV1, MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1,
-    PersistentId, Point3V1, PreparedStraightenDepictionsV1, ProjectionError,
-    SessionDocumentObservationV1, TypedClass, TypedDocument, TypedDocumentError, WavyInsertionV1,
-    XmlSerializationError,
+    AuthoringCapabilityIssuerV1, BracketInsertionV1, BracketStyleV1, DocumentBondCapacityOutcomeV1,
+    DocumentBondPresentationV1, DocumentObjectIdV1, MoleculeInsertionAtomV1,
+    MoleculeInsertionBondV1, MoleculeInsertionV1, PersistentId, Point3V1,
+    PreparedStraightenDepictionsV1, ProjectionError, SessionDocumentObservationV1, TypedClass,
+    TypedDocument, TypedDocumentError, WavyInsertionV1, XmlSerializationError,
     direct_bond_primitives_v1::{
-        DirectBondAdmissionRefusalV1, DirectBondCommitErrorV1, DirectBondGestureErrorV1,
-        DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentFenceV1,
+        DirectBondAdmissionRefusalV1, DirectBondGestureErrorV1, DirectBondPoint2V1,
+        DirectBondSnapPolicyV1, DocumentFenceV1,
     },
     generated_ids::GeneratedIdSequences,
     presentation_creation_gesture_v1::{
-        CommittedPresentationGestureV1, PresentationCreationGestureV1, PresentationGestureErrorV1,
+        PresentationCreationGestureV1, PresentationCreationPreviewV1, PresentationGestureErrorV1,
         PresentationGestureKindV1, PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1,
         PresentationGestureStyleV1,
     },
@@ -36,7 +35,6 @@ use super::{
     typed_bond_insertion::BondedAtomInsertion,
 };
 
-mod admitted_molecule_insertion;
 mod admitted_transition_v1;
 #[doc(hidden)]
 pub mod attached_cyclohexane;
@@ -44,9 +42,6 @@ mod bracket;
 mod catalog_molecule_placement;
 mod clipboard;
 mod clipboard_cut;
-mod compact_group_materialization;
-mod compact_group_placement;
-mod complete_cdml_mutation;
 mod construction;
 mod direct_bond;
 mod direct_haworth;
@@ -55,26 +50,26 @@ mod gestures;
 mod hydrogen_materialization;
 mod interchange;
 mod linear_form;
-#[cfg(test)]
-mod molecule_batch_creation;
 mod molecule_creation;
 mod prepared;
 mod presentation_creation;
 mod presentation_gesture;
 mod primitive_bond;
 mod renderer_admitted_pending_v1;
+mod renderer_translation_snap_v1;
 mod standalone_haworth;
 mod straighten;
 mod structural_deletion;
 mod text_placement;
 mod user_template;
 mod wavy;
-#[allow(unused_imports)]
-pub use admitted_molecule_insertion::{
-    PendingAdmittedInterchangeBatchV1, PendingAdmittedMoleculeInsertionV1,
-};
 use admitted_transition_v1::SessionTransitionEffectsV1;
-pub use admitted_transition_v1::{AdmittedSessionTransitionRefusalV1, PreparedSessionTransitionV1};
+pub use admitted_transition_v1::{
+    AdmittedSessionTransitionRefusalV1, PreparedSessionTransitionPresentationRefusalV1,
+    PreparedSessionTransitionPresentationV1, PreparedSessionTransitionV1,
+    SessionOperationTransitionRequestV1, TransitionAuthorizationRefusalV1,
+    TransitionAuthorizationV1,
+};
 /// Concrete internal Rust transaction seam for the API-owned attached-C6 bridge.
 ///
 /// This remains public because `ferrum-api` must retain and redeem the opaque prepared
@@ -83,36 +78,13 @@ pub use admitted_transition_v1::{AdmittedSessionTransitionRefusalV1, PreparedSes
 /// and atomic commit authority.
 pub use attached_cyclohexane::{AttachedCyclohexaneSessionErrorV1, PendingAttachedCyclohexaneV1};
 pub use bracket::PendingCreateBracket;
-pub use catalog_molecule_placement::{
-    CatalogMoleculePlacementGestureV1, CatalogMoleculePlacementRefusalV1,
-    CatalogMoleculePlacementRequestV1, PendingCatalogMoleculePlacementV1,
-};
 pub use clipboard::DocumentClipboardPasteResultV1;
-pub use compact_group_materialization::{
-    CompactGroupMaterializationRefusalV1, CompactGroupMaterializationRequestV1,
-    CompactGroupMaterializationResultV1, PendingCompactGroupMaterializationV1,
-};
-pub use compact_group_placement::{
-    CompactGroupPlacementModeV1, CompactGroupPlacementRefusalV1, CompactGroupPlacementRequestV1,
-    PendingCompactGroupPlacementV1,
-};
-pub use complete_cdml_mutation::{CompleteCdmlMutationRefusalV1, PendingCompleteCdmlMutationV1};
-#[allow(unused_imports)]
-pub use direct_bond::PendingDirectBondMutationV1;
-pub use direct_haworth::{
-    CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, PendingDirectHaworthV1,
-};
 #[allow(unused_imports)]
 pub use explicit_fragment::PendingCreateExplicitFragmentV1;
-pub use hydrogen_materialization::PendingHydrogenMaterializationV1;
-pub(crate) use interchange::PendingCreateInterchangeBatchV1;
 pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
 pub use presentation_creation::{
-    PendingCreatePresentationV1, PresentationAppearanceV1, PresentationCreateErrorV1,
-    PresentationCreateRequestV1, PresentationVectorCreateKindV1,
+    PresentationAppearanceV1, PresentationCreateRequestV1, PresentationVectorCreateKindV1,
 };
-pub use presentation_gesture::PendingPresentationGestureV1;
-pub use standalone_haworth::PendingStandaloneHaworthV1;
 pub use structural_deletion::PendingDeleteStructureV1;
 pub use text_placement::PendingTextPlacementV1;
 pub use user_template::DocumentUserTemplateResultV1;
@@ -205,135 +177,6 @@ impl Publication {
     }
 }
 
-pub struct PendingCreateAtom {
-    identifier: PersistentId,
-    transition: PreparedSessionTransitionV1,
-}
-
-/// A one-use, revision-bound prepared bond insertion.
-pub struct PendingCreateBond {
-    identifier: PersistentId,
-    transition: PreparedSessionTransitionV1,
-}
-
-/// A one-use, revision-bound prepared atom-plus-bond insertion.
-pub struct PendingCreateBondedAtom {
-    atom_identifier: PersistentId,
-    bond_identifier: PersistentId,
-    transition: PreparedSessionTransitionV1,
-}
-
-/// A one-use, revision-bound prepared complete molecule insertion.
-pub(crate) struct PendingCreateMolecule {
-    molecule_identifier: PersistentId,
-    atom_identifiers: Vec<PersistentId>,
-    bond_identifiers: Vec<PersistentId>,
-    transition: PreparedSessionTransitionV1,
-}
-
-impl std::fmt::Debug for PendingCreateMolecule {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("PendingCreateMolecule")
-            .field("molecule_identifier", &self.molecule_identifier)
-            .field("atom_count", &self.atom_identifiers.len())
-            .field("bond_count", &self.bond_identifiers.len())
-            .field("is_resolved", &self.transition.is_consumed_v1())
-            .finish()
-    }
-}
-
-impl PendingCreateMolecule {
-    /// Return the durable molecule ID created when this candidate is committed.
-    #[must_use]
-    pub(crate) fn molecule_identifier(&self) -> &PersistentId {
-        &self.molecule_identifier
-    }
-
-    /// Return durable atom IDs in inserted source order.
-    #[must_use]
-    pub(crate) fn atom_identifiers(&self) -> &[PersistentId] {
-        &self.atom_identifiers
-    }
-
-    /// Return durable bond IDs in inserted source order.
-    #[must_use]
-    pub(crate) fn bond_identifiers(&self) -> &[PersistentId] {
-        &self.bond_identifiers
-    }
-
-    /// Return the candidate observation used by a Rust-only pre-commit
-    /// admission boundary. Candidate XML and mutable session state remain
-    /// encapsulated by this opaque receipt.
-    #[must_use]
-    pub(crate) fn candidate_observation_v1(&self) -> Option<SessionDocumentObservationV1> {
-        self.transition
-            .metadata_v1()
-            .map(|metadata| metadata.observation().clone())
-    }
-}
-
-impl std::fmt::Debug for PendingCreateAtom {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("PendingCreateAtom")
-            .field("identifier", &self.identifier)
-            .field("is_resolved", &self.transition.is_consumed_v1())
-            .finish()
-    }
-}
-
-impl PendingCreateAtom {
-    /// Return the durable ID that will be created if this candidate is committed.
-    #[must_use]
-    pub fn identifier(&self) -> &PersistentId {
-        &self.identifier
-    }
-}
-
-impl std::fmt::Debug for PendingCreateBond {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("PendingCreateBond")
-            .field("identifier", &self.identifier)
-            .field("is_resolved", &self.transition.is_consumed_v1())
-            .finish()
-    }
-}
-
-impl PendingCreateBond {
-    /// Return the durable ID that will be created if this candidate is committed.
-    #[must_use]
-    pub fn identifier(&self) -> &PersistentId {
-        &self.identifier
-    }
-}
-
-impl std::fmt::Debug for PendingCreateBondedAtom {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("PendingCreateBondedAtom")
-            .field("atom_identifier", &self.atom_identifier)
-            .field("bond_identifier", &self.bond_identifier)
-            .field("is_resolved", &self.transition.is_consumed_v1())
-            .finish()
-    }
-}
-
-impl PendingCreateBondedAtom {
-    /// Return the durable atom ID created if this candidate is committed.
-    #[must_use]
-    pub fn atom_identifier(&self) -> &PersistentId {
-        &self.atom_identifier
-    }
-
-    /// Return the durable bond ID created if this candidate is committed.
-    #[must_use]
-    pub fn bond_identifier(&self) -> &PersistentId {
-        &self.bond_identifier
-    }
-}
-
 /// Failures while loading, serializing, or publishing a CDML snapshot.
 #[derive(Debug, Error)]
 pub enum DocumentSessionError {
@@ -370,6 +213,12 @@ pub enum DocumentSessionError {
     /// A typed operation was rejected before a state transition.
     #[error(transparent)]
     Operation(#[from] SessionOperationError),
+    /// The supplied authorization does not match the semantic operation.
+    #[error("session transition authorization refused: {0:?}")]
+    TransitionAuthorization(TransitionAuthorizationRefusalV1),
+    /// A direct-bond semantic request was rejected before a state transition.
+    #[error(transparent)]
+    DirectBondAdmission(#[from] DirectBondAdmissionRefusalV1),
     /// The renderer rejected the exact prospective document state before it could
     /// become a visible prepared operation.
     #[error("renderer rejected the prospective document state")]
@@ -464,13 +313,18 @@ pub struct DocumentSession {
 }
 
 impl DocumentSession {
-    /// Return this live session's opaque authoring-capability issuer.
-    ///
-    /// The returned handle is process-local and identifies the session by its
-    /// allocation, not by durable document content or a serializable nonce.
     #[must_use]
-    pub fn authoring_capability_issuer_v1(&self) -> AuthoringCapabilityIssuerV1 {
+    pub(crate) fn authoring_capability_issuer_v1(&self) -> AuthoringCapabilityIssuerV1 {
         self.authoring_capability_issuer.clone()
+    }
+
+    /// Issue one opaque authoring receipt for this live document session.
+    ///
+    /// Receipt ownership, validation, claiming, and terminal disposition stay
+    /// document-private; interaction routes receive only this opaque input.
+    #[must_use]
+    pub fn issue_authoring_capability_v1(&self) -> crate::AuthoringCapabilityV1 {
+        self.authoring_capability_issuer.issue()
     }
 
     /// Return whether the current authoritative CDML index owns this durable ID.
@@ -484,24 +338,6 @@ impl DocumentSession {
             .ok()
             .is_some_and(|id| self.current_index_v1().resolve_id(&id).is_some())
     }
-    /// Begin one opaque direct-root Text placement.  The returned token has no
-    /// XML or mutable document state and is valid only for this exact snapshot.
-    /// Observe one complete-root translation anchor at an exact retained revision.
-    pub fn observe_top_level_translation_anchor_v1(
-        &self,
-        expected_revision: u64,
-        targets: Vec<super::TopLevelRootSelectorV1>,
-    ) -> Result<super::TopLevelTranslationAnchorV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        let current = self.current_state_v1();
-        current
-            .document()
-            .top_level_translation_anchor_v1(current.revision(), *current.digest(), targets)
-            .map_err(|error| {
-                DocumentSessionError::Operation(super::SessionOperationError::Candidate(error))
-            })
-    }
-
     /// Produce an owned structural serialization of the retained tree.
     pub fn snapshot(&self) -> Result<DocumentSnapshot, DocumentSessionError> {
         let current = self.current_state_v1();
@@ -583,14 +419,6 @@ impl DocumentSession {
     ///
     /// This compatibility spelling delegates to the opaque admitted-transition
     /// boundary and never appends a raw operation candidate directly.
-    pub fn submit(
-        &mut self,
-        expected_revision: u64,
-        operation: SessionOperation,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.execute_session_operation_transition_v1(expected_revision, operation)
-    }
-
     /// Navigate to the preceding retained logical state as a new monotonic revision.
     pub fn undo(
         &mut self,
@@ -759,4 +587,10 @@ impl Publication {
             outcome,
         }
     }
+}
+/// Renderer-only values surfaced by the crate's explicit admission namespace.
+pub(crate) mod renderer_admission {
+    pub use super::renderer_translation_snap_v1::{
+        RendererTranslationSnapDeltaV1, RendererTranslationSnapRefusalV1,
+    };
 }

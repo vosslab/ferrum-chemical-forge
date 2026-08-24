@@ -7,9 +7,8 @@ use xot::{Node, Xot};
 use super::{
     AtomMarkActionV1, AtomMarkKindV1, CDML_NAMESPACE, PersistentId, TypedDocument,
     TypedDocumentError, element_name,
+    typed_coordinate::{canonical_authored_coordinate, parse_coordinate},
 };
-
-const CENTIMETRES_PER_POINT: f64 = 2.54 / 72.0;
 
 impl TypedDocument {
     /// Return a detached candidate with one supported direct atom mark added or removed.
@@ -67,7 +66,7 @@ fn append_mark(
 ) -> Result<(), TypedDocumentError> {
     let (atom_x, atom_y) = direct_atom_position(tree, atom, atom_id)?;
     let angle = authored_angle(kind);
-    let offset = angle.map_or(0.0, |_| 12.0 * CENTIMETRES_PER_POINT);
+    let offset = angle.map_or(0.0, |_| 12.0);
     let radians = angle.unwrap_or(0.0) * PI / 180.0;
     let x = atom_x + offset * radians.cos();
     let y = atom_y + offset * radians.sin();
@@ -80,8 +79,8 @@ fn append_mark(
     let mark_name = element_name_id(tree, "mark", &namespace);
     let mark = tree.new_element(mark_name);
     set(tree, mark, "type", kind.as_str());
-    set(tree, mark, "x", canonical_centimetres(x));
-    set(tree, mark, "y", canonical_centimetres(y));
+    set(tree, mark, "x", canonical_authored_coordinate(x));
+    set(tree, mark, "y", canonical_authored_coordinate(y));
     set(tree, mark, "auto", "0");
     set(tree, mark, "size", authored_size(kind));
     match kind {
@@ -116,27 +115,21 @@ fn direct_atom_position(
     {
         return Err(TypedDocumentError::InvalidAtomMarkPoint(atom_id.clone()));
     }
-    let x = source_centimetres(tree, *point, "x")
+    let x = source_points(tree, *point, "x")
         .ok_or_else(|| TypedDocumentError::InvalidAtomMarkPoint(atom_id.clone()))?;
-    let y = source_centimetres(tree, *point, "y")
+    let y = source_points(tree, *point, "y")
         .ok_or_else(|| TypedDocumentError::InvalidAtomMarkPoint(atom_id.clone()))?;
     let z_name = tree.add_name("z");
-    if tree.get_attribute(*point, z_name).is_some()
-        && source_centimetres(tree, *point, "z").is_none()
-    {
+    if tree.get_attribute(*point, z_name).is_some() && source_points(tree, *point, "z").is_none() {
         return Err(TypedDocumentError::InvalidAtomMarkPoint(atom_id.clone()));
     }
     Ok((x, y))
 }
 
-fn source_centimetres(tree: &mut Xot, node: Node, field: &str) -> Option<f64> {
+fn source_points(tree: &mut Xot, node: Node, field: &str) -> Option<f64> {
     let name = tree.add_name(field);
     let value = tree.get_attribute(node, name)?;
-    let (raw, scale) = value
-        .strip_suffix("cm")
-        .map_or((value, CENTIMETRES_PER_POINT), |raw| (raw, 1.0));
-    let value = raw.parse::<f64>().ok()? * scale;
-    value.is_finite().then_some(value)
+    parse_coordinate(value).ok()
 }
 
 fn apply_scalar_delta(
@@ -218,11 +211,6 @@ fn authored_size(kind: AtomMarkKindV1) -> &'static str {
         AtomMarkKindV1::PzOrbital => "40",
         AtomMarkKindV1::Plus | AtomMarkKindV1::Minus | AtomMarkKindV1::Electronpair => "10",
     }
-}
-
-fn canonical_centimetres(value: f64) -> String {
-    let rounded = if value.abs() < 0.0005 { 0.0 } else { value };
-    format!("{rounded:.3}cm")
 }
 
 fn matching_marks(tree: &mut Xot, atom: Node, kind: AtomMarkKindV1) -> Vec<Node> {

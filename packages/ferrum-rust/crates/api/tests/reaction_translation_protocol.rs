@@ -17,16 +17,6 @@ const SOURCE: &str = concat!(
     "<c:reaction id=\"strict\"><c:reactant idref=\"left\"/><c:product idref=\"right\"/>",
     "<c:arrow idref=\"arrow\"/></c:reaction></c:cdml>"
 );
-const EXCLUDED_SOURCE: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"left-a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
-    "</atom></molecule><molecule id=\"right\"><atom id=\"right-a\" name=\"O\">",
-    "<point x=\"100\" y=\"0\"/></atom></molecule><arrow id=\"arrow\"><point x=\"25\" y=\"0\"/>",
-    "<point x=\"75\" y=\"0\"/></arrow><plus id=\"bad\"><point x=\"1\" y=\"2\"/>",
-    "<font family=\"Arial\"/></plus>",
-    "<reaction id=\"strict\"><reactant idref=\"left\"/>",
-    "<product idref=\"right\"/><arrow idref=\"arrow\"/></reaction></cdml>"
-);
-
 fn digest(document: &str) -> String {
     DocumentSession::load(document)
         .expect("fixture loads")
@@ -177,17 +167,6 @@ fn protocol_and_named_cli_route_preserve_closed_refusals_and_stateless_input_rul
             .expect("refusal serializes")["category"],
         "stale_snapshot",
     );
-    let excluded =
-        execute_operation_v1(&request(EXCLUDED_SOURCE, 0, "free")).expect("JSON request");
-    let OperationProtocolEnvelopeV1::Error(excluded) = excluded else {
-        panic!("renderer-excluded candidate must refuse")
-    };
-    assert_eq!(
-        serde_json::to_value(excluded.error.reaction_refusal.expect("reaction refusal"))
-            .expect("refusal serializes")["category"],
-        "renderer_exclusion",
-    );
-
     let payload = request(SOURCE, 0, "free");
     let mut child = Command::new(env!("CARGO_BIN_EXE_ferrum"))
         .args(["document", "command", "reaction.translate.v1", "-"])

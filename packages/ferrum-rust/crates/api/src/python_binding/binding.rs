@@ -30,6 +30,13 @@ use super::projection_binding::{
     PySessionDocumentObservationV1,
 };
 use super::render_binding;
+pub(crate) use super::session_operation_result_binding::{
+    PyAtomCreatedOutcomeV1, PyBondCreatedOutcomeV1, PyCreatedPresentationRootKindV1,
+    PyCreatedPresentationRootOutcomeV1, PyDirectBondOperationOutcomeV1,
+    PyInterchangeRecordBatchInsertedOutcomeV1, PyMoleculeHydrogensMaterializedOutcomeV1,
+    PyMoleculeInsertedOutcomeV1, PyReactionCreatedOutcomeV1, PyReactionDefinitionDeletedOutcomeV1,
+    PyReactionMembershipReplacedOutcomeV1, PySessionOperationOutcomeV1, PySessionOperationResultV1,
+};
 
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("FerrumError", module.py().get_type::<FerrumError>())?;
@@ -165,6 +172,18 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyFontFactsV1>()?;
     module.add_class::<PyProjectionIssueV1>()?;
     module.add_class::<PySessionOperationResultV1>()?;
+    module.add_class::<PySessionOperationOutcomeV1>()?;
+    module.add_class::<PyAtomCreatedOutcomeV1>()?;
+    module.add_class::<PyBondCreatedOutcomeV1>()?;
+    module.add_class::<PyCreatedPresentationRootKindV1>()?;
+    module.add_class::<PyCreatedPresentationRootOutcomeV1>()?;
+    module.add_class::<PyMoleculeHydrogensMaterializedOutcomeV1>()?;
+    module.add_class::<PyMoleculeInsertedOutcomeV1>()?;
+    module.add_class::<PyInterchangeRecordBatchInsertedOutcomeV1>()?;
+    module.add_class::<PyDirectBondOperationOutcomeV1>()?;
+    module.add_class::<PyReactionCreatedOutcomeV1>()?;
+    module.add_class::<PyReactionMembershipReplacedOutcomeV1>()?;
+    module.add_class::<PyReactionDefinitionDeletedOutcomeV1>()?;
     module.add_class::<PyDocumentOperationV1>()?;
     module.add_class::<PyAtomMarkActionV1>()?;
     module.add_class::<PyAtomMarkKindV1>()?;
@@ -184,13 +203,11 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<super::top_level_transform_binding::PyDocumentTopLevelRootSelectorV1>()?;
     module.add_class::<super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1>()?;
     module.add_class::<super::top_level_transform_binding::PyDocumentTopLevelMirrorV1>()?;
-    module.add_class::<super::top_level_transform_binding::PyTopLevelTranslationAnchorV1>()?;
     module.add_class::<super::arrow_properties_binding::PyDocumentArrowPropertyChangeV1>()?;
     module
         .add_class::<super::geometric_properties_binding::PyDocumentGeometricPropertyChangeV1>()?;
     module.add_class::<super::wavy_properties_binding::PyDocumentWavyPropertyChangeV1>()?;
     module.add_class::<super::bracket_binding::PyDocumentBracketPropertyChangeV1>()?;
-    module.add_class::<PyPreparedAtomInsertion>()?;
     module.add_class::<PyPreparedWavyInsertion>()?;
     module.add_class::<PyDocumentBracketStyleV1>()?;
     module.add_class::<PyDocumentBracketBoundsV1>()?;
@@ -198,14 +215,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDocumentBondOrderV1>()?;
     module.add_class::<PyDocumentBondPresentationV1>()?;
     module.add_class::<PyDocumentBondStyleV1>()?;
-    module.add_class::<PyPreparedBondInsertion>()?;
-    module.add_class::<PyPreparedBondedAtomInsertion>()?;
-    module.add_class::<PyAdmittedMoleculeInsertionV1>()?;
-    module.add_class::<super::regular_ring_binding::PyAdmittedRegularRingInsertionV1>()?;
-    module
-        .add_class::<super::standalone_haworth_binding::PyPreparedStandaloneHaworthInsertionV1>()?;
-    module.add_class::<super::direct_haworth_binding::PyPreparedDirectHaworthFromSmilesV1>()?;
-    module.add_class::<super::direct_haworth_binding::PyPreparedDirectHaworthInsertionV1>()?;
+    module.add_class::<super::direct_haworth_binding::PyDirectHaworthSourceV1>()?;
     module.add_class::<PyPublication>()?;
     module.add_class::<PySaveOutcome>()?;
     render_binding::initialize(module)

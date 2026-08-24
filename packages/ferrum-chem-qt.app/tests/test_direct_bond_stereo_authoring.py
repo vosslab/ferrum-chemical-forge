@@ -114,6 +114,38 @@ def _close_window(qapp: PySide6.QtWidgets.QApplication,
 
 
 #============================================
+class _ModalRefusalObserver(PySide6.QtCore.QObject):
+	"""Capture and acknowledge one product message box when it becomes visible."""
+
+	def __init__(self, refusals: list[tuple[str, str, str]]) -> None:
+		"""Keep the caller-owned receipt list for the observed dialog."""
+		super().__init__()
+		self._refusals = refusals
+
+	def eventFilter(self, watched: PySide6.QtCore.QObject,
+			event: PySide6.QtCore.QEvent) -> bool:
+		"""Queue acknowledgement after the actual modal dialog enters its event loop."""
+		if event.type() != PySide6.QtCore.QEvent.Type.Show:
+			return False
+		if not isinstance(watched, PySide6.QtWidgets.QMessageBox):
+			return False
+		PySide6.QtCore.QTimer.singleShot(0, lambda: self._capture_and_dismiss(watched))
+		return False
+
+	def _capture_and_dismiss(self, dialog: PySide6.QtWidgets.QMessageBox) -> None:
+		"""Record the configured refusal once its queued presenter update has completed."""
+		self._refusals.append((
+			dialog.windowTitle(), dialog.text(), dialog.detailedText(),
+		))
+		button = dialog.button(PySide6.QtWidgets.QMessageBox.StandardButton.Ok)
+		if button is None:
+			raise AssertionError("Draw Bond refusal has no visible acknowledgement")
+		PySide6.QtTest.QTest.mouseClick(
+			button, PySide6.QtCore.Qt.MouseButton.LeftButton,
+		)
+
+
+#============================================
 def test_stereo_actions_create_directed_bonds(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
@@ -237,24 +269,34 @@ def test_stereo_escape_unchecks_every_direct_bond_action(
 
 
 #============================================
-def test_stereo_refusal_is_non_modal_and_actionable(
+def test_stereo_refusal_is_modal_and_actionable(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""A typed wedge self-loop refusal is a visible recovery message, not a dialog."""
+	"""A typed wedge self-loop has the generic visible recovery dialog and no bond."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
 		start = _viewport_point(tab, "tip")
-		action = _action(window, "mode.draw_hashed_wedge")
-		action.trigger()
-		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
-		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), start)
-		PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
+		refusal_dialogs: list[tuple[str, str, str]] = []
+		observer = _ModalRefusalObserver(refusal_dialogs)
+		qapp.installEventFilter(observer)
+		try:
+			_action(window, "mode.draw_hashed_wedge").trigger()
+			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
+			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), start)
+			PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
+		finally:
+			qapp.removeEventFilter(observer)
 		qapp.processEvents()
-		assert "Draw Bond refused" in window.statusBar().currentMessage()
-		assert "Choose a different atom" in window.statusBar().currentMessage()
-		assert not action.isChecked()
+		assert refusal_dialogs == [(
+			"",
+			"What happened: This action is not available for the current drawing.\n\n"
+			"Why: The needed selection or document state is not available.\n\n"
+			"What to do now: Select the required item or change the drawing, then try again.",
+			"direct bond gesture cannot join an atom to itself",
+		)]
+		assert not _action(window, "mode.draw_hashed_wedge").isChecked()
 		assert not tab.current_document_observation().projection.molecules[0].bonds
 	finally:
 		_close_window(qapp, window)

@@ -2,25 +2,22 @@
 
 use ferrum_document::{
     DocumentFenceV1, DocumentSession, PresentationGesturePoint2V1, PresentationPathKindV1,
+    SessionOperationTransitionRequestV1,
 };
+use ferrum_document_render::{PresentationPathOverlayV1, PresentationPathRenderGestureV1};
 pub use ferrum_document_render::{
-    CommittedPresentationPathV1, PresentationPathProgressV1, PresentationPathRenderCategoryV1,
-    PresentationPathRenderErrorV1, PresentationPathRenderRecoveryV1,
-};
-use ferrum_document_render::{
-    PreparedPresentationPathV1, PresentationPathOverlayV1, PresentationPathRenderGestureV1,
+    PresentationPathProgressV1, PresentationPathRenderCategoryV1, PresentationPathRenderErrorV1,
+    PresentationPathRenderRecoveryV1,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ApiPresentationPathGestureV1(PresentationPathRenderGestureV1);
 #[derive(Clone, Debug)]
 pub struct ApiPresentationPathOverlayV1(PresentationPathOverlayV1);
-#[derive(Debug)]
-pub struct ApiPresentationPathPreparedV1(PreparedPresentationPathV1);
 
 impl ApiPresentationPathOverlayV1 {
     #[must_use]
-    pub fn overlay(&self) -> &PresentationPathOverlayV1 {
+    pub fn presentation(&self) -> &PresentationPathOverlayV1 {
         &self.0
     }
 }
@@ -53,16 +50,15 @@ pub fn preview_incremental_api_presentation_path_gesture_v1(
     )
     .map(ApiPresentationPathOverlayV1)
 }
-/// Prepare only a complete Rust-issued incremental overlay for renderer preflight.
-pub fn prepare_incremental_api_presentation_path_gesture_v1(
-    session: &mut DocumentSession,
-    gesture: &ApiPresentationPathGestureV1,
-    overlay: &ApiPresentationPathOverlayV1,
-) -> Result<ApiPresentationPathPreparedV1, PresentationPathRenderErrorV1> {
-    ferrum_document_render::prepare_incremental_presentation_path_gesture_v1(
-        session, &gesture.0, &overlay.0,
+/// Resolve a complete Rust-issued incremental overlay into the canonical transition request.
+pub fn resolve_incremental_api_presentation_path_gesture_v1(
+    session: &DocumentSession,
+    gesture: ApiPresentationPathGestureV1,
+    overlay: ApiPresentationPathOverlayV1,
+) -> Result<SessionOperationTransitionRequestV1, PresentationPathRenderErrorV1> {
+    ferrum_document_render::resolve_incremental_presentation_path_gesture_v1(
+        session, gesture.0, overlay.0,
     )
-    .map(ApiPresentationPathPreparedV1)
 }
 
 /// Cancel an opaque candidate before any document mutation.
@@ -71,10 +67,4 @@ pub fn cancel_api_presentation_path_gesture_v1(
     gesture: &ApiPresentationPathGestureV1,
 ) -> Result<(), PresentationPathRenderErrorV1> {
     ferrum_document_render::cancel_presentation_path_gesture_v1(session, &gesture.0)
-}
-pub fn commit_api_presentation_path_gesture_v1(
-    session: &mut DocumentSession,
-    prepared: &mut ApiPresentationPathPreparedV1,
-) -> Result<CommittedPresentationPathV1, PresentationPathRenderErrorV1> {
-    ferrum_document_render::commit_presentation_path_gesture_v1(session, &mut prepared.0)
 }

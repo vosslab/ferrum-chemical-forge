@@ -44,7 +44,9 @@ pub(crate) fn run(
         ),
     }
     .map_err(VerbCliError::InterchangeImportRefusal)?;
-    let summary = prepared.summary().clone();
+    let (session, summary) = prepared
+        .commit_and_take_session()
+        .map_err(VerbCliError::InterchangeImportRefusal)?;
     let response = serde_json::to_vec(&summary).map_err(|_| VerbCliError::UnexpectedOutcome)?;
     if response.len() > descriptor.limits().max_response_bytes() {
         return Err(VerbCliError::InterchangeImportRefusal(
@@ -53,9 +55,6 @@ pub(crate) fn run(
             ),
         ));
     }
-    let (session, summary) = prepared
-        .commit_and_take_session()
-        .map_err(VerbCliError::InterchangeImportRefusal)?;
     let document = session
         .snapshot()
         .map_err(VerbCliError::Snapshot)?

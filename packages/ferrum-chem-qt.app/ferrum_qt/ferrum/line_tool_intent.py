@@ -14,7 +14,6 @@ import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.rotation
 import ferrum_qt.ferrum.curved_equilibrium_arrow
 import ferrum_qt.ferrum.terminal_arrow
-import ferrum_qt.ferrum.translation
 
 
 #============================================
@@ -67,17 +66,15 @@ class _LineGestureIntent:
 	preview: PySide6.QtWidgets.QGraphicsItem | None = None
 	rotation_selection: ferrum_qt.ferrum.rotation.FerrumNativeRotationSelection | None = None
 	rotation_preview: ferrum_qt.ferrum.rotation.FerrumNativeRotationPreview | None = None
-	translation_selection: ferrum_qt.ferrum.translation.FerrumNativeTranslationSelection | None = None
-	translation_preview: ferrum_qt.ferrum.translation.FerrumNativeTranslationPreview | None = None
-	translation_snap_enabled: bool | None = None
-	translation_delta: tuple[float, float] = (0.0, 0.0)
 	last_angle: float | None = None
 	accumulated_angle: float = 0.0
-	regular_ring_prepared: object | None = None
+	regular_ring_center: PySide6.QtCore.QPointF | None = None
 	attached_cyclohexane_pending: object | None = None
 	attached_cyclohexane_cancel_blocked: bool = False
+	direct_bond_start_probe: object | None = None
+	direct_bond_snap_enabled: bool = False
 	direct_bond_gesture: object | None = None
-	direct_bond_admission: object | None = None
+	prepared_transition: object | None = None
 	presentation_gesture: object | None = None
 	presentation_preview: object | None = None
 	curved_equilibrium_arrow: ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowState | None = None

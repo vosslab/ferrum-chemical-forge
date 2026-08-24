@@ -29,7 +29,7 @@ impl PendingTextPlacementV1 {
     }
     #[must_use]
     pub fn matches(&self, gesture: &TextPlacementGestureV1) -> bool {
-        self.gesture == *gesture
+        self.gesture.same_preparation_gesture(gesture)
     }
 }
 

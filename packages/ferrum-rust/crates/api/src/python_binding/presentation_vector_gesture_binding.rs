@@ -1,18 +1,17 @@
 //! Opaque PyO3 seam for Rust-owned ordinary two-point vector authoring.
 
 use crate::{
-    ApiPresentationVectorGestureV1, ApiPresentationVectorPreparedV1,
-    ApiPresentationVectorPreviewV1, PresentationVectorGestureCategoryV1,
-    PresentationVectorGestureErrorV1, PresentationVectorGestureRecoveryV1,
-    PresentationVectorKindV1, PresentationVectorOverlayV1,
-    begin_api_presentation_vector_gesture_v1, commit_api_presentation_vector_gesture_v1,
-    prepare_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
+    ApiPresentationVectorGestureV1, ApiPresentationVectorPreviewV1,
+    PresentationVectorGestureCategoryV1, PresentationVectorGestureErrorV1,
+    PresentationVectorGestureRecoveryV1, PresentationVectorKindV1, PresentationVectorOverlayV1,
+    begin_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
+    resolve_api_presentation_vector_gesture_v1,
 };
-use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1, PresentationRecordKindV1};
+use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 
-use super::binding::{PyDocumentSession, PySessionOperationResultV1};
+use super::binding::PyDocumentSession;
 use super::presentation_creation_gesture_binding::digest;
 
 create_exception!(
@@ -99,7 +98,7 @@ enum PyPresentationVectorGestureRecoveryV1 {
     name = "PresentationVectorGestureV1"
 )]
 pub(crate) struct PyPresentationVectorGestureV1 {
-    gesture: ApiPresentationVectorGestureV1,
+    gesture: Option<ApiPresentationVectorGestureV1>,
 }
 
 #[pyclass(frozen, module = "ferrum_chem", name = "PresentationVectorOverlayV1")]
@@ -136,28 +135,9 @@ pub(crate) struct PyPresentationVectorOverlayV1 {
     name = "PresentationVectorPreviewV1"
 )]
 pub(crate) struct PyPresentationVectorPreviewV1 {
-    preview: ApiPresentationVectorPreviewV1,
+    preview: Option<ApiPresentationVectorPreviewV1>,
     #[pyo3(get)]
     overlay: Py<PyPresentationVectorOverlayV1>,
-}
-
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PresentationVectorPreparedV1"
-)]
-pub(crate) struct PyPresentationVectorPreparedV1 {
-    prepared: ApiPresentationVectorPreparedV1,
-}
-
-#[pyclass(frozen, module = "ferrum_chem", name = "PresentationVectorCommitV1")]
-pub(crate) struct PyPresentationVectorCommitV1 {
-    #[pyo3(get)]
-    identifier: String,
-    #[pyo3(get)]
-    kind: Py<PyPresentationVectorKindV1>,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
 }
 
 #[pymethods]
@@ -175,7 +155,9 @@ impl PyDocumentSession {
         let point = PresentationGesturePoint2V1::new(start_x, start_y)
             .map_err(|_| vector_error(py, PresentationVectorGestureErrorV1::InvalidPoint))?;
         begin_api_presentation_vector_gesture_v1(&self.session, fence, (*kind).into(), point)
-            .map(|gesture| PyPresentationVectorGestureV1 { gesture })
+            .map(|gesture| PyPresentationVectorGestureV1 {
+                gesture: Some(gesture),
+            })
             .map_err(|error| vector_error(py, error))
     }
 
@@ -188,47 +170,31 @@ impl PyDocumentSession {
     ) -> PyResult<PyPresentationVectorPreviewV1> {
         let point = PresentationGesturePoint2V1::new(end_x, end_y)
             .map_err(|_| vector_error(py, PresentationVectorGestureErrorV1::InvalidPoint))?;
-        preview_api_presentation_vector_gesture_v1(&self.session, &gesture.gesture, point)
+        let gesture = gesture
+            .gesture
+            .as_ref()
+            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::ReplayedGesture))?;
+        preview_api_presentation_vector_gesture_v1(&self.session, gesture, point)
             .map(|preview| preview_to_python(py, preview))
             .map_err(|error| vector_error(py, error))
     }
 
-    fn prepare_presentation_vector_gesture_v1(
-        &mut self,
+    fn resolve_presentation_vector_gesture_v1(
+        &self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyPresentationVectorGestureV1>,
-        preview: PyRef<'_, PyPresentationVectorPreviewV1>,
-    ) -> PyResult<PyPresentationVectorPreparedV1> {
-        prepare_api_presentation_vector_gesture_v1(
-            &mut self.session,
-            &gesture.gesture,
-            &preview.preview,
-        )
-        .map(|prepared| PyPresentationVectorPreparedV1 { prepared })
-        .map_err(|error| vector_error(py, error))
-    }
-
-    fn commit_presentation_vector_gesture_v1(
-        &mut self,
-        py: Python<'_>,
-        mut prepared: PyRefMut<'_, PyPresentationVectorPreparedV1>,
-    ) -> PyResult<PyPresentationVectorCommitV1> {
-        commit_api_presentation_vector_gesture_v1(&mut self.session, &mut prepared.prepared)
-            .map(|commit| {
-                let kind = match commit.root().kind() {
-                    PresentationRecordKindV1::Polyline => PyPresentationVectorKindV1::Line,
-                    PresentationRecordKindV1::Rectangle => PyPresentationVectorKindV1::Rectangle,
-                    PresentationRecordKindV1::Square => PyPresentationVectorKindV1::Square,
-                    PresentationRecordKindV1::Oval => PyPresentationVectorKindV1::Oval,
-                    PresentationRecordKindV1::Circle => PyPresentationVectorKindV1::Circle,
-                    _ => unreachable!("vector commit only emits a vector root"),
-                };
-                PyPresentationVectorCommitV1 {
-                    identifier: commit.root().presentation_id().as_str().to_owned(),
-                    kind: Py::new(py, kind).expect("kind allocates"),
-                    result: commit.result().clone().into(),
-                }
-            })
+        mut gesture: PyRefMut<'_, PyPresentationVectorGestureV1>,
+        mut preview: PyRefMut<'_, PyPresentationVectorPreviewV1>,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        let gesture = gesture
+            .gesture
+            .take()
+            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::ReplayedGesture))?;
+        let preview = preview
+            .preview
+            .take()
+            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::ReplayedGesture))?;
+        resolve_api_presentation_vector_gesture_v1(&self.session, gesture, preview)
+            .map(super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request)
             .map_err(|error| vector_error(py, error))
     }
 }
@@ -277,7 +243,7 @@ fn preview_to_python(
         )
     };
     PyPresentationVectorPreviewV1 {
-        preview,
+        preview: Some(preview),
         overlay: Py::new(
             py,
             PyPresentationVectorOverlayV1 {
@@ -393,6 +359,5 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPresentationVectorGestureV1>()?;
     module.add_class::<PyPresentationVectorOverlayV1>()?;
     module.add_class::<PyPresentationVectorPreviewV1>()?;
-    module.add_class::<PyPresentationVectorPreparedV1>()?;
-    module.add_class::<PyPresentationVectorCommitV1>()
+    Ok(())
 }

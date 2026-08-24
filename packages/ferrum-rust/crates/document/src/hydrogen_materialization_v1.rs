@@ -119,8 +119,6 @@ pub struct DocumentMoleculeHydrogenMaterializationResultV1 {
     added_hydrogen_count: usize,
     changed: bool,
     anchor_atom_id: DocumentObjectIdV1,
-    revision: u64,
-    digest: [u8; 32],
 }
 
 impl DocumentMoleculeHydrogenMaterializationResultV1 {
@@ -128,15 +126,11 @@ impl DocumentMoleculeHydrogenMaterializationResultV1 {
         added_hydrogen_count: usize,
         changed: bool,
         anchor_atom_id: DocumentObjectIdV1,
-        revision: u64,
-        digest: [u8; 32],
     ) -> Self {
         Self {
             added_hydrogen_count,
             changed,
             anchor_atom_id,
-            revision,
-            digest,
         }
     }
     #[must_use]
@@ -150,14 +144,6 @@ impl DocumentMoleculeHydrogenMaterializationResultV1 {
     #[must_use]
     pub const fn anchor_atom_id(&self) -> &DocumentObjectIdV1 {
         &self.anchor_atom_id
-    }
-    #[must_use]
-    pub const fn revision(&self) -> u64 {
-        self.revision
-    }
-    #[must_use]
-    pub const fn digest(&self) -> &[u8; 32] {
-        &self.digest
     }
 }
 

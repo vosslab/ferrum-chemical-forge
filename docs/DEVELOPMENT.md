@@ -27,11 +27,13 @@ Run the repository-owned front door after a Rust change:
 ```
 
 The script checks both Rust workspaces with the repository lockfiles, strict
-all-target Clippy, unit/integration/doc tests, and API docs while reusing the
-bounded Cargo cache. Use focused package tests while iterating. Run a separate
-`--target` check only when qualifying a platform or changing target-sensitive
-native code; it is not a routine edit flag. Rust conventions and ownership rules
-are in [RUST_STYLE.md](RUST_STYLE.md); PyO3 packaging rules are in
+all-target Clippy, unit/integration/doc tests, and API docs. Its disposable
+Cargo work area is `build/.cargo-check-target/`, which it removes when the gate
+finishes; it does not create package-local target directories. Use focused
+package tests while iterating. Run a separate `--target` check only when
+qualifying a platform or changing target-sensitive native code; it is not a
+routine edit flag. Rust conventions and ownership rules are in
+[RUST_STYLE.md](RUST_STYLE.md); PyO3 packaging rules are in
 [RUST_PYO3_STYLE.md](RUST_PYO3_STYLE.md).
 
 ## Run Python and Qt tests

@@ -18,17 +18,19 @@ The backend-only M10 preservation gate is also green over the committed corpus.
 | --- | --- | --- |
 | OASA serializers/parsers | `packages/oasa/oasa/cdml_writer.py`, `cdml.py`, `cdml_xml.py`, `cdml_bond_io.py`, `cdml_ftext.py` | Current emitted/read vocabulary, core/opaque boundary, bond attribute variants, and ftext styles. |
 | Format and conformance | `OTHER_REPOS/bkchem-oasa/docs/CDML_FORMAT_SPEC.md`; `OTHER_REPOS/bkchem-oasa/docs/cdml_conformance/cdml_26_07_manifest.json` | Grammar, authored/compatibility distinction, opaque namespace cases, and deliberate invalid security cases. |
-| Shipped templates and references | `packages/bkchem-app/bkchem_data/templates/*.cdml`; `docs/reference_outputs/` | Four templates exist (40,265 bytes); one informs the reduced legacy probe. Reference outputs are Haworth SVG/PNG, not CDML. |
+| Shipped templates and references | `packages/bkchem-app/bkchem_data/templates/*.cdml`; `docs/reference_outputs/` | Four templates exist (40,265 bytes); one informed a retired one-time legacy probe. Reference outputs are Haworth SVG/PNG, not CDML. |
 | Real user documents | No supplied user document exists in this checkout. | Coverage is unavailable for unanticipated extensions, namespace combinations, producer quirks, and real CD-SVG. A consented representative set is needed. |
 
-The corpus is intentionally three XML documents, not a historical-tree or production-code import.
-Each fixture declares its classification and source-of-truth level in an XML comment.
+The active corpus is intentionally two XML documents, not a historical-tree or production-code
+import. Each fixture declares its classification and source-of-truth level in an XML comment.
+The former reduced legacy probe was removed because no test or runtime path consumed it; its
+historical findings remain documented here but do not count as active corpus evidence.
 
 | Corpus file | Classification | Source-of-truth level | Purpose |
 | --- | --- | --- | --- |
-| [`legacy_groups_template.cdml`](../../../tests/e2e/corpus/legacy_groups_template.cdml) | Required compatibility | Shipped historical template and legacy reader behavior | Original reduced re-expression of `groups.cdml`; no verbatim template block or OASA code. Upstream BKChem application license: GPL-2.0-or-later; central M1 documentation owner records final disposition. |
-| [`authored_document_forms.cdml`](../../../tests/e2e/corpus/authored_document_forms.cdml) | Required compatibility; intended authored behavior | Format specification plus OASA core vocabulary | Original compact fixture based on documented facts, not copied code or source text; central M1 documentation owner records final provenance/disposition. |
-| [`opaque_namespace_preservation.cdml`](../../../tests/e2e/corpus/opaque_namespace_preservation.cdml) | Required compatibility | Format preservation rules and shipped conformance manifest | Original compact probe based on documented cases, not copied manifest XML or OASA code; central M1 documentation owner records final provenance/disposition. |
+| Retired `legacy_groups_template.cdml` probe | Historical, not active corpus | Shipped historical template and legacy reader behavior | Original reduced re-expression of `groups.cdml`; removed because it had no test or runtime consumer. No verbatim template block or OASA code. Upstream BKChem application license: GPL-2.0-or-later; central M1 documentation owner records final disposition. |
+| Retired authored-document profile | Historical evidence | Format specification plus OASA core vocabulary | Its original compact XML now lives inline beside the semantic assertions in `packages/ferrum-rust/crates/document/src/typed_tests.rs`; it is not a runtime or E2E input. |
+| Retired opaque-namespace profile | Historical evidence | Format preservation rules and shipped conformance manifest | Its original compact XML now lives inline beside the semantic assertions in `packages/ferrum-rust/crates/document/src/typed_tests.rs`; it is not a runtime or E2E input. |
 
 No known defect is represented as a passing preservation fixture. No implementation accident is
 promoted to corpus authority. The 26.07 entries are explicitly marked intended authored behavior;

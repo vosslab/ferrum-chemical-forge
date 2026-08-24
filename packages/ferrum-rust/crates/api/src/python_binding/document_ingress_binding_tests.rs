@@ -8,7 +8,7 @@ const SINGLE_ATOM_SDF_V1: &str = concat!(
     "Ferrum SDF\n",
     "  Ferrum\n",
     "\n",
-    "  1  0  0  0  0  0  0  0  0  0  0 V2000\n",
+    "  1  0  0  0  0  0  0  0  0  0999 V2000\n",
     "    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n",
     "M  END\n",
     "$$$$\n",
@@ -16,25 +16,11 @@ const SINGLE_ATOM_SDF_V1: &str = concat!(
 const TWO_ATOM_CML_V1: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0"/><atom id="a2" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="1"/></bondArray></molecule></cml>"#;
 
 fn temporary_sdf_path() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!(
-        "ferrum-pyo3-sdf-{}-{}.sdf",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("wall clock")
-            .as_nanos(),
-    ))
+    std::env::temp_dir().join(format!("ferrum-pyo3-sdf-{}.sdf", std::process::id()))
 }
 
-fn temporary_cml_path() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!(
-        "ferrum-pyo3-cml-{}-{}.cml",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("wall clock")
-            .as_nanos(),
-    ))
+fn temporary_cml_path(case: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("ferrum-pyo3-cml-{case}-{}.cml", std::process::id()))
 }
 
 fn issued_descriptor<'py>(
@@ -110,7 +96,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
             document_session
                 .call_method1(
                     "prepare_local_interchange_file_v1",
-                    ("/definitely-not-an-interchange-file.cml", cml_handle),
+                    ("/definitely-not-an-interchange-file.cml", &cml_handle),
                 )
                 .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py))
         );
@@ -149,12 +135,14 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
                 .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py)),
             "the issued reader maps missing local sources through its typed refusal"
         );
+        let cml_path = temporary_cml_path("opaque-handle");
+        fs::write(&cml_path, TWO_ATOM_CML_V1).expect("write valid CML");
         let prepared = document_session
             .call_method1(
                 "prepare_local_interchange_file_v1",
-                (path.to_string_lossy().as_ref(), sdf_handle),
+                (cml_path.to_string_lossy().as_ref(), cml_handle),
             )
-            .expect("registered SDF descriptor prepares a new document");
+            .expect("registered CML descriptor prepares a new document");
         let summary = prepared
             .getattr("interchange_summary")
             .expect("safe generic receipt");
@@ -181,7 +169,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
                 .expect("atom count")
                 .extract::<u64>()
                 .expect("atom count is an integer"),
-            1
+            2
         );
         assert_eq!(
             summary
@@ -189,7 +177,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
                 .expect("bond count")
                 .extract::<u64>()
                 .expect("bond count is an integer"),
-            0
+            1
         );
         assert!(
             summary
@@ -230,6 +218,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
             revision,
             "replay cannot mutate the redeemed session"
         );
+        fs::remove_file(cml_path).expect("remove CML");
         fs::remove_file(path).expect("remove SDF");
     });
 }
@@ -247,7 +236,7 @@ fn cml_interchange_admission_observation_matches_committed_snapshot() {
         let cml_handle = issued_descriptor(&descriptors, ".cml")
             .getattr("route_handle")
             .expect("CML route handle");
-        let path = temporary_cml_path();
+        let path = temporary_cml_path("admission-observation");
         fs::write(&path, TWO_ATOM_CML_V1).expect("write valid CML");
 
         let prepared = document_session

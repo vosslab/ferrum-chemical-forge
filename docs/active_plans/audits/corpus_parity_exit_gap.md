@@ -95,9 +95,9 @@ Four things must exist that do not exist today.
 
 1. XML entry into the core model: an XML dependency in core, a separate loader depending on both
    `ferrum-document` and `ferrum-core`, or a harness example depending on `xot` plus `ferrum-core`.
-2. Coordinate unit handling. Corpus points carry `cm` units
-   (`tests/e2e/corpus/authored_document_forms.cdml:13`) and bare numbers
-   (`tests/e2e/corpus/legacy_groups_template.cdml:11`). OASA converts with `cm_to_float_coord`
+2. Coordinate unit handling. The retired authored-document profile carried `cm` units and the
+   retired legacy profile carried bare numbers.
+   OASA converts with `cm_to_float_coord`
    (`OTHER_REPOS/bkchem-oasa/packages/oasa/oasa/cdml.py:62-68`, factor `72/2.54`).
 3. Occurrence assignment for idless records. Every bond in
    `tests/e2e/corpus/legacy_groups_template.cdml:14-15` lacks an `id`, and
@@ -105,8 +105,8 @@ Four things must exist that do not exist today.
    loader must assign it, exactly as
    [../decisions/ferrum_core_model.md](../decisions/ferrum_core_model.md) line 45 already assumes
    for a reader that has not been built.
-4. Typed non-atom vertices. `tests/e2e/corpus/authored_document_forms.cdml:14-16` contains a group,
-   a molecule-local text, and a query, and all three bonds reference them.
+4. Typed non-atom vertices. The retired authored-document profile contains a group, a
+   molecule-local text, and a query, and all three bonds reference them.
 
 ## Sequencing question
 
@@ -150,7 +150,7 @@ OASA's chemistry-import reader drops content Ferrum's model carries. In
 `OTHER_REPOS/bkchem-oasa/packages/oasa/oasa/cdml_writer.py`, `_read_cdml_molecule_element` accepts
 an atom only when its `name` is a periodic symbol or a known group abbreviation and returns `None`
 for the whole molecule otherwise (lines 116-146), and it skips any bond whose endpoint is not in
-the atom map (lines 177-180). On `tests/e2e/corpus/authored_document_forms.cdml`, OASA yields one
+the atom map (lines 177-180). On the retired authored-document profile, OASA yields one
 atom and zero bonds while Ferrum represents one atom, three non-atom vertices, and three bonds.
 That is a scope difference, not a divergence, and it belongs in the source-of-truth hierarchy
 ([../ferrum-plan-v3.md](../ferrum-plan-v3.md):153-182) at level 1 or 2, which outranks OASA at

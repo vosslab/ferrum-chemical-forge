@@ -1,17 +1,16 @@
 //! Revision-bound complete-molecule creation owned by the document session.
 
 use super::{
-    DetachedRegularRingInsertionV1, DocumentSession, DocumentSessionError, MoleculeInsertionV1,
-    PendingCreateMolecule, PersistentId, RevisionState, SessionOperationError,
-    SessionOperationResultV1, TypedDocument,
+    DocumentSession, DocumentSessionError, MoleculeInsertionV1, PersistentId,
+    PreparedSessionTransitionV1, RevisionState, SessionOperationError, TypedDocument,
 };
 
 impl DocumentSession {
-    pub(crate) fn prepare_create_molecule_v1(
+    pub(in crate::session) fn prepare_insert_molecule_transition_v1(
         &mut self,
         expected_revision: u64,
         molecule: &MoleculeInsertionV1,
-    ) -> Result<PendingCreateMolecule, DocumentSessionError> {
+    ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_complete_molecule_candidate(
             expected_revision,
             molecule.atoms().len(),
@@ -24,27 +23,13 @@ impl DocumentSession {
         )
     }
 
-    /// Prepare one complete detached regular ring. Rust owns its geometry and IDs.
-    pub(crate) fn prepare_create_regular_ring_v1(
-        &mut self,
-        expected_revision: u64,
-        request: DetachedRegularRingInsertionV1,
-    ) -> Result<PendingCreateMolecule, DocumentSessionError> {
-        let molecule = request.molecule().map_err(|error| {
-            DocumentSessionError::Operation(SessionOperationError::InvalidRegularRingInsertion(
-                error.to_string(),
-            ))
-        })?;
-        self.prepare_create_molecule_v1(expected_revision, &molecule)
-    }
-
     fn prepare_complete_molecule_candidate<F>(
         &mut self,
         expected_revision: u64,
         atom_count: usize,
         bond_count: usize,
         writer: F,
-    ) -> Result<PendingCreateMolecule, DocumentSessionError>
+    ) -> Result<PreparedSessionTransitionV1, DocumentSessionError>
     where
         F: FnOnce(
             &TypedDocument,
@@ -71,55 +56,14 @@ impl DocumentSession {
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
-        let transition = self.prepare_changed_session_transition_v1(
+        self.prepare_changed_session_transition_with_molecule_insertion_outcome_v1(
             expected_revision,
             self.current_digest_v1(),
             candidate,
             effects,
-        )?;
-        Ok(PendingCreateMolecule {
-            molecule_identifier: identities.molecule,
-            atom_identifiers: identities.atoms,
-            bond_identifiers: identities.bonds,
-            transition,
-        })
-    }
-
-    pub(crate) fn commit_create_molecule(
-        &mut self,
-        expected_revision: u64,
-        pending: &mut PendingCreateMolecule,
-    ) -> Result<SessionOperationResultV1, DocumentSessionError> {
-        self.require_current(expected_revision)?;
-        self.commit_session_operation_transition_v1(&mut pending.transition)
-            .map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
-    }
-}
-
-fn map_transition_refusal(
-    session: &DocumentSession,
-    expected_revision: u64,
-    refusal: super::AdmittedSessionTransitionRefusalV1,
-) -> DocumentSessionError {
-    match refusal {
-        super::AdmittedSessionTransitionRefusalV1::ForeignSession => {
-            DocumentSessionError::PreparedOperationForeignSession
-        }
-        super::AdmittedSessionTransitionRefusalV1::Replayed
-        | super::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
-            DocumentSessionError::PreparedOperationConsumed
-        }
-        super::AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
-            DocumentSessionError::RevisionConflict {
-                expected: expected_revision,
-                actual: session.current_revision_v1(),
-            }
-        }
-        super::AdmittedSessionTransitionRefusalV1::RendererAdmission => {
-            DocumentSessionError::RendererAdmission
-        }
-        super::AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            SessionOperationError::HistoryResourceExhausted.into()
-        }
+            identities.molecule,
+            identities.atoms,
+            identities.bonds,
+        )
     }
 }

@@ -10,7 +10,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.direct_bond_gesture_tab
-import ferrum_qt.ferrum.direct_bond_preview
+import ferrum_qt.ferrum.direct_bond_overlay
 import ferrum_qt.ferrum.direct_root_preview
 import ferrum_qt.ferrum.curved_equilibrium_arrow
 import ferrum_qt.ferrum.line_tool_intent
@@ -21,48 +21,10 @@ import ferrum_qt.ferrum.regular_ring
 import ferrum_qt.ferrum.rotation
 import ferrum_qt.ferrum.text_placement
 import ferrum_qt.ferrum.text_placement_preview
-import ferrum_qt.ferrum.top_level_transform
-import ferrum_qt.ferrum.translation
 import ferrum_qt.ferrum.terminal_arrow
 
 _NativeLineTool = ferrum_qt.ferrum.line_tool_intent._NativeLineTool
 _LineGestureIntent = ferrum_qt.ferrum.line_tool_intent._LineGestureIntent
-
-
-#============================================
-def direct_bond_commit_recovery_message(category: object, recovery: object) -> str | None:
-	"""Translate one complete native direct-bond commit recovery pair."""
-	import ferrum_qt.ferrum.engine as engine
-	if (
-		category in (
-			engine.DirectBondCommitCategoryV1.foreign_session,
-			engine.DirectBondCommitCategoryV1.replayed_receipt,
-			engine.DirectBondCommitCategoryV1.stale_revision,
-			engine.DirectBondCommitCategoryV1.stale_digest,
-		)
-		and recovery is engine.DirectBondCommitRecoveryV1.refresh_and_restart
-	):
-		return "Draw Bond is unchanged. Refresh the Rust view and start Draw Bond again."
-	if (
-		category is engine.DirectBondCommitCategoryV1.unrenderable_candidate
-		and recovery is engine.DirectBondCommitRecoveryV1.change_presentation
-	):
-		return "Draw Bond is unchanged. Choose a supported bond appearance and start Draw Bond again."
-	if (
-		category in (
-			engine.DirectBondCommitCategoryV1.identity_allocation_failed,
-			engine.DirectBondCommitCategoryV1.provisional_token_unavailable,
-			engine.DirectBondCommitCategoryV1.revision_exhausted,
-		)
-		and recovery is engine.DirectBondCommitRecoveryV1.report_conflict
-	):
-		return "Draw Bond is unchanged. Ferrum found a document conflict; refresh and review before trying again."
-	if (
-		category is engine.DirectBondCommitCategoryV1.candidate_application_failed
-		and recovery is engine.DirectBondCommitRecoveryV1.refresh_and_restart
-	):
-		return "Draw Bond is unchanged. Ferrum could not apply the bond; refresh and start Draw Bond again."
-	return None
 
 
 class FerrumNativeLineToolCompletionMixin:
@@ -71,8 +33,9 @@ class FerrumNativeLineToolCompletionMixin:
 	def _update_direct_bond_gesture(self, intent: _LineGestureIntent,
 			viewport_point: PySide6.QtCore.QPoint) -> None:
 		"""Replace the preview with one exact Rust-admitted direct-bond candidate."""
+		start_probe = intent.direct_bond_start_probe
 		gesture = intent.direct_bond_gesture
-		if gesture is None:
+		if start_probe is None or gesture is None or intent.drawing is None:
 			return
 		if not self._line_gesture_is_current(intent):
 			self._cancel_line_gesture()
@@ -83,7 +46,8 @@ class FerrumNativeLineToolCompletionMixin:
 		import ferrum_qt.ferrum.engine as engine
 		try:
 			end_probe = intent.tab.direct_bond_pointer_probe_at_viewport_point(viewport_point)
-			outcome = intent.tab.admit_direct_bond_candidate(gesture, end_probe)
+			request = intent.tab.resolve_direct_bond_end(gesture, end_probe)
+			prepared = intent.tab.prepare_session_operation_transition_v1(request)
 		except engine.DirectBondPointerProbeErrorV3 as exc:
 			self._cancel_line_gesture()
 			self._show_direct_bond_refusal(exc)
@@ -92,20 +56,83 @@ class FerrumNativeLineToolCompletionMixin:
 			self._cancel_line_gesture()
 			self._show_direct_bond_refusal(exc)
 			return
-		if type(outcome) is not engine.DirectBondAdmissionV3:
+		except engine.OperationValidationError as exc:
 			self._cancel_line_gesture()
-			raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
+			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			return
+		if type(prepared) is not engine.PreparedSessionTransitionV1:
+			self._cancel_line_gesture()
+			raise RuntimeError("Ferrum direct-bond preparation returned an unknown transition")
 		try:
-			overlay = ferrum_qt.ferrum.direct_bond_preview.create_overlay(
-				intent.tab, outcome.overlay,
+			next_gesture = intent.tab.begin_direct_bond_gesture(
+				start_probe,
+				intent.drawing.bond_presentation(intent.direct_bond_presentation),
+				intent.direct_bond_snap_enabled,
+			)
+		except Exception as exc:
+			self._cancel_line_gesture()
+			if self._is_direct_bond_begin_refusal(exc):
+				self._show_direct_bond_refusal(exc)
+				return
+			raise
+		try:
+			presentation = prepared.presentation_v1()
+			overlay_contract = presentation.precommit_overlay
+			if overlay_contract is None:
+				raise RuntimeError("Ferrum direct-bond transition has no precommit overlay")
+			overlay = ferrum_qt.ferrum.direct_bond_overlay.create_overlay(
+				intent.tab, overlay_contract,
 			)
 		except Exception:
 			self._cancel_line_gesture()
 			raise
 		self._retire_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
-			intent, preview=overlay, direct_bond_admission=outcome,
+			intent, preview=overlay, direct_bond_gesture=next_gesture,
+			prepared_transition=prepared,
 		)
+	#============================================
+	def _commit_direct_bond_transition(self, tab: object, prepared: object) -> object:
+		"""Redeem a generic transition and apply Draw Bond's caller-owned selection."""
+		result = tab.commit_session_operation_transition_v1(prepared)
+		outcome = result.outcome
+		if outcome.kind != "direct_bond_v1" or outcome.direct_bond is None:
+			raise RuntimeError("Ferrum direct-bond transition returned an unknown outcome")
+		bond_identifier = outcome.direct_bond.bond_identifier
+		if type(bond_identifier) is not str or not bond_identifier:
+			raise RuntimeError("Ferrum direct-bond transition returned an invalid bond identifier")
+		tab._install_mutation_result(result, (("bond", bond_identifier),))
+		return result
+
+	#============================================
+	def _commit_created_presentation_root_transition(self, tab: object,
+			request: object,
+			expected_root_kind: "ferrum_qt.ferrum.engine.CreatedPresentationRootKindV1",
+			recovery_message: str,
+			) -> tuple[object, str] | None:
+		"""Redeem one visual request through the generic authority and install Rust truth."""
+		import ferrum_qt.ferrum.engine as engine
+		if type(expected_root_kind) is not engine.CreatedPresentationRootKindV1:
+			raise TypeError("Ferrum visual transitions require a typed expected root kind")
+		try:
+			prepared = tab.prepare_session_operation_transition_v1(request)
+			result = tab.commit_session_operation_transition_v1(prepared)
+		except (engine.OperationValidationError, engine.PreparedOperationError):
+			self._cancel_line_gesture()
+			self._refresh_actions()
+			self._show_edit_refusal(self._unavailable_edit_refusal(recovery_message))
+			return None
+		outcome = result.outcome
+		created = outcome.created_presentation_root
+		if outcome.kind != "created_presentation_root_v1" or created is None:
+			raise RuntimeError("Ferrum visual transition returned an unknown operation outcome")
+		if created.kind != expected_root_kind:
+			raise RuntimeError("Ferrum visual transition returned an unexpected root kind")
+		root_identifier = created.identifier
+		if type(root_identifier) is not str or not root_identifier:
+			raise RuntimeError("Ferrum visual transition returned an invalid root identifier")
+		tab._install_mutation_result(result)
+		return result, root_identifier
 	#============================================
 	def _update_terminal_arrow_gesture(self, intent: _LineGestureIntent,
 			viewport_point: PySide6.QtCore.QPoint) -> None:
@@ -164,11 +191,18 @@ class FerrumNativeLineToolCompletionMixin:
 		if current_state is None:
 			return
 		try:
-			prepared = current.tab.prepare_terminal_arrow_gesture(
+			import ferrum_qt.ferrum.engine as engine
+			request = current.tab.resolve_terminal_arrow_gesture(
 				current_state.kind, current.presentation_gesture, current.presentation_preview,
 			)
 			self._reset_line_gesture_start()
-			commit = current.tab.commit_terminal_arrow_gesture(current_state.kind, prepared)
+			committed = self._commit_created_presentation_root_transition(
+				current.tab, request, engine.CreatedPresentationRootKindV1.curved_terminal_arrow,
+				f"{current_state.kind.action_name} is unchanged. Refresh the Rust view and start the tool again.",
+			)
+			if committed is None:
+				return
+			_result, root_identifier = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			current.tab.refresh_authoritative()
@@ -188,7 +222,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					commit.root.identifier, engine.RenderInteractionModifierV1.replace,
+					root_identifier, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
@@ -260,11 +294,18 @@ class FerrumNativeLineToolCompletionMixin:
 		if current is None or current.presentation_gesture is None or current.presentation_preview is None:
 			return
 		try:
-			prepared = current.tab.prepare_curved_equilibrium_arrow_gesture(
+			import ferrum_qt.ferrum.engine as engine
+			request = current.tab.resolve_curved_equilibrium_arrow_gesture(
 				current.presentation_gesture, current.presentation_preview,
 			)
 			self._reset_line_gesture_start()
-			commit = current.tab.commit_curved_equilibrium_arrow_gesture(prepared)
+			committed = self._commit_created_presentation_root_transition(
+				current.tab, request, engine.CreatedPresentationRootKindV1.curved_equilibrium_arrow,
+				"Curved equilibrium arrow is unchanged. Refresh the Rust view and start the tool again.",
+			)
+			if committed is None:
+				return
+			_result, root_identifier = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			recovered = current.tab.refresh_authoritative()
@@ -291,7 +332,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					commit.root.identifier, engine.RenderInteractionModifierV1.replace,
+					root_identifier, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
@@ -391,11 +432,17 @@ class FerrumNativeLineToolCompletionMixin:
 			return
 		import ferrum_qt.ferrum.engine as engine
 		try:
-			prepared = current.tab.prepare_presentation_path_gesture(
+			request = current.tab.resolve_presentation_path_gesture(
 				current.path_gesture, current.path_preview,
 			)
 			self._reset_line_gesture_start()
-			commit = current.tab.commit_presentation_path_gesture(prepared)
+			committed = self._commit_created_presentation_root_transition(
+				current.tab, request, engine.CreatedPresentationRootKindV1.path,
+				"Path drawing is unchanged. Refresh the Rust view and start the tool again.",
+			)
+			if committed is None:
+				return
+			_result, root_identifier = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			current.tab.refresh_authoritative()
@@ -414,7 +461,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					commit.identifier, engine.RenderInteractionModifierV1.replace,
+					root_identifier, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
@@ -508,14 +555,22 @@ class FerrumNativeLineToolCompletionMixin:
 			return
 		self._reset_line_gesture_start()
 		try:
-			if current.tool is _NativeLineTool.DRAW_ARROW:
-				commit = current.tab.commit_straight_normal_arrow_gesture(
-					current.presentation_gesture, current.presentation_preview,
-				)
-			else:
-				commit = current.tab.commit_straight_equilibrium_arrow_gesture(
-					current.presentation_gesture, current.presentation_preview,
-				)
+			import ferrum_qt.ferrum.engine as engine
+			request = current.tab.resolve_presentation_creation_gesture(
+				current.presentation_gesture, current.presentation_preview,
+			)
+			expected_root_kind = (
+				engine.CreatedPresentationRootKindV1.straight_normal_arrow
+				if current.tool is _NativeLineTool.DRAW_ARROW
+				else engine.CreatedPresentationRootKindV1.straight_equilibrium_arrow
+			)
+			committed = self._commit_created_presentation_root_transition(
+				current.tab, request, expected_root_kind,
+				f"{self._presentation_arrow_tool_name(current.tool)} is unchanged. Refresh the Rust view and start the tool again.",
+			)
+			if committed is None:
+				return
+			_result, root_identifier = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			# Rust accepted the Arrow and the tab retained its exact pending snapshot.
 			# Reproject from that authority; do not reuse the preview or call it refused.
@@ -532,7 +587,7 @@ class FerrumNativeLineToolCompletionMixin:
 				f"The {self._presentation_arrow_description(current.tool)} was added, but its authoritative display still needs recovery; refresh before saving or editing.",
 			))
 			return
-		except Exception as exc:
+		except engine.PresentationGestureError as exc:
 			self._cancel_line_gesture()
 			self._refresh_actions()
 			self._show_edit_refusal(self._presentation_gesture_refusal(exc))
@@ -542,7 +597,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					commit.root.identifier, engine.RenderInteractionModifierV1.replace,
+					root_identifier, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 		except Exception:
@@ -599,11 +654,18 @@ class FerrumNativeLineToolCompletionMixin:
 		if current is None or current.vector_gesture is None or current.vector_preview is None:
 			return
 		try:
-			prepared = current.tab.prepare_presentation_vector_gesture(
+			import ferrum_qt.ferrum.engine as engine
+			request = current.tab.resolve_presentation_vector_gesture(
 				current.vector_gesture, current.vector_preview,
 			)
 			self._reset_line_gesture_start()
-			commit = current.tab.commit_presentation_vector_gesture(prepared)
+			committed = self._commit_created_presentation_root_transition(
+				current.tab, request, engine.CreatedPresentationRootKindV1.vector,
+				"Vector drawing is unchanged. Refresh the Rust view and start the tool again.",
+			)
+			if committed is None:
+				return
+			_result, root_identifier = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			recovered = current.tab.refresh_authoritative()
@@ -618,7 +680,7 @@ class FerrumNativeLineToolCompletionMixin:
 				"The vector was added, but its authoritative display still needs recovery; refresh before saving or editing."
 			))
 			return
-		except Exception as exc:
+		except engine.PresentationVectorGestureError as exc:
 			self._cancel_line_gesture()
 			self._refresh_actions()
 			self._show_edit_refusal(self._vector_gesture_refusal(exc))
@@ -628,7 +690,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None,
-				engine.RenderInteractionQueryV1.root(commit.identifier),
+				engine.RenderInteractionQueryV1.root(root_identifier),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
 		except Exception:
@@ -651,9 +713,17 @@ class FerrumNativeLineToolCompletionMixin:
 			self._cancel_line_gesture()
 			return
 		try:
-			commit = intent.tab.commit_plus_placement_gesture(
+			import ferrum_qt.ferrum.engine as engine
+			request = intent.tab.resolve_presentation_creation_gesture(
 				intent.presentation_gesture, intent.presentation_preview,
 			)
+			committed = self._commit_created_presentation_root_transition(
+				intent.tab, request, engine.CreatedPresentationRootKindV1.plus,
+				"Plus placement is unchanged. Refresh the Rust view and start the tool again.",
+			)
+			if committed is None:
+				return
+			_result, root_identifier = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, intent.tab)
 			recovered = intent.tab.refresh_authoritative()
@@ -668,7 +738,7 @@ class FerrumNativeLineToolCompletionMixin:
 				"The Plus was added, but its authoritative display still needs recovery; refresh or reopen before saving or editing.",
 			))
 			return
-		except Exception as exc:
+		except engine.PresentationGestureError as exc:
 			self._cancel_line_gesture()
 			self._show_edit_refusal(self._presentation_gesture_refusal(exc))
 			return
@@ -677,7 +747,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = intent.tab.observe_direct_root_interaction()
 			selection = intent.tab.select_direct_roots(
 				observation, None,
-				engine.RenderInteractionQueryV1.root(commit.identifier),
+				engine.RenderInteractionQueryV1.root(root_identifier),
 			)
 			self._replace_render_interaction_selection(selection, intent.tab)
 		except Exception:
@@ -879,19 +949,5 @@ class FerrumNativeLineToolCompletionMixin:
 		self.statusBar().showMessage(self.tr(
 			"Draw Bond refused: {0}"
 		).format(self._direct_bond_refusal_message(refusal)), 5000)
-
-	#============================================
-	@staticmethod
-	def _direct_bond_commit_recovery_message(error: Exception) -> str | None:
-		"""Translate the complete closed Rust receipt-recovery contract for the canvas."""
-		import ferrum_qt.ferrum.engine as engine
-		if type(error) is not engine.DirectBondCommitError:
-			return None
-		return direct_bond_commit_recovery_message(error.category, error.recovery)
-
-	#============================================
-	def _show_direct_bond_commit_refusal(self, message: str) -> None:
-		"""Publish one typed receipt-redemption recovery without blocking the canvas."""
-		self._show_edit_refusal(self._unavailable_edit_refusal(message))
 
 	#============================================

@@ -71,7 +71,7 @@ fn point3_coordinate_batch_commits_all_targets_in_one_history_transition() {
     let prepared = batch(&session);
 
     let result = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetMoleculeAtomPositionsBatch {
                 update: prepared,
@@ -105,7 +105,7 @@ fn point3_coordinate_batch_rejects_stale_and_invalid_targets_without_mutation() 
     let mut session = DocumentSession::load(SOURCE).expect("fixture must load");
     let stale = batch(&session);
     session
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetAtomPosition {
                 atom_id: "a".to_owned(),
@@ -115,7 +115,7 @@ fn point3_coordinate_batch_rejects_stale_and_invalid_targets_without_mutation() 
         .expect("intervening mutation must commit");
     let after_intervening = session.snapshot().expect("snapshot must work");
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             1,
             SessionOperation::V1(SessionOperationV1::SetMoleculeAtomPositionsBatch {
                 update: stale
@@ -153,7 +153,7 @@ fn point3_coordinate_batch_rejects_stale_and_invalid_targets_without_mutation() 
     )
     .expect("unique targets form a valid request shape");
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             snapshot.revision(),
             SessionOperation::V1(SessionOperationV1::SetMoleculeAtomPositionsBatch {
                 update: invalid

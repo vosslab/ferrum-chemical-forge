@@ -31,7 +31,7 @@ fn clear(molecule_id: &str, atom_id: &str) -> SessionOperation {
 fn assign_clear_undo_and_redo_preserve_the_retained_atom() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let assigned = session
-        .submit(0, assign("m", "a", 11, false))
+        .apply_document_operation_v1(0, assign("m", "a", 11, false))
         .expect("number assignment must succeed");
     let atom = &assigned.observation().projection().molecules()[0].atoms()[0];
     assert_eq!(atom.number(), Some(11));
@@ -52,7 +52,7 @@ fn assign_clear_undo_and_redo_preserve_the_retained_atom() {
     );
 
     let cleared = session
-        .submit(1, clear("m", "a"))
+        .apply_document_operation_v1(1, clear("m", "a"))
         .expect("number clear must succeed");
     let atom = &cleared.observation().projection().molecules()[0].atoms()[0];
     assert_eq!((atom.number(), atom.show_number()), (None, None));
@@ -79,14 +79,14 @@ fn matching_assignment_and_empty_clear_are_history_free() {
     let mut session = DocumentSession::load(&source).expect("source must load");
     let before = session.snapshot().expect("snapshot must work");
     let same = session
-        .submit(0, assign("m", "a", 7, true))
+        .apply_document_operation_v1(0, assign("m", "a", 7, true))
         .expect("same pair must be accepted");
     assert_eq!(same.observation().snapshot(), &before);
 
     let mut empty = DocumentSession::load(SOURCE).expect("source must load");
     let before = empty.snapshot().expect("snapshot must work");
     let cleared = empty
-        .submit(0, clear("m", "a"))
+        .apply_document_operation_v1(0, clear("m", "a"))
         .expect("empty clear must be accepted");
     assert_eq!(cleared.observation().snapshot(), &before);
 }
@@ -110,7 +110,7 @@ fn malformed_pairs_and_molecule_mismatch_leave_state_unchanged() {
         }),
     ] {
         assert!(matches!(
-            session.submit(0, operation),
+            session.apply_document_operation_v1(0, operation),
             Err(DocumentSessionError::Operation(
                 SessionOperationError::InvalidAtomNumberPair
             ))
@@ -118,7 +118,7 @@ fn malformed_pairs_and_molecule_mismatch_leave_state_unchanged() {
         assert_eq!(session.snapshot().expect("snapshot must work"), before);
     }
     assert!(matches!(
-        session.submit(0, assign("other", "a", 3, true)),
+        session.apply_document_operation_v1(0, assign("other", "a", 3, true)),
         Err(DocumentSessionError::Operation(
             SessionOperationError::UnknownAtom(_)
         ))
@@ -135,7 +135,7 @@ fn direct_legacy_number_mark_is_a_typed_atomic_failure() {
     let mut session = DocumentSession::load(&source).expect("source must load");
     let before = session.snapshot().expect("snapshot must work");
     assert!(matches!(
-        session.submit(0, assign("m", "a", 3, true)),
+        session.apply_document_operation_v1(0, assign("m", "a", 3, true)),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(TypedDocumentError::LegacyAtomNumberMark(_))
         ))
@@ -153,7 +153,7 @@ fn alternate_canonical_prefix_is_mutated_by_expanded_name() {
     );
     let mut session = DocumentSession::load(source).expect("source must load");
     let changed = session
-        .submit(0, assign("m", "a", 29, true))
+        .apply_document_operation_v1(0, assign("m", "a", 29, true))
         .expect("prefixed target must be editable");
     let cdml = changed.observation().snapshot().cdml();
     assert!(cdml.contains("number=\"29\" show_number=\"yes\""));

@@ -30,7 +30,7 @@ def test_arrow_properties_edit_updates_semantics_and_history() -> None:
 		change_type.color("#AbC"),
 	)
 	operation = ferrum_chem.DocumentOperationV1.set_arrow_properties("a", changes)
-	changed = session.submit(0, operation).observation
+	changed = session.apply_document_operation_v1(0, operation).observation
 	arrow = _arrow(changed)
 	assert changed.snapshot.revision == 1
 	assert arrow.target.source_id == "a"
@@ -76,14 +76,14 @@ def test_arrow_properties_reject_hostile_shapes_without_mutation() -> None:
 		"missing", (change_type.start_head(True),),
 	)
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as error:
-		session.submit(0, unknown)
+		session.apply_document_operation_v1(0, unknown)
 	assert error.value.object_id == "missing"
 	assert session.observe(0).snapshot.digest == before.digest
 	operation = ferrum_chem.DocumentOperationV1.set_arrow_properties(
 		"a", (change_type.start_head(True),),
 	)
-	session.submit(0, operation)
+	session.apply_document_operation_v1(0, operation)
 	with pytest.raises(ferrum_chem.RevisionConflictError):
-		session.submit(0, operation)
+		session.apply_document_operation_v1(0, operation)
 	arrow = session.observe(1).projection.presentation_stack.roots[0].arrow
 	assert (arrow.kind.kind, arrow.kind.start_head) == ("normal", True)

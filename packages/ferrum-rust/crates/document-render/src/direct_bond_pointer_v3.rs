@@ -1,14 +1,11 @@
 //! Immutable frontend pointer evidence for direct-bond authoring.
 
 use ferrum_document::{
-    DirectBondAdmissionRefusalV1, DirectBondGestureErrorV1, DirectBondPoint2V1,
-    DocumentBondPresentationV1, DocumentFenceV1,
+    DirectBondAdmissionRefusalV1, DirectBondGestureErrorV1, DirectBondPoint2V1, DocumentFenceV1,
 };
 use thiserror::Error;
 
-use crate::direct_bond_v3_lifecycle::{
-    CommittedDirectBondGesture, DirectBondAdmission, DirectBondGesture, DirectBondOverlay,
-};
+use crate::direct_bond_v3_lifecycle::DirectBondGesture;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DirectBondPointerHitStateV3 {
@@ -323,88 +320,8 @@ impl DirectBondPointerProbeErrorV3 {
 }
 
 /// Opaque V3 direct-bond gesture retaining the resolved pointer press.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct DirectBondGestureV3 {
     pub(crate) gesture: DirectBondGesture,
     pub(crate) fence: DocumentFenceV1,
-}
-
-/// Opaque V3 direct-bond admission retaining renderer-preflighted operations.
-#[derive(Debug)]
-pub struct DirectBondAdmissionV3 {
-    pub(crate) admission: DirectBondAdmission,
-    pub(crate) overlay: DirectBondOverlayV3,
-}
-
-/// Renderer-issued V3 overlay facts for one admitted pointer gesture.
-#[derive(Clone, Debug, PartialEq)]
-pub struct DirectBondOverlayV3 {
-    pub(crate) overlay: DirectBondOverlay,
-}
-
-impl DirectBondOverlayV3 {
-    #[must_use]
-    pub const fn start_x(&self) -> f64 {
-        self.overlay.start_x()
-    }
-    #[must_use]
-    pub const fn start_y(&self) -> f64 {
-        self.overlay.start_y()
-    }
-    #[must_use]
-    pub const fn end_x(&self) -> f64 {
-        self.overlay.end_x()
-    }
-    #[must_use]
-    pub const fn end_y(&self) -> f64 {
-        self.overlay.end_y()
-    }
-    #[must_use]
-    pub const fn presentation(&self) -> DocumentBondPresentationV1 {
-        self.overlay.presentation()
-    }
-    #[must_use]
-    pub fn operations(&self) -> &[ferrum_render::RenderOp] {
-        self.overlay.operations()
-    }
-}
-
-impl DirectBondAdmissionV3 {
-    #[must_use]
-    pub const fn overlay(&self) -> &DirectBondOverlayV3 {
-        &self.overlay
-    }
-}
-
-/// Durable V3 outcome for a committed direct-bond pointer gesture.
-#[derive(Clone, Debug)]
-pub struct CommittedDirectBondGestureV3 {
-    pub(crate) committed: CommittedDirectBondGesture,
-}
-
-impl CommittedDirectBondGestureV3 {
-    #[must_use]
-    pub fn bond(&self) -> &ferrum_document::PersistentId {
-        self.committed.bond()
-    }
-    #[must_use]
-    pub fn end_atom(&self) -> &ferrum_document::PersistentId {
-        self.committed.end_atom()
-    }
-    #[must_use]
-    pub fn second_created_atom(&self) -> Option<&ferrum_document::PersistentId> {
-        self.committed.second_created_atom()
-    }
-    #[must_use]
-    pub const fn created_new_atom(&self) -> bool {
-        self.committed.created_new_atom()
-    }
-    #[must_use]
-    pub const fn created_new_molecule(&self) -> bool {
-        self.committed.created_new_molecule()
-    }
-    #[must_use]
-    pub fn result(&self) -> &ferrum_document::SessionOperationResultV1 {
-        self.committed.result()
-    }
 }

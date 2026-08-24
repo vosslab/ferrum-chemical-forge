@@ -177,24 +177,3 @@ pub enum DirectBondAdmissionRefusalV1 {
     #[error("direct bond gesture candidate cannot be rendered")]
     UnrenderableCandidate,
 }
-
-/// Closed mechanical failures for redeeming an already admitted candidate.
-#[derive(Clone, Debug, Error, PartialEq)]
-pub enum DirectBondCommitErrorV1 {
-    #[error("direct bond admission belongs to a different document session")]
-    ForeignSession,
-    #[error("direct bond admission receipt was already redeemed")]
-    ReplayedReceipt,
-    #[error("direct bond admission revision is stale")]
-    StaleRevision,
-    #[error("direct bond admission digest is stale")]
-    StaleDigest,
-    #[error("direct bond commit could not allocate a durable identity")]
-    IdentityAllocationFailed,
-    #[error("direct bond commit could not reserve a provisional token")]
-    ProvisionalTokenUnavailable,
-    #[error("direct bond commit could not apply its admitted candidate")]
-    CandidateApplicationFailed,
-    #[error("direct bond session revision space is exhausted")]
-    RevisionExhausted,
-}

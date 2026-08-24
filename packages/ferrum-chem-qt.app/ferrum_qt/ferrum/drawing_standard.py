@@ -54,11 +54,11 @@ class FerrumNativeDrawingStandardTabMixin:
 		import ferrum_qt.ferrum.engine as engine
 		if any(
 				type(change) is not engine.DocumentDrawingStandardPropertyChangeV1
-				for change in changes
-				):
+			for change in changes
+			):
 			raise TypeError("Ferrum drawing-standard changes require frozen Ferrum values")
 		operation = engine.DocumentOperationV1.set_drawing_standard(changes)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result)
 		return result
 

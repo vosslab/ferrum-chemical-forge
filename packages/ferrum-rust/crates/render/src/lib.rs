@@ -32,15 +32,16 @@ mod atom_bond;
 mod authored_direct_glycosidic_haworth;
 mod bond_style;
 mod compact_group;
+mod complete_document_admission_v1;
 mod composite_recording_v1;
 mod direct_draw_stream_v1;
 mod direct_glycosidic_haworth;
 mod directed_stereo_bond;
-mod document_admission_v1;
 mod document_artifact_v1;
 mod document_bond_replacement_v1;
 mod document_content_bounds_v1;
 mod document_plan_v1;
+mod document_precommit_overlay_v1;
 mod document_vector_v1;
 mod draw_stream_molecule_v1;
 mod draw_stream_v1;
@@ -90,6 +91,14 @@ pub use authored_direct_glycosidic_haworth::{
 pub use bond_style::BondStyle;
 /// Closed compact-group label primitives issued from typed document projections.
 pub use compact_group::{CompactGroupBondEndpointV1, CompactGroupRenderPrimitiveV1};
+/// Pure lowering and classification for complete-document render admission.
+pub use complete_document_admission_v1::{
+    AcceptedCompleteRenderPresentationV1, AcceptedCompleteRenderRootV1, AcceptedCompleteRenderV1,
+    AcceptedRenderOverlayRequestV1, AcceptedRenderOverlayTargetKindV1,
+    AcceptedRenderOverlayTargetV1, COMPLETE_DOCUMENT_RENDERER_SCHEMA_V1,
+    CompleteDocumentAdmissionErrorV1, admit_complete_document_render_v1,
+    admit_complete_document_render_with_resolved_v1,
+};
 /// Internal desktop paint recording of an authenticated whole-document composite.
 pub use composite_recording_v1::{
     CompositeFillRuleV1, CompositeFillV1, CompositeLineCapV1, CompositeLineJoinV1,
@@ -116,12 +125,6 @@ pub use document::observation::{
     ResolvedDocumentRenderWireV1, resolve_document_render_v1,
 };
 pub use document::plan::{DocumentRenderPlanCompositionError, compose_document_render_plan_v1};
-/// Opaque renderer admission for immutable complete-document candidates.
-pub use document_admission_v1::{
-    AdmittedDocumentRenderCandidateV1, DOCUMENT_RENDER_ADMISSION_SCHEMA_V1,
-    DocumentRenderAdmissionErrorV1, DocumentRenderCandidateV1, DocumentRenderPendingIdentityV1,
-    admit_document_render_candidate_v1, target_operations_for_document_bond_v1,
-};
 /// Renderer-neutral receipt for a completed whole-page artifact.
 pub use document_artifact_v1::{DocumentRenderArtifactV1, DocumentRenderReportV1};
 /// Checked in-process selective replacement of one molecule's bond outcomes.
@@ -137,7 +140,12 @@ pub use document_content_bounds_v1::{
 pub use document_plan_v1::{
     DocumentRenderContentV1, DocumentRenderExclusionV1, DocumentRenderIdentityV1,
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, DocumentRenderRootV1, DocumentTextLayoutV1,
-    DocumentTextOpV1, RenderRootOverlayV1, RenderViewportV1, preview_root_render_overlay_v1,
+    DocumentTextOpV1, MoleculeRenderOverlayV1, RenderRootOverlayV1, RenderViewportV1,
+    preview_molecule_render_overlay_v1, preview_root_render_overlay_v1,
+};
+/// Immutable identifier-free precommit paint data for accepted document mutations.
+pub use document_precommit_overlay_v1::{
+    DocumentPrecommitOverlayV1, DocumentPrecommitPaintPrimitiveV1,
 };
 /// Checked generic vector operations for direct document roots.
 pub use document_vector_v1::{
@@ -181,7 +189,8 @@ pub use presentation::path::{
 /// Pure renderer-owned plan for one immutable presentation stack.
 pub use presentation::plan::{
     PRESENTATION_RENDER_PLAN_SCHEMA_V1, PresentationRenderBoundsV1, PresentationRenderPlanV1,
-    PresentationRenderRootV1, lower_arrow_preview_v1, render_presentation_stack_v1,
+    PresentationRenderRootV1, lower_arrow_preview_v1, lower_standard_plus_preview_v1,
+    render_presentation_stack_v1,
 };
 pub use presentation::plus::{DocumentPlusRenderV1, PresentationTextBoundsV1};
 /// Renderer-owned geometry for interactive curved terminal-arrow previews.

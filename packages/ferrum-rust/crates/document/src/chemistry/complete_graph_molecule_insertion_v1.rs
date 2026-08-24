@@ -1,8 +1,8 @@
 //! Closed conversion from an owned complete chemistry graph into document insertion facts.
 
 use crate::{
-    MoleculeInsertionAtomV1, MoleculeInsertionBondOrderV1, MoleculeInsertionBondV1,
-    MoleculeInsertionV1, MoleculeInsertionV1Error, Point3V1, ProjectionError,
+    DocumentBondOrderV1, MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1,
+    MoleculeInsertionV1Error, Point3V1, ProjectionError,
 };
 use ferrum_chemistry::{AtomChirality, BondDirection, BondOrder, BondStereo, MolGraph};
 use ferrum_geometry::{GeometryError, MoleculePlacementV1, Point2, place_molecule_depiction_v1};
@@ -228,11 +228,11 @@ fn persistable_bond_order_v1(
     order: BondOrder,
     start: usize,
     end: usize,
-) -> Result<MoleculeInsertionBondOrderV1, CompleteGraphMoleculeInsertionError> {
+) -> Result<DocumentBondOrderV1, CompleteGraphMoleculeInsertionError> {
     match order {
-        BondOrder::Single => Ok(MoleculeInsertionBondOrderV1::Single),
-        BondOrder::Double => Ok(MoleculeInsertionBondOrderV1::Double),
-        BondOrder::Triple => Ok(MoleculeInsertionBondOrderV1::Triple),
+        BondOrder::Single => Ok(DocumentBondOrderV1::Single),
+        BondOrder::Double => Ok(DocumentBondOrderV1::Double),
+        BondOrder::Triple => Ok(DocumentBondOrderV1::Triple),
         BondOrder::Aromatic | BondOrder::Quadruple => {
             Err(CompleteGraphMoleculeInsertionError::UnsupportedBondOrder { start, end, order })
         }

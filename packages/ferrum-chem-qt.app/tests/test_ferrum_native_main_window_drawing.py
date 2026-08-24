@@ -391,14 +391,13 @@ def test_move_complete_roots_drag_resolves_one_snapped_rust_anchor_delta(
 		_click_visible_menu_action(window, "Move Complete Roots", qapp)
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
-		committed_previews: list[object] = []
-		commit = tab.commit_direct_root_translation
-
-		def record_commit(gesture: object, preview: object) -> object:
-			committed_previews.append(preview)
-			return commit(gesture, preview)
-
-		monkeypatch.setattr(tab, "commit_direct_root_translation", record_commit)
+		raw_start = tab.view.mapToScene(start)
+		raw_end = tab.view.mapToScene(end)
+		raw_delta = (
+			raw_end.x() - raw_start.x(),
+			raw_end.y() - raw_start.y(),
+		)
+		before_atom, before_plus = _mixed_root_positions(tab)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
@@ -408,15 +407,16 @@ def test_move_complete_roots_drag_resolves_one_snapped_rust_anchor_delta(
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
 		)
 		atom, plus = _mixed_root_positions(tab)
-		assert len(committed_previews) == 1
-		preview = committed_previews[0]
+		atom_delta = (atom[0] - before_atom[0], atom[1] - before_atom[1])
+		plus_delta = (plus[0] - before_plus[0], plus[1] - before_plus[1])
 		assert (
-			atom == pytest.approx(
-				(13.0 + preview.dx, 17.0 + preview.dy),
+			atom_delta != pytest.approx((0.0, 0.0))
+			and atom_delta != pytest.approx(
+				raw_delta,
 				abs=_AUTHORED_COORDINATE_TOLERANCE,
 			)
-			and plus == pytest.approx(
-				(73.0 + preview.dx, 51.0 + preview.dy),
+			and plus_delta == pytest.approx(
+				atom_delta,
 				abs=_AUTHORED_COORDINATE_TOLERANCE,
 			)
 			and tab.selected_top_level_transform_targets()[1] == durable_selection

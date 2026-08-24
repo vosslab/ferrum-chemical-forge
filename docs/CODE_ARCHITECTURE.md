@@ -44,7 +44,14 @@ the edition-2024 workspace. Its crates divide responsibility as follows:
   composes those crates into the `ferrum` executable and its document-native
   artifact publication boundary. Its `protocol_v1` module owns the closed,
   stateless operation request/response DTOs, generated schema, and pure
-  owned-value executor described in [USAGE.md](USAGE.md#operation-protocol-v1).
+  owned-value executor described in [USAGE.md](USAGE.md#machine-protocol).
+
+Selected-molecule diagnostics are a read-only boundary: `ferrum-domain` owns
+the closed source-representation finding classification, `ferrum-document`
+defines the report record boundary for selected direct-root molecules, and
+`ferrum-api` exposes `document.molecule.report.v1`. A supplied snapshot carries
+CDML, delivery revision, and digest. The route is read-only and has no mutation,
+renderer admission, external corpus, or chemistry-engine ownership.
 
 ### Native Python extension
 
@@ -90,6 +97,11 @@ recovery export, and view controls. A document tab owns one Rust
 `DocumentSession`; Rust confirms document changes and replacement render
 observations before Qt adopts persistent document state.
 
+The native `Molecule Report...` information surface presents a frozen,
+multi-root diagnostic receipt. It renders typed records, aggregate outcome,
+findings, and any supplied recovery facts; it does not classify chemistry or
+mutate document state.
+
 The old compatibility host, its session and worker layers, legacy action and
 mode families, compatibility codecs, and their menu and mode resources have
 been removed from the packaged application. Unsupported historical file forms
@@ -111,9 +123,18 @@ Qt is therefore a presentation client, not a second CDML document model.
 The renderer-admission target is renderer-mints/document-redeems: `ferrum-render`
 mints an opaque proof for a candidate bound to a `ferrum-document` issuer and
 sequence identity, and `ferrum-document` privately redeems it during commit.
-`ferrum-document-render`, Python, and Qt receive opaque prepared interaction
-handles and never receive the proof. The completed old-wrapper routes still
-need relocation from `ferrum-document-render` to reach this target.
+`PreparedSessionTransitionV1` is the document-owned generic lifecycle for the
+admitted visual operations. `ferrum-document-render`, Python, and Qt receive
+opaque prepared interaction handles and never receive the proof. The generic
+route covers terminal, equilibrium, and straight arrows; paths; vectors; plus;
+and explicit-hydrogen materialization.
+
+The same transition authority owns generic `CreateAtomV1`, `CreateBondV1`, and
+`CreateHaworthMoleculeV1` operations. Attached cyclohexane, direct-bond, and
+Haworth UI previews receive only a renderer-issued, identifier-free
+`DocumentPrecommitOverlayV1` paint value. Wavy and bracket bindings retain
+their established supported behavior; none of these adapters receives a raw
+render plan, candidate, renderer proof, or alternate commit authority.
 
 ## Data flow
 

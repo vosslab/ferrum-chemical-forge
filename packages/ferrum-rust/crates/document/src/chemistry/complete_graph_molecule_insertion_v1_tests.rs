@@ -1,4 +1,4 @@
-use crate::MoleculeInsertionBondOrderV1;
+use crate::DocumentBondOrderV1;
 use ferrum_chemistry::{
     AtomicNumber, BondOrder, Coordinates, MolAtom, MolBond, MolGraph, Point2 as ChemistryPoint2,
 };
@@ -49,10 +49,7 @@ fn v2000_shape_maps_atom_bond_and_coordinate_order_without_parser_specific_state
     assert_eq!(insertion.atoms()[1].position().x(), 120.0);
     assert_eq!(insertion.bonds()[0].start(), 0);
     assert_eq!(insertion.bonds()[0].end(), 1);
-    assert_eq!(
-        insertion.bonds()[0].order(),
-        MoleculeInsertionBondOrderV1::Double
-    );
+    assert_eq!(insertion.bonds()[0].order(), DocumentBondOrderV1::Double);
 }
 
 #[test]
@@ -72,16 +69,10 @@ fn v3000_shape_maps_triple_bond_in_source_order() {
 
     assert_eq!(insertion.bonds()[0].start(), 1);
     assert_eq!(insertion.bonds()[0].end(), 2);
-    assert_eq!(
-        insertion.bonds()[0].order(),
-        MoleculeInsertionBondOrderV1::Double
-    );
+    assert_eq!(insertion.bonds()[0].order(), DocumentBondOrderV1::Double);
     assert_eq!(insertion.bonds()[1].start(), 0);
     assert_eq!(insertion.bonds()[1].end(), 1);
-    assert_eq!(
-        insertion.bonds()[1].order(),
-        MoleculeInsertionBondOrderV1::Triple
-    );
+    assert_eq!(insertion.bonds()[1].order(), DocumentBondOrderV1::Triple);
 }
 
 #[test]

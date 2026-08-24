@@ -310,7 +310,7 @@ class FerrumNativeGeometricPropertiesMixin:
 		operation = engine.DocumentOperationV1.set_geometric_properties(
 			expected_source_id, changes,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(
 			result, ((model.kind, model.target_id),),
 		)
@@ -338,7 +338,7 @@ class FerrumNativeGeometricPropertiesMixin:
 		operation = engine.DocumentOperationV1.set_bracket_properties(
 			expected_pair_id, changes,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(
 			result,
 			tuple(("polyline", identifier) for identifier in model.member_target_ids),

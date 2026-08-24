@@ -401,7 +401,7 @@ pub enum DirectCdmlSemanticErrorV1 {
 ///
 /// The retained XML tree determines the insertion point, preserving every
 /// existing direct-child ordering and opaque namespace.
-pub fn append_direct_cdml_reaction_v1(
+pub(crate) fn append_direct_cdml_reaction_v1(
     source: &str,
     reaction_id: &str,
     roles: &[(DirectReactionRoleV1, String)],
@@ -435,7 +435,7 @@ pub fn append_direct_cdml_reaction_v1(
 /// Compatibility records are deliberately not normalized: callers must first
 /// prove strictness through `inspect_direct_reactions_v1`.  Unknown children
 /// and foreign namespaces therefore never cross this edit seam.
-pub fn replace_direct_cdml_reaction_members_v1(
+pub(crate) fn replace_direct_cdml_reaction_members_v1(
     source: &str,
     reaction_id: &str,
     roles: &[(DirectReactionRoleV1, String)],
@@ -482,7 +482,7 @@ pub fn replace_direct_cdml_reaction_members_v1(
 
 /// Remove exactly one strict direct reaction definition, preserving all roots
 /// it references. This is intentionally distinct from aggregate deletion.
-pub fn delete_direct_cdml_reaction_definition_v1(
+pub(crate) fn delete_direct_cdml_reaction_definition_v1(
     source: &str,
     reaction_id: &str,
 ) -> Result<String, DirectCdmlSemanticErrorV1> {

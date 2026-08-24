@@ -49,7 +49,7 @@ fn authored_wavy_path_and_appearance_commit_preserve_and_follow_history() {
     );
 
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(
                 "wave",
@@ -111,7 +111,7 @@ fn duplicate_unknown_ordinary_and_stale_wavy_intent_are_atomic() {
     let before = session.snapshot().expect("snapshot");
     for identifier in ["ordinary", "missing"] {
         assert!(matches!(
-            session.submit(
+            session.apply_document_operation_v1(
                 0,
                 patch(
                     identifier,
@@ -127,7 +127,7 @@ fn duplicate_unknown_ordinary_and_stale_wavy_intent_are_atomic() {
         assert_eq!(session.snapshot().expect("snapshot"), before);
     }
     session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(
                 "wave",
@@ -139,7 +139,7 @@ fn duplicate_unknown_ordinary_and_stale_wavy_intent_are_atomic() {
         .expect("valid patch");
     let accepted = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.submit(0, patch("wave", Vec::new())),
+        session.apply_document_operation_v1(0, patch("wave", Vec::new())),
         Err(DocumentSessionError::RevisionConflict {
             expected: 0,
             actual: 1

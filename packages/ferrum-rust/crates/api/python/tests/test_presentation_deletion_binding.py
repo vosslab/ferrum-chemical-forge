@@ -24,7 +24,7 @@ BRACKET_SOURCE = (
 def test_presentation_deletion_is_exact_revisioned_and_preserves_opaque_content() -> None:
 	kinds = ferrum_chem.DocumentPresentationRootKindV1
 	session = ferrum_chem.DocumentSession.load(SOURCE)
-	changed = session.submit(
+	changed = session.apply_document_operation_v1(
 		0, ferrum_chem.DocumentOperationV1.delete_presentation_root("t", kinds.text),
 	).observation
 
@@ -46,7 +46,7 @@ def test_presentation_deletion_rejects_wrong_kind_without_state_change() -> None
 		"t", ferrum_chem.DocumentPresentationRootKindV1.plus,
 	)
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as caught:
-		session.submit(0, operation)
+		session.apply_document_operation_v1(0, operation)
 	assert caught.value.object_id == "t"
 	after = session.snapshot()
 	assert (after.revision, after.digest) == (before.revision, before.digest)
@@ -59,7 +59,7 @@ def test_complete_bracket_pair_deletes_atomically_through_frozen_selectors() -> 
 	operation = ferrum_chem.DocumentOperationV1.delete_presentation_roots((
 		selector("left", kind), selector("right", kind),
 	))
-	changed = session.submit(0, operation).observation
+	changed = session.apply_document_operation_v1(0, operation).observation
 	assert not changed.projection.presentation_stack.roots
 	restored = session.undo(1).observation.projection.presentation_stack
 	assert restored.bracket_pairs[0].member_ids == ["left", "right"]

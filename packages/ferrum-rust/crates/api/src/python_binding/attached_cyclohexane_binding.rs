@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use super::{
     binding::PyDocumentSession,
     document_error_binding::{RevisionConflictError, document_object_id},
-    render_binding::{PyRenderPlanV2, plan_from},
+    prepared_transition_binding::{PyDocumentPrecommitOverlayV1, overlay_from},
 };
 
 create_exception!(
@@ -61,7 +61,7 @@ pub(crate) struct PyPendingAttachedCyclohexaneV1 {
 )]
 pub(crate) struct PyAttachedCyclohexanePreviewV1 {
     #[pyo3(get)]
-    plan: PyRenderPlanV2,
+    overlay: PyDocumentPrecommitOverlayV1,
 }
 
 /// Identity-free authoritative facts after the one committed transition.
@@ -98,7 +98,7 @@ impl PyDocumentSession {
         begin(&mut self.session, fence, anchor, release).map_err(|error| attached_error(py, error))
     }
 
-    /// Return only copied, finite geometry while the private candidate remains live.
+    /// Return identifier-free renderer paint facts while the private candidate remains live.
     fn _preview_attach_cyclohexane_v1(
         &self,
         py: Python<'_>,
@@ -118,11 +118,11 @@ impl PyDocumentSession {
 
     /// Retire one native-tab preview without exposing candidate state.
     fn _cancel_attach_cyclohexane_v1(
-        &self,
+        &mut self,
         py: Python<'_>,
         mut pending: PyRefMut<'_, PyPendingAttachedCyclohexaneV1>,
     ) -> PyResult<()> {
-        cancel(&self.session, &mut pending.pending).map_err(|error| attached_error(py, error))
+        cancel(&mut self.session, &mut pending.pending).map_err(|error| attached_error(py, error))
     }
 }
 
@@ -141,12 +141,12 @@ fn preview(
     py: Python<'_>,
     pending: &PendingAttachedCyclohexaneV1,
 ) -> PyResult<PyAttachedCyclohexanePreviewV1> {
-    let plan = pending
-        .render_plan_v1()
+    let overlay = pending
+        .precommit_overlay_v1()
         .ok_or_else(|| attached_error(py, AttachedCyclohexaneSessionErrorV1::Retired))?;
-    let plan = plan_from(py, plan)
+    let overlay = overlay_from(py, overlay)
         .map_err(|_| attached_error(py, AttachedCyclohexaneSessionErrorV1::RendererAdmission))?;
-    Ok(PyAttachedCyclohexanePreviewV1 { plan })
+    Ok(PyAttachedCyclohexanePreviewV1 { overlay })
 }
 
 fn commit(
@@ -162,7 +162,7 @@ fn commit(
 }
 
 fn cancel(
-    session: &DocumentSession,
+    session: &mut DocumentSession,
     pending: &mut PendingAttachedCyclohexaneV1,
 ) -> Result<(), AttachedCyclohexaneSessionErrorV1> {
     session.retire_attach_cyclohexane_v1(pending)
@@ -307,6 +307,7 @@ mod tests {
 
     #[test]
     fn private_bridge_refuses_foreign_retired_replayed_and_stale_handles_before_mutation() {
+        Python::initialize();
         let mut owner = DocumentSession::load(SOURCE).expect("owner loads");
         let mut foreign = DocumentSession::load(SOURCE).expect("foreign loads");
         let owner_before = owner.snapshot().expect("owner snapshot");
@@ -325,7 +326,7 @@ mod tests {
             foreign.snapshot().expect("foreign unchanged"),
             foreign_before
         );
-        cancel(&owner, &mut pending.pending).expect("cancel");
+        cancel(&mut owner, &mut pending.pending).expect("cancel");
         assert_eq!(owner.snapshot().expect("cancel unchanged"), owner_before);
         Python::attach(|py| match preview(py, &pending.pending) {
             Err(error) => assert!(error.is_instance_of::<AttachedCyclohexaneAttachmentError>(py)),
@@ -349,51 +350,6 @@ mod tests {
             Err(AttachedCyclohexaneSessionErrorV1::StaleRevision)
         ));
         assert_eq!(owner.snapshot().expect("stale unchanged"), after);
-    }
-
-    #[test]
-    fn pending_receipt_has_no_registered_constructor_serialization_or_candidate_surface() {
-        Python::initialize();
-        Python::attach(|py| {
-            let module = PyModule::new(py, "ferrum_chem").expect("extension module");
-            super::super::binding::initialize(&module).expect("extension module registers");
-            assert!(module.getattr("PendingAttachedCyclohexaneV1").is_err());
-            for forbidden in [
-                "attach_cyclohexane_v1",
-                "begin_attach_cyclohexane_v1",
-                "AttachedCyclohexaneServiceV1",
-            ] {
-                assert!(module.getattr(forbidden).is_err());
-            }
-
-            let mut session = DocumentSession::load(SOURCE).expect("session loads");
-            let expected_fence = fence(&session);
-            let expected_anchor = anchor(&session);
-            let pending = Py::new(
-                py,
-                begin(&mut session, expected_fence, expected_anchor, release())
-                    .expect("Rust issues pending receipt"),
-            )
-            .expect("receipt binds to Python");
-            let pending = pending.bind(py);
-
-            assert!(pending.get_type().call0().is_err());
-            assert!(
-                py.import("pickle")
-                    .expect("standard pickle module")
-                    .call_method1("dumps", (pending,))
-                    .is_err()
-            );
-            for forbidden in [
-                "candidate",
-                "fence",
-                "next_generated_ids",
-                "preview_vertices",
-                "session_origin",
-            ] {
-                assert!(pending.getattr(forbidden).is_err());
-            }
-        });
     }
 
     #[test]

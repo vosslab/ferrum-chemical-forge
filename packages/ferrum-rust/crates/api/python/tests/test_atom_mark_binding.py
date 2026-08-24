@@ -13,7 +13,7 @@ SOURCE = (
 def test_atom_marks_are_typed_rendered_and_undoable() -> None:
 	"""One accepted mark remains a typed projection and semantic render batch."""
 	session = ferrum_chem.DocumentSession.load(SOURCE)
-	added = session.submit(
+	added = session.apply_document_operation_v1(
 		0,
 		ferrum_chem.DocumentOperationV1.apply_atom_mark(
 			"m", "a", ferrum_chem.AtomMarkActionV1.add,
@@ -35,7 +35,7 @@ def test_atom_marks_are_typed_rendered_and_undoable() -> None:
 	)
 	assert isinstance(batch.operations[-3].operation, ferrum_chem.EllipseOpV1)
 
-	removed = session.submit(
+	removed = session.apply_document_operation_v1(
 		1,
 		ferrum_chem.DocumentOperationV1.apply_atom_mark(
 			"m", "a", ferrum_chem.AtomMarkActionV1.remove,

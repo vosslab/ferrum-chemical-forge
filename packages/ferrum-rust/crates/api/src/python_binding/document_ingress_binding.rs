@@ -423,10 +423,10 @@ pub(crate) fn prepare_local_interchange_file_v1(
                 &super::super::StagedExtensionInterchangeRuntimeResolverV1,
             )
             .map_err(LocalInterchangePreparationError::Refused)?;
-        let summary = super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1::from_summary(prepared.summary());
-        let (session, _) = prepared
+        let (session, summary) = prepared
             .commit_and_take_session()
             .map_err(LocalInterchangePreparationError::Refused)?;
+        let summary = super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1::from_summary(&summary);
         let post_import_snapshot = session
             .snapshot()
             .map_err(|_| LocalInterchangePreparationError::Refused(

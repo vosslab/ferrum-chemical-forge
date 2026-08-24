@@ -1,8 +1,10 @@
 //! Closed Python factories for authoritative Rust document operations.
 
 use ferrum_document::{
-    AtomMarkActionV1, AtomPropertiesPatchV1, BondPropertiesPatchV1, Point3V1, SessionOperation,
-    SessionOperationV1,
+    AtomMarkActionV1, AtomPropertiesPatchV1, BondPropertiesPatchV1, CreateAtomV1, CreateBondV1,
+    DetachedRegularRingInsertionV1, Point3V1, RegularRingOrientationV1, RegularRingSizeV1,
+    SessionOperation, SessionOperationTransitionRequestV1, SessionOperationV1,
+    TransitionAuthorizationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyInt, PyTuple};
@@ -12,7 +14,12 @@ use super::atom_properties_binding::PyDocumentAtomPropertyChangeV1;
 use super::binding::{PyDocumentBondOrderV1, operation_validation_error, projection_error};
 use super::bond_properties_binding::PyDocumentBondPropertyChangeV1;
 use super::drawing_standard_binding;
+use super::document_error_binding::document_object_id;
+use super::interchange_insertion_binding::PyInterchangeRecordBatchInsertionV1;
 use super::paper_properties_binding::{PyDocumentPaperPropertyChangeV1, validate_patch};
+use super::prepared_transition_binding::PySessionOperationTransitionRequestV1;
+use super::document_session_binding::PyDocumentBondPresentationV1;
+use super::smiles_insertion_binding::PyMoleculeInsertionV1;
 
 /// Closed V1 operation grammar for authoritative session mutations.
 ///
@@ -31,6 +38,109 @@ pub(crate) struct PyDocumentOperationV1 {
 
 #[pymethods]
 impl PyDocumentOperationV1 {
+    /// Build one complete frozen-molecule insertion operation.
+    #[staticmethod]
+    fn insert_molecule_v1(molecule: PyRef<'_, PyMoleculeInsertionV1>) -> Self {
+        Self {
+            operation: SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(
+                molecule.insertion().clone(),
+            )),
+        }
+    }
+
+    /// Build one atomic source-ordered interchange batch insertion operation.
+    #[staticmethod]
+    fn insert_interchange_record_batch_v1(
+        batch: PyRef<'_, PyInterchangeRecordBatchInsertionV1>,
+    ) -> Self {
+        Self {
+            operation: SessionOperation::V1(SessionOperationV1::InsertInterchangeRecordBatchV1(
+                batch.batch().clone(),
+            )),
+        }
+    }
+
+    /// Build one ordinary saturated regular-ring insertion operation.
+    #[staticmethod]
+    fn insert_regular_ring_v1(
+        py: Python<'_>,
+        size: u8,
+        center_x: f64,
+        center_y: f64,
+        side_length: f64,
+    ) -> PyResult<Self> {
+        let center = match Point3V1::new(center_x, center_y, 0.0) {
+            Ok(center) => center,
+            Err(error) => return Err(projection_error(py, error)?),
+        };
+        let size = RegularRingSizeV1::new(size)
+            .map_err(|error| operation_validation_error(py, error.to_string()))?;
+        let molecule = DetachedRegularRingInsertionV1::new(
+            size,
+            center,
+            side_length,
+            RegularRingOrientationV1::FlatTop,
+        )
+        .and_then(DetachedRegularRingInsertionV1::molecule)
+        .map_err(|error| operation_validation_error(py, error.to_string()))?;
+        Ok(Self {
+            operation: SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(molecule)),
+        })
+    }
+
+    /// Build one primitive atom-authoring operation at one finite scene point.
+    #[staticmethod]
+    fn create_atom_v1(
+        py: Python<'_>,
+        molecule_object_id: String,
+        element: String,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> PyResult<Self> {
+        let molecule = document_object_id(py, molecule_object_id)?;
+        let position = Point3V1::new(x, y, z)
+            .map_err(|error| projection_error(py, error).expect("projection error construction"))?;
+        Ok(Self {
+            operation: SessionOperation::V1(SessionOperationV1::CreateAtomV1(CreateAtomV1::new(
+                molecule, element, position,
+            ))),
+        })
+    }
+
+    /// Build one primitive bond-authoring operation between durable atom objects.
+    #[staticmethod]
+    fn create_bond_v1(
+        py: Python<'_>,
+        start_atom_object_id: String,
+        end_atom_object_id: String,
+        presentation: PyRef<'_, PyDocumentBondPresentationV1>,
+    ) -> PyResult<Self> {
+        let start = document_object_id(py, start_atom_object_id)?;
+        let end = document_object_id(py, end_atom_object_id)?;
+        Ok(Self {
+            operation: SessionOperation::V1(SessionOperationV1::CreateBondV1(CreateBondV1::new(
+                start,
+                end,
+                (*presentation).into(),
+            ))),
+        })
+    }
+
+    /// Move this immutable operation into one opaque generic transition request.
+    fn transition_request_v1(
+        &self,
+        expected_revision: u64,
+    ) -> PySessionOperationTransitionRequestV1 {
+        PySessionOperationTransitionRequestV1::from_request(
+            SessionOperationTransitionRequestV1::new(
+                expected_revision,
+                self.operation.clone(),
+                TransitionAuthorizationV1::none(),
+            ),
+        )
+    }
+
     /// Build the V1 operation that replaces one existing atom's element spelling.
     #[staticmethod]
     fn set_atom_element(atom_id: String, element: String) -> Self {
@@ -387,18 +497,6 @@ impl PyDocumentOperationV1 {
     ) -> PyResult<Self> {
         let operation =
             super::presentation_stack_binding::reorder_presentation_roots(py, order, targets)?;
-        Ok(Self { operation })
-    }
-
-    /// Build one translation of complete durable direct-root objects.
-    #[staticmethod]
-    fn translate_top_level_roots(
-        py: Python<'_>,
-        targets: &Bound<'_, PyTuple>,
-        dx: &Bound<'_, PyAny>,
-        dy: &Bound<'_, PyAny>,
-    ) -> PyResult<Self> {
-        let operation = super::top_level_transform_binding::translate(py, targets, dx, dy)?;
         Ok(Self { operation })
     }
 

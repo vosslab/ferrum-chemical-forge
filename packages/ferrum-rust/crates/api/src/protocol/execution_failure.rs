@@ -52,7 +52,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
         }
     }
-    pub(super) fn document_admission(message: String) -> Self {
+    pub(crate) fn document_admission(message: String) -> Self {
         Self {
             category: OperationProtocolErrorCategoryV1::DocumentAdmissionFailed,
             message,
@@ -297,10 +297,10 @@ impl ExecutionFailureV1 {
         }
     }
 
-    pub(super) fn catalog_refusal(error: CatalogPlacementErrorV2) -> Self {
+    pub(super) fn catalog_refusal(error: CatalogPlacementErrorV1) -> Self {
         Self {
             category: match error.category() {
-                CatalogPlacementCategoryV2::RenderPreparation => {
+                CatalogPlacementCategoryV1::RenderPreparation => {
                     OperationProtocolErrorCategoryV1::RenderFailed
                 }
                 _ => OperationProtocolErrorCategoryV1::DocumentInvalid,
@@ -411,45 +411,45 @@ pub(super) fn reaction_recovery(
 }
 
 pub(super) fn catalog_category(
-    value: CatalogPlacementCategoryV2,
+    value: CatalogPlacementCategoryV1,
 ) -> ProtocolCatalogPlacementCategoryV1 {
     match value {
-        CatalogPlacementCategoryV2::UnknownKey => ProtocolCatalogPlacementCategoryV1::UnknownKey,
-        CatalogPlacementCategoryV2::StaleSnapshot => {
+        CatalogPlacementCategoryV1::UnknownKey => ProtocolCatalogPlacementCategoryV1::UnknownKey,
+        CatalogPlacementCategoryV1::StaleSnapshot => {
             ProtocolCatalogPlacementCategoryV1::StaleSnapshot
         }
-        CatalogPlacementCategoryV2::ForeignSession => {
+        CatalogPlacementCategoryV1::ForeignSession => {
             ProtocolCatalogPlacementCategoryV1::ForeignSession
         }
-        CatalogPlacementCategoryV2::MismatchedPreview => {
+        CatalogPlacementCategoryV1::MismatchedPreview => {
             ProtocolCatalogPlacementCategoryV1::MismatchedPreview
         }
-        CatalogPlacementCategoryV2::ReplayedGesture => {
+        CatalogPlacementCategoryV1::ReplayedGesture => {
             ProtocolCatalogPlacementCategoryV1::ReplayedGesture
         }
-        CatalogPlacementCategoryV2::InvalidPoint => {
+        CatalogPlacementCategoryV1::InvalidPoint => {
             ProtocolCatalogPlacementCategoryV1::InvalidPoint
         }
-        CatalogPlacementCategoryV2::RenderPreparation => {
+        CatalogPlacementCategoryV1::RenderPreparation => {
             ProtocolCatalogPlacementCategoryV1::RenderPreparation
         }
-        CatalogPlacementCategoryV2::SessionConflict => {
+        CatalogPlacementCategoryV1::SessionConflict => {
             ProtocolCatalogPlacementCategoryV1::SessionConflict
         }
     }
 }
 
 pub(super) fn catalog_recovery(
-    value: CatalogPlacementRecoveryV2,
+    value: CatalogPlacementRecoveryV1,
 ) -> ProtocolCatalogPlacementRecoveryV1 {
     match value {
-        CatalogPlacementRecoveryV2::ChooseCatalogEntry => {
+        CatalogPlacementRecoveryV1::ChooseCatalogEntry => {
             ProtocolCatalogPlacementRecoveryV1::ChooseCatalogEntry
         }
-        CatalogPlacementRecoveryV2::RefreshAndRestart => {
+        CatalogPlacementRecoveryV1::RefreshAndRestart => {
             ProtocolCatalogPlacementRecoveryV1::RefreshAndRestart
         }
-        CatalogPlacementRecoveryV2::DocumentUnchanged => {
+        CatalogPlacementRecoveryV1::DocumentUnchanged => {
             ProtocolCatalogPlacementRecoveryV1::DocumentUnchanged
         }
     }

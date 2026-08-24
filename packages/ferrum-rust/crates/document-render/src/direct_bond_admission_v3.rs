@@ -1,20 +1,18 @@
 //! Stateful renderer admission for resolved direct-bond pointer gestures.
 
+#[cfg(test)]
+use ferrum_document::PreparedSessionTransitionV1;
 use ferrum_document::{
     DirectBondGestureErrorV1, DirectBondSnapPolicyV1, DocumentBondPresentationV1, DocumentFenceV1,
-    DocumentSession,
+    DocumentSession, SessionOperationTransitionRequestV1,
 };
 
 use crate::direct_bond_pointer_v3::{
-    CommittedDirectBondGestureV3, DirectBondAdmissionErrorV3, DirectBondAdmissionRefusalV3,
-    DirectBondAdmissionV3, DirectBondGestureV3, DirectBondOverlayV3, DirectBondPointerProbeErrorV3,
-    DirectBondPointerProbeV3,
+    DirectBondAdmissionErrorV3, DirectBondAdmissionRefusalV3, DirectBondGestureV3,
+    DirectBondPointerProbeErrorV3, DirectBondPointerProbeV3,
 };
 use crate::direct_bond_probe_resolution_v3::resolve_probe;
-use crate::direct_bond_v3_lifecycle::{
-    DirectBondCommitError, admit_direct_bond_candidate, begin_direct_bond_v3_lifecycle,
-    commit_direct_bond_admission,
-};
+use crate::direct_bond_v3_lifecycle::{begin_direct_bond_v3_lifecycle, resolve_direct_bond_end};
 
 pub fn begin_direct_bond_gesture_v3(
     session: &DocumentSession,
@@ -79,35 +77,16 @@ fn begin_direct_bond_error_v3(error: DirectBondGestureErrorV1) -> DirectBondAdmi
     }
 }
 
-pub fn admit_direct_bond_candidate_v3(
-    session: &mut DocumentSession,
-    gesture: &DirectBondGestureV3,
+pub fn resolve_direct_bond_end_v3(
+    session: &DocumentSession,
+    gesture: DirectBondGestureV3,
     end: DirectBondPointerProbeV3,
-) -> Result<DirectBondAdmissionV3, DirectBondAdmissionErrorV3> {
-    super::direct_bond_v3_lifecycle::require_available_direct_bond_gesture(
-        session,
-        &gesture.gesture,
-    )
-    .map_err(DirectBondAdmissionRefusalV3::from)?;
-    let intent = resolve_probe(session, gesture.fence, &end)?;
-    Ok(
-        admit_direct_bond_candidate(session, &gesture.gesture, intent)
-            .map(|admission| DirectBondAdmissionV3 {
-                overlay: DirectBondOverlayV3 {
-                    overlay: admission.overlay().clone(),
-                },
-                admission,
-            })
-            .map_err(DirectBondAdmissionRefusalV3::from)?,
-    )
-}
-
-pub fn commit_direct_bond_admission_v3(
-    session: &mut DocumentSession,
-    admission: &mut DirectBondAdmissionV3,
-) -> Result<CommittedDirectBondGestureV3, DirectBondCommitError> {
-    commit_direct_bond_admission(session, &mut admission.admission)
-        .map(|committed| CommittedDirectBondGestureV3 { committed })
+) -> Result<SessionOperationTransitionRequestV1, DirectBondAdmissionErrorV3> {
+    let DirectBondGestureV3 { gesture, fence } = gesture;
+    let intent = resolve_probe(session, fence, &end)?;
+    resolve_direct_bond_end(gesture, intent)
+        .map_err(DirectBondAdmissionRefusalV3::from)
+        .map_err(DirectBondAdmissionErrorV3::from)
 }
 
 #[cfg(test)]
@@ -143,6 +122,33 @@ mod tests {
         .expect("direct atom probe")
     }
 
+    fn preview_primitives(
+        transition: &PreparedSessionTransitionV1,
+    ) -> Vec<ferrum_render::DocumentPrecommitPaintPrimitiveV1> {
+        transition
+            .presentation_v1()
+            .expect("prepared transition has copied presentation")
+            .precommit_overlay()
+            .expect("direct-bond transition has copied overlay")
+            .primitives()
+            .to_vec()
+    }
+
+    fn resolve_and_prepare(
+        session: &mut DocumentSession,
+        gesture: DirectBondGestureV3,
+        end: DirectBondPointerProbeV3,
+    ) -> Result<PreparedSessionTransitionV1, DirectBondAdmissionErrorV3> {
+        let request = resolve_direct_bond_end_v3(session, gesture, end)?;
+        session
+            .prepare_session_operation_transition_v1(request)
+            .map_err(|_| {
+                DirectBondAdmissionErrorV3::Refusal(
+                    DirectBondAdmissionRefusalV3::UnrenderableCandidate,
+                )
+            })
+    }
+
     #[test]
     fn pointer_probe_v3_preserves_every_endpoint_form() {
         for (name, start_existing, end_existing) in [
@@ -171,16 +177,17 @@ mod tests {
                 DirectBondSnapPolicyV1::free(),
             )
             .unwrap_or_else(|error| panic!("{name} begins: {error}"));
-            let mut admission = admit_direct_bond_candidate_v3(&mut session, &gesture, end)
+            let mut transition = resolve_and_prepare(&mut session, gesture, end)
                 .unwrap_or_else(|error| panic!("{name} admits: {error}"));
             assert!(
-                !admission.overlay().operations().is_empty(),
-                "{name} retains operations"
+                !preview_primitives(&transition).is_empty(),
+                "{name} retains copied generic paint primitives"
             );
-            let committed = commit_direct_bond_admission_v3(&mut session, &mut admission)
-                .unwrap_or_else(|error| panic!("{name} commits: {error}"));
+            let committed = session
+                .commit_session_operation_transition_v1(&mut transition)
+                .unwrap_or_else(|error| panic!("{name} commits: {error:?}"));
             assert!(
-                committed.result().observation().snapshot().revision() > 0,
+                committed.observation().snapshot().revision() > 0,
                 "{name} commits once"
             );
         }
@@ -205,46 +212,21 @@ mod tests {
             )
             .expect("gesture begins");
             let end = direct_atom(&session, "atom-a");
-            let refusal = admit_direct_bond_candidate_v3(&mut session, &gesture, end)
-                .expect_err("same atom must be refused");
+            let request = resolve_direct_bond_end_v3(&session, gesture, end)
+                .expect("pointer evidence resolves into a generic request");
+            let refusal = session
+                .prepare_session_operation_transition_v1(request)
+                .expect_err("same atom must be refused by generic preparation");
             assert!(matches!(
                 refusal,
-                DirectBondAdmissionErrorV3::Refusal(DirectBondAdmissionRefusalV3::SelfLoop)
+                ferrum_document::DocumentSessionError::DirectBondAdmission(
+                    ferrum_document::DirectBondAdmissionRefusalV1::SelfLoop
+                )
             ));
             let after = session.snapshot().expect("after snapshot");
             assert_eq!(after.revision(), before.revision());
             assert_eq!(after.digest(), before.digest());
         }
-    }
-
-    #[test]
-    fn pointer_probe_v3_replay_precedes_stale_endpoint_preflight() {
-        let mut session = DocumentSession::load(SOURCE).expect("session");
-        let gesture = begin_direct_bond_gesture_v3(
-            &session,
-            fence(&session),
-            direct_atom(&session, "atom-a"),
-            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
-            "C".to_owned(),
-            DirectBondSnapPolicyV1::free(),
-        )
-        .expect("gesture begins");
-        let end = direct_atom(&session, "atom-c");
-        let mut admission = admit_direct_bond_candidate_v3(&mut session, &gesture, end)
-            .expect("candidate preflights");
-        commit_direct_bond_admission_v3(&mut session, &mut admission).expect("admission commits");
-        let committed = session.snapshot().expect("committed snapshot");
-
-        let replay_end = direct_atom(&session, "atom-c");
-        let replay = admit_direct_bond_candidate_v3(&mut session, &gesture, replay_end)
-            .expect_err("consumed gesture refuses before stale endpoint preflight");
-        assert!(matches!(
-            replay,
-            DirectBondAdmissionErrorV3::Refusal(DirectBondAdmissionRefusalV3::ReplayedGesture)
-        ));
-        let after_replay = session.snapshot().expect("snapshot after replay refusal");
-        assert_eq!(after_replay.revision(), committed.revision());
-        assert_eq!(after_replay.digest(), committed.digest());
     }
 
     #[test]
@@ -260,9 +242,23 @@ mod tests {
             DirectBondSnapPolicyV1::free(),
         )
         .expect("near point resolves to atom");
-        let admission = admit_direct_bond_candidate_v3(&mut session, &gesture, no_hit(80.0, 0.0))
-            .expect("candidate");
-        assert_eq!(admission.overlay().start_x(), 40.0);
+        let admission =
+            resolve_and_prepare(&mut session, gesture, no_hit(80.0, 0.0)).expect("candidate");
+        let exact_gesture = begin_direct_bond_gesture_v3(
+            &session,
+            fence(&session),
+            no_hit(40.0, 0.0),
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            "C".to_owned(),
+            DirectBondSnapPolicyV1::free(),
+        )
+        .expect("exact nearest point resolves to the same atom");
+        let exact_admission = resolve_and_prepare(&mut session, exact_gesture, no_hit(80.0, 0.0))
+            .expect("exact candidate");
+        assert_eq!(
+            preview_primitives(&admission),
+            preview_primitives(&exact_admission)
+        );
 
         let tied = DirectBondPointerProbeV3::new(
             20.0,
@@ -311,20 +307,13 @@ mod tests {
         )
         .expect("identity begin");
         let zoom_admission =
-            admit_direct_bond_candidate_v3(&mut session, &zoom_gesture, zoom_probe)
-                .expect("zoom admission");
+            resolve_and_prepare(&mut session, zoom_gesture, zoom_probe).expect("zoom admission");
         let identity_admission =
-            admit_direct_bond_candidate_v3(&mut session, &identity_gesture, identity_probe)
+            resolve_and_prepare(&mut session, identity_gesture, identity_probe)
                 .expect("identity admission");
         assert_eq!(
-            (
-                zoom_admission.overlay().end_x(),
-                zoom_admission.overlay().end_y()
-            ),
-            (
-                identity_admission.overlay().end_x(),
-                identity_admission.overlay().end_y()
-            )
+            preview_primitives(&zoom_admission),
+            preview_primitives(&identity_admission)
         );
 
         let mut grid_session =
@@ -339,17 +328,27 @@ mod tests {
             DirectBondSnapPolicyV1::new(true, None, None).expect("grid policy"),
         )
         .expect("grid begin");
-        let mut grid_admission =
-            admit_direct_bond_candidate_v3(&mut grid_session, &grid_gesture, no_hit(14.0, 6.0))
+        let mut grid_transition =
+            resolve_and_prepare(&mut grid_session, grid_gesture, no_hit(14.0, 6.0))
                 .expect("grid admission");
+        let exact_grid_gesture = begin_direct_bond_gesture_v3(
+            &grid_session,
+            fence(&grid_session),
+            no_hit(0.0, 0.0),
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            "C".to_owned(),
+            DirectBondSnapPolicyV1::free(),
+        )
+        .expect("exact grid point begins");
+        let exact_grid_admission =
+            resolve_and_prepare(&mut grid_session, exact_grid_gesture, no_hit(10.0, 10.0))
+                .expect("exact grid candidate");
         assert_eq!(
-            (
-                grid_admission.overlay().end_x(),
-                grid_admission.overlay().end_y()
-            ),
-            (10.0, 10.0)
+            preview_primitives(&grid_transition),
+            preview_primitives(&exact_grid_admission)
         );
-        commit_direct_bond_admission_v3(&mut grid_session, &mut grid_admission)
+        grid_session
+            .commit_session_operation_transition_v1(&mut grid_transition)
             .expect("grid commit");
     }
 

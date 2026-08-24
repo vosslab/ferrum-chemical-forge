@@ -1,12 +1,10 @@
-//! Closed direct-Haworth insertion facts and durable committed receipts.
+//! Closed direct-Haworth insertion facts.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ferrum_core::{Identifier, RecordId, RecordKind};
 use ferrum_domain::haworth::{
-    AuthoredDirectGlycosidicHaworthDepictionV1, DirectGlycosidicHaworthAuthoringAtomElementV1,
-    DirectGlycosidicHaworthAuthoringReceiptV1, DirectGlycosidicHaworthBondStyleV1,
-    DirectGlycosidicHaworthPositionV1,
+    DirectGlycosidicHaworthAuthoringAtomElementV1, DirectGlycosidicHaworthAuthoringReceiptV1,
+    DirectGlycosidicHaworthBondStyleV1, DirectGlycosidicHaworthPositionV1,
 };
 
 use super::{
@@ -28,68 +26,6 @@ pub enum DocumentDirectHaworthBondTokenV1 {
 pub enum DocumentDirectHaworthBondRoleV1 {
     Ring,
     Bridge,
-}
-
-/// Immutable durable fact for one committed direct-Haworth bond.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CommittedDirectHaworthBondFactV1 {
-    bond_identifier: PersistentId,
-    endpoints: [PersistentId; 2],
-    token: DocumentDirectHaworthBondTokenV1,
-    haworth_position: Option<DocumentHaworthPositionV1>,
-    role: DocumentDirectHaworthBondRoleV1,
-}
-
-impl CommittedDirectHaworthBondFactV1 {
-    #[must_use]
-    pub fn bond_identifier(&self) -> &PersistentId {
-        &self.bond_identifier
-    }
-    #[must_use]
-    pub fn endpoints(&self) -> &[PersistentId; 2] {
-        &self.endpoints
-    }
-    #[must_use]
-    pub const fn token(&self) -> DocumentDirectHaworthBondTokenV1 {
-        self.token
-    }
-    #[must_use]
-    pub const fn haworth_position(&self) -> Option<DocumentHaworthPositionV1> {
-        self.haworth_position
-    }
-    #[must_use]
-    pub const fn role(&self) -> DocumentDirectHaworthBondRoleV1 {
-        self.role
-    }
-}
-
-pub(crate) struct PreparedDirectHaworthReceiptV1 {
-    molecule_identifier: PersistentId,
-    atom_identifiers: Vec<PersistentId>,
-    bond_identifiers: Vec<PersistentId>,
-    bond_facts: Vec<CommittedDirectHaworthBondFactV1>,
-    authored_depiction: AuthoredDirectGlycosidicHaworthDepictionV1,
-}
-
-impl PreparedDirectHaworthReceiptV1 {
-    /// Consume the fully checked, pre-commit receipt payload exactly once.
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        PersistentId,
-        Vec<PersistentId>,
-        Vec<PersistentId>,
-        Vec<CommittedDirectHaworthBondFactV1>,
-        AuthoredDirectGlycosidicHaworthDepictionV1,
-    ) {
-        (
-            self.molecule_identifier,
-            self.atom_identifiers,
-            self.bond_identifiers,
-            self.bond_facts,
-            self.authored_depiction,
-        )
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -182,65 +118,6 @@ impl DirectHaworthInsertionV1 {
     pub(crate) fn bond_count(&self) -> usize {
         self.bonds.len()
     }
-
-    pub(crate) fn prepared_receipt(
-        &self,
-        receipt: &DirectGlycosidicHaworthAuthoringReceiptV1,
-        molecule: &PersistentId,
-        atoms: &[PersistentId],
-        bonds: &[PersistentId],
-        anchor: Point3V1,
-    ) -> Result<PreparedDirectHaworthReceiptV1, SessionOperationError> {
-        let bond_facts = self
-            .bonds
-            .iter()
-            .zip(bonds)
-            .map(|(bond, id)| CommittedDirectHaworthBondFactV1 {
-                bond_identifier: id.clone(),
-                endpoints: [
-                    atoms[bond.endpoints[0]].clone(),
-                    atoms[bond.endpoints[1]].clone(),
-                ],
-                token: bond.token,
-                haworth_position: bond.position,
-                role: bond.role,
-            })
-            .collect();
-        let atom_records = atoms
-            .iter()
-            .map(|id| typed_record(id, RecordKind::Atom))
-            .collect::<Result<Vec<_>, _>>()?;
-        let bond_records = bonds
-            .iter()
-            .map(|id| typed_record(id, RecordKind::Bond))
-            .collect::<Result<Vec<_>, _>>()?;
-        let authored_depiction = receipt
-            .authored_depiction_for_durable_commit_v1(
-                &atom_records,
-                &bond_records,
-                ferrum_domain::haworth::HaworthPoint {
-                    x: anchor.x(),
-                    y: anchor.y(),
-                },
-            )
-            .map_err(|error| invalid_error(error.to_string()))?;
-        Ok(PreparedDirectHaworthReceiptV1 {
-            molecule_identifier: molecule.clone(),
-            atom_identifiers: atoms.to_vec(),
-            bond_identifiers: bonds.to_vec(),
-            bond_facts,
-            authored_depiction,
-        })
-    }
-}
-
-fn typed_record(
-    identifier: &PersistentId,
-    kind: RecordKind,
-) -> Result<RecordId, SessionOperationError> {
-    let source = Identifier::new(identifier.as_str().to_owned())
-        .map_err(|_| invalid_error("allocated persistent identity is invalid"))?;
-    Ok(RecordId::from_source(kind, &source))
 }
 
 impl TypedDocument {

@@ -59,16 +59,10 @@ def test_private_selected_svg_keeps_complete_roots_and_source_provenance() -> No
 	)
 
 
-def test_private_selected_svg_withholds_a_profile_excluded_root() -> None:
-	"""A selected root without native depiction returns its private typed reason."""
-	session = ferrum_chem.DocumentSession.load(
-		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="10" y="20"/><font family="Arial"/>'
-		'<ftext>label</ftext></text></cdml>',
-	)
-	observation = session.observe(0)
-	selected = observation.projection.presentation_stack.roots[0].text.target.id
-
-	with pytest.raises(ferrum_chem.DocumentSelectionSvgError) as caught:
-		ferrum_chem.render_document_selection_svg_v1(observation, (selected,))
-
-	assert "excluded by the native render profile" in caught.value.reason
+def test_direct_unknown_font_is_refused_during_document_admission() -> None:
+	"""A direct root cannot enter a session with an unsupported authored face."""
+	with pytest.raises(ferrum_chem.DocumentLoadError):
+		ferrum_chem.DocumentSession.load(
+			'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="10" y="20"/>'
+			'<font family="Arial"/><ftext>label</ftext></text></cdml>',
+		)

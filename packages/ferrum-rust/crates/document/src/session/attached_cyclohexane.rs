@@ -14,15 +14,16 @@ use crate::{
         AttachedCyclohexaneReleaseV1, attached_cyclohexane_candidate_v1,
     },
 };
-use ferrum_render::{DocumentRenderContentV1, DocumentRenderOutcomeV1, MoleculeRenderPlan};
+use ferrum_render::{
+    AcceptedRenderOverlayRequestV1, AcceptedRenderOverlayTargetV1, DocumentPrecommitOverlayV1,
+};
 
 /// Opaque one-use prepared shared-anchor C6 transition.
 pub struct PendingAttachedCyclohexaneV1 {
     session_issuer: AuthoringCapabilityIssuerV1,
     fence: DocumentFenceV1,
     transition: PreparedSessionTransitionV1,
-    molecule_source_order: u32,
-    render_plan: ferrum_render::DocumentRenderPlanV1,
+    precommit_overlay: DocumentPrecommitOverlayV1,
 }
 
 impl std::fmt::Debug for PendingAttachedCyclohexaneV1 {
@@ -36,24 +37,10 @@ impl std::fmt::Debug for PendingAttachedCyclohexaneV1 {
 }
 
 impl PendingAttachedCyclohexaneV1 {
-    /// Return the renderer-issued molecule plan while this candidate remains live.
+    /// Return identifier-free renderer paint facts while this candidate remains live.
     #[must_use]
-    pub fn render_plan_v1(&self) -> Option<&MoleculeRenderPlan> {
-        if self.transition.is_consumed_v1() {
-            return None;
-        }
-        self.render_plan.outcomes().iter().find_map(|outcome| {
-            let DocumentRenderOutcomeV1::Root(root) = outcome else {
-                return None;
-            };
-            if root.source_order() != self.molecule_source_order {
-                return None;
-            }
-            let DocumentRenderContentV1::Molecule(plan) = root.content() else {
-                return None;
-            };
-            Some(plan)
-        })
+    pub fn precommit_overlay_v1(&self) -> Option<&DocumentPrecommitOverlayV1> {
+        (!self.transition.is_consumed_v1()).then_some(&self.precommit_overlay)
     }
 }
 
@@ -141,21 +128,31 @@ impl DocumentSession {
             .ok_or(AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
         let state = RevisionState::from_document(revision, document)
             .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
-        let transition = self
+        let mut transition = self
             .prepare_changed_session_transition_v1(fence.revision(), fence.digest(), state, effects)
             .map_err(map_prepare_error)?;
-        let render_plan = transition
-            .metadata_v1()
-            .expect("live transition metadata")
-            .renderer_plan()
-            .expect("changed C6 transition has a renderer plan")
-            .clone();
+        let overlay_targets = atom_ids
+            .iter()
+            .map(|atom| AcceptedRenderOverlayTargetV1::atom(atom.as_str()))
+            .chain(
+                bond_ids
+                    .iter()
+                    .map(|bond| AcceptedRenderOverlayTargetV1::bond(bond.as_str())),
+            )
+            .collect();
+        let overlay_request = AcceptedRenderOverlayRequestV1::new(overlay_targets)
+            .map_err(|_| AttachedCyclohexaneSessionErrorV1::RendererAdmission)?;
+        let precommit_overlay = transition
+            .renderer_precommit_overlay_v1(&overlay_request)
+            .map_err(|_| AttachedCyclohexaneSessionErrorV1::RendererAdmission)?;
+        transition
+            .install_precommit_overlay_v1(precommit_overlay.clone())
+            .map_err(|_| AttachedCyclohexaneSessionErrorV1::RendererAdmission)?;
         Ok(PendingAttachedCyclohexaneV1 {
             session_issuer: self.authoring_capability_issuer.clone(),
             fence,
             transition,
-            molecule_source_order: resolved.molecule_source_order,
-            render_plan,
+            precommit_overlay,
         })
     }
 
@@ -241,7 +238,6 @@ fn require_fence(
 
 struct ResolvedAnchorV1 {
     molecule_id: PersistentId,
-    molecule_source_order: u32,
     anchor_id: PersistentId,
     position: Point3V1,
     element: String,
@@ -297,7 +293,6 @@ fn resolve_anchor(
         .ok_or(AttachedCyclohexaneSessionErrorV1::IneligibleAnchor)?;
     Ok(ResolvedAnchorV1 {
         molecule_id,
-        molecule_source_order: molecule.source_order(),
         anchor_id: atom_id,
         position: atom.position(),
         element: element.to_owned(),
@@ -321,7 +316,7 @@ fn map_core_error(error: AttachedCyclohexaneErrorV1) -> AttachedCyclohexaneSessi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MoleculeInsertionAtomV1, MoleculeInsertionV1};
+    use crate::{SessionOperation, SessionOperationV1};
 
     const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
 
@@ -341,23 +336,6 @@ mod tests {
             .clone()
     }
 
-    fn molecule() -> MoleculeInsertionV1 {
-        MoleculeInsertionV1::new(
-            vec![
-                MoleculeInsertionAtomV1::new(
-                    "O",
-                    Point3V1::new(120.0, 0.0, 0.0).expect("finite point"),
-                    None,
-                    None,
-                    None,
-                )
-                .expect("valid atom"),
-            ],
-            Vec::new(),
-        )
-        .expect("valid molecule")
-    }
-
     #[test]
     fn attached_c6_prepares_without_mutation_and_commits_one_complete_transition() {
         let mut session = DocumentSession::load(SOURCE).expect("source loads");
@@ -370,8 +348,10 @@ mod tests {
             )
             .expect("prepare");
         assert_eq!(session.snapshot().expect("prepare snapshot"), before);
-        let preview = pending.render_plan_v1().expect("renderer-admitted preview");
-        assert!(!preview.batches().is_empty());
+        let preview = pending
+            .precommit_overlay_v1()
+            .expect("renderer-admitted preview");
+        assert!(!preview.primitives().is_empty());
         let result = session
             .commit_attach_cyclohexane_v1(&mut pending)
             .expect("commit");
@@ -476,12 +456,15 @@ mod tests {
             )
             .expect("prepare before independent change");
         let revision = before.revision();
-        let mut unrelated = session
-            .prepare_create_molecule_batch_v1(revision, &[molecule()])
-            .expect("independent candidate");
         session
-            .commit_create_molecule_batch_v1(revision, &mut unrelated)
-            .expect("independent transition");
+            .apply_document_operation_v1(
+                revision,
+                SessionOperation::V1(SessionOperationV1::SetAtomElement {
+                    atom_id: "a".to_owned(),
+                    element: "N".to_owned(),
+                }),
+            )
+            .expect("independent generic transition");
         let after_transition = session.snapshot().expect("transition snapshot");
         assert!(matches!(
             session.commit_attach_cyclohexane_v1(&mut pending),

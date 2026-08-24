@@ -66,9 +66,13 @@ impl TopLevelRootSelectorV1 {
     }
 }
 
-/// Closed transforms over complete durable direct roots.
+/// Private common transforms over complete durable direct roots.
+///
+/// The public session-operation boundary names layout and interaction
+/// translation separately. This representation is only the shared lowering
+/// detail beneath those semantic requests.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum TopLevelTransformModeV1 {
+pub(crate) enum TopLevelTransformModeV1 {
     Translate { dx: f64, dy: f64 },
     AlignTop,
     AlignBottom,
@@ -81,15 +85,15 @@ pub enum TopLevelTransformModeV1 {
     MirrorHorizontal,
 }
 
-/// Complete validated intent for one atomic top-level transform.
+/// Private common validated intent for one atomic top-level transform.
 #[derive(Clone, Debug, PartialEq)]
-pub struct TopLevelTransformV1 {
+pub(crate) struct TopLevelTransformV1 {
     targets: Vec<TopLevelRootSelectorV1>,
     transform: TopLevelTransformModeV1,
 }
 
 impl TopLevelTransformV1 {
-    pub fn new(
+    pub(crate) fn new(
         targets: Vec<TopLevelRootSelectorV1>,
         transform: TopLevelTransformModeV1,
     ) -> Result<Self, TopLevelTransformV1Error> {
@@ -129,13 +133,145 @@ impl TopLevelTransformV1 {
     }
 
     #[must_use]
-    pub fn targets(&self) -> &[TopLevelRootSelectorV1] {
+    pub(crate) fn targets(&self) -> &[TopLevelRootSelectorV1] {
         &self.targets
     }
 
     #[must_use]
-    pub const fn transform(&self) -> TopLevelTransformModeV1 {
+    pub(crate) const fn transform(&self) -> TopLevelTransformModeV1 {
         self.transform
+    }
+}
+
+/// Closed capability-free layout transforms over complete durable direct roots.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TopLevelRootLayoutTransformModeV1 {
+    AlignTop,
+    AlignBottom,
+    AlignLeft,
+    AlignRight,
+    AlignCenterX,
+    AlignCenterY,
+    Scale { scale_x: f64, scale_y: f64 },
+    MirrorVertical,
+    MirrorHorizontal,
+}
+
+impl From<TopLevelRootLayoutTransformModeV1> for TopLevelTransformModeV1 {
+    fn from(value: TopLevelRootLayoutTransformModeV1) -> Self {
+        match value {
+            TopLevelRootLayoutTransformModeV1::AlignTop => Self::AlignTop,
+            TopLevelRootLayoutTransformModeV1::AlignBottom => Self::AlignBottom,
+            TopLevelRootLayoutTransformModeV1::AlignLeft => Self::AlignLeft,
+            TopLevelRootLayoutTransformModeV1::AlignRight => Self::AlignRight,
+            TopLevelRootLayoutTransformModeV1::AlignCenterX => Self::AlignCenterX,
+            TopLevelRootLayoutTransformModeV1::AlignCenterY => Self::AlignCenterY,
+            TopLevelRootLayoutTransformModeV1::Scale { scale_x, scale_y } => {
+                Self::Scale { scale_x, scale_y }
+            }
+            TopLevelRootLayoutTransformModeV1::MirrorVertical => Self::MirrorVertical,
+            TopLevelRootLayoutTransformModeV1::MirrorHorizontal => Self::MirrorHorizontal,
+        }
+    }
+}
+
+/// Complete validated direct document-edit request for one root layout transform.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TopLevelRootLayoutTransformV1 {
+    transform: TopLevelTransformV1,
+}
+
+impl TopLevelRootLayoutTransformV1 {
+    pub fn new(
+        targets: Vec<TopLevelRootSelectorV1>,
+        mode: TopLevelRootLayoutTransformModeV1,
+    ) -> Result<Self, TopLevelTransformV1Error> {
+        Ok(Self {
+            transform: TopLevelTransformV1::new(targets, mode.into())?,
+        })
+    }
+
+    #[must_use]
+    pub fn targets(&self) -> &[TopLevelRootSelectorV1] {
+        self.transform.targets()
+    }
+
+    #[must_use]
+    pub fn mode(&self) -> TopLevelRootLayoutTransformModeV1 {
+        match self.transform.transform() {
+            TopLevelTransformModeV1::AlignTop => TopLevelRootLayoutTransformModeV1::AlignTop,
+            TopLevelTransformModeV1::AlignBottom => TopLevelRootLayoutTransformModeV1::AlignBottom,
+            TopLevelTransformModeV1::AlignLeft => TopLevelRootLayoutTransformModeV1::AlignLeft,
+            TopLevelTransformModeV1::AlignRight => TopLevelRootLayoutTransformModeV1::AlignRight,
+            TopLevelTransformModeV1::AlignCenterX => {
+                TopLevelRootLayoutTransformModeV1::AlignCenterX
+            }
+            TopLevelTransformModeV1::AlignCenterY => {
+                TopLevelRootLayoutTransformModeV1::AlignCenterY
+            }
+            TopLevelTransformModeV1::Scale { scale_x, scale_y } => {
+                TopLevelRootLayoutTransformModeV1::Scale { scale_x, scale_y }
+            }
+            TopLevelTransformModeV1::MirrorVertical => {
+                TopLevelRootLayoutTransformModeV1::MirrorVertical
+            }
+            TopLevelTransformModeV1::MirrorHorizontal => {
+                TopLevelRootLayoutTransformModeV1::MirrorHorizontal
+            }
+            TopLevelTransformModeV1::Translate { .. } => {
+                unreachable!("layout transforms never contain translations")
+            }
+        }
+    }
+
+    pub(crate) fn common_transform(&self) -> &TopLevelTransformV1 {
+        &self.transform
+    }
+}
+
+/// Complete validated interaction-derived durable root translation request.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TopLevelRootTranslationV1 {
+    transform: TopLevelTransformV1,
+}
+
+impl TopLevelRootTranslationV1 {
+    pub fn new(
+        targets: Vec<TopLevelRootSelectorV1>,
+        dx: f64,
+        dy: f64,
+    ) -> Result<Self, TopLevelTransformV1Error> {
+        Ok(Self {
+            transform: TopLevelTransformV1::new(
+                targets,
+                TopLevelTransformModeV1::Translate { dx, dy },
+            )?,
+        })
+    }
+
+    #[must_use]
+    pub fn targets(&self) -> &[TopLevelRootSelectorV1] {
+        self.transform.targets()
+    }
+
+    #[must_use]
+    pub fn dx(&self) -> f64 {
+        match self.transform.transform() {
+            TopLevelTransformModeV1::Translate { dx, .. } => dx,
+            _ => unreachable!("translation requests always contain a translation"),
+        }
+    }
+
+    #[must_use]
+    pub fn dy(&self) -> f64 {
+        match self.transform.transform() {
+            TopLevelTransformModeV1::Translate { dy, .. } => dy,
+            _ => unreachable!("translation requests always contain a translation"),
+        }
+    }
+
+    pub(crate) fn common_transform(&self) -> &TopLevelTransformV1 {
+        &self.transform
     }
 }
 

@@ -196,12 +196,16 @@ class FerrumNativeHaworthToolMixin:
 		):
 			self.statusBar().showMessage(self.tr("Choose an empty page location to insert a separate Haworth drawing."), 5000); return
 		try:
-			prepared = ferrum_qt.ferrum.haworth.prepare_recipe(intent.tab, intent.recipe, anchor)
-			preview = ferrum_qt.ferrum.haworth.create_preview(intent.tab, prepared)
-			# Session installation replaces the scene. Retire this disposable item
-			# while its current scene still owns it, before authoritative repaint.
+			request = intent.tab.resolve_standalone_haworth_transition(
+				intent.recipe, float(anchor.x()), float(anchor.y()),
+			)
+			prepared = intent.tab.prepare_standalone_haworth_transition(request)
+			overlay_contract = prepared.presentation_v1().precommit_overlay
+			if overlay_contract is None:
+				raise RuntimeError("Ferrum Haworth transition has no precommit overlay")
+			preview = ferrum_qt.ferrum.haworth.create_preview(intent.tab, overlay_contract)
 			self._retire_haworth_preview(preview)
-			intent.tab.commit_standalone_haworth(prepared)
+			intent.tab.commit_standalone_haworth_transition(prepared)
 		except Exception as exc:
 			self._cancel_haworth_intent(); self._show_edit_refusal(self._unavailable_edit_refusal(str(exc))); return
 		self._cancel_haworth_intent()

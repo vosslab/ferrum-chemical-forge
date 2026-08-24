@@ -1,23 +1,22 @@
-//! Opaque PyO3 transport for Ferrum-owned catalog placement.
+//! PyO3 transport for one generic catalog semantic operation.
+
 use super::binding::{PyDocumentSession, PySessionOperationResultV1};
 use super::presentation_creation_gesture_binding::digest;
-use super::render_binding::{PyRenderPlanV2, plan_from};
-use crate::{
-    ApiCatalogPlacementGestureV2, ApiCatalogPlacementPreparedV2, ApiCatalogPlacementPreviewV2,
-    CatalogPlacementErrorV2, begin_api_catalog_placement_v2,
-    cancel_api_catalog_placement_gesture_v2, commit_api_catalog_placement_v2,
-    prepare_api_catalog_placement_v2, preview_api_catalog_placement_v2,
-    release_api_catalog_placement_preview_v2,
+use ferrum_catalog_placement::{CatalogPlacementErrorV1, resolve_catalog_molecule_placement_v1};
+use ferrum_document::{
+    PresentationGesturePoint2V1, SessionOperation, SessionOperationOutcomeV1,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
-use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
 use ferrum_domain::{CatalogFamilyV1, catalog_manifest_v1, search_catalog_v1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
+
 create_exception!(
     ferrum_chem,
     CatalogPlacementError,
     super::binding::DocumentError
 );
+
 #[pyclass(frozen, module = "ferrum_chem", name = "CatalogSummaryV1")]
 struct PyCatalogSummaryV1 {
     #[pyo3(get)]
@@ -35,40 +34,15 @@ struct PyCatalogSummaryV1 {
     #[pyo3(get)]
     provenance_source: String,
 }
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "CatalogRenderOverlayV2",
-    skip_from_py_object
-)]
-#[derive(Clone)]
-struct PyCatalogRenderOverlayV2 {
+
+#[pyclass(frozen, module = "ferrum_chem", name = "CatalogPlacementResultV1")]
+struct PyCatalogPlacementResultV1 {
     #[pyo3(get)]
-    plan: PyRenderPlanV2,
-    #[pyo3(get)]
-    source_order: u32,
-}
-#[pyclass(unsendable, module = "ferrum_chem", name = "CatalogPlacementGestureV2")]
-struct PyCatalogPlacementGestureV2 {
-    value: ApiCatalogPlacementGestureV2,
-}
-#[pyclass(unsendable, module = "ferrum_chem", name = "CatalogPlacementPreviewV2")]
-struct PyCatalogPlacementPreviewV2 {
-    value: ApiCatalogPlacementPreviewV2,
-    #[pyo3(get)]
-    overlay: PyCatalogRenderOverlayV2,
-}
-#[pyclass(unsendable, module = "ferrum_chem", name = "CatalogPlacementReceiptV2")]
-struct PyCatalogPlacementReceiptV2 {
-    value: ApiCatalogPlacementPreparedV2,
-}
-#[pyclass(frozen, module = "ferrum_chem", name = "CatalogPlacementCommitV2")]
-struct PyCatalogPlacementCommitV2 {
-    #[pyo3(get)]
-    identifier: String,
+    root_identifier: String,
     #[pyo3(get)]
     result: PySessionOperationResultV1,
 }
+
 #[pyfunction]
 fn list_catalog_v1(
     family: Option<String>,
@@ -101,96 +75,79 @@ fn list_catalog_v1(
             .collect(),
     )
 }
+
 #[pymethods]
 impl PyDocumentSession {
-    fn begin_catalog_placement_v2(
-        &self,
+    fn place_catalog_molecule_v1(
+        &mut self,
         py: Python<'_>,
         expected_revision: u64,
         expected_digest_hex: String,
         key: String,
-    ) -> PyResult<PyCatalogPlacementGestureV2> {
-        begin_api_catalog_placement_v2(
-            &self.session,
-            DocumentFenceV1::new(expected_revision, digest(&expected_digest_hex)?),
-            &key,
-        )
-        .map(|value| PyCatalogPlacementGestureV2 { value })
-        .map_err(|error| catalog_error_v2(py, error))
-    }
-    fn preview_catalog_placement_v2(
-        &mut self,
-        py: Python<'_>,
-        gesture: PyRef<'_, PyCatalogPlacementGestureV2>,
         x: f64,
         y: f64,
-    ) -> PyResult<PyCatalogPlacementPreviewV2> {
+    ) -> PyResult<PyCatalogPlacementResultV1> {
+        let expected_digest = digest(&expected_digest_hex)?;
+        let snapshot = self
+            .session
+            .snapshot()
+            .map_err(|error| CatalogPlacementError::new_err(error.to_string()))?;
+        if snapshot.revision() != expected_revision || snapshot.digest() != &expected_digest {
+            return Err(catalog_error(py, "stale_snapshot", "refresh_and_restart"));
+        }
         let anchor = PresentationGesturePoint2V1::new(x, y)
-            .map_err(|_| catalog_error_v2(py, CatalogPlacementErrorV2::InvalidPoint))?;
-        let value = preview_api_catalog_placement_v2(&mut self.session, &gesture.value, anchor)
-            .map_err(|error| catalog_error_v2(py, error))?;
-        let plan = value
-            .molecule_plan()
-            .ok_or_else(|| catalog_error_v2(py, CatalogPlacementErrorV2::RenderPreparation))?;
-        let overlay = PyCatalogRenderOverlayV2 {
-            plan: plan_from(py, plan)?,
-            source_order: value.source_order(),
+            .map_err(|_| catalog_error(py, "invalid_point", "document_unchanged"))?;
+        let request = resolve_catalog_molecule_placement_v1(&key, anchor)
+            .map_err(|error| catalog_resolution_error(py, error))?;
+        let mut prepared = self
+            .session
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                expected_revision,
+                SessionOperation::V1(SessionOperationV1::PlaceCatalogMoleculeV1(request)),
+                TransitionAuthorizationV1::None,
+            ))
+            .map_err(|_| catalog_error(py, "session_conflict", "refresh_and_restart"))?;
+        let result = self
+            .session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .map_err(|_| catalog_error(py, "session_conflict", "refresh_and_restart"))?;
+        let SessionOperationOutcomeV1::CatalogMoleculePlacementV1(outcome) = result.outcome()
+        else {
+            return Err(catalog_error(py, "session_conflict", "refresh_and_restart"));
         };
-        Ok(PyCatalogPlacementPreviewV2 { value, overlay })
-    }
-    fn prepare_catalog_placement_v2(
-        &mut self,
-        py: Python<'_>,
-        gesture: PyRef<'_, PyCatalogPlacementGestureV2>,
-        mut preview: PyRefMut<'_, PyCatalogPlacementPreviewV2>,
-    ) -> PyResult<PyCatalogPlacementReceiptV2> {
-        prepare_api_catalog_placement_v2(&mut self.session, &gesture.value, &mut preview.value)
-            .map(|value| PyCatalogPlacementReceiptV2 { value })
-            .map_err(|error| catalog_error_v2(py, error))
-    }
-    fn release_catalog_placement_preview_v2(
-        &mut self,
-        mut preview: PyRefMut<'_, PyCatalogPlacementPreviewV2>,
-    ) {
-        release_api_catalog_placement_preview_v2(&mut preview.value);
-    }
-    fn cancel_catalog_placement_gesture_v2(&self, gesture: PyRef<'_, PyCatalogPlacementGestureV2>) {
-        cancel_api_catalog_placement_gesture_v2(gesture.value.clone());
-    }
-    fn commit_catalog_placement_v2(
-        &mut self,
-        py: Python<'_>,
-        mut receipt: PyRefMut<'_, PyCatalogPlacementReceiptV2>,
-    ) -> PyResult<PyCatalogPlacementCommitV2> {
-        commit_api_catalog_placement_v2(&mut self.session, &mut receipt.value)
-            .map(|value| PyCatalogPlacementCommitV2 {
-                identifier: value.identifier().to_owned(),
-                result: value.result().clone().into(),
-            })
-            .map_err(|error| catalog_error_v2(py, error))
+        Ok(PyCatalogPlacementResultV1 {
+            root_identifier: outcome.root_identifier().as_str().to_owned(),
+            result: result.into(),
+        })
     }
 }
-fn catalog_error_v2(py: Python<'_>, error: CatalogPlacementErrorV2) -> PyErr {
-    let exception = CatalogPlacementError::new_err(error.to_string());
+
+fn catalog_resolution_error(py: Python<'_>, error: CatalogPlacementErrorV1) -> PyErr {
+    catalog_error(
+        py,
+        &format!("{:?}", error.category()).to_lowercase(),
+        &format!("{:?}", error.recovery()).to_lowercase(),
+    )
+}
+
+fn catalog_error(py: Python<'_>, category: &str, recovery: &str) -> PyErr {
+    let exception = CatalogPlacementError::new_err(category.to_owned());
     let value = exception.value(py);
     value
-        .setattr("category", format!("{:?}", error.category()))
+        .setattr("category", category)
         .expect("category attaches");
     value
-        .setattr("recovery", format!("{:?}", error.recovery()))
+        .setattr("recovery", recovery)
         .expect("recovery attaches");
     exception
 }
+
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add(
         "CatalogPlacementError",
         module.py().get_type::<CatalogPlacementError>(),
     )?;
     module.add_class::<PyCatalogSummaryV1>()?;
-    module.add_class::<PyCatalogRenderOverlayV2>()?;
-    module.add_class::<PyCatalogPlacementGestureV2>()?;
-    module.add_class::<PyCatalogPlacementPreviewV2>()?;
-    module.add_class::<PyCatalogPlacementReceiptV2>()?;
-    module.add_class::<PyCatalogPlacementCommitV2>()?;
+    module.add_class::<PyCatalogPlacementResultV1>()?;
     module.add_function(wrap_pyfunction!(list_catalog_v1, module)?)
 }

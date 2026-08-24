@@ -34,6 +34,9 @@ require_local_runtime() {
 source "${REPO_ROOT}/source_me.sh"
 export PYTHONPATH="${LOCAL_PYTHONPATH}"
 export QT_QPA_PLATFORM=offscreen
+
+run_e2e "Ferrum local build cleanup E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_build_local_runtime_cleanup.py"
 require_local_runtime
 
 run_e2e "Ferrum CLI verb E2E" \
@@ -44,8 +47,12 @@ run_e2e "Ferrum CLI template catalog E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum document SDF export E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_document_export_sdf_cli.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum Qt SDF import E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_sdf_import.py"
 run_e2e "Ferrum Qt render interaction E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_render_interaction_selection.py"
+run_e2e "Ferrum Qt atom oxidation observation E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_atom_oxidation_observation.py"
 run_e2e "Ferrum Qt arrow authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_arrow_authoring.py"
 run_e2e "Ferrum Qt presentation vector authoring E2E" \

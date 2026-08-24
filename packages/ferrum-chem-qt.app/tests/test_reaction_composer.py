@@ -2,6 +2,7 @@
 
 # PIP3 modules
 import PySide6.QtCore
+import PySide6.QtTest
 import PySide6.QtWidgets
 import pytest
 
@@ -26,8 +27,8 @@ def qapp() -> PySide6.QtWidgets.QApplication:
 
 
 #============================================
-def _check(panel: PySide6.QtWidgets.QWidget, role: str, identifier: str) -> None:
-	"""Choose one visible reaction-member row through its Qt checkbox."""
+def _click_role(panel: PySide6.QtWidgets.QWidget, role: str, identifier: str) -> None:
+	"""Choose one visible reaction-member row through its rendered checkbox."""
 	list_widget = panel.findChild(
 		PySide6.QtWidgets.QListWidget, f"reaction-composer-{role}",
 	)
@@ -35,9 +36,37 @@ def _check(panel: PySide6.QtWidgets.QWidget, role: str, identifier: str) -> None
 	for index in range(list_widget.count()):
 		item = list_widget.item(index)
 		if item.data(PySide6.QtCore.Qt.ItemDataRole.UserRole) == identifier:
-			item.setCheckState(PySide6.QtCore.Qt.CheckState.Checked)
+			option = PySide6.QtWidgets.QStyleOptionViewItem()
+			option.initFrom(list_widget)
+			option.rect = list_widget.visualItemRect(item)
+			option.features |= PySide6.QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+			option.checkState = item.checkState()
+			checkbox_rect = list_widget.style().subElementRect(
+				PySide6.QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
+				option, list_widget,
+			)
+			assert checkbox_rect.isValid()
+			PySide6.QtTest.QTest.mouseClick(
+				list_widget.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+				checkbox_rect.center(),
+			)
+			assert item.checkState() == PySide6.QtCore.Qt.CheckState.Checked
 			return
 	raise AssertionError(f"missing reaction composer row {identifier!r}")
+
+
+#============================================
+def _create_reaction_button(panel: PySide6.QtWidgets.QWidget) -> PySide6.QtWidgets.QPushButton:
+	"""Return the visible, enabled submit control by its accessible UI contract."""
+	buttons = [
+		button for button in panel.findChildren(PySide6.QtWidgets.QPushButton)
+		if button.accessibleName() == "Create Reaction"
+	]
+	assert len(buttons) == 1
+	button = buttons[0]
+	assert button.isVisible() and button.isEnabled()
+	return button
 
 
 #============================================
@@ -45,6 +74,9 @@ def test_live_window_commits_roles_only_through_the_rust_reaction_bridge(
 		main_window: object, qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""The ordinary ribbon route reprojects an accepted native reaction commit."""
+	main_window.resize(1280, 800)
+	main_window.show()
+	qapp.processEvents()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_REACTION_CDML, "reaction-input.cdml",
 	)
@@ -66,10 +98,12 @@ def test_live_window_commits_roles_only_through_the_rust_reaction_bridge(
 	panel = main_window._reaction_composer._panel
 	assert panel is not None, main_window.statusBar().currentMessage()
 	try:
-		_check(panel, "reactants", "left")
-		_check(panel, "products", "right")
-		_check(panel, "arrow", "arrow")
-		panel.submitted.emit()
+		_click_role(panel, "reactants", "left")
+		_click_role(panel, "products", "right")
+		_click_role(panel, "arrow", "arrow")
+		PySide6.QtTest.QTest.mouseClick(
+			_create_reaction_button(panel), PySide6.QtCore.Qt.MouseButton.LeftButton,
+		)
 		qapp.processEvents()
 		assert "<reaction id=\"rxn-1\"" in tab.current_snapshot.cdml
 	finally:

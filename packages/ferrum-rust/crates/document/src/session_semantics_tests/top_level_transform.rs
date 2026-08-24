@@ -1,8 +1,11 @@
 use crate::{
     DocumentSession, DocumentSessionError, PresentationRootProjectionV1, SessionOperation,
-    SessionOperationError, SessionOperationV1, TopLevelRootKindV1, TopLevelRootSelectorV1,
-    TopLevelTransformModeV1, TopLevelTransformV1, TopLevelTransformV1Error, TypedDocumentError,
+    SessionOperationError, SessionOperationV1, TopLevelRootKindV1,
+    TopLevelRootLayoutTransformModeV1, TopLevelRootLayoutTransformV1, TopLevelRootSelectorV1,
+    TopLevelRootTranslationV1, TopLevelTransformModeV1, TopLevelTransformV1,
+    TopLevelTransformV1Error, TransitionAuthorizationV1, TypedDocumentError,
 };
+use ferrum_geometry::{HexGrid, Point2};
 
 const MIXED_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
@@ -25,26 +28,172 @@ fn operation(
     targets: Vec<TopLevelRootSelectorV1>,
     transform: TopLevelTransformModeV1,
 ) -> SessionOperation {
-    SessionOperation::V1(SessionOperationV1::TransformTopLevelRoots {
-        transform: TopLevelTransformV1::new(targets, transform).expect("fixture transform"),
-    })
+    match transform {
+        TopLevelTransformModeV1::Translate { dx, dy } => {
+            SessionOperation::V1(SessionOperationV1::TranslateTopLevelRootsV1(
+                TopLevelRootTranslationV1::new(targets, dx, dy).expect("fixture translation"),
+            ))
+        }
+        TopLevelTransformModeV1::AlignTop => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::AlignTop)
+        }
+        TopLevelTransformModeV1::AlignBottom => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::AlignBottom)
+        }
+        TopLevelTransformModeV1::AlignLeft => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::AlignLeft)
+        }
+        TopLevelTransformModeV1::AlignRight => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::AlignRight)
+        }
+        TopLevelTransformModeV1::AlignCenterX => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::AlignCenterX)
+        }
+        TopLevelTransformModeV1::AlignCenterY => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::AlignCenterY)
+        }
+        TopLevelTransformModeV1::Scale { scale_x, scale_y } => layout_operation(
+            targets,
+            TopLevelRootLayoutTransformModeV1::Scale { scale_x, scale_y },
+        ),
+        TopLevelTransformModeV1::MirrorVertical => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::MirrorVertical)
+        }
+        TopLevelTransformModeV1::MirrorHorizontal => {
+            layout_operation(targets, TopLevelRootLayoutTransformModeV1::MirrorHorizontal)
+        }
+    }
+}
+
+fn layout_operation(
+    targets: Vec<TopLevelRootSelectorV1>,
+    mode: TopLevelRootLayoutTransformModeV1,
+) -> SessionOperation {
+    SessionOperation::V1(SessionOperationV1::ApplyTopLevelRootLayoutTransformV1(
+        TopLevelRootLayoutTransformV1::new(targets, mode).expect("fixture layout transform"),
+    ))
+}
+
+fn submit_translation(
+    session: &mut DocumentSession,
+    expected_revision: u64,
+    targets: Vec<TopLevelRootSelectorV1>,
+    dx: f64,
+    dy: f64,
+) -> crate::SessionOperationResultV1 {
+    let capability = session.issue_authoring_capability_v1();
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(crate::SessionOperationTransitionRequestV1::new(
+            expected_revision,
+            SessionOperation::V1(SessionOperationV1::TranslateTopLevelRootsV1(
+                TopLevelRootTranslationV1::new(targets, dx, dy).expect("fixture translation"),
+            )),
+            TransitionAuthorizationV1::authoring_capability(capability),
+        ))
+        .expect("interaction translation prepares");
+    session
+        .commit_session_operation_transition_v1(&mut prepared)
+        .expect("interaction translation commits")
+}
+
+#[test]
+fn direct_layouts_use_explicit_none_and_refuse_authoring_capabilities_before_mutation() {
+    let mut session = DocumentSession::load(MIXED_SOURCE).expect("fixture loads");
+    let targets = || {
+        vec![
+            selector("m", TopLevelRootKindV1::Molecule),
+            selector("p", TopLevelRootKindV1::Plus),
+        ]
+    };
+    let before = session.snapshot().expect("snapshot");
+    let capability = session.issue_authoring_capability_v1();
+    assert!(matches!(
+        session.prepare_session_operation_transition_v1(
+            crate::SessionOperationTransitionRequestV1::new(
+                before.revision(),
+                layout_operation(
+                    targets(),
+                    TopLevelRootLayoutTransformModeV1::Scale {
+                        scale_x: 2.0,
+                        scale_y: 1.0,
+                    },
+                ),
+                TransitionAuthorizationV1::authoring_capability(capability),
+            )
+        ),
+        Err(DocumentSessionError::TransitionAuthorization(
+            crate::TransitionAuthorizationRefusalV1::UnexpectedAuthoringCapability
+        ))
+    ));
+    assert_eq!(session.snapshot().expect("unchanged snapshot"), before);
+
+    for operation in [
+        layout_operation(
+            targets(),
+            TopLevelRootLayoutTransformModeV1::Scale {
+                scale_x: 2.0,
+                scale_y: 1.0,
+            },
+        ),
+        layout_operation(
+            targets(),
+            TopLevelRootLayoutTransformModeV1::MirrorHorizontal,
+        ),
+        layout_operation(targets(), TopLevelRootLayoutTransformModeV1::AlignTop),
+    ] {
+        let revision = session.snapshot().expect("current snapshot").revision();
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(
+                crate::SessionOperationTransitionRequestV1::new(
+                    revision,
+                    operation,
+                    TransitionAuthorizationV1::None,
+                ),
+            )
+            .expect("capability-free layout transition prepares");
+        session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("capability-free layout transition commits");
+    }
+    assert_eq!(session.snapshot().expect("changed snapshot").revision(), 3);
+
+    assert!(matches!(
+        session.prepare_session_operation_transition_v1(
+            crate::SessionOperationTransitionRequestV1::new(
+                3,
+                SessionOperation::V1(SessionOperationV1::TranslateTopLevelRootsV1(
+                    TopLevelRootTranslationV1::new(targets(), 1.0, 0.0)
+                        .expect("translation request"),
+                )),
+                TransitionAuthorizationV1::None,
+            )
+        ),
+        Err(DocumentSessionError::TransitionAuthorization(
+            crate::TransitionAuthorizationRefusalV1::AuthoringCapabilityRequired
+        ))
+    ));
+    assert_eq!(
+        session
+            .snapshot()
+            .expect("translation refusal is unchanged")
+            .revision(),
+        3
+    );
 }
 
 #[test]
 fn rigid_translation_moves_molecule_and_presentation_and_history_restores_geometry() {
     let mut session = DocumentSession::load(MIXED_SOURCE).expect("fixture loads");
-    let result = session
-        .submit(
-            0,
-            operation(
-                vec![
-                    selector("m", TopLevelRootKindV1::Molecule),
-                    selector("p", TopLevelRootKindV1::Plus),
-                ],
-                TopLevelTransformModeV1::Translate { dx: 3.0, dy: -1.0 },
-            ),
-        )
-        .expect("rigid translation succeeds");
+    let result = submit_translation(
+        &mut session,
+        0,
+        vec![
+            selector("m", TopLevelRootKindV1::Molecule),
+            selector("p", TopLevelRootKindV1::Plus),
+        ],
+        3.0,
+        -1.0,
+    );
     let projection = result.observation().projection();
     assert_authored_close(projection.molecules()[0].atoms()[0].position().x(), 4.0);
     assert_authored_close(projection.molecules()[0].atoms()[0].position().y(), 1.0);
@@ -88,41 +237,33 @@ fn rigid_translation_moves_molecule_and_presentation_and_history_restores_geomet
 }
 
 #[test]
-fn translation_anchor_is_canonical_and_rigid_across_mixed_roots() {
+fn renderer_snap_delta_is_canonical_and_rigid_across_mixed_roots() {
     let mut session = DocumentSession::load(MIXED_SOURCE).expect("fixture loads");
+    let grid = HexGrid::new(40.0, Point2::new(0.0, 0.0).expect("finite grid origin"))
+        .expect("finite grid");
+    let targets = vec![
+        selector("m", TopLevelRootKindV1::Molecule),
+        selector("p", TopLevelRootKindV1::Plus),
+    ];
     let forward = session
-        .observe_top_level_translation_anchor_v1(
-            0,
-            vec![
-                selector("m", TopLevelRootKindV1::Molecule),
-                selector("p", TopLevelRootKindV1::Plus),
-            ],
-        )
-        .expect("mixed roots have an authored anchor");
+        .snap_top_level_translation_for_renderer_v1(0, targets.clone(), 3.0, -1.0, grid)
+        .expect("mixed roots have a snapped delta");
     let reversed = session
-        .observe_top_level_translation_anchor_v1(
+        .snap_top_level_translation_for_renderer_v1(
             0,
             vec![
                 selector("p", TopLevelRootKindV1::Plus),
                 selector("m", TopLevelRootKindV1::Molecule),
             ],
+            3.0,
+            -1.0,
+            grid,
         )
-        .expect("selector order does not change the receipt");
-    assert_eq!(
-        (forward.selectors(), forward.anchor()),
-        (reversed.selectors(), reversed.anchor())
-    );
-    assert_eq!(forward.anchor(), (1.0, 2.0));
+        .expect("selector order does not change the snapped delta");
+    assert_eq!((forward.dx(), forward.dy()), (reversed.dx(), reversed.dy()));
+    assert_eq!((forward.dx(), forward.dy()), (-1.0, -2.0));
 
-    let changed = session
-        .submit(
-            0,
-            operation(
-                forward.selectors().to_vec(),
-                TopLevelTransformModeV1::Translate { dx: 3.0, dy: -1.0 },
-            ),
-        )
-        .expect("receipt selectors remain a rigid transform target");
+    let changed = submit_translation(&mut session, 0, targets, forward.dx(), forward.dy());
     let projection = changed.observation().projection();
     let atom = projection.molecules()[0].atoms()[0].position();
     let PresentationRootProjectionV1::Plus { plus } = &projection.presentation_stack().roots()[0]
@@ -148,7 +289,7 @@ fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let aligned = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(
                 vec![
@@ -173,15 +314,13 @@ fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
     assert_authored_close(anchors[0].x(), 2.0);
     assert_authored_close(anchors[1].x(), 2.0);
 
-    let unchanged = session
-        .submit(
-            1,
-            operation(
-                vec![selector("a", TopLevelRootKindV1::Plus)],
-                TopLevelTransformModeV1::Translate { dx: 0.0, dy: 0.0 },
-            ),
-        )
-        .expect("zero translation is accepted");
+    let unchanged = submit_translation(
+        &mut session,
+        1,
+        vec![selector("a", TopLevelRootKindV1::Plus)],
+        0.0,
+        0.0,
+    );
     assert_eq!(unchanged.observation().snapshot().revision(), 1);
 }
 
@@ -200,7 +339,7 @@ fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let scaled = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(
                 vec![
@@ -228,7 +367,7 @@ fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
     assert!(cdml.contains("retained=\"yes\""));
 
     let unchanged = session
-        .submit(
+        .apply_document_operation_v1(
             1,
             operation(
                 vec![selector("m", TopLevelRootKindV1::Molecule)],
@@ -259,7 +398,7 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
     ];
     let mut horizontal = DocumentSession::load(source).expect("fixture loads");
     let mirrored = horizontal
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(targets.clone(), TopLevelTransformModeV1::MirrorHorizontal),
         )
@@ -280,7 +419,7 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
 
     let mut vertical = DocumentSession::load(source).expect("fixture loads");
     let mirrored = vertical
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(targets, TopLevelTransformModeV1::MirrorVertical),
         )
@@ -310,7 +449,7 @@ fn malformed_later_root_rejects_the_whole_transform() {
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let before = session.snapshot().expect("snapshot");
     let error = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(
                 vec![
@@ -333,7 +472,7 @@ fn malformed_later_root_rejects_the_whole_transform() {
 }
 
 #[test]
-fn translation_anchor_refuses_partial_brackets_without_changing_the_source() {
+fn renderer_snap_refuses_partial_brackets_without_changing_the_source() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\" spline=\"no\">",
         "<point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/>",
@@ -344,20 +483,23 @@ fn translation_anchor_refuses_partial_brackets_without_changing_the_source() {
     );
     let session = DocumentSession::load(source).expect("bracket fixture loads");
     let before = session.snapshot().expect("source snapshot");
+    let grid = HexGrid::new(40.0, Point2::new(0.0, 0.0).expect("finite grid origin"))
+        .expect("finite grid");
     let error = session
-        .observe_top_level_translation_anchor_v1(
+        .snap_top_level_translation_for_renderer_v1(
             0,
             vec![selector("left", TopLevelRootKindV1::Polyline)],
+            1.0,
+            0.0,
+            grid,
         )
-        .expect_err("partial bracket does not have a complete-root anchor");
+        .expect_err("partial bracket does not receive a snapped delta");
     assert!(
         matches!(
             error,
-            DocumentSessionError::Operation(SessionOperationError::Candidate(
-                TypedDocumentError::PartialBracketTransform(_)
-            ))
+            crate::renderer_admission::RendererTranslationSnapRefusalV1::Selection
         ),
-        "unexpected receipt refusal: {error:?}"
+        "unexpected renderer snap refusal: {error:?}"
     );
     assert_eq!(
         session.snapshot().expect("source remains unchanged"),

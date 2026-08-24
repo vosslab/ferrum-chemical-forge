@@ -2,10 +2,9 @@
 
 use super::{
     PersistentId, PresentationGesturePoint2V1, TypedDocument, TypedDocumentError, element_name,
+    typed_coordinate::canonical_authored_coordinate,
 };
 use xot::Xot;
-
-const POINTS_PER_CM: f64 = 72.0 / 2.54;
 
 impl TypedDocument {
     /// Insert one unstyled Plus at a document-space point.
@@ -44,11 +43,11 @@ impl TypedDocument {
         indexed
             .xml
             .tree
-            .set_attribute(point, x, format!("{:.3}cm", anchor.x() / POINTS_PER_CM));
+            .set_attribute(point, x, canonical_authored_coordinate(anchor.x()));
         indexed
             .xml
             .tree
-            .set_attribute(point, y, format!("{:.3}cm", anchor.y() / POINTS_PER_CM));
+            .set_attribute(point, y, canonical_authored_coordinate(anchor.y()));
         indexed
             .xml
             .tree

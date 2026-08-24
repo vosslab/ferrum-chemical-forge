@@ -7,7 +7,7 @@ import ferrum_chem
 
 
 _SOURCE = (
-	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><molecule id="m"/>'
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor">'
 	'<arrow id="a"><point x="0" y="0"/><point x="1" y="1"/></arrow>'
 	'<v:opaque retained="yes"/><text id="t"><point x="2" y="2"/>'
 	'<ftext>note</ftext></text><plus id="p"><point x="3" y="3"/></plus></cdml>'
@@ -45,7 +45,7 @@ def test_stack_reorder_is_frozen_revisioned_and_history_owned() -> None:
 	operation = ferrum_chem.DocumentOperationV1.reorder_presentation_roots(
 		orders.bring_to_front, (a, t),
 	)
-	result = session.submit(0, operation)
+	result = session.apply_document_operation_v1(0, operation)
 	assert result.observation.snapshot.revision == 1
 	assert _root_ids(session, 1) == ("p", "a", "t")
 	assert 'retained="yes"' in result.observation.snapshot.cdml
@@ -73,14 +73,14 @@ def test_stack_reorder_rejects_forged_shape_wrong_kind_and_stale_revision() -> N
 	)
 	before = session.snapshot
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError):
-		session.submit(0, wrong)
+		session.apply_document_operation_v1(0, wrong)
 	assert session.snapshot == before
 
 	changed = ferrum_chem.DocumentOperationV1.reorder_presentation_roots(
-		orders.send_to_back, (_selector("a", kinds.arrow),),
+		orders.bring_to_front, (_selector("a", kinds.arrow),),
 	)
-	session.submit(0, changed)
+	session.apply_document_operation_v1(0, changed)
 	after = session.snapshot
 	with pytest.raises(ferrum_chem.RevisionConflictError):
-		session.submit(0, changed)
+		session.apply_document_operation_v1(0, changed)
 	assert session.snapshot == after

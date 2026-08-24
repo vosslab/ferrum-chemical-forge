@@ -475,9 +475,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			)
 			return
 		try:
-			self._tab.patch_reaction_membership(
+			request = self._tab.resolve_reaction_membership_patch(
 				self._selection(), reactants, products, arrow, conditions, pluses,
 			)
+			prepared = self._tab.prepare_session_operation_transition_v1(request)
+			result = self._tab.commit_session_operation_transition_v1(prepared)
+			self._tab.install_reaction_membership_replaced_result(result)
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError:
 			self._recover_accepted_mutation(
 				"Updated reaction roles", rehighlight=True,
@@ -487,6 +490,8 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			_ReactionInspectorMembershipChangedError,
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
 			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.OperationValidationError,
+			ferrum_qt.ferrum.engine.PreparedOperationError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
 		) as exc:
 			self._recover(exc)
@@ -506,7 +511,10 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		if self._run_owned_dialog(dialog) != PySide6.QtWidgets.QDialog.DialogCode.Accepted:
 			return
 		try:
-			self._tab.delete_reaction_definition(self._selection())
+			request = self._tab.resolve_reaction_definition_delete(self._selection())
+			prepared = self._tab.prepare_session_operation_transition_v1(request)
+			result = self._tab.commit_session_operation_transition_v1(prepared)
+			self._tab.install_reaction_definition_deleted_result(result)
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError:
 			self._recover_accepted_mutation("Deleted the reaction definition", rehighlight=False)
 			return
@@ -514,6 +522,8 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			_ReactionInspectorMembershipChangedError,
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
 			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.OperationValidationError,
+			ferrum_qt.ferrum.engine.PreparedOperationError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
 		) as exc:
 			self._recover(exc)
@@ -528,9 +538,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 	def nudge(self, delta_x: float, delta_y: float) -> None:
 		"""Move every selected reaction member through one opaque Rust receipt."""
 		try:
-			self._tab.translate_reaction(
+			request = self._tab.resolve_reaction_translation(
 				self._selection(), delta_x, delta_y, self._snap.isChecked(),
 			)
+			prepared = self._tab.prepare_session_operation_transition_v1(request)
+			result = self._tab.commit_session_operation_transition_v1(prepared)
+			self._tab.install_reaction_translation_result(result)
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError:
 			self._recover_accepted_mutation("Moved all reaction members", rehighlight=True)
 			return
@@ -538,6 +551,8 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			_ReactionInspectorMembershipChangedError,
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
 			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.OperationValidationError,
+			ferrum_qt.ferrum.engine.PreparedOperationError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
 		) as exc:
 			self._recover(exc)

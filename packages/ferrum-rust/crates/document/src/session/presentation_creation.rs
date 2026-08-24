@@ -1,17 +1,12 @@
 //! Transactional document-owned creation of durable presentation roots.
 
-use super::{
-    AdmittedSessionTransitionRefusalV1, DocumentFenceV1, DocumentSession, PersistentId,
-    PreparedSessionTransitionV1, RevisionState, SessionOperationResultV1,
-};
+use super::{DocumentSession, PersistentId, PreparedSessionTransitionV1, RevisionState};
 use crate::DocumentSessionError;
 use crate::{
-    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityIssuerV1, AuthoringCapabilityV1,
     CurvedTerminalArrowKindV1, GeometricLineWidthV1, PresentationGesturePoint2V1,
-    PresentationPathGestureV1, PresentationPathKindV1, PresentationRecordKindV1, Rgb24V1,
-    TypedDocument,
+    PresentationPathGestureV1, PresentationPathKindV1, PresentationRecordKindV1,
+    PresentationRootSelectorV1, Rgb24V1, TypedDocument,
 };
-use thiserror::Error;
 
 /// Closed appearance facts for one new durable geometric presentation root.
 ///
@@ -59,8 +54,20 @@ impl PresentationAppearanceV1 {
 /// Closed document-native vocabulary for one new durable presentation root.
 ///
 /// The caller supplies validated geometry and closed appearance facts, never an identifier.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PresentationCreateRequestV1 {
+    StraightNormalArrow {
+        start: PresentationGesturePoint2V1,
+        end: PresentationGesturePoint2V1,
+        style: crate::ArrowGestureStyleV1,
+    },
+    StraightEquilibriumArrow {
+        start: PresentationGesturePoint2V1,
+        end: PresentationGesturePoint2V1,
+    },
+    StandardPlus {
+        anchor: PresentationGesturePoint2V1,
+    },
     Vector {
         kind: PresentationVectorCreateKindV1,
         start: PresentationGesturePoint2V1,
@@ -88,6 +95,10 @@ impl PresentationCreateRequestV1 {
     #[must_use]
     const fn root_kind(&self) -> PresentationRecordKindV1 {
         match self {
+            Self::StraightNormalArrow { .. } | Self::StraightEquilibriumArrow { .. } => {
+                PresentationRecordKindV1::Arrow
+            }
+            Self::StandardPlus { .. } => PresentationRecordKindV1::Plus,
             Self::Vector { kind, .. } => kind.root_kind(),
             Self::CurvedTerminalArrow { .. } | Self::CurvedEquilibriumArrow { .. } => {
                 PresentationRecordKindV1::Arrow
@@ -99,8 +110,43 @@ impl PresentationCreateRequestV1 {
         }
     }
 
-    fn append_to(&self, source: &str, identifier: &PersistentId) -> Result<String, ()> {
+    fn lower_document(
+        &self,
+        source: &TypedDocument,
+        identifier: &PersistentId,
+    ) -> Result<TypedDocument, ()> {
+        match self {
+            Self::StraightNormalArrow { start, end, style } => source
+                .with_insert_straight_normal_arrow(
+                    identifier,
+                    *start,
+                    *end,
+                    style.start_head(),
+                    style.end_head(),
+                )
+                .map_err(|_| ()),
+            Self::StraightEquilibriumArrow { start, end } => source
+                .with_insert_straight_equilibrium_arrow(identifier, *start, *end)
+                .map_err(|_| ()),
+            Self::StandardPlus { anchor } => source
+                .with_insert_standard_plus(identifier, *anchor)
+                .map_err(|_| ()),
+            _ => self.parse_appended_document(source, identifier),
+        }
+    }
+
+    fn parse_appended_document(
+        &self,
+        source: &TypedDocument,
+        identifier: &PersistentId,
+    ) -> Result<TypedDocument, ()> {
+        let source = source.to_xml().map_err(|_| ())?;
         let geometry = match self {
+            Self::StraightNormalArrow { .. }
+            | Self::StraightEquilibriumArrow { .. }
+            | Self::StandardPlus { .. } => {
+                unreachable!("direct-root cases lower through typed CDML")
+            }
             Self::Vector {
                 kind,
                 start,
@@ -192,23 +238,24 @@ impl PresentationCreateRequestV1 {
             }
         };
         if let Some(close) = source.rfind("</cdml") {
-            return Ok(format!(
+            return TypedDocument::parse(&format!(
                 "{}{}{}",
                 &source[..close],
                 geometry,
                 &source[close..]
-            ));
+            ))
+            .map_err(|_| ());
         }
         let close = source
             .rfind("/>")
             .filter(|index| source[index + 2..].trim().is_empty())
             .ok_or(())?;
-        Ok(format!("{}>{}</cdml>", &source[..close], geometry))
+        TypedDocument::parse(&format!("{}>{}</cdml>", &source[..close], geometry)).map_err(|_| ())
     }
 }
 
 /// Closed durable presentation-vector element vocabulary.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PresentationVectorCreateKindV1 {
     Line,
     Rectangle,
@@ -239,176 +286,46 @@ impl PresentationVectorCreateKindV1 {
     }
 }
 
-/// Opaque one-use, session-bound presentation-root candidate.
-///
-/// The caller retains this document-session authority until it commits or is dropped.
-pub struct PendingCreatePresentationV1 {
-    session_issuer: AuthoringCapabilityIssuerV1,
-    capability: AuthoringCapabilityV1,
-    fence: DocumentFenceV1,
-    transition: PreparedSessionTransitionV1,
-    identifier: PersistentId,
-    root_kind: PresentationRecordKindV1,
-}
-
-impl std::fmt::Debug for PendingCreatePresentationV1 {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("PendingCreatePresentationV1")
-            .field("revision", &self.fence.revision())
-            .field("is_resolved", &self.transition.is_consumed_v1())
-            .finish()
-    }
-}
-
-impl PendingCreatePresentationV1 {
-    /// Return the canonical generated presentation identity while this receipt is live.
-    #[must_use]
-    pub const fn identifier(&self) -> &PersistentId {
-        &self.identifier
-    }
-
-    /// Return the exact direct-root class selected by the closed request vocabulary.
-    #[must_use]
-    pub const fn root_kind(&self) -> PresentationRecordKindV1 {
-        self.root_kind
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-pub enum PresentationCreateErrorV1 {
-    #[error("presentation creation belongs to another document session")]
-    ForeignSession,
-    #[error("presentation creation snapshot is stale")]
-    StaleSnapshot,
-    #[error("presentation creation receipt was already consumed")]
-    Replayed,
-    #[error("presentation creation session transaction failed")]
-    SessionConflict,
-    #[error("presentation candidate was refused by renderer admission")]
-    RendererAdmission,
-}
-
 impl DocumentSession {
-    /// Reserve one canonical presentation ID and construct its candidate without mutation.
-    pub fn prepare_create_presentation_v1(
+    pub(crate) fn prepare_create_presentation_transition_v1(
         &mut self,
-        capability: &AuthoringCapabilityV1,
-        fence: DocumentFenceV1,
+        expected_revision: u64,
         request: PresentationCreateRequestV1,
-    ) -> Result<PendingCreatePresentationV1, PresentationCreateErrorV1> {
-        if !capability.belongs_to(&self.authoring_capability_issuer) {
-            return Err(PresentationCreateErrorV1::ForeignSession);
-        }
-        require_fence(self, fence)?;
+        kind: crate::CreatedPresentationRootKindV1,
+        authorization_claim: crate::AuthoringCapabilityClaimV1,
+    ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
+        self.require_current(expected_revision)?;
+        let source_digest = self.current_digest_v1();
+        let root_kind = request.root_kind();
         let (identifier, effects) = self
             .reserve_generated_ids_for_transition_v1(|sequences, indexed| {
                 sequences.reserve_presentation(indexed)
             })
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        let source = self
-            .snapshot()
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?
-            .cdml()
-            .to_owned();
-        let candidate_cdml = request
-            .append_to(&source, &identifier)
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        let document = TypedDocument::parse(&candidate_cdml)
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
+            .map_err(DocumentSessionError::Operation)?;
+        let document = request
+            .lower_document(self.current_document_v1(), &identifier)
+            .map_err(|_| {
+                DocumentSessionError::Operation(
+                    crate::SessionOperationError::PresentationCreateRequiresTransitionCore,
+                )
+            })?;
         let revision = self
             .next_revision_v1()
-            .ok_or(PresentationCreateErrorV1::SessionConflict)?;
-        let candidate = RevisionState::from_document(revision, document)
-            .map_err(|_| PresentationCreateErrorV1::SessionConflict)?;
-        let transition = self
-            .prepare_changed_session_transition_v1(
-                fence.revision(),
-                fence.digest(),
-                candidate,
-                effects,
-            )
-            .map_err(map_prepare_error)?;
-        Ok(PendingCreatePresentationV1 {
-            session_issuer: self.authoring_capability_issuer.clone(),
-            capability: capability.clone(),
-            fence,
-            transition,
-            identifier,
-            root_kind: request.root_kind(),
-        })
+            .ok_or(DocumentSessionError::RevisionExhausted)?;
+        let candidate =
+            RevisionState::from_document(revision, document).map_err(DocumentSessionError::Load)?;
+        let transition = self.prepare_changed_session_transition_with_presentation_outcome_v1(
+            expected_revision,
+            source_digest,
+            candidate,
+            effects,
+            PresentationRootSelectorV1::new(identifier.as_str(), root_kind)
+                .expect("session-reserved presentation identifier is valid"),
+            kind,
+            authorization_claim,
+        )?;
+        Ok(transition)
     }
-
-    /// Commit one presentation candidate atomically, installing its ID sequence only on success.
-    pub fn commit_create_presentation_v1(
-        &mut self,
-        pending: &mut PendingCreatePresentationV1,
-    ) -> Result<SessionOperationResultV1, PresentationCreateErrorV1> {
-        if pending.transition.is_consumed_v1() {
-            return Err(PresentationCreateErrorV1::Replayed);
-        }
-        if !pending
-            .session_issuer
-            .same_issuer(&self.authoring_capability_issuer)
-            || !pending
-                .capability
-                .belongs_to(&self.authoring_capability_issuer)
-        {
-            return Err(PresentationCreateErrorV1::ForeignSession);
-        }
-        let claim = pending
-            .capability
-            .claim_for_commit(&self.authoring_capability_issuer)
-            .map_err(|error| match error {
-                AuthoringCapabilityAccessErrorV1::ForeignSession => {
-                    PresentationCreateErrorV1::ForeignSession
-                }
-                AuthoringCapabilityAccessErrorV1::Replayed => PresentationCreateErrorV1::Replayed,
-            })?;
-        let operation = self
-            .commit_session_operation_transition_v1(&mut pending.transition)
-            .map_err(map_commit_error)?;
-        claim.consume();
-        Ok(operation)
-    }
-}
-
-fn map_prepare_error(error: DocumentSessionError) -> PresentationCreateErrorV1 {
-    match error {
-        DocumentSessionError::RendererAdmission => PresentationCreateErrorV1::RendererAdmission,
-        _ => PresentationCreateErrorV1::SessionConflict,
-    }
-}
-
-fn map_commit_error(error: AdmittedSessionTransitionRefusalV1) -> PresentationCreateErrorV1 {
-    match error {
-        AdmittedSessionTransitionRefusalV1::ForeignSession => {
-            PresentationCreateErrorV1::ForeignSession
-        }
-        AdmittedSessionTransitionRefusalV1::Replayed => PresentationCreateErrorV1::Replayed,
-        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
-            PresentationCreateErrorV1::StaleSnapshot
-        }
-        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
-            PresentationCreateErrorV1::RendererAdmission
-        }
-        AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            PresentationCreateErrorV1::SessionConflict
-        }
-    }
-}
-
-fn require_fence(
-    session: &DocumentSession,
-    fence: DocumentFenceV1,
-) -> Result<(), PresentationCreateErrorV1> {
-    if session.current_revision_v1() != fence.revision()
-        || session.current_digest_v1() != fence.digest()
-    {
-        return Err(PresentationCreateErrorV1::StaleSnapshot);
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -417,174 +334,72 @@ mod tests {
 
     const EMPTY: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"/>"#;
 
-    fn fence(session: &DocumentSession) -> DocumentFenceV1 {
-        let snapshot = session.snapshot().expect("test snapshot");
-        DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
-    }
-
     fn point(x: f64, y: f64) -> PresentationGesturePoint2V1 {
         PresentationGesturePoint2V1::new(x, y).expect("finite test point")
     }
 
-    fn request() -> PresentationCreateRequestV1 {
-        PresentationCreateRequestV1::Vector {
-            kind: PresentationVectorCreateKindV1::Rectangle,
-            start: point(0.0, 0.0),
-            end: point(12.0, 8.0),
-            appearance: PresentationAppearanceV1::new(
-                Rgb24V1::new("#000000").expect("closed test colour"),
-                GeometricLineWidthV1::new(1.0).expect("closed test width"),
-                None,
+    #[test]
+    fn generic_presentation_transition_requires_authorization_and_returns_committed_root() {
+        let mut session = DocumentSession::load(EMPTY).expect("session");
+        assert!(matches!(
+            session.prepare_session_operation_transition_v1(
+                crate::SessionOperationTransitionRequestV1::new(
+                    0,
+                    crate::SessionOperation::V1(
+                        crate::SessionOperationV1::CreatePresentationVectorV1(
+                            crate::CreatePresentationVectorV1::new(
+                                PresentationVectorCreateKindV1::Rectangle,
+                                point(0.0, 0.0),
+                                point(12.0, 8.0),
+                                PresentationAppearanceV1::new(
+                                    Rgb24V1::new("#000000").expect("color"),
+                                    GeometricLineWidthV1::new(1.0).expect("width"),
+                                    None,
+                                ),
+                            ),
+                        )
+                    ),
+                    crate::TransitionAuthorizationV1::None,
+                )
             ),
-        }
-    }
-
-    #[test]
-    fn reserves_canonical_presentation_ids_without_mutating_until_commit() {
-        let mut session = DocumentSession::load(
-            r#"<cdml xmlns="urn:ferrum:cdml" version="26.07"><opaque id="ferrum-presentation-v1-0"/></cdml>"#,
-        )
-        .expect("session");
-        let before = session.snapshot().expect("before");
-        let capability = session.authoring_capability_issuer_v1().issue();
-        let mut pending = session
-            .prepare_create_presentation_v1(&capability, fence(&session), request())
-            .expect("reservation");
-
-        assert_eq!(pending.identifier().as_str(), "ferrum-presentation-v1-1");
-        assert_eq!(session.snapshot().expect("unchanged"), before);
-
-        session
-            .commit_create_presentation_v1(&mut pending)
-            .expect("commit");
-        assert!(
-            session
-                .snapshot()
-                .expect("committed")
-                .cdml()
-                .contains("ferrum-presentation-v1-1")
-        );
-        assert!(matches!(
-            session.commit_create_presentation_v1(&mut pending),
-            Err(PresentationCreateErrorV1::Replayed)
+            Err(DocumentSessionError::TransitionAuthorization(
+                crate::TransitionAuthorizationRefusalV1::AuthoringCapabilityRequired
+            ))
         ));
-    }
 
-    #[test]
-    fn renderer_admission_observation_is_the_exact_committed_candidate() {
-        let mut session = DocumentSession::load(EMPTY).expect("session");
-        let capability = session.authoring_capability_issuer_v1().issue();
-        let mut pending = session
-            .prepare_create_presentation_v1(&capability, fence(&session), request())
-            .expect("reservation");
-        let expected = pending
-            .transition
-            .metadata_v1()
-            .expect("live transition metadata")
-            .observation()
-            .clone();
-
-        let committed = session
-            .commit_create_presentation_v1(&mut pending)
-            .expect("commit");
-
-        assert_eq!(committed.observation(), &expected);
-    }
-
-    #[test]
-    fn foreign_commit_preserves_the_owner_pending_reservation() {
-        let mut owner = DocumentSession::load(EMPTY).expect("owner");
-        let capability = owner.authoring_capability_issuer_v1().issue();
-        let mut pending = owner
-            .prepare_create_presentation_v1(&capability, fence(&owner), request())
-            .expect("reservation");
-        let mut foreign = DocumentSession::load(EMPTY).expect("foreign");
-
-        assert!(matches!(
-            foreign.commit_create_presentation_v1(&mut pending),
-            Err(PresentationCreateErrorV1::ForeignSession)
-        ));
-        owner
-            .commit_create_presentation_v1(&mut pending)
-            .expect("owner retains receipt after foreign refusal");
-    }
-
-    #[test]
-    fn rejected_appearance_input_cannot_inject_roots_or_presentation_identities() {
-        let mut session = DocumentSession::load(EMPTY).expect("session");
-        let capability = session.authoring_capability_issuer_v1().issue();
-        let before = session.snapshot().expect("before");
-
-        assert!(Rgb24V1::new(r#"#000000\"/><rect id=\"attacker\"/>"#).is_none());
-        assert!(Rgb24V1::new(r#"#000000\"><rect id=\"attacker\"/>"#).is_none());
+        let capability = session.issue_authoring_capability_v1();
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(
+                crate::SessionOperationTransitionRequestV1::new(
+                    0,
+                    crate::SessionOperation::V1(
+                        crate::SessionOperationV1::CreatePresentationVectorV1(
+                            crate::CreatePresentationVectorV1::new(
+                                PresentationVectorCreateKindV1::Rectangle,
+                                point(0.0, 0.0),
+                                point(12.0, 8.0),
+                                PresentationAppearanceV1::new(
+                                    Rgb24V1::new("#000000").expect("color"),
+                                    GeometricLineWidthV1::new(1.0).expect("width"),
+                                    None,
+                                ),
+                            ),
+                        ),
+                    ),
+                    crate::TransitionAuthorizationV1::authoring_capability(capability),
+                ),
+            )
+            .expect("generic presentation transition");
+        let result = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("generic presentation commit");
+        let crate::SessionOperationOutcomeV1::CreatedPresentationRootV1(outcome) = result.outcome()
+        else {
+            panic!("generic presentation result includes its committed root");
+        };
         assert_eq!(
-            session.snapshot().expect("rejected input changes nothing"),
-            before
+            outcome.root().presentation_id().as_str(),
+            "ferrum-presentation-v1-0"
         );
-
-        let mut pending = session
-            .prepare_create_presentation_v1(&capability, fence(&session), request())
-            .expect("closed appearance request");
-        assert_eq!(pending.identifier().as_str(), "ferrum-presentation-v1-0");
-        session
-            .commit_create_presentation_v1(&mut pending)
-            .expect("closed request commits");
-        let cdml = session.snapshot().expect("committed").cdml().to_owned();
-        assert_eq!(cdml.matches("ferrum-presentation-v1-").count(), 1);
-        assert!(!cdml.contains("attacker"));
-    }
-
-    #[test]
-    fn abandoned_presentation_reservation_reuses_its_id_until_a_commit_advances_it() {
-        let mut session = DocumentSession::load(EMPTY).expect("session");
-        let capability = session.authoring_capability_issuer_v1().issue();
-        let abandoned = session
-            .prepare_create_presentation_v1(&capability, fence(&session), request())
-            .expect("reservation");
-        assert_eq!(abandoned.identifier().as_str(), "ferrum-presentation-v1-0");
-        drop(abandoned);
-
-        let mut committed = session
-            .prepare_create_presentation_v1(&capability, fence(&session), request())
-            .expect("replacement reservation");
-        assert_eq!(committed.identifier().as_str(), "ferrum-presentation-v1-0");
-        session
-            .commit_create_presentation_v1(&mut committed)
-            .expect("commit installs the reserved sequence");
-
-        let next = session
-            .prepare_create_presentation_v1(&capability, fence(&session), request())
-            .expect("next reservation");
-        assert_eq!(next.identifier().as_str(), "ferrum-presentation-v1-1");
-    }
-
-    #[test]
-    fn stale_presentation_reservation_does_not_advance_the_committed_id_sequence() {
-        let mut session = DocumentSession::load(EMPTY).expect("session");
-        let first_capability = session.authoring_capability_issuer_v1().issue();
-        let stale_capability = session.authoring_capability_issuer_v1().issue();
-        let mut first = session
-            .prepare_create_presentation_v1(&first_capability, fence(&session), request())
-            .expect("first reservation");
-        let mut stale = session
-            .prepare_create_presentation_v1(&stale_capability, fence(&session), request())
-            .expect("concurrent tentative reservation");
-        assert_eq!(first.identifier().as_str(), "ferrum-presentation-v1-0");
-        assert_eq!(stale.identifier().as_str(), "ferrum-presentation-v1-0");
-
-        session
-            .commit_create_presentation_v1(&mut first)
-            .expect("first commit installs its sequence");
-        assert_eq!(
-            session.commit_create_presentation_v1(&mut stale),
-            Err(PresentationCreateErrorV1::StaleSnapshot)
-        );
-        drop(stale);
-
-        let next_capability = session.authoring_capability_issuer_v1().issue();
-        let next = session
-            .prepare_create_presentation_v1(&next_capability, fence(&session), request())
-            .expect("next reservation after stale refusal");
-        assert_eq!(next.identifier().as_str(), "ferrum-presentation-v1-1");
     }
 }

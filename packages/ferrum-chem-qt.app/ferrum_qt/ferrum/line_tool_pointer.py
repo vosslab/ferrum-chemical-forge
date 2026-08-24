@@ -2,6 +2,7 @@
 
 # Standard Library
 import dataclasses
+import math
 
 # PIP3 modules
 import PySide6.QtCore
@@ -21,9 +22,7 @@ import ferrum_qt.ferrum.rotation
 import ferrum_qt.ferrum.terminal_arrow
 import ferrum_qt.ferrum.text_placement
 import ferrum_qt.ferrum.text_placement_preview
-import ferrum_qt.ferrum.top_level_transform
-import ferrum_qt.ferrum.translation
-import ferrum_qt.canvas.items.ferrum_plan_item
+import ferrum_qt.ferrum.molecule_plan_overlay
 from ferrum_qt.ferrum.line_tool_interaction import _normalized_rect
 
 _NativeLineTool = ferrum_qt.ferrum.line_tool_intent._NativeLineTool
@@ -297,9 +296,11 @@ class FerrumNativeLineToolPointerMixin:
 				gesture = intent.tab.begin_plus_placement_gesture(
 					float(press_scene.x()), float(press_scene.y()),
 				)
-				preview = intent.tab.preview_plus_placement_gesture(gesture)
-				overlay = ferrum_qt.ferrum.presentation_creation_preview.create_plus_overlay(
-					intent.tab, preview.overlay,
+				preview = intent.tab.preview_plus_placement_gesture(
+					gesture, float(press_scene.x()), float(press_scene.y()),
+				)
+				overlay = ferrum_qt.ferrum.presentation_creation_preview.create_presentation_preview(
+					intent.tab, preview.plan,
 				)
 			except Exception as exc:
 				self._cancel_line_gesture()
@@ -374,19 +375,15 @@ class FerrumNativeLineToolPointerMixin:
 				)
 				return
 			try:
-				prepared = ferrum_qt.ferrum.regular_ring.prepare_cyclohexane(
-					intent.tab, center,
-				)
-				preview = ferrum_qt.ferrum.regular_ring.create_preview(
-					intent.tab, prepared,
-				)
+				if not math.isfinite(center.x()) or not math.isfinite(center.y()):
+					raise ValueError("Choose a finite empty page location to insert a separate ring.")
 			except Exception as exc:
 				self._cancel_line_gesture()
 				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 				return
 			self._line_gesture_intent = dataclasses.replace(
-				intent, start_scene=center, press_scene=press_scene, preview=preview,
-				regular_ring_prepared=prepared,
+				intent, start_scene=center, press_scene=press_scene,
+				regular_ring_center=PySide6.QtCore.QPointF(center),
 			)
 			return
 		if intent.tool is _NativeLineTool.ATTACH_CYCLOHEXANE_RING:
@@ -434,6 +431,8 @@ class FerrumNativeLineToolPointerMixin:
 				drawing=drawing,
 				start_scene=press_scene,
 				press_scene=press_scene,
+				direct_bond_start_probe=start_probe,
+				direct_bond_snap_enabled=intent.tab.view.hex_grid_snap_enabled,
 				direct_bond_gesture=gesture,
 			)
 			return
@@ -644,20 +643,10 @@ class FerrumNativeLineToolPointerMixin:
 					intent.start_atom_id,
 					intent.tab.view.mapToScene(event.position().toPoint()),
 				)
-				plan = intent.tab.preview_attached_cyclohexane(pending)
-				scene = intent.tab.view.scene()
-				if scene is None:
-					raise ValueError("Ferrum attachment preview requires an installed scene.")
-				preview = PySide6.QtWidgets.QGraphicsItemGroup()
-				for index in range(len(plan.batches)):
-					item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem(
-						plan, index, intent.tab._controller._telex_resource,
-					)
-					item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
-					preview.addToGroup(item)
-				preview.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
-				preview.setZValue(1_000_000.0)
-				scene.addItem(preview)
+				overlay = intent.tab.preview_attached_cyclohexane(pending)
+				preview = ferrum_qt.ferrum.direct_bond_overlay.create_overlay(
+					intent.tab, overlay,
+				)
 			except Exception as exc:
 				self._cancel_line_gesture()
 				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
@@ -774,27 +763,21 @@ class FerrumNativeLineToolPointerMixin:
 				current is None
 				or current.tool is not _NativeLineTool.DRAW_BOND
 				or current.direct_bond_gesture is None
-				or current.direct_bond_admission is None
+				or current.prepared_transition is None
 			):
 				return
-			admission = current.direct_bond_admission
+			prepared = current.prepared_transition
 			self._reset_line_gesture_start()
-			import ferrum_qt.ferrum.engine as engine
 			try:
-				commit = current.tab.commit_direct_bond_admission(admission)
-			except engine.DirectBondCommitError as exc:
-				message = self._direct_bond_commit_recovery_message(exc)
+				self._commit_direct_bond_transition(current.tab, prepared)
+			except Exception as exc:
 				self._cancel_line_gesture()
 				self._refresh_actions()
-				if message is None:
-					raise
-				self._show_direct_bond_commit_refusal(message)
+				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 				return
 			presentation = current.direct_bond_presentation.description()
-			result_message = (
-				self.tr("Added one Ferrum carbon and {0} bond; drag again or press Esc.")
-				if commit.created_new_atom
-				else self.tr("Added one Ferrum {0} bond; drag again or press Esc.")
+			result_message = self.tr(
+				"Added one Ferrum {0} bond; drag again or press Esc."
 			).format(presentation)
 			self._finish_line_gesture(current, result_message)
 			return
@@ -818,8 +801,8 @@ class FerrumNativeLineToolPointerMixin:
 		):
 			return
 		if intent.tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
-			prepared = intent.regular_ring_prepared
-			if prepared is None:
+			center = intent.regular_ring_center
+			if center is None:
 				return
 			if not self._line_gesture_is_current(intent):
 				self._cancel_line_gesture()
@@ -827,7 +810,7 @@ class FerrumNativeLineToolPointerMixin:
 				return
 			self._reset_line_gesture_start()
 			try:
-				intent.tab.commit_regular_ring(prepared)
+				ferrum_qt.ferrum.regular_ring.insert_cyclohexane(intent.tab, center)
 			except Exception as exc:
 				self._cancel_line_gesture()
 				self._refresh_actions()

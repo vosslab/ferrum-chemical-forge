@@ -113,6 +113,10 @@ pub(crate) fn map_document_error(py: Python<'_>, error: DocumentSessionError) ->
         DocumentSessionError::RendererAdmission => {
             operation_validation_error(py, error.to_string())
         }
+        DocumentSessionError::TransitionAuthorization(_)
+        | DocumentSessionError::DirectBondAdmission(_) => {
+            operation_validation_error(py, error.to_string())
+        }
         DocumentSessionError::Projection(error) => projection_error(py, error)?,
         DocumentSessionError::Operation(error) => operation_error(py, error)?,
         DocumentSessionError::DirectHaworthReobservation(error) => {
@@ -310,7 +314,17 @@ fn revision_conflict_error(py: Python<'_>, expected: u64, actual: u64) -> PyResu
 
 fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyErr> {
     match error {
-        SessionOperationError::ExplicitFragment(_) => operation_validation_reason(py, error),
+        SessionOperationError::ExplicitFragment(_)
+        | SessionOperationError::InvalidCatalogPlacement(_)
+        | SessionOperationError::DirectBond(_)
+        | SessionOperationError::Reaction(_)
+        | SessionOperationError::HydrogenMaterialization(_)
+        | SessionOperationError::HydrogenMaterializationRequiresTransitionCore
+        | SessionOperationError::MoleculeInsertionRequiresTransitionCore
+        | SessionOperationError::InterchangeRecordBatchInsertionRequiresTransitionCore
+        | SessionOperationError::PresentationCreateRequiresTransitionCore => {
+            operation_validation_reason(py, error)
+        }
         SessionOperationError::EmptyLinearFormSelection
         | SessionOperationError::LinearFormPlan(_) => operation_validation_reason(py, error),
         SessionOperationError::HistoryResourceExhausted
@@ -462,4 +476,32 @@ pub(crate) fn publication_error(
     value.setattr("path", path.display().to_string())?;
     value.setattr("reason", detail.to_string())?;
     Ok(error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn presentation_transition_core_refusal_maps_to_operation_validation_error() {
+        Python::initialize();
+        Python::attach(|py| {
+            let error = operation_error(
+                py,
+                SessionOperationError::PresentationCreateRequiresTransitionCore,
+            )
+            .expect("presentation transition-core refusal should map to Python");
+
+            assert!(error.is_instance_of::<OperationValidationError>(py));
+            assert_eq!(
+                error
+                    .value(py)
+                    .getattr("reason")
+                    .expect("operation validation error should expose its reason")
+                    .extract::<String>()
+                    .expect("operation validation reason should be text"),
+                "presentation creation must be prepared by the session transition core"
+            );
+        });
+    }
 }

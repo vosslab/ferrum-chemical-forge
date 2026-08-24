@@ -18,6 +18,9 @@ readonly LOCAL_CLI="${BUILD_ROOT}/bin/ferrum"
 readonly LOCAL_GUI="${BUILD_ROOT}/bin/ferrum-qt"
 readonly LOCAL_RUNTIME_RECEIPT="${RUST_ROOT}/local_runtime_receipt.py"
 readonly LEGACY_WHEEL_ROOT="${REPO_ROOT}/output_native_wheel"
+readonly OBSOLETE_BUILD_CARGO_TARGET="${BUILD_ROOT}/cargo-target"
+readonly OBSOLETE_RUST_TARGET="${RUST_ROOT}/target"
+readonly OBSOLETE_PYO3_TARGET="${RUST_ROOT}/crates/api/python/target"
 readonly MAX_CHECKOUT_KIB=$((20 * 1024 * 1024))
 readonly BUILD_LOCK_DIR="${BUILD_ROOT}/.build.lock"
 readonly BUILD_LOCK_OWNER="${$}-${RANDOM}-${RANDOM}"
@@ -55,18 +58,20 @@ USAGE
 
 #============================================
 cleanup_transient_build_state() {
-	rm -rf "${CARGO_TARGET_DIR}" "${LOCAL_BUILD_CANDIDATE}" \
+	rm -rf -- "${CARGO_TARGET_DIR}" "${LOCAL_BUILD_CANDIDATE}" \
 		"${BUILD_ROOT}/runtime"/.native-engine-*
 }
 
 
 #============================================
-retire_legacy_wheel_root() {
-	# This root belonged to the retired wheel-publication build and is never an
-	# input or output of the local runtime build. Removing the fixed checkout
-	# path before measuring the checkout prevents abandoned wheel builds from
-	# blocking the supported local build.
-	rm -rf -- "${LEGACY_WHEEL_ROOT}"
+retire_obsolete_owned_build_state() {
+	# These fixed paths are historical compiler or staging outputs owned by the
+	# local build. Retire them while holding the build lock; retain build/bin and
+	# build/runtime so a failed candidate build never removes the prior program.
+	rm -rf -- "${LEGACY_WHEEL_ROOT}" "${OBSOLETE_BUILD_CARGO_TARGET}" \
+		"${OBSOLETE_RUST_TARGET}" "${OBSOLETE_PYO3_TARGET}" \
+		"${BUILD_ROOT}"/.ferrum-local-build-* \
+		"${BUILD_ROOT}"/.previous-local-build-*
 }
 
 
@@ -134,12 +139,20 @@ finish_build() {
 
 #============================================
 require_checkout_budget() {
-	local size_kib
+	local size_kib category_kib
 	size_kib="$(du -sk "${REPO_ROOT}" | awk '{print $1}')"
 	if (( size_kib > MAX_CHECKOUT_KIB )); then
 		printf 'build error: checkout exceeds the 20 GiB build budget (%s).\n' \
 			"$(du -sh "${REPO_ROOT}" | awk '{print $1}')" >&2
-		printf 'Remove obsolete build outputs before running ./build.sh.\n' >&2
+		printf 'Largest known build-owned categories after fixed-path retirement:\n' >&2
+		for category in "${BUILD_ROOT}" "${LEGACY_WHEEL_ROOT}" \
+			"${OBSOLETE_RUST_TARGET}" "${OBSOLETE_PYO3_TARGET}"; do
+			if [[ -e "${category}" ]]; then
+				category_kib="$(du -sk "${category}" | awk '{print $1}')"
+				printf '  %s: %s KiB\n' "${category}" "${category_kib}" >&2
+			fi
+		done
+		printf 'The build only retires its fixed owned paths; inspect other checkout content separately.\n' >&2
 		exit 1
 	fi
 }
@@ -159,7 +172,7 @@ write_gui_launcher() {
 build_local_program() {
 	local extension_source local_extension
 
-	retire_legacy_wheel_root
+	retire_obsolete_owned_build_state
 	cleanup_transient_build_state
 	require_checkout_budget
 	mkdir -p "${LOCAL_BUILD_CANDIDATE}/bin"

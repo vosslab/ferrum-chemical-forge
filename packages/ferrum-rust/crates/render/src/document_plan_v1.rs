@@ -359,6 +359,30 @@ impl RenderRootOverlayV1 {
     }
 }
 
+/// One renderer-owned, immutable molecule-only projection for a transient
+/// preview. Unlike a document-root overlay, this carries no page identity or
+/// source order because a pending insertion is not yet a document root.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MoleculeRenderOverlayV1 {
+    plan: MoleculeRenderPlan,
+}
+
+impl MoleculeRenderOverlayV1 {
+    #[must_use]
+    pub const fn plan(&self) -> &MoleculeRenderPlan {
+        &self.plan
+    }
+}
+
+/// Project an already renderer-admitted molecule plan for transient drawing.
+///
+/// This intentionally accepts only the exact molecule plan. Pending document
+/// mutations have no durable root identity or source order until commit.
+#[must_use]
+pub fn preview_molecule_render_overlay_v1(plan: &MoleculeRenderPlan) -> MoleculeRenderOverlayV1 {
+    MoleculeRenderOverlayV1 { plan: plan.clone() }
+}
+
 /// Return exactly one paintable root from a composed document plan.
 ///
 /// Missing or excluded identities fail closed so a preview cannot claim that a

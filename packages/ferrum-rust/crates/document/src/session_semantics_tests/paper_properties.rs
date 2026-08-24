@@ -83,7 +83,7 @@ fn paper_projection_uses_first_core_records_and_valid_standard_defaults() {
 fn paper_patch_preserves_opaque_content_later_paper_order_and_history() {
     let mut session = DocumentSession::load(EXISTING).expect("source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(vec![
                 PaperPropertyChangeV1::Orientation(PaperOrientationV1::Landscape),
@@ -148,7 +148,7 @@ fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
     );
     let mut session = DocumentSession::load(source).expect("source must load");
     let empty = session
-        .submit(0, operation(vec![]))
+        .apply_document_operation_v1(0, operation(vec![]))
         .expect("empty patch is accepted");
     assert_eq!(empty.observation().snapshot().revision(), 0);
     assert!(
@@ -161,7 +161,7 @@ fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
 
     let custom_size = PaperDimensionsMmV1::try_new(200.5, 300.25).unwrap();
     let custom = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(vec![
                 PaperPropertyChangeV1::Type("custom".to_owned()),
@@ -190,7 +190,7 @@ fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
     );
 
     let named = session
-        .submit(
+        .apply_document_operation_v1(
             1,
             operation(vec![PaperPropertyChangeV1::Type("C10".to_owned())]),
         )
@@ -217,7 +217,7 @@ fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
     );
     let before = session.snapshot().expect("snapshot must work");
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             2,
             operation(vec![PaperPropertyChangeV1::Dimensions(custom_size),])
         ),
@@ -227,7 +227,10 @@ fn paper_creation_custom_transition_and_invalid_intent_are_atomic() {
     ));
     assert_eq!(session.snapshot().expect("snapshot must work"), before);
     assert!(matches!(
-        session.submit(1, operation(vec![PaperPropertyChangeV1::CropMargin(12),])),
+        session.apply_document_operation_v1(
+            1,
+            operation(vec![PaperPropertyChangeV1::CropMargin(12),])
+        ),
         Err(DocumentSessionError::RevisionConflict {
             expected: 1,
             actual: 2

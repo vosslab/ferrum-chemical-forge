@@ -153,7 +153,6 @@ pub fn run(
                 NamedDocumentCommand::CatalogList { input, output }
                 | NamedDocumentCommand::CatalogInsert { input, output }
                 | NamedDocumentCommand::PresentationAuthor { input, output }
-                | NamedDocumentCommand::DocumentMoleculeReport { input, output }
                 | NamedDocumentCommand::DocumentMoleculeSmartsQuery { input, output }
                 | NamedDocumentCommand::DocumentMoleculeInterchangeImport { input, output } => Ok(
                     run_protocol(&input, output.as_deref(), stdin, stdout, stderr)?,
@@ -679,6 +678,15 @@ mod tests {
     fn named_smarts_query_response_admission_is_exact_and_redacted_for_raw_and_selected_forms() {
         let session = ferrum_document::DocumentSession::load(CDML).expect("fixture loads");
         let snapshot = session.snapshot().expect("fixture snapshots");
+        let selected = session
+            .observe(0)
+            .expect("fixture observation")
+            .projection()
+            .molecules()[0]
+            .id()
+            .expect("fixture molecule has a durable identity")
+            .as_str()
+            .to_owned();
         let digest = snapshot
             .digest()
             .iter()
@@ -686,7 +694,7 @@ mod tests {
             .collect::<String>();
         for query in [
             serde_json::json!({"kind": "smarts", "value": "FERRUM_PRIVATE_RAW_SMARTS"}),
-            serde_json::json!({"kind": "selected_molecule", "molecule_id": "m"}),
+            serde_json::json!({"kind": "selected_molecule", "molecule_id": selected}),
         ] {
             let request = serde_json::json!({
                 "schema": "ferrum-operation-request-v1",
@@ -767,8 +775,8 @@ mod tests {
             assert_eq!(refusal["request_id"], "response-admission-correlation");
             assert_eq!(refusal["error"]["category"], "resource_limit");
             assert_eq!(
-                refusal["error"]["resource_limit_reason"],
-                "response_size_exceeded"
+                refusal["error"]["resource_limit"]["reason"], "response_size_exceeded",
+                "oversize refusal must retain its resource-limit classification: {refusal:?}"
             );
             assert_eq!(refusal["error"]["message"], "response_size_exceeded");
             assert_eq!(

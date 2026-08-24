@@ -109,9 +109,9 @@ mod typed_bond_properties;
 mod typed_bracket_insertion;
 mod typed_bracket_properties;
 mod typed_class;
-mod typed_compact_group_insertion;
-mod typed_compact_group_materialization;
 mod typed_coordinate;
+#[cfg(test)]
+mod typed_coordinate_tests;
 mod typed_diagnostic;
 mod typed_document_error;
 mod typed_drawing_standard;
@@ -151,9 +151,10 @@ pub use attached_cyclohexane_v1::{AttachedCyclohexaneErrorV1, AttachedCyclohexan
 pub use authored_text_v1::{
     AuthoredTextRunV1, AuthoredTextStyleV1, normalize_authored_text_runs_v1,
 };
-pub use authoring_capability_v1::{
+pub use authoring_capability_v1::AuthoringCapabilityV1;
+pub(crate) use authoring_capability_v1::{
     AuthoringCapabilityAccessErrorV1, AuthoringCapabilityClaimV1, AuthoringCapabilityIssuerV1,
-    AuthoringCapabilityV1,
+    AuthoringGesturePairAccessErrorV1,
 };
 pub use bond_presentation_v1::DocumentBondPresentationV1;
 pub use bond_properties_patch_v1::{
@@ -194,21 +195,18 @@ pub use compact_group_v1::{
     CompactGroupAttachmentV1, CompactGroupCatalogKeyV1, CompactGroupV1, CompactGroupV1Error,
 };
 pub use core_projection::{CoreProjection, CoreProjectionError};
-pub use direct_bond_mutation::{CommittedDirectBondGestureV2, DirectBondEndpointIntent};
+pub use direct_bond_mutation::DirectBondEndpointIntent;
 pub use direct_bond_primitives_v1::{
-    DirectBondAdmissionRefusalV1, DirectBondCommitErrorV1, DirectBondGestureErrorV1,
-    DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentFenceV1,
+    DirectBondAdmissionRefusalV1, DirectBondGestureErrorV1, DirectBondPoint2V1,
+    DirectBondSnapPolicyV1, DocumentFenceV1,
 };
 pub use direct_cdml_semantic_index_v1::{
     DirectCdmlRootKindV1, DirectCdmlRootV1, DirectCdmlSemanticErrorV1, DirectCdmlSemanticIndexV1,
     DirectReactionMemberV1, DirectReactionRoleV1, ReactionDefinitionDiagnosticV1,
-    ReactionDefinitionV1, append_direct_cdml_reaction_v1,
-    delete_direct_cdml_reaction_definition_v1, inspect_direct_reactions_v1,
-    replace_direct_cdml_reaction_members_v1,
+    ReactionDefinitionV1, inspect_direct_reactions_v1,
 };
 pub use direct_haworth_insertion_v1::{
-    CommittedDirectHaworthBondFactV1, DocumentDirectHaworthBondRoleV1,
-    DocumentDirectHaworthBondTokenV1,
+    DocumentDirectHaworthBondRoleV1, DocumentDirectHaworthBondTokenV1,
 };
 pub use direct_haworth_reobservation_v1::{
     DirectHaworthReobservationErrorV1, ReobservedDirectHaworthBondFactV1, ReobservedDirectHaworthV1,
@@ -314,8 +312,8 @@ pub use molecule_coordinate_update_v1::{
     MoleculeCoordinateUpdateV1, MoleculeCoordinateUpdateV1Error,
 };
 pub use molecule_insertion_v1::{
-    DocumentBondOrderV1, MoleculeInsertionAtomV1, MoleculeInsertionBondOrderV1,
-    MoleculeInsertionBondV1, MoleculeInsertionV1, MoleculeInsertionV1Error,
+    DocumentBondOrderV1, MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1,
+    MoleculeInsertionV1Error,
 };
 pub use operations::{
     DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1, DOCUMENT_CLIPBOARD_PASTE_TRANSLATION_V1,
@@ -324,9 +322,8 @@ pub use operations::{
     DocumentLinearFormResultV1, DocumentMoleculeNameErrorV1, DocumentMoleculeNameRequestV1,
     DocumentUserTemplateApplyErrorV1, apply_clipboard_cut_v1, apply_clipboard_paste_v1,
     apply_user_template_v1, convert_document_linear_form_v1, document_clipboard_paste_budget_v1,
-    document_operation_budget_v1, document_user_template_budget_v1,
-    observe_top_level_translation_anchor_v1, prepare_clipboard_cut_v1, prepare_clipboard_paste_v1,
-    prepare_user_template_v1, set_document_molecule_name_v1,
+    document_operation_budget_v1, document_user_template_budget_v1, prepare_clipboard_cut_v1,
+    prepare_clipboard_paste_v1, prepare_user_template_v1, set_document_molecule_name_v1,
 };
 pub use paper_properties_v1::{
     PaperPropertiesPatchV1, PaperPropertiesPatchV1Error, PaperPropertyChangeV1,
@@ -340,10 +337,10 @@ pub use plus_properties_patch_v1::{
     PlusPropertiesPatchV1Error, PlusPropertyChangeV1,
 };
 pub use presentation_creation_gesture_v1::{
-    ArrowGestureStyleV1, CommittedPresentationGestureV1, PresentationCreationGestureV1,
-    PresentationCreationPreviewV1, PresentationGestureCategoryV1, PresentationGestureErrorV1,
-    PresentationGestureKindV1, PresentationGesturePoint2V1, PresentationGestureRecoveryV1,
-    PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
+    ArrowGestureStyleV1, PresentationCreationGestureV1, PresentationCreationPreviewV1,
+    PresentationGestureCategoryV1, PresentationGestureErrorV1, PresentationGestureKindV1,
+    PresentationGesturePoint2V1, PresentationGestureRecoveryV1, PresentationGestureSnapPolicyV1,
+    PresentationGestureStyleV1,
 };
 pub use presentation_path_gesture_v1::{
     PRESENTATION_PATH_MAXIMUM_EXTENT_PT_V1, PRESENTATION_PATH_MAXIMUM_POINTS_V1,
@@ -386,35 +383,43 @@ pub use rendering::{
     render_document_session_to_png_v1, render_document_session_to_svg_v1,
 };
 pub use reports_v1::{CdmlInspection, CdmlValidation, MoleculeInspection, RewriteCheck};
-pub use session::PendingDirectBondMutationV1;
-pub use session::PendingHydrogenMaterializationV1;
-pub use session::{AdmittedSessionTransitionRefusalV1, PreparedSessionTransitionV1};
+pub use session::PendingTextPlacementV1;
 pub use session::{
-    AttachedCyclohexaneSessionErrorV1, CatalogMoleculePlacementGestureV1,
-    CatalogMoleculePlacementRefusalV1, CatalogMoleculePlacementRequestV1,
-    CommittedDirectHaworthResultV1, CommittedDirectHaworthV1, CompactGroupPlacementModeV1,
-    CompactGroupPlacementRefusalV1, CompactGroupPlacementRequestV1, CompleteCdmlMutationRefusalV1,
-    DocumentClipboardPasteResultV1, DocumentSession, DocumentSessionError, DocumentSnapshot,
-    DocumentUserTemplateResultV1, PendingAdmittedInterchangeBatchV1,
-    PendingAdmittedMoleculeInsertionV1, PendingAttachedCyclohexaneV1,
-    PendingCatalogMoleculePlacementV1, PendingCompactGroupPlacementV1,
-    PendingCompleteCdmlMutationV1, PendingCreateAtom, PendingCreateBond, PendingCreateBondedAtom,
-    PendingCreateBracket, PendingCreateWavy, PendingDeleteStructureV1, PendingDirectHaworthV1,
-    PendingLinearFormConvertV1, PendingStandaloneHaworthV1, PreparedLinearFormConvertResultV1,
+    AdmittedSessionTransitionRefusalV1, PreparedSessionTransitionPresentationRefusalV1,
+    PreparedSessionTransitionPresentationV1, PreparedSessionTransitionV1,
+    SessionOperationTransitionRequestV1, TransitionAuthorizationRefusalV1,
+    TransitionAuthorizationV1,
+};
+pub use session::{
+    AttachedCyclohexaneSessionErrorV1, DocumentClipboardPasteResultV1, DocumentSession,
+    DocumentSessionError, DocumentSnapshot, DocumentUserTemplateResultV1,
+    PendingAttachedCyclohexaneV1, PendingCreateBracket, PendingCreateWavy,
+    PendingDeleteStructureV1, PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1,
     Publication, SaveOutcome,
 };
+
+/// Renderer-only translation support for document-owned interaction transitions.
+pub mod renderer_admission {
+    pub use crate::session::renderer_admission::{
+        RendererTranslationSnapDeltaV1, RendererTranslationSnapRefusalV1,
+    };
+}
 pub use session::{
-    CompactGroupMaterializationRefusalV1, CompactGroupMaterializationRequestV1,
-    CompactGroupMaterializationResultV1, PendingCompactGroupMaterializationV1,
+    PresentationAppearanceV1, PresentationCreateRequestV1, PresentationVectorCreateKindV1,
 };
-pub use session::{
-    PendingCreatePresentationV1, PresentationAppearanceV1, PresentationCreateErrorV1,
-    PresentationCreateRequestV1, PresentationVectorCreateKindV1,
-};
-pub use session::{PendingPresentationGestureV1, PendingTextPlacementV1};
 pub use session_observation::SessionDocumentObservationV1;
 pub use session_operation::{
-    SessionOperation, SessionOperationError, SessionOperationResultV1, SessionOperationV1,
+    AtomCreatedOutcomeV1, BondCreatedOutcomeV1, CatalogMoleculePlacementContentV1,
+    CatalogMoleculePlacementOutcomeV1, CatalogMoleculePlacementV1, CatalogPlacementKeyV1,
+    CreateAtomV1, CreateBondV1, CreateCurvedEquilibriumArrowV1, CreateCurvedTerminalArrowV1,
+    CreateDirectBondV1, CreateHaworthMoleculeV1, CreatePresentationPathV1,
+    CreatePresentationRootV1, CreatePresentationVectorV1, CreateReactionV1,
+    CreatedPresentationRootKindV1, CreatedPresentationRootOutcomeV1, DeleteReactionV1,
+    DirectBondOperationOutcomeV1, InterchangeRecordBatchInsertedOutcomeV1,
+    MoleculeInsertedOutcomeV1, ReactionCreatedOutcomeV1, ReactionDefinitionDeletedOutcomeV1,
+    ReactionMembershipReplacedOutcomeV1, ReactionOperationRefusalV1, ReplaceReactionMembersV1,
+    SessionOperation, SessionOperationError, SessionOperationOutcomeV1, SessionOperationResultV1,
+    SessionOperationV1,
 };
 pub use straighten_depiction_update_v1::{
     PreparedStraightenDepictionsV1, StraightenDepictionUpdateV1Error,
@@ -429,10 +434,10 @@ pub use text_properties_patch_v1::{
     TextPropertiesPatchV1, TextPropertiesPatchV1Error, TextPropertyChangeV1,
 };
 pub use top_level_transform_v1::{
-    TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
-    TopLevelTransformV1Error,
+    TopLevelRootKindV1, TopLevelRootLayoutTransformModeV1, TopLevelRootLayoutTransformV1,
+    TopLevelRootSelectorV1, TopLevelRootTranslationV1, TopLevelTransformV1Error,
 };
-pub use top_level_translation_anchor_v1::TopLevelTranslationAnchorV1;
+pub(crate) use top_level_transform_v1::{TopLevelTransformModeV1, TopLevelTransformV1};
 pub use typed::{
     ExpandedName, NamespaceBinding, TypedChild, TypedClass, TypedDocument, TypedRecord, TypedText,
     UnknownAttribute, UnrecognizedChild, UnrecognizedNode,
@@ -460,7 +465,6 @@ pub(crate) use cdml_namespace_v1::{
     CDML_NAMESPACE, ferrum_cdml_element_name, is_ferrum_cdml_name, is_ferrum_cdml_root,
 };
 pub(crate) use identity_index::element_name;
-pub(crate) use typed_compact_group_materialization::CompactGroupMaterializationSourceV1;
 
 #[cfg(test)]
 mod compatibility_tests;

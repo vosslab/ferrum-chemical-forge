@@ -84,10 +84,14 @@ replacement subtree. The ordinary package is the supported application route.
 
 ## Generated artifacts
 
-- Cargo outputs use `target/` directories, which
-  [../.gitignore](../.gitignore) excludes.
-- Local developer build products use `build/`; `build.sh` removes its transient
-  compiler state and retains only the runnable local application there.
+- Local developer build products use `build/`. `build/bin/` and
+  `build/runtime/` retain the runnable CLI, Qt launcher, extension, and sealed
+  runtime. Cargo intermediates are disposable subdirectories of `build/`:
+  `build/.cargo-target/` belongs to `build.sh`, while
+  `build/.cargo-check-target/` belongs to `check_rust.sh`.
+- Rust packages do not own `target/` output directories. The front-door scripts
+  clean their work areas, so `packages/ferrum-rust/target/` and nested PyO3
+  target directories are absent after normal completion.
 - Python packaging byproducts use `dist/`, `sdist/`, `site/`, and
   `*.egg-info/`, which the root ignore policy excludes.
 - `OTHER_REPOS/` is ignored optional reference material. Production code,

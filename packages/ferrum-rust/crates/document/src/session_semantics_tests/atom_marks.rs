@@ -27,7 +27,7 @@ fn operation(
 fn add_and_remove_charge_mark_are_one_atomic_semantic_edit() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let added = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(AtomMarkActionV1::Add, AtomMarkKindV1::Plus, None),
         )
@@ -54,7 +54,7 @@ fn add_and_remove_charge_mark_are_one_atomic_semantic_edit() {
     );
 
     let removed = session
-        .submit(
+        .apply_document_operation_v1(
             1,
             operation(AtomMarkActionV1::Remove, AtomMarkKindV1::Plus, None),
         )
@@ -84,7 +84,7 @@ fn same_type_ordinal_removes_only_the_selected_duplicate() {
         .replace("name=\"C\"", "name=\"C\" multiplicity=\"3\"");
     let mut session = DocumentSession::load(&source).expect("source must load");
     let removed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(AtomMarkActionV1::Remove, AtomMarkKindV1::Radical, Some(1)),
         )
@@ -114,14 +114,14 @@ fn missing_remove_is_history_free_but_bad_selector_is_atomic() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let before = session.snapshot().expect("snapshot must work");
     let unchanged = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(AtomMarkActionV1::Remove, AtomMarkKindV1::Electronpair, None),
         )
         .expect("missing unselected removal is a successful no-op");
     assert_eq!(unchanged.observation().snapshot(), &before);
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             operation(
                 AtomMarkActionV1::Remove,
@@ -151,7 +151,7 @@ fn invalid_geometry_and_scalar_bounds_never_change_authoritative_state() {
         let mut session = DocumentSession::load(&source).expect("source must load");
         let before = session.snapshot().expect("snapshot must work");
         assert!(matches!(
-            session.submit(0, operation(AtomMarkActionV1::Add, kind, None)),
+            session.apply_document_operation_v1(0, operation(AtomMarkActionV1::Add, kind, None)),
             Err(DocumentSessionError::Operation(
                 SessionOperationError::Candidate(
                     TypedDocumentError::InvalidAtomMarkPoint(_)

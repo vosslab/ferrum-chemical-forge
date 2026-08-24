@@ -97,13 +97,6 @@ impl DocumentBondOrderV1 {
     }
 }
 
-/// Backward-compatible name used by complete molecule-insertion callers.
-///
-/// Bond creation and complete molecule insertion share one closed persistence
-/// vocabulary; the alias avoids maintaining two order enums with identical CDML
-/// semantics.
-pub type MoleculeInsertionBondOrderV1 = DocumentBondOrderV1;
-
 /// One zero-based bond in a complete molecule insertion.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MoleculeInsertionBondV1 {

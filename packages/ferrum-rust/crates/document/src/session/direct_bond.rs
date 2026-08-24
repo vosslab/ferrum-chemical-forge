@@ -1,10 +1,9 @@
 //! Document-owned renderer-admitted direct-bond transaction.
 
-use ferrum_render::target_operations_for_document_bond_v1;
-
 use super::*;
-use crate::direct_bond_mutation::{CommittedDirectBondGestureV2, DirectBondEndpointIntent};
-use crate::{AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1};
+use crate::AuthoringCapabilityClaimV1;
+use crate::direct_bond_mutation::DirectBondEndpointIntent;
+use crate::session_operation::CreateDirectBondV1;
 
 #[derive(Clone, Debug, PartialEq)]
 struct DirectBondGestureV2 {
@@ -51,140 +50,67 @@ struct DirectBondSemanticCandidateV1 {
     end: DirectBondPoint2V1,
 }
 
-/// Opaque document-owned direct-bond transaction with its admitted transition.
-#[derive(Debug)]
-pub struct PendingDirectBondMutationV1 {
-    issuer: AuthoringCapabilityIssuerV1,
-    capability: AuthoringCapabilityV1,
-    fence: DocumentFenceV1,
-    transition: PreparedSessionTransitionV1,
-    bond: PersistentId,
-    end_atom: PersistentId,
-    second_created_atom: Option<PersistentId>,
-    created_new_atom: bool,
-    created_new_molecule: bool,
-    start: DirectBondPoint2V1,
-    end: DirectBondPoint2V1,
-    presentation: DocumentBondPresentationV1,
-    operations: Vec<ferrum_render::RenderOp>,
-}
-
-impl PendingDirectBondMutationV1 {
-    #[must_use]
-    pub fn start_v1(&self) -> DirectBondPoint2V1 {
-        self.start
-    }
-    #[must_use]
-    pub fn end_v1(&self) -> DirectBondPoint2V1 {
-        self.end
-    }
-    #[must_use]
-    pub const fn presentation_v1(&self) -> DocumentBondPresentationV1 {
-        self.presentation
-    }
-    #[must_use]
-    pub fn renderer_operations_v1(&self) -> &[ferrum_render::RenderOp] {
-        &self.operations
-    }
+#[derive(Clone, Debug)]
+pub(crate) struct DirectBondOutcomeStagingV1 {
+    pub(crate) bond: PersistentId,
+    pub(crate) end_atom: PersistentId,
+    pub(crate) second_created_atom: Option<PersistentId>,
+    pub(crate) created_new_atom: bool,
+    pub(crate) created_new_molecule: bool,
 }
 
 impl DocumentSession {
-    /// Prepare one semantic direct bond, then bind its exact candidate to a renderer proof.
-    #[allow(clippy::too_many_arguments)]
-    pub fn prepare_direct_bond_mutation_v1(
+    pub(crate) fn prepare_create_direct_bond_v1(
         &mut self,
-        capability: AuthoringCapabilityV1,
-        fence: DocumentFenceV1,
-        start: DirectBondEndpointIntent,
-        end: DirectBondEndpointIntent,
-        presentation: DocumentBondPresentationV1,
-        new_atom_element: String,
-        snap: DirectBondSnapPolicyV1,
-    ) -> Result<PendingDirectBondMutationV1, DirectBondAdmissionRefusalV1> {
-        if !capability.belongs_to(&self.authoring_capability_issuer) {
-            return Err(DirectBondAdmissionRefusalV1::ForeignSession);
-        }
+        request: CreateDirectBondV1,
+        authorization_claim: AuthoringCapabilityClaimV1,
+    ) -> Result<PreparedSessionTransitionV1, DirectBondAdmissionRefusalV1> {
+        let fence = request.fence();
         let gesture = self
-            .begin_direct_bond_mutation(fence, start, presentation, new_atom_element, snap)
+            .begin_direct_bond_mutation(
+                fence,
+                request.start().clone(),
+                request.presentation(),
+                request.new_atom_element().to_owned(),
+                request.snap(),
+            )
             .map_err(map_gesture_refusal)?;
-        let admitted = self.admit_direct_bond_candidate_v2(&gesture, end)?;
+        let admitted = self.admit_direct_bond_candidate_v2(&gesture, request.end().clone())?;
         let source_digest = self.current_digest_v1();
         let built = self.build_direct_bond_candidate(&admitted.candidate)?;
-        let transition = self
-            .prepare_changed_session_transition_v1(
+        let mut transition = self
+            .prepare_changed_session_transition_with_direct_bond_outcome_v1(
                 fence.revision(),
                 source_digest,
                 built.candidate,
                 built.effects,
+                DirectBondOutcomeStagingV1 {
+                    bond: built.bond.clone(),
+                    end_atom: built.end_atom.clone(),
+                    second_created_atom: built.second_created_atom.clone(),
+                    created_new_atom: built.created_new_atom,
+                    created_new_molecule: built.created_new_molecule,
+                },
+                authorization_claim,
             )
             .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
-        let metadata = transition
-            .metadata_v1()
-            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
-        let plan = metadata
-            .renderer_plan()
-            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
-        let operations = target_operations_for_document_bond_v1(plan, built.bond.as_str())
-            .filter(|operations| !operations.is_empty())
-            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
-        Ok(PendingDirectBondMutationV1 {
-            issuer: self.authoring_capability_issuer.clone(),
-            capability,
-            fence,
-            transition,
-            bond: built.bond,
-            end_atom: built.end_atom,
-            second_created_atom: built.second_created_atom,
-            created_new_atom: built.created_new_atom,
-            created_new_molecule: built.created_new_molecule,
-            start: admitted.start,
-            end: admitted.end,
-            presentation: gesture.presentation,
-            operations,
-        })
-    }
-
-    /// Redeem the exact renderer proof immediately before the atomic history append.
-    pub fn commit_direct_bond_mutation_v1(
-        &mut self,
-        pending: &mut PendingDirectBondMutationV1,
-    ) -> Result<CommittedDirectBondGestureV2, DirectBondCommitErrorV1> {
-        if !pending
-            .issuer
-            .same_issuer(&self.authoring_capability_issuer)
-            || !pending
-                .capability
-                .belongs_to(&self.authoring_capability_issuer)
-        {
-            return Err(DirectBondCommitErrorV1::ForeignSession);
-        }
-        let claim = pending
-            .capability
-            .claim_for_commit(&self.authoring_capability_issuer)
-            .map_err(|error| match error {
-                AuthoringCapabilityAccessErrorV1::ForeignSession => {
-                    DirectBondCommitErrorV1::ForeignSession
-                }
-                AuthoringCapabilityAccessErrorV1::Replayed => {
-                    DirectBondCommitErrorV1::ReplayedReceipt
-                }
-            })?;
-        if pending.transition.is_consumed_v1() {
-            return Err(DirectBondCommitErrorV1::ReplayedReceipt);
-        }
-        self.require_direct_bond_commit_fence(pending.fence)?;
-        let operation = self
-            .commit_session_operation_transition_v1(&mut pending.transition)
-            .map_err(|_| DirectBondCommitErrorV1::CandidateApplicationFailed)?;
-        claim.consume();
-        Ok(CommittedDirectBondGestureV2::new(
-            pending.bond.clone(),
-            pending.end_atom.clone(),
-            pending.second_created_atom.clone(),
-            pending.created_new_atom,
-            pending.created_new_molecule,
-            operation,
-        ))
+        let mut overlay_targets = built
+            .created_atoms
+            .iter()
+            .map(|atom| ferrum_render::AcceptedRenderOverlayTargetV1::atom(atom.as_str()))
+            .collect::<Vec<_>>();
+        overlay_targets.push(ferrum_render::AcceptedRenderOverlayTargetV1::bond(
+            built.bond.as_str(),
+        ));
+        let overlay_request = ferrum_render::AcceptedRenderOverlayRequestV1::new(overlay_targets)
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        let overlay = transition
+            .renderer_precommit_overlay_v1(&overlay_request)
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        transition
+            .install_precommit_overlay_v1(overlay)
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        Ok(transition)
     }
 
     fn build_direct_bond_candidate(
@@ -217,7 +143,15 @@ impl DocumentSession {
                     .with_insert_bond(&molecule, &bond, &start_id, &end_atom, *presentation)
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
                 Ok(BuiltDirectBondCandidateV1::new(
-                    revision, typed, effects, bond, end_atom, None, false, false,
+                    revision,
+                    typed,
+                    effects,
+                    bond,
+                    end_atom,
+                    None,
+                    Vec::new(),
+                    false,
+                    false,
                 )?)
             }
             DirectBondCandidateV2::ExistingNew {
@@ -270,6 +204,7 @@ impl DocumentSession {
                     identities.bond,
                     end_atom,
                     None,
+                    vec![identities.atom],
                     true,
                     false,
                 )?)
@@ -320,6 +255,7 @@ impl DocumentSession {
                     identities.bonds[0].clone(),
                     identities.atoms[1].clone(),
                     Some(identities.atoms[0].clone()),
+                    identities.atoms,
                     true,
                     true,
                 )?)
@@ -483,18 +419,6 @@ impl DocumentSession {
         }
         Ok(())
     }
-    fn require_direct_bond_commit_fence(
-        &self,
-        fence: DocumentFenceV1,
-    ) -> Result<(), DirectBondCommitErrorV1> {
-        if self.current_revision_v1() != fence.revision() {
-            return Err(DirectBondCommitErrorV1::StaleRevision);
-        }
-        if self.current_digest_v1() != fence.digest() {
-            return Err(DirectBondCommitErrorV1::StaleDigest);
-        }
-        Ok(())
-    }
     fn admit_direct_bond_existing_chemistry(
         &self,
         molecule: &PersistentId,
@@ -616,6 +540,7 @@ struct BuiltDirectBondCandidateV1 {
     bond: PersistentId,
     end_atom: PersistentId,
     second_created_atom: Option<PersistentId>,
+    created_atoms: Vec<PersistentId>,
     created_new_atom: bool,
     created_new_molecule: bool,
 }
@@ -627,6 +552,7 @@ impl BuiltDirectBondCandidateV1 {
         bond: PersistentId,
         end_atom: PersistentId,
         second_created_atom: Option<PersistentId>,
+        created_atoms: Vec<PersistentId>,
         created_new_atom: bool,
         created_new_molecule: bool,
     ) -> Result<Self, DirectBondAdmissionRefusalV1> {
@@ -637,6 +563,7 @@ impl BuiltDirectBondCandidateV1 {
             bond,
             end_atom,
             second_created_atom,
+            created_atoms,
             created_new_atom,
             created_new_molecule,
         })

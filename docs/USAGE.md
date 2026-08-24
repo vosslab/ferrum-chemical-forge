@@ -123,6 +123,25 @@ document snapshot, establishes canonical record order, and provides the complete
 file before Qt publishes it atomically. The established one-record SDF actions
 remain available for their existing workflow.
 
+## Molecule diagnostics
+
+Select one or more direct-root molecules and use `Molecule Report...` to inspect
+their read-only Ferrum report. The report uses the selected IDs and the current
+public snapshot, then returns a completed receipt or typed refusal.
+The returned root records follow source order; each record's findings use the
+deterministic report-category order for text, capacity, groups, zero-order, and
+graph/composition facts. The aggregate composition is complete or omitted. The
+command does not alter the document, selection, history, renderer state, or
+authored molecule name.
+
+Automation sends the existing `document.molecule.report.v1` request through
+`build/bin/ferrum protocol run`; it is an operation-protocol route, not a
+separate local CLI verb or named report command. Use
+`snapshot { cdml, revision, digest_hex }` and one or more selected direct-root
+molecule IDs. See
+[FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for the exact request,
+completed receipt, aggregate, and typed-refusal fields.
+
 ## Six V1 executor verbs
 
 The six general-purpose commands below create one V1 operation request and use

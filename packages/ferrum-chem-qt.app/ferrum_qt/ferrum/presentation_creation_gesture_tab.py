@@ -15,7 +15,7 @@ class FerrumNativePresentationCreationGestureTabMixin:
 			) -> object:
 		"""Begin one backend-owned direct normal-arrow creation gesture."""
 		import ferrum_qt.ferrum.engine as engine
-		return self._begin_straight_presentation_arrow_gesture(
+		return self._begin_presentation_creation_gesture(
 			engine.PresentationGestureKindV1.straight_normal_arrow, x, y, snap,
 		)
 
@@ -25,7 +25,7 @@ class FerrumNativePresentationCreationGestureTabMixin:
 			) -> object:
 		"""Begin one backend-owned direct equilibrium-arrow creation gesture."""
 		import ferrum_qt.ferrum.engine as engine
-		return self._begin_straight_presentation_arrow_gesture(
+		return self._begin_presentation_creation_gesture(
 			engine.PresentationGestureKindV1.straight_equilibrium_arrow, x, y, snap,
 		)
 
@@ -65,29 +65,13 @@ class FerrumNativePresentationCreationGestureTabMixin:
 		)
 
 	#============================================
-	def prepare_curved_equilibrium_arrow_gesture(self, gesture: object,
+	def resolve_curved_equilibrium_arrow_gesture(self, gesture: object,
 			preview: object) -> object:
-		"""Renderer-preflight one opaque curved-equilibrium candidate."""
+		"""Resolve one curved-equilibrium gesture into a generic transition request."""
 		self._require_mutable()
-		return ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowOperation.prepare(
+		return ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowOperation.resolve(
 			self._session, gesture, preview,
 		)
-
-	#============================================
-	def commit_curved_equilibrium_arrow_gesture(self, prepared: object) -> object:
-		"""Commit one prepared curved-equilibrium receipt and install Rust truth."""
-		self._require_mutable()
-		commit = ferrum_qt.ferrum.curved_equilibrium_arrow.CurvedEquilibriumArrowOperation.commit(
-			self._session, prepared,
-		)
-		try:
-			self._install_mutation_result(commit.result, (("arrow", commit.root.identifier),))
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
 
 	#============================================
 	def preview_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
@@ -101,36 +85,19 @@ class FerrumNativePresentationCreationGestureTabMixin:
 		)
 
 	#============================================
-	def prepare_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
+	def resolve_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
 			gesture: object, preview: object) -> object:
-		"""Renderer-preflight one opaque terminal-arrow candidate."""
+		"""Resolve one terminal-arrow gesture into a generic transition request."""
 		self._require_mutable()
-		return ferrum_qt.ferrum.terminal_arrow.TerminalArrowOperation.prepare(
+		return ferrum_qt.ferrum.terminal_arrow.TerminalArrowOperation.resolve(
 			self._session, kind, gesture, preview,
 		)
 
 	#============================================
-	def commit_terminal_arrow_gesture(self, kind: ferrum_qt.ferrum.terminal_arrow.TerminalArrowKind,
-			prepared: object) -> object:
-		"""Commit one renderer-preflighted terminal arrow and install Rust truth."""
-		self._require_mutable()
-		commit = ferrum_qt.ferrum.terminal_arrow.TerminalArrowOperation.commit(
-			self._session, kind, prepared,
-		)
-		try:
-			self._install_mutation_result(commit.result, (("arrow", commit.root.identifier),))
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
-
-	#============================================
-	def _begin_straight_presentation_arrow_gesture(
+	def _begin_presentation_creation_gesture(
 			self, kind: object, x: float, y: float, snap: object,
 			) -> object:
-		"""Begin one exact Rust-owned straight presentation-arrow kind."""
+		"""Begin one exact Rust-owned presentation-root creation gesture."""
 		self._require_mutable()
 		if type(x) is not float or type(y) is not float:
 			raise TypeError("Ferrum Arrow start coordinates must be exact floats")
@@ -149,32 +116,24 @@ class FerrumNativePresentationCreationGestureTabMixin:
 
 	#============================================
 	def begin_plus_placement_gesture(self, x: float, y: float) -> object:
-		"""Begin one backend-owned direct Plus placement gesture."""
+		"""Begin one backend-owned standard Plus creation gesture."""
+		import ferrum_qt.ferrum.engine as engine
+		return self._begin_presentation_creation_gesture(
+			engine.PresentationGestureKindV1.plus, x, y,
+			engine.PresentationGestureSnapPolicyV1(),
+		)
+
+	def preview_plus_placement_gesture(self, gesture: object, x: float, y: float) -> object:
+		"""Return Rust's immutable Plus overlay for one click placement."""
 		self._require_mutable()
 		if type(x) is not float or type(y) is not float:
 			raise TypeError("Ferrum Plus placement coordinates must be exact floats")
-		snapshot = self.current_snapshot
-		return self._session.begin_plus_placement_gesture_v1(
-			snapshot.revision, snapshot.digest, x, y,
-		)
+		return self._session.preview_presentation_creation_gesture_v1(gesture, x, y)
 
-	def preview_plus_placement_gesture(self, gesture: object) -> object:
-		"""Return Rust's immutable Plus overlay for one click placement."""
+	def resolve_presentation_creation_gesture(self, gesture: object, preview: object) -> object:
+		"""Resolve one checked visual gesture into the generic transition request."""
 		self._require_mutable()
-		return self._session.preview_plus_placement_gesture_v1(gesture)
-
-	def commit_plus_placement_gesture(self, gesture: object, preview: object) -> object:
-		"""Commit one checked Plus gesture and install its authoritative projection."""
-		self._require_mutable()
-		commit = self._session.commit_plus_placement_gesture_v1(gesture, preview)
-		try:
-			self._install_mutation_result(commit.result, (("plus", commit.identifier),))
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
+		return self._session.resolve_presentation_creation_gesture_v1(gesture, preview)
 
 	#============================================
 	def preview_straight_presentation_arrow_gesture(
@@ -187,33 +146,6 @@ class FerrumNativePresentationCreationGestureTabMixin:
 		return self._session.preview_presentation_creation_gesture_v1(gesture, x, y)
 
 	#============================================
-	def commit_straight_normal_arrow_gesture(self, gesture: object, preview: object) -> object:
-		"""Commit one checked normal-arrow gesture and install its projection."""
-		return self._commit_straight_presentation_arrow_gesture("arrow", gesture, preview)
-
-	#============================================
-	def commit_straight_equilibrium_arrow_gesture(self, gesture: object, preview: object) -> object:
-		"""Commit one checked equilibrium-arrow gesture and install its projection."""
-		return self._commit_straight_presentation_arrow_gesture("equilibrium_arrow", gesture, preview)
-
-	#============================================
-	def _commit_straight_presentation_arrow_gesture(
-			self, root_kind: str, gesture: object, preview: object,
-			) -> object:
-		"""Commit one checked opaque straight-arrow gesture with its exact root kind."""
-		self._require_mutable()
-		commit = self._session.commit_presentation_creation_gesture_v1(gesture, preview)
-		try:
-			self._install_mutation_result(commit.result, ((root_kind, commit.root.identifier),))
-		except Exception as exc:
-			# The Rust receipt is already authoritative. Preserve it for the thin
-			# controller recovery path when only disposable Qt installation failed.
-			from ferrum_qt.ferrum.document_tab_errors import \
-				FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
 
 
 #============================================

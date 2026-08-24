@@ -2,20 +2,16 @@
 
 use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
 use ferrum_document_render::{
-    CommittedCurvedEquilibriumArrowV1, CurvedEquilibriumArrowGestureCategoryV1,
-    CurvedEquilibriumArrowGestureErrorV1, CurvedEquilibriumArrowGestureRecoveryV1,
-    CurvedEquilibriumArrowGestureV1, CurvedEquilibriumArrowPreviewV1,
-    PreparedCurvedEquilibriumArrowV1, begin_curved_equilibrium_arrow_gesture_v1,
-    commit_curved_equilibrium_arrow_gesture_v1, prepare_curved_equilibrium_arrow_gesture_v1,
-    preview_curved_equilibrium_arrow_gesture_v1,
+    CurvedEquilibriumArrowGestureCategoryV1, CurvedEquilibriumArrowGestureErrorV1,
+    CurvedEquilibriumArrowGestureRecoveryV1, CurvedEquilibriumArrowGestureV1,
+    CurvedEquilibriumArrowPreviewV1, begin_curved_equilibrium_arrow_gesture_v1,
+    preview_curved_equilibrium_arrow_gesture_v1, resolve_curved_equilibrium_arrow_gesture_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
 
-use super::binding::{PyDocumentSession, PySessionOperationResultV1};
-use super::presentation_creation_gesture_binding::{
-    PyPresentationGestureRootKindV1, PyPresentationGestureRootSelectorV1, digest,
-};
+use super::binding::PyDocumentSession;
+use super::presentation_creation_gesture_binding::digest;
 use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
 
 create_exception!(
@@ -69,7 +65,7 @@ enum PyCurvedEquilibriumArrowGestureRecoveryV1 {
     name = "CurvedEquilibriumArrowGestureV1"
 )]
 pub(crate) struct PyCurvedEquilibriumArrowGestureV1 {
-    gesture: CurvedEquilibriumArrowGestureV1,
+    gesture: Option<CurvedEquilibriumArrowGestureV1>,
 }
 
 #[pyclass(
@@ -81,27 +77,6 @@ pub(crate) struct PyCurvedEquilibriumArrowPreviewV1 {
     preview: CurvedEquilibriumArrowPreviewV1,
     #[pyo3(get)]
     plan: PyPresentationRenderPlanV1,
-}
-
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PreparedCurvedEquilibriumArrowV1"
-)]
-pub(crate) struct PyPreparedCurvedEquilibriumArrowV1 {
-    prepared: PreparedCurvedEquilibriumArrowV1,
-}
-
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "CurvedEquilibriumArrowCommitV1"
-)]
-pub(crate) struct PyCurvedEquilibriumArrowCommitV1 {
-    #[pyo3(get)]
-    root: Py<PyPresentationGestureRootSelectorV1>,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
 }
 
 #[pymethods]
@@ -124,7 +99,9 @@ impl PyDocumentSession {
             point(start_x, start_y, py)?,
             point(control_x, control_y, py)?,
         )
-        .map(|gesture| PyCurvedEquilibriumArrowGestureV1 { gesture })
+        .map(|gesture| PyCurvedEquilibriumArrowGestureV1 {
+            gesture: Some(gesture),
+        })
         .map_err(|error| equilibrium_error(py, error))
     }
 
@@ -137,36 +114,32 @@ impl PyDocumentSession {
     ) -> PyResult<PyCurvedEquilibriumArrowPreviewV1> {
         preview_curved_equilibrium_arrow_gesture_v1(
             &self.session,
-            &gesture.gesture,
+            gesture.gesture.as_ref().ok_or_else(|| {
+                equilibrium_error(py, CurvedEquilibriumArrowGestureErrorV1::ReplayedGesture)
+            })?,
             point(end_x, end_y, py)?,
         )
         .map(|preview| preview_to_python(py, preview))
         .map_err(|error| equilibrium_error(py, error))
     }
 
-    fn prepare_curved_equilibrium_arrow_gesture_v1(
-        &mut self,
+    fn resolve_curved_equilibrium_arrow_gesture_v1(
+        &self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyCurvedEquilibriumArrowGestureV1>,
+        mut gesture: PyRefMut<'_, PyCurvedEquilibriumArrowGestureV1>,
         preview: PyRef<'_, PyCurvedEquilibriumArrowPreviewV1>,
-    ) -> PyResult<PyPreparedCurvedEquilibriumArrowV1> {
-        prepare_curved_equilibrium_arrow_gesture_v1(
-            &mut self.session,
-            &gesture.gesture,
-            &preview.preview,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        resolve_curved_equilibrium_arrow_gesture_v1(
+            &self.session,
+            gesture.gesture.take().ok_or_else(|| {
+                equilibrium_error(py, CurvedEquilibriumArrowGestureErrorV1::ReplayedGesture)
+            })?,
+            preview.preview.clone(),
         )
-        .map(|prepared| PyPreparedCurvedEquilibriumArrowV1 { prepared })
+        .map(
+            super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request,
+        )
         .map_err(|error| equilibrium_error(py, error))
-    }
-
-    fn commit_curved_equilibrium_arrow_gesture_v1(
-        &mut self,
-        py: Python<'_>,
-        mut prepared: PyRefMut<'_, PyPreparedCurvedEquilibriumArrowV1>,
-    ) -> PyResult<PyCurvedEquilibriumArrowCommitV1> {
-        commit_curved_equilibrium_arrow_gesture_v1(&mut self.session, &mut prepared.prepared)
-            .map(|value| commit_to_python(py, value))
-            .map_err(|error| equilibrium_error(py, error))
     }
 }
 
@@ -182,24 +155,6 @@ fn preview_to_python(
     PyCurvedEquilibriumArrowPreviewV1 {
         plan: preview.plan().into(),
         preview,
-    }
-}
-
-fn commit_to_python(
-    py: Python<'_>,
-    value: CommittedCurvedEquilibriumArrowV1,
-) -> PyCurvedEquilibriumArrowCommitV1 {
-    PyCurvedEquilibriumArrowCommitV1 {
-        root: Py::new(
-            py,
-            PyPresentationGestureRootSelectorV1 {
-                identifier: value.root().presentation_id().as_str().to_owned(),
-                kind: Py::new(py, PyPresentationGestureRootKindV1::Arrow)
-                    .expect("root kind allocates"),
-            },
-        )
-        .expect("root selector allocates"),
-        result: value.result().clone().into(),
     }
 }
 
@@ -273,6 +228,5 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCurvedEquilibriumArrowGestureRecoveryV1>()?;
     module.add_class::<PyCurvedEquilibriumArrowGestureV1>()?;
     module.add_class::<PyCurvedEquilibriumArrowPreviewV1>()?;
-    module.add_class::<PyPreparedCurvedEquilibriumArrowV1>()?;
-    module.add_class::<PyCurvedEquilibriumArrowCommitV1>()
+    Ok(())
 }

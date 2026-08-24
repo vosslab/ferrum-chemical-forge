@@ -620,11 +620,15 @@
             },
             "reason": {
               "$ref": "#/$defs/DocumentMoleculeReportAggregateOmissionReasonSummaryV1"
+            },
+            "recovery": {
+              "$ref": "#/$defs/DocumentMoleculeReportFindingRecoverySummaryV1"
             }
           },
           "required": [
             "kind",
-            "reason"
+            "reason",
+            "recovery"
           ],
           "type": "object"
         }
@@ -722,6 +726,175 @@
       ],
       "type": "object"
     },
+    "DocumentMoleculeReportFindingCodeSummaryV1": {
+      "description": "Closed code vocabulary for one molecule-report finding.",
+      "enum": [
+        "text_atom_present",
+        "unexpanded_group_present",
+        "zero_order_bond",
+        "composition_unavailable",
+        "unsupported_vertex",
+        "missing_element",
+        "invalid_element",
+        "unsupported_atom_fact",
+        "unsupported_bond_endpoint",
+        "unsupported_bond_style",
+        "unsupported_bond_order",
+        "inconsistent_aromaticity",
+        "incomplete_authored_charge",
+        "neutral_capacity_not_checked",
+        "neutral_capacity_exceeded",
+        "identifier_unavailable"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportFindingLocationSummaryV1": {
+      "description": "Closed location vocabulary for one authenticated molecule-report finding.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "root",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identifier": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "atom",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "identifier"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identifier": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "vertex",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "identifier"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identifier": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "bond",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "identifier"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unaddressable",
+              "type": "string"
+            },
+            "subject": {
+              "$ref": "#/$defs/DocumentMoleculeReportFindingSubjectSummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "subject"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DocumentMoleculeReportFindingRecoverySummaryV1": {
+      "description": "Closed recovery vocabulary for one molecule-report finding.",
+      "enum": [
+        "none",
+        "inspect_structure",
+        "correct_chemical_facts",
+        "choose_supported_representation",
+        "reduce_selection",
+        "retry_with_chemistry_runtime"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportFindingSeveritySummaryV1": {
+      "description": "Closed severity vocabulary for one molecule-report finding.",
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportFindingSubjectSummaryV1": {
+      "description": "Closed semantic subject vocabulary for an idless finding location.",
+      "enum": [
+        "atom",
+        "vertex",
+        "bond"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportFindingSummaryV1": {
+      "additionalProperties": false,
+      "description": "One bounded report diagnostic with closed facts and an authenticated location.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/DocumentMoleculeReportFindingCodeSummaryV1"
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentMoleculeReportFindingLocationSummaryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/DocumentMoleculeReportFindingRecoverySummaryV1"
+        },
+        "severity": {
+          "$ref": "#/$defs/DocumentMoleculeReportFindingSeveritySummaryV1"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "recovery",
+        "location"
+      ],
+      "type": "object"
+    },
     "DocumentMoleculeReportRecordSummaryV1": {
       "additionalProperties": false,
       "properties": {
@@ -763,16 +936,17 @@
               "type": "null"
             }
           ],
-          "description": "Complete engine-derived facts, or `None` when this root cannot produce a\nsupported composition. `finding_codes` explains that absence."
+          "description": "Complete engine-derived facts, or `None` when this root cannot produce a\nsupported composition. `findings` explains that absence."
         },
         "document_root_order": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
-        "finding_codes": {
+        "findings": {
+          "description": "Authenticated structured diagnostics in report order.",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/DocumentMoleculeReportFindingSummaryV1"
           },
           "type": "array"
         },
@@ -794,7 +968,30 @@
         "bond_count",
         "authored_elements",
         "neutral_bond_capacity",
-        "finding_codes"
+        "findings"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportSnapshotV1": {
+      "additionalProperties": false,
+      "description": "Frozen source provenance for a detached molecule-report calculation.\n\n`revision` fences delivery at the initiating live session. A detached\nexecutor re-admits `cdml` into its own temporary session and authenticates\nthat session with `digest_hex`; it never attempts to recreate this revision.",
+      "properties": {
+        "cdml": {
+          "type": "string"
+        },
+        "digest_hex": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cdml",
+        "revision",
+        "digest_hex"
       ],
       "type": "object"
     },
@@ -1845,17 +2042,6 @@
           "additionalProperties": false,
           "description": "Read bounded composition and authored-fact reports for direct molecule roots.",
           "properties": {
-            "document": {
-              "type": "string"
-            },
-            "expected_digest_hex": {
-              "type": "string"
-            },
-            "expected_revision": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
             "kind": {
               "const": "document.molecule.report.v1",
               "type": "string"
@@ -1865,13 +2051,15 @@
                 "type": "string"
               },
               "type": "array"
+            },
+            "snapshot": {
+              "$ref": "#/$defs/DocumentMoleculeReportSnapshotV1",
+              "description": "Immutable source facts captured by the initiating live document."
             }
           },
           "required": [
             "kind",
-            "document",
-            "expected_revision",
-            "expected_digest_hex",
+            "snapshot",
             "molecule_ids"
           ],
           "type": "object"

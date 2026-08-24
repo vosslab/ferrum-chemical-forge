@@ -8,6 +8,7 @@ pub mod catalog;
 pub mod haworth;
 pub mod linear_form;
 pub mod molecule_diagnostic_finding_v1;
+pub mod molecule_representation_diagnostic_v1;
 pub mod neutral_bond_capacity_diagnostic_v1;
 pub mod peptide;
 pub mod repair;
@@ -28,6 +29,7 @@ pub use molecule_diagnostic_finding_v1::{
     MoleculeDiagnosticFindingErrorV1, MoleculeDiagnosticFindingV1, MoleculeDiagnosticLocationV1,
     MoleculeDiagnosticRecoveryV1, MoleculeDiagnosticSeverityV1,
 };
+pub use molecule_representation_diagnostic_v1::diagnose_molecule_representation_v1;
 pub use neutral_bond_capacity_diagnostic_v1::{
     NeutralBondCapacityAtomOutcomeV1, NeutralBondCapacityAtomRecordV1, NeutralBondCapacityAtomV1,
     NeutralBondCapacityBondV1, NeutralBondCapacityErrorV1,

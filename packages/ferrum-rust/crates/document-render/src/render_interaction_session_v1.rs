@@ -27,13 +27,11 @@ impl RenderInteractionSessionV1 {
         self.origin
     }
 
-    /// Return the opaque document authoring authority for receipt lifecycles
-    /// that mutate this interaction session's embedded document.
+    /// Issue one opaque receipt for a gesture that may request an authoring
+    /// transition. The document owns its lifecycle after preparation.
     #[must_use]
-    pub(crate) fn authoring_capability_issuer_v1(
-        &self,
-    ) -> ferrum_document::AuthoringCapabilityIssuerV1 {
-        self.session.authoring_capability_issuer_v1()
+    pub(crate) fn issue_authoring_capability_v1(&self) -> ferrum_document::AuthoringCapabilityV1 {
+        self.session.issue_authoring_capability_v1()
     }
 
     /// Begin a presentation gesture using the same Rust render facts that the
@@ -759,21 +757,9 @@ impl RenderInteractionSessionV1 {
         press_y: f64,
         snap: RenderInteractionSnapV1,
     ) -> Result<RenderInteractionTranslationGestureV1, RenderInteractionErrorV1> {
-        self.require_selection(selection)?;
-        if selection.is_empty() {
-            return Err(RenderInteractionErrorV1::EmptySelection);
-        }
-        if !press_x.is_finite() || !press_y.is_finite() {
-            return Err(RenderInteractionErrorV1::NonFinitePoint);
-        }
-        Ok(RenderInteractionTranslationGestureV1 {
-            origin: self.origin,
-            capability: NEXT_CAPABILITY.fetch_add(1, Ordering::Relaxed),
-            selection: selection.clone(),
-            press_x,
-            press_y,
-            snap,
-        })
+        root_translation_interaction_v1::begin_root_translation_interaction_v1(
+            self, selection, press_x, press_y, snap,
+        )
     }
 
     pub fn preview_render_interaction_translation_v1(
@@ -782,121 +768,20 @@ impl RenderInteractionSessionV1 {
         pointer_x: f64,
         pointer_y: f64,
     ) -> Result<RenderInteractionTranslationPreviewV1, RenderInteractionErrorV1> {
-        self.require_gesture(gesture)?;
-        self.require_selection(&gesture.selection)?;
-        if !pointer_x.is_finite() || !pointer_y.is_finite() {
-            return Err(RenderInteractionErrorV1::NonFinitePoint);
-        }
-        let raw_dx = pointer_x - gesture.press_x;
-        let raw_dy = pointer_y - gesture.press_y;
-        let (mut dx, mut dy) = match gesture.snap.grid_policy {
-            RenderInteractionGridSnapPolicyV1::Free => (raw_dx, raw_dy),
-            RenderInteractionGridSnapPolicyV1::ViewHexGrid => {
-                if raw_dx == 0.0 && raw_dy == 0.0 {
-                    (0.0, 0.0)
-                } else {
-                    let targets = gesture
-                        .selection
-                        .roots
-                        .iter()
-                        .map(|root| {
-                            TopLevelRootSelectorV1::new(root.identifier.clone(), root.kind)
-                                .map_err(|_| RenderInteractionErrorV1::SelectionChanged)
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let anchor = self
-                        .session
-                        .observe_top_level_translation_anchor_v1(
-                            gesture.selection.fence.revision(),
-                            targets,
-                        )
-                        .map_err(|_| RenderInteractionErrorV1::SelectionChanged)?;
-                    let (anchor_x, anchor_y) = anchor.anchor();
-                    let origin =
-                        Point2::new(0.0, 0.0).map_err(|_| RenderInteractionErrorV1::Observation)?;
-                    let grid = HexGrid::new(VIEW_HEX_GRID_SPACING_PT_V1, origin)
-                        .map_err(|_| RenderInteractionErrorV1::Observation)?;
-                    let snapped_anchor = grid
-                        .snap(
-                            Point2::new(anchor_x + raw_dx, anchor_y + raw_dy)
-                                .map_err(|_| RenderInteractionErrorV1::NonFinitePoint)?,
-                        )
-                        .map_err(|_| RenderInteractionErrorV1::Observation)?;
-                    (snapped_anchor.x() - anchor_x, snapped_anchor.y() - anchor_y)
-                }
-            }
-        };
-        match gesture.snap.axis {
-            RenderInteractionAxisV1::Free => {}
-            RenderInteractionAxisV1::Horizontal => dy = 0.0,
-            RenderInteractionAxisV1::Vertical => dx = 0.0,
-        }
-        Ok(RenderInteractionTranslationPreviewV1 {
-            capability: gesture.capability,
-            dx,
-            dy,
-            bounds: gesture
-                .selection
-                .roots
-                .iter()
-                .map(|root| root.bounds.translated(dx, dy))
-                .collect(),
-        })
+        root_translation_interaction_v1::preview_root_translation_interaction_v1(
+            self, gesture, pointer_x, pointer_y,
+        )
     }
 
     pub fn commit_render_interaction_translation_v1(
         &mut self,
-        gesture: &RenderInteractionTranslationGestureV1,
-        preview: &RenderInteractionTranslationPreviewV1,
+        gesture: RenderInteractionTranslationGestureV1,
+        release_x: f64,
+        release_y: f64,
     ) -> Result<CommittedRenderInteractionTranslationV1, RenderInteractionErrorV1> {
-        self.require_gesture(gesture)?;
-        self.require_selection(&gesture.selection)?;
-        if preview.capability != gesture.capability {
-            return Err(RenderInteractionErrorV1::PreviewMismatch);
-        }
-        let targets = gesture
-            .selection
-            .roots
-            .iter()
-            .map(|root| {
-                TopLevelRootSelectorV1::new(root.identifier.clone(), root.kind)
-                    .map_err(|_| RenderInteractionErrorV1::SelectionChanged)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let transform = TopLevelTransformV1::new(
-            targets,
-            TopLevelTransformModeV1::Translate {
-                dx: preview.dx,
-                dy: preview.dy,
-            },
+        root_translation_interaction_v1::commit_root_translation_interaction_v1(
+            self, gesture, release_x, release_y,
         )
-        .map_err(|_| RenderInteractionErrorV1::SelectionChanged)?;
-        let result = self
-            .session
-            .submit(
-                gesture.selection.fence.revision(),
-                SessionOperation::V1(SessionOperationV1::TransformTopLevelRoots { transform }),
-            )
-            .map_err(|_| RenderInteractionErrorV1::SessionConflict)?;
-        Ok(CommittedRenderInteractionTranslationV1 {
-            changed: preview.dx != 0.0 || preview.dy != 0.0,
-            result,
-            selection: gesture.selection.clone(),
-        })
-    }
-
-    /// Validate a preview without mutating the document. Tool-specific bridge
-    /// owners use this before deriving a renderer-admitted detached candidate.
-    pub(crate) fn validate_render_interaction_translation_preview_v1(
-        &self,
-        gesture: &RenderInteractionTranslationGestureV1,
-        preview: &RenderInteractionTranslationPreviewV1,
-    ) -> Result<(), RenderInteractionErrorV1> {
-        self.require_gesture(gesture)?;
-        self.require_selection(&gesture.selection)?;
-        (preview.capability == gesture.capability)
-            .then_some(())
-            .ok_or(RenderInteractionErrorV1::PreviewMismatch)
     }
 
     fn require_fence(&self, fence: DocumentFenceV1) -> Result<(), RenderInteractionErrorV1> {
@@ -924,7 +809,7 @@ impl RenderInteractionSessionV1 {
         }
         self.require_fence(value.fence)
     }
-    fn require_selection(
+    pub(super) fn require_selection(
         &self,
         value: &RenderInteractionSelectionV1,
     ) -> Result<(), RenderInteractionErrorV1> {
@@ -933,7 +818,7 @@ impl RenderInteractionSessionV1 {
         }
         self.require_fence(value.fence)
     }
-    fn require_gesture(
+    pub(super) fn require_gesture(
         &self,
         value: &RenderInteractionTranslationGestureV1,
     ) -> Result<(), RenderInteractionErrorV1> {

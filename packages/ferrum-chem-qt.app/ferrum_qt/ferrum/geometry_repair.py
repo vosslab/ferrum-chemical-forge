@@ -109,7 +109,9 @@ class FerrumNativeGeometryRepairTabMixin:
 		operation = engine.DocumentOperationV1.repair_geometry(
 			molecule_ids, kind, target_spacing_points,
 		)
-		result = self._session.submit(expected_revision, operation)
+		result = self._session.apply_document_operation_v1(
+			expected_revision, operation,
+		)
 		self._install_mutation_result(result, restore)
 		return result
 

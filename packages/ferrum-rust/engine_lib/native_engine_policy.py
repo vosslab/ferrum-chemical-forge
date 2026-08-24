@@ -1,7 +1,7 @@
-"""Host-independent policy helpers for Ferrum's native-wheel build.
+"""Host-independent policy helpers for Ferrum's local native-runtime build.
 
 This module owns the native toolchain environment and CMake provenance gate so
-the wheel orchestrator remains focused on source materialization and packaging.
+the local runtime builder can materialize a reproducible in-repository build.
 """
 
 from __future__ import annotations

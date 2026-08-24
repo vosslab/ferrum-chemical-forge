@@ -27,21 +27,7 @@ class FerrumNativePresentationVectorGestureTabMixin:
 		return self._session.preview_presentation_vector_gesture_v1(gesture, x, y)
 
 	#============================================
-	def prepare_presentation_vector_gesture(self, gesture: object, preview: object) -> object:
-		"""Ask the renderer bridge to preflight one opaque vector candidate."""
+	def resolve_presentation_vector_gesture(self, gesture: object, preview: object) -> object:
+		"""Resolve one validated vector gesture into a generic transition request."""
 		self._require_mutable()
-		return self._session.prepare_presentation_vector_gesture_v1(gesture, preview)
-
-	#============================================
-	def commit_presentation_vector_gesture(self, prepared: object) -> object:
-		"""Commit one renderer-preflighted opaque receipt and install Rust truth."""
-		self._require_mutable()
-		commit = self._session.commit_presentation_vector_gesture_v1(prepared)
-		try:
-			self._install_mutation_result(commit.result)
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
+		return self._session.resolve_presentation_vector_gesture_v1(gesture, preview)

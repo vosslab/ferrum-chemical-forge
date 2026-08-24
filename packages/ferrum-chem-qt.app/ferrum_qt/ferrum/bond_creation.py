@@ -1,9 +1,11 @@
 """Rust-backed Ferrum bond creation operations for document tabs."""
 
+from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabError
+
 
 #============================================
 class FerrumNativeBondCreationMixin:
-	"""Commit explicit durable atom endpoints through prepared Rust operations."""
+	"""Commit explicit durable atom endpoints through closed Rust operations."""
 
 	#============================================
 	def add_bond_between_atoms(self, start_atom_id: str, end_atom_id: str,
@@ -21,10 +23,12 @@ class FerrumNativeBondCreationMixin:
 		if type(presentation) is not engine.DocumentBondPresentationV1:
 			raise TypeError("Ferrum bond creation requires an exact Ferrum presentation value")
 		start, end = self._atom_object_ids((start_atom_id, end_atom_id))
-		revision = self.current_snapshot.revision
-		prepared = self._session.prepare_create_bond_v2(revision, start, end, presentation)
-		result = self._session.commit_create_bond(revision, prepared)
-		self._install_mutation_result(result, (("bond", prepared.identifier),))
+		operation = engine.DocumentOperationV1.create_bond_v1(start, end, presentation)
+		result = self._apply_current_document_operation_v1(operation)
+		outcome = result.outcome
+		if outcome.kind != "bond_created_v1" or outcome.bond_created is None:
+			raise FerrumNativeDocumentTabError("Ferrum bond creation returned an unknown operation outcome")
+		self._install_mutation_result(result, (("bond", outcome.bond_created.bond_identifier),))
 		return result
 
 	#============================================

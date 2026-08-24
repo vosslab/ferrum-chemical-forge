@@ -91,11 +91,11 @@ def test_pair_properties_are_closed_atomic_and_update_both_members() -> None:
 			change,
 		),
 	)
-	result = session.submit(1, operation)
+	result = session.apply_document_operation_v1(1, operation)
 	pair = result.observation.projection.presentation_stack.bracket_pairs[0]
 	assert (pair.line_width, pair.line_color) == (2.5, "#123456")
 	assert [root.polyline.stroke.width for root in
 			result.observation.projection.presentation_stack.roots] == [2.5, 2.5]
 	with pytest.raises(ferrum_chem.RevisionConflictError):
-		session.submit(1, operation)
+		session.apply_document_operation_v1(1, operation)
 	assert session.observe(2).snapshot.digest == result.observation.snapshot.digest

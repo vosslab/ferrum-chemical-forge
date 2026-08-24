@@ -2,6 +2,7 @@
 
 use ferrum_document::inspect_cdml;
 
+use super::super::frozen_document_snapshot_v1::FrozenDocumentSnapshotAdmissionErrorV1;
 use super::*;
 
 /// Inspect one admitted document and return the snapshot fence required by
@@ -28,20 +29,39 @@ pub(super) fn execute_document_molecule_report<R: ChemistryRuntimeV1>(
     request: DocumentMoleculeReportRequestV1,
     runtime: &R,
 ) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
-    if request.expected_revision != 0 {
-        return Err(ExecutionFailureV1::document_invalid(
-            "expected_revision must be zero for a request-owned document".to_owned(),
-        ));
-    }
-    let session = admit_document(&request.document)?;
-    let observation = session.observe(0).map_err(|_| {
-        ExecutionFailureV1::document_invalid("document observation was refused".to_owned())
-    })?;
-    super::super::molecule_report_core_v1::execute_document_molecule_report_v1(
-        &observation,
-        request,
-        runtime,
+    let snapshot = super::super::frozen_document_snapshot_v1::FrozenDocumentSnapshotV1::admit(
+        &request.snapshot.cdml,
+        request.snapshot.revision,
+        &request.snapshot.digest_hex,
     )
+    .map_err(map_document_molecule_report_snapshot_error)?;
+    super::super::molecule_report_core_v1::execute_document_molecule_report_v1(
+        snapshot, request, runtime,
+    )
+}
+
+fn map_document_molecule_report_snapshot_error(
+    error: FrozenDocumentSnapshotAdmissionErrorV1,
+) -> ExecutionFailureV1 {
+    match error {
+        FrozenDocumentSnapshotAdmissionErrorV1::MalformedDigest(message) => {
+            ExecutionFailureV1::document_invalid(message.to_owned())
+        }
+        FrozenDocumentSnapshotAdmissionErrorV1::DigestMismatch => {
+            ExecutionFailureV1::document_invalid(
+                "snapshot.digest_hex does not authenticate snapshot.cdml".to_owned(),
+            )
+        }
+        FrozenDocumentSnapshotAdmissionErrorV1::DocumentAdmission(message) => {
+            ExecutionFailureV1::document_admission(message)
+        }
+        FrozenDocumentSnapshotAdmissionErrorV1::DocumentInvalid(message) => {
+            ExecutionFailureV1::document_invalid(message)
+        }
+        FrozenDocumentSnapshotAdmissionErrorV1::Internal(message) => {
+            ExecutionFailureV1::internal(message)
+        }
+    }
 }
 
 pub(super) fn execute_document_smarts_query<R: ChemistryRuntimeV1>(
@@ -115,9 +135,17 @@ pub(super) fn execute_document_molecule_interchange_import_envelope(
             );
         }
     };
-    let outcome = OperationProtocolOutcomeV1::DocumentMoleculeInterchangeImport {
-        summary: prepared.summary().clone(),
+    let (_, summary) = match prepared.commit_and_take_session() {
+        Ok(committed) => committed,
+        Err(refusal) => {
+            return admit_interchange_import_response_envelope(
+                request_id,
+                Some(descriptor),
+                interchange_import_error_envelope(request_id, refusal),
+            );
+        }
     };
+    let outcome = OperationProtocolOutcomeV1::DocumentMoleculeInterchangeImport { summary };
     let envelope = OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
         schema: ProtocolResponseSchemaV1::V1,
         request_id: request_id.to_owned(),
@@ -133,13 +161,6 @@ pub(super) fn execute_document_molecule_interchange_import_envelope(
                     crate::InterchangeImportRefusalReasonV1::ResponseBytesLimit,
                 ),
             ),
-        );
-    }
-    if let Err(refusal) = prepared.commit_and_take_session() {
-        return admit_interchange_import_response_envelope(
-            request_id,
-            Some(descriptor),
-            interchange_import_error_envelope(request_id, refusal),
         );
     }
     admit_interchange_import_response_envelope(request_id, Some(descriptor), envelope)

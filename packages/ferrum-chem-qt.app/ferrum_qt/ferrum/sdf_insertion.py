@@ -13,12 +13,20 @@ class FerrumNativeSdfInsertionTabMixin:
 		if type(batch) is not engine.InterchangeRecordBatchInsertionV1:
 			raise TypeError("Ferrum SDF insertion requires exact frozen Ferrum data")
 		revision = self.current_snapshot.revision
-		prepared = self._session.prepare_admitted_interchange_records_v1(revision, batch)
+		operation = engine.DocumentOperationV1.insert_interchange_record_batch_v1(batch)
+		request = operation.transition_request_v1(revision)
+		prepared = self.prepare_session_operation_transition_v1(request)
+		result = self.commit_session_operation_transition_v1(prepared)
+		outcome = result.outcome
+		if (
+			outcome.kind != "interchange_record_batch_inserted_v1"
+			or outcome.interchange_record_batch_inserted is None
+		):
+			raise RuntimeError("Ferrum SDF insertion returned an unknown operation outcome")
 		selection = tuple(
 			("atom", atom_identifier)
-			for record in prepared.atom_identifiers
-			for atom_identifier in record
+			for record in outcome.interchange_record_batch_inserted.records
+			for atom_identifier in record.atom_identifiers
 		)
-		result = self._session.commit_admitted_interchange_records_v1(revision, prepared)
 		self._install_mutation_result(result, selection)
 		return result

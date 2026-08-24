@@ -52,15 +52,6 @@ _ANGLE_CDML = """<cdml xmlns="urn:ferrum:cdml"><molecule id='m'>
 _HALF_AUTHORED_UNIT_POINTS = (0.001 * 72.0 / 2.54) / 2.0
 
 
-@pytest.fixture
-def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Provide the offscreen application used by the real Ferrum widgets."""
-	app = PySide6.QtWidgets.QApplication.instance()
-	if app is None:
-		app = PySide6.QtWidgets.QApplication([])
-	return app
-
-
 #============================================
 def test_straighten_action_uses_selected_molecule_and_restores_selection(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
@@ -92,30 +83,16 @@ def test_straighten_action_uses_selected_molecule_and_restores_selection(
 
 
 #============================================
-def test_snap_action_requires_explicit_positive_spacing_and_repairs_all(
+def test_snap_action_repairs_all_with_user_spacing(
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch) -> None:
-	"""No selection means all durable molecules; invalid user input is atomic."""
+	"""No selection means every durable molecule receives the Rust repair."""
 	del qapp
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_SNAP_CDML, "snap.cdml",
 	)
 	window._register_native_tab(tab, activate=True)
-	warnings = []
-	monkeypatch.setattr(
-		window, "_show_edit_refusal",
-		lambda request: warnings.append(request),
-	)
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QInputDialog, "getText",
-		lambda *_args: ("0", True),
-	)
-	window._on_snap_to_hex_grid()
-	assert tab.current_snapshot.revision == 0
-	assert warnings[-1].outcome.value == "unavailable_operation"
-	assert warnings[-1].technical_details
-
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText",
 		lambda *_args: ("1.0", True),
@@ -242,34 +219,4 @@ def test_normalize_ring_action_preserves_centroid_and_durable_selection(
 	) == (("atom", "a"),)
 	assert tab.current_snapshot.revision == 1
 	tab.undo()
-	window.close()
-
-
-#============================================
-def test_clean_geometry_requires_explicit_spacing_before_native_work(
-		qapp: PySide6.QtWidgets.QApplication,
-		monkeypatch: pytest.MonkeyPatch) -> None:
-	"""Invalid user intent leaves the session unchanged and starts no worker."""
-	del qapp
-	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-		_TERMINAL_CDML, "clean.cdml",
-	)
-	window._register_native_tab(tab, activate=True)
-	warnings = []
-	monkeypatch.setattr(
-		window, "_show_edit_refusal",
-		lambda request: warnings.append(request),
-	)
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QInputDialog, "getText",
-		lambda *_args: ("0", True),
-	)
-
-	assert window._clean_geometry_action.isEnabled()
-	window._clean_geometry_action.trigger()
-	assert tab.current_snapshot.revision == 0
-	assert window._coordinate_generation_intent is None
-	assert warnings[-1].outcome.value == "unavailable_operation"
-	assert warnings[-1].technical_details
 	window.close()

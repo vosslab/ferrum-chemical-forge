@@ -84,7 +84,7 @@ fn read_standard_input(stdin: &mut dyn Read) -> Result<String, VerbCliError> {
 mod tests {
     use super::run;
 
-    const DIRECT_GLYCOSIDE: &str = "O1CCCCC1OCC2CCCCC2O";
+    const DIRECT_GLYCOSIDE: &str = "O1CCCCC1OC2CCCCO2";
 
     #[test]
     fn direct_smiles_renders_deterministic_svg_to_standard_output() {

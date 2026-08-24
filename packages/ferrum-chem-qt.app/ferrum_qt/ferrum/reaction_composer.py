@@ -468,9 +468,18 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		member_ids = reactants + products + [arrow] + pluses + conditions
 		try:
 			tab.validate_reaction_authoring_choices(choices)
-			commit = tab.create_reaction_v1(reactants, products, arrow, conditions, pluses)
+			request = tab.resolve_reaction_create(reactants, products, arrow, conditions, pluses)
+			prepared = tab.prepare_session_operation_transition_v1(request)
+			result = tab.commit_session_operation_transition_v1(prepared)
+			created = tab.install_reaction_created_result(result)
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError as exc:
 			self._recover_accepted_presentation_failure(tab, exc.accepted_receipt, member_ids)
+			return
+		except ferrum_qt.ferrum.engine.OperationValidationError as exc:
+			panel.show_refusal(str(exc))
+			return
+		except ferrum_qt.ferrum.engine.PreparedOperationError as exc:
+			panel.show_refusal(str(exc))
 			return
 		except ferrum_qt.ferrum.engine.ReactionAuthoringChoicesError:
 			self._restart_after_typed_refusal()
@@ -489,22 +498,22 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 			recovered = tab.refresh_authoritative()
 			self._window.statusBar().showMessage(
 				self.tr("Reaction {0} was created, but the authoritative display needs recovery.").format(
-					commit.reaction_id,
+					created.reaction_id,
 				) if not recovered else self.tr(
 					"Reaction {0} was created. Refresh and select the reaction members again.",
-				).format(commit.reaction_id), 5000,
+				).format(created.reaction_id), 5000,
 			)
 			return
 		self._window.statusBar().showMessage(
 			self.tr("Created reaction {0}. {1} member roots are selected.").format(
-				commit.reaction_id, len(member_ids),
+				created.reaction_id, len(member_ids),
 			), 5000,
 		)
 		self._window._refresh_actions()
 
 	#============================================
 	def _recover_accepted_presentation_failure(
-			self, tab: object, commit: object, member_ids: list[str],
+			self, tab: object, result: object, member_ids: list[str],
 			) -> None:
 		"""Refresh after a Rust-accepted reaction could not install its first scene."""
 		self.close()
@@ -521,10 +530,10 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 				recovered = False
 		self._window.statusBar().showMessage(
 			self.tr("Reaction {0} was created, but the authoritative display needs recovery.").format(
-				commit.reaction_id,
+				result.outcome.reaction_created.reaction_id,
 			) if not recovered else self.tr(
 				"Reaction {0} was created. Refresh and select the reaction members again.",
-			).format(commit.reaction_id), 5000,
+			).format(result.outcome.reaction_created.reaction_id), 5000,
 		)
 		self._window._refresh_actions()
 

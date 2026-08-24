@@ -34,7 +34,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::protocol_binding::initialize(module)?;
     super::direct_haworth_binding::initialize(module)?;
     super::direct_bond_gesture_binding::initialize(module)?;
-    super::plus_placement_gesture_binding::initialize(module)?;
     super::text_placement_gesture_binding::initialize(module)?;
     super::presentation_creation_gesture_binding::initialize(module)?;
     super::presentation_path_gesture_binding::initialize(module)?;

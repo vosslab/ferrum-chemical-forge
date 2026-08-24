@@ -170,7 +170,7 @@ fn repair_keeps_its_existing_id_without_installing_a_fragment_sequence() {
         .observation()
         .snapshot()
         .cdml()
-        .replace("x=\"0.353cm\"", "x=\"0.4cm\"");
+        .replace("x=\"10\"", "x=\"11\"");
     let mut repaired = DocumentSession::load(&damaged).expect("damaged source loads");
     let (molecule, atoms) = request(&repaired, 0);
     let PreparedLinearFormConvertResultV1::Pending(mut repair) = repaired

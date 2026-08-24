@@ -8,10 +8,22 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DocumentMoleculeReportRequestV1 {
-    pub document: String,
-    pub expected_revision: u64,
-    pub expected_digest_hex: String,
+    /// Immutable source facts captured by the initiating live document.
+    pub snapshot: DocumentMoleculeReportSnapshotV1,
     pub molecule_ids: Vec<String>,
+}
+
+/// Frozen source provenance for a detached molecule-report calculation.
+///
+/// `revision` fences delivery at the initiating live session. A detached
+/// executor re-admits `cdml` into its own temporary session and authenticates
+/// that session with `digest_hex`; it never attempts to recreate this revision.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportSnapshotV1 {
+    pub cdml: String,
+    pub revision: u64,
+    pub digest_hex: String,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -38,6 +50,7 @@ pub enum DocumentMoleculeReportAggregateOutcomeSummaryV1 {
     },
     Omitted {
         reason: DocumentMoleculeReportAggregateOmissionReasonSummaryV1,
+        recovery: DocumentMoleculeReportFindingRecoverySummaryV1,
     },
 }
 
@@ -61,10 +74,117 @@ pub struct DocumentMoleculeReportRecordSummaryV1 {
     pub authored_charge: Option<i64>,
     pub authored_elements: Vec<DocumentMoleculeReportElementCountSummaryV1>,
     /// Complete engine-derived facts, or `None` when this root cannot produce a
-    /// supported composition. `finding_codes` explains that absence.
+    /// supported composition. `findings` explains that absence.
     pub composition: Option<DocumentMoleculeReportCompositionSummaryV1>,
     pub neutral_bond_capacity: String,
-    pub finding_codes: Vec<String>,
+    /// Authenticated structured diagnostics in report order.
+    pub findings: Vec<DocumentMoleculeReportFindingSummaryV1>,
+}
+
+/// One bounded report diagnostic with closed facts and an authenticated location.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportFindingSummaryV1 {
+    pub severity: DocumentMoleculeReportFindingSeveritySummaryV1,
+    pub code: DocumentMoleculeReportFindingCodeSummaryV1,
+    pub recovery: DocumentMoleculeReportFindingRecoverySummaryV1,
+    pub location: DocumentMoleculeReportFindingLocationSummaryV1,
+    pub detail: Option<String>,
+}
+
+/// Closed severity vocabulary for one molecule-report finding.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportFindingSeveritySummaryV1 {
+    Info,
+    Warning,
+    Error,
+}
+
+/// Closed code vocabulary for one molecule-report finding.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportFindingCodeSummaryV1 {
+    TextAtomPresent,
+    UnexpandedGroupPresent,
+    ZeroOrderBond,
+    CompositionUnavailable,
+    UnsupportedVertex,
+    MissingElement,
+    InvalidElement,
+    UnsupportedAtomFact,
+    UnsupportedBondEndpoint,
+    UnsupportedBondStyle,
+    UnsupportedBondOrder,
+    InconsistentAromaticity,
+    IncompleteAuthoredCharge,
+    NeutralCapacityNotChecked,
+    NeutralCapacityExceeded,
+    IdentifierUnavailable,
+}
+
+impl DocumentMoleculeReportFindingCodeSummaryV1 {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TextAtomPresent => "text_atom_present",
+            Self::UnexpandedGroupPresent => "unexpanded_group_present",
+            Self::ZeroOrderBond => "zero_order_bond",
+            Self::CompositionUnavailable => "composition_unavailable",
+            Self::UnsupportedVertex => "unsupported_vertex",
+            Self::MissingElement => "missing_element",
+            Self::InvalidElement => "invalid_element",
+            Self::UnsupportedAtomFact => "unsupported_atom_fact",
+            Self::UnsupportedBondEndpoint => "unsupported_bond_endpoint",
+            Self::UnsupportedBondStyle => "unsupported_bond_style",
+            Self::UnsupportedBondOrder => "unsupported_bond_order",
+            Self::InconsistentAromaticity => "inconsistent_aromaticity",
+            Self::IncompleteAuthoredCharge => "incomplete_authored_charge",
+            Self::NeutralCapacityNotChecked => "neutral_capacity_not_checked",
+            Self::NeutralCapacityExceeded => "neutral_capacity_exceeded",
+            Self::IdentifierUnavailable => "identifier_unavailable",
+        }
+    }
+}
+
+/// Closed recovery vocabulary for one molecule-report finding.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportFindingRecoverySummaryV1 {
+    None,
+    InspectStructure,
+    CorrectChemicalFacts,
+    ChooseSupportedRepresentation,
+    ReduceSelection,
+    RetryWithChemistryRuntime,
+}
+
+/// Closed location vocabulary for one authenticated molecule-report finding.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DocumentMoleculeReportFindingLocationSummaryV1 {
+    Root,
+    Atom {
+        identifier: String,
+    },
+    Vertex {
+        identifier: String,
+    },
+    Bond {
+        identifier: String,
+    },
+    Unaddressable {
+        subject: DocumentMoleculeReportFindingSubjectSummaryV1,
+    },
+}
+
+/// Closed semantic subject vocabulary for an idless finding location.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportFindingSubjectSummaryV1 {
+    Atom,
+    Vertex,
+    Bond,
 }
 
 /// One all-or-none, finite composition receipt mapped from an authenticated

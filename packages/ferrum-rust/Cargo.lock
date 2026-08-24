@@ -373,6 +373,7 @@ dependencies = [
  "ferrum-domain",
  "ferrum-geometry",
  "ferrum-render",
+ "ferrum-render-contract",
  "getrandom 0.4.3",
  "proptest",
  "rustix",

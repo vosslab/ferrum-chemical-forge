@@ -98,7 +98,7 @@ the durable graph or public DTO.
 | M1 | P0 direct structure editor | P0.1 normal-bond gesture, then P0.2 selected-root contracts | Make routine drawing dependable. |
 | M2 | P0 graph and interchange | Expand molecular facts and shared codecs | Exchange ordinary chemistry safely. |
 | M3 | P1 presentation grammar | Add semantic graphical records and tools | Author reaction/figure content. |
-| M4 | P1 chemistry operations | Add reports, diagnostics, query, and closed naming | Explain and search structures. |
+| M4 | P1 chemistry operations | Add reports, diagnostics, and query | Explain and search structures. |
 | M5 | P1 catalogs and reactions | Add templates, groups, reactions, peptide/carbohydrate | Restore productive vocabulary. |
 | M6 | P2 usable application | Finish access, help, clipboard, logging, output | Make all delivered workflows usable. |
 | M7 | Separate ecosystems | Design plugins and services before implementation | Avoid unsafe compatibility ports. |
@@ -115,6 +115,18 @@ loss/refusal and resource-limit policy.
 
 Done when every claim has an owner and acceptance workflow, no route imports
 reference code, and every format has explicit loss and safety behavior.
+
+Current M0 implementation establishes one document-owned authority for admitted
+construction: `PreparedSessionTransitionV1` receives a semantic request,
+prepares it with renderer admission, and performs the one-use atomic commit.
+This now includes visual presentation routes, explicit-hydrogen materialization,
+`CreateAtomV1`, `CreateBondV1`, `CreateHaworthMoleculeV1`, and attached
+cyclohexane. The renderer supplies `DocumentPrecommitOverlayV1` only as an
+identifier-free paint value for the relevant UI previews. Route-specific
+prepared receipts and migration-history fixture/catalog checks are retired;
+wavy and bracket bindings keep their supported semantics. This records an
+implementation checkpoint only. M0 remains open until fresh aggregate evidence
+confirms its exit criteria.
 
 ### M1: P0 direct structure editor
 
@@ -212,11 +224,11 @@ Tentative generated-ID sequences install only after its authoritative commit,
 so abandoned, discarded, and refused catalog candidates leave durable-ID
 allocation unchanged. `CatalogPreviewLeaseV2` remains renderer-local transient
 preview-retirement state rather than a document identity or authoring receipt.
-The same `DocumentSession` sequence authority issues presentation IDs through
-transactional `PendingCreatePresentationV1` reservations for terminal Electron,
-Retro, and Curved Normal arrows, Curved Equilibrium arrows, incremental
-Polyline/Polygon paths, and presentation vectors. The reservation installs only
-with the successful document mutation; previews and abandoned or refused
+The generic `PreparedSessionTransitionV1` lifecycle issues presentation IDs
+inside document-owned preparation for terminal Electron, Retro, Curved Normal,
+Curved Equilibrium, straight normal/equilibrium arrows, incremental
+Polyline/Polygon paths, presentation vectors, and standard plus. IDs install
+only with the successful document mutation; previews and abandoned or refused
 candidates leave the sequence unchanged. Renderer routes consequently own no
 durable presentation counter.
 
@@ -224,13 +236,13 @@ The CLI/protocol route `presentation.author.v1` now replaces the earlier
 vector-only operation. It accepts one request-owned document and one typed
 authoring request for Vector, terminal Electron/Retro/Normal arrow, Curved
 Equilibrium arrow, Polyline/Polygon path, or explicit-endpoint DirectBond.
-The adapter creates the short-lived live-session capability and reservation
-internally, commits one result, and returns only accepted document and durable
-root facts. DirectBond uses durable atom IDs or finite new-atom points, not Qt
-pointer state. `PresentationAppearanceV1` validates RGB and bounded width
-values at the document boundary, preventing style text from changing CDML/XML
-roots or IDs. A stale, refused, or abandoned pending presentation reservation
-leaves the allocator unchanged, so its tentative ID may be reissued.
+The adapter creates the short-lived live-session authorization internally,
+prepares and commits one generic transition, and returns only accepted document
+and durable root facts. DirectBond uses durable atom IDs or finite new-atom
+points, not Qt pointer state. `PresentationAppearanceV1` validates RGB and
+bounded width values at the document boundary, preventing style text from
+changing CDML/XML roots or IDs. A stale, refused, or abandoned prepared
+transition leaves the allocator unchanged, so its tentative ID may be reissued.
 
 M3.P3 is the accepted bounded `CurvedRetroArrowV1` sibling slice. It authors one
 `<arrow type="retro">` with the same exact `start`, `control`, and `end`
@@ -366,22 +378,35 @@ fragile; it is neither skipped evidence nor a remaining required E2E lane.
 
 ### M4: P1 chemistry operation catalog
 
-**Depends on:** M2.  **Parallel-plan ready:** yes; report, query, and closed
-nomenclature lanes share DTO conventions only.
+**Depends on:** M2.  **Parallel-plan ready:** yes; report and query lanes share
+DTO conventions only.
 
 Deliver `MoleculeReportV1` (formula, exact/average mass, composition, charge,
 identifiers, aromatic/stereo/valence status); diagnostic findings/recovery;
-oxidation; SMARTS; known-group expansion; and a closed structure-name grammar,
-each with CLI and Qt information/check/find surfaces.
+oxidation; SMARTS; and known-group expansion, each with CLI and Qt
+information/check/find surfaces.
+
+The evidence-selected first slice is `document.molecule.report.v1`: a read-only,
+snapshot-based report for one or more selected direct-root molecules. Its request
+is `snapshot { cdml, revision, digest_hex }` plus `molecule_ids`; source order
+governs returned root records, while findings use deterministic report-category
+order. The completed receipt preserves the source revision and verified digest,
+and its aggregate is complete or omitted. Unaddressable source locations remain
+typed report outcomes; the slice adds no mutation, local CLI verb, chemistry
+engine, external corpus, or installation/publishing workflow.
+
+Ferrum preserves authored molecule display names. A future generated naming
+product requires separate corpus, provenance, interaction, and refusal scope;
+it is not part of this M4 delivery plan.
 
 SMARTS control refresh recomputes action eligibility without erasing an explicit
 terminal user outcome. In particular, clearing successful results remains
 visibly confirmed as completed after the control state refreshes. A public Qt
 widget regression covers that visible terminal-status behavior.
 
-Done when users can describe, validate, search, and where admitted name/expand
-structures; ambiguous/unavailable/resource-bounded calls return typed outcomes,
-never guesses.
+Done when users can describe, validate, search, and where admitted expand
+structures; ambiguous, unavailable, and resource-bounded calls return typed
+outcomes, never guesses.
 
 ### M5: P1 catalogs and reactions
 
@@ -513,14 +538,32 @@ also not a current patch queue. Their shared public CLI route is now
 `presentation.author.v1`, which accepts a request-owned fenced document and
 typed serializable intent rather than a live receipt.
 
-The next confirmed work is the existing M4 chemistry-operation catalog. Start
-with one corpus-backed, bounded operation contract from the M4 scope, then add
-its Rust authority, stateless CLI route where applicable, and ordinary Qt
-workflow. Each candidate remains supported only after it has a typed refusal
+The selected read-only `document.atom.oxidation.observe.v1` HCNO V1 operation
+has completed its bounded evidence gate: generic-executor semantic corpus,
+named CLI protocol proof, nonzero source-provenance PyO3 regression, and real
+compiled-extension Qt evidence. Its bounded contract is recorded in
+[m4_atom_oxidation_v1.md](../decisions/m4_atom_oxidation_v1.md), and the
+human-facing receipt is
+[m4_atom_oxidation_corpus_v1.md](../reports/m4_atom_oxidation_corpus_v1.md).
+The Qt lane proves accepted and unavailable presentation, no mutation,
+source-fenced historical status, source-tab-only rerun eligibility, and
+source-tab retirement. The shared detached admission retains caller revision
+and verified digest as immutable source provenance while its request-local
+session begins at revision zero; operations must never compare those identities.
+Typed refusal and recovery remain in the protocol/CLI lane. This preserves the
+bounded HCNO chemistry, generic PyO3 transport, unchanged SMARTS, and no
+known-group expansion. M4 itself remains incomplete.
+
+Continue the M4 chemistry-operation catalog with a separately selected bounded
+contract. Each candidate remains supported only after it has a typed refusal
 and recovery contract, a durable workflow proof, and an explicit statement of
-its limits. The current plan does not select a single M4 operation yet, so that
-choice must follow the M0 corpus and user-value evidence rather than a
-speculative implementation order.
+its limits.
+
+No public compact-group route is selected in M0. Compact-group materialization
+remains document-private cleanup; M1 is the earliest authorized public surface.
+When M1 is selected, its design must use the generic lifecycle and provide its
+own semantic, CLI, and workflow evidence. This does not advance M5 catalog or
+reaction work.
 
 The subsequent confirmed queue remains M2 interchange/graph completion, M5
 catalogs and reactions, and M6 usable-application work. The completed catalog

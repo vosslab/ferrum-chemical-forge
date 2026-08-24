@@ -76,15 +76,22 @@ class FerrumNativeDirectBondGestureTabMixin:
 		)
 
 	#============================================
-	def admit_direct_bond_candidate(self, gesture: object, end_probe: object) -> object:
-		"""Admit one V3 pointer probe and return Rust's opaque commit receipt."""
+	def resolve_direct_bond_end(self, gesture: object, end_probe: object) -> object:
+		"""Resolve one V3 endpoint into an opaque generic transition request."""
 		self._require_mutable()
-		return self._session.admit_direct_bond_candidate_v3(gesture, end_probe)
+		# V3 resolution is a read-only native capability call.  Its explicit
+		# session argument must remain the exact PyO3 DocumentSession; the tab's
+		# public `_session` is the mutation-retirement facade used for bound calls.
+		return gesture.resolve_end_v3(self._live_document_session_v1, end_probe)
 
 	#============================================
-	def commit_direct_bond_admission(self, admission: object) -> object:
-		"""Redeem one opaque V3 admission and install its Rust result once."""
+	def prepare_session_operation_transition_v1(self, request: object) -> object:
+		"""Prepare one opaque generic transition request without mutating this tab."""
 		self._require_mutable()
-		commit = self._session.commit_direct_bond_admission_v3(admission)
-		self._install_mutation_result(commit.result, (("bond", commit.bond_identifier),))
-		return commit
+		return self._session.prepare_session_operation_transition_v1(request)
+
+	#============================================
+	def commit_session_operation_transition_v1(self, prepared: object) -> object:
+		"""Redeem one opaque session transition through the generic Rust authority."""
+		self._require_mutable()
+		return self._session.commit_session_operation_transition_v1(prepared)

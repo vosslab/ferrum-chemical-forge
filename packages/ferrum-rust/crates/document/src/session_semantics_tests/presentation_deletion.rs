@@ -48,7 +48,7 @@ fn deletion_set(targets: Vec<PresentationRootDeletionV1>) -> SessionOperation {
 fn presentation_deletion_removes_exact_typed_root_preserves_opaque_content_and_follows_history() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let changed = session
-        .submit(0, deletion("t", PresentationRecordKindV1::Text))
+        .apply_document_operation_v1(0, deletion("t", PresentationRecordKindV1::Text))
         .expect("typed Text deletion must commit");
     assert_eq!(changed.observation().snapshot().revision(), 1);
     let [PresentationRootProjectionV1::Plus { plus }] = changed
@@ -92,7 +92,7 @@ fn presentation_deletion_rejects_wrong_kind_bracket_member_and_stale_intent_atom
     let mut wrong_kind = DocumentSession::load(SOURCE).expect("source must load");
     let before = wrong_kind.snapshot().unwrap();
     assert!(matches!(
-        wrong_kind.submit(0, deletion("t", PresentationRecordKindV1::Plus)),
+        wrong_kind.apply_document_operation_v1(0, deletion("t", PresentationRecordKindV1::Plus)),
         Err(DocumentSessionError::Operation(
             SessionOperationError::UnknownPresentationRoot(_)
         ))
@@ -102,7 +102,8 @@ fn presentation_deletion_rejects_wrong_kind_bracket_member_and_stale_intent_atom
     let mut bracket = DocumentSession::load(BRACKET_SOURCE).expect("bracket source must load");
     let before = bracket.snapshot().unwrap();
     assert!(matches!(
-        bracket.submit(0, deletion("left", PresentationRecordKindV1::Polyline)),
+        bracket
+            .apply_document_operation_v1(0, deletion("left", PresentationRecordKindV1::Polyline)),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(TypedDocumentError::PresentationRootIsBracketMember(
                 _
@@ -111,7 +112,7 @@ fn presentation_deletion_rejects_wrong_kind_bracket_member_and_stale_intent_atom
     ));
     assert_eq!(bracket.snapshot().unwrap(), before);
     assert!(matches!(
-        bracket.submit(
+        bracket.apply_document_operation_v1(
             0,
             deletion_set(vec![
                 PresentationRootDeletionV1::new("left", PresentationRecordKindV1::Polyline,)
@@ -126,11 +127,11 @@ fn presentation_deletion_rejects_wrong_kind_bracket_member_and_stale_intent_atom
 
     let mut stale = DocumentSession::load(SOURCE).expect("source must load");
     stale
-        .submit(0, deletion("p", PresentationRecordKindV1::Plus))
+        .apply_document_operation_v1(0, deletion("p", PresentationRecordKindV1::Plus))
         .expect("first deletion must commit");
     let before = stale.snapshot().unwrap();
     assert!(matches!(
-        stale.submit(0, deletion("t", PresentationRecordKindV1::Text)),
+        stale.apply_document_operation_v1(0, deletion("t", PresentationRecordKindV1::Text)),
         Err(DocumentSessionError::RevisionConflict {
             expected: 0,
             actual: 1
@@ -151,7 +152,7 @@ fn compatibility_reaction_references_refuse_single_and_batch_deletion_without_mu
             DocumentSession::load(REACTION_PRESENTATION_SOURCE).expect("fixture loads");
         let before = session.snapshot().expect("snapshot works");
         assert!(matches!(
-            session.submit(0, deletion(identifier, kind)),
+            session.apply_document_operation_v1(0, deletion(identifier, kind)),
             Err(DocumentSessionError::Operation(
                 SessionOperationError::Candidate(
                     TypedDocumentError::ReactionReferencedPresentationDeletion(_)
@@ -164,7 +165,7 @@ fn compatibility_reaction_references_refuse_single_and_batch_deletion_without_mu
     let mut mixed = DocumentSession::load(REACTION_PRESENTATION_SOURCE).expect("fixture loads");
     let before = mixed.snapshot().expect("snapshot works");
     assert!(matches!(
-        mixed.submit(
+        mixed.apply_document_operation_v1(
             0,
             deletion_set(vec![
                 PresentationRootDeletionV1::new("free-a", PresentationRecordKindV1::Arrow).unwrap(),
@@ -181,7 +182,7 @@ fn compatibility_reaction_references_refuse_single_and_batch_deletion_without_mu
     assert_eq!(mixed.snapshot().expect("snapshot works"), before);
 
     let changed = mixed
-        .submit(
+        .apply_document_operation_v1(
             0,
             deletion_set(vec![
                 PresentationRootDeletionV1::new("free-a", PresentationRecordKindV1::Arrow).unwrap(),
@@ -213,7 +214,7 @@ fn complete_bracket_pair_deletion_is_one_atomic_history_entry() {
     );
     let mut session = DocumentSession::load(BRACKET_SOURCE).expect("bracket source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             deletion_set(vec![
                 PresentationRootDeletionV1::new("left", PresentationRecordKindV1::Polyline)

@@ -41,7 +41,7 @@ fn selected_atoms_rotate_in_one_history_entry_and_retire_only_invalid_owned_meta
     )
     .expect("fixture rotation");
     let rotated = session
-        .submit(0, operation(rotation))
+        .apply_document_operation_v1(0, operation(rotation))
         .expect("rotation succeeds");
     let atoms = rotated.observation().projection().molecules()[0].atoms();
     assert_authored_close(atoms[0].position().x(), 0.0);
@@ -64,7 +64,7 @@ fn selected_atoms_rotate_in_one_history_entry_and_retire_only_invalid_owned_meta
     let zero = AtomRotationV1::new(vec![target("m", "a")], 0.0, 0.0, 0.0)
         .expect("zero rotation intent is valid");
     let unchanged = session
-        .submit(2, operation(zero))
+        .apply_document_operation_v1(2, operation(zero))
         .expect("zero rotation is accepted");
     assert_eq!(unchanged.observation().snapshot().revision(), 2);
 }
@@ -90,7 +90,7 @@ fn atom_rotation_rejects_invalid_or_unresolved_complete_intent_atomically() {
     let rotation = AtomRotationV1::new(vec![target("m", "a"), target("other", "a")], 0.0, 0.0, 1.0)
         .expect("structurally valid unresolved request");
     let error = session
-        .submit(0, operation(rotation))
+        .apply_document_operation_v1(0, operation(rotation))
         .expect_err("later unresolved target rejects the whole request");
     assert!(matches!(
         error,

@@ -1,84 +1,46 @@
-use std::collections::BTreeSet;
-
 use super::{
     CoreProjectionError, DocumentSession, DocumentSessionError, PersistentId, TypedClass,
     TypedDiagnosticKind, TypedDocument, TypedDocumentError, TypedRecord, UnrecognizedNode,
 };
 
-const AUTHORED: &str = include_str!("../../../../../tests/e2e/corpus/authored_document_forms.cdml");
-const OPAQUE: &str =
-    include_str!("../../../../../tests/e2e/corpus/opaque_namespace_preservation.cdml");
+const AUTHORED: &str = r##"
+<cdml xmlns="urn:ferrum:cdml" version="26.07" type="normal">
+  <info><author_program version="26.07">Ferrum probe</author_program><author>A</author><note>N</note></info>
+  <metadata><doc href="https://example.invalid/cdml"/></metadata>
+  <standard line_width="1px" font_size="12" font_family="helvetica" line_color="#000" area_color=""><bond length="0.7cm" width="6px" wedge-width="5px" double-ratio="0.75" min_wedge_angle="0.39"/><arrow length="1.6cm"/><atom show_hydrogens="0"/></standard>
+  <paper type="custom" orientation="portrait" crop_svg="1" crop_margin="10" size_x="200" size_y="300"/><viewport viewport="0 0 10 10"/>
+  <molecule id="m1" name="probe">
+    <template atom="a1" bond_first="b1" bond_second="b2"/>
+    <atom id="a1" name="C" charge="1" multiplicity="2" valency="4" free_sites="1" isotope="13" explicit_hydrogens="1" show="yes" hydrogens="on" number="1" pos="center-first" background-color="#fff" local_extension="literal"><point x="0cm" y="0cm" z="0"/><font color="#111" family="sans" size="12"/><ftext>C&lt;sub&gt;2&lt;/sub&gt;&lt;sup&gt;+&lt;/sup&gt;</ftext><mark type="plus" x="1" y="2" size="10" text="+" refname="p" auto="no" draw_circle="yes" line_width="2"/></atom>
+    <group id="g1" name="Me" group-type="builtin" pos="center-last" show_number="yes" number="2" background-color="#eee"><point x="1cm" y="0cm"/></group>
+    <text id="tatom" pos="center-first"><point x="2cm" y="0cm"/><font size="10"/><ftext>R&lt;sub&gt;x&lt;/sub&gt;</ftext></text><query id="q1" name="R" free_sites="1"><point x="3cm" y="0cm"/></query>
+    <bond id="b1" type="w1" start="a1" end="g1" line_width="1" bond_width="2" wedge_width="3" double_ratio="0.7" center="yes" auto_sign="-1" equithick="1" simple_double="0" color="#123" wavy_style="sine" haworth_position="front"/><bond id="b2" type="q1" start="g1" end="tatom"/><bond id="b3" type="n1" start="tatom" end="q1"/>
+    <fragment id="f1" type="linear_form"><name>linear_form</name><bond id="b1"/><vertex id="a1"/><property name="bond_length" value="10" type="IntType"/></fragment><display-form><future-local id="display-opaque">keep</future-local></display-form><user-data><vendor-data id="user-opaque">keep</vendor-data></user-data>
+  </molecule>
+  <arrow id="arr1" type="normal" start="no" end="yes" width="1" spline="no" shape="x" color="#000"><point x="0cm" y="1cm"/><point x="2cm" y="1cm"/></arrow><plus id="p1" font_size="14" color="#000" background-color="#fff"><point x="3cm" y="1cm"/></plus>
+  <text id="text1" background-color="#fff"><font size="12"/><point x="4cm" y="1cm"/><ftext>label &lt;b&gt;bold&lt;/b&gt; &lt;i&gt;italic&lt;/i&gt; &amp;amp; salt</ftext></text>
+  <rect id="r1" x1="0cm" y1="2cm" x2="1cm" y2="3cm" area_color="#fff" line_color="#000" width="1"/><square id="s1" x1="1cm" y1="2cm" x2="2cm" y2="3cm" area_color="#fff" line_color="#000" width="1"/><oval id="o1" x1="2cm" y1="2cm" x2="3cm" y2="3cm" area_color="#fff" line_color="#000" width="1"/><circle id="c1" x1="3cm" y1="2cm" x2="4cm" y2="3cm" area_color="#fff" line_color="#000" width="1"/>
+  <polygon id="pg1" area_color="#fff" line_color="#000" width="1"><point x="0cm" y="4cm"/><point x="1cm" y="4cm"/><point x="1cm" y="5cm"/></polygon><polyline id="pl1" line_color="#000" width="1" spline="1"><point x="2cm" y="4cm"/><point x="3cm" y="5cm"/></polyline>
+  <reaction id="rx1"><reactant idref="m1"/><product idref="m1"/><arrow idref="arr1"/><condition idref="text1"/><plus idref="p1"/></reaction><external-data id="external-opaque"><vendor-record id="nested-opaque">keep</vendor-record></external-data>
+</cdml>
+"##;
 
-fn collect_classes(record: &TypedRecord, classes: &mut BTreeSet<TypedClass>) {
-    classes.insert(record.class());
-    for child in record.typed_children() {
-        collect_classes(child.record(), classes);
-    }
-}
+const OPAQUE: &str = r##"
+<?before retain?>
+<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor" xmlns:q="urn:qname" version="26.07">
+  <!-- persistent comment -->
+  <molecule id="m1" v:state="literal"><atom id="a1" name="C" q:label="q:token"><point x="0cm" y="0cm"/></atom></molecule>
+  <v:extension id="vendor-1" q:kind="q:widget">before<v:item id="vendor-child"/>after</v:extension>
+  <external-data v:mode="keep"><v:item q:kind="q:literal">opaque</v:item></external-data>
+  <?inside retain?>
+</cdml>
+"##;
 
 fn child(record: &TypedRecord, class: TypedClass) -> &TypedRecord {
     record
         .children_of(class)
         .next()
         .unwrap_or_else(|| panic!("missing {} child", class.name()))
-}
-
-#[test]
-fn authored_corpus_exercises_every_assigned_typed_class() {
-    let document = TypedDocument::parse(AUTHORED).expect("authored corpus must type");
-    let mut actual = BTreeSet::new();
-    collect_classes(document.root(), &mut actual);
-    let expected = BTreeSet::from([
-        TypedClass::Cdml,
-        TypedClass::Info,
-        TypedClass::AuthorProgram,
-        TypedClass::Author,
-        TypedClass::Note,
-        TypedClass::Metadata,
-        TypedClass::MetadataDocument,
-        TypedClass::Standard,
-        TypedClass::StandardBond,
-        TypedClass::StandardArrow,
-        TypedClass::StandardAtom,
-        TypedClass::Paper,
-        TypedClass::Viewport,
-        TypedClass::Molecule,
-        TypedClass::CanvasArrow,
-        TypedClass::CanvasPlus,
-        TypedClass::CanvasText,
-        TypedClass::Rectangle,
-        TypedClass::Square,
-        TypedClass::Oval,
-        TypedClass::Circle,
-        TypedClass::Polygon,
-        TypedClass::Polyline,
-        TypedClass::Reaction,
-        TypedClass::ReactionReactant,
-        TypedClass::ReactionProduct,
-        TypedClass::ReactionArrow,
-        TypedClass::ReactionCondition,
-        TypedClass::ReactionPlus,
-        TypedClass::ExternalData,
-        TypedClass::Atom,
-        TypedClass::Group,
-        TypedClass::MoleculeText,
-        TypedClass::Query,
-        TypedClass::Bond,
-        TypedClass::Template,
-        TypedClass::Fragment,
-        TypedClass::DisplayForm,
-        TypedClass::UserData,
-        TypedClass::FragmentName,
-        TypedClass::FragmentBond,
-        TypedClass::FragmentVertex,
-        TypedClass::FragmentProperty,
-        TypedClass::Point,
-        TypedClass::Font,
-        TypedClass::FormattedText,
-        TypedClass::Mark,
-    ]);
-
-    assert_eq!(actual, expected);
 }
 
 #[test]

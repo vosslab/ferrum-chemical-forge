@@ -77,7 +77,7 @@ class FerrumNativeTextPropertiesMixin:
 		operation = engine.DocumentOperationV1.set_text_properties(
 			text.target.source_id, changes,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, (("text", text.target.id),))
 		return result
 

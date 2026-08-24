@@ -9,8 +9,8 @@ use super::{
 };
 
 const BOND_LENGTH_POINTS: f64 = 10.0;
-// `canonical_authored_coordinate` stores centimetres to three decimals, which can
-// round a ten-point gap by roughly 0.0142 points.
+// Imported CDML may retain rounded centimetre coordinates; recognition accepts
+// that readable input while typed-document mutations emit exact point tokens.
 const AUTHORED_COORDINATE_TOLERANCE_POINTS: f64 = 0.02;
 type LinearFormMembers = (Vec<String>, Vec<String>);
 

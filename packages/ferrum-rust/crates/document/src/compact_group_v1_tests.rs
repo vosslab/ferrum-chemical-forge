@@ -1,7 +1,7 @@
 use super::chemistry::{DocumentMoleculeGraphError, document_molecule_graph_v1};
 use super::{
-    CompactGroupAttachmentV1, CompactGroupCatalogKeyV1, CoreProjectionError, DocumentProjectionV1,
-    DocumentSession, PersistentId, Point3V1, ProjectionError, TypedDocument, TypedDocumentError,
+    CompactGroupCatalogKeyV1, CoreProjectionError, DocumentProjectionV1, DocumentSession,
+    ProjectionError, TypedDocument, TypedDocumentError,
 };
 use ferrum_core::{BondOrder, BondStyle, VertexRef};
 
@@ -132,70 +132,6 @@ fn compact_group_core_bridge_refuses_missing_or_unresolved_endpoint_facts() {
         Err(CoreProjectionError::UnknownVertex { field: "end", identifier, .. })
             if identifier == "missing"
     ));
-}
-
-#[test]
-fn typed_writer_creates_canonical_compact_group_persisted_in_a_session_snapshot() {
-    let document = TypedDocument::parse(concat!(
-        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"root\">",
-        "<atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "</molecule></cdml>",
-    ))
-    .expect("molecule with a typed vertex must type");
-    let attachment = CompactGroupAttachmentV1::new(CompactGroupCatalogKeyV1::Nitro, 0, -45.0)
-        .expect("defined attachment must be valid");
-    let authored = document
-        .with_insert_compact_group(
-            &PersistentId::new("root").expect("molecule identity must be valid"),
-            &PersistentId::new("nitro").expect("group identity must be valid"),
-            CompactGroupCatalogKeyV1::Nitro,
-            Point3V1::new(10.0, 20.0, 0.0).expect("finite anchor must be valid"),
-            attachment,
-        )
-        .expect("typed writer must create one compact group");
-    let session = DocumentSession::load(&authored.to_xml().expect("candidate serializes"))
-        .expect("authored compact group must load");
-    let snapshot = session.snapshot().expect("session must snapshot");
-    assert_eq!(
-        snapshot.cdml(),
-        concat!(
-            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"root\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-            "<compact-group id=\"nitro\" version=\"1\" catalog-key=\"nitro\" attachment-index=\"0\" orientation-degrees=\"315\">",
-            "<point x=\"0.353cm\" y=\"0.706cm\" z=\"0.000cm\"/></compact-group></molecule></cdml>",
-        ),
-    );
-    let projection = projected(snapshot.cdml()).expect("authored record must project");
-    let group = &projection.molecules()[0].compact_groups()[0];
-    assert_eq!(group.catalog_key(), CompactGroupCatalogKeyV1::Nitro);
-    assert_eq!(group.label(), "NO2");
-    assert_eq!(group.orientation_degrees(), 315.0);
-}
-
-#[test]
-fn typed_writer_creates_a_free_compact_group_as_one_complete_direct_molecule() {
-    let document = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"/>")
-        .expect("empty CDML document must type");
-    let attachment = CompactGroupAttachmentV1::new(CompactGroupCatalogKeyV1::Methyl, 0, 0.0)
-        .expect("defined attachment must be valid");
-    let authored = document
-        .with_insert_free_compact_group(
-            &PersistentId::new("root").expect("molecule identity must be valid"),
-            &PersistentId::new("methyl").expect("group identity must be valid"),
-            CompactGroupCatalogKeyV1::Methyl,
-            Point3V1::new(10.0, 20.0, 0.0).expect("finite anchor must be valid"),
-            attachment,
-        )
-        .expect("typed writer must create one complete free compact-group molecule");
-    assert_eq!(
-        authored.to_xml().expect("candidate serializes"),
-        concat!(
-            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"root\">",
-            "<compact-group id=\"methyl\" version=\"1\" catalog-key=\"methyl\" ",
-            "attachment-index=\"0\" orientation-degrees=\"0\">",
-            "<point x=\"0.353cm\" y=\"0.706cm\" z=\"0.000cm\"/>",
-            "</compact-group></molecule></cdml>",
-        ),
-    );
 }
 
 #[test]

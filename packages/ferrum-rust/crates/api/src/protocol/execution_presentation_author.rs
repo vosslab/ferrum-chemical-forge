@@ -2,26 +2,28 @@
 
 use crate::{
     add_api_presentation_path_gesture_point_v1, begin_api_presentation_path_gesture_v1,
-    commit_api_presentation_path_gesture_v1, prepare_incremental_api_presentation_path_gesture_v1,
+    begin_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
     preview_incremental_api_presentation_path_gesture_v1,
+    resolve_api_presentation_vector_gesture_v1,
+    resolve_incremental_api_presentation_path_gesture_v1,
 };
 use ferrum_document::{
+    AdmittedSessionTransitionRefusalV1, CreateDirectBondV1, DirectBondAdmissionRefusalV1,
     DirectBondEndpointIntent, DirectBondPoint2V1, DirectBondSnapPolicyV1, DocumentBondOrderV1,
-    DocumentBondPresentationV1, DocumentFenceV1, DocumentSession, PresentationGesturePoint2V1,
-    PresentationPathKindV1, SessionOperationResultV1,
+    DocumentBondPresentationV1, DocumentFenceV1, DocumentSession, DocumentSessionError,
+    PresentationGesturePoint2V1, PresentationPathKindV1, SessionOperation,
+    SessionOperationOutcomeV1, SessionOperationResultV1, SessionOperationTransitionRequestV1,
+    SessionOperationV1, TransitionAuthorizationRefusalV1, TransitionAuthorizationV1,
 };
 use ferrum_document_render::{
     CurvedElectronArrowGestureErrorV1, CurvedEquilibriumArrowGestureErrorV1,
-    DirectBondCommitCategoryV1, DirectBondExplicitErrorV1, PresentationPathRenderErrorV1,
-    PresentationVectorGestureErrorV1, author_direct_bond_explicit_v1,
+    PresentationPathRenderErrorV1, PresentationVectorGestureErrorV1,
     begin_curved_electron_arrow_gesture_v1, begin_curved_equilibrium_arrow_gesture_v1,
     begin_curved_normal_reaction_arrow_gesture_v1, begin_curved_retro_arrow_gesture_v1,
-    commit_curved_electron_arrow_gesture_v1, commit_curved_equilibrium_arrow_gesture_v1,
-    commit_curved_normal_reaction_arrow_gesture_v1, commit_curved_retro_arrow_gesture_v1,
-    prepare_curved_electron_arrow_gesture_v1, prepare_curved_equilibrium_arrow_gesture_v1,
-    prepare_curved_normal_reaction_arrow_gesture_v1, prepare_curved_retro_arrow_gesture_v1,
     preview_curved_electron_arrow_gesture_v1, preview_curved_equilibrium_arrow_gesture_v1,
     preview_curved_normal_reaction_arrow_gesture_v1, preview_curved_retro_arrow_gesture_v1,
+    resolve_curved_electron_arrow_gesture_v1, resolve_curved_equilibrium_arrow_gesture_v1,
+    resolve_curved_normal_reaction_arrow_gesture_v1, resolve_curved_retro_arrow_gesture_v1,
 };
 
 use super::*;
@@ -111,17 +113,9 @@ fn execute_vector(
         .map_err(vector_error)?;
     let preview =
         preview_api_presentation_vector_gesture_v1(session, &gesture, end).map_err(vector_error)?;
-    let mut prepared = prepare_api_presentation_vector_gesture_v1(session, &gesture, &preview)
+    let request = resolve_api_presentation_vector_gesture_v1(session, gesture, preview)
         .map_err(vector_error)?;
-    let committed =
-        commit_api_presentation_vector_gesture_v1(session, &mut prepared).map_err(vector_error)?;
-    finish(
-        PresentationAuthoringKindV1::Vector,
-        committed.root().presentation_id().as_str().to_owned(),
-        format!("{:?}", committed.root().kind()),
-        committed.result(),
-        None,
-    )
+    finish_created_presentation_root(PresentationAuthoringKindV1::Vector, session, request)
 }
 
 fn execute_terminal_arrow(
@@ -142,35 +136,18 @@ fn execute_terminal_arrow(
                 .map_err(terminal_error)?;
             let preview = preview_curved_electron_arrow_gesture_v1(session, &gesture, end)
                 .map_err(terminal_error)?;
-            let mut prepared =
-                prepare_curved_electron_arrow_gesture_v1(session, &gesture, &preview)
-                    .map_err(terminal_error)?;
-            let committed = commit_curved_electron_arrow_gesture_v1(session, &mut prepared)
+            let request = resolve_curved_electron_arrow_gesture_v1(session, gesture, preview)
                 .map_err(terminal_error)?;
-            finish(
-                kind,
-                committed.root().presentation_id().as_str().to_owned(),
-                "curved_terminal_arrow".to_owned(),
-                committed.result(),
-                None,
-            )
+            finish_created_presentation_root(kind, session, request)
         }
         ProtocolCurvedTerminalArrowKindV1::Retro => {
             let gesture = begin_curved_retro_arrow_gesture_v1(session, fence, start, control)
                 .map_err(terminal_error)?;
             let preview = preview_curved_retro_arrow_gesture_v1(session, &gesture, end)
                 .map_err(terminal_error)?;
-            let mut prepared = prepare_curved_retro_arrow_gesture_v1(session, &gesture, &preview)
+            let request = resolve_curved_retro_arrow_gesture_v1(session, gesture, preview)
                 .map_err(terminal_error)?;
-            let committed = commit_curved_retro_arrow_gesture_v1(session, &mut prepared)
-                .map_err(terminal_error)?;
-            finish(
-                kind,
-                committed.root().presentation_id().as_str().to_owned(),
-                "curved_terminal_arrow".to_owned(),
-                committed.result(),
-                None,
-            )
+            finish_created_presentation_root(kind, session, request)
         }
         ProtocolCurvedTerminalArrowKindV1::Normal => {
             let gesture =
@@ -178,18 +155,10 @@ fn execute_terminal_arrow(
                     .map_err(terminal_error)?;
             let preview = preview_curved_normal_reaction_arrow_gesture_v1(session, &gesture, end)
                 .map_err(terminal_error)?;
-            let mut prepared =
-                prepare_curved_normal_reaction_arrow_gesture_v1(session, &gesture, &preview)
+            let request =
+                resolve_curved_normal_reaction_arrow_gesture_v1(session, gesture, preview)
                     .map_err(terminal_error)?;
-            let committed = commit_curved_normal_reaction_arrow_gesture_v1(session, &mut prepared)
-                .map_err(terminal_error)?;
-            finish(
-                kind,
-                committed.root().presentation_id().as_str().to_owned(),
-                "curved_terminal_arrow".to_owned(),
-                committed.result(),
-                None,
-            )
+            finish_created_presentation_root(kind, session, request)
         }
     }
 }
@@ -211,17 +180,9 @@ fn execute_equilibrium_arrow(
     .map_err(equilibrium_error)?;
     let preview = preview_curved_equilibrium_arrow_gesture_v1(session, &gesture, point(end, kind)?)
         .map_err(equilibrium_error)?;
-    let mut prepared = prepare_curved_equilibrium_arrow_gesture_v1(session, &gesture, &preview)
+    let request = resolve_curved_equilibrium_arrow_gesture_v1(session, gesture, preview)
         .map_err(equilibrium_error)?;
-    let committed = commit_curved_equilibrium_arrow_gesture_v1(session, &mut prepared)
-        .map_err(equilibrium_error)?;
-    finish(
-        kind,
-        committed.root().presentation_id().as_str().to_owned(),
-        "curved_equilibrium_arrow".to_owned(),
-        committed.result(),
-        None,
-    )
+    finish_created_presentation_root(kind, session, request)
 }
 
 fn execute_path(
@@ -243,18 +204,9 @@ fn execute_path(
     }
     let overlay = preview_incremental_api_presentation_path_gesture_v1(session, &gesture, None)
         .map_err(path_error)?;
-    let mut prepared =
-        prepare_incremental_api_presentation_path_gesture_v1(session, &gesture, &overlay)
-            .map_err(path_error)?;
-    let committed =
-        commit_api_presentation_path_gesture_v1(session, &mut prepared).map_err(path_error)?;
-    finish(
-        kind,
-        committed.root().presentation_id().as_str().to_owned(),
-        format!("{:?}", committed.root().kind()),
-        committed.result(),
-        None,
-    )
+    let request = resolve_incremental_api_presentation_path_gesture_v1(session, gesture, overlay)
+        .map_err(path_error)?;
+    finish_created_presentation_root(kind, session, request)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -284,16 +236,28 @@ fn execute_direct_bond(
             "direct-bond snap policy is invalid",
         )
     })?;
-    let committed = author_direct_bond_explicit_v1(
-        session,
-        fence,
-        start,
-        end,
-        presentation,
-        new_atom_element,
-        snap,
-    )
-    .map_err(direct_bond_error)?;
+    let operation =
+        CreateDirectBondV1::new(fence, start, end, presentation, new_atom_element, snap)
+            .map_err(direct_bond_admission_error)?;
+    let capability = session.issue_authoring_capability_v1();
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+            fence.revision(),
+            SessionOperation::V1(SessionOperationV1::CreateDirectBondV1(operation)),
+            TransitionAuthorizationV1::authoring_capability(capability),
+        ))
+        .map_err(direct_bond_prepare_error)?;
+    let result = session
+        .commit_session_operation_transition_v1(&mut prepared)
+        .map_err(direct_bond_commit_error)?;
+    let SessionOperationOutcomeV1::DirectBondV1(committed) = result.outcome() else {
+        return Err(refusal(
+            kind,
+            ProtocolPresentationAuthorCategoryV1::SessionConflict,
+            ProtocolPresentationAuthorRecoveryV1::RefreshAndRestart,
+            "generic direct-bond transition returned an unexpected outcome",
+        ));
+    };
     let direct_bond = PresentationAuthorDirectBondOutcomeV1 {
         end_atom_identifier: committed.end_atom().as_str().to_owned(),
         second_created_atom_identifier: committed
@@ -306,7 +270,7 @@ fn execute_direct_bond(
         kind,
         committed.bond().as_str().to_owned(),
         "bond".to_owned(),
-        committed.result(),
+        &result,
         Some(direct_bond),
     )
 }
@@ -331,6 +295,34 @@ fn finish(
         },
         direct_bond,
     })
+}
+
+fn finish_created_presentation_root(
+    kind: PresentationAuthoringKindV1,
+    session: &mut DocumentSession,
+    request: SessionOperationTransitionRequestV1,
+) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(request)
+        .map_err(|error| presentation_prepare_error(kind, error))?;
+    let result = session
+        .commit_session_operation_transition_v1(&mut prepared)
+        .map_err(|error| presentation_commit_error(kind, error))?;
+    let SessionOperationOutcomeV1::CreatedPresentationRootV1(outcome) = result.outcome() else {
+        return Err(refusal(
+            kind,
+            ProtocolPresentationAuthorCategoryV1::SessionConflict,
+            ProtocolPresentationAuthorRecoveryV1::RefreshAndRestart,
+            "generic presentation transition returned an unexpected outcome",
+        ));
+    };
+    finish(
+        kind,
+        outcome.root().presentation_id().as_str().to_owned(),
+        format!("{:?}", outcome.kind()),
+        &result,
+        None,
+    )
 }
 
 fn point(
@@ -577,66 +569,148 @@ fn path_error(error: PresentationPathRenderErrorV1) -> ExecutionFailureV1 {
     )
 }
 
-fn direct_bond_error(error: DirectBondExplicitErrorV1) -> ExecutionFailureV1 {
-    let category = match &error {
-        DirectBondExplicitErrorV1::Admission(refusal) => match refusal {
-            ferrum_document::DirectBondAdmissionRefusalV1::SelfLoop => {
-                ProtocolPresentationAuthorCategoryV1::SelfLoop
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::DuplicateBond => {
-                ProtocolPresentationAuthorCategoryV1::DuplicateBond
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::CrossMolecule => {
-                ProtocolPresentationAuthorCategoryV1::CrossMolecule
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::UnsupportedPresentation => {
-                ProtocolPresentationAuthorCategoryV1::UnsupportedPresentation
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission => {
-                ProtocolPresentationAuthorCategoryV1::UnsupportedChemistry
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::ExceedsChemistryCapacity => {
-                ProtocolPresentationAuthorCategoryV1::Capacity
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::UnrenderableCandidate => {
-                ProtocolPresentationAuthorCategoryV1::RenderPreparation
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::StaleRevision
-            | ferrum_document::DirectBondAdmissionRefusalV1::StaleDigest => {
-                ProtocolPresentationAuthorCategoryV1::StaleSnapshot
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::ForeignSession => {
-                ProtocolPresentationAuthorCategoryV1::ForeignSession
-            }
-            ferrum_document::DirectBondAdmissionRefusalV1::ReplayedGesture => {
-                ProtocolPresentationAuthorCategoryV1::ReplayedGesture
-            }
-            _ => ProtocolPresentationAuthorCategoryV1::InvalidEndpoint,
-        },
-        DirectBondExplicitErrorV1::Commit(error) => match error.category() {
-            DirectBondCommitCategoryV1::ForeignSession => {
-                ProtocolPresentationAuthorCategoryV1::ForeignSession
-            }
-            DirectBondCommitCategoryV1::ReplayedReceipt => {
-                ProtocolPresentationAuthorCategoryV1::ReplayedGesture
-            }
-            DirectBondCommitCategoryV1::UnrenderableCandidate => {
-                ProtocolPresentationAuthorCategoryV1::RenderPreparation
-            }
-            DirectBondCommitCategoryV1::StaleRevision | DirectBondCommitCategoryV1::StaleDigest => {
-                ProtocolPresentationAuthorCategoryV1::StaleSnapshot
-            }
-            _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
-        },
-        DirectBondExplicitErrorV1::SessionConflict => {
-            ProtocolPresentationAuthorCategoryV1::SessionConflict
+fn direct_bond_admission_error(error: DirectBondAdmissionRefusalV1) -> ExecutionFailureV1 {
+    refusal_for_category(
+        PresentationAuthoringKindV1::DirectBond,
+        direct_bond_admission_category(&error),
+        error.to_string(),
+    )
+}
+
+fn direct_bond_prepare_error(error: DocumentSessionError) -> ExecutionFailureV1 {
+    let message = error.to_string();
+    let category = match error {
+        DocumentSessionError::DirectBondAdmission(refusal) => {
+            direct_bond_admission_category(&refusal)
         }
+        DocumentSessionError::RendererAdmission => {
+            ProtocolPresentationAuthorCategoryV1::RenderPreparation
+        }
+        DocumentSessionError::RevisionConflict { .. } => {
+            ProtocolPresentationAuthorCategoryV1::StaleSnapshot
+        }
+        DocumentSessionError::TransitionAuthorization(
+            TransitionAuthorizationRefusalV1::ForeignSession,
+        ) => ProtocolPresentationAuthorCategoryV1::ForeignSession,
+        DocumentSessionError::TransitionAuthorization(
+            TransitionAuthorizationRefusalV1::Replayed,
+        ) => ProtocolPresentationAuthorCategoryV1::ReplayedGesture,
+        _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
+    };
+    refusal_for_category(PresentationAuthoringKindV1::DirectBond, category, message)
+}
+
+fn presentation_prepare_error(
+    kind: PresentationAuthoringKindV1,
+    error: DocumentSessionError,
+) -> ExecutionFailureV1 {
+    let message = error.to_string();
+    let category = match error {
+        DocumentSessionError::RendererAdmission => {
+            ProtocolPresentationAuthorCategoryV1::RenderPreparation
+        }
+        DocumentSessionError::RevisionConflict { .. } => {
+            ProtocolPresentationAuthorCategoryV1::StaleSnapshot
+        }
+        DocumentSessionError::TransitionAuthorization(
+            TransitionAuthorizationRefusalV1::ForeignSession,
+        ) => ProtocolPresentationAuthorCategoryV1::ForeignSession,
+        DocumentSessionError::TransitionAuthorization(
+            TransitionAuthorizationRefusalV1::Replayed,
+        ) => ProtocolPresentationAuthorCategoryV1::ReplayedGesture,
+        _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
+    };
+    refusal_for_category(kind, category, message)
+}
+
+fn direct_bond_commit_error(error: AdmittedSessionTransitionRefusalV1) -> ExecutionFailureV1 {
+    let category = match error {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            ProtocolPresentationAuthorCategoryV1::ForeignSession
+        }
+        AdmittedSessionTransitionRefusalV1::Replayed => {
+            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+        }
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            ProtocolPresentationAuthorCategoryV1::RenderPreparation
+        }
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            ProtocolPresentationAuthorCategoryV1::StaleSnapshot
+        }
+        _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
     };
     refusal_for_category(
         PresentationAuthoringKindV1::DirectBond,
         category,
-        error.to_string(),
+        format!("generic direct-bond transition commit refused: {error:?}"),
     )
+}
+
+fn presentation_commit_error(
+    kind: PresentationAuthoringKindV1,
+    error: AdmittedSessionTransitionRefusalV1,
+) -> ExecutionFailureV1 {
+    let category = match error {
+        AdmittedSessionTransitionRefusalV1::ForeignSession => {
+            ProtocolPresentationAuthorCategoryV1::ForeignSession
+        }
+        AdmittedSessionTransitionRefusalV1::Replayed => {
+            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+        }
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            ProtocolPresentationAuthorCategoryV1::RenderPreparation
+        }
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            ProtocolPresentationAuthorCategoryV1::StaleSnapshot
+        }
+        _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
+    };
+    refusal_for_category(
+        kind,
+        category,
+        format!("generic presentation transition commit refused: {error:?}"),
+    )
+}
+
+fn direct_bond_admission_category(
+    refusal: &DirectBondAdmissionRefusalV1,
+) -> ProtocolPresentationAuthorCategoryV1 {
+    match refusal {
+        DirectBondAdmissionRefusalV1::SelfLoop => ProtocolPresentationAuthorCategoryV1::SelfLoop,
+        DirectBondAdmissionRefusalV1::DuplicateBond => {
+            ProtocolPresentationAuthorCategoryV1::DuplicateBond
+        }
+        DirectBondAdmissionRefusalV1::CrossMolecule => {
+            ProtocolPresentationAuthorCategoryV1::CrossMolecule
+        }
+        DirectBondAdmissionRefusalV1::UnsupportedPresentation => {
+            ProtocolPresentationAuthorCategoryV1::UnsupportedPresentation
+        }
+        DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission => {
+            ProtocolPresentationAuthorCategoryV1::UnsupportedChemistry
+        }
+        DirectBondAdmissionRefusalV1::ExceedsChemistryCapacity => {
+            ProtocolPresentationAuthorCategoryV1::Capacity
+        }
+        DirectBondAdmissionRefusalV1::UnrenderableCandidate => {
+            ProtocolPresentationAuthorCategoryV1::RenderPreparation
+        }
+        DirectBondAdmissionRefusalV1::StaleRevision | DirectBondAdmissionRefusalV1::StaleDigest => {
+            ProtocolPresentationAuthorCategoryV1::StaleSnapshot
+        }
+        DirectBondAdmissionRefusalV1::ForeignSession => {
+            ProtocolPresentationAuthorCategoryV1::ForeignSession
+        }
+        DirectBondAdmissionRefusalV1::ReplayedGesture => {
+            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+        }
+        DirectBondAdmissionRefusalV1::UnknownStartAtom
+        | DirectBondAdmissionRefusalV1::UnknownEndAtom
+        | DirectBondAdmissionRefusalV1::InvalidEndpointInput
+        | DirectBondAdmissionRefusalV1::CollapsedEndpoint => {
+            ProtocolPresentationAuthorCategoryV1::InvalidEndpoint
+        }
+    }
 }
 
 fn refusal_for_category(

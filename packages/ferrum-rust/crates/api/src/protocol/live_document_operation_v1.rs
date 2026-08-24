@@ -147,7 +147,10 @@ fn internal_input_error(error: impl std::fmt::Display) -> OperationProtocolInput
 
 #[cfg(test)]
 mod tests {
-    use ferrum_document::{MoleculeInsertionAtomV1, MoleculeInsertionV1, Point3V1};
+    use ferrum_document::{
+        MoleculeInsertionAtomV1, MoleculeInsertionV1, Point3V1, SessionOperation,
+        SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
+    };
     use serde_json::json;
 
     use super::*;
@@ -165,10 +168,14 @@ mod tests {
         let insertion = MoleculeInsertionV1::new(vec![atom], Vec::new()).expect("molecule");
         let revision = session.snapshot().expect("session snapshot").revision();
         let mut prepared = session
-            .prepare_admitted_molecule_insertion_v1(revision, &insertion)
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                revision,
+                SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(insertion)),
+                TransitionAuthorizationV1::none(),
+            ))
             .expect("ordinary skeleton preparation");
         session
-            .commit_admitted_molecule_insertion_v1(revision, &mut prepared)
+            .commit_session_operation_transition_v1(&mut prepared)
             .expect("ordinary skeleton installation");
         session
     }
@@ -179,7 +186,7 @@ mod tests {
 
     fn renderer_excluded_live_session() -> DocumentSession {
         DocumentSession::load(
-            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="o" name="O"><point x="0" y="0" z="0"/></atom></molecule><plus id="p"><point x="1" y="2"/><font family="Arial"/></plus></cdml>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="o" name="O"><point x="0" y="0" z="0"/></atom></molecule><text id="t"><point x="1" y="2"/><font family="Telex"/><ftext><b>x</b></ftext></text></cdml>"#,
         )
         .expect("ordinary source document")
     }

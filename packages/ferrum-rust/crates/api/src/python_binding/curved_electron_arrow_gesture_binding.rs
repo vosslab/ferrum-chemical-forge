@@ -2,19 +2,16 @@
 
 use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
 use ferrum_document_render::{
-    CommittedCurvedElectronArrowV1, CurvedElectronArrowGestureCategoryV1,
-    CurvedElectronArrowGestureErrorV1, CurvedElectronArrowGestureRecoveryV1,
-    CurvedElectronArrowGestureV1, CurvedElectronArrowPreviewV1, PreparedCurvedElectronArrowV1,
-    begin_curved_electron_arrow_gesture_v1, commit_curved_electron_arrow_gesture_v1,
-    prepare_curved_electron_arrow_gesture_v1, preview_curved_electron_arrow_gesture_v1,
+    CurvedElectronArrowGestureCategoryV1, CurvedElectronArrowGestureErrorV1,
+    CurvedElectronArrowGestureRecoveryV1, CurvedElectronArrowGestureV1,
+    CurvedElectronArrowPreviewV1, begin_curved_electron_arrow_gesture_v1,
+    preview_curved_electron_arrow_gesture_v1, resolve_curved_electron_arrow_gesture_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
 
-use super::binding::{PyDocumentSession, PySessionOperationResultV1};
-use super::presentation_creation_gesture_binding::{
-    PyPresentationGestureRootKindV1, PyPresentationGestureRootSelectorV1, digest,
-};
+use super::binding::PyDocumentSession;
+use super::presentation_creation_gesture_binding::digest;
 use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
 
 create_exception!(
@@ -68,7 +65,7 @@ enum PyCurvedElectronArrowGestureRecoveryV1 {
     name = "CurvedElectronArrowGestureV1"
 )]
 pub(crate) struct PyCurvedElectronArrowGestureV1 {
-    gesture: CurvedElectronArrowGestureV1,
+    gesture: Option<CurvedElectronArrowGestureV1>,
 }
 
 #[pyclass(
@@ -80,23 +77,6 @@ pub(crate) struct PyCurvedElectronArrowPreviewV1 {
     preview: CurvedElectronArrowPreviewV1,
     #[pyo3(get)]
     plan: PyPresentationRenderPlanV1,
-}
-
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PreparedCurvedElectronArrowV1"
-)]
-pub(crate) struct PyPreparedCurvedElectronArrowV1 {
-    prepared: PreparedCurvedElectronArrowV1,
-}
-
-#[pyclass(frozen, module = "ferrum_chem", name = "CurvedElectronArrowCommitV1")]
-pub(crate) struct PyCurvedElectronArrowCommitV1 {
-    #[pyo3(get)]
-    root: Py<PyPresentationGestureRootSelectorV1>,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
 }
 
 #[pymethods]
@@ -116,7 +96,9 @@ impl PyDocumentSession {
         let start = point(start_x, start_y, py)?;
         let control = point(control_x, control_y, py)?;
         begin_curved_electron_arrow_gesture_v1(&self.session, fence, start, control)
-            .map(|gesture| PyCurvedElectronArrowGestureV1 { gesture })
+            .map(|gesture| PyCurvedElectronArrowGestureV1 {
+                gesture: Some(gesture),
+            })
             .map_err(|error| electron_error(py, error))
     }
 
@@ -129,36 +111,32 @@ impl PyDocumentSession {
     ) -> PyResult<PyCurvedElectronArrowPreviewV1> {
         preview_curved_electron_arrow_gesture_v1(
             &self.session,
-            &gesture.gesture,
+            gesture.gesture.as_ref().ok_or_else(|| {
+                electron_error(py, CurvedElectronArrowGestureErrorV1::ReplayedGesture)
+            })?,
             point(end_x, end_y, py)?,
         )
         .map(|preview| preview_to_python(py, preview))
         .map_err(|error| electron_error(py, error))
     }
 
-    fn prepare_curved_electron_arrow_gesture_v1(
-        &mut self,
+    fn resolve_curved_electron_arrow_gesture_v1(
+        &self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyCurvedElectronArrowGestureV1>,
+        mut gesture: PyRefMut<'_, PyCurvedElectronArrowGestureV1>,
         preview: PyRef<'_, PyCurvedElectronArrowPreviewV1>,
-    ) -> PyResult<PyPreparedCurvedElectronArrowV1> {
-        prepare_curved_electron_arrow_gesture_v1(
-            &mut self.session,
-            &gesture.gesture,
-            &preview.preview,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        resolve_curved_electron_arrow_gesture_v1(
+            &self.session,
+            gesture.gesture.take().ok_or_else(|| {
+                electron_error(py, CurvedElectronArrowGestureErrorV1::ReplayedGesture)
+            })?,
+            preview.preview.clone(),
         )
-        .map(|prepared| PyPreparedCurvedElectronArrowV1 { prepared })
+        .map(
+            super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request,
+        )
         .map_err(|error| electron_error(py, error))
-    }
-
-    fn commit_curved_electron_arrow_gesture_v1(
-        &mut self,
-        py: Python<'_>,
-        mut prepared: PyRefMut<'_, PyPreparedCurvedElectronArrowV1>,
-    ) -> PyResult<PyCurvedElectronArrowCommitV1> {
-        commit_curved_electron_arrow_gesture_v1(&mut self.session, &mut prepared.prepared)
-            .map(|value| commit_to_python(py, value))
-            .map_err(|error| electron_error(py, error))
     }
 }
 
@@ -174,24 +152,6 @@ fn preview_to_python(
     PyCurvedElectronArrowPreviewV1 {
         plan: preview.plan().into(),
         preview,
-    }
-}
-
-fn commit_to_python(
-    py: Python<'_>,
-    value: CommittedCurvedElectronArrowV1,
-) -> PyCurvedElectronArrowCommitV1 {
-    PyCurvedElectronArrowCommitV1 {
-        root: Py::new(
-            py,
-            PyPresentationGestureRootSelectorV1 {
-                identifier: value.root().presentation_id().as_str().to_owned(),
-                kind: Py::new(py, PyPresentationGestureRootKindV1::Arrow)
-                    .expect("root kind allocates"),
-            },
-        )
-        .expect("root selector allocates"),
-        result: value.result().clone().into(),
     }
 }
 
@@ -265,6 +225,5 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCurvedElectronArrowGestureRecoveryV1>()?;
     module.add_class::<PyCurvedElectronArrowGestureV1>()?;
     module.add_class::<PyCurvedElectronArrowPreviewV1>()?;
-    module.add_class::<PyPreparedCurvedElectronArrowV1>()?;
-    module.add_class::<PyCurvedElectronArrowCommitV1>()
+    Ok(())
 }

@@ -3,11 +3,9 @@
 use ferrum_document::{
     DocumentMoleculeHydrogenMaterializationRefusalV1 as DocumentRefusal,
     DocumentMoleculeHydrogenMaterializationRequestV1 as DocumentRequest, DocumentObjectIdV1,
-    SessionOperationResultV1,
-};
-use ferrum_document_render::{
-    HydrogenMaterializationErrorV1, commit_hydrogen_materialization_v1,
-    prepare_hydrogen_materialization_v1,
+    DocumentSessionError, SessionOperation, SessionOperationError, SessionOperationOutcomeV1,
+    SessionOperationResultV1, SessionOperationTransitionRequestV1, SessionOperationV1,
+    TransitionAuthorizationV1,
 };
 
 use super::execution::{ExecutionFailureV1, admit_document, hex_digest};
@@ -38,17 +36,49 @@ pub(crate) fn execute_document_molecule_hydrogen_materialize_on_session(
         molecule_id,
         anchor_atom_id,
     );
-    let (outcome, operation_result) =
-        match prepare_hydrogen_materialization_v1(session, &materialization_request) {
-            Ok(mut prepared) => match commit_hydrogen_materialization_v1(session, &mut prepared) {
-                Ok(result) => (
-                    committed_outcome(session, result.materialization().clone())?,
-                    result.operation_result().cloned(),
-                ),
-                Err(error) => (unavailable_or_refusal(error)?, None),
-            },
-            Err(error) => (unavailable_or_refusal(error)?, None),
-        };
+    let transition = SessionOperationTransitionRequestV1::new(
+        request.document.expected_revision,
+        SessionOperation::V1(SessionOperationV1::MaterializeMoleculeHydrogensV1(
+            materialization_request,
+        )),
+        TransitionAuthorizationV1::None,
+    );
+    let (outcome, operation_result) = match session
+        .prepare_session_operation_transition_v1(transition)
+    {
+        Ok(mut prepared) => match session.commit_session_operation_transition_v1(&mut prepared) {
+            Ok(result) => {
+                let SessionOperationOutcomeV1::MoleculeHydrogensMaterializedV1(materialization) =
+                    result.outcome()
+                else {
+                    return Err(ExecutionFailureV1::internal(
+                        "generic hydrogen transition returned an unexpected outcome".to_owned(),
+                    ));
+                };
+                (
+                    committed_outcome(session, materialization.clone())?,
+                    Some(result),
+                )
+            }
+            Err(error) => {
+                return Err(ExecutionFailureV1::internal(format!(
+                    "generic hydrogen transition could not commit: {error:?}"
+                )));
+            }
+        },
+        Err(DocumentSessionError::Operation(SessionOperationError::HydrogenMaterialization(
+            refusal,
+        ))) => (unavailable_or_refusal(refusal)?, None),
+        Err(DocumentSessionError::RendererAdmission) => (
+            unavailable_or_refusal(DocumentRefusal::RendererAdmission)?,
+            None,
+        ),
+        Err(error) => {
+            return Err(ExecutionFailureV1::internal(format!(
+                "generic hydrogen transition could not prepare: {error}"
+            )));
+        }
+    };
     Ok((
         OperationProtocolOutcomeV1::DocumentMoleculeHydrogenMaterialize {
             materialization: DocumentMoleculeHydrogenMaterializationResultV1 {
@@ -82,7 +112,7 @@ fn committed_outcome(
         // starts its stateless session at revision zero rather than inheriting
         // the transient mutation session's commit revision.
         expected_revision: 0,
-        expected_digest_hex: hex_digest(result.digest()),
+        expected_digest_hex: hex_digest(snapshot.digest()),
     };
     let document = snapshot.cdml().to_owned();
     if result.changed() {
@@ -101,60 +131,50 @@ fn committed_outcome(
 }
 
 fn unavailable_or_refusal(
-    error: HydrogenMaterializationErrorV1,
+    refusal: DocumentRefusal,
 ) -> Result<DocumentMoleculeHydrogenMaterializationOutcomeV1, ExecutionFailureV1> {
-    let unavailable_reason = match error {
-        HydrogenMaterializationErrorV1::Refusal(refusal) => match refusal {
-            DocumentRefusal::StaleObservation
-            | DocumentRefusal::DigestMismatch
-            | DocumentRefusal::UnknownDirectMolecule
-            | DocumentRefusal::UnknownAnchorAtom
-            | DocumentRefusal::AnchorNotInSelectedRoot => {
-                return Err(ExecutionFailureV1::hydrogen_materialization_refusal(
-                    refusal,
-                ));
-            }
-            DocumentRefusal::ElementOutsideProfile => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ElementOutsideProfile
-            }
-            DocumentRefusal::NonzeroFormalCharge => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::NonzeroFormalCharge
-            }
-            DocumentRefusal::NonzeroExplicitHydrogens => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::NonzeroExplicitHydrogens
-            }
-            DocumentRefusal::UnsupportedBondOrRadical => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::UnsupportedBondOrRadical
-            }
-            DocumentRefusal::ExistingHydrogenTopology => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ExistingHydrogenTopology
-            }
-            DocumentRefusal::ValenceExceeded => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ValenceExceeded
-            }
-            DocumentRefusal::UnsupportedDocument => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::UnsupportedDocument
-            }
-            DocumentRefusal::ResourceLimit => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ResourceLimit
-            }
-            DocumentRefusal::UnrenderableCandidate => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::UnrenderableCandidate
-            }
-            DocumentRefusal::RendererAdmission => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::UnrenderableCandidate
-            }
-            DocumentRefusal::OxidationPostcondition => {
-                DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::OxidationPostcondition
-            }
-        },
-        HydrogenMaterializationErrorV1::RenderPreparation => {
+    let unavailable_reason = match refusal {
+        DocumentRefusal::StaleObservation
+        | DocumentRefusal::DigestMismatch
+        | DocumentRefusal::UnknownDirectMolecule
+        | DocumentRefusal::UnknownAnchorAtom
+        | DocumentRefusal::AnchorNotInSelectedRoot => {
+            return Err(ExecutionFailureV1::hydrogen_materialization_refusal(
+                refusal,
+            ));
+        }
+        DocumentRefusal::ElementOutsideProfile => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ElementOutsideProfile
+        }
+        DocumentRefusal::NonzeroFormalCharge => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::NonzeroFormalCharge
+        }
+        DocumentRefusal::NonzeroExplicitHydrogens => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::NonzeroExplicitHydrogens
+        }
+        DocumentRefusal::UnsupportedBondOrRadical => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::UnsupportedBondOrRadical
+        }
+        DocumentRefusal::ExistingHydrogenTopology => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ExistingHydrogenTopology
+        }
+        DocumentRefusal::ValenceExceeded => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ValenceExceeded
+        }
+        DocumentRefusal::UnsupportedDocument => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::UnsupportedDocument
+        }
+        DocumentRefusal::ResourceLimit => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::ResourceLimit
+        }
+        DocumentRefusal::UnrenderableCandidate => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::UnrenderableCandidate
+        }
+        DocumentRefusal::RendererAdmission => {
             DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::RenderPreparation
         }
-        HydrogenMaterializationErrorV1::Replayed => {
-            return Err(ExecutionFailureV1::internal(
-                "hydrogen materialization could not complete".to_owned(),
-            ));
+        DocumentRefusal::OxidationPostcondition => {
+            DocumentMoleculeHydrogenMaterializationUnavailableReasonV1::OxidationPostcondition
         }
     };
     Ok(DocumentMoleculeHydrogenMaterializationOutcomeV1::Unavailable { unavailable_reason })

@@ -10,7 +10,8 @@ use ferrum_chemistry::{
 use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
 use ferrum_document::{
     DocumentIngressErrorV1, DocumentSession, InterchangeRecordBuildErrorV1,
-    PendingAdmittedInterchangeBatchV1, build_interchange_record_batch_insertion_v1,
+    PreparedSessionTransitionV1, SessionOperation, SessionOperationTransitionRequestV1,
+    SessionOperationV1, TransitionAuthorizationV1, build_interchange_record_batch_insertion_v1,
     read_regular_file_with_origin_with_budget,
 };
 use ferrum_geometry::{MoleculePlacementV1, Point2};
@@ -157,29 +158,28 @@ const fn generic_source_refusal() -> InterchangeImportRefusalV1 {
 
 pub(crate) struct PreparedInterchangeNewDocumentV1 {
     session: DocumentSession,
-    baseline_revision: u64,
-    pending: PendingAdmittedInterchangeBatchV1,
-    summary: DocumentInterchangeImportSummaryV1,
+    transition: PreparedSessionTransitionV1,
+    facts: InterchangeImportSummaryFactsV1,
 }
 
 impl PreparedInterchangeNewDocumentV1 {
-    #[must_use]
-    pub(crate) fn summary(&self) -> &DocumentInterchangeImportSummaryV1 {
-        &self.summary
-    }
-
     pub(crate) fn commit_and_take_session(
         mut self,
     ) -> Result<(DocumentSession, DocumentInterchangeImportSummaryV1), InterchangeImportRefusalV1>
     {
         self.session
-            .commit_admitted_interchange_records_v1(self.baseline_revision, &mut self.pending)
+            .commit_session_operation_transition_v1(&mut self.transition)
             .map_err(|_| {
                 InterchangeImportRefusalV1::for_reason(
                     InterchangeImportRefusalReasonV1::InternalFailure,
                 )
             })?;
-        Ok((self.session, self.summary))
+        let snapshot = self.session.snapshot().map_err(|_| {
+            InterchangeImportRefusalV1::for_reason(
+                InterchangeImportRefusalReasonV1::InternalFailure,
+            )
+        })?;
+        Ok((self.session, summary(self.facts, &snapshot)))
     }
 }
 
@@ -326,29 +326,24 @@ fn prepare_records(
     let baseline = session.snapshot().map_err(|_| {
         InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
     })?;
-    let pending = session
-        .prepare_admitted_interchange_records_v1(baseline.revision(), &batch)
+    let transition = session
+        .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+            baseline.revision(),
+            SessionOperation::V1(SessionOperationV1::InsertInterchangeRecordBatchV1(batch)),
+            TransitionAuthorizationV1::none(),
+        ))
         .map_err(|_| generic_source_refusal())?;
-    let (document_revision, digest) =
-        pending.candidate_revision_and_digest_v1().ok_or_else(|| {
-            InterchangeImportRefusalV1::for_reason(
-                InterchangeImportRefusalReasonV1::InternalFailure,
-            )
-        })?;
     Ok(PreparedInterchangeNewDocumentV1 {
         session,
-        baseline_revision: baseline.revision(),
-        pending,
-        summary: summary(InterchangeImportSummaryFactsV1 {
+        transition,
+        facts: InterchangeImportSummaryFactsV1 {
             descriptor,
             provenance,
             imported_record_count: source_record_count,
             atom_count,
             bond_count,
-            document_revision,
-            digest,
             dropped_categories,
-        }),
+        },
     })
 }
 
@@ -362,21 +357,22 @@ struct InterchangeImportSummaryFactsV1 {
     imported_record_count: usize,
     atom_count: usize,
     bond_count: usize,
-    document_revision: u64,
-    digest: [u8; 32],
     dropped_categories: Vec<DocumentInterchangeLossCategoryV1>,
 }
 
-fn summary(facts: InterchangeImportSummaryFactsV1) -> DocumentInterchangeImportSummaryV1 {
+fn summary(
+    facts: InterchangeImportSummaryFactsV1,
+    snapshot: &ferrum_document::DocumentSnapshot,
+) -> DocumentInterchangeImportSummaryV1 {
     DocumentInterchangeImportSummaryV1 {
         format_id: facts.descriptor.format_id().to_owned(),
         profile_id: facts.descriptor.profile_id().to_owned(),
         imported_record_count: facts.imported_record_count as u32,
         atom_count: facts.atom_count as u32,
         bond_count: facts.bond_count as u32,
-        document_revision: facts.document_revision,
-        document_digest_hex: facts
-            .digest
+        document_revision: snapshot.revision(),
+        document_digest_hex: snapshot
+            .digest()
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

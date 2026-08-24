@@ -306,13 +306,6 @@ pub(crate) enum SdfVersion {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum NamedDocumentCommand {
-    /// Produce a Rust-owned molecule report through the frozen protocol route.
-    #[command(name = "document.molecule.report.v1")]
-    DocumentMoleculeReport {
-        input: PathBuf,
-        #[arg(short, long, value_parser = output_file_path)]
-        output: Option<PathBuf>,
-    },
     /// Query direct document molecules through the bounded SMARTS protocol route.
     #[command(name = "document.molecule.smarts.query.v1")]
     DocumentMoleculeSmartsQuery {

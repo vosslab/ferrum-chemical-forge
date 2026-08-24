@@ -1,252 +1,177 @@
-//! Renderer-admitted molecule placement transactions for closed catalog recipes.
-
-use thiserror::Error;
+//! Document-owned lowering for closed catalog molecule placement.
 
 use super::{
-    DocumentFenceV1, DocumentSession, MoleculeInsertionV1, PendingAdmittedMoleculeInsertionV1,
-    PendingStandaloneHaworthV1, PersistentId, Point3V1, SessionOperationResultV1,
+    DocumentSession, DocumentSessionError, PersistentId, Point3V1, RevisionState,
+    SessionOperationError,
 };
-use crate::{AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1};
-use ferrum_domain::haworth::StandaloneDGlucoseHaworthRecipeV1;
+use crate::standalone_haworth_insertion_v1::StandaloneHaworthInsertionV1;
+use crate::{CatalogMoleculePlacementContentV1, CatalogMoleculePlacementV1, CatalogPlacementKeyV1};
+use ferrum_domain::haworth::standalone_d_glucose_haworth_recipe_v1;
 
-/// Session-issued capability for one closed renderer-admitted molecule placement.
-#[derive(Clone, Debug)]
-pub struct CatalogMoleculePlacementGestureV1 {
-    capability: AuthoringCapabilityV1,
-    fence: DocumentFenceV1,
-}
-
-impl CatalogMoleculePlacementGestureV1 {
-    #[must_use]
-    pub fn same_gesture_v1(&self, other: &Self) -> bool {
-        self.fence == other.fence && self.capability.same_capability(&other.capability)
-    }
-}
-
-/// Closed molecule insertion alternatives accepted by the catalog placement transaction.
-#[derive(Clone, Debug)]
-pub enum CatalogMoleculePlacementRequestV1 {
-    Molecule(MoleculeInsertionV1),
-    StandaloneHaworth {
-        recipe: StandaloneDGlucoseHaworthRecipeV1,
-        anchor: Point3V1,
-    },
-}
-
-/// Stable reasons a catalog molecule placement cannot be prepared or committed.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-pub enum CatalogMoleculePlacementRefusalV1 {
-    #[error("catalog placement source is stale")]
-    StaleSnapshot,
-    #[error("catalog placement handle belongs to another document session")]
-    ForeignSession,
-    #[error("catalog placement capability was already used")]
-    ReplayedGesture,
-    #[error("catalog placement candidate could not be rendered completely")]
-    RendererAdmission,
-    #[error("catalog placement commit was rejected by document session")]
-    SessionConflict,
-}
-
-/// Opaque, one-use renderer-admitted catalog molecule placement.
+/// Private facts staged with one generic catalog transition until it commits.
 #[derive(Debug)]
-pub struct PendingCatalogMoleculePlacementV1 {
-    capability: AuthoringCapabilityV1,
-    fence: DocumentFenceV1,
-    pending: CatalogMoleculePendingV1,
-}
-
-#[derive(Debug)]
-enum CatalogMoleculePendingV1 {
-    Molecule(PendingAdmittedMoleculeInsertionV1),
-    StandaloneHaworth(PendingStandaloneHaworthV1),
-}
-
-impl CatalogMoleculePendingV1 {
-    fn identifier(&self) -> &PersistentId {
-        match self {
-            Self::Molecule(pending) => pending.molecule_identifier(),
-            Self::StandaloneHaworth(pending) => pending.molecule_identifier(),
-        }
-    }
-}
-
-impl PendingCatalogMoleculePlacementV1 {
-    #[must_use]
-    pub fn identifier(&self) -> &str {
-        self.pending.identifier().as_str()
-    }
-
-    /// Return the immutable renderer-issued plan for the exact pending candidate.
-    #[must_use]
-    pub fn render_plan_v1(&self) -> &ferrum_render::DocumentRenderPlanV1 {
-        match &self.pending {
-            CatalogMoleculePendingV1::Molecule(pending) => pending.document_render_plan_v1(),
-            CatalogMoleculePendingV1::StandaloneHaworth(pending) => pending.render_plan_v1(),
-        }
-    }
+pub(super) struct CatalogMoleculePlacementOutcomeStagingV1 {
+    pub(super) catalog_key: CatalogPlacementKeyV1,
+    pub(super) anchor: super::PresentationGesturePoint2V1,
+    pub(super) root_identifier: PersistentId,
 }
 
 impl DocumentSession {
-    /// Begin one catalog molecule placement at an exact document fence.
-    pub fn begin_catalog_molecule_placement_v1(
-        &self,
-        fence: DocumentFenceV1,
-    ) -> Result<CatalogMoleculePlacementGestureV1, CatalogMoleculePlacementRefusalV1> {
-        require_catalog_fence(self, fence)?;
-        Ok(CatalogMoleculePlacementGestureV1 {
-            capability: self.authoring_capability_issuer_v1().issue(),
-            fence,
-        })
-    }
-
-    /// Validate a catalog gesture before a non-mutating recipe preview.
-    pub fn validate_catalog_molecule_placement_v1(
-        &self,
-        gesture: &CatalogMoleculePlacementGestureV1,
-    ) -> Result<(), CatalogMoleculePlacementRefusalV1> {
-        if !gesture
-            .capability
-            .belongs_to(&self.authoring_capability_issuer_v1())
-        {
-            return Err(CatalogMoleculePlacementRefusalV1::ForeignSession);
-        }
-        require_catalog_fence(self, gesture.fence)
-    }
-
-    /// Build and renderer-admit one exact catalog insertion without mutating history.
-    pub fn prepare_catalog_molecule_placement_v1(
+    /// Lower one closed catalog request into the sole generic prepared transition.
+    pub(super) fn prepare_place_catalog_molecule_v1(
         &mut self,
-        gesture: &CatalogMoleculePlacementGestureV1,
-        request: CatalogMoleculePlacementRequestV1,
-    ) -> Result<PendingCatalogMoleculePlacementV1, CatalogMoleculePlacementRefusalV1> {
-        self.validate_catalog_molecule_placement_v1(gesture)?;
-        let pending = match request {
-            CatalogMoleculePlacementRequestV1::Molecule(molecule) => {
-                CatalogMoleculePendingV1::Molecule(
-                    self.prepare_admitted_molecule_insertion_v1(
-                        gesture.fence.revision(),
-                        &molecule,
+        expected_revision: u64,
+        request: CatalogMoleculePlacementV1,
+    ) -> Result<super::PreparedSessionTransitionV1, DocumentSessionError> {
+        self.require_current(expected_revision)?;
+        let source_digest = self.current_digest_v1();
+        let catalog_key = request.catalog_key().clone();
+        let anchor = request.anchor();
+        match request.content() {
+            CatalogMoleculePlacementContentV1::Molecule(molecule) => {
+                let (identities, effects) =
+                    self.reserve_generated_ids_for_transition_v1(|ids, indexed| {
+                        ids.reserve_molecule(
+                            indexed,
+                            molecule.atoms().len(),
+                            molecule.bonds().len(),
+                        )
+                    })?;
+                let candidate = self
+                    .current_document_v1()
+                    .with_insert_molecule(
+                        &identities.molecule,
+                        &identities.atoms,
+                        &identities.bonds,
+                        molecule,
                     )
-                    .map_err(|_| CatalogMoleculePlacementRefusalV1::SessionConflict)?,
-                )
-            }
-            CatalogMoleculePlacementRequestV1::StandaloneHaworth { recipe, anchor } => {
-                CatalogMoleculePendingV1::StandaloneHaworth(
-                    self.prepare_create_standalone_haworth_v1(
-                        gesture.fence.revision(),
-                        recipe,
+                    .map_err(SessionOperationError::Candidate)?;
+                let state = catalog_revision_state(self, candidate)?;
+                self.prepare_changed_session_transition_with_catalog_outcome_v1(
+                    expected_revision,
+                    source_digest,
+                    state,
+                    effects,
+                    CatalogMoleculePlacementOutcomeStagingV1 {
+                        catalog_key,
                         anchor,
-                    )
-                    .map_err(|_| CatalogMoleculePlacementRefusalV1::SessionConflict)?,
+                        root_identifier: identities.molecule,
+                    },
                 )
             }
-        };
-        Ok(PendingCatalogMoleculePlacementV1 {
-            capability: gesture.capability.clone(),
-            fence: gesture.fence,
-            pending,
-        })
-    }
-
-    /// Verify and atomically append one exact renderer-admitted catalog insertion.
-    pub fn commit_catalog_molecule_placement_v1(
-        &mut self,
-        pending: &mut PendingCatalogMoleculePlacementV1,
-    ) -> Result<SessionOperationResultV1, CatalogMoleculePlacementRefusalV1> {
-        if !pending
-            .capability
-            .belongs_to(&self.authoring_capability_issuer_v1())
-        {
-            return Err(CatalogMoleculePlacementRefusalV1::ForeignSession);
+            CatalogMoleculePlacementContentV1::StandaloneHaworth(recipe) => {
+                let receipt = standalone_d_glucose_haworth_recipe_v1(*recipe).map_err(|error| {
+                    DocumentSessionError::Operation(SessionOperationError::InvalidCatalogPlacement(
+                        error.to_string(),
+                    ))
+                })?;
+                let insertion = StandaloneHaworthInsertionV1::from_receipt(
+                    &receipt,
+                    Point3V1::new(anchor.x(), anchor.y(), 0.0).map_err(|error| {
+                        DocumentSessionError::Operation(
+                            SessionOperationError::InvalidCatalogPlacement(error.to_string()),
+                        )
+                    })?,
+                )
+                .map_err(DocumentSessionError::Operation)?;
+                let (identities, effects) =
+                    self.reserve_generated_ids_for_transition_v1(|sequences, indexed| {
+                        sequences.reserve_molecule(
+                            indexed,
+                            insertion.atom_count(),
+                            insertion.bond_count(),
+                        )
+                    })?;
+                let candidate = self
+                    .current_document_v1()
+                    .with_insert_standalone_haworth(
+                        &identities.molecule,
+                        &identities.atoms,
+                        &identities.bonds,
+                        &insertion,
+                    )
+                    .map_err(SessionOperationError::Candidate)?;
+                let state = catalog_revision_state(self, candidate)?;
+                let token_effect = self.issue_transition_provisional_token_effect_v1()?;
+                let effects =
+                    Self::compose_transition_effects_v1(effects, token_effect).map_err(|_| {
+                        DocumentSessionError::Operation(
+                            SessionOperationError::InvalidCatalogPlacement(
+                                "conflicting deferred catalog transition effects".to_owned(),
+                            ),
+                        )
+                    })?;
+                self.prepare_changed_session_transition_with_catalog_outcome_v1(
+                    expected_revision,
+                    source_digest,
+                    state,
+                    effects,
+                    CatalogMoleculePlacementOutcomeStagingV1 {
+                        catalog_key,
+                        anchor,
+                        root_identifier: identities.molecule,
+                    },
+                )
+            }
         }
-        let claim = pending
-            .capability
-            .claim_for_commit(&self.authoring_capability_issuer_v1())
-            .map_err(|error| match error {
-                AuthoringCapabilityAccessErrorV1::ForeignSession => {
-                    CatalogMoleculePlacementRefusalV1::ForeignSession
-                }
-                AuthoringCapabilityAccessErrorV1::Replayed => {
-                    CatalogMoleculePlacementRefusalV1::ReplayedGesture
-                }
-            })?;
-        require_catalog_fence(self, pending.fence)?;
-        let operation = match &mut pending.pending {
-            CatalogMoleculePendingV1::Molecule(value) => self
-                .commit_admitted_molecule_insertion_v1(pending.fence.revision(), value)
-                .map_err(|_| CatalogMoleculePlacementRefusalV1::SessionConflict)?,
-            CatalogMoleculePendingV1::StandaloneHaworth(value) => self
-                .commit_create_standalone_haworth_v1(pending.fence.revision(), value)
-                .map_err(|_| CatalogMoleculePlacementRefusalV1::SessionConflict)?,
-        };
-        claim.consume();
-        Ok(operation)
     }
 }
 
-fn require_catalog_fence(
+fn catalog_revision_state(
     session: &DocumentSession,
-    fence: DocumentFenceV1,
-) -> Result<(), CatalogMoleculePlacementRefusalV1> {
-    let snapshot = session
-        .snapshot()
-        .map_err(|_| CatalogMoleculePlacementRefusalV1::SessionConflict)?;
-    if snapshot.revision() != fence.revision() || *snapshot.digest() != fence.digest() {
-        return Err(CatalogMoleculePlacementRefusalV1::StaleSnapshot);
-    }
-    Ok(())
+    candidate: crate::TypedDocument,
+) -> Result<RevisionState, DocumentSessionError> {
+    let revision = session
+        .next_revision_v1()
+        .ok_or(DocumentSessionError::RevisionExhausted)?;
+    RevisionState::from_document(revision, candidate).map_err(DocumentSessionError::Load)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MoleculeInsertionAtomV1, MoleculeInsertionV1, PresentationGesturePoint2V1};
+    use crate::{
+        MoleculeInsertionAtomV1, MoleculeInsertionV1, SessionOperation, SessionOperationOutcomeV1,
+        SessionOperationV1, TransitionAuthorizationV1,
+    };
 
-    fn fence(session: &DocumentSession) -> DocumentFenceV1 {
-        let snapshot = session.snapshot().expect("snapshot");
-        DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
-    }
-
-    fn molecule_request() -> CatalogMoleculePlacementRequestV1 {
-        let point = PresentationGesturePoint2V1::new(20.0, 10.0).expect("point");
+    #[test]
+    fn generic_catalog_transition_returns_committed_intent_and_root() {
+        let mut session = DocumentSession::create_empty_document_v1().expect("empty document");
+        let anchor = super::super::PresentationGesturePoint2V1::new(12.0, -4.0).expect("anchor");
         let atom = MoleculeInsertionAtomV1::new(
             "C",
-            Point3V1::new(point.x(), point.y(), 0.0).expect("three-dimensional point"),
+            Point3V1::new(anchor.x(), anchor.y(), 0.0).expect("point"),
             None,
             None,
             None,
         )
         .expect("atom");
-        let molecule = MoleculeInsertionV1::new(vec![atom], Vec::new()).expect("molecule");
-        CatalogMoleculePlacementRequestV1::Molecule(molecule)
-    }
-
-    #[test]
-    fn stale_catalog_pending_keeps_its_exact_refusal_and_leaves_history_unchanged() {
-        let source = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
-        let mut session = DocumentSession::load(source).expect("session");
-        let start = fence(&session);
-        let gesture = session
-            .begin_catalog_molecule_placement_v1(start)
-            .expect("gesture");
-        let mut pending = session
-            .prepare_catalog_molecule_placement_v1(&gesture, molecule_request())
-            .expect("renderer admission");
-        let mut replacement = session
-            .prepare_complete_cdml_mutation_v1(start, source)
-            .expect("separate document transition prepares");
-        session
-            .commit_complete_cdml_mutation_v1(&mut replacement)
-            .expect("separate document transition commits");
-        assert!(matches!(
-            session.commit_catalog_molecule_placement_v1(&mut pending),
-            Err(CatalogMoleculePlacementRefusalV1::StaleSnapshot)
-        ));
-        assert!(matches!(
-            session.commit_catalog_molecule_placement_v1(&mut pending),
-            Err(CatalogMoleculePlacementRefusalV1::StaleSnapshot)
-        ));
-        assert_eq!(session.snapshot().expect("snapshot").revision(), 1);
+        let request = CatalogMoleculePlacementV1::new(
+            CatalogPlacementKeyV1::new("system/test/carbon".to_owned()).expect("key"),
+            anchor,
+            CatalogMoleculePlacementContentV1::Molecule(
+                MoleculeInsertionV1::new(vec![atom], Vec::new()).expect("molecule"),
+            ),
+        );
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(
+                crate::SessionOperationTransitionRequestV1::new(
+                    0,
+                    SessionOperation::V1(SessionOperationV1::PlaceCatalogMoleculeV1(request)),
+                    TransitionAuthorizationV1::None,
+                ),
+            )
+            .expect("generic preparation");
+        let result = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("generic commit");
+        let SessionOperationOutcomeV1::CatalogMoleculePlacementV1(outcome) = result.outcome()
+        else {
+            panic!("catalog outcome");
+        };
+        assert_eq!(outcome.catalog_key().as_str(), "system/test/carbon");
+        assert_eq!(outcome.anchor(), anchor);
+        assert_eq!(outcome.root_identifier().as_str(), "ferrum-molecule-v1-0");
     }
 }

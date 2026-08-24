@@ -46,11 +46,25 @@ and Rust reopen.
 
 ## Disk ownership
 
-Compiler intermediates are created only in `build/.cargo-target` and removed on
-success, failure, or interruption. The final local CLI and extension remain in
-`build/`; no per-invocation output roots, archive cache, wheelhouse, or global
-installation is created. Before and after compilation, `build.sh` refuses a
-checkout larger than 20 GiB.
+Ferrum separates retained local runtime products from disposable compiler work:
+
+- `build/bin/` and `build/runtime/` are retained because they are the runnable
+  local application.
+- `build/.cargo-target/` is private compiler work for `build.sh`. The build
+  cleanup removes it on success, failure, or interruption.
+- `build/.cargo-check-target/` is private compiler work for `check_rust.sh`.
+  That checker removes it after its gate finishes.
+
+All supported Rust front doors use disposable target work below `build/`.
+Package-local `packages/ferrum-rust/target/` directories, including nested
+PyO3 target directories, are not build outputs. `build.sh` retains no
+per-invocation output roots, archive cache, wheelhouse, or global installation.
+Before and after compilation, it refuses a checkout larger than 20 GiB.
+
+The cleanup contract has focused synthetic temporary-root coverage. A one-time
+post-build measurement recorded a 1.2 GiB checkout with a 591 MiB `build/`
+directory and no source-package target directories; that observation informs
+capacity planning but is not a permanent machine-dependent test.
 
 One root `build.sh` invocation owns `build/` at a time. A second invocation
 fails before changing shared build state, avoiding concurrent compiler-cache or

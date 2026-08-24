@@ -7,28 +7,21 @@
 
 use ferrum_document::DirectBondSnapPolicyV1;
 use ferrum_document_render::{
-    CommittedDirectBondGestureV3, DirectBondAdmissionCategoryV3,
-    DirectBondAdmissionErrorV3 as RenderDirectBondAdmissionErrorV3, DirectBondAdmissionRecoveryV3,
-    DirectBondAdmissionRefusalV3 as RenderDirectBondAdmissionRefusalV3, DirectBondAdmissionV3,
-    DirectBondCommitCategoryV1, DirectBondCommitError as RenderDirectBondCommitError,
-    DirectBondCommitRecoveryV1, DirectBondGestureV3, DirectBondPointerHitStateV3,
-    DirectBondPointerProbeCategoryV3,
+    DirectBondAdmissionCategoryV3, DirectBondAdmissionErrorV3 as RenderDirectBondAdmissionErrorV3,
+    DirectBondAdmissionRecoveryV3,
+    DirectBondAdmissionRefusalV3 as RenderDirectBondAdmissionRefusalV3, DirectBondGestureV3,
+    DirectBondPointerHitStateV3, DirectBondPointerProbeCategoryV3,
     DirectBondPointerProbeErrorV3 as RenderDirectBondPointerProbeErrorV3,
     DirectBondPointerProbeRecoveryV3, DirectBondPointerProbeV3, DirectBondViewportToSceneV3,
 };
 use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
-
-use super::binding::PySessionOperationResultV1;
-
 create_exception!(
     ferrum_chem,
     DirectBondGestureError,
     super::binding::DocumentError
 );
-create_exception!(ferrum_chem, DirectBondCommitError, DirectBondGestureError);
 create_exception!(
     ferrum_chem,
     DirectBondAdmissionRefusalV3,
@@ -136,44 +129,6 @@ pub(super) enum PyDirectBondPointerHitStateV3 {
     AmbiguousAtom,
 }
 
-#[pyclass(
-    frozen,
-    eq,
-    hash,
-    module = "ferrum_chem",
-    name = "DirectBondCommitCategoryV1",
-    rename_all = "snake_case",
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum PyDirectBondCommitCategoryV1 {
-    ForeignSession,
-    ReplayedReceipt,
-    UnrenderableCandidate,
-    StaleRevision,
-    StaleDigest,
-    IdentityAllocationFailed,
-    ProvisionalTokenUnavailable,
-    CandidateApplicationFailed,
-    RevisionExhausted,
-}
-
-#[pyclass(
-    frozen,
-    eq,
-    hash,
-    module = "ferrum_chem",
-    name = "DirectBondCommitRecoveryV1",
-    rename_all = "snake_case",
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum PyDirectBondCommitRecoveryV1 {
-    RefreshAndRestart,
-    ChangePresentation,
-    ReportConflict,
-}
-
 #[pyclass(frozen, module = "ferrum_chem", name = "DirectBondSnapPolicyV1")]
 pub(super) struct PyDirectBondSnapPolicyV1 {
     pub(super) policy: DirectBondSnapPolicyV1,
@@ -252,93 +207,22 @@ impl PyDirectBondPointerProbeV3 {
 
 #[pyclass(unsendable, module = "ferrum_chem", name = "DirectBondGestureV3")]
 pub(super) struct PyDirectBondGestureV3 {
-    pub(super) gesture: DirectBondGestureV3,
+    gesture: Option<DirectBondGestureV3>,
 }
 
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "DirectBondOverlayV3",
-    skip_from_py_object
-)]
-pub(super) struct PyDirectBondOverlayV3 {
-    #[pyo3(get)]
-    start_x: f64,
-    #[pyo3(get)]
-    start_y: f64,
-    #[pyo3(get)]
-    end_x: f64,
-    #[pyo3(get)]
-    end_y: f64,
-    #[pyo3(get)]
-    presentation: String,
-    render_operations: Py<PyTuple>,
-}
-#[pymethods]
-impl PyDirectBondOverlayV3 {
-    #[getter]
-    fn render_operations(&self, py: Python<'_>) -> Py<PyTuple> {
-        self.render_operations.clone_ref(py)
+impl PyDirectBondGestureV3 {
+    pub(super) fn from_renderer_gesture(gesture: DirectBondGestureV3) -> Self {
+        Self {
+            gesture: Some(gesture),
+        }
     }
-}
 
-#[pyclass(unsendable, module = "ferrum_chem", name = "DirectBondAdmissionV3")]
-pub(super) struct PyDirectBondAdmissionV3 {
-    pub(super) admission: DirectBondAdmissionV3,
-    #[pyo3(get)]
-    overlay: Py<PyDirectBondOverlayV3>,
-}
-
-#[pyclass(frozen, module = "ferrum_chem", name = "DirectBondCommitV3")]
-pub(super) struct PyDirectBondCommitV3 {
-    #[pyo3(get)]
-    bond_identifier: String,
-    #[pyo3(get)]
-    end_atom_identifier: String,
-    #[pyo3(get)]
-    created_new_atom: bool,
-    #[pyo3(get)]
-    second_created_atom_identifier: Option<String>,
-    #[pyo3(get)]
-    created_new_molecule: bool,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
-}
-
-pub(super) fn admission_v3_binding(
-    py: Python<'_>,
-    admission: DirectBondAdmissionV3,
-) -> PyResult<PyDirectBondAdmissionV3> {
-    let overlay = admission.overlay();
-    let values = overlay
-        .operations()
-        .iter()
-        .map(|operation| super::render_binding::operation_from(py, operation))
-        .collect::<PyResult<Vec<_>>>()?;
-    let overlay = Py::new(
-        py,
-        PyDirectBondOverlayV3 {
-            start_x: overlay.start_x(),
-            start_y: overlay.start_y(),
-            end_x: overlay.end_x(),
-            end_y: overlay.end_y(),
-            presentation: presentation_name(overlay.presentation()).to_owned(),
-            render_operations: super::render_binding::frozen_tuple(py, &values)?,
-        },
-    )?;
-    Ok(PyDirectBondAdmissionV3 { admission, overlay })
-}
-
-pub(super) fn commit_v3_binding(value: CommittedDirectBondGestureV3) -> PyDirectBondCommitV3 {
-    PyDirectBondCommitV3 {
-        bond_identifier: value.bond().as_str().to_owned(),
-        end_atom_identifier: value.end_atom().as_str().to_owned(),
-        created_new_atom: value.created_new_atom(),
-        second_created_atom_identifier: value
-            .second_created_atom()
-            .map(|id| id.as_str().to_owned()),
-        created_new_molecule: value.created_new_molecule(),
-        result: value.result().clone().into(),
+    pub(super) fn take_for_resolution(&mut self) -> PyResult<DirectBondGestureV3> {
+        self.gesture.take().ok_or_else(|| {
+            DirectBondGestureError::new_err(
+                "direct-bond gesture was already transferred to endpoint resolution",
+            )
+        })
     }
 }
 
@@ -473,56 +357,6 @@ fn admission_refusal_error(py: Python<'_>, error: RenderDirectBondAdmissionRefus
     exception
 }
 
-pub(super) fn commit_error(py: Python<'_>, error: RenderDirectBondCommitError) -> PyErr {
-    let category = match error.category() {
-        DirectBondCommitCategoryV1::ForeignSession => PyDirectBondCommitCategoryV1::ForeignSession,
-        DirectBondCommitCategoryV1::ReplayedReceipt => {
-            PyDirectBondCommitCategoryV1::ReplayedReceipt
-        }
-        DirectBondCommitCategoryV1::UnrenderableCandidate => {
-            PyDirectBondCommitCategoryV1::UnrenderableCandidate
-        }
-        DirectBondCommitCategoryV1::StaleRevision => PyDirectBondCommitCategoryV1::StaleRevision,
-        DirectBondCommitCategoryV1::StaleDigest => PyDirectBondCommitCategoryV1::StaleDigest,
-        DirectBondCommitCategoryV1::IdentityAllocationFailed => {
-            PyDirectBondCommitCategoryV1::IdentityAllocationFailed
-        }
-        DirectBondCommitCategoryV1::ProvisionalTokenUnavailable => {
-            PyDirectBondCommitCategoryV1::ProvisionalTokenUnavailable
-        }
-        DirectBondCommitCategoryV1::CandidateApplicationFailed => {
-            PyDirectBondCommitCategoryV1::CandidateApplicationFailed
-        }
-        DirectBondCommitCategoryV1::RevisionExhausted => {
-            PyDirectBondCommitCategoryV1::RevisionExhausted
-        }
-    };
-    let recovery = match error.recovery() {
-        DirectBondCommitRecoveryV1::RefreshAndRestart => {
-            PyDirectBondCommitRecoveryV1::RefreshAndRestart
-        }
-        DirectBondCommitRecoveryV1::ChangePresentation => {
-            PyDirectBondCommitRecoveryV1::ChangePresentation
-        }
-        DirectBondCommitRecoveryV1::ReportConflict => PyDirectBondCommitRecoveryV1::ReportConflict,
-    };
-    let exception = DirectBondCommitError::new_err(error.to_string());
-    let value = exception.value(py);
-    value
-        .setattr(
-            "category",
-            Py::new(py, category).expect("closed commit category"),
-        )
-        .expect("commit category attaches");
-    value
-        .setattr(
-            "recovery",
-            Py::new(py, recovery).expect("closed commit recovery"),
-        )
-        .expect("commit recovery attaches");
-    exception
-}
-
 pub(super) fn parse_digest(value: &str) -> PyResult<[u8; 32]> {
     if value.len() != 64
         || !value
@@ -544,22 +378,5 @@ const fn hex_value(value: u8) -> u8 {
         b'0'..=b'9' => value - b'0',
         b'a'..=b'f' => value - b'a' + 10,
         _ => 0,
-    }
-}
-pub(super) fn presentation_name(
-    value: ferrum_document::DocumentBondPresentationV1,
-) -> &'static str {
-    match value {
-        ferrum_document::DocumentBondPresentationV1::Normal(
-            ferrum_document::DocumentBondOrderV1::Single,
-        ) => "normal_single",
-        ferrum_document::DocumentBondPresentationV1::Normal(
-            ferrum_document::DocumentBondOrderV1::Double,
-        ) => "normal_double",
-        ferrum_document::DocumentBondPresentationV1::Normal(
-            ferrum_document::DocumentBondOrderV1::Triple,
-        ) => "normal_triple",
-        ferrum_document::DocumentBondPresentationV1::SolidWedge => "solid_wedge",
-        ferrum_document::DocumentBondPresentationV1::HashedWedge => "hashed_wedge",
     }
 }

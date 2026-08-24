@@ -53,7 +53,7 @@ class FerrumNativeDocumentSelectionMixin:
 		if any(type(change) is not engine.DocumentAtomPropertyChangeV1 for change in changes):
 			raise TypeError("Ferrum atom properties require exact frozen Ferrum changes")
 		operation = engine.DocumentOperationV1.set_atom_properties(selected, changes)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("atom", selected),))
 		return result
 
@@ -68,7 +68,7 @@ class FerrumNativeDocumentSelectionMixin:
 		operation = engine.DocumentOperationV1.set_atom_number(
 			molecule_id, atom_id, number, show_number,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("atom", atom_id),))
 		return result
 
@@ -81,7 +81,7 @@ class FerrumNativeDocumentSelectionMixin:
 		operation = engine.DocumentOperationV1.clear_atom_number(
 			molecule_id, atom_id,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("atom", atom_id),))
 		return result
 
@@ -101,7 +101,7 @@ class FerrumNativeDocumentSelectionMixin:
 		operation = engine.DocumentOperationV1.apply_atom_mark(
 			molecule_id, atom_id, action, kind, matching_mark_index,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("atom", atom_id),))
 		return result
 
@@ -156,7 +156,7 @@ class FerrumNativeDocumentSelectionMixin:
 		if any(type(change) is not engine.DocumentBondPropertyChangeV1 for change in changes):
 			raise TypeError("Ferrum bond properties require exact frozen Ferrum changes")
 		operation = engine.DocumentOperationV1.set_bond_properties(selected, changes)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("bond", selected),))
 		return result
 
@@ -257,7 +257,7 @@ class FerrumNativeDocumentSelectionMixin:
 		operation = engine.DocumentOperationV1.set_plus_properties(
 			plus.target.source_id, changes,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("plus", plus.target.id),))
 		return result
 
@@ -291,7 +291,7 @@ class FerrumNativeDocumentSelectionMixin:
 		operation = engine.DocumentOperationV1.set_arrow_properties(
 			arrow.target.source_id, changes,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("arrow", arrow.target.id),))
 		return result
 
@@ -302,7 +302,7 @@ class FerrumNativeDocumentSelectionMixin:
 		selected = self._selected_atom_identifier()
 		import ferrum_qt.ferrum.engine as engine
 		operation = engine.DocumentOperationV1.delete_atom(selected)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result)
 		return result
 
@@ -313,7 +313,7 @@ class FerrumNativeDocumentSelectionMixin:
 		selected = self._selected_durable_identifiers(1, "bond")[0]
 		import ferrum_qt.ferrum.engine as engine
 		operation = engine.DocumentOperationV1.delete_bond(selected)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result)
 		return result
 
@@ -326,9 +326,18 @@ class FerrumNativeDocumentSelectionMixin:
 			raise TypeError("Ferrum bond order requires an exact Ferrum order value")
 		selected = self._selected_durable_identifiers(1, "bond")[0]
 		operation = engine.DocumentOperationV1.set_bond_order(selected, order)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (("bond", selected),))
 		return result
+
+	#============================================
+	def _apply_current_selection_operation_v1(self, operation: object) -> object:
+		"""Apply one verified closed operation against the installed selection fence."""
+		import ferrum_qt.ferrum.engine as engine
+		if type(operation) is not engine.DocumentOperationV1:
+			raise TypeError("Ferrum selection mutation requires an exact closed operation")
+		return self._apply_current_document_operation_v1(operation)
+
 	#============================================
 	def selected_molecule_atom_address(self) -> FerrumSelectedMoleculeAtomAddress:
 		"""Resolve one selected atom through the current durable document projection."""

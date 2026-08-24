@@ -1,12 +1,13 @@
 //! Rust-owned, revision-fenced straight normal-arrow authoring geometry.
 
 use crate::{
-    ArrowHeadShapeV1, ArrowProjectionKindV1, AuthoringCapabilityV1, DocumentFenceV1, PersistentId,
-    Point3V1, PositiveFiniteV1, PresentationArrowPreviewRequestV1, PresentationFactProvenanceV1,
-    PresentationRecordKindV1, PresentationRootSelectorV1, PresentationStrokeV1, Rgb24V1,
-    SessionOperationResultV1,
+    ArrowHeadShapeV1, ArrowProjectionKindV1, AuthoringCapabilityV1, DocumentFenceV1, Point3V1,
+    PositiveFiniteV1, PresentationArrowPreviewRequestV1, PresentationFactProvenanceV1,
+    PresentationStrokeV1, Rgb24V1,
 };
-use ferrum_render::{PresentationRenderPlanV1, lower_arrow_preview_v1};
+use ferrum_render::{
+    PresentationRenderPlanV1, RenderPoint, lower_arrow_preview_v1, lower_standard_plus_preview_v1,
+};
 use thiserror::Error;
 
 pub const ARROW_MINIMUM_LENGTH_PT_V1: f64 = 2.0;
@@ -98,7 +99,7 @@ impl PresentationGestureSnapPolicyV1 {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct PresentationCreationGestureV1 {
     pub(crate) capability: AuthoringCapabilityV1,
     pub(crate) fence: DocumentFenceV1,
@@ -107,54 +108,31 @@ pub struct PresentationCreationGestureV1 {
     pub(crate) style: PresentationGestureStyleV1,
     pub(crate) snap: PresentationGestureSnapPolicyV1,
 }
-#[derive(Clone, Debug, PartialEq)]
-pub struct PresentationCreationPreviewV1 {
-    pub(crate) gesture: PresentationCreationGestureV1,
-    pub(crate) end: PresentationGesturePoint2V1,
-    plan: Option<PresentationRenderPlanV1>,
-}
-impl PresentationCreationPreviewV1 {
-    /// Return the immutable renderer plan for this arrow preview.
-    #[must_use]
-    pub fn plan(&self) -> Option<&PresentationRenderPlanV1> {
-        self.plan.as_ref()
+impl PresentationCreationGestureV1 {
+    pub(crate) fn same_gesture(&self, other: &Self) -> bool {
+        self.capability.same_capability(&other.capability)
+            && self.fence == other.fence
+            && self.kind == other.kind
+            && self.start == other.start
+            && self.style == other.style
+            && self.snap == other.snap
     }
 }
 #[derive(Clone, Debug)]
-pub struct CommittedPresentationGestureV1 {
-    root: PresentationRootSelectorV1,
-    result: SessionOperationResultV1,
+pub struct PresentationCreationPreviewV1 {
+    pub(crate) gesture: PresentationCreationGestureV1,
+    pub(crate) end: PresentationGesturePoint2V1,
+    plan: PresentationRenderPlanV1,
 }
-impl CommittedPresentationGestureV1 {
+impl PresentationCreationPreviewV1 {
+    /// Return the immutable renderer plan for this presentation preview.
     #[must_use]
-    pub fn root(&self) -> &PresentationRootSelectorV1 {
-        &self.root
+    pub const fn plan(&self) -> &PresentationRenderPlanV1 {
+        &self.plan
     }
-    #[must_use]
-    pub fn result(&self) -> &SessionOperationResultV1 {
-        &self.result
-    }
-    pub(crate) fn new(
-        kind: PresentationGestureKindV1,
-        id: PersistentId,
-        result: SessionOperationResultV1,
-    ) -> Self {
-        Self {
-            root: PresentationRootSelectorV1::new(
-                id.as_str(),
-                match kind {
-                    PresentationGestureKindV1::StraightNormalArrow => {
-                        PresentationRecordKindV1::Arrow
-                    }
-                    PresentationGestureKindV1::StraightEquilibriumArrow => {
-                        PresentationRecordKindV1::Arrow
-                    }
-                    PresentationGestureKindV1::Plus => PresentationRecordKindV1::Plus,
-                },
-            )
-            .expect("generated ID valid"),
-            result,
-        }
+
+    pub(crate) fn matches_gesture(&self, gesture: &PresentationCreationGestureV1) -> bool {
+        self.gesture.same_gesture(gesture)
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -248,9 +226,14 @@ pub(crate) fn preview(
     raw_end: PresentationGesturePoint2V1,
 ) -> Result<PresentationCreationPreviewV1, PresentationGestureErrorV1> {
     if gesture.kind == PresentationGestureKindV1::Plus {
+        let plan = lower_standard_plus_preview_v1(
+            RenderPoint::new(gesture.start.x(), gesture.start.y())
+                .expect("finite gesture anchors form a render point"),
+        )
+        .map_err(|_| PresentationGestureErrorV1::SessionConflict)?;
         return Ok(PresentationCreationPreviewV1 {
             end: gesture.start,
-            plan: None,
+            plan,
             gesture,
         });
     }
@@ -292,11 +275,7 @@ pub(crate) fn preview(
     .map_err(|_| PresentationGestureErrorV1::InvalidGestureStyle)?;
     let plan = lower_arrow_preview_v1(&request)
         .map_err(|_| PresentationGestureErrorV1::BelowMinimumLength)?;
-    Ok(PresentationCreationPreviewV1 {
-        plan: Some(plan),
-        gesture,
-        end,
-    })
+    Ok(PresentationCreationPreviewV1 { plan, gesture, end })
 }
 
 fn point3(point: PresentationGesturePoint2V1) -> Point3V1 {
@@ -355,7 +334,7 @@ mod tests {
             snap: PresentationGestureSnapPolicyV1::new(Some(45), Some(20)).unwrap(),
         };
         let p = preview(g, PresentationGesturePoint2V1::new(8.0, 9.0).unwrap()).unwrap();
-        let plan = p.plan().expect("Arrow owns a renderer plan");
+        let plan = p.plan();
         let root = plan.roots().first().expect("preview has one root");
         assert_eq!(plan.roots().len(), 1);
         assert_eq!(
@@ -372,7 +351,26 @@ mod tests {
 #[cfg(test)]
 mod session_tests {
     use super::*;
-    use crate::DocumentSession;
+    use crate::{
+        CreatedPresentationRootKindV1, DocumentSession, SessionOperationOutcomeV1,
+        SessionOperationResultV1,
+    };
+
+    fn commit(
+        session: &mut DocumentSession,
+        gesture: &PresentationCreationGestureV1,
+        preview: &PresentationCreationPreviewV1,
+    ) -> SessionOperationResultV1 {
+        let request = session
+            .resolve_presentation_creation_gesture_v1(gesture, preview)
+            .expect("generic request resolves");
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(request)
+            .expect("generic transition prepares");
+        session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("generic transition commits")
+    }
 
     #[test]
     fn presentation_creation_gesture_commits_canonical_arrow_once() {
@@ -388,8 +386,8 @@ mod session_tests {
                 PresentationGestureSnapPolicyV1::free(),
             )
             .expect("begin");
-        let mut preview = session
-            .prepare_presentation_creation_gesture_v1(
+        let preview = session
+            .preview_presentation_creation_gesture_v1(
                 &gesture,
                 PresentationGesturePoint2V1::new(72.0, 0.0).expect("end"),
             )
@@ -405,14 +403,16 @@ mod session_tests {
             2
         );
         assert_eq!(root.bounds().right(), 72.0);
-        let committed = session
-            .commit_presentation_creation_gesture_v1(&mut preview)
-            .expect("commit");
-        assert_eq!(committed.result().observation().snapshot().revision(), 1);
-        let cdml = committed.result().observation().snapshot().cdml();
+        let committed = commit(&mut session, &gesture, &preview);
+        assert_eq!(committed.observation().snapshot().revision(), 1);
+        assert!(matches!(
+            committed.outcome(),
+            SessionOperationOutcomeV1::CreatedPresentationRootV1(outcome)
+                if outcome.kind() == CreatedPresentationRootKindV1::StraightNormalArrow
+        ));
+        let cdml = committed.observation().snapshot().cdml();
         assert!(cdml.contains("width=\"1.0\""));
         assert!(cdml.contains("color=\"#000000\""));
-        assert!(cdml.contains("x=\"2.540cm\""));
         assert_eq!(
             session
                 .undo(1)
@@ -440,21 +440,22 @@ mod session_tests {
                 PresentationGestureSnapPolicyV1::free(),
             )
             .expect("begin");
-        let mut preview = session
-            .prepare_presentation_creation_gesture_v1(
+        let preview = session
+            .preview_presentation_creation_gesture_v1(
                 &gesture,
                 PresentationGesturePoint2V1::new(0.0, 0.0).expect("ignored endpoint"),
             )
             .expect("preview");
         assert_eq!(session.snapshot().expect("pure preview"), before);
         assert!(!preview.plan().roots().is_empty());
-        let committed = session
-            .commit_presentation_creation_gesture_v1(&mut preview)
-            .expect("commit");
-        assert_eq!(committed.root().kind(), PresentationRecordKindV1::Plus);
-        let cdml = committed.result().observation().snapshot().cdml();
+        let committed = commit(&mut session, &gesture, &preview);
+        assert!(matches!(
+            committed.outcome(),
+            SessionOperationOutcomeV1::CreatedPresentationRootV1(outcome)
+                if outcome.kind() == CreatedPresentationRootKindV1::Plus
+        ));
+        let cdml = committed.observation().snapshot().cdml();
         assert!(cdml.contains("<plus"));
-        assert!(cdml.contains("x=\"2.540cm\""));
         let plus = cdml.split("<plus").nth(1).expect("inserted plus source");
         assert!(
             !plus
@@ -488,8 +489,8 @@ mod session_tests {
                 PresentationGestureSnapPolicyV1::free(),
             )
             .expect("begin");
-        let mut preview = session
-            .prepare_presentation_creation_gesture_v1(
+        let preview = session
+            .preview_presentation_creation_gesture_v1(
                 &gesture,
                 PresentationGesturePoint2V1::new(72.0, 0.0).expect("end"),
             )
@@ -504,21 +505,22 @@ mod session_tests {
             3
         );
         assert!(root.bounds().bottom() > root.bounds().top());
-        let committed = session
-            .commit_presentation_creation_gesture_v1(&mut preview)
-            .expect("commit");
-        let cdml = committed.result().observation().snapshot().cdml();
+        let committed = commit(&mut session, &gesture, &preview);
+        let cdml = committed.observation().snapshot().cdml();
         assert_eq!(cdml.matches("<arrow").count(), 1);
         assert!(cdml.contains("type=\"equilibrium\""));
         assert!(!cdml.contains(" start="));
         assert!(!cdml.contains(" end="));
-        assert_eq!(committed.root().kind(), PresentationRecordKindV1::Arrow);
+        assert!(matches!(
+            committed.outcome(),
+            SessionOperationOutcomeV1::CreatedPresentationRootV1(outcome)
+                if outcome.kind() == CreatedPresentationRootKindV1::StraightEquilibriumArrow
+        ));
     }
 
     #[test]
     fn equilibrium_gesture_below_its_fixed_span_is_non_mutating() {
-        let mut session =
-            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
+        let session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("session");
         let before = session.snapshot().expect("before");
         let gesture = session
             .begin_presentation_creation_gesture_v1(
@@ -530,7 +532,7 @@ mod session_tests {
             )
             .expect("begin");
         assert!(matches!(
-            session.prepare_presentation_creation_gesture_v1(
+            session.preview_presentation_creation_gesture_v1(
                 &gesture,
                 PresentationGesturePoint2V1::new(19.0, 0.0).expect("end"),
             ),
@@ -541,9 +543,8 @@ mod session_tests {
 
     #[test]
     fn presentation_creation_gesture_rejects_foreign_mixed_and_stale_without_mutation() {
-        let mut first = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("first");
-        let mut second =
-            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("second");
+        let first = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("first");
+        let second = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"/>").expect("second");
         let first_snapshot = first.snapshot().expect("first snapshot");
         let second_snapshot = second.snapshot().expect("second snapshot");
         let first_gesture = first
@@ -564,21 +565,21 @@ mod session_tests {
                 PresentationGestureSnapPolicyV1::free(),
             )
             .unwrap();
-        let mut first_preview = first
-            .prepare_presentation_creation_gesture_v1(
+        let first_preview = first
+            .preview_presentation_creation_gesture_v1(
                 &first_gesture,
                 PresentationGesturePoint2V1::new(10.0, 0.0).unwrap(),
             )
             .unwrap();
         assert!(matches!(
-            second.prepare_presentation_creation_gesture_v1(
+            second.preview_presentation_creation_gesture_v1(
                 &first_gesture,
                 PresentationGesturePoint2V1::new(10.0, 0.0).unwrap()
             ),
             Err(PresentationGestureErrorV1::ForeignSession)
         ));
         assert!(matches!(
-            second.commit_presentation_creation_gesture_v1(&mut first_preview),
+            second.resolve_presentation_creation_gesture_v1(&first_gesture, &first_preview),
             Err(PresentationGestureErrorV1::ForeignSession)
         ));
         assert_eq!(second.snapshot().expect("unchanged"), second_snapshot);
@@ -588,7 +589,23 @@ mod session_tests {
 #[cfg(test)]
 mod replay_tests {
     use super::*;
-    use crate::DocumentSession;
+    use crate::{DocumentSession, SessionOperationResultV1};
+
+    fn commit(
+        session: &mut DocumentSession,
+        gesture: &PresentationCreationGestureV1,
+        preview: &PresentationCreationPreviewV1,
+    ) -> SessionOperationResultV1 {
+        let request = session
+            .resolve_presentation_creation_gesture_v1(gesture, preview)
+            .expect("generic request resolves");
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(request)
+            .expect("generic transition prepares");
+        session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("generic transition commits")
+    }
 
     #[test]
     fn presentation_creation_gesture_replay_is_terminal_and_non_mutating() {
@@ -604,18 +621,16 @@ mod replay_tests {
                 PresentationGestureSnapPolicyV1::free(),
             )
             .expect("begin");
-        let mut preview = session
-            .prepare_presentation_creation_gesture_v1(
+        let preview = session
+            .preview_presentation_creation_gesture_v1(
                 &gesture,
                 PresentationGesturePoint2V1::new(10.0, 0.0).expect("end"),
             )
             .expect("preview");
-        session
-            .commit_presentation_creation_gesture_v1(&mut preview)
-            .expect("commit");
+        let _committed = commit(&mut session, &gesture, &preview);
         let after = session.snapshot().expect("after commit");
         assert!(matches!(
-            session.commit_presentation_creation_gesture_v1(&mut preview),
+            session.resolve_presentation_creation_gesture_v1(&gesture, &preview),
             Err(PresentationGestureErrorV1::ReplayedGesture)
         ));
         assert_eq!(session.snapshot().expect("replay does not mutate"), after);

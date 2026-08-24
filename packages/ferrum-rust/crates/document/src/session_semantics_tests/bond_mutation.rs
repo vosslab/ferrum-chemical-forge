@@ -24,7 +24,7 @@ fn set_bond_order(bond_id: &str, order: DocumentBondOrderV1) -> SessionOperation
 fn bond_deletion_removes_only_the_selected_bond_and_is_one_history_entry() {
     let mut session = DocumentSession::load(DELETE_SOURCE).expect("source must load");
     let deleted = session
-        .submit(0, delete_bond("ab"))
+        .apply_document_operation_v1(0, delete_bond("ab"))
         .expect("durable bond must delete");
     let molecule = &deleted.observation().projection().molecules()[0];
     assert_eq!(deleted.observation().snapshot().revision(), 1);
@@ -66,7 +66,7 @@ fn bond_deletion_rejects_unknown_identity_without_state_change() {
     let mut session = DocumentSession::load(DELETE_SOURCE).expect("source must load");
     let before = session.snapshot().expect("snapshot must work");
     assert!(matches!(
-        session.submit(0, delete_bond("missing")),
+        session.apply_document_operation_v1(0, delete_bond("missing")),
         Err(DocumentSessionError::Operation(
             SessionOperationError::UnknownBond(_)
         ))
@@ -78,12 +78,12 @@ fn bond_deletion_rejects_unknown_identity_without_state_change() {
 fn bond_order_change_is_typed_noop_aware_and_one_history_entry() {
     let mut session = DocumentSession::load(DELETE_SOURCE).expect("source must load");
     let no_change = session
-        .submit(0, set_bond_order("ab", DocumentBondOrderV1::Single))
+        .apply_document_operation_v1(0, set_bond_order("ab", DocumentBondOrderV1::Single))
         .expect("current order must be a no-op");
     assert_eq!(no_change.observation().snapshot().revision(), 0);
 
     let changed = session
-        .submit(0, set_bond_order("ab", DocumentBondOrderV1::Double))
+        .apply_document_operation_v1(0, set_bond_order("ab", DocumentBondOrderV1::Double))
         .expect("durable bond order must change");
     let bond = changed.observation().projection().molecules()[0]
         .bonds()
@@ -102,7 +102,7 @@ fn bond_order_change_is_typed_noop_aware_and_one_history_entry() {
     );
 
     let repeated = session
-        .submit(1, set_bond_order("ab", DocumentBondOrderV1::Double))
+        .apply_document_operation_v1(1, set_bond_order("ab", DocumentBondOrderV1::Double))
         .expect("repeated order must remain a no-op");
     assert_eq!(repeated.observation().snapshot().revision(), 1);
     let undone = session.undo(1).expect("one change must undo once");
@@ -126,10 +126,13 @@ fn bond_order_change_rejects_unknown_identity_without_state_change() {
     let mut session = DocumentSession::load(DELETE_SOURCE).expect("source must load");
     let before = session.snapshot().expect("snapshot must work");
     assert!(matches!(
-        session.submit(0, set_bond_order("missing", DocumentBondOrderV1::Triple),),
-        Err(DocumentSessionError::Operation(
-            SessionOperationError::UnknownBond(_)
-        ))
-    ));
+            session.apply_document_operation_v1(
+                0,
+                set_bond_order("missing", DocumentBondOrderV1::Triple),
+            ),
+            Err(DocumentSessionError::Operation(
+                SessionOperationError::UnknownBond(_)
+            ))
+        ));
     assert_eq!(session.snapshot().expect("snapshot must work"), before);
 }

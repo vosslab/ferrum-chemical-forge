@@ -5,74 +5,62 @@ use crate::{
     DocumentAtomOxidationResultV1, DocumentMoleculeHydrogenMaterializationRefusalV1,
     DocumentMoleculeHydrogenMaterializationRequestV1,
     DocumentMoleculeHydrogenMaterializationResultV1, PersistentId, SessionDocumentObservationV1,
-    SessionOperationResultV1, TypedDocument,
+    SessionOperationError, SessionOperationOutcomeV1, TypedDocument,
     hydrogen_materialization_v1::plan_hydrogen_materialization_v1,
 };
 
-use super::{DocumentSession, PreparedSessionTransitionV1, RevisionState};
-
-/// Opaque one-use, session-bound materialization candidate for renderer admission.
-///
-/// The receipt retains a core-owned transition and public materialization facts.
-#[derive(Debug)]
-pub struct PendingHydrogenMaterializationV1 {
-    expected_revision: u64,
-    expected_digest: [u8; 32],
-    transition: PreparedSessionTransitionV1,
-    result: DocumentMoleculeHydrogenMaterializationResultV1,
-}
-
-impl PendingHydrogenMaterializationV1 {
-    #[must_use]
-    pub fn is_consumed_v1(&self) -> bool {
-        self.transition.is_consumed_v1()
-    }
-}
+use super::{
+    DocumentSession, DocumentSessionError, PreparedSessionTransitionV1, RevisionState,
+    admitted_transition_v1::SessionOperationOutcomeStagingV1,
+};
 
 impl DocumentSession {
-    /// Build one bounded explicit-H candidate without changing the session.
+    /// Prepare one generic explicit-hydrogen transition without mutating the session.
     ///
-    /// The renderer must admit the exact candidate observation before redeeming
-    /// this opaque receipt. Preparation performs the document
-    /// projection and oxidation checks, reserves history capacity, and retains
-    /// tentative IDs without installing any of them.
-    pub fn prepare_materialize_molecule_hydrogens_v1(
+    /// This private lowering keeps planning, source fences, candidate validation,
+    /// generated IDs, and deferred effects inside the document. The generic
+    /// transition lifecycle exclusively owns public preparation and redemption.
+    pub(in crate::session) fn prepare_materialize_molecule_hydrogens_transition_v1(
         &mut self,
-        request: &DocumentMoleculeHydrogenMaterializationRequestV1,
-    ) -> Result<PendingHydrogenMaterializationV1, DocumentMoleculeHydrogenMaterializationRefusalV1>
-    {
-        let snapshot = self
-            .snapshot()
-            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
-        let source = self.current_document_v1();
-        let plan = plan_hydrogen_materialization_v1(source, &snapshot, request)?;
-        if plan.is_already_materialized() {
-            self.validate_materialized_candidate(source, request)?;
-            let transition = self
-                .prepare_no_change_session_transition_v1(snapshot.revision())
-                .map_err(|_| {
-                    DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument
-                })?;
-            return Ok(PendingHydrogenMaterializationV1 {
-                expected_revision: snapshot.revision(),
-                expected_digest: *snapshot.digest(),
-                transition,
-                result: DocumentMoleculeHydrogenMaterializationResultV1::new(
-                    0,
-                    false,
-                    request.anchor_atom_id().clone(),
-                    snapshot.revision(),
-                    *snapshot.digest(),
-                ),
+        expected_revision: u64,
+        request: DocumentMoleculeHydrogenMaterializationRequestV1,
+    ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
+        self.require_current(expected_revision)?;
+        let snapshot = self.snapshot()?;
+        if request.expected_revision() != expected_revision {
+            return Err(DocumentSessionError::RevisionConflict {
+                expected: request.expected_revision(),
+                actual: snapshot.revision(),
             });
         }
+        let source = self.current_document_v1();
+        let plan = plan_hydrogen_materialization_v1(source, &snapshot, &request)
+            .map_err(SessionOperationError::from)?;
+        if plan.is_already_materialized() {
+            self.validate_materialized_candidate(source, &request)
+                .map_err(SessionOperationError::from)?;
+            return self.prepare_no_change_session_transition_with_outcome_v1(
+                expected_revision,
+                SessionOperationOutcomeV1::MoleculeHydrogensMaterializedV1(
+                    DocumentMoleculeHydrogenMaterializationResultV1::new(
+                        0,
+                        false,
+                        request.anchor_atom_id().clone(),
+                    ),
+                ),
+            );
+        }
         let added = plan.added_hydrogen_count();
-        let temporary_atoms = temporary_ids(source, "atom", added)?;
-        let temporary_bonds = temporary_ids(source, "bond", added)?;
+        let temporary_atoms =
+            temporary_ids(source, "atom", added).map_err(SessionOperationError::from)?;
+        let temporary_bonds =
+            temporary_ids(source, "bond", added).map_err(SessionOperationError::from)?;
         let temporary = source
             .with_materialized_hydrogens_v1(&plan, &temporary_atoms, &temporary_bonds)
-            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
-        self.validate_materialized_candidate(&temporary, request)?;
+            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)
+            .map_err(SessionOperationError::from)?;
+        self.validate_materialized_candidate(&temporary, &request)
+            .map_err(SessionOperationError::from)?;
 
         let ((atom_ids, bond_ids), effects) = self
             .reserve_generated_ids_for_transition_v1(|mut ids, indexed| {
@@ -87,88 +75,36 @@ impl DocumentSession {
                 }
                 Ok(((atom_ids, bond_ids), ids))
             })
-            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
+            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)
+            .map_err(SessionOperationError::from)?;
         let candidate = source
             .with_materialized_hydrogens_v1(&plan, &atom_ids, &bond_ids)
-            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
-        self.validate_materialized_candidate(&candidate, request)?;
+            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)
+            .map_err(SessionOperationError::from)?;
+        self.validate_materialized_candidate(&candidate, &request)
+            .map_err(SessionOperationError::from)?;
         let revision = self
             .next_revision_v1()
-            .ok_or(DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
+            .ok_or(DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)
+            .map_err(SessionOperationError::from)?;
         let state = RevisionState::from_document(revision, candidate)
-            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
-        let candidate_snapshot = state.snapshot(!self.saved_baseline.is_current(&state));
-        let transition = self
-            .prepare_changed_session_transition_v1(
-                snapshot.revision(),
-                *snapshot.digest(),
-                state,
-                effects,
-            )
-            .map_err(map_prepare_refusal)?;
-        Ok(PendingHydrogenMaterializationV1 {
-            expected_revision: snapshot.revision(),
-            expected_digest: *snapshot.digest(),
-            transition,
-            result: DocumentMoleculeHydrogenMaterializationResultV1::new(
-                added,
-                true,
-                request.anchor_atom_id().clone(),
-                candidate_snapshot.revision(),
-                *candidate_snapshot.digest(),
+            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)
+            .map_err(SessionOperationError::from)?;
+        self.prepare_changed_session_transition_with_commit_v1(
+            snapshot.revision(),
+            *snapshot.digest(),
+            state,
+            effects,
+            super::admitted_transition_v1::ChangedTransitionCommitV1::Append,
+            SessionOperationOutcomeStagingV1::MoleculeHydrogensMaterializedV1(
+                DocumentMoleculeHydrogenMaterializationResultV1::new(
+                    added,
+                    true,
+                    request.anchor_atom_id().clone(),
+                ),
             ),
-        })
-    }
-
-    /// Atomically install one renderer-admitted materialization candidate.
-    ///
-    /// This compatibility form returns only the materialization facts. Renderer
-    /// bridges that install a live projection use
-    /// [`Self::commit_materialize_molecule_hydrogens_with_operation_result_v1`]
-    /// so their accepted mutation retains its authoritative post-commit receipt.
-    pub fn commit_materialize_molecule_hydrogens_v1(
-        &mut self,
-        pending: &mut PendingHydrogenMaterializationV1,
-    ) -> Result<
-        DocumentMoleculeHydrogenMaterializationResultV1,
-        DocumentMoleculeHydrogenMaterializationRefusalV1,
-    > {
-        self.commit_materialize_molecule_hydrogens_with_operation_result_v1(pending)
-            .map(|(result, _)| result)
-    }
-
-    /// Atomically install one renderer-admitted materialization candidate and
-    /// return its authoritative post-commit observation when it changed.
-    ///
-    /// The operation result is prepared from the same validated candidate state
-    /// that this method installs. A validated no-op has no mutation receipt.
-    pub fn commit_materialize_molecule_hydrogens_with_operation_result_v1(
-        &mut self,
-        pending: &mut PendingHydrogenMaterializationV1,
-    ) -> Result<
-        (
-            DocumentMoleculeHydrogenMaterializationResultV1,
-            Option<SessionOperationResultV1>,
-        ),
-        DocumentMoleculeHydrogenMaterializationRefusalV1,
-    > {
-        if pending.transition.is_consumed_v1() {
-            return Err(DocumentMoleculeHydrogenMaterializationRefusalV1::StaleObservation);
-        }
-        let snapshot = self
-            .snapshot()
-            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
-        if snapshot.revision() != pending.expected_revision {
-            return Err(DocumentMoleculeHydrogenMaterializationRefusalV1::StaleObservation);
-        }
-        if snapshot.digest() != &pending.expected_digest {
-            return Err(DocumentMoleculeHydrogenMaterializationRefusalV1::DigestMismatch);
-        }
-        let operation = self
-            .commit_session_operation_transition_v1(&mut pending.transition)
-            .map_err(map_commit_refusal)?;
-        let changed = pending.result.changed();
-        Ok((pending.result.clone(), changed.then_some(operation)))
+            None,
+        )
     }
 
     fn validate_materialized_candidate(
@@ -221,36 +157,6 @@ impl DocumentSession {
     }
 }
 
-fn map_prepare_refusal(
-    error: super::DocumentSessionError,
-) -> DocumentMoleculeHydrogenMaterializationRefusalV1 {
-    match error {
-        super::DocumentSessionError::RendererAdmission => {
-            DocumentMoleculeHydrogenMaterializationRefusalV1::RendererAdmission
-        }
-        _ => DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument,
-    }
-}
-
-fn map_commit_refusal(
-    refusal: super::AdmittedSessionTransitionRefusalV1,
-) -> DocumentMoleculeHydrogenMaterializationRefusalV1 {
-    match refusal {
-        super::AdmittedSessionTransitionRefusalV1::RendererAdmission => {
-            DocumentMoleculeHydrogenMaterializationRefusalV1::RendererAdmission
-        }
-        super::AdmittedSessionTransitionRefusalV1::StaleSnapshot
-        | super::AdmittedSessionTransitionRefusalV1::ForeignSession
-        | super::AdmittedSessionTransitionRefusalV1::Replayed
-        | super::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
-            DocumentMoleculeHydrogenMaterializationRefusalV1::StaleObservation
-        }
-        super::AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument
-        }
-    }
-}
-
 fn temporary_ids(
     document: &TypedDocument,
     kind: &str,
@@ -279,7 +185,8 @@ mod tests {
     use crate::{
         DocumentAtomOxidationObservationRequestV1, DocumentAtomOxidationObservationV1,
         DocumentAtomOxidationResultV1, DocumentSession, MoleculeInsertionAtomV1,
-        MoleculeInsertionBondV1, MoleculeInsertionV1, Point3V1,
+        MoleculeInsertionV1, Point3V1, SessionOperation, SessionOperationOutcomeV1,
+        SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
     };
 
     fn atom(element: &str, formal_charge: Option<i32>) -> MoleculeInsertionAtomV1 {
@@ -299,10 +206,14 @@ mod tests {
             .expect("valid complete molecule");
         let revision = session.snapshot().expect("initial snapshot").revision();
         let mut pending = session
-            .prepare_create_molecule_v1(revision, &insertion)
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                revision,
+                SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(insertion)),
+                TransitionAuthorizationV1::None,
+            ))
             .expect("molecule candidate");
         session
-            .commit_create_molecule(revision, &mut pending)
+            .commit_session_operation_transition_v1(&mut pending)
             .expect("molecule commit");
         session
     }
@@ -321,17 +232,6 @@ mod tests {
         )
     }
 
-    fn commit_materialization(
-        session: &mut DocumentSession,
-    ) -> Result<
-        DocumentMoleculeHydrogenMaterializationResultV1,
-        DocumentMoleculeHydrogenMaterializationRefusalV1,
-    > {
-        let request = materialization_request(session);
-        let mut pending = session.prepare_materialize_molecule_hydrogens_v1(&request)?;
-        session.commit_materialize_molecule_hydrogens_v1(&mut pending)
-    }
-
     fn oxidation_request(session: &DocumentSession) -> DocumentAtomOxidationObservationRequestV1 {
         let revision = session.snapshot().expect("current snapshot").revision();
         let observation = session.observe(revision).expect("materialized observation");
@@ -345,12 +245,26 @@ mod tests {
     }
 
     #[test]
-    fn materialization_is_observable_and_undoable_as_one_transition() {
+    fn generic_materialization_changes_one_history_transition() {
         let mut session = session_with_one_atom("O", None);
         let before = session.snapshot().expect("before materialization");
-        let result = commit_materialization(&mut session).expect("oxygen materializes");
-        assert!(result.changed());
-        assert!(result.added_hydrogen_count() > 0);
+        let request = materialization_request(&session);
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                request.expected_revision(),
+                SessionOperation::V1(SessionOperationV1::MaterializeMoleculeHydrogensV1(request)),
+                TransitionAuthorizationV1::None,
+            ))
+            .expect("materialization prepares");
+        let result = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("materialization commits");
+        let SessionOperationOutcomeV1::MoleculeHydrogensMaterializedV1(outcome) = result.outcome()
+        else {
+            panic!("materialization produces its generic outcome");
+        };
+        assert!(outcome.changed());
+        assert!(outcome.added_hydrogen_count() > 0);
         let after = session.snapshot().expect("after materialization");
         assert_ne!(after, before);
         assert_eq!(
@@ -375,12 +289,36 @@ mod tests {
     #[test]
     fn already_materialized_root_returns_validated_no_op() {
         let mut session = session_with_one_atom("O", None);
-        commit_materialization(&mut session).expect("oxygen materializes");
+        let request = materialization_request(&session);
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                request.expected_revision(),
+                SessionOperation::V1(SessionOperationV1::MaterializeMoleculeHydrogensV1(request)),
+                TransitionAuthorizationV1::None,
+            ))
+            .expect("first materialization prepares");
+        session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("first materialization commits");
         let before = session.snapshot().expect("materialized snapshot");
-        let result = commit_materialization(&mut session).expect("materialized root validates");
+        let request = materialization_request(&session);
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                request.expected_revision(),
+                SessionOperation::V1(SessionOperationV1::MaterializeMoleculeHydrogensV1(request)),
+                TransitionAuthorizationV1::None,
+            ))
+            .expect("no-change materialization prepares");
+        let result = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("no-change materialization commits");
+        let SessionOperationOutcomeV1::MoleculeHydrogensMaterializedV1(outcome) = result.outcome()
+        else {
+            panic!("materialization produces its generic outcome");
+        };
 
-        assert!(!result.changed());
-        assert_eq!(result.added_hydrogen_count(), 0);
+        assert!(!outcome.changed());
+        assert_eq!(outcome.added_hydrogen_count(), 0);
         assert_eq!(session.snapshot().expect("no-op snapshot"), before);
     }
 
@@ -390,66 +328,45 @@ mod tests {
         let before = session.snapshot().expect("before refusal");
         let can_undo_before = session.can_undo();
         let can_redo_before = session.can_redo();
-        assert_eq!(
-            commit_materialization(&mut session),
-            Err(DocumentMoleculeHydrogenMaterializationRefusalV1::NonzeroFormalCharge)
+        let refusal = session.prepare_session_operation_transition_v1(
+            SessionOperationTransitionRequestV1::new(
+                materialization_request(&session).expected_revision(),
+                SessionOperation::V1(SessionOperationV1::MaterializeMoleculeHydrogensV1(
+                    materialization_request(&session),
+                )),
+                TransitionAuthorizationV1::None,
+            ),
         );
+        assert!(matches!(
+            refusal,
+            Err(crate::DocumentSessionError::Operation(
+                SessionOperationError::HydrogenMaterialization(
+                    DocumentMoleculeHydrogenMaterializationRefusalV1::NonzeroFormalCharge,
+                ),
+            ))
+        ));
         assert_eq!(session.snapshot().expect("after refusal"), before);
         assert_eq!(session.can_undo(), can_undo_before);
         assert_eq!(session.can_redo(), can_redo_before);
     }
 
     #[test]
-    fn over_component_explicit_root_refuses_instead_of_reporting_no_op() {
-        let mut atoms = Vec::new();
-        let mut bonds = Vec::new();
-        for component in 0..65 {
-            let oxygen = atoms.len();
-            let x = f64::from(component) * 80.0;
-            atoms.push(
-                MoleculeInsertionAtomV1::new(
-                    "O",
-                    Point3V1::new(x, 0.0, 0.0).expect("finite coordinate"),
-                    Some(0),
-                    None,
-                    Some(0),
-                )
-                .expect("valid oxygen"),
-            );
-            for offset in [-1.0, 1.0] {
-                let hydrogen = atoms.len();
-                atoms.push(
-                    MoleculeInsertionAtomV1::new(
-                        "H",
-                        Point3V1::new(x + offset * 24.0, 0.0, 0.0).expect("finite coordinate"),
-                        Some(0),
-                        None,
-                        Some(0),
-                    )
-                    .expect("valid hydrogen"),
-                );
-                bonds.push(MoleculeInsertionBondV1::new(
-                    oxygen,
-                    hydrogen,
-                    crate::DocumentBondOrderV1::Single,
-                ));
-            }
-        }
-        let insertion = MoleculeInsertionV1::new(atoms, bonds).expect("valid explicit root");
-        let mut session = DocumentSession::create_empty_document_v1().expect("empty document");
-        let revision = session.snapshot().expect("initial snapshot").revision();
-        let mut pending = session
-            .prepare_create_molecule_v1(revision, &insertion)
-            .expect("explicit root candidate");
+    fn generic_materialization_prepared_transition_is_one_use() {
+        let mut session = session_with_one_atom("O", None);
+        let request = materialization_request(&session);
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                request.expected_revision(),
+                SessionOperation::V1(SessionOperationV1::MaterializeMoleculeHydrogensV1(request)),
+                TransitionAuthorizationV1::None,
+            ))
+            .expect("materialization prepares");
         session
-            .commit_create_molecule(revision, &mut pending)
-            .expect("explicit root commit");
-        let before = session.snapshot().expect("before refusal");
-
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("first materialization commit");
         assert_eq!(
-            commit_materialization(&mut session),
-            Err(DocumentMoleculeHydrogenMaterializationRefusalV1::ResourceLimit)
+            session.commit_session_operation_transition_v1(&mut prepared),
+            Err(crate::AdmittedSessionTransitionRefusalV1::Replayed)
         );
-        assert_eq!(session.snapshot().expect("after refusal"), before);
     }
 }

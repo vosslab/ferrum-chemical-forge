@@ -1,9 +1,9 @@
 use crate::RenderInteractionSessionV1;
 use ferrum_document::{
-    DocumentBondOrderV1, DocumentBondPresentationV1, DocumentRenderObservationV1, DocumentSession,
-    DocumentSnapshot, PendingAdmittedMoleculeInsertionV1, PendingCreateAtom, PendingCreateBond,
-    PendingCreateBondedAtom, PendingCreateWavy, Point3V1, Publication, SaveOutcome,
-    SessionOperation, SessionOperationResultV1, SessionOperationV1,
+    CreateAtomV1, CreateBondV1, DocumentBondOrderV1, DocumentBondPresentationV1,
+    DocumentRenderObservationV1, DocumentSession, DocumentSnapshot, PendingCreateWavy, Point3V1,
+    Publication, SaveOutcome, SessionOperation, SessionOperationTransitionRequestV1,
+    SessionOperationV1, TransitionAuthorizationV1,
 };
 use pyo3::prelude::*;
 
@@ -12,15 +12,12 @@ use super::bracket_binding::{
 };
 use super::document_error_binding::{document_object_id, document_result, projection_error};
 use super::document_operation_binding::PyDocumentOperationV1;
-use super::interchange_insertion_binding::{
-    PyAdmittedInterchangeRecordInsertionV1, PyInterchangeRecordBatchInsertionV1,
-};
 use super::molecule_coordinate_binding::{
     PyPreparedCleanGeometryV1, PyPreparedMoleculeCoordinatesV1,
 };
 use super::projection_binding::PySessionDocumentObservationV1;
 use super::render_binding::{self, PyRenderObservationV1};
-use super::smiles_insertion_binding::PyMoleculeInsertionV1;
+use super::session_operation_result_binding::PySessionOperationResultV1;
 
 /// Immutable Python-owned copy of one authoritative document revision.
 ///
@@ -47,24 +44,6 @@ impl From<DocumentSnapshot> for PyDocumentSnapshot {
             revision: snapshot.revision(),
             digest: hex_digest(snapshot.digest()),
             is_dirty: snapshot.is_dirty(),
-        }
-    }
-}
-
-/// Immutable result of one accepted document mutation or history transition.
-///
-/// `observation` owns the one authoritative post-operation snapshot and projection.
-#[pyclass(frozen, name = "SessionOperationResultV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PySessionOperationResultV1 {
-    #[pyo3(get)]
-    observation: PySessionDocumentObservationV1,
-}
-
-impl From<SessionOperationResultV1> for PySessionOperationResultV1 {
-    fn from(result: SessionOperationResultV1) -> Self {
-        Self {
-            observation: result.observation().clone().into(),
         }
     }
 }
@@ -126,14 +105,6 @@ impl From<Publication> for PyPublication {
 ///
 /// The Rust value binds its candidate to the revision at which it was prepared.
 /// It is deliberately thread-affine and exposes only the durable identifier that
-/// would be created; the internal provisional token is never serialized to Python.
-#[pyclass(unsendable, module = "ferrum_chem", name = "PreparedAtomInsertion")]
-pub(crate) struct PyPreparedAtomInsertion {
-    pending: PendingCreateAtom,
-    #[pyo3(get)]
-    identifier: String,
-}
-
 /// Opaque one-use prepared Wavy insertion.
 #[pyclass(unsendable, module = "ferrum_chem", name = "PreparedWavyInsertion")]
 pub(crate) struct PyPreparedWavyInsertion {
@@ -203,40 +174,6 @@ impl From<PyDocumentBondPresentationV1> for DocumentBondPresentationV1 {
             PyDocumentBondPresentationV1::HashedWedge => Self::HashedWedge,
         }
     }
-}
-
-/// Opaque one-use prepared molecule-local bond insertion.
-#[pyclass(unsendable, module = "ferrum_chem", name = "PreparedBondInsertion")]
-pub(crate) struct PyPreparedBondInsertion {
-    pending: PendingCreateBond,
-    #[pyo3(get)]
-    identifier: String,
-}
-
-/// Opaque one-use prepared atom-plus-bond insertion.
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PreparedBondedAtomInsertion"
-)]
-pub(crate) struct PyPreparedBondedAtomInsertion {
-    pending: PendingCreateBondedAtom,
-    #[pyo3(get)]
-    atom_identifier: String,
-    #[pyo3(get)]
-    bond_identifier: String,
-}
-
-/// Opaque one-use renderer-admitted complete molecule insertion.
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "AdmittedMoleculeInsertionV1"
-)]
-pub(crate) struct PyAdmittedMoleculeInsertionV1 {
-    pending: PendingAdmittedMoleculeInsertionV1,
-    #[pyo3(get)]
-    molecule_identifier: String,
 }
 
 /// Thread-affine owner of one mutable Rust CDML document session.
@@ -483,8 +420,8 @@ impl PyDocumentSession {
         render_binding::observation(py, observation)
     }
 
-    /// Submit one closed V1 operation against an exact expected revision.
-    fn submit(
+    /// Apply one closed V1 operation against an exact expected revision.
+    fn apply_document_operation_v1(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
@@ -493,7 +430,7 @@ impl PyDocumentSession {
         document_result(
             py,
             self.session
-                .submit(expected_revision, operation.operation.clone()),
+                .apply_document_operation_v1(expected_revision, operation.operation.clone()),
         )
         .map(Into::into)
     }
@@ -628,7 +565,12 @@ impl PyDocumentSession {
         let operation = SessionOperation::V1(SessionOperationV1::SetMoleculeAtomPositions {
             update: prepared.update().clone(),
         });
-        document_result(py, self.session.submit(expected_revision, operation)).map(Into::into)
+        document_result(
+            py,
+            self.session
+                .apply_document_operation_v1(expected_revision, operation),
+        )
+        .map(Into::into)
     }
 
     /// Accept one worker-prepared multi-molecule clean-geometry update atomically.
@@ -641,7 +583,12 @@ impl PyDocumentSession {
         let operation = SessionOperation::V1(SessionOperationV1::SetCleanGeometry {
             update: prepared.update().clone(),
         });
-        document_result(py, self.session.submit(expected_revision, operation)).map(Into::into)
+        document_result(
+            py,
+            self.session
+                .apply_document_operation_v1(expected_revision, operation),
+        )
+        .map(Into::into)
     }
 
     /// Move to the preceding retained state, producing a new monotonic revision.
@@ -662,55 +609,7 @@ impl PyDocumentSession {
         document_result(py, self.session.redo(expected_revision)).map(Into::into)
     }
 
-    /// Prepare a revision-bound, one-use atom insertion without changing the session.
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_create_atom_v1(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        molecule_object_id: String,
-        element: String,
-        x: f64,
-        y: f64,
-        z: f64,
-    ) -> PyResult<PyPreparedAtomInsertion> {
-        let molecule_object_id = document_object_id(py, molecule_object_id)?;
-        let position = match Point3V1::new(x, y, z) {
-            Ok(position) => position,
-            Err(error) => return Err(projection_error(py, error)?),
-        };
-        let pending = document_result(
-            py,
-            self.session.prepare_create_atom_v1(
-                expected_revision,
-                &molecule_object_id,
-                &element,
-                position,
-            ),
-        )?;
-        let identifier = pending.identifier().as_str().to_owned();
-        Ok(PyPreparedAtomInsertion {
-            pending,
-            identifier,
-        })
-    }
-
-    /// Commit one prepared atom insertion exactly once at its prepared revision.
-    fn commit_create_atom(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        mut prepared: PyRefMut<'_, PyPreparedAtomInsertion>,
-    ) -> PyResult<PySessionOperationResultV1> {
-        document_result(
-            py,
-            self.session
-                .commit_create_atom(expected_revision, &mut prepared.pending),
-        )
-        .map(Into::into)
-    }
-
-    /// Prepare a bounded revision-bound Wavy insertion without changing the session.
+    /// Prepare one revision-bound Wavy presentation root from finite endpoints.
     fn prepare_create_wavy_v1(
         &mut self,
         py: Python<'_>,
@@ -720,27 +619,22 @@ impl PyDocumentSession {
         end_x: f64,
         end_y: f64,
     ) -> PyResult<PyPreparedWavyInsertion> {
-        let start = match Point3V1::new(start_x, start_y, 0.0) {
-            Ok(point) => point,
-            Err(error) => return Err(projection_error(py, error)?),
-        };
-        let end = match Point3V1::new(end_x, end_y, 0.0) {
-            Ok(point) => point,
-            Err(error) => return Err(projection_error(py, error)?),
-        };
-        let pending = document_result(
+        let start = Point3V1::new(start_x, start_y, 0.0)
+            .map_err(|error| projection_error(py, error).expect("projection error construction"))?;
+        let end = Point3V1::new(end_x, end_y, 0.0)
+            .map_err(|error| projection_error(py, error).expect("projection error construction"))?;
+        document_result(
             py,
             self.session
                 .prepare_create_wavy_v1(expected_revision, start, end),
-        )?;
-        let identifier = pending.identifier().as_str().to_owned();
-        Ok(PyPreparedWavyInsertion {
+        )
+        .map(|pending| PyPreparedWavyInsertion {
+            identifier: pending.identifier().as_str().to_owned(),
             pending,
-            identifier,
         })
     }
 
-    /// Commit one prepared Wavy insertion exactly once at its prepared revision.
+    /// Commit one prepared Wavy insertion against its prepared session lifecycle.
     fn commit_create_wavy(
         &mut self,
         py: Python<'_>,
@@ -755,7 +649,7 @@ impl PyDocumentSession {
         .map(Into::into)
     }
 
-    /// Prepare one revision-bound bracket pair without changing the session.
+    /// Prepare one revision-bound bracket pair from validated finite bounds.
     fn prepare_create_bracket_v1(
         &mut self,
         py: Python<'_>,
@@ -763,7 +657,7 @@ impl PyDocumentSession {
         style: PyRef<'_, PyDocumentBracketStyleV1>,
         bounds: PyRef<'_, PyDocumentBracketBoundsV1>,
     ) -> PyResult<PyPreparedBracketInsertion> {
-        let pending = document_result(
+        document_result(
             py,
             self.session.prepare_create_bracket_v1(
                 expected_revision,
@@ -773,8 +667,8 @@ impl PyDocumentSession {
                 bounds.right,
                 bounds.bottom,
             ),
-        )?;
-        Ok(PyPreparedBracketInsertion {
+        )
+        .map(|pending| PyPreparedBracketInsertion {
             pair_identifier: pending.pair_identifier().as_str().to_owned(),
             left_identifier: pending.left_identifier().as_str().to_owned(),
             right_identifier: pending.right_identifier().as_str().to_owned(),
@@ -782,7 +676,7 @@ impl PyDocumentSession {
         })
     }
 
-    /// Commit one prepared bracket pair exactly once at its prepared revision.
+    /// Commit one prepared bracket pair against its prepared session lifecycle.
     fn commit_create_bracket(
         &mut self,
         py: Python<'_>,
@@ -797,162 +691,65 @@ impl PyDocumentSession {
         .map(Into::into)
     }
 
-    /// Prepare a revision-bound, one-use molecule-local bond insertion.
-    fn prepare_create_bond_v2(
-        &mut self,
+    /// Resolve one atom authoring intent into an opaque generic transition request.
+    fn resolve_create_atom_v1(
+        &self,
+        py: Python<'_>,
+        expected_revision: u64,
+        molecule_object_id: String,
+        element: String,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        let molecule = document_object_id(py, molecule_object_id)?;
+        let position = match Point3V1::new(x, y, z) {
+            Ok(position) => position,
+            Err(error) => return Err(projection_error(py, error)?),
+        };
+        let request = SessionOperationTransitionRequestV1::new(
+            expected_revision,
+            SessionOperation::V1(SessionOperationV1::CreateAtomV1(CreateAtomV1::new(
+                molecule, element, position,
+            ))),
+            TransitionAuthorizationV1::authoring_capability(
+                self.session.issue_authoring_capability_v1(),
+            ),
+        );
+        Ok(
+            super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request(
+                request,
+            ),
+        )
+    }
+
+    /// Resolve one explicit bond authoring intent into an opaque generic transition request.
+    fn resolve_create_bond_v1(
+        &self,
         py: Python<'_>,
         expected_revision: u64,
         start_atom_object_id: String,
         end_atom_object_id: String,
         presentation: PyRef<'_, PyDocumentBondPresentationV1>,
-    ) -> PyResult<PyPreparedBondInsertion> {
-        let start_atom_object_id = document_object_id(py, start_atom_object_id)?;
-        let end_atom_object_id = document_object_id(py, end_atom_object_id)?;
-        let pending = document_result(
-            py,
-            self.session.prepare_create_bond_v2(
-                expected_revision,
-                &start_atom_object_id,
-                &end_atom_object_id,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        let start = document_object_id(py, start_atom_object_id)?;
+        let end = document_object_id(py, end_atom_object_id)?;
+        let request = SessionOperationTransitionRequestV1::new(
+            expected_revision,
+            SessionOperation::V1(SessionOperationV1::CreateBondV1(CreateBondV1::new(
+                start,
+                end,
                 (*presentation).into(),
+            ))),
+            TransitionAuthorizationV1::authoring_capability(
+                self.session.issue_authoring_capability_v1(),
             ),
-        )?;
-        let identifier = pending.identifier().as_str().to_owned();
-        Ok(PyPreparedBondInsertion {
-            pending,
-            identifier,
-        })
-    }
-
-    /// Commit one prepared bond insertion exactly once at its prepared revision.
-    fn commit_create_bond(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        mut prepared: PyRefMut<'_, PyPreparedBondInsertion>,
-    ) -> PyResult<PySessionOperationResultV1> {
-        document_result(
-            py,
-            self.session
-                .commit_create_bond(expected_revision, &mut prepared.pending),
-        )
-        .map(Into::into)
-    }
-
-    /// Prepare one atom plus its bond to an existing atom as one Rust edit.
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_create_bonded_atom_v2(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        start_atom_object_id: String,
-        element: String,
-        x: f64,
-        y: f64,
-        z: f64,
-        presentation: PyRef<'_, PyDocumentBondPresentationV1>,
-    ) -> PyResult<PyPreparedBondedAtomInsertion> {
-        let start_atom_object_id = document_object_id(py, start_atom_object_id)?;
-        let position = match Point3V1::new(x, y, z) {
-            Ok(position) => position,
-            Err(error) => return Err(projection_error(py, error)?),
-        };
-        let pending = document_result(
-            py,
-            self.session.prepare_create_bonded_atom_v2(
-                expected_revision,
-                &start_atom_object_id,
-                &element,
-                position,
-                (*presentation).into(),
+        );
+        Ok(
+            super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request(
+                request,
             ),
-        )?;
-        let atom_identifier = pending.atom_identifier().as_str().to_owned();
-        let bond_identifier = pending.bond_identifier().as_str().to_owned();
-        Ok(PyPreparedBondedAtomInsertion {
-            pending,
-            atom_identifier,
-            bond_identifier,
-        })
-    }
-
-    /// Commit one prepared atom-plus-bond insertion exactly once.
-    fn commit_create_bonded_atom(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        mut prepared: PyRefMut<'_, PyPreparedBondedAtomInsertion>,
-    ) -> PyResult<PySessionOperationResultV1> {
-        document_result(
-            py,
-            self.session
-                .commit_create_bonded_atom(expected_revision, &mut prepared.pending),
         )
-        .map(Into::into)
-    }
-
-    /// Prepare one worker-built molecule against an exact current revision.
-    fn prepare_admitted_molecule_insertion_v1(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        molecule: PyRef<'_, PyMoleculeInsertionV1>,
-    ) -> PyResult<PyAdmittedMoleculeInsertionV1> {
-        let pending = document_result(
-            py,
-            self.session
-                .prepare_admitted_molecule_insertion_v1(expected_revision, molecule.insertion()),
-        )?;
-        let molecule_identifier = pending.molecule_identifier().as_str().to_owned();
-        Ok(PyAdmittedMoleculeInsertionV1 {
-            pending,
-            molecule_identifier,
-        })
-    }
-
-    /// Commit one complete prepared molecule exactly once at its prepared revision.
-    fn commit_admitted_molecule_insertion_v1(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        mut prepared: PyRefMut<'_, PyAdmittedMoleculeInsertionV1>,
-    ) -> PyResult<PySessionOperationResultV1> {
-        document_result(
-            py,
-            self.session
-                .commit_admitted_molecule_insertion_v1(expected_revision, &mut prepared.pending),
-        )
-        .map(Into::into)
-    }
-
-    /// Prepare every worker-built interchange record as one exact-revision transaction.
-    fn prepare_admitted_interchange_records_v1(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        batch: PyRef<'_, PyInterchangeRecordBatchInsertionV1>,
-    ) -> PyResult<PyAdmittedInterchangeRecordInsertionV1> {
-        let pending = document_result(
-            py,
-            self.session
-                .prepare_admitted_interchange_records_v1(expected_revision, batch.batch()),
-        )?;
-        Ok(PyAdmittedInterchangeRecordInsertionV1::new(pending))
-    }
-
-    /// Commit one complete prepared interchange batch exactly once.
-    fn commit_admitted_interchange_records_v1(
-        &mut self,
-        py: Python<'_>,
-        expected_revision: u64,
-        mut prepared: PyRefMut<'_, PyAdmittedInterchangeRecordInsertionV1>,
-    ) -> PyResult<PySessionOperationResultV1> {
-        document_result(
-            py,
-            self.session
-                .commit_admitted_interchange_records_v1(expected_revision, &mut prepared.pending),
-        )
-        .map(Into::into)
     }
 }
 

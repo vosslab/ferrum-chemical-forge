@@ -10,7 +10,7 @@ use crate::{
 use ferrum_core::{BondOrder, BondStyle as DocumentBondStyle, Identifier, RecordId, RecordKind};
 use ferrum_document_projection::{
     AtomMarkKindV1, AtomProjectionV1, BondEndpointKindV1, BondProjectionV1,
-    DocumentHaworthPositionV1, DocumentObjectIdV1, DocumentProjectionV1,
+    DocumentHaworthPositionV1, DocumentObjectIdV1, DocumentProjectionV1, PresentationFontFaceV1,
     PresentationRootProjectionV1, ProjectionIssueCodeV1, Rgb24V1 as DocumentRgb24V1,
     TransparentOrRgb24V1, VisibilityV1,
 };
@@ -768,7 +768,7 @@ fn resolved_font(
             .drawing_standard()
             .and_then(|standard| standard.font_family())
     });
-    if family.is_some() {
+    if family.is_some_and(|value| PresentationFontFaceV1::from_cdml_family(value).is_none()) {
         return Err(issue(
             DepictionIssueCodeV1::UnsupportedAuthoredFontFamily,
             "document",

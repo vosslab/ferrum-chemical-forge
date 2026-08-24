@@ -2,21 +2,17 @@
 
 use ferrum_document::{DocumentFenceV1, PresentationGesturePoint2V1};
 use ferrum_document_render::{
-    CommittedCurvedNormalReactionArrowV1, CurvedNormalReactionArrowGestureCategoryV1,
-    CurvedNormalReactionArrowGestureErrorV1, CurvedNormalReactionArrowGestureRecoveryV1,
-    CurvedNormalReactionArrowGestureV1, CurvedNormalReactionArrowPreviewV1,
-    PreparedCurvedNormalReactionArrowV1, begin_curved_normal_reaction_arrow_gesture_v1,
-    commit_curved_normal_reaction_arrow_gesture_v1,
-    prepare_curved_normal_reaction_arrow_gesture_v1,
+    CurvedNormalReactionArrowGestureCategoryV1, CurvedNormalReactionArrowGestureErrorV1,
+    CurvedNormalReactionArrowGestureRecoveryV1, CurvedNormalReactionArrowGestureV1,
+    CurvedNormalReactionArrowPreviewV1, begin_curved_normal_reaction_arrow_gesture_v1,
     preview_curved_normal_reaction_arrow_gesture_v1,
+    resolve_curved_normal_reaction_arrow_gesture_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
 
-use super::binding::{PyDocumentSession, PySessionOperationResultV1};
-use super::presentation_creation_gesture_binding::{
-    PyPresentationGestureRootKindV1, PyPresentationGestureRootSelectorV1, digest,
-};
+use super::binding::PyDocumentSession;
+use super::presentation_creation_gesture_binding::digest;
 use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
 
 create_exception!(
@@ -70,7 +66,7 @@ enum PyCurvedNormalReactionArrowGestureRecoveryV1 {
     name = "CurvedNormalReactionArrowGestureV1"
 )]
 pub(crate) struct PyCurvedNormalReactionArrowGestureV1 {
-    gesture: CurvedNormalReactionArrowGestureV1,
+    gesture: Option<CurvedNormalReactionArrowGestureV1>,
 }
 
 #[pyclass(
@@ -79,30 +75,9 @@ pub(crate) struct PyCurvedNormalReactionArrowGestureV1 {
     name = "CurvedNormalReactionArrowPreviewV1"
 )]
 pub(crate) struct PyCurvedNormalReactionArrowPreviewV1 {
-    preview: CurvedNormalReactionArrowPreviewV1,
+    preview: Option<CurvedNormalReactionArrowPreviewV1>,
     #[pyo3(get)]
     plan: PyPresentationRenderPlanV1,
-}
-
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PreparedCurvedNormalReactionArrowV1"
-)]
-pub(crate) struct PyPreparedCurvedNormalReactionArrowV1 {
-    prepared: PreparedCurvedNormalReactionArrowV1,
-}
-
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "CurvedNormalReactionArrowCommitV1"
-)]
-pub(crate) struct PyCurvedNormalReactionArrowCommitV1 {
-    #[pyo3(get)]
-    root: Py<PyPresentationGestureRootSelectorV1>,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
 }
 
 #[pymethods]
@@ -125,7 +100,9 @@ impl PyDocumentSession {
             point(start_x, start_y, py)?,
             point(control_x, control_y, py)?,
         )
-        .map(|gesture| PyCurvedNormalReactionArrowGestureV1 { gesture })
+        .map(|gesture| PyCurvedNormalReactionArrowGestureV1 {
+            gesture: Some(gesture),
+        })
         .map_err(|error| normal_error(py, error))
     }
 
@@ -138,36 +115,34 @@ impl PyDocumentSession {
     ) -> PyResult<PyCurvedNormalReactionArrowPreviewV1> {
         preview_curved_normal_reaction_arrow_gesture_v1(
             &self.session,
-            &gesture.gesture,
+            gesture.gesture.as_ref().ok_or_else(|| {
+                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::ReplayedGesture)
+            })?,
             point(end_x, end_y, py)?,
         )
         .map(|preview| preview_to_python(py, preview))
         .map_err(|error| normal_error(py, error))
     }
 
-    fn prepare_curved_normal_reaction_arrow_gesture_v1(
-        &mut self,
+    fn resolve_curved_normal_reaction_arrow_gesture_v1(
+        &self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyCurvedNormalReactionArrowGestureV1>,
-        preview: PyRef<'_, PyCurvedNormalReactionArrowPreviewV1>,
-    ) -> PyResult<PyPreparedCurvedNormalReactionArrowV1> {
-        prepare_curved_normal_reaction_arrow_gesture_v1(
-            &mut self.session,
-            &gesture.gesture,
-            &preview.preview,
+        mut gesture: PyRefMut<'_, PyCurvedNormalReactionArrowGestureV1>,
+        mut preview: PyRefMut<'_, PyCurvedNormalReactionArrowPreviewV1>,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        resolve_curved_normal_reaction_arrow_gesture_v1(
+            &self.session,
+            gesture.gesture.take().ok_or_else(|| {
+                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::ReplayedGesture)
+            })?,
+            preview.preview.take().ok_or_else(|| {
+                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::ReplayedGesture)
+            })?,
         )
-        .map(|prepared| PyPreparedCurvedNormalReactionArrowV1 { prepared })
+        .map(
+            super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request,
+        )
         .map_err(|error| normal_error(py, error))
-    }
-
-    fn commit_curved_normal_reaction_arrow_gesture_v1(
-        &mut self,
-        py: Python<'_>,
-        mut prepared: PyRefMut<'_, PyPreparedCurvedNormalReactionArrowV1>,
-    ) -> PyResult<PyCurvedNormalReactionArrowCommitV1> {
-        commit_curved_normal_reaction_arrow_gesture_v1(&mut self.session, &mut prepared.prepared)
-            .map(|value| commit_to_python(py, value))
-            .map_err(|error| normal_error(py, error))
     }
 }
 
@@ -182,25 +157,7 @@ fn preview_to_python(
 ) -> PyCurvedNormalReactionArrowPreviewV1 {
     PyCurvedNormalReactionArrowPreviewV1 {
         plan: preview.plan().into(),
-        preview,
-    }
-}
-
-fn commit_to_python(
-    py: Python<'_>,
-    value: CommittedCurvedNormalReactionArrowV1,
-) -> PyCurvedNormalReactionArrowCommitV1 {
-    PyCurvedNormalReactionArrowCommitV1 {
-        root: Py::new(
-            py,
-            PyPresentationGestureRootSelectorV1 {
-                identifier: value.root().presentation_id().as_str().to_owned(),
-                kind: Py::new(py, PyPresentationGestureRootKindV1::Arrow)
-                    .expect("root kind allocates"),
-            },
-        )
-        .expect("root selector allocates"),
-        result: value.result().clone().into(),
+        preview: Some(preview),
     }
 }
 
@@ -276,6 +233,5 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCurvedNormalReactionArrowGestureRecoveryV1>()?;
     module.add_class::<PyCurvedNormalReactionArrowGestureV1>()?;
     module.add_class::<PyCurvedNormalReactionArrowPreviewV1>()?;
-    module.add_class::<PyPreparedCurvedNormalReactionArrowV1>()?;
-    module.add_class::<PyCurvedNormalReactionArrowCommitV1>()
+    Ok(())
 }

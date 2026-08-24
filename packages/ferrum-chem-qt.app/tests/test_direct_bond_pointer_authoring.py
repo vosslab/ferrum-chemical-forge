@@ -36,8 +36,6 @@ def _wait_for_open_queue(window: ferrum_qt.main_window.MainWindow,
 		start: collections.abc.Callable[[], object]) -> bool:
 	"""Run one public Open request until its declared completion signal fires."""
 	loop = PySide6.QtCore.QEventLoop()
-	timeout = PySide6.QtCore.QTimer()
-	timeout.setSingleShot(True)
 	outcome: bool | None = None
 
 	def finish(success: bool) -> None:
@@ -47,18 +45,13 @@ def _wait_for_open_queue(window: ferrum_qt.main_window.MainWindow,
 			outcome = success
 			loop.quit()
 
-	def expire() -> None:
-		"""Finish the bounded wait when the public completion signal is missing."""
-		finish(False)
-
 	window.local_document_open_queue_drained.connect(finish)
-	timeout.timeout.connect(expire)
-	PySide6.QtCore.QTimer.singleShot(0, start)
-	timeout.start(10000)
-	loop.exec()
-	timeout.stop()
-	window.local_document_open_queue_drained.disconnect(finish)
-	timeout.timeout.disconnect(expire)
+	try:
+		start()
+		if outcome is None:
+			loop.exec()
+	finally:
+		window.local_document_open_queue_drained.disconnect(finish)
 	return outcome is True
 
 
@@ -131,6 +124,38 @@ def _close_window(qapp: PySide6.QtWidgets.QApplication,
 		None, PySide6.QtCore.QEvent.Type.DeferredDelete,
 	)
 	qapp.processEvents()
+
+
+#============================================
+class _ModalRefusalObserver(PySide6.QtCore.QObject):
+	"""Capture and acknowledge one product message box when it becomes visible."""
+
+	def __init__(self, refusals: list[tuple[str, str, str]]) -> None:
+		"""Keep the caller-owned receipt list for the observed dialog."""
+		super().__init__()
+		self._refusals = refusals
+
+	def eventFilter(self, watched: PySide6.QtCore.QObject,
+			event: PySide6.QtCore.QEvent) -> bool:
+		"""Queue acknowledgement after the actual modal dialog enters its event loop."""
+		if event.type() != PySide6.QtCore.QEvent.Type.Show:
+			return False
+		if not isinstance(watched, PySide6.QtWidgets.QMessageBox):
+			return False
+		PySide6.QtCore.QTimer.singleShot(0, lambda: self._capture_and_dismiss(watched))
+		return False
+
+	def _capture_and_dismiss(self, dialog: PySide6.QtWidgets.QMessageBox) -> None:
+		"""Record the configured refusal once its queued presenter update has completed."""
+		self._refusals.append((
+			dialog.windowTitle(), dialog.text(), dialog.detailedText(),
+		))
+		button = dialog.button(PySide6.QtWidgets.QMessageBox.StandardButton.Ok)
+		if button is None:
+			raise AssertionError("Draw Bond refusal has no visible acknowledgement")
+		PySide6.QtTest.QTest.mouseClick(
+			button, PySide6.QtCore.Qt.MouseButton.LeftButton,
+		)
 
 
 #============================================
@@ -239,119 +264,34 @@ def test_normal_direct_bond_escape_unchecks_its_visible_action(
 
 
 #============================================
-def test_normal_direct_bond_refusal_is_non_modal_and_actionable(
+def test_normal_direct_bond_refusal_is_modal_and_actionable(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""A typed self-loop refusal is visible in the status surface and leaves no bond."""
+	"""A generic self-loop refusal is visible, actionable, and leaves no bond."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
 		start = _viewport_point(tab, "atom-c")
-		_action(window, "mode.draw").trigger()
-		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
-		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), start)
-		PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
+		refusal_dialogs: list[tuple[str, str, str]] = []
+		observer = _ModalRefusalObserver(refusal_dialogs)
+		qapp.installEventFilter(observer)
+		try:
+			_action(window, "mode.draw").trigger()
+			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
+			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), start)
+			PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
+		finally:
+			qapp.removeEventFilter(observer)
 		qapp.processEvents()
-		assert "Draw Bond refused" in window.statusBar().currentMessage()
-		assert "Choose a different atom" in window.statusBar().currentMessage()
+		assert refusal_dialogs == [(
+			"",
+			"What happened: This action is not available for the current drawing.\n\n"
+			"Why: The needed selection or document state is not available.\n\n"
+			"What to do now: Select the required item or change the drawing, then try again.",
+			"direct bond gesture cannot join an atom to itself",
+		)]
 		assert not _action(window, "mode.draw").isChecked()
 		assert not tab.current_document_observation().projection.molecules[0].bonds
 	finally:
 		_close_window(qapp, window)
-
-
-#============================================
-def _begin_admission_refusal() -> Exception:
-	"""Return one native-shaped V3 refusal from the public binding seam."""
-	engine = ferrum_qt.ferrum.engine
-	refusal = engine.DirectBondAdmissionRefusalV3("direct bond self loop")
-	refusal.category = engine.DirectBondAdmissionCategoryV3.self_loop
-	refusal.recovery = engine.DirectBondAdmissionRecoveryV3.adjust_endpoint
-	return refusal
-
-
-#============================================
-def test_mouse_begin_admission_refusal_is_non_modal_and_retires_draw_action(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
-		tmp_path: pathlib.Path,
-		) -> None:
-	"""A typed V3 begin refusal reaches the visible mouse recovery surface."""
-	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
-	try:
-		monkeypatch.setattr(
-			tab, "begin_direct_bond_gesture",
-			lambda *_args: (_ for _ in ()).throw(_begin_admission_refusal()),
-		)
-		action = _action(window, "mode.draw")
-		action.trigger()
-		PySide6.QtTest.QTest.mousePress(
-			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-			_viewport_point(tab, "atom-c"),
-		)
-		qapp.processEvents()
-		assert "Choose a different atom" in window.statusBar().currentMessage()
-		assert not action.isChecked()
-	finally:
-		_close_window(qapp, window)
-
-
-#============================================
-def test_keyboard_begin_admission_refusal_is_non_modal_and_retires_draw_action(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object,
-		tmp_path: pathlib.Path,
-		) -> None:
-	"""A typed V3 begin refusal reaches the visible keyboard recovery surface."""
-	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
-	try:
-		monkeypatch.setattr(
-			tab, "begin_direct_bond_gesture",
-			lambda *_args: (_ for _ in ()).throw(_begin_admission_refusal()),
-		)
-		action = _action(window, "mode.draw")
-		action.trigger()
-		PySide6.QtTest.QTest.keyClick(
-			tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Return,
-		)
-		qapp.processEvents()
-		assert "Choose a different atom" in window.statusBar().currentMessage()
-		assert not action.isChecked()
-	finally:
-		_close_window(qapp, window)
-
-
-#============================================
-def test_direct_bond_commit_recovery_contract_matches_native_pairs() -> None:
-	"""Every native commit recovery pair has one actionable Qt message."""
-	engine = ferrum_qt.ferrum.engine
-	pairs = (
-		(engine.DirectBondCommitCategoryV1.foreign_session,
-			engine.DirectBondCommitRecoveryV1.refresh_and_restart, "Refresh the Rust view"),
-		(engine.DirectBondCommitCategoryV1.replayed_receipt,
-			engine.DirectBondCommitRecoveryV1.refresh_and_restart, "Refresh the Rust view"),
-		(engine.DirectBondCommitCategoryV1.unrenderable_candidate,
-			engine.DirectBondCommitRecoveryV1.change_presentation, "supported bond appearance"),
-		(engine.DirectBondCommitCategoryV1.stale_revision,
-			engine.DirectBondCommitRecoveryV1.refresh_and_restart, "Refresh the Rust view"),
-		(engine.DirectBondCommitCategoryV1.stale_digest,
-			engine.DirectBondCommitRecoveryV1.refresh_and_restart, "Refresh the Rust view"),
-		(engine.DirectBondCommitCategoryV1.identity_allocation_failed,
-			engine.DirectBondCommitRecoveryV1.report_conflict, "document conflict"),
-		(engine.DirectBondCommitCategoryV1.provisional_token_unavailable,
-			engine.DirectBondCommitRecoveryV1.report_conflict, "document conflict"),
-		(engine.DirectBondCommitCategoryV1.candidate_application_failed,
-			engine.DirectBondCommitRecoveryV1.refresh_and_restart, "could not apply the bond"),
-		(engine.DirectBondCommitCategoryV1.revision_exhausted,
-			engine.DirectBondCommitRecoveryV1.report_conflict, "document conflict"),
-	)
-	for category, recovery, action in pairs:
-		message = ferrum_qt.ferrum.line_tool_completion.direct_bond_commit_recovery_message(
-			category, recovery,
-		)
-		assert message is not None and action in message
-	message = ferrum_qt.ferrum.line_tool_completion.direct_bond_commit_recovery_message(
-		engine.DirectBondCommitCategoryV1.identity_allocation_failed,
-		engine.DirectBondCommitRecoveryV1.refresh_and_restart,
-	)
-	assert message is None

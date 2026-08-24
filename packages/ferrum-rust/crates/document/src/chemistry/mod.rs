@@ -7,7 +7,6 @@ mod clean_geometry_v1;
 mod complete_graph_molecule_insertion_v1;
 mod document_atom_oxidation_observation_v1;
 mod document_bond_capacity_v1;
-mod document_chemistry_limits_v1;
 mod document_molecule_composition_graph_v1;
 mod document_molecule_graph_v1;
 mod document_molecule_inchi_v1;
@@ -22,7 +21,6 @@ mod interchange_record_insertion_v1;
 mod molblock_molecule_insertion_v1;
 mod molblock_source_v1;
 mod molecule_coordinate_generation_v1;
-mod ordinary_attachment_capacity_v1;
 mod peptide_template_molecule_insertion_v1;
 mod sdf_source_v1;
 mod smiles_molecule_insertion_v1;
@@ -115,10 +113,6 @@ pub use molblock_molecule_insertion_v1::{
 pub use molblock_source_v1::{MolblockSourceErrorV1, read_molblock_file_v1};
 pub use molecule_coordinate_generation_v1::{
     MoleculeCoordinateBuildError, build_molecule_coordinate_update_v1,
-};
-pub(crate) use ordinary_attachment_capacity_v1::{
-    DocumentOrdinaryAttachmentAvailabilityV1, DocumentOrdinaryAttachmentReasonV1,
-    OrdinaryAttachmentCandidateWitnessV1, admit_candidate_ordinary_attachment_capacity_v1,
 };
 pub use peptide_template_molecule_insertion_v1::{
     PeptideTemplateMoleculeBuildErrorV1, build_native_template_insertion_with_engine,

@@ -39,13 +39,13 @@ enum PyCategory {
     EmptySelection,
     NonFinitePoint,
     InvalidRectangle,
-    PreviewMismatch,
     NoTarget,
     UnrenderableDepiction,
     AmbiguousRootIdentifier,
     DisplayOnly,
     Observation,
     SessionConflict,
+    RendererAdmission,
     UnrenderableCandidate,
     CrossMoleculeSelection,
     UnsupportedTarget,
@@ -480,7 +480,7 @@ pub(crate) struct PyStructureCommit {
     name = "RenderInteractionTranslationGestureV1"
 )]
 pub(crate) struct PyGesture {
-    value: RenderInteractionTranslationGestureV1,
+    value: Option<RenderInteractionTranslationGestureV1>,
 }
 #[pyclass(
     unsendable,
@@ -488,7 +488,6 @@ pub(crate) struct PyGesture {
     name = "RenderInteractionTranslationPreviewV1"
 )]
 pub(crate) struct PyPreview {
-    value: RenderInteractionTranslationPreviewV1,
     #[pyo3(get)]
     dx: f64,
     #[pyo3(get)]
@@ -588,7 +587,7 @@ impl PyDocumentSession {
     ) -> PyResult<PyGesture> {
         self.session
             .begin_render_interaction_translation_v1(&selection.value, press_x, press_y, snap.snap)
-            .map(|value| PyGesture { value })
+            .map(|value| PyGesture { value: Some(value) })
             .map_err(|error| interaction_error(py, error))
     }
     fn preview_render_interaction_translation_v1(
@@ -598,19 +597,26 @@ impl PyDocumentSession {
         pointer_x: f64,
         pointer_y: f64,
     ) -> PyResult<PyPreview> {
+        let gesture = gesture.value.as_ref().ok_or_else(|| {
+            RenderInteractionError::new_err("translation gesture was already prepared")
+        })?;
         self.session
-            .preview_render_interaction_translation_v1(&gesture.value, pointer_x, pointer_y)
+            .preview_render_interaction_translation_v1(gesture, pointer_x, pointer_y)
             .map_err(|error| interaction_error(py, error))
             .and_then(|value| preview(py, value))
     }
     fn commit_render_interaction_translation_v1(
         &mut self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyGesture>,
-        preview: PyRef<'_, PyPreview>,
+        mut gesture: PyRefMut<'_, PyGesture>,
+        release_x: f64,
+        release_y: f64,
     ) -> PyResult<PyCommit> {
+        let gesture = gesture.value.take().ok_or_else(|| {
+            RenderInteractionError::new_err("translation gesture was already prepared")
+        })?;
         self.session
-            .commit_render_interaction_translation_v1(&gesture.value, &preview.value)
+            .commit_render_interaction_translation_v1(gesture, release_x, release_y)
             .map_err(|error| interaction_error(py, error))
             .and_then(|value| commit(py, value))
     }
@@ -728,7 +734,6 @@ fn preview(py: Python<'_>, value: RenderInteractionTranslationPreviewV1) -> PyRe
     Ok(PyPreview {
         dx: value.dx(),
         dy: value.dy(),
-        value,
         bounds,
     })
 }
@@ -834,13 +839,13 @@ fn category(error: &RenderInteractionErrorV1) -> PyCategory {
         RenderInteractionErrorV1::EmptySelection => PyCategory::EmptySelection,
         RenderInteractionErrorV1::NonFinitePoint => PyCategory::NonFinitePoint,
         RenderInteractionErrorV1::InvalidRectangle => PyCategory::InvalidRectangle,
-        RenderInteractionErrorV1::PreviewMismatch => PyCategory::PreviewMismatch,
         RenderInteractionErrorV1::NoTarget => PyCategory::NoTarget,
         RenderInteractionErrorV1::UnrenderableDepiction => PyCategory::UnrenderableDepiction,
         RenderInteractionErrorV1::AmbiguousRootIdentifier => PyCategory::AmbiguousRootIdentifier,
         RenderInteractionErrorV1::DisplayOnly => PyCategory::DisplayOnly,
         RenderInteractionErrorV1::Observation => PyCategory::Observation,
         RenderInteractionErrorV1::SessionConflict => PyCategory::SessionConflict,
+        RenderInteractionErrorV1::RendererAdmission => PyCategory::RendererAdmission,
         RenderInteractionErrorV1::UnrenderableCandidate => PyCategory::UnrenderableCandidate,
         RenderInteractionErrorV1::CrossMoleculeSelection => PyCategory::CrossMoleculeSelection,
         RenderInteractionErrorV1::UnsupportedTarget => PyCategory::UnsupportedTarget,
@@ -864,9 +869,10 @@ fn recovery(error: &RenderInteractionErrorV1) -> PyRecovery {
         | RenderInteractionErrorV1::DisplayOnly
         | RenderInteractionErrorV1::UnrenderableCandidate
         | RenderInteractionErrorV1::UnsupportedTarget => PyRecovery::ChangePresentation,
-        RenderInteractionErrorV1::PreviewMismatch
-        | RenderInteractionErrorV1::Observation
-        | RenderInteractionErrorV1::SessionConflict => PyRecovery::ReportConflict,
+        RenderInteractionErrorV1::Observation | RenderInteractionErrorV1::SessionConflict => {
+            PyRecovery::ReportConflict
+        }
+        RenderInteractionErrorV1::RendererAdmission => PyRecovery::ChangePresentation,
         RenderInteractionErrorV1::UnsupportedDocument => PyRecovery::ChangePresentation,
     }
 }

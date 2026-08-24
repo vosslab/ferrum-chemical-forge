@@ -50,7 +50,7 @@ def test_presentation_plan_publication_fences_live_smarts_after_document_mutatio
 	_plan(session)
 	assert session._run_live_document_smarts_query_v1("[C]", 128, 256).molecules[0].match_count == 1
 
-	changed = session.submit(
+	changed = session.apply_document_operation_v1(
 		0, ferrum_chem.DocumentOperationV1.set_atom_position("a", 3.0, 2.0, 0.0),
 	).observation.snapshot
 	with pytest.raises(ferrum_chem.LiveDocumentSmartsError) as caught:

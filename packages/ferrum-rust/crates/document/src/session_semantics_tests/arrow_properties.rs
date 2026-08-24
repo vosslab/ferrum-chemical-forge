@@ -54,7 +54,7 @@ fn arrow_properties_commit_once_preserve_extensions_and_follow_history() {
     ];
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let changed = session
-        .submit(0, patch(changes))
+        .apply_document_operation_v1(0, patch(changes))
         .expect("patch must commit");
     let projected = arrow(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
@@ -76,7 +76,7 @@ fn arrow_properties_commit_once_preserve_extensions_and_follow_history() {
 fn arrow_properties_compare_historical_spellings_without_normalizing_them() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let result = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(vec![
                 ArrowPropertyChangeV1::StartHead(false),
@@ -125,7 +125,8 @@ fn arrow_properties_reject_invalid_intent_structure_target_and_stale_revision() 
     let mut malformed = DocumentSession::load(&malformed).expect("retained source loads");
     let before = malformed.snapshot().expect("snapshot");
     assert!(matches!(
-        malformed.submit(0, patch(vec![ArrowPropertyChangeV1::StartHead(true)])),
+        malformed
+            .apply_document_operation_v1(0, patch(vec![ArrowPropertyChangeV1::StartHead(true)])),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(TypedDocumentError::InvalidArrowStructure(_))
         ))
@@ -137,7 +138,7 @@ fn arrow_properties_reject_invalid_intent_structure_target_and_stale_revision() 
         ArrowPropertiesPatchV1::new("missing", vec![ArrowPropertyChangeV1::StartHead(true)])
             .unwrap();
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetArrowProperties { patch: unknown })
         ),
@@ -146,11 +147,11 @@ fn arrow_properties_reject_invalid_intent_structure_target_and_stale_revision() 
         ))
     ));
     session
-        .submit(0, patch(vec![ArrowPropertyChangeV1::StartHead(true)]))
+        .apply_document_operation_v1(0, patch(vec![ArrowPropertyChangeV1::StartHead(true)]))
         .expect("initial patch");
     let before = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.submit(0, patch(vec![ArrowPropertyChangeV1::EndHead(false)])),
+        session.apply_document_operation_v1(0, patch(vec![ArrowPropertyChangeV1::EndHead(false)])),
         Err(DocumentSessionError::RevisionConflict {
             expected: 0,
             actual: 1

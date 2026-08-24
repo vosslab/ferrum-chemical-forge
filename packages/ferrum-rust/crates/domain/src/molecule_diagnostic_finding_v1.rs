@@ -16,6 +16,9 @@ pub enum MoleculeDiagnosticSeverityV1 {
 /// Closed V1 finding code vocabulary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MoleculeDiagnosticCodeV1 {
+    TextAtomPresent,
+    UnexpandedGroupPresent,
+    ZeroOrderBond,
     CompositionUnavailable,
     UnsupportedVertex,
     MissingElement,
@@ -42,12 +45,17 @@ pub enum MoleculeDiagnosticRecoveryV1 {
     RetryWithChemistryRuntime,
 }
 
-/// Sanitized finding location. Document adapters must validate IDs before use.
+/// Sanitized finding location with an optional durable source identifier.
+///
+/// A missing source identifier means the scanner can describe the affected
+/// semantic subject but cannot safely address a particular authored record.
+/// Document adapters validate present identifiers before using them.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MoleculeDiagnosticLocationV1 {
     Root,
-    Atom { identifier: String },
-    Bond { identifier: String },
+    Atom { source_identifier: Option<String> },
+    Vertex { source_identifier: Option<String> },
+    Bond { source_identifier: Option<String> },
 }
 
 /// Owned report finding with bounded optional detail.

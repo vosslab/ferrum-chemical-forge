@@ -9,8 +9,10 @@ use crate::{
     FerrumFontEnvironmentV1, PathCommandV1, RenderError, RenderPoint, VerifiedTelexGlyphMetrics,
 };
 use ferrum_document_projection::{
-    PresentationArrowPreviewRequestV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
-    PresentationTargetV1,
+    PlusProjectionV1, Point3V1, PositiveFiniteV1, PresentationArrowPreviewRequestV1,
+    PresentationFactProvenanceV1, PresentationFillV1, PresentationFontFaceV1, PresentationFontV1,
+    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
+    PresentationTargetV1, ProjectionLocalObjectKeyV1, Rgb24V1,
 };
 
 /// Closed schema identifier for renderer-owned presentation delivery plans.
@@ -217,6 +219,58 @@ pub fn lower_arrow_preview_v1(
             bounds,
         }],
     )
+}
+
+/// Lower one identifier-free standard Plus preview through the ordinary
+/// verified-Telex presentation path.
+///
+/// The returned plan contains a synthetic local target only because the shared
+/// presentation-plan grammar requires one. It has neither a durable nor a
+/// source identifier, and it carries no session, mutation, or transition
+/// authority.
+pub fn lower_standard_plus_preview_v1(
+    anchor: RenderPoint,
+) -> Result<PresentationRenderPlanV1, RenderError> {
+    let environment = FerrumFontEnvironmentV1::load()?;
+    let metrics = VerifiedTelexGlyphMetrics::new(&environment)?;
+    let plus = standard_plus_projection(anchor);
+    let render = DocumentPlusRenderV1::from_projection(&plus, &metrics)?;
+    let bounds = text_bounds(render.anchor(), render.bounds())?;
+    PresentationRenderPlanV1::new(
+        0,
+        [0; 32],
+        vec![PresentationRenderRootV1::Plus { render, bounds }],
+    )
+}
+
+fn standard_plus_projection(anchor: RenderPoint) -> PlusProjectionV1 {
+    let target = PresentationTargetV1::try_new(
+        None,
+        ProjectionLocalObjectKeyV1::from_path_components(&[0])
+            .expect("preview target has a nonempty local path"),
+        None,
+        0,
+        PresentationRecordKindV1::Plus,
+    )
+    .expect("synthetic preview target has coherent local identity");
+    let font = PresentationFontV1::try_new(
+        PresentationFontFaceV1::TelexRegularV1,
+        PresentationFactProvenanceV1::Builtin,
+        PositiveFiniteV1::new(14.0).expect("built-in Plus font size is positive"),
+        PresentationFactProvenanceV1::Builtin,
+        Rgb24V1::new("#000000").expect("built-in Plus colour is valid"),
+        PresentationFactProvenanceV1::Builtin,
+    )
+    .expect("built-in Plus font facts are coherent");
+    let background = PresentationFillV1::try_new(None, PresentationFactProvenanceV1::Builtin)
+        .expect("built-in Plus background facts are coherent");
+    PlusProjectionV1::try_new(
+        target,
+        Point3V1::new(anchor.x(), anchor.y(), 0.0).expect("render point is finite"),
+        font,
+        background,
+    )
+    .expect("synthetic Plus projection is coherent")
 }
 
 fn render_root(

@@ -3,6 +3,7 @@
 # Standard Library
 import dataclasses
 import json
+import math
 
 # PIP3 modules
 import PySide6.QtCore
@@ -14,6 +15,22 @@ from ferrum_qt.ferrum.background_job import FerrumDetachedJobThread
 # local repo modules
 import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.ferrum.molecule_inspection
+
+
+_FINDING_SEVERITIES = {"info", "warning", "error"}
+_FINDING_RECOVERIES = {
+	"none",
+	"inspect_structure",
+	"correct_chemical_facts",
+	"choose_supported_representation",
+	"reduce_selection",
+	"retry_with_chemistry_runtime",
+}
+_FINDING_SUBJECTS = {"atom", "vertex", "bond"}
+_NEUTRAL_BOND_CAPACITY = {"within_capacity", "exceeds_capacity", "not_checked"}
+_AGGREGATE_OMISSION_REASONS = {
+	"fewer_than_two_selected", "incomplete_record_composition",
+}
 
 
 #============================================
@@ -31,9 +48,11 @@ class _MoleculeReportIntent:
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class FerrumNativeMoleculeReportFailure:
-	"""Safe terminal failure text delivered back to the Qt event loop."""
+	"""Safe typed terminal refusal delivered back to the Qt event loop."""
 
 	message: str
+	category: str | None = None
+	recovery: str | None = None
 
 
 #============================================
@@ -44,9 +63,11 @@ def _report_request(snapshot: object, addresses: tuple[object, ...]) -> str:
 		"request_id": "qt-molecule-report",
 		"operation": {
 			"kind": "document.molecule.report.v1",
-			"document": snapshot.cdml,
-			"expected_revision": snapshot.revision,
-			"expected_digest_hex": snapshot.digest,
+			"snapshot": {
+				"cdml": snapshot.cdml,
+				"revision": snapshot.revision,
+				"digest_hex": snapshot.digest,
+			},
 			"molecule_ids": [address.molecule_id for address in addresses],
 		},
 	}
@@ -55,9 +76,11 @@ def _report_request(snapshot: object, addresses: tuple[object, ...]) -> str:
 
 
 #============================================
-def _execute_report_request(request_json: str) -> dict:
+def _execute_report_request(execute_operation: object, request_json: str) -> dict:
 	"""Run exactly the public JSON operation and decode its response envelope."""
-	response_json = engine.extension_module().execute_operation_v1(request_json)
+	if not callable(execute_operation):
+		raise TypeError("Ferrum molecule report requires a public operation callable")
+	response_json = execute_operation(request_json)
 	response = json.loads(response_json)
 	if type(response) is not dict:
 		raise TypeError("Ferrum molecule report returned a non-object protocol envelope")
@@ -71,12 +94,12 @@ class FerrumNativeMoleculeReportWorker(FerrumDetachedJobThread):
 	reported = PySide6.QtCore.Signal(object)
 
 	#============================================
-	def __init__(self, request_json: str) -> None:
-		"""Retain only immutable protocol text, not a session or Rust receipt."""
+	def __init__(self, execute_operation: object, request_json: str) -> None:
+		"""Retain a public callable and immutable protocol text, never a live session."""
 		if type(request_json) is not str:
 			raise TypeError("Ferrum molecule report requires a JSON request string")
 		super().__init__(
-			lambda: _execute_report_request(request_json),
+			lambda: _execute_report_request(execute_operation, request_json),
 			lambda error: FerrumNativeMoleculeReportFailure(str(error)),
 		)
 
@@ -183,15 +206,270 @@ def _aggregate_text(aggregate: dict) -> str:
 		text = "\n".join(lines)
 		return text
 	if kind == "omitted":
-		text = "Aggregate composition: omitted ({0})".format(aggregate["reason"])
+		lines = [
+			"Aggregate composition: omitted",
+			"Reason: {0}".format(aggregate["reason"]),
+			"Recovery: {0}".format(aggregate["recovery"]),
+		]
+		text = "\n".join(lines)
 		return text
 	raise ValueError("unknown Rust molecule-report aggregate outcome: {0}".format(kind))
 
 
 #============================================
-def _finding_text(code: str) -> str:
-	"""Present one bounded Rust finding code as a readable report row."""
-	return code.replace("_", " ").capitalize()
+def _finding_location_text(location: dict) -> str:
+	"""Render one authenticated diagnostic location without locating scene items."""
+	kind = location["kind"]
+	if kind == "root":
+		text = "root"
+	elif kind == "unaddressable":
+		text = "unaddressable {0}".format(location["subject"])
+	else:
+		text = "{0}: {1}".format(kind, location["identifier"])
+	return text
+
+
+#============================================
+def _finding_text(finding: dict) -> str:
+	"""Present one complete ordered Rust finding without deriving chemistry in Qt."""
+	lines = [
+		"Severity: {0}".format(finding["severity"]),
+		"Code: {0}".format(finding["code"]),
+		"Location: {0}".format(_finding_location_text(finding["location"])),
+		"Recovery: {0}".format(finding["recovery"]),
+	]
+	if finding["detail"] is not None:
+		lines.append("Detail: {0}".format(finding["detail"]))
+	text = "\n".join(lines)
+	return text
+
+
+#============================================
+def _finding_summary_text(finding: dict) -> str:
+	"""Provide a compact tree label for one already-validated Rust finding."""
+	text = "{0}: {1} - {2}; {3}".format(
+		finding["severity"],
+		finding["code"],
+		_finding_location_text(finding["location"]),
+		finding["recovery"],
+	)
+	return text
+
+
+#============================================
+def _finite_number(value: object) -> bool:
+	"""Require JSON numeric facts that the Qt formatter can present safely."""
+	return type(value) in {int, float} and type(value) is not bool and math.isfinite(value)
+
+
+#============================================
+def _valid_element_count(element: object) -> bool:
+	"""Validate one authored element count before it reaches a report formatter."""
+	return (
+		type(element) is dict and set(element) == {"symbol", "atom_count"}
+		and type(element.get("symbol")) is str and bool(element["symbol"])
+		and type(element.get("atom_count")) is int and element["atom_count"] >= 0
+	)
+
+
+#============================================
+def _valid_composition_element(element: object) -> bool:
+	"""Validate one isotope-aware complete-composition contribution."""
+	return (
+		type(element) is dict
+		and {"symbol", "atom_count", "average_mass_contribution_da", "mass_percentage"} <= set(element)
+		and set(element) <= {
+			"symbol", "isotope", "atom_count", "average_mass_contribution_da", "mass_percentage",
+		}
+		and type(element.get("symbol")) is str and bool(element["symbol"])
+		and (element.get("isotope") is None or (
+			type(element["isotope"]) is int and 0 < element["isotope"] <= 65535
+		))
+		and type(element.get("atom_count")) is int and element["atom_count"] >= 0
+		and _finite_number(element.get("average_mass_contribution_da"))
+		and element["average_mass_contribution_da"] >= 0.0
+		and _finite_number(element.get("mass_percentage"))
+		and 0.0 <= element["mass_percentage"] <= 100.0
+	)
+
+
+#============================================
+def _valid_composition(composition: object) -> bool:
+	"""Validate one complete composition and its directly consumed numeric facts."""
+	if type(composition) is not dict or set(composition) != {
+		"formula", "net_formal_charge", "average_molecular_weight_da",
+		"monoisotopic_mass_da", "elements",
+	}:
+		return False
+	return (
+		type(composition["formula"]) is str and bool(composition["formula"])
+		and type(composition["net_formal_charge"]) is int
+		and _finite_number(composition["average_molecular_weight_da"])
+		and composition["average_molecular_weight_da"] >= 0.0
+		and _finite_number(composition["monoisotopic_mass_da"])
+		and composition["monoisotopic_mass_da"] >= 0.0
+		and type(composition["elements"]) is list
+		and all(_valid_composition_element(element) for element in composition["elements"])
+	)
+
+
+#============================================
+def _valid_finding_location(location: object) -> bool:
+	"""Recognize only the closed location grammar supplied by the public receipt."""
+	if type(location) is not dict:
+		return False
+	kind = location.get("kind")
+	if kind == "root":
+		return set(location) == {"kind"}
+	if kind in _FINDING_SUBJECTS:
+		return set(location) == {"kind", "identifier"} and type(location.get("identifier")) is str
+	if kind == "unaddressable":
+		return set(location) == {"kind", "subject"} and location.get("subject") in _FINDING_SUBJECTS
+	return False
+
+
+#============================================
+def _valid_finding(finding: object) -> bool:
+	"""Recognize one complete canonical diagnostic finding at the protocol boundary."""
+	if (
+		type(finding) is not dict
+		or not {"severity", "code", "recovery", "location"} <= set(finding)
+		or not set(finding) <= {"severity", "code", "recovery", "location", "detail"}
+	):
+		return False
+	return (
+		finding.get("severity") in _FINDING_SEVERITIES
+		and type(finding.get("code")) is str
+		and finding.get("recovery") in _FINDING_RECOVERIES
+		and _valid_finding_location(finding.get("location"))
+		and (finding.get("detail") is None or (
+			type(finding.get("detail")) is str and len(finding["detail"]) <= 4096
+		))
+	)
+
+
+#============================================
+def _valid_aggregate(aggregate: object) -> bool:
+	"""Recognize the tagged aggregate outcome without replacing a Rust decision."""
+	if type(aggregate) is not dict:
+		return False
+	if aggregate.get("kind") == "complete":
+		return set(aggregate) == {"kind", "composition"} and _valid_composition(
+			aggregate.get("composition"),
+		)
+	if aggregate.get("kind") == "omitted":
+		return (
+			set(aggregate) == {"kind", "reason", "recovery"}
+			and aggregate.get("reason") in _AGGREGATE_OMISSION_REASONS
+			and aggregate.get("recovery") in _FINDING_RECOVERIES
+		)
+	return False
+
+
+#============================================
+def _valid_record(record: object, address: object) -> bool:
+	"""Validate one selected direct-root record against its captured public address."""
+	if (
+		type(record) is not dict
+		or not {
+			"molecule_id", "source_id", "document_root_order", "atom_count", "bond_count",
+			"authored_elements", "neutral_bond_capacity", "findings",
+		} <= set(record)
+		or not set(record) <= {
+			"molecule_id", "source_id", "document_root_order", "authored_name", "atom_count",
+			"bond_count", "authored_charge", "authored_elements", "composition",
+			"neutral_bond_capacity", "findings",
+		}
+	):
+		return False
+	return (
+		record["molecule_id"] == address.molecule_id
+		and record["source_id"] == address.source_id
+		and record["document_root_order"] == address.document_root_order
+		and type(record["molecule_id"]) is str
+		and type(record["source_id"]) is str
+		and type(record["document_root_order"]) is int and record["document_root_order"] >= 0
+		and (record["authored_name"] is None or type(record["authored_name"]) is str)
+		and type(record["atom_count"]) is int and record["atom_count"] >= 0
+		and type(record["bond_count"]) is int and record["bond_count"] >= 0
+		and (record["authored_charge"] is None or type(record["authored_charge"]) is int)
+		and type(record["authored_elements"]) is list
+		and all(_valid_element_count(element) for element in record["authored_elements"])
+		and (record["composition"] is None or _valid_composition(record["composition"]))
+		and record["neutral_bond_capacity"] in _NEUTRAL_BOND_CAPACITY
+		and type(record["findings"]) is list
+		and all(_valid_finding(finding) for finding in record["findings"])
+	)
+
+
+#============================================
+def _presentation_composition(composition: dict) -> dict:
+	"""Supply explicit Qt defaults for schema-optional composition fields."""
+	return {
+		**composition,
+		"elements": [{"isotope": None, **element} for element in composition["elements"]],
+	}
+
+
+#============================================
+def _presentation_record(record: dict) -> dict:
+	"""Supply explicit Qt defaults for schema-optional record fields."""
+	composition = record.get("composition")
+	return {
+		"authored_name": None,
+		"authored_charge": None,
+		**record,
+		"composition": None if composition is None else _presentation_composition(composition),
+		"findings": [{"detail": None, **finding} for finding in record["findings"]],
+	}
+
+
+#============================================
+def _presentation_report(report: dict) -> dict:
+	"""Supply only schema-defined presentation defaults to an authenticated receipt."""
+	aggregate = report["aggregate"]
+	if aggregate["kind"] == "complete":
+		aggregate = {**aggregate, "composition": _presentation_composition(aggregate["composition"])}
+	return {
+		**report,
+		"records": [_presentation_record(record) for record in report["records"]],
+		"aggregate": aggregate,
+	}
+
+
+#============================================
+def decode_molecule_report_refusal(response: object) -> FerrumNativeMoleculeReportFailure | None:
+	"""Classify the report operation's typed error envelope by stable facts only."""
+	if type(response) is not dict or response.get("schema") != "ferrum-operation-error-v1":
+		return None
+	error = response.get("error")
+	if type(error) is not dict or type(error.get("category")) is not str:
+		return None
+	if error.get("operation") not in {None, "document.molecule.report.v1"}:
+		return None
+	category = error["category"]
+	resource = error.get("resource_limit")
+	if category == "resource_limit" and type(resource) is dict and resource == {
+		"reason": "response_size_exceeded", "recovery": "reduce_requested_result",
+	}:
+		return FerrumNativeMoleculeReportFailure(
+			"Molecule Report is too large. Reduce the selected molecules and run it again.",
+			category, "reduce_requested_result",
+		)
+	if category == "chemistry_unavailable":
+		return FerrumNativeMoleculeReportFailure(
+			"Chemistry is temporarily unavailable. Retry Molecule Report when Ferrum chemistry is ready.",
+			category, "retry_with_chemistry_runtime",
+		)
+	if category in {"stale_document", "document_admission_failed", "document_invalid"}:
+		return FerrumNativeMoleculeReportFailure(
+			"Ferrum could not use this document snapshot. Reload the document, then run Molecule Report again.",
+			category, "reload_and_rerun",
+		)
+	return FerrumNativeMoleculeReportFailure(
+		"Ferrum could not prepare Molecule Report. Run it again from the current document.",
+		category, "rerun",
+	)
 
 
 #============================================
@@ -312,12 +590,14 @@ class FerrumNativeMoleculeReportDialog(FerrumAccessibleDialog):
 			root.appendRow(facts)
 			diagnostics = PySide6.QtGui.QStandardItem(self.tr("Diagnostics"))
 			root.appendRow(diagnostics)
-			for code in record["finding_codes"]:
-				finding = PySide6.QtGui.QStandardItem(_finding_text(code))
-				finding.setData(_finding_text(code), PySide6.QtCore.Qt.ItemDataRole.UserRole)
+			# Validated findings retain the canonical Rust report order.
+			for finding_summary in record["findings"]:
+				finding_text = _finding_text(finding_summary)
+				finding = PySide6.QtGui.QStandardItem(finding_text)
+				finding.setData(finding_text, PySide6.QtCore.Qt.ItemDataRole.UserRole)
 				diagnostics.appendRow(finding)
 			if diagnostics.rowCount() == 0:
-				clear = PySide6.QtGui.QStandardItem(self.tr("No supported capacity findings"))
+				clear = PySide6.QtGui.QStandardItem(self.tr("OK - no supported diagnostics"))
 				clear.setData(clear.text(), PySide6.QtCore.Qt.ItemDataRole.UserRole)
 				diagnostics.appendRow(clear)
 			self._tree.expand(root.index())
@@ -467,7 +747,8 @@ class FerrumNativeMoleculeReportMixin:
 		try:
 			snapshot = tab.current_snapshot
 			request_json = _report_request(snapshot, addresses)
-			worker = FerrumNativeMoleculeReportWorker(request_json)
+			execute_operation = engine.extension_module().execute_operation_v1
+			worker = FerrumNativeMoleculeReportWorker(execute_operation, request_json)
 		except Exception as exc:
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 			return False
@@ -499,29 +780,36 @@ class FerrumNativeMoleculeReportMixin:
 	#============================================
 	def _report_from_current_intent(self, intent: _MoleculeReportIntent, response: object) -> dict | None:
 		"""Authenticate the public envelope to every captured direct-root address."""
-		if type(response) is not dict or response.get("schema") != "ferrum-operation-response-v1":
+		if (
+			type(response) is not dict
+			or set(response) != {"schema", "request_id", "outcome"}
+			or response.get("schema") != "ferrum-operation-response-v1"
+			or response.get("request_id") != "qt-molecule-report"
+		):
 			return None
 		outcome = response.get("outcome")
-		if type(outcome) is not dict or outcome.get("kind") != "document.molecule.report.v1":
+		if type(outcome) is not dict or set(outcome) != {"kind", "report"} or (
+			outcome.get("kind") != "document.molecule.report.v1"
+		):
 			return None
 		report = outcome.get("report")
 		if (
 			type(report) is not dict
-			or report.get("source_revision") != intent.revision
-			or report.get("source_digest_hex") != intent.digest
+			or set(report) != {"schema", "source_revision", "source_digest_hex", "records", "aggregate"}
+			or report.get("schema") != "ferrum-document-molecule-report-v1"
+			or type(report.get("source_revision")) is not int
+			or report["source_revision"] != intent.revision
+			or type(report.get("source_digest_hex")) is not str
+			or report["source_digest_hex"] != intent.digest
 			or type(report.get("records")) is not list
 			or len(report["records"]) != len(intent.addresses)
+			or not _valid_aggregate(report.get("aggregate"))
 		):
 			return None
 		for record, address in zip(report["records"], intent.addresses, strict=True):
-			if (
-				type(record) is not dict
-				or record.get("molecule_id") != address.molecule_id
-				or record.get("source_id") != address.source_id
-				or record.get("document_root_order") != address.document_root_order
-			):
+			if not _valid_record(record, address):
 				return None
-		return report
+		return _presentation_report(report)
 
 	#============================================
 	def _on_document_molecule_reported(self, worker: object, response: object) -> None:
@@ -529,11 +817,15 @@ class FerrumNativeMoleculeReportMixin:
 		intent = self._current_molecule_report_intent(worker)
 		if intent is None:
 			return
+		refusal = decode_molecule_report_refusal(response)
+		if refusal is not None:
+			self._show_edit_refusal(self._unavailable_edit_refusal(refusal.message))
+			return
 		report = self._report_from_current_intent(intent, response)
 		if report is None:
-			self.statusBar().showMessage(self.tr(
-				"Document changed while the report was being prepared. Run Molecule Report again.",
-			), 5000)
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"Ferrum returned an invalid Molecule Report receipt. Run it again from the current document.",
+			))
 			return
 		self._show_molecule_report_dialog(report, intent.tab)
 
@@ -657,14 +949,12 @@ class FerrumNativeMoleculeReportMixin:
 
 	#============================================
 	def _molecule_inspection_blocks_tab_close(self, tab: object) -> bool:
-		"""Keep a captured source tab alive until the report worker has retired."""
+		"""Withdraw delivery before a detached report source tab is disposed."""
 		intent = self._molecule_report_intent
 		if intent is None or intent.tab is not tab:
 			return False
-		self._show_edit_refusal(self._unavailable_edit_refusal(
-			"Cancel Molecule Report and wait for the current operation before closing.",
-		))
-		return True
+		intent.worker.cancel_delivery()
+		return False
 
 	#============================================
 	def _cancel_molecule_inspection_for_close(self) -> bool:

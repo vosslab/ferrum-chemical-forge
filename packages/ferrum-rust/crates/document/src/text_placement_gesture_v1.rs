@@ -6,7 +6,7 @@ use crate::{
 };
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct TextPlacementGestureV1 {
     pub(crate) capability: AuthoringCapabilityV1,
     pub(crate) fence: DocumentFenceV1,
@@ -16,6 +16,12 @@ impl TextPlacementGestureV1 {
     #[must_use]
     pub const fn anchor(&self) -> PresentationGesturePoint2V1 {
         self.anchor
+    }
+
+    pub(crate) fn same_preparation_gesture(&self, other: &Self) -> bool {
+        self.capability.same_capability(&other.capability)
+            && self.fence == other.fence
+            && self.anchor == other.anchor
     }
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -187,9 +193,10 @@ mod tests {
 
     #[test]
     fn placement_commits_one_canonical_text_and_replays_never_mutate() {
-        let mut session =
-            DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version='26.07'/>")
-                .expect("session");
+        let mut session = DocumentSession::load(
+            "<cdml xmlns=\"urn:ferrum:cdml\" version='26.07'><standard font_family=\"Telex\"/></cdml>",
+        )
+        .expect("canonical bundled face remains renderable");
         let snapshot = session.snapshot().expect("snapshot");
         let gesture = session
             .begin_text_placement_gesture_v1(
@@ -229,6 +236,27 @@ mod tests {
             ),
             Err(TextPlacementErrorV1::UnsupportedStyle)
         ));
+    }
+
+    #[test]
+    fn unknown_persisted_standard_refuses_text_preview_without_mutation() {
+        let mut session = DocumentSession::load(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><standard font_family=\"Legacy Serif\"/></cdml>",
+        )
+        .expect("unknown persisted standard is retained for repair");
+        let before = session.snapshot().expect("snapshot");
+        let gesture = session
+            .begin_text_placement_gesture_v1(
+                DocumentFenceV1::new(before.revision(), *before.digest()),
+                PresentationGesturePoint2V1::new(1.0, 2.0).expect("point"),
+            )
+            .expect("gesture");
+
+        assert!(matches!(
+            session.prepare_text_placement_gesture_v1(&gesture, content(Vec::new())),
+            Err(TextPlacementErrorV1::UnrenderableStandard)
+        ));
+        assert_eq!(session.snapshot().expect("snapshot"), before);
     }
 
     #[test]

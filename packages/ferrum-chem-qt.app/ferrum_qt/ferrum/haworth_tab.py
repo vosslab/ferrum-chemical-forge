@@ -2,23 +2,23 @@
 
 
 class FerrumNativeHaworthTabMixin:
-	"""Prepare and commit an opaque Ferrum D-glucose Haworth receipt."""
+	"""Resolve and redeem standalone Haworth transitions through generic authority."""
 
-	def prepare_standalone_haworth(self, recipe: str, center_x: float,
+	def resolve_standalone_haworth_transition(self, recipe: str, center_x: float,
 			center_y: float) -> object:
 		self._require_mutable()
-		return self._session.prepare_create_standalone_haworth_v1(
+		return self._session.resolve_standalone_haworth_transition_v1(
 			self.current_snapshot.revision, recipe, center_x, center_y,
 		)
 
-	def commit_standalone_haworth(self, prepared: object) -> object:
+	def prepare_standalone_haworth_transition(self, request: object) -> object:
 		self._require_mutable()
-		import ferrum_qt.ferrum.engine as engine
-		if type(prepared) is not engine.PreparedStandaloneHaworthInsertionV1:
-			raise TypeError("Ferrum Haworth insertion requires an exact Rust prepared receipt")
-		result = self._session.commit_create_standalone_haworth_v1(
-			self.current_snapshot.revision, prepared,
-		)
-		selection = tuple(("atom", identifier) for identifier in prepared.atom_identifiers)
+		return self._session.prepare_session_operation_transition_v1(request)
+
+	def commit_standalone_haworth_transition(self, prepared: object) -> object:
+		self._require_mutable()
+		result = self._session.commit_session_operation_transition_v1(prepared)
+		selection = tuple(("atom", identifier)
+			for identifier in result.outcome.molecule_inserted.atom_identifiers)
 		self._install_mutation_result(result, selection)
 		return result

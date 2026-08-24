@@ -19,7 +19,7 @@ authored CDML document:
 
 ```bash
 ./build.sh
-build/bin/ferrum inspect tests/e2e/corpus/authored_document_forms.cdml
+build/bin/ferrum inspect drawing.cdml
 ```
 
 `build/bin/ferrum render drawing.cdml --to svg --output drawing.svg` writes a

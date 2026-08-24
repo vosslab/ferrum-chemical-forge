@@ -9,18 +9,14 @@ use ferrum_chemistry::{
     MoleculeComposition,
 };
 use ferrum_core::Molecule;
-use ferrum_domain::{
-    MoleculeDiagnosticCodeV1, MoleculeDiagnosticFindingErrorV1, MoleculeDiagnosticFindingV1,
-    MoleculeDiagnosticLocationV1, MoleculeDiagnosticRecoveryV1, MoleculeDiagnosticSeverityV1,
-};
+use ferrum_domain::{MoleculeDiagnosticRecoveryV1, diagnose_molecule_representation_v1};
 use thiserror::Error;
 
 use ferrum_document::{
     DocumentBondCapacityErrorV1, DocumentBondCapacityOutcomeV1, DocumentBondCapacityRequestV1,
-    DocumentMoleculeCompositionGraphErrorV1, DocumentMoleculeInspectionErrorV1, DocumentObjectIdV1,
-    MoleculeProjectionV1, SessionDocumentObservationV1, TypedDocument,
-    direct_projection_molecule_v1, document_molecule_composition_graph_v1,
-    verify_molecule_observation_v1,
+    DocumentMoleculeInspectionErrorV1, DocumentObjectIdV1, MoleculeProjectionV1,
+    SessionDocumentObservationV1, TypedDocument, direct_projection_molecule_v1,
+    document_molecule_composition_graph_v1, verify_molecule_observation_v1,
 };
 
 use super::dto::{
@@ -29,6 +25,12 @@ use super::dto::{
     OperationProtocolOutcomeV1,
 };
 use super::execution::ExecutionFailureV1;
+use super::frozen_document_snapshot_v1::FrozenDocumentSnapshotV1;
+use super::molecule_report_diagnostics_v1::{
+    MoleculeReportDiagnosticsErrorV1, append_composition_unavailable_finding_v1,
+    append_graph_finding_v1, collect_report_findings_v1, finding_recovery_summary_v1,
+    map_diagnostic_finding_error_v1,
+};
 use super::runtime::ChemistryRuntimeV1;
 
 /// Stable report schema identifier.
@@ -37,8 +39,6 @@ const DOCUMENT_MOLECULE_REPORT_SCHEMA_V1: &str = "ferrum-document-molecule-repor
 const MAX_MOLECULE_REPORT_SELECTORS_V1: usize = 128;
 /// Maximum UTF-8 bytes in one durable selector admitted by the report core.
 const MAX_MOLECULE_REPORT_SELECTOR_UTF8_BYTES_V1: usize = 2 * 1024;
-/// Maximum emitted findings for one selected molecule.
-const MAX_MOLECULE_REPORT_FINDINGS_V1: usize = 64;
 /// Maximum document-level findings emitted by one report.
 const MAX_MOLECULE_REPORT_DOCUMENT_FINDINGS_V1: usize = 1;
 
@@ -152,7 +152,7 @@ struct PreparedReportRecordV1 {
     source: DocumentMoleculeReportSourceV1,
     graph: Option<MolGraph>,
     capacity: DocumentBondCapacityOutcomeV1,
-    findings: Vec<MoleculeDiagnosticFindingV1>,
+    findings: Vec<super::dto::DocumentMoleculeReportFindingSummaryV1>,
 }
 /// One source-ordered report record.
 #[derive(Clone, Debug, PartialEq)]
@@ -160,7 +160,7 @@ struct DocumentMoleculeReportRecordV1 {
     source: DocumentMoleculeReportSourceV1,
     composition: Option<MoleculeComposition>,
     neutral_bond_capacity: DocumentBondCapacityOutcomeV1,
-    findings: Vec<MoleculeDiagnosticFindingV1>,
+    findings: Vec<super::dto::DocumentMoleculeReportFindingSummaryV1>,
 }
 impl DocumentMoleculeReportRecordV1 {
     #[must_use]
@@ -176,7 +176,7 @@ impl DocumentMoleculeReportRecordV1 {
         &self.neutral_bond_capacity
     }
     #[must_use]
-    fn findings(&self) -> &[MoleculeDiagnosticFindingV1] {
+    fn findings(&self) -> &[super::dto::DocumentMoleculeReportFindingSummaryV1] {
         &self.findings
     }
 }
@@ -196,10 +196,12 @@ impl DocumentMoleculeReportV1 {
     const fn schema(&self) -> &'static str {
         self.schema
     }
+    #[cfg(test)]
     #[must_use]
     const fn source_revision(&self) -> u64 {
         self.source_revision
     }
+    #[cfg(test)]
     #[must_use]
     const fn source_digest(&self) -> &[u8; 32] {
         &self.source_digest
@@ -247,6 +249,10 @@ impl DocumentMoleculeReportDocumentFindingV1 {
     const fn aggregate_omission_reason(&self) -> DocumentMoleculeReportAggregateOmissionReasonV1 {
         self.aggregate_omission_reason
     }
+    #[must_use]
+    const fn recovery(&self) -> MoleculeDiagnosticRecoveryV1 {
+        self.recovery
+    }
 }
 
 /// Authenticate source state and freeze report inputs before invoking a chemistry engine.
@@ -266,22 +272,18 @@ fn prepare_document_molecule_report_v1(
         .try_reserve_exact(sources.len())
         .map_err(|_| DocumentMoleculeReportErrorV1::ResourceAllocation)?;
     for source in sources {
-        let mut findings = Vec::new();
-        findings
-            .try_reserve_exact(MAX_MOLECULE_REPORT_FINDINGS_V1)
-            .map_err(|_| DocumentMoleculeReportErrorV1::ResourceAllocation)?;
+        let representation_findings = diagnose_molecule_representation_v1(&source.molecule)
+            .map_err(map_diagnostic_finding_error_v1)
+            .map_err(map_diagnostics_error)?;
         let capacity = evaluate_capacity(observation, request, &source.source.molecule_id)?;
-        append_capacity_finding(&mut findings, &capacity)?;
+        let mut findings =
+            collect_report_findings_v1(&source.molecule, &representation_findings, &capacity)
+                .map_err(map_diagnostics_error)?;
         let graph = match document_molecule_composition_graph_v1(&source.molecule) {
             Ok(graph) => Some(graph),
             Err(error) => {
-                if matches!(
-                    error,
-                    DocumentMoleculeCompositionGraphErrorV1::ResourceAllocation
-                ) {
-                    return Err(DocumentMoleculeReportErrorV1::ResourceAllocation);
-                }
-                append_graph_finding(&mut findings, &error)?;
+                append_graph_finding_v1(&mut findings, &source.molecule, &error)
+                    .map_err(map_diagnostics_error)?;
                 None
             }
         };
@@ -317,14 +319,8 @@ fn execute_prepared_document_molecule_report_v1(
             None => None,
         };
         if composition.is_none() {
-            append_finding(
-                &mut record.findings,
-                finding(
-                    MoleculeDiagnosticSeverityV1::Warning,
-                    MoleculeDiagnosticCodeV1::CompositionUnavailable,
-                    MoleculeDiagnosticRecoveryV1::ChooseSupportedRepresentation,
-                )?,
-            )?;
+            append_composition_unavailable_finding_v1(&mut record.findings)
+                .map_err(map_diagnostics_error)?;
         }
         records.push(DocumentMoleculeReportRecordV1 {
             source: record.source,
@@ -485,109 +481,6 @@ struct ResolvedDocumentMoleculeSourceV1 {
     molecule: Molecule,
 }
 
-fn append_capacity_finding(
-    findings: &mut Vec<MoleculeDiagnosticFindingV1>,
-    capacity: &DocumentBondCapacityOutcomeV1,
-) -> Result<(), DocumentMoleculeReportErrorV1> {
-    match capacity {
-        DocumentBondCapacityOutcomeV1::ExceedsCapacity { .. } => append_finding(
-            findings,
-            finding(
-                MoleculeDiagnosticSeverityV1::Warning,
-                MoleculeDiagnosticCodeV1::NeutralCapacityExceeded,
-                MoleculeDiagnosticRecoveryV1::CorrectChemicalFacts,
-            )?,
-        ),
-        DocumentBondCapacityOutcomeV1::NotChecked { reason } => {
-            let _ = reason;
-            append_finding(
-                findings,
-                finding(
-                    MoleculeDiagnosticSeverityV1::Info,
-                    MoleculeDiagnosticCodeV1::NeutralCapacityNotChecked,
-                    MoleculeDiagnosticRecoveryV1::ChooseSupportedRepresentation,
-                )?,
-            )
-        }
-        DocumentBondCapacityOutcomeV1::WithinCapacity { .. } => Ok(()),
-    }
-}
-
-fn append_graph_finding(
-    findings: &mut Vec<MoleculeDiagnosticFindingV1>,
-    error: &DocumentMoleculeCompositionGraphErrorV1,
-) -> Result<(), DocumentMoleculeReportErrorV1> {
-    let code = match error {
-        DocumentMoleculeCompositionGraphErrorV1::EmptyMolecule
-        | DocumentMoleculeCompositionGraphErrorV1::UnsupportedVertex { .. } => {
-            MoleculeDiagnosticCodeV1::UnsupportedVertex
-        }
-        DocumentMoleculeCompositionGraphErrorV1::MissingElement { .. } => {
-            MoleculeDiagnosticCodeV1::MissingElement
-        }
-        DocumentMoleculeCompositionGraphErrorV1::InvalidElement { .. } => {
-            MoleculeDiagnosticCodeV1::InvalidElement
-        }
-        DocumentMoleculeCompositionGraphErrorV1::UnsupportedAtomFact { .. } => {
-            MoleculeDiagnosticCodeV1::UnsupportedAtomFact
-        }
-        DocumentMoleculeCompositionGraphErrorV1::UnsupportedBondEndpoint { .. }
-        | DocumentMoleculeCompositionGraphErrorV1::DuplicateAtomIdentity { .. } => {
-            MoleculeDiagnosticCodeV1::UnsupportedBondEndpoint
-        }
-        DocumentMoleculeCompositionGraphErrorV1::UnsupportedBondStyle { .. } => {
-            MoleculeDiagnosticCodeV1::UnsupportedBondStyle
-        }
-        DocumentMoleculeCompositionGraphErrorV1::UnsupportedBondOrder { .. } => {
-            MoleculeDiagnosticCodeV1::UnsupportedBondOrder
-        }
-        DocumentMoleculeCompositionGraphErrorV1::InconsistentAromaticity { .. } => {
-            MoleculeDiagnosticCodeV1::InconsistentAromaticity
-        }
-        DocumentMoleculeCompositionGraphErrorV1::Graph(_) => {
-            MoleculeDiagnosticCodeV1::CompositionUnavailable
-        }
-        DocumentMoleculeCompositionGraphErrorV1::ResourceAllocation => {
-            return Err(DocumentMoleculeReportErrorV1::ResourceAllocation);
-        }
-    };
-    append_finding(
-        findings,
-        finding(
-            MoleculeDiagnosticSeverityV1::Warning,
-            code,
-            MoleculeDiagnosticRecoveryV1::ChooseSupportedRepresentation,
-        )?,
-    )
-}
-
-fn finding(
-    severity: MoleculeDiagnosticSeverityV1,
-    code: MoleculeDiagnosticCodeV1,
-    recovery: MoleculeDiagnosticRecoveryV1,
-) -> Result<MoleculeDiagnosticFindingV1, DocumentMoleculeReportErrorV1> {
-    MoleculeDiagnosticFindingV1::new(
-        severity,
-        code,
-        recovery,
-        MoleculeDiagnosticLocationV1::Root,
-        None,
-    )
-    .map_err(map_finding_error)
-}
-fn append_finding(
-    findings: &mut Vec<MoleculeDiagnosticFindingV1>,
-    finding: MoleculeDiagnosticFindingV1,
-) -> Result<(), DocumentMoleculeReportErrorV1> {
-    if findings.len() == MAX_MOLECULE_REPORT_FINDINGS_V1 {
-        return Err(DocumentMoleculeReportErrorV1::FindingLimit);
-    }
-    findings
-        .try_reserve(1)
-        .map_err(|_| DocumentMoleculeReportErrorV1::ResourceAllocation)?;
-    findings.push(finding);
-    Ok(())
-}
 fn copied(value: &str) -> Result<String, DocumentMoleculeReportErrorV1> {
     let mut result = String::new();
     result
@@ -666,9 +559,11 @@ fn map_aggregate_error(error: CompositionAggregationError) -> DocumentMoleculeRe
     }
 }
 
-fn map_finding_error(error: MoleculeDiagnosticFindingErrorV1) -> DocumentMoleculeReportErrorV1 {
-    if matches!(error, MoleculeDiagnosticFindingErrorV1::ResourceAllocation) {
+fn map_diagnostics_error(error: MoleculeReportDiagnosticsErrorV1) -> DocumentMoleculeReportErrorV1 {
+    if matches!(error, MoleculeReportDiagnosticsErrorV1::ResourceAllocation) {
         DocumentMoleculeReportErrorV1::ResourceAllocation
+    } else if matches!(error, MoleculeReportDiagnosticsErrorV1::FindingLimit) {
+        DocumentMoleculeReportErrorV1::FindingLimit
     } else {
         DocumentMoleculeReportErrorV1::Finding
     }
@@ -678,11 +573,10 @@ fn map_finding_error(error: MoleculeDiagnosticFindingErrorV1) -> DocumentMolecul
 /// contained in this private module and its graph-owning prepared input is
 /// consumed before a DTO can leave the module.
 pub(super) fn execute_document_molecule_report_v1<R: ChemistryRuntimeV1>(
-    observation: &SessionDocumentObservationV1,
+    snapshot: FrozenDocumentSnapshotV1,
     request: DocumentMoleculeReportRequestV1,
     runtime: &R,
 ) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
-    let digest = parse_digest(&request.expected_digest_hex)?;
     let ids = request
         .molecule_ids
         .into_iter()
@@ -694,8 +588,13 @@ pub(super) fn execute_document_molecule_report_v1<R: ChemistryRuntimeV1>(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let parsed = ParsedDocumentMoleculeReportRequestV1::new(request.expected_revision, digest, ids)
-        .map_err(|error| ExecutionFailureV1::document_invalid(error.to_string()))?;
+    let observation = snapshot.observation();
+    let parsed = ParsedDocumentMoleculeReportRequestV1::new(
+        observation.snapshot().revision(),
+        *observation.snapshot().digest(),
+        ids,
+    )
+    .map_err(|error| ExecutionFailureV1::document_invalid(error.to_string()))?;
     let prepared =
         prepare_document_molecule_report_v1(observation, &parsed).map_err(map_report_error)?;
     let report = runtime
@@ -718,7 +617,11 @@ pub(super) fn execute_document_molecule_report_v1<R: ChemistryRuntimeV1>(
             }
         })??;
     Ok(OperationProtocolOutcomeV1::DocumentMoleculeReport {
-        report: report_summary(report),
+        report: report_summary_with_source_provenance(
+            report,
+            snapshot.source_revision(),
+            *snapshot.source_digest(),
+        ),
     })
 }
 
@@ -743,24 +646,6 @@ fn evaluate_capacity(
         .ok_or(DocumentMoleculeReportErrorV1::Capacity)
 }
 
-fn parse_digest(value: &str) -> Result<[u8; 32], ExecutionFailureV1> {
-    if value.len() != 64 {
-        return Err(ExecutionFailureV1::document_invalid(
-            "expected_digest_hex must contain 64 hexadecimal characters".to_owned(),
-        ));
-    }
-    let mut digest = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
-        let text = std::str::from_utf8(pair).expect("digest bytes are sized as ASCII pairs");
-        digest[index] = u8::from_str_radix(text, 16).map_err(|_| {
-            ExecutionFailureV1::document_invalid(
-                "expected_digest_hex must contain hexadecimal characters".to_owned(),
-            )
-        })?;
-    }
-    Ok(digest)
-}
-
 fn map_report_error(error: DocumentMoleculeReportErrorV1) -> ExecutionFailureV1 {
     match error {
         DocumentMoleculeReportErrorV1::ResourceAllocation
@@ -774,25 +659,39 @@ fn map_report_error(error: DocumentMoleculeReportErrorV1) -> ExecutionFailureV1 
     }
 }
 
+#[cfg(test)]
 fn report_summary(report: DocumentMoleculeReportV1) -> super::dto::DocumentMoleculeReportSummaryV1 {
+    let source_revision = report.source_revision();
+    let source_digest = *report.source_digest();
+    report_summary_with_source_provenance(report, source_revision, source_digest)
+}
+
+fn report_summary_with_source_provenance(
+    report: DocumentMoleculeReportV1,
+    source_revision: u64,
+    source_digest: [u8; 32],
+) -> super::dto::DocumentMoleculeReportSummaryV1 {
     let aggregate = match report.combined_composition() {
         Some(composition) => DocumentMoleculeReportAggregateOutcomeSummaryV1::Complete {
             composition: composition_summary(composition),
         },
-        None => DocumentMoleculeReportAggregateOutcomeSummaryV1::Omitted {
-            reason: report
+        None => {
+            let finding = report
                 .document_findings()
                 .first()
-                .map(|finding| match finding.aggregate_omission_reason() {
+                .expect("an omitted aggregate always has one checked omission finding");
+            DocumentMoleculeReportAggregateOutcomeSummaryV1::Omitted {
+                reason: match finding.aggregate_omission_reason() {
                     DocumentMoleculeReportAggregateOmissionReasonV1::FewerThanTwoSelected => {
                         DocumentMoleculeReportAggregateOmissionReasonSummaryV1::FewerThanTwoSelected
                     }
                     DocumentMoleculeReportAggregateOmissionReasonV1::IncompleteRecordComposition => {
                         DocumentMoleculeReportAggregateOmissionReasonSummaryV1::IncompleteRecordComposition
                     }
-                })
-                .expect("an omitted aggregate always has one checked omission finding"),
-        },
+                },
+                recovery: finding_recovery_summary_v1(finding.recovery()),
+            }
+        }
     };
     let records = report
         .records()
@@ -818,18 +717,13 @@ fn report_summary(report: DocumentMoleculeReportV1) -> super::dto::DocumentMolec
                 .collect(),
             composition: record.composition().map(composition_summary),
             neutral_bond_capacity: capacity_name(record.neutral_bond_capacity()).to_owned(),
-            finding_codes: record
-                .findings()
-                .iter()
-                .map(|finding| format!("{:?}", finding.code()).to_ascii_lowercase())
-                .collect(),
+            findings: record.findings().to_vec(),
         })
         .collect();
     super::dto::DocumentMoleculeReportSummaryV1 {
         schema: report.schema().to_owned(),
-        source_revision: report.source_revision(),
-        source_digest_hex: report
-            .source_digest()
+        source_revision,
+        source_digest_hex: source_digest
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

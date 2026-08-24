@@ -2,7 +2,8 @@
 
 use crate::{
     DocumentSession, DocumentSessionError, MoleculeInsertionV1, MoleculeInsertionV1Error,
-    PendingAdmittedMoleculeInsertionV1, ProjectionError,
+    PreparedSessionTransitionV1, ProjectionError, SessionOperation,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
 use ferrum_chemistry::{
     BondOrder, ChemEngine, ChemistryError, KekulizeOptions, KekulizeOptionsError,
@@ -28,10 +29,14 @@ pub fn prepare_smiles_molecule_v1<E: ChemEngine>(
     expected_revision: u64,
     smiles: &str,
     placement: MoleculePlacementV1,
-) -> Result<PendingAdmittedMoleculeInsertionV1, SmilesMoleculeInsertionError> {
+) -> Result<PreparedSessionTransitionV1, SmilesMoleculeInsertionError> {
     let insertion = build_smiles_molecule_insertion_v1(engine, smiles, placement)?;
     session
-        .prepare_admitted_molecule_insertion_v1(expected_revision, &insertion)
+        .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+            expected_revision,
+            SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(insertion)),
+            TransitionAuthorizationV1::None,
+        ))
         .map_err(SmilesMoleculeInsertionError::from)
 }
 

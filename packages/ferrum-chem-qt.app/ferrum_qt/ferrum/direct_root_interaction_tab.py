@@ -30,21 +30,15 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		self._session.validate_reaction_authoring_choices_v1(choices)
 
 	#============================================
-	def create_reaction_v1(self, reactants: list[str], products: list[str],
+	def resolve_reaction_create(self, reactants: list[str], products: list[str],
 			arrow: str, conditions: list[str], pluses: list[str]) -> object:
-		"""Commit one renderer-preflighted reaction and install its Rust snapshot."""
+		"""Resolve one authored reaction into an opaque generic transition request."""
 		self._require_mutable()
-		commit = self._session.create_reaction_v1(
-			self.current_snapshot.revision, reactants, products, arrow, conditions, pluses,
+		snapshot = self.current_snapshot
+		gesture = self._session.begin_reaction_gesture_v1(
+			snapshot.revision, snapshot.digest, reactants, products, arrow, conditions, pluses,
 		)
-		try:
-			self._install_mutation_result(commit.result)
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
+		return self._session.resolve_reaction_gesture_v1(gesture)
 
 	#============================================
 	def observe_reaction_list(self) -> object:
@@ -60,66 +54,82 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		return self._session.select_reaction_v1(observation, reaction_id)
 
 	#============================================
-	def patch_reaction_membership(
+	def resolve_reaction_membership_patch(
 			self, selection: object, reactants: list[str], products: list[str],
 			arrow: str, conditions: list[str], pluses: list[str],
 			) -> object:
-		"""Replace all roles through the renderer-preflighted Rust lifecycle bridge."""
+		"""Resolve one role replacement into an opaque generic transition request."""
 		self._require_mutable()
 		gesture = self._session.begin_reaction_membership_patch_v1(
 			selection, self.current_snapshot.revision,
 			reactants, products, arrow, conditions, pluses,
 		)
-		prepared = self._session.prepare_reaction_lifecycle_v1(gesture)
-		commit = self._session.commit_reaction_lifecycle_v1(prepared)
-		try:
-			self._install_mutation_result(commit.result)
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
+		return self._session.resolve_reaction_lifecycle_v1(gesture)
 
 	#============================================
-	def delete_reaction_definition(self, selection: object) -> object:
-		"""Remove only one selected strict definition through Rust."""
+	def resolve_reaction_definition_delete(self, selection: object) -> object:
+		"""Resolve one strict-definition deletion into a generic transition request."""
 		self._require_mutable()
 		gesture = self._session.begin_reaction_definition_delete_v1(selection)
-		prepared = self._session.prepare_reaction_lifecycle_v1(gesture)
-		commit = self._session.commit_reaction_lifecycle_v1(prepared)
-		try:
-			self._install_mutation_result(commit.result)
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
-			raise
-		return commit
+		return self._session.resolve_reaction_lifecycle_v1(gesture)
 
 	#============================================
-	def translate_reaction(
+	def resolve_reaction_translation(
 			self, selection: object, delta_x: float, delta_y: float,
 			view_hex_grid: bool,
 			) -> object:
-		"""Commit one opaque aggregate nudge without exposing member transforms."""
+		"""Resolve one aggregate nudge into an opaque generic transition request."""
 		self._require_mutable()
 		gesture = self._session.begin_reaction_translation_v1(
 			selection, 0.0, 0.0, view_hex_grid,
 		)
-		preview = self._session.preview_reaction_translation_v1(
-			gesture, delta_x, delta_y,
-		)
-		prepared = self._session.prepare_reaction_translation_v1(gesture, preview)
-		commit = self._session.commit_reaction_translation_v1(prepared)
+		return self._session.resolve_reaction_translation_v1(gesture, delta_x, delta_y)
+
+	#============================================
+	def install_reaction_created_result(self, result: object) -> object:
+		"""Install a generic reaction-create result and return its typed outcome."""
+		outcome = result.outcome.reaction_created
+		if outcome is None:
+			raise RuntimeError("Ferrum reaction transition did not create a reaction")
+		self._install_reaction_transition_result(result)
+		return outcome
+
+	#============================================
+	def install_reaction_membership_replaced_result(self, result: object) -> object:
+		"""Install a generic membership result and return its typed outcome."""
+		outcome = result.outcome.reaction_membership_replaced
+		if outcome is None:
+			raise RuntimeError("Ferrum reaction transition did not replace membership")
+		self._install_reaction_transition_result(result)
+		return outcome
+
+	#============================================
+	def install_reaction_definition_deleted_result(self, result: object) -> object:
+		"""Install a generic definition-delete result and return its typed outcome."""
+		outcome = result.outcome.reaction_definition_deleted
+		if outcome is None:
+			raise RuntimeError("Ferrum reaction transition did not delete a definition")
+		self._install_reaction_transition_result(result)
+		return outcome
+
+	#============================================
+	def install_reaction_translation_result(self, result: object) -> object:
+		"""Install one generic translation while leaving selection ownership to the caller."""
+		if result.outcome.kind != "standard":
+			raise RuntimeError("Ferrum reaction translation returned an unknown outcome")
+		self._install_reaction_transition_result(result)
+		return result.outcome
+
+	#============================================
+	def _install_reaction_transition_result(self, result: object) -> None:
+		"""Install one already-validated generic reaction result."""
 		try:
-			self._install_mutation_result(commit.result)
+			self._install_mutation_result(result)
 		except Exception as exc:
 			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
 			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
+				exc.accepted_receipt = result
 			raise
-		return commit
 
 	#============================================
 	def select_direct_roots(
@@ -158,10 +168,13 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		return self._session.preview_render_interaction_translation_v1(gesture, x, y)
 
 	#============================================
-	def commit_direct_root_translation(self, gesture: object, preview: object) -> object:
-		"""Commit one checked Rust translation and install its observation."""
+	def commit_direct_root_translation(self, gesture: object,
+			release_x: float, release_y: float) -> object:
+		"""Commit one Rust translation at the actual release scene point."""
 		self._require_mutable()
-		commit = self._session.commit_render_interaction_translation_v1(gesture, preview)
+		commit = self._session.commit_render_interaction_translation_v1(
+			gesture, release_x, release_y,
+		)
 		try:
 			self._install_mutation_result(commit.result)
 		except Exception as exc:

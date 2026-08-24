@@ -33,10 +33,6 @@ pub enum TypedDocumentError {
         /// Authored molecule ID, or a stable descriptive fallback when absent.
         molecule_id: String,
     },
-    /// A compact-group materialization target or retained source fact is outside
-    /// the closed internal experiment contract.
-    #[error("compact-group materialization has unsupported retained facts: {0}")]
-    InvalidCompactGroupMaterialization(PersistentId),
     /// A structural deletion request did not name one eligible direct-root molecule.
     #[error("structural deletion molecule is not one eligible direct-root molecule: {0}")]
     InvalidStructureDeletionMolecule(PersistentId),

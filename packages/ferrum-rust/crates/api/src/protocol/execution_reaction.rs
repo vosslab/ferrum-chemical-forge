@@ -166,14 +166,27 @@ pub(super) fn execute_reaction_create(
     .map_err(ExecutionFailureV1::reaction_refusal)?;
     let gesture = begin_api_reaction_gesture_v1(&session, source_fence, request)
         .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let mut prepared = prepare_api_reaction_gesture_v1(&mut session, &gesture)
+    let request = resolve_api_reaction_gesture_v1(&session, gesture)
         .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let accepted = commit_api_reaction_gesture_v1(&mut session, &mut prepared)
-        .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let snapshot = accepted.result().observation().snapshot();
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(request)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let result = session
+        .commit_session_operation_transition_v1(&mut prepared)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let SessionOperationOutcomeV1::ReactionCreatedV1(outcome) = result.outcome() else {
+        return Err(ExecutionFailureV1::reaction_refusal(
+            ReactionGestureErrorV1::SessionConflict,
+        ));
+    };
+    let snapshot = result.observation().snapshot();
     Ok(OperationProtocolOutcomeV1::ReactionCreate {
         document: snapshot.cdml().to_owned(),
-        reaction_id: accepted.reaction_id().to_owned(),
+        reaction_id: outcome.reaction_id().to_owned(),
         input_revision: 0,
         committed_revision: snapshot.revision(),
         next_input_expected_revision: 0,
@@ -234,14 +247,27 @@ pub(super) fn execute_reaction_patch(
     .map_err(ExecutionFailureV1::reaction_refusal)?;
     let gesture = begin_api_reaction_membership_patch_v1(&session, &selection, patch)
         .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let mut prepared = prepare_api_reaction_lifecycle_v1(&mut session, &gesture)
+    let request = resolve_api_reaction_lifecycle_v1(&session, gesture)
         .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let accepted = commit_api_reaction_lifecycle_v1(&mut session, &mut prepared)
-        .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let snapshot = accepted.result().observation().snapshot();
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(request)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let result = session
+        .commit_session_operation_transition_v1(&mut prepared)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let SessionOperationOutcomeV1::ReactionMembershipReplacedV1(outcome) = result.outcome() else {
+        return Err(ExecutionFailureV1::reaction_refusal(
+            ReactionGestureErrorV1::SessionConflict,
+        ));
+    };
+    let snapshot = result.observation().snapshot();
     Ok(OperationProtocolOutcomeV1::ReactionPatchMembership {
         document: snapshot.cdml().to_owned(),
-        reaction_id: accepted.reaction_id().to_owned(),
+        reaction_id: outcome.reaction_id().to_owned(),
         input_revision: 0,
         committed_revision: snapshot.revision(),
         next_input_expected_revision: 0,
@@ -260,14 +286,27 @@ pub(super) fn execute_reaction_delete(
     let selection = select_lifecycle_reaction(&session, fence, &request.reaction_id)?;
     let gesture = begin_api_reaction_definition_delete_v1(&session, &selection)
         .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let mut prepared = prepare_api_reaction_lifecycle_v1(&mut session, &gesture)
+    let request = resolve_api_reaction_lifecycle_v1(&session, gesture)
         .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let accepted = commit_api_reaction_lifecycle_v1(&mut session, &mut prepared)
-        .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let snapshot = accepted.result().observation().snapshot();
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(request)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let result = session
+        .commit_session_operation_transition_v1(&mut prepared)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let SessionOperationOutcomeV1::ReactionDefinitionDeletedV1(outcome) = result.outcome() else {
+        return Err(ExecutionFailureV1::reaction_refusal(
+            ReactionGestureErrorV1::SessionConflict,
+        ));
+    };
+    let snapshot = result.observation().snapshot();
     Ok(OperationProtocolOutcomeV1::ReactionDeleteDefinition {
         document: snapshot.cdml().to_owned(),
-        reaction_id: accepted.reaction_id().to_owned(),
+        reaction_id: outcome.reaction_id().to_owned(),
         input_revision: 0,
         committed_revision: snapshot.revision(),
         next_input_expected_revision: 0,
@@ -298,21 +337,32 @@ pub(super) fn execute_reaction_translate(
         snap,
     )
     .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let preview = preview_api_reaction_translation_v1(
+    let transition_request = resolve_api_reaction_translation_v1(
         &session,
-        &gesture,
+        gesture,
         request.pointer_x,
         request.pointer_y,
     )
     .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let mut prepared = prepare_api_reaction_translation_v1(&mut session, &gesture, &preview)
-        .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let accepted = commit_api_reaction_translation_v1(&mut session, &mut prepared)
-        .map_err(ExecutionFailureV1::reaction_refusal)?;
-    let snapshot = accepted.result().observation().snapshot();
+    let mut prepared = session
+        .prepare_session_operation_transition_v1(transition_request)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let result = session
+        .commit_session_operation_transition_v1(&mut prepared)
+        .map_err(|_| {
+            ExecutionFailureV1::reaction_refusal(ReactionGestureErrorV1::SessionConflict)
+        })?;
+    let SessionOperationOutcomeV1::Standard = result.outcome() else {
+        return Err(ExecutionFailureV1::reaction_refusal(
+            ReactionGestureErrorV1::SessionConflict,
+        ));
+    };
+    let snapshot = result.observation().snapshot();
     Ok(OperationProtocolOutcomeV1::ReactionTranslate {
         document: snapshot.cdml().to_owned(),
-        reaction_id: accepted.reaction_id().to_owned(),
+        reaction_id: request.reaction_id,
         input_revision: 0,
         committed_revision: snapshot.revision(),
         next_input_expected_revision: 0,

@@ -209,7 +209,7 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 			), 5000)
 			return
 		try:
-			prepared = intent.tab.prepare_direct_glycosidic_haworth_placement(
+			request = intent.tab.resolve_direct_glycosidic_haworth_transition(
 				intent.source, float(anchor.x()), float(anchor.y()),
 			)
 		except engine.DirectHaworthError:
@@ -220,9 +220,14 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 			)))
 			return
 		try:
+			prepared = intent.tab.prepare_direct_glycosidic_haworth_transition(request)
+			overlay_contract = prepared.presentation_v1().precommit_overlay
+			if overlay_contract is None:
+				raise ValueError("Ferrum Haworth transition has no precommit overlay")
 			preview = ferrum_qt.ferrum.direct_glycosidic_haworth.create_preview(
-				intent.tab, prepared,
+				intent.tab, overlay_contract,
 			)
+			self._retire_direct_glycosidic_haworth_preview(preview)
 		except ValueError:
 			self._cancel_direct_glycosidic_haworth_intent()
 			self._show_edit_refusal(self._unavailable_edit_refusal(self.tr(
@@ -231,9 +236,8 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 			)))
 			self._refresh_actions()
 			return
-		self._retire_direct_glycosidic_haworth_preview(preview)
 		try:
-			intent.tab.commit_direct_glycosidic_haworth(prepared)
+			intent.tab.commit_direct_glycosidic_haworth_transition(prepared)
 		except FerrumNativeDocumentTabMutationPresentationError:
 			self._cancel_direct_glycosidic_haworth_intent()
 			self._show_edit_refusal(self._unavailable_edit_refusal(self.tr(

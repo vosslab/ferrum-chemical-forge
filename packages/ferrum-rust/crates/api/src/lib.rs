@@ -4,7 +4,6 @@
 //! directly. This crate owns only transport, CLI presentation, and the
 //! stateless operation protocol shared by the CLI and Python extension.
 
-mod catalog_placement_v2;
 mod cli;
 mod document_interchange_import_v1;
 mod interchange_import_v1;
@@ -22,14 +21,6 @@ pub use ferrum_document_render::{
 };
 mod transport;
 
-pub use catalog_placement_v2::{
-    ApiCatalogPlacementGestureV2, ApiCatalogPlacementPreparedV2, ApiCatalogPlacementPreviewV2,
-    CatalogPlacementCategoryV2, CatalogPlacementErrorV2, CatalogPlacementRecoveryV2,
-    CommittedCatalogPlacementV2, begin_api_catalog_placement_v2,
-    cancel_api_catalog_placement_gesture_v2, commit_api_catalog_placement_v2,
-    prepare_api_catalog_placement_v2, preview_api_catalog_placement_v2,
-    release_api_catalog_placement_preview_v2,
-};
 pub use cli::{Cli, run};
 pub use ferrum_document_render::{
     CommittedRenderInteractionTranslationV1, CommittedStructureDeletionV1,
@@ -53,21 +44,19 @@ pub use interchange_import_v1::{
     SDF_IMPORT_FORMAT_V1, SDF_IMPORT_PROFILE_V1,
 };
 pub use presentation_path_gesture_v1::{
-    ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, ApiPresentationPathPreparedV1,
-    CommittedPresentationPathV1, PresentationPathProgressV1, PresentationPathRenderCategoryV1,
-    PresentationPathRenderErrorV1, PresentationPathRenderRecoveryV1,
-    add_api_presentation_path_gesture_point_v1, begin_api_presentation_path_gesture_v1,
-    cancel_api_presentation_path_gesture_v1, commit_api_presentation_path_gesture_v1,
-    prepare_incremental_api_presentation_path_gesture_v1,
+    ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, PresentationPathProgressV1,
+    PresentationPathRenderCategoryV1, PresentationPathRenderErrorV1,
+    PresentationPathRenderRecoveryV1, add_api_presentation_path_gesture_point_v1,
+    begin_api_presentation_path_gesture_v1, cancel_api_presentation_path_gesture_v1,
     preview_incremental_api_presentation_path_gesture_v1,
+    resolve_incremental_api_presentation_path_gesture_v1,
 };
 pub use presentation_vector_gesture_v1::{
-    ApiPresentationVectorGestureV1, ApiPresentationVectorPreparedV1,
-    ApiPresentationVectorPreviewV1, CommittedPresentationVectorV1,
+    ApiPresentationVectorGestureV1, ApiPresentationVectorPreviewV1,
     PresentationVectorGestureCategoryV1, PresentationVectorGestureErrorV1,
     PresentationVectorGestureRecoveryV1, PresentationVectorKindV1, PresentationVectorOverlayV1,
-    begin_api_presentation_vector_gesture_v1, commit_api_presentation_vector_gesture_v1,
-    prepare_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
+    begin_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
+    resolve_api_presentation_vector_gesture_v1,
 };
 pub use protocol::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
@@ -83,12 +72,12 @@ pub use protocol::{
     DocumentMoleculeReportAggregateOutcomeSummaryV1,
     DocumentMoleculeReportCompositionElementSummaryV1, DocumentMoleculeReportCompositionSummaryV1,
     DocumentMoleculeReportElementCountSummaryV1, DocumentMoleculeReportRecordSummaryV1,
-    DocumentMoleculeReportRequestV1, DocumentMoleculeReportSummaryV1,
-    DocumentRenderArtifactRequestV1, DocumentRequestFenceV1, DocumentRewriteRequestV1,
-    DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
-    DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
-    DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1, DocumentValidateRequestV1,
-    MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
+    DocumentMoleculeReportRequestV1, DocumentMoleculeReportSnapshotV1,
+    DocumentMoleculeReportSummaryV1, DocumentRenderArtifactRequestV1, DocumentRequestFenceV1,
+    DocumentRewriteRequestV1, DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1,
+    DocumentSmartsQueryMoleculeSummaryV1, DocumentSmartsQueryRequestV1,
+    DocumentSmartsQuerySummaryV1, DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1,
+    DocumentValidateRequestV1, MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
     OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
     OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OperationProtocolEnvelopeV1,
     OperationProtocolErrorCategoryV1, OperationProtocolErrorResponseV1,
@@ -112,15 +101,11 @@ pub use protocol::{
 #[cfg(feature = "python-binding")]
 pub use python_extension_binding_v1::initialize_python_extension_v1;
 pub use reaction_aggregate_v1::{
-    ApiPreparedReactionLifecycleV1, ApiPreparedReactionTranslationV1, ApiPreparedReactionV1,
     ApiReactionGestureV1, ApiReactionLifecycleGestureV1, ApiReactionTranslationGestureV1,
-    ApiReactionTranslationPreviewV1, CommittedReactionLifecycleV1, CommittedReactionV1,
     ReactionCreateRequestV1, ReactionGestureCategoryV1, ReactionGestureErrorV1,
     ReactionGestureRecoveryV1, ReactionMembershipPatchRequestV1,
     begin_api_reaction_definition_delete_v1, begin_api_reaction_gesture_v1,
     begin_api_reaction_membership_patch_v1, begin_api_reaction_translation_v1,
-    commit_api_reaction_gesture_v1, commit_api_reaction_lifecycle_v1,
-    commit_api_reaction_translation_v1, prepare_api_reaction_gesture_v1,
-    prepare_api_reaction_lifecycle_v1, prepare_api_reaction_translation_v1,
-    preview_api_reaction_translation_v1,
+    resolve_api_reaction_gesture_v1, resolve_api_reaction_lifecycle_v1,
+    resolve_api_reaction_translation_v1,
 };

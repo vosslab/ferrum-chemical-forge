@@ -114,7 +114,7 @@ pub(super) fn execute_generate_coordinates<R: ChemistryRuntimeV1>(
         })
         .map_err(map_runtime_error)??;
     session
-        .submit(
+        .apply_document_operation_v1(
             snapshot.revision(),
             SessionOperation::V1(
                 ferrum_document::SessionOperationV1::SetMoleculeAtomPositionsBatch {

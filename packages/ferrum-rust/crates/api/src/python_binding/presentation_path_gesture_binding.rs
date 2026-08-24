@@ -1,20 +1,21 @@
 //! Opaque PyO3 seam for Rust-owned multi-point path authoring.
 
+use std::cell::RefCell;
+
 use crate::{
-    ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, ApiPresentationPathPreparedV1,
-    PresentationPathRenderCategoryV1, PresentationPathRenderErrorV1,
-    PresentationPathRenderRecoveryV1, add_api_presentation_path_gesture_point_v1,
-    begin_api_presentation_path_gesture_v1, cancel_api_presentation_path_gesture_v1,
-    commit_api_presentation_path_gesture_v1, prepare_incremental_api_presentation_path_gesture_v1,
-    preview_incremental_api_presentation_path_gesture_v1,
+    ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, PresentationPathRenderCategoryV1,
+    PresentationPathRenderErrorV1, PresentationPathRenderRecoveryV1,
+    add_api_presentation_path_gesture_point_v1, begin_api_presentation_path_gesture_v1,
+    cancel_api_presentation_path_gesture_v1, preview_incremental_api_presentation_path_gesture_v1,
+    resolve_incremental_api_presentation_path_gesture_v1,
 };
 use ferrum_document::{
     DocumentFenceV1, PresentationGesturePoint2V1, PresentationPathGestureErrorV1,
-    PresentationPathKindV1, PresentationRecordKindV1,
+    PresentationPathKindV1,
 };
 use pyo3::{create_exception, prelude::*};
 
-use super::binding::{PyDocumentSession, PySessionOperationResultV1};
+use super::binding::PyDocumentSession;
 use super::presentation_creation_gesture_binding::digest;
 
 create_exception!(
@@ -84,8 +85,17 @@ enum PyPresentationPathGestureRecoveryV1 {
 }
 #[pyclass(unsendable, module = "ferrum_chem", name = "PresentationPathGestureV1")]
 pub(crate) struct PyPresentationPathGestureV1 {
-    gesture: ApiPresentationPathGestureV1,
+    gesture: Option<ApiPresentationPathGestureV1>,
     kind: PyPresentationPathKindV1,
+}
+impl PyPresentationPathGestureV1 {
+    fn kind(&self) -> PyPresentationPathKindV1 {
+        self.kind
+    }
+
+    fn take_gesture(&mut self) -> Option<ApiPresentationPathGestureV1> {
+        self.gesture.take()
+    }
 }
 #[pyclass(frozen, module = "ferrum_chem", name = "PresentationPathProgressV1")]
 pub(crate) struct PyPresentationPathProgressV1 {
@@ -96,9 +106,14 @@ pub(crate) struct PyPresentationPathProgressV1 {
     #[pyo3(get)]
     can_complete: bool,
 }
-#[pyclass(frozen, module = "ferrum_chem", name = "PresentationPathOverlayV1")]
+#[pyclass(
+    frozen,
+    unsendable,
+    module = "ferrum_chem",
+    name = "PresentationPathOverlayV1"
+)]
 pub(crate) struct PyPresentationPathOverlayV1 {
-    overlay: ApiPresentationPathOverlayV1,
+    overlay: RefCell<Option<ApiPresentationPathOverlayV1>>,
     #[pyo3(get)]
     kind: Py<PyPresentationPathKindV1>,
     #[pyo3(get)]
@@ -116,24 +131,11 @@ pub(crate) struct PyPresentationPathOverlayV1 {
     #[pyo3(get)]
     fill_color: Option<String>,
 }
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PresentationPathPreparedV1"
-)]
-pub(crate) struct PyPresentationPathPreparedV1 {
-    prepared: ApiPresentationPathPreparedV1,
+impl PyPresentationPathOverlayV1 {
+    fn take_overlay(&self) -> Option<ApiPresentationPathOverlayV1> {
+        self.overlay.borrow_mut().take()
+    }
 }
-#[pyclass(frozen, module = "ferrum_chem", name = "PresentationPathCommitV1")]
-pub(crate) struct PyPresentationPathCommitV1 {
-    #[pyo3(get)]
-    identifier: String,
-    #[pyo3(get)]
-    kind: Py<PyPresentationPathKindV1>,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
-}
-
 #[pymethods]
 impl PyDocumentSession {
     fn begin_presentation_path_gesture_v1(
@@ -149,7 +151,7 @@ impl PyDocumentSession {
             (*kind).into(),
         )
         .map(|gesture| PyPresentationPathGestureV1 {
-            gesture,
+            gesture: Some(gesture),
             kind: *kind,
         })
         .map_err(|error| path_error(py, error))
@@ -162,7 +164,11 @@ impl PyDocumentSession {
         y: f64,
     ) -> PyResult<PyPresentationPathProgressV1> {
         let point = point_from_python(py, x, y)?;
-        add_api_presentation_path_gesture_point_v1(&self.session, &mut gesture.gesture, point)
+        let gesture = gesture
+            .gesture
+            .as_mut()
+            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?;
+        add_api_presentation_path_gesture_point_v1(&self.session, gesture, point)
             .map(progress_to_python)
             .map_err(|error| path_error(py, error))
     }
@@ -175,22 +181,33 @@ impl PyDocumentSession {
         let hover = hover
             .map(|(x, y)| point_from_python(py, x, y))
             .transpose()?;
-        preview_incremental_api_presentation_path_gesture_v1(&self.session, &gesture.gesture, hover)
-            .map(|overlay| overlay_to_python(py, gesture.kind, overlay))
+        let kind = gesture.kind();
+        let gesture = gesture
+            .gesture
+            .as_ref()
+            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?;
+        preview_incremental_api_presentation_path_gesture_v1(&self.session, gesture, hover)
+            .map(|overlay| overlay_to_python(py, kind, overlay))
             .map_err(|error| path_error(py, error))
     }
-    fn prepare_presentation_path_gesture_v1(
-        &mut self,
+    fn resolve_presentation_path_gesture_v1(
+        &self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyPresentationPathGestureV1>,
+        mut gesture: PyRefMut<'_, PyPresentationPathGestureV1>,
         overlay: PyRef<'_, PyPresentationPathOverlayV1>,
-    ) -> PyResult<PyPresentationPathPreparedV1> {
-        prepare_incremental_api_presentation_path_gesture_v1(
-            &mut self.session,
-            &gesture.gesture,
-            &overlay.overlay,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        resolve_incremental_api_presentation_path_gesture_v1(
+            &self.session,
+            gesture
+                .take_gesture()
+                .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?,
+            overlay
+                .take_overlay()
+                .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?,
         )
-        .map(|prepared| PyPresentationPathPreparedV1 { prepared })
+        .map(
+            super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request,
+        )
         .map_err(|error| path_error(py, error))
     }
     fn cancel_presentation_path_gesture_v1(
@@ -198,27 +215,11 @@ impl PyDocumentSession {
         py: Python<'_>,
         gesture: PyRef<'_, PyPresentationPathGestureV1>,
     ) -> PyResult<()> {
-        cancel_api_presentation_path_gesture_v1(&self.session, &gesture.gesture)
-            .map_err(|error| path_error(py, error))
-    }
-    fn commit_presentation_path_gesture_v1(
-        &mut self,
-        py: Python<'_>,
-        mut prepared: PyRefMut<'_, PyPresentationPathPreparedV1>,
-    ) -> PyResult<PyPresentationPathCommitV1> {
-        commit_api_presentation_path_gesture_v1(&mut self.session, &mut prepared.prepared)
-            .map(|commit| {
-                let kind = match commit.root().kind() {
-                    PresentationRecordKindV1::Polyline => PyPresentationPathKindV1::Polyline,
-                    PresentationRecordKindV1::Polygon => PyPresentationPathKindV1::Polygon,
-                    _ => unreachable!("path commits are closed"),
-                };
-                PyPresentationPathCommitV1 {
-                    identifier: commit.root().presentation_id().as_str().to_owned(),
-                    kind: Py::new(py, kind).expect("kind allocates"),
-                    result: commit.result().clone().into(),
-                }
-            })
+        let gesture = gesture
+            .gesture
+            .as_ref()
+            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?;
+        cancel_api_presentation_path_gesture_v1(&self.session, gesture)
             .map_err(|error| path_error(py, error))
     }
 }
@@ -247,7 +248,7 @@ fn overlay_to_python(
     kind: PyPresentationPathKindV1,
     overlay: ApiPresentationPathOverlayV1,
 ) -> PyPresentationPathOverlayV1 {
-    let issued = overlay.overlay();
+    let issued = overlay.presentation();
     let accepted_points = issued
         .accepted_points()
         .iter()
@@ -265,7 +266,7 @@ fn overlay_to_python(
         )
     };
     PyPresentationPathOverlayV1 {
-        overlay,
+        overlay: RefCell::new(Some(overlay)),
         kind: Py::new(py, kind).expect("kind allocates"),
         accepted_points,
         hover,
@@ -350,8 +351,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPresentationPathGestureV1>()?;
     module.add_class::<PyPresentationPathProgressV1>()?;
     module.add_class::<PyPresentationPathOverlayV1>()?;
-    module.add_class::<PyPresentationPathPreparedV1>()?;
-    module.add_class::<PyPresentationPathCommitV1>()
+    Ok(())
 }
 
 #[cfg(test)]

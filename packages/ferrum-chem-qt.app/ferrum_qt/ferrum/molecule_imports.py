@@ -30,32 +30,6 @@ class _MoleculeImportIntent:
 
 
 #============================================
-@dataclasses.dataclass(frozen=True, slots=True)
-class _MoleculeImportRetirement:
-	"""One worker awaiting its authoritative Qt destruction acknowledgement."""
-
-	kind: str
-	worker: PySide6.QtCore.QThread
-
-
-#============================================
-class _MoleculeImportRetirementAcknowledgement(PySide6.QtCore.QObject):
-	"""Bind one Qt destruction signal to its exact immutable retirement state."""
-
-	#============================================
-	def __init__(self, owner: object, retirement: _MoleculeImportRetirement) -> None:
-		"""Retain one authoritative terminal callback until Qt deletes its worker."""
-		super().__init__(owner)
-		self._owner = owner
-		self._retirement = retirement
-
-	#============================================
-	@PySide6.QtCore.Slot()
-	def on_worker_destroyed(self) -> None:
-		"""Acknowledge the captured retirement after QObject destruction completes."""
-		self._owner._on_import_worker_destroyed(self._retirement, self)
-
-
 #============================================
 class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 	"""Deliver worker outcomes to the owning window on the Qt thread."""
@@ -173,10 +147,6 @@ class FerrumNativeMoleculeImportsMixin:
 		self._molblock_import_intent: _MoleculeImportIntent | None = None
 		self._sdf_import_intent: _MoleculeImportIntent | None = None
 		self._peptide_import_intent: _MoleculeImportIntent | None = None
-		self._molecule_import_retirement: _MoleculeImportRetirement | None = None
-		self._molecule_import_retirement_acknowledgement: (
-			_MoleculeImportRetirementAcknowledgement | None
-		) = None
 		self._molecule_import_relay = _MoleculeImportDeliveryRelay(self)
 
 	#============================================
@@ -239,7 +209,7 @@ class FerrumNativeMoleculeImportsMixin:
 			self._molblock_import_intent,
 			self._sdf_import_intent,
 			self._peptide_import_intent,
-		)) or self._molecule_import_retirement is not None
+		))
 
 	#============================================
 	def _on_import_smiles(self) -> None:
@@ -654,35 +624,16 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def _finish_import(self, kind: str, worker: object) -> None:
-		"""Begin Qt-owned terminal retirement for one exact stopped worker."""
+		"""Release one exact stopped worker after its delivery is complete."""
 		attribute = f"_{kind}_import_intent"
 		intent = getattr(self, attribute)
 		if intent is None or worker is not intent.worker:
 			return
 		setattr(self, attribute, None)
-		retirement = _MoleculeImportRetirement(kind, intent.worker)
-		self._molecule_import_retirement = retirement
-		acknowledgement = _MoleculeImportRetirementAcknowledgement(self, retirement)
-		self._molecule_import_retirement_acknowledgement = acknowledgement
-		intent.worker.destroyed.connect(acknowledgement.on_worker_destroyed)
 		if intent.worker.delivery_cancelled:
 			self.statusBar().showMessage(self.tr(f"{kind.capitalize()} import cancelled."), 5000)
 		intent.worker.deleteLater()
 		self._refresh_actions()
-
-	#============================================
-	def _on_import_worker_destroyed(self, retirement: _MoleculeImportRetirement,
-			acknowledgement: _MoleculeImportRetirementAcknowledgement) -> None:
-		"""Publish retirement only after its exact queued worker deletion completes."""
-		if self._molecule_import_retirement is not retirement:
-			return
-		if self._molecule_import_retirement_acknowledgement is not acknowledgement:
-			return
-		self._molecule_import_retirement = None
-		self._molecule_import_retirement_acknowledgement = None
-		acknowledgement.deleteLater()
-		self._refresh_actions()
-		self.document_import_retired.emit()
 
 	#============================================
 	def _cancel_smiles_import(self) -> None:
@@ -770,13 +721,7 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def _cancel_molecule_imports_for_close(self) -> bool:
-		"""Cancel live delivery and tell the host to ignore this close attempt."""
-		if self._molecule_import_retirement is not None:
-			self.statusBar().showMessage(
-				self.tr("Ferrum is completing import cleanup; close again after it finishes."),
-				0,
-			)
-			return True
+		"""Cancel each live import intent and await its worker's normal release."""
 		for label, intent, cancel in (
 			("SMILES", self._smiles_import_intent, self._cancel_smiles_import),
 			("InChI", self._inchi_import_intent, self._cancel_inchi_import),

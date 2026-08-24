@@ -495,8 +495,8 @@ mod tests {
         assert!(xml.contains("show_hydrogens=\"on\""));
         assert!(xml.contains("opaque=\"yes\""));
         assert!(xml.contains("x=\"20\" y=\"0\" z=\"7\""));
-        assert!(xml.contains("<point x=\"1.058cm\" y=\"0\"/>"));
-        assert!(xml.contains("<mark x=\"1.094cm\" y=\"2\"/>"));
+        assert!(xml.contains("<point x=\"30\" y=\"0\"/>"));
+        assert!(xml.contains("<mark x=\"31\" y=\"2\"/>"));
     }
 
     #[test]
@@ -653,8 +653,8 @@ mod tests {
             concat!(
                 "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"b\" show_hydrogens=\"on\">",
                 "<point x=\"0cm\" y=\"0cm\"/></atom><atom id=\"a\" show_hydrogens=\"on\">",
-                "<point x=\"0.353cm\" y=\"0cm\"/></atom><atom id=\"c\">",
-                "<point x=\"0.035cm\" y=\"0cm\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\"/>",
+                "<point x=\"10\" y=\"0cm\"/></atom><atom id=\"c\">",
+                "<point x=\"1\" y=\"0cm\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\"/>",
                 "<bond id=\"bc\" start=\"b\" end=\"c\"/>{owned}</molecule></cdml>",
             ),
             owned = owned
@@ -681,7 +681,7 @@ mod tests {
         else {
             panic!("must mutate")
         };
-        assert!(candidate.to_xml().expect("xml").contains("x=\"1.094cm\""));
+        assert!(candidate.to_xml().expect("xml").contains("x=\"31\""));
     }
 
     #[test]

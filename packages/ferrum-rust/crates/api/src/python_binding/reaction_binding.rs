@@ -1,27 +1,25 @@
 //! Frozen Python facts for renderer-preflighted Rust reaction authoring.
 
 use crate::{
-    ApiPreparedReactionLifecycleV1, ApiPreparedReactionTranslationV1,
-    ApiReactionLifecycleGestureV1, ApiReactionTranslationGestureV1,
-    ApiReactionTranslationPreviewV1, ReactionAuthoringChoiceAvailabilityV1,
-    ReactionAuthoringChoiceKindV1, ReactionAuthoringChoicesV1, ReactionAuthoringExclusionReasonV1,
+    ApiReactionGestureV1, ApiReactionLifecycleGestureV1, ApiReactionTranslationGestureV1,
+    ReactionAuthoringChoiceAvailabilityV1, ReactionAuthoringChoiceKindV1,
+    ReactionAuthoringChoicesV1, ReactionAuthoringExclusionReasonV1,
     ReactionAuthoringExclusionRecoveryV1, ReactionCreateRequestV1, ReactionDefinitionDispositionV1,
     ReactionGestureCategoryV1, ReactionGestureErrorV1, ReactionListObservationV1,
     ReactionMembershipPatchRequestV1, ReactionSelectionV1, RenderInteractionBoundsV1,
     RenderInteractionErrorV1, RenderInteractionGridSnapPolicyV1, RenderInteractionSnapV1,
     begin_api_reaction_definition_delete_v1, begin_api_reaction_gesture_v1,
     begin_api_reaction_membership_patch_v1, begin_api_reaction_translation_v1,
-    commit_api_reaction_gesture_v1, commit_api_reaction_lifecycle_v1,
-    commit_api_reaction_translation_v1, prepare_api_reaction_gesture_v1,
-    prepare_api_reaction_lifecycle_v1, prepare_api_reaction_translation_v1,
-    preview_api_reaction_translation_v1,
+    resolve_api_reaction_gesture_v1, resolve_api_reaction_lifecycle_v1,
+    resolve_api_reaction_translation_v1,
 };
 use ferrum_document::{DocumentFenceV1, ReactionDefinitionDiagnosticV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyModule, PyTuple};
 
-use super::binding::{PyDocumentSession, PySessionOperationResultV1};
+use super::binding::PyDocumentSession;
+use super::prepared_transition_binding::PySessionOperationTransitionRequestV1;
 
 #[path = "reaction_binding_methods.rs"]
 mod reaction_binding_methods;
@@ -157,13 +155,6 @@ create_exception!(
     ReactionAuthoringChoicesError,
     super::binding::DocumentError
 );
-#[pyclass(frozen, module = "ferrum_chem", name = "ReactionCreateCommitV1")]
-struct PyReactionCreateCommitV1 {
-    #[pyo3(get)]
-    reaction_id: String,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
-}
 #[pyclass(
     frozen,
     module = "ferrum_chem",
@@ -344,28 +335,17 @@ struct PyReactionSelectionV1 {
     #[pyo3(get)]
     reaction_id: String,
 }
+#[pyclass(unsendable, module = "ferrum_chem", name = "ReactionGestureV1")]
+struct PyReactionGestureV1 {
+    value: Option<ApiReactionGestureV1>,
+}
 #[pyclass(
     unsendable,
     module = "ferrum_chem",
     name = "ReactionLifecycleGestureV1"
 )]
 struct PyReactionLifecycleGestureV1 {
-    value: ApiReactionLifecycleGestureV1,
-}
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PreparedReactionLifecycleV1"
-)]
-struct PyPreparedReactionLifecycleV1 {
-    value: ApiPreparedReactionLifecycleV1,
-}
-#[pyclass(frozen, module = "ferrum_chem", name = "ReactionLifecycleCommitV1")]
-struct PyReactionLifecycleCommitV1 {
-    #[pyo3(get)]
-    reaction_id: String,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
+    value: Option<ApiReactionLifecycleGestureV1>,
 }
 #[pyclass(
     unsendable,
@@ -373,30 +353,7 @@ struct PyReactionLifecycleCommitV1 {
     name = "ReactionTranslationGestureV1"
 )]
 struct PyReactionTranslationGestureV1 {
-    value: ApiReactionTranslationGestureV1,
-}
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "ReactionTranslationPreviewV1"
-)]
-struct PyReactionTranslationPreviewV1 {
-    value: ApiReactionTranslationPreviewV1,
-}
-#[pyclass(
-    unsendable,
-    module = "ferrum_chem",
-    name = "PreparedReactionTranslationV1"
-)]
-struct PyPreparedReactionTranslationV1 {
-    value: ApiPreparedReactionTranslationV1,
-}
-#[pyclass(frozen, module = "ferrum_chem", name = "ReactionTranslationCommitV1")]
-struct PyReactionTranslationCommitV1 {
-    #[pyo3(get)]
-    reaction_id: String,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
+    value: Option<ApiReactionTranslationGestureV1>,
 }
 #[pyclass(
     unsendable,
@@ -435,7 +392,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     module.add_class::<PyReactionRefusalCategoryV1>()?;
     module.add_class::<PyReactionRefusalRecoveryV1>()?;
-    module.add_class::<PyReactionCreateCommitV1>()?;
     module.add_class::<PyReactionAuthoringChoiceKindV1>()?;
     module.add_class::<PyReactionAuthoringChoiceAvailabilityV1>()?;
     module.add_class::<PyReactionAuthoringExclusionReasonV1>()?;
@@ -453,12 +409,8 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyReactionObservationV1>()?;
     module.add_class::<PyReactionListObservationV1>()?;
     module.add_class::<PyReactionSelectionV1>()?;
+    module.add_class::<PyReactionGestureV1>()?;
     module.add_class::<PyReactionLifecycleGestureV1>()?;
-    module.add_class::<PyPreparedReactionLifecycleV1>()?;
-    module.add_class::<PyReactionLifecycleCommitV1>()?;
     module.add_class::<PyReactionTranslationGestureV1>()?;
-    module.add_class::<PyReactionTranslationPreviewV1>()?;
-    module.add_class::<PyPreparedReactionTranslationV1>()?;
-    module.add_class::<PyReactionTranslationCommitV1>()?;
     module.add_class::<PyReactionAuthoringChoicesV1>()
 }

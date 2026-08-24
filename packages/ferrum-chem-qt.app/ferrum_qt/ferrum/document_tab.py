@@ -590,13 +590,16 @@ class FerrumNativeDocumentTab(
 		if type(x) is not float or type(y) is not float:
 			raise TypeError("Ferrum atom insertion coordinates must be floats")
 		self._require_canvas_authorable_molecule(molecule_object_id)
-		revision = self.current_snapshot.revision
-		prepared = self._session.prepare_create_atom_v1(
-			revision, molecule_object_id, element, x, y, 0.0,
+		import ferrum_qt.ferrum.engine as engine
+		operation = engine.DocumentOperationV1.create_atom_v1(
+			molecule_object_id, element, x, y, 0.0,
 		)
-		result = self._session.commit_create_atom(revision, prepared)
+		result = self._apply_current_document_operation_v1(operation)
+		outcome = result.outcome
+		if outcome.kind != "atom_created_v1" or outcome.atom_created is None:
+			raise FerrumNativeDocumentTabError("Ferrum atom creation returned an unknown operation outcome")
 		self._install_mutation_result(
-			result, (("atom", prepared.identifier),),
+			result, (("atom", outcome.atom_created.atom_identifier),),
 		)
 		return result
 
@@ -608,9 +611,19 @@ class FerrumNativeDocumentTab(
 		if type(molecule) is not engine.MoleculeInsertionV1:
 			raise TypeError("Ferrum molecule insertion requires exact frozen Ferrum data")
 		revision = self.current_snapshot.revision
-		prepared = self._session.prepare_admitted_molecule_insertion_v1(revision, molecule)
-		result = self._session.commit_admitted_molecule_insertion_v1(revision, prepared)
-		self._install_mutation_result(result)
+		operation = engine.DocumentOperationV1.insert_molecule_v1(molecule)
+		request = operation.transition_request_v1(revision)
+		prepared = self.prepare_session_operation_transition_v1(request)
+		result = self.commit_session_operation_transition_v1(prepared)
+		outcome = result.outcome
+		if outcome.kind != "molecule_inserted_v1" or outcome.molecule_inserted is None:
+			raise FerrumNativeDocumentTabError(
+				"Ferrum molecule insertion returned an unknown operation outcome",
+			)
+		selection = tuple(
+			("atom", identifier) for identifier in outcome.molecule_inserted.atom_identifiers
+		)
+		self._install_mutation_result(result, selection)
 		return result
 
 	#============================================
@@ -620,9 +633,19 @@ class FerrumNativeDocumentTab(
 		selected = self._selected_atom_identifier()
 		import ferrum_qt.ferrum.engine as engine
 		operation = engine.DocumentOperationV1.set_atom_element(selected, element)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, (("atom", selected),))
 		return result
+
+	#============================================
+	def _apply_current_document_operation_v1(self, operation: object) -> object:
+		"""Apply one exact document operation against the installed snapshot revision."""
+		import ferrum_qt.ferrum.engine as engine
+		if type(operation) is not engine.DocumentOperationV1:
+			raise TypeError("Ferrum document submission requires an exact document operation")
+		return self._session.apply_document_operation_v1(
+			self.current_snapshot.revision, operation,
+		)
 
 	#============================================
 	def move_atom_to(self, atom_id: str, x: float, y: float) -> object:
@@ -636,7 +659,7 @@ class FerrumNativeDocumentTab(
 			raise FerrumNativeDocumentTabError("moved atom is not in the current projection")
 		import ferrum_qt.ferrum.engine as engine
 		operation = engine.DocumentOperationV1.set_atom_position(atom_id, x, y, 0.0)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, (("atom", atom_id),))
 		return result
 

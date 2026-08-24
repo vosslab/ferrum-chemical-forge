@@ -1,10 +1,11 @@
 //! Opaque PyO3 seam for Rust-owned direct straight normal-arrow authoring.
 
-use super::binding::{PyDocumentSession, PySessionOperationResultV1};
+use super::binding::PyDocumentSession;
+use super::prepared_transition_binding::PySessionOperationTransitionRequestV1;
 use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
 use ferrum_document::{
-    ArrowGestureStyleV1, DocumentFenceV1, PendingPresentationGestureV1,
-    PresentationCreationGestureV1, PresentationGestureErrorV1, PresentationGestureKindV1,
+    ArrowGestureStyleV1, DocumentFenceV1, PresentationCreationGestureV1,
+    PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
     PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
 };
 use pyo3::create_exception;
@@ -27,6 +28,7 @@ create_exception!(
 enum PyPresentationGestureKindV1 {
     StraightNormalArrow,
     StraightEquilibriumArrow,
+    Plus,
 }
 #[pyclass(
     frozen,
@@ -67,19 +69,6 @@ enum PyPresentationGestureRecoveryV1 {
     AdjustEndpoint,
     ChangeToolOrStyle,
     RefreshAndReport,
-}
-#[pyclass(
-    frozen,
-    eq,
-    hash,
-    module = "ferrum_chem",
-    name = "PresentationGestureRootKindV1",
-    rename_all = "snake_case",
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub(crate) enum PyPresentationGestureRootKindV1 {
-    Arrow,
 }
 #[pyclass(frozen, module = "ferrum_chem", name = "ArrowGestureStyleV1")]
 pub(crate) struct PyArrowGestureStyleV1 {
@@ -125,7 +114,7 @@ impl PyPresentationGestureSnapPolicyV1 {
     name = "PresentationCreationGestureV1"
 )]
 pub(crate) struct PyPresentationCreationGestureV1 {
-    gesture: PresentationCreationGestureV1,
+    gesture: Option<PresentationCreationGestureV1>,
 }
 #[pyclass(
     unsendable,
@@ -133,27 +122,9 @@ pub(crate) struct PyPresentationCreationGestureV1 {
     name = "PresentationCreationPreviewV1"
 )]
 pub(crate) struct PyPresentationCreationPreviewV1 {
-    preview: PendingPresentationGestureV1,
+    preview: PresentationCreationPreviewV1,
     #[pyo3(get)]
     plan: PyPresentationRenderPlanV1,
-}
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "PresentationGestureRootSelectorV1"
-)]
-pub(crate) struct PyPresentationGestureRootSelectorV1 {
-    #[pyo3(get)]
-    pub(crate) identifier: String,
-    #[pyo3(get)]
-    pub(crate) kind: Py<PyPresentationGestureRootKindV1>,
-}
-#[pyclass(frozen, module = "ferrum_chem", name = "PresentationGestureCommitV1")]
-pub(crate) struct PyPresentationGestureCommitV1 {
-    #[pyo3(get)]
-    root: Py<PyPresentationGestureRootSelectorV1>,
-    #[pyo3(get)]
-    result: PySessionOperationResultV1,
 }
 #[pymethods]
 impl PyDocumentSession {
@@ -179,6 +150,7 @@ impl PyDocumentSession {
             PyPresentationGestureKindV1::StraightEquilibriumArrow => {
                 PresentationGestureKindV1::StraightEquilibriumArrow
             }
+            PyPresentationGestureKindV1::Plus => PresentationGestureKindV1::Plus,
         };
         let style = match kind {
             PresentationGestureKindV1::StraightNormalArrow => style
@@ -199,7 +171,9 @@ impl PyDocumentSession {
         };
         self.session
             .begin_presentation_creation_gesture_v1(fence, kind, start, style, snap.policy)
-            .map(|gesture| PyPresentationCreationGestureV1 { gesture })
+            .map(|gesture| PyPresentationCreationGestureV1 {
+                gesture: Some(gesture),
+            })
             .map_err(|error| presentation_error(py, error))
     }
     fn preview_presentation_creation_gesture_v1(
@@ -212,44 +186,32 @@ impl PyDocumentSession {
         let end = PresentationGesturePoint2V1::new(end_x, end_y)
             .map_err(|error| presentation_error(py, error))?;
         self.session
-            .prepare_presentation_creation_gesture_v1(&gesture.gesture, end)
+            .preview_presentation_creation_gesture_v1(
+                gesture.gesture.as_ref().ok_or_else(|| {
+                    presentation_error(py, PresentationGestureErrorV1::ReplayedGesture)
+                })?,
+                end,
+            )
             .map_err(|error| presentation_error(py, error))
             .and_then(|value| preview(py, value))
     }
-    fn commit_presentation_creation_gesture_v1(
+    fn resolve_presentation_creation_gesture_v1(
         &mut self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyPresentationCreationGestureV1>,
-        mut preview: PyRefMut<'_, PyPresentationCreationPreviewV1>,
-    ) -> PyResult<PyPresentationGestureCommitV1> {
-        if !preview.preview.matches(&gesture.gesture) {
-            return Err(presentation_error(
-                py,
-                PresentationGestureErrorV1::PreviewMismatch,
-            ));
-        }
-        self.session
-            .commit_presentation_creation_gesture_v1(&mut preview.preview)
-            .map(|commit| {
-                let kind = match commit.root().kind() {
-                    ferrum_document::PresentationRecordKindV1::Arrow => {
-                        PyPresentationGestureRootKindV1::Arrow
-                    }
-                    _ => unreachable!("generic presentation gesture creates only an Arrow"),
-                };
-                PyPresentationGestureCommitV1 {
-                    root: Py::new(
-                        py,
-                        PyPresentationGestureRootSelectorV1 {
-                            identifier: commit.root().presentation_id().as_str().to_owned(),
-                            kind: Py::new(py, kind).expect("root kind allocates"),
-                        },
-                    )
-                    .expect("root selector allocates"),
-                    result: commit.result().clone().into(),
-                }
-            })
-            .map_err(|error| presentation_error(py, error))
+        mut gesture: PyRefMut<'_, PyPresentationCreationGestureV1>,
+        preview: PyRef<'_, PyPresentationCreationPreviewV1>,
+    ) -> PyResult<PySessionOperationTransitionRequestV1> {
+        let request = self
+            .session
+            .resolve_presentation_creation_gesture_v1(
+                gesture.gesture.as_ref().ok_or_else(|| {
+                    presentation_error(py, PresentationGestureErrorV1::ReplayedGesture)
+                })?,
+                &preview.preview,
+            )
+            .map_err(|error| presentation_error(py, error))?;
+        gesture.gesture = None;
+        Ok(PySessionOperationTransitionRequestV1::from_request(request))
     }
 }
 fn optional_u16(py: Python<'_>, value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<u16>> {
@@ -264,7 +226,7 @@ fn optional_u16(py: Python<'_>, value: Option<&Bound<'_, PyAny>>) -> PyResult<Op
 }
 fn preview(
     _py: Python<'_>,
-    value: PendingPresentationGestureV1,
+    value: PresentationCreationPreviewV1,
 ) -> PyResult<PyPresentationCreationPreviewV1> {
     Ok(PyPresentationCreationPreviewV1 {
         plan: value.plan().into(),
@@ -371,11 +333,9 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPresentationGestureKindV1>()?;
     module.add_class::<PyPresentationGestureCategoryV1>()?;
     module.add_class::<PyPresentationGestureRecoveryV1>()?;
-    module.add_class::<PyPresentationGestureRootKindV1>()?;
     module.add_class::<PyArrowGestureStyleV1>()?;
     module.add_class::<PyPresentationGestureSnapPolicyV1>()?;
     module.add_class::<PyPresentationCreationGestureV1>()?;
     module.add_class::<PyPresentationCreationPreviewV1>()?;
-    module.add_class::<PyPresentationGestureRootSelectorV1>()?;
-    module.add_class::<PyPresentationGestureCommitV1>()
+    Ok(())
 }

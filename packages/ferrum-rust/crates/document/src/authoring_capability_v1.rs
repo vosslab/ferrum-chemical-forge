@@ -9,14 +9,14 @@ use std::sync::{Arc, Mutex};
 
 /// Opaque process-local issuer owned by one [`crate::DocumentSession`].
 #[derive(Clone, Debug)]
-pub struct AuthoringCapabilityIssuerV1 {
+pub(crate) struct AuthoringCapabilityIssuerV1 {
     identity: Arc<AuthoringCapabilityIssuerIdentityV1>,
 }
 
 #[derive(Debug)]
 struct AuthoringCapabilityIssuerIdentityV1;
 
-/// Opaque, cloneable, one-shot authority for a document authoring receipt.
+/// Opaque, one-shot authority for a document authoring receipt.
 #[derive(Clone, Debug)]
 pub struct AuthoringCapabilityV1 {
     state: Arc<AuthoringCapabilityStateV1>,
@@ -37,10 +37,25 @@ enum AuthoringCapabilityDispositionV1 {
 
 /// Admission failure for an authoring receipt.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AuthoringCapabilityAccessErrorV1 {
+pub(crate) enum AuthoringCapabilityAccessErrorV1 {
     /// The receipt was issued by a distinct live document session.
     ForeignSession,
     /// The receipt is claimed or was already terminally consumed.
+    Replayed,
+}
+
+/// Admission failure while pairing one authoring gesture with its preview.
+///
+/// Pair validation intentionally distinguishes a foreign session from two
+/// different same-session receipts.  Public route APIs map this closed error
+/// to their own stable error categories.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AuthoringGesturePairAccessErrorV1 {
+    /// At least one supplied receipt was issued by another live session.
+    ForeignSession,
+    /// The receipts are local but do not describe one gesture/preview pair.
+    PreviewMismatch,
+    /// The shared one-shot receipt was already claimed or consumed.
     Replayed,
 }
 
@@ -50,7 +65,7 @@ pub enum AuthoringCapabilityAccessErrorV1 {
 /// [`Self::consume`] only after the owning session has appended its accepted
 /// transaction.
 #[derive(Debug)]
-pub struct AuthoringCapabilityClaimV1 {
+pub(crate) struct AuthoringCapabilityClaimV1 {
     state: Arc<AuthoringCapabilityStateV1>,
     settled: bool,
 }
@@ -64,7 +79,7 @@ impl AuthoringCapabilityIssuerV1 {
 
     /// Issue a fresh, one-shot capability for an opaque authoring receipt.
     #[must_use]
-    pub fn issue(&self) -> AuthoringCapabilityV1 {
+    pub(crate) fn issue(&self) -> AuthoringCapabilityV1 {
         AuthoringCapabilityV1 {
             state: Arc::new(AuthoringCapabilityStateV1 {
                 issuer: self.clone(),
@@ -77,23 +92,55 @@ impl AuthoringCapabilityIssuerV1 {
     pub(crate) fn same_issuer(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.identity, &other.identity)
     }
+
+    /// Validate one opaque gesture/preview pair before a route checks its fence.
+    ///
+    /// The order is deliberate and shared by every pair-authoring route:
+    /// session ownership for both handles, shared capability plus route-owned
+    /// semantic equality, one-shot replay status, then the caller's revision
+    /// and digest fence check.  The temporary claim is released immediately;
+    /// the successful commit retains responsibility for terminal consumption.
+    pub(crate) fn validate_gesture_pair_for_prepare_v1(
+        &self,
+        gesture: &AuthoringCapabilityV1,
+        preview: &AuthoringCapabilityV1,
+        route_content_matches: bool,
+    ) -> Result<(), AuthoringGesturePairAccessErrorV1> {
+        if !gesture.belongs_to(self) || !preview.belongs_to(self) {
+            return Err(AuthoringGesturePairAccessErrorV1::ForeignSession);
+        }
+        if !gesture.same_capability(preview) || !route_content_matches {
+            return Err(AuthoringGesturePairAccessErrorV1::PreviewMismatch);
+        }
+        gesture
+            .claim_for_commit(self)
+            .map(|claim| drop(claim))
+            .map_err(|error| match error {
+                AuthoringCapabilityAccessErrorV1::ForeignSession => {
+                    AuthoringGesturePairAccessErrorV1::ForeignSession
+                }
+                AuthoringCapabilityAccessErrorV1::Replayed => {
+                    AuthoringGesturePairAccessErrorV1::Replayed
+                }
+            })
+    }
 }
 
 impl AuthoringCapabilityV1 {
     /// Return whether two receipt handles share one one-shot authority.
     #[must_use]
-    pub fn same_capability(&self, other: &Self) -> bool {
+    pub(crate) fn same_capability(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.state, &other.state)
     }
 
     /// Return whether this receipt was issued by `issuer`.
     #[must_use]
-    pub fn belongs_to(&self, issuer: &AuthoringCapabilityIssuerV1) -> bool {
+    pub(crate) fn belongs_to(&self, issuer: &AuthoringCapabilityIssuerV1) -> bool {
         self.state.issuer.same_issuer(issuer)
     }
 
     /// Reserve this receipt for one owner transaction.
-    pub fn claim_for_commit(
+    pub(crate) fn claim_for_commit(
         &self,
         issuer: &AuthoringCapabilityIssuerV1,
     ) -> Result<AuthoringCapabilityClaimV1, AuthoringCapabilityAccessErrorV1> {
@@ -114,28 +161,11 @@ impl AuthoringCapabilityV1 {
             settled: false,
         })
     }
-
-    /// Mark this receipt terminal without appending a document transaction.
-    pub fn consume_without_commit(
-        &self,
-        issuer: &AuthoringCapabilityIssuerV1,
-    ) -> Result<(), AuthoringCapabilityAccessErrorV1> {
-        self.claim_for_commit(issuer)?.consume();
-        Ok(())
-    }
 }
-
-impl PartialEq for AuthoringCapabilityV1 {
-    fn eq(&self, other: &Self) -> bool {
-        self.same_capability(other)
-    }
-}
-
-impl Eq for AuthoringCapabilityV1 {}
 
 impl AuthoringCapabilityClaimV1 {
     /// Terminally consume the claimed receipt after its transaction succeeds.
-    pub fn consume(mut self) {
+    pub(crate) fn consume(mut self) {
         let mut disposition = self
             .state
             .disposition
@@ -167,18 +197,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn aliases_share_one_capability_and_a_dropped_claim_restores_owner_retry() {
+    fn dropped_claim_restores_owner_retry() {
         let issuer = AuthoringCapabilityIssuerV1::new();
         let capability = issuer.issue();
-        let alias = capability.clone();
-        assert!(capability.same_capability(&alias));
         let claim = capability.claim_for_commit(&issuer).expect("claim");
-        assert!(matches!(
-            alias.claim_for_commit(&issuer),
-            Err(AuthoringCapabilityAccessErrorV1::Replayed)
-        ));
         drop(claim);
-        alias.claim_for_commit(&issuer).expect("owner retry");
+        capability.claim_for_commit(&issuer).expect("owner retry");
     }
 
     #[test]
@@ -196,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn consumed_and_cancelled_receipts_are_terminal() {
+    fn consumed_receipts_are_terminal() {
         let issuer = AuthoringCapabilityIssuerV1::new();
         let committed = issuer.issue();
         committed
@@ -207,25 +231,29 @@ mod tests {
             committed.claim_for_commit(&issuer),
             Err(AuthoringCapabilityAccessErrorV1::Replayed)
         ));
-
-        let cancelled = issuer.issue();
-        cancelled
-            .consume_without_commit(&issuer)
-            .expect("cancel receipt");
-        assert!(matches!(
-            cancelled.claim_for_commit(&issuer),
-            Err(AuthoringCapabilityAccessErrorV1::Replayed)
-        ));
     }
 
     #[test]
-    fn final_alias_retains_authority_until_it_is_dropped() {
-        let issuer = AuthoringCapabilityIssuerV1::new();
-        let capability = issuer.issue();
-        let final_alias = capability.clone();
-        drop(capability);
-        final_alias
-            .claim_for_commit(&issuer)
-            .expect("last holder remains usable");
+    fn pair_validation_preserves_foreign_mismatch_and_replay_precedence() {
+        let owner = AuthoringCapabilityIssuerV1::new();
+        let foreign = AuthoringCapabilityIssuerV1::new();
+        let gesture = owner.issue();
+        let local_other = owner.issue();
+        let foreign_preview = foreign.issue();
+
+        assert!(matches!(
+            owner.validate_gesture_pair_for_prepare_v1(&gesture, &foreign_preview, false),
+            Err(AuthoringGesturePairAccessErrorV1::ForeignSession)
+        ));
+        assert!(matches!(
+            owner.validate_gesture_pair_for_prepare_v1(&gesture, &local_other, false),
+            Err(AuthoringGesturePairAccessErrorV1::PreviewMismatch)
+        ));
+
+        gesture.claim_for_commit(&owner).expect("claim").consume();
+        assert!(matches!(
+            owner.validate_gesture_pair_for_prepare_v1(&gesture, &gesture, true),
+            Err(AuthoringGesturePairAccessErrorV1::Replayed)
+        ));
     }
 }

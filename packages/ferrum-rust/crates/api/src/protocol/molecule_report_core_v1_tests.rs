@@ -3,9 +3,23 @@ use ferrum_chemistry::{
     MoleculeCompositionEntry, SmilesMolecule,
 };
 use ferrum_document::DocumentSession;
-use ferrum_domain::{MoleculeDiagnosticCodeV1, NeutralBondCapacityAtomOutcomeV1};
+use ferrum_domain::{
+    MoleculeDiagnosticCodeV1, MoleculeDiagnosticFindingV1, MoleculeDiagnosticLocationV1,
+    MoleculeDiagnosticRecoveryV1, MoleculeDiagnosticSeverityV1, NeutralBondCapacityAtomOutcomeV1,
+};
 
-use super::super::execution::execute_operation_with_runtime_v1;
+use super::super::dto::{
+    DocumentMoleculeReportFindingCodeSummaryV1, DocumentMoleculeReportFindingLocationSummaryV1,
+    DocumentMoleculeReportFindingRecoverySummaryV1, DocumentMoleculeReportFindingSeveritySummaryV1,
+    DocumentMoleculeReportFindingSubjectSummaryV1, ProtocolResourceLimitRecoveryV1,
+    ProtocolResourceLimitRefusalV1,
+};
+use super::super::execution::{
+    canonical_protocol_envelope_json_v1,
+    execute_operation_with_runtime_and_smarts_response_limit_for_test,
+    execute_operation_with_runtime_v1,
+};
+use super::super::molecule_report_diagnostics_v1::authenticated_report_finding_summary_v1;
 use super::super::runtime::{ChemistryRuntimeErrorV1, ChemistryRuntimeV1};
 use super::super::{
     DocumentMoleculeReportAggregateOutcomeSummaryV1,
@@ -106,7 +120,7 @@ fn request(
 }
 
 #[test]
-fn report_normalizes_source_order_and_combines_only_complete_records() {
+fn report_records_follow_document_source_order_not_selector_order() {
     let observation = observation(concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"first\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"second\"><atom id=\"o\" name=\"O\"><point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
@@ -151,12 +165,9 @@ fn unsupported_composition_is_a_record_finding_and_prevents_partial_combined_val
     )
     .expect("execute");
     assert!(receipt.records()[1].composition().is_none());
-    assert!(
-        receipt.records()[1]
-            .findings()
-            .iter()
-            .any(|finding| finding.code() == MoleculeDiagnosticCodeV1::UnsupportedAtomFact)
-    );
+    assert!(receipt.records()[1].findings().iter().any(|finding| {
+        finding.code == DocumentMoleculeReportFindingCodeSummaryV1::UnsupportedAtomFact
+    }));
     assert!(receipt.combined_composition().is_none());
     assert!(matches!(
         receipt.document_findings(),
@@ -189,6 +200,147 @@ fn capacity_outcomes_remain_report_facets() {
         receipt.records()[2].neutral_bond_capacity(),
         DocumentBondCapacityOutcomeV1::NotChecked { .. }
     ));
+}
+
+#[test]
+fn report_findings_follow_the_defined_category_order_with_authenticated_locations() {
+    let observation = observation(concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
+        "<atom id=\"c\" name=\"C\" explicit_hydrogens=\"4\"><point x=\"0\" y=\"0\"/></atom>",
+        "<atom id=\"o\" name=\"O\"><point x=\"1\" y=\"0\"/></atom>",
+        "<text id=\"text\"><point x=\"2\" y=\"0\"/></text>",
+        "<compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"3\" y=\"0\"/></compact-group>",
+        "<bond id=\"capacity\" start=\"c\" end=\"o\" type=\"n1\"/>",
+        "<bond id=\"zero\" start=\"c\" end=\"o\" type=\"n0\"/>",
+        "</molecule></cdml>",
+    ));
+    let receipt = execute_prepared_document_molecule_report_v1(
+        &CompositionEngine,
+        prepare_document_molecule_report_v1(&observation, &request(&observation, &[0]))
+            .expect("prepare"),
+    )
+    .expect("execute");
+    let summary = report_summary(receipt);
+    assert_eq!(
+        summary.records[0]
+            .findings
+            .iter()
+            .map(|finding| finding.code.as_str())
+            .take(4)
+            .collect::<Vec<_>>(),
+        vec![
+            "text_atom_present",
+            "neutral_capacity_not_checked",
+            "unexpanded_group_present",
+            "zero_order_bond",
+        ]
+    );
+    assert_eq!(
+        summary.records[0].findings[0].location,
+        DocumentMoleculeReportFindingLocationSummaryV1::Vertex {
+            identifier: "text".to_owned(),
+        }
+    );
+    assert_eq!(
+        summary.records[0].findings[3].location,
+        DocumentMoleculeReportFindingLocationSummaryV1::Bond {
+            identifier: "zero".to_owned(),
+        }
+    );
+}
+
+#[test]
+fn clean_report_serializes_empty_structured_findings() {
+    let observation = observation(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+    );
+    let receipt = execute_prepared_document_molecule_report_v1(
+        &CompositionEngine,
+        prepare_document_molecule_report_v1(&observation, &request(&observation, &[0]))
+            .expect("prepare"),
+    )
+    .expect("execute");
+    let rendered = serde_json::to_value(report_summary(receipt)).expect("DTO serializes");
+    assert_eq!(rendered["records"][0]["findings"], serde_json::json!([]));
+}
+
+#[test]
+fn finding_receipt_maps_complete_closed_domain_facts() {
+    let finding = MoleculeDiagnosticFindingV1::new(
+        MoleculeDiagnosticSeverityV1::Error,
+        MoleculeDiagnosticCodeV1::InvalidElement,
+        MoleculeDiagnosticRecoveryV1::CorrectChemicalFacts,
+        MoleculeDiagnosticLocationV1::Root,
+        Some("unrecognized element symbol"),
+    )
+    .expect("bounded finding");
+    let summary = authenticated_report_finding_summary_v1(None, &finding).expect("root maps");
+    assert_eq!(
+        (
+            summary.severity,
+            summary.code,
+            summary.recovery,
+            summary.detail.as_deref()
+        ),
+        (
+            DocumentMoleculeReportFindingSeveritySummaryV1::Error,
+            DocumentMoleculeReportFindingCodeSummaryV1::InvalidElement,
+            DocumentMoleculeReportFindingRecoverySummaryV1::CorrectChemicalFacts,
+            Some("unrecognized element symbol"),
+        )
+    );
+    assert_eq!(
+        summary.location,
+        DocumentMoleculeReportFindingLocationSummaryV1::Root
+    );
+}
+
+#[test]
+fn idless_and_untrusted_locations_remain_typed_or_refused() {
+    let idless = MoleculeDiagnosticFindingV1::new(
+        MoleculeDiagnosticSeverityV1::Warning,
+        MoleculeDiagnosticCodeV1::UnsupportedAtomFact,
+        MoleculeDiagnosticRecoveryV1::InspectStructure,
+        MoleculeDiagnosticLocationV1::Atom {
+            source_identifier: None,
+        },
+        None,
+    )
+    .expect("idless finding");
+    let untrusted = MoleculeDiagnosticFindingV1::new(
+        MoleculeDiagnosticSeverityV1::Warning,
+        MoleculeDiagnosticCodeV1::UnsupportedAtomFact,
+        MoleculeDiagnosticRecoveryV1::InspectStructure,
+        MoleculeDiagnosticLocationV1::Atom {
+            source_identifier: Some("foreign".to_owned()),
+        },
+        None,
+    )
+    .expect("identified finding");
+    assert_eq!(
+        authenticated_report_finding_summary_v1(None, &idless)
+            .expect("idless location lowers")
+            .location,
+        DocumentMoleculeReportFindingLocationSummaryV1::Unaddressable {
+            subject: DocumentMoleculeReportFindingSubjectSummaryV1::Atom,
+        }
+    );
+    assert!(authenticated_report_finding_summary_v1(None, &untrusted).is_err());
+}
+
+#[test]
+fn receipt_serialization_has_no_legacy_finding_codes() {
+    let observation = observation(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+    );
+    let receipt = execute_prepared_document_molecule_report_v1(
+        &CompositionEngine,
+        prepare_document_molecule_report_v1(&observation, &request(&observation, &[0]))
+            .expect("prepare"),
+    )
+    .expect("execute");
+    let rendered = serde_json::to_value(report_summary(receipt)).expect("DTO serializes");
+    assert!(rendered["records"][0].get("finding_codes").is_none());
 }
 
 #[test]
@@ -289,9 +441,7 @@ fn protocol_maps_literal_isotope_aware_report_facts_without_runtime_detail() {
         "request_id": "molecule-report",
         "operation": {
             "kind": "document.molecule.report.v1",
-            "document": source,
-            "expected_revision": 0,
-            "expected_digest_hex": digest,
+            "snapshot": {"cdml": source, "revision": 0, "digest_hex": digest},
             "molecule_ids": ids
         }
     });
@@ -384,7 +534,8 @@ fn aggregate_outcome_serializes_closed_branches_and_refuses_impossible_states() 
     });
     let omitted = serde_json::json!({
         "kind": "omitted",
-        "reason": "incomplete_record_composition"
+        "reason": "incomplete_record_composition",
+        "recovery": "choose_supported_representation"
     });
     let complete_outcome =
         serde_json::from_value::<DocumentMoleculeReportAggregateOutcomeSummaryV1>(complete.clone())
@@ -449,11 +600,19 @@ fn mapper_serializes_both_closed_aggregate_omissions() {
     .expect("incomplete executes");
     assert_eq!(
         serde_json::to_value(report_summary(one_receipt)).expect("one serializes")["aggregate"],
-        serde_json::json!({"kind": "omitted", "reason": "fewer_than_two_selected"})
+        serde_json::json!({
+            "kind": "omitted",
+            "reason": "fewer_than_two_selected",
+            "recovery": "none"
+        })
     );
     assert_eq!(
         serde_json::to_value(report_summary(incomplete_receipt)).expect("incomplete serializes")["aggregate"],
-        serde_json::json!({"kind": "omitted", "reason": "incomplete_record_composition"})
+        serde_json::json!({
+            "kind": "omitted",
+            "reason": "incomplete_record_composition",
+            "recovery": "choose_supported_representation"
+        })
     );
 }
 
@@ -475,8 +634,8 @@ fn protocol_missing_runtime_is_a_redacted_chemistry_refusal() {
     let request = serde_json::json!({
         "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
         "request_id": "missing-runtime",
-        "operation": {"kind": "document.molecule.report.v1", "document": source,
-            "expected_revision": 0, "expected_digest_hex": digest, "molecule_ids": [id]}
+        "operation": {"kind": "document.molecule.report.v1",
+            "snapshot": {"cdml": source, "revision": 0, "digest_hex": digest}, "molecule_ids": [id]}
     });
     let response = super::super::execution::execute_operation_v1(&request.to_string())
         .expect("valid protocol JSON");
@@ -488,4 +647,134 @@ fn protocol_missing_runtime_is_a_redacted_chemistry_refusal() {
         OperationProtocolErrorCategoryV1::ChemistryUnavailable
     );
     assert!(!response.error.message.contains("path"));
+}
+
+#[test]
+fn detached_protocol_report_preserves_nonzero_snapshot_provenance_and_source_order() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+        "<molecule id=\"second\"><atom id=\"o\" name=\"O\"><point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
+    );
+    let observation = observation(source);
+    let digest: String = observation
+        .snapshot()
+        .digest()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let ids: Vec<String> = observation
+        .projection()
+        .molecules()
+        .iter()
+        .rev()
+        .map(|root| root.id().expect("direct root id").as_str().to_owned())
+        .collect();
+    let request = serde_json::json!({
+        "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+        "request_id": "nonzero-report-snapshot",
+        "operation": {
+            "kind": "document.molecule.report.v1",
+            "snapshot": {"cdml": source, "revision": 7, "digest_hex": digest},
+            "molecule_ids": ids,
+        }
+    });
+    let envelope = execute_operation_with_runtime_v1(&request.to_string(), &CompositionRuntime)
+        .expect("valid report request");
+    let OperationProtocolEnvelopeV1::Success(response) = envelope else {
+        panic!("verified snapshot must report");
+    };
+    let OperationProtocolOutcomeV1::DocumentMoleculeReport { report } = response.outcome else {
+        panic!("report outcome expected");
+    };
+    assert_eq!(report.source_revision, 7);
+    assert_eq!(report.source_digest_hex, digest);
+    assert_eq!(
+        report
+            .records
+            .iter()
+            .map(|record| record.source_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["first", "second"]
+    );
+}
+
+#[test]
+fn detached_protocol_report_refuses_a_digest_that_does_not_authenticate_cdml() {
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    let request = serde_json::json!({
+        "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+        "request_id": "invalid-report-snapshot",
+        "operation": {
+            "kind": "document.molecule.report.v1",
+            "snapshot": {"cdml": source, "revision": 4, "digest_hex": "00".repeat(32)},
+            "molecule_ids": ["m"],
+        }
+    });
+    let envelope = execute_operation_with_runtime_v1(&request.to_string(), &CompositionRuntime)
+        .expect("valid protocol JSON");
+    let OperationProtocolEnvelopeV1::Error(response) = envelope else {
+        panic!("mismatched digest must refuse");
+    };
+    assert_eq!(
+        response.error.category,
+        OperationProtocolErrorCategoryV1::DocumentInvalid
+    );
+    assert_eq!(
+        response.error.operation,
+        Some(super::super::ProtocolOperationKindV1::DocumentMoleculeReport)
+    );
+}
+
+#[test]
+fn detached_protocol_report_uses_the_shared_final_envelope_budget() {
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    let observation = observation(source);
+    let digest: String = observation
+        .snapshot()
+        .digest()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let molecule_id = observation.projection().molecules()[0]
+        .id()
+        .expect("direct root id")
+        .as_str()
+        .to_owned();
+    let request = serde_json::json!({
+        "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+        "request_id": "bounded-report",
+        "operation": {
+            "kind": "document.molecule.report.v1",
+            "snapshot": {"cdml": source, "revision": 0, "digest_hex": digest},
+            "molecule_ids": [molecule_id],
+        }
+    });
+    let limit = 512;
+    let envelope = execute_operation_with_runtime_and_smarts_response_limit_for_test(
+        &request.to_string(),
+        &CompositionRuntime,
+        limit,
+    )
+    .expect("valid protocol JSON");
+    let OperationProtocolEnvelopeV1::Error(response) = &envelope else {
+        panic!("small shared response budget must refuse the report");
+    };
+    assert_eq!(
+        response.error.category,
+        OperationProtocolErrorCategoryV1::ResourceLimit
+    );
+    assert_eq!(response.error.message, "response_size_exceeded");
+    assert!(matches!(
+        response.error.resource_limit,
+        Some(ProtocolResourceLimitRefusalV1 {
+            reason: super::super::ProtocolResourceLimitReasonV1::ResponseSizeExceeded,
+            recovery: ProtocolResourceLimitRecoveryV1::ReduceRequestedResult,
+        })
+    ));
+    assert!(
+        canonical_protocol_envelope_json_v1(&envelope)
+            .expect("final envelope serializes")
+            .len()
+            <= limit
+    );
 }

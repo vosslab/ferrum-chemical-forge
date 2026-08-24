@@ -149,6 +149,26 @@ def test_local_runtime_import_rejects_a_stale_document_session_surface(
 
 
 #============================================
+def test_local_runtime_import_requires_canonical_cdml_loading(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""The staged extension must load canonical Ferrum CDML, not only import."""
+	runtime_root = _write_runtime_tree(tmp_path)
+	monkeypatch.setattr(receipt, "local_runtime_inputs", lambda: {"input": "v1"})
+	receipt.write_local_runtime_receipt(runtime_root)
+	monkeypatch.setattr(
+		receipt,
+		"_run_extension_import_probe",
+		lambda _root, expected: {
+			"module_file": str(expected),
+			"document_session_members": ["can_undo", "can_redo"],
+		},
+	)
+	with pytest.raises(receipt.LocalRuntimeReceiptError, match="canonical Ferrum CDML"):
+		receipt.validate_local_runtime_import(runtime_root)
+
+
+#============================================
 def _write_cargo_package(root: Path, name: str, source: str) -> Path:
 	"""Create one minimal local Rust package for closure contract tests."""
 	package = root / "crates" / name

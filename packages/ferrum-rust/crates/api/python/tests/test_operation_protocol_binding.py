@@ -12,6 +12,17 @@ CDML = (
 	'<point x="10" y="20"/></atom></molecule></cdml>'
 )
 
+DIAGNOSTIC_CDML = (
+	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m">'
+	'<atom id="c" name="C"><point x="0" y="0"/></atom>'
+	'<atom id="o" name="O"><point x="1" y="0"/></atom>'
+	'<text id="text"><point x="2" y="0"/></text>'
+	'<compact-group id="group" version="1" catalog-key="methyl" attachment-index="0" '
+	'orientation-degrees="0"><point x="3" y="0"/></compact-group>'
+	'<bond id="zero" start="c" end="o" type="n0"/>'
+	'</molecule></cdml>'
+)
+
 
 def test_protocol_execution_returns_semantic_success_and_refusal_data() -> None:
 	"""One decodable request family returns machine-readable completed envelopes."""
@@ -66,6 +77,110 @@ def test_molecule_report_schema_exposes_closed_aggregate_outcomes() -> None:
 		and {"formula", "net_formal_charge", "average_molecular_weight_da", "monoisotopic_mass_da", "elements"}.issubset(composition)
 		and {"symbol", "isotope", "atom_count", "average_mass_contribution_da", "mass_percentage"}.issubset(element)
 	)
+
+
+def test_molecule_report_serializes_structured_diagnostic_findings() -> None:
+	"""One public selected-molecule report preserves typed source diagnostics."""
+	session = ferrum_chem.DocumentSession.load(DIAGNOSTIC_CDML)
+	snapshot = session.snapshot()
+	molecule_id = session.observe(snapshot.revision).projection.molecules[0].id
+	completed = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
+		"schema": "ferrum-operation-request-v1",
+		"request_id": "diagnostic-location-example",
+		"operation": {
+			"kind": "document.molecule.report.v1",
+			"snapshot": {
+				"cdml": DIAGNOSTIC_CDML,
+				"revision": snapshot.revision,
+				"digest_hex": snapshot.digest,
+			},
+			"molecule_ids": [molecule_id],
+		},
+	})))
+	assert completed["request_id"] == "diagnostic-location-example"
+	assert completed["outcome"]["kind"] == "document.molecule.report.v1"
+	report = completed["outcome"]["report"]
+	record = report["records"][0]
+	findings_by_code = {finding["code"]: finding for finding in record["findings"]}
+	text_finding = findings_by_code["text_atom_present"]
+	group_finding = findings_by_code["unexpanded_group_present"]
+	zero_bond_finding = findings_by_code["zero_order_bond"]
+
+	assert report["source_revision"] == snapshot.revision and report["source_digest_hex"] == snapshot.digest
+	assert "finding_codes" not in record
+	assert text_finding["severity"] == "warning"
+	assert text_finding["recovery"] == "choose_supported_representation"
+	assert text_finding["location"] == {"kind": "vertex", "identifier": "text"}
+	assert text_finding["detail"] is None
+	assert group_finding["severity"] == "warning"
+	assert group_finding["recovery"] == "choose_supported_representation"
+	assert group_finding["location"] == {"kind": "vertex", "identifier": "group"}
+	assert group_finding["detail"] is None
+	assert zero_bond_finding["severity"] == "warning"
+	assert zero_bond_finding["recovery"] == "correct_chemical_facts"
+	assert zero_bond_finding["location"] == {"kind": "bond", "identifier": "zero"}
+	assert zero_bond_finding["detail"] is None
+	after = session.snapshot()
+	assert after.revision == snapshot.revision and after.digest == snapshot.digest
+
+
+def test_generic_operation_protocol_preserves_nonzero_oxidation_snapshot_provenance() -> None:
+	"""A detached oxidation snapshot retains caller provenance through the generic bridge."""
+	session = ferrum_chem.DocumentSession.load(CDML)
+	snapshot = session.snapshot()
+	projection = session.observe(snapshot.revision).projection
+	molecule = projection.molecules[0]
+	completed = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
+		"schema": "ferrum-operation-request-v1",
+		"request_id": "nonzero-oxidation-snapshot",
+		"operation": {
+			"kind": "document.atom.oxidation.observe.v1",
+			"document": {
+				"cdml": snapshot.cdml,
+				"expected_revision": 7,
+				"expected_digest_hex": snapshot.digest,
+			},
+			"molecule_id": molecule.id,
+			"atom_id": molecule.atoms[0].id,
+		},
+	})))
+
+	assert completed["request_id"] == "nonzero-oxidation-snapshot"
+	assert completed["outcome"]["kind"] == "document.atom.oxidation.observe.v1"
+	observation = completed["outcome"]["observation"]
+	assert observation["source_revision"] == 7 and observation["source_digest_hex"] == snapshot.digest
+	assert observation["status"] in {"accepted", "unavailable"}
+
+
+def test_generic_oxidation_protocol_refuses_malformed_and_mismatched_digests() -> None:
+	"""Digest validation remains a typed operation-protocol refusal."""
+	session = ferrum_chem.DocumentSession.load(CDML)
+	snapshot = session.snapshot()
+	molecule = session.observe(snapshot.revision).projection.molecules[0]
+
+	def execute(expected_digest_hex: str) -> dict[str, object]:
+		response = ferrum_chem.execute_operation_v1(json.dumps({
+			"schema": "ferrum-operation-request-v1",
+			"request_id": "invalid-oxidation-digest",
+			"operation": {
+				"kind": "document.atom.oxidation.observe.v1",
+				"document": {
+					"cdml": snapshot.cdml,
+					"expected_revision": 0,
+					"expected_digest_hex": expected_digest_hex,
+				},
+				"molecule_id": molecule.id,
+				"atom_id": molecule.atoms[0].id,
+			},
+		}))
+		return json.loads(response)
+
+	malformed = execute("not-a-sha-256-digest")
+	mismatched_digest = ("0" if snapshot.digest[0] != "0" else "1") + snapshot.digest[1:]
+	mismatched = execute(mismatched_digest)
+
+	assert malformed["error"]["category"] == "invalid_request"
+	assert mismatched["error"]["category"] == "stale_document"
 
 
 def test_smarts_query_schema_and_stateless_protocol_keep_live_state_private() -> None:

@@ -16,10 +16,8 @@ use ferrum_document::{
     DocumentSmartsSnapshotErrorV1, PreparedDocumentSmartsSnapshotV1, PresentationCreationGestureV1,
     PresentationGestureErrorV1, PresentationGestureKindV1, PresentationGesturePoint2V1,
     PresentationGestureSnapPolicyV1, PresentationGestureStyleV1, PresentationRecordKindV1,
-    SessionOperation, SessionOperationResultV1, SessionOperationV1, StructureDeletionReceiptV1,
-    TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelTransformModeV1, TopLevelTransformV1,
+    SessionOperationResultV1, StructureDeletionReceiptV1, TopLevelRootKindV1,
 };
-use ferrum_geometry::{HexGrid, Point2};
 use ferrum_render::{
     PathOpV2, PresentationRenderPlanV1, PresentationRenderRootV1, RenderOp, ScenePathCommandV2,
     measure_molecule_render_plan_bounds_v1, render_presentation_stack_v1,
@@ -582,10 +580,10 @@ impl RenderInteractionSelectionV1 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct RenderInteractionTranslationGestureV1 {
     origin: u64,
-    capability: u64,
+    authoring_capability: ferrum_document::AuthoringCapabilityV1,
     selection: RenderInteractionSelectionV1,
     press_x: f64,
     press_y: f64,
@@ -593,7 +591,6 @@ pub struct RenderInteractionTranslationGestureV1 {
 }
 #[derive(Clone, Debug)]
 pub struct RenderInteractionTranslationPreviewV1 {
-    capability: u64,
     dx: f64,
     dy: f64,
     bounds: Vec<RenderInteractionBoundsV1>,
@@ -649,8 +646,6 @@ pub enum RenderInteractionErrorV1 {
     NonFinitePoint,
     #[error("marquee bounds must be finite and normalized")]
     InvalidRectangle,
-    #[error("preview does not belong to this gesture")]
-    PreviewMismatch,
     #[error("the named interaction root is not part of this observation")]
     NoTarget,
     #[error("one or more molecule roots are preserved but have no authorable render plan")]
@@ -663,6 +658,8 @@ pub enum RenderInteractionErrorV1 {
     Observation,
     #[error("the document session rejected the authorized interaction commit")]
     SessionConflict,
+    #[error("the renderer rejected the prospective interaction document state")]
+    RendererAdmission,
     #[error("the prospective structural deletion cannot be rendered")]
     UnrenderableCandidate,
     #[error("structural selection cannot span more than one direct molecule")]
@@ -683,6 +680,8 @@ pub struct RenderInteractionSessionV1 {
 mod render_interaction_helpers_v1;
 #[path = "render_interaction_session_v1.rs"]
 mod render_interaction_session_v1;
+#[path = "root_translation_interaction_v1.rs"]
+mod root_translation_interaction_v1;
 
 use render_interaction_helpers_v1::*;
 

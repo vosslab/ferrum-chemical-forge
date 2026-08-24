@@ -108,11 +108,11 @@ fn protocol_returns_a_fenced_accepted_or_unavailable_observation() {
 }
 
 #[test]
-fn protocol_refuses_invalid_selection_stale_fences_and_resource_limits() {
-    let stale = execute_operation_v1(&request(WATER, 1, digest(WATER)).to_string())
-        .expect("stale request decodes");
-    let OperationProtocolEnvelopeV1::Error(stale) = stale else {
-        panic!("stale request must refuse")
+fn protocol_accepts_source_provenance_and_refuses_invalid_selection_and_resource_limits() {
+    let accepted = execute_operation_v1(&request(WATER, 1, digest(WATER)).to_string())
+        .expect("source-provenance request decodes");
+    let OperationProtocolEnvelopeV1::Success(accepted) = accepted else {
+        panic!("source-provenance request must complete")
     };
     let (molecule_id, atom_id) = selection(WATER);
     let mut unknown_molecule = request(WATER, 0, digest(WATER));
@@ -136,9 +136,14 @@ fn protocol_refuses_invalid_selection_stale_fences_and_resource_limits() {
         panic!("large root must refuse")
     };
 
+    let accepted_json = serde_json::to_value(accepted).expect("accepted response serializes");
     assert_eq!(
-        serde_json::to_value(stale.error).expect("error serializes")["category"],
-        "stale_document"
+        accepted_json["outcome"]["observation"]["source_revision"],
+        1
+    );
+    assert_eq!(
+        accepted_json["outcome"]["observation"]["source_digest_hex"],
+        digest(WATER)
     );
     assert_eq!(
         serde_json::to_value(unknown_molecule.error).expect("error serializes")["category"],

@@ -129,7 +129,7 @@ class FerrumNativeRotationTabMixin:
 		operation = engine.DocumentOperationV1.rotate_atoms(
 			targets, center[0], center[1], angle_radians,
 		)
-		result = self._session.submit(self.current_snapshot.revision, operation)
+		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, selection.durable_selection)
 		return result
 

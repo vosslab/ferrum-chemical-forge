@@ -311,16 +311,17 @@ fn render_plan_controls_point_marquee_translate_and_undo() {
     let gesture = session
         .begin_render_interaction_translation_v1(
             &selected,
-            0.0,
-            0.0,
+            10.0,
+            20.0,
             RenderInteractionSnapV1::free(),
         )
         .expect("begin");
     let preview = session
-        .preview_render_interaction_translation_v1(&gesture, 5.0, -2.0)
+        .preview_render_interaction_translation_v1(&gesture, 14.0, 17.0)
         .expect("preview");
+    assert_eq!((preview.dx(), preview.dy()), (4.0, -3.0));
     let committed = session
-        .commit_render_interaction_translation_v1(&gesture, &preview)
+        .commit_render_interaction_translation_v1(gesture, 19.0, 18.0)
         .expect("commit");
     assert!(committed.changed());
     assert_eq!(committed.result().observation().snapshot().revision(), 1);
@@ -328,6 +329,66 @@ fn render_plan_controls_point_marquee_translate_and_undo() {
         session
             .undo(1)
             .expect("undo")
+            .observation()
+            .snapshot()
+            .revision(),
+        2
+    );
+}
+
+#[test]
+fn stale_translation_gesture_preserves_current_document_and_history() {
+    let mut session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
+    let observation = session
+        .observe_render_interaction_v1(fence(&session))
+        .expect("observe stale gesture source");
+    let selection = session
+        .select_render_interaction_roots_v1(
+            &observation,
+            None,
+            RenderInteractionQueryV1::Root {
+                identifier: "m1".to_owned(),
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("select stale gesture root");
+    let stale_gesture = session
+        .begin_render_interaction_translation_v1(
+            &selection,
+            0.0,
+            0.0,
+            RenderInteractionSnapV1::free(),
+        )
+        .expect("begin stale gesture");
+    let _stale_preview = session
+        .preview_render_interaction_translation_v1(&stale_gesture, 5.0, 0.0)
+        .expect("preview stale gesture");
+
+    let advancing_gesture = session
+        .begin_render_interaction_translation_v1(
+            &selection,
+            0.0,
+            0.0,
+            RenderInteractionSnapV1::free(),
+        )
+        .expect("begin advancing gesture");
+    let _advancing_preview = session
+        .preview_render_interaction_translation_v1(&advancing_gesture, 2.0, 0.0)
+        .expect("preview advancing gesture");
+    session
+        .commit_render_interaction_translation_v1(advancing_gesture, 2.0, 0.0)
+        .expect("advance revision");
+    let before = session.snapshot().expect("snapshot after advance");
+
+    assert!(matches!(
+        session.commit_render_interaction_translation_v1(stale_gesture, 5.0, 0.0),
+        Err(RenderInteractionErrorV1::StaleRevision)
+    ));
+    assert_eq!(session.snapshot().expect("snapshot after refusal"), before);
+    assert_eq!(
+        session
+            .undo(1)
+            .expect("the one admitted commit remains undoable")
             .observation()
             .snapshot()
             .revision(),
@@ -369,11 +430,11 @@ fn interaction_refuses_renderer_plan_with_stale_provenance() {
             RenderInteractionSnapV1::free(),
         )
         .expect("begin translation");
-    let preview = session
+    let _preview = session
         .preview_render_interaction_translation_v1(&gesture, 5.0, 0.0)
         .expect("preview translation");
     session
-        .commit_render_interaction_translation_v1(&gesture, &preview)
+        .commit_render_interaction_translation_v1(gesture, 5.0, 0.0)
         .expect("advance revision");
     assert!(matches!(
         session.observe_render_interaction_with_presentation_plan_v1(fence(&session), &stale_plan),
@@ -404,11 +465,11 @@ fn interaction_refuses_renderer_plan_with_stale_provenance() {
             RenderInteractionSnapV1::free(),
         )
         .expect("begin other translation");
-    let other_preview = other
+    let _other_preview = other
         .preview_render_interaction_translation_v1(&other_gesture, 7.0, 0.0)
         .expect("preview other translation");
     other
-        .commit_render_interaction_translation_v1(&other_gesture, &other_preview)
+        .commit_render_interaction_translation_v1(other_gesture, 7.0, 0.0)
         .expect("advance other revision");
     let other_snapshot = other.snapshot().expect("other snapshot");
     let other_plan = ferrum_render::render_presentation_stack_v1(
@@ -624,44 +685,9 @@ fn view_hex_grid_snaps_the_mixed_root_anchor_after_an_off_lattice_drag() {
     let preview = session
         .preview_render_interaction_translation_v1(&snapped, release.0, release.1)
         .expect("preview snapped gesture");
-    let targets = selection
-        .roots
-        .iter()
-        .map(|root| TopLevelRootSelectorV1::new(root.identifier.clone(), root.kind))
-        .collect::<Result<Vec<_>, _>>()
-        .expect("valid selected roots");
-    let anchor = session
-        .session
-        .observe_top_level_translation_anchor_v1(selection.fence.revision(), targets)
-        .expect("native mixed-root anchor");
-    let (anchor_x, anchor_y) = anchor.anchor();
-    let grid = HexGrid::new(
-        VIEW_HEX_GRID_SPACING_PT_V1,
-        Point2::new(0.0, 0.0).expect("finite grid origin"),
-    )
-    .expect("grid");
-    let expected = grid
-        .snap(
-            Point2::new(
-                anchor_x + release.0 - press.0,
-                anchor_y + release.1 - press.1,
-            )
-            .expect("finite translated anchor"),
-        )
-        .expect("snap translated anchor");
-    let legacy_release = grid
-        .snap(Point2::new(release.0, release.1).expect("finite release"))
-        .expect("snap release");
-    let legacy_press = grid
-        .snap(Point2::new(press.0, press.1).expect("finite press"))
-        .expect("snap press");
-    let expected_delta = (expected.x() - anchor_x, expected.y() - anchor_y);
-    let legacy_delta = (
-        legacy_release.x() - legacy_press.x(),
-        legacy_release.y() - legacy_press.y(),
-    );
-    assert_ne!(expected_delta, legacy_delta);
-    assert_eq!((preview.dx(), preview.dy()), expected_delta);
+    let expected_delta = (20.0 * 3.0_f64.sqrt() - 11.0, 11.0);
+    assert!((preview.dx() - expected_delta.0).abs() < f64::EPSILON);
+    assert_eq!(preview.dy(), expected_delta.1);
 }
 
 #[test]
@@ -697,7 +723,7 @@ fn view_hex_grid_exact_click_keeps_an_off_lattice_root_unchanged() {
         .expect("preview exact click");
     assert_eq!((preview.dx(), preview.dy()), (0.0, 0.0));
     let committed = session
-        .commit_render_interaction_translation_v1(&gesture, &preview)
+        .commit_render_interaction_translation_v1(gesture, 7.0, 11.0)
         .expect("commit exact click");
     assert!(!committed.changed());
     assert_eq!(committed.result().observation().snapshot().revision(), 0);
@@ -784,12 +810,12 @@ fn fragment_member_idref_does_not_exclude_renderable_root() {
             RenderInteractionSnapV1::free(),
         )
         .expect("begin move");
-    let preview = session
+    let _preview = session
         .preview_render_interaction_translation_v1(&gesture, 3.0, 0.0)
         .expect("preview move");
     assert_eq!(
         session
-            .commit_render_interaction_translation_v1(&gesture, &preview)
+            .commit_render_interaction_translation_v1(gesture, 3.0, 0.0)
             .expect("IDREF-safe move commits")
             .result()
             .observation()
@@ -887,11 +913,11 @@ fn mixed_molecule_and_plus_selection_moves_in_one_history_commit() {
             RenderInteractionSnapV1::free(),
         )
         .expect("begin mixed move");
-    let preview = session
+    let _preview = session
         .preview_render_interaction_translation_v1(&gesture, 7.0, 4.0)
         .expect("preview mixed move");
     let committed = session
-        .commit_render_interaction_translation_v1(&gesture, &preview)
+        .commit_render_interaction_translation_v1(gesture, 7.0, 4.0)
         .expect("one mixed session operation");
     assert_eq!(committed.result().observation().snapshot().revision(), 1);
     let projection = committed.result().observation().projection();

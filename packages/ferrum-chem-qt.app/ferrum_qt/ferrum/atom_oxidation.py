@@ -526,6 +526,7 @@ class FerrumNativeAtomOxidationMixin:
 
 	#============================================
 	def _atom_oxidation_dialog_source_is_active(self, dialog: FerrumNativeAtomOxidationDialog) -> bool:
+		"""Return whether this receipt's source remains a live active rerun target."""
 		if (
 			self._native_tabs_by_page.get(dialog._tab) is not dialog._tab
 			or dialog._tab.is_disposed
@@ -533,11 +534,9 @@ class FerrumNativeAtomOxidationMixin:
 			or self._active_native_tab() is not dialog._tab
 		):
 			return False
-		snapshot = dialog._tab.current_snapshot
-		return (
-			snapshot.revision == dialog._source_revision
-			and snapshot.digest == dialog._source_digest
-		)
+		# Receipt provenance controls historical display, while rerun recaptures
+		# the current selected atom and its current revision/digest fence.
+		return True
 
 	#============================================
 	def _retire_atom_oxidation_dialog_for_tab(self, tab: object) -> None:

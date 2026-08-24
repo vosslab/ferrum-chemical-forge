@@ -89,22 +89,13 @@ class TerminalArrowOperation:
 		return session.preview_curved_normal_reaction_arrow_gesture_v1(gesture, end[0], end[1])
 
 	@staticmethod
-	def prepare(session: object, kind: TerminalArrowKind, gesture: object, preview: object) -> object:
-		"""Renderer-preflight one opaque Rust candidate."""
+	def resolve(session: object, kind: TerminalArrowKind, gesture: object, preview: object) -> object:
+		"""Resolve one validated Rust gesture into a generic transition request."""
 		if kind is TerminalArrowKind.ELECTRON:
-			return session.prepare_curved_electron_arrow_gesture_v1(gesture, preview)
+			return session.resolve_curved_electron_arrow_gesture_v1(gesture, preview)
 		if kind is TerminalArrowKind.RETRO:
-			return session.prepare_curved_retro_arrow_gesture_v1(gesture, preview)
-		return session.prepare_curved_normal_reaction_arrow_gesture_v1(gesture, preview)
-
-	@staticmethod
-	def commit(session: object, kind: TerminalArrowKind, prepared: object) -> object:
-		"""Redeem one opaque Rust receipt exactly once."""
-		if kind is TerminalArrowKind.ELECTRON:
-			return session.commit_curved_electron_arrow_gesture_v1(prepared)
-		if kind is TerminalArrowKind.RETRO:
-			return session.commit_curved_retro_arrow_gesture_v1(prepared)
-		return session.commit_curved_normal_reaction_arrow_gesture_v1(prepared)
+			return session.resolve_curved_retro_arrow_gesture_v1(gesture, preview)
+		return session.resolve_curved_normal_reaction_arrow_gesture_v1(gesture, preview)
 
 
 #============================================

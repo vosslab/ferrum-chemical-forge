@@ -40,15 +40,9 @@ class CurvedEquilibriumArrowOperation:
 
 	#============================================
 	@staticmethod
-	def prepare(session: object, gesture: object, preview: object) -> object:
-		"""Renderer-preflight one opaque native candidate."""
-		return session.prepare_curved_equilibrium_arrow_gesture_v1(gesture, preview)
-
-	#============================================
-	@staticmethod
-	def commit(session: object, prepared: object) -> object:
-		"""Redeem one opaque native receipt exactly once."""
-		return session.commit_curved_equilibrium_arrow_gesture_v1(prepared)
+	def resolve(session: object, gesture: object, preview: object) -> object:
+		"""Resolve one validated native gesture into a generic transition request."""
+		return session.resolve_curved_equilibrium_arrow_gesture_v1(gesture, preview)
 
 
 #============================================

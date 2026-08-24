@@ -29,7 +29,7 @@ def test_atom_rotation_is_one_revisioned_semantic_operation() -> None:
         targets, 0.0, 0.0, math.pi / 2.0,
     )
     session = ferrum_chem.DocumentSession.load(SOURCE)
-    rotated = session.submit(0, operation).observation
+    rotated = session.apply_document_operation_v1(0, operation).observation
     atoms = rotated.projection.molecules[0].atoms
     assert atoms[1].position.x == pytest.approx(0.0, abs=HALF_AUTHORED_UNIT_POINTS)
     assert atoms[1].position.y == pytest.approx(10.0, abs=HALF_AUTHORED_UNIT_POINTS)
@@ -52,7 +52,7 @@ def test_atom_rotation_factory_and_resolution_fail_without_mutation() -> None:
     operation = ferrum_chem.DocumentOperationV1.rotate_atoms((target, missing), 0, 0, 1)
     before = session.snapshot()
     with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as caught:
-        session.submit(0, operation)
+        session.apply_document_operation_v1(0, operation)
     assert caught.value.object_id == "a"
     assert "molecule other" in str(caught.value)
     after = session.snapshot()

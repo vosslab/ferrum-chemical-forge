@@ -10,7 +10,8 @@ SOURCE = (
 	'font_size="12" font_family="Telex" line_color="#000" '
 	'area_color="" v:keep="yes"><bond width="6" wedge-width="5" '
 	'double-ratio="0.75"><v:keep/></bond><atom show_hydrogens="0"/>'
-	'</standard><molecule id="m"/></cdml>'
+	'</standard><molecule id="m"><atom id="a" name="C">'
+	'<point x="0" y="0"/></atom></molecule></cdml>'
 )
 
 
@@ -33,7 +34,7 @@ def test_private_standard_binding_commits_history_and_reopens_exact_facts() -> N
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	before = session.observe(0)
 	operation = ferrum_chem.DocumentOperationV1.set_drawing_standard(_rendered_changes())
-	changed = session.submit(0, operation)
+	changed = session.apply_document_operation_v1(0, operation)
 	standard = changed.observation.projection.drawing_standard
 
 	assert before.projection.drawing_standard.line_width == 1.0
@@ -72,4 +73,3 @@ def test_private_standard_binding_contains_invalid_python_values() -> None:
 		ferrum_chem.DocumentOperationV1.set_drawing_standard((one, one))
 	with pytest.raises(TypeError, match="tuple"):
 		ferrum_chem.DocumentOperationV1.set_drawing_standard([one])
-

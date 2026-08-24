@@ -7,9 +7,6 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
-import ferrum_qt.canvas.items.ferrum_plan_item
-
-
 @dataclasses.dataclass(frozen=True, slots=True)
 class _Intent:
 	tab: object
@@ -17,10 +14,7 @@ class _Intent:
 	revision: int
 	digest: str
 	key: str
-	gesture: object
 	mouse_tracking: bool
-	preview: object | None = None
-	item: PySide6.QtWidgets.QGraphicsItemGroup | None = None
 
 
 class FerrumCatalogPalette(PySide6.QtWidgets.QDialog):
@@ -113,32 +107,15 @@ class FerrumCatalogPalette(PySide6.QtWidgets.QDialog):
 
 
 class FerrumNativeCatalogPlacementTabMixin:
-	"""Use only Rust-issued catalog placement handles at the document boundary."""
+	"""Commit one closed catalog request through generic document authority."""
 
-	def begin_catalog_placement(self, key: str) -> object:
+	def place_catalog_molecule(
+			self, revision: int, digest: str, key: str, x: float, y: float,
+			) -> object:
 		self._require_mutable()
-		snapshot = self.current_snapshot
-		return self._session.begin_catalog_placement_v2(snapshot.revision, snapshot.digest, key)
-
-	def preview_catalog_placement(self, gesture: object, x: float, y: float) -> object:
-		self._require_mutable()
-		return self._session.preview_catalog_placement_v2(gesture, x, y)
-
-	def prepare_catalog_placement(self, gesture: object, preview: object) -> object:
-		self._require_mutable()
-		return self._session.prepare_catalog_placement_v2(gesture, preview)
-
-	def release_catalog_placement_preview(self, preview: object) -> None:
-		self._session.release_catalog_placement_preview_v2(preview)
-
-	def cancel_catalog_placement(self, gesture: object) -> None:
-		self._session.cancel_catalog_placement_gesture_v2(gesture)
-
-	def commit_catalog_placement(self, receipt: object) -> object:
-		self._require_mutable()
-		commit = self._session.commit_catalog_placement_v2(receipt)
+		commit = self._session.place_catalog_molecule_v1(revision, digest, key, x, y)
 		try:
-			self._install_mutation_result(commit.result, (("molecule", commit.identifier),))
+			self._install_mutation_result(commit.result, (("molecule", commit.root_identifier),))
 		except Exception as error:
 			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
 			if isinstance(error, FerrumNativeDocumentTabMutationPresentationError):
@@ -148,7 +125,7 @@ class FerrumNativeCatalogPlacementTabMixin:
 
 
 class FerrumNativeCatalogPlacementWindowMixin:
-	"""Own the palette lifecycle and transient exact Rust preview projection."""
+	"""Own the palette lifecycle and semantic catalog placement capture."""
 
 	def _initialize_catalog_placement(self) -> None:
 		self._catalog_placement_intent: _Intent | None = None
@@ -212,22 +189,16 @@ class FerrumNativeCatalogPlacementWindowMixin:
 		tab = self._active_native_tab()
 		if tab is None or tab.requires_refresh:
 			return False
-		try:
-			gesture = tab.begin_catalog_placement(key)
-		except Exception as error:
-			self._show_edit_refusal(self._unavailable_edit_refusal(str(error)))
-			return False
 		self._replace_authoring_owner_with_catalog()
 		snapshot, viewport = tab.current_snapshot, tab.view.viewport()
 		self._catalog_placement_intent = _Intent(
-			tab, viewport, snapshot.revision, snapshot.digest, key, gesture,
-			viewport.hasMouseTracking(),
+			tab, viewport, snapshot.revision, snapshot.digest, key, viewport.hasMouseTracking(),
 		)
 		viewport.setMouseTracking(True)
 		viewport.installEventFilter(self)
 		viewport.setCursor(PySide6.QtCore.Qt.CursorShape.CrossCursor)
 		viewport.setFocus()
-		self.statusBar().showMessage(self.tr("Move to preview the template; click to place. Escape cancels."))
+		self.statusBar().showMessage(self.tr("Click the canvas to place the template. Escape cancels."))
 		self._refresh_actions()
 		return True
 
@@ -252,8 +223,7 @@ class FerrumNativeCatalogPlacementWindowMixin:
 			self._cancel_catalog_placement()
 			return False
 		if event.type() == PySide6.QtCore.QEvent.Type.MouseMove:
-			self._preview_catalog(event)
-			return True
+			return False
 		if event.type() == PySide6.QtCore.QEvent.Type.MouseButtonPress:
 			if event.button() == PySide6.QtCore.Qt.MouseButton.RightButton:
 				self._cancel_catalog_placement()
@@ -264,23 +234,6 @@ class FerrumNativeCatalogPlacementWindowMixin:
 			return True
 		return False
 
-	def _preview_catalog(self, event: PySide6.QtGui.QMouseEvent) -> None:
-		intent = self._catalog_placement_intent
-		if intent is None:
-			return
-		try:
-			point = intent.tab.view.snap_authored_scene_point(intent.tab.view.mapToScene(event.position().toPoint()))
-			if not math.isfinite(point.x()) or not math.isfinite(point.y()):
-				raise ValueError("the canvas point is not finite")
-			preview = intent.tab.preview_catalog_placement(intent.gesture, float(point.x()), float(point.y()))
-			item = self._catalog_preview_item(intent.tab.view.scene(), preview)
-		except Exception as error:
-			self._cancel_catalog_placement(False)
-			self._show_edit_refusal(self._unavailable_edit_refusal(str(error)))
-			return
-		self._retire_catalog_preview(intent)
-		self._catalog_placement_intent = dataclasses.replace(intent, preview=preview, item=item)
-
 	def _commit_catalog(self, event: PySide6.QtGui.QMouseEvent) -> None:
 		intent = self._catalog_placement_intent
 		if intent is None:
@@ -288,14 +241,15 @@ class FerrumNativeCatalogPlacementWindowMixin:
 		try:
 			if not self._catalog_current(intent):
 				raise RuntimeError("The document changed; choose the template again.")
-			if intent.preview is None:
-				self._preview_catalog(event)
-				intent = self._catalog_placement_intent
-			if intent is None or intent.preview is None:
-				return
-			receipt = intent.tab.prepare_catalog_placement(intent.gesture, intent.preview)
+			point = intent.tab.view.snap_authored_scene_point(
+				intent.tab.view.mapToScene(event.position().toPoint()),
+			)
+			if not math.isfinite(point.x()) or not math.isfinite(point.y()):
+				raise ValueError("the canvas point is not finite")
 			self._cancel_catalog_placement(False)
-			commit = intent.tab.commit_catalog_placement(receipt)
+			commit = intent.tab.place_catalog_molecule(
+				intent.revision, intent.digest, intent.key, float(point.x()), float(point.y()),
+			)
 		except Exception as error:
 			self._cancel_catalog_placement(False)
 			if hasattr(error, "accepted_receipt") and intent is not None:
@@ -328,31 +282,6 @@ class FerrumNativeCatalogPlacementWindowMixin:
 			target.revision, target.digest, 1,
 		)
 
-	def _catalog_preview_item(self, scene: PySide6.QtWidgets.QGraphicsScene | None, preview: object) -> PySide6.QtWidgets.QGraphicsItemGroup | None:
-		if scene is None:
-			return None
-		group = PySide6.QtWidgets.QGraphicsItemGroup()
-		for index in range(len(preview.overlay.plan.batches)):
-			item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem(
-				preview.overlay.plan, index, self._active_native_tab()._controller._telex_resource,
-			)
-			group.addToGroup(item)
-			item.setZValue(float(index))
-			item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
-		group.setZValue(1_000_000.0)
-		group.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
-		scene.addItem(group)
-		return group
-
-	def _retire_catalog_item(self, item: PySide6.QtWidgets.QGraphicsItemGroup | None) -> None:
-		if item is not None and item.scene() is not None:
-			item.scene().removeItem(item)
-
-	def _retire_catalog_preview(self, intent: _Intent) -> None:
-		if intent.preview is not None:
-			intent.tab.release_catalog_placement_preview(intent.preview)
-		self._retire_catalog_item(intent.item)
-
 	def _catalog_current(self, intent: _Intent) -> bool:
 		if self._active_native_tab() is not intent.tab or self._native_tabs_by_page.get(intent.tab) is not intent.tab:
 			return False
@@ -369,8 +298,6 @@ class FerrumNativeCatalogPlacementWindowMixin:
 			intent.viewport.removeEventFilter(self)
 			intent.viewport.setMouseTracking(intent.mouse_tracking)
 			intent.viewport.unsetCursor()
-			self._retire_catalog_preview(intent)
-			intent.tab.cancel_catalog_placement(intent.gesture)
 		if clear_status:
 			self.statusBar().clearMessage()
 

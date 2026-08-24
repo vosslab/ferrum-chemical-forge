@@ -1,13 +1,19 @@
 //! Protocol execution and its direct behavioral tests.
 
 use base64::Engine;
+use ferrum_catalog_placement::{
+    CatalogPlacementCategoryV1, CatalogPlacementErrorV1, CatalogPlacementRecoveryV1,
+    resolve_catalog_molecule_placement_v1,
+};
 use ferrum_chemistry::UnavailableChemEngine;
 use ferrum_document::{
-    CdmlError, DocumentFenceV1, DocumentObjectIdV1, DocumentSession, InterchangeCodecErrorV1,
-    InterchangeFormatV1, MoleculeCoordinateBatchUpdateV1, PresentationGesturePoint2V1,
-    SessionOperation, TypedClass, TypedDocument, build_molecule_coordinate_update_v1,
-    decode_interchange_v1, encode_interchange_v1, load_document_utf8_bytes_with_budget,
-    local_cdml_ingress_format_v1, rewrite_cdml, validate_cdml, verify_cdml_rewrite,
+    AdmittedSessionTransitionRefusalV1, CdmlError, DocumentFenceV1, DocumentObjectIdV1,
+    DocumentSession, DocumentSessionError, InterchangeCodecErrorV1, InterchangeFormatV1,
+    MoleculeCoordinateBatchUpdateV1, PresentationGesturePoint2V1, SessionOperation,
+    SessionOperationOutcomeV1, SessionOperationV1, TransitionAuthorizationV1, TypedClass,
+    TypedDocument, build_molecule_coordinate_update_v1, decode_interchange_v1,
+    encode_interchange_v1, load_document_utf8_bytes_with_budget, local_cdml_ingress_format_v1,
+    rewrite_cdml, validate_cdml, verify_cdml_rewrite,
 };
 use ferrum_document::{
     DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
@@ -21,20 +27,13 @@ use super::runtime::{ChemistryRuntimeErrorV1, ChemistryRuntimeV1, NoChemistryRun
 #[cfg(test)]
 use super::schema::generated_operation_protocol_schema_v1;
 use crate::{
-    CatalogPlacementCategoryV2, CatalogPlacementErrorV2, CatalogPlacementRecoveryV2,
     PresentationVectorGestureCategoryV1, PresentationVectorKindV1, ReactionDefinitionDispositionV1,
     ReactionGestureCategoryV1, ReactionGestureErrorV1, ReactionGestureRecoveryV1,
     ReactionMembershipPatchRequestV1, RenderInteractionGridSnapPolicyV1,
-    RenderInteractionSessionV1, RenderInteractionSnapV1, begin_api_catalog_placement_v2,
-    begin_api_presentation_vector_gesture_v1, begin_api_reaction_definition_delete_v1,
+    RenderInteractionSessionV1, RenderInteractionSnapV1, begin_api_reaction_definition_delete_v1,
     begin_api_reaction_gesture_v1, begin_api_reaction_membership_patch_v1,
-    begin_api_reaction_translation_v1, commit_api_catalog_placement_v2,
-    commit_api_presentation_vector_gesture_v1, commit_api_reaction_gesture_v1,
-    commit_api_reaction_lifecycle_v1, commit_api_reaction_translation_v1,
-    prepare_api_catalog_placement_v2, prepare_api_presentation_vector_gesture_v1,
-    prepare_api_reaction_gesture_v1, prepare_api_reaction_lifecycle_v1,
-    prepare_api_reaction_translation_v1, preview_api_catalog_placement_v2,
-    preview_api_presentation_vector_gesture_v1, preview_api_reaction_translation_v1,
+    begin_api_reaction_translation_v1, resolve_api_reaction_gesture_v1,
+    resolve_api_reaction_lifecycle_v1, resolve_api_reaction_translation_v1,
 };
 
 #[path = "execution_chemistry.rs"]
@@ -79,9 +78,8 @@ pub(crate) fn execute_operation_with_runtime_v1<R: ChemistryRuntimeV1>(
     request_json: &str,
     runtime: &R,
 ) -> Result<OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1> {
-    // The V1 protocol currently applies its shared bounded-response policy to
-    // SMARTS query and atom-oxidation observation.  The public constant keeps
-    // its established name; its value is the shared operation response budget.
+    // The public constant keeps its established name; its value is the shared
+    // operation response budget for every operation admitted below.
     execute_operation_with_runtime_and_shared_response_budget_v1(
         request_json,
         runtime,
@@ -305,13 +303,14 @@ pub(crate) fn admit_shared_response_budget_v1(
 
 /// Closed V1 admission policy for operations whose result volume is bounded.
 ///
-/// The current shared budget covers SMARTS result enumeration, oxidation
+/// The current shared budget covers molecule reports, SMARTS result enumeration, oxidation
 /// observation, and explicit-hydrogen materialization. New operations must opt in here deliberately rather than
 /// inheriting a bound from a similarly shaped response.
 const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> bool {
     matches!(
         operation,
-        ProtocolOperationKindV1::DocumentSmartsQuery
+        ProtocolOperationKindV1::DocumentMoleculeReport
+            | ProtocolOperationKindV1::DocumentSmartsQuery
             | ProtocolOperationKindV1::DocumentAtomOxidationObserve
             | ProtocolOperationKindV1::DocumentMoleculeHydrogenMaterialize
     )

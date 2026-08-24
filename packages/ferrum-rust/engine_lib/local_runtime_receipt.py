@@ -348,6 +348,10 @@ def validate_local_runtime_import(runtime_root: Path) -> None:
 			"staged ferrum_chem extension is missing required DocumentSession members: "
 			+ ", ".join(missing)
 		)
+	if probe.get("canonical_cdml_loads") is not True:
+		raise LocalRuntimeReceiptError(
+			"staged ferrum_chem extension did not confirm canonical Ferrum CDML loading"
+		)
 
 
 #============================================
@@ -357,9 +361,10 @@ def _run_extension_import_probe(runtime_root: Path, expected_extension: Path) ->
 		"import importlib, json, pathlib, sys; "
 		"module = importlib.import_module('ferrum_chem'); "
 		"session = module.DocumentSession; "
+		"session.load('<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"/>'); "
 		"print(json.dumps({'module_file': str(pathlib.Path(module.__file__).resolve()), "
 		"'document_session_members': [name for name in ('can_undo', 'can_redo') "
-		"if hasattr(session, name)]}, sort_keys=True))"
+		"if hasattr(session, name)], 'canonical_cdml_loads': True}, sort_keys=True))"
 	)
 	environment = os.environ.copy()
 	environment.pop("PYTHONHOME", None)

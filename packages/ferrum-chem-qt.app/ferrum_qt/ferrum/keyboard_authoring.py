@@ -179,36 +179,14 @@ class FerrumKeyboardAuthoringMixin:
 				"Draw Bond was cancelled because its native gesture was unavailable. Start Draw Bond again.",
 			))
 			return
-		import ferrum_qt.ferrum.engine as engine
 		try:
-			outcome = intent.tab.admit_direct_bond_candidate(gesture, probe)
-			if type(outcome) is not engine.DirectBondAdmissionV3:
-				raise RuntimeError("Ferrum direct-bond admission returned an unknown result")
-			intent.tab.commit_direct_bond_admission(outcome)
-		except engine.DirectBondPointerProbeErrorV3 as exc:
-			self._cancel_line_gesture(clear_status=False)
-			self._refresh_actions()
-			self._synchronize_mode_state()
-			intent.tab.view.viewport().setFocus()
-			self._show_direct_bond_refusal(exc)
-			return
-		except engine.DirectBondAdmissionRefusalV3 as exc:
-			self._cancel_line_gesture(clear_status=False)
-			self._refresh_actions()
-			self._synchronize_mode_state()
-			intent.tab.view.viewport().setFocus()
-			self._show_direct_bond_refusal(exc)
-			return
-		except engine.DirectBondCommitError as exc:
-			message = self._direct_bond_commit_recovery_message(exc)
-			self._cancel_line_gesture(clear_status=False)
-			self._refresh_actions()
-			self._synchronize_mode_state()
-			intent.tab.view.viewport().setFocus()
-			if message is None:
-				raise
-			self._show_direct_bond_commit_refusal(message)
-			return
+			# Reuse the pointer path so both input modes display the same copied
+			# generic precommit overlay before redeeming the same receipt type.
+			self._update_direct_bond_gesture(intent, intent.tab.view.mapFromScene(point))
+			current = self._line_gesture_intent
+			if current is None or current.prepared_transition is None:
+				return
+			self._commit_direct_bond_transition(current.tab, current.prepared_transition)
 		except Exception:
 			self._cancel_line_gesture(clear_status=False)
 			self._refresh_actions()

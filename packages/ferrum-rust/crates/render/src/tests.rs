@@ -2,6 +2,8 @@
 
 #[path = "tests/atom_bond_layout.rs"]
 mod atom_bond_layout;
+#[path = "tests/complete_document_admission_v1.rs"]
+mod complete_document_admission_v1;
 #[path = "tests/composite_recording_v1.rs"]
 mod composite_recording_v1;
 #[path = "tests/depiction_profile_v1.rs"]

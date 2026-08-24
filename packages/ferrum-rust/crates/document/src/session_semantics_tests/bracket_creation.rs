@@ -181,7 +181,7 @@ fn common_bracket_appearance_commits_once_preserves_content_and_follows_history(
     );
     let mut session = DocumentSession::load(source).expect("source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             properties(
                 "left",
@@ -209,7 +209,7 @@ fn common_bracket_appearance_commits_once_preserves_content_and_follows_history(
     assert!(cdml.contains("v:opaque"));
 
     let no_change = session
-        .submit(
+        .apply_document_operation_v1(
             1,
             properties(
                 "left",
@@ -254,7 +254,7 @@ fn duplicate_malformed_unknown_and_stale_bracket_properties_are_atomic() {
     for identifier in ["left", "missing"] {
         assert!(
             session
-                .submit(
+                .apply_document_operation_v1(
                     0,
                     properties(
                         identifier,
@@ -278,7 +278,7 @@ fn duplicate_malformed_unknown_and_stale_bracket_properties_are_atomic() {
         .expect("pair must commit");
     let accepted = valid.snapshot().expect("snapshot");
     assert!(matches!(
-        valid.submit(
+        valid.apply_document_operation_v1(
             0,
             properties(
                 pending.pair_identifier().as_str(),

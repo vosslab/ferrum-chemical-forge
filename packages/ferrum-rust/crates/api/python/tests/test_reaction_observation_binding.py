@@ -32,7 +32,8 @@ HOSTILE_SOURCE = (
 	'<c:reaction id="display"><c:reactant v:idref="left"/>'
 	'<v:product idref="right"/></c:reaction>'
 	'<v:reaction id="foreign"><v:reactant idref="left"/></v:reaction>'
-	'<c:molecule id="nested"><c:reaction id="nested-r">'
+	'<c:molecule id="nested"><c:atom id="nested-a" name="N">'
+	'<c:point x="200" y="0"/></c:atom><c:reaction id="nested-r">'
 	'<c:reactant idref="left"/></c:reaction></c:molecule></c:cdml>'
 )
 
@@ -105,7 +106,7 @@ def test_reaction_selection_refuses_foreign_and_stale_observations_without_mutat
 	assert foreign_error.value.category is ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.foreign_session
 	assert foreign.snapshot().digest == foreign_before.digest
 	owner_before = owner.snapshot()
-	owner.submit(
+	owner.apply_document_operation_v1(
 		owner_before.revision,
 		ferrum_chem.DocumentOperationV1.set_atom_element("left-a", "N"),
 	)
@@ -116,18 +117,19 @@ def test_reaction_selection_refuses_foreign_and_stale_observations_without_mutat
 	assert owner.snapshot().digest == stale_before.digest
 
 
-def test_reaction_lifecycle_uses_opaque_selection_and_replays_no_commit() -> None:
-	"""A selected strict reaction deletes atomically through one one-use Rust receipt."""
+def test_reaction_lifecycle_resolves_to_generic_transition_and_replays_no_commit() -> None:
+	"""A selected strict reaction deletes through the sole generic receipt."""
 	session = ferrum_chem.DocumentSession.load(STRICT_SOURCE)
 	before = session.snapshot()
 	selection = session.select_reaction_v1(_list(session), "strict")
 	gesture = session.begin_reaction_definition_delete_v1(selection)
-	prepared = session.prepare_reaction_lifecycle_v1(gesture)
-	commit = session.commit_reaction_lifecycle_v1(prepared)
+	request = session.resolve_reaction_lifecycle_v1(gesture)
+	prepared = session.prepare_session_operation_transition_v1(request)
+	commit = session.commit_session_operation_transition_v1(prepared)
 
-	assert commit.reaction_id == "strict"
-	assert commit.result.observation.snapshot.revision == before.revision + 1
-	assert '<c:reaction id="strict"' not in commit.result.observation.snapshot.cdml
-	with pytest.raises(ferrum_chem.ReactionGestureError) as replay_error:
-		session.commit_reaction_lifecycle_v1(prepared)
-	assert replay_error.value.category == ferrum_chem.ReactionRefusalCategoryV1.replayed_gesture
+	assert commit.outcome.kind == "reaction_definition_deleted_v1"
+	assert commit.outcome.reaction_definition_deleted.reaction_id == "strict"
+	assert commit.observation.snapshot.revision == before.revision + 1
+	assert '<c:reaction id="strict"' not in commit.observation.snapshot.cdml
+	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
+		session.commit_session_operation_transition_v1(prepared)

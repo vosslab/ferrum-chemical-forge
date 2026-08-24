@@ -8,9 +8,11 @@ mod document_hydrogen_materialization_v1;
 pub(crate) mod document_smarts_snapshot_v1;
 mod dto;
 mod execution;
+mod frozen_document_snapshot_v1;
 #[cfg(feature = "python-binding")]
 pub(crate) mod live_document_operation_v1;
 mod molecule_report_core_v1;
+mod molecule_report_diagnostics_v1;
 pub(crate) mod runtime;
 mod schema;
 pub(crate) mod smarts_query_core_v1;
@@ -33,12 +35,12 @@ pub use dto::{
     DocumentMoleculeReportAggregateOutcomeSummaryV1,
     DocumentMoleculeReportCompositionElementSummaryV1, DocumentMoleculeReportCompositionSummaryV1,
     DocumentMoleculeReportElementCountSummaryV1, DocumentMoleculeReportRecordSummaryV1,
-    DocumentMoleculeReportRequestV1, DocumentMoleculeReportSummaryV1,
-    DocumentRenderArtifactRequestV1, DocumentRequestFenceV1, DocumentRewriteRequestV1,
-    DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
-    DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
-    DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1, DocumentValidateRequestV1,
-    MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
+    DocumentMoleculeReportRequestV1, DocumentMoleculeReportSnapshotV1,
+    DocumentMoleculeReportSummaryV1, DocumentRenderArtifactRequestV1, DocumentRequestFenceV1,
+    DocumentRewriteRequestV1, DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1,
+    DocumentSmartsQueryMoleculeSummaryV1, DocumentSmartsQueryRequestV1,
+    DocumentSmartsQuerySummaryV1, DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1,
+    DocumentValidateRequestV1, MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
     OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
     OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OperationProtocolEnvelopeV1,
     OperationProtocolErrorCategoryV1, OperationProtocolErrorResponseV1,

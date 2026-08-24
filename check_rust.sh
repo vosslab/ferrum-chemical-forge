@@ -19,9 +19,9 @@ Runs the complete local Cargo gate:
   5. Rust API documentation builds
   6. standalone PyO3 extension compilation, Clippy, tests, and docs
 
-This script reuses Cargo's bounded target cache. It does not run cargo clean,
-build a native wheel, download/build RDKit, run Python/Qt tests, or claim
-cross-platform packaging coverage.
+This script uses a disposable repository-owned Cargo work area under build/ and
+removes it on every exit. It does not build a native wheel, download/build
+RDKit, run Python/Qt tests, or claim cross-platform packaging coverage.
 
   -h, --help  Print this help and exit 0.
 USAGE
@@ -42,9 +42,11 @@ while [ "$#" -gt 0 ]; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+REPO_ROOT="$SCRIPT_DIR"
 RUST_ROOT="$REPO_ROOT/packages/ferrum-rust"
 PYO3_ROOT="$RUST_ROOT/crates/api/python"
+BUILD_ROOT="$REPO_ROOT/build"
+CHECK_CARGO_TARGET_DIR="$BUILD_ROOT/.cargo-check-target"
 
 if [ ! -f "$RUST_ROOT/Cargo.toml" ]; then
 	echo "ERROR: missing Rust workspace manifest: $RUST_ROOT/Cargo.toml" >&2
@@ -84,10 +86,21 @@ run_step() {
 	)
 }
 
+cleanup_check_cargo_state() {
+	rm -rf -- "$CHECK_CARGO_TARGET_DIR"
+}
+
+mkdir -p "$BUILD_ROOT"
+cleanup_check_cargo_state
+trap cleanup_check_cargo_state EXIT
+trap 'exit 1' INT TERM HUP
+export CARGO_TARGET_DIR="$CHECK_CARGO_TARGET_DIR"
+
 RUST_HOST="$(rustc -vV | sed -n 's/^host: //p')"
 echo "Ferrum Rust verification"
 echo "Repository: $REPO_ROOT"
 echo "Rust host: ${RUST_HOST:-unknown}"
+echo "Disposable Cargo work area: $CARGO_TARGET_DIR"
 
 run_step "Main workspace formatting" "$RUST_ROOT" \
 	cargo fmt --all -- --check

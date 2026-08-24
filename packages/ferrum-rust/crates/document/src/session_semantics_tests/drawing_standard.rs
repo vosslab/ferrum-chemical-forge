@@ -23,13 +23,13 @@ fn operation(changes: Vec<DrawingStandardPropertyChangeV1>) -> SessionOperation 
 fn drawing_standard_patch_preserves_opaque_source_and_history() {
     let mut session = DocumentSession::load(EXISTING).expect("source must load");
     let baseline = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(vec![DrawingStandardPropertyChangeV1::LineWidth(1.0)]),
         )
         .expect("typed baseline standard must commit");
     let result = session
-        .submit(
+        .apply_document_operation_v1(
             baseline.observation().snapshot().revision(),
             operation(vec![DrawingStandardPropertyChangeV1::LineWidth(2.5)]),
         )
@@ -83,7 +83,7 @@ fn drawing_standard_creation_is_ordered_and_empty_patch_is_a_noop() {
     );
     let mut session = DocumentSession::load(source).expect("source must load");
     let empty = session
-        .submit(0, operation(vec![]))
+        .apply_document_operation_v1(0, operation(vec![]))
         .expect("empty patch must be accepted");
     assert_eq!(empty.observation().snapshot().revision(), 0);
     assert!(
@@ -95,7 +95,7 @@ fn drawing_standard_creation_is_ordered_and_empty_patch_is_a_noop() {
     );
 
     let result = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             operation(vec![
                 DrawingStandardPropertyChangeV1::AreaColor(None),

@@ -1,12 +1,9 @@
 //! PyO3 facade for renderer-preflighted directed direct-bond V3 pointer probes.
 //!
 //! Clients submit Normal, Solid wedge, or Hashed wedge pointer probes and
-//! receive Rust-issued operations at admission. A successful owner commit
-//! consumes the opaque receipt once. A foreign-session refusal restores the
-//! receipt for its originating session to retry and reports the V3
-//! commit-result taxonomy.
-//! `DirectBondSnapPolicyV1` is V3-shared configuration, while the V1 commit
-//! category and recovery names remain domain-versioned result values.
+//! receive a generic renderer-admitted transition at admission. The owning
+//! document session is the sole authority that can redeem that opaque receipt.
+//! `DirectBondSnapPolicyV1` is V3-shared configuration.
 
 use super::binding::PyDocumentBondPresentationV1;
 use super::binding::PyDocumentSession;
@@ -35,40 +32,36 @@ impl PyDocumentSession {
             new_atom_element,
             snap.policy,
         )
-        .map(|gesture| PyDirectBondGestureV3 { gesture })
+        .map(PyDirectBondGestureV3::from_renderer_gesture)
         .map_err(|error| admission_error(py, error))
     }
+}
 
-    fn admit_direct_bond_candidate_v3(
+#[pymethods]
+impl PyDirectBondGestureV3 {
+    fn resolve_end_v3(
         &mut self,
         py: Python<'_>,
-        gesture: PyRef<'_, PyDirectBondGestureV3>,
+        session: PyRefMut<'_, PyDocumentSession>,
         end: PyRef<'_, PyDirectBondPointerProbeV3>,
-    ) -> PyResult<PyDirectBondAdmissionV3> {
-        let admission = ferrum_document_render::admit_direct_bond_candidate_v3(
-            &mut self.session,
-            &gesture.gesture,
+    ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
+        let gesture = self.take_for_resolution()?;
+        let request = ferrum_document_render::resolve_direct_bond_end_v3(
+            &session.session,
+            gesture,
             end.probe.clone(),
         )
         .map_err(|error| admission_error(py, error))?;
-        admission_v3_binding(py, admission)
-    }
-
-    fn commit_direct_bond_admission_v3(
-        &mut self,
-        py: Python<'_>,
-        mut admission: PyRefMut<'_, PyDirectBondAdmissionV3>,
-    ) -> PyResult<PyDirectBondCommitV3> {
-        ferrum_document_render::commit_direct_bond_admission_v3(
-            &mut self.session,
-            &mut admission.admission,
+        Ok(
+            super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request(
+                request,
+            ),
         )
-        .map(commit_v3_binding)
-        .map_err(|error| commit_error(py, error))
     }
 }
 
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    super::prepared_transition_binding::initialize(module)?;
     module.add(
         "DirectBondGestureError",
         module.py().get_type::<DirectBondGestureError>(),
@@ -76,10 +69,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add(
         "DirectBondAdmissionRefusalV3",
         module.py().get_type::<DirectBondAdmissionRefusalV3>(),
-    )?;
-    module.add(
-        "DirectBondCommitError",
-        module.py().get_type::<DirectBondCommitError>(),
     )?;
     module.add(
         "DirectBondPointerProbeErrorV3",
@@ -90,16 +79,10 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDirectBondAdmissionCategoryV3>()?;
     module.add_class::<PyDirectBondAdmissionRecoveryV3>()?;
     module.add_class::<PyDirectBondPointerHitStateV3>()?;
-    // V1 commit names remain the closed result taxonomy emitted by V3.
-    module.add_class::<PyDirectBondCommitCategoryV1>()?;
-    module.add_class::<PyDirectBondCommitRecoveryV1>()?;
     // V1 snap configuration is shared by the current V3 lifecycle.
     module.add_class::<PyDirectBondSnapPolicyV1>()?;
     module.add_class::<PyDirectBondViewportToSceneV3>()?;
     module.add_class::<PyDirectBondPointerProbeV3>()?;
     module.add_class::<PyDirectBondGestureV3>()?;
-    module.add_class::<PyDirectBondOverlayV3>()?;
-    module.add_class::<PyDirectBondAdmissionV3>()?;
-    module.add_class::<PyDirectBondCommitV3>()?;
     Ok(())
 }

@@ -81,7 +81,7 @@ fn generated_coordinates_preserve_existing_centroid_scale_and_z_in_one_history_e
     assert_eq!(received.atoms()[1].atomic_number().symbol(), "N");
 
     let result = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetMoleculeAtomPositions { update }),
         )
@@ -124,7 +124,7 @@ fn prepared_coordinates_cannot_cross_same_revision_documents() {
         .expect("source must prepare");
     let mut other = DocumentSession::load(&source("O", "n1")).expect("other source must load");
     let error = other
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetMoleculeAtomPositions { update }),
         )

@@ -47,7 +47,7 @@ fn presentation_stack_modes_preserve_slots_content_and_history() {
     let mut session = DocumentSession::load(SOURCE).expect("fixture loads");
     let baseline = session.snapshot().expect("baseline");
     let brought = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             reorder(
                 PresentationStackOrderV1::BringToFront,
@@ -79,7 +79,7 @@ fn presentation_stack_modes_preserve_slots_content_and_history() {
             .contains("retained=\"yes\"")
     );
     let reversed = session
-        .submit(
+        .apply_document_operation_v1(
             1,
             reorder(
                 PresentationStackOrderV1::ReverseSelectedSlots,
@@ -131,13 +131,13 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
         vec![target("a", PresentationRecordKindV1::Text)],
     );
     assert!(matches!(
-        session.submit(0, wrong_kind),
+        session.apply_document_operation_v1(0, wrong_kind),
         Err(DocumentSessionError::Operation(_))
     ));
     assert_eq!(session.snapshot().expect("unchanged"), before);
 
     let no_change = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             reorder(
                 PresentationStackOrderV1::BringToFront,
@@ -163,7 +163,7 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
         vec![target("left", PresentationRecordKindV1::Polyline)],
     );
     assert!(matches!(
-        bracket.submit(0, partial),
+        bracket.apply_document_operation_v1(0, partial),
         Err(DocumentSessionError::Operation(_))
     ));
     assert_eq!(
@@ -171,7 +171,7 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
         bracket_before
     );
     bracket
-        .submit(
+        .apply_document_operation_v1(
             0,
             reorder(
                 PresentationStackOrderV1::BringToFront,
@@ -185,7 +185,7 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
     assert_eq!(presentation_order(&bracket, 1), ["p", "left", "right"]);
 
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             reorder(
                 PresentationStackOrderV1::SendToBack,
@@ -195,7 +195,7 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
         .expect("change succeeds");
     let after = session.snapshot().expect("changed snapshot");
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             reorder(
                 PresentationStackOrderV1::SendToBack,

@@ -53,7 +53,7 @@ fn text_properties_commit_semantic_runs_preserve_extensions_and_follow_history()
     ];
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let changed = session
-        .submit(0, patch(changes))
+        .apply_document_operation_v1(0, patch(changes))
         .expect("patch must commit");
     let projected = text(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
@@ -123,7 +123,7 @@ fn text_properties_reject_invalid_intent_and_targets_without_mutation() {
     )
     .unwrap();
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetTextProperties { patch: unknown })
         ),
@@ -138,7 +138,7 @@ fn text_properties_reject_invalid_intent_and_targets_without_mutation() {
     let mut ambiguous = DocumentSession::load(&ambiguous_source).expect("source loads");
     let before = ambiguous.snapshot().expect("snapshot");
     assert!(matches!(
-        ambiguous.submit(0, patch(vec![TextPropertyChangeV1::FontSize(18)])),
+        ambiguous.apply_document_operation_v1(0, patch(vec![TextPropertyChangeV1::FontSize(18)])),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(TypedDocumentError::AmbiguousTextFonts(_))
         ))
@@ -165,15 +165,15 @@ fn typed_text_face_alias_is_canonicalized_before_session_state_exists() {
 fn stale_text_properties_patch_is_atomic_and_equal_intent_is_history_free() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let equal = session
-        .submit(0, patch(vec![TextPropertyChangeV1::FontSize(12)]))
+        .apply_document_operation_v1(0, patch(vec![TextPropertyChangeV1::FontSize(12)]))
         .expect("equal patch must be accepted");
     assert_eq!(equal.observation().snapshot().revision(), 0);
     session
-        .submit(0, patch(vec![TextPropertyChangeV1::FontSize(18)]))
+        .apply_document_operation_v1(0, patch(vec![TextPropertyChangeV1::FontSize(18)]))
         .expect("first change must commit");
     let before = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.submit(0, patch(vec![TextPropertyChangeV1::FontSize(20)])),
+        session.apply_document_operation_v1(0, patch(vec![TextPropertyChangeV1::FontSize(20)])),
         Err(DocumentSessionError::RevisionConflict {
             expected: 0,
             actual: 1

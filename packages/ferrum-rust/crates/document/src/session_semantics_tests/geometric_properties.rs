@@ -32,7 +32,7 @@ fn patch(identifier: &str, changes: Vec<GeometricPropertyChangeV1>) -> SessionOp
 fn closed_shape_appearance_commits_once_preserves_content_and_follows_history() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(
                 "shape",
@@ -79,7 +79,7 @@ fn closed_shape_appearance_commits_once_preserves_content_and_follows_history() 
 fn legacy_color_and_fill_spellings_compare_semantically_without_rewriting() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let result = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(
                 "shape",
@@ -139,7 +139,7 @@ fn invalid_inapplicable_specialized_unknown_and_stale_intent_are_atomic() {
         ),
     ] {
         let error = session
-            .submit(0, patch(identifier, vec![change]))
+            .apply_document_operation_v1(0, patch(identifier, vec![change]))
             .expect_err("invalid intent must fail");
         match (expected, error) {
             (
@@ -160,7 +160,7 @@ fn invalid_inapplicable_specialized_unknown_and_stale_intent_are_atomic() {
     }
 
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             patch(
                 "missing",
@@ -174,7 +174,7 @@ fn invalid_inapplicable_specialized_unknown_and_stale_intent_are_atomic() {
         ))
     ));
     session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(
                 "line",
@@ -186,7 +186,7 @@ fn invalid_inapplicable_specialized_unknown_and_stale_intent_are_atomic() {
         .expect("ordinary polyline stroke must commit");
     let accepted = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             patch("shape", vec![GeometricPropertyChangeV1::FillColor(None)])
         ),

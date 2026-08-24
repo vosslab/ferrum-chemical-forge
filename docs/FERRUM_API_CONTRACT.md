@@ -43,6 +43,7 @@ The V1 operation set is closed:
 | `presentation.author.v1` | `document`, `expected_revision`, `expected_digest_hex`, typed `authoring` | schema-defined committed document and durable root outcome |
 | `catalog.list.v1` | no document input | immutable catalog schema, version, and entry summaries |
 | `catalog.insert.v1` | `document`, revision/digest fence, catalog ID, finite anchor | changed `document`, `identifier`, `committed_revision`, `document_fence` |
+| `document.molecule.report.v1` | `snapshot { cdml, revision, digest_hex }`, one or more durable direct-root `molecule_ids` | source receipt, source-ordered root records, complete-or-omitted aggregate, deterministic structured findings |
 | `document.molecule.smarts.query.v1` | admitted document and bounded raw or selected SMARTS query | bounded, non-redeemable query summary |
 | `document.atom.oxidation.observe.v1` | fenced `document`, durable direct-root `molecule_id`, durable `atom_id` | one fenced accepted oxidation number or closed unavailable reason |
 
@@ -80,8 +81,30 @@ state, geometry, or live reveal capability. A response whose canonical public en
 the fixed 1 MiB budget is replaced before delivery with the typed
 `resource_limit` / `response_size_exceeded` refusal. It carries no partial rows or query result.
 The generated [ferrum-operation-v1.schema.json](../packages/ferrum-rust/crates/api/protocol/ferrum-operation-v1.schema.json)
-defines the current request and response fields for this closed operation and for
-`presentation.author.v1` outcomes.
+defines the current request and response fields for the closed operation set.
+
+### Molecule report
+
+`document.molecule.report.v1` reads one or more selected durable direct-root
+molecules from a caller-supplied `snapshot { cdml, revision, digest_hex }` and
+`molecule_ids`. The revision is delivery provenance. The report evaluates that
+snapshot without changing the caller's CDML, document revision, history,
+selection, renderer state, or authored molecule facts.
+
+The completed receipt preserves the source revision and verified digest. Its
+root records follow the source order of the selected direct roots, and its
+aggregate is complete or omitted. Within each record, findings use the stable
+report-category order: text, capacity, groups, zero-order, then existing graph
+and composition categories. Findings are not a globally source-ordered stream.
+Each finding has a severity, closed code, recovery category, typed semantic
+location, and nullable detail. An unaddressable source location remains a typed
+report outcome; clients use its code, recovery category, and location rather
+than parsing diagnostic text. Unknown or non-direct roots and an invalid
+snapshot use the ordinary typed error envelope; they do not promise structured
+recovery guidance. The report opts into the shared final-envelope response
+budget. An over-budget response is refused rather than delivered partially and
+is the response-budget case that carries structured recovery for reducing the
+request.
 
 ### Atom oxidation observation
 

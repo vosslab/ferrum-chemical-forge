@@ -1,14 +1,13 @@
 //! Exact Python factories for durable-root transforms.
 
 use ferrum_document::{
-    SessionOperation, SessionOperationV1, TopLevelRootKindV1, TopLevelRootSelectorV1,
-    TopLevelTransformModeV1, TopLevelTransformV1,
+    SessionOperation, SessionOperationV1, TopLevelRootKindV1, TopLevelRootLayoutTransformModeV1,
+    TopLevelRootLayoutTransformV1, TopLevelRootSelectorV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyTuple};
 
 use super::binding::operation_validation_error;
-use super::binding::{PyDocumentSession, document_result};
 
 #[pyclass(
     frozen,
@@ -65,98 +64,6 @@ pub(crate) struct PyDocumentTopLevelRootSelectorV1 {
     kind: PyDocumentTopLevelRootKindV1,
 }
 
-/// Immutable private-adapter receipt for one authored complete-root move.
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "TopLevelTranslationAnchorV1",
-    skip_from_py_object
-)]
-pub(crate) struct PyTopLevelTranslationAnchorV1 {
-    selectors: Vec<PyDocumentTopLevelRootSelectorV1>,
-    #[pyo3(get)]
-    source_revision: u64,
-    #[pyo3(get)]
-    source_digest: String,
-    #[pyo3(get)]
-    anchor_x: f64,
-    #[pyo3(get)]
-    anchor_y: f64,
-}
-
-#[pymethods]
-impl PyTopLevelTranslationAnchorV1 {
-    #[getter]
-    fn selectors(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        let values = self
-            .selectors
-            .iter()
-            .cloned()
-            .map(|selector| Py::new(py, selector))
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(PyTuple::new(py, values)?.unbind())
-    }
-}
-
-#[pymethods]
-impl PyDocumentSession {
-    /// Observe a private authored-coordinate anchor for one complete-root move.
-    fn observe_top_level_translation_anchor_v1(
-        &self,
-        py: Python<'_>,
-        expected_revision: u64,
-        targets: &Bound<'_, PyTuple>,
-    ) -> PyResult<PyTopLevelTranslationAnchorV1> {
-        let targets = selectors(py, targets)?;
-        document_result(
-            py,
-            ferrum_document::observe_top_level_translation_anchor_v1(
-                &self.session,
-                expected_revision,
-                targets,
-            ),
-        )
-        .map(PyTopLevelTranslationAnchorV1::from_anchor)
-    }
-}
-
-impl PyTopLevelTranslationAnchorV1 {
-    pub(crate) fn from_anchor(anchor: ferrum_document::TopLevelTranslationAnchorV1) -> Self {
-        let (anchor_x, anchor_y) = anchor.anchor();
-        let selectors = anchor
-            .selectors()
-            .iter()
-            .cloned()
-            .map(|selector| {
-                let kind = match selector.kind() {
-                    TopLevelRootKindV1::Molecule => PyDocumentTopLevelRootKindV1::Molecule,
-                    TopLevelRootKindV1::Arrow => PyDocumentTopLevelRootKindV1::Arrow,
-                    TopLevelRootKindV1::Plus => PyDocumentTopLevelRootKindV1::Plus,
-                    TopLevelRootKindV1::Text => PyDocumentTopLevelRootKindV1::Text,
-                    TopLevelRootKindV1::Rectangle => PyDocumentTopLevelRootKindV1::Rectangle,
-                    TopLevelRootKindV1::Square => PyDocumentTopLevelRootKindV1::Square,
-                    TopLevelRootKindV1::Oval => PyDocumentTopLevelRootKindV1::Oval,
-                    TopLevelRootKindV1::Circle => PyDocumentTopLevelRootKindV1::Circle,
-                    TopLevelRootKindV1::Polygon => PyDocumentTopLevelRootKindV1::Polygon,
-                    TopLevelRootKindV1::Polyline => PyDocumentTopLevelRootKindV1::Polyline,
-                };
-                PyDocumentTopLevelRootSelectorV1 {
-                    root_id: selector.root_id().as_str().to_owned(),
-                    kind,
-                    selector,
-                }
-            })
-            .collect();
-        Self {
-            selectors,
-            source_revision: anchor.source_revision(),
-            source_digest: super::binding::hex_digest(anchor.source_digest()),
-            anchor_x,
-            anchor_y,
-        }
-    }
-}
-
 #[pymethods]
 impl PyDocumentTopLevelRootSelectorV1 {
     #[staticmethod]
@@ -209,34 +116,18 @@ pub(crate) enum PyDocumentTopLevelMirrorV1 {
     Horizontal,
 }
 
-pub(crate) fn translate(
-    py: Python<'_>,
-    targets: &Bound<'_, PyTuple>,
-    dx: &Bound<'_, PyAny>,
-    dy: &Bound<'_, PyAny>,
-) -> PyResult<SessionOperation> {
-    operation(
-        py,
-        targets,
-        TopLevelTransformModeV1::Translate {
-            dx: exact_finite(py, dx, "translation", "x")?,
-            dy: exact_finite(py, dy, "translation", "y")?,
-        },
-    )
-}
-
 pub(crate) fn align(
     py: Python<'_>,
     targets: &Bound<'_, PyTuple>,
     alignment: PyRef<'_, PyDocumentTopLevelAlignmentV1>,
 ) -> PyResult<SessionOperation> {
     let transform = match *alignment {
-        PyDocumentTopLevelAlignmentV1::Top => TopLevelTransformModeV1::AlignTop,
-        PyDocumentTopLevelAlignmentV1::Bottom => TopLevelTransformModeV1::AlignBottom,
-        PyDocumentTopLevelAlignmentV1::Left => TopLevelTransformModeV1::AlignLeft,
-        PyDocumentTopLevelAlignmentV1::Right => TopLevelTransformModeV1::AlignRight,
-        PyDocumentTopLevelAlignmentV1::CenterX => TopLevelTransformModeV1::AlignCenterX,
-        PyDocumentTopLevelAlignmentV1::CenterY => TopLevelTransformModeV1::AlignCenterY,
+        PyDocumentTopLevelAlignmentV1::Top => TopLevelRootLayoutTransformModeV1::AlignTop,
+        PyDocumentTopLevelAlignmentV1::Bottom => TopLevelRootLayoutTransformModeV1::AlignBottom,
+        PyDocumentTopLevelAlignmentV1::Left => TopLevelRootLayoutTransformModeV1::AlignLeft,
+        PyDocumentTopLevelAlignmentV1::Right => TopLevelRootLayoutTransformModeV1::AlignRight,
+        PyDocumentTopLevelAlignmentV1::CenterX => TopLevelRootLayoutTransformModeV1::AlignCenterX,
+        PyDocumentTopLevelAlignmentV1::CenterY => TopLevelRootLayoutTransformModeV1::AlignCenterY,
     };
     operation(py, targets, transform)
 }
@@ -250,7 +141,7 @@ pub(crate) fn scale(
     operation(
         py,
         targets,
-        TopLevelTransformModeV1::Scale {
+        TopLevelRootLayoutTransformModeV1::Scale {
             scale_x: exact_scale(py, scale_x, "x")?,
             scale_y: exact_scale(py, scale_y, "y")?,
         },
@@ -263,8 +154,10 @@ pub(crate) fn mirror(
     orientation: PyRef<'_, PyDocumentTopLevelMirrorV1>,
 ) -> PyResult<SessionOperation> {
     let transform = match *orientation {
-        PyDocumentTopLevelMirrorV1::Vertical => TopLevelTransformModeV1::MirrorVertical,
-        PyDocumentTopLevelMirrorV1::Horizontal => TopLevelTransformModeV1::MirrorHorizontal,
+        PyDocumentTopLevelMirrorV1::Vertical => TopLevelRootLayoutTransformModeV1::MirrorVertical,
+        PyDocumentTopLevelMirrorV1::Horizontal => {
+            TopLevelRootLayoutTransformModeV1::MirrorHorizontal
+        }
     };
     operation(py, targets, transform)
 }
@@ -293,13 +186,13 @@ pub(crate) fn selectors(
 fn operation(
     py: Python<'_>,
     targets: &Bound<'_, PyTuple>,
-    transform: TopLevelTransformModeV1,
+    transform: TopLevelRootLayoutTransformModeV1,
 ) -> PyResult<SessionOperation> {
     let targets = selectors(py, targets)?;
-    let transform = TopLevelTransformV1::new(targets, transform)
+    let transform = TopLevelRootLayoutTransformV1::new(targets, transform)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(SessionOperation::V1(
-        SessionOperationV1::TransformTopLevelRoots { transform },
+        SessionOperationV1::ApplyTopLevelRootLayoutTransformV1(transform),
     ))
 }
 

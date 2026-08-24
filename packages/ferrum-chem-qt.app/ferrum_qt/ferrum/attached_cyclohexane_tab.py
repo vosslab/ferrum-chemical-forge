@@ -26,10 +26,10 @@ class FerrumNativeAttachedCyclohexaneTabMixin:
 		)
 
 	def preview_attached_cyclohexane(self, pending: object) -> object:
-		"""Return the immutable Rust renderer plan for one paint-only overlay."""
+		"""Return immutable identifier-free Rust paint facts for one preview."""
 		self._require_mutable()
 		preview = self._session._preview_attach_cyclohexane_v1(pending)
-		return preview.plan
+		return preview.overlay
 
 	def commit_attached_cyclohexane(self, pending: object) -> object:
 		"""Commit once, then reobserve the authoritative Rust document."""

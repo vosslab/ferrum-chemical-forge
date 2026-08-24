@@ -86,7 +86,7 @@ fn prepared_whole_depictions_are_revision_digest_bound_and_apply_as_one_history_
         .prepare_straighten_depictions_v1(0, vec![first, second], false)
         .expect("preparation succeeds");
     let applied = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::ApplyPreparedStraightenDepictions {
                 update: prepared.clone(),
@@ -118,7 +118,7 @@ fn prepared_whole_depictions_are_revision_digest_bound_and_apply_as_one_history_
     );
     let before = session.snapshot().expect("snapshot");
     let stale = session
-        .submit(
+        .apply_document_operation_v1(
             2,
             SessionOperation::V1(SessionOperationV1::ApplyPreparedStraightenDepictions {
                 update: prepared,
@@ -233,7 +233,7 @@ fn hex_snap_is_one_sparse_history_entry_and_preserves_unowned_content() {
     )
     .expect("fixture request");
     let repaired = session
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect("repair succeeds");
     let atoms = repaired.observation().projection().molecules()[0].atoms();
     assert!(atoms[0].position().x().abs() <= HALF_AUTHORED_UNIT_POINTS);
@@ -266,7 +266,7 @@ fn hex_snap_is_one_sparse_history_entry_and_preserves_unowned_content() {
     )
     .expect("fixture request");
     let unchanged = snapped
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect("already snapped repair succeeds");
     assert_eq!(unchanged.observation().snapshot().revision(), 0);
 }
@@ -304,7 +304,7 @@ fn repair_envelope_and_later_unsupported_target_are_atomic() {
     )
     .expect("structurally valid request");
     let error = session
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect_err("unsupported later target rejects every patch");
     assert!(matches!(
         error,
@@ -323,7 +323,7 @@ fn repair_envelope_and_later_unsupported_target_are_atomic() {
     )
     .expect("structurally valid missing request");
     let error = session
-        .submit(0, operation(missing))
+        .apply_document_operation_v1(0, operation(missing))
         .expect_err("missing molecule is typed, not a panic");
     assert!(matches!(
         error,
@@ -361,7 +361,7 @@ fn straighten_bonds_moves_only_terminal_endpoint_with_lexical_two_atom_anchor() 
     )
     .expect("common envelope validates unused spacing");
     let repaired = session
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect("terminal repair succeeds");
     let atoms = repaired.observation().projection().molecules()[0].atoms();
     assert!((atoms[0].position().x() - 3.0_f64.sqrt() / 2.0).abs() <= HALF_AUTHORED_UNIT_POINTS);
@@ -405,7 +405,7 @@ fn normalize_lengths_preserves_directions_and_authored_content() {
     )
     .expect("length repair request validates");
     let repaired = session
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect("length normalization succeeds");
     let atoms = repaired.observation().projection().molecules()[0].atoms();
     assert!((atoms[0].position().x() + 10.0).abs() <= HALF_AUTHORED_UNIT_POINTS);
@@ -444,7 +444,7 @@ fn normalize_lengths_preserves_directions_and_authored_content() {
     )
     .expect("canonical request validates");
     let unchanged = canonical
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect("no-op succeeds");
     assert_eq!(unchanged.observation().snapshot().revision(), 0);
 }
@@ -483,7 +483,7 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
     )
     .expect("ring repair request validates");
     let repaired = session
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect("ring repair succeeds");
     let after = repaired.observation().projection().molecules()[0]
         .atoms()
@@ -540,7 +540,7 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
     )
     .expect("ring-free request validates");
     assert_eq!(
-        tree.submit(0, operation(repair))
+        tree.apply_document_operation_v1(0, operation(repair))
             .expect("ring-free repair is a no-op")
             .observation()
             .snapshot()
@@ -569,7 +569,7 @@ fn normalize_angles_uses_authored_order_and_preserves_non_coordinate_content() {
     )
     .expect("angle repair request validates");
     let repaired = session
-        .submit(0, operation(repair))
+        .apply_document_operation_v1(0, operation(repair))
         .expect("angle normalization succeeds");
     let atoms = repaired.observation().projection().molecules()[0]
         .atoms()

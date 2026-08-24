@@ -467,7 +467,7 @@ fn stale_observations_cannot_be_requested_after_a_session_change() {
     .unwrap();
     let before = session.observe(0).unwrap();
     session
-        .submit(
+        .apply_document_operation_v1(
             0,
             super::SessionOperation::V1(super::SessionOperationV1::SetAtomElement {
                 atom_id: "a".to_owned(),

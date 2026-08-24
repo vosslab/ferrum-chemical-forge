@@ -112,7 +112,7 @@ class FerrumNativeLineToolInteractionMixin:
 	#============================================
 	def _complete_translation_gesture(self, intent: _LineGestureIntent,
 			event: PySide6.QtGui.QMouseEvent) -> None:
-		"""Commit an exact Rust preview, or resolve one Rust marquee selection."""
+		"""Commit a Rust release point, or resolve one Rust marquee selection."""
 		if intent.direct_root_gesture is None:
 			if intent.direct_root_marquee is None or intent.press_scene is None:
 				return
@@ -149,12 +149,13 @@ class FerrumNativeLineToolInteractionMixin:
 			return
 		self._update_translation_gesture(intent, event)
 		current = self._line_gesture_intent
-		if current is None or current.direct_root_gesture is None or current.direct_root_preview is None:
+		if current is None or current.direct_root_gesture is None:
 			return
+		release = intent.tab.view.mapToScene(event.position().toPoint())
 		self._reset_line_gesture_start()
 		try:
 			commit = intent.tab.commit_direct_root_translation(
-				current.direct_root_gesture, current.direct_root_preview,
+				current.direct_root_gesture, float(release.x()), float(release.y()),
 			)
 		except Exception as exc:
 			if self._recover_accepted_translation_presentation_error(intent, exc):
@@ -269,10 +270,9 @@ class FerrumNativeLineToolInteractionMixin:
 				selection, float(press.x()), float(press.y()),
 				self._render_interaction_snap(intent.tab, axis),
 			)
-			preview = intent.tab.preview_direct_root_translation(
+			commit = intent.tab.commit_direct_root_translation(
 				gesture, float(press.x() + dx), float(press.y() + dy),
 			)
-			commit = intent.tab.commit_direct_root_translation(gesture, preview)
 		except Exception as exc:
 			if self._recover_accepted_translation_presentation_error(intent, exc):
 				return True
@@ -391,11 +391,6 @@ class FerrumNativeLineToolInteractionMixin:
 		self._retire_line_preview(
 			None if intent.rotation_preview is None else intent.rotation_preview.root,
 		)
-		self._retire_line_preview(
-			None
-			if intent.translation_preview is None
-			else intent.translation_preview.root,
-		)
 		self._retire_line_preview(intent.direct_root_preview_item)
 		self._retire_line_preview(intent.direct_root_marquee)
 		self._line_gesture_intent = dataclasses.replace(
@@ -407,10 +402,6 @@ class FerrumNativeLineToolInteractionMixin:
 			preview=None,
 			rotation_selection=None,
 			rotation_preview=None,
-			translation_selection=None,
-			translation_preview=None,
-			translation_snap_enabled=None,
-			translation_delta=(0.0, 0.0),
 			direct_root_observation=None,
 			direct_root_gesture=None,
 			direct_root_preview=None,
@@ -418,10 +409,12 @@ class FerrumNativeLineToolInteractionMixin:
 			direct_root_marquee=None,
 			last_angle=None,
 			accumulated_angle=0.0,
-			regular_ring_prepared=None,
+			regular_ring_center=None,
 			attached_cyclohexane_pending=None,
+			direct_bond_start_probe=None,
+			direct_bond_snap_enabled=False,
 			direct_bond_gesture=None,
-			direct_bond_admission=None,
+			prepared_transition=None,
 			presentation_gesture=None,
 			presentation_preview=None,
 			curved_equilibrium_arrow=None,
@@ -492,8 +485,6 @@ class FerrumNativeLineToolInteractionMixin:
 			)
 			self._retire_line_preview(
 				None
-				if intent.translation_preview is None
-				else intent.translation_preview.root,
 			)
 			self._retire_line_preview(intent.direct_root_preview_item)
 			self._retire_line_preview(intent.direct_root_marquee)

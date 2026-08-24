@@ -40,7 +40,7 @@ fn atom_properties_commit_once_preserve_extensions_and_follow_history() {
     ];
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let changed = session
-        .submit(0, patch(changes))
+        .apply_document_operation_v1(0, patch(changes))
         .expect("patch must commit");
     let atom = &changed.observation().projection().molecules()[0].atoms()[0];
     assert_eq!(changed.observation().snapshot().revision(), 1);
@@ -77,7 +77,7 @@ fn atom_properties_commit_once_preserve_extensions_and_follow_history() {
 fn atom_properties_clear_optional_defaults_without_materializing_other_facts() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(vec![
                 AtomPropertyChangeV1::FormalCharge(0),
@@ -99,10 +99,12 @@ fn atom_properties_clear_optional_defaults_without_materializing_other_facts() {
 #[test]
 fn empty_and_equal_atom_properties_patches_are_history_free() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
-    let empty = session.submit(0, patch(Vec::new())).expect("empty patch");
+    let empty = session
+        .apply_document_operation_v1(0, patch(Vec::new()))
+        .expect("empty patch");
     assert_eq!(empty.observation().snapshot().revision(), 0);
     let equal = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(vec![AtomPropertyChangeV1::Element("C".to_owned())]),
         )
@@ -114,12 +116,12 @@ fn empty_and_equal_atom_properties_patches_are_history_free() {
 fn stale_atom_properties_patch_does_not_change_the_authoritative_snapshot() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let changed = session
-        .submit(0, patch(vec![AtomPropertyChangeV1::FormalCharge(-1)]))
+        .apply_document_operation_v1(0, patch(vec![AtomPropertyChangeV1::FormalCharge(-1)]))
         .expect("initial patch must commit");
     let before = session.snapshot().expect("snapshot");
 
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             patch(vec![AtomPropertyChangeV1::Element("O".to_owned())])
         ),
@@ -172,7 +174,7 @@ fn atom_properties_reject_unknown_atom_or_ambiguous_font_without_state_change() 
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let before = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.submit(
+        session.apply_document_operation_v1(
             0,
             SessionOperation::V1(SessionOperationV1::SetAtomProperties { patch: unknown })
         ),
@@ -189,7 +191,7 @@ fn atom_properties_reject_unknown_atom_or_ambiguous_font_without_state_change() 
     let mut ambiguous = DocumentSession::load(&ambiguous_source).expect("ambiguous source loads");
     let before = ambiguous.snapshot().expect("snapshot");
     assert!(matches!(
-        ambiguous.submit(
+        ambiguous.apply_document_operation_v1(
             0,
             patch(vec![AtomPropertyChangeV1::FontSize(
                 PositiveFiniteV1::new(12.0).unwrap()
@@ -212,7 +214,7 @@ fn atom_properties_create_a_canonical_font_without_disturbing_foreign_font_child
     );
     let mut session = DocumentSession::load(source).expect("namespaced source must load");
     let changed = session
-        .submit(
+        .apply_document_operation_v1(
             0,
             patch(vec![
                 AtomPropertyChangeV1::FontSize(PositiveFiniteV1::new(14.0).unwrap()),

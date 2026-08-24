@@ -3,10 +3,9 @@
 use super::{
     PersistentId, PresentationGesturePoint2V1, Rgb24V1, TextEditRunV1, TextEditStyleV1,
     TypedDocument, TypedDocumentError, element_name,
+    typed_coordinate::canonical_authored_coordinate,
 };
 use xot::Xot;
-
-const POINTS_PER_CM: f64 = 72.0 / 2.54;
 
 impl TypedDocument {
     pub(crate) fn with_insert_authored_text_v1(
@@ -41,16 +40,14 @@ impl TypedDocument {
         let point = indexed.xml.tree.new_element(point_name);
         let x_name = indexed.xml.tree.add_name("x");
         let y_name = indexed.xml.tree.add_name("y");
-        indexed.xml.tree.set_attribute(
-            point,
-            x_name,
-            format!("{:.3}cm", anchor.x() / POINTS_PER_CM),
-        );
-        indexed.xml.tree.set_attribute(
-            point,
-            y_name,
-            format!("{:.3}cm", anchor.y() / POINTS_PER_CM),
-        );
+        indexed
+            .xml
+            .tree
+            .set_attribute(point, x_name, canonical_authored_coordinate(anchor.x()));
+        indexed
+            .xml
+            .tree
+            .set_attribute(point, y_name, canonical_authored_coordinate(anchor.y()));
         indexed
             .xml
             .tree

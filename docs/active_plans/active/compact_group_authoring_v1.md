@@ -9,9 +9,10 @@ abbreviation, survive save/reopen, support durable selection and deletion, and
 materialize atomically into ordinary editable atoms and bonds.
 
 This plan advances the OASA/BKChem parity objective through a Rust-owned design.
-Legacy OASA/BKChem compatibility, Python group classes, label-to-SMILES parsing,
-legacy group migration, publishing, installation, network catalogs, and a broad
-template palette are outside this vertical slice.
+Historical OASA/BKChem behavior, Python group classes, label-to-SMILES parsing,
+publishing, installation, network catalogs, and a broad template palette are
+outside this vertical slice. Pre-production Ferrum does not retain a legacy-group
+migration path.
 
 ## Evidence and current stability
 
@@ -70,12 +71,12 @@ one-time evidence, but is not a public operation or a completion receipt.
   one exterior compact-group bond. Refusals leave document, IDs, history,
   selection, and receipt ownership unchanged.
 
-### Public-operation namespace
+### Proposed M1 public-operation namespace
 
-- The only public compact-group operations are
+- When M1 authorizes public compact-group delivery, its only operations will be
   `document.compact_group.place.v1` and
   `document.compact_group.materialize.v1`.
-- Their envelopes are request-owned and generic-dispatcher compatible.
+- Their envelopes will be request-owned and generic-dispatcher compatible.
 - Internal experiment methods are implementation evidence only; they are not
   aliases, alternate public contracts, CLI commands, or PyO3 entry points.
 - Publishing and installation are outside this plan. Local builds produce the
@@ -86,6 +87,13 @@ one-time evidence, but is not a public operation or a completion receipt.
 ### M0. Stabilize complete-render admission ownership
 
 Owner: approved cross-crate architecture, then Rust document/render-contract.
+
+Status: architecture approved and recorded in
+[m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md).
+The generic admission core and its current route migrations are implemented,
+but M0 remains open for the remaining migration tranches and exit evidence.
+Compact-group protocol, CLI, PyO3, and Qt delivery remain deferred to M1; do
+not add unimplemented compact-group symbols to user or API documentation.
 
 - Obtain architect approval for a document-owned lower complete-render admission
   profile before changing the crate boundary. The profile accepts the exact
@@ -113,10 +121,23 @@ Owner: approved cross-crate architecture, then Rust document/render-contract.
   public raw-preparation or bridge-receipt bypass. The tests should assert
   stable behavior and ownership boundaries, not private layout or timing.
 
-Exit evidence: architect-approved boundary, one immutable accepted-only DTO,
+Exit evidence: implemented architect-approved boundary, one immutable accepted-only DTO,
 shared classifier taxonomy, explicit nonvisual-root behavior, retired raw
 public candidate routes, and focused permanent tests proving a public compact
 operation cannot commit outside complete-render admission.
+
+M0 also retires admitted molecule/interchange pending bridges and moves
+explicit-hydrogen materialization through the same generic transition. During
+that work, compact-group materialization remains document-private M0 cleanup:
+it has no public `SessionOperationV1` variant, protocol envelope, CLI command,
+PyO3 symbol, Qt path, renderer re-export, or public prepare/commit adapter.
+M1 is the earliest authorized public compact-group operation surface. See the
+approved [m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
+amendment. The M0 catalog semantic migration is complete: closed catalog intent
+uses the generic document transition with `TransitionAuthorizationV1::None`,
+and the UI V2 lease is retained only for local paint scheduling. M0 remains
+incomplete pending its other migration tranches and exit evidence; this does
+not authorize compact-group public delivery.
 
 ### M1. Lock the typed group representation and public contract
 
@@ -128,8 +149,9 @@ Owner: Rust document/domain architecture.
   full nine-key vocabulary but expose only the reviewed records through a
   typed catalog interface.
 - Ensure parser/writer validation accepts only the Ferrum compact-group
-  key/type relationship, derives labels from the key, and retains ordinary
-  imported legacy groups without reclassifying them.
+  key/type relationship and derives labels from the key. An unrecognized
+  group-like record follows a closed format refusal; it is neither retained as
+  a legacy object nor silently reclassified.
 - Confirm compact group projection, durable target vocabulary, renderer
   transfer, label/glyph primitive, hit testing, and reopen selection carry the
   same durable identity.
@@ -293,11 +315,12 @@ Owner: Qt E2E and documentation.
 
 ## Completion criteria
 
-This vertical slice is complete when M0 has made complete-render admission an
-unbypassable public mutation prerequisite; all nine closed catalog entries are
-usable through the canonical generic operations, local CLI aliases, generic
-PyO3 route, and accessible Qt flow; groups are durable visible/selectable
-document objects; materialization and deletion are atomic; refusal semantics
-are shared and bounded; public semantic E2E proof is green; and the documented
-local build and full validation suite pass. Broader group grammar, legacy
-compatibility, publishing, and installation remain separate future work.
+M0 establishes complete-render admission as an unbypassable generic visual
+mutation prerequisite. It does not authorize a public compact-group operation.
+The compact-group vertical slice begins in M1 and completes only when the
+reviewed catalog entries are usable through the approved public generic
+operation, local CLI route, PyO3 route, and accessible Qt flow; groups remain
+durable visible/selectable document objects; materialization and deletion are
+atomic; refusal semantics are shared and bounded; public semantic E2E evidence
+is green; and the documented local build and full validation suite pass.
+Broader group grammar, publishing, and installation remain separate work.

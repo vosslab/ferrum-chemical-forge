@@ -91,7 +91,7 @@ fn aromatic_smiles_is_kekulized_placed_and_prepared_as_one_document_candidate() 
         .expect("representable molecule must prepare");
     assert_eq!(engine.kekulize_calls.get(), 1);
     let accepted = session
-        .commit_admitted_molecule_insertion_v1(0, &mut pending)
+        .commit_session_operation_transition_v1(&mut pending)
         .expect("prepared molecule must commit");
     let molecule = &accepted.observation().projection().molecules()[0];
     assert_eq!(molecule.atoms()[0].position().x(), 80.0);

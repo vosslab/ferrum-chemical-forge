@@ -40,7 +40,7 @@ pub(crate) struct PyPoint3V1 {
 #[derive(Clone)]
 pub(crate) struct PyFontFactsV1 {
     #[pyo3(get)]
-    pub(crate) font_face_id: String,
+    pub(crate) family: Option<String>,
     #[pyo3(get)]
     pub(crate) size: Option<f64>,
     #[pyo3(get)]
@@ -449,7 +449,7 @@ impl From<&PresentationStackProjectionV1> for PyPresentationStackProjectionV1 {
 #[derive(Clone)]
 pub(crate) struct PyPresentationFontV1 {
     #[pyo3(get)]
-    pub(crate) family: Option<String>,
+    pub(crate) font_face_id: String,
     #[pyo3(get)]
     pub(crate) font_face_provenance: String,
     #[pyo3(get)]

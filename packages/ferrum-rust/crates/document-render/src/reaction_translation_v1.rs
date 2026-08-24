@@ -3,12 +3,10 @@
 #[cfg(test)]
 use ferrum_document::DocumentSession;
 use ferrum_document::{
-    AuthoringCapabilityAccessErrorV1, AuthoringCapabilityV1, DocumentFenceV1,
-    PendingCompleteCdmlMutationV1, SessionOperationResultV1, TopLevelRootSelectorV1,
-    TopLevelTransformModeV1, TopLevelTransformV1,
+    AuthoringCapabilityV1, DocumentFenceV1, SessionOperation, SessionOperationTransitionRequestV1,
+    SessionOperationV1, TopLevelRootSelectorV1, TopLevelRootTranslationV1,
 };
 
-use crate::reaction_gesture_v1::map_complete_cdml_mutation_refusal_v1;
 use crate::reaction_observation_v1::selected_reaction_member_ids_v1;
 use crate::{
     ReactionGestureErrorV1, ReactionSelectionV1, RenderInteractionErrorV1,
@@ -37,43 +35,6 @@ impl ReactionTranslationPreviewV1 {
     #[must_use]
     pub const fn dy(&self) -> f64 {
         self.preview.dy()
-    }
-}
-pub struct PreparedReactionTranslationV1 {
-    pending: Option<PendingCompleteCdmlMutationV1>,
-    capability: AuthoringCapabilityV1,
-    reaction_id: String,
-    membership_digest: String,
-}
-impl std::fmt::Debug for PreparedReactionTranslationV1 {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("PreparedReactionTranslationV1")
-            .field("reaction_id", &self.reaction_id)
-            .field(
-                "state",
-                &if self.pending.is_some() {
-                    "prepared"
-                } else {
-                    "consumed"
-                },
-            )
-            .finish()
-    }
-}
-#[derive(Clone, Debug)]
-pub struct CommittedReactionTranslationV1 {
-    reaction_id: String,
-    result: SessionOperationResultV1,
-}
-impl CommittedReactionTranslationV1 {
-    #[must_use]
-    pub fn reaction_id(&self) -> &str {
-        &self.reaction_id
-    }
-    #[must_use]
-    pub fn result(&self) -> &SessionOperationResultV1 {
-        &self.result
     }
 }
 fn selection_error(error: RenderInteractionErrorV1) -> ReactionGestureErrorV1 {
@@ -167,7 +128,7 @@ pub fn begin_reaction_translation_v1(
         .begin_render_interaction_translation_v1(&selected, press_x, press_y, snap)
         .map_err(selection_error)?;
     Ok(ReactionTranslationGestureV1 {
-        capability: session.authoring_capability_issuer_v1().issue(),
+        capability: session.issue_authoring_capability_v1(),
         fence: selection.fence(),
         reaction_id: selection.reaction_id().to_owned(),
         membership_digest: selection.membership_digest().to_owned(),
@@ -181,115 +142,37 @@ pub fn preview_reaction_translation_v1(
     pointer_x: f64,
     pointer_y: f64,
 ) -> Result<ReactionTranslationPreviewV1, ReactionGestureErrorV1> {
-    if !gesture
-        .capability
-        .belongs_to(&session.authoring_capability_issuer_v1())
-    {
-        return Err(ReactionGestureErrorV1::ForeignSession);
-    }
     require_definition(session, &gesture.reaction_id, &gesture.membership_digest)?;
     session
         .preview_render_interaction_translation_v1(&gesture.translation, pointer_x, pointer_y)
         .map(|preview| ReactionTranslationPreviewV1 { preview })
         .map_err(selection_error)
 }
-pub fn prepare_reaction_translation_v1(
-    session: &mut RenderInteractionSessionV1,
-    gesture: &ReactionTranslationGestureV1,
-    preview: &ReactionTranslationPreviewV1,
-) -> Result<PreparedReactionTranslationV1, ReactionGestureErrorV1> {
-    if !gesture
-        .capability
-        .belongs_to(&session.authoring_capability_issuer_v1())
-    {
-        return Err(ReactionGestureErrorV1::ForeignSession);
-    }
-    match gesture
-        .capability
-        .claim_for_commit(&session.authoring_capability_issuer_v1())
-    {
-        Ok(claim) => drop(claim),
-        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
-            return Err(ReactionGestureErrorV1::ForeignSession);
-        }
-        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
-            return Err(ReactionGestureErrorV1::ReplayedGesture);
-        }
-    }
+/// Resolve one translation gesture into the opaque generic session request.
+pub fn resolve_reaction_translation_v1(
+    session: &RenderInteractionSessionV1,
+    gesture: ReactionTranslationGestureV1,
+    pointer_x: f64,
+    pointer_y: f64,
+) -> Result<SessionOperationTransitionRequestV1, ReactionGestureErrorV1> {
     require_definition(session, &gesture.reaction_id, &gesture.membership_digest)?;
-    session
-        .validate_render_interaction_translation_preview_v1(&gesture.translation, &preview.preview)
+    let preview = session
+        .preview_render_interaction_translation_v1(&gesture.translation, pointer_x, pointer_y)
         .map_err(selection_error)?;
-    let transform = TopLevelTransformV1::new(
-        gesture.targets.clone(),
-        TopLevelTransformModeV1::Translate {
-            dx: preview.dx(),
-            dy: preview.dy(),
-        },
-    )
-    .map_err(|_| ReactionGestureErrorV1::MembershipChanged)?;
-    let pending = session
-        .prepare_top_level_transform_complete_cdml_mutation_v1(gesture.fence, &transform)
-        .map_err(map_complete_cdml_mutation_refusal_v1)?;
-    Ok(PreparedReactionTranslationV1 {
-        reaction_id: gesture.reaction_id.clone(),
-        membership_digest: gesture.membership_digest.clone(),
-        capability: gesture.capability.clone(),
-        pending: Some(pending),
-    })
-}
-pub fn commit_reaction_translation_v1(
-    session: &mut RenderInteractionSessionV1,
-    prepared: &mut PreparedReactionTranslationV1,
-) -> Result<CommittedReactionTranslationV1, ReactionGestureErrorV1> {
-    let mut pending = prepared
-        .pending
-        .take()
-        .ok_or(ReactionGestureErrorV1::ReplayedGesture)?;
-    if !prepared
-        .capability
-        .belongs_to(&session.authoring_capability_issuer_v1())
-    {
-        prepared.pending = Some(pending);
-        return Err(ReactionGestureErrorV1::ForeignSession);
-    }
-    let claim = match prepared
-        .capability
-        .claim_for_commit(&session.authoring_capability_issuer_v1())
-    {
-        Ok(claim) => claim,
-        Err(AuthoringCapabilityAccessErrorV1::ForeignSession) => {
-            unreachable!("owner checked above")
-        }
-        Err(AuthoringCapabilityAccessErrorV1::Replayed) => {
-            prepared.pending = Some(pending);
-            return Err(ReactionGestureErrorV1::ReplayedGesture);
-        }
-    };
-    let result = (|| {
-        require_definition(session, &prepared.reaction_id, &prepared.membership_digest)?;
-        session
-            .commit_complete_cdml_mutation_v1(&mut pending)
-            .map_err(map_complete_cdml_mutation_refusal_v1)
-    })();
-    match result {
-        Ok(result) => {
-            claim.consume();
-            Ok(CommittedReactionTranslationV1 {
-                reaction_id: prepared.reaction_id.clone(),
-                result,
-            })
-        }
-        Err(error) => {
-            prepared.pending = Some(pending);
-            Err(error)
-        }
-    }
+    let transform =
+        TopLevelRootTranslationV1::new(gesture.targets.clone(), preview.dx(), preview.dy())
+            .map_err(|_| ReactionGestureErrorV1::MembershipChanged)?;
+    Ok(SessionOperationTransitionRequestV1::new(
+        gesture.fence.revision(),
+        SessionOperation::V1(SessionOperationV1::TranslateTopLevelRootsV1(transform)),
+        ferrum_document::TransitionAuthorizationV1::authoring_capability(gesture.capability),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ferrum_document::AdmittedSessionTransitionRefusalV1;
 
     const SOURCE: &str = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"left\"><atom id=\"la\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
@@ -325,16 +208,21 @@ mod tests {
         let preview =
             preview_reaction_translation_v1(&session, &gesture, 10.0, 5.0).expect("preview");
         assert_eq!((preview.dx(), preview.dy()), (10.0, 5.0));
-        let mut prepared =
-            prepare_reaction_translation_v1(&mut session, &gesture, &preview).expect("prepare");
-        let committed =
-            commit_reaction_translation_v1(&mut session, &mut prepared).expect("commit");
-        let cdml = committed.result().observation().snapshot().cdml();
+        let request =
+            resolve_reaction_translation_v1(&session, gesture, preview.dx(), preview.dy())
+                .expect("resolve");
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(request)
+            .expect("prepare");
+        let committed = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("commit");
+        let cdml = committed.observation().snapshot().cdml();
         assert_ne!(cdml, SOURCE);
         assert!(cdml.contains("<reaction id=\"r\""));
         assert!(matches!(
-            commit_reaction_translation_v1(&mut session, &mut prepared),
-            Err(ReactionGestureErrorV1::ReplayedGesture)
+            session.commit_session_operation_transition_v1(&mut prepared),
+            Err(AdmittedSessionTransitionRefusalV1::Replayed)
         ));
         let undone = session.undo(1).expect("undo");
         assert_eq!(undone.observation().snapshot().cdml(), SOURCE);
