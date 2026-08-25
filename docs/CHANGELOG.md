@@ -52,13 +52,15 @@ Earlier history is in [CHANGELOG-2026-08f.md](CHANGELOG-2026-08f.md).
 ### Fixes and Maintenance
 
 - Completed the public unavailable-anchor recovery slice for attached `Me`.
-  With one selected unavailable atom, Qt disables the existing `Attach Compact
-  Group...` action and publishes exact learner guidance through its status tip,
-  tool tip, and What's This text. An eligible selection refreshes the same
-  action to enabled; pre-chooser revalidation retains the existing typed
-  nonmodal refusal and action refresh. The registered public E2E authors
-  saturated CH4 and eligible C-C, proves recovery, then attaches and
-  materializes `Me` to `Formula: C3H8`.
+  For an exact-current unavailable selection, Qt keeps the existing `Attach
+  Compact Group...` action enabled and presents the standard accessible `Action
+  Not Available` dialog with the visible learner message `Me cannot attach to
+  the selected atom. Select another atom and try again.` After dismissal, an
+  eligible atom in the same document reuses that action to open the guarded
+  chooser. Stale, missing, or nonmatching facts remain disabled with generic
+  readiness guidance. The registered public E2E authors saturated CH4 and
+  eligible C-C, proves the visible refusal and queued reentrancy handling, then
+  attaches and materializes `Me` to `Formula: C3H8`.
 
 - Replaced outward structural-deletion receipt identities with atom, bond, and compact-group
   counts. The compact-topology refusal is now a closed redacted category with document-repair
@@ -130,12 +132,12 @@ Earlier history is in [CHANGELOG-2026-08f.md](CHANGELOG-2026-08f.md).
 
 ### Decisions and Failures
 
-- Recorded M6's delivered public Qt attached-`Me` author-to-materialize slice.
+- Recorded the delivered public Qt attached-`Me` author-to-materialize slice.
   Rust retains catalog, availability, chemistry, geometry, deferred durable
   IDs, render admission, and atomic commit; Qt retains the accessible chooser,
   one-release pointer handoff, and receipt/refusal presentation. The PyO3
-  bridge is private implementation detail. Unavailable-anchor recovery, free
-  placement, other catalog keys, and broader plan gates remain incomplete.
+  bridge is private implementation detail. Free placement, other catalog keys,
+  and broader full-plan gates remain incomplete.
 
 - Recovered the restored changelog after a truncation failure, retaining every historical bullet
   while consolidating the 2026-08-24 categories into the canonical order.

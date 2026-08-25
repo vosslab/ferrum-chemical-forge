@@ -115,14 +115,15 @@ refusal. The private PyO3 bridge is only the local Qt implementation seam; it
 does not create a public attachment contract. Compact-group materialization is
 a separate operation after explicit group selection.
 
-For one selected unavailable atom, Qt presents Rust's advisory availability
-result by disabling the existing `Attach Compact Group...` action and assigning
-the same learner recovery text to its status tip, tool tip, and What's This:
-`Me cannot attach to the selected atom. Select another atom and try again.` A
-later eligible selection refreshes that existing action to enabled. Pre-chooser
-revalidation still belongs to Rust: a changed selection receives the existing
-typed nonmodal refusal and action refresh, not a new action, schema, or Qt
-fallback.
+For one selected atom with an exact-current unavailable result, Qt keeps the
+existing `Attach Compact Group...` action enabled. Its activation reaches the
+existing Rust-owned typed refusal, which Qt presents in the standard accessible
+`Action Not Available` dialog with the visible learner message `Me cannot
+attach to the selected atom. Select another atom and try again.` Dismissing the
+dialog refreshes the selection state, so an eligible atom in the same document
+uses the same action to open the guarded chooser. Stale, missing, or
+nonmatching availability facts instead keep that action disabled with generic
+readiness guidance. No new action, schema, or Qt fallback is involved.
 
 The compact-group deletion slice extends the existing Select Structure/Delete
 interaction rather than adding a Qt action. The renderer issues the selected
@@ -145,7 +146,7 @@ second host.
 Rust render observations cross into Qt through
 [../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_render_projection.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_render_projection.py)
 and
-[../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_projection.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_projection.py).
+[../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_render_plan.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_render_plan.py).
 Rust supplies the frozen renderer plan as Qt's sole visual scene input. The
 same accepted observation fence publishes both that plan and SMARTS results.
 Qt creates the disposable graphics-scene projection and manages graphics retirement through

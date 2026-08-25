@@ -140,12 +140,15 @@ document, durable IDs, history, or selection. This slice has no free placement,
 no other compact-group author keys, and no CLI or stateless attachment route.
 Materialization remains a separate delivered operation.
 
-If exactly one selected atom is unavailable for `Me`, the existing `Attach
-Compact Group...` action is disabled. Its status tip, tool tip, and What's This
-guidance say `Me cannot attach to the selected atom. Select another atom and try
-again.` Select an eligible atom to refresh the same action to enabled. If the
-selection changes before commit, Ferrum presents the existing typed nonmodal
-refusal and refreshes the action; it does not create a fallback route.
+If exactly one selected atom has an exact-current unavailable result for `Me`,
+the existing `Attach Compact Group...` action remains enabled. Activating it
+opens Ferrum's standard accessible `Action Not Available` dialog with the
+visible message `Me cannot attach to the selected atom. Select another atom and
+try again.` Dismiss the dialog, select an eligible atom in the same document,
+and use the same action to open the chooser. Stale, missing, or nonmatching
+availability facts keep the action disabled with generic readiness guidance.
+The guarded chooser and Rust's typed refusal remain the authority; this does
+not create a fallback route.
 
 To delete an attached compact group, use the existing Select Structure tool to
 select exactly one visible compact-group label, then press `Delete` or

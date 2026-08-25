@@ -276,6 +276,15 @@ The local-build checklist is intentionally short:
 
 ## Remaining active decisions
 
+The attached-`Me` unavailable-anchor recovery is complete. Rust remains the
+authority for an exact-current revision/digest/anchor availability fact: an
+exact-current unavailable selection keeps the existing Qt action actionable and
+produces its typed no-mutation refusal. Stale, missing, or nonmatching facts
+keep the action disabled with generic readiness guidance. The same document can
+then recover through an eligible selection and the existing guarded chooser.
+Free placement, other compact-group catalog keys, and broader full-plan gates
+remain separate work.
+
 | Decision | Owner | Required before |
 | --- | --- | --- |
 | WASM-native divergence, if any | `expert_coder` | M21 exit |
