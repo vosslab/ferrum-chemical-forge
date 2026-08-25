@@ -1,11 +1,12 @@
 //! Behavior checks for the private renderer stream.
 
-use ferrum_core::{Identifier, RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 
 use crate::authored_direct_glycosidic_haworth::{
     AuthoredDirectGlycosidicHaworthDrawOpV1, AuthoredDirectGlycosidicHaworthRenderPlanV1,
 };
 use crate::direct_glycosidic_haworth::DirectGlycosidicHaworthPathCommandV1;
+use crate::document_bond_replacement_v1::BondReplacementTargetV1;
 use crate::draw_stream_v1::{
     DrawEllipseV1, DrawLineCapV1, DrawMetadataV1, DrawPathCommandV1, DrawPathV1, DrawRectV1,
     DrawSinkV1, DrawStreamErrorV1, DrawStyleV1, lower_direct_glycosidic_haworth_plan_to_sink_v1,
@@ -25,14 +26,8 @@ fn paint(value: &str) -> Paint {
     Paint::rgb24(Rgb24::new(value).expect("valid test paint"))
 }
 
-fn target(kind: RecordKind, source: &str, source_order: u32) -> RenderTarget {
-    RenderTarget::new(
-        RecordId::from_source(
-            kind,
-            &Identifier::new(source).expect("valid test identifier"),
-        ),
-        source_order,
-    )
+fn target(id: u8) -> RenderTarget {
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([id; 16]))
 }
 
 fn mixed_plan() -> DocumentRenderPlanV1 {
@@ -41,7 +36,8 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
         provenance,
         vec![
             RenderBatch::new(
-                target(RecordKind::Atom, "stream-local", 1),
+                target(0x31),
+                1,
                 BatchSpace::AtomLocal {
                     anchor: point(3.0, 4.0),
                 },
@@ -67,7 +63,8 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
             )
             .expect("local batch"),
             RenderBatch::new(
-                target(RecordKind::Bond, "stream-scene", 2),
+                target(0x32),
+                2,
                 BatchSpace::Scene,
                 vec![RenderOp::Line(
                     LineOp::new(
@@ -120,26 +117,25 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
         RenderViewportV1::new(0.0, 0.0, 100.0, 80.0).expect("page"),
         vec![
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(0x41),
                 1,
-                DocumentRenderIdentityV1::projection_local("molecule").expect("identity"),
-                DocumentRenderContentV1::Molecule(molecule),
+                DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                    molecule,
+                    Vec::new(),
+                )),
             )),
             DocumentRenderOutcomeV1::Exclusion(
-                DocumentRenderExclusionV1::new(
-                    2,
-                    DocumentRenderIdentityV1::projection_local("excluded").expect("identity"),
-                    "not_yet_lowered:test",
-                )
-                .expect("exclusion"),
+                DocumentRenderExclusionV1::new(target(0x42), 2, "not_yet_lowered:test")
+                    .expect("exclusion"),
             ),
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(0x43),
                 3,
-                DocumentRenderIdentityV1::projection_local("text").expect("identity"),
                 DocumentRenderContentV1::Text(text),
             )),
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(0x44),
                 4,
-                DocumentRenderIdentityV1::projection_local("vector").expect("identity"),
                 DocumentRenderContentV1::Vector(vector),
             )),
         ],
@@ -149,11 +145,12 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
 
 fn composite_plan() -> DocumentRenderCompositeV1 {
     let provenance = RenderProvenance::new(RenderRevision::new(9).expect("revision"), [9; 32]);
-    let selected_ordinary = target(RecordKind::Bond, "selected-ordinary", 2);
-    let retained_bond = target(RecordKind::Bond, "retained-bond", 3);
-    let selected_q = target(RecordKind::Bond, "selected-q", 4);
-    let retained_issue = target(RecordKind::Bond, "retained-issue", 5);
-    let selected_w = target(RecordKind::Bond, "selected-w", 6);
+    let root = target(0x30);
+    let selected_ordinary = target(0x33);
+    let retained_bond = target(0x34);
+    let selected_q = target(0x35);
+    let retained_issue = target(0x36);
+    let selected_w = target(0x37);
     let metrics =
         VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
             .expect("metrics");
@@ -163,7 +160,8 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
         .operation()
         .clone();
     let atom = RenderBatch::new(
-        target(RecordKind::Atom, "atom", 1),
+        target(0x38),
+        1,
         BatchSpace::AtomLocal {
             anchor: point(3.0, 4.0),
         },
@@ -176,9 +174,10 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
         ],
     )
     .expect("atom batch");
-    let line = |target: RenderTarget, x: f64| {
+    let line = |target: RenderTarget, paint_order: u32, x: f64| {
         RenderBatch::new(
             target,
+            paint_order,
             BatchSpace::Scene,
             vec![RenderOp::Line(
                 LineOp::new(
@@ -197,13 +196,14 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
         provenance,
         vec![
             atom,
-            line(selected_ordinary.clone(), 2.0),
-            line(retained_bond.clone(), 3.0),
-            line(selected_w.clone(), 6.0),
+            line(selected_ordinary.clone(), 2, 2.0),
+            line(retained_bond.clone(), 3, 3.0),
+            line(selected_w.clone(), 6, 6.0),
         ],
         vec![
             RenderIssue::new(
                 selected_q.clone(),
+                4,
                 RenderIssueKind::UnrenderableTarget {
                     reason: "selected q".to_owned(),
                 },
@@ -211,6 +211,7 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
             .expect("selected issue"),
             RenderIssue::new(
                 retained_issue,
+                5,
                 RenderIssueKind::UnrenderableTarget {
                     reason: "retained issue".to_owned(),
                 },
@@ -224,17 +225,16 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
         RenderViewportV1::new(0.0, 0.0, 20.0, 10.0).expect("page"),
         vec![
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                root.clone(),
                 1,
-                DocumentRenderIdentityV1::durable("molecule").expect("root"),
-                DocumentRenderContentV1::Molecule(molecule),
+                DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                    molecule,
+                    Vec::new(),
+                )),
             )),
             DocumentRenderOutcomeV1::Exclusion(
-                DocumentRenderExclusionV1::new(
-                    2,
-                    DocumentRenderIdentityV1::projection_local("excluded").expect("identity"),
-                    "still intentionally excluded",
-                )
-                .expect("exclusion"),
+                DocumentRenderExclusionV1::new(target(0x39), 2, "still intentionally excluded")
+                    .expect("exclusion"),
             ),
             mixed_plan().outcomes()[2].clone(),
             mixed_plan().outcomes()[3].clone(),
@@ -247,19 +247,19 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
         black,
         vec![
             AuthoredDirectGlycosidicHaworthDrawOpV1::OrdinaryLine {
-                bond: selected_ordinary.record_id().clone(),
+                bond: selected_ordinary.document_object_id().clone(),
                 authored_child_order: 2,
                 endpoints: [point(2.0, 0.0), point(3.0, 0.0)],
                 width: size(1.0),
             },
             AuthoredDirectGlycosidicHaworthDrawOpV1::HaworthFrontStroke {
-                bond: selected_q.record_id().clone(),
+                bond: selected_q.document_object_id().clone(),
                 authored_child_order: 4,
                 endpoints: [point(4.0, 0.0), point(5.0, 0.0)],
                 width: size(2.0),
             },
             AuthoredDirectGlycosidicHaworthDrawOpV1::RoundedFrontWedge {
-                bond: selected_w.record_id().clone(),
+                bond: selected_w.document_object_id().clone(),
                 authored_child_order: 6,
                 tip: point(6.0, 0.0),
                 base: point(7.0, 0.0),
@@ -275,9 +275,13 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
     );
     compose_document_bond_replacement_v1(
         established,
-        DocumentRenderIdentityV1::durable("molecule").expect("root"),
+        root,
         1,
-        vec![selected_ordinary, selected_q, selected_w],
+        vec![
+            BondReplacementTargetV1::new(selected_ordinary, 2),
+            BondReplacementTargetV1::new(selected_q, 4),
+            BondReplacementTargetV1::new(selected_w, 6),
+        ],
         direct,
     )
     .expect("composite")
@@ -291,7 +295,6 @@ fn recording_budget() -> CompositeRecordingBudgetV1 {
         max_path_commands: 4096,
         max_transform_depth: 32,
         max_text_scopes: 64,
-        max_copied_string_bytes: 65_536,
     }
 }
 
@@ -302,8 +305,8 @@ fn presentation_plan(operation: PresentationTextOp, bounds: GlyphBounds) -> Docu
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [61; 32]),
         RenderViewportV1::new(0.0, 0.0, 120.0, 80.0).expect("page"),
         vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            target(0x51),
             1,
-            DocumentRenderIdentityV1::projection_local("presentation").expect("identity"),
             DocumentRenderContentV1::Text(text),
         ))],
     )
@@ -416,8 +419,8 @@ impl DrawSinkV1 for RecordingSink {
             .push(format!("page:{}x{}", page.width(), page.height()));
         Ok(())
     }
-    fn begin_root(&mut self, source_order: u32, _: &str) -> Result<(), Self::Error> {
-        self.events.push(format!("root:{source_order}"));
+    fn begin_root(&mut self, paint_order: u32, _: &DocumentObjectIdV1) -> Result<(), Self::Error> {
+        self.events.push(format!("root:{paint_order}"));
         Ok(())
     }
     fn end_root(&mut self) -> Result<(), Self::Error> {
@@ -614,16 +617,15 @@ fn composite_stream_replaces_only_selected_bond_outcomes_once() {
         .iter()
         .find_map(|outcome| match outcome {
             DocumentRenderOutcomeV1::Root(root) => match root.content() {
-                DocumentRenderContentV1::Molecule(plan) => plan.issues().iter().find(|issue| {
-                    issue.target().source_order() == 5
-                        && issue.target().record_id().kind() == RecordKind::Bond
-                }),
+                DocumentRenderContentV1::Molecule(plan) => {
+                    plan.issues().iter().find(|issue| issue.paint_order() == 5)
+                }
                 _ => None,
             },
             DocumentRenderOutcomeV1::Exclusion(_) => None,
         })
         .expect("nonselected issue remains in the established plan");
-    assert_eq!(retained_issue.target().source_order(), 5);
+    assert_eq!(retained_issue.paint_order(), 5);
     let mut sink = RecordingSink::default();
     lower_document_render_composite_to_sink_v1(&composite, &mut sink).expect("composite stream");
 

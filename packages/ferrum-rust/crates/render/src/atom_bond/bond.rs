@@ -8,6 +8,7 @@ use ferrum_geometry::Vector2;
 use crate::bond_style::BondStyle;
 use crate::directed_stereo_bond::directed_stereo_operations;
 use crate::haworth_front_bond::{HaworthFrontBondInput, build_haworth_front_batch};
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     BatchSpace, DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp, GlyphBounds, LineOp,
     Paint, PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderTarget,
@@ -18,7 +19,7 @@ use super::{RenderEndpointGeometry, TargetVisibility, geometry_to_render_point};
 /// A bond with explicit endpoint atom identities and source style facts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BondRenderTarget {
-    pub(super) target: RenderTarget,
+    pub(super) context: RenderPlanEntryContextV1,
     first_endpoint: RecordId,
     second_endpoint: RecordId,
     pub(super) style: BondStyle,
@@ -41,14 +42,14 @@ struct CarrierMarkRenderFact {
 }
 impl BondRenderTarget {
     /// Construct a valid bond target for this render slice.
-    pub fn new(
-        target: RenderTarget,
+    pub(crate) fn new(
+        context: RenderPlanEntryContextV1,
         first_atom: RecordId,
         second_atom: RecordId,
         style: BondStyle,
         visibility: TargetVisibility,
     ) -> Result<Self, RenderError> {
-        if target.record_id().kind() != RecordKind::Bond {
+        if context.record_id().kind() != RecordKind::Bond {
             return Err(RenderError::InvalidRequest(
                 "bond render target requires a bond RecordId".to_owned(),
             ));
@@ -61,7 +62,7 @@ impl BondRenderTarget {
             ));
         }
         Ok(Self {
-            target,
+            context,
             first_endpoint: first_atom,
             second_endpoint: second_atom,
             style,
@@ -74,7 +75,11 @@ impl BondRenderTarget {
     /// Return the durable target and source order.
     #[must_use]
     pub fn target(&self) -> &RenderTarget {
-        &self.target
+        self.context.target()
+    }
+
+    pub(super) const fn context(&self) -> &RenderPlanEntryContextV1 {
+        &self.context
     }
 
     /// Attach source-resolved stroke and parallel-lane facts for this bond only.
@@ -228,11 +233,11 @@ pub(super) fn build_bond_batch(
         })?;
         operations.push(RenderOp::DoubleBondCarrierMark(operation));
     }
-    RenderBatch::new(bond.target.clone(), BatchSpace::Scene, operations).map_err(|error| {
-        RenderIssueKind::UnrenderableTarget {
+    RenderBatch::from_context(bond.context.clone(), BatchSpace::Scene, operations).map_err(
+        |error| RenderIssueKind::UnrenderableTarget {
             reason: format!("bond batch is not renderable: {error}"),
-        }
-    })
+        },
+    )
 }
 
 fn build_haworth_front_bond_batch(
@@ -244,7 +249,8 @@ fn build_haworth_front_bond_batch(
 ) -> Result<RenderBatch, RenderIssueKind> {
     let center = build_bond_line(context, 0.0, stroke_width, paint.clone(), 10)?;
     build_haworth_front_batch(HaworthFrontBondInput {
-        target: bond.target.clone(),
+        target: bond.context.target().clone(),
+        paint_order: bond.context.paint_order(),
         style: bond.style.clone(),
         tip: center.start(),
         base: center.end(),
@@ -274,11 +280,11 @@ fn build_directed_stereo_batch(
         wedge_width,
         paint,
     )?;
-    RenderBatch::new(bond.target.clone(), BatchSpace::Scene, operations).map_err(|error| {
-        RenderIssueKind::UnrenderableTarget {
+    RenderBatch::from_context(bond.context.clone(), BatchSpace::Scene, operations).map_err(
+        |error| RenderIssueKind::UnrenderableTarget {
             reason: format!("directed bond batch is not renderable: {error}"),
-        }
-    })
+        },
+    )
 }
 
 struct BondLineContext<'a> {

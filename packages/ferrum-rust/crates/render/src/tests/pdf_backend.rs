@@ -1,5 +1,5 @@
 use crate::*;
-use ferrum_core::{Identifier, RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 
 fn point(x: f64, y: f64) -> RenderPoint {
     RenderPoint::new(x, y).expect("test point")
@@ -15,6 +15,10 @@ fn width(value: f64) -> PositiveFinite {
 
 fn provenance(value: u8) -> RenderProvenance {
     RenderProvenance::new(RenderRevision::new(8).expect("test revision"), [value; 32])
+}
+
+fn target(id: u8) -> RenderTarget {
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([id; 16]))
 }
 
 fn document_plan(page: RenderViewportV1) -> DocumentRenderPlanV1 {
@@ -45,17 +49,13 @@ fn document_plan(page: RenderViewportV1) -> DocumentRenderPlanV1 {
         page,
         vec![
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(0x01),
                 2,
-                DocumentRenderIdentityV1::projection_local("pdf-root").expect("identity"),
                 DocumentRenderContentV1::Vector(root),
             )),
             DocumentRenderOutcomeV1::Exclusion(
-                DocumentRenderExclusionV1::new(
-                    9,
-                    DocumentRenderIdentityV1::durable("excluded-root").expect("identity"),
-                    "not_yet_lowered:arrow",
-                )
-                .expect("exclusion"),
+                DocumentRenderExclusionV1::new(target(0x09), 9, "not_yet_lowered:arrow")
+                    .expect("exclusion"),
             ),
         ],
     )
@@ -83,8 +83,8 @@ fn presentation_text_plan(
         provenance(19),
         RenderViewportV1::new(0.0, 0.0, 120.0, 80.0).expect("page"),
         vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            target(0x19),
             1,
-            DocumentRenderIdentityV1::projection_local("pdf-presentation").expect("identity"),
             DocumentRenderContentV1::Text(text),
         ))],
     )
@@ -96,13 +96,8 @@ fn scene_path_document_plan() -> DocumentRenderPlanV1 {
         provenance(21),
         vec![
             RenderBatch::new(
-                RenderTarget::new(
-                    RecordId::from_source(
-                        RecordKind::Bond,
-                        &Identifier::new("pdf-path").expect("test identifier"),
-                    ),
-                    1,
-                ),
+                target(0x21),
+                1,
                 BatchSpace::Scene,
                 vec![RenderOp::Path(
                     PathOpV2::new(
@@ -128,9 +123,12 @@ fn scene_path_document_plan() -> DocumentRenderPlanV1 {
         provenance(21),
         RenderViewportV1::new(0.0, 0.0, 20.0, 20.0).expect("page"),
         vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            target(0x21),
             1,
-            DocumentRenderIdentityV1::projection_local("pdf-path").expect("identity"),
-            DocumentRenderContentV1::Molecule(molecule),
+            DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                molecule,
+                Vec::new(),
+            )),
         ))],
     )
     .expect("document plan")
@@ -139,18 +137,13 @@ fn scene_path_document_plan() -> DocumentRenderPlanV1 {
 #[test]
 fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics() {
     let source = provenance(8);
-    let target = RenderTarget::new(
-        RecordId::from_source(
-            RecordKind::Atom,
-            &Identifier::new("pdf-ellipse").expect("test identifier"),
-        ),
-        1,
-    );
+    let molecule_target = target(0x22);
     let molecule = MoleculeRenderPlan::new(
         source,
         vec![
             RenderBatch::new(
-                target,
+                molecule_target,
+                1,
                 BatchSpace::AtomLocal {
                     anchor: point(0.0, 0.0),
                 },
@@ -195,13 +188,16 @@ fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics()
         RenderViewportV1::new(0.0, 0.0, 120.0, 80.0).expect("page"),
         vec![
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(0x22),
                 1,
-                DocumentRenderIdentityV1::projection_local("pdf-molecule").expect("identity"),
-                DocumentRenderContentV1::Molecule(molecule),
+                DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                    molecule,
+                    Vec::new(),
+                )),
             )),
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(0x23),
                 2,
-                DocumentRenderIdentityV1::projection_local("pdf-telex").expect("identity"),
                 DocumentRenderContentV1::Text(text),
             )),
         ],
@@ -301,11 +297,13 @@ fn pdf_backend_emits_one_vector_page_and_exact_reported_coverage() {
     assert_eq!(result.report().provenance(), plan.provenance());
     assert_eq!(result.report().page(), page);
     assert_eq!(result.report().exclusions().len(), 1);
-    assert_eq!(result.report().exclusions()[0].source_order(), 9);
     assert_eq!(
-        result.report().exclusions()[0].identity().as_str(),
-        "excluded-root"
+        result.report().exclusions()[0]
+            .target()
+            .document_object_id(),
+        target(0x09).document_object_id()
     );
+    assert_eq!(result.report().exclusions()[0].paint_order(), 9);
     assert_eq!(
         result.report().exclusions()[0].feature(),
         "not_yet_lowered:arrow"
@@ -404,8 +402,8 @@ fn pdf_backend_rejects_telex_outline_above_zero_command_limit() {
         provenance(5),
         RenderViewportV1::new(0.0, 0.0, 40.0, 30.0).expect("page"),
         vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            target(0x24),
             1,
-            DocumentRenderIdentityV1::projection_local("telex").expect("identity"),
             DocumentRenderContentV1::Text(text),
         ))],
     )
@@ -434,18 +432,21 @@ fn pdf_backend_rejects_exclusion_report_data_above_its_explicit_byte_limit() {
         provenance(6),
         RenderViewportV1::new(0.0, 0.0, 40.0, 30.0).expect("page"),
         vec![DocumentRenderOutcomeV1::Exclusion(
-            DocumentRenderExclusionV1::new(
-                1,
-                DocumentRenderIdentityV1::durable("identity").expect("identity"),
-                "not_yet_lowered",
-            )
-            .expect("exclusion"),
+            DocumentRenderExclusionV1::new(target(0x25), 1, "not_yet_lowered").expect("exclusion"),
         )],
     )
     .expect("document plan");
+    let observed = render_document_plan_to_pdf_v1(&plan, ample_request())
+        .expect("known exclusion report")
+        .artifact()
+        .complexity()
+        .exclusion_report_bytes();
+    let limit = observed
+        .checked_sub(1)
+        .expect("nonempty exclusion report has a smaller limit");
     let request = PdfRenderRequestV1 {
         complexity: PdfPlanComplexityBudgetV1 {
-            max_exclusion_report_bytes: 7,
+            max_exclusion_report_bytes: limit,
             ..ample_request().complexity
         },
         ..ample_request()
@@ -455,9 +456,10 @@ fn pdf_backend_rejects_exclusion_report_data_above_its_explicit_byte_limit() {
         render_document_plan_to_pdf_v1(&plan, request),
         Err(PdfRenderError::ComplexityLimitExceeded {
             resource: PdfComplexityResourceV1::ExclusionReportBytes,
-            limit: 7,
-            observed: 8,
+            limit: actual_limit,
+            observed: actual_observed,
         })
+            if actual_limit == limit && actual_observed == observed && actual_observed > actual_limit
     ));
 }
 

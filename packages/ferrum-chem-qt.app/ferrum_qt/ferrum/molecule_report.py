@@ -152,7 +152,6 @@ def _record_text(record: dict) -> str:
 	charge_text = "not completely authored" if charge is None else "{0:+d}".format(charge)
 	lines = [
 		"Name: {0}".format(label),
-		"Source ID: {0}".format(record["source_id"]),
 		"Authored graph: {0} atoms, {1} bonds".format(
 			record["atom_count"], record["bond_count"],
 		),
@@ -364,11 +363,11 @@ def _valid_record(record: object) -> bool:
 	if (
 		type(record) is not dict
 		or not {
-			"molecule_id", "source_id", "document_root_order", "atom_count", "bond_count",
+			"molecule_id", "document_paint_order", "atom_count", "bond_count",
 			"authored_elements", "neutral_bond_capacity", "stereo_semantics", "stereo_depiction", "findings",
 		} <= set(record)
 		or not set(record) <= {
-			"molecule_id", "source_id", "document_root_order", "authored_name", "atom_count",
+			"molecule_id", "document_paint_order", "authored_name", "atom_count",
 			"bond_count", "authored_charge", "authored_elements", "composition",
 			"neutral_bond_capacity", "stereo_semantics", "stereo_depiction", "findings",
 		}
@@ -376,8 +375,7 @@ def _valid_record(record: object) -> bool:
 		return False
 	return (
 		type(record["molecule_id"]) is str and bool(record["molecule_id"])
-		and type(record["source_id"]) is str
-		and type(record["document_root_order"]) is int and record["document_root_order"] >= 0
+		and type(record["document_paint_order"]) is int and record["document_paint_order"] >= 0
 		and (record["authored_name"] is None or type(record["authored_name"]) is str)
 		and type(record["atom_count"]) is int and record["atom_count"] >= 0
 		and type(record["bond_count"]) is int and record["bond_count"] >= 0
@@ -580,7 +578,7 @@ class FerrumNativeMoleculeReportDialog(FerrumAccessibleDialog):
 		"""Build the tree in preserved Rust direct-root order."""
 		for record in report["records"]:
 			name = record["authored_name"]
-			label = record["source_id"] if name is None else name
+			label = "Molecule {0}".format(record["document_paint_order"] + 1) if name is None else name
 			root = PySide6.QtGui.QStandardItem(self.tr("Molecule: {0}".format(label)))
 			root.setData(_record_text(record), PySide6.QtCore.Qt.ItemDataRole.UserRole)
 			self._model.appendRow(root)
@@ -811,6 +809,7 @@ class FerrumNativeMoleculeReportMixin:
 		if len(captured_addresses) != len(intent.addresses):
 			return None
 		records_by_molecule_id = {}
+		last_document_paint_order = -1
 		for record in report["records"]:
 			if not _valid_record(record):
 				return None
@@ -818,9 +817,11 @@ class FerrumNativeMoleculeReportMixin:
 			if (
 				molecule_id not in captured_addresses
 				or molecule_id in records_by_molecule_id
+				or record["document_paint_order"] <= last_document_paint_order
 			):
 				return None
 			records_by_molecule_id[molecule_id] = record
+			last_document_paint_order = record["document_paint_order"]
 		if set(records_by_molecule_id) != set(captured_addresses):
 			return None
 		return _presentation_report(report)

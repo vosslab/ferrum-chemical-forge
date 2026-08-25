@@ -84,7 +84,7 @@ struct PyDocumentBondCapacityRecordV1 {
     #[pyo3(get)]
     source_id: String,
     #[pyo3(get)]
-    document_root_order: u32,
+    document_paint_order: u32,
     #[pyo3(get)]
     authored_name: Option<String>,
     #[pyo3(get)]
@@ -165,7 +165,7 @@ fn record_to_python(
         molecule_id: source.molecule_id().as_str().to_owned(),
         projection_key: source.projection_key().to_owned(),
         source_id: source.source_id().to_owned(),
-        document_root_order: source.document_root_order(),
+        document_paint_order: source.document_paint_order(),
         authored_name: source.authored_name().map(str::to_owned),
         category: category.to_owned(),
         not_checked_reason: not_checked_reason.map(str::to_owned),

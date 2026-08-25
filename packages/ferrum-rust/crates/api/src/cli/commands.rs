@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use ferrum_document::InterchangeFormatV1;
 
 use crate::interchange_import_v1::{InterchangeDecoderKeyV1, InterchangeFormatRegistryV1};
+use crate::protocol::ProtocolOperationKindV1;
 
 /// Ferrum command-line arguments.
 #[derive(Debug, Parser)]
@@ -306,6 +307,13 @@ pub(crate) enum SdfVersion {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum NamedDocumentCommand {
+    /// Check selected direct roots through the frozen structure-diagnostics route.
+    #[command(name = "document.molecule.diagnostics.v1")]
+    DocumentMoleculeDiagnostics {
+        input: PathBuf,
+        #[arg(short, long, value_parser = output_file_path)]
+        output: Option<PathBuf>,
+    },
     /// Materialize one typed compact group through the frozen protocol route.
     #[command(name = "document.compact-group.materialize.v1")]
     DocumentCompactGroupMaterialize {
@@ -393,13 +401,69 @@ pub(crate) enum NamedDocumentCommand {
         #[arg(short, long, value_parser = output_file_path)]
         output: Option<PathBuf>,
     },
-    /// Translate one selected strict reaction through Rust's renderer-preflighted gesture.
-    #[command(name = "reaction.translate.v1")]
-    ReactionTranslate {
-        input: PathBuf,
-        #[arg(short, long, value_parser = output_file_path)]
-        output: Option<PathBuf>,
-    },
+}
+
+impl NamedDocumentCommand {
+    /// Consume one named route into its only admitted operation kind and transport paths.
+    ///
+    /// The named command is an operation-specific entry point, not an alias for the
+    /// generic protocol runner. Keeping this exhaustive adapter beside the CLI
+    /// vocabulary makes every new named route declare its protocol contract.
+    pub(crate) fn into_protocol_request(
+        self,
+    ) -> (ProtocolOperationKindV1, PathBuf, Option<PathBuf>) {
+        match self {
+            Self::DocumentMoleculeDiagnostics { input, output } => (
+                ProtocolOperationKindV1::DocumentMoleculeDiagnostics,
+                input,
+                output,
+            ),
+            Self::DocumentCompactGroupMaterialize { input, output } => (
+                ProtocolOperationKindV1::DocumentCompactGroupMaterialize,
+                input,
+                output,
+            ),
+            Self::DocumentMoleculeSmartsQuery { input, output } => {
+                (ProtocolOperationKindV1::DocumentSmartsQuery, input, output)
+            }
+            Self::DocumentMoleculeInterchangeImport { input, output } => (
+                ProtocolOperationKindV1::DocumentMoleculeInterchangeImport,
+                input,
+                output,
+            ),
+            Self::CatalogList { input, output } => {
+                (ProtocolOperationKindV1::CatalogList, input, output)
+            }
+            Self::CatalogInsert { input, output } => {
+                (ProtocolOperationKindV1::CatalogInsert, input, output)
+            }
+            Self::PresentationAuthor { input, output } => {
+                (ProtocolOperationKindV1::PresentationAuthor, input, output)
+            }
+            Self::ReactionCreate { input, output } => {
+                (ProtocolOperationKindV1::ReactionCreate, input, output)
+            }
+            Self::ReactionList { input, output } => {
+                (ProtocolOperationKindV1::ReactionList, input, output)
+            }
+            Self::ReactionObserve { input, output } => {
+                (ProtocolOperationKindV1::ReactionObserve, input, output)
+            }
+            Self::ReactionSelect { input, output } => {
+                (ProtocolOperationKindV1::ReactionSelect, input, output)
+            }
+            Self::ReactionPatchMembership { input, output } => (
+                ProtocolOperationKindV1::ReactionPatchMembership,
+                input,
+                output,
+            ),
+            Self::ReactionDeleteDefinition { input, output } => (
+                ProtocolOperationKindV1::ReactionDeleteDefinition,
+                input,
+                output,
+            ),
+        }
+    }
 }
 
 fn output_file_path(value: &str) -> Result<PathBuf, String> {

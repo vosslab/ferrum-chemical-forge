@@ -5,11 +5,53 @@
 //! exact Telex layout from one document observation.
 
 use std::collections::HashSet;
+use std::ops::Deref;
 
 use crate::{
-    DocumentVectorRootV1, GlyphBounds, MoleculeRenderPlan, Paint, PresentationTextOp, RenderError,
-    RenderPoint, RenderProvenance, TextOp,
+    DocumentVectorRootV1, GlyphBounds, MoleculeMemberDepictionIssueV1, MoleculeRenderPlan, Paint,
+    PresentationTextOp, RenderError, RenderPoint, RenderProvenance, TextOp,
 };
+
+/// Paintable molecule batches plus diagnostics owned by its direct-root molecule.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DocumentMoleculeRenderContentV1 {
+    plan: MoleculeRenderPlan,
+    member_issues: Vec<MoleculeMemberDepictionIssueV1>,
+}
+
+impl DocumentMoleculeRenderContentV1 {
+    /// Preserve one molecule plan and all diagnostics owned by its durable members.
+    #[must_use]
+    pub const fn new(
+        plan: MoleculeRenderPlan,
+        member_issues: Vec<MoleculeMemberDepictionIssueV1>,
+    ) -> Self {
+        Self {
+            plan,
+            member_issues,
+        }
+    }
+
+    /// Return paintable molecule batches.
+    #[must_use]
+    pub const fn plan(&self) -> &MoleculeRenderPlan {
+        &self.plan
+    }
+
+    /// Return diagnostics for exact molecule members, including mixed paintable molecules.
+    #[must_use]
+    pub fn member_issues(&self) -> &[MoleculeMemberDepictionIssueV1] {
+        &self.member_issues
+    }
+}
+
+impl Deref for DocumentMoleculeRenderContentV1 {
+    type Target = MoleculeRenderPlan;
+
+    fn deref(&self) -> &Self::Target {
+        &self.plan
+    }
+}
 
 /// A finite, positive scene rectangle supplied as the physical output page.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -55,48 +97,6 @@ impl RenderViewportV1 {
     #[must_use]
     pub const fn height(self) -> f64 {
         self.height
-    }
-}
-
-/// An exact root identity, either durable or local to its immutable projection.
-///
-/// A projection-local key identifies a displayed root without claiming that the
-/// root has an authored durable ID or can be used as a mutation selector.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum DocumentRenderIdentityV1 {
-    /// An authored durable root identity supplied by the authoritative caller.
-    Durable(String),
-    /// A projection-local root key supplied by the authoritative caller.
-    ProjectionLocal(String),
-}
-
-impl DocumentRenderIdentityV1 {
-    /// Construct a nonblank durable identity without changing its spelling.
-    pub fn durable(value: impl Into<String>) -> Result<Self, RenderError> {
-        Self::validated(value.into(), "durable document root identity").map(Self::Durable)
-    }
-
-    /// Construct a nonblank projection-local identity without inventing an ID.
-    pub fn projection_local(value: impl Into<String>) -> Result<Self, RenderError> {
-        Self::validated(value.into(), "projection-local document root identity")
-            .map(Self::ProjectionLocal)
-    }
-
-    fn validated(value: String, description: &str) -> Result<String, RenderError> {
-        if value.trim().is_empty() || value.chars().any(char::is_control) {
-            return Err(RenderError::InvalidRequest(format!(
-                "{description} must be visible text without controls"
-            )));
-        }
-        Ok(value)
-    }
-
-    /// Return the exact caller-issued identity spelling.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Durable(value) | Self::ProjectionLocal(value) => value,
-        }
     }
 }
 
@@ -203,18 +203,18 @@ pub enum DocumentTextLayoutV1 {
 #[derive(Clone, Debug, PartialEq)]
 pub enum DocumentRenderContentV1 {
     /// A complete existing molecule render plan.
-    Molecule(MoleculeRenderPlan),
+    Molecule(DocumentMoleculeRenderContentV1),
     /// One complete existing text operation, including plus signs.
     Text(DocumentTextOpV1),
     /// One checked generic vector root in document-local paint order.
     Vector(DocumentVectorRootV1),
 }
 
-/// A paintable direct-root item in strict document source order.
+/// A paintable direct-root item in explicit renderer paint order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentRenderRootV1 {
-    source_order: u32,
-    identity: DocumentRenderIdentityV1,
+    target: crate::RenderTarget,
+    paint_order: u32,
     content: DocumentRenderContentV1,
 }
 
@@ -222,26 +222,26 @@ impl DocumentRenderRootV1 {
     /// Construct one paintable direct-root item.
     #[must_use]
     pub const fn new(
-        source_order: u32,
-        identity: DocumentRenderIdentityV1,
+        target: crate::RenderTarget,
+        paint_order: u32,
         content: DocumentRenderContentV1,
     ) -> Self {
         Self {
-            source_order,
-            identity,
+            target,
+            paint_order,
             content,
         }
     }
 
-    /// Return the root's direct-child source order.
+    /// Return the durable root target.
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
+    pub const fn target(&self) -> &crate::RenderTarget {
+        &self.target
     }
-    /// Return the durable-or-local root identity.
+    /// Return the root's explicit renderer paint order.
     #[must_use]
-    pub fn identity(&self) -> &DocumentRenderIdentityV1 {
-        &self.identity
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
     /// Return the renderer-owned content.
     #[must_use]
@@ -253,16 +253,16 @@ impl DocumentRenderRootV1 {
 /// A valid root intentionally omitted because its operation has no renderer equivalent.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentRenderExclusionV1 {
-    source_order: u32,
-    identity: DocumentRenderIdentityV1,
+    target: crate::RenderTarget,
+    paint_order: u32,
     feature: String,
 }
 
 impl DocumentRenderExclusionV1 {
     /// Record one named, intentionally unpainted direct root.
     pub fn new(
-        source_order: u32,
-        identity: DocumentRenderIdentityV1,
+        target: crate::RenderTarget,
+        paint_order: u32,
         feature: impl Into<String>,
     ) -> Result<Self, RenderError> {
         let feature = feature.into();
@@ -272,21 +272,21 @@ impl DocumentRenderExclusionV1 {
             ));
         }
         Ok(Self {
-            source_order,
-            identity,
+            target,
+            paint_order,
             feature,
         })
     }
 
-    /// Return the excluded root's direct-child source order.
+    /// Return the durable excluded root target.
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
+    pub const fn target(&self) -> &crate::RenderTarget {
+        &self.target
     }
-    /// Return the exact durable-or-local root identity.
+    /// Return the excluded root's explicit renderer paint order.
     #[must_use]
-    pub fn identity(&self) -> &DocumentRenderIdentityV1 {
-        &self.identity
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
     /// Return the named renderer gap.
     #[must_use]
@@ -295,7 +295,7 @@ impl DocumentRenderExclusionV1 {
     }
 }
 
-/// One direct-root outcome in exact document source order.
+/// One direct-root outcome in explicit renderer paint order.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DocumentRenderOutcomeV1 {
     /// A root the current renderer can paint.
@@ -305,21 +305,21 @@ pub enum DocumentRenderOutcomeV1 {
 }
 
 impl DocumentRenderOutcomeV1 {
-    /// Return the direct-child source order shared by all outcome kinds.
+    /// Return the explicit paint order shared by all outcome kinds.
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
+    pub const fn paint_order(&self) -> u32 {
         match self {
-            Self::Root(root) => root.source_order(),
-            Self::Exclusion(exclusion) => exclusion.source_order(),
+            Self::Root(root) => root.paint_order(),
+            Self::Exclusion(exclusion) => exclusion.paint_order(),
         }
     }
 
-    /// Return the exact durable-or-local root identity.
+    /// Return the durable target shared by all outcome kinds.
     #[must_use]
-    pub fn identity(&self) -> &DocumentRenderIdentityV1 {
+    pub const fn target(&self) -> &crate::RenderTarget {
         match self {
-            Self::Root(root) => root.identity(),
-            Self::Exclusion(exclusion) => exclusion.identity(),
+            Self::Root(root) => root.target(),
+            Self::Exclusion(exclusion) => exclusion.target(),
         }
     }
 }
@@ -332,94 +332,6 @@ pub struct DocumentRenderPlanV1 {
     outcomes: Vec<DocumentRenderOutcomeV1>,
 }
 
-/// One renderer-owned, immutable direct-root projection for a transient client
-/// overlay. This value carries the exact content the page plan would paint;
-/// callers cannot supply replacement geometry, CDML, or styling.
-#[derive(Clone, Debug, PartialEq)]
-pub struct RenderRootOverlayV1 {
-    identity: DocumentRenderIdentityV1,
-    source_order: u32,
-    content: DocumentRenderContentV1,
-}
-
-impl RenderRootOverlayV1 {
-    #[must_use]
-    pub const fn identity(&self) -> &DocumentRenderIdentityV1 {
-        &self.identity
-    }
-
-    #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
-    }
-
-    #[must_use]
-    pub const fn content(&self) -> &DocumentRenderContentV1 {
-        &self.content
-    }
-}
-
-/// One renderer-owned, immutable molecule-only projection for a transient
-/// preview. Unlike a document-root overlay, this carries no page identity or
-/// source order because a pending insertion is not yet a document root.
-#[derive(Clone, Debug, PartialEq)]
-pub struct MoleculeRenderOverlayV1 {
-    plan: MoleculeRenderPlan,
-}
-
-impl MoleculeRenderOverlayV1 {
-    #[must_use]
-    pub const fn plan(&self) -> &MoleculeRenderPlan {
-        &self.plan
-    }
-}
-
-/// Project an already renderer-admitted molecule plan for transient drawing.
-///
-/// This intentionally accepts only the exact molecule plan. Pending document
-/// mutations have no durable root identity or source order until commit.
-#[must_use]
-pub fn preview_molecule_render_overlay_v1(plan: &MoleculeRenderPlan) -> MoleculeRenderOverlayV1 {
-    MoleculeRenderOverlayV1 { plan: plan.clone() }
-}
-
-/// Return exactly one paintable root from a composed document plan.
-///
-/// Missing or excluded identities fail closed so a preview cannot claim that a
-/// renderer-admitted candidate is visible when normal document painting omits
-/// it.
-pub fn preview_root_render_overlay_v1(
-    plan: &DocumentRenderPlanV1,
-    identity: &DocumentRenderIdentityV1,
-) -> Result<RenderRootOverlayV1, RenderError> {
-    let mut result = None;
-    for outcome in plan.outcomes() {
-        if outcome.identity() != identity {
-            continue;
-        }
-        let DocumentRenderOutcomeV1::Root(root) = outcome else {
-            return Err(RenderError::InvalidRequest(
-                "selected render root is excluded from the renderer".to_owned(),
-            ));
-        };
-        if result.is_some() {
-            return Err(RenderError::InvalidRequest(
-                "selected render root occurs more than once in the renderer plan".to_owned(),
-            ));
-        }
-        result = Some(RenderRootOverlayV1 {
-            identity: root.identity().clone(),
-            source_order: root.source_order(),
-            content: root.content().clone(),
-        });
-    }
-    result.ok_or_else(|| {
-        RenderError::InvalidRequest(
-            "selected render root is absent from the renderer plan".to_owned(),
-        )
-    })
-}
-
 impl DocumentRenderPlanV1 {
     /// Construct a page plan from one observation's authenticated render facts.
     pub fn new(
@@ -427,12 +339,12 @@ impl DocumentRenderPlanV1 {
         page: RenderViewportV1,
         outcomes: Vec<DocumentRenderOutcomeV1>,
     ) -> Result<Self, RenderError> {
-        let mut identities = HashSet::new();
-        let mut source_orders = HashSet::new();
-        identities
+        let mut targets = HashSet::new();
+        let mut paint_orders = HashSet::new();
+        targets
             .try_reserve(outcomes.len())
             .map_err(|_| RenderError::ResourceExhausted)?;
-        source_orders
+        paint_orders
             .try_reserve(outcomes.len())
             .map_err(|_| RenderError::ResourceExhausted)?;
         let mut previous = None;
@@ -446,20 +358,19 @@ impl DocumentRenderPlanV1 {
                 ));
             }
             validate_root_key(
-                outcome.source_order(),
-                outcome.identity(),
-                &mut source_orders,
-                &mut identities,
+                outcome.paint_order(),
+                outcome.target(),
+                &mut paint_orders,
+                &mut targets,
             )?;
             if let Some(previous) = previous
-                && outcome.source_order() <= previous
+                && outcome.paint_order() <= previous
             {
                 return Err(RenderError::InvalidRequest(
-                    "document render outcomes must have strictly increasing source order"
-                        .to_owned(),
+                    "document render outcomes must have strictly increasing paint order".to_owned(),
                 ));
             }
-            previous = Some(outcome.source_order());
+            previous = Some(outcome.paint_order());
         }
         Ok(Self {
             provenance,
@@ -478,7 +389,7 @@ impl DocumentRenderPlanV1 {
     pub const fn page(&self) -> RenderViewportV1 {
         self.page
     }
-    /// Return every paintable or excluded root in strict source order.
+    /// Return every paintable or excluded root in strict paint order.
     #[must_use]
     pub fn outcomes(&self) -> &[DocumentRenderOutcomeV1] {
         &self.outcomes
@@ -486,19 +397,19 @@ impl DocumentRenderPlanV1 {
 }
 
 fn validate_root_key(
-    source_order: u32,
-    identity: &DocumentRenderIdentityV1,
-    source_orders: &mut HashSet<u32>,
-    identities: &mut HashSet<DocumentRenderIdentityV1>,
+    paint_order: u32,
+    target: &crate::RenderTarget,
+    paint_orders: &mut HashSet<u32>,
+    targets: &mut HashSet<ferrum_document_projection::DocumentObjectIdV1>,
 ) -> Result<(), RenderError> {
-    if !source_orders.insert(source_order) {
+    if !paint_orders.insert(paint_order) {
         return Err(RenderError::InvalidRequest(
-            "document render roots and exclusions must have unique source orders".to_owned(),
+            "document render roots and exclusions must have unique paint orders".to_owned(),
         ));
     }
-    if !identities.insert(identity.clone()) {
+    if !targets.insert(target.document_object_id().clone()) {
         return Err(RenderError::InvalidRequest(
-            "document render roots and exclusions must have unique identities".to_owned(),
+            "document render roots and exclusions must have unique durable targets".to_owned(),
         ));
     }
     Ok(())

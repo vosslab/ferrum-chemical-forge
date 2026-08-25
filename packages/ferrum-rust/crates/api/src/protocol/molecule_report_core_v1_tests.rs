@@ -39,10 +39,9 @@ use super::super::{
 };
 use super::{
     DocumentMoleculeReportAggregateOmissionReasonV1, DocumentMoleculeReportErrorV1,
-    DocumentMoleculeReportRequestErrorV1, MAX_MOLECULE_REPORT_SELECTOR_UTF8_BYTES_V1,
-    MAX_MOLECULE_REPORT_SELECTORS_V1, ParsedDocumentMoleculeReportRequestV1,
-    execute_prepared_document_molecule_report_v1, prepare_document_molecule_report_v1,
-    report_summary,
+    DocumentMoleculeReportRequestErrorV1, MAX_MOLECULE_REPORT_SELECTORS_V1,
+    ParsedDocumentMoleculeReportRequestV1, execute_prepared_document_molecule_report_v1,
+    prepare_document_molecule_report_v1, report_summary,
 };
 use ferrum_document::DocumentBondCapacityOutcomeV1;
 
@@ -107,6 +106,15 @@ fn observation(source: &str) -> ferrum_document::SessionDocumentObservationV1 {
         .expect("source loads")
         .observe(0)
         .expect("source projects")
+}
+
+fn canonical_document(source: &str) -> String {
+    DocumentSession::load(source)
+        .expect("source loads")
+        .snapshot()
+        .expect("source persists")
+        .cdml()
+        .to_owned()
 }
 fn request(
     observation: &ferrum_document::SessionDocumentObservationV1,
@@ -296,11 +304,12 @@ fn snapshot_report_retains_generic_inserted_tetrahedral_and_ez_semantics() {
 }
 
 #[test]
-fn report_records_follow_document_source_order_not_selector_order() {
-    let observation = observation(concat!(
+fn report_records_follow_document_paint_order_not_selector_order() {
+    let source = canonical_document(concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"first\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"second\"><atom id=\"o\" name=\"O\"><point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
     ));
+    let observation = observation(&source);
     let receipt = execute_prepared_document_molecule_report_v1(
         &CompositionEngine,
         prepare_document_molecule_report_v1(&observation, &request(&observation, &[1, 0]))
@@ -311,9 +320,22 @@ fn report_records_follow_document_source_order_not_selector_order() {
         receipt
             .records()
             .iter()
-            .map(|record| record.source().source_id())
+            .map(|record| record.source().molecule_id().as_str())
             .collect::<Vec<_>>(),
-        vec!["first", "second"]
+        observation
+            .projection()
+            .molecules()
+            .iter()
+            .map(|root| root.id().expect("direct root id").as_str())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        receipt
+            .records()
+            .iter()
+            .map(|record| record.source().document_paint_order())
+            .collect::<Vec<_>>(),
+        vec![0, 1]
     );
     assert_eq!(
         receipt.records()[0]
@@ -561,20 +583,6 @@ fn selector_bound_rejects_before_duplicate_analysis() {
 }
 
 #[test]
-fn selector_length_refuses_before_document_resolution() {
-    let selector = ferrum_document::DocumentObjectIdV1::parse(format!(
-        "ferrum-document-object-v1/{}/source/{}",
-        "6d6f6c6563756c65",
-        "61".repeat(MAX_MOLECULE_REPORT_SELECTOR_UTF8_BYTES_V1),
-    ))
-    .expect("selector grammar remains valid");
-    assert_eq!(
-        ParsedDocumentMoleculeReportRequestV1::new(0, [0; 32], vec![selector]),
-        Err(DocumentMoleculeReportRequestErrorV1::SelectorTooLong)
-    );
-}
-
-#[test]
 fn one_selected_record_explains_why_combined_composition_is_absent() {
     let observation = observation(
         "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
@@ -594,12 +602,12 @@ fn one_selected_record_explains_why_combined_composition_is_absent() {
 
 #[test]
 fn protocol_maps_literal_isotope_aware_report_facts_without_runtime_detail() {
-    let source = concat!(
+    let source = canonical_document(concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"c\" name=\"C\" charge=\"1\" isotope=\"13\">",
         "<point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"second\"><atom id=\"o\" name=\"O\" charge=\"1\">",
         "<point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
-    );
-    let observation = observation(source);
+    ));
+    let observation = observation(&source);
     let digest: String = observation
         .snapshot()
         .digest()
@@ -794,8 +802,10 @@ fn mapper_serializes_both_closed_aggregate_omissions() {
 
 #[test]
 fn protocol_missing_runtime_is_a_redacted_chemistry_refusal() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
-    let observation = observation(source);
+    let source = canonical_document(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+    );
+    let observation = observation(&source);
     let digest: String = observation
         .snapshot()
         .digest()
@@ -826,12 +836,12 @@ fn protocol_missing_runtime_is_a_redacted_chemistry_refusal() {
 }
 
 #[test]
-fn detached_protocol_report_preserves_nonzero_snapshot_provenance_and_source_order() {
-    let source = concat!(
+fn detached_protocol_report_preserves_nonzero_snapshot_provenance_and_document_paint_order() {
+    let source = canonical_document(concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
         "<molecule id=\"second\"><atom id=\"o\" name=\"O\"><point x=\"1\" y=\"0\"/></atom></molecule></cdml>"
-    );
-    let observation = observation(source);
+    ));
+    let observation = observation(&source);
     let digest: String = observation
         .snapshot()
         .digest()
@@ -868,22 +878,43 @@ fn detached_protocol_report_preserves_nonzero_snapshot_provenance_and_source_ord
         report
             .records
             .iter()
-            .map(|record| record.source_id.as_str())
+            .map(|record| record.molecule_id.as_str())
             .collect::<Vec<_>>(),
-        vec!["first", "second"]
+        observation
+            .projection()
+            .molecules()
+            .iter()
+            .map(|root| root.id().expect("direct root id").as_str())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        report
+            .records
+            .iter()
+            .map(|record| record.document_paint_order)
+            .collect::<Vec<_>>(),
+        vec![0, 1]
     );
 }
 
 #[test]
 fn detached_protocol_report_refuses_a_digest_that_does_not_authenticate_cdml() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    let source = canonical_document(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+    );
+    let observation = observation(&source);
+    let molecule_id = observation.projection().molecules()[0]
+        .id()
+        .expect("direct root id")
+        .as_str()
+        .to_owned();
     let request = serde_json::json!({
         "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
         "request_id": "invalid-report-snapshot",
         "operation": {
             "kind": "document.molecule.report.v1",
             "snapshot": {"cdml": source, "revision": 4, "digest_hex": "00".repeat(32)},
-            "molecule_ids": ["m"],
+            "molecule_ids": [molecule_id],
         }
     });
     let envelope = execute_operation_with_runtime_v1(&request.to_string(), &CompositionRuntime)
@@ -903,8 +934,10 @@ fn detached_protocol_report_refuses_a_digest_that_does_not_authenticate_cdml() {
 
 #[test]
 fn detached_protocol_report_uses_the_shared_final_envelope_budget() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
-    let observation = observation(source);
+    let source = canonical_document(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+    );
+    let observation = observation(&source);
     let digest: String = observation
         .snapshot()
         .digest()

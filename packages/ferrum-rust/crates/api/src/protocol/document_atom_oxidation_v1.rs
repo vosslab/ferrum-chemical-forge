@@ -28,7 +28,7 @@ pub(super) fn execute_document_atom_oxidation_observe(
         .map_err(|_| invalid_request("molecule_id is not a durable document object identifier"))?;
     let atom_id = DocumentObjectIdV1::parse(request.atom_id.clone())
         .map_err(|_| invalid_request("atom_id is not a durable document object identifier"))?;
-    let root_order = snapshot
+    let document_paint_order = snapshot
         .observation()
         .projection()
         .molecules()
@@ -45,7 +45,7 @@ pub(super) fn execute_document_atom_oxidation_observe(
         .session()
         .observe_atom_oxidation_v1(&session_request)
         .map_err(ExecutionFailureV1::oxidation_refusal)?;
-    let document_root_order = root_order.ok_or_else(|| {
+    let document_paint_order = document_paint_order.ok_or_else(|| {
         ExecutionFailureV1::oxidation_refusal(
             ferrum_document::DocumentAtomOxidationRefusalV1::UnknownDirectMolecule,
         )
@@ -74,7 +74,7 @@ pub(super) fn execute_document_atom_oxidation_observe(
             source_digest_hex: hex_digest(snapshot.source_digest()),
             molecule_id: request.molecule_id,
             atom_id: request.atom_id,
-            document_root_order,
+            document_paint_order,
             convention: OXIDATION_CONVENTION_V1.to_owned(),
             outcome,
         },

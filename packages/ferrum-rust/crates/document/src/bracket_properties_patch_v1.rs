@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{GeometricLineWidthV1, PersistentId, Rgb24V1};
+use super::{DocumentObjectIdV1, GeometricLineWidthV1, Rgb24V1};
 
 /// One supported common bracket-pair appearance change.
 #[derive(Clone, Debug, PartialEq)]
@@ -39,21 +39,22 @@ impl BracketPropertyKindV1 {
     }
 }
 
-/// One validated pair-ID-targeted bracket appearance patch.
+/// One validated left/right-member bracket appearance patch.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BracketPropertiesPatchV1 {
-    pair_id: PersistentId,
+    members: [DocumentObjectIdV1; 2],
     changes: Vec<BracketPropertyChangeV1>,
 }
 
 impl BracketPropertiesPatchV1 {
     /// Validate one complete two-field edit intent without reading a document.
     pub fn new(
-        pair_id: impl Into<String>,
+        members: [DocumentObjectIdV1; 2],
         changes: Vec<BracketPropertyChangeV1>,
     ) -> Result<Self, BracketPropertiesPatchV1Error> {
-        let pair_id = PersistentId::new(pair_id.into())
-            .map_err(|_| BracketPropertiesPatchV1Error::InvalidPairId)?;
+        if members[0] == members[1] {
+            return Err(BracketPropertiesPatchV1Error::DuplicateMembers);
+        }
         if changes.len() > 2 {
             return Err(BracketPropertiesPatchV1Error::TooManyChanges);
         }
@@ -66,13 +67,13 @@ impl BracketPropertiesPatchV1 {
                 });
             }
         }
-        Ok(Self { pair_id, changes })
+        Ok(Self { members, changes })
     }
 
-    /// Return the durable pair identifier, which is the left member ID.
+    /// Return the two distinct durable bracket members in caller-preserved order.
     #[must_use]
-    pub fn pair_id(&self) -> &PersistentId {
-        &self.pair_id
+    pub fn members(&self) -> &[DocumentObjectIdV1; 2] {
+        &self.members
     }
 
     /// Return unique common appearance changes in caller order.
@@ -85,13 +86,41 @@ impl BracketPropertiesPatchV1 {
 /// Invalid bracket-pair appearance intent rejected before document lookup.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum BracketPropertiesPatchV1Error {
-    /// The durable pair identifier is invalid.
-    #[error("bracket properties require a valid persistent pair ID")]
-    InvalidPairId,
+    /// Both bracket members used the same durable document-object selector.
+    #[error("bracket properties require two distinct document-object members")]
+    DuplicateMembers,
     /// A request exceeded the two-field closed grammar.
     #[error("bracket properties accept at most two changes")]
     TooManyChanges,
     /// One closed property appeared more than once in one patch.
     #[error("bracket property change is duplicated: {property}")]
     DuplicateChange { property: &'static str },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn object_id(entropy: u8) -> DocumentObjectIdV1 {
+        DocumentObjectIdV1::from_entropy_bytes([entropy; 16])
+    }
+
+    #[test]
+    fn accepts_and_preserves_authoritative_opaque_member_order() {
+        let members = [object_id(0x20), object_id(0x10)];
+        let patch = BracketPropertiesPatchV1::new(members.clone(), Vec::new())
+            .expect("authoritative opaque member order must be accepted");
+
+        assert_eq!(patch.members(), &members);
+    }
+
+    #[test]
+    fn rejects_duplicate_opaque_members() {
+        let first = object_id(0x10);
+
+        assert_eq!(
+            BracketPropertiesPatchV1::new([first.clone(), first.clone()], Vec::new()),
+            Err(BracketPropertiesPatchV1Error::DuplicateMembers)
+        );
+    }
 }

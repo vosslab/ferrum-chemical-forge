@@ -10,6 +10,7 @@ use crate::{
     DocumentPrecommitOverlayV1, DocumentRenderPlanCompositionError, DocumentRenderPlanV1,
     RenderError, ResolvedDocumentRenderV1, compose_document_render_plan_v1,
 };
+use ferrum_document_projection::DocumentObjectIdV1;
 
 /// Fixed renderer schema recorded in V1 accepted values.
 pub const COMPLETE_DOCUMENT_RENDERER_SCHEMA_V1: &str = "ferrum-complete-document-renderer-v1";
@@ -18,7 +19,7 @@ pub const COMPLETE_DOCUMENT_RENDERER_SCHEMA_V1: &str = "ferrum-complete-document
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AcceptedCompleteRenderRootV1 {
     identity: CompleteRenderRootIdentityV1,
-    source_order: u32,
+    paint_order: u32,
     class: CompleteRenderRootClassV1,
 }
 
@@ -29,10 +30,10 @@ impl AcceptedCompleteRenderRootV1 {
         &self.identity
     }
 
-    /// Return the root's source order.
+    /// Return the root's canonical paint order.
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
 
     /// Return the accepted visual root class.
@@ -49,7 +50,7 @@ pub struct AcceptedCompleteRenderPresentationV1 {
 }
 
 impl AcceptedCompleteRenderPresentationV1 {
-    /// Return accepted visual roots in exact source order.
+    /// Return accepted visual roots in exact canonical paint order.
     #[must_use]
     pub fn roots(&self) -> &[AcceptedCompleteRenderRootV1] {
         &self.roots
@@ -118,34 +119,38 @@ impl AcceptedRenderOverlayRequestV1 {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AcceptedRenderOverlayTargetV1 {
     kind: AcceptedRenderOverlayTargetKindV1,
-    source_identifier: String,
+    document_object_id: DocumentObjectIdV1,
 }
 
 impl AcceptedRenderOverlayTargetV1 {
-    /// Select one atom record by its persistent source identifier.
+    /// Select one atom record by its persisted durable identity.
     #[must_use]
-    pub fn atom(source_identifier: impl Into<String>) -> Self {
+    pub const fn atom(document_object_id: DocumentObjectIdV1) -> Self {
         Self {
             kind: AcceptedRenderOverlayTargetKindV1::Atom,
-            source_identifier: source_identifier.into(),
+            document_object_id,
         }
     }
 
-    /// Select one bond record by its persistent source identifier.
+    /// Select one bond record by its persisted durable identity.
     #[must_use]
-    pub fn bond(source_identifier: impl Into<String>) -> Self {
+    pub const fn bond(document_object_id: DocumentObjectIdV1) -> Self {
         Self {
             kind: AcceptedRenderOverlayTargetKindV1::Bond,
-            source_identifier: source_identifier.into(),
+            document_object_id,
         }
     }
 
-    pub(crate) const fn kind(&self) -> AcceptedRenderOverlayTargetKindV1 {
+    /// Return the closed record class required for this durable selection.
+    #[must_use]
+    pub const fn kind(&self) -> AcceptedRenderOverlayTargetKindV1 {
         self.kind
     }
 
-    pub(crate) fn source_identifier(&self) -> &str {
-        &self.source_identifier
+    /// Return the persisted document identity selected for the overlay.
+    #[must_use]
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
 }
 
@@ -186,7 +191,7 @@ pub fn admit_complete_document_render_v1(
         }
         roots.push(AcceptedCompleteRenderRootV1 {
             identity: root.identity().clone(),
-            source_order: root.source_order(),
+            paint_order: root.paint_order(),
             class,
         });
     }

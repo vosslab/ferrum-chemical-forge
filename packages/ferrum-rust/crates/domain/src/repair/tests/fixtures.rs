@@ -5,7 +5,7 @@ use crate::repair::{DepictionBond, DepictionVertex};
 
 pub(super) fn id(kind: RecordKind, text: &str) -> RecordId {
     let source = Identifier::new(text).expect("test identifier must be nonblank");
-    RecordId::from_source(kind, &source)
+    RecordId::new(kind, source).expect("test record identifier")
 }
 
 pub(super) fn point(x: f64, y: f64) -> Point2 {

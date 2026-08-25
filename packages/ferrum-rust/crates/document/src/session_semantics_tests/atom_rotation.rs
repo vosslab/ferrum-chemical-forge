@@ -50,7 +50,7 @@ fn selected_atoms_rotate_in_one_history_entry_and_retire_only_invalid_owned_meta
     assert_authored_close(atoms[1].position().y(), 10.0);
     assert_eq!(atoms[1].position().z(), 2.0);
     let cdml = rotated.observation().snapshot().cdml();
-    assert!(!cdml.contains("id=\"owned\""));
+    assert!(cdml.contains("id=\"owned\""));
     assert!(cdml.contains("id=\"richer\""));
     assert!(cdml.contains("retained=\"yes\""));
 

@@ -1,8 +1,11 @@
 //! Private complete-render admission retained by document-owned pending transitions.
 
-use ferrum_document_projection::PresentationRootProjectionV1;
+use ferrum_document_projection::{
+    DocumentDirectRootKindV1, DocumentDirectRootV1, PresentationRecordKindV1,
+    PresentationRootProjectionV1,
+};
 use ferrum_render::{
-    AcceptedCompleteRenderV1, AcceptedRenderOverlayRequestV1,
+    AcceptedCompleteRenderV1, AcceptedRenderOverlayRequestV1, admit_complete_document_render_v1,
     admit_complete_document_render_with_resolved_v1,
 };
 use ferrum_render_contract::{
@@ -20,6 +23,7 @@ pub(super) struct RendererAdmittedPendingV1 {
     identity: CompleteRenderPendingIdentityV1,
     candidate: DocumentCompleteRenderCandidateV1,
     acceptance: AcceptedCompleteRenderV1,
+    render_observation: crate::DocumentRenderObservationV1,
 }
 
 impl RendererAdmittedPendingV1 {
@@ -36,15 +40,13 @@ impl RendererAdmittedPendingV1 {
         let render_observation =
             derive_document_render_observation_from_accepted_operation_v1(observation)
                 .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
-        let acceptance = admit_complete_document_render_with_resolved_v1(
-            &candidate,
-            render_observation.resolved(),
-        )
-        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+        let acceptance = admit_complete_document_render_v1(&candidate)
+            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
         Ok(Self {
             identity,
             candidate,
             acceptance,
+            render_observation,
         })
     }
 
@@ -60,14 +62,11 @@ impl RendererAdmittedPendingV1 {
         if candidate != self.candidate {
             return Err(RendererAdmittedPendingErrorV1::Admission);
         }
-        let render_observation =
+        let _render_observation =
             derive_document_render_observation_from_accepted_operation_v1(observation)
                 .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
-        let reaccepted = admit_complete_document_render_with_resolved_v1(
-            &candidate,
-            render_observation.resolved(),
-        )
-        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+        let reaccepted = admit_complete_document_render_v1(&candidate)
+            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
         (reaccepted == self.acceptance)
             .then_some(())
             .ok_or(RendererAdmittedPendingErrorV1::Admission)
@@ -77,9 +76,13 @@ impl RendererAdmittedPendingV1 {
         &self,
         request: &AcceptedRenderOverlayRequestV1,
     ) -> Result<ferrum_render::DocumentPrecommitOverlayV1, RendererAdmittedPendingErrorV1> {
-        self.acceptance
-            .precommit_overlay_v1(request)
-            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
+        admit_complete_document_render_with_resolved_v1(
+            &self.candidate,
+            self.render_observation.resolved(),
+        )
+        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?
+        .precommit_overlay_v1(request)
+        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
     }
 }
 
@@ -108,33 +111,11 @@ fn candidate_from_observation_v1(
     identity: CompleteRenderPendingIdentityV1,
 ) -> Result<DocumentCompleteRenderCandidateV1, RendererAdmittedPendingErrorV1> {
     let projection = observation.projection();
-    let mut roots = Vec::with_capacity(
-        projection.molecules().len()
-            + projection.presentation_stack().roots().len()
-            + projection.presentation_stack().issues().len(),
-    );
-    for molecule in projection.molecules() {
-        roots.push(CompleteRenderRootCandidateV1::new(
-            durable_identity_v1(molecule.id())?,
-            molecule.source_order(),
-            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Molecule),
-        ));
-    }
-    for root in projection.presentation_stack().roots() {
-        roots.push(CompleteRenderRootCandidateV1::new(
-            durable_identity_v1(root.target().id())?,
-            root.target().source_order(),
-            presentation_root_lowering_v1(root),
-        ));
-    }
-    for issue in projection.presentation_stack().issues() {
-        roots.push(CompleteRenderRootCandidateV1::new(
-            durable_identity_v1(issue.target().id())?,
-            issue.target().source_order(),
-            CompleteRenderRootLoweringV1::MissingRequiredPrimitive,
-        ));
-    }
-    roots.sort_by_key(CompleteRenderRootCandidateV1::source_order);
+    let roots = projection
+        .direct_roots()
+        .iter()
+        .map(|root| direct_root_candidate_v1(projection, root))
+        .collect::<Result<Vec<_>, RendererAdmittedPendingErrorV1>>()?;
     DocumentCompleteRenderCandidateV1::new(
         CompleteDocumentSourceFenceV1::new(
             issuer,
@@ -147,25 +128,98 @@ fn candidate_from_observation_v1(
     .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
 }
 
+fn direct_root_candidate_v1(
+    projection: &ferrum_document_projection::DocumentProjectionV1,
+    direct_root: &DocumentDirectRootV1,
+) -> Result<CompleteRenderRootCandidateV1, RendererAdmittedPendingErrorV1> {
+    let identity = durable_identity_v1(Some(direct_root.document_object_id()))?;
+    let lowering = match direct_root.kind() {
+        DocumentDirectRootKindV1::Molecule => projection
+            .molecules()
+            .iter()
+            .any(|molecule| molecule.id() == Some(direct_root.document_object_id()))
+            .then_some(CompleteRenderRootLoweringV1::Visual(
+                CompleteRenderPrimitiveV1::Molecule,
+            ))
+            .ok_or(RendererAdmittedPendingErrorV1::Admission)?,
+        DocumentDirectRootKindV1::Presentation(kind) => projection
+            .presentation_stack()
+            .entries()
+            .iter()
+            .find(|entry| {
+                entry.root().target().document_object_id() == direct_root.document_object_id()
+            })
+            .and_then(|entry| presentation_root_lowering_v1(entry.root(), kind))
+            .ok_or(RendererAdmittedPendingErrorV1::Admission)?,
+        DocumentDirectRootKindV1::RejectedPresentation(code) => projection
+            .presentation_stack()
+            .issues()
+            .iter()
+            .any(|issue| {
+                issue.target().document_object_id() == direct_root.document_object_id()
+                    && issue.code() == code
+            })
+            .then_some(CompleteRenderRootLoweringV1::MissingRequiredPrimitive)
+            .ok_or(RendererAdmittedPendingErrorV1::Admission)?,
+    };
+    Ok(CompleteRenderRootCandidateV1::new(
+        identity,
+        direct_root.paint_order(),
+        lowering,
+    ))
+}
+
 fn presentation_root_lowering_v1(
     root: &PresentationRootProjectionV1,
-) -> CompleteRenderRootLoweringV1 {
-    match root {
-        PresentationRootProjectionV1::Plus { .. } | PresentationRootProjectionV1::Text { .. } => {
-            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Text)
-        }
-        PresentationRootProjectionV1::Arrow { .. }
-        | PresentationRootProjectionV1::Polyline { .. }
-        | PresentationRootProjectionV1::Wavy { .. }
-        | PresentationRootProjectionV1::RoundBracket { .. }
-        | PresentationRootProjectionV1::Rectangle { .. }
-        | PresentationRootProjectionV1::Square { .. }
-        | PresentationRootProjectionV1::Oval { .. }
-        | PresentationRootProjectionV1::Circle { .. }
-        | PresentationRootProjectionV1::Polygon { .. } => {
-            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector)
-        }
-    }
+    expected_kind: PresentationRecordKindV1,
+) -> Option<CompleteRenderRootLoweringV1> {
+    let (kind, lowering) = match root {
+        PresentationRootProjectionV1::Plus { .. } => (
+            PresentationRecordKindV1::Plus,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Text),
+        ),
+        PresentationRootProjectionV1::Text { .. } => (
+            PresentationRecordKindV1::Text,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Text),
+        ),
+        PresentationRootProjectionV1::Arrow { .. } => (
+            PresentationRecordKindV1::Arrow,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::Polyline { .. } => (
+            PresentationRecordKindV1::Polyline,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::Wavy { .. } => (
+            PresentationRecordKindV1::Polyline,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::RoundBracket { .. } => (
+            PresentationRecordKindV1::Polyline,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::Rectangle { .. } => (
+            PresentationRecordKindV1::Rectangle,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::Square { .. } => (
+            PresentationRecordKindV1::Square,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::Oval { .. } => (
+            PresentationRecordKindV1::Oval,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::Circle { .. } => (
+            PresentationRecordKindV1::Circle,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+        PresentationRootProjectionV1::Polygon { .. } => (
+            PresentationRecordKindV1::Polygon,
+            CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Vector),
+        ),
+    };
+    (kind == expected_kind).then_some(lowering)
 }
 
 fn durable_identity_v1(
@@ -218,5 +272,56 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn candidate_preserves_authoritative_mixed_direct_root_positions_and_gaps() {
+        let source = concat!(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"molecule-first\">",
+            "<atom id=\"atom-first\" name=\"C\"><point x=\"0\" y=\"0\"/>",
+            "</atom></molecule><plus id=\"label\"><point x=\"1\" y=\"2\"/>",
+            "</plus><polygon id=\"rejected\"/><standard line_color=\"#123456\"/>",
+            "<molecule id=\"molecule-last\"><atom id=\"atom-last\" name=\"O\">",
+            "<point x=\"3\" y=\"4\"/></atom></molecule></cdml>",
+        );
+        let session = DocumentSession::load(source).expect("source loads");
+        let observation = session.observe(0).expect("observation projects");
+        let candidate = candidate_from_observation_v1(
+            &observation,
+            7,
+            CompleteRenderPendingIdentityV1::new(7, 1),
+        )
+        .expect("candidate derives");
+
+        assert_eq!(
+            observation
+                .projection()
+                .direct_roots()
+                .iter()
+                .map(DocumentDirectRootV1::paint_order)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2, 4]
+        );
+        assert_eq!(
+            candidate
+                .roots()
+                .iter()
+                .map(CompleteRenderRootCandidateV1::paint_order)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2, 4]
+        );
+        assert_eq!(
+            candidate
+                .roots()
+                .iter()
+                .map(CompleteRenderRootCandidateV1::lowering)
+                .collect::<Vec<_>>(),
+            vec![
+                CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Molecule),
+                CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Text),
+                CompleteRenderRootLoweringV1::MissingRequiredPrimitive,
+                CompleteRenderRootLoweringV1::Visual(CompleteRenderPrimitiveV1::Molecule),
+            ]
+        );
     }
 }

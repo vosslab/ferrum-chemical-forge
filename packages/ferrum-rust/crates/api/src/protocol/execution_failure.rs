@@ -360,98 +360,169 @@ impl ExecutionFailureV1 {
         }
     }
 
-    pub(super) fn reaction_refusal(error: ReactionGestureErrorV1) -> Self {
+    /// Translate one durable reaction-command refusal without exposing source details.
+    pub(super) fn reaction_authoring_command_refusal(
+        error: ferrum_document::ReactionAuthoringCommandRefusalV1,
+    ) -> Self {
+        match error {
+            ferrum_document::ReactionAuthoringCommandRefusalV1::InvalidMembers(error) => {
+                Self::reaction_operation_refusal(error)
+            }
+            ferrum_document::ReactionAuthoringCommandRefusalV1::InvalidSelection(error) => {
+                Self::reaction_selection_refusal(error)
+            }
+            ferrum_document::ReactionAuthoringCommandRefusalV1::ForeignSession => {
+                Self::reaction_failure(
+                    ProtocolReactionRefusalCategoryV1::ForeignSession,
+                    ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+                )
+            }
+            ferrum_document::ReactionAuthoringCommandRefusalV1::Replayed => Self::reaction_failure(
+                ProtocolReactionRefusalCategoryV1::ReplayedGesture,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            ferrum_document::ReactionAuthoringCommandRefusalV1::StaleRevision
+            | ferrum_document::ReactionAuthoringCommandRefusalV1::StaleDigest => {
+                Self::reaction_failure(
+                    ProtocolReactionRefusalCategoryV1::StaleSnapshot,
+                    ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+                )
+            }
+        }
+    }
+
+    /// Translate one durable reaction-selection refusal without exposing source details.
+    pub(super) fn reaction_selection_refusal(
+        error: ferrum_document::ReactionMemberSelectionRefusalV1,
+    ) -> Self {
+        let (category, recovery) = match error {
+            ferrum_document::ReactionMemberSelectionRefusalV1::UnknownReaction
+            | ferrum_document::ReactionMemberSelectionRefusalV1::UnresolvedReaction => (
+                ProtocolReactionRefusalCategoryV1::MissingReaction,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            ferrum_document::ReactionMemberSelectionRefusalV1::WrongReactionKind => (
+                ProtocolReactionRefusalCategoryV1::WrongTargetKind,
+                ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            ),
+            ferrum_document::ReactionMemberSelectionRefusalV1::UnresolvedMember => (
+                ProtocolReactionRefusalCategoryV1::MissingTarget,
+                ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            ),
+            ferrum_document::ReactionMemberSelectionRefusalV1::ForeignSession => (
+                ProtocolReactionRefusalCategoryV1::ForeignSession,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            ferrum_document::ReactionMemberSelectionRefusalV1::StaleRevision
+            | ferrum_document::ReactionMemberSelectionRefusalV1::StaleDigest => (
+                ProtocolReactionRefusalCategoryV1::StaleSnapshot,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            ferrum_document::ReactionMemberSelectionRefusalV1::MembershipMismatch => (
+                ProtocolReactionRefusalCategoryV1::MembershipChanged,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+        };
+        Self::reaction_failure(category, recovery)
+    }
+
+    /// Translate a reaction target-contract refusal without exposing member IDs.
+    pub(super) fn reaction_operation_refusal(
+        error: ferrum_document::ReactionOperationRefusalV1,
+    ) -> Self {
+        let (category, recovery) = match error {
+            ferrum_document::ReactionOperationRefusalV1::MissingRequiredMembers
+            | ferrum_document::ReactionOperationRefusalV1::EmptyMemberIdentifier => (
+                ProtocolReactionRefusalCategoryV1::InvalidRequest,
+                ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            ),
+            ferrum_document::ReactionOperationRefusalV1::DuplicateMember => (
+                ProtocolReactionRefusalCategoryV1::DuplicateTarget,
+                ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            ),
+            ferrum_document::ReactionOperationRefusalV1::MissingMember => (
+                ProtocolReactionRefusalCategoryV1::MissingTarget,
+                ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            ),
+            ferrum_document::ReactionOperationRefusalV1::WrongMemberKind => (
+                ProtocolReactionRefusalCategoryV1::WrongTargetKind,
+                ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            ),
+            ferrum_document::ReactionOperationRefusalV1::CrossReactionReuse => (
+                ProtocolReactionRefusalCategoryV1::CrossReactionReuse,
+                ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            ),
+            ferrum_document::ReactionOperationRefusalV1::InvalidDefinition => (
+                ProtocolReactionRefusalCategoryV1::MissingReaction,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+        };
+        Self::reaction_failure(category, recovery)
+    }
+
+    /// Translate generic renderer-admitted transition refusals for a reaction operation.
+    pub(super) fn reaction_transition_refusal(
+        error: ferrum_document::AdmittedSessionTransitionRefusalV1,
+    ) -> Self {
+        let (category, recovery) = match error {
+            ferrum_document::AdmittedSessionTransitionRefusalV1::ForeignSession => (
+                ProtocolReactionRefusalCategoryV1::ForeignSession,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            ferrum_document::AdmittedSessionTransitionRefusalV1::Replayed => (
+                ProtocolReactionRefusalCategoryV1::ReplayedGesture,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            ferrum_document::AdmittedSessionTransitionRefusalV1::StaleSnapshot => (
+                ProtocolReactionRefusalCategoryV1::StaleSnapshot,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            ferrum_document::AdmittedSessionTransitionRefusalV1::RendererAdmission => (
+                ProtocolReactionRefusalCategoryV1::RenderPreparation,
+                ProtocolReactionRefusalRecoveryV1::ChooseRenderableMembers,
+            ),
+            ferrum_document::AdmittedSessionTransitionRefusalV1::ProvisionalCapability
+            | ferrum_document::AdmittedSessionTransitionRefusalV1::HistoryCapacity => (
+                ProtocolReactionRefusalCategoryV1::SessionConflict,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+            _ => (
+                ProtocolReactionRefusalCategoryV1::SessionConflict,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
+        };
+        Self::reaction_failure(category, recovery)
+    }
+
+    /// Return the closed protocol representation for malformed public reaction input.
+    pub(super) fn reaction_invalid_request() -> Self {
+        Self::reaction_failure(
+            ProtocolReactionRefusalCategoryV1::InvalidRequest,
+            ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+        )
+    }
+
+    fn reaction_failure(
+        category: ProtocolReactionRefusalCategoryV1,
+        recovery: ProtocolReactionRefusalRecoveryV1,
+    ) -> Self {
+        let error_category = match category {
+            ProtocolReactionRefusalCategoryV1::UnrenderableDocument
+            | ProtocolReactionRefusalCategoryV1::RenderPreparation
+            | ProtocolReactionRefusalCategoryV1::RendererExclusion => {
+                OperationProtocolErrorCategoryV1::RenderFailed
+            }
+            _ => OperationProtocolErrorCategoryV1::DocumentInvalid,
+        };
         Self {
-            category: match error.category() {
-                ReactionGestureCategoryV1::UnrenderableDocument
-                | ReactionGestureCategoryV1::RenderPreparation => {
-                    OperationProtocolErrorCategoryV1::RenderFailed
-                }
-                _ => OperationProtocolErrorCategoryV1::DocumentInvalid,
-            },
-            message: error.to_string(),
+            category: error_category,
+            message: "reaction command refused".to_owned(),
             resource_limit: None,
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
-            reaction_refusal: Some(ReactionRefusalV1 {
-                category: reaction_category(error.category()),
-                recovery: reaction_recovery(error.recovery()),
-            }),
+            reaction_refusal: Some(ReactionRefusalV1 { category, recovery }),
             compact_group_materialization_refusal: None,
         }
-    }
-}
-
-pub(super) fn reaction_category(
-    value: ReactionGestureCategoryV1,
-) -> ProtocolReactionRefusalCategoryV1 {
-    match value {
-        ReactionGestureCategoryV1::StaleSnapshot => {
-            ProtocolReactionRefusalCategoryV1::StaleSnapshot
-        }
-        ReactionGestureCategoryV1::ForeignSession => {
-            ProtocolReactionRefusalCategoryV1::ForeignSession
-        }
-        ReactionGestureCategoryV1::ReplayedGesture => {
-            ProtocolReactionRefusalCategoryV1::ReplayedGesture
-        }
-        ReactionGestureCategoryV1::InvalidRequest => {
-            ProtocolReactionRefusalCategoryV1::InvalidRequest
-        }
-        ReactionGestureCategoryV1::MissingTarget => {
-            ProtocolReactionRefusalCategoryV1::MissingTarget
-        }
-        ReactionGestureCategoryV1::WrongTargetKind => {
-            ProtocolReactionRefusalCategoryV1::WrongTargetKind
-        }
-        ReactionGestureCategoryV1::DuplicateTarget => {
-            ProtocolReactionRefusalCategoryV1::DuplicateTarget
-        }
-        ReactionGestureCategoryV1::CrossReactionReuse => {
-            ProtocolReactionRefusalCategoryV1::CrossReactionReuse
-        }
-        ReactionGestureCategoryV1::UnrenderableDocument => {
-            ProtocolReactionRefusalCategoryV1::UnrenderableDocument
-        }
-        ReactionGestureCategoryV1::RenderPreparation => {
-            ProtocolReactionRefusalCategoryV1::RenderPreparation
-        }
-        ReactionGestureCategoryV1::SessionConflict => {
-            ProtocolReactionRefusalCategoryV1::SessionConflict
-        }
-        ReactionGestureCategoryV1::MissingReaction => {
-            ProtocolReactionRefusalCategoryV1::MissingReaction
-        }
-        ReactionGestureCategoryV1::LegacyDefinitionNotEditable => {
-            ProtocolReactionRefusalCategoryV1::LegacyDefinitionNotEditable
-        }
-        ReactionGestureCategoryV1::MembershipChanged => {
-            ProtocolReactionRefusalCategoryV1::MembershipChanged
-        }
-        ReactionGestureCategoryV1::RendererExclusion => {
-            ProtocolReactionRefusalCategoryV1::RendererExclusion
-        }
-        _ => unreachable!("a new reaction category requires protocol mapping"),
-    }
-}
-
-pub(super) fn reaction_recovery(
-    value: ReactionGestureRecoveryV1,
-) -> ProtocolReactionRefusalRecoveryV1 {
-    match value {
-        ReactionGestureRecoveryV1::RefreshAndRestart => {
-            ProtocolReactionRefusalRecoveryV1::RefreshAndRestart
-        }
-        ReactionGestureRecoveryV1::CorrectSelectors => {
-            ProtocolReactionRefusalRecoveryV1::CorrectSelectors
-        }
-        ReactionGestureRecoveryV1::ChooseRenderableMembers => {
-            ProtocolReactionRefusalRecoveryV1::ChooseRenderableMembers
-        }
-        ReactionGestureRecoveryV1::RepairLegacyDefinition => {
-            ProtocolReactionRefusalRecoveryV1::RepairLegacyDefinition
-        }
-        _ => unreachable!("a new reaction recovery requires protocol mapping"),
     }
 }
 
@@ -497,5 +568,45 @@ pub(super) fn catalog_recovery(
         CatalogPlacementRecoveryV1::DocumentUnchanged => {
             ProtocolCatalogPlacementRecoveryV1::DocumentUnchanged
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn durable_reaction_command_refusals_keep_the_closed_protocol_category() {
+        let failure = ExecutionFailureV1::reaction_authoring_command_refusal(
+            ferrum_document::ReactionAuthoringCommandRefusalV1::InvalidMembers(
+                ferrum_document::ReactionOperationRefusalV1::DuplicateMember,
+            ),
+        );
+        assert_eq!(
+            failure.reaction_refusal,
+            Some(ReactionRefusalV1 {
+                category: ProtocolReactionRefusalCategoryV1::DuplicateTarget,
+                recovery: ProtocolReactionRefusalRecoveryV1::CorrectSelectors,
+            })
+        );
+        assert_eq!(failure.message, "reaction command refused");
+    }
+
+    #[test]
+    fn renderer_admission_uses_render_preparation_recovery() {
+        let failure = ExecutionFailureV1::reaction_transition_refusal(
+            ferrum_document::AdmittedSessionTransitionRefusalV1::RendererAdmission,
+        );
+        assert_eq!(
+            failure.reaction_refusal,
+            Some(ReactionRefusalV1 {
+                category: ProtocolReactionRefusalCategoryV1::RenderPreparation,
+                recovery: ProtocolReactionRefusalRecoveryV1::ChooseRenderableMembers,
+            })
+        );
+        assert_eq!(
+            failure.category,
+            OperationProtocolErrorCategoryV1::RenderFailed
+        );
     }
 }

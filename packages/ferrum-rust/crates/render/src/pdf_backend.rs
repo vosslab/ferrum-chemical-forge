@@ -261,7 +261,7 @@ fn measure_document_plan_complexity_v1(
             DocumentRenderOutcomeV1::Exclusion(exclusion) => {
                 counter.add(
                     PdfComplexityResourceV1::ExclusionReportBytes,
-                    exclusion.identity().as_str().len(),
+                    exclusion.target().document_object_id().as_str().len(),
                 )?;
                 counter.add(
                     PdfComplexityResourceV1::ExclusionReportBytes,
@@ -717,7 +717,11 @@ impl DrawSinkV1 for PdfSinkV1 {
         Ok(())
     }
 
-    fn begin_root(&mut self, _source_order: u32, _identity: &str) -> Result<(), Self::Error> {
+    fn begin_root(
+        &mut self,
+        _paint_order: u32,
+        _document_object_id: &ferrum_document_projection::DocumentObjectIdV1,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 

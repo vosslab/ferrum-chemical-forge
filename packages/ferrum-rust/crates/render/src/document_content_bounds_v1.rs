@@ -246,7 +246,11 @@ impl DrawSinkV1 for ContentBoundsSinkV1 {
         Ok(())
     }
 
-    fn begin_root(&mut self, _: u32, _: &str) -> Result<(), Self::Error> {
+    fn begin_root(
+        &mut self,
+        _: u32,
+        _: &ferrum_document_projection::DocumentObjectIdV1,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -390,7 +394,7 @@ impl DrawSinkV1 for ContentBoundsSinkV1 {
 
 #[cfg(test)]
 mod tests {
-    use ferrum_core::{Identifier, RecordId, RecordKind};
+    use ferrum_document_projection::DocumentObjectIdV1;
 
     use super::*;
     use crate::*;
@@ -404,11 +408,8 @@ mod tests {
     fn paint(value: &str) -> Paint {
         Paint::rgb24(Rgb24::new(value).expect("paint"))
     }
-    fn target(kind: RecordKind, id: &str, order: u32) -> RenderTarget {
-        RenderTarget::new(
-            RecordId::from_source(kind, &Identifier::new(id).expect("identifier")),
-            order,
-        )
+    fn target(id: u8) -> RenderTarget {
+        RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([id; 16]))
     }
     fn text() -> RenderOp {
         let environment = FerrumFontEnvironmentV1::load().expect("verified Telex");
@@ -444,7 +445,8 @@ mod tests {
             RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             vec![
                 RenderBatch::new(
-                    target(RecordKind::Atom, "a", 1),
+                    target(0x41),
+                    1,
                     BatchSpace::AtomLocal {
                         anchor: point(10.0, 20.0),
                     },
@@ -471,7 +473,8 @@ mod tests {
                 )
                 .expect("atom batch"),
                 RenderBatch::new(
-                    target(RecordKind::Bond, "b", 2),
+                    target(0x42),
+                    2,
                     BatchSpace::Scene,
                     vec![RenderOp::Line(
                         LineOp::new(
@@ -486,7 +489,8 @@ mod tests {
                 )
                 .expect("line batch"),
                 RenderBatch::new(
-                    target(RecordKind::Bond, "p", 3),
+                    target(0x43),
+                    3,
                     BatchSpace::Scene,
                     vec![RenderOp::Path(
                         PathOpV2::new(

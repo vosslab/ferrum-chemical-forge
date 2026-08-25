@@ -4,8 +4,8 @@ use crate::{TypedDocument, TypedRecord};
 use xot::{Node, Value, Xot};
 
 use crate::reports_v1::{
-    CdmlInspection, CdmlValidation, INSPECTION_SCHEMA, MoleculeInspection, REWRITE_CHECK_SCHEMA,
-    RewriteCheck, VALIDATION_SCHEMA,
+    CdmlInspection, CdmlValidation, MoleculeInspection, RewriteCheck, INSPECTION_SCHEMA,
+    REWRITE_CHECK_SCHEMA, VALIDATION_SCHEMA,
 };
 use thiserror::Error;
 
@@ -38,7 +38,7 @@ pub fn inspect_cdml(source: &str) -> Result<CdmlInspection, CdmlError> {
         .molecules()
         .iter()
         .map(|molecule| MoleculeInspection {
-            source_id: molecule.source_id().map(|value| value.as_str().to_owned()),
+            source_id: Some(molecule.source_id().as_str().to_owned()),
             name: molecule.name().map(str::to_owned),
             atom_count: molecule.atoms().len(),
             group_count: molecule.groups().len(),
@@ -185,6 +185,7 @@ impl XmlShape {
                     .map(|(_, namespace)| tree.namespace_str(namespace).to_owned())
                     .collect::<Vec<_>>();
                 namespace_uris.sort();
+                namespace_uris.dedup();
                 Self::Element {
                     namespace: namespace.to_owned(),
                     local_name: local_name.to_owned(),
@@ -272,7 +273,7 @@ fn count_typed_records(
 
 #[cfg(test)]
 mod tests {
-    use super::{XmlShape, inspect_cdml, validate_cdml, verify_cdml_rewrite};
+    use super::{inspect_cdml, validate_cdml, verify_cdml_rewrite, XmlShape};
 
     const SIMPLE_CDML: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="0.16"><molecule id="m1"><atom id="a1" name="C"><point x="1" y="2"/></atom></molecule></cdml>"#;
 
@@ -289,7 +290,7 @@ mod tests {
 
     #[test]
     fn structural_validation_does_not_require_resolved_core_endpoints() {
-        let source = r#"<cdml xmlns="urn:ferrum:cdml"><molecule><atom id="a1"><point x="0" y="0"/></atom><bond start="a1" end="missing"/></molecule></cdml>"#;
+        let source = r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m1"><atom id="a1"><point x="0" y="0"/></atom><bond id="b1" start="a1" end="missing"/></molecule></cdml>"#;
 
         let structural = validate_cdml(source, false).expect("document structure validates");
         let error = validate_cdml(source, true).expect_err("core projection rejects endpoint");
@@ -306,6 +307,15 @@ mod tests {
         assert!(check.valid);
         assert_eq!(check.opaque_child_count, 1);
         assert_eq!(check.persistent_id_count, 1);
+    }
+
+    #[test]
+    fn rewrite_check_accepts_noncanonical_document_object_namespace_alias() {
+        let source = r#"<cdml xmlns="urn:ferrum:cdml" xmlns:object="urn:ferrum:document-object:v1"><molecule id="left" object:id="ferrum-document-object-v1/00000000000000000000000000000001"><atom id="a" name="C" object:id="ferrum-document-object-v1/00000000000000000000000000000002"><point x="0" y="0"/></atom></molecule><arrow id="arrow" type="normal" object:id="ferrum-document-object-v1/00000000000000000000000000000003"><point x="5" y="0"/><point x="15" y="0"/></arrow><molecule id="right" object:id="ferrum-document-object-v1/00000000000000000000000000000004"><atom id="b" name="C" object:id="ferrum-document-object-v1/00000000000000000000000000000005"><point x="20" y="0"/></atom></molecule><reaction id="reaction" object:id="ferrum-document-object-v1/00000000000000000000000000000006"><reactant idref="left"/><arrow idref="arrow"/><product idref="right"/></reaction></cdml>"#;
+
+        let check = verify_cdml_rewrite(source).expect("namespace alias preserves durable ID");
+
+        assert!(check.valid);
     }
 
     #[test]

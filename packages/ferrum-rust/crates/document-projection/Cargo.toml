@@ -17,3 +17,6 @@ ferrum-core = { path = "../core" }
 ferrum-document-model = { path = "../document-model" }
 serde = { version = "*", features = ["derive"] }
 thiserror = { version = "*" }
+
+[dev-dependencies]
+serde_json = { version = "*" }

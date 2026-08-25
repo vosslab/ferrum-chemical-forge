@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 use super::{
-    AuthoredTextRunV1, AuthoredTextStyleV1, PersistentId, PresentationFontFaceV1, Rgb24V1,
+    AuthoredTextRunV1, AuthoredTextStyleV1, DocumentObjectIdV1, PresentationFontFaceV1, Rgb24V1,
     normalize_authored_text_runs_v1,
 };
 
@@ -67,21 +67,19 @@ impl TextPropertyKindV1 {
     }
 }
 
-/// One validated source-ID-targeted direct-root Text properties patch.
+/// One validated durable-ID-targeted direct-root Text properties patch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TextPropertiesPatchV1 {
-    text_id: PersistentId,
+    text_object_id: DocumentObjectIdV1,
     changes: Vec<TextPropertyChangeV1>,
 }
 
 impl TextPropertiesPatchV1 {
     /// Validate and normalize one complete edit intent without reading a document.
     pub fn new(
-        text_id: impl Into<String>,
+        text_object_id: DocumentObjectIdV1,
         mut changes: Vec<TextPropertyChangeV1>,
     ) -> Result<Self, TextPropertiesPatchV1Error> {
-        let text_id = PersistentId::new(text_id.into())
-            .map_err(|_| TextPropertiesPatchV1Error::InvalidTextId)?;
         let mut kinds = HashSet::with_capacity(changes.len());
         for change in &mut changes {
             let kind = change.kind();
@@ -100,13 +98,16 @@ impl TextPropertiesPatchV1 {
                 _ => {}
             }
         }
-        Ok(Self { text_id, changes })
+        Ok(Self {
+            text_object_id,
+            changes,
+        })
     }
 
-    /// Return the durable authored direct-root Text identifier.
+    /// Return the durable authored direct-root Text object identifier.
     #[must_use]
-    pub fn text_id(&self) -> &PersistentId {
-        &self.text_id
+    pub fn text_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.text_object_id
     }
 
     /// Return unique normalized changes in caller order.
@@ -123,9 +124,6 @@ fn normalize_runs(runs: &mut Vec<TextEditRunV1>) -> Result<(), TextPropertiesPat
 /// Invalid Text-properties intent rejected before document lookup.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum TextPropertiesPatchV1Error {
-    /// The durable direct-root Text identifier is invalid.
-    #[error("Text properties require a valid persistent Text ID")]
-    InvalidTextId,
     /// One formatted run was empty.
     #[error("Text formatted runs must not be empty")]
     EmptyRun,

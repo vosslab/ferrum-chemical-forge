@@ -94,17 +94,18 @@ fn generic_reaction_outcomes_publish_only_after_successful_commit() {
     let created = session
         .commit_session_operation_transition_v1(&mut create)
         .expect("create commits");
-    let reaction_id = match created.outcome() {
-        SessionOperationOutcomeV1::ReactionCreatedV1(outcome) => outcome.reaction_id().to_owned(),
+    let reaction_document_object_id = match created.outcome() {
+        SessionOperationOutcomeV1::ReactionCreatedV1(outcome) => {
+            outcome.reaction_document_object_id().clone()
+        }
         outcome => panic!("expected created reaction outcome, got {outcome:?}"),
     };
-    assert_eq!(reaction_id, "rxn-1");
 
     let mut replace = prepare_generic_reaction(
         &mut session,
         SessionOperation::V1(SessionOperationV1::ReplaceReactionMembersV1(
             crate::ReplaceReactionMembersV1::new(
-                reaction_id.clone(),
+                "rxn-1".to_owned(),
                 reaction_members("replacement"),
             )
             .expect("replacement request"),
@@ -116,13 +117,13 @@ fn generic_reaction_outcomes_publish_only_after_successful_commit() {
     assert!(matches!(
         replaced.outcome(),
         SessionOperationOutcomeV1::ReactionMembershipReplacedV1(outcome)
-            if outcome.reaction_id() == reaction_id
+            if outcome.reaction_document_object_id() == &reaction_document_object_id
     ));
 
     let mut delete = prepare_generic_reaction(
         &mut session,
         SessionOperation::V1(SessionOperationV1::DeleteReactionV1(
-            crate::DeleteReactionV1::new(reaction_id.clone()).expect("delete request"),
+            crate::DeleteReactionV1::new("rxn-1".to_owned()).expect("delete request"),
         )),
     );
     let deleted = session
@@ -131,7 +132,7 @@ fn generic_reaction_outcomes_publish_only_after_successful_commit() {
     assert!(matches!(
         deleted.outcome(),
         SessionOperationOutcomeV1::ReactionDefinitionDeletedV1(outcome)
-            if outcome.reaction_id() == reaction_id
+            if outcome.reaction_document_object_id() == &reaction_document_object_id
     ));
     assert!(
         !deleted
@@ -257,9 +258,26 @@ fn direct_bond_requires_generic_authorization_and_consumes_it_on_generic_commit(
             .primitives()
             .is_empty()
     );
-    session
+    let committed = session
         .commit_session_operation_transition_v1(&mut prepared)
         .expect("generic direct-bond transition commits");
+    let SessionOperationOutcomeV1::DirectBondV1(outcome) = committed.outcome() else {
+        panic!("generic direct-bond transition returns its direct-bond receipt");
+    };
+    let document = session.current_document_v1();
+    assert!(
+        document
+            .resolve_document_object_id(outcome.bond_document_object_id())
+            .is_some()
+    );
+    assert!(
+        document
+            .resolve_document_object_id(outcome.end_atom_document_object_id())
+            .is_some()
+    );
+    if let Some(atom) = outcome.second_created_atom_document_object_id() {
+        assert!(document.resolve_document_object_id(atom).is_some());
+    }
     assert_eq!(
         prepared.presentation_v1(),
         Err(PreparedSessionTransitionPresentationRefusalV1::Retired)

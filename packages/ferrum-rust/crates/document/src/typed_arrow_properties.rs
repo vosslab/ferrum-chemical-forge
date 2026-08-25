@@ -15,37 +15,35 @@ impl TypedDocument {
         &self,
         patch: &ArrowPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let Some(record) = direct_arrow_record(self.root(), patch.arrow_id().as_str()) else {
+        let Some(record) = self.resolve_document_object_id(patch.arrow_object_id()) else {
             return Ok(None);
         };
-        validate_editable_arrow(record, patch.arrow_id())?;
+        if record.class() != TypedClass::CanvasArrow || record.path().components().len() != 1 {
+            return Ok(None);
+        }
+        let arrow_id = source_id(record)?;
+        validate_editable_arrow(record, &arrow_id)?;
 
         let mut candidate = self.detached_candidate()?;
         let indexed = candidate.detached_indexed_mut();
         let arrow = direct_arrow(
             &mut indexed.xml.tree,
             indexed.xml.document,
-            patch.arrow_id().as_str(),
+            arrow_id.as_str(),
         )
         .expect("the detached candidate preserves the validated direct Arrow");
-        apply_changes(
-            &mut indexed.xml.tree,
-            arrow,
-            patch.arrow_id(),
-            patch.changes(),
-        )?;
+        apply_changes(&mut indexed.xml.tree, arrow, &arrow_id, patch.changes())?;
         let serialized = candidate.to_xml()?;
         Self::parse(&serialized).map(Some)
     }
 }
 
-fn direct_arrow_record<'a>(root: &'a TypedRecord, identifier: &str) -> Option<&'a TypedRecord> {
-    root.typed_children()
-        .iter()
-        .map(super::TypedChild::record)
-        .find(|record| {
-            record.class() == TypedClass::CanvasArrow && record.attribute("id") == Some(identifier)
-        })
+fn source_id(record: &TypedRecord) -> Result<PersistentId, TypedDocumentError> {
+    let fallback = PersistentId::new("arrow").expect("closed fallback ID is valid");
+    record
+        .attribute("id")
+        .and_then(|source_id| PersistentId::new(source_id.to_owned()).ok())
+        .ok_or(TypedDocumentError::InvalidArrowStructure(fallback))
 }
 
 fn validate_editable_arrow(

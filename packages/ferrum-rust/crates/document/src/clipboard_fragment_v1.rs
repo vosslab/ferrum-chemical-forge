@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 
+use ferrum_document_projection::DocumentProjectionV1;
 use thiserror::Error;
 use xot::Node;
 
@@ -266,7 +267,7 @@ fn selected_facts(
             facts.push(SelectedFact::Structure {
                 object: object.clone(),
                 root: root.clone(),
-                root_order: molecule.source_order(),
+                root_order: direct_root_paint_order(projection, root)?,
                 child_order: atom.source_order(),
                 class: TypedClass::Atom,
             });
@@ -281,26 +282,39 @@ fn selected_facts(
             facts.push(SelectedFact::Structure {
                 object: object.clone(),
                 root: root.clone(),
-                root_order: molecule.source_order(),
+                root_order: direct_root_paint_order(projection, root)?,
                 child_order: bond.source_order(),
                 class: TypedClass::Bond,
             });
         }
     }
-    for root in projection.presentation_stack().roots() {
-        let target = root.target();
-        let Some(object) = target.id().filter(|object| requested.contains(object)) else {
+    for entry in projection.presentation_stack().entries() {
+        let target = entry.root().target();
+        let object = target.document_object_id();
+        if !requested.contains(object) {
             continue;
-        };
+        }
         facts.push(SelectedFact::Presentation {
             object: object.clone(),
-            root_order: target.source_order(),
+            root_order: direct_root_paint_order(projection, object)?,
         });
     }
     if facts.len() != requested.len() {
         return Err(DocumentClipboardFragmentErrorV1::UnknownSelectedObject);
     }
     Ok(facts)
+}
+
+fn direct_root_paint_order(
+    projection: &DocumentProjectionV1,
+    target: &DocumentObjectIdV1,
+) -> Result<u32, DocumentClipboardFragmentErrorV1> {
+    projection
+        .direct_roots()
+        .iter()
+        .find(|root| root.document_object_id() == target)
+        .map(|root| root.paint_order())
+        .ok_or(DocumentClipboardFragmentErrorV1::UnknownSelectedObject)
 }
 
 fn one_structure_root(selected: &[SelectedFact]) -> Option<&DocumentObjectIdV1> {
@@ -391,10 +405,7 @@ fn extract_structure(
         match child.record().class() {
             TypedClass::Atom => atoms.push(child.record()),
             TypedClass::Bond => bonds.push(child.record()),
-            TypedClass::Fragment
-                if super::typed_linear_form_metadata::is_exact_generated_linear_form_record(
-                    child.record(),
-                ) => {}
+            TypedClass::Fragment => {}
             _ => return Err(DocumentClipboardFragmentErrorV1::UnsupportedStructure),
         }
     }

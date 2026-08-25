@@ -15,9 +15,6 @@ mod direct_bond_probe_resolution_v3;
 mod direct_bond_v3_lifecycle;
 mod presentation_path_gesture_v1;
 mod presentation_vector_gesture_v1;
-mod reaction_gesture_v1;
-mod reaction_lifecycle_v1;
-mod reaction_observation_v1;
 mod reaction_translation_v1;
 mod render_interaction_v1;
 
@@ -69,20 +66,6 @@ pub use presentation_vector_gesture_v1::{
     PresentationVectorGestureRecoveryV1, PresentationVectorGestureV1, PresentationVectorKindV1,
     PresentationVectorOverlayV1, PresentationVectorPreviewV1, begin_presentation_vector_gesture_v1,
     preview_presentation_vector_gesture_v1, resolve_presentation_vector_gesture_v1,
-};
-pub use reaction_gesture_v1::{
-    ReactionCreateRequestV1, ReactionGestureCategoryV1, ReactionGestureErrorV1,
-    ReactionGestureRecoveryV1, ReactionGestureV1, begin_reaction_gesture_v1,
-    resolve_reaction_gesture_v1,
-};
-pub use reaction_lifecycle_v1::{
-    ReactionLifecycleGestureV1, ReactionMembershipPatchRequestV1,
-    begin_reaction_definition_delete_v1, begin_reaction_membership_patch_v1,
-    resolve_reaction_lifecycle_v1,
-};
-pub use reaction_observation_v1::{
-    ReactionDefinitionDispositionV1, ReactionListObservationV1, ReactionMemberObservationV1,
-    ReactionObservationV1, ReactionSelectionV1,
 };
 pub use reaction_translation_v1::{
     ReactionTranslationGestureV1, ReactionTranslationPreviewV1, begin_reaction_translation_v1,

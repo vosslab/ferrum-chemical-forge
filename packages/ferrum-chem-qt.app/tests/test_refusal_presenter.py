@@ -51,6 +51,63 @@ def test_refusal_text_keeps_diagnostics_out_of_the_author_explanation() -> None:
 
 
 #============================================
+def test_unavailable_edit_uses_generic_or_supplied_primary_message() -> None:
+	"""Unavailable edits retain generic copy unless a caller supplies a primary fact."""
+	default_request = ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
+		ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.EDIT_DOCUMENT,
+		ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.UNAVAILABLE_OPERATION,
+	)
+	default = ferrum_qt.dialogs.refusal_presenter.present_refusal(default_request)
+	primary_message = (
+		"Me cannot attach to the selected atom. Select another atom and try again."
+	)
+	custom_request = ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
+		ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.EDIT_DOCUMENT,
+		ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.UNAVAILABLE_OPERATION,
+		primary_message=primary_message,
+	)
+	custom = ferrum_qt.dialogs.refusal_presenter.present_refusal(custom_request)
+
+	assert default.title == "Action Not Available"
+	assert default.what_happened == "This action is not available for the current drawing."
+	assert custom.title == "Action Not Available"
+	assert custom.what_happened == primary_message
+	assert primary_message in custom.ordinary_text()
+	invalid_requests = (
+		(
+			ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
+				ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.EDIT_DOCUMENT,
+				ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.UNAVAILABLE_OPERATION,
+				primary_message="",
+			),
+			ValueError,
+			"nonempty",
+		),
+		(
+			ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
+				ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.EDIT_DOCUMENT,
+				ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.UNAVAILABLE_OPERATION,
+				primary_message=7,  # type: ignore[arg-type]
+			),
+			TypeError,
+			"string or None",
+		),
+		(
+			ferrum_qt.dialogs.refusal_presenter.RefusalRequest(
+				ferrum_qt.dialogs.refusal_presenter.RefusalTaskContext.EDIT_DOCUMENT,
+				ferrum_qt.dialogs.refusal_presenter.RefusalOutcome.NO_UNDO,
+				primary_message=primary_message,
+			),
+			ValueError,
+			"unavailable-operation",
+		),
+	)
+	for invalid_request, error_type, message in invalid_requests:
+		with pytest.raises(error_type, match=message):
+			ferrum_qt.dialogs.refusal_presenter.present_refusal(invalid_request)
+
+
+#============================================
 def test_refusal_requires_its_matching_task_context() -> None:
 	"""A close warning cannot accidentally be shown as an editing refusal."""
 	request = ferrum_qt.dialogs.refusal_presenter.RefusalRequest(

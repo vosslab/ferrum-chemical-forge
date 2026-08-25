@@ -473,10 +473,9 @@ fn temporary_molecule(graph: &MolGraph) -> Result<Molecule, DirectHaworthFromSmi
     let mut atoms = Vec::with_capacity(graph.atoms().len());
     for (index, atom) in graph.atoms().iter().enumerate() {
         atoms.push(Atom::new(
-            Some(identifier("atom", index)?),
+            identifier("atom", index)?,
             Some(atom.atomic_number().symbol().to_owned()),
             Position::new(index as f64, 0.0, 0.0)?,
-            None,
             None,
             None,
             None,
@@ -488,25 +487,23 @@ fn temporary_molecule(graph: &MolGraph) -> Result<Molecule, DirectHaworthFromSmi
     let mut bonds = Vec::with_capacity(graph.bonds().len());
     for (index, bond) in graph.bonds().iter().enumerate() {
         bonds.push(Bond::new(
-            Some(identifier("bond", index)?),
+            identifier("bond", index)?,
             VertexRef::Atom(atoms[bond.start()].identity().clone()),
             VertexRef::Atom(atoms[bond.end()].identity().clone()),
             None,
             Some(BondOrder::Single),
             None,
             Some(false),
-            None,
         )?);
     }
     Molecule::new(
-        Some(Identifier::new("native-direct-haworth-smiles-v1")?),
+        Identifier::new("native-direct-haworth-smiles-v1")?,
         None,
         atoms,
         Vec::new(),
         Vec::new(),
         Vec::new(),
         bonds,
-        None,
     )
     .map_err(Into::into)
 }

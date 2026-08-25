@@ -114,10 +114,7 @@ fn document_molecule_graph(
             )
             .map_err(DocumentMoleculeGraphError::Graph)?,
         );
-        let identity = atom
-            .identity()
-            .try_clone()
-            .map_err(|_| DocumentMoleculeGraphError::ResourceAllocation)?;
+        let identity = atom.identity().clone();
         if atom_indices.insert(identity.clone(), index).is_some() {
             return Err(DocumentMoleculeGraphError::DuplicateAtomIdentity { atom_index: index });
         }

@@ -34,11 +34,8 @@ _PRESENTATION_KINDS = frozenset((
 	"arrow", "plus", "text", "polyline", "rectangle", "square", "oval", "circle",
 	"polygon",
 ))
-_STRUCTURAL_KIND_MAP = {
-	"Atom": "atom",
-	"Bond": "bond",
-	"Group": "compact_group",
-}
+_DOCUMENT_OBJECT_KIND = "document_object"
+_DIRECT_ROOT_KINDS = _PRESENTATION_KINDS | frozenset(("molecule", "rejected_presentation"))
 ObservationValidator = collections.abc.Callable[[object], None]
 PlanItemFactory = collections.abc.Callable[
 	[object, int, object, PySide6.QtWidgets.QGraphicsItem],
@@ -60,20 +57,17 @@ class FerrumRenderProjectionError(ValueError):
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class MoleculeRootKey:
-	"""Detached document-root identity and order for one molecule plan."""
+	"""Detached opaque document-root identity for one molecule plan."""
 
-	identifier: str | None
-	projection_key: str
-	source_id: str | None
-	source_order: int
+	document_object_id: str
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RenderIssue:
 	"""Visible Rust diagnostic that deliberately has no graphics item."""
 
-	kind: str
-	target: RenderTargetKey | str
+	category: str
+	document_object_id: str
 	detail: str
 
 
@@ -307,7 +301,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 	"""Build a validated observation after its caller selected the entry contract."""
 	if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 		raise FerrumRenderProjectionError("render projection requires verified Telex")
-	revision, digest, paper_layout, plans, plus_renders, text_renders, issues = (
+	revision, digest, paper_layout, direct_root_orders, plans, plus_renders, text_renders = (
 		_validate_observation(
 			observation, validator,
 		)
@@ -325,10 +319,16 @@ def _build_render_projection(observation: object, telex_resource: object,
 	local_items: dict[RenderTargetKey, PySide6.QtWidgets.QGraphicsItem] = {}
 	all_issues: list[RenderIssue] = []
 	presentation = None
-	last_root_order = -1
-	document_root_orders: set[int] = set()
-	seen_projection_keys: set[str] = set()
-	seen_molecule_ids: set[str] = set()
+	seen_molecule_roots: set[str] = set()
+	seen_presentation_roots: set[str] = set()
+	expected_molecule_roots = {
+		identifier for identifier, (kind, _order) in direct_root_orders.items()
+		if kind == "molecule"
+	}
+	expected_presentation_roots = {
+		identifier for identifier, (kind, _order) in direct_root_orders.items()
+		if kind in _PRESENTATION_KINDS
+	}
 	try:
 		paper = paper_factory(paper_layout)
 		scene.addItem(paper)
@@ -336,20 +336,15 @@ def _build_render_projection(observation: object, telex_resource: object,
 		roots.append(paper)
 		for plan_entry in plans:
 			molecule = _molecule_root(getattr(plan_entry, "molecule", None))
-			if molecule.source_order <= last_root_order:
-				raise FerrumRenderProjectionError("molecule plans are not in document root order")
-			if molecule.projection_key in seen_projection_keys:
-				raise FerrumRenderProjectionError("duplicate molecule projection key")
-			if molecule.identifier is not None and molecule.identifier in seen_molecule_ids:
-				raise FerrumRenderProjectionError("duplicate durable molecule identity")
-			last_root_order = molecule.source_order
-			document_root_orders.add(molecule.source_order)
-			seen_projection_keys.add(molecule.projection_key)
-			if molecule.identifier is not None:
-				seen_molecule_ids.add(molecule.identifier)
+			if molecule.document_object_id in seen_molecule_roots:
+				raise FerrumRenderProjectionError("duplicate molecule render root")
 			root, _plan_items, plan_issues = _build_plan(
 				scene, plan_entry, molecule, revision, digest, telex_resource, item_factory,
 			)
+			root.setZValue(float(_direct_root_order(
+				direct_root_orders, molecule.document_object_id, frozenset(("molecule",)),
+			)))
+			seen_molecule_roots.add(molecule.document_object_id)
 			roots.append(root)
 			molecule_roots[root] = molecule
 			for item, target in _plan_items:
@@ -364,6 +359,11 @@ def _build_render_projection(observation: object, telex_resource: object,
 				item_targets[item] = target
 				items.append(item)
 			all_issues.extend(plan_issues)
+			all_issues.extend(_member_issues(
+				_ordered_dtos(getattr(plan_entry, "member_issues", None), "member render issues"),
+			))
+		if seen_molecule_roots != expected_molecule_roots:
+			raise FerrumRenderProjectionError("molecule render roots do not exactly own direct roots")
 		if presentation_factory is not None:
 			if presentation_plan is None:
 				raise FerrumRenderProjectionError("renderer presentation plan is required")
@@ -372,17 +372,21 @@ def _build_render_projection(observation: object, telex_resource: object,
 				raise FerrumRenderProjectionError(
 					"presentation scene provenance differs from render observation",
 				)
-			if len(presentation.roots) != len(presentation.items):
+			if (
+				len(presentation.roots) != len(presentation.items)
+				or frozenset(presentation.roots) != frozenset(presentation.items)
+			):
 				raise FerrumRenderProjectionError("presentation root ownership is incomplete")
-			for root, item in zip(presentation.roots, presentation.items, strict=True):
-				order = item.target.source_order
-				if order in document_root_orders:
-					raise FerrumRenderProjectionError("duplicate document root source order")
-				document_root_orders.add(order)
-				root.setZValue(float(order))
+			for root in presentation.roots:
+				target = _presentation_target(getattr(root, "target", None))
+				if target.document_object_id in seen_presentation_roots:
+					raise FerrumRenderProjectionError("duplicate presentation render root")
+				root.setZValue(float(_direct_root_order(
+					direct_root_orders, target.document_object_id, _PRESENTATION_KINDS,
+				)))
+				seen_presentation_roots.add(target.document_object_id)
 				scene.addItem(root)
 				roots.append(root)
-				target = _presentation_target(item.target)
 				if target in local_items:
 					raise FerrumRenderProjectionError("duplicate presentation render target")
 				if target.is_durable:
@@ -393,20 +397,19 @@ def _build_render_projection(observation: object, telex_resource: object,
 				local_items[target] = item
 				item_targets[item] = target
 				items.append(item)
-		last_plus_order = -1
 		for plus in plus_renders:
 			item = ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItem._from_observation(
 				plus, telex,
 			)
 			target = _presentation_target(item.target)
-			if target.source_order <= last_plus_order:
-				raise FerrumRenderProjectionError("plus renders are not source ordered")
-			if target.source_order in document_root_orders:
-				raise FerrumRenderProjectionError("duplicate document root source order")
+			if target.document_object_id in seen_presentation_roots:
+				raise FerrumRenderProjectionError("duplicate presentation render root")
 			if target in local_items:
 				raise FerrumRenderProjectionError("duplicate render target")
-			last_plus_order = target.source_order
-			document_root_orders.add(target.source_order)
+			item.setZValue(float(_direct_root_order(
+				direct_root_orders, target.document_object_id, frozenset(("plus",)),
+			)))
+			seen_presentation_roots.add(target.document_object_id)
 			if target.is_durable:
 				durable_key = _durable_target_key(target)
 				if durable_key in durable_items:
@@ -417,20 +420,19 @@ def _build_render_projection(observation: object, telex_resource: object,
 			items.append(item)
 			scene.addItem(item)
 			roots.append(item)
-		last_text_order = -1
 		for text_render in text_renders:
 			item = ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItem._from_observation(
 				text_render, telex,
 			)
 			target = _presentation_target(item.target)
-			if target.source_order <= last_text_order:
-				raise FerrumRenderProjectionError("Text renders are not source ordered")
-			if target.source_order in document_root_orders:
-				raise FerrumRenderProjectionError("duplicate document root source order")
+			if target.document_object_id in seen_presentation_roots:
+				raise FerrumRenderProjectionError("duplicate presentation render root")
 			if target in local_items:
 				raise FerrumRenderProjectionError("duplicate render target")
-			last_text_order = target.source_order
-			document_root_orders.add(target.source_order)
+			item.setZValue(float(_direct_root_order(
+				direct_root_orders, target.document_object_id, frozenset(("text",)),
+			)))
+			seen_presentation_roots.add(target.document_object_id)
 			if target.is_durable:
 				durable_key = _durable_target_key(target)
 				if durable_key in durable_items:
@@ -441,7 +443,10 @@ def _build_render_projection(observation: object, telex_resource: object,
 			items.append(item)
 			scene.addItem(item)
 			roots.append(item)
-		all_issues.extend(_observation_issue(value) for value in issues)
+		if seen_presentation_roots != expected_presentation_roots:
+			raise FerrumRenderProjectionError(
+				"presentation render roots do not exactly own direct roots",
+			)
 	except (
 		AttributeError,
 		TypeError,
@@ -475,8 +480,8 @@ def _durable_target_key(target: RenderTargetKey) -> tuple[str, str]:
 def _validate_observation(observation: object,
 		validator: ObservationValidator,
 		) -> tuple[
-			int, str, object, tuple[object, ...], tuple[object, ...], tuple[object, ...],
-			tuple[object, ...],
+			int, str, object, dict[str, tuple[str, int]], tuple[object, ...],
+			tuple[object, ...], tuple[object, ...],
 		]:
 	"""Return observation contents only after all cross-layer provenance agrees."""
 	validator(observation)
@@ -501,7 +506,10 @@ def _validate_observation(observation: object,
 	if _revision(getattr(paper_layout, "revision", None)) != revision:
 		raise FerrumRenderProjectionError("paper layout revision differs from snapshot")
 	if _digest(getattr(paper_layout, "digest", None)) != digest:
-		raise FerrumRenderProjectionError("paper layout digest differs from snapshot")
+			raise FerrumRenderProjectionError("paper layout digest differs from snapshot")
+	direct_root_orders = _direct_root_orders(
+		_ordered_dtos(getattr(projection, "direct_roots", None), "document direct roots"),
+	)
 	provenance = getattr(observation, "provenance", None)
 	if provenance is not None:
 		if _revision(getattr(provenance, "revision", None)) != revision:
@@ -511,8 +519,9 @@ def _validate_observation(observation: object,
 	plans = _ordered_dtos(getattr(observation, "molecule_plans", None), "molecule plans")
 	plus_renders = _ordered_dtos(getattr(observation, "plus_renders", None), "plus renders")
 	text_renders = _ordered_dtos(getattr(observation, "text_renders", None), "Text renders")
-	issues = _ordered_dtos(getattr(observation, "issues", None), "render issues")
-	return revision, digest, paper_layout, plans, plus_renders, text_renders, issues
+	return (
+		revision, digest, paper_layout, direct_root_orders, plans, plus_renders, text_renders,
+	)
 
 
 #============================================
@@ -538,27 +547,22 @@ def _build_plan(
 		raise FerrumRenderProjectionError("render plan digest differs from observation")
 	batches = _ordered_dtos(getattr(plan, "batches", None), "render batches")
 	issues = _ordered_dtos(getattr(plan, "issues", None), "plan render issues")
-	last_order = -1
 	seen_targets: set[RenderTargetKey] = set()
 	result = []
 	root = PySide6.QtWidgets.QGraphicsItemGroup()
 	root.setHandlesChildEvents(False)
-	root.setZValue(float(molecule.source_order))
 	scene.addItem(root)
 	for batch_index, batch in enumerate(batches):
 		target = _target(getattr(batch, "target", None))
-		if target.source_order <= last_order:
-			raise FerrumRenderProjectionError("render batches are not source ordered")
 		if target in seen_targets:
 			raise FerrumRenderProjectionError("render plan has duplicate target")
-		last_order = target.source_order
 		seen_targets.add(target)
 		item = item_factory(plan, batch_index, telex_resource, root)
 		layer = getattr(batch, "display_layer", None)
 		if layer not in {"ordinary", "haworth_front_stroke", "haworth_front_wedge"}:
 			raise FerrumRenderProjectionError("render batch has an unknown display layer")
 		layer_offset = {"ordinary": 0.0, "haworth_front_stroke": 0.1, "haworth_front_wedge": 0.2}[layer]
-		item.setZValue(float(target.source_order) + layer_offset)
+		item.setZValue(layer_offset)
 		result.append((item, target))
 	plan_issues = _plan_issues(issues, seen_targets)
 	return root, tuple(result), plan_issues
@@ -569,21 +573,10 @@ def _molecule_root(value: object) -> MoleculeRootKey:
 	"""Copy one Rust-issued molecule root without interpreting persistent CDML."""
 	if not _is_frozen_dto(value):
 		raise FerrumRenderProjectionError("molecule render root has the wrong DTO shape")
-	identifier = getattr(value, "id", None)
-	projection_key = getattr(value, "projection_key", None)
-	source_id = getattr(value, "source_id", None)
-	source_order = getattr(value, "source_order", None)
-	if identifier is not None and (type(identifier) is not str or not identifier):
-		raise FerrumRenderProjectionError("molecule durable identity is invalid")
-	if type(projection_key) is not str or not projection_key:
-		raise FerrumRenderProjectionError("molecule projection key is invalid")
-	if source_id is not None and (type(source_id) is not str or not source_id):
-		raise FerrumRenderProjectionError("molecule source identity is invalid")
-	if (identifier is None) != (source_id is None):
-		raise FerrumRenderProjectionError("molecule identities are inconsistent")
-	if type(source_order) is not int or source_order not in _U32_RANGE:
-		raise FerrumRenderProjectionError("molecule source order is invalid")
-	return MoleculeRootKey(identifier, projection_key, source_id, source_order)
+	document_object_id = getattr(value, "document_object_id", None)
+	if type(document_object_id) is not str or not document_object_id:
+		raise FerrumRenderProjectionError("molecule document-object identity is invalid")
+	return MoleculeRootKey(document_object_id)
 
 
 #============================================
@@ -591,26 +584,12 @@ def _target(value: object) -> RenderTargetKey:
 	"""Copy one strict dual-identity document target into selection state."""
 	if not _is_frozen_dto(value):
 		raise FerrumRenderProjectionError("render target has the wrong DTO shape")
-	kind = getattr(value, "kind", None)
-	render_identifier = getattr(value, "render_identifier", None)
-	durable_object_id = getattr(value, "durable_object_id", None)
-	durable_molecule_object_id = getattr(value, "durable_molecule_object_id", None)
-	if type(kind) is not str or kind not in _STRUCTURAL_KIND_MAP:
+	if getattr(value, "kind", None) != _DOCUMENT_OBJECT_KIND:
 		raise FerrumRenderProjectionError("render target kind is invalid")
-	for field_value, label in (
-		(render_identifier, "render identifier"),
-		(durable_object_id, "durable object identity"),
-		(durable_molecule_object_id, "durable molecule identity"),
-	):
-		if type(field_value) is not str or not field_value:
-			raise FerrumRenderProjectionError(f"render target {label} is invalid")
-	order = getattr(value, "source_order", None)
-	if type(order) is not int or order not in _U32_RANGE:
-		raise FerrumRenderProjectionError("render target source order is invalid")
-	target_kind = _STRUCTURAL_KIND_MAP[kind]
-	return RenderTargetKey(
-		target_kind, render_identifier, order, durable_object_id, durable_molecule_object_id,
-	)
+	document_object_id = getattr(value, "document_object_id", None)
+	if type(document_object_id) is not str or not document_object_id:
+		raise FerrumRenderProjectionError("render target document-object identity is invalid")
+	return RenderTargetKey(_DOCUMENT_OBJECT_KIND, document_object_id)
 
 
 #============================================
@@ -626,38 +605,80 @@ def _plan_issues(
 		values: tuple[object, ...], batch_targets: set[RenderTargetKey],
 		) -> tuple[RenderIssue, ...]:
 	"""Copy plan exclusions in backend order without allocating fallback graphics."""
-	previous_order = -1
 	seen_targets = set(batch_targets)
 	result = []
 	for value in values:
 		if not _is_frozen_dto(value):
 			raise FerrumRenderProjectionError("plan render issue has the wrong DTO shape")
 		target = _target(getattr(value, "target", None))
-		if target.source_order <= previous_order or target in seen_targets:
+		if target in seen_targets:
 			raise FerrumRenderProjectionError("plan render issues do not partition targets")
 		kind = getattr(value, "kind", None)
 		detail = getattr(value, "detail", None)
 		if type(kind) is not str or not kind or type(detail) is not str or not detail:
 			raise FerrumRenderProjectionError("plan render issue is invalid")
-		previous_order = target.source_order
 		seen_targets.add(target)
-		result.append(RenderIssue(kind, target, detail))
+		result.append(RenderIssue(kind, target.document_object_id, detail))
 	return tuple(result)
 
 
 #============================================
-def _observation_issue(value: object) -> RenderIssue:
-	"""Copy one whole-observation depiction issue without allocating graphics."""
-	if not _is_frozen_dto(value):
-		raise FerrumRenderProjectionError("observation issue has the wrong DTO shape")
-	code = getattr(value, "code", None)
-	target = getattr(value, "target", None)
-	detail = getattr(value, "detail", None)
-	if type(code) is not str or not code or type(target) is not str or not target:
-		raise FerrumRenderProjectionError("observation issue is invalid")
-	if type(detail) is not str or not detail:
-		raise FerrumRenderProjectionError("observation issue detail is invalid")
-	return RenderIssue(code, target, detail)
+def _member_issues(values: tuple[object, ...]) -> tuple[RenderIssue, ...]:
+	"""Copy molecule-member diagnostics in Rust order without folding plan issues into them."""
+	result = []
+	for value in values:
+		if not _is_frozen_dto(value):
+			raise FerrumRenderProjectionError("member render issue has the wrong DTO shape")
+		document_object_id = getattr(value, "document_object_id", None)
+		category = getattr(value, "category", None)
+		detail = getattr(value, "detail", None)
+		if (
+			type(document_object_id) is not str or not document_object_id
+			or type(category) is not str or not category
+			or type(detail) is not str or not detail
+		):
+			raise FerrumRenderProjectionError("member render issue is invalid")
+		result.append(RenderIssue(category, document_object_id, detail))
+	return tuple(result)
+
+
+#============================================
+def _direct_root_orders(values: tuple[object, ...]) -> dict[str, tuple[str, int]]:
+	"""Copy the global direct-root order map without trusting DTO list coincidence."""
+	result = {}
+	seen_orders = set()
+	for value in values:
+		if not _is_frozen_dto(value):
+			raise FerrumRenderProjectionError("document direct root has the wrong DTO shape")
+		document_object_id = getattr(value, "document_object_id", None)
+		kind = getattr(value, "kind", None)
+		paint_order = getattr(value, "paint_order", None)
+		if type(document_object_id) is not str or not document_object_id:
+			raise FerrumRenderProjectionError("document direct root identity is invalid")
+		if type(kind) is not str or kind not in _DIRECT_ROOT_KINDS:
+			raise FerrumRenderProjectionError("document direct root kind is invalid")
+		if type(paint_order) is not int or paint_order not in _U32_RANGE:
+			raise FerrumRenderProjectionError("document direct root paint order is invalid")
+		if document_object_id in result or paint_order in seen_orders:
+			raise FerrumRenderProjectionError("document direct roots are not unique")
+		result[document_object_id] = kind, paint_order
+		seen_orders.add(paint_order)
+	return result
+
+
+#============================================
+def _direct_root_order(root_orders: dict[str, tuple[str, int]],
+		document_object_id: str, expected_kinds: frozenset[str]) -> int:
+	"""Require a rendered root to own one compatible document direct-root entry."""
+	try:
+		kind, paint_order = root_orders[document_object_id]
+	except KeyError as exc:
+		raise FerrumRenderProjectionError("render root has no document direct-root owner") from exc
+	if kind not in expected_kinds:
+		raise FerrumRenderProjectionError("render root direct-root kind differs from payload")
+	return paint_order
+
+
 
 
 #============================================

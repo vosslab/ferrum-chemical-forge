@@ -106,7 +106,6 @@ class FerrumPlusItem(PySide6.QtWidgets.QGraphicsObject):
 			-_PADDING, -_PADDING, _PADDING, _PADDING,
 		)
 		self.setPos(anchor)
-		self.setZValue(float(self._target.source_order))
 		self.setFlag(PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
 		self.setFlag(PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
 
@@ -181,9 +180,9 @@ class FerrumPlusItem(PySide6.QtWidgets.QGraphicsObject):
 def _target(value: object, extension: object) -> object:
 	"""Authenticate the exact plus target through the presentation boundary."""
 	try:
-		target = ferrum_qt.canvas.ferrum_presentation_target.presentation_target_from_dto(
-			value, extension, "plus",
-		)
+			target = ferrum_qt.canvas.ferrum_presentation_target.presentation_target_from_dto(
+				value, extension,
+			)
 	except (AttributeError, TypeError, ValueError) as exc:
 		raise FerrumPlusItemError("plus target is invalid") from exc
 	return target

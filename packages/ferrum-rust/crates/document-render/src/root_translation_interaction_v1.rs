@@ -118,15 +118,13 @@ fn validate_root_translation_gesture_v1(
 fn root_translation_targets_v1(
     gesture: &RenderInteractionTranslationGestureV1,
 ) -> Result<Vec<TopLevelRootSelectorV1>, RenderInteractionErrorV1> {
-    gesture
+    let targets = gesture
         .selection
         .roots
         .iter()
-        .map(|root| {
-            TopLevelRootSelectorV1::new(root.identifier.clone(), root.kind)
-                .map_err(|_| RenderInteractionErrorV1::SelectionChanged)
-        })
-        .collect()
+        .map(|root| TopLevelRootSelectorV1::new(root.document_object_id().clone(), root.kind()))
+        .collect();
+    Ok(targets)
 }
 
 fn snap_translation_to_view_hex_grid_v1(

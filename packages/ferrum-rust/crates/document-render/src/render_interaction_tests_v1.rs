@@ -119,7 +119,7 @@ fn structural_path_bond_is_a_typed_display_only_target() {
     let display = observation
         .targets()
         .iter()
-        .find(|target| target.identifier() == "ab")
+        .find(|target| target.kind() == StructureTargetKindV1::DisplayOnly)
         .expect("wedge target remains visible to the interaction facade");
     assert_eq!(display.kind(), StructureTargetKindV1::DisplayOnly);
     let bounds = display.bounds();
@@ -197,7 +197,7 @@ fn compact_group_render_primitive_is_visible_and_selectable_without_changing_ato
         selected_group.targets()[0].kind(),
         StructureTargetKindV1::CompactGroup
     );
-    assert_eq!(selected_group.targets()[0].identifier(), group.identifier());
+    assert_eq!(selected_group.targets()[0].object_id(), group.object_id());
 
     let selected_atom = session
         .select_structure_interaction_v1(
@@ -241,14 +241,10 @@ fn typed_compact_group_exterior_bond_reaches_the_complete_document_render_plan()
         .first()
         .expect("visible compact-group primitive");
     let endpoint = group.bond_endpoint().expect("compact-group endpoint");
-    let bond = molecule
+    let line = molecule
         .batches()
         .iter()
-        .find(|batch| batch.target().record_id().kind() == ferrum_core::RecordKind::Bond)
-        .expect("normal exterior bond batch");
-    let line = bond
-        .operations()
-        .iter()
+        .flat_map(|batch| batch.operations())
         .find_map(|operation| match operation {
             ferrum_render::RenderOp::Line(line) => Some(line),
             _ => None,
@@ -271,7 +267,7 @@ fn typed_compact_group_exterior_bond_reaches_the_complete_document_render_plan()
         .expect("interaction observation");
     assert!(observation.targets().iter().any(|target| {
         target.kind() == StructureTargetKindV1::CompactGroup
-            && target.identifier() == group.identifier()
+            && target.object_id() == group.target().document_object_id()
     }));
 }
 
@@ -342,12 +338,13 @@ fn stale_translation_gesture_preserves_current_document_and_history() {
     let observation = session
         .observe_render_interaction_v1(fence(&session))
         .expect("observe stale gesture source");
+    let root_id = observation.roots()[0].document_object_id().clone();
     let selection = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "m1".to_owned(),
+                document_object_id: root_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -412,12 +409,13 @@ fn interaction_refuses_renderer_plan_with_stale_provenance() {
     let observation = session
         .observe_render_interaction_v1(fence(&session))
         .expect("observe");
+    let molecule_id = observation.roots()[0].document_object_id().clone();
     let selection = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "molecule".to_owned(),
+                document_object_id: molecule_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -447,12 +445,13 @@ fn interaction_refuses_renderer_plan_with_stale_provenance() {
     let other_observation = other
         .observe_render_interaction_v1(fence(&other))
         .expect("other observation");
+    let other_molecule_id = other_observation.roots()[0].document_object_id().clone();
     let other_selection = other
         .select_render_interaction_roots_v1(
             &other_observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "molecule".to_owned(),
+                document_object_id: other_molecule_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -487,17 +486,19 @@ fn interaction_refuses_renderer_plan_with_stale_provenance() {
 }
 
 #[test]
-fn toggled_render_roots_keep_document_source_order() {
+fn toggled_render_roots_keep_renderer_paint_order() {
     let session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
     let observation = session
         .observe_render_interaction_v1(fence(&session))
         .expect("observe");
+    let first_root_id = observation.roots()[0].document_object_id().clone();
+    let second_root_id = observation.roots()[1].document_object_id().clone();
     let later = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "m2".to_owned(),
+                document_object_id: second_root_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -507,7 +508,7 @@ fn toggled_render_roots_keep_document_source_order() {
             &observation,
             Some(&later),
             RenderInteractionQueryV1::Root {
-                identifier: "m1".to_owned(),
+                document_object_id: first_root_id,
                 modifier: RenderInteractionModifierV1::Toggle,
             },
         )
@@ -517,9 +518,9 @@ fn toggled_render_roots_keep_document_source_order() {
         selection
             .roots()
             .iter()
-            .map(|root| root.identifier())
+            .map(RenderInteractionRootV1::paint_order)
             .collect::<Vec<_>>(),
-        ["m1", "m2"]
+        [0, 1]
     );
 }
 
@@ -581,7 +582,7 @@ fn structure_selection_deletes_atom_and_incident_bond_in_one_fenced_commit() {
 }
 
 #[test]
-fn compact_group_deletion_topology_requires_document_repair_without_source_ids() {
+fn compact_group_deletion_topology_requires_document_repair() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
@@ -607,7 +608,10 @@ fn compact_group_deletion_topology_requires_document_repair_without_source_ids()
     let error = session
         .commit_structure_deletion_v1(&selection)
         .expect_err("invalid compact topology refuses");
-    assert_eq!(error, RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology);
+    assert_eq!(
+        error,
+        RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology
+    );
     assert_eq!(
         error.to_string(),
         "the compact group deletion topology requires document repair before retry"
@@ -620,12 +624,13 @@ fn view_hex_grid_policy_snaps_preview_delta_in_rust() {
     let observation = session
         .observe_render_interaction_v1(fence(&session))
         .expect("observe");
+    let root_id = observation.roots()[0].document_object_id().clone();
     let selection = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "m1".to_owned(),
+                document_object_id: root_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -669,12 +674,14 @@ fn view_hex_grid_snaps_the_mixed_root_anchor_after_an_off_lattice_drag() {
     let observation = session
         .observe_render_interaction_v1(fence(&session))
         .expect("observe");
+    let molecule_id = observation.roots()[0].document_object_id().clone();
+    let plus_id = observation.roots()[1].document_object_id().clone();
     let molecule = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "molecule".to_owned(),
+                document_object_id: molecule_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -684,7 +691,7 @@ fn view_hex_grid_snaps_the_mixed_root_anchor_after_an_off_lattice_drag() {
             &observation,
             Some(&molecule),
             RenderInteractionQueryV1::Root {
-                identifier: "plus".to_owned(),
+                document_object_id: plus_id,
                 modifier: RenderInteractionModifierV1::Toggle,
             },
         )
@@ -732,12 +739,13 @@ fn view_hex_grid_exact_click_keeps_an_off_lattice_root_unchanged() {
     let observation = session
         .observe_render_interaction_v1(fence(&session))
         .expect("observe");
+    let root_id = observation.roots()[0].document_object_id().clone();
     let selection = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "molecule".to_owned(),
+                document_object_id: root_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -773,7 +781,7 @@ fn unsupported_and_foreign_handles_are_refused_without_mutation() {
         .expect("observe");
     assert!(observation.roots().is_empty());
     assert_eq!(observation.exclusions().len(), 1);
-    assert_eq!(observation.exclusions()[0].identifier(), "m");
+    let exclusion_id = observation.exclusions()[0].document_object_id().clone();
     assert_eq!(
         observation.exclusions()[0].reason(),
         RenderInteractionExclusionReasonV1::UnrenderableDepiction
@@ -783,7 +791,7 @@ fn unsupported_and_foreign_handles_are_refused_without_mutation() {
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "m".to_owned(),
+                document_object_id: exclusion_id,
                 modifier: RenderInteractionModifierV1::Replace,
             }
         ),
@@ -819,7 +827,7 @@ fn unsupported_and_foreign_handles_are_refused_without_mutation() {
 fn fragment_member_idref_does_not_exclude_renderable_root() {
     let opaque_declaration_collision = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><extension><fragment><bond id=\"m\"/></fragment></extension></cdml>";
     assert!(DocumentSession::load(opaque_declaration_collision).is_err());
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><fragment><bond id=\"m\"/></fragment></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><fragment id=\"fragment\"><bond id=\"m\"/></fragment></molecule></cdml>";
     let mut session = RenderInteractionSessionV1::new(
         DocumentSession::load(source).expect("fragment reference fixture loads"),
     );
@@ -827,12 +835,13 @@ fn fragment_member_idref_does_not_exclude_renderable_root() {
         .observe_render_interaction_v1(fence(&session))
         .expect("fragment reference fixture observes");
     assert_eq!(observation.roots().len(), 1);
+    let root_id = observation.roots()[0].document_object_id().clone();
     let selection = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "m".to_owned(),
+                document_object_id: root_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -861,50 +870,30 @@ fn fragment_member_idref_does_not_exclude_renderable_root() {
 }
 
 #[test]
-fn idless_presentation_root_is_display_only_not_a_transform_target() {
-    let session = RenderInteractionSessionV1::new(
-        DocumentSession::load(
-            "<cdml xmlns=\"urn:ferrum:cdml\"><plus><point x=\"4\" y=\"5\"/></plus></cdml>",
-        )
-        .expect("display-only fixture loads"),
-    );
-    let observation = session
-        .observe_render_interaction_v1(fence(&session))
-        .expect("display-only fixture observes");
-    assert!(observation.roots().is_empty());
-    let [exclusion] = observation.exclusions() else {
-        panic!("idless root must have one diagnostic");
-    };
+fn reaction_authoring_choices_keep_renderer_paint_order() {
+    let session =
+        RenderInteractionSessionV1::new(DocumentSession::load(MIXED_SOURCE).expect("load"));
+    let choices = session
+        .observe_reaction_authoring_choices_v1(fence(&session))
+        .expect("observe reaction authoring choices");
     assert_eq!(
-        exclusion.reason(),
-        RenderInteractionExclusionReasonV1::DisplayOnly
-    );
-    assert!(matches!(
-        session.select_render_interaction_roots_v1(
-            &observation,
-            None,
-            RenderInteractionQueryV1::Root {
-                identifier: exclusion.identifier().to_owned(),
-                modifier: RenderInteractionModifierV1::Replace,
-            },
-        ),
-        Err(RenderInteractionErrorV1::DisplayOnly)
-    ));
-}
-
-#[test]
-fn reaction_authoring_classifies_renderable_vectors_and_kind_mismatches() {
-    assert_eq!(
-        reaction_root_exclusion_reason(DirectCdmlRootKindV1::Other, TopLevelRootKindV1::Rectangle,),
-        ReactionAuthoringExclusionReasonV1::DisplayOnly
+        choices
+            .choices()
+            .iter()
+            .map(ReactionAuthoringChoiceV1::kind)
+            .collect::<Vec<_>>(),
+        [
+            ReactionAuthoringChoiceKindV1::Molecule,
+            ReactionAuthoringChoiceKindV1::Plus,
+        ]
     );
     assert_eq!(
-        reaction_root_exclusion_reason(DirectCdmlRootKindV1::Arrow, TopLevelRootKindV1::Rectangle,),
-        ReactionAuthoringExclusionReasonV1::KindMismatch
-    );
-    assert_eq!(
-        reaction_exclusion_recovery(ReactionAuthoringExclusionReasonV1::KindMismatch),
-        ReactionAuthoringExclusionRecoveryV1::RepairDocument
+        choices
+            .choices()
+            .iter()
+            .map(ReactionAuthoringChoiceV1::paint_order)
+            .collect::<Vec<_>>(),
+        [0, 1]
     );
 }
 
@@ -957,7 +946,8 @@ fn mixed_molecule_and_plus_selection_moves_in_one_history_commit() {
     assert_eq!(committed.result().observation().snapshot().revision(), 1);
     let projection = committed.result().observation().projection();
     assert!((projection.molecules()[0].atoms()[0].position().x() - 7.0).abs() < 0.01);
-    let PresentationRootProjectionV1::Plus { plus } = &projection.presentation_stack().roots()[0]
+    let PresentationRootProjectionV1::Plus { plus } =
+        projection.presentation_stack().entries()[0].root()
     else {
         panic!("fixture must retain plus");
     };

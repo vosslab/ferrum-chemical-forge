@@ -14,13 +14,13 @@ mod presentation;
 mod style;
 
 pub use document::{
-    DOCUMENT_PROJECTION_SCHEMA_V1, DocumentProjectionProvenanceV1, DocumentProjectionV1,
-    DocumentProjectionV1Error,
+    DOCUMENT_PROJECTION_SCHEMA_V1, DocumentDirectRootKindV1, DocumentDirectRootV1,
+    DocumentProjectionProvenanceV1, DocumentProjectionV1, DocumentProjectionV1Error,
 };
 pub use geometry::{NonZeroFiniteV1, Point3V1, ProjectionError};
 pub use identity::{
-    DocumentObjectIdV1, DocumentObjectIdV1Error, ProjectionLocalObjectKeyV1,
-    ProjectionLocalObjectKeyV1Error,
+    DocumentLocationKindV1, DocumentLocationV1, DocumentLocationV1Error, DocumentObjectIdV1,
+    DocumentObjectIdV1Error, ProjectionLocalObjectKeyV1, ProjectionLocalObjectKeyV1Error,
 };
 pub use issue::{ProjectionIssueCodeV1, ProjectionIssueV1, ProjectionIssueV1Error};
 pub use molecule::{
@@ -31,8 +31,9 @@ pub use molecule::{
     DoubleBondCarrierMarkV1, MoleculeProjectionV1, MoleculeProjectionV1Error,
 };
 pub use paper::{
-    PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributesV1, PaperLayoutProjectionV1,
-    PaperOrientationV1, PaperPageIssueV1, PaperPageV1, ViewportAttributesV1,
+    PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributeTokensV1, PaperAttributesV1,
+    PaperLayoutFactsV1, PaperLayoutProjectionV1, PaperOrientationV1, PaperPageIssueV1, PaperPageV1,
+    ViewportAttributesV1,
 };
 pub use presentation::{
     ArrowHeadShapeV1, ArrowPathV1, ArrowProjectionKindV1, ArrowProjectionV1,
@@ -42,7 +43,7 @@ pub use presentation::{
     PresentationArrowPreviewRequestV1, PresentationBoundsV1, PresentationBracketStyleV1,
     PresentationFactProvenanceV1, PresentationFillV1, PresentationFontFaceV1, PresentationFontV1,
     PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationRecordKindV1,
-    PresentationRootProjectionV1, PresentationStackProjectionV1,
+    PresentationRootProjectionV1, PresentationStackEntryV1, PresentationStackProjectionV1,
     PresentationStackProjectionV1Error, PresentationStrokeV1, PresentationTargetV1,
     PresentationTextFontV1, PresentationTextRunV1, PresentationTextStyleV1, TextProjectionV1,
 };

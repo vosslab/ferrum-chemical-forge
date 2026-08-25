@@ -281,7 +281,7 @@
         "convention": {
           "type": "string"
         },
-        "document_root_order": {
+        "document_paint_order": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -307,7 +307,7 @@
         "source_digest_hex",
         "molecule_id",
         "atom_id",
-        "document_root_order",
+        "document_paint_order",
         "convention"
       ],
       "type": "object",
@@ -524,6 +524,87 @@
         "standard_input"
       ],
       "type": "string"
+    },
+    "DocumentMoleculeDiagnosticRecordSummaryV1": {
+      "additionalProperties": false,
+      "description": "One authenticated selected direct root and its bounded findings.",
+      "properties": {
+        "document_paint_order": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "findings": {
+          "description": "Shared closed diagnostic vocabulary with the molecule report route.",
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportFindingSummaryV1"
+          },
+          "type": "array"
+        },
+        "molecule_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "molecule_id",
+        "document_paint_order",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeDiagnosticsSnapshotV1": {
+      "additionalProperties": false,
+      "description": "One request-owned source snapshot for structure diagnostics.\n\n`revision` is preserved as the initiating document's source fence. The\ndetached executor verifies `digest_hex` against `cdml` before it evaluates\nany selected root.",
+      "properties": {
+        "cdml": {
+          "type": "string"
+        },
+        "digest_hex": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cdml",
+        "revision",
+        "digest_hex"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeDiagnosticsSummaryV1": {
+      "additionalProperties": false,
+      "description": "Bounded diagnostic receipt for one immutable source fence.",
+      "properties": {
+        "records": {
+          "description": "Records are ordered by durable document-root order, never caller order.",
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeDiagnosticRecordSummaryV1"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_digest_hex": {
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "source_revision",
+        "source_digest_hex",
+        "records"
+      ],
+      "type": "object"
     },
     "DocumentMoleculeHydrogenMaterializationRequestV1": {
       "additionalProperties": false,
@@ -933,7 +1014,6 @@
         "unsupported_bond_style",
         "unsupported_bond_order",
         "inconsistent_aromaticity",
-        "incomplete_authored_charge",
         "neutral_capacity_not_checked",
         "neutral_capacity_exceeded",
         "identifier_unavailable"
@@ -1130,7 +1210,7 @@
           ],
           "description": "Complete engine-derived facts, or `None` when this root cannot produce a\nsupported composition. `findings` explains that absence."
         },
-        "document_root_order": {
+        "document_paint_order": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -1146,9 +1226,6 @@
           "type": "string"
         },
         "neutral_bond_capacity": {
-          "type": "string"
-        },
-        "source_id": {
           "type": "string"
         },
         "stereo_depiction": {
@@ -1176,8 +1253,7 @@
       },
       "required": [
         "molecule_id",
-        "source_id",
-        "document_root_order",
+        "document_paint_order",
         "atom_count",
         "bond_count",
         "authored_elements",
@@ -1447,24 +1523,24 @@
     },
     "DocumentSmartsQueryMoleculeSummaryV1": {
       "additionalProperties": false,
-      "description": "One source-ordered target with at least one retained match. No atom identity crosses JSON.",
+      "description": "One document-paint-ordered target with at least one retained match. No atom identity crosses JSON.",
       "properties": {
         "completeness": {
           "type": "string"
         },
-        "match_count": {
+        "document_paint_order": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
-        "source_order": {
+        "match_count": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         }
       },
       "required": [
-        "source_order",
+        "document_paint_order",
         "match_count",
         "completeness"
       ],
@@ -2087,14 +2163,8 @@
           "additionalProperties": false,
           "description": "Create one canonical durable reaction aggregate from direct-root IDs.",
           "properties": {
-            "arrow": {
+            "arrow_document_object_id": {
               "type": "string"
-            },
-            "conditions": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
             },
             "document": {
               "type": "string"
@@ -2111,19 +2181,25 @@
               "const": "reaction.create.v1",
               "type": "string"
             },
-            "pluses": {
+            "plus_document_object_ids": {
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
-            "products": {
+            "product_document_object_ids": {
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
-            "reactants": {
+            "reactant_document_object_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "reagent_document_object_ids": {
               "items": {
                 "type": "string"
               },
@@ -2135,11 +2211,11 @@
             "document",
             "expected_revision",
             "expected_digest_hex",
-            "reactants",
-            "products",
-            "arrow",
-            "conditions",
-            "pluses"
+            "reactant_document_object_ids",
+            "product_document_object_ids",
+            "arrow_document_object_id",
+            "reagent_document_object_ids",
+            "plus_document_object_ids"
           ],
           "type": "object"
         },
@@ -2188,7 +2264,7 @@
               "const": "reaction.observe.v1",
               "type": "string"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
             }
           },
@@ -2197,7 +2273,7 @@
             "document",
             "expected_revision",
             "expected_digest_hex",
-            "reaction_id"
+            "reaction_document_object_id"
           ],
           "type": "object"
         },
@@ -2219,7 +2295,7 @@
               "const": "reaction.select.v1",
               "type": "string"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
             }
           },
@@ -2228,21 +2304,15 @@
             "document",
             "expected_revision",
             "expected_digest_hex",
-            "reaction_id"
+            "reaction_document_object_id"
           ],
           "type": "object"
         },
         {
           "additionalProperties": false,
           "properties": {
-            "arrow": {
+            "arrow_document_object_id": {
               "type": "string"
-            },
-            "conditions": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
             },
             "document": {
               "type": "string"
@@ -2259,26 +2329,32 @@
               "const": "reaction.patch-membership.v1",
               "type": "string"
             },
-            "pluses": {
+            "plus_document_object_ids": {
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
-            "products": {
+            "product_document_object_ids": {
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
-            "reactants": {
+            "reactant_document_object_ids": {
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
+            },
+            "reagent_document_object_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           "required": [
@@ -2286,12 +2362,12 @@
             "document",
             "expected_revision",
             "expected_digest_hex",
-            "reaction_id",
-            "reactants",
-            "products",
-            "arrow",
-            "conditions",
-            "pluses"
+            "reaction_document_object_id",
+            "reactant_document_object_ids",
+            "product_document_object_ids",
+            "arrow_document_object_id",
+            "reagent_document_object_ids",
+            "plus_document_object_ids"
           ],
           "type": "object"
         },
@@ -2313,7 +2389,7 @@
               "const": "reaction.delete-definition.v1",
               "type": "string"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
             }
           },
@@ -2322,63 +2398,7 @@
             "document",
             "expected_revision",
             "expected_digest_hex",
-            "reaction_id"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Translate every direct durable member of one strict reaction aggregate.",
-          "properties": {
-            "document": {
-              "type": "string"
-            },
-            "expected_digest_hex": {
-              "type": "string"
-            },
-            "expected_revision": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "kind": {
-              "const": "reaction.translate.v1",
-              "type": "string"
-            },
-            "pointer_x": {
-              "format": "double",
-              "type": "number"
-            },
-            "pointer_y": {
-              "format": "double",
-              "type": "number"
-            },
-            "press_x": {
-              "format": "double",
-              "type": "number"
-            },
-            "press_y": {
-              "format": "double",
-              "type": "number"
-            },
-            "reaction_id": {
-              "type": "string"
-            },
-            "snap": {
-              "$ref": "#/$defs/ProtocolReactionTranslationSnapV1"
-            }
-          },
-          "required": [
-            "kind",
-            "document",
-            "expected_revision",
-            "expected_digest_hex",
-            "reaction_id",
-            "press_x",
-            "press_y",
-            "pointer_x",
-            "pointer_y",
-            "snap"
+            "reaction_document_object_id"
           ],
           "type": "object"
         },
@@ -2399,6 +2419,31 @@
             "snapshot": {
               "$ref": "#/$defs/DocumentMoleculeReportSnapshotV1",
               "description": "Immutable source facts captured by the initiating live document."
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot",
+            "molecule_ids"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Check selected direct roots through Ferrum's bounded structure diagnostics.",
+          "properties": {
+            "kind": {
+              "const": "document.molecule.diagnostics.v1",
+              "type": "string"
+            },
+            "molecule_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "snapshot": {
+              "$ref": "#/$defs/DocumentMoleculeDiagnosticsSnapshotV1"
             }
           },
           "required": [
@@ -2847,14 +2892,14 @@
               "minimum": 0,
               "type": "integer"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
             }
           },
           "required": [
             "kind",
             "document",
-            "reaction_id",
+            "reaction_document_object_id",
             "input_revision",
             "committed_revision",
             "next_input_expected_revision",
@@ -2946,15 +2991,12 @@
               "const": "reaction.select.v1",
               "type": "string"
             },
-            "membership_digest": {
-              "type": "string"
-            },
             "next_input_expected_revision": {
               "format": "uint64",
               "minimum": 0,
               "type": "integer"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
             }
           },
@@ -2963,8 +3005,7 @@
             "input_revision",
             "next_input_expected_revision",
             "digest_hex",
-            "reaction_id",
-            "membership_digest"
+            "reaction_document_object_id"
           ],
           "type": "object"
         },
@@ -2996,14 +3037,14 @@
               "minimum": 0,
               "type": "integer"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
             }
           },
           "required": [
             "kind",
             "document",
-            "reaction_id",
+            "reaction_document_object_id",
             "input_revision",
             "committed_revision",
             "next_input_expected_revision",
@@ -3039,57 +3080,14 @@
               "minimum": 0,
               "type": "integer"
             },
-            "reaction_id": {
+            "reaction_document_object_id": {
               "type": "string"
             }
           },
           "required": [
             "kind",
             "document",
-            "reaction_id",
-            "input_revision",
-            "committed_revision",
-            "next_input_expected_revision",
-            "digest_hex"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "committed_revision": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "digest_hex": {
-              "type": "string"
-            },
-            "document": {
-              "type": "string"
-            },
-            "input_revision": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "kind": {
-              "const": "reaction.translate.v1",
-              "type": "string"
-            },
-            "next_input_expected_revision": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "reaction_id": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "document",
-            "reaction_id",
+            "reaction_document_object_id",
             "input_revision",
             "committed_revision",
             "next_input_expected_revision",
@@ -3112,6 +3110,24 @@
           "required": [
             "kind",
             "report"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Deterministic, runtime-free findings for selected direct molecule roots.",
+          "properties": {
+            "diagnostics": {
+              "$ref": "#/$defs/DocumentMoleculeDiagnosticsSummaryV1"
+            },
+            "kind": {
+              "const": "document.molecule.diagnostics.v1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "diagnostics"
           ],
           "type": "object"
         },
@@ -3259,16 +3275,19 @@
       "additionalProperties": false,
       "description": "Durable direct-bond result facts; identifiers come from the committed\ndocument session rather than the client request.",
       "properties": {
+        "bond_document_object_id": {
+          "type": "string"
+        },
         "created_new_atom": {
           "type": "boolean"
         },
         "created_new_molecule": {
           "type": "boolean"
         },
-        "end_atom_identifier": {
+        "end_atom_document_object_id": {
           "type": "string"
         },
-        "second_created_atom_identifier": {
+        "second_created_atom_document_object_id": {
           "type": [
             "string",
             "null"
@@ -3276,7 +3295,8 @@
         }
       },
       "required": [
-        "end_atom_identifier",
+        "bond_document_object_id",
+        "end_atom_document_object_id",
         "created_new_atom",
         "created_new_molecule"
       ],
@@ -3696,8 +3716,7 @@
             "reaction.observe.v1",
             "reaction.select.v1",
             "reaction.patch-membership.v1",
-            "reaction.delete-definition.v1",
-            "reaction.translate.v1"
+            "reaction.delete-definition.v1"
           ],
           "type": "string"
         },
@@ -3749,6 +3768,11 @@
         {
           "const": "document.molecule.report.v1",
           "description": "`document.molecule.report.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "document.molecule.diagnostics.v1",
+          "description": "`document.molecule.diagnostics.v1`.",
           "type": "string"
         },
         {
@@ -3856,7 +3880,6 @@
         "render_preparation",
         "session_conflict",
         "missing_reaction",
-        "legacy_definition_not_editable",
         "membership_changed",
         "renderer_exclusion"
       ],
@@ -3866,15 +3889,7 @@
       "enum": [
         "refresh_and_restart",
         "correct_selectors",
-        "choose_renderable_members",
-        "repair_legacy_definition"
-      ],
-      "type": "string"
-    },
-    "ProtocolReactionTranslationSnapV1": {
-      "enum": [
-        "free",
-        "view_hex_grid"
+        "choose_renderable_members"
       ],
       "type": "string"
     },
@@ -3970,49 +3985,17 @@
         }
       ]
     },
-    "ReactionBoundsSummaryV1": {
-      "additionalProperties": false,
-      "properties": {
-        "bottom": {
-          "format": "double",
-          "type": "number"
-        },
-        "left": {
-          "format": "double",
-          "type": "number"
-        },
-        "right": {
-          "format": "double",
-          "type": "number"
-        },
-        "top": {
-          "format": "double",
-          "type": "number"
-        }
-      },
-      "required": [
-        "left",
-        "top",
-        "right",
-        "bottom"
-      ],
-      "type": "object"
-    },
     "ReactionMemberSummaryV1": {
       "additionalProperties": false,
       "properties": {
-        "bounds": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ReactionBoundsSummaryV1"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "identifier": {
+        "document_object_id": {
           "type": "string"
+        },
+        "document_paint_order": {
+          "description": "Global order is available only for admitted renderer-backed members.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
         },
         "role": {
           "type": "string"
@@ -4021,18 +4004,13 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
-        },
-        "source_order": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
         }
       },
       "required": [
-        "identifier",
+        "document_object_id",
         "role",
         "role_ordinal",
-        "source_order"
+        "document_paint_order"
       ],
       "type": "object"
     },
@@ -4054,34 +4032,14 @@
           },
           "type": "array"
         },
-        "membership_digest": {
+        "reaction_document_object_id": {
           "type": "string"
-        },
-        "reaction_id": {
-          "type": "string"
-        },
-        "source_order": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "union_bounds": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ReactionBoundsSummaryV1"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "required": [
-        "reaction_id",
-        "source_order",
+        "reaction_document_object_id",
         "disposition",
         "diagnostics",
-        "membership_digest",
         "members"
       ],
       "type": "object"

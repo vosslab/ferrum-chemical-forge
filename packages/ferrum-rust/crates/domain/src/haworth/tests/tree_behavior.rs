@@ -16,10 +16,9 @@ fn restore(
 
 fn atom(index: usize, element: &str) -> Atom {
     Atom::new(
-        Some(Identifier::new(format!("tree-a{index}")).expect("identifier")),
+        Identifier::new(format!("tree-a{index}")).expect("identifier"),
         Some(element.to_owned()),
         Position::new(index as f64, 0.0, 0.0).expect("position"),
-        None,
         None,
         None,
         None,
@@ -32,14 +31,13 @@ fn atom(index: usize, element: &str) -> Atom {
 
 fn bond(index: usize, start: &Atom, end: &Atom) -> Bond {
     Bond::new(
-        Some(Identifier::new(format!("tree-b{index}")).expect("identifier")),
+        Identifier::new(format!("tree-b{index}")).expect("identifier"),
         VertexRef::Atom(start.identity().clone()),
         VertexRef::Atom(end.identity().clone()),
         None,
         Some(BondOrder::Single),
         None,
         Some(false),
-        None,
     )
     .expect("bond")
 }
@@ -76,14 +74,13 @@ fn tree(ring_count: usize, reversed_storage: bool) -> HaworthTreeRequest {
         ));
     }
     let molecule = Molecule::new(
-        Some(Identifier::new("tree-molecule").expect("identifier")),
+        Identifier::new("tree-molecule").expect("identifier"),
         None,
         atoms.clone(),
         Vec::new(),
         Vec::new(),
         Vec::new(),
         bonds.clone(),
-        None,
     )
     .expect("molecule");
     let mut nodes: Vec<_> = cycles

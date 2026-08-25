@@ -92,18 +92,20 @@ class FerrumNativeWindowModeSyncMixin:
 
 	#============================================
 	@staticmethod
-	def _typed_refusal(context: str, outcome: str, details: str) -> object:
+	def _typed_refusal(context: str, outcome: str, details: str,
+			primary_message: str | None = None) -> object:
 		"""Build an exact refusal at the native-window boundary."""
 		refusal = ferrum_qt.dialogs.refusal_presenter
 		return refusal.RefusalRequest(
 			refusal.RefusalTaskContext(context), refusal.RefusalOutcome(outcome),
-			technical_details=details,
+			technical_details=details, primary_message=primary_message,
 		)
 
 	#============================================
 	@staticmethod
-	def _unavailable_edit_refusal(details: str) -> object:
+	def _unavailable_edit_refusal(details: str,
+			primary_message: str | None = None) -> object:
 		"""Build the explicit refused-edit fact for one feature boundary."""
 		return FerrumNativeWindowModeSyncMixin._typed_refusal(
-			"edit_document", "unavailable_operation", details,
+			"edit_document", "unavailable_operation", details, primary_message,
 		)

@@ -51,7 +51,8 @@ def test_renderer_plan_scene_preserves_durable_target_selection() -> None:
 	for root in scene.roots:
 		graphics_scene.addItem(root)
 	target = scene.roots[0].target
-	assert target.durable_object_id is not None
+	assert target.kind == "document_object"
+	assert target.document_object_id
 	scene.select_durable((target.durable_selection_key(),))
 	selected = scene.selected_targets(graphics_scene)
 	assert selected[0].durable_selection_key() == target.durable_selection_key()
@@ -81,5 +82,7 @@ def test_curved_arrow_plan_scene_retains_renderer_target() -> None:
 	scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
 		plan, ferrum_qt.ferrum.engine.verified_telex_regular(),
 	)
-	assert scene.roots[0].target.render_identifier == "curve"
+	target = scene.roots[0].target
+	assert target.kind == "document_object"
+	assert target.document_object_id
 	scene.dispose_detached()

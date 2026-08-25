@@ -68,6 +68,8 @@ class FerrumNativeMainWindowLifecycleMixin:
 			return
 		if self._molecule_inspection_blocks_tab_close(tab):
 			return
+		if self._molecule_diagnostics_blocks_tab_close(tab):
+			return
 		if self._atom_oxidation_blocks_tab_close(tab):
 			return
 		if self._clipboard_operation_blocks_tab_close(tab):
@@ -115,6 +117,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 			))
 			return
 		self._retire_molecule_report_dialog_for_tab(tab)
+		self._retire_molecule_diagnostics_dialog_for_tab(tab)
 		self._retire_atom_oxidation_dialog_for_tab(tab)
 		self._cancel_native_view_controls_for_tab(tab)
 		self._retire_closed_native_tab(tab, index)
@@ -193,6 +196,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 		busy_import = self._molecule_import_busy()
 		busy_export = self._molecule_export_busy()
 		busy_inspection = self._molecule_inspection_busy()
+		busy_diagnostics = self._molecule_diagnostics_busy()
 		busy_atom_oxidation = self._atom_oxidation_busy()
 		busy_compact_group_materialization = self._compact_group_materialization_intent is not None
 		busy_compact_group_authoring = self._compact_group_authoring_intent is not None
@@ -202,14 +206,14 @@ class FerrumNativeMainWindowLifecycleMixin:
 		busy_catalog_template = self._catalog_placement_intent is not None
 		busy_snapshot_export = self._snapshot_export_busy()
 		busy = (
-			busy_import or busy_export or busy_inspection or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard or busy_coordinates
+			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard or busy_coordinates
 			or busy_user_template or busy_catalog_template or busy_snapshot_export
 		)
 		# A template placement is itself a terminal authoring intent.  Keep ordinary
 		# document commands protected, but leave the exclusive authoring actions
 		# reachable so selecting one can retire the template owner before it arms.
 		authoring_busy = (
-			busy_import or busy_export or busy_inspection or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard
+			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard
 			or busy_coordinates or busy_snapshot_export
 		)
 		if self._atom_insertion_intent is not None and (
@@ -319,18 +323,23 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._refresh_molecule_inspection_actions(
 			active,
 			pending,
-			busy_import or busy_export or busy_coordinates or busy_clipboard,
+			busy_import or busy_export or busy_diagnostics or busy_coordinates or busy_clipboard,
+		)
+		self._refresh_molecule_diagnostics_action(
+			active,
+			pending,
+			busy_import or busy_export or busy_inspection or busy_coordinates or busy_clipboard,
 		)
 		self._refresh_atom_oxidation_action(
-			active, pending, busy_import or busy_export or busy_inspection or busy_clipboard
+			active, pending, busy_import or busy_export or busy_inspection or busy_diagnostics or busy_clipboard
 			or busy_coordinates,
 		)
 		self._refresh_explicit_hydrogen_action(
-			active, pending, busy_import or busy_export or busy_inspection or busy_clipboard
+			active, pending, busy_import or busy_export or busy_inspection or busy_diagnostics or busy_clipboard
 			or busy_coordinates,
 		)
 		self._refresh_compact_group_materialization_action(
-			active, pending, busy_import or busy_export or busy_inspection or busy_clipboard
+			active, pending, busy_import or busy_export or busy_inspection or busy_diagnostics or busy_clipboard
 			or busy_coordinates or busy_atom_oxidation,
 		)
 		self._refresh_compact_group_authoring_action(
@@ -339,7 +348,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 		)
 		self._refresh_native_clipboard_actions(
 			active, pending,
-			busy_import or busy_export or busy_inspection or busy_coordinates,
+			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_coordinates,
 		)
 		self._refresh_molecule_name_action(active, pending, busy)
 		self._refresh_linear_form_action(active, pending, busy)
@@ -347,10 +356,10 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._refresh_direct_glycosidic_haworth_action(active, pending, busy)
 		self._refresh_native_user_template_actions(
 			active, pending,
-			busy_import or busy_export or busy_inspection or busy_clipboard or busy_coordinates,
+			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_clipboard or busy_coordinates,
 		)
 		self._refresh_catalog_template_action(
-			active, pending, busy_import or busy_export or busy_inspection or busy_clipboard
+			active, pending, busy_import or busy_export or busy_inspection or busy_diagnostics or busy_clipboard
 			or busy_coordinates or busy_user_template or busy_snapshot_export,
 		)
 		self._generate_coordinates_action.setEnabled(
@@ -410,6 +419,9 @@ class FerrumNativeMainWindowLifecycleMixin:
 			event.ignore()
 			return
 		if self._cancel_molecule_inspection_for_close():
+			event.ignore()
+			return
+		if self._cancel_molecule_diagnostics_for_close():
 			event.ignore()
 			return
 		if self._cancel_clipboard_operations_for_close():

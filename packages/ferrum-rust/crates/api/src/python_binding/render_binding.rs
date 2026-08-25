@@ -1,15 +1,14 @@
 //! Frozen Python DTOs for the API-owned final render observation.
 
-use ferrum_core::RecordOrigin;
 use ferrum_document::{
     DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1, DocumentRenderObservationErrorV1,
     DocumentRenderObservationV1, PresentationTargetV1,
 };
 use ferrum_render::{
-    BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
-    DocumentPlusRenderV1, LineOp, MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1,
-    RenderIssue, RenderIssueKind, RenderOp, RenderPoint, RenderTarget, TextOp, TextScript,
-    VectorStrokeLineCapV1, verified_telex_regular_v1,
+    BatchSpace, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2, DocumentPlusRenderV1, LineOp,
+    MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1, RenderIssue, RenderIssueKind, RenderOp,
+    RenderPoint, RenderTarget, TextOp, TextScript, VectorStrokeLineCapV1,
+    verified_telex_regular_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -46,28 +45,14 @@ pub(crate) struct PyRenderTargetV1 {
     #[pyo3(get)]
     kind: String,
     #[pyo3(get)]
-    render_identifier: Option<String>,
-    #[pyo3(get)]
-    source_order: u32,
-    #[pyo3(get)]
-    durable_object_id: Option<String>,
-    #[pyo3(get)]
-    durable_molecule_object_id: Option<String>,
+    document_object_id: String,
 }
 
 impl From<&RenderTarget> for PyRenderTargetV1 {
     fn from(value: &RenderTarget) -> Self {
         Self {
-            kind: format!("{:?}", value.record_id().kind()),
-            render_identifier: match value.record_id().origin() {
-                RecordOrigin::Source(identifier) => Some(identifier.as_str().to_owned()),
-                RecordOrigin::Legacy { .. } => None,
-            },
-            source_order: value.source_order(),
-            durable_object_id: value.document_object_id().map(|id| id.as_str().to_owned()),
-            durable_molecule_object_id: value
-                .owner_molecule_object_id()
-                .map(|id| id.as_str().to_owned()),
+            kind: "document_object".to_owned(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
         }
     }
 }
@@ -75,11 +60,8 @@ impl From<&RenderTarget> for PyRenderTargetV1 {
 impl From<&PresentationTargetV1> for PyRenderTargetV1 {
     fn from(value: &PresentationTargetV1) -> Self {
         Self {
-            kind: format!("{:?}", value.record_kind()).to_ascii_lowercase(),
-            render_identifier: value.source_id().map(str::to_owned),
-            source_order: value.source_order(),
-            durable_object_id: value.id().map(|id| id.as_str().to_owned()),
-            durable_molecule_object_id: None,
+            kind: "document_object".to_owned(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
         }
     }
 }
@@ -346,13 +328,7 @@ pub(crate) struct PyRenderProvenanceV1 {
 #[derive(Clone)]
 pub(crate) struct PyMoleculeRenderRootV1 {
     #[pyo3(get)]
-    id: Option<String>,
-    #[pyo3(get)]
-    projection_key: String,
-    #[pyo3(get)]
-    source_id: Option<String>,
-    #[pyo3(get)]
-    source_order: u32,
+    document_object_id: String,
 }
 
 #[pyclass(frozen, name = "DocumentMoleculeRenderPlanV2", skip_from_py_object)]
@@ -362,6 +338,7 @@ pub(crate) struct PyDocumentMoleculeRenderPlanV2 {
     molecule: PyMoleculeRenderRootV1,
     #[pyo3(get)]
     plan: PyRenderPlanV2,
+    member_issues: Vec<PyMoleculeMemberDepictionIssueV1>,
 }
 
 #[pymethods]
@@ -376,13 +353,21 @@ impl PyRenderPlanV2 {
     }
 }
 
-#[pyclass(frozen, name = "DepictionIssueV1", skip_from_py_object)]
+#[pymethods]
+impl PyDocumentMoleculeRenderPlanV2 {
+    #[getter]
+    fn member_issues(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        frozen_tuple(py, &self.member_issues)
+    }
+}
+
+#[pyclass(frozen, name = "MoleculeMemberDepictionIssueV1", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyDepictionIssueV1 {
+pub(crate) struct PyMoleculeMemberDepictionIssueV1 {
     #[pyo3(get)]
-    code: String,
+    document_object_id: String,
     #[pyo3(get)]
-    target: String,
+    category: String,
     #[pyo3(get)]
     detail: String,
 }
@@ -427,7 +412,6 @@ pub(crate) struct PyRenderObservationV1 {
     molecule_plans: Vec<PyDocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<PyDocumentPlusRenderV1>,
     text_renders: Vec<super::presentation_text_render_binding::PyDocumentTextRenderV1>,
-    issues: Vec<PyDepictionIssueV1>,
     #[pyo3(get)]
     suppression: Option<String>,
 }
@@ -445,10 +429,6 @@ impl PyRenderObservationV1 {
     #[getter]
     fn text_renders(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         frozen_tuple(py, &self.text_renders)
-    }
-    #[getter]
-    fn issues(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        frozen_tuple(py, &self.issues)
     }
 }
 
@@ -507,7 +487,6 @@ pub(crate) fn observation(
         molecule_plans,
         plus_renders: resolved.plus_renders().iter().map(plus_from).collect(),
         text_renders: resolved.text_renders().iter().map(Into::into).collect(),
-        issues: resolved.issues().iter().map(issue_from).collect(),
         suppression: resolved.suppression().map(suppression_name),
     })
 }
@@ -542,12 +521,14 @@ fn document_molecule_plan_from(
 ) -> PyResult<PyDocumentMoleculeRenderPlanV2> {
     Ok(PyDocumentMoleculeRenderPlanV2 {
         molecule: PyMoleculeRenderRootV1 {
-            id: value.molecule().id().map(str::to_owned),
-            projection_key: value.molecule().projection_key().to_owned(),
-            source_id: value.molecule().source_id().map(str::to_owned),
-            source_order: value.molecule().source_order(),
+            document_object_id: value.molecule().document_object_id().as_str().to_owned(),
         },
         plan: plan_from(py, value.plan())?,
+        member_issues: value
+            .member_issues()
+            .iter()
+            .map(member_issue_from)
+            .collect(),
     })
 }
 
@@ -757,10 +738,12 @@ fn issue_render_from(value: &RenderIssue) -> PyRenderIssueV1 {
     }
 }
 
-fn issue_from(value: &DepictionIssueV1) -> PyDepictionIssueV1 {
-    PyDepictionIssueV1 {
-        code: format!("{:?}", value.code()).to_ascii_lowercase(),
-        target: value.target().to_owned(),
+fn member_issue_from(
+    value: &ferrum_render::MoleculeMemberDepictionIssueV1,
+) -> PyMoleculeMemberDepictionIssueV1 {
+    PyMoleculeMemberDepictionIssueV1 {
+        document_object_id: value.target().as_str().to_owned(),
+        category: format!("{:?}", value.code()).to_ascii_lowercase(),
         detail: value.detail().to_owned(),
     }
 }
@@ -810,7 +793,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPathOpV2>()?;
     module.add_class::<PyScenePathCommandV2>()?;
     module.add_class::<PyRenderIssueV1>()?;
-    module.add_class::<PyDepictionIssueV1>()?;
+    module.add_class::<PyMoleculeMemberDepictionIssueV1>()?;
     module.add_class::<PyDocumentPlusRenderV1>()?;
     super::presentation_text_render_binding::register(module)?;
     module.add_class::<PyPresentationTextBoundsV1>()?;

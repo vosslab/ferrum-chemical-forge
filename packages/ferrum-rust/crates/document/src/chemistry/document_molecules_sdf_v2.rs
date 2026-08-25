@@ -17,6 +17,7 @@ use super::document_molecule_inspection_v1::{
     DocumentMoleculeInspectionErrorV1, copied_object_id, direct_projection_molecule_v1,
     verify_molecule_observation_v1,
 };
+use crate::document_direct_root_index_v1::document_direct_root_paint_orders_v1;
 
 /// Stable schema for a batch direct-root SDF receipt.
 pub const DOCUMENT_MOLECULES_SDF_SCHEMA_V2: &str = "ferrum-document-molecules-sdf-v2";
@@ -225,6 +226,8 @@ pub fn prepare_document_molecules_sdf_v2(
     let snapshot = observation.snapshot();
     let document = TypedDocument::parse(snapshot.cdml())
         .map_err(DocumentMoleculeInspectionErrorV1::Document)?;
+    let document_paint_orders = document_direct_root_paint_orders_v1(observation.projection())
+        .map_err(|_| DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
     let mut sources = Vec::new();
     sources
         .try_reserve_exact(request.molecule_ids.len())
@@ -238,17 +241,19 @@ pub fn prepare_document_molecules_sdf_v2(
             .core_molecule(molecule_id)
             .map_err(DocumentMoleculeInspectionErrorV1::CoreProjection)?
             .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
-        if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(source_id) {
+        if molecule.source_id().as_str() != source_id {
             return Err(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch.into());
         }
         sources.push(ResolvedDocumentMoleculeSdfSourceV2 {
             molecule_id: copied_object_id(molecule_id)?,
             source_id: copy_text(source_id)?,
-            source_order: root.source_order(),
+            document_paint_order: *document_paint_orders
+                .get(molecule_id)
+                .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?,
             molecule,
         });
     }
-    sources.sort_by_key(|source| source.source_order);
+    sources.sort_by_key(|source| source.document_paint_order);
 
     let mut records = Vec::new();
     records
@@ -385,7 +390,7 @@ fn export_with_engine(
 struct ResolvedDocumentMoleculeSdfSourceV2 {
     molecule_id: DocumentObjectIdV1,
     source_id: String,
-    source_order: u32,
+    document_paint_order: u32,
     molecule: ferrum_core::Molecule,
 }
 

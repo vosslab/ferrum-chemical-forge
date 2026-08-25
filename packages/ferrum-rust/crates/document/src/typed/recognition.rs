@@ -14,13 +14,19 @@ use super::{
     UnknownAttribute, UnrecognizedChild, UnrecognizedNode,
 };
 
+struct ProjectedAttributes {
+    typed_attributes: BTreeMap<String, String>,
+    document_object_id_metadata_v1: Option<String>,
+    unknown_attributes: Vec<UnknownAttribute>,
+}
+
 pub(super) fn project_record(
     tree: &Xot,
     node: Node,
     class: TypedClass,
     path: Vec<u32>,
 ) -> Result<TypedRecord, TypedDocumentError> {
-    let (typed_attributes, unknown_attributes) = project_attributes(tree, node, class)?;
+    let attributes = project_attributes(tree, node, class)?;
     let mut typed_children = Vec::new();
     let mut typed_text = Vec::new();
     let mut unrecognized_children = Vec::new();
@@ -105,8 +111,9 @@ pub(super) fn project_record(
     Ok(TypedRecord {
         class,
         path: ElementPath(path),
-        typed_attributes,
-        unknown_attributes,
+        typed_attributes: attributes.typed_attributes,
+        document_object_id_metadata_v1: attributes.document_object_id_metadata_v1,
+        unknown_attributes: attributes.unknown_attributes,
         typed_children,
         typed_text,
         unrecognized_children,
@@ -137,14 +144,21 @@ fn project_attributes(
     tree: &Xot,
     node: Node,
     class: TypedClass,
-) -> Result<(BTreeMap<String, String>, Vec<UnknownAttribute>), TypedDocumentError> {
+) -> Result<ProjectedAttributes, TypedDocumentError> {
     let mut typed = BTreeMap::new();
+    let mut document_object_id_metadata_v1 = None;
     let mut unknown = Vec::new();
     let context = namespace_context(tree, node);
     for (name, value) in tree.attributes(node).iter() {
         let (local_name, namespace) = tree.name_ns_str(name);
         if namespace.is_empty() && typed_attribute_names(class).contains(&local_name) {
             typed.insert(local_name.to_owned(), value.clone());
+            continue;
+        }
+        if super::super::document_object_identity_v1::is_document_object_attribute_v1(
+            namespace, local_name,
+        ) {
+            document_object_id_metadata_v1 = Some(value.clone());
             continue;
         }
         let reference = tree
@@ -177,7 +191,11 @@ fn project_attributes(
                 &right.qualified_name,
             ))
     });
-    Ok((typed, unknown))
+    Ok(ProjectedAttributes {
+        typed_attributes: typed,
+        document_object_id_metadata_v1,
+        unknown_attributes: unknown,
+    })
 }
 
 fn namespace_context(tree: &Xot, node: Node) -> Vec<NamespaceBinding> {

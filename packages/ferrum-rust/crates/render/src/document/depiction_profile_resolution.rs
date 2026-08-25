@@ -1,6 +1,7 @@
 //! Private atom, bond, and style resolution for the closed Ferrum depiction profile.
 
 use super::depiction_profile::{DepictionIssueCodeV1, DepictionIssueV1, DepictionProfileV1};
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts, AtomMarkRenderKind,
     AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, BondStyle, FontFace, Paint,
@@ -29,7 +30,7 @@ pub(super) fn apply_double_bond_carrier_marks(
         let central_double_bond = bonds
             .iter()
             .find(|(bond, _)| bond.id() == Some(mark.central_double_bond()))
-            .map(|(_, target)| target.target().record_id().clone())
+            .map(|(bond, _)| bond_record_id(bond).expect("resolved bond has a source record ID"))
             .ok_or_else(|| {
                 issue(
                     DepictionIssueCodeV1::UnsupportedFeature,
@@ -83,8 +84,9 @@ pub(super) fn resolve_atom(
     owner_molecule_object_id: &DocumentObjectIdV1,
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
-) -> Result<AtomRenderTarget, DepictionIssueV1> {
-    let target = atom_target(atom, owner_molecule_object_id)?;
+) -> Result<(AtomRenderTarget, RecordId), DepictionIssueV1> {
+    let context = atom_context(atom, owner_molecule_object_id)?;
+    let record_id = context.record_id().clone();
     if atom.label_text().is_some() {
         return Err(issue(
             DepictionIssueCodeV1::UnsupportedRichLabel,
@@ -200,7 +202,7 @@ pub(super) fn resolve_atom(
             )
         })?;
     let target = AtomRenderTarget::new(
-        target,
+        context,
         RenderPoint::new(atom.position().x(), atom.position().y()).map_err(|error| {
             issue(
                 DepictionIssueCodeV1::UnsupportedFeature,
@@ -219,10 +221,11 @@ pub(super) fn resolve_atom(
             error.to_string(),
         )
     })?;
-    Ok(match number_label {
+    let target = match number_label {
         Some(number_label) => target.with_number_label(number_label),
         None => target,
-    })
+    };
+    Ok((target, record_id))
 }
 
 fn render_mark_kind(kind: AtomMarkKindV1) -> AtomMarkRenderKind {
@@ -240,11 +243,11 @@ fn render_mark_kind(kind: AtomMarkKindV1) -> AtomMarkRenderKind {
 pub(super) fn resolve_bond(
     bond: &BondProjectionV1,
     owner_molecule_object_id: &DocumentObjectIdV1,
-    endpoints: &std::collections::HashMap<DocumentObjectIdV1, RenderTarget>,
+    endpoints: &std::collections::HashMap<DocumentObjectIdV1, RecordId>,
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
 ) -> Result<BondRenderTarget, DepictionIssueV1> {
-    let target = bond_target(bond, owner_molecule_object_id)?;
+    let context = bond_context(bond, owner_molecule_object_id)?;
     let first = endpoint_record(bond.start(), endpoints, bond.projection_key().as_str())?;
     let second = endpoint_record(bond.end(), endpoints, bond.projection_key().as_str())?;
     if let Some(value) = bond.bond_width().filter(|value| value.value() < 0.0) {
@@ -253,7 +256,7 @@ pub(super) fn resolve_bond(
         // signed fact in the projection and make the durable bond target a plan
         // issue rather than erasing it during positive-scalar resolution.
         return BondRenderTarget::new(
-            target,
+            context,
             first,
             second,
             BondStyle::Unsupported {
@@ -277,7 +280,7 @@ pub(super) fn resolve_bond(
     let paint = resolved_bond_paint(bond, projection, profile)?;
     let wedge_width = resolved_bond_wedge_width(bond, projection, profile)?;
     let style = render_bond_style(bond);
-    BondRenderTarget::new(target, first, second, style, TargetVisibility::Visible)
+    BondRenderTarget::new(context, first, second, style, TargetVisibility::Visible)
         .map(|target| target.with_appearance(width, lane_spacing, wedge_width, paint))
         .map_err(|error| {
             issue(
@@ -322,11 +325,11 @@ fn effective_hydrogens(local: Option<VisibilityV1>, projection: &DocumentProject
     }) == Some(VisibilityV1::Enabled)
 }
 
-fn atom_target(
+fn atom_context(
     atom: &AtomProjectionV1,
     owner_molecule_object_id: &DocumentObjectIdV1,
-) -> Result<RenderTarget, DepictionIssueV1> {
-    record_target(
+) -> Result<RenderPlanEntryContextV1, DepictionIssueV1> {
+    record_context(
         atom.id(),
         owner_molecule_object_id,
         atom.source_id(),
@@ -336,11 +339,11 @@ fn atom_target(
     )
 }
 
-fn bond_target(
+fn bond_context(
     bond: &BondProjectionV1,
     owner_molecule_object_id: &DocumentObjectIdV1,
-) -> Result<RenderTarget, DepictionIssueV1> {
-    record_target(
+) -> Result<RenderPlanEntryContextV1, DepictionIssueV1> {
+    record_context(
         bond.id(),
         owner_molecule_object_id,
         bond.source_id(),
@@ -350,14 +353,14 @@ fn bond_target(
     )
 }
 
-fn record_target(
+fn record_context(
     durable: Option<&ferrum_document_projection::DocumentObjectIdV1>,
     owner_molecule_object_id: &DocumentObjectIdV1,
     source_id: Option<&str>,
     source_order: u32,
     kind: RecordKind,
     local: &str,
-) -> Result<RenderTarget, DepictionIssueV1> {
+) -> Result<RenderPlanEntryContextV1, DepictionIssueV1> {
     let Some(durable) = durable else {
         return Err(issue(
             DepictionIssueCodeV1::NonDurableTarget,
@@ -379,17 +382,24 @@ fn record_target(
             error.to_string(),
         )
     })?;
-    Ok(RenderTarget::document_object(
-        RecordId::from_source(kind, &identifier),
+    let record_id = RecordId::new(kind, identifier).map_err(|error| {
+        issue(
+            DepictionIssueCodeV1::NonDurableTarget,
+            local,
+            error.to_string(),
+        )
+    })?;
+    Ok(RenderPlanEntryContextV1::new(
+        RenderTarget::document_object(durable.clone()),
+        record_id,
         source_order,
-        durable.clone(),
         Some(owner_molecule_object_id.clone()),
     ))
 }
 
 fn endpoint_record(
     endpoint: &ferrum_document_projection::BondEndpointV1,
-    endpoints: &std::collections::HashMap<DocumentObjectIdV1, RenderTarget>,
+    endpoints: &std::collections::HashMap<DocumentObjectIdV1, RecordId>,
     local: &str,
 ) -> Result<RecordId, DepictionIssueV1> {
     let kind = match endpoint.kind() {
@@ -412,8 +422,8 @@ fn endpoint_record(
     })?;
     endpoints
         .get(object_id)
-        .filter(|target| target.record_id().kind() == kind)
-        .map(|target| target.record_id().clone())
+        .filter(|record_id| record_id.kind() == kind)
+        .cloned()
         .ok_or_else(|| {
             issue(
                 DepictionIssueCodeV1::UnsupportedFeature,
@@ -421,6 +431,43 @@ fn endpoint_record(
                 "bond endpoint has no renderable durable atom or compact group",
             )
         })
+}
+
+fn bond_record_id(bond: &BondProjectionV1) -> Result<RecordId, DepictionIssueV1> {
+    record_id(
+        bond.source_id(),
+        RecordKind::Bond,
+        bond.id()
+            .map_or("missing-durable-bond-id", |id| id.as_str()),
+    )
+}
+
+fn record_id(
+    source_id: Option<&str>,
+    kind: RecordKind,
+    target: &str,
+) -> Result<RecordId, DepictionIssueV1> {
+    let source_id = source_id.ok_or_else(|| {
+        issue(
+            DepictionIssueCodeV1::NonDurableTarget,
+            target,
+            "durable rendering target has no source identifier",
+        )
+    })?;
+    let identifier = Identifier::new(source_id).map_err(|error| {
+        issue(
+            DepictionIssueCodeV1::NonDurableTarget,
+            target,
+            error.to_string(),
+        )
+    })?;
+    RecordId::new(kind, identifier).map_err(|error| {
+        issue(
+            DepictionIssueCodeV1::NonDurableTarget,
+            target,
+            error.to_string(),
+        )
+    })
 }
 
 pub(super) fn resolved_font(

@@ -119,8 +119,8 @@ pub use direct_glycosidic_haworth::{
 pub use document::depiction_profile::{
     DEPICTION_PROFILE_SCHEMA_V1, DEPICTION_RESOLUTION_SCHEMA_V1, DepictionError,
     DepictionIssueCodeV1, DepictionIssueV1, DepictionProfileV1, DepictionResolutionV1,
-    DepictionSuppressionV1, DirectGlycosidicHaworthStyleV1, render_document_projection_v1,
-    resolve_direct_glycosidic_haworth_style_v1,
+    DepictionSuppressionV1, DirectGlycosidicHaworthStyleV1, MoleculeMemberDepictionIssueV1,
+    render_document_projection_v1, resolve_direct_glycosidic_haworth_style_v1,
 };
 pub use document::observation::{
     DocumentMoleculeRenderPlanV2, MoleculeRenderRootV1, RESOLVED_DOCUMENT_RENDER_SCHEMA_V1,
@@ -141,10 +141,9 @@ pub use document_content_bounds_v1::{
 };
 /// Renderer-neutral whole-page document composition model.
 pub use document_plan_v1::{
-    DocumentRenderContentV1, DocumentRenderExclusionV1, DocumentRenderIdentityV1,
+    DocumentMoleculeRenderContentV1, DocumentRenderContentV1, DocumentRenderExclusionV1,
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, DocumentRenderRootV1, DocumentTextLayoutV1,
-    DocumentTextOpV1, MoleculeRenderOverlayV1, RenderRootOverlayV1, RenderViewportV1,
-    preview_molecule_render_overlay_v1, preview_root_render_overlay_v1,
+    DocumentTextOpV1, RenderViewportV1,
 };
 /// Immutable identifier-free precommit paint data for accepted document mutations.
 pub use document_precommit_overlay_v1::{
@@ -176,8 +175,6 @@ pub use model::{
     RenderDisplayLayerV1, RenderOp, RenderPoint, RenderProvenance, RenderRevision,
     RenderSchemaVersion, Rgb24, TextOp, TextRun,
 };
-/// Stable visual and durable document identity for one render-plan target.
-pub use render_target::RenderTarget;
 /// In-memory, outline-only vector PDF V1 lowering with explicit caller-owned limits.
 pub use pdf_backend::{
     PdfComplexityResourceV1, PdfDocumentV1, PdfOutputBudgetV1, PdfPlanComplexityBudgetV1,
@@ -195,9 +192,10 @@ pub use presentation::path::{
 };
 /// Pure renderer-owned plan for one immutable presentation stack.
 pub use presentation::plan::{
-    PRESENTATION_RENDER_PLAN_SCHEMA_V1, PresentationRenderBoundsV1, PresentationRenderPlanV1,
-    PresentationRenderRootV1, lower_arrow_preview_v1, lower_standard_plus_preview_v1,
-    render_presentation_stack_v1,
+    PRESENTATION_PREVIEW_RENDER_PLAN_SCHEMA_V1, PRESENTATION_RENDER_PLAN_SCHEMA_V1,
+    PresentationPreviewRenderPlanV1, PresentationPreviewRenderRootV1, PresentationRenderBoundsV1,
+    PresentationRenderPlanV1, PresentationRenderRootV1, lower_arrow_preview_v1,
+    lower_standard_plus_preview_v1, render_presentation_stack_v1,
 };
 pub use presentation::plus::{DocumentPlusRenderV1, PresentationTextBoundsV1};
 /// Renderer-owned geometry for interactive curved terminal-arrow previews.
@@ -208,6 +206,8 @@ pub use presentation::vector::lower_presentation_vector_v1;
 pub use presentation_path_v1::{
     PathKindV1, PresentationPathErrorV1, PresentationPathV1, lower_authored_control_path_v1,
 };
+/// Stable visual and durable document identity for one render-plan target.
+pub use render_target::RenderTarget;
 /// Neutral V2 path facts shared by molecule render-plan consumers.
 pub use scene_path_v2::{PathOpV2, ScenePathCommandV2, ScenePathStrokeV2};
 pub use shape_ops::EllipseOp;

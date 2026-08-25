@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{PersistentId, Rgb24V1};
+use super::{DocumentObjectIdV1, Rgb24V1};
 
 /// A finite Arrow line width in the documented editable range.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -71,21 +71,19 @@ impl ArrowPropertyKindV1 {
     }
 }
 
-/// One validated, source-ID-targeted direct-root Arrow properties patch.
+/// One validated, durable-ID-targeted direct-root Arrow properties patch.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArrowPropertiesPatchV1 {
-    arrow_id: PersistentId,
+    arrow_object_id: DocumentObjectIdV1,
     changes: Vec<ArrowPropertyChangeV1>,
 }
 
 impl ArrowPropertiesPatchV1 {
     /// Validate one complete edit intent without reading a document.
     pub fn new(
-        arrow_id: impl Into<String>,
+        arrow_object_id: DocumentObjectIdV1,
         changes: Vec<ArrowPropertyChangeV1>,
     ) -> Result<Self, ArrowPropertiesPatchV1Error> {
-        let arrow_id = PersistentId::new(arrow_id.into())
-            .map_err(|_| ArrowPropertiesPatchV1Error::InvalidArrowId)?;
         let mut kinds = HashSet::with_capacity(changes.len());
         for change in &changes {
             let kind = change.kind();
@@ -95,13 +93,16 @@ impl ArrowPropertiesPatchV1 {
                 });
             }
         }
-        Ok(Self { arrow_id, changes })
+        Ok(Self {
+            arrow_object_id,
+            changes,
+        })
     }
 
-    /// Return the durable authored direct-root Arrow identifier.
+    /// Return the durable authored direct-root Arrow object identifier.
     #[must_use]
-    pub fn arrow_id(&self) -> &PersistentId {
-        &self.arrow_id
+    pub fn arrow_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.arrow_object_id
     }
 
     /// Return unique property changes in caller order.
@@ -114,9 +115,6 @@ impl ArrowPropertiesPatchV1 {
 /// Invalid Arrow-properties intent rejected before document lookup.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum ArrowPropertiesPatchV1Error {
-    /// The durable direct-root Arrow identifier is invalid.
-    #[error("Arrow properties require a valid persistent Arrow ID")]
-    InvalidArrowId,
     /// One closed property appeared more than once in one patch.
     #[error("Arrow property change is duplicated: {property}")]
     DuplicateChange { property: &'static str },

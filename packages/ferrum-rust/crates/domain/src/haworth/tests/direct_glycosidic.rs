@@ -7,10 +7,9 @@ use crate::haworth::{
 
 fn atom(index: usize, element: &str) -> Atom {
     Atom::new(
-        Some(Identifier::new(format!("a{index}")).expect("identifier")),
+        Identifier::new(format!("a{index}")).expect("identifier"),
         Some(element.to_owned()),
         Position::new(index as f64, 0.0, 0.0).expect("position"),
-        None,
         None,
         None,
         None,
@@ -23,14 +22,13 @@ fn atom(index: usize, element: &str) -> Atom {
 
 fn bond(index: usize, start: &Atom, end: &Atom, order: BondOrder, aromatic: bool) -> Bond {
     Bond::new(
-        Some(Identifier::new(format!("b{index}")).expect("identifier")),
+        Identifier::new(format!("b{index}")).expect("identifier"),
         VertexRef::Atom(start.identity().clone()),
         VertexRef::Atom(end.identity().clone()),
         None,
         Some(order),
         None,
         Some(aromatic),
-        None,
     )
     .expect("bond")
 }
@@ -111,14 +109,13 @@ fn two_ring_molecule(
     }
     (
         Molecule::new(
-            Some(Identifier::new("two-rings").expect("identifier")),
+            Identifier::new("two-rings").expect("identifier"),
             None,
             atoms,
             Vec::new(),
             Vec::new(),
             Vec::new(),
             bonds,
-            None,
         )
         .expect("molecule"),
         rings,
@@ -142,7 +139,7 @@ fn classify(
     let bridge = molecule
         .atoms()
         .iter()
-        .find(|atom| atom.source_id().is_some_and(|id| id.as_str() == "a12"))
+        .find(|atom| atom.source_id().as_str() == "a12")
         .expect("bridge")
         .identity()
         .clone();
@@ -150,14 +147,14 @@ fn classify(
         molecule
             .bonds()
             .iter()
-            .find(|bond| bond.source_id().is_some_and(|id| id.as_str() == "b12"))
+            .find(|bond| bond.source_id().as_str() == "b12")
             .expect("first bridge bond")
             .identity()
             .clone(),
         molecule
             .bonds()
             .iter()
-            .find(|bond| bond.source_id().is_some_and(|id| id.as_str() == "b13"))
+            .find(|bond| bond.source_id().as_str() == "b13")
             .expect("second bridge bond")
             .identity()
             .clone(),

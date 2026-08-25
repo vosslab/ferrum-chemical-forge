@@ -1,6 +1,12 @@
 use std::num::NonZeroU32;
 
+use ferrum_document_projection::DocumentObjectIdV1;
+
 use crate::*;
+
+fn target(value: u8) -> RenderTarget {
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([value; 16]))
+}
 
 fn point(x: f64, y: f64) -> RenderPoint {
     RenderPoint::new(x, y).expect("finite test point")
@@ -59,22 +65,18 @@ fn plan() -> DocumentRenderPlanV1 {
         RenderViewportV1::new(-5.0, 7.0, 40.0, 30.0).expect("page"),
         vec![
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(2),
                 2,
-                DocumentRenderIdentityV1::projection_local("painted").expect("identity"),
                 DocumentRenderContentV1::Vector(vector),
             )),
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(3),
                 3,
-                DocumentRenderIdentityV1::projection_local("mixed-text").expect("identity"),
                 DocumentRenderContentV1::Text(presentation_text()),
             )),
             DocumentRenderOutcomeV1::Exclusion(
-                DocumentRenderExclusionV1::new(
-                    9,
-                    DocumentRenderIdentityV1::durable("excluded").expect("identity"),
-                    "profile_excluded:unsupported-root",
-                )
-                .expect("exclusion"),
+                DocumentRenderExclusionV1::new(target(9), 9, "profile_excluded:unsupported-root")
+                    .expect("exclusion"),
             ),
         ],
     )
@@ -118,8 +120,8 @@ fn whole_document_sinks_issue_the_same_plan_coverage_receipt() {
     assert_eq!(svg.report().provenance(), plan.provenance());
     assert_eq!(svg.report().page(), plan.page());
     assert_eq!(svg.report().exclusions().len(), 1);
-    assert_eq!(svg.report().exclusions()[0].source_order(), 9);
-    assert_eq!(svg.report().exclusions()[0].identity().as_str(), "excluded");
+    assert_eq!(svg.report().exclusions()[0].paint_order(), 9);
+    assert_eq!(svg.report().exclusions()[0].target(), &target(9));
     assert_eq!(
         svg.report().exclusions()[0].feature(),
         "profile_excluded:unsupported-root"

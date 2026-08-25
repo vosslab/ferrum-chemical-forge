@@ -1,6 +1,5 @@
 use super::{
-    AdmittedSessionTransitionRefusalV1, DocumentSession, PersistentId, PreparedSessionTransitionV1,
-    RevisionState,
+    AdmittedSessionTransitionRefusalV1, DocumentSession, PreparedSessionTransitionV1, RevisionState,
 };
 use crate::{
     AuthoringCapabilityAccessErrorV1, AuthoringCapabilityIssuerV1, DocumentFenceV1,
@@ -14,14 +13,14 @@ pub struct PendingTextPlacementV1 {
     issuer: AuthoringCapabilityIssuerV1,
     gesture: TextPlacementGestureV1,
     transition: PreparedSessionTransitionV1,
-    identifier: PersistentId,
+    document_object_id: crate::DocumentObjectIdV1,
     overlay: DocumentTextRenderV1,
 }
 
 impl PendingTextPlacementV1 {
     #[must_use]
-    pub fn identifier(&self) -> &str {
-        self.identifier.as_str()
+    pub fn document_object_id(&self) -> &crate::DocumentObjectIdV1 {
+        &self.document_object_id
     }
     #[must_use]
     pub fn overlay(&self) -> &DocumentTextRenderV1 {
@@ -60,6 +59,9 @@ pub(super) fn prepare(
             content.color(),
         )
         .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
+    let document_object_id = document
+        .document_object_id_for_source_id_v1(&identifier)
+        .ok_or(TextPlacementErrorV1::SessionConflict)?;
     let revision = session
         .next_revision_v1()
         .ok_or(TextPlacementErrorV1::SessionConflict)?;
@@ -74,7 +76,7 @@ pub(super) fn prepare(
         .resolved()
         .text_renders()
         .iter()
-        .find(|value| value.target().source_id() == Some(identifier.as_str()))
+        .find(|value| value.target().document_object_id() == &document_object_id)
         .cloned()
         .ok_or(TextPlacementErrorV1::UnrenderableStandard)?;
     let transition = session
@@ -89,7 +91,7 @@ pub(super) fn prepare(
         issuer: session.authoring_capability_issuer.clone(),
         gesture: gesture.clone(),
         transition,
-        identifier,
+        document_object_id,
         overlay,
     })
 }
@@ -126,7 +128,7 @@ pub(super) fn commit(
         .map_err(map_commit_error)?;
     claim.consume();
     Ok(crate::CommittedTextPlacementV1::new(
-        pending.identifier.clone(),
+        pending.document_object_id.clone(),
         result,
     ))
 }

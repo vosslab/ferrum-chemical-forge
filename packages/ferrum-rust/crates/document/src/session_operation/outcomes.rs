@@ -224,51 +224,57 @@ impl InterchangeRecordBatchInsertedOutcomeV1 {
 /// Durable reaction identity that becomes authoritative only after generic commit.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReactionCreatedOutcomeV1 {
-    reaction_id: String,
+    reaction_document_object_id: DocumentObjectIdV1,
 }
 
 impl ReactionCreatedOutcomeV1 {
-    pub(crate) const fn new(reaction_id: String) -> Self {
-        Self { reaction_id }
+    pub(crate) const fn new(reaction_document_object_id: DocumentObjectIdV1) -> Self {
+        Self {
+            reaction_document_object_id,
+        }
     }
 
     #[must_use]
-    pub fn reaction_id(&self) -> &str {
-        &self.reaction_id
+    pub const fn reaction_document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.reaction_document_object_id
     }
 }
 
 /// Durable reaction identity whose members were replaced by generic commit.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReactionMembershipReplacedOutcomeV1 {
-    reaction_id: String,
+    reaction_document_object_id: DocumentObjectIdV1,
 }
 
 impl ReactionMembershipReplacedOutcomeV1 {
-    pub(crate) const fn new(reaction_id: String) -> Self {
-        Self { reaction_id }
+    pub(crate) const fn new(reaction_document_object_id: DocumentObjectIdV1) -> Self {
+        Self {
+            reaction_document_object_id,
+        }
     }
 
     #[must_use]
-    pub fn reaction_id(&self) -> &str {
-        &self.reaction_id
+    pub const fn reaction_document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.reaction_document_object_id
     }
 }
 
 /// Durable reaction identity whose definition was removed by generic commit.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReactionDefinitionDeletedOutcomeV1 {
-    reaction_id: String,
+    reaction_document_object_id: DocumentObjectIdV1,
 }
 
 impl ReactionDefinitionDeletedOutcomeV1 {
-    pub(crate) const fn new(reaction_id: String) -> Self {
-        Self { reaction_id }
+    pub(crate) const fn new(reaction_document_object_id: DocumentObjectIdV1) -> Self {
+        Self {
+            reaction_document_object_id,
+        }
     }
 
     #[must_use]
-    pub fn reaction_id(&self) -> &str {
-        &self.reaction_id
+    pub const fn reaction_document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.reaction_document_object_id
     }
 }
 
@@ -279,9 +285,9 @@ impl ReactionDefinitionDeletedOutcomeV1 {
 /// only the reaction fact that becomes public after generic redemption.
 #[derive(Debug)]
 pub(crate) enum ReactionOperationOutcomeStagingV1 {
-    ReactionCreatedV1(String),
-    ReactionMembershipReplacedV1(String),
-    ReactionDefinitionDeletedV1(String),
+    ReactionCreatedV1(DocumentObjectIdV1),
+    ReactionMembershipReplacedV1(DocumentObjectIdV1),
+    ReactionDefinitionDeletedV1(DocumentObjectIdV1),
 }
 
 /// Closed semantic class for a newly committed presentation root.
@@ -422,41 +428,41 @@ impl CatalogMoleculePlacementOutcomeV1 {
 /// Authoritative facts from one committed direct-bond operation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectBondOperationOutcomeV1 {
-    bond: PersistentId,
-    end_atom: PersistentId,
-    second_created_atom: Option<PersistentId>,
+    bond_document_object_id: DocumentObjectIdV1,
+    end_atom_document_object_id: DocumentObjectIdV1,
+    second_created_atom_document_object_id: Option<DocumentObjectIdV1>,
     created_new_atom: bool,
     created_new_molecule: bool,
 }
 
 impl DirectBondOperationOutcomeV1 {
     pub(crate) fn new(
-        bond: PersistentId,
-        end_atom: PersistentId,
-        second_created_atom: Option<PersistentId>,
+        bond_document_object_id: DocumentObjectIdV1,
+        end_atom_document_object_id: DocumentObjectIdV1,
+        second_created_atom_document_object_id: Option<DocumentObjectIdV1>,
         created_new_atom: bool,
         created_new_molecule: bool,
     ) -> Self {
         Self {
-            bond,
-            end_atom,
-            second_created_atom,
+            bond_document_object_id,
+            end_atom_document_object_id,
+            second_created_atom_document_object_id,
             created_new_atom,
             created_new_molecule,
         }
     }
 
     #[must_use]
-    pub fn bond(&self) -> &PersistentId {
-        &self.bond
+    pub const fn bond_document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.bond_document_object_id
     }
     #[must_use]
-    pub fn end_atom(&self) -> &PersistentId {
-        &self.end_atom
+    pub const fn end_atom_document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.end_atom_document_object_id
     }
     #[must_use]
-    pub fn second_created_atom(&self) -> Option<&PersistentId> {
-        self.second_created_atom.as_ref()
+    pub fn second_created_atom_document_object_id(&self) -> Option<&DocumentObjectIdV1> {
+        self.second_created_atom_document_object_id.as_ref()
     }
     #[must_use]
     pub const fn created_new_atom(&self) -> bool {

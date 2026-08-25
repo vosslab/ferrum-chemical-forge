@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::RenderTarget;
+use crate::render_target::RenderPlanEntryContextV1;
 
 /// A non-fatal diagnostic for document content outside an available render slice.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -32,26 +33,48 @@ impl RenderIssueKind {
 
 /// A target-specific non-fatal render diagnostic.
 ///
-/// An issue owns the full target, including its source order, and is therefore
-/// one mutually exclusive outcome in a [`MoleculeRenderPlan`](crate::MoleculeRenderPlan).
+/// An issue owns a durable target and its contractual paint order.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenderIssue {
     target: RenderTarget,
+    paint_order: u32,
     kind: RenderIssueKind,
 }
 
 impl RenderIssue {
     /// Construct a non-fatal target diagnostic.
-    pub fn new(target: RenderTarget, kind: RenderIssueKind) -> Result<Self, RenderError> {
+    pub fn new(
+        target: RenderTarget,
+        paint_order: u32,
+        kind: RenderIssueKind,
+    ) -> Result<Self, RenderError> {
         kind.validate()?;
-        Ok(Self { target, kind })
+        Ok(Self {
+            target,
+            paint_order,
+            kind,
+        })
+    }
+
+    /// Construct a diagnostic from renderer-local source facts.
+    pub(crate) fn from_context(
+        context: RenderPlanEntryContextV1,
+        kind: RenderIssueKind,
+    ) -> Result<Self, RenderError> {
+        Self::new(context.target().clone(), context.paint_order(), kind)
     }
 
     /// Return the excluded target and its stable document position.
     #[must_use]
     pub fn target(&self) -> &RenderTarget {
         &self.target
+    }
+
+    /// Return the contractual paint order for this issue.
+    #[must_use]
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
 
     /// Return the non-fatal reason that this target has no render batch.
@@ -74,10 +97,11 @@ impl<'de> Deserialize<'de> for RenderIssue {
         #[serde(deny_unknown_fields)]
         struct WireIssue {
             target: RenderTarget,
+            paint_order: u32,
             kind: RenderIssueKind,
         }
         let wire = WireIssue::deserialize(deserializer)?;
-        Self::new(wire.target, wire.kind).map_err(serde::de::Error::custom)
+        Self::new(wire.target, wire.paint_order, wire.kind).map_err(serde::de::Error::custom)
     }
 }
 

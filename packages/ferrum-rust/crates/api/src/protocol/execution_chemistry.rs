@@ -78,16 +78,16 @@ pub(super) fn execute_generate_coordinates<R: ChemistryRuntimeV1>(
     let observation = session
         .observe(snapshot.revision())
         .map_err(|error| ExecutionFailureV1::document_invalid(error.to_string()))?;
-    let typed = TypedDocument::parse(snapshot.cdml())
-        .map_err(|error| ExecutionFailureV1::document_invalid(error.to_string()))?;
-    let projection = typed
-        .core_projection()
-        .map_err(|error| ExecutionFailureV1::coordinate(error.to_string()))?;
-    let ids = projection
-        .molecules()
+    // The admitted observation is the sole identity authority for this request.
+    // Its direct-root sequence preserves the document's exact global order, and
+    // each root carries the durable object ID issued at document admission.
+    let ids = observation
+        .projection()
+        .direct_roots()
         .iter()
-        .map(molecule_document_id)
-        .collect::<Result<Vec<_>, _>>()?;
+        .filter(|root| root.kind() == ferrum_document::DocumentDirectRootKindV1::Molecule)
+        .map(|root| root.document_object_id().clone())
+        .collect::<Vec<_>>();
     if ids.is_empty() {
         return Err(ExecutionFailureV1::coordinate(
             "coordinate generation requires at least one durable typed molecule".to_owned(),
@@ -132,30 +132,6 @@ pub(super) fn execute_generate_coordinates<R: ChemistryRuntimeV1>(
         document,
         regenerated_molecule_count,
     })
-}
-
-pub(super) fn molecule_document_id(
-    molecule: &ferrum_core::Molecule,
-) -> Result<DocumentObjectIdV1, ExecutionFailureV1> {
-    let source = molecule.source_id().ok_or_else(|| {
-        ExecutionFailureV1::coordinate(
-            "typed molecule lacks a durable source identifier".to_owned(),
-        )
-    })?;
-    let encoded = source
-        .as_str()
-        .bytes()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    let class = TypedClass::Molecule
-        .name()
-        .bytes()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    DocumentObjectIdV1::parse(format!(
-        "ferrum-document-object-v1/{class}/source/{encoded}"
-    ))
-    .map_err(|error| ExecutionFailureV1::coordinate(error.to_string()))
 }
 
 pub(super) fn map_runtime_error(error: ChemistryRuntimeErrorV1) -> ExecutionFailureV1 {

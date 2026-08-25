@@ -1,4 +1,4 @@
-"""Typed refusal presentation for the native main-window compatibility hook."""
+"""Typed refusal presentation for the active native main-window workflow."""
 
 # PIP3 modules
 import PySide6.QtCore
@@ -20,7 +20,9 @@ def show_refusal(
 	window._last_refusal_technical_details = presentation.technical_details
 	dialog = PySide6.QtWidgets.QMessageBox(window)
 	dialog.setIcon(PySide6.QtWidgets.QMessageBox.Icon.Warning)
-	dialog.setWindowTitle(window.tr(presentation.title))
+	presentation_title = window.tr(presentation.title)
+	dialog.setWindowTitle(presentation_title)
+	dialog.setAccessibleName(presentation_title)
 	dialog.setText(window.tr(presentation.ordinary_text()))
 	dialog.setStandardButtons(PySide6.QtWidgets.QMessageBox.StandardButton.Ok)
 	if presentation.technical_details:

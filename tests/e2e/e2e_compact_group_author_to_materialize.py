@@ -3,6 +3,13 @@
 # Standard Library
 import json
 
+# local repo modules
+import ferrum_qt_e2e
+
+
+ferrum_qt_e2e.select_offscreen_qt_platform()
+
+
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtTest
@@ -11,6 +18,13 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
+
+
+#============================================
+# This E2E-only guard turns a missing asynchronous report completion into a
+# diagnostic failure. It protects the runner from deadlock; it is not a
+# product performance requirement or timing assertion.
+REPORT_WAIT_DEADLOCK_GUARD_MILLISECONDS = 15000
 
 
 #============================================
@@ -29,12 +43,12 @@ def _trigger_exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
 	)
 	if not menu_bar.isVisible() or not menu_action.isVisible():
 		raise CompactGroupAuthorToMaterializeE2eError(
-			"{0} menu was not publicly exposed".format(menu_label),
+			f"{menu_label} menu was not publicly exposed",
 		)
 	menu = menu_action.menu()
 	if menu is None:
 		raise CompactGroupAuthorToMaterializeE2eError(
-			"Ferrum did not expose the {0} menu".format(menu_label),
+			f"Ferrum did not expose the {menu_label} menu",
 		)
 	action = next(
 		candidate for candidate in menu.actions()
@@ -42,7 +56,7 @@ def _trigger_exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
 	)
 	if not action.isVisible() or not action.isEnabled():
 		raise CompactGroupAuthorToMaterializeE2eError(
-			"{0} -> {1} was not publicly available".format(menu_label, action_label),
+			f"{menu_label} -> {action_label} was not publicly available",
 		)
 	action.trigger()
 	app.processEvents()
@@ -86,7 +100,7 @@ def _select_next_atom_carbon(app: PySide6.QtWidgets.QApplication) -> None:
 	PySide6.QtTest.QTest.keyClick(editor, PySide6.QtCore.Qt.Key.Key_Return)
 	app.processEvents()
 	if combo.currentText() != "C":
-			raise CompactGroupAuthorToMaterializeE2eError(
+		raise CompactGroupAuthorToMaterializeE2eError(
 			"the visible Next atom control did not retain C",
 		)
 	button_box = next(
@@ -125,14 +139,19 @@ def _choose_me(app: PySide6.QtWidgets.QApplication) -> None:
 			"Attach Compact Group did not open its accessible chooser",
 		)
 	choice = next(
-		widget for widget in dialog.findChildren(PySide6.QtWidgets.QLabel)
-		if widget.isVisible() and widget.accessibleName() == "Compact group Me"
+		widget for widget in dialog.findChildren(PySide6.QtWidgets.QComboBox)
+		if widget.isVisible() and widget.accessibleName() == "Compact group"
 	)
+	choice_index = choice.findText("Me", PySide6.QtCore.Qt.MatchFlag.MatchExactly)
+	if choice_index < 0:
+		raise CompactGroupAuthorToMaterializeE2eError(
+			"the visible compact-group chooser did not offer Me",
+		)
+	choice.setCurrentIndex(choice_index)
 	confirm = next(
 		widget for widget in dialog.findChildren(PySide6.QtWidgets.QPushButton)
 		if widget.isVisible() and widget.text() == "Attach to Selected Atom"
 	)
-	PySide6.QtTest.QTest.mouseClick(choice, PySide6.QtCore.Qt.MouseButton.LeftButton)
 	PySide6.QtTest.QTest.mouseClick(confirm, PySide6.QtCore.Qt.MouseButton.LeftButton)
 	app.processEvents()
 	if dialog.isVisible():
@@ -143,39 +162,63 @@ def _choose_me(app: PySide6.QtWidgets.QApplication) -> None:
 
 #============================================
 class _MoleculeReportObserver(PySide6.QtCore.QObject):
-	"""Receive one public modeless report dialog and its completed detail text."""
+	"""Receive public report text and release the E2E from a stalled modal phase."""
 
 	def __init__(self, app: PySide6.QtWidgets.QApplication) -> None:
 		super().__init__(app)
+		self.app = app
 		self.completion_loop = PySide6.QtCore.QEventLoop()
+		self.report: PySide6.QtWidgets.QDialog | None = None
 		self.details: PySide6.QtWidgets.QPlainTextEdit | None = None
 		self.observed_text = ""
+		self.failure = ""
+		self.rejected: list[PySide6.QtWidgets.QDialog] = []
 		app.installEventFilter(self)
+
+	def close(self) -> None:
+		"""Remove this narrow observer after the one report interaction."""
+		self.app.removeEventFilter(self)
 
 	def eventFilter(self, watched: PySide6.QtCore.QObject,
 			event: PySide6.QtCore.QEvent) -> bool:
-		"""Attach only when the public report dialog becomes visible."""
+		"""Receive the report or queue rejection of an unexpected modal."""
 		if (
-			event.type() == PySide6.QtCore.QEvent.Type.Show
-			and isinstance(watched, PySide6.QtWidgets.QDialog)
-			and watched.accessibleName() == "Molecule Report"
+			event.type() != PySide6.QtCore.QEvent.Type.Show
+			or not isinstance(watched, PySide6.QtWidgets.QDialog)
 		):
-			details = next(
-				(
-					widget for widget in watched.findChildren(
-						PySide6.QtWidgets.QPlainTextEdit,
-					)
-					if widget.isVisible()
-					and widget.isReadOnly()
-					and widget.accessibleName() == "Selected molecule report details"
-				),
-				None,
-			)
-			if details is not None and self.details is None:
-				self.details = details
-				details.textChanged.connect(self._receive_completed_details)
-				self._receive_completed_details()
+			return False
+		if watched.accessibleName() != "Molecule Report":
+			if not self.failure:
+				self.failure = (
+					f"Molecule Report opened an unexpected public modal: "
+					f"{watched.accessibleName()!r}"
+				)
+			self._schedule_rejection(watched)
+			return False
+		details = next(
+			(
+				widget for widget in watched.findChildren(PySide6.QtWidgets.QPlainTextEdit)
+				if widget.isVisible() and widget.isReadOnly()
+				and widget.accessibleName() == "Selected molecule report details"
+			),
+			None,
+		)
+		if details is None:
+			self.failure = "Molecule Report did not expose its visible details control"
+			self._schedule_rejection(watched)
+		elif self.details is None:
+			self.report = watched
+			self.details = details
+			details.textChanged.connect(self._receive_completed_details)
+			self._receive_completed_details()
 		return False
+
+	def _schedule_rejection(self, dialog: PySide6.QtWidgets.QDialog) -> None:
+		"""Queue one rejection so an unexpected modal cannot block the E2E."""
+		if any(existing is dialog for existing in self.rejected):
+			return
+		self.rejected.append(dialog)
+		PySide6.QtCore.QTimer.singleShot(0, dialog.reject)
 
 	def _receive_completed_details(self) -> None:
 		"""Quit only after the visible public details editor has report text."""
@@ -185,14 +228,32 @@ class _MoleculeReportObserver(PySide6.QtCore.QObject):
 		if self.observed_text:
 			self.completion_loop.quit()
 
+	def _report_wait_deadlock(self) -> None:
+		"""Record a deterministic liveness failure and release any active modal."""
+		if not self.observed_text and not self.failure:
+			self.failure = (
+				"Molecule Report did not complete its visible details before the liveness guard"
+			)
+		active_modal = self.app.activeModalWidget()
+		if isinstance(active_modal, PySide6.QtWidgets.QDialog):
+			self._schedule_rejection(active_modal)
+		self.completion_loop.quit()
+
 	def await_completed_details(self) -> str:
-		"""Wait for the public report dialog to deliver its visible details."""
-		if not self.observed_text:
+		"""Wait with E2E-only deadlock protection, never a performance assertion."""
+		guard = PySide6.QtCore.QTimer(self)
+		guard.setSingleShot(True)
+		guard.timeout.connect(self._report_wait_deadlock)
+		guard.start(REPORT_WAIT_DEADLOCK_GUARD_MILLISECONDS)
+		if not self.observed_text and not self.failure:
 			self.completion_loop.exec()
+		guard.stop()
+		if self.failure:
+			raise CompactGroupAuthorToMaterializeE2eError(self.failure)
 		if not self.observed_text:
 			raise CompactGroupAuthorToMaterializeE2eError(
 				"Chemistry -> Molecule Report did not complete its visible public details; "
-				"observed accessible dialog text: {0!r}".format(self.observed_text[:2000]),
+				f"observed accessible dialog text: {self.observed_text[:2000]!r}",
 			)
 		return self.observed_text
 
@@ -251,12 +312,15 @@ def main() -> int:
 		app.processEvents()
 		_trigger_exposed_menu_action(window, app, "Chemistry", "Materialize Selected Compact Group")
 		report_observer = _MoleculeReportObserver(app)
-		_trigger_exposed_menu_action(window, app, "Chemistry", "Molecule Report...")
-		details = report_observer.await_completed_details()
+		try:
+			_trigger_exposed_menu_action(window, app, "Chemistry", "Molecule Report...")
+			details = report_observer.await_completed_details()
+		finally:
+			report_observer.close()
 		if "Formula: C3H8" not in details:
 			raise CompactGroupAuthorToMaterializeE2eError(
 				"materialized Me did not expose propane's public selected-molecule formula; "
-				"observed accessible dialog text: {0!r}".format(details[:2000]),
+				f"observed accessible dialog text: {details[:2000]!r}",
 			)
 		print(json.dumps({"schema": "ferrum-compact-group-author-to-materialize-e2e-v1", "status": "ok"}))
 		return 0

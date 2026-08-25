@@ -279,7 +279,7 @@ fn root_from(value: &PresentationRenderRootV1) -> PyPresentationRenderRootV1 {
     }
 }
 
-fn vector_operation(value: &DocumentVectorOpV1) -> PyPresentationVectorOperationV1 {
+pub(crate) fn vector_operation(value: &DocumentVectorOpV1) -> PyPresentationVectorOperationV1 {
     let stroke = value.stroke().map(|stroke| PyPresentationRenderStrokeV1 {
         paint: stroke.paint().color().as_str().to_owned(),
         width: stroke.width().get(),

@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 use ferrum_document_projection::{
-    PaperAttributesV1, PaperLayoutProjectionV1, PaperOrientationV1, PaperPageIssueV1, PaperPageV1,
-    PositiveFiniteV1, ViewportAttributesV1,
+    PaperAttributeTokensV1, PaperAttributesV1, PaperLayoutFactsV1, PaperLayoutProjectionV1,
+    PaperOrientationV1, PaperPageIssueV1, PaperPageV1, PositiveFiniteV1, ViewportAttributesV1,
 };
 
 use super::{
@@ -29,15 +29,17 @@ pub(crate) fn paper_layout_from_snapshot(
     PaperLayoutProjectionV1::new(
         snapshot.revision(),
         *snapshot.digest(),
-        paper.is_some(),
-        paper_attributes,
-        effective_paper_attributes.clone(),
-        viewport
-            .map(viewport_attributes_from_record)
-            .unwrap_or_default(),
-        default_type,
-        default_orientation,
-        resolve_page(&effective_paper_attributes),
+        PaperLayoutFactsV1 {
+            paper_present: paper.is_some(),
+            paper_attributes,
+            effective_paper_attributes: effective_paper_attributes.clone(),
+            viewport_attributes: viewport
+                .map(viewport_attributes_from_record)
+                .unwrap_or_default(),
+            default_type,
+            default_orientation,
+            page: resolve_page(&effective_paper_attributes),
+        },
     )
 }
 
@@ -148,34 +150,34 @@ fn copied(record: &TypedRecord, name: &str) -> Option<String> {
 }
 
 fn paper_attributes_from_record(record: &TypedRecord) -> PaperAttributesV1 {
-    PaperAttributesV1::new(
-        copied(record, "id"),
-        copied(record, "type"),
-        copied(record, "orientation"),
-        copied(record, "crop_svg"),
-        copied(record, "crop_margin"),
-        copied(record, "use_real_minus"),
-        copied(record, "replace_minus"),
-        copied(record, "size_x"),
-        copied(record, "size_y"),
-    )
+    PaperAttributesV1::from_tokens(PaperAttributeTokensV1 {
+        id: copied(record, "id"),
+        type_name: copied(record, "type"),
+        orientation: copied(record, "orientation"),
+        crop_svg: copied(record, "crop_svg"),
+        crop_margin: copied(record, "crop_margin"),
+        use_real_minus: copied(record, "use_real_minus"),
+        replace_minus: copied(record, "replace_minus"),
+        size_x: copied(record, "size_x"),
+        size_y: copied(record, "size_y"),
+    })
 }
 
 fn paper_attributes_from_defaults(
     type_name: &str,
     orientation: PaperOrientationV1,
 ) -> PaperAttributesV1 {
-    PaperAttributesV1::new(
-        None,
-        Some(type_name.to_owned()),
-        Some(orientation.as_str().to_owned()),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
+    PaperAttributesV1::from_tokens(PaperAttributeTokensV1 {
+        id: None,
+        type_name: Some(type_name.to_owned()),
+        orientation: Some(orientation.as_str().to_owned()),
+        crop_svg: None,
+        crop_margin: None,
+        use_real_minus: None,
+        replace_minus: None,
+        size_x: None,
+        size_y: None,
+    })
 }
 
 fn viewport_attributes_from_record(record: &TypedRecord) -> ViewportAttributesV1 {

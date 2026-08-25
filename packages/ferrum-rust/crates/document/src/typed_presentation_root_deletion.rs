@@ -20,11 +20,11 @@ impl TypedDocument {
         if deletion.kind() == PresentationRecordKindV1::Polyline
             && super::bracket_pair_projection_v1::bracket_pairs(self)
                 .iter()
-                .flat_map(|pair| pair.member_ids())
-                .any(|identifier| identifier == deletion.presentation_id().as_str())
+                .flat_map(|pair| pair.members())
+                .any(|identifier| identifier == deletion.document_object_id())
         {
             return Err(TypedDocumentError::PresentationRootIsBracketMember(
-                deletion.presentation_id().clone(),
+                deletion.document_object_id().clone(),
             ));
         }
         let deletions = PresentationRootDeletionSetV1::new(vec![deletion.clone()])
@@ -39,7 +39,7 @@ impl TypedDocument {
     ) -> Result<Option<Self>, TypedDocumentError> {
         let mut candidate = self.detached_candidate()?;
         let indexed = candidate.detached_indexed_mut();
-        let id_name = indexed.xml.tree.add_name("id");
+        let id_name = document_object_id_name(&mut indexed.xml.tree);
         let root = indexed
             .xml
             .tree
@@ -54,7 +54,7 @@ impl TypedDocument {
                 .filter(|node| {
                     is_cdml_element(&indexed.xml.tree, *node, deletion.kind().local_name())
                         && indexed.xml.tree.get_attribute(*node, id_name)
-                            == Some(deletion.presentation_id().as_str())
+                            == Some(deletion.document_object_id().as_str())
                 })
                 .collect::<Vec<_>>();
             if matches.len() != 1 {
@@ -83,14 +83,21 @@ fn validate_reaction_references(
     let selected = deletions
         .targets()
         .iter()
-        .map(|target| target.presentation_id().as_str())
+        .map(|target| target.document_object_id())
         .collect::<std::collections::HashSet<_>>();
     let references = direct_reaction_reference_graph(document);
-    for identifier in selected {
-        if references.contains(identifier) {
+    for child in document.root().typed_children() {
+        let record = child.record();
+        let Some(identifier) = crate::document_object_id_from_record_v1(record) else {
+            continue;
+        };
+        if selected.contains(&identifier)
+            && record
+                .attribute("id")
+                .is_some_and(|source_id| references.contains(source_id))
+        {
             return Err(TypedDocumentError::ReactionReferencedPresentationDeletion(
-                super::PersistentId::new(identifier.to_owned())
-                    .expect("recognized reaction role idref is a durable identifier"),
+                identifier,
             ));
         }
     }
@@ -104,17 +111,17 @@ fn validate_complete_bracket_deletion(
     let selected = deletions
         .targets()
         .iter()
-        .map(|target| target.presentation_id().as_str())
+        .map(|target| target.document_object_id())
         .collect::<std::collections::HashSet<_>>();
     for pair in super::bracket_pair_projection_v1::bracket_pairs(document) {
         let selected_members = pair
-            .member_ids()
+            .members()
             .iter()
-            .filter(|identifier| selected.contains(identifier.as_str()))
+            .filter(|identifier| selected.contains(*identifier))
             .count();
         if selected_members == 1 {
             return Err(TypedDocumentError::PartialBracketDeletion(
-                pair.pair_id().to_owned(),
+                pair.members().clone(),
             ));
         }
     }
@@ -125,6 +132,12 @@ fn is_cdml_element(tree: &Xot, node: xot::Node, expected: &str) -> bool {
     element_name(tree, node).is_some_and(|(local_name, namespace)| {
         local_name == expected && (namespace == CDML_NAMESPACE)
     })
+}
+
+fn document_object_id_name(tree: &mut Xot) -> xot::NameId {
+    let namespace =
+        tree.add_namespace(super::document_object_identity_v1::DOCUMENT_OBJECT_NAMESPACE_V1);
+    tree.add_name_ns("id", namespace)
 }
 
 #[cfg(test)]
@@ -139,7 +152,14 @@ mod tests {
             ("t", PresentationRecordKindV1::Text),
             ("p", PresentationRecordKindV1::Plus),
         ] {
-            let deletion = PresentationRootDeletionV1::new(id.to_owned(), kind).expect("selector");
+            let object_id = document
+                .root()
+                .typed_children()
+                .iter()
+                .find(|child| child.record().attribute("id") == Some(id))
+                .and_then(|child| crate::document_object_id_from_record_v1(child.record()))
+                .expect("typed ingress persists the durable root identity");
+            let deletion = PresentationRootDeletionV1::new(object_id, kind);
             assert!(matches!(
                 document.with_delete_presentation_root(&deletion),
                 Err(TypedDocumentError::ReactionReferencedPresentationDeletion(

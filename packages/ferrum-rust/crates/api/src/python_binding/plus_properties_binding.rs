@@ -1,8 +1,8 @@
 //! Closed Python Plus-property changes and bounded operation construction.
 
 use ferrum_document::{
-    PlusPropertiesPatchV1, PlusPropertyChangeV1, PresentationFontFaceV1, Rgb24V1, SessionOperation,
-    SessionOperationV1,
+    DocumentObjectIdV1, PlusPropertiesPatchV1, PlusPropertyChangeV1, PresentationFontFaceV1,
+    Rgb24V1, SessionOperation, SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyInt, PyTuple};
@@ -76,7 +76,7 @@ impl PyDocumentPlusPropertyChangeV1 {
 
 pub(crate) fn set_plus_properties(
     py: Python<'_>,
-    plus_id: String,
+    plus_object_id: DocumentObjectIdV1,
     changes: &Bound<'_, PyTuple>,
 ) -> PyResult<SessionOperation> {
     if !changes.is_exact_instance_of::<PyTuple>() {
@@ -100,7 +100,7 @@ pub(crate) fn set_plus_properties(
                 .map_err(Into::into)
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let patch = PlusPropertiesPatchV1::new(plus_id, changes)
+    let patch = PlusPropertiesPatchV1::new(plus_object_id, changes)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(SessionOperation::V1(
         SessionOperationV1::SetPlusProperties { patch },
@@ -111,7 +111,12 @@ fn plus_property_change(
     py: Python<'_>,
     change: PlusPropertyChangeV1,
 ) -> PyResult<PyDocumentPlusPropertyChangeV1> {
-    PlusPropertiesPatchV1::new("validation-plus", vec![change.clone()])
+    PlusPropertiesPatchV1::new(validation_object_id(), vec![change.clone()])
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(PyDocumentPlusPropertyChangeV1 { change })
+}
+
+fn validation_object_id() -> DocumentObjectIdV1 {
+    DocumentObjectIdV1::parse("ferrum-document-object-v1/00000000000000000000000000000000")
+        .expect("fixed validation document-object identity")
 }

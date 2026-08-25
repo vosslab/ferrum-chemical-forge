@@ -1,195 +1,172 @@
 use super::reaction_binding_support::{
-    authoring_choices, authoring_error, authoring_fence, gesture_error, reaction_list,
+    command_error, document_object_id, reaction_list, reaction_targets, snapshot_fence,
 };
 use super::*;
 
 #[pymethods]
 impl PyDocumentSession {
-    /// Return source-ordered immutable reaction membership and renderer facts.
     fn observe_reaction_list_v1(
         &self,
         py: Python<'_>,
         expected_revision: u64,
         expected_digest_hex: String,
     ) -> PyResult<PyReactionListObservationV1> {
-        let fence = authoring_fence(&expected_digest_hex, expected_revision)?;
+        let fence = snapshot_fence(&self.session, expected_revision, &expected_digest_hex)
+            .map_err(|error| command_error(py, error))?;
         self.session
-            .observe_reaction_list_v1(fence)
-            .map_err(|error| authoring_error(py, error))
-            .and_then(|value| reaction_list(py, value))
+            .observe_reaction_list_v1()
+            .map_err(|error| command_error(py, error))
+            .and_then(|value| reaction_list(py, value, fence))
     }
-    /// Issue one opaque strict reaction selection from a fresh list observation.
+
     fn select_reaction_v1(
         &self,
         py: Python<'_>,
         list: PyRef<'_, PyReactionListObservationV1>,
-        reaction_id: String,
+        reaction_document_object_id: String,
     ) -> PyResult<PyReactionSelectionV1> {
+        let object_id = document_object_id(py, reaction_document_object_id)?;
+        let reaction = list
+            .value
+            .reactions()
+            .iter()
+            .find(|value| value.reaction_object_id() == &object_id)
+            .ok_or_else(|| command_error(py, ReactionMemberSelectionRefusalV1::UnknownReaction))?;
+        let observation = reaction.selection_observation().ok_or_else(|| {
+            command_error(py, ReactionMemberSelectionRefusalV1::UnresolvedReaction)
+        })?;
         self.session
-            .select_reaction_v1(&list.value, &reaction_id)
+            .select_reaction_members_v1(observation)
             .map(|value| PyReactionSelectionV1 {
-                reaction_id: value.reaction_id().to_owned(),
                 value,
+                reaction_document_object_id: object_id.as_str().to_owned(),
             })
-            .map_err(|error| authoring_error(py, error))
+            .map_err(|error| command_error(py, error))
     }
-    /// Refuse foreign or stale opaque reaction selection without changing CDML.
+
     fn validate_reaction_selection_v1(
         &self,
         py: Python<'_>,
         selection: PyRef<'_, PyReactionSelectionV1>,
     ) -> PyResult<()> {
-        self.session
+        std::ops::Deref::deref(&self.session)
             .validate_reaction_selection_v1(&selection.value)
-            .map_err(|error| authoring_error(py, error))
+            .map_err(|error| command_error(py, error))
     }
-    /// Begin a complete membership replacement from one opaque strict selection.
+
     #[allow(clippy::too_many_arguments)]
-    fn begin_reaction_membership_patch_v1(
-        &self,
-        py: Python<'_>,
-        selection: PyRef<'_, PyReactionSelectionV1>,
-        expected_revision: u64,
-        reactants: Vec<String>,
-        products: Vec<String>,
-        arrow: String,
-        conditions: Vec<String>,
-        pluses: Vec<String>,
-    ) -> PyResult<PyReactionLifecycleGestureV1> {
-        let request = ReactionMembershipPatchRequestV1::new(
-            expected_revision,
-            reactants,
-            products,
-            arrow,
-            conditions,
-            pluses,
-        )
-        .map_err(|error| gesture_error(py, error))?;
-        begin_api_reaction_membership_patch_v1(&self.session, &selection.value, request)
-            .map(|value| PyReactionLifecycleGestureV1 { value: Some(value) })
-            .map_err(|error| gesture_error(py, error))
-    }
-    /// Begin removal of only one selected strict reaction definition.
-    fn begin_reaction_definition_delete_v1(
-        &self,
-        py: Python<'_>,
-        selection: PyRef<'_, PyReactionSelectionV1>,
-    ) -> PyResult<PyReactionLifecycleGestureV1> {
-        begin_api_reaction_definition_delete_v1(&self.session, &selection.value)
-            .map(|value| PyReactionLifecycleGestureV1 { value: Some(value) })
-            .map_err(|error| gesture_error(py, error))
-    }
-    /// Resolve one lifecycle gesture into an opaque generic transition request.
-    fn resolve_reaction_lifecycle_v1(
-        &self,
-        py: Python<'_>,
-        mut gesture: PyRefMut<'_, PyReactionLifecycleGestureV1>,
-    ) -> PyResult<PySessionOperationTransitionRequestV1> {
-        let gesture = gesture
-            .value
-            .take()
-            .ok_or_else(|| gesture_error(py, ReactionGestureErrorV1::ReplayedGesture))?;
-        resolve_api_reaction_lifecycle_v1(&self.session, gesture)
-            .map(PySessionOperationTransitionRequestV1::from_request)
-            .map_err(|error| gesture_error(py, error))
-    }
-    /// Begin one opaque aggregate translation from an exact strict selection.
-    #[pyo3(signature = (selection, press_x, press_y, view_hex_grid=false))]
-    fn begin_reaction_translation_v1(
-        &self,
-        py: Python<'_>,
-        selection: PyRef<'_, PyReactionSelectionV1>,
-        press_x: f64,
-        press_y: f64,
-        view_hex_grid: bool,
-    ) -> PyResult<PyReactionTranslationGestureV1> {
-        let snap = if view_hex_grid {
-            RenderInteractionSnapV1::with_grid(RenderInteractionGridSnapPolicyV1::ViewHexGrid)
-        } else {
-            RenderInteractionSnapV1::free()
-        };
-        begin_api_reaction_translation_v1(&self.session, &selection.value, press_x, press_y, snap)
-            .map(|value| PyReactionTranslationGestureV1 { value: Some(value) })
-            .map_err(|error| gesture_error(py, error))
-    }
-    /// Resolve one translation gesture into an opaque generic transition request.
-    fn resolve_reaction_translation_v1(
-        &self,
-        py: Python<'_>,
-        mut gesture: PyRefMut<'_, PyReactionTranslationGestureV1>,
-        pointer_x: f64,
-        pointer_y: f64,
-    ) -> PyResult<PySessionOperationTransitionRequestV1> {
-        let gesture = gesture
-            .value
-            .take()
-            .ok_or_else(|| gesture_error(py, ReactionGestureErrorV1::ReplayedGesture))?;
-        resolve_api_reaction_translation_v1(&self.session, gesture, pointer_x, pointer_y)
-            .map(PySessionOperationTransitionRequestV1::from_request)
-            .map_err(|error| gesture_error(py, error))
-    }
-    /// Return immutable renderer-observed reaction-member choices for one exact snapshot.
-    fn observe_reaction_authoring_choices_v1(
+    fn begin_create_reaction_v1(
         &self,
         py: Python<'_>,
         expected_revision: u64,
         expected_digest_hex: String,
-    ) -> PyResult<PyReactionAuthoringChoicesV1> {
-        let fence = authoring_fence(&expected_digest_hex, expected_revision)?;
+        reactant_document_object_ids: Vec<String>,
+        product_document_object_ids: Vec<String>,
+        arrow_document_object_id: String,
+        reagent_document_object_ids: Vec<String>,
+        plus_document_object_ids: Vec<String>,
+    ) -> PyResult<PyCreateReactionCommandV1> {
+        let fence = snapshot_fence(&self.session, expected_revision, &expected_digest_hex)
+            .map_err(|error| command_error(py, error))?;
+        let targets = reaction_targets(
+            py,
+            reactant_document_object_ids,
+            arrow_document_object_id,
+            product_document_object_ids,
+            reagent_document_object_ids,
+            plus_document_object_ids,
+        )?;
         self.session
-            .observe_reaction_authoring_choices_v1(fence)
-            .map_err(|error| authoring_error(py, error))
-            .and_then(|value| authoring_choices(py, value))
+            .begin_create_reaction_v1(self.session.issue_authoring_capability_v1(), fence, targets)
+            .map(|value| PyCreateReactionCommandV1 { value: Some(value) })
+            .map_err(|error| command_error(py, error))
     }
-    /// Refuse a stale or foreign immutable authoring observation without changing CDML.
-    fn validate_reaction_authoring_choices_v1(
-        &self,
-        py: Python<'_>,
-        choices: PyRef<'_, PyReactionAuthoringChoicesV1>,
-    ) -> PyResult<()> {
-        self.session
-            .validate_reaction_authoring_choices_v1(&choices.value)
-            .map_err(|error| authoring_error(py, error))
-    }
-    /// Begin one semantic reaction gesture from a fenced source snapshot.
+
     #[allow(clippy::too_many_arguments)]
-    fn begin_reaction_gesture_v1(
+    fn begin_replace_reaction_members_v1(
         &self,
         py: Python<'_>,
-        expected_revision: u64,
-        expected_digest_hex: String,
-        reactants: Vec<String>,
-        products: Vec<String>,
-        arrow: String,
-        conditions: Vec<String>,
-        pluses: Vec<String>,
-    ) -> PyResult<PyReactionGestureV1> {
-        let request = ReactionCreateRequestV1::new(
-            expected_revision,
-            reactants,
-            products,
-            arrow,
-            conditions,
-            pluses,
-        )
-        .map_err(|error| gesture_error(py, error))?;
-        let fence = authoring_fence(&expected_digest_hex, expected_revision)?;
-        begin_api_reaction_gesture_v1(&self.session, fence, request)
-            .map(|value| PyReactionGestureV1 { value: Some(value) })
-            .map_err(|error| gesture_error(py, error))
+        selection: PyRef<'_, PyReactionSelectionV1>,
+        reactant_document_object_ids: Vec<String>,
+        product_document_object_ids: Vec<String>,
+        arrow_document_object_id: String,
+        reagent_document_object_ids: Vec<String>,
+        plus_document_object_ids: Vec<String>,
+    ) -> PyResult<PyReplaceReactionMembersCommandV1> {
+        let targets = reaction_targets(
+            py,
+            reactant_document_object_ids,
+            arrow_document_object_id,
+            product_document_object_ids,
+            reagent_document_object_ids,
+            plus_document_object_ids,
+        )?;
+        self.session
+            .begin_replace_reaction_members_v1(
+                self.session.issue_authoring_capability_v1(),
+                selection.value.clone(),
+                targets,
+            )
+            .map(|value| PyReplaceReactionMembersCommandV1 { value: Some(value) })
+            .map_err(|error| command_error(py, error))
     }
-    /// Resolve one create gesture into an opaque generic transition request.
-    fn resolve_reaction_gesture_v1(
+
+    fn begin_delete_reaction_v1(
         &self,
         py: Python<'_>,
-        mut gesture: PyRefMut<'_, PyReactionGestureV1>,
+        selection: PyRef<'_, PyReactionSelectionV1>,
+    ) -> PyResult<PyDeleteReactionCommandV1> {
+        self.session
+            .begin_delete_reaction_v1(
+                self.session.issue_authoring_capability_v1(),
+                selection.value.clone(),
+            )
+            .map(|value| PyDeleteReactionCommandV1 { value: Some(value) })
+            .map_err(|error| command_error(py, error))
+    }
+
+    fn resolve_create_reaction_command_v1(
+        &self,
+        py: Python<'_>,
+        mut command: PyRefMut<'_, PyCreateReactionCommandV1>,
     ) -> PyResult<PySessionOperationTransitionRequestV1> {
-        let gesture = gesture
+        let command = command
             .value
             .take()
-            .ok_or_else(|| gesture_error(py, ReactionGestureErrorV1::ReplayedGesture))?;
-        resolve_api_reaction_gesture_v1(&self.session, gesture)
+            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Replayed))?;
+        self.session
+            .resolve_create_reaction_command_v1(command)
             .map(PySessionOperationTransitionRequestV1::from_request)
-            .map_err(|error| gesture_error(py, error))
+            .map_err(|error| command_error(py, error))
+    }
+
+    fn resolve_replace_reaction_members_command_v1(
+        &self,
+        py: Python<'_>,
+        mut command: PyRefMut<'_, PyReplaceReactionMembersCommandV1>,
+    ) -> PyResult<PySessionOperationTransitionRequestV1> {
+        let command = command
+            .value
+            .take()
+            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Replayed))?;
+        self.session
+            .resolve_replace_reaction_members_command_v1(command)
+            .map(PySessionOperationTransitionRequestV1::from_request)
+            .map_err(|error| command_error(py, error))
+    }
+
+    fn resolve_delete_reaction_command_v1(
+        &self,
+        py: Python<'_>,
+        mut command: PyRefMut<'_, PyDeleteReactionCommandV1>,
+    ) -> PyResult<PySessionOperationTransitionRequestV1> {
+        let command = command
+            .value
+            .take()
+            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Replayed))?;
+        self.session
+            .resolve_delete_reaction_command_v1(command)
+            .map(PySessionOperationTransitionRequestV1::from_request)
+            .map_err(|error| command_error(py, error))
     }
 }

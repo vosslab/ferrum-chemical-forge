@@ -9,7 +9,8 @@ use crate::haworth::{
 };
 
 fn identity(kind: RecordKind, name: &str) -> RecordId {
-    RecordId::from_source(kind, &Identifier::new(name).expect("identifier"))
+    RecordId::new(kind, Identifier::new(name).expect("identifier"))
+        .expect("durable record identifier")
 }
 
 fn profile(

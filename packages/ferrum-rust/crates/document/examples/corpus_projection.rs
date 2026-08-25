@@ -5,9 +5,7 @@ use std::env;
 use std::fs;
 use std::process;
 
-use ferrum_core::{
-    Atom, Bond, BondOrder, BondStyle, Identifier, Molecule, NonAtomVertex, RecordId, VertexRef,
-};
+use ferrum_core::{Atom, Bond, BondOrder, BondStyle, Molecule, NonAtomVertex, RecordId, VertexRef};
 use ferrum_document::TypedDocument;
 use serde_json::{Value, json};
 
@@ -84,7 +82,7 @@ fn project_molecule(molecule: &Molecule, molecule_index: usize) -> Result<Value,
         .collect::<Result<Vec<_>, _>>()?;
     Ok(json!({
         "index": molecule_index,
-        "id": molecule.source_id().map(Identifier::as_str),
+        "id": molecule.source_id().as_str(),
         "name": molecule.name(),
         "atoms": atoms,
         "bonds": bonds,
@@ -98,7 +96,7 @@ fn project_atom(atom: &Atom, atom_index: usize) -> Value {
     let position = atom.position();
     json!({
         "index": atom_index,
-        "id": atom.source_id().map(Identifier::as_str),
+        "id": atom.source_id().as_str(),
         "symbol": atom.element(),
         "element": atom.element(),
         "formal_charge": atom.formal_charge(),
@@ -127,7 +125,7 @@ fn project_bond(
         BondOrder::Other(value) => value,
     });
     Ok(json!({
-        "id": bond.source_id().map(Identifier::as_str),
+        "id": bond.source_id().as_str(),
         "start": start_index,
         "end": end_index,
         "start_kind": start_kind,
@@ -169,9 +167,7 @@ fn project_non_atom_vertices(vertices: &[NonAtomVertex]) -> Vec<Value> {
     vertices
         .iter()
         .enumerate()
-        .map(|(index, vertex)| {
-            json!({"index": index, "id": vertex.source_id().map(Identifier::as_str)})
-        })
+        .map(|(index, vertex)| json!({"index": index, "id": vertex.source_id().as_str()}))
         .collect()
 }
 

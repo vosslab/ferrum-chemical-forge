@@ -27,7 +27,7 @@ pub struct CreateReactionV1 {
 }
 
 impl CreateReactionV1 {
-    pub fn new(
+    pub(crate) fn new(
         members: Vec<(DirectReactionRoleV1, String)>,
     ) -> Result<Self, ReactionOperationRefusalV1> {
         validate_reaction_members(&members)?;
@@ -35,7 +35,7 @@ impl CreateReactionV1 {
     }
 
     #[must_use]
-    pub fn members(&self) -> &[(DirectReactionRoleV1, String)] {
+    pub(crate) fn members(&self) -> &[(DirectReactionRoleV1, String)] {
         &self.members
     }
 }
@@ -48,7 +48,7 @@ pub struct ReplaceReactionMembersV1 {
 }
 
 impl ReplaceReactionMembersV1 {
-    pub fn new(
+    pub(crate) fn new(
         reaction_id: String,
         members: Vec<(DirectReactionRoleV1, String)>,
     ) -> Result<Self, ReactionOperationRefusalV1> {
@@ -63,12 +63,12 @@ impl ReplaceReactionMembersV1 {
     }
 
     #[must_use]
-    pub fn reaction_id(&self) -> &str {
+    pub(crate) fn reaction_id(&self) -> &str {
         &self.reaction_id
     }
 
     #[must_use]
-    pub fn members(&self) -> &[(DirectReactionRoleV1, String)] {
+    pub(crate) fn members(&self) -> &[(DirectReactionRoleV1, String)] {
         &self.members
     }
 }
@@ -80,7 +80,7 @@ pub struct DeleteReactionV1 {
 }
 
 impl DeleteReactionV1 {
-    pub fn new(reaction_id: String) -> Result<Self, ReactionOperationRefusalV1> {
+    pub(crate) fn new(reaction_id: String) -> Result<Self, ReactionOperationRefusalV1> {
         if reaction_id.trim().is_empty() {
             return Err(ReactionOperationRefusalV1::InvalidDefinition);
         }
@@ -88,7 +88,7 @@ impl DeleteReactionV1 {
     }
 
     #[must_use]
-    pub fn reaction_id(&self) -> &str {
+    pub(crate) fn reaction_id(&self) -> &str {
         &self.reaction_id
     }
 }

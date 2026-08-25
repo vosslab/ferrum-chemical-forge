@@ -38,25 +38,44 @@ class FerrumNativeBracketCreationMixin:
 		if root_kind not in ("polyline", "round_bracket"):
 			raise ValueError("Ferrum bracket root kind is not supported")
 		revision = self.current_snapshot.revision
+		existing_member_pairs = frozenset(
+			tuple(pair.members)
+			for pair in self._require_projection().presentation_stack.bracket_pairs
+			if type(pair) is engine.BracketPairProjectionV1
+		)
 		bounds = engine.DocumentBracketBoundsV1(left, top, right, bottom)
 		prepared = self._session.prepare_create_bracket_v1(revision, style, bounds)
 		result = self._session.commit_create_bracket(revision, prepared)
 		stack = result.observation.projection.presentation_stack
 		pairs = tuple(
 			pair for pair in stack.bracket_pairs
-			if pair.pair_id == prepared.pair_identifier
-			and pair.member_ids == [
-				prepared.left_identifier, prepared.right_identifier,
-			]
+			if type(pair) is engine.BracketPairProjectionV1
+			and type(pair.members) in (list, tuple)
+			and len(pair.members) == 2
+			and all(type(member) is str for member in pair.members)
+			and pair.members[0] != pair.members[1]
+			and tuple(pair.members) not in existing_member_pairs
 			and pair.style is style
 		)
+		created_by_member: dict[str, object] = {}
+		if len(pairs) == 1:
+			for root in stack.roots:
+				if root.kind != root_kind or root.polyline is None:
+					continue
+				document_object_id = root.polyline.target.document_object_id
+				if document_object_id not in pairs[0].members:
+					continue
+				if (
+						type(document_object_id) is not str
+						or document_object_id in created_by_member
+					):
+					created_by_member = {}
+					break
+				created_by_member[document_object_id] = root.polyline
 		created = tuple(
-			root.polyline for root in stack.roots
-			if root.kind == root_kind
-			and root.polyline.target.source_id in pairs[0].member_ids
+			created_by_member.get(member) for member in pairs[0].members
 		) if len(pairs) == 1 else ()
-		if len(created) != 2 or any(
-				polyline.target.id is None for polyline in created):
+		if len(created) != 2 or any(polyline is None for polyline in created):
 			self._install_mutation_result(result)
 			import ferrum_qt.ferrum.document_tab
 			raise (
@@ -67,6 +86,9 @@ class FerrumNativeBracketCreationMixin:
 			)
 		self._install_mutation_result(
 			result,
-			tuple(("polyline", polyline.target.id) for polyline in created),
+			tuple(
+				("polyline", polyline.target.document_object_id)
+				for polyline in created
+			),
 		)
 		return result

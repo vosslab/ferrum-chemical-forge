@@ -1,17 +1,18 @@
 use ferrum_document_projection::{
-    ArrowHeadShapeV1, ArrowProjectionV1, PlusProjectionV1, Point3V1, PositiveFiniteV1,
-    PresentationFactProvenanceV1, PresentationFillV1, PresentationFontFaceV1, PresentationFontV1,
-    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
-    PresentationStrokeV1, PresentationTargetV1, ProjectionLocalObjectKeyV1, Rgb24V1,
+    ArrowHeadShapeV1, ArrowProjectionV1, DocumentObjectIdV1, PlusProjectionV1, Point3V1,
+    PositiveFiniteV1, PresentationFactProvenanceV1, PresentationFillV1, PresentationFontFaceV1,
+    PresentationFontV1, PresentationRecordKindV1, PresentationRootProjectionV1,
+    PresentationStackProjectionV1, PresentationStrokeV1, PresentationTargetV1, Rgb24V1,
 };
 
 use crate::{
-    PRESENTATION_RENDER_PLAN_SCHEMA_V1, PathCommandV1, PresentationRenderRootV1, RenderError,
-    RenderPoint, lower_standard_plus_preview_v1, render_presentation_stack_v1,
+    PRESENTATION_PREVIEW_RENDER_PLAN_SCHEMA_V1, PRESENTATION_RENDER_PLAN_SCHEMA_V1, PathCommandV1,
+    PresentationPreviewRenderRootV1, PresentationRenderRootV1, RenderPoint,
+    lower_standard_plus_preview_v1, render_presentation_stack_v1,
 };
 
 #[test]
-fn renderer_plan_preserves_source_order_targets_and_finite_arrow_bounds() {
+fn renderer_plan_preserves_targets_and_finite_arrow_bounds_without_paint_order() {
     let stack = stack(vec![arrow(2, false, true), arrow(7, false, false)]);
 
     let plan = render_presentation_stack_v1(&stack).expect("typed stack renders");
@@ -22,9 +23,12 @@ fn renderer_plan_preserves_source_order_targets_and_finite_arrow_bounds() {
     assert_eq!(
         plan.roots()
             .iter()
-            .map(|root| root.target().source_order())
+            .map(|root| root.target().document_object_id().clone())
             .collect::<Vec<_>>(),
-        vec![2, 7]
+        vec![
+            DocumentObjectIdV1::from_entropy_bytes([2; 16]),
+            DocumentObjectIdV1::from_entropy_bytes([7; 16]),
+        ]
     );
     for root in plan.roots() {
         let bounds = root.bounds();
@@ -107,27 +111,6 @@ fn short_normal_arrow_retains_a_positive_shaft_and_proportional_heads() {
 }
 
 #[test]
-fn incomplete_round_bracket_projection_is_a_closed_renderer_refusal() {
-    let root = PresentationRootProjectionV1::RoundBracket {
-        polyline: ferrum_document_projection::PolylineProjectionV1::new(
-            target(3, PresentationRecordKindV1::Polyline),
-            ferrum_document_projection::PolylinePathV1::try_new(vec![
-                point(1.0, 1.0),
-                point(2.0, 2.0),
-            ])
-            .expect("two-point polyline is a valid generic path"),
-            stroke(),
-        )
-        .expect("valid generic polyline projection"),
-    };
-
-    assert!(matches!(
-        render_presentation_stack_v1(&stack(vec![root])),
-        Err(RenderError::InvalidRequest(_))
-    ));
-}
-
-#[test]
 fn standard_plus_preview_uses_the_committed_builtin_plus_rendering_without_identity() {
     let anchor = RenderPoint::new(18.0, 24.0).expect("finite preview anchor");
     let preview = lower_standard_plus_preview_v1(anchor).expect("standard Plus preview");
@@ -137,14 +120,28 @@ fn standard_plus_preview_uses_the_committed_builtin_plus_rendering_without_ident
         }]))
         .expect("standard Plus root renders");
 
-    assert_eq!(preview.schema(), PRESENTATION_RENDER_PLAN_SCHEMA_V1);
-    assert_eq!(preview.revision(), 0);
-    assert_eq!(preview.digest(), &[0; 32]);
-    assert_eq!(preview.roots(), committed.roots());
-    let root = &preview.roots()[0];
-    assert_eq!(root.target().id(), None);
-    assert_eq!(root.target().source_id(), None);
-    assert_eq!(root.target().record_kind(), PresentationRecordKindV1::Plus);
+    assert_eq!(preview.schema(), PRESENTATION_PREVIEW_RENDER_PLAN_SCHEMA_V1);
+    let PresentationPreviewRenderRootV1::Plus {
+        anchor: preview_anchor,
+        operation,
+        bounds,
+        background,
+    } = &preview.roots()[0]
+    else {
+        panic!("standard Plus preview must issue a preview-only Plus root");
+    };
+    let PresentationRenderRootV1::Plus {
+        render,
+        bounds: committed_bounds,
+        ..
+    } = &committed.roots()[0]
+    else {
+        panic!("committed Plus must issue a persistent Plus root");
+    };
+    assert_eq!(*preview_anchor, anchor);
+    assert_eq!(operation, render.operation());
+    assert_eq!(*bounds, *committed_bounds);
+    assert_eq!(background, &None);
 }
 
 fn stack(roots: Vec<PresentationRootProjectionV1>) -> PresentationStackProjectionV1 {
@@ -170,26 +167,17 @@ fn arrow(source_order: u32, start_head: bool, end_head: bool) -> PresentationRoo
 }
 
 fn target(source_order: u32, record_kind: PresentationRecordKindV1) -> PresentationTargetV1 {
-    serde_json::from_value(serde_json::json!({
-        "id": null,
-        "projection_key": format!("ferrum-projection-local-v1/{source_order}"),
-        "source_id": null,
-        "source_order": source_order,
-        "record_kind": record_kind,
-    }))
-    .expect("valid local target")
+    PresentationTargetV1::new(
+        DocumentObjectIdV1::from_entropy_bytes([source_order as u8; 16]),
+        record_kind,
+    )
 }
 
 fn standard_plus(anchor: RenderPoint) -> PlusProjectionV1 {
-    let target = PresentationTargetV1::try_new(
-        None,
-        ProjectionLocalObjectKeyV1::from_path_components(&[0])
-            .expect("preview target has a nonempty local path"),
-        None,
-        0,
+    let target = PresentationTargetV1::new(
+        DocumentObjectIdV1::from_entropy_bytes([0; 16]),
         PresentationRecordKindV1::Plus,
-    )
-    .expect("synthetic preview target");
+    );
     let font = PresentationFontV1::try_new(
         PresentationFontFaceV1::TelexRegularV1,
         PresentationFactProvenanceV1::Builtin,

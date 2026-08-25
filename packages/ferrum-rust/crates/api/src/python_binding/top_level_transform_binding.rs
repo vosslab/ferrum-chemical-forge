@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyTuple};
 
 use super::binding::operation_validation_error;
-use super::document_error_binding::document_object_id;
+use super::document_error_binding::document_object_id as parse_document_object_id;
 
 #[pyclass(
     frozen,
@@ -60,7 +60,7 @@ impl From<PyDocumentTopLevelRootKindV1> for TopLevelRootKindV1 {
 pub(crate) struct PyDocumentTopLevelRootSelectorV1 {
     selector: TopLevelRootSelectorV1,
     #[pyo3(get)]
-    root_id: String,
+    document_object_id: String,
     #[pyo3(get)]
     kind: PyDocumentTopLevelRootKindV1,
 }
@@ -70,14 +70,15 @@ impl PyDocumentTopLevelRootSelectorV1 {
     #[staticmethod]
     fn create(
         py: Python<'_>,
-        root_id: String,
+        document_object_id: String,
         kind: PyRef<'_, PyDocumentTopLevelRootKindV1>,
     ) -> PyResult<Self> {
-        let selector = TopLevelRootSelectorV1::new(root_id.clone(), (*kind).into())
-            .map_err(|error| operation_validation_error(py, error.to_string()))?;
+        let durable_document_object_id = parse_document_object_id(py, document_object_id)?;
+        let selector =
+            TopLevelRootSelectorV1::new(durable_document_object_id.clone(), (*kind).into());
         Ok(Self {
             selector,
-            root_id,
+            document_object_id: durable_document_object_id.as_str().to_owned(),
             kind: *kind,
         })
     }
@@ -214,7 +215,7 @@ pub(crate) fn live_targets(
                     "live top-level targets must contain root ID and kind".to_owned(),
                 ));
             }
-            let object_id = document_object_id(py, pair.get_item(0)?.extract::<String>()?)?;
+            let object_id = parse_document_object_id(py, pair.get_item(0)?.extract::<String>()?)?;
             let kind = pair
                 .get_item(1)?
                 .extract::<PyRef<'_, PyDocumentTopLevelRootKindV1>>()?;

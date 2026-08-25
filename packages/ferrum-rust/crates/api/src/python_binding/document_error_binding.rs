@@ -58,11 +58,14 @@ create_exception!(
     PublicationError
 );
 
-pub(crate) fn document_object_id(py: Python<'_>, value: String) -> PyResult<DocumentObjectIdV1> {
-    let object_id = value.clone();
-    DocumentObjectIdV1::parse(value).map_err(|error| {
+pub(crate) fn document_object_id(
+    py: Python<'_>,
+    serialized_id: String,
+) -> PyResult<DocumentObjectIdV1> {
+    let object_id_text = serialized_id.clone();
+    DocumentObjectIdV1::parse(serialized_id).map_err(|error| {
         let py_error = InvalidDocumentObjectIdError::new_err(error.to_string());
-        let result = py_error.value(py).setattr("object_id", object_id);
+        let result = py_error.value(py).setattr("object_id", object_id_text);
         if let Err(attribute_error) = result {
             return attribute_error;
         }
@@ -90,13 +93,16 @@ pub(crate) fn map_document_error(py: Python<'_>, error: DocumentSessionError) ->
             DocumentSerializationError::new_err(error.to_string())
         }
         DocumentSessionError::ClipboardPaste(error) => {
-            operation_validation_error(py, error.to_string())
+            let _ = error;
+            closed_operation_validation_error(py, "operation", "clipboard_paste")?
         }
         DocumentSessionError::ClipboardCut(error) => {
-            operation_validation_error(py, error.to_string())
+            let _ = error;
+            closed_operation_validation_error(py, "operation", "clipboard_cut")?
         }
         DocumentSessionError::UserTemplate(error) => {
-            operation_validation_error(py, error.to_string())
+            let _ = error;
+            closed_operation_validation_error(py, "operation", "user_template")?
         }
         DocumentSessionError::RevisionConflict { expected, actual } => {
             revision_conflict_error(py, expected, actual)?
@@ -111,19 +117,17 @@ pub(crate) fn map_document_error(py: Python<'_>, error: DocumentSessionError) ->
             PreparedOperationForeignSessionError::new_err(error.to_string())
         }
         DocumentSessionError::RendererAdmission => {
-            operation_validation_error(py, error.to_string())
+            closed_operation_validation_error(py, "operation", "renderer_admission")?
         }
         DocumentSessionError::TransitionAuthorization(_)
         | DocumentSessionError::DirectBondAdmission(_) => {
-            operation_validation_error(py, error.to_string())
+            closed_operation_validation_error(py, "operation", "transition_authorization")?
         }
         DocumentSessionError::Projection(error) => projection_error(py, error)?,
         DocumentSessionError::Operation(error) => operation_error(py, error)?,
         DocumentSessionError::DirectHaworthReobservation(error) => {
-            let message = error.to_string();
-            let py_error = OperationValidationError::new_err(message.clone());
-            py_error.value(py).setattr("reason", message)?;
-            py_error
+            let _ = error;
+            closed_operation_validation_error(py, "operation", "haworth_reobservation")?
         }
         DocumentSessionError::HistoryUnavailable => {
             HistoryUnavailableError::new_err(error.to_string())
@@ -296,12 +300,6 @@ pub(crate) fn projection_error(py: Python<'_>, error: DocumentProjectionError) -
     Ok(py_error)
 }
 
-pub(crate) fn operation_validation_error(py: Python<'_>, reason: String) -> PyErr {
-    let error = OperationValidationError::new_err(reason.clone());
-    let _ = error.value(py).setattr("reason", reason);
-    error
-}
-
 pub(crate) fn revision_conflict_error(
     py: Python<'_>,
     expected: u64,
@@ -344,90 +342,49 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::MoleculeInsertionRequiresTransitionCore
         | SessionOperationError::InterchangeRecordBatchInsertionRequiresTransitionCore
         | SessionOperationError::PresentationCreateRequiresTransitionCore => {
-            operation_validation_reason(py, error)
+            closed_operation_validation_error(py, "operation", "transition")
         }
         SessionOperationError::EmptyLinearFormSelection
-        | SessionOperationError::LinearFormPlan(_) => operation_validation_reason(py, error),
+        | SessionOperationError::LinearFormPlan(_) => {
+            closed_operation_validation_error(py, "operation", "linear_form")
+        }
         SessionOperationError::HistoryResourceExhausted
         | SessionOperationError::FragmentIdentifierExhausted
         | SessionOperationError::GeneratedIdentifierAllocationFailed => {
-            operation_validation_reason(py, error)
+            closed_operation_validation_error(py, "resource_exhausted", "document")
         }
-        SessionOperationError::InvalidAtomElement => {
-            Ok(InvalidAtomElementError::new_err(error.to_string()))
-        }
+        SessionOperationError::InvalidAtomElement => Ok(InvalidAtomElementError::new_err(
+            "document operation rejected",
+        )),
         SessionOperationError::InvalidAtomNumberPair
         | SessionOperationError::InvalidAtomMarkSelector => {
-            Ok(OperationValidationError::new_err(error.to_string()))
+            closed_operation_validation_error(py, "invalid_input", "atom_mark")
         }
         SessionOperationError::InvalidDirectHaworthInsertion(_)
         | SessionOperationError::InvalidRegularRingInsertion(_)
         | SessionOperationError::InvalidStandaloneHaworthInsertion(_)
         | SessionOperationError::InvalidStraightenDepiction(_) => {
-            let message = error.to_string();
-            let py_error = OperationValidationError::new_err(message.clone());
-            py_error.value(py).setattr("reason", message)?;
-            Ok(py_error)
+            closed_operation_validation_error(py, "invalid_input", "presentation")
         }
-        SessionOperationError::UnknownAtom(identifier) => {
-            let message = format!("typed atom does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
+        SessionOperationError::UnknownAtom(_) => unknown_document_object_error(py, "atom", None),
+        SessionOperationError::UnknownBond(_) => unknown_document_object_error(py, "bond", None),
+        SessionOperationError::UnknownPlus(_) => unknown_document_object_error(py, "plus", None),
+        SessionOperationError::UnknownText(_) => unknown_document_object_error(py, "text", None),
+        SessionOperationError::UnknownPresentationRoot(_) => {
+            unknown_document_object_error(py, "presentation_root", None)
         }
-        SessionOperationError::UnknownBond(identifier) => {
-            let message = format!("typed bond does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
-        }
-        SessionOperationError::UnknownPlus(identifier) => {
-            let message = format!("typed Plus does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
-        }
-        SessionOperationError::UnknownText(identifier) => {
-            let message = format!("typed Text does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
-        }
-        SessionOperationError::UnknownPresentationRoot(identifier) => {
-            let message = format!("typed presentation root does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
-        }
-        SessionOperationError::UnknownArrow(identifier) => {
-            let message = format!("typed Arrow does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
-        }
-        SessionOperationError::UnknownGeometricPresentation(identifier) => {
-            let message = format!("typed geometric presentation does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
+        SessionOperationError::UnknownArrow(_) => unknown_document_object_error(py, "arrow", None),
+        SessionOperationError::UnknownGeometricPresentation(_) => {
+            unknown_document_object_error(py, "geometric_presentation", None)
         }
         SessionOperationError::UnknownWavy(identifier) => {
-            let message = format!("typed Wavy presentation does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
+            unknown_document_object_error(py, "wavy", Some(identifier))
         }
         SessionOperationError::UnknownBracketPair(identifier) => {
-            let message = format!("typed bracket pair does not exist: {identifier}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", identifier)?;
-            Ok(py_error)
+            unknown_document_object_ids_error(py, "bracket_pair", identifier)
         }
-        SessionOperationError::UnknownDocumentObject(object_id) => {
-            let message = format!("document object does not exist: {object_id}");
-            let py_error = UnknownDocumentObjectError::new_err(message);
-            py_error.value(py).setattr("object_id", object_id)?;
-            Ok(py_error)
+        SessionOperationError::UnknownDocumentObject(_) => {
+            unknown_document_object_error(py, "document_object", None)
         }
         SessionOperationError::InvalidCreateAtomTarget(_)
         | SessionOperationError::UnknownMolecule
@@ -448,43 +405,95 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::GroupIdentifierExhausted
         | SessionOperationError::PresentationIdentifierExhausted
         | SessionOperationError::FragmentImportIdentifierExhausted => {
-            Ok(OperationValidationError::new_err(error.to_string()))
+            closed_operation_validation_error(py, "invalid_input", "document")
         }
-        SessionOperationError::Candidate(TypedDocumentError::UnknownTopLevelTransformRoot(
-            ref identifier,
-        )) => {
-            let object_id = identifier.as_str().to_owned();
-            let py_error = UnknownDocumentObjectError::new_err(error.to_string());
-            py_error.value(py).setattr("object_id", object_id)?;
-            Ok(py_error)
-        }
-        SessionOperationError::Candidate(TypedDocumentError::UnknownAtomRotationTarget {
-            molecule_id: _,
-            ref atom_id,
-        }) => {
-            let py_error = UnknownDocumentObjectError::new_err(error.to_string());
-            py_error.value(py).setattr("object_id", atom_id.as_str())?;
-            Ok(py_error)
-        }
-        SessionOperationError::Candidate(TypedDocumentError::UnknownGeometryRepairMolecule(
-            ref identifier,
-        )) => {
-            let object_id = identifier.as_str().to_owned();
-            let py_error = UnknownDocumentObjectError::new_err(error.to_string());
-            py_error.value(py).setattr("object_id", object_id)?;
-            Ok(py_error)
-        }
-        SessionOperationError::Candidate(_) | SessionOperationError::Serialize(_) => {
-            Ok(OperationValidationError::new_err(error.to_string()))
+        SessionOperationError::Candidate(error) => typed_document_error(py, error),
+        SessionOperationError::Serialize(_) => {
+            closed_operation_validation_error(py, "operation", "candidate")
         }
     }
 }
 
-fn operation_validation_reason(py: Python<'_>, error: SessionOperationError) -> PyResult<PyErr> {
-    let reason = error.to_string();
-    let py_error = OperationValidationError::new_err(reason.clone());
-    py_error.value(py).setattr("reason", reason)?;
+pub(crate) fn operation_validation_error(py: Python<'_>, reason: String) -> PyErr {
+    let error = OperationValidationError::new_err(reason.clone());
+    let _ = error.value(py).setattr("reason", reason);
+    error
+}
+
+fn closed_operation_validation_error(
+    py: Python<'_>,
+    category: &'static str,
+    location: &'static str,
+) -> PyResult<PyErr> {
+    let py_error = OperationValidationError::new_err("document operation rejected");
+    let value = py_error.value(py);
+    value.setattr("category", category)?;
+    value.setattr("location", location)?;
     Ok(py_error)
+}
+
+fn unknown_document_object_error(
+    py: Python<'_>,
+    location: &'static str,
+    object_id: Option<DocumentObjectIdV1>,
+) -> PyResult<PyErr> {
+    let py_error = UnknownDocumentObjectError::new_err("document operation rejected");
+    let value = py_error.value(py);
+    value.setattr("category", "unknown_document_object")?;
+    value.setattr("location", location)?;
+    if let Some(object_id) = object_id {
+        value.setattr("object_id", object_id.as_str().to_owned())?;
+    }
+    Ok(py_error)
+}
+
+fn unknown_document_object_ids_error(
+    py: Python<'_>,
+    location: &'static str,
+    object_ids: [DocumentObjectIdV1; 2],
+) -> PyResult<PyErr> {
+    let py_error = UnknownDocumentObjectError::new_err("document operation rejected");
+    let value = py_error.value(py);
+    value.setattr("category", "unknown_document_object")?;
+    value.setattr("location", location)?;
+    value.setattr(
+        "object_ids",
+        object_ids
+            .iter()
+            .map(|object_id| object_id.as_str().to_owned())
+            .collect::<Vec<_>>(),
+    )?;
+    Ok(py_error)
+}
+
+fn typed_document_error(py: Python<'_>, error: TypedDocumentError) -> PyResult<PyErr> {
+    match error {
+        TypedDocumentError::PresentationRootIsBracketMember(object_id) => {
+            unknown_document_object_error(py, "presentation_bracket_member", Some(object_id))
+        }
+        TypedDocumentError::PartialBracketDeletion(object_ids) => {
+            unknown_document_object_ids_error(py, "bracket_deletion", object_ids)
+        }
+        TypedDocumentError::PartialBracketStackSelection(object_ids) => {
+            unknown_document_object_ids_error(py, "bracket_stack_selection", object_ids)
+        }
+        TypedDocumentError::PartialBracketTransform(object_ids) => {
+            unknown_document_object_ids_error(py, "bracket_transform", object_ids)
+        }
+        TypedDocumentError::UnknownTopLevelTransformRoot(object_id) => {
+            unknown_document_object_error(py, "top_level_transform", Some(object_id))
+        }
+        TypedDocumentError::InvalidTopLevelTransformGeometry(object_id) => {
+            unknown_document_object_error(py, "top_level_transform_geometry", Some(object_id))
+        }
+        TypedDocumentError::NonFiniteTopLevelTransform(object_id) => {
+            unknown_document_object_error(py, "top_level_transform_geometry", Some(object_id))
+        }
+        TypedDocumentError::InvalidBracketPair(object_ids) => {
+            unknown_document_object_ids_error(py, "bracket_pair", object_ids)
+        }
+        _ => closed_operation_validation_error(py, "operation", "candidate"),
+    }
 }
 
 pub(crate) fn publication_error(
@@ -506,7 +515,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn presentation_transition_core_refusal_maps_to_operation_validation_error() {
+    fn presentation_transition_core_refusal_maps_to_closed_operation_validation_error() {
         Python::initialize();
         Python::attach(|py| {
             let error = operation_error(
@@ -519,11 +528,20 @@ mod tests {
             assert_eq!(
                 error
                     .value(py)
-                    .getattr("reason")
-                    .expect("operation validation error should expose its reason")
+                    .getattr("category")
+                    .expect("operation validation error should expose its category")
                     .extract::<String>()
-                    .expect("operation validation reason should be text"),
-                "presentation creation must be prepared by the session transition core"
+                    .expect("operation validation category should be text"),
+                "operation"
+            );
+            assert_eq!(
+                error
+                    .value(py)
+                    .getattr("location")
+                    .expect("operation validation error should expose its location")
+                    .extract::<String>()
+                    .expect("operation validation location should be text"),
+                "transition"
             );
         });
     }

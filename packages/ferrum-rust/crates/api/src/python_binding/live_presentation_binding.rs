@@ -1,7 +1,8 @@
 //! Fenced durable presentation mutation adapters for the live Python session.
 
 use ferrum_document::{
-    PresentationRootDeletionSetV1, PresentationStackReorderV1, SessionOperation, SessionOperationV1,
+    PresentationRootDeletionSetV1, PresentationRootDeletionV1, PresentationStackReorderV1,
+    SessionOperation, SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -32,7 +33,13 @@ impl PyDocumentSession {
                 .lower_live_presentation_roots_v1(&targets)
                 .map_err(ferrum_document::DocumentSessionError::Operation),
         )?;
-        let deletions = PresentationRootDeletionSetV1::new(targets)
+        let deletions = targets
+            .into_iter()
+            .map(|target| {
+                PresentationRootDeletionV1::new(target.document_object_id().clone(), target.kind())
+            })
+            .collect();
+        let deletions = PresentationRootDeletionSetV1::new(deletions)
             .map_err(|error| operation_validation_error(py, error.to_string()))?;
         let operation =
             SessionOperation::V1(SessionOperationV1::DeletePresentationRoots { deletions });

@@ -2,22 +2,38 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use ferrum_api::{OperationProtocolEnvelopeV1, execute_operation_v1};
-use ferrum_document::DocumentSession;
+use ferrum_document::{
+    DocumentSession, load_document_utf8_bytes_with_budget, local_cdml_ingress_format_v1,
+};
 use serde_json::{Value, json};
 
+const DOCUMENT_OBJECT_NAMESPACE_V1: &str = "urn:ferrum:document-object:v1";
+const MOLECULE_OBJECT_ID: &str = "ferrum-document-object-v1/00000000000000000000000000000000";
+const OXYGEN_OBJECT_ID: &str = "ferrum-document-object-v1/00000000000000000000000000000001";
+
 const WATER: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"water\">",
-    "<atom id=\"oxygen\" name=\"O\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"0\" y=\"0\"/></atom>",
-    "<atom id=\"hydrogen-a\" name=\"H\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"1\" y=\"0\"/></atom>",
-    "<atom id=\"hydrogen-b\" name=\"H\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"-1\" y=\"0\"/></atom>",
-    "<bond id=\"bond-a\" start=\"oxygen\" end=\"hydrogen-a\" type=\"n1\"/>",
-    "<bond id=\"bond-b\" start=\"oxygen\" end=\"hydrogen-b\" type=\"n1\"/>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:ferrum-object=\"urn:ferrum:document-object:v1\" version=\"1.0\"><molecule id=\"water\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000000\">",
+    "<atom id=\"oxygen\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\" name=\"O\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"0\" y=\"0\"/></atom>",
+    "<atom id=\"hydrogen-a\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000002\" name=\"H\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"1\" y=\"0\"/></atom>",
+    "<atom id=\"hydrogen-b\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000003\" name=\"H\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"-1\" y=\"0\"/></atom>",
+    "<bond id=\"bond-a\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000004\" start=\"oxygen\" end=\"hydrogen-a\" type=\"n1\"/>",
+    "<bond id=\"bond-b\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000005\" start=\"oxygen\" end=\"hydrogen-b\" type=\"n1\"/>",
     "</molecule></cdml>"
 );
 
+const CHLORIDE: &str = concat!(
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:ferrum-object=\"urn:ferrum:document-object:v1\" version=\"1.0\"><molecule id=\"chloride\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000000\">",
+    "<atom id=\"chlorine\" ferrum-object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\" name=\"Cl\" charge=\"-1\" explicit_hydrogens=\"0\"><point x=\"0\" y=\"0\"/></atom>",
+    "</molecule></cdml>"
+);
+
+fn admitted_session(document: &str) -> DocumentSession {
+    load_document_utf8_bytes_with_budget(document.as_bytes(), local_cdml_ingress_format_v1())
+        .expect("inline CDML admits")
+}
+
 fn digest(document: &str) -> String {
-    DocumentSession::load(document)
-        .expect("fixture loads")
+    admitted_session(document)
         .snapshot()
         .expect("fixture snapshots")
         .digest()
@@ -27,7 +43,7 @@ fn digest(document: &str) -> String {
 }
 
 fn selection(document: &str) -> (String, String) {
-    let session = DocumentSession::load(document).expect("fixture loads");
+    let session = admitted_session(document);
     let observation = session.observe(0).expect("fixture observes");
     let molecule = &observation.projection().molecules()[0];
     (
@@ -66,22 +82,22 @@ fn resource_limited_document() -> String {
     let atoms = (0..257)
         .map(|index| {
             format!(
-                "<atom id=\"hydrogen-{index}\" name=\"H\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"0\" y=\"0\"/></atom>"
+                "<atom id=\"hydrogen-{index}\" ferrum-object:id=\"ferrum-document-object-v1/{:032x}\" name=\"H\" charge=\"0\" explicit_hydrogens=\"0\"><point x=\"0\" y=\"0\"/></atom>",
+                index + 1,
             )
         })
         .collect::<String>();
-    format!("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"large\">{atoms}</molecule></cdml>")
+    format!(
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:ferrum-object=\"{DOCUMENT_OBJECT_NAMESPACE_V1}\"><molecule id=\"large\" ferrum-object:id=\"{MOLECULE_OBJECT_ID}\">{atoms}</molecule></cdml>"
+    )
 }
 
 #[test]
 fn protocol_returns_a_fenced_accepted_or_unavailable_observation() {
     let accepted = execute_operation_v1(&request(WATER, 0, digest(WATER)).to_string())
         .expect("accepted request decodes");
-    let unavailable_source = WATER.replace("</molecule>", "<group id=\"remote\"/></molecule>");
-    let unavailable = execute_operation_v1(
-        &request(&unavailable_source, 0, digest(&unavailable_source)).to_string(),
-    )
-    .expect("unavailable request decodes");
+    let unavailable = execute_operation_v1(&request(CHLORIDE, 0, digest(CHLORIDE)).to_string())
+        .expect("unavailable request decodes");
 
     let accepted_json = serde_json::to_value(accepted).expect("accepted envelope serializes");
     let unavailable_json =
@@ -92,14 +108,15 @@ fn protocol_returns_a_fenced_accepted_or_unavailable_observation() {
     );
     assert_eq!(
         unavailable_json["outcome"]["observation"]["unavailable_reason"],
-        "non_atom_vertex_unsupported"
+        "element_outside_profile"
     );
     let accepted_observation = &accepted_json["outcome"]["observation"];
     let unavailable_observation = &unavailable_json["outcome"]["observation"];
     assert_eq!(accepted_observation["source_revision"], 0);
     assert_eq!(accepted_observation["source_digest_hex"], digest(WATER));
-    assert_eq!(accepted_observation["molecule_id"], selection(WATER).0);
-    assert_eq!(accepted_observation["atom_id"], selection(WATER).1);
+    assert_eq!(accepted_observation["molecule_id"], MOLECULE_OBJECT_ID);
+    assert_eq!(accepted_observation["atom_id"], OXYGEN_OBJECT_ID);
+    assert_eq!(accepted_observation["document_paint_order"], 0);
     assert!(accepted_observation.get("unavailable_reason").is_none());
     assert!(unavailable_observation.get("oxidation_number").is_none());
     assert!(accepted_observation.get("cdml").is_none());
@@ -108,7 +125,7 @@ fn protocol_returns_a_fenced_accepted_or_unavailable_observation() {
 }
 
 #[test]
-fn protocol_accepts_source_provenance_and_refuses_invalid_selection_and_resource_limits() {
+fn protocol_accepts_document_fence_and_refuses_invalid_selection_and_resource_limits() {
     let accepted = execute_operation_v1(&request(WATER, 1, digest(WATER)).to_string())
         .expect("source-provenance request decodes");
     let OperationProtocolEnvelopeV1::Success(accepted) = accepted else {

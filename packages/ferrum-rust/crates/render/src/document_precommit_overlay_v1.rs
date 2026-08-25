@@ -1,11 +1,10 @@
 //! Identifier-free precommit paint data for accepted direct-bond mutations.
 
 use crate::{
-    AcceptedRenderOverlayRequestV1, AcceptedRenderOverlayTargetKindV1, BatchSpace,
-    DocumentRenderContentV1, DocumentRenderOutcomeV1, DocumentRenderPlanV1, RenderDisplayLayerV1,
-    RenderError, RenderOp,
+    AcceptedRenderOverlayRequestV1, BatchSpace, DocumentRenderContentV1, DocumentRenderOutcomeV1,
+    DocumentRenderPlanV1, RenderDisplayLayerV1, RenderError, RenderOp,
 };
-use ferrum_core::{Identifier, RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 use std::collections::HashSet;
 
 /// Immutable identifier-free paint data selected from one admitted document plan.
@@ -59,19 +58,11 @@ pub(super) fn build_document_precommit_overlay_v1(
     plan: &DocumentRenderPlanV1,
     request: &AcceptedRenderOverlayRequestV1,
 ) -> Result<DocumentPrecommitOverlayV1, RenderError> {
-    let mut requested = HashSet::new();
-    for target in request.targets() {
-        let identifier = Identifier::new(target.source_identifier().to_owned()).map_err(|_| {
-            RenderError::InvalidRequest(
-                "precommit overlay requires valid persistent target identifiers".to_owned(),
-            )
-        })?;
-        let kind = match target.kind() {
-            AcceptedRenderOverlayTargetKindV1::Atom => RecordKind::Atom,
-            AcceptedRenderOverlayTargetKindV1::Bond => RecordKind::Bond,
-        };
-        requested.insert(RecordId::from_source(kind, &identifier));
-    }
+    let requested = request
+        .targets()
+        .iter()
+        .map(|target| target.document_object_id().clone())
+        .collect::<HashSet<DocumentObjectIdV1>>();
     let molecule = plan
         .outcomes()
         .iter()
@@ -85,7 +76,7 @@ pub(super) fn build_document_precommit_overlay_v1(
                 molecule
                     .batches()
                     .iter()
-                    .any(|batch| requested.contains(batch.target().record_id()))
+                    .any(|batch| requested.contains(batch.target().document_object_id()))
                     .then_some(molecule)
             }
             _ => None,
@@ -98,7 +89,7 @@ pub(super) fn build_document_precommit_overlay_v1(
     let batches = molecule
         .batches()
         .iter()
-        .filter(|batch| requested.contains(batch.target().record_id()))
+        .filter(|batch| requested.contains(batch.target().document_object_id()))
         .cloned()
         .collect::<Vec<_>>();
     if batches.len() != requested.len() {

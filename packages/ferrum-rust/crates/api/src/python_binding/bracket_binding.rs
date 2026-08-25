@@ -2,8 +2,8 @@
 
 use ferrum_document::{
     BracketPairProjectionV1, BracketPropertiesPatchV1, BracketPropertyChangeV1, BracketStyleV1,
-    GeometricLineWidthV1, PendingCreateBracket, PresentationBracketStyleV1, Rgb24V1,
-    SessionOperation, SessionOperationV1,
+    DocumentObjectIdV1, GeometricLineWidthV1, PendingCreateBracket, PresentationBracketStyleV1,
+    Rgb24V1, SessionOperation, SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyString, PyTuple};
@@ -81,9 +81,7 @@ impl PyDocumentBracketBoundsV1 {
 #[derive(Clone)]
 pub(crate) struct PyBracketPairProjectionV1 {
     #[pyo3(get)]
-    pub(crate) pair_id: String,
-    #[pyo3(get)]
-    pub(crate) member_ids: Vec<String>,
+    pub(crate) members: [String; 2],
     #[pyo3(get)]
     pub(crate) style: PyDocumentBracketStyleV1,
     #[pyo3(get)]
@@ -95,8 +93,10 @@ pub(crate) struct PyBracketPairProjectionV1 {
 impl From<&BracketPairProjectionV1> for PyBracketPairProjectionV1 {
     fn from(value: &BracketPairProjectionV1) -> Self {
         Self {
-            pair_id: value.pair_id().to_owned(),
-            member_ids: value.member_ids().to_vec(),
+            members: value
+                .members()
+                .each_ref()
+                .map(|member| member.as_str().to_owned()),
             style: match value.style() {
                 PresentationBracketStyleV1::Rectangular => PyDocumentBracketStyleV1::Rectangular,
                 PresentationBracketStyleV1::Round => PyDocumentBracketStyleV1::Round,
@@ -185,7 +185,17 @@ impl PyDocumentBracketPropertyChangeV1 {
 
 pub(crate) fn set_bracket_properties(
     py: Python<'_>,
-    pair_id: String,
+    members: &Bound<'_, PyTuple>,
+    changes: &Bound<'_, PyTuple>,
+) -> PyResult<SessionOperation> {
+    let members = bracket_members(py, members)?;
+    set_bracket_properties_for_members(py, members, changes)
+}
+
+/// Build a bracket patch from an already parsed, caller-order durable pair.
+pub(crate) fn set_bracket_properties_for_members(
+    py: Python<'_>,
+    members: [DocumentObjectIdV1; 2],
     changes: &Bound<'_, PyTuple>,
 ) -> PyResult<SessionOperation> {
     if !changes.is_exact_instance_of::<PyTuple>() {
@@ -209,18 +219,53 @@ pub(crate) fn set_bracket_properties(
                 .map_err(Into::into)
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let patch = BracketPropertiesPatchV1::new(pair_id, changes)
+    let patch = BracketPropertiesPatchV1::new(members, changes)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(SessionOperation::V1(
         SessionOperationV1::SetBracketProperties { patch },
     ))
 }
 
+fn bracket_members(
+    py: Python<'_>,
+    members: &Bound<'_, PyTuple>,
+) -> PyResult<[DocumentObjectIdV1; 2]> {
+    const MEMBER_REASON: &str =
+        "bracket members must be an exact built-in tuple of two distinct durable object IDs";
+
+    if !members.is_exact_instance_of::<PyTuple>() || members.len() != 2 {
+        return Err(operation_validation_error(py, MEMBER_REASON.to_owned()));
+    }
+    let mut parsed = Vec::with_capacity(2);
+    for member in members.iter() {
+        if !member.is_exact_instance_of::<PyString>() {
+            return Err(operation_validation_error(py, MEMBER_REASON.to_owned()));
+        }
+        let member = member.extract::<String>()?;
+        let member = DocumentObjectIdV1::parse(member)
+            .map_err(|_| operation_validation_error(py, MEMBER_REASON.to_owned()))?;
+        parsed.push(member);
+    }
+    let members: [DocumentObjectIdV1; 2] = parsed
+        .try_into()
+        .map_err(|_| operation_validation_error(py, MEMBER_REASON.to_owned()))?;
+    if members[0] == members[1] {
+        return Err(operation_validation_error(py, MEMBER_REASON.to_owned()));
+    }
+    Ok(members)
+}
+
 fn validate_change(
     py: Python<'_>,
     change: BracketPropertyChangeV1,
 ) -> PyResult<PyDocumentBracketPropertyChangeV1> {
-    BracketPropertiesPatchV1::new("validation-bracket", vec![change.clone()])
-        .map_err(|error| operation_validation_error(py, error.to_string()))?;
+    BracketPropertiesPatchV1::new(
+        [
+            DocumentObjectIdV1::from_entropy_bytes([0x10; 16]),
+            DocumentObjectIdV1::from_entropy_bytes([0x20; 16]),
+        ],
+        vec![change.clone()],
+    )
+    .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(PyDocumentBracketPropertyChangeV1 { change })
 }

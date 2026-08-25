@@ -482,6 +482,7 @@ dependencies = [
  "ferrum-core",
  "ferrum-document-model",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

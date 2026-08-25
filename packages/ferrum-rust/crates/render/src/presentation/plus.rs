@@ -180,6 +180,20 @@ impl DocumentPlusRenderV1 {
     }
 }
 
+/// Lower the fixed standard Plus appearance for an identifier-free preview.
+pub(crate) fn lower_standard_plus_preview_v1(
+    metrics: &VerifiedTelexGlyphMetrics,
+) -> Result<(TextOp, PresentationTextBoundsV1), RenderError> {
+    let layout = metrics.layout_centered_plus(
+        PositiveFinite::new(14.0)?,
+        Paint::rgb24(Rgb24::new("000000")?),
+    )?;
+    Ok((
+        layout.operation().clone(),
+        PresentationTextBoundsV1::from_glyph_bounds(layout.bounds()),
+    ))
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BoundsWireV1 {

@@ -12,7 +12,7 @@ use super::stack_model::{
     PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStrokeV1,
     PresentationTargetV1,
 };
-use crate::{DocumentObjectIdV1, Point3V1, PositiveFiniteV1, ProjectionLocalObjectKeyV1, Rgb24V1};
+use crate::{DocumentObjectIdV1, Point3V1, PositiveFiniteV1, Rgb24V1};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -20,7 +20,7 @@ pub(super) struct PresentationStackWireV1 {
     pub schema: String,
     pub revision: u64,
     pub digest: [u8; 32],
-    pub roots: Vec<PresentationRootProjectionV1>,
+    pub entries: Vec<PresentationRootWireV1>,
     pub bracket_pairs: Vec<BracketPairProjectionV1>,
     pub issues: Vec<PresentationProjectionIssueV1>,
 }
@@ -81,10 +81,7 @@ impl TryFrom<PolylineWireV1> for PolylineProjectionV1 {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct PresentationTargetWireV1 {
-    pub id: Option<String>,
-    pub projection_key: String,
-    pub source_id: Option<String>,
-    pub source_order: u32,
+    pub document_object_id: String,
     pub record_kind: PresentationRecordKindV1,
 }
 
@@ -92,36 +89,23 @@ impl TryFrom<PresentationTargetWireV1> for PresentationTargetV1 {
     type Error = serde::de::value::Error;
 
     fn try_from(value: PresentationTargetWireV1) -> Result<Self, Self::Error> {
-        let id = value
-            .id
-            .map(DocumentObjectIdV1::parse)
-            .transpose()
+        let document_object_id = DocumentObjectIdV1::parse(value.document_object_id)
             .map_err(|error| serde::de::Error::custom(error.to_string()))?;
-        let projection_key = ProjectionLocalObjectKeyV1::parse(value.projection_key)
-            .ok_or_else(|| serde::de::Error::custom("invalid presentation projection-local key"))?;
-        if id.is_some() != value.source_id.is_some() {
-            return Err(serde::de::Error::custom(
-                "presentation target ID and source ID must be present together",
-            ));
-        }
-        if let (Some(id), Some(source_id)) = (&id, &value.source_id) {
-            let expected =
-                DocumentObjectIdV1::from_class_source(value.record_kind.class_name(), source_id)
-                    .map_err(|error| serde::de::Error::custom(error.to_string()))?;
-            if *id != expected {
-                return Err(serde::de::Error::custom(
-                    "presentation target ID does not match its record kind and source ID",
-                ));
-            }
-        }
-        Self::try_new(
-            id,
-            projection_key,
-            value.source_id,
-            value.source_order,
-            value.record_kind,
-        )
-        .map_err(serde::de::Error::custom)
+        Ok(Self::new(document_object_id, value.record_kind))
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PresentationIssueWireV1 {
+    pub target: PresentationTargetV1,
+    pub code: PresentationProjectionIssueCodeV1,
+    pub detail: String,
+}
+
+impl From<PresentationIssueWireV1> for PresentationProjectionIssueV1 {
+    fn from(value: PresentationIssueWireV1) -> Self {
+        Self::new(value.target, value.code, value.detail)
     }
 }
 
@@ -197,19 +181,5 @@ impl TryFrom<PresentationStrokeWireV1> for PresentationStrokeV1 {
         }
         Self::new(color, value.color_provenance, width, value.width_provenance)
             .map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct PresentationIssueWireV1 {
-    pub target: PresentationTargetV1,
-    pub code: PresentationProjectionIssueCodeV1,
-    pub detail: String,
-}
-
-impl From<PresentationIssueWireV1> for PresentationProjectionIssueV1 {
-    fn from(value: PresentationIssueWireV1) -> Self {
-        Self::new(value.target, value.code, value.detail)
     }
 }

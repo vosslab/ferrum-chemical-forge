@@ -44,6 +44,7 @@ class RefusalRequest:
 	outcome: RefusalOutcome
 	document_name: str | None = None
 	technical_details: str | None = None
+	primary_message: str | None = None
 
 
 #============================================
@@ -103,6 +104,13 @@ def present_refusal(request: RefusalRequest) -> RefusalPresentation:
 #============================================
 def _validate_request(request: RefusalRequest) -> None:
 	"""Reject an outcome presented for a different author task."""
+	if request.primary_message is not None:
+		if type(request.primary_message) is not str:
+			raise TypeError("primary message must be a string or None")
+		if not request.primary_message:
+			raise ValueError("primary message must be nonempty")
+		if request.outcome is not RefusalOutcome.UNAVAILABLE_OPERATION:
+			raise ValueError("primary message needs an unavailable-operation refusal")
 	if request.outcome in (
 			RefusalOutcome.INVALID_DOCUMENT, RefusalOutcome.UNSUPPORTED_DOCUMENT,
 			RefusalOutcome.SOURCE_NOT_ALLOWED,
@@ -280,7 +288,7 @@ def _unavailable_operation(request: RefusalRequest) -> RefusalPresentation:
 	"""Explain why an action cannot be applied in the current state."""
 	return RefusalPresentation(
 		"Action Not Available",
-		"This action is not available for the current drawing.",
+		request.primary_message or "This action is not available for the current drawing.",
 		"The needed selection or document state is not available.",
 		"Select the required item or change the drawing, then try again.",
 		request.technical_details,

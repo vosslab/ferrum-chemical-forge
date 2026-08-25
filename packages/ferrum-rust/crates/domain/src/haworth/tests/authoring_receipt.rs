@@ -12,11 +12,10 @@ use crate::haworth::{
 
 fn atom(index: usize, element: &str, charge: Option<i32>) -> Atom {
     Atom::new(
-        Some(Identifier::new(format!("a{index}")).expect("identifier")),
+        Identifier::new(format!("a{index}")).expect("identifier"),
         Some(element.to_owned()),
         Position::new(index as f64, 0.0, 0.0).expect("position"),
         charge,
-        None,
         None,
         None,
         None,
@@ -28,14 +27,13 @@ fn atom(index: usize, element: &str, charge: Option<i32>) -> Atom {
 
 fn bond(index: usize, start: &Atom, end: &Atom) -> Bond {
     Bond::new(
-        Some(Identifier::new(format!("b{index}")).expect("identifier")),
+        Identifier::new(format!("b{index}")).expect("identifier"),
         VertexRef::Atom(start.identity().clone()),
         VertexRef::Atom(end.identity().clone()),
         None,
         Some(BondOrder::Single),
         None,
         Some(false),
-        None,
     )
     .expect("bond")
 }
@@ -82,14 +80,13 @@ fn source(
         &atoms[bridge_index],
     ));
     let molecule = Molecule::new(
-        Some(Identifier::new("closed-two-rings").expect("identifier")),
+        Identifier::new("closed-two-rings").expect("identifier"),
         None,
         atoms.clone(),
         Vec::new(),
         Vec::new(),
         Vec::new(),
         bonds.clone(),
-        None,
     )
     .expect("molecule");
     let ring = |offset: usize, form: RingForm| {
@@ -128,7 +125,8 @@ fn source(
 }
 
 fn durable(kind: RecordKind, value: &str) -> ferrum_core::RecordId {
-    ferrum_core::RecordId::from_source(kind, &Identifier::new(value).expect("identifier"))
+    ferrum_core::RecordId::new(kind, Identifier::new(value).expect("identifier"))
+        .expect("durable record identifier")
 }
 
 #[test]
@@ -472,14 +470,13 @@ fn receipt_retains_c_or_o_and_canonical_roles_without_source_order_dependence() 
 fn receipt_rejects_stale_classification_and_richer_source_atoms() {
     let (molecule, topology) = source(RingForm::Pyranose, RingForm::Pyranose, false, false);
     let stale = Molecule::new(
-        molecule.source_id().cloned(),
+        molecule.source_id().clone(),
         None,
         molecule.atoms().iter().cloned().rev().collect(),
         Vec::new(),
         Vec::new(),
         Vec::new(),
         molecule.bonds().to_vec(),
-        None,
     )
     .expect("reordered molecule");
     assert!(matches!(
@@ -523,14 +520,13 @@ fn receipt_rejects_bond_type_or_style_for_ring_and_bridge_sources() {
             })
             .collect();
         let altered = Molecule::new(
-            molecule.source_id().cloned(),
+            molecule.source_id().clone(),
             None,
             molecule.atoms().to_vec(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
             bonds,
-            None,
         )
         .expect("altered molecule");
         assert!(matches!(
@@ -553,8 +549,7 @@ fn receipt_rejects_closed_source_guards_and_invalid_scales() {
                 groups.push(
                     NonAtomVertex::new(
                         RecordKind::Group,
-                        Some(Identifier::new("g0").expect("identifier")),
-                        None,
+                        Identifier::new("g0").expect("identifier"),
                     )
                     .expect("group"),
                 );
@@ -571,14 +566,13 @@ fn receipt_rejects_closed_source_guards_and_invalid_scales() {
             _ => unreachable!("table lists only closed-source guards"),
         };
         let altered = Molecule::new(
-            molecule.source_id().cloned(),
+            molecule.source_id().clone(),
             name,
             atoms,
             groups,
             Vec::new(),
             Vec::new(),
             bonds,
-            None,
         )
         .expect("closed-source guard molecule");
         assert!(

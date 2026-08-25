@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyString, PyTuple};
 
 use super::binding::operation_validation_error;
+use super::document_error_binding::document_object_id;
 
 /// One exact Wavy presentation property change accepted by a Rust patch.
 #[pyclass(
@@ -78,6 +79,7 @@ pub(crate) fn set_wavy_properties(
     wavy_id: String,
     changes: &Bound<'_, PyTuple>,
 ) -> PyResult<SessionOperation> {
+    let wavy_id = document_object_id(py, wavy_id)?;
     if !changes.is_exact_instance_of::<PyTuple>() {
         return Err(operation_validation_error(
             py,
@@ -107,10 +109,8 @@ pub(crate) fn set_wavy_properties(
 }
 
 fn wavy_property_change(
-    py: Python<'_>,
+    _py: Python<'_>,
     change: WavyPropertyChangeV1,
 ) -> PyResult<PyDocumentWavyPropertyChangeV1> {
-    WavyPropertiesPatchV1::new("validation-wavy", vec![change.clone()])
-        .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(PyDocumentWavyPropertyChangeV1 { change })
 }

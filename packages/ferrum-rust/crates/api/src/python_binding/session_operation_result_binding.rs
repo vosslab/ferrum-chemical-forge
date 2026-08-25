@@ -394,7 +394,7 @@ pub(crate) struct PyCreatedPresentationRootOutcomeV1 {
 impl From<&CreatedPresentationRootOutcomeV1> for PyCreatedPresentationRootOutcomeV1 {
     fn from(outcome: &CreatedPresentationRootOutcomeV1) -> Self {
         Self {
-            identifier: outcome.root().presentation_id().as_str().to_owned(),
+            identifier: outcome.root().document_object_id().as_str().to_owned(),
             kind: outcome.kind().into(),
         }
     }
@@ -477,13 +477,13 @@ impl PyInterchangeRecordBatchInsertedOutcomeV1 {
 #[derive(Clone)]
 pub(crate) struct PyReactionCreatedOutcomeV1 {
     #[pyo3(get)]
-    reaction_id: String,
+    reaction_document_object_id: String,
 }
 
 impl From<&ReactionCreatedOutcomeV1> for PyReactionCreatedOutcomeV1 {
     fn from(outcome: &ReactionCreatedOutcomeV1) -> Self {
         Self {
-            reaction_id: outcome.reaction_id().to_owned(),
+            reaction_document_object_id: outcome.reaction_document_object_id().as_str().to_owned(),
         }
     }
 }
@@ -497,13 +497,13 @@ impl From<&ReactionCreatedOutcomeV1> for PyReactionCreatedOutcomeV1 {
 #[derive(Clone)]
 pub(crate) struct PyReactionMembershipReplacedOutcomeV1 {
     #[pyo3(get)]
-    reaction_id: String,
+    reaction_document_object_id: String,
 }
 
 impl From<&ReactionMembershipReplacedOutcomeV1> for PyReactionMembershipReplacedOutcomeV1 {
     fn from(outcome: &ReactionMembershipReplacedOutcomeV1) -> Self {
         Self {
-            reaction_id: outcome.reaction_id().to_owned(),
+            reaction_document_object_id: outcome.reaction_document_object_id().as_str().to_owned(),
         }
     }
 }
@@ -517,13 +517,13 @@ impl From<&ReactionMembershipReplacedOutcomeV1> for PyReactionMembershipReplaced
 #[derive(Clone)]
 pub(crate) struct PyReactionDefinitionDeletedOutcomeV1 {
     #[pyo3(get)]
-    reaction_id: String,
+    reaction_document_object_id: String,
 }
 
 impl From<&ReactionDefinitionDeletedOutcomeV1> for PyReactionDefinitionDeletedOutcomeV1 {
     fn from(outcome: &ReactionDefinitionDeletedOutcomeV1) -> Self {
         Self {
-            reaction_id: outcome.reaction_id().to_owned(),
+            reaction_document_object_id: outcome.reaction_document_object_id().as_str().to_owned(),
         }
     }
 }
@@ -533,11 +533,11 @@ impl From<&ReactionDefinitionDeletedOutcomeV1> for PyReactionDefinitionDeletedOu
 #[derive(Clone)]
 pub(crate) struct PyDirectBondOperationOutcomeV1 {
     #[pyo3(get)]
-    bond_identifier: String,
+    bond_document_object_id: String,
     #[pyo3(get)]
-    end_atom_identifier: String,
+    end_atom_document_object_id: String,
     #[pyo3(get)]
-    second_created_atom_identifier: Option<String>,
+    second_created_atom_document_object_id: Option<String>,
     #[pyo3(get)]
     created_new_atom: bool,
     #[pyo3(get)]
@@ -547,10 +547,10 @@ pub(crate) struct PyDirectBondOperationOutcomeV1 {
 impl From<&DirectBondOperationOutcomeV1> for PyDirectBondOperationOutcomeV1 {
     fn from(outcome: &DirectBondOperationOutcomeV1) -> Self {
         Self {
-            bond_identifier: outcome.bond().as_str().to_owned(),
-            end_atom_identifier: outcome.end_atom().as_str().to_owned(),
-            second_created_atom_identifier: outcome
-                .second_created_atom()
+            bond_document_object_id: outcome.bond_document_object_id().as_str().to_owned(),
+            end_atom_document_object_id: outcome.end_atom_document_object_id().as_str().to_owned(),
+            second_created_atom_document_object_id: outcome
+                .second_created_atom_document_object_id()
                 .map(|identifier| identifier.as_str().to_owned()),
             created_new_atom: outcome.created_new_atom(),
             created_new_molecule: outcome.created_new_molecule(),

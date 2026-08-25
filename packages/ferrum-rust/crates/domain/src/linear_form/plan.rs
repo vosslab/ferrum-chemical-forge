@@ -207,10 +207,7 @@ fn selected_replacements(
         let x = first.x() + 10.0 * f64::from(offset);
         let point = Point2::new(x, first.y()).map_err(|_| LinearFormPlanErrorV1::NonFinitePoint)?;
         replacements.push(LinearFormPointReplacementV1::new(
-            graph.atoms()[*atom_index]
-                .atom_id()
-                .try_clone()
-                .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?,
+            graph.atoms()[*atom_index].atom_id().clone(),
             point,
         ));
     }
@@ -256,10 +253,7 @@ fn exterior_replacements(
             let translated = Point2::new(point.x() + dx, point.y() + dy)
                 .map_err(|_| LinearFormPlanErrorV1::NonFinitePoint)?;
             replacements.push(LinearFormPointReplacementV1::new(
-                graph.atoms()[atom_index]
-                    .atom_id()
-                    .try_clone()
-                    .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?,
+                graph.atoms()[atom_index].atom_id().clone(),
                 translated,
             ));
         }
@@ -331,18 +325,8 @@ fn build_plan(
         .try_reserve_exact(path.len())
         .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?;
     for atom_index in path {
-        ordered_atoms.push(
-            graph.atoms()[*atom_index]
-                .atom_id()
-                .try_clone()
-                .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?,
-        );
-        hydrogen_visible_atoms.push(
-            graph.atoms()[*atom_index]
-                .atom_id()
-                .try_clone()
-                .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?,
-        );
+        ordered_atoms.push(graph.atoms()[*atom_index].atom_id().clone());
+        hydrogen_visible_atoms.push(graph.atoms()[*atom_index].atom_id().clone());
     }
     let mut ordered_bonds = Vec::new();
     ordered_bonds
@@ -354,12 +338,7 @@ fn build_plan(
             .copied()
             .find(|bond_index| joins_pair(graph, *bond_index, pair[0], pair[1]))
             .ok_or(LinearFormPlanErrorV1::NotSinglePath)?;
-        ordered_bonds.push(
-            graph.bonds()[bond_index]
-                .bond_id()
-                .try_clone()
-                .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?,
-        );
+        ordered_bonds.push(graph.bonds()[bond_index].bond_id().clone());
     }
     let metadata =
         LinearFormMetadataShapeV1::new(clone_ids(&ordered_atoms)?, clone_ids(&ordered_bonds)?);
@@ -379,10 +358,7 @@ fn clone_ids(ids: &[RecordId]) -> Result<Vec<RecordId>, LinearFormPlanErrorV1> {
         .try_reserve_exact(ids.len())
         .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?;
     for id in ids {
-        clones.push(
-            id.try_clone()
-                .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?,
-        );
+        clones.push(id.clone());
     }
     Ok(clones)
 }

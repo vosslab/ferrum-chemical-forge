@@ -12,6 +12,7 @@ mod execution;
 mod frozen_document_snapshot_v1;
 #[cfg(feature = "python-binding")]
 pub(crate) mod live_document_operation_v1;
+mod molecule_diagnostics_core_v1;
 mod molecule_report_core_v1;
 mod molecule_report_diagnostics_v1;
 pub(crate) mod runtime;
@@ -28,7 +29,9 @@ pub use dto::{
     DocumentGenerateCoordinatesRequestV1, DocumentInspectRequestV1,
     DocumentInterchangeImportLossReportV1, DocumentInterchangeImportSummaryV1,
     DocumentInterchangeLossCategoryV1, DocumentInterchangeProvenanceV1,
-    DocumentInterchangeSourceKindV1, DocumentMoleculeHydrogenMaterializationOutcomeV1,
+    DocumentInterchangeSourceKindV1, DocumentMoleculeDiagnosticRecordSummaryV1,
+    DocumentMoleculeDiagnosticsRequestV1, DocumentMoleculeDiagnosticsSnapshotV1,
+    DocumentMoleculeDiagnosticsSummaryV1, DocumentMoleculeHydrogenMaterializationOutcomeV1,
     DocumentMoleculeHydrogenMaterializationRequestV1,
     DocumentMoleculeHydrogenMaterializationResultV1,
     DocumentMoleculeHydrogenMaterializationUnavailableReasonV1,
@@ -42,6 +45,9 @@ pub use dto::{
     DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1,
     DocumentMoleculeReportDoubleBondConfigurationSummaryV1,
     DocumentMoleculeReportDoubleBondStereoSummaryV1, DocumentMoleculeReportElementCountSummaryV1,
+    DocumentMoleculeReportFindingCodeSummaryV1, DocumentMoleculeReportFindingLocationSummaryV1,
+    DocumentMoleculeReportFindingRecoverySummaryV1, DocumentMoleculeReportFindingSeveritySummaryV1,
+    DocumentMoleculeReportFindingSubjectSummaryV1, DocumentMoleculeReportFindingSummaryV1,
     DocumentMoleculeReportRecordSummaryV1, DocumentMoleculeReportRequestV1,
     DocumentMoleculeReportSnapshotV1, DocumentMoleculeReportStereoDepictionSummaryV1,
     DocumentMoleculeReportStereoLigandSummaryV1, DocumentMoleculeReportStereoSemanticsSummaryV1,
@@ -55,23 +61,25 @@ pub use dto::{
     OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
     OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
     OperationProtocolEnvelopeV1, OperationProtocolErrorCategoryV1,
-    OperationProtocolErrorResponseV1, OperationProtocolInputErrorV1, OperationProtocolOperationV1,
-    OperationProtocolOutcomeV1, OperationProtocolRequestV1, OperationProtocolResponseV1,
-    PresentationAuthorDirectBondOutcomeV1, PresentationAuthorPointV1, PresentationAuthorRefusalV1,
-    PresentationAuthorRequestV1, PresentationAuthoringKindV1, PresentationAuthoringRequestV1,
-    ProtocolArtifactFormatV1, ProtocolCatalogFamilyV1, ProtocolCatalogPlacementCategoryV1,
-    ProtocolCatalogPlacementRecoveryV1, ProtocolCompactGroupMaterializationCategoryV1,
-    ProtocolCompactGroupMaterializationRecoveryV1, ProtocolCurvedTerminalArrowKindV1,
-    ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1, ProtocolDirectBondPresentationV1,
-    ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1, ProtocolOperationKindV1,
-    ProtocolPresentationAuthorCategoryV1, ProtocolPresentationAuthorRecoveryV1,
-    ProtocolPresentationPathKindV1, ProtocolPresentationVectorAppearancePolicyV1,
-    ProtocolPresentationVectorKindV1, ProtocolReactionDefinitionDispositionV1,
-    ProtocolReactionTranslationSnapV1, ProtocolRequestSchemaV1, ProtocolResourceLimitReasonV1,
-    ProtocolResponseSchemaV1, ProtocolValidationLevelV1, ReactionBoundsSummaryV1,
+    OperationProtocolErrorResponseV1, OperationProtocolErrorV1, OperationProtocolInputErrorV1,
+    OperationProtocolOperationV1, OperationProtocolOutcomeV1, OperationProtocolRequestV1,
+    OperationProtocolResponseV1, PresentationAuthorDirectBondOutcomeV1, PresentationAuthorPointV1,
+    PresentationAuthorRefusalV1, PresentationAuthorRequestV1, PresentationAuthoringKindV1,
+    PresentationAuthoringRequestV1, ProtocolArtifactFormatV1, ProtocolCatalogFamilyV1,
+    ProtocolCatalogPlacementCategoryV1, ProtocolCatalogPlacementRecoveryV1,
+    ProtocolCompactGroupMaterializationCategoryV1, ProtocolCompactGroupMaterializationRecoveryV1,
+    ProtocolCurvedTerminalArrowKindV1, ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1,
+    ProtocolDirectBondPresentationV1, ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1,
+    ProtocolOperationKindV1, ProtocolPresentationAuthorCategoryV1,
+    ProtocolPresentationAuthorRecoveryV1, ProtocolPresentationPathKindV1,
+    ProtocolPresentationVectorAppearancePolicyV1, ProtocolPresentationVectorKindV1,
+    ProtocolReactionDefinitionDispositionV1, ProtocolRequestSchemaV1,
+    ProtocolResourceLimitReasonV1, ProtocolResponseSchemaV1, ProtocolValidationLevelV1,
     ReactionMemberSummaryV1, ReactionObservationRequestV1, ReactionObservationSummaryV1,
-    ReactionObserveRequestV1, ReactionTranslateRequestV1,
+    ReactionObserveRequestV1,
 };
+#[cfg(feature = "python-binding")]
+pub(crate) use execution::execute_admitted_operation_v1;
 pub use execution::execute_operation_v1;
 #[cfg(test)]
 pub(crate) use execution::execute_operation_with_runtime_and_smarts_response_limit_for_test;

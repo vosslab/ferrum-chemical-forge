@@ -204,7 +204,7 @@ impl SessionOperation {
                 let candidate = current.with_delete_presentation_root(deletion)?;
                 let candidate = candidate.ok_or_else(|| {
                     SessionOperationError::UnknownPresentationRoot(
-                        deletion.presentation_id().as_str().to_owned(),
+                        deletion.document_object_id().as_str().to_owned(),
                     )
                 })?;
                 Ok(Candidate::Changed(Box::new(candidate)))
@@ -213,7 +213,10 @@ impl SessionOperation {
                 let candidate = current.with_delete_presentation_roots(deletions)?;
                 let candidate = candidate.ok_or_else(|| {
                     SessionOperationError::UnknownPresentationRoot(
-                        deletions.targets()[0].presentation_id().as_str().to_owned(),
+                        deletions.targets()[0]
+                            .document_object_id()
+                            .as_str()
+                            .to_owned(),
                     )
                 })?;
                 Ok(Candidate::Changed(Box::new(candidate)))
@@ -222,7 +225,10 @@ impl SessionOperation {
                 let candidate = current.with_reorder_presentation_roots(reorder)?;
                 let candidate = candidate.ok_or_else(|| {
                     SessionOperationError::UnknownPresentationRoot(
-                        reorder.targets()[0].presentation_id().as_str().to_owned(),
+                        reorder.targets()[0]
+                            .document_object_id()
+                            .as_str()
+                            .to_owned(),
                     )
                 })?;
                 if candidate.to_xml()? == current.to_xml()? {
@@ -273,7 +279,7 @@ impl SessionOperation {
             Self::V1(SessionOperationV1::SetPlusProperties { patch }) => {
                 let candidate = current.with_plus_properties(patch)?;
                 let candidate = candidate.ok_or_else(|| {
-                    SessionOperationError::UnknownPlus(patch.plus_id().as_str().to_owned())
+                    SessionOperationError::UnknownPlus(patch.plus_object_id().as_str().to_owned())
                 })?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)
@@ -284,7 +290,7 @@ impl SessionOperation {
             Self::V1(SessionOperationV1::SetTextProperties { patch }) => {
                 let candidate = current.with_text_properties(patch)?;
                 let candidate = candidate.ok_or_else(|| {
-                    SessionOperationError::UnknownText(patch.text_id().as_str().to_owned())
+                    SessionOperationError::UnknownText(patch.text_object_id().as_str().to_owned())
                 })?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)
@@ -333,7 +339,7 @@ impl SessionOperation {
             Self::V1(SessionOperationV1::SetArrowProperties { patch }) => {
                 let candidate = current.with_arrow_properties(patch)?;
                 let candidate = candidate.ok_or_else(|| {
-                    SessionOperationError::UnknownArrow(patch.arrow_id().as_str().to_owned())
+                    SessionOperationError::UnknownArrow(patch.arrow_object_id().as_str().to_owned())
                 })?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)
@@ -356,9 +362,8 @@ impl SessionOperation {
             }
             Self::V1(SessionOperationV1::SetWavyProperties { patch }) => {
                 let candidate = current.with_wavy_properties(patch)?;
-                let candidate = candidate.ok_or_else(|| {
-                    SessionOperationError::UnknownWavy(patch.wavy_id().as_str().to_owned())
-                })?;
+                let candidate = candidate
+                    .ok_or_else(|| SessionOperationError::UnknownWavy(patch.wavy_id().clone()))?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)
                 } else {
@@ -368,7 +373,7 @@ impl SessionOperation {
             Self::V1(SessionOperationV1::SetBracketProperties { patch }) => {
                 let candidate = current.with_bracket_properties(patch)?;
                 let candidate = candidate.ok_or_else(|| {
-                    SessionOperationError::UnknownBracketPair(patch.pair_id().as_str().to_owned())
+                    SessionOperationError::UnknownBracketPair(patch.members().clone())
                 })?;
                 if candidate.to_xml()? == current.to_xml()? {
                     Ok(Candidate::NoChange)

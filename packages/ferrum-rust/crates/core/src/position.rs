@@ -40,14 +40,6 @@ impl Position {
         }
         Ok(())
     }
-    pub(crate) fn canonical(self) -> String {
-        format!(
-            "{:016x}{:016x}{:016x}",
-            self.x.to_bits(),
-            self.y.to_bits(),
-            self.z.to_bits()
-        )
-    }
 }
 
 #[derive(Deserialize)]

@@ -403,6 +403,40 @@ and its aggregate is complete or omitted. Unaddressable source locations remain
 typed report outcomes; the slice adds no mutation, local CLI verb, chemistry
 engine, external corpus, or installation/publishing workflow.
 
+The next selected M4 queue item is the bounded
+[`document.molecule.diagnostics.v1` decision](../decisions/m4_molecule_diagnostics_v1.md).
+It adds deterministic read-only structural findings for a fenced snapshot and
+selected durable direct roots, with named CLI, typed PyO3, and modeless
+accessible `Check Structure...` delivery. It excludes auto-fix and runtime
+chemistry. The source-only durable-identity migration is a separate
+foundational follow-on, not an implicit diagnostics compatibility path.
+
+Immediately after diagnostics, deliver the approved
+[source-only record identity V1 decision](../decisions/source_only_record_identity_v1.md).
+It requires canonical, nonblank, document-unique source IDs for persisted
+structural and recognized direct-root presentation records and replaces the
+mixed identity representation with internal `{ kind, source_id }`. Typed
+ingress rejects invalid IDs before projection and allocates or preserves an
+independent high-entropy document-scoped `DocumentObjectIdV1` before
+`RevisionState` serialization. Ferrum-owned namespaced metadata persists that
+opaque selector through save, snapshot, history, undo, redo, and reload;
+grammar and collision validation protect the durable-ID boundary.
+
+Persisted `PresentationTargetV1` and render `RenderTarget` consume only the
+durable selector. Identifier-free preview values remain a distinct transient
+type. Public diagnostics and exclusions are source-free: they use a durable ID
+when addressable or the closed numeric `DocumentLocationV1` vocabulary before
+allocation. The approved A-E sequence is core source contract, typed
+ingress/durable metadata, projection/public locations, persisted/preview
+target separation, then render/API/Qt convergence and legacy removal. It
+carries no reader, alias, occurrence fallback, fingerprint fallback, hash or
+source derivation, decoder path, or legacy serde form.
+
+This migration can start after diagnostics source-contract acceptance. Installed
+bindings, registered E2E, fresh build, and `./all_test.sh` remain delivery proof
+that waits for repository inventory of new authored artifacts; they do not
+create a sequencing dependency that postpones the migration.
+
 Ferrum preserves authored molecule display names. A future generated naming
 product requires separate corpus, provenance, interaction, and refusal scope;
 it is not part of this M4 delivery plan.

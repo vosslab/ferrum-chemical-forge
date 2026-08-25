@@ -12,12 +12,16 @@ mod presentation_vector_gesture_v1;
 mod protocol;
 #[cfg(feature = "python-binding")]
 mod python_extension_binding_v1;
-mod reaction_aggregate_v1;
 // Render interaction capabilities are owned by ferrum-document-render.
 
-pub use ferrum_document_render::{
-    ReactionDefinitionDispositionV1, ReactionListObservationV1, ReactionMemberObservationV1,
-    ReactionObservationV1, ReactionSelectionV1,
+pub use ferrum_document::{
+    DocumentCreateReactionCommandV1, DocumentDeleteReactionCommandV1,
+    DocumentReactionAuthoringCommandKindV1, DocumentReactionListDispositionV1,
+    DocumentReactionListObservationV1, DocumentReactionListReactionV1,
+    DocumentReactionMemberObservationV1, DocumentReactionMemberSelectionV1,
+    DocumentReactionMemberTargetsV1, DocumentReactionSelectionObservationV1,
+    DocumentReplaceReactionMembersCommandV1, ReactionAuthoringCommandRefusalV1,
+    ReactionMemberSelectionRefusalV1,
 };
 mod transport;
 
@@ -60,6 +64,8 @@ pub use presentation_vector_gesture_v1::{
     begin_api_presentation_vector_gesture_v1, preview_api_presentation_vector_gesture_v1,
     resolve_api_presentation_vector_gesture_v1,
 };
+#[cfg(feature = "python-binding")]
+pub(crate) use protocol::execute_admitted_operation_v1;
 pub use protocol::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
     CatalogPlacementRefusalV1, CatalogProvenanceSummaryV1, ChemistryConvertInputV1,
@@ -69,6 +75,8 @@ pub use protocol::{
     DocumentInspectRequestV1, DocumentInterchangeImportLossReportV1,
     DocumentInterchangeImportSummaryV1, DocumentInterchangeLossCategoryV1,
     DocumentInterchangeProvenanceV1, DocumentInterchangeSourceKindV1,
+    DocumentMoleculeDiagnosticRecordSummaryV1, DocumentMoleculeDiagnosticsRequestV1,
+    DocumentMoleculeDiagnosticsSnapshotV1, DocumentMoleculeDiagnosticsSummaryV1,
     DocumentMoleculeInterchangeImportRequestV1,
     DocumentMoleculeReportAggregateOmissionReasonSummaryV1,
     DocumentMoleculeReportAggregateOutcomeSummaryV1,
@@ -79,6 +87,9 @@ pub use protocol::{
     DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1,
     DocumentMoleculeReportDoubleBondConfigurationSummaryV1,
     DocumentMoleculeReportDoubleBondStereoSummaryV1, DocumentMoleculeReportElementCountSummaryV1,
+    DocumentMoleculeReportFindingCodeSummaryV1, DocumentMoleculeReportFindingLocationSummaryV1,
+    DocumentMoleculeReportFindingRecoverySummaryV1, DocumentMoleculeReportFindingSeveritySummaryV1,
+    DocumentMoleculeReportFindingSubjectSummaryV1, DocumentMoleculeReportFindingSummaryV1,
     DocumentMoleculeReportRecordSummaryV1, DocumentMoleculeReportRequestV1,
     DocumentMoleculeReportSnapshotV1, DocumentMoleculeReportStereoDepictionSummaryV1,
     DocumentMoleculeReportStereoLigandSummaryV1, DocumentMoleculeReportStereoSemanticsSummaryV1,
@@ -103,20 +114,10 @@ pub use protocol::{
     ProtocolPresentationAuthorCategoryV1, ProtocolPresentationAuthorRecoveryV1,
     ProtocolPresentationPathKindV1, ProtocolPresentationVectorAppearancePolicyV1,
     ProtocolPresentationVectorKindV1, ProtocolReactionDefinitionDispositionV1,
-    ProtocolReactionTranslationSnapV1, ProtocolRequestSchemaV1, ProtocolResourceLimitReasonV1,
-    ProtocolResponseSchemaV1, ProtocolValidationLevelV1, ReactionBoundsSummaryV1,
-    ReactionMemberSummaryV1, ReactionObservationRequestV1, ReactionObservationSummaryV1,
-    ReactionObserveRequestV1, ReactionTranslateRequestV1, execute_operation_v1,
+    ProtocolRequestSchemaV1, ProtocolResourceLimitReasonV1, ProtocolResponseSchemaV1,
+    ProtocolValidationLevelV1, ReactionMemberSummaryV1, ReactionObservationRequestV1,
+    ReactionObservationSummaryV1, ReactionObserveRequestV1, execute_operation_v1,
     generated_operation_protocol_schema_v1, operation_protocol_schema_v1,
 };
 #[cfg(feature = "python-binding")]
 pub use python_extension_binding_v1::initialize_python_extension_v1;
-pub use reaction_aggregate_v1::{
-    ApiReactionGestureV1, ApiReactionLifecycleGestureV1, ApiReactionTranslationGestureV1,
-    ReactionCreateRequestV1, ReactionGestureCategoryV1, ReactionGestureErrorV1,
-    ReactionGestureRecoveryV1, ReactionMembershipPatchRequestV1,
-    begin_api_reaction_definition_delete_v1, begin_api_reaction_gesture_v1,
-    begin_api_reaction_membership_patch_v1, begin_api_reaction_translation_v1,
-    resolve_api_reaction_gesture_v1, resolve_api_reaction_lifecycle_v1,
-    resolve_api_reaction_translation_v1,
-};

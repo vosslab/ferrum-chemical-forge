@@ -90,6 +90,18 @@ impl AtomProjectionV1 {
     pub fn id(&self) -> Option<&DocumentObjectIdV1> {
         self.id.as_ref()
     }
+
+    /// Return the exact durable document object ID for this retained atom.
+    ///
+    /// Typed document ingress assigns every retained structural record a
+    /// durable ID before projection. A projection without one is an invalid
+    /// internal test fixture, not a public observation state.
+    #[must_use]
+    pub fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        self.id
+            .as_ref()
+            .expect("retained atom projection must have a document object ID")
+    }
     /// Return the non-operation key unique within this projection.
     #[must_use]
     pub fn projection_key(&self) -> &ProjectionLocalObjectKeyV1 {

@@ -13,7 +13,7 @@ use super::stack_wire::{
     PolylinePathWireV1, PolylineWireV1, PresentationIssueWireV1, PresentationRootWireV1,
     PresentationStackWireV1, PresentationStrokeWireV1, PresentationTargetWireV1,
 };
-use crate::{DocumentObjectIdV1, Point3V1, PositiveFiniteV1, ProjectionLocalObjectKeyV1, Rgb24V1};
+use crate::{DocumentObjectIdV1, Point3V1, PositiveFiniteV1, Rgb24V1};
 
 pub(super) const BUILTIN_LINE_COLOR: &str = "#000000";
 pub(super) const BUILTIN_LINE_WIDTH: f64 = 1.0;
@@ -26,7 +26,7 @@ pub struct PresentationStackProjectionV1 {
     schema: &'static str,
     revision: u64,
     digest: [u8; 32],
-    roots: Vec<PresentationRootProjectionV1>,
+    entries: Vec<PresentationStackEntryV1>,
     bracket_pairs: Vec<BracketPairProjectionV1>,
     issues: Vec<PresentationProjectionIssueV1>,
 }
@@ -42,10 +42,16 @@ impl<'de> Deserialize<'de> for PresentationStackProjectionV1 {
                 "unknown presentation stack schema",
             ));
         }
+        let roots = wire
+            .entries
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(serde::de::Error::custom)?;
         Self::new(
             wire.revision,
             wire.digest,
-            wire.roots,
+            roots,
             wire.bracket_pairs,
             wire.issues,
         )
@@ -66,15 +72,19 @@ impl PresentationStackProjectionV1 {
         bracket_pairs: Vec<BracketPairProjectionV1>,
         issues: Vec<PresentationProjectionIssueV1>,
     ) -> Result<Self, PresentationStackProjectionV1Error> {
-        validate_root_identities(&roots)?;
-        if !round_bracket_roots_match_pairs(&roots, &bracket_pairs) {
+        let entries: Vec<PresentationStackEntryV1> = roots
+            .into_iter()
+            .map(PresentationStackEntryV1::new)
+            .collect();
+        validate_stack_entries(&entries)?;
+        if !round_bracket_entries_match_pairs(&entries, &bracket_pairs) {
             return Err(PresentationStackProjectionV1Error::RoundBracketPairMismatch);
         }
         Ok(Self {
             schema: PRESENTATION_STACK_PROJECTION_SCHEMA_V1,
             revision,
             digest,
-            roots,
+            entries,
             bracket_pairs,
             issues,
         })
@@ -96,10 +106,10 @@ impl PresentationStackProjectionV1 {
         &self.digest
     }
 
-    /// Return renderable supported roots in direct root source order.
+    /// Return renderable roots in their local presentation-stack order.
     #[must_use]
-    pub fn roots(&self) -> &[PresentationRootProjectionV1] {
-        &self.roots
+    pub fn entries(&self) -> &[PresentationStackEntryV1] {
+        &self.entries
     }
 
     /// Return exact durable bracket relationships in left-root source order.
@@ -115,64 +125,52 @@ impl PresentationStackProjectionV1 {
     }
 }
 
-fn validate_root_identities(
-    roots: &[PresentationRootProjectionV1],
+fn validate_stack_entries(
+    entries: &[PresentationStackEntryV1],
 ) -> Result<(), PresentationStackProjectionV1Error> {
-    let mut source_orders = BTreeSet::new();
-    let mut projection_keys = BTreeSet::new();
-    let mut source_ids = BTreeSet::new();
     let mut durable_ids = BTreeSet::new();
-    for root in roots {
+    for entry in entries {
+        let root = entry.root();
         validate_root_kind(root)?;
         let target = root.target();
-        if !source_orders.insert(target.source_order()) {
-            return Err(PresentationStackProjectionV1Error::DuplicateRootSourceOrder);
-        }
-        if !projection_keys.insert(target.projection_key().as_str()) {
-            return Err(PresentationStackProjectionV1Error::DuplicateRootProjectionKey);
-        }
-        if let Some(source_id) = target.source_id()
-            && !source_ids.insert(source_id)
-        {
-            return Err(PresentationStackProjectionV1Error::DuplicateRootSourceId);
-        }
-        if let Some(id) = target.id()
-            && !durable_ids.insert(id.as_str())
-        {
+        if !durable_ids.insert(target.document_object_id().as_str()) {
             return Err(PresentationStackProjectionV1Error::DuplicateRootDurableId);
         }
     }
     Ok(())
 }
 
-fn round_bracket_roots_match_pairs(
-    roots: &[PresentationRootProjectionV1],
+fn round_bracket_entries_match_pairs(
+    entries: &[PresentationStackEntryV1],
     pairs: &[BracketPairProjectionV1],
 ) -> bool {
     let expected = pairs
         .iter()
         .filter(|pair| pair.style() == super::super::PresentationBracketStyleV1::Round)
-        .flat_map(|pair| pair.member_ids().iter().map(String::as_str))
+        .flat_map(|pair| pair.members().iter())
         .collect::<Vec<_>>();
-    let expected_set = expected.iter().copied().collect::<BTreeSet<_>>();
-    let actual = roots
+    let actual = entries
         .iter()
-        .filter_map(|root| match root {
+        .filter_map(|entry| match entry.root() {
             PresentationRootProjectionV1::RoundBracket { polyline } => {
-                polyline.target().source_id()
+                Some(polyline.target().document_object_id())
             }
             _ => None,
         })
         .collect::<Vec<_>>();
-    let actual_set = actual.iter().copied().collect::<BTreeSet<_>>();
-    expected.len() == expected_set.len()
-        && actual.len() == actual_set.len()
-        && expected_set == actual_set
-        && roots.iter().all(|root| {
-            root.target().source_id().is_none_or(|identifier| {
-                !expected_set.contains(identifier)
-                    || matches!(root, PresentationRootProjectionV1::RoundBracket { .. })
-            })
+    expected.len() == actual.len()
+        && expected
+            .iter()
+            .all(|identifier| actual.contains(identifier))
+        && actual
+            .iter()
+            .all(|identifier| expected.contains(identifier))
+        && entries.iter().all(|entry| {
+            !expected.contains(&entry.root().target().document_object_id())
+                || matches!(
+                    entry.root(),
+                    PresentationRootProjectionV1::RoundBracket { .. }
+                )
         })
 }
 
@@ -209,15 +207,9 @@ pub enum PresentationStackProjectionV1Error {
     /// A durable bracket pair is internally inconsistent.
     #[error("presentation bracket pair durable identity is invalid")]
     InvalidBracketPair,
-    /// Direct-root source order must be unique.
-    #[error("presentation root source order is duplicated")]
-    DuplicateRootSourceOrder,
-    /// Direct-root local projection keys must be unique.
-    #[error("presentation root projection-local key is duplicated")]
-    DuplicateRootProjectionKey,
-    /// Authored durable source IDs must be unique among roots.
-    #[error("presentation root source ID is duplicated")]
-    DuplicateRootSourceId,
+    /// Stack entries must retain canonical contiguous paint order.
+    #[error("presentation stack paint order is invalid")]
+    InvalidPaintOrder,
     /// Durable object IDs must be unique among roots.
     #[error("presentation root durable ID is duplicated")]
     DuplicateRootDurableId,
@@ -438,13 +430,10 @@ impl PolylineProjectionV1 {
     }
 }
 
-/// A durable-or-local direct-root display target.
+/// A persisted direct-root display target with one document-owned durable ID.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct PresentationTargetV1 {
-    id: Option<DocumentObjectIdV1>,
-    projection_key: ProjectionLocalObjectKeyV1,
-    source_id: Option<String>,
-    source_order: u32,
+    document_object_id: DocumentObjectIdV1,
     record_kind: PresentationRecordKindV1,
 }
 
@@ -459,59 +448,45 @@ impl<'de> Deserialize<'de> for PresentationTargetV1 {
 }
 
 impl PresentationTargetV1 {
-    /// Construct a target whose durable and authored identities agree.
-    pub fn try_new(
-        id: Option<DocumentObjectIdV1>,
-        projection_key: ProjectionLocalObjectKeyV1,
-        source_id: Option<String>,
-        source_order: u32,
+    /// Construct a persisted target with its document-owned durable identity.
+    pub fn new(
+        document_object_id: DocumentObjectIdV1,
         record_kind: PresentationRecordKindV1,
-    ) -> Result<Self, PresentationStackProjectionV1Error> {
-        if id.is_some() != source_id.is_some() {
-            return Err(PresentationStackProjectionV1Error::InvalidTargetIdentity);
-        }
-        if let (Some(id), Some(source_id)) = (&id, &source_id) {
-            let expected =
-                DocumentObjectIdV1::from_class_source(record_kind.class_name(), source_id)
-                    .map_err(|_| PresentationStackProjectionV1Error::InvalidTargetIdentity)?;
-            if id != &expected {
-                return Err(PresentationStackProjectionV1Error::InvalidTargetIdentity);
-            }
-        }
-        Ok(Self {
-            id,
-            projection_key,
-            source_id,
-            source_order,
+    ) -> Self {
+        Self {
+            document_object_id,
             record_kind,
-        })
-    }
-    pub fn id(&self) -> Option<&DocumentObjectIdV1> {
-        self.id.as_ref()
+        }
     }
 
-    /// Return a unique projection-local key that is never an operation target.
+    /// Return the required durable document-owned object ID.
     #[must_use]
-    pub fn projection_key(&self) -> &ProjectionLocalObjectKeyV1 {
-        &self.projection_key
-    }
-
-    /// Return the literal authored source ID.
-    #[must_use]
-    pub fn source_id(&self) -> Option<&str> {
-        self.source_id.as_deref()
-    }
-
-    /// Return the position among all direct root children.
-    #[must_use]
-    pub fn source_order(&self) -> u32 {
-        self.source_order
+    pub fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
 
     /// Return the closed persistent record kind represented by this target.
     #[must_use]
     pub fn record_kind(&self) -> PresentationRecordKindV1 {
         self.record_kind
+    }
+}
+
+/// One renderable presentation root and its canonical paint order.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct PresentationStackEntryV1 {
+    root: PresentationRootProjectionV1,
+}
+
+impl PresentationStackEntryV1 {
+    pub(super) fn new(root: PresentationRootProjectionV1) -> Self {
+        Self { root }
+    }
+
+    /// Return the projected root addressed only by its durable target.
+    #[must_use]
+    pub fn root(&self) -> &PresentationRootProjectionV1 {
+        &self.root
     }
 }
 
@@ -531,20 +506,6 @@ pub enum PresentationRecordKindV1 {
 }
 
 impl PresentationRecordKindV1 {
-    pub(super) fn class_name(self) -> &'static str {
-        match self {
-            Self::Arrow => "cdml/arrow",
-            Self::Plus => "cdml/plus",
-            Self::Text => "cdml/text",
-            Self::Polyline => "cdml/polyline",
-            Self::Rectangle => "cdml/rect",
-            Self::Square => "cdml/square",
-            Self::Oval => "cdml/oval",
-            Self::Circle => "cdml/circle",
-            Self::Polygon => "cdml/polygon",
-        }
-    }
-
     /// Return the exact CDML local name associated with this root kind.
     #[must_use]
     pub const fn local_name(self) -> &'static str {

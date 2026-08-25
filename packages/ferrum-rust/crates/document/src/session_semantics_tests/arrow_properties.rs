@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     ArrowLineWidthV1, ArrowPropertiesPatchV1, ArrowPropertiesPatchV1Error, ArrowPropertyChangeV1,
-    PresentationRootProjectionV1, Rgb24V1,
+    DocumentObjectIdV1, PresentationRootProjectionV1, Rgb24V1,
 };
 
 const SOURCE: &str = concat!(
@@ -16,19 +16,45 @@ const SOURCE: &str = concat!(
     "</arrow><v:root/></cdml>"
 );
 
-fn patch(changes: Vec<ArrowPropertyChangeV1>) -> SessionOperation {
+fn patch(session: &DocumentSession, changes: Vec<ArrowPropertyChangeV1>) -> SessionOperation {
     SessionOperation::V1(SessionOperationV1::SetArrowProperties {
-        patch: ArrowPropertiesPatchV1::new("a", changes).expect("valid Arrow patch"),
+        patch: ArrowPropertiesPatchV1::new(arrow_object_id(session), changes)
+            .expect("valid Arrow patch"),
     })
 }
 
+fn test_object_id() -> DocumentObjectIdV1 {
+    DocumentObjectIdV1::from_entropy_bytes([0; 16])
+}
+
+fn arrow_object_id(session: &DocumentSession) -> DocumentObjectIdV1 {
+    let revision = session.snapshot().expect("snapshot").revision();
+    let observation = session.observe(revision).expect("observation");
+    observation
+        .projection()
+        .presentation_stack()
+        .entries()
+        .iter()
+        .find_map(|entry| match entry.root() {
+            PresentationRootProjectionV1::Arrow { .. } => {
+                Some(entry.root().target().document_object_id().clone())
+            }
+            _ => None,
+        })
+        .expect("expected direct-root Arrow")
+}
+
 fn arrow(observation: &crate::SessionDocumentObservationV1) -> &crate::ArrowProjectionV1 {
-    let [PresentationRootProjectionV1::Arrow { arrow }] =
-        observation.projection().presentation_stack().roots()
-    else {
-        panic!("expected one normal Arrow");
-    };
-    arrow
+    observation
+        .projection()
+        .presentation_stack()
+        .entries()
+        .iter()
+        .find_map(|entry| match entry.root() {
+            PresentationRootProjectionV1::Arrow { arrow } => Some(arrow),
+            _ => None,
+        })
+        .expect("expected direct-root Arrow")
 }
 
 fn normal_head_flags(observation: &crate::SessionDocumentObservationV1) -> (bool, bool) {
@@ -54,7 +80,7 @@ fn arrow_properties_commit_once_preserve_extensions_and_follow_history() {
     ];
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let changed = session
-        .apply_document_operation_v1(0, patch(changes))
+        .apply_document_operation_v1(0, patch(&session, changes))
         .expect("patch must commit");
     let projected = arrow(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
@@ -78,37 +104,36 @@ fn arrow_properties_compare_historical_spellings_without_normalizing_them() {
     let result = session
         .apply_document_operation_v1(
             0,
-            patch(vec![
-                ArrowPropertyChangeV1::StartHead(false),
-                ArrowPropertyChangeV1::EndHead(true),
-                ArrowPropertyChangeV1::Spline(false),
-                ArrowPropertyChangeV1::LineWidth(ArrowLineWidthV1::new(1.0).unwrap()),
-                ArrowPropertyChangeV1::Color(Rgb24V1::new("#000000").unwrap()),
-            ]),
+            patch(
+                &session,
+                vec![
+                    ArrowPropertyChangeV1::StartHead(false),
+                    ArrowPropertyChangeV1::EndHead(true),
+                    ArrowPropertyChangeV1::Spline(false),
+                    ArrowPropertyChangeV1::LineWidth(ArrowLineWidthV1::new(1.0).unwrap()),
+                    ArrowPropertyChangeV1::Color(Rgb24V1::new("#000000").unwrap()),
+                ],
+            ),
         )
         .expect("semantic equal patch must be accepted");
     assert_eq!(result.observation().snapshot().revision(), 0);
-    assert!(
-        result
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("start=\"false\"")
-    );
-    assert!(
-        result
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("width=\"1px\"")
-    );
+    assert!(result
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("start=\"false\""));
+    assert!(result
+        .observation()
+        .snapshot()
+        .cdml()
+        .contains("width=\"1px\""));
 }
 
 #[test]
 fn arrow_properties_reject_invalid_intent_structure_target_and_stale_revision() {
     assert_eq!(
         ArrowPropertiesPatchV1::new(
-            "a",
+            test_object_id(),
             vec![
                 ArrowPropertyChangeV1::StartHead(true),
                 ArrowPropertyChangeV1::StartHead(false),
@@ -125,8 +150,10 @@ fn arrow_properties_reject_invalid_intent_structure_target_and_stale_revision() 
     let mut malformed = DocumentSession::load(&malformed).expect("retained source loads");
     let before = malformed.snapshot().expect("snapshot");
     assert!(matches!(
-        malformed
-            .apply_document_operation_v1(0, patch(vec![ArrowPropertyChangeV1::StartHead(true)])),
+        malformed.apply_document_operation_v1(
+            0,
+            patch(&malformed, vec![ArrowPropertyChangeV1::StartHead(true)])
+        ),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(TypedDocumentError::InvalidArrowStructure(_))
         ))
@@ -134,9 +161,12 @@ fn arrow_properties_reject_invalid_intent_structure_target_and_stale_revision() 
     assert_eq!(malformed.snapshot().expect("snapshot"), before);
 
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
-    let unknown =
-        ArrowPropertiesPatchV1::new("missing", vec![ArrowPropertyChangeV1::StartHead(true)])
-            .unwrap();
+    let before = session.snapshot().expect("snapshot");
+    let unknown = ArrowPropertiesPatchV1::new(
+        test_object_id(),
+        vec![ArrowPropertyChangeV1::StartHead(true)],
+    )
+    .unwrap();
     assert!(matches!(
         session.apply_document_operation_v1(
             0,
@@ -146,12 +176,56 @@ fn arrow_properties_reject_invalid_intent_structure_target_and_stale_revision() 
             SessionOperationError::UnknownArrow(_)
         ))
     ));
+    assert_eq!(session.snapshot().expect("snapshot"), before);
+
+    let cross_kind_source = SOURCE.replace(
+        "<v:root/>",
+        "<text id=\"t\"><point x=\"0\" y=\"0\"/><ftext>x</ftext></text><v:root/>",
+    );
+    let mut cross_kind = DocumentSession::load(&cross_kind_source).expect("source loads");
+    let arrow_id = arrow_object_id(&cross_kind);
+    let revision = cross_kind.snapshot().expect("snapshot").revision();
+    let foreign_id = cross_kind
+        .observe(revision)
+        .expect("observation")
+        .projection()
+        .presentation_stack()
+        .entries()
+        .iter()
+        .find_map(|entry| match entry.root() {
+            PresentationRootProjectionV1::Text { .. } => {
+                Some(entry.root().target().document_object_id().clone())
+            }
+            _ => None,
+        })
+        .expect("Text root has a durable ID");
+    assert_ne!(foreign_id, arrow_id);
+    let foreign =
+        ArrowPropertiesPatchV1::new(foreign_id, vec![ArrowPropertyChangeV1::StartHead(true)])
+            .expect("valid cross-kind patch");
+    let before = cross_kind.snapshot().expect("snapshot");
+    assert!(matches!(
+        cross_kind.apply_document_operation_v1(
+            0,
+            SessionOperation::V1(SessionOperationV1::SetArrowProperties { patch: foreign })
+        ),
+        Err(DocumentSessionError::Operation(
+            SessionOperationError::UnknownArrow(_)
+        ))
+    ));
+    assert_eq!(cross_kind.snapshot().expect("snapshot"), before);
     session
-        .apply_document_operation_v1(0, patch(vec![ArrowPropertyChangeV1::StartHead(true)]))
+        .apply_document_operation_v1(
+            0,
+            patch(&session, vec![ArrowPropertyChangeV1::StartHead(true)]),
+        )
         .expect("initial patch");
     let before = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.apply_document_operation_v1(0, patch(vec![ArrowPropertyChangeV1::EndHead(false)])),
+        session.apply_document_operation_v1(
+            0,
+            patch(&session, vec![ArrowPropertyChangeV1::EndHead(false)])
+        ),
         Err(DocumentSessionError::RevisionConflict {
             expected: 0,
             actual: 1

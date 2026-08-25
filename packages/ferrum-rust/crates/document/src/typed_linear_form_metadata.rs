@@ -5,7 +5,8 @@ use std::collections::{HashMap, HashSet};
 use xot::{Node, Value, Xot};
 
 use super::{
-    CDML_NAMESPACE, TypedClass, TypedDocumentError, TypedRecord, UnrecognizedNode, element_name,
+    CDML_NAMESPACE, TypedClass, TypedDocumentError, TypedRecord, UnrecognizedNode,
+    document_object_identity_v1::is_document_object_attribute_v1, element_name,
 };
 
 const BOND_LENGTH_POINTS: f64 = 10.0;
@@ -128,6 +129,12 @@ pub(crate) fn write_generated_linear_form(
     bond_ids: &[String],
 ) -> Result<(), TypedDocumentError> {
     let existing = matching_generated_linear_form_node(tree, molecule, atom_ids, bond_ids)?;
+    let existing_identity = existing.and_then(|existing| {
+        tree.attributes(existing).iter().find_map(|(name, value)| {
+            let (local_name, namespace) = tree.name_ns_str(name);
+            is_document_object_attribute_v1(namespace, local_name).then_some((name, value.clone()))
+        })
+    });
     if let Some(existing) = existing {
         tree.remove(existing)
             .map_err(TypedDocumentError::Mutation)?;
@@ -136,6 +143,9 @@ pub(crate) fn write_generated_linear_form(
         .map(|(_, namespace)| namespace)
         .unwrap_or_default();
     let fragment = new_element(tree, "fragment", &namespace);
+    if let Some((name, value)) = existing_identity {
+        tree.set_attribute(fragment, name, value);
+    }
     let id = tree.add_name("id");
     let kind = tree.add_name("type");
     tree.set_attribute(fragment, id, fragment_id);
@@ -183,6 +193,24 @@ pub(crate) fn matching_generated_linear_form_id(
         .map_err(|_| TypedDocumentError::LinearFormResourceExhausted)?;
     result.push_str(identifier);
     Ok(Some(result))
+}
+
+pub(crate) fn matching_generated_linear_form_is_valid(
+    tree: &Xot,
+    molecule: Node,
+    atom_ids: &[String],
+    bond_ids: &[String],
+) -> Result<bool, TypedDocumentError> {
+    let Some(form) = matching_generated_linear_form_node(tree, molecule, atom_ids, bond_ids)?
+    else {
+        return Ok(false);
+    };
+    let Some((owned_atoms, owned_bonds)) = owned_members(tree, form)? else {
+        return Ok(false);
+    };
+    let atoms = unique_direct_records(tree, molecule, "atom")?;
+    let bonds = unique_direct_records(tree, molecule, "bond")?;
+    form_is_valid(tree, &atoms, &bonds, &owned_atoms, &owned_bonds)
 }
 
 fn matching_generated_linear_form_node(
@@ -392,10 +420,23 @@ fn form_is_valid(
     else {
         return Ok(false);
     };
+    if atom_ids.len() == 1 {
+        return Ok(true);
+    }
+    let Some((second_x, second_y)) = atom_point(tree, atoms[&atom_ids[1]]) else {
+        return Ok(false);
+    };
+    let step_x = second_x - first_x;
+    let step_y = second_y - first_y;
+    if ((step_x * step_x + step_y * step_y).sqrt() - BOND_LENGTH_POINTS).abs()
+        > AUTHORED_COORDINATE_TOLERANCE_POINTS
+    {
+        return Ok(false);
+    }
     Ok(atom_ids.iter().enumerate().all(|(index, id)| {
         atom_point(tree, atoms[id]).is_some_and(|(x, y)| {
-            (y - first_y).abs() <= AUTHORED_COORDINATE_TOLERANCE_POINTS
-                && (x - (first_x + index as f64 * BOND_LENGTH_POINTS)).abs()
+            (x - (first_x + index as f64 * step_x)).abs() <= AUTHORED_COORDINATE_TOLERANCE_POINTS
+                && (y - (first_y + index as f64 * step_y)).abs()
                     <= AUTHORED_COORDINATE_TOLERANCE_POINTS
         })
     }))
@@ -448,9 +489,18 @@ fn unique_direct_records(
 }
 
 fn exact_attributes(tree: &Xot, node: Node, expected: &[(&str, Option<&str>)]) -> bool {
-    if tree.namespaces(node).iter().next().is_some()
-        || tree.attributes(node).len() != expected.len()
-    {
+    if tree.namespaces(node).iter().next().is_some() {
+        return false;
+    }
+    let authored_attribute_count = tree
+        .attributes(node)
+        .iter()
+        .filter(|(name, _)| {
+            let (local_name, namespace) = tree.name_ns_str(*name);
+            !is_document_object_attribute_v1(namespace, local_name)
+        })
+        .count();
+    if authored_attribute_count != expected.len() {
         return false;
     }
     expected.iter().all(|(name, value)| {
@@ -492,4 +542,79 @@ fn whitespace_children(tree: &Xot, node: Node) -> bool {
 fn is_core_element(tree: &Xot, node: Node, expected: &str) -> bool {
     element_name(tree, node)
         .is_some_and(|(name, namespace)| name == expected && (namespace == CDML_NAMESPACE))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SOURCE: &str = r#"
+<cdml xmlns="urn:ferrum:cdml"
+      xmlns:object="urn:ferrum:document-object:v1"
+      xmlns:vendor="urn:vendor">
+  <molecule id="m">
+    <atom id="a"><point x="0" y="0"/></atom>
+    <atom id="b"><point x="10" y="0"/></atom>
+    <bond id="ab" start="a" end="b"/>
+    <fragment id="source-fragment" type="linear_form" object:id="ferrum-document-object-v1/0123456789abcdef0123456789abcdef">
+      <name>linear_form</name><bond id="ab"/><vertex id="a"/><vertex id="b"/>
+      <property name="bond_length" value="10" type="IntType"/>
+    </fragment>
+    <vendor:opaque retained="yes"/>
+  </molecule>
+</cdml>"#;
+
+    fn molecule(tree: &Xot, document: Node) -> Node {
+        let root = tree.document_element(document).expect("CDML root");
+        tree.children(root)
+            .find(|node| is_core_element(tree, *node, "molecule"))
+            .expect("molecule")
+    }
+
+    #[test]
+    fn matching_generated_linear_form_accepts_document_object_identity_metadata() {
+        let mut tree = Xot::new();
+        let document = tree.parse(SOURCE).expect("source parses");
+        let atom_ids = vec!["a".to_owned(), "b".to_owned()];
+        let bond_ids = vec!["ab".to_owned()];
+
+        assert_eq!(
+            matching_generated_linear_form_id(
+                &tree,
+                molecule(&tree, document),
+                &atom_ids,
+                &bond_ids
+            )
+            .expect("matching succeeds"),
+            Some("source-fragment".to_owned())
+        );
+        assert!(
+            tree.to_string(molecule(&tree, document))
+                .expect("molecule serializes")
+                .contains("vendor:opaque")
+        );
+    }
+
+    #[test]
+    fn matching_generated_linear_form_rejects_foreign_fragment_content() {
+        let source = SOURCE.replace(
+            "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/>",
+            "<vendor:opaque retained=\"yes\"/><property name=\"bond_length\" value=\"10\" type=\"IntType\"/>",
+        );
+        let mut tree = Xot::new();
+        let document = tree.parse(&source).expect("source parses");
+        let atom_ids = vec!["a".to_owned(), "b".to_owned()];
+        let bond_ids = vec!["ab".to_owned()];
+
+        assert_eq!(
+            matching_generated_linear_form_id(
+                &tree,
+                molecule(&tree, document),
+                &atom_ids,
+                &bond_ids
+            )
+            .expect("matching succeeds"),
+            None
+        );
+    }
 }

@@ -2,15 +2,32 @@
 
 use std::collections::HashSet;
 
-use ferrum_core::{RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 use thiserror::Error;
 
 use crate::{
-    AuthoredDirectGlycosidicHaworthRenderPlanV1, DocumentRenderContentV1, DocumentRenderIdentityV1,
-    DocumentRenderOutcomeV1, DocumentRenderPlanV1, RenderTarget,
+    AuthoredDirectGlycosidicHaworthRenderPlanV1, DocumentRenderContentV1, DocumentRenderOutcomeV1,
+    DocumentRenderPlanV1, RenderTarget,
 };
 
-type TargetKey = (RecordId, u32);
+type TargetKey = (DocumentObjectIdV1, u32);
+
+/// Durable selected-bond identity and its contractual paint order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BondReplacementTargetV1 {
+    target: RenderTarget,
+    paint_order: u32,
+}
+
+impl BondReplacementTargetV1 {
+    #[must_use]
+    pub const fn new(target: RenderTarget, paint_order: u32) -> Self {
+        Self {
+            target,
+            paint_order,
+        }
+    }
+}
 
 /// An opaque in-memory composition; it intentionally has no wire representation.
 #[derive(Clone, Debug, PartialEq)]
@@ -21,9 +38,9 @@ pub struct DocumentRenderCompositeV1 {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct BondReplacementV1 {
-    root_identity: DocumentRenderIdentityV1,
-    root_order: u32,
-    selected_bonds: Vec<RenderTarget>,
+    root_target: RenderTarget,
+    root_paint_order: u32,
+    selected_bonds: Vec<BondReplacementTargetV1>,
     selected_keys: HashSet<TargetKey>,
     direct: AuthoredDirectGlycosidicHaworthRenderPlanV1,
 }
@@ -61,9 +78,9 @@ pub enum DocumentBondReplacementErrorV1 {
 /// Validate and retain one whole-molecule selected-bond replacement.
 pub fn compose_document_bond_replacement_v1(
     established: DocumentRenderPlanV1,
-    authenticated_root: DocumentRenderIdentityV1,
-    expected_root_order: u32,
-    selected_bonds: Vec<RenderTarget>,
+    authenticated_root: RenderTarget,
+    expected_paint_order: u32,
+    selected_bonds: Vec<BondReplacementTargetV1>,
     direct: AuthoredDirectGlycosidicHaworthRenderPlanV1,
 ) -> Result<DocumentRenderCompositeV1, DocumentBondReplacementErrorV1> {
     if established.provenance() != direct.provenance() {
@@ -73,7 +90,7 @@ pub fn compose_document_bond_replacement_v1(
         .outcomes()
         .iter()
         .filter_map(|outcome| match outcome {
-            DocumentRenderOutcomeV1::Root(root) if root.identity() == &authenticated_root => {
+            DocumentRenderOutcomeV1::Root(root) if root.target() == &authenticated_root => {
                 Some(root)
             }
             _ => None,
@@ -84,7 +101,7 @@ pub fn compose_document_bond_replacement_v1(
     if matching.next().is_some() {
         return Err(DocumentBondReplacementErrorV1::AuthenticatedRootMismatch);
     }
-    if root.source_order() != expected_root_order {
+    if root.paint_order() != expected_paint_order {
         return Err(DocumentBondReplacementErrorV1::AuthenticatedRootMismatch);
     }
     let DocumentRenderContentV1::Molecule(molecule) = root.content() else {
@@ -98,9 +115,6 @@ pub fn compose_document_bond_replacement_v1(
         .try_reserve(selected_bonds.len())
         .map_err(|_| DocumentBondReplacementErrorV1::ResourceExhausted)?;
     for target in &selected_bonds {
-        if target.record_id().kind() != RecordKind::Bond {
-            return Err(DocumentBondReplacementErrorV1::NonBondSelection);
-        }
         if !selected_keys.insert(key(target)) {
             return Err(DocumentBondReplacementErrorV1::SelectedBondOutcomeMismatch);
         }
@@ -117,10 +131,15 @@ pub fn compose_document_bond_replacement_v1(
     for target in molecule
         .batches()
         .iter()
-        .map(|batch| batch.target())
-        .chain(molecule.issues().iter().map(|issue| issue.target()))
+        .map(BondReplacementTargetV1::from_batch)
+        .chain(
+            molecule
+                .issues()
+                .iter()
+                .map(BondReplacementTargetV1::from_issue),
+        )
     {
-        if target.record_id().kind() == RecordKind::Bond && !outcomes.insert(key(target)) {
+        if !outcomes.insert(key(&target)) {
             return Err(DocumentBondReplacementErrorV1::SelectedBondOutcomeMismatch);
         }
     }
@@ -132,19 +151,18 @@ pub fn compose_document_bond_replacement_v1(
         .try_reserve(direct.operations().len())
         .map_err(|_| DocumentBondReplacementErrorV1::ResourceExhausted)?;
     for operation in direct.operations() {
-        let target = (operation.bond().clone(), operation.authored_child_order());
-        if !direct_keys.insert(target) {
+        if !direct_keys.insert((operation.bond().clone(), operation.authored_child_order())) {
             return Err(DocumentBondReplacementErrorV1::DirectOperationTargetMismatch);
         }
     }
-    if direct_keys != selected_keys {
+    if selected_keys != direct_keys {
         return Err(DocumentBondReplacementErrorV1::DirectOperationTargetMismatch);
     }
     Ok(DocumentRenderCompositeV1 {
         established,
         replacement: BondReplacementV1 {
-            root_identity: authenticated_root,
-            root_order: expected_root_order,
+            root_target: authenticated_root,
+            root_paint_order: expected_paint_order,
             selected_bonds,
             selected_keys,
             direct,
@@ -164,12 +182,12 @@ impl DocumentRenderCompositeV1 {
 }
 impl BondReplacementV1 {
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) const fn root_identity(&self) -> &DocumentRenderIdentityV1 {
-        &self.root_identity
+    pub(crate) const fn root_target(&self) -> &RenderTarget {
+        &self.root_target
     }
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) const fn root_order(&self) -> u32 {
-        self.root_order
+    pub(crate) const fn root_paint_order(&self) -> u32 {
+        self.root_paint_order
     }
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn selected_keys(&self) -> &HashSet<TargetKey> {
@@ -180,36 +198,49 @@ impl BondReplacementV1 {
         &self.direct
     }
 }
-fn key(target: &RenderTarget) -> TargetKey {
-    (target.record_id().clone(), target.source_order())
+impl BondReplacementTargetV1 {
+    fn from_batch(batch: &crate::RenderBatch) -> Self {
+        Self::new(batch.target().clone(), batch.paint_order())
+    }
+
+    fn from_issue(issue: &crate::RenderIssue) -> Self {
+        Self::new(issue.target().clone(), issue.paint_order())
+    }
+}
+
+fn key(target: &BondReplacementTargetV1) -> TargetKey {
+    (
+        target.target.document_object_id().clone(),
+        target.paint_order,
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use ferrum_core::{Identifier, RecordId};
+    use ferrum_document_projection::DocumentObjectIdV1;
 
     use super::*;
     use crate::{
-        BatchSpace, LineOp, MoleculeRenderPlan, Paint, PositiveFinite, RenderBatch, RenderOp,
-        RenderPoint, RenderProvenance, RenderRevision, RenderViewportV1, Rgb24,
+        BatchSpace, DocumentMoleculeRenderContentV1, LineOp, MoleculeRenderPlan, Paint,
+        PositiveFinite, RenderBatch, RenderOp, RenderPoint, RenderProvenance, RenderRevision,
+        RenderViewportV1, Rgb24,
     };
 
     fn provenance() -> RenderProvenance {
         RenderProvenance::new(RenderRevision::new(7).expect("test revision"), [7; 32])
     }
-    fn target(kind: RecordKind, name: &str, order: u32) -> RenderTarget {
-        let id = Identifier::new(name).expect("test identifier");
-        RenderTarget::new(RecordId::from_source(kind, &id), order)
+    fn target(order: u8) -> RenderTarget {
+        RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([order; 16]))
     }
-    fn direct(target: &RenderTarget) -> AuthoredDirectGlycosidicHaworthRenderPlanV1 {
+    fn direct(bond: DocumentObjectIdV1, order: u32) -> AuthoredDirectGlycosidicHaworthRenderPlanV1 {
         AuthoredDirectGlycosidicHaworthRenderPlanV1::test_plan(
             provenance(),
             Paint::rgb24(Rgb24::new("000000").expect("test paint")),
             vec![
                 crate::authored_direct_glycosidic_haworth::
                     AuthoredDirectGlycosidicHaworthDrawOpV1::OrdinaryLine {
-                    bond: target.record_id().clone(),
-                    authored_child_order: target.source_order(),
+                    bond,
+                    authored_child_order: order,
                     endpoints: [
                         RenderPoint::new(0.0, 0.0).expect("point"),
                         RenderPoint::new(1.0, 0.0).expect("point"),
@@ -219,7 +250,11 @@ mod tests {
             ],
         )
     }
-    fn established(bond: RenderTarget) -> DocumentRenderPlanV1 {
+    fn established(
+        root_target: RenderTarget,
+        bond: RenderTarget,
+        paint_order: u32,
+    ) -> DocumentRenderPlanV1 {
         let line = LineOp::new(
             RenderPoint::new(0.0, 0.0).expect("point"),
             RenderPoint::new(1.0, 0.0).expect("point"),
@@ -231,8 +266,13 @@ mod tests {
         let molecule = MoleculeRenderPlan::new(
             provenance(),
             vec![
-                RenderBatch::new(bond, BatchSpace::Scene, vec![RenderOp::Line(line)])
-                    .expect("batch"),
+                RenderBatch::new(
+                    bond,
+                    paint_order,
+                    BatchSpace::Scene,
+                    vec![RenderOp::Line(line)],
+                )
+                .expect("batch"),
             ],
             vec![],
         )
@@ -242,9 +282,12 @@ mod tests {
             RenderViewportV1::new(0.0, 0.0, 10.0, 10.0).expect("page"),
             vec![DocumentRenderOutcomeV1::Root(
                 crate::DocumentRenderRootV1::new(
+                    root_target,
                     2,
-                    DocumentRenderIdentityV1::durable("molecule").expect("root"),
-                    DocumentRenderContentV1::Molecule(molecule),
+                    DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                        molecule,
+                        Vec::new(),
+                    )),
                 ),
             )],
         )
@@ -253,26 +296,32 @@ mod tests {
 
     #[test]
     fn replacement_requires_complete_bond_targets_and_exact_direct_keys() {
-        let bond = target(RecordKind::Bond, "b1", 3);
+        let bond = target(3);
+        let root = target(8);
+        let bond_id = bond.document_object_id().clone();
         let result = compose_document_bond_replacement_v1(
-            established(bond.clone()),
-            DocumentRenderIdentityV1::durable("molecule").expect("root"),
+            established(root.clone(), bond.clone(), 3),
+            root.clone(),
             2,
-            vec![bond.clone()],
-            direct(&bond),
+            vec![BondReplacementTargetV1::new(bond.clone(), 3)],
+            direct(bond_id, 3),
         )
         .expect("matching durable selection composes");
         assert_eq!(result.provenance(), provenance());
 
-        let atom = target(RecordKind::Atom, "a1", 1);
+        let unmatched = target(1);
+        let unmatched_id = unmatched.document_object_id().clone();
         let error = compose_document_bond_replacement_v1(
-            established(bond),
-            DocumentRenderIdentityV1::durable("molecule").expect("root"),
+            established(root.clone(), bond, 3),
+            root,
             2,
-            vec![atom.clone()],
-            direct(&atom),
+            vec![BondReplacementTargetV1::new(unmatched, 1)],
+            direct(unmatched_id, 3),
         )
-        .expect_err("atom cannot be a replacement target");
-        assert_eq!(error, DocumentBondReplacementErrorV1::NonBondSelection);
+        .expect_err("unmatched durable target cannot be a replacement target");
+        assert_eq!(
+            error,
+            DocumentBondReplacementErrorV1::SelectedBondOutcomeMismatch
+        );
     }
 }

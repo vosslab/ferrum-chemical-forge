@@ -1,4 +1,4 @@
-"""Rust-owned P0.3 structural selection and deletion controller."""
+"""Rust-owned structural selection and deletion controller."""
 
 # PIP3 modules
 import PySide6.QtCore
@@ -7,6 +7,8 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.direct_root_preview
+import ferrum_qt.ferrum.document_tab_errors
+import ferrum_qt.ferrum.engine
 
 
 #============================================
@@ -117,20 +119,25 @@ class FerrumNativeStructureSelectionMixin:
 			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
 		"""Ask Rust to resolve one atom/bond hit or start a visual marquee."""
 		try:
-			import ferrum_qt.ferrum.engine as engine
 			tab = self._active_native_tab()
 			if tab is None:
 				return
 			observation = tab.observe_structure_interaction()
-			modifier = engine.RenderInteractionModifierV1.toggle if (
+			modifier = ferrum_qt.ferrum.engine.RenderInteractionModifierV1.toggle if (
 				modifiers & PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
-			) else engine.RenderInteractionModifierV1.replace
+			) else ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace
 			scene = tab.view.mapToScene(point)
 			selection = tab.select_structure_interaction(
 				observation, self._structure_selection,
-				engine.StructureInteractionQueryV1.point(float(scene.x()), float(scene.y()), modifier),
+				ferrum_qt.ferrum.engine.StructureInteractionQueryV1.point(
+					float(scene.x()), float(scene.y()), modifier,
+				),
 			)
-		except Exception as exc:
+		except (
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.RenderInteractionError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._show_edit_refusal(self._structure_refusal(exc))
 			return
 		self._structure_observation = observation
@@ -144,22 +151,25 @@ class FerrumNativeStructureSelectionMixin:
 			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
 		"""Resolve full containment through Rust after one visual-only rectangle."""
 		try:
-			import ferrum_qt.ferrum.engine as engine
 			tab = self._active_native_tab()
 			if tab is None or self._structure_observation is None:
 				return
 			rectangle = self._structure_rect(point)
-			modifier = engine.RenderInteractionModifierV1.toggle if (
+			modifier = ferrum_qt.ferrum.engine.RenderInteractionModifierV1.toggle if (
 				modifiers & PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
-			) else engine.RenderInteractionModifierV1.replace
+			) else ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace
 			selection = tab.select_structure_interaction(
 				self._structure_observation, self._structure_selection,
-				engine.StructureInteractionQueryV1.marquee(
+				ferrum_qt.ferrum.engine.StructureInteractionQueryV1.marquee(
 					float(rectangle.left()), float(rectangle.top()),
 					float(rectangle.right()), float(rectangle.bottom()), modifier,
 				),
 			)
-		except Exception as exc:
+		except (
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.RenderInteractionError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
 			self._show_edit_refusal(self._structure_refusal(exc))
 			return
 		finally:
@@ -177,9 +187,15 @@ class FerrumNativeStructureSelectionMixin:
 			if tab is None:
 				return
 			commit = tab.commit_structure_deletion(selection)
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
+		except (
+			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.RenderInteractionError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		) as exc:
+			if isinstance(
+				exc,
+				ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError,
+			):
 				self._replace_structure_selection(None, tab)
 				self._refresh_actions()
 				self._show_edit_refusal(self._unavailable_edit_refusal(
@@ -203,28 +219,27 @@ class FerrumNativeStructureSelectionMixin:
 	#============================================
 	def _structure_refusal(self, exc: Exception) -> object:
 		"""Explain backend-declared structural exclusions without scene inference."""
-		import ferrum_qt.ferrum.engine as engine
 		category = getattr(exc, "category", None)
 		if category in (
-			engine.RenderInteractionCategoryV1.display_only,
-			engine.RenderInteractionCategoryV1.unsupported_target,
+			ferrum_qt.ferrum.engine.RenderInteractionCategoryV1.display_only,
+			ferrum_qt.ferrum.engine.RenderInteractionCategoryV1.unsupported_target,
 		):
 			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. This target is display-only; change presentation first.",
 			))
-		if category == engine.RenderInteractionCategoryV1.unrenderable_candidate:
+		if category == ferrum_qt.ferrum.engine.RenderInteractionCategoryV1.unrenderable_candidate:
 			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. The resulting structure cannot be rendered; change presentation first.",
 			))
-		if category == engine.RenderInteractionCategoryV1.cross_molecule_selection:
+		if category == ferrum_qt.ferrum.engine.RenderInteractionCategoryV1.cross_molecule_selection:
 			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. Structural edits must stay within one molecule.",
 			))
-		if category == engine.RenderInteractionCategoryV1.invalid_compact_group_deletion_selection:
+		if category == ferrum_qt.ferrum.engine.RenderInteractionCategoryV1.invalid_compact_group_deletion_selection:
 			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. Select exactly one compact group without atoms or bonds.",
 			))
-		if category == engine.RenderInteractionCategoryV1.invalid_compact_group_deletion_topology:
+		if category == ferrum_qt.ferrum.engine.RenderInteractionCategoryV1.invalid_compact_group_deletion_topology:
 			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. This compact group needs document repair before deleting it.",
 			))
@@ -233,22 +248,21 @@ class FerrumNativeStructureSelectionMixin:
 	#============================================
 	def _replace_structure_selection(self, selection: object | None, tab: object) -> None:
 		"""Publish durable targets before retaining Rust's opaque selection handle."""
-		import ferrum_qt.ferrum.engine as engine
 		durable_targets: list[tuple[str, str]] = []
 		if selection is not None:
 			for target in selection.targets:
-				if target.kind == engine.StructureTargetKindV1.atom:
-					if type(target.durable_object_id) is not str or not target.durable_object_id:
+				if target.kind == ferrum_qt.ferrum.engine.StructureTargetKindV1.atom:
+					if type(target.object_id) is not str or not target.object_id:
 						raise RuntimeError("Ferrum atom selection has no durable object identity")
-					durable_targets.append(("atom", target.durable_object_id))
-				elif target.kind == engine.StructureTargetKindV1.bond:
-					if type(target.durable_object_id) is not str or not target.durable_object_id:
+					durable_targets.append(("atom", target.object_id))
+				elif target.kind == ferrum_qt.ferrum.engine.StructureTargetKindV1.bond:
+					if type(target.object_id) is not str or not target.object_id:
 						raise RuntimeError("Ferrum bond selection has no durable object identity")
-					durable_targets.append(("bond", target.durable_object_id))
-				elif target.kind == engine.StructureTargetKindV1.compact_group:
-					if type(target.durable_object_id) is not str or not target.durable_object_id:
+					durable_targets.append(("bond", target.object_id))
+				elif target.kind == ferrum_qt.ferrum.engine.StructureTargetKindV1.compact_group:
+					if type(target.object_id) is not str or not target.object_id:
 						raise RuntimeError("Ferrum compact-group selection has no durable object identity")
-					durable_targets.append(("compact_group", target.durable_object_id))
+					durable_targets.append(("compact_group", target.object_id))
 		tab._require_projection().select_durable(tuple(durable_targets))
 		self._retire_line_preview(self._structure_selection_item)
 		self._structure_selection = selection
@@ -275,9 +289,14 @@ class FerrumNativeStructureSelectionMixin:
 	#============================================
 	def _structure_rect(self, point: PySide6.QtCore.QPoint) -> PySide6.QtCore.QRectF:
 		"""Return a visual viewport-converted rectangle for Rust containment."""
-		assert self._structure_press_scene is not None
-		end = self._active_native_tab().view.mapToScene(point)
-		return PySide6.QtCore.QRectF(self._structure_press_scene, end).normalized()
+		press_scene = self._structure_press_scene
+		if press_scene is None:
+			raise RuntimeError("Ferrum structure marquee has no press position")
+		tab = self._active_native_tab()
+		if tab is None:
+			raise RuntimeError("Ferrum structure marquee has no active document tab")
+		end = tab.view.mapToScene(point)
+		return PySide6.QtCore.QRectF(press_scene, end).normalized()
 
 	#============================================
 	def _retire_structure_marquee(self) -> None:

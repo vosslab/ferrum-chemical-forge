@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use ferrum_core::RecordKind;
 use serde::{Deserialize, Serialize};
 
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::{RenderError, RenderIssue, RenderTarget};
 
 const SCHEMA_V2: &str = "ferrum-render-plan-v2";
@@ -710,15 +711,17 @@ impl RenderDisplayLayerV1 {
 #[serde(deny_unknown_fields)]
 pub struct RenderBatch {
     target: RenderTarget,
+    paint_order: u32,
     coordinate_space: BatchSpace,
     operations: Vec<RenderOp>,
     display_layer: RenderDisplayLayerV1,
 }
 
 impl RenderBatch {
-    /// Construct one complete, type-safe atom, compact-group, or bond batch.
+    /// Construct one complete durable-target batch from public plan facts.
     pub fn new(
         target: RenderTarget,
+        paint_order: u32,
         coordinate_space: BatchSpace,
         operations: Vec<RenderOp>,
     ) -> Result<Self, RenderError> {
@@ -732,8 +735,8 @@ impl RenderBatch {
                 "render batch operations must have strictly increasing z".to_owned(),
             ));
         }
-        match (&coordinate_space, target.record_id().kind()) {
-            (BatchSpace::AtomLocal { .. }, RecordKind::Atom | RecordKind::Group)
+        match &coordinate_space {
+            BatchSpace::AtomLocal { .. }
                 if operations.iter().all(|op| {
                     matches!(
                         op,
@@ -743,30 +746,59 @@ impl RenderBatch {
                             | RenderOp::Ellipse(_)
                     )
                 }) => {}
-            (BatchSpace::Scene, RecordKind::Bond)
+            BatchSpace::Scene
                 if operations.iter().all(|op| {
                     matches!(
                         op,
                         RenderOp::Line(_) | RenderOp::Path(_) | RenderOp::DoubleBondCarrierMark(_)
                     )
                 }) => {}
-            (BatchSpace::AtomLocal { .. }, _) => {
+            BatchSpace::AtomLocal { .. } => {
                 return Err(RenderError::InvalidRequest(
-                    "object-local batch requires an atom or compact-group target and annotation operations".to_owned(),
+                    "object-local batch requires annotation operations".to_owned(),
                 ));
             }
-            (BatchSpace::Scene, _) => {
+            BatchSpace::Scene => {
                 return Err(RenderError::InvalidRequest(
-                    "scene batch requires a bond target and line or path operations".to_owned(),
+                    "scene batch requires line or path operations".to_owned(),
                 ));
             }
         }
         Ok(Self {
             target,
+            paint_order,
             coordinate_space,
             operations,
             display_layer: RenderDisplayLayerV1::Ordinary,
         })
+    }
+
+    /// Construct one complete batch from private lowering context.
+    pub(crate) fn from_context(
+        context: RenderPlanEntryContextV1,
+        coordinate_space: BatchSpace,
+        operations: Vec<RenderOp>,
+    ) -> Result<Self, RenderError> {
+        match (&coordinate_space, context.record_id().kind()) {
+            (BatchSpace::AtomLocal { .. }, RecordKind::Atom | RecordKind::Group)
+            | (BatchSpace::Scene, RecordKind::Bond) => {}
+            (BatchSpace::AtomLocal { .. }, _) => {
+                return Err(RenderError::InvalidRequest(
+                    "object-local batch requires an atom or compact-group source record".to_owned(),
+                ));
+            }
+            (BatchSpace::Scene, _) => {
+                return Err(RenderError::InvalidRequest(
+                    "scene batch requires a bond source record".to_owned(),
+                ));
+            }
+        }
+        Self::new(
+            context.target().clone(),
+            context.paint_order(),
+            coordinate_space,
+            operations,
+        )
     }
 
     /// Attach the source-owned paint tier without changing target identity.
@@ -780,6 +812,11 @@ impl RenderBatch {
     #[must_use]
     pub fn target(&self) -> &RenderTarget {
         &self.target
+    }
+    /// Return the contractual paint order for this batch.
+    #[must_use]
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
     /// Return the explicit coordinate interpretation.
     #[must_use]
@@ -807,14 +844,20 @@ impl<'de> Deserialize<'de> for RenderBatch {
         #[serde(deny_unknown_fields)]
         struct WireBatch {
             target: RenderTarget,
+            paint_order: u32,
             coordinate_space: BatchSpace,
             operations: Vec<RenderOp>,
             display_layer: RenderDisplayLayerV1,
         }
         let wire = WireBatch::deserialize(deserializer)?;
-        Self::new(wire.target, wire.coordinate_space, wire.operations)
-            .map(|batch| batch.with_display_layer(wire.display_layer))
-            .map_err(serde::de::Error::custom)
+        Self::new(
+            wire.target,
+            wire.paint_order,
+            wire.coordinate_space,
+            wire.operations,
+        )
+        .map(|batch| batch.with_display_layer(wire.display_layer))
+        .map_err(serde::de::Error::custom)
     }
 }
 
@@ -831,9 +874,9 @@ pub struct MoleculeRenderPlan {
 impl MoleculeRenderPlan {
     /// Construct a plan with one ordered outcome for every supplied target.
     ///
-    /// A target appears exactly once as either a complete batch or an exclusion
-    /// issue. Every source order is unique across both outcome lists; each list
-    /// is strictly source ordered, allowing consumers to merge them without
+    /// A durable target appears exactly once as either a complete batch or an
+    /// exclusion issue. Every paint order is unique across both outcome lists;
+    /// each list is strictly paint ordered, allowing consumers to merge them without
     /// inventing a tie breaker.
     pub fn new(
         provenance: RenderProvenance,
@@ -841,50 +884,50 @@ impl MoleculeRenderPlan {
         issues: Vec<RenderIssue>,
     ) -> Result<Self, RenderError> {
         let mut targets = HashSet::new();
-        let mut source_orders = HashSet::new();
-        let mut previous_batch_source_order = None;
+        let mut paint_orders = HashSet::new();
+        let mut previous_batch_paint_order = None;
         for batch in &batches {
-            if !targets.insert(batch.target.record_id().clone()) {
+            if !targets.insert(batch.target.document_object_id().clone()) {
                 return Err(RenderError::InvalidRequest(
                     "render plan has duplicate batch targets".to_owned(),
                 ));
             }
-            if !source_orders.insert(batch.target.source_order()) {
+            if !paint_orders.insert(batch.paint_order) {
                 return Err(RenderError::InvalidRequest(
-                    "render plan has duplicate target source order".to_owned(),
+                    "render plan has duplicate target paint order".to_owned(),
                 ));
             }
-            if let Some(previous) = previous_batch_source_order
-                && batch.target.source_order() <= previous
+            if let Some(previous) = previous_batch_paint_order
+                && batch.paint_order <= previous
             {
                 return Err(RenderError::InvalidRequest(
-                    "render plan batches must have strictly increasing source order".to_owned(),
+                    "render plan batches must have strictly increasing paint order".to_owned(),
                 ));
             }
-            previous_batch_source_order = Some(batch.target.source_order());
+            previous_batch_paint_order = Some(batch.paint_order);
         }
-        let mut previous_issue_source_order = None;
+        let mut previous_issue_paint_order = None;
         for issue in &issues {
             issue.validate()?;
             let target = issue.target();
-            if !targets.insert(target.record_id().clone()) {
+            if !targets.insert(target.document_object_id().clone()) {
                 return Err(RenderError::InvalidRequest(
                     "render plan target cannot have both a batch and an issue".to_owned(),
                 ));
             }
-            if !source_orders.insert(target.source_order()) {
+            if !paint_orders.insert(issue.paint_order()) {
                 return Err(RenderError::InvalidRequest(
-                    "render plan has duplicate target source order".to_owned(),
+                    "render plan has duplicate target paint order".to_owned(),
                 ));
             }
-            if let Some(previous) = previous_issue_source_order
-                && target.source_order() <= previous
+            if let Some(previous) = previous_issue_paint_order
+                && issue.paint_order() <= previous
             {
                 return Err(RenderError::InvalidRequest(
-                    "render plan issues must have strictly increasing source order".to_owned(),
+                    "render plan issues must have strictly increasing paint order".to_owned(),
                 ));
             }
-            previous_issue_source_order = Some(target.source_order());
+            previous_issue_paint_order = Some(issue.paint_order());
         }
         Ok(Self {
             schema: RenderSchemaVersion::V2,

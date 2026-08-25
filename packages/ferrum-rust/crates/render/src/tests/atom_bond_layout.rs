@@ -1,10 +1,25 @@
 use ferrum_core::{Identifier, RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::*;
 
-fn target(kind: RecordKind, id: &str, source_order: u32) -> RenderTarget {
+fn record_id(kind: RecordKind, id: &str) -> RecordId {
     let identifier = Identifier::new(id).expect("test source identifier is valid");
-    RenderTarget::new(RecordId::from_source(kind, &identifier), source_order)
+    RecordId::new(kind, identifier).expect("test record ID")
+}
+
+fn document_object_id(entropy: u8) -> DocumentObjectIdV1 {
+    DocumentObjectIdV1::from_entropy_bytes([entropy; 16])
+}
+
+fn context(entropy: u8, kind: RecordKind, id: &str, paint_order: u32) -> RenderPlanEntryContextV1 {
+    RenderPlanEntryContextV1::new(
+        RenderTarget::document_object(document_object_id(entropy)),
+        record_id(kind, id),
+        paint_order,
+        Some(DocumentObjectIdV1::from_entropy_bytes([0xb6; 16])),
+    )
 }
 
 fn point(x: f64, y: f64) -> RenderPoint {
@@ -28,9 +43,9 @@ fn atom_bond_metrics() -> VerifiedTelexGlyphMetrics {
     VerifiedTelexGlyphMetrics::new(&environment).expect("pure-Rust parser opens verified Telex")
 }
 
-fn atom_target(id: &str, source_order: u32, x: f64, y: f64) -> AtomRenderTarget {
+fn atom_target(entropy: u8, id: &str, paint_order: u32, x: f64, y: f64) -> AtomRenderTarget {
     AtomRenderTarget::new(
-        target(RecordKind::Atom, id, source_order),
+        context(entropy, RecordKind::Atom, id, paint_order),
         point(x, y),
         AtomLabelFacts::new("N", 1, 2).expect("label facts"),
         TargetVisibility::Visible,
@@ -39,12 +54,12 @@ fn atom_target(id: &str, source_order: u32, x: f64, y: f64) -> AtomRenderTarget 
 }
 
 fn rendered_bond_lines(style: BondStyle) -> Vec<LineOp> {
-    let first = atom_target("line-a1", 1, 0.0, 0.0);
-    let second = atom_target("line-a2", 3, 40.0, 0.0);
+    let first = atom_target(0x11, "line-a1", 1, 0.0, 0.0);
+    let second = atom_target(0x12, "line-a2", 3, 40.0, 0.0);
     let bond = BondRenderTarget::new(
-        target(RecordKind::Bond, "line-bond", 2),
-        first.target().record_id().clone(),
-        second.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "line-bond", 2),
+        record_id(RecordKind::Atom, "line-a1"),
+        record_id(RecordKind::Atom, "line-a2"),
         style,
         TargetVisibility::Visible,
     )
@@ -72,17 +87,18 @@ fn rendered_bond_lines(style: BondStyle) -> Vec<LineOp> {
 }
 
 fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<RenderOp> {
-    let first = atom_target("directed-a", 1, 0.0, 0.0);
-    let second = atom_target("directed-b", 3, 40.0, 0.0);
-    let (start, end) = if reverse {
-        (&second, &first)
-    } else {
-        (&first, &second)
-    };
+    let first = atom_target(0x11, "directed-a", 1, 0.0, 0.0);
+    let second = atom_target(0x12, "directed-b", 3, 40.0, 0.0);
     let bond = BondRenderTarget::new(
-        target(RecordKind::Bond, "directed-bond", 2),
-        start.target().record_id().clone(),
-        end.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "directed-bond", 2),
+        record_id(
+            RecordKind::Atom,
+            if reverse { "directed-b" } else { "directed-a" },
+        ),
+        record_id(
+            RecordKind::Atom,
+            if reverse { "directed-a" } else { "directed-b" },
+        ),
         style,
         TargetVisibility::Visible,
     )
@@ -103,17 +119,18 @@ fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<Ren
 }
 
 fn rendered_haworth_front_batch(style: BondStyle, reverse: bool) -> RenderBatch {
-    let first = atom_target("haworth-a", 1, 0.0, 0.0);
-    let second = atom_target("haworth-b", 3, 40.0, 0.0);
-    let (start, end) = if reverse {
-        (&second, &first)
-    } else {
-        (&first, &second)
-    };
+    let first = atom_target(0x11, "haworth-a", 1, 0.0, 0.0);
+    let second = atom_target(0x12, "haworth-b", 3, 40.0, 0.0);
     let bond = BondRenderTarget::new(
-        target(RecordKind::Bond, "haworth-bond", 2),
-        start.target().record_id().clone(),
-        end.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "haworth-bond", 2),
+        record_id(
+            RecordKind::Atom,
+            if reverse { "haworth-b" } else { "haworth-a" },
+        ),
+        record_id(
+            RecordKind::Atom,
+            if reverse { "haworth-a" } else { "haworth-b" },
+        ),
         style,
         TargetVisibility::Visible,
     )
@@ -143,12 +160,12 @@ fn assert_near(actual: f64, expected: f64) {
 
 #[test]
 fn atom_bond_request_emits_structured_labels_and_metric_clipped_single_bonds() {
-    let first = atom_target("a1", 2, 0.0, 0.0);
-    let second = atom_target("a2", 4, 40.0, 0.0);
+    let first = atom_target(0x11, "a1", 2, 0.0, 0.0);
+    let second = atom_target(0x12, "a2", 4, 40.0, 0.0);
     let bond = BondRenderTarget::new(
-        target(RecordKind::Bond, "b1", 3),
-        first.target().record_id().clone(),
-        second.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "b1", 3),
+        record_id(RecordKind::Atom, "a1"),
+        record_id(RecordKind::Atom, "a2"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
@@ -167,9 +184,13 @@ fn atom_bond_request_emits_structured_labels_and_metric_clipped_single_bonds() {
     let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("plan");
     assert!(plan.issues().is_empty());
     assert_eq!(plan.batches().len(), 3);
-    assert_eq!(plan.batches()[0].target().source_order(), 2);
-    assert_eq!(plan.batches()[1].target().source_order(), 3);
-    assert_eq!(plan.batches()[2].target().source_order(), 4);
+    assert_eq!(plan.batches()[0].paint_order(), 2);
+    assert_eq!(plan.batches()[1].paint_order(), 3);
+    assert_eq!(plan.batches()[2].paint_order(), 4);
+    assert_eq!(
+        plan.batches()[0].target().document_object_id(),
+        &document_object_id(0x11)
+    );
 
     let RenderOp::Text(label) = &plan.batches()[0].operations()[0] else {
         panic!("first target must render text");
@@ -205,16 +226,13 @@ fn atom_bond_request_emits_structured_labels_and_metric_clipped_single_bonds() {
 
 #[test]
 fn ez_carrier_mark_emits_a_distinct_provenance_bearing_render_operation() {
-    let first = atom_target("carrier-start", 1, 0.0, 0.0);
-    let second = atom_target("carrier-end", 3, 40.0, 0.0);
-    let central = target(RecordKind::Bond, "central-double", 2)
-        .record_id()
-        .clone();
-    let carrier_target = target(RecordKind::Bond, "carrier-single", 4);
+    let first = atom_target(0x11, "carrier-start", 1, 0.0, 0.0);
+    let second = atom_target(0x12, "carrier-end", 3, 40.0, 0.0);
+    let central = record_id(RecordKind::Bond, "central-double");
     let carrier = BondRenderTarget::new(
-        carrier_target.clone(),
-        first.target().record_id().clone(),
-        second.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "carrier-single", 4),
+        record_id(RecordKind::Atom, "carrier-start"),
+        record_id(RecordKind::Atom, "carrier-end"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
@@ -236,7 +254,7 @@ fn ez_carrier_mark_emits_a_distinct_provenance_bearing_render_operation() {
     let operations = plan
         .batches()
         .iter()
-        .find(|batch| batch.target() == &carrier_target)
+        .find(|batch| batch.paint_order() == 4)
         .expect("carrier target has one render batch")
         .operations();
     assert!(matches!(operations[0], RenderOp::Line(_)));
@@ -249,19 +267,14 @@ fn ez_carrier_mark_emits_a_distinct_provenance_bearing_render_operation() {
 
 #[test]
 fn shared_ez_carrier_emits_one_operation_for_each_central_double_bond() {
-    let first = atom_target("shared-carrier-start", 1, 0.0, 0.0);
-    let second = atom_target("shared-carrier-end", 3, 40.0, 0.0);
-    let first_central = target(RecordKind::Bond, "first-central-double", 2)
-        .record_id()
-        .clone();
-    let second_central = target(RecordKind::Bond, "second-central-double", 4)
-        .record_id()
-        .clone();
-    let carrier_target = target(RecordKind::Bond, "shared-carrier-single", 5);
+    let first = atom_target(0x11, "shared-carrier-start", 1, 0.0, 0.0);
+    let second = atom_target(0x12, "shared-carrier-end", 3, 40.0, 0.0);
+    let first_central = record_id(RecordKind::Bond, "first-central-double");
+    let second_central = record_id(RecordKind::Bond, "second-central-double");
     let carrier = BondRenderTarget::new(
-        carrier_target.clone(),
-        first.target().record_id().clone(),
-        second.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "shared-carrier-single", 5),
+        record_id(RecordKind::Atom, "shared-carrier-start"),
+        record_id(RecordKind::Atom, "shared-carrier-end"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
@@ -293,7 +306,7 @@ fn shared_ez_carrier_emits_one_operation_for_each_central_double_bond() {
     let operations = plan
         .batches()
         .iter()
-        .find(|batch| batch.target() == &carrier_target)
+        .find(|batch| batch.paint_order() == 5)
         .expect("carrier target has one render batch")
         .operations();
     assert!(matches!(operations[0], RenderOp::Line(_)));
@@ -323,9 +336,7 @@ fn ez_carrier_mark_uses_opposite_signed_normals_for_its_stored_direction() {
         10,
     )
     .expect("carrier line");
-    let central = target(RecordKind::Bond, "central-double", 2)
-        .record_id()
-        .clone();
+    let central = record_id(RecordKind::Bond, "central-double");
     let up = DoubleBondCarrierMarkOp::from_carrier_line(
         &carrier,
         true,
@@ -352,7 +363,7 @@ fn ez_carrier_mark_uses_opposite_signed_normals_for_its_stored_direction() {
 fn visible_atom_number_is_a_separate_explicit_text_operation() {
     let number_font =
         AtomLabelFontProfile::new(FontFace::telex_regular(), size(9.0), paint("0000c8"));
-    let atom = atom_target("numbered", 1, 10.0, 20.0).with_number_label(
+    let atom = atom_target(0x11, "numbered", 1, 10.0, 20.0).with_number_label(
         AtomNumberLabelFacts::new(27, point(8.0, -12.0), number_font)
             .expect("positive number label"),
     );
@@ -408,7 +419,7 @@ fn atom_marks_lower_to_closed_semantic_primitives_without_toolkit_defaults() {
             paint("112233"),
         )
         .expect("mark facts");
-        let atom = atom_target("marked", 1, 10.0, 20.0).with_marks(vec![mark]);
+        let atom = atom_target(0x11, "marked", 1, 10.0, 20.0).with_marks(vec![mark]);
         let request = AtomBondRenderRequest::new(
             RenderProvenance::new(RenderRevision::new(1).expect("revision"), [9; 32]),
             vec![atom],
@@ -568,7 +579,7 @@ fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
 
 #[test]
 fn opaque_label_masks_have_explicit_paint_and_fixed_molecule_plane_order() {
-    let first = atom_target("a1", 1, 0.0, 0.0);
+    let first = atom_target(0x11, "a1", 1, 0.0, 0.0);
     let request = AtomBondRenderRequest::new(
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [2; 32]),
         vec![first],
@@ -595,9 +606,9 @@ fn opaque_label_masks_have_explicit_paint_and_fixed_molecule_plane_order() {
 
 #[test]
 fn atom_bond_builder_returns_explicit_issues_for_invisible_unsupported_and_unrenderable_targets() {
-    let visible = atom_target("a1", 1, 0.0, 0.0);
+    let visible = atom_target(0x11, "a1", 1, 0.0, 0.0);
     let hidden = AtomRenderTarget::new(
-        target(RecordKind::Atom, "a2", 2),
+        context(0x12, RecordKind::Atom, "a2", 2),
         point(10.0, 0.0),
         AtomLabelFacts::new("O", 0, 0).expect("label facts"),
         TargetVisibility::Hidden {
@@ -606,17 +617,17 @@ fn atom_bond_builder_returns_explicit_issues_for_invisible_unsupported_and_unren
     )
     .expect("atom target");
     let unsupported = BondRenderTarget::new(
-        target(RecordKind::Bond, "b1", 3),
-        visible.target().record_id().clone(),
-        hidden.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "b1", 3),
+        record_id(RecordKind::Atom, "a1"),
+        record_id(RecordKind::Atom, "a2"),
         BondStyle::Aromatic,
         TargetVisibility::Visible,
     )
     .expect("bond target");
     let missing_endpoint = BondRenderTarget::new(
-        target(RecordKind::Bond, "b2", 4),
-        visible.target().record_id().clone(),
-        target(RecordKind::Atom, "a3", 9).record_id().clone(),
+        context(0x14, RecordKind::Bond, "b2", 4),
+        record_id(RecordKind::Atom, "a1"),
+        record_id(RecordKind::Atom, "a3"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
@@ -651,22 +662,22 @@ fn atom_bond_builder_returns_explicit_issues_for_invisible_unsupported_and_unren
 
 #[test]
 fn atom_bond_builder_rejects_coincident_and_extreme_bond_geometry_without_partial_lines() {
-    let coincident_first = atom_target("a1", 1, 0.0, 0.0);
-    let coincident_second = atom_target("a2", 2, 0.0, 0.0);
-    let extreme_first = atom_target("a3", 4, -f64::MAX, 0.0);
-    let extreme_second = atom_target("a4", 5, f64::MAX, 0.0);
+    let coincident_first = atom_target(0x11, "a1", 1, 0.0, 0.0);
+    let coincident_second = atom_target(0x12, "a2", 2, 0.0, 0.0);
+    let extreme_first = atom_target(0x13, "a3", 4, -f64::MAX, 0.0);
+    let extreme_second = atom_target(0x14, "a4", 5, f64::MAX, 0.0);
     let coincident = BondRenderTarget::new(
-        target(RecordKind::Bond, "b1", 3),
-        coincident_first.target().record_id().clone(),
-        coincident_second.target().record_id().clone(),
+        context(0x15, RecordKind::Bond, "b1", 3),
+        record_id(RecordKind::Atom, "a1"),
+        record_id(RecordKind::Atom, "a2"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
     .expect("bond target");
     let extreme = BondRenderTarget::new(
-        target(RecordKind::Bond, "b2", 6),
-        extreme_first.target().record_id().clone(),
-        extreme_second.target().record_id().clone(),
+        context(0x16, RecordKind::Bond, "b2", 6),
+        record_id(RecordKind::Atom, "a3"),
+        record_id(RecordKind::Atom, "a4"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
@@ -703,12 +714,12 @@ fn atom_bond_builder_rejects_coincident_and_extreme_bond_geometry_without_partia
 fn atom_bond_builder_rejects_touching_or_overlapping_label_clips_in_every_direction() {
     let metrics = atom_bond_metrics();
     for (suffix, x, y) in [("horizontal", 16.5, 0.0), ("diagonal", 6.0, 6.0)] {
-        let first = atom_target(&format!("a1-{suffix}"), 1, 0.0, 0.0);
-        let second = atom_target(&format!("a2-{suffix}"), 3, x, y);
+        let first = atom_target(0x11, &format!("a1-{suffix}"), 1, 0.0, 0.0);
+        let second = atom_target(0x12, &format!("a2-{suffix}"), 3, x, y);
         let bond = BondRenderTarget::new(
-            target(RecordKind::Bond, &format!("b-{suffix}"), 2),
-            first.target().record_id().clone(),
-            second.target().record_id().clone(),
+            context(0x13, RecordKind::Bond, &format!("b-{suffix}"), 2),
+            record_id(RecordKind::Atom, &format!("a1-{suffix}")),
+            record_id(RecordKind::Atom, &format!("a2-{suffix}")),
             BondStyle::NormalSingle,
             TargetVisibility::Visible,
         )
@@ -758,7 +769,7 @@ fn atom_bond_request_requires_typed_kinds_unique_order_and_explicit_label_facts(
     assert!(AtomLabelFacts::new("cl", 0, 0).is_err());
     assert!(
         AtomRenderTarget::new(
-            target(RecordKind::Bond, "b1", 1),
+            context(0x11, RecordKind::Bond, "b1", 1),
             point(0.0, 0.0),
             AtomLabelFacts::new("C", 0, 0).expect("facts"),
             TargetVisibility::Visible,
@@ -766,8 +777,8 @@ fn atom_bond_request_requires_typed_kinds_unique_order_and_explicit_label_facts(
         .is_err()
     );
 
-    let first = atom_target("a1", 1, 0.0, 0.0);
-    let second = atom_target("a2", 1, 2.0, 0.0);
+    let first = atom_target(0x11, "a1", 1, 0.0, 0.0);
+    let second = atom_target(0x12, "a2", 1, 2.0, 0.0);
     assert!(
         AtomBondRenderRequest::new(
             RenderProvenance::new(RenderRevision::new(1).expect("revision"), [6; 32]),
@@ -784,20 +795,20 @@ fn atom_bond_request_requires_typed_kinds_unique_order_and_explicit_label_facts(
 
 #[test]
 fn normal_atom_bonds_render_while_missing_compact_group_geometry_is_a_closed_issue() {
-    let first = atom_target("first", 1, 0.0, 0.0);
-    let second = atom_target("second", 2, 40.0, 0.0);
+    let first = atom_target(0x11, "first", 1, 0.0, 0.0);
+    let second = atom_target(0x12, "second", 2, 40.0, 0.0);
     let normal = BondRenderTarget::new(
-        target(RecordKind::Bond, "normal", 3),
-        first.target().record_id().clone(),
-        second.target().record_id().clone(),
+        context(0x13, RecordKind::Bond, "normal", 3),
+        record_id(RecordKind::Atom, "first"),
+        record_id(RecordKind::Atom, "second"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
     .expect("normal bond target");
     let exterior = BondRenderTarget::new(
-        target(RecordKind::Bond, "exterior", 4),
-        second.target().record_id().clone(),
-        target(RecordKind::Group, "compact", 5).record_id().clone(),
+        context(0x14, RecordKind::Bond, "exterior", 4),
+        record_id(RecordKind::Atom, "second"),
+        record_id(RecordKind::Group, "compact"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
@@ -813,11 +824,7 @@ fn normal_atom_bonds_render_while_missing_compact_group_geometry_is_a_closed_iss
     )
     .expect("request");
     let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("plan");
-    assert!(
-        plan.batches()
-            .iter()
-            .any(|batch| batch.target().source_order() == 3)
-    );
+    assert!(plan.batches().iter().any(|batch| batch.paint_order() == 3));
     assert!(matches!(
         plan.issues()[0].kind(),
         RenderIssueKind::UnrenderableTarget { reason }

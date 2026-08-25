@@ -312,14 +312,18 @@ impl PyDocumentSession {
                     "bracket members must contain exactly the durable left and right members",
                 )
             })?;
-        let pair_id = presentation_bracket_pair_id(
+        require_live_fence(py, &self.session, expected_revision, &expected_digest_hex)?;
+        document_result(
             py,
-            &self.session,
-            expected_revision,
-            &expected_digest_hex,
-            &member_object_ids,
+            self.session
+                .validate_live_bracket_pair_target_v1(&member_object_ids)
+                .map_err(ferrum_document::DocumentSessionError::Operation),
         )?;
-        let operation = super::bracket_binding::set_bracket_properties(py, pair_id, changes)?;
+        let operation = super::bracket_binding::set_bracket_properties_for_members(
+            py,
+            member_object_ids,
+            changes,
+        )?;
         document_result(
             py,
             self.session
@@ -410,22 +414,6 @@ fn presentation_source_id(
         py,
         session
             .lower_live_chemical_presentation_target_v1(&object_id, target)
-            .map_err(ferrum_document::DocumentSessionError::Operation),
-    )
-}
-
-fn presentation_bracket_pair_id(
-    py: Python<'_>,
-    session: &ferrum_document::DocumentSession,
-    expected_revision: u64,
-    expected_digest_hex: &str,
-    member_object_ids: &[DocumentObjectIdV1; 2],
-) -> PyResult<String> {
-    require_live_fence(py, session, expected_revision, expected_digest_hex)?;
-    document_result(
-        py,
-        session
-            .lower_live_bracket_pair_target_v1(member_object_ids)
             .map_err(ferrum_document::DocumentSessionError::Operation),
     )
 }

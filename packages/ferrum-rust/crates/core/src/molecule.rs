@@ -2,47 +2,37 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Atom, Bond, Identifier, LegacyFingerprint, ModelError, NonAtomVertex, RecordId, RecordKind,
-    RecordOrigin, VertexRef, formatting::option_text,
-};
+use crate::{Atom, Bond, Identifier, ModelError, NonAtomVertex, RecordId, RecordKind, VertexRef};
 
 /// Immutable ordered molecule graph. Revision means validated replacement.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Molecule {
     identity: RecordId,
-    source_id: Option<Identifier>,
+    source_id: Identifier,
     name: Option<String>,
     atoms: Vec<Atom>,
     groups: Vec<NonAtomVertex>,
     texts: Vec<NonAtomVertex>,
     queries: Vec<NonAtomVertex>,
     bonds: Vec<Bond>,
-    legacy_occurrence: Option<u32>,
 }
 impl Molecule {
-    /// Construct a complete validated graph without exposing an edit API.
+    /// Construct a complete validated source-identified graph without an edit API.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        source_id: Option<Identifier>,
+        source_id: Identifier,
         name: Option<String>,
         atoms: Vec<Atom>,
         groups: Vec<NonAtomVertex>,
         texts: Vec<NonAtomVertex>,
         queries: Vec<NonAtomVertex>,
         bonds: Vec<Bond>,
-        legacy_occurrence: Option<u32>,
     ) -> Result<Self, ModelError> {
-        let identity = Self::make_identity(
-            &source_id,
-            name.as_deref(),
-            &atoms,
-            &groups,
-            &texts,
-            &queries,
-            &bonds,
-            legacy_occurrence,
-        )?;
+        let identity = RecordId::new(RecordKind::Molecule, source_id.clone()).map_err(|_| {
+            ModelError::InvalidSourceIdentity {
+                kind: RecordKind::Molecule,
+            }
+        })?;
         let molecule = Self {
             identity,
             source_id,
@@ -52,62 +42,19 @@ impl Molecule {
             texts,
             queries,
             bonds,
-            legacy_occurrence,
         };
         molecule.validate()?;
         Ok(molecule)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn make_identity(
-        source_id: &Option<Identifier>,
-        name: Option<&str>,
-        atoms: &[Atom],
-        groups: &[NonAtomVertex],
-        texts: &[NonAtomVertex],
-        queries: &[NonAtomVertex],
-        bonds: &[Bond],
-        legacy_occurrence: Option<u32>,
-    ) -> Result<RecordId, ModelError> {
-        let mut children: Vec<String> = atoms
-            .iter()
-            .map(|item| item.identity().canonical())
-            .chain(groups.iter().map(|item| item.identity().canonical()))
-            .chain(texts.iter().map(|item| item.identity().canonical()))
-            .chain(queries.iter().map(|item| item.identity().canonical()))
-            .chain(bonds.iter().map(|item| item.identity().canonical()))
-            .collect();
-        children.sort();
-        let mut fields = vec![
-            option_text(source_id.as_ref().map(Identifier::as_str)),
-            option_text(name),
-        ];
-        fields.extend(children);
-        let fingerprint = LegacyFingerprint::new(RecordKind::Molecule, &fields);
-        match (source_id, legacy_occurrence) {
-            (Some(id), None) => Ok(RecordId::from_source(RecordKind::Molecule, id)),
-            (None, Some(occurrence)) => Ok(RecordId::from_legacy(
-                RecordKind::Molecule,
-                fingerprint,
-                occurrence,
-            )),
-            (Some(_), Some(_)) => Err(ModelError::SourceRecordHasLegacyOccurrence {
-                kind: RecordKind::Molecule,
-            }),
-            (None, None) => Err(ModelError::MissingLegacyOccurrence {
-                kind: RecordKind::Molecule,
-            }),
-        }
     }
     /// Return molecule identity.
     #[must_use]
     pub fn identity(&self) -> &RecordId {
         &self.identity
     }
-    /// Return literal molecule source ID if present.
+    /// Return its required literal source ID.
     #[must_use]
-    pub fn source_id(&self) -> Option<&Identifier> {
-        self.source_id.as_ref()
+    pub fn source_id(&self) -> &Identifier {
+        &self.source_id
     }
     /// Return source molecule name presence/value.
     #[must_use]
@@ -139,7 +86,7 @@ impl Molecule {
     pub fn bonds(&self) -> &[Bond] {
         &self.bonds
     }
-    /// Return a validated immutable replacement retaining this molecule anchor.
+    /// Return a validated immutable replacement retaining this source locator.
     #[allow(clippy::too_many_arguments)]
     pub fn replace_records(
         &self,
@@ -159,37 +106,21 @@ impl Molecule {
             texts,
             queries,
             bonds,
-            legacy_occurrence: self.legacy_occurrence,
         };
         replacement.validate()?;
         Ok(replacement)
     }
     fn validate(&self) -> Result<(), ModelError> {
-        match (
-            &self.source_id,
-            &self.identity.origin,
-            self.legacy_occurrence,
-        ) {
-            (Some(source), RecordOrigin::Source(actual), None)
-                if source == actual && self.identity.kind == RecordKind::Molecule => {}
-            (
-                None,
-                RecordOrigin::Legacy {
-                    fingerprint,
-                    occurrence,
-                },
-                Some(value),
-            ) if *occurrence == value
-                && fingerprint.kind()? == RecordKind::Molecule
-                && self.identity.kind == RecordKind::Molecule => {}
-            _ => {
-                return Err(ModelError::IdentityMismatch {
-                    kind: RecordKind::Molecule,
-                });
-            }
+        if self.identity.kind() != RecordKind::Molecule
+            || self.identity.source_id() != &self.source_id
+        {
+            return Err(ModelError::IdentityMismatch {
+                kind: RecordKind::Molecule,
+            });
         }
         let mut identities = HashSet::new();
         let mut source_ids = HashSet::new();
+        self.insert_source(&self.source_id, &mut source_ids)?;
         for atom in &self.atoms {
             atom.validate()?;
             self.insert_identity(atom.identity(), &mut identities)?;
@@ -228,10 +159,10 @@ impl Molecule {
     }
     fn insert_source(
         &self,
-        id: Option<&Identifier>,
+        id: &Identifier,
         all: &mut HashSet<Identifier>,
     ) -> Result<(), ModelError> {
-        if id.is_none_or(|value| all.insert(value.clone())) {
+        if all.insert(id.clone()) {
             Ok(())
         } else {
             Err(ModelError::DuplicateSourceId)
@@ -254,33 +185,31 @@ impl Molecule {
 #[derive(Deserialize)]
 struct WireMolecule {
     identity: RecordId,
-    source_id: Option<Identifier>,
+    source_id: Identifier,
     name: Option<String>,
     atoms: Vec<Atom>,
     groups: Vec<NonAtomVertex>,
     texts: Vec<NonAtomVertex>,
     queries: Vec<NonAtomVertex>,
     bonds: Vec<Bond>,
-    legacy_occurrence: Option<u32>,
 }
 impl<'de> Deserialize<'de> for Molecule {
-    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let w = WireMolecule::deserialize(d)?;
-        let result = Self {
-            identity: w.identity,
-            source_id: w.source_id,
-            name: w.name,
-            atoms: w.atoms,
-            groups: w.groups,
-            texts: w.texts,
-            queries: w.queries,
-            bonds: w.bonds,
-            legacy_occurrence: w.legacy_occurrence,
+        let wire = WireMolecule::deserialize(deserializer)?;
+        let molecule = Self {
+            identity: wire.identity,
+            source_id: wire.source_id,
+            name: wire.name,
+            atoms: wire.atoms,
+            groups: wire.groups,
+            texts: wire.texts,
+            queries: wire.queries,
+            bonds: wire.bonds,
         };
-        result.validate().map_err(serde::de::Error::custom)?;
-        Ok(result)
+        molecule.validate().map_err(serde::de::Error::custom)?;
+        Ok(molecule)
     }
 }

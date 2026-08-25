@@ -6,7 +6,7 @@ use ferrum_document::{
     DocumentObjectIdV1, DocumentSelectionSvgRootV1, DocumentSelectionSvgV1, DocumentSvgSelectionV1,
     SessionDocumentObservationV1, render_document_selection_to_svg_v1,
 };
-use ferrum_render::{DocumentRenderIdentityV1, LOCAL_SVG_COMPLETED_BYTES_V1, SvgOutputBudgetV1};
+use ferrum_render::{LOCAL_SVG_COMPLETED_BYTES_V1, SvgOutputBudgetV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString, PyTuple};
@@ -30,11 +30,9 @@ const SELECTOR_TEXT_REASON: &str = "selected SVG selector must be valid UTF-8 te
 )]
 struct PyDocumentSelectionSvgRootV1 {
     #[pyo3(get)]
-    source_order: u32,
+    target: String,
     #[pyo3(get)]
-    identity_kind: String,
-    #[pyo3(get)]
-    identity: String,
+    paint_order: u32,
 }
 
 /// Conservative fitted viewport measured from native lowered content.
@@ -55,7 +53,7 @@ struct PyDocumentSelectionSvgViewportV1 {
     height: f64,
 }
 
-/// One immutable selected-root SVG and its exact source corroborators.
+/// One immutable selected-root SVG and its durable receipt corroborators.
 #[pyclass(
     frozen,
     module = "ferrum_chem",
@@ -145,7 +143,7 @@ fn selectable_object_count(observation: &SessionDocumentObservationV1) -> Option
                 .checked_add(molecule.atoms().len())?
                 .checked_add(molecule.bonds().len())
         })?;
-    structure.checked_add(projection.presentation_stack().roots().len())
+    structure.checked_add(projection.presentation_stack().entries().len())
 }
 
 fn receipt_to_python(
@@ -183,14 +181,9 @@ fn root_to_python(
     py: Python<'_>,
     root: &DocumentSelectionSvgRootV1,
 ) -> PyResult<PyDocumentSelectionSvgRootV1> {
-    let (identity_kind, identity) = match root.identity() {
-        DocumentRenderIdentityV1::Durable(value) => ("durable", value),
-        DocumentRenderIdentityV1::ProjectionLocal(value) => ("projection_local", value),
-    };
     Ok(PyDocumentSelectionSvgRootV1 {
-        source_order: root.source_order(),
-        identity_kind: copied(py, identity_kind)?,
-        identity: copied(py, &identity)?,
+        target: copied(py, root.target().as_str())?,
+        paint_order: root.paint_order(),
     })
 }
 

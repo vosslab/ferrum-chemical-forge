@@ -19,7 +19,7 @@ fn bond(name: &str, start: &str, end: &str) -> LinearFormBondV1 {
 }
 
 fn id(kind: RecordKind, name: &str) -> RecordId {
-    RecordId::from_source(kind, &Identifier::new(name).expect("identifier"))
+    RecordId::new(kind, Identifier::new(name).expect("identifier")).expect("test record identifier")
 }
 
 fn request(

@@ -100,19 +100,6 @@ pub(crate) enum DirectGlycosidicHaworthDrawOpV1 {
     },
 }
 
-impl DirectGlycosidicHaworthDrawOpV1 {
-    /// Return the durable target identity.
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) const fn bond(&self) -> &RecordId {
-        match self {
-            Self::OrdinaryLine { bond, .. }
-            | Self::HaworthFrontStroke { bond, .. }
-            | Self::RoundedFrontWedge { bond, .. } => bond,
-        }
-    }
-}
-
 /// One private-profile path command retained for the private draw stream.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum DirectGlycosidicHaworthPathCommandV1 {

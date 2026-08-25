@@ -224,12 +224,10 @@ pub fn preview_incremental_presentation_path_gesture_v1(
 ) -> Result<PresentationPathOverlayV1, PresentationPathRenderErrorV1> {
     require_fence(session, gesture.fence)
         .map_err(|_| PresentationPathRenderErrorV1::StaleSnapshot)?;
-    if let Some(point) = hover {
-        if gesture.points.contains(&point) {
-            return Err(PresentationPathRenderErrorV1::InvalidGeometry(
-                PresentationPathGestureErrorV1::DegenerateGeometry,
-            ));
-        }
+    if hover.is_some_and(|point| gesture.points.contains(&point)) {
+        return Err(PresentationPathRenderErrorV1::InvalidGeometry(
+            PresentationPathGestureErrorV1::DegenerateGeometry,
+        ));
     }
     // Hover is display-only. Persistent candidates contain accepted points only.
     let path = (gesture.points.len() >= minimum_points(gesture.kind))

@@ -18,7 +18,7 @@ impl TypedDocument {
         validate_complete_bracket_selection(self, reorder)?;
         let mut candidate = self.detached_candidate()?;
         let indexed = candidate.detached_indexed_mut();
-        let id_name = indexed.xml.tree.add_name("id");
+        let id_name = document_object_id_name(&mut indexed.xml.tree);
         let root = indexed
             .xml
             .tree
@@ -38,7 +38,7 @@ impl TypedDocument {
                 .filter(|node| {
                     is_cdml_element(&indexed.xml.tree, *node, target.kind().local_name())
                         && indexed.xml.tree.get_attribute(*node, id_name)
-                            == Some(target.presentation_id().as_str())
+                            == Some(target.document_object_id().as_str())
                 })
                 .collect::<Vec<_>>();
             if matches.len() != 1 {
@@ -85,17 +85,17 @@ fn validate_complete_bracket_selection(
     let selected = reorder
         .targets()
         .iter()
-        .map(|target| target.presentation_id().as_str())
+        .map(|target| target.document_object_id())
         .collect::<HashSet<_>>();
     for pair in super::bracket_pair_projection_v1::bracket_pairs(document) {
         let selected_members = pair
-            .member_ids()
+            .members()
             .iter()
-            .filter(|identifier| selected.contains(identifier.as_str()))
+            .filter(|identifier| selected.contains(*identifier))
             .count();
         if selected_members == 1 {
             return Err(TypedDocumentError::PartialBracketStackSelection(
-                pair.pair_id().to_owned(),
+                pair.members().clone(),
             ));
         }
     }
@@ -146,4 +146,10 @@ fn is_cdml_element(tree: &Xot, node: Node, expected: &str) -> bool {
     element_name(tree, node).is_some_and(|(local_name, namespace)| {
         local_name == expected && (namespace == CDML_NAMESPACE)
     })
+}
+
+fn document_object_id_name(tree: &mut Xot) -> xot::NameId {
+    let namespace =
+        tree.add_namespace(super::document_object_identity_v1::DOCUMENT_OBJECT_NAMESPACE_V1);
+    tree.add_name_ns("id", namespace)
 }

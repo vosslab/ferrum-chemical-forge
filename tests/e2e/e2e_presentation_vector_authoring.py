@@ -4,6 +4,13 @@
 import json
 import pathlib
 
+# local repo modules
+import ferrum_qt_e2e
+
+
+ferrum_qt_e2e.select_offscreen_qt_platform()
+
+
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtGui

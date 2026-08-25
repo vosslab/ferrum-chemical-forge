@@ -2,14 +2,18 @@
 
 use super::binding::PyDocumentSession;
 use super::prepared_transition_binding::PySessionOperationTransitionRequestV1;
-use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
+use super::presentation_render_plan_binding::{
+    PyPresentationRenderBoundsV1, PyPresentationVectorOperationV1,
+};
 use ferrum_document::{
     ArrowGestureStyleV1, DocumentFenceV1, PresentationCreationGestureV1,
     PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
     PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
 };
+use ferrum_render::{PresentationPreviewRenderPlanV1, PresentationPreviewRenderRootV1};
 use pyo3::create_exception;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 create_exception!(
     ferrum_chem,
     PresentationGestureError,
@@ -124,7 +128,76 @@ pub(crate) struct PyPresentationCreationGestureV1 {
 pub(crate) struct PyPresentationCreationPreviewV1 {
     preview: PresentationCreationPreviewV1,
     #[pyo3(get)]
-    plan: PyPresentationRenderPlanV1,
+    plan: PyPresentationPreviewRenderPlanV1,
+}
+
+/// Identifier-free renderer content for one transient Plus preview root.
+#[pyclass(frozen, name = "PresentationPreviewPlusV1", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyPresentationPreviewPlusV1 {
+    #[pyo3(get)]
+    anchor: super::render_binding::PyRenderPointV1,
+    #[pyo3(get)]
+    operation_origin: super::render_binding::PyRenderPointV1,
+    #[pyo3(get)]
+    text: String,
+    #[pyo3(get)]
+    face: String,
+    #[pyo3(get)]
+    size: f64,
+    #[pyo3(get)]
+    paint: String,
+    #[pyo3(get)]
+    z: i32,
+    #[pyo3(get)]
+    background: Option<String>,
+}
+
+/// Identifier-free renderer output for one transient presentation preview root.
+#[pyclass(frozen, name = "PresentationPreviewRenderRootV1", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyPresentationPreviewRenderRootV1 {
+    #[pyo3(get)]
+    kind: String,
+    #[pyo3(get)]
+    bounds: PyPresentationRenderBoundsV1,
+    vector_operations: Vec<PyPresentationVectorOperationV1>,
+    #[pyo3(get)]
+    plus: Option<PyPresentationPreviewPlusV1>,
+}
+
+#[pymethods]
+impl PyPresentationPreviewRenderRootV1 {
+    #[getter]
+    fn vector_operations(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.vector_operations.iter().cloned())?.unbind())
+    }
+}
+
+/// Immutable, identifier-free renderer plan for one transient presentation preview.
+#[pyclass(frozen, name = "PresentationPreviewRenderPlanV1", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyPresentationPreviewRenderPlanV1 {
+    #[pyo3(get)]
+    schema: &'static str,
+    roots: Vec<PyPresentationPreviewRenderRootV1>,
+}
+
+#[pymethods]
+impl PyPresentationPreviewRenderPlanV1 {
+    #[getter]
+    fn roots(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.roots.iter().cloned())?.unbind())
+    }
+}
+
+impl From<&PresentationPreviewRenderPlanV1> for PyPresentationPreviewRenderPlanV1 {
+    fn from(value: &PresentationPreviewRenderPlanV1) -> Self {
+        Self {
+            schema: value.schema(),
+            roots: value.roots().iter().map(preview_root_from).collect(),
+        }
+    }
 }
 #[pymethods]
 impl PyDocumentSession {
@@ -233,6 +306,45 @@ fn preview(
         preview: value,
     })
 }
+
+fn preview_root_from(value: &PresentationPreviewRenderRootV1) -> PyPresentationPreviewRenderRootV1 {
+    match value {
+        PresentationPreviewRenderRootV1::Vector { vector, bounds } => {
+            PyPresentationPreviewRenderRootV1 {
+                kind: "vector".to_owned(),
+                bounds: (*bounds).into(),
+                vector_operations: vector
+                    .operations()
+                    .iter()
+                    .map(super::presentation_render_plan_binding::vector_operation)
+                    .collect(),
+                plus: None,
+            }
+        }
+        PresentationPreviewRenderRootV1::Plus {
+            anchor,
+            operation,
+            bounds,
+            background,
+        } => PyPresentationPreviewRenderRootV1 {
+            kind: "plus".to_owned(),
+            bounds: (*bounds).into(),
+            vector_operations: Vec::new(),
+            plus: Some(PyPresentationPreviewPlusV1 {
+                anchor: (*anchor).into(),
+                operation_origin: operation.origin().into(),
+                text: operation.runs().iter().map(|run| run.text()).collect(),
+                face: operation.face().as_str().to_owned(),
+                size: operation.size().get(),
+                paint: operation.paint().color().as_str().to_owned(),
+                z: operation.z(),
+                background: background
+                    .as_ref()
+                    .map(|paint| paint.color().as_str().to_owned()),
+            }),
+        },
+    }
+}
 pub(crate) fn digest(value: &str) -> PyResult<[u8; 32]> {
     if value.len() != 64
         || !value
@@ -337,5 +449,8 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPresentationGestureSnapPolicyV1>()?;
     module.add_class::<PyPresentationCreationGestureV1>()?;
     module.add_class::<PyPresentationCreationPreviewV1>()?;
+    module.add_class::<PyPresentationPreviewPlusV1>()?;
+    module.add_class::<PyPresentationPreviewRenderRootV1>()?;
+    module.add_class::<PyPresentationPreviewRenderPlanV1>()?;
     Ok(())
 }

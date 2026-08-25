@@ -19,9 +19,12 @@ and the PySide6 source application. Each scene receives a fresh temporary worksp
 opens only ordinary authored CDML input, uses Ferrum's visible command and canvas
 workflows, checks an observable completed result, retires the active editing selection, frames the
 durable content on a high-contrast documentation canvas, hides the optional hex grid through its
-visible action, and captures one fixed 1440 by 900 window. It stages every PNG first, then writes
-the complete verified set to `docs/screenshots/` together so a failed scene cannot publish a
-partial tour.
+visible action, and captures one fixed 1440 by 900 complete application window. This is the full
+`QMainWindow` surface, including the visible ribbon and status bar; the canvas is framed within that
+surface and is not the aspect-ratio boundary. The harness measures each staged PNG and rejects a
+backend result that is not 16:10, which catches decoration-inclusive or cropped window geometry.
+It stages every PNG first, then writes the complete verified set to `docs/screenshots/` together so
+a failed scene cannot publish a partial tour.
 
 Use the following optional commands during local diagnosis:
 

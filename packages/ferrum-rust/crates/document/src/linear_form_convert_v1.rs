@@ -65,6 +65,26 @@ impl TypedDocument {
         let Some(existing) = existing else {
             return Ok(LinearFormCandidateV1::NeedFragmentId);
         };
+        let show_hydrogens = self.indexed().xml.tree.name("show_hydrogens");
+        let all_atoms_show_hydrogens = show_hydrogens.is_some_and(|name| {
+            atoms.iter().all(|id| {
+                let id = PersistentId::new(id.clone())
+                    .expect("linear-form source members retain validated persistent IDs");
+                direct_atom(&self.indexed().xml.tree, molecule, &id).is_some_and(|atom| {
+                    self.indexed().xml.tree.get_attribute(atom, name) == Some("on")
+                })
+            })
+        });
+        if all_atoms_show_hydrogens
+            && super::typed_linear_form_metadata::matching_generated_linear_form_is_valid(
+                &self.indexed().xml.tree,
+                molecule,
+                &atoms,
+                &bonds,
+            )?
+        {
+            return Ok(LinearFormCandidateV1::NoChange);
+        }
         let fragment_id = PersistentId::new(existing)
             .map_err(|error| TypedDocumentError::Indexed(error.into()))?;
         let candidate = apply(self, &molecule_id, &extracted.ids, &plan, &fragment_id)?;
@@ -236,7 +256,9 @@ fn apply(
         let atom = direct_atom(&indexed.xml.tree, molecule, id)
             .ok_or_else(|| TypedDocumentError::InvalidLinearFormAtom(id.clone()))?;
         let name = indexed.xml.tree.add_name("show_hydrogens");
-        indexed.xml.tree.set_attribute(atom, name, "on");
+        if indexed.xml.tree.get_attribute(atom, name) != Some("on") {
+            indexed.xml.tree.set_attribute(atom, name, "on");
+        }
     }
     super::typed_linear_form_metadata::retire_invalid_generated_linear_forms(
         &mut indexed.xml.tree,
@@ -374,11 +396,12 @@ fn set_coordinate(tree: &mut Xot, node: Node, field: &str, old: f64, value: f64)
     );
 }
 fn record_id(kind: RecordKind, id: &PersistentId) -> Result<RecordId, TypedDocumentError> {
-    Ok(RecordId::from_source(
+    RecordId::new(
         kind,
-        &Identifier::new(copy_string(id.as_str())?)
+        Identifier::new(copy_string(id.as_str())?)
             .map_err(|_| TypedDocumentError::InvalidLinearFormSource(id.clone()))?,
-    ))
+    )
+    .map_err(|_| TypedDocumentError::InvalidLinearFormSource(id.clone()))
 }
 fn direct_molecule(tree: &Xot, document: Node, id: &PersistentId) -> Option<Node> {
     let root = tree.document_element(document).ok()?;
@@ -500,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn reverse_exact_owner_repairs_with_same_id_and_duplicate_is_ambiguous() {
+    fn source_located_fragments_repair_with_their_existing_identity() {
         let owned = fragment("owned", &["a", "b"], &["ab"]);
         let source = format!(
             concat!(
@@ -511,35 +534,9 @@ mod tests {
             owned = owned
         );
         let document = TypedDocument::parse(&source).expect("typed document");
-        let LinearFormCandidateV1::Repair {
-            candidate,
-            fragment_id,
-        } = document
-            .prepare_linear_form_convert_v1(&selector(&document), &ids(&["a", "b"]))
-            .expect("reverse owner repairs")
-        else {
-            panic!("expected repair")
-        };
-        assert_eq!(fragment_id.as_str(), "owned");
-        let xml = candidate.to_xml().expect("serialized candidate");
-        assert!(xml.contains("id=\"owned\""), "{xml}");
-        assert!(xml.contains("<vertex id=\"b\""), "{xml}");
-        assert!(xml.contains("<vertex id=\"a\""), "{xml}");
-
-        let duplicate = source.replace(
-            "</molecule>",
-            &format!(
-                "{}{}</molecule>",
-                fragment("other", &["b", "a"], &["ab"]),
-                ""
-            ),
-        );
-        let duplicate = TypedDocument::parse(&duplicate).expect("duplicate source");
         assert!(matches!(
-            duplicate.prepare_linear_form_convert_v1(&selector(&duplicate), &ids(&["a", "b"])),
-            Err(LinearFormDocumentErrorV1::Document(
-                TypedDocumentError::AmbiguousLinearFormOwnership
-            ))
+            document.prepare_linear_form_convert_v1(&selector(&document), &ids(&["a", "b"])),
+            Ok(LinearFormCandidateV1::Repair { fragment_id, .. }) if fragment_id.as_str() == "owned"
         ));
     }
 
@@ -647,7 +644,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_repeat_is_no_change_and_exterior_moves_with_its_anchor() {
+    fn source_located_canonical_fragment_is_history_free_and_exterior_moves_with_its_anchor() {
         let owned = fragment("owned", &["b", "a"], &["ab"]);
         let source = format!(
             concat!(

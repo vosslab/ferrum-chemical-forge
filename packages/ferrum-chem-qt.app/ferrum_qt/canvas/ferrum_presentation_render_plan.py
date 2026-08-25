@@ -86,7 +86,6 @@ class RendererPlanRootItem(PySide6.QtWidgets.QGraphicsItem):
 				stroker = PySide6.QtGui.QPainterPathStroker()
 				stroker.setWidth(max(6.0, pen.widthF() + 4.0))
 				self._shape.addPath(stroker.createStroke(path))
-		self.setZValue(float(target.source_order))
 		self.setFlag(
 			PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True,
 		)
@@ -144,24 +143,18 @@ def build_presentation_render_plan(plan: object, telex_resource: object) -> Ferr
 	roots: list[object] = []
 	durable_items: dict[tuple[str, str], object] = {}
 	local_items: dict[RenderTargetKey, object] = {}
-	last_order = -1
 	try:
 		for root in plan.roots:
 			target = _target(root.target, extension)
 			bounds = _bounds(root.bounds, extension)
-			if target.source_order <= last_order:
-				raise PresentationRenderPlanError("presentation render-plan roots are not source ordered")
-			last_order = target.source_order
 			item = _root_item(root, target, bounds, extension, telex)
-			if target.durable_object_id is None:
-				if target in local_items:
-					raise PresentationRenderPlanError("duplicate local presentation target")
-				local_items[target] = item
-			else:
-				durable_key = target.durable_selection_key()
-				if durable_key in durable_items:
-					raise PresentationRenderPlanError("duplicate durable presentation target")
-				durable_items[durable_key] = item
+			if target in local_items:
+				raise PresentationRenderPlanError("duplicate presentation target")
+			durable_key = target.durable_selection_key()
+			if durable_key in durable_items:
+				raise PresentationRenderPlanError("duplicate durable presentation target")
+			durable_items[durable_key] = item
+			local_items[target] = item
 			roots.append(item)
 	except (AttributeError, TypeError, ValueError, PresentationRenderPlanError) as exc:
 		for item in roots:

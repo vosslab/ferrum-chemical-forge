@@ -1,4 +1,4 @@
-//! Closed typed-CDML replacement for one attached compact group.
+//! Closed typed-CDML replacement for one direct compact group.
 
 use std::collections::HashSet;
 
@@ -46,15 +46,26 @@ pub(crate) enum CompactGroupMaterializationRefusalV1 {
     StalePlan,
 }
 
+/// Exhaustive source topologies accepted by the compact-group replacement plan.
+///
+/// Attached retains the original exterior-bond rewrite. DirectRoot represents one
+/// self-contained free compact group whose recipe becomes the molecule's complete graph.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum CompactGroupMaterializationTopologyV1 {
+    Attached {
+        exterior_bond_id: PersistentId,
+        exterior_endpoint_is_start: bool,
+    },
+    DirectRoot,
+}
+
 /// Fully resolved replacement facts, detached from session and protocol concerns.
 #[derive(Clone, Debug)]
 pub(crate) struct CompactGroupMaterializationPlanV1 {
     request: TypedCompactGroupMaterializationRequestV1,
     catalog_key: CompactGroupCatalogKeyV1,
     attachment_index: u8,
-    exterior_bond_id: PersistentId,
-    exterior_endpoint_is_start: bool,
-    anchor_id: PersistentId,
+    topology: CompactGroupMaterializationTopologyV1,
     anchor_x: f64,
     anchor_y: f64,
     orientation_radians: f64,
@@ -73,9 +84,7 @@ impl CompactGroupMaterializationPlanV1 {
     fn has_same_provenance_as(&self, current: &Self) -> bool {
         self.catalog_key == current.catalog_key
             && self.attachment_index == current.attachment_index
-            && self.exterior_bond_id == current.exterior_bond_id
-            && self.exterior_endpoint_is_start == current.exterior_endpoint_is_start
-            && self.anchor_id == current.anchor_id
+            && self.topology == current.topology
             && self.anchor_x.to_bits() == current.anchor_x.to_bits()
             && self.anchor_y.to_bits() == current.anchor_y.to_bits()
             && self.orientation_radians.to_bits() == current.orientation_radians.to_bits()
@@ -120,15 +129,17 @@ impl TypedDocument {
             .ok_or(CompactGroupMaterializationRefusalV1::InvalidTarget)?;
         direct_element_by_id(tree, molecule, "compact-group", &request.compact_group_id)
             .ok_or(CompactGroupMaterializationRefusalV1::InvalidTarget)?;
-        let typed_group = self
+        let typed_molecule = self
             .root()
             .children_of(TypedClass::Molecule)
             .find(|record| record.attribute("id") == Some(request.molecule_id.as_str()))
-            .and_then(|record| {
-                record.typed_children().iter().find(|child| {
-                    child.record().class() == TypedClass::CompactGroup
-                        && child.record().attribute("id") == Some(request.compact_group_id.as_str())
-                })
+            .ok_or(CompactGroupMaterializationRefusalV1::InvalidTarget)?;
+        let typed_group = typed_molecule
+            .typed_children()
+            .iter()
+            .find(|child| {
+                child.record().class() == TypedClass::CompactGroup
+                    && child.record().attribute("id") == Some(request.compact_group_id.as_str())
             })
             .ok_or(CompactGroupMaterializationRefusalV1::InvalidTarget)?;
         let projection = super::compact_group_projection_v1::compact_group(typed_group)
@@ -145,27 +156,53 @@ impl TypedDocument {
             .filter(|node| is_cdml_element(tree, *node, "atom"))
             .filter_map(|node| attribute(tree, node, "id").map(|id| (id, node)))
             .collect::<Vec<_>>();
+        let direct_groups = tree
+            .children(molecule)
+            .filter(|node| is_cdml_element(tree, *node, "compact-group"))
+            .collect::<Vec<_>>();
+        let direct_bonds = tree
+            .children(molecule)
+            .filter(|node| is_cdml_element(tree, *node, "bond"))
+            .collect::<Vec<_>>();
         let exterior = tree
             .children(molecule)
             .filter(|node| is_cdml_element(tree, *node, "bond"))
             .filter_map(|bond| exterior_bond(tree, bond, request.compact_group_id.as_str()))
             .collect::<Vec<_>>();
-        let [(exterior_bond, other_endpoint, exterior_endpoint_is_start)] = exterior.as_slice()
-        else {
-            return Err(CompactGroupMaterializationRefusalV1::InvalidTopology);
-        };
-        if !direct_atoms
-            .iter()
-            .any(|(id, _)| *id == other_endpoint.as_str())
+        let topology = if direct_atoms.is_empty()
+            && direct_bonds.is_empty()
+            && direct_groups.len() == 1
+            && attribute(tree, direct_groups[0], "id") == Some(request.compact_group_id.as_str())
+            && typed_molecule
+                .typed_children()
+                .iter()
+                .filter(|child| child.record().class() == TypedClass::CompactGroup)
+                .count()
+                == 1
         {
-            return Err(CompactGroupMaterializationRefusalV1::InvalidTopology);
-        }
-        let exterior_bond_id = PersistentId::new(
-            attribute(tree, *exterior_bond, "id")
-                .unwrap_or_default()
-                .to_owned(),
-        )
-        .map_err(|_| CompactGroupMaterializationRefusalV1::InvalidTopology)?;
+            CompactGroupMaterializationTopologyV1::DirectRoot
+        } else {
+            let [(exterior_bond, other_endpoint, exterior_endpoint_is_start)] = exterior.as_slice()
+            else {
+                return Err(CompactGroupMaterializationRefusalV1::InvalidTopology);
+            };
+            if !direct_atoms
+                .iter()
+                .any(|(id, _)| *id == other_endpoint.as_str())
+            {
+                return Err(CompactGroupMaterializationRefusalV1::InvalidTopology);
+            }
+            let exterior_bond_id = PersistentId::new(
+                attribute(tree, *exterior_bond, "id")
+                    .unwrap_or_default()
+                    .to_owned(),
+            )
+            .map_err(|_| CompactGroupMaterializationRefusalV1::InvalidTopology)?;
+            CompactGroupMaterializationTopologyV1::Attached {
+                exterior_bond_id,
+                exterior_endpoint_is_start: *exterior_endpoint_is_start,
+            }
+        };
         if (!request.atom_ids.is_empty() || !request.bond_ids.is_empty())
             && (request.atom_ids.len() != recipe.atoms.len()
                 || request.bond_ids.len() != recipe.bonds.len()
@@ -183,10 +220,7 @@ impl TypedDocument {
             request,
             catalog_key: projection.catalog_key(),
             attachment_index,
-            exterior_bond_id,
-            exterior_endpoint_is_start: *exterior_endpoint_is_start,
-            anchor_id: PersistentId::new(other_endpoint.to_owned())
-                .map_err(|_| CompactGroupMaterializationRefusalV1::InvalidTopology)?,
+            topology,
             anchor_x: projection.anchor().x(),
             anchor_y: projection.anchor().y(),
             orientation_radians: projection.orientation_degrees().to_radians(),
@@ -227,8 +261,6 @@ impl TypedDocument {
             &plan.request.compact_group_id,
         )
         .ok_or(CompactGroupMaterializationRefusalV1::InvalidTarget)?;
-        let exterior_bond = direct_element_by_id(tree, molecule, "bond", &plan.exterior_bond_id)
-            .ok_or(CompactGroupMaterializationRefusalV1::InvalidTopology)?;
         let namespace = element_name(tree, molecule)
             .map(|(_, namespace)| namespace)
             .unwrap_or_default();
@@ -245,6 +277,7 @@ impl TypedDocument {
                 &namespace,
                 id,
                 atom.element,
+                atom.formal_charge,
                 plan.anchor_x + x,
                 plan.anchor_y + y,
             );
@@ -266,16 +299,24 @@ impl TypedDocument {
             tree.insert_before(group, node)
                 .map_err(|_| CompactGroupMaterializationRefusalV1::InvalidCandidate)?;
         }
-        let endpoint_name = tree.add_name(if plan.exterior_endpoint_is_start {
-            "start"
-        } else {
-            "end"
-        });
-        tree.set_attribute(
-            exterior_bond,
-            endpoint_name,
-            plan.request.atom_ids[attachment_index].as_str(),
-        );
+        if let CompactGroupMaterializationTopologyV1::Attached {
+            exterior_bond_id,
+            exterior_endpoint_is_start,
+        } = &plan.topology
+        {
+            let exterior_bond = direct_element_by_id(tree, molecule, "bond", exterior_bond_id)
+                .ok_or(CompactGroupMaterializationRefusalV1::InvalidTopology)?;
+            let endpoint_name = tree.add_name(if *exterior_endpoint_is_start {
+                "start"
+            } else {
+                "end"
+            });
+            tree.set_attribute(
+                exterior_bond,
+                endpoint_name,
+                plan.request.atom_ids[attachment_index].as_str(),
+            );
+        }
         tree.remove(group)
             .map_err(|_| CompactGroupMaterializationRefusalV1::InvalidCandidate)?;
         let serialized = candidate
@@ -357,6 +398,7 @@ fn new_atom(
     namespace: &str,
     id: &PersistentId,
     element: &str,
+    formal_charge: Option<i32>,
     x: f64,
     y: f64,
 ) -> Node {
@@ -364,11 +406,15 @@ fn new_atom(
     let point_name = element_name_id(tree, "point", namespace);
     let id_name = tree.add_name("id");
     let atom_element_name = tree.add_name("name");
+    let charge_name = tree.add_name("charge");
     let x_name = tree.add_name("x");
     let y_name = tree.add_name("y");
     let atom = tree.new_element(atom_name);
     tree.set_attribute(atom, id_name, id.as_str());
     tree.set_attribute(atom, atom_element_name, element);
+    if let Some(formal_charge) = formal_charge {
+        tree.set_attribute(atom, charge_name, formal_charge.to_string());
+    }
     let point = tree.new_element(point_name);
     tree.set_attribute(point, x_name, x.to_string());
     tree.set_attribute(point, y_name, y.to_string());
@@ -461,6 +507,59 @@ mod tests {
             .expect("candidate");
         assert_eq!(result.attachment_focus().as_str(), "nitrogen");
         assert!(result.candidate().core_projection().is_ok());
+    }
+
+    #[test]
+    fn direct_root_methyl_becomes_one_explicit_atom_without_a_compact_group() {
+        let document = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group></molecule></cdml>").expect("typed direct root");
+        let result = document
+            .prepare_compact_group_materialization_v1(
+                TypedCompactGroupMaterializationRequestV1::new(
+                    id("m"),
+                    id("group"),
+                    vec![id("methyl-carbon")],
+                    vec![],
+                ),
+            )
+            .and_then(|plan| document.materialize_compact_group_v1(&plan))
+            .expect("direct-root materialization");
+        let molecule = result
+            .candidate()
+            .root()
+            .children_of(TypedClass::Molecule)
+            .next()
+            .expect("materialized molecule");
+        assert_eq!(result.attachment_focus().as_str(), "methyl-carbon");
+        assert_eq!(
+            molecule
+                .typed_children()
+                .iter()
+                .filter(|child| child.record().class() == TypedClass::Atom)
+                .count(),
+            1
+        );
+        assert!(
+            molecule
+                .typed_children()
+                .iter()
+                .all(|child| child.record().class() != TypedClass::CompactGroup)
+        );
+    }
+
+    #[test]
+    fn mixed_detached_molecule_refuses_materialization() {
+        let document = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"other\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group></molecule></cdml>").expect("typed mixed direct root");
+        assert!(matches!(
+            document.prepare_compact_group_materialization_v1(
+                TypedCompactGroupMaterializationRequestV1::new(
+                    id("m"),
+                    id("group"),
+                    vec![id("methyl-carbon")],
+                    vec![],
+                ),
+            ),
+            Err(CompactGroupMaterializationRefusalV1::InvalidTopology)
+        ));
     }
 
     #[test]

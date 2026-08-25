@@ -10,7 +10,8 @@ use thiserror::Error;
 
 use super::{
     catalog_reaction_dto::*, document_general_dto::*, document_interchange_dto::*,
-    document_observation_dto::*, document_report_dto::*, dto_errors::*, presentation_author_dto::*,
+    document_molecule_diagnostics_dto::*, document_observation_dto::*, document_report_dto::*,
+    dto_errors::*, presentation_author_dto::*,
 };
 
 /// Exact schema identifier accepted for V1 requests.
@@ -122,12 +123,12 @@ pub enum OperationProtocolOperationV1 {
     ReactionPatchMembership(ReactionPatchMembershipRequestV1),
     #[serde(rename = "reaction.delete-definition.v1")]
     ReactionDeleteDefinition(ReactionObserveRequestV1),
-    /// Translate every direct durable member of one strict reaction aggregate.
-    #[serde(rename = "reaction.translate.v1")]
-    ReactionTranslate(ReactionTranslateRequestV1),
     /// Read bounded composition and authored-fact reports for direct molecule roots.
     #[serde(rename = "document.molecule.report.v1")]
     DocumentMoleculeReport(DocumentMoleculeReportRequestV1),
+    /// Check selected direct roots through Ferrum's bounded structure diagnostics.
+    #[serde(rename = "document.molecule.diagnostics.v1")]
+    DocumentMoleculeDiagnostics(DocumentMoleculeDiagnosticsRequestV1),
     /// Search direct molecules from one bounded, request-owned document.
     #[serde(rename = "document.molecule.smarts.query.v1")]
     DocumentSmartsQuery(DocumentSmartsQueryRequestV1),
@@ -256,7 +257,7 @@ pub enum OperationProtocolOutcomeV1 {
     #[serde(rename = "reaction.create.v1")]
     ReactionCreate {
         document: String,
-        reaction_id: String,
+        reaction_document_object_id: String,
         input_revision: u64,
         committed_revision: u64,
         next_input_expected_revision: u64,
@@ -281,13 +282,12 @@ pub enum OperationProtocolOutcomeV1 {
         input_revision: u64,
         next_input_expected_revision: u64,
         digest_hex: String,
-        reaction_id: String,
-        membership_digest: String,
+        reaction_document_object_id: String,
     },
     #[serde(rename = "reaction.patch-membership.v1")]
     ReactionPatchMembership {
         document: String,
-        reaction_id: String,
+        reaction_document_object_id: String,
         input_revision: u64,
         committed_revision: u64,
         next_input_expected_revision: u64,
@@ -296,16 +296,7 @@ pub enum OperationProtocolOutcomeV1 {
     #[serde(rename = "reaction.delete-definition.v1")]
     ReactionDeleteDefinition {
         document: String,
-        reaction_id: String,
-        input_revision: u64,
-        committed_revision: u64,
-        next_input_expected_revision: u64,
-        digest_hex: String,
-    },
-    #[serde(rename = "reaction.translate.v1")]
-    ReactionTranslate {
-        document: String,
-        reaction_id: String,
+        reaction_document_object_id: String,
         input_revision: u64,
         committed_revision: u64,
         next_input_expected_revision: u64,
@@ -315,6 +306,11 @@ pub enum OperationProtocolOutcomeV1 {
     #[serde(rename = "document.molecule.report.v1")]
     DocumentMoleculeReport {
         report: DocumentMoleculeReportSummaryV1,
+    },
+    /// Deterministic, runtime-free findings for selected direct molecule roots.
+    #[serde(rename = "document.molecule.diagnostics.v1")]
+    DocumentMoleculeDiagnostics {
+        diagnostics: DocumentMoleculeDiagnosticsSummaryV1,
     },
     /// Bounded non-redeemable SMARTS query facts.
     #[serde(rename = "document.molecule.smarts.query.v1")]
@@ -396,7 +392,7 @@ const fn protocol_request_limit(
 }
 
 impl OperationProtocolOperationV1 {
-    pub(in crate::protocol) const fn kind(&self) -> ProtocolOperationKindV1 {
+    pub(crate) const fn kind(&self) -> ProtocolOperationKindV1 {
         match self {
             Self::Inspect(_) => ProtocolOperationKindV1::Inspect,
             Self::Validate(_) => ProtocolOperationKindV1::Validate,
@@ -413,8 +409,10 @@ impl OperationProtocolOperationV1 {
             Self::ReactionSelect(_) => ProtocolOperationKindV1::ReactionSelect,
             Self::ReactionPatchMembership(_) => ProtocolOperationKindV1::ReactionPatchMembership,
             Self::ReactionDeleteDefinition(_) => ProtocolOperationKindV1::ReactionDeleteDefinition,
-            Self::ReactionTranslate(_) => ProtocolOperationKindV1::ReactionTranslate,
             Self::DocumentMoleculeReport(_) => ProtocolOperationKindV1::DocumentMoleculeReport,
+            Self::DocumentMoleculeDiagnostics(_) => {
+                ProtocolOperationKindV1::DocumentMoleculeDiagnostics
+            }
             Self::DocumentSmartsQuery(_) => ProtocolOperationKindV1::DocumentSmartsQuery,
             Self::DocumentAtomOxidationObserve(_) => {
                 ProtocolOperationKindV1::DocumentAtomOxidationObserve

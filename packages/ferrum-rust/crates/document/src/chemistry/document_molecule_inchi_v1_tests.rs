@@ -176,10 +176,9 @@ fn invalid_target_or_styled_bond_never_reaches_the_engine() {
     ));
     assert!(styled_error.to_string().contains("native InChI boundary"));
     assert!(!styled_error.to_string().contains("coordinate generation"));
-    let unknown = DocumentObjectIdV1::parse(
-        "ferrum-document-object-v1/6d6f6c6563756c65/source/6d697373696e67",
-    )
-    .expect("test selector uses the closed grammar");
+    let unknown =
+        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
+            .expect("test selector uses the closed grammar");
     assert!(matches!(
         export_document_molecule_inchi_v1(&engine, &observation, &unknown, InchiMode::Standard,),
         Err(DocumentMoleculeInchiError::UnknownMolecule { .. })

@@ -1,5 +1,5 @@
 use ferrum_document_projection::{
-    DocumentProjectionProvenanceV1, DocumentProjectionV1, PaperAttributesV1,
+    DocumentProjectionProvenanceV1, DocumentProjectionV1, PaperAttributesV1, PaperLayoutFactsV1,
     PaperLayoutProjectionV1, PaperOrientationV1, PaperPageV1, PositiveFiniteV1,
     PresentationStackProjectionV1, ViewportAttributesV1,
 };
@@ -25,14 +25,17 @@ fn empty_projection() -> DocumentProjectionV1 {
         PaperLayoutProjectionV1::new(
             revision,
             digest,
-            false,
-            PaperAttributesV1::default(),
-            PaperAttributesV1::default(),
-            ViewportAttributesV1::default(),
-            "A4".to_owned(),
-            PaperOrientationV1::Portrait,
-            page,
+            PaperLayoutFactsV1 {
+                paper_present: false,
+                paper_attributes: PaperAttributesV1::default(),
+                effective_paper_attributes: PaperAttributesV1::default(),
+                viewport_attributes: ViewportAttributesV1::default(),
+                default_type: "A4".to_owned(),
+                default_orientation: PaperOrientationV1::Portrait,
+                page,
+            },
         ),
+        Vec::new(),
         Vec::new(),
         stack,
         Vec::new(),

@@ -1,11 +1,12 @@
 use ferrum_core::{Identifier, RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 use serde_json::json;
 
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::*;
 
-fn target(kind: RecordKind, id: &str, source_order: u32) -> RenderTarget {
-    let identifier = Identifier::new(id).expect("test source identifier is valid");
-    RenderTarget::new(RecordId::from_source(kind, &identifier), source_order)
+fn target(byte: u8) -> RenderTarget {
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([byte; 16]))
 }
 
 fn point(x: f64, y: f64) -> RenderPoint {
@@ -87,19 +88,15 @@ fn plan() -> MoleculeRenderPlan {
         RenderProvenance::new(RenderRevision::new(8).expect("revision"), [8; 32]),
         vec![
             RenderBatch::new(
-                target(RecordKind::Atom, "a1", 3),
+                target(0x11),
+                3,
                 BatchSpace::AtomLocal {
                     anchor: point(2.0, 4.0),
                 },
                 vec![label()],
             )
             .expect("atom batch"),
-            RenderBatch::new(
-                target(RecordKind::Bond, "b1", 4),
-                BatchSpace::Scene,
-                vec![line()],
-            )
-            .expect("bond batch"),
+            RenderBatch::new(target(0x12), 4, BatchSpace::Scene, vec![line()]).expect("bond batch"),
         ],
         vec![],
     )
@@ -116,19 +113,71 @@ fn plan_json_is_canonical_and_round_trips() {
     assert_eq!(restored, original);
     assert!(first.starts_with("{\"schema\":\"ferrum-render-plan-v2\""));
     assert!(first.contains("\"paint\":\"112233\""));
+    assert_eq!(
+        original
+            .batches()
+            .iter()
+            .map(RenderBatch::paint_order)
+            .collect::<Vec<_>>(),
+        vec![3, 4]
+    );
+}
+
+#[test]
+fn public_targets_serialize_only_durable_document_identity() {
+    let durable_target = target(0x21);
+    let wire = serde_json::to_value(&durable_target).expect("target serializes");
+    let fields = wire.as_object().expect("target object");
+    assert_eq!(fields.len(), 1);
+    assert_eq!(
+        wire["document_object_id"],
+        json!(durable_target.document_object_id().as_str())
+    );
+    for local_field in [
+        "record_id",
+        "source_order",
+        "paint_order",
+        "owner_molecule_object_id",
+    ] {
+        assert!(fields.get(local_field).is_none(), "no {local_field} field");
+    }
+
+    let mut forged = wire;
+    forged["record_id"] = json!("atom:source_a1");
+    assert!(serde_json::from_value::<RenderTarget>(forged).is_err());
+}
+
+#[test]
+fn private_context_carries_source_kind_and_paint_order_into_batch_construction() {
+    let context = RenderPlanEntryContextV1::new(
+        target(0x22),
+        RecordId::new(
+            RecordKind::Atom,
+            Identifier::new("source_a1").expect("test source identifier is valid"),
+        )
+        .expect("test record ID"),
+        9,
+        Some(DocumentObjectIdV1::from_entropy_bytes([0x23; 16])),
+    );
+    let batch = RenderBatch::from_context(
+        context,
+        BatchSpace::AtomLocal {
+            anchor: point(0.0, 0.0),
+        },
+        vec![label()],
+    )
+    .expect("atom source produces atom-local batch");
+    assert_eq!(batch.paint_order(), 9);
+    assert_eq!(
+        batch.target().document_object_id(),
+        target(0x22).document_object_id()
+    );
 }
 
 #[test]
 fn scene_path_requires_closed_finite_drawable_painted_geometry() {
     let accepted = filled_path();
-    assert!(
-        RenderBatch::new(
-            target(RecordKind::Bond, "path", 1),
-            BatchSpace::Scene,
-            vec![accepted],
-        )
-        .is_ok()
-    );
+    assert!(RenderBatch::new(target(0x31), 1, BatchSpace::Scene, vec![accepted],).is_ok());
     assert!(
         PathOpV2::new(
             vec![
@@ -168,12 +217,8 @@ fn scene_path_requires_closed_finite_drawable_painted_geometry() {
     let path_plan = MoleculeRenderPlan::new(
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
         vec![
-            RenderBatch::new(
-                target(RecordKind::Bond, "path-wire", 1),
-                BatchSpace::Scene,
-                vec![filled_path()],
-            )
-            .expect("path batch"),
+            RenderBatch::new(target(0x32), 1, BatchSpace::Scene, vec![filled_path()])
+                .expect("path batch"),
         ],
         vec![],
     )
@@ -293,27 +338,11 @@ fn inbound_text_runs_reject_forged_or_non_scalar_telex_layouts() {
 
 #[test]
 fn coordinate_space_target_and_operation_grammar_is_closed() {
+    assert!(RenderBatch::new(target(0x42), 1, BatchSpace::Scene, vec![line()]).is_ok());
     assert!(
         RenderBatch::new(
-            target(RecordKind::Bond, "b1", 1),
-            BatchSpace::AtomLocal {
-                anchor: point(0.0, 0.0)
-            },
-            vec![label()]
-        )
-        .is_err()
-    );
-    assert!(
-        RenderBatch::new(
-            target(RecordKind::Atom, "a1", 1),
-            BatchSpace::Scene,
-            vec![line()]
-        )
-        .is_err()
-    );
-    assert!(
-        RenderBatch::new(
-            target(RecordKind::Atom, "a1", 1),
+            target(0x43),
+            1,
             BatchSpace::AtomLocal {
                 anchor: point(0.0, 0.0)
             },
@@ -321,21 +350,15 @@ fn coordinate_space_target_and_operation_grammar_is_closed() {
         )
         .is_ok()
     );
-    assert!(
-        RenderBatch::new(
-            target(RecordKind::Bond, "b1", 1),
-            BatchSpace::Scene,
-            vec![label()]
-        )
-        .is_err()
-    );
+    assert!(RenderBatch::new(target(0x44), 1, BatchSpace::Scene, vec![label()]).is_err());
 }
 
 #[test]
-fn duplicate_durable_targets_are_rejected_even_when_projection_order_differs() {
-    let atom = target(RecordKind::Atom, "a1", 1);
+fn duplicate_durable_targets_are_rejected_even_when_paint_order_differs() {
+    let atom = target(0x51);
     let first = RenderBatch::new(
         atom.clone(),
+        1,
         BatchSpace::AtomLocal {
             anchor: point(0.0, 0.0),
         },
@@ -343,7 +366,8 @@ fn duplicate_durable_targets_are_rejected_even_when_projection_order_differs() {
     )
     .expect("batch");
     let second = RenderBatch::new(
-        RenderTarget::new(atom.record_id().clone(), 9),
+        atom,
+        9,
         BatchSpace::AtomLocal {
             anchor: point(1.0, 0.0),
         },
@@ -363,19 +387,15 @@ fn duplicate_durable_targets_are_rejected_even_when_projection_order_differs() {
 #[test]
 fn batches_and_operations_require_explicit_stable_order() {
     let atom = RenderBatch::new(
-        target(RecordKind::Atom, "a1", 4),
+        target(0x61),
+        4,
         BatchSpace::AtomLocal {
             anchor: point(0.0, 0.0),
         },
         vec![label()],
     )
     .expect("batch");
-    let bond = RenderBatch::new(
-        target(RecordKind::Bond, "b1", 3),
-        BatchSpace::Scene,
-        vec![line()],
-    )
-    .expect("batch");
+    let bond = RenderBatch::new(target(0x62), 3, BatchSpace::Scene, vec![line()]).expect("batch");
     assert!(
         MoleculeRenderPlan::new(
             RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
@@ -403,7 +423,8 @@ fn batches_and_operations_require_explicit_stable_order() {
     .expect("line");
     assert!(
         RenderBatch::new(
-            target(RecordKind::Bond, "b2", 6),
+            target(0x63),
+            6,
             BatchSpace::Scene,
             vec![RenderOp::Line(back), RenderOp::Line(front)],
         )
@@ -414,7 +435,8 @@ fn batches_and_operations_require_explicit_stable_order() {
 #[test]
 fn issues_are_validated_without_creating_partial_batches() {
     let issue = RenderIssue::new(
-        target(RecordKind::Bond, "b1", 0),
+        target(0x71),
+        0,
         RenderIssueKind::UnsupportedFeature {
             feature: "aromatic bond".to_owned(),
         },
@@ -428,10 +450,11 @@ fn issues_are_validated_without_creating_partial_batches() {
     .expect("plan");
     assert!(result.batches().is_empty());
     assert_eq!(result.issues().len(), 1);
-    assert_eq!(result.issues()[0].target().source_order(), 0);
+    assert_eq!(result.issues()[0].paint_order(), 0);
     assert!(
         RenderIssue::new(
-            target(RecordKind::Bond, "b2", 0),
+            target(0x72),
+            1,
             RenderIssueKind::UnrenderableTarget {
                 reason: " ".to_owned()
             }
@@ -443,7 +466,8 @@ fn issues_are_validated_without_creating_partial_batches() {
 #[test]
 fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     let batch = RenderBatch::new(
-        target(RecordKind::Atom, "a1", 3),
+        target(0x81),
+        3,
         BatchSpace::AtomLocal {
             anchor: point(0.0, 0.0),
         },
@@ -451,7 +475,8 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     )
     .expect("batch");
     let issue = RenderIssue::new(
-        target(RecordKind::Bond, "b1", 4),
+        target(0x82),
+        4,
         RenderIssueKind::UnsupportedFeature {
             feature: "aromatic bond".to_owned(),
         },
@@ -465,10 +490,11 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     .expect("partition");
     let json = plan.to_canonical_json().expect("serialize");
     let restored = MoleculeRenderPlan::from_json(&json).expect("deserialize");
-    assert_eq!(restored.issues()[0].target().source_order(), 4);
+    assert_eq!(restored.issues()[0].paint_order(), 4);
 
     let conflicting_issue = RenderIssue::new(
-        target(RecordKind::Atom, "a1", 5),
+        target(0x81),
+        5,
         RenderIssueKind::UnrenderableTarget {
             reason: "missing label facts".to_owned(),
         },
@@ -484,7 +510,8 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     );
 
     let duplicate_order_issue = RenderIssue::new(
-        target(RecordKind::Bond, "b2", 3),
+        target(0x83),
+        3,
         RenderIssueKind::UnsupportedFeature {
             feature: "wedge bond".to_owned(),
         },
@@ -500,7 +527,8 @@ fn exclusions_and_batches_form_a_unique_ordered_target_partition() {
     );
 
     let later = RenderIssue::new(
-        target(RecordKind::Bond, "b3", 7),
+        target(0x84),
+        7,
         RenderIssueKind::UnsupportedFeature {
             feature: "double bond".to_owned(),
         },
@@ -565,6 +593,7 @@ fn deserialization_rejects_partition_contradictions_and_noncanonical_payloads() 
         serde_json::from_str(&original.to_canonical_json().expect("serialize")).expect("value");
     wire["issues"] = json!([{
         "target": wire["batches"][0]["target"].clone(),
+        "paint_order": 5,
         "kind": {"kind": "unsupported_feature", "feature": "aromatic bond"}
     }]);
     assert!(MoleculeRenderPlan::from_json(&wire.to_string()).is_err());
@@ -573,11 +602,13 @@ fn deserialization_rejects_partition_contradictions_and_noncanonical_payloads() 
         serde_json::from_str(&original.to_canonical_json().expect("serialize")).expect("value");
     duplicate_issue["issues"] = json!([
         {
-            "target": {"record_id": target(RecordKind::Bond, "b3", 7).record_id(), "source_order": 7},
+            "target": {"document_object_id": target(0x91).document_object_id()},
+            "paint_order": 7,
             "kind": {"kind": "unsupported_feature", "feature": "aromatic bond"}
         },
         {
-            "target": {"record_id": target(RecordKind::Bond, "b4", 6).record_id(), "source_order": 6},
+            "target": {"document_object_id": target(0x92).document_object_id()},
+            "paint_order": 6,
             "kind": {"kind": "unrenderable_target", "reason": "no geometry"}
         }
     ]);
@@ -603,7 +634,8 @@ fn deserialization_rejects_partition_contradictions_and_noncanonical_payloads() 
     let mut unknown: serde_json::Value =
         serde_json::from_str(&original.to_canonical_json().expect("serialize")).expect("value");
     unknown["issues"] = json!([{
-        "target": {"record_id": target(RecordKind::Bond, "b5", 9).record_id(), "source_order": 9},
+        "target": {"document_object_id": target(0x93).document_object_id()},
+        "paint_order": 9,
         "kind": {"kind": "unknown", "feature": "future"}
     }]);
     assert!(MoleculeRenderPlan::from_json(&unknown.to_string()).is_err());

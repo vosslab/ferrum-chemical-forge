@@ -4,7 +4,7 @@ use xot::{Node, Xot};
 
 use super::{
     CDML_NAMESPACE, PersistentId, TextEditRunV1, TextEditStyleV1, TextPropertiesPatchV1,
-    TextPropertyChangeV1, TypedDocument, TypedDocumentError, element_name,
+    TextPropertyChangeV1, TypedClass, TypedDocument, TypedDocumentError, element_name,
 };
 
 impl TypedDocument {
@@ -13,17 +13,25 @@ impl TypedDocument {
         &self,
         patch: &TextPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
+        let Some(record) = self.resolve_document_object_id(patch.text_object_id()) else {
+            return Ok(None);
+        };
+        if record.class() != TypedClass::CanvasText || record.path().components().len() != 1 {
+            return Ok(None);
+        }
+        let text_id = source_id(record)?;
+
         let mut candidate = self.detached_candidate()?;
         let indexed = candidate.detached_indexed_mut();
         let text = direct_text(
             &mut indexed.xml.tree,
             indexed.xml.document,
-            patch.text_id().as_str(),
+            text_id.as_str(),
         );
         let Some(text) = text else {
             return Ok(None);
         };
-        let (point, ftext) = editable_core(&indexed.xml.tree, text, patch.text_id())?;
+        let (point, ftext) = editable_core(&indexed.xml.tree, text, &text_id)?;
         let create_font = patch.changes().iter().any(|change| {
             matches!(
                 change,
@@ -32,24 +40,26 @@ impl TypedDocument {
                     | TextPropertyChangeV1::Color(_)
             )
         });
-        let font = editable_font(
-            &mut indexed.xml.tree,
-            text,
-            point,
-            patch.text_id(),
-            create_font,
-        )?;
+        let font = editable_font(&mut indexed.xml.tree, text, point, &text_id, create_font)?;
         apply_changes(
             &mut indexed.xml.tree,
             text,
             ftext,
             font,
             patch.changes(),
-            patch.text_id(),
+            &text_id,
         )?;
         let serialized = candidate.to_xml()?;
         Self::parse(&serialized).map(Some)
     }
+}
+
+fn source_id(record: &super::TypedRecord) -> Result<PersistentId, TypedDocumentError> {
+    let fallback = PersistentId::new("text").expect("closed fallback ID is valid");
+    record
+        .attribute("id")
+        .and_then(|source_id| PersistentId::new(source_id.to_owned()).ok())
+        .ok_or(TypedDocumentError::InvalidTextStructure(fallback))
 }
 
 fn direct_text(tree: &mut Xot, document: Node, identifier: &str) -> Option<Node> {

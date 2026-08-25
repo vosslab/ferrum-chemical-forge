@@ -126,20 +126,26 @@ impl DocumentSession {
         let revision = self
             .next_revision_v1()
             .ok_or(AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
+        let overlay_targets = atom_ids
+            .iter()
+            .map(|atom| {
+                document
+                    .document_object_id_for_source_id_v1(atom)
+                    .map(AcceptedRenderOverlayTargetV1::atom)
+                    .ok_or(AttachedCyclohexaneSessionErrorV1::RendererAdmission)
+            })
+            .chain(bond_ids.iter().map(|bond| {
+                document
+                    .document_object_id_for_source_id_v1(bond)
+                    .map(AcceptedRenderOverlayTargetV1::bond)
+                    .ok_or(AttachedCyclohexaneSessionErrorV1::RendererAdmission)
+            }))
+            .collect::<Result<Vec<_>, _>>()?;
         let state = RevisionState::from_document(revision, document)
             .map_err(|_| AttachedCyclohexaneSessionErrorV1::SessionConflict)?;
         let mut transition = self
             .prepare_changed_session_transition_v1(fence.revision(), fence.digest(), state, effects)
             .map_err(map_prepare_error)?;
-        let overlay_targets = atom_ids
-            .iter()
-            .map(|atom| AcceptedRenderOverlayTargetV1::atom(atom.as_str()))
-            .chain(
-                bond_ids
-                    .iter()
-                    .map(|bond| AcceptedRenderOverlayTargetV1::bond(bond.as_str())),
-            )
-            .collect();
         let overlay_request = AcceptedRenderOverlayRequestV1::new(overlay_targets)
             .map_err(|_| AttachedCyclohexaneSessionErrorV1::RendererAdmission)?;
         let precommit_overlay = transition

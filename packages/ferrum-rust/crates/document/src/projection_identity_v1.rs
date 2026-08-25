@@ -4,7 +4,7 @@ use ferrum_document_projection::{DocumentObjectIdV1, ProjectionError, Projection
 
 use crate::TypedRecord;
 
-/// Derive a durable lower identity from one retained typed record.
+/// Read a persisted durable lower identity from one retained typed record.
 pub(crate) fn document_object_id_from_record_v1(
     record: &TypedRecord,
 ) -> Option<DocumentObjectIdV1> {
@@ -13,20 +13,20 @@ pub(crate) fn document_object_id_from_record_v1(
         .flatten()
 }
 
-/// Derive a durable identity for a projection without erasing malformed source facts.
+/// Read a persisted durable identity for a projection without erasing malformed metadata.
 pub(crate) fn projection_document_object_id_from_record_v1(
     record: &TypedRecord,
 ) -> Result<Option<DocumentObjectIdV1>, ProjectionError> {
     record
-        .attribute("id")
-        .map(|source_id| {
-            DocumentObjectIdV1::from_class_source(record.class().name(), source_id).map_err(
-                |error| ProjectionError::InvalidValue {
+        .document_object_id_metadata_v1()
+        .map(|value| {
+            DocumentObjectIdV1::parse(value.to_owned()).map_err(|error| {
+                ProjectionError::InvalidValue {
                     context: record.path().to_string(),
-                    field: "id",
-                    value: format!("{source_id:?}: {error}"),
-                },
-            )
+                    field: "document object identity",
+                    value: format!("{value:?}: {error}"),
+                }
+            })
         })
         .transpose()
 }
@@ -51,7 +51,7 @@ mod tests {
     use super::document_object_id_from_record_v1;
 
     #[test]
-    fn typed_record_derives_a_durable_lower_identity() {
+    fn typed_record_reads_a_persisted_durable_lower_identity() {
         let document =
             TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>")
                 .expect("typed document must parse");
@@ -61,11 +61,11 @@ mod tests {
             .next()
             .expect("typed document must retain its molecule");
 
-        assert_eq!(
+        assert!(
             document_object_id_from_record_v1(molecule)
-                .expect("authored ID must derive a durable identity")
-                .as_str(),
-            "ferrum-document-object-v1/63646d6c2f6d6f6c6563756c65/source/6d",
+                .expect("typed ingress must persist a durable identity")
+                .as_str()
+                .starts_with("ferrum-document-object-v1/")
         );
     }
 }

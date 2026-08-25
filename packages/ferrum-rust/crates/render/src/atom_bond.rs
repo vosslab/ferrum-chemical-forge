@@ -11,10 +11,11 @@ use std::collections::{HashMap, HashSet};
 use ferrum_core::RecordKind;
 use ferrum_geometry::Point2;
 
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     CompactGroupBondEndpointV1, GlyphBounds, GlyphMetrics, MoleculeRenderPlan, Paint,
-    PositiveFinite, RenderError, RenderIssue, RenderIssueKind, RenderPoint, RenderProvenance,
-    RenderTarget,
+    PositiveFinite, RenderBatch, RenderError, RenderIssue, RenderIssueKind, RenderPoint,
+    RenderProvenance,
 };
 
 pub use atom::{
@@ -77,15 +78,15 @@ impl AtomBondRenderRequest {
         let mut source_orders = HashSet::new();
         for target in atoms
             .iter()
-            .map(AtomRenderTarget::target)
-            .chain(bonds.iter().map(BondRenderTarget::target))
+            .map(AtomRenderTarget::context)
+            .chain(bonds.iter().map(BondRenderTarget::context))
         {
             if !identifiers.insert(target.record_id().clone()) {
                 return Err(RenderError::InvalidRequest(
                     "atom-bond request has duplicate targets".to_owned(),
                 ));
             }
-            if !source_orders.insert(target.source_order()) {
+            if !source_orders.insert(target.paint_order()) {
                 return Err(RenderError::InvalidRequest(
                     "atom-bond request has duplicate source order".to_owned(),
                 ));
@@ -111,24 +112,24 @@ impl AtomBondRenderRequest {
         let mut identifiers = self
             .atoms
             .iter()
-            .map(AtomRenderTarget::target)
-            .chain(self.bonds.iter().map(BondRenderTarget::target))
-            .map(|target| target.record_id().clone())
+            .map(AtomRenderTarget::context)
+            .chain(self.bonds.iter().map(BondRenderTarget::context))
+            .map(|context| context.record_id().clone())
             .collect::<HashSet<_>>();
         let mut source_orders = self
             .atoms
             .iter()
-            .map(AtomRenderTarget::target)
-            .chain(self.bonds.iter().map(BondRenderTarget::target))
-            .map(RenderTarget::source_order)
+            .map(AtomRenderTarget::context)
+            .chain(self.bonds.iter().map(BondRenderTarget::context))
+            .map(RenderPlanEntryContextV1::paint_order)
             .collect::<HashSet<_>>();
         for endpoint in &compact_group_endpoints {
-            if !identifiers.insert(endpoint.target().record_id().clone()) {
+            if !identifiers.insert(endpoint.context().record_id().clone()) {
                 return Err(RenderError::InvalidRequest(
                     "atom-bond request has duplicate compact-group endpoint target".to_owned(),
                 ));
             }
-            if !source_orders.insert(endpoint.target().source_order()) {
+            if !source_orders.insert(endpoint.context().paint_order()) {
                 return Err(RenderError::InvalidRequest(
                     "atom-bond request has duplicate compact-group endpoint source order"
                         .to_owned(),
@@ -150,7 +151,7 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
     let mut endpoints = HashMap::new();
 
     for atom in &request.atoms {
-        let target = atom.target.clone();
+        let context = atom.context.clone();
         let outcome = atom.visibility.issue("atom target").map_or_else(
             || build_atom_batch(atom, atom.font.as_ref().unwrap_or(&request.font), metrics),
             |kind| Ok(Err(kind)),
@@ -158,7 +159,7 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
         match outcome? {
             Ok((batch, bounds)) => {
                 endpoints.insert(
-                    target.record_id().clone(),
+                    context.record_id().clone(),
                     RenderEndpointGeometry {
                         kind: RecordKind::Atom,
                         position: render_point_to_geometry(atom.position)?,
@@ -167,13 +168,13 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
                 );
                 batches.push(batch);
             }
-            Err(kind) => issues.push(RenderIssue::new(target, kind)?),
+            Err(kind) => issues.push(RenderIssue::from_context(context, kind)?),
         }
     }
 
     for endpoint in &request.compact_group_endpoints {
         endpoints.insert(
-            endpoint.target().record_id().clone(),
+            endpoint.context().record_id().clone(),
             RenderEndpointGeometry {
                 kind: RecordKind::Group,
                 position: render_point_to_geometry(endpoint.position())?,
@@ -183,7 +184,7 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
     }
 
     for bond in &request.bonds {
-        let target = bond.target.clone();
+        let context = bond.context.clone();
         let outcome = if let Some(kind) = bond.visibility.issue("bond target") {
             Err(kind)
         } else if let Some(style) = bond.style.unsupported_name() {
@@ -221,12 +222,12 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
         };
         match outcome {
             Ok(batch) => batches.push(batch),
-            Err(kind) => issues.push(RenderIssue::new(target, kind)?),
+            Err(kind) => issues.push(RenderIssue::from_context(context, kind)?),
         }
     }
 
-    batches.sort_by_key(|batch| batch.target().source_order());
-    issues.sort_by_key(|issue| issue.target().source_order());
+    batches.sort_by_key(RenderBatch::paint_order);
+    issues.sort_by_key(RenderIssue::paint_order);
     MoleculeRenderPlan::new(request.provenance, batches, issues)
 }
 struct RenderEndpointGeometry {

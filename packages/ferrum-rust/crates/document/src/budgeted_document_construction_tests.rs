@@ -30,14 +30,25 @@ fn assert_matching_semantics(
     assert_eq!(unbounded_snapshot.revision(), revision);
     assert_eq!(admitted_snapshot.is_dirty(), is_dirty);
     assert_eq!(unbounded_snapshot.is_dirty(), is_dirty);
-    assert_eq!(
-        admitted_observation.projection().molecules(),
-        unbounded_observation.projection().molecules()
+    let [admitted_molecule] = admitted_observation.projection().molecules() else {
+        panic!("admitted fixture must project one molecule");
+    };
+    let [unbounded_molecule] = unbounded_observation.projection().molecules() else {
+        panic!("unbounded fixture must project one molecule");
+    };
+    assert_eq!(admitted_molecule.source_id(), Some("m"));
+    assert_eq!(unbounded_molecule.source_id(), Some("m"));
+    assert_eq!(admitted_molecule.atoms().len(), 1);
+    assert_eq!(unbounded_molecule.atoms().len(), 1);
+    assert_eq!(admitted_molecule.atoms()[0].source_id(), Some("a"));
+    assert_eq!(unbounded_molecule.atoms()[0].source_id(), Some("a"));
+    assert_ne!(admitted_molecule.id(), unbounded_molecule.id());
+    assert_ne!(
+        admitted_molecule.atoms()[0].id(),
+        unbounded_molecule.atoms()[0].id()
     );
-    assert_eq!(
-        admitted_observation.projection().issues(),
-        unbounded_observation.projection().issues()
-    );
+    assert!(admitted_observation.projection().issues().is_empty());
+    assert!(unbounded_observation.projection().issues().is_empty());
 }
 
 #[test]

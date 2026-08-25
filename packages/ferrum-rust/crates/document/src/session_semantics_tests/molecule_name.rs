@@ -103,10 +103,7 @@ fn wrong_kind_foreign_and_invalid_name_leave_state_unchanged() {
         .id()
         .expect("atom is durable")
         .clone();
-    let foreign = DocumentObjectIdV1::parse(
-        "ferrum-document-object-v1/63646d6c2f6d6f6c6563756c65/source/6d697373696e67",
-    )
-    .expect("test selector is valid");
+    let foreign = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     for operation in [set_name(atom_id, Some("x")), set_name(foreign, Some("x"))] {
         assert!(matches!(
             session.apply_document_operation_v1(0, operation),

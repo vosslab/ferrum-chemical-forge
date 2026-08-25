@@ -2,8 +2,8 @@
 
 use ferrum_document::{
     AdmittedSessionTransitionRefusalV1, DocumentCompactGroupMaterializationRefusalV1,
-    DocumentCompactGroupMaterializationRequestV1 as DocumentRequest, DocumentSessionError,
-    PersistentId, SessionOperation, SessionOperationError, SessionOperationOutcomeV1,
+    DocumentCompactGroupMaterializationRequestV1 as DocumentRequest, DocumentObjectIdV1,
+    DocumentSessionError, SessionOperation, SessionOperationError, SessionOperationOutcomeV1,
     SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
 
@@ -195,8 +195,8 @@ pub(crate) fn compact_refusal(
     )
 }
 
-fn parse_object_id(value: &str, field: &str) -> Result<PersistentId, ExecutionFailureV1> {
-    PersistentId::new(value.to_owned()).map_err(|_| {
+fn parse_object_id(value: &str, field: &str) -> Result<DocumentObjectIdV1, ExecutionFailureV1> {
+    DocumentObjectIdV1::parse(value).map_err(|_| {
         ExecutionFailureV1::invalid_request(format!(
             "{field} is not a durable document object identifier"
         ))
@@ -229,5 +229,23 @@ const fn hexadecimal_nibble(byte: u8) -> Option<u8> {
         b'0'..=b'9' => Some(byte - b'0'),
         b'a'..=b'f' => Some(byte - b'a' + 10),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ferrum_document::DocumentObjectIdV1;
+
+    use super::parse_object_id;
+
+    #[test]
+    fn compact_materialization_selector_requires_a_durable_document_object_id() {
+        let expected = DocumentObjectIdV1::from_entropy_bytes([0x4a; 16]);
+
+        assert_eq!(
+            parse_object_id(expected.as_str(), "molecule_id").expect("durable selector parses"),
+            expected
+        );
+        assert!(parse_object_id("molecule-source-id", "molecule_id").is_err());
     }
 }

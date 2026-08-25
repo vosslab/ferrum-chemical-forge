@@ -3,8 +3,8 @@
 use xot::{Node, Xot};
 
 use super::{
-    CDML_NAMESPACE, PersistentId, PlusPropertiesPatchV1, PlusPropertyChangeV1, TypedDocument,
-    TypedDocumentError, element_name,
+    CDML_NAMESPACE, PersistentId, PlusPropertiesPatchV1, PlusPropertyChangeV1, TypedClass,
+    TypedDocument, TypedDocumentError, element_name,
 };
 
 impl TypedDocument {
@@ -13,32 +13,45 @@ impl TypedDocument {
         &self,
         patch: &PlusPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
+        let Some(record) = self.resolve_document_object_id(patch.plus_object_id()) else {
+            return Ok(None);
+        };
+        if record.class() != TypedClass::CanvasPlus || record.path().components().len() != 1 {
+            return Ok(None);
+        }
+        let plus_id = source_id(record, "plus")?;
+
         let mut candidate = self.detached_candidate()?;
         let indexed = candidate.detached_indexed_mut();
         let plus = direct_plus(
             &mut indexed.xml.tree,
             indexed.xml.document,
-            patch.plus_id().as_str(),
+            plus_id.as_str(),
         );
         let Some(plus) = plus else {
             return Ok(None);
         };
-        let point = editable_point(&indexed.xml.tree, plus, patch.plus_id())?;
+        let point = editable_point(&indexed.xml.tree, plus, &plus_id)?;
         let font_change = patch
             .changes()
             .iter()
             .any(|change| matches!(change, PlusPropertyChangeV1::FontFace(_)));
-        let font = editable_font(
-            &mut indexed.xml.tree,
-            plus,
-            point,
-            patch.plus_id(),
-            font_change,
-        )?;
+        let font = editable_font(&mut indexed.xml.tree, plus, point, &plus_id, font_change)?;
         apply_changes(&mut indexed.xml.tree, plus, font, patch.changes());
         let serialized = candidate.to_xml()?;
         Self::parse(&serialized).map(Some)
     }
+}
+
+fn source_id(
+    record: &super::TypedRecord,
+    fallback: &str,
+) -> Result<PersistentId, TypedDocumentError> {
+    let fallback = PersistentId::new(fallback).expect("closed fallback ID is valid");
+    record
+        .attribute("id")
+        .and_then(|source_id| PersistentId::new(source_id.to_owned()).ok())
+        .ok_or(TypedDocumentError::InvalidPlusStructure(fallback))
 }
 
 fn direct_plus(tree: &mut Xot, document: Node, identifier: &str) -> Option<Node> {

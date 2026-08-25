@@ -4,33 +4,32 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{PersistentId, PresentationRecordKindV1};
+use super::{DocumentObjectIdV1, PresentationRecordKindV1};
 
 /// One validated durable direct-root presentation selector.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PresentationRootSelectorV1 {
-    presentation_id: PersistentId,
+    document_object_id: DocumentObjectIdV1,
     kind: PresentationRecordKindV1,
 }
 
 impl PresentationRootSelectorV1 {
-    /// Validate one durable selector before document lookup.
-    pub fn new(
-        presentation_id: impl Into<String>,
+    /// Select one direct-root presentation record by its document-owned ID.
+    #[must_use]
+    pub const fn new(
+        document_object_id: DocumentObjectIdV1,
         kind: PresentationRecordKindV1,
-    ) -> Result<Self, PresentationRootSelectorV1Error> {
-        let presentation_id = PersistentId::new(presentation_id.into())
-            .map_err(|_| PresentationRootSelectorV1Error::InvalidPresentationId)?;
-        Ok(Self {
-            presentation_id,
+    ) -> Self {
+        Self {
+            document_object_id,
             kind,
-        })
+        }
     }
 
-    /// Return the durable authored direct-root identifier.
+    /// Return the opaque durable document-object selector.
     #[must_use]
-    pub fn presentation_id(&self) -> &PersistentId {
-        &self.presentation_id
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
 
     /// Return the exact direct-root record kind the caller selected.
@@ -40,30 +39,49 @@ impl PresentationRootSelectorV1 {
     }
 }
 
-/// Invalid presentation-root selector rejected before document lookup.
-#[derive(Clone, Debug, Error, Eq, PartialEq)]
-pub enum PresentationRootSelectorV1Error {
-    /// The durable direct-root presentation identifier is invalid.
-    #[error("presentation selection requires a valid persistent presentation ID")]
-    InvalidPresentationId,
+/// One validated deletion request for a direct-root presentation record.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PresentationRootDeletionV1 {
+    document_object_id: DocumentObjectIdV1,
+    kind: PresentationRecordKindV1,
 }
 
-/// Compatibility name for the single-root deletion operation's selector.
-pub type PresentationRootDeletionV1 = PresentationRootSelectorV1;
+impl PresentationRootDeletionV1 {
+    /// Delete one direct-root presentation record by its document-owned ID.
+    #[must_use]
+    pub const fn new(
+        document_object_id: DocumentObjectIdV1,
+        kind: PresentationRecordKindV1,
+    ) -> Self {
+        Self {
+            document_object_id,
+            kind,
+        }
+    }
 
-/// Compatibility name for invalid single-root deletion selectors.
-pub type PresentationRootDeletionV1Error = PresentationRootSelectorV1Error;
+    /// Return the opaque durable document-object selector.
+    #[must_use]
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
+    }
+
+    /// Return the exact direct-root record kind the caller selected.
+    #[must_use]
+    pub const fn kind(&self) -> PresentationRecordKindV1 {
+        self.kind
+    }
+}
 
 /// Complete validated selector set for one atomic presentation deletion.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PresentationRootDeletionSetV1 {
-    targets: Vec<PresentationRootSelectorV1>,
+    targets: Vec<PresentationRootDeletionV1>,
 }
 
 impl PresentationRootDeletionSetV1 {
     /// Validate a nonempty unique durable target set before document lookup.
     pub fn new(
-        targets: Vec<PresentationRootSelectorV1>,
+        targets: Vec<PresentationRootDeletionV1>,
     ) -> Result<Self, PresentationRootDeletionSetV1Error> {
         if targets.is_empty() {
             return Err(PresentationRootDeletionSetV1Error::EmptyTargets);
@@ -71,7 +89,7 @@ impl PresentationRootDeletionSetV1 {
         let mut identifiers = HashSet::with_capacity(targets.len());
         if targets
             .iter()
-            .any(|target| !identifiers.insert(target.presentation_id().clone()))
+            .any(|target| !identifiers.insert(target.document_object_id().clone()))
         {
             return Err(PresentationRootDeletionSetV1Error::DuplicateTarget);
         }
@@ -80,7 +98,7 @@ impl PresentationRootDeletionSetV1 {
 
     /// Return exact-kind durable direct-root selectors.
     #[must_use]
-    pub fn targets(&self) -> &[PresentationRootSelectorV1] {
+    pub fn targets(&self) -> &[PresentationRootDeletionV1] {
         &self.targets
     }
 }

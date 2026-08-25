@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{GeometricLineWidthV1, PersistentId, Rgb24V1};
+use super::{DocumentObjectIdV1, GeometricLineWidthV1, Rgb24V1};
 
 /// One supported Wavy root appearance change.
 #[derive(Clone, Debug, PartialEq)]
@@ -39,21 +39,19 @@ impl WavyPropertyKindV1 {
     }
 }
 
-/// One validated source-ID-targeted Wavy appearance patch.
+/// One validated durable-ID-targeted Wavy appearance patch.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WavyPropertiesPatchV1 {
-    wavy_id: PersistentId,
+    wavy_id: DocumentObjectIdV1,
     changes: Vec<WavyPropertyChangeV1>,
 }
 
 impl WavyPropertiesPatchV1 {
     /// Validate one complete two-field edit intent without reading a document.
     pub fn new(
-        wavy_id: impl Into<String>,
+        wavy_id: DocumentObjectIdV1,
         changes: Vec<WavyPropertyChangeV1>,
     ) -> Result<Self, WavyPropertiesPatchV1Error> {
-        let wavy_id = PersistentId::new(wavy_id.into())
-            .map_err(|_| WavyPropertiesPatchV1Error::InvalidWavyId)?;
         if changes.len() > 2 {
             return Err(WavyPropertiesPatchV1Error::TooManyChanges);
         }
@@ -69,9 +67,9 @@ impl WavyPropertiesPatchV1 {
         Ok(Self { wavy_id, changes })
     }
 
-    /// Return the durable authored Wavy identifier.
+    /// Return the durable Wavy selector.
     #[must_use]
-    pub fn wavy_id(&self) -> &PersistentId {
+    pub fn wavy_id(&self) -> &DocumentObjectIdV1 {
         &self.wavy_id
     }
 
@@ -85,9 +83,6 @@ impl WavyPropertiesPatchV1 {
 /// Invalid Wavy appearance intent rejected before document lookup.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum WavyPropertiesPatchV1Error {
-    /// The durable Wavy identifier is invalid.
-    #[error("Wavy properties require a valid persistent presentation ID")]
-    InvalidWavyId,
     /// A request exceeded the two-field closed grammar.
     #[error("Wavy properties accept at most two changes")]
     TooManyChanges,

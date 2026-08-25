@@ -18,8 +18,8 @@ use ferrum_document::{
     DocumentMoleculeInspectionErrorV1, DocumentObjectIdV1, DocumentStereoDepictionReportV1,
     DocumentStereoLigandV1, DocumentStereoSemanticReportV1, DocumentTetrahedralParityV1,
     MoleculeProjectionV1, SessionDocumentObservationV1, TypedDocument,
-    direct_projection_molecule_v1, document_molecule_composition_graph_v1,
-    verify_molecule_observation_v1,
+    direct_projection_molecule_v1, document_direct_root_paint_orders_v1,
+    document_molecule_composition_graph_v1, verify_molecule_observation_v1,
 };
 
 use super::dto::{
@@ -86,8 +86,7 @@ impl ParsedDocumentMoleculeReportRequestV1 {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct DocumentMoleculeReportSourceV1 {
     molecule_id: DocumentObjectIdV1,
-    source_id: String,
-    document_root_order: u32,
+    document_paint_order: u32,
     authored_name: Option<String>,
     atom_count: usize,
     bond_count: usize,
@@ -118,12 +117,8 @@ impl DocumentMoleculeReportSourceV1 {
         &self.molecule_id
     }
     #[must_use]
-    fn source_id(&self) -> &str {
-        &self.source_id
-    }
-    #[must_use]
-    const fn document_root_order(&self) -> u32 {
-        self.document_root_order
+    const fn document_paint_order(&self) -> u32 {
+        self.document_paint_order
     }
     #[must_use]
     fn authored_name(&self) -> Option<&str> {
@@ -406,6 +401,9 @@ fn resolve_document_molecule_sources_v1(
     let document = TypedDocument::parse(snapshot.cdml())
         .map_err(DocumentMoleculeInspectionErrorV1::Document)
         .map_err(map_inspection_error)?;
+    let document_paint_orders = document_direct_root_paint_orders_v1(projection).map_err(|_| {
+        map_inspection_error(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)
+    })?;
     let mut sources = Vec::new();
     sources
         .try_reserve_exact(molecule_ids.len())
@@ -431,7 +429,7 @@ fn resolve_document_molecule_sources_v1(
             .molecule_stereo_depictions_v1(molecule_id)
             .map_err(DocumentMoleculeInspectionErrorV1::Document)
             .map_err(map_inspection_error)?;
-        if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(source_id) {
+        if molecule.source_id().as_str() != source_id {
             return Err(map_inspection_error(
                 DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch,
             ));
@@ -439,7 +437,10 @@ fn resolve_document_molecule_sources_v1(
         sources.push(ResolvedDocumentMoleculeSourceV1 {
             source: source_facts(
                 molecule_id,
-                source_id,
+                *document_paint_orders
+                    .get(molecule_id)
+                    .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)
+                    .map_err(map_inspection_error)?,
                 root,
                 &molecule,
                 stereo_semantics,
@@ -448,13 +449,13 @@ fn resolve_document_molecule_sources_v1(
             molecule,
         });
     }
-    sources.sort_by_key(|source| source.source.document_root_order);
+    sources.sort_by_key(|source| source.source.document_paint_order);
     Ok(sources)
 }
 
 fn source_facts(
     molecule_id: &DocumentObjectIdV1,
-    source_id: &str,
+    document_paint_order: u32,
     root: &MoleculeProjectionV1,
     molecule: &Molecule,
     stereo_semantics: Option<DocumentStereoSemanticReportV1>,
@@ -495,8 +496,7 @@ fn source_facts(
     }
     Ok(DocumentMoleculeReportSourceV1 {
         molecule_id: copied_id(molecule_id)?,
-        source_id: copied(source_id)?,
-        document_root_order: root.source_order(),
+        document_paint_order,
         authored_name: root.name().map(copied).transpose()?,
         atom_count: molecule.atoms().len(),
         bond_count: molecule.bonds().len(),
@@ -730,8 +730,7 @@ fn report_summary_with_source_provenance(
         .iter()
         .map(|record| super::dto::DocumentMoleculeReportRecordSummaryV1 {
             molecule_id: record.source().molecule_id().as_str().to_owned(),
-            source_id: record.source().source_id().to_owned(),
-            document_root_order: record.source().document_root_order(),
+            document_paint_order: record.source().document_paint_order(),
             authored_name: record.source().authored_name().map(str::to_owned),
             atom_count: record.source().atom_count(),
             bond_count: record.source().bond_count(),

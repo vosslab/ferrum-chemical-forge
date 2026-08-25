@@ -7,7 +7,7 @@ use ferrum_document::{
     SessionOperation, SessionOperationTransitionRequestV1, SessionOperationV1,
     TransitionAuthorizationV1,
 };
-use ferrum_render::{PresentationRenderPlanV1, lower_arrow_preview_v1};
+use ferrum_render::{PresentationPreviewRenderPlanV1, lower_arrow_preview_v1};
 use thiserror::Error;
 
 const MAXIMUM_EXTENT_PT: f64 = 20_000.0;
@@ -28,12 +28,12 @@ pub struct CurvedEquilibriumArrowPreviewV1 {
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
-    plan: PresentationRenderPlanV1,
+    plan: PresentationPreviewRenderPlanV1,
 }
 
 impl CurvedEquilibriumArrowPreviewV1 {
     #[must_use]
-    pub const fn plan(&self) -> &PresentationRenderPlanV1 {
+    pub const fn plan(&self) -> &PresentationPreviewRenderPlanV1 {
         &self.plan
     }
 }
@@ -195,7 +195,7 @@ fn preview_plan(
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
-) -> Result<PresentationRenderPlanV1, CurvedEquilibriumArrowGestureErrorV1> {
+) -> Result<PresentationPreviewRenderPlanV1, CurvedEquilibriumArrowGestureErrorV1> {
     if [start, control, end]
         .into_iter()
         .any(|point| point.x().abs() > MAXIMUM_EXTENT_PT || point.y().abs() > MAXIMUM_EXTENT_PT)

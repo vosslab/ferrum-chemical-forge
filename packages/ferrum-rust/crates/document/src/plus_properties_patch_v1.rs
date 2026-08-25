@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{PersistentId, PresentationFontFaceV1, Rgb24V1};
+use super::{DocumentObjectIdV1, PresentationFontFaceV1, Rgb24V1};
 
 /// Minimum editable Plus font size documented by the CDML V1 contract.
 pub const MIN_PLUS_FONT_SIZE_V1: u16 = 4;
@@ -54,21 +54,19 @@ impl PlusPropertyKindV1 {
     }
 }
 
-/// One validated, source-ID-targeted direct-root Plus properties patch.
+/// One validated, durable-ID-targeted direct-root Plus properties patch.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlusPropertiesPatchV1 {
-    plus_id: PersistentId,
+    plus_object_id: DocumentObjectIdV1,
     changes: Vec<PlusPropertyChangeV1>,
 }
 
 impl PlusPropertiesPatchV1 {
     /// Validate and normalize one complete edit intent without reading a document.
     pub fn new(
-        plus_id: impl Into<String>,
+        plus_object_id: DocumentObjectIdV1,
         mut changes: Vec<PlusPropertyChangeV1>,
     ) -> Result<Self, PlusPropertiesPatchV1Error> {
-        let plus_id = PersistentId::new(plus_id.into())
-            .map_err(|_| PlusPropertiesPatchV1Error::InvalidPlusId)?;
         let mut kinds = HashSet::with_capacity(changes.len());
         for change in &mut changes {
             let kind = change.kind();
@@ -86,13 +84,16 @@ impl PlusPropertiesPatchV1 {
                 _ => {}
             }
         }
-        Ok(Self { plus_id, changes })
+        Ok(Self {
+            plus_object_id,
+            changes,
+        })
     }
 
-    /// Return the durable authored direct-root Plus identifier.
+    /// Return the durable authored direct-root Plus object identifier.
     #[must_use]
-    pub fn plus_id(&self) -> &PersistentId {
-        &self.plus_id
+    pub fn plus_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.plus_object_id
     }
 
     /// Return unique normalized property changes in caller order.
@@ -105,9 +106,6 @@ impl PlusPropertiesPatchV1 {
 /// Invalid Plus-properties intent rejected before document lookup.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum PlusPropertiesPatchV1Error {
-    /// The durable direct-root Plus identifier is invalid.
-    #[error("Plus properties require a valid persistent Plus ID")]
-    InvalidPlusId,
     /// Font size falls outside the documented editable CDML range.
     #[error("Plus font size must be from 4 through 144")]
     FontSizeOutOfRange,

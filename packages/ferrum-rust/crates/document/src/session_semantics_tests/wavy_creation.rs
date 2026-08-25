@@ -20,18 +20,15 @@ fn prepared_wavy_creation_owns_geometry_identity_and_history() {
     let result = session
         .commit_create_wavy(0, &mut pending)
         .expect("prepared Wavy must commit");
-    let [PresentationRootProjectionV1::Wavy { polyline }] = result
-        .observation()
-        .projection()
-        .presentation_stack()
-        .roots()
-    else {
+    let stack = result.observation().projection().presentation_stack();
+    let [entry] = stack.entries() else {
+        panic!("expected one Wavy entry");
+    };
+    let PresentationRootProjectionV1::Wavy { polyline } = entry.root() else {
         panic!("expected one Wavy root");
     };
-    assert_eq!(
-        polyline.target().source_id(),
-        Some("ferrum-presentation-v1-1")
-    );
+    let wavy_id = polyline.target().document_object_id().clone();
+    assert_ne!(wavy_id.as_str(), "ferrum-presentation-v1-1");
     assert_eq!(polyline.path().points().len(), 5);
     assert_eq!(
         polyline
@@ -69,12 +66,11 @@ fn short_wavy_uses_exact_endpoints_and_an_alternating_normal() {
     let result = session
         .commit_create_wavy(0, &mut pending)
         .expect("prepared Wavy must commit");
-    let [PresentationRootProjectionV1::Wavy { polyline }] = result
-        .observation()
-        .projection()
-        .presentation_stack()
-        .roots()
-    else {
+    let stack = result.observation().projection().presentation_stack();
+    let [entry] = stack.entries() else {
+        panic!("expected one Wavy entry");
+    };
+    let PresentationRootProjectionV1::Wavy { polyline } = entry.root() else {
         panic!("expected one Wavy root");
     };
     assert_eq!(

@@ -49,11 +49,10 @@ fn project(request: Request) -> Result<Value, String> {
     let mut atoms = Vec::new();
     for (index, atom) in request.atoms.iter().enumerate() {
         let atom = Atom::new(
-            Some(source_id("oracle-atom", index)),
+            source_id("oracle-atom", index),
             Some(atom.element.clone()),
             Position::new(0.0, 0.0, 0.0).map_err(|error| error.to_string())?,
             Some(atom.formal_charge),
-            None,
             Some(atom.explicit_hydrogens),
             None,
             None,
@@ -72,12 +71,11 @@ fn project(request: Request) -> Result<Value, String> {
             .get(bond.end)
             .ok_or_else(|| format!("bond {index} end is outside atom list"))?;
         let bond = Bond::new(
-            Some(source_id("oracle-bond", index)),
+            source_id("oracle-bond", index),
             VertexRef::Atom(start.identity().clone()),
             VertexRef::Atom(end.identity().clone()),
             Some(bond.r#type.clone()),
             Some(bond_order(bond.order)),
-            None,
             None,
             None,
         )
@@ -85,14 +83,13 @@ fn project(request: Request) -> Result<Value, String> {
         bonds.push(bond);
     }
     let _molecule = Molecule::new(
-        Some(Identifier::new("oracle-molecule").expect("constant id is valid")),
+        Identifier::new("oracle-molecule").expect("constant id is valid"),
         None,
         atoms.clone(),
         Vec::new(),
         Vec::new(),
         Vec::new(),
         bonds.clone(),
-        None,
     )
     .map_err(|error| error.to_string())?;
     let atom_projection: Vec<Value> = atoms

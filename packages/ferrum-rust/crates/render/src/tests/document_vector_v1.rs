@@ -1,6 +1,12 @@
 use xot::{Node, Xot};
 
+use ferrum_document_projection::DocumentObjectIdV1;
+
 use crate::*;
+
+fn target(value: u8) -> RenderTarget {
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([value; 16]))
+}
 
 fn point(x: f64, y: f64) -> RenderPoint {
     RenderPoint::new(x, y).expect("test point")
@@ -27,8 +33,8 @@ fn plan(vector: DocumentVectorRootV1) -> DocumentRenderPlanV1 {
         RenderProvenance::new(RenderRevision::new(1).expect("test revision"), [9; 32]),
         page(),
         vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            target(7),
             7,
-            DocumentRenderIdentityV1::projection_local("vector-root").expect("test identity"),
             DocumentRenderContentV1::Vector(vector),
         ))],
     )

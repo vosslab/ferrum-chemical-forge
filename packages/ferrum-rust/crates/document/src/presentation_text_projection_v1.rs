@@ -93,10 +93,7 @@ fn text_with_target(
         ));
         return None;
     }
-    let Some(font) = resolve_font(fonts.first().copied(), defaults.standard, &target, issues)
-    else {
-        return None;
-    };
+    let font = resolve_font(fonts.first().copied(), defaults.standard, &target, issues)?;
     let background = resolve_background(record, &target, issues);
     TextProjectionV1::try_new(target, anchor, runs, font, background).ok()
 }

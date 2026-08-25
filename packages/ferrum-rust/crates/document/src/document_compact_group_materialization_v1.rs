@@ -2,15 +2,15 @@
 
 use thiserror::Error;
 
-use crate::{DocumentObjectIdV1, PersistentId};
+use crate::DocumentObjectIdV1;
 
 /// One exact-document request to replace an attached typed compact group.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentCompactGroupMaterializationRequestV1 {
     expected_revision: u64,
     expected_digest: [u8; 32],
-    molecule_id: PersistentId,
-    compact_group_id: PersistentId,
+    molecule_id: DocumentObjectIdV1,
+    compact_group_id: DocumentObjectIdV1,
 }
 
 /// Closed reasons durable live targets cannot lower to one compact-group request.
@@ -31,8 +31,8 @@ impl DocumentCompactGroupMaterializationRequestV1 {
     pub const fn new(
         expected_revision: u64,
         expected_digest: [u8; 32],
-        molecule_id: PersistentId,
-        compact_group_id: PersistentId,
+        molecule_id: DocumentObjectIdV1,
+        compact_group_id: DocumentObjectIdV1,
     ) -> Self {
         Self {
             expected_revision,
@@ -50,11 +50,11 @@ impl DocumentCompactGroupMaterializationRequestV1 {
         &self.expected_digest
     }
     #[must_use]
-    pub const fn molecule_id(&self) -> &PersistentId {
+    pub const fn molecule_id(&self) -> &DocumentObjectIdV1 {
         &self.molecule_id
     }
     #[must_use]
-    pub const fn compact_group_id(&self) -> &PersistentId {
+    pub const fn compact_group_id(&self) -> &DocumentObjectIdV1 {
         &self.compact_group_id
     }
 }
@@ -78,18 +78,18 @@ pub enum DocumentCompactGroupMaterializationRefusalV1 {
     RendererAdmission,
 }
 
-/// Durable source and focus identities from one committed materialization.
+/// Durable identities from one committed materialization.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentCompactGroupMaterializationResultV1 {
     molecule_id: DocumentObjectIdV1,
-    compact_group_id: PersistentId,
+    compact_group_id: DocumentObjectIdV1,
     focus_atom_id: DocumentObjectIdV1,
 }
 
 impl DocumentCompactGroupMaterializationResultV1 {
     pub(crate) const fn new(
         molecule_id: DocumentObjectIdV1,
-        compact_group_id: PersistentId,
+        compact_group_id: DocumentObjectIdV1,
         focus_atom_id: DocumentObjectIdV1,
     ) -> Self {
         Self {
@@ -103,7 +103,7 @@ impl DocumentCompactGroupMaterializationResultV1 {
         &self.molecule_id
     }
     #[must_use]
-    pub const fn compact_group_id(&self) -> &PersistentId {
+    pub const fn compact_group_id(&self) -> &DocumentObjectIdV1 {
         &self.compact_group_id
     }
     #[must_use]

@@ -442,7 +442,9 @@ impl PyDocumentOperationV1 {
         plus_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<Self> {
-        let operation = super::plus_properties_binding::set_plus_properties(py, plus_id, changes)?;
+        let plus_object_id = document_object_id(py, plus_id)?;
+        let operation =
+            super::plus_properties_binding::set_plus_properties(py, plus_object_id, changes)?;
         Ok(Self { operation })
     }
 
@@ -453,7 +455,9 @@ impl PyDocumentOperationV1 {
         text_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<Self> {
-        let operation = super::text_properties_binding::set_text_properties(py, text_id, changes)?;
+        let text_object_id = document_object_id(py, text_id)?;
+        let operation =
+            super::text_properties_binding::set_text_properties(py, text_object_id, changes)?;
         Ok(Self { operation })
     }
 
@@ -464,8 +468,9 @@ impl PyDocumentOperationV1 {
         arrow_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<Self> {
+        let arrow_object_id = document_object_id(py, arrow_id)?;
         let operation =
-            super::arrow_properties_binding::set_arrow_properties(py, arrow_id, changes)?;
+            super::arrow_properties_binding::set_arrow_properties(py, arrow_object_id, changes)?;
         Ok(Self { operation })
     }
 
@@ -499,10 +504,10 @@ impl PyDocumentOperationV1 {
     #[staticmethod]
     fn set_bracket_properties(
         py: Python<'_>,
-        pair_id: String,
+        members: &Bound<'_, PyTuple>,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<Self> {
-        let operation = super::bracket_binding::set_bracket_properties(py, pair_id, changes)?;
+        let operation = super::bracket_binding::set_bracket_properties(py, members, changes)?;
         Ok(Self { operation })
     }
 

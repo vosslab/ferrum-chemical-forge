@@ -111,19 +111,23 @@ mod tests {
             .expect("finite empty probe")
     }
 
-    fn direct_atom(_session: &DocumentSession, source_id: &str) -> DirectBondPointerProbeV3 {
+    fn direct_atom(session: &DocumentSession, atom_index: usize) -> DirectBondPointerProbeV3 {
+        let snapshot = session.snapshot().expect("snapshot");
+        let atom_object_id = session
+            .observe(snapshot.revision())
+            .expect("document observation")
+            .projection()
+            .molecules()[0]
+            .atoms()[atom_index]
+            .id()
+            .expect("source atom has durable identity")
+            .clone();
         DirectBondPointerProbeV3::new(
             0.0,
             0.0,
             frame(),
             DirectBondPointerHitStateV3::UniqueAtom,
-            Some(
-                ferrum_document::DocumentObjectIdV1::from_class_source(
-                    "molecule/atom",
-                    source_id,
-                )
-                .expect("durable atom identity"),
-            ),
+            Some(atom_object_id),
         )
         .expect("direct atom probe")
     }
@@ -165,12 +169,12 @@ mod tests {
         ] {
             let mut session = DocumentSession::load(SOURCE).expect("session");
             let start = if start_existing {
-                direct_atom(&session, "atom-a")
+                direct_atom(&session, 0)
             } else {
                 no_hit(-40.0, 0.0)
             };
             let end = if end_existing {
-                direct_atom(&session, "atom-c")
+                direct_atom(&session, 1)
             } else {
                 no_hit(80.0, 0.0)
             };
@@ -211,13 +215,13 @@ mod tests {
             let gesture = begin_direct_bond_gesture_v3(
                 &session,
                 fence(&session),
-                direct_atom(&session, "atom-a"),
+                direct_atom(&session, 0),
                 presentation,
                 "C".to_owned(),
                 DirectBondSnapPolicyV1::free(),
             )
             .expect("gesture begins");
-            let end = direct_atom(&session, "atom-a");
+            let end = direct_atom(&session, 0);
             let request = resolve_direct_bond_end_v3(&session, gesture, end)
                 .expect("pointer evidence resolves into a generic request");
             let refusal = session
@@ -297,7 +301,7 @@ mod tests {
         let zoom_gesture = begin_direct_bond_gesture_v3(
             &session,
             fence(&session),
-            direct_atom(&session, "atom-a"),
+            direct_atom(&session, 0),
             DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
             "C".to_owned(),
             DirectBondSnapPolicyV1::free(),
@@ -306,7 +310,7 @@ mod tests {
         let identity_gesture = begin_direct_bond_gesture_v3(
             &session,
             fence(&session),
-            direct_atom(&session, "atom-a"),
+            direct_atom(&session, 0),
             DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
             "C".to_owned(),
             DirectBondSnapPolicyV1::free(),
@@ -370,13 +374,9 @@ mod tests {
             0.0,
             frame(),
             DirectBondPointerHitStateV3::UniqueAtom,
-            Some(
-                ferrum_document::DocumentObjectIdV1::from_class_source(
-                    "molecule/atom",
-                    "unknown-source-id",
-                )
-                .expect("durable atom identity"),
-            ),
+            Some(ferrum_document::DocumentObjectIdV1::from_entropy_bytes(
+                [0xff; 16],
+            )),
         )
         .expect("probe");
         assert!(matches!(

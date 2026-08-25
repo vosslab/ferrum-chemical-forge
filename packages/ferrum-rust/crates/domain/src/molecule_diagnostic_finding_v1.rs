@@ -28,7 +28,6 @@ pub enum MoleculeDiagnosticCodeV1 {
     UnsupportedBondStyle,
     UnsupportedBondOrder,
     InconsistentAromaticity,
-    IncompleteAuthoredCharge,
     NeutralCapacityNotChecked,
     NeutralCapacityExceeded,
     IdentifierUnavailable,

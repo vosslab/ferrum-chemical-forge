@@ -7,7 +7,6 @@
 mod atom;
 mod bond;
 mod error;
-mod formatting;
 pub mod graph;
 mod identity;
 mod molecule;
@@ -20,11 +19,8 @@ pub use atom::Atom;
 pub use bond::{Bond, BondOrder, BondStyle};
 /// Validation errors returned while constructing core records.
 pub use error::ModelError;
-/// Stable identifiers and their validated provenance.
-pub use identity::{
-    Identifier, InvalidIdentifier, LegacyFingerprint, RecordId, RecordIdCloneError, RecordKind,
-    RecordOrigin,
-};
+/// Stable source-only identifiers and their validated record classes.
+pub use identity::{Identifier, InvalidIdentifier, RecordId, RecordKind};
 /// Immutable molecule records containing validated vertices and bonds.
 pub use molecule::Molecule;
 /// Finite three-dimensional coordinates for an atom.

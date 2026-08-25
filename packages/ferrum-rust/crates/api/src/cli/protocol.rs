@@ -13,9 +13,10 @@ use thiserror::Error;
 use crate::cli::engine_bundle;
 use crate::protocol::{
     OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1, OperationProtocolEnvelopeV1,
+    OperationProtocolErrorCategoryV1, OperationProtocolErrorResponseV1, OperationProtocolErrorV1,
     OperationProtocolInputErrorV1, OperationProtocolOperationV1, OperationProtocolRequestV1,
-    execute_operation_v1, execute_operation_with_runtime_v1,
-    generated_operation_protocol_schema_v1,
+    ProtocolErrorSchemaV1, ProtocolOperationKindV1, execute_operation_v1,
+    execute_operation_with_runtime_v1, generated_operation_protocol_schema_v1,
 };
 use crate::transport::streams::is_standard_stream;
 
@@ -42,6 +43,56 @@ pub(crate) fn run_protocol(
         None => write_stdout(&response, stdout),
         Some(destination) => publish_response(destination, response, retained_source, stderr),
     }
+}
+
+/// Execute one named document request after proving its decoded operation matches the route.
+pub(crate) fn run_named_document_protocol(
+    expected_operation: ProtocolOperationKindV1,
+    input: &Path,
+    output: Option<&Path>,
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> Result<(), ProtocolCliError> {
+    let (request, retained_source) = read_request(input, stdin)?;
+    let envelope = execute_named_document_request(expected_operation, &request)
+        .map_err(protocol_input_error)?;
+    let mut response = crate::protocol::canonical_protocol_envelope_json_v1(&envelope)?;
+    response.push(b'\n');
+
+    match output {
+        None => write_stdout(&response, stdout),
+        Some(destination) => publish_response(destination, response, retained_source, stderr),
+    }
+}
+
+/// Reject a decoded operation before execution when its named route differs.
+fn execute_named_document_request(
+    expected_operation: ProtocolOperationKindV1,
+    request_json: &str,
+) -> Result<OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1> {
+    let request = serde_json::from_str::<OperationProtocolRequestV1>(request_json)?;
+    let actual_operation = request.operation.kind();
+    if actual_operation != expected_operation {
+        return Ok(OperationProtocolEnvelopeV1::Error(
+            OperationProtocolErrorResponseV1 {
+                schema: ProtocolErrorSchemaV1::V1,
+                request_id: Some(request.request_id),
+                error: OperationProtocolErrorV1 {
+                    category: OperationProtocolErrorCategoryV1::InvalidRequest,
+                    operation: Some(actual_operation),
+                    message: "named document command does not match the request operation"
+                        .to_owned(),
+                    resource_limit: None,
+                    presentation_author_refusal: None,
+                    catalog_placement_refusal: None,
+                    reaction_refusal: None,
+                    compact_group_materialization_refusal: None,
+                },
+            },
+        ));
+    }
+    execute_with_available_runtime(request_json)
 }
 
 /// Execute one protocol request with a controlled Rust-only chemistry runtime.

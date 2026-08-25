@@ -543,9 +543,37 @@ def _capture_with_easy_screenshot(window: PySide6.QtWidgets.QMainWindow,
 
 
 #============================================
+def _verify_full_window_capture_surface(
+		window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
+		) -> None:
+	"""Require the documented 16:10 window, ribbon, status bar, and PNG geometry."""
+	if window.size() != WINDOW_SIZE:
+		raise CaptureError(
+			f"Ferrum capture window is {window.width()}x{window.height()}, "
+			f"not the required full-window {WINDOW_SIZE.width()}x{WINDOW_SIZE.height()} surface"
+		)
+	ribbon = window.findChild(PySide6.QtWidgets.QToolBar, "ferrum-authoring-ribbon")
+	if ribbon is None or not ribbon.isVisible():
+		raise CaptureError("Ferrum capture requires the visible authoring ribbon")
+	status_bar = window.statusBar()
+	if not status_bar.isVisible():
+		raise CaptureError("Ferrum capture requires the visible status bar")
+	image = PySide6.QtGui.QImage(str(output))
+	if image.isNull() or image.width() < 200 or image.height() < 200:
+		raise CaptureError("capture output is not a usable window PNG")
+	if image.width() * WINDOW_SIZE.height() != image.height() * WINDOW_SIZE.width():
+		raise CaptureError(
+			f"capture backend produced {image.width()}x{image.height()}, not the required "
+			"16:10 full Ferrum window. The backend likely included window decoration or "
+			"cropped the application; use the Qt backend or configure the window capture "
+			"backend to capture only the Ferrum application surface."
+		)
+
+
+#============================================
 def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 		backend: str, show_template_chooser: bool = False) -> str:
-	"""Capture one visible completed scene and prove that a readable PNG resulted."""
+	"""Capture one completed full-window scene and verify its documented surface."""
 	if show_template_chooser:
 		_capture_template_chooser_with_qt(window, output)
 		used = "qt"
@@ -561,9 +589,7 @@ def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 	else:
 		_capture_with_qt(window, output)
 		used = "qt"
-	image = PySide6.QtGui.QImage(str(output))
-	if image.isNull() or image.width() < 200 or image.height() < 200:
-		raise CaptureError("capture output is not a usable window PNG")
+	_verify_full_window_capture_surface(window, output)
 	return used
 
 

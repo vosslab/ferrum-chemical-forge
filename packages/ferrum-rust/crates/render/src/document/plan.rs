@@ -1,15 +1,14 @@
 //! API-owned composition of one final observation into a whole-page render plan.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::hash::Hash;
 
 use crate::{
-    DocumentRenderContentV1, DocumentRenderExclusionV1, DocumentRenderIdentityV1,
+    DocumentMoleculeRenderContentV1, DocumentRenderContentV1, DocumentRenderExclusionV1,
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, DocumentRenderRootV1, DocumentTextOpV1,
-    GlyphBounds, RenderError, RenderProvenance, RenderRevision, RenderViewportV1,
+    GlyphBounds, RenderError, RenderProvenance, RenderRevision, RenderTarget, RenderViewportV1,
 };
-use ferrum_document_projection::{
-    MoleculeProjectionV1, PresentationRootProjectionV1, PresentationTargetV1,
-};
+use ferrum_document_projection::{DocumentDirectRootKindV1, PresentationRootProjectionV1};
 use thiserror::Error;
 
 use crate::presentation::vector::lower_presentation_vector_v1;
@@ -46,7 +45,7 @@ pub fn compose_document_render_plan_v1(
     for entry in observation.molecule_plans() {
         insert_unique(
             &mut molecule_plans,
-            entry.molecule().source_order(),
+            entry.molecule().document_object_id().as_str(),
             entry,
             "molecule render plans",
         )?;
@@ -59,7 +58,7 @@ pub fn compose_document_render_plan_v1(
     for entry in observation.plus_renders() {
         insert_unique(
             &mut plus_renders,
-            entry.target().source_order(),
+            entry.target().document_object_id().as_str(),
             entry,
             "plus render layouts",
         )?;
@@ -72,181 +71,142 @@ pub fn compose_document_render_plan_v1(
     for entry in observation.text_renders() {
         insert_unique(
             &mut text_renders,
-            entry.target().source_order(),
+            entry.target().document_object_id().as_str(),
             entry,
             "Text render layouts",
         )?;
     }
 
-    let roots = projection.presentation_stack().roots();
-    let mut retained_targets = HashSet::new();
-    retained_targets
-        .try_reserve(roots.len())
+    let mut molecule_roots = HashMap::new();
+    molecule_roots
+        .try_reserve(projection.molecules().len())
         .map_err(|_| RenderError::ResourceExhausted)?;
-    for root in roots {
-        if !retained_targets.insert(root.target().projection_key().as_str()) {
-            return Err(invalid(
-                "presentation roots contain a duplicate projection key",
-            ));
-        }
-    }
-
-    let mut issues_by_target = HashMap::new();
-    issues_by_target
-        .try_reserve(observation.issues().len())
-        .map_err(|_| RenderError::ResourceExhausted)?;
-    for issue in observation.issues() {
-        issues_by_target.entry(issue.target()).or_insert(issue);
-    }
-
-    let mut outcomes = Vec::new();
-    outcomes
-        .try_reserve(
-            projection.molecules().len()
-                + roots.len()
-                + projection.presentation_stack().issues().len(),
-        )
-        .map_err(|_| RenderError::ResourceExhausted)?;
-    let mut identities = HashSet::new();
-    identities
-        .try_reserve(outcomes.capacity())
-        .map_err(|_| RenderError::ResourceExhausted)?;
-    let mut source_orders = HashSet::new();
-    source_orders
-        .try_reserve(outcomes.capacity())
-        .map_err(|_| RenderError::ResourceExhausted)?;
-
     for molecule in projection.molecules() {
-        let Some(entry) = molecule_plans.remove(&molecule.source_order()) else {
-            return Err(invalid("authoritative molecule root has no render plan"));
-        };
-        let identity = molecule_identity(molecule)?;
-        if entry.molecule().id() != molecule.id().map(|id| id.as_str())
-            || entry.molecule().projection_key() != molecule.projection_key().as_str()
-            || entry.molecule().source_order() != molecule.source_order()
-            || entry.provenance() != provenance
-        {
+        let Some(molecule_id) = molecule.id() else {
             return Err(invalid(
-                "molecule render plan does not match its authoritative root",
+                "authoritative molecule payload has no durable document object ID",
             ));
-        }
-        insert_outcome(
-            &mut outcomes,
-            &mut identities,
-            &mut source_orders,
-            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                molecule.source_order(),
-                identity,
-                DocumentRenderContentV1::Molecule(entry.plan().clone()),
-            )),
+        };
+        insert_unique(
+            &mut molecule_roots,
+            molecule_id.as_str(),
+            molecule,
+            "authoritative molecule roots",
         )?;
     }
-    if !molecule_plans.is_empty() {
-        return Err(invalid(
-            "render observation contains a molecule plan without an authoritative root",
-        ));
+
+    let entries = projection.presentation_stack().entries();
+    let mut presentation_roots = HashMap::new();
+    presentation_roots
+        .try_reserve(entries.len())
+        .map_err(|_| RenderError::ResourceExhausted)?;
+    for entry in entries {
+        let root = entry.root();
+        insert_unique(
+            &mut presentation_roots,
+            root.target().document_object_id().as_str(),
+            root,
+            "presentation roots",
+        )?;
     }
 
-    for root in roots {
-        let target = root.target();
-        let identity = target_identity(target)?;
-        let outcome = match root {
-            PresentationRootProjectionV1::Plus { plus } => {
-                if let Some(render) = plus_renders.remove(&target.source_order()) {
-                    if render.target() != plus.target() {
-                        return Err(invalid("plus layout does not match its authoritative root"));
-                    }
-                    let bounds = glyph_bounds(render.bounds())?;
-                    DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                        target.source_order(),
-                        identity,
-                        DocumentRenderContentV1::Text(DocumentTextOpV1::fixed(
-                            render.anchor(),
-                            render.operation().clone(),
-                            bounds,
-                            render.background().cloned(),
-                        )?),
-                    ))
-                } else {
-                    profile_exclusion(
-                        target,
-                        issues_by_target.get(target.projection_key().as_str()),
-                    )?
-                }
-            }
-            PresentationRootProjectionV1::Text { text } => {
-                if let Some(render) = text_renders.remove(&target.source_order()) {
-                    if render.target() != text.target() {
-                        return Err(invalid("Text layout does not match its authoritative root"));
-                    }
-                    let bounds = glyph_bounds(render.bounds())?;
-                    DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                        target.source_order(),
-                        identity,
-                        DocumentRenderContentV1::Text(DocumentTextOpV1::presentation(
-                            render.anchor(),
-                            render.operation().clone(),
-                            bounds,
-                            render.background().cloned(),
-                        )?),
-                    ))
-                } else {
-                    profile_exclusion(
-                        target,
-                        issues_by_target.get(target.projection_key().as_str()),
-                    )?
-                }
-            }
-            PresentationRootProjectionV1::Arrow { .. }
-            | PresentationRootProjectionV1::Polyline { .. }
-            | PresentationRootProjectionV1::Wavy { .. }
-            | PresentationRootProjectionV1::RoundBracket { .. }
-            | PresentationRootProjectionV1::Rectangle { .. }
-            | PresentationRootProjectionV1::Square { .. }
-            | PresentationRootProjectionV1::Oval { .. }
-            | PresentationRootProjectionV1::Circle { .. }
-            | PresentationRootProjectionV1::Polygon { .. } => {
-                DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                    target.source_order(),
-                    identity,
-                    DocumentRenderContentV1::Vector(lower_presentation_vector_v1(root)?),
-                ))
-            }
-        };
-        insert_outcome(&mut outcomes, &mut identities, &mut source_orders, outcome)?;
-    }
-    if !plus_renders.is_empty() || !text_renders.is_empty() {
-        return Err(invalid(
-            "render observation contains a presentation layout without an authoritative root",
-        ));
-    }
-
-    let mut rejected_projection_targets = HashSet::new();
-    rejected_projection_targets
+    let mut rejected_presentations = HashMap::new();
+    rejected_presentations
         .try_reserve(projection.presentation_stack().issues().len())
         .map_err(|_| RenderError::ResourceExhausted)?;
     for issue in projection.presentation_stack().issues() {
-        let target = issue.target();
-        if retained_targets.contains(target.projection_key().as_str()) {
-            continue;
-        }
-        if !rejected_projection_targets.insert(target.projection_key().as_str()) {
-            continue;
-        }
-        let identity = target_identity(target)?;
-        insert_outcome(
-            &mut outcomes,
-            &mut identities,
-            &mut source_orders,
-            DocumentRenderOutcomeV1::Exclusion(DocumentRenderExclusionV1::new(
-                target.source_order(),
-                identity,
-                format!("rejected_projection:{:?}", issue.code()),
-            )?),
+        insert_unique(
+            &mut rejected_presentations,
+            issue.target().document_object_id().as_str(),
+            issue,
+            "rejected presentation roots",
         )?;
     }
+    if presentation_roots
+        .keys()
+        .any(|target| rejected_presentations.contains_key(target))
+    {
+        return Err(invalid(
+            "presentation root and rejected presentation share a durable target",
+        ));
+    }
+    let mut outcomes = Vec::new();
+    outcomes
+        .try_reserve(projection.direct_roots().len())
+        .map_err(|_| RenderError::ResourceExhausted)?;
 
-    outcomes.sort_unstable_by_key(DocumentRenderOutcomeV1::source_order);
+    for direct_root in projection.direct_roots() {
+        let target = direct_root.document_object_id();
+        let paint_order = direct_root.paint_order();
+        let outcome = match direct_root.kind() {
+            DocumentDirectRootKindV1::Molecule => {
+                let Some(molecule) = molecule_roots.remove(target.as_str()) else {
+                    return Err(invalid("direct molecule root has no molecule payload"));
+                };
+                let Some(entry) = molecule_plans.remove(target.as_str()) else {
+                    return Err(invalid("direct molecule root has no render plan"));
+                };
+                if molecule.id() != Some(target)
+                    || entry.molecule().document_object_id() != target
+                    || entry.provenance() != provenance
+                {
+                    return Err(invalid(
+                        "molecule render payload does not match its direct root",
+                    ));
+                }
+                DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                    RenderTarget::document_object(target.clone()),
+                    paint_order,
+                    DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                        entry.plan().clone(),
+                        entry.member_issues().to_vec(),
+                    )),
+                ))
+            }
+            DocumentDirectRootKindV1::Presentation(kind) => {
+                let Some(root) = presentation_roots.remove(target.as_str()) else {
+                    return Err(invalid(
+                        "direct presentation root has no presentation payload",
+                    ));
+                };
+                if root.target().document_object_id() != target
+                    || root.target().record_kind() != kind
+                {
+                    return Err(invalid(
+                        "presentation payload kind does not match its direct root",
+                    ));
+                }
+                presentation_outcome(root, paint_order, &mut plus_renders, &mut text_renders)?
+            }
+            DocumentDirectRootKindV1::RejectedPresentation(code) => {
+                let Some(issue) = rejected_presentations.remove(target.as_str()) else {
+                    return Err(invalid("rejected presentation root has no issue payload"));
+                };
+                if issue.target().document_object_id() != target || issue.code() != code {
+                    return Err(invalid(
+                        "rejected presentation issue does not match its direct root",
+                    ));
+                }
+                DocumentRenderOutcomeV1::Exclusion(DocumentRenderExclusionV1::new(
+                    RenderTarget::document_object(target.clone()),
+                    paint_order,
+                    format!("rejected_projection:{code:?}"),
+                )?)
+            }
+        };
+        outcomes.push(outcome);
+    }
+    if !molecule_roots.is_empty()
+        || !molecule_plans.is_empty()
+        || !presentation_roots.is_empty()
+        || !plus_renders.is_empty()
+        || !text_renders.is_empty()
+        || !rejected_presentations.is_empty()
+    {
+        return Err(invalid(
+            "render observation contains payload without a matching direct root",
+        ));
+    }
     Ok(DocumentRenderPlanV1::new(provenance, viewport, outcomes)?)
 }
 
@@ -281,71 +241,93 @@ fn glyph_bounds(bounds: crate::PresentationTextBoundsV1) -> Result<GlyphBounds, 
     GlyphBounds::new(bounds.left(), bounds.top(), bounds.right(), bounds.bottom())
 }
 
-fn molecule_identity(
-    molecule: &MoleculeProjectionV1,
-) -> Result<DocumentRenderIdentityV1, RenderError> {
-    match molecule.id() {
-        Some(id) => DocumentRenderIdentityV1::durable(id.as_str()),
-        None => DocumentRenderIdentityV1::projection_local(molecule.projection_key().as_str()),
-    }
-}
-
-fn target_identity(target: &PresentationTargetV1) -> Result<DocumentRenderIdentityV1, RenderError> {
-    match target.id() {
-        Some(id) => DocumentRenderIdentityV1::durable(id.as_str()),
-        None => DocumentRenderIdentityV1::projection_local(target.projection_key().as_str()),
-    }
-}
-
-fn profile_exclusion(
-    target: &PresentationTargetV1,
-    issue: Option<&&crate::DepictionIssueV1>,
+fn presentation_outcome(
+    root: &PresentationRootProjectionV1,
+    paint_order: u32,
+    plus_renders: &mut HashMap<&str, &crate::DocumentPlusRenderV1>,
+    text_renders: &mut HashMap<&str, &crate::DocumentTextRenderV1>,
 ) -> Result<DocumentRenderOutcomeV1, RenderError> {
-    let Some(issue) = issue else {
-        return Err(RenderError::InvalidRequest(
-            "retained Plus or Text root has no verified layout or profile exclusion".to_owned(),
-        ));
-    };
-    Ok(DocumentRenderOutcomeV1::Exclusion(
-        DocumentRenderExclusionV1::new(
-            target.source_order(),
-            target_identity(target)?,
-            format!("profile_excluded:{:?}", issue.code()),
-        )?,
-    ))
+    let target = root.target();
+    let render_target = RenderTarget::document_object(target.document_object_id().clone());
+    match root {
+        PresentationRootProjectionV1::Plus { plus } => {
+            let Some(render) = plus_renders.remove(target.document_object_id().as_str()) else {
+                return Err(RenderError::InvalidRequest(
+                    "direct Plus root has no verified layout".to_owned(),
+                ));
+            };
+            if render.target() != plus.target() {
+                return Err(RenderError::InvalidRequest(
+                    "plus layout does not match its direct root".to_owned(),
+                ));
+            }
+            let bounds = glyph_bounds(render.bounds())?;
+            Ok(DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                render_target,
+                paint_order,
+                DocumentRenderContentV1::Text(DocumentTextOpV1::fixed(
+                    render.anchor(),
+                    render.operation().clone(),
+                    bounds,
+                    render.background().cloned(),
+                )?),
+            )))
+        }
+        PresentationRootProjectionV1::Text { text } => {
+            let Some(render) = text_renders.remove(target.document_object_id().as_str()) else {
+                return Err(RenderError::InvalidRequest(
+                    "direct Text root has no verified layout".to_owned(),
+                ));
+            };
+            if render.target() != text.target() {
+                return Err(RenderError::InvalidRequest(
+                    "Text layout does not match its direct root".to_owned(),
+                ));
+            }
+            let bounds = glyph_bounds(render.bounds())?;
+            Ok(DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                render_target,
+                paint_order,
+                DocumentRenderContentV1::Text(DocumentTextOpV1::presentation(
+                    render.anchor(),
+                    render.operation().clone(),
+                    bounds,
+                    render.background().cloned(),
+                )?),
+            )))
+        }
+        PresentationRootProjectionV1::Arrow { .. }
+        | PresentationRootProjectionV1::Polyline { .. }
+        | PresentationRootProjectionV1::Wavy { .. }
+        | PresentationRootProjectionV1::RoundBracket { .. }
+        | PresentationRootProjectionV1::Rectangle { .. }
+        | PresentationRootProjectionV1::Square { .. }
+        | PresentationRootProjectionV1::Oval { .. }
+        | PresentationRootProjectionV1::Circle { .. }
+        | PresentationRootProjectionV1::Polygon { .. } => {
+            Ok(DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                render_target,
+                paint_order,
+                DocumentRenderContentV1::Vector(lower_presentation_vector_v1(root)?),
+            )))
+        }
+    }
 }
 
-fn insert_unique<'a, T>(
-    values: &mut HashMap<u32, &'a T>,
-    source_order: u32,
+fn insert_unique<'a, K, T>(
+    values: &mut HashMap<K, &'a T>,
+    key: K,
     value: &'a T,
     name: &str,
-) -> Result<(), RenderError> {
-    if values.insert(source_order, value).is_some() {
+) -> Result<(), RenderError>
+where
+    K: Eq + Hash,
+{
+    if values.insert(key, value).is_some() {
         return Err(RenderError::InvalidRequest(format!(
-            "{name} contain duplicate source orders"
+            "{name} contain duplicate durable targets"
         )));
     }
-    Ok(())
-}
-
-fn insert_outcome(
-    outcomes: &mut Vec<DocumentRenderOutcomeV1>,
-    identities: &mut HashSet<DocumentRenderIdentityV1>,
-    source_orders: &mut HashSet<u32>,
-    outcome: DocumentRenderOutcomeV1,
-) -> Result<(), RenderError> {
-    if !identities.insert(outcome.identity().clone()) {
-        return Err(RenderError::InvalidRequest(
-            "document roots and exclusions contain duplicate identities".to_owned(),
-        ));
-    }
-    if !source_orders.insert(outcome.source_order()) {
-        return Err(RenderError::InvalidRequest(
-            "document roots and exclusions contain duplicate source orders".to_owned(),
-        ));
-    }
-    outcomes.push(outcome);
     Ok(())
 }
 

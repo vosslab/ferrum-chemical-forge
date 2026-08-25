@@ -12,6 +12,8 @@ mod depiction_profile_v1;
 mod direct_glycosidic_haworth;
 #[path = "tests/document_artifact_v1.rs"]
 mod document_artifact_v1;
+#[path = "tests/document_composition_v1.rs"]
+mod document_composition_v1;
 #[path = "tests/document_plan_v1.rs"]
 mod document_plan_v1;
 #[path = "tests/document_vector_v1.rs"]

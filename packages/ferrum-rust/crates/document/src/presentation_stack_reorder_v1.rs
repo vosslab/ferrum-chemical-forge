@@ -36,7 +36,7 @@ impl PresentationStackReorderV1 {
         let mut identifiers = HashSet::with_capacity(targets.len());
         if targets
             .iter()
-            .any(|target| !identifiers.insert(target.presentation_id().clone()))
+            .any(|target| !identifiers.insert(target.document_object_id().clone()))
         {
             return Err(PresentationStackReorderV1Error::DuplicateTarget);
         }

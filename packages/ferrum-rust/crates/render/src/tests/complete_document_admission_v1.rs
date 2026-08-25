@@ -1,4 +1,8 @@
-use crate::{COMPLETE_DOCUMENT_RENDERER_SCHEMA_V1, admit_complete_document_render_v1};
+use crate::{
+    AcceptedRenderOverlayTargetKindV1, AcceptedRenderOverlayTargetV1,
+    COMPLETE_DOCUMENT_RENDERER_SCHEMA_V1, admit_complete_document_render_v1,
+};
+use ferrum_document_projection::DocumentObjectIdV1;
 use ferrum_render_contract::{
     CompleteDocumentSourceFenceV1, CompleteRenderAdmissionRefusalV1,
     CompleteRenderPendingIdentityV1, CompleteRenderPrimitiveV1, CompleteRenderRootCandidateV1,
@@ -34,6 +38,7 @@ fn complete_visual_candidate_returns_immutable_presentation_only() {
     );
     let presentation = accepted.presentation();
     assert_eq!(presentation.roots().len(), 1);
+    assert_eq!(presentation.roots()[0].paint_order(), 4);
     assert_eq!(
         presentation.roots()[0].class(),
         CompleteRenderRootClassV1::VisualMolecule
@@ -66,4 +71,13 @@ fn v1_empty_nonvisual_policy_refuses_nonvisual_root() {
             class: CompleteRenderRootClassV1::Refused(RefusedRootReasonV1::ProfileExcluded),
         })
     );
+}
+
+#[test]
+fn overlay_target_keeps_durable_identity_and_closed_kind() {
+    let document_object_id = DocumentObjectIdV1::from_entropy_bytes([0x31; 16]);
+    let target = AcceptedRenderOverlayTargetV1::bond(document_object_id.clone());
+
+    assert_eq!(target.document_object_id(), &document_object_id);
+    assert_eq!(target.kind(), AcceptedRenderOverlayTargetKindV1::Bond);
 }

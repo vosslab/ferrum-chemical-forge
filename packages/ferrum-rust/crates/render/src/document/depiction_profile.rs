@@ -6,13 +6,14 @@ use crate::{
     build_atom_bond_plan,
 };
 use ferrum_document_projection::{
-    DocumentProjectionV1, PresentationRootProjectionV1, ProjectionIssueCodeV1,
+    DocumentObjectIdV1, DocumentProjectionV1, MoleculeProjectionV1, PresentationRootProjectionV1,
+    ProjectionIssueCodeV1,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::depiction_profile_resolution::{
-    apply_double_bond_carrier_marks, issue, positive, resolve_atom, resolve_bond,
+    apply_double_bond_carrier_marks, positive, resolve_atom, resolve_bond,
     resolved_default_bond_lane_spacing, resolved_font, resolved_line_paint, resolved_line_width,
 };
 use crate::{DocumentMoleculeRenderPlanV2, DocumentPlusRenderV1, DocumentTextRenderV1};
@@ -113,6 +114,49 @@ pub enum DepictionIssueCodeV1 {
     UnsupportedFeature,
 }
 
+/// One closed depiction diagnostic owned by an exact durable molecule member.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MoleculeMemberDepictionIssueV1 {
+    target: DocumentObjectIdV1,
+    code: DepictionIssueCodeV1,
+    detail: String,
+}
+
+impl MoleculeMemberDepictionIssueV1 {
+    /// Build one diagnostic for an atom, bond, or compact group in its owner molecule.
+    #[must_use]
+    pub fn new(
+        target: DocumentObjectIdV1,
+        code: DepictionIssueCodeV1,
+        detail: impl Into<String>,
+    ) -> Self {
+        Self {
+            target,
+            code,
+            detail: detail.into(),
+        }
+    }
+
+    /// Return the exact durable member that owns this diagnostic.
+    #[must_use]
+    pub const fn target(&self) -> &DocumentObjectIdV1 {
+        &self.target
+    }
+
+    /// Return the stable issue category.
+    #[must_use]
+    pub const fn code(&self) -> DepictionIssueCodeV1 {
+        self.code
+    }
+
+    /// Return the bounded actionable explanation.
+    #[must_use]
+    pub fn detail(&self) -> &str {
+        &self.detail
+    }
+}
+
 /// One named target exclusion from an otherwise immutable depiction response.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -167,7 +211,6 @@ pub struct DepictionResolutionV1 {
     plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
-    issues: Vec<DepictionIssueV1>,
     suppression: Option<DepictionSuppressionV1>,
 }
 
@@ -194,7 +237,6 @@ impl<'de> Deserialize<'de> for DepictionResolutionV1 {
             plans: Vec<DocumentMoleculeRenderPlanV2>,
             plus_renders: Vec<DocumentPlusRenderV1>,
             text_renders: Vec<DocumentTextRenderV1>,
-            issues: Vec<DepictionIssueV1>,
             suppression: Option<DepictionSuppressionV1>,
         }
         let wire = WireResolution::deserialize(deserializer)?;
@@ -205,12 +247,8 @@ impl<'de> Deserialize<'de> for DepictionResolutionV1 {
                 "unknown Ferrum depiction-resolution schema or profile",
             ));
         }
-        let mut resolution = Self::new(
-            wire.projection_revision,
-            wire.projection_digest,
-            wire.plans,
-            wire.issues,
-        );
+        let mut resolution =
+            Self::new(wire.projection_revision, wire.projection_digest, wire.plans);
         resolution.plus_renders = wire.plus_renders;
         resolution.text_renders = wire.text_renders;
         resolution.suppression = wire.suppression;
@@ -248,77 +286,67 @@ fn render_with_verified_telex_metrics(
     let mut plans = Vec::new();
     let mut plus_renders = Vec::new();
     let mut text_renders = Vec::new();
-    let mut issues = Vec::new();
     let invalid_presentation = projection
         .issues()
         .iter()
         .filter(|issue| issue.code() == ProjectionIssueCodeV1::InvalidPresentationFact)
-        .map(|issue| {
-            DepictionIssueV1::new(
-                DepictionIssueCodeV1::InvalidPresentationFact,
-                issue.path(),
-                issue.detail(),
-            )
-        })
         .collect::<Vec<_>>();
     if !invalid_presentation.is_empty() {
-        let mut resolution = DepictionResolutionV1::new(
-            projection.revision(),
-            *projection.digest(),
-            plans,
-            invalid_presentation,
-        );
+        let mut resolution =
+            DepictionResolutionV1::new(projection.revision(), *projection.digest(), plans);
         resolution.suppression = Some(DepictionSuppressionV1::InvalidPresentationFacts);
         return Ok(resolution);
     }
     for molecule in projection.molecules() {
         let Some(owner_molecule_object_id) = molecule.id() else {
-            issues.push(issue(
-                DepictionIssueCodeV1::NonDurableTarget,
-                molecule.projection_key().as_str(),
-                "rendering structural targets requires a durable owner molecule ID",
-            ));
-            continue;
+            return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
+                "rendering structural targets requires a durable owner molecule ID".to_owned(),
+            )));
         };
+        let mut member_issues = Vec::new();
         let mut atoms = Vec::new();
         let mut endpoint_targets = std::collections::HashMap::new();
         for atom in molecule.atoms() {
             match resolve_atom(atom, owner_molecule_object_id, projection, profile) {
-                Ok(target) => {
+                Ok((target, record_id)) => {
                     if let Some(id) = atom.id() {
-                        endpoint_targets.insert(id.clone(), target.target().clone());
+                        endpoint_targets.insert(id.clone(), record_id);
                     }
                     atoms.push(target);
                 }
-                Err(issue) => issues.push(issue),
+                Err(issue) => member_issues.push(member_issue(atom.id(), issue)?),
             }
         }
         let font = match resolved_font(projection, profile, None, None) {
             Ok(value) => value,
             Err(issue) => {
-                issues.push(issue);
-                continue;
+                return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
+                    issue.detail().to_owned(),
+                )));
             }
         };
         let line_width = match resolved_line_width(projection, profile) {
             Ok(value) => value,
             Err(issue) => {
-                issues.push(issue);
-                continue;
+                return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
+                    issue.detail().to_owned(),
+                )));
             }
         };
         let line_paint = match resolved_line_paint(projection, profile) {
             Ok(value) => value,
             Err(issue) => {
-                issues.push(issue);
-                continue;
+                return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
+                    issue.detail().to_owned(),
+                )));
             }
         };
         let bond_lane_spacing = match resolved_default_bond_lane_spacing(projection, profile) {
             Ok(value) => value,
             Err(issue) => {
-                issues.push(issue);
-                continue;
+                return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
+                    issue.detail().to_owned(),
+                )));
             }
         };
         let mut compact_group_primitives = Vec::new();
@@ -326,18 +354,30 @@ fn render_with_verified_telex_metrics(
             .try_reserve(molecule.compact_groups().len())
             .map_err(|_| crate::RenderError::ResourceExhausted)?;
         for group in molecule.compact_groups() {
-            compact_group_primitives.push(CompactGroupRenderPrimitiveV1::from_projection(
+            match CompactGroupRenderPrimitiveV1::from_projection(
                 group,
                 owner_molecule_object_id,
                 metrics,
                 line_paint.clone(),
-            )?);
+            ) {
+                Ok(primitive) => compact_group_primitives.push(primitive),
+                Err(error) => member_issues.push(MoleculeMemberDepictionIssueV1::new(
+                    group.id().clone(),
+                    DepictionIssueCodeV1::UnsupportedFeature,
+                    error.to_string(),
+                )),
+            }
         }
         endpoint_targets.extend(
             compact_group_primitives
                 .iter()
                 .zip(molecule.compact_groups())
-                .map(|(primitive, group)| (group.id().clone(), primitive.target().clone())),
+                .map(|(primitive, group)| {
+                    let endpoint = primitive
+                        .bond_endpoint()
+                        .expect("compact group primitive has a bond endpoint");
+                    (group.id().clone(), endpoint.context().record_id().clone())
+                }),
         );
         let mut bonds = Vec::new();
         for bond in molecule.bonds() {
@@ -349,13 +389,26 @@ fn render_with_verified_telex_metrics(
                 profile,
             ) {
                 Ok(target) => bonds.push((bond, target)),
-                Err(issue) => issues.push(issue),
+                Err(issue) => member_issues.push(member_issue(bond.id(), issue)?),
             }
         }
         if let Err(issue) =
             apply_double_bond_carrier_marks(&mut bonds, molecule.double_bond_carrier_marks())
         {
-            issues.push(issue);
+            let target = molecule
+                .double_bond_carrier_marks()
+                .first()
+                .map(|mark| mark.carrier_bond().clone())
+                .ok_or_else(|| {
+                    DepictionError::Render(crate::RenderError::InvalidRequest(
+                        issue.detail().to_owned(),
+                    ))
+                })?;
+            member_issues.push(MoleculeMemberDepictionIssueV1::new(
+                target,
+                issue.code(),
+                issue.detail(),
+            ));
         }
         let request = AtomBondRenderRequest::new(
             RenderProvenance::new(
@@ -382,20 +435,22 @@ fn render_with_verified_telex_metrics(
                 .iter()
                 .map(|group| group.batch().clone()),
         );
-        batches.sort_by_key(|batch| batch.target().source_order());
+        batches.sort_by_key(crate::RenderBatch::paint_order);
         let plan = crate::MoleculeRenderPlan::new(
             base_plan.provenance(),
             batches,
             base_plan.issues().to_vec(),
         )?;
-        plans.push(DocumentMoleculeRenderPlanV2::from_projection(
-            molecule,
+        plans.push(DocumentMoleculeRenderPlanV2::from_document_object_id(
+            owner_molecule_object_id.clone(),
             plan,
             compact_group_primitives,
-        ));
+            molecule_member_ids(molecule),
+            member_issues,
+        )?);
     }
-    for root in projection.presentation_stack().roots() {
-        match root {
+    for entry in projection.presentation_stack().entries() {
+        match entry.root() {
             PresentationRootProjectionV1::Plus { plus } => {
                 plus_renders.push(DocumentPlusRenderV1::from_projection(plus, metrics)?);
             }
@@ -409,30 +464,64 @@ fn render_with_verified_telex_metrics(
                         )
                     })
                 }) {
-                    issues.push(issue(
-                        DepictionIssueCodeV1::UnsupportedTextStyle,
-                        text.target().projection_key().as_str(),
-                        "bold and italic Text require verified font faces not present in V1",
-                    ));
-                    continue;
+                    return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
+                        "bold and italic Text require verified font faces not present in V1"
+                            .to_owned(),
+                    )));
                 }
                 match DocumentTextRenderV1::from_projection(text, metrics) {
                     Ok(render) => text_renders.push(render),
-                    Err(error) => issues.push(issue(
-                        DepictionIssueCodeV1::UnsupportedFeature,
-                        text.target().projection_key().as_str(),
-                        error.to_string(),
-                    )),
+                    Err(error) => {
+                        return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
+                            error.to_string(),
+                        )));
+                    }
                 }
             }
             _ => {}
         }
     }
     let mut resolution =
-        DepictionResolutionV1::new(projection.revision(), *projection.digest(), plans, issues);
+        DepictionResolutionV1::new(projection.revision(), *projection.digest(), plans);
     resolution.plus_renders = plus_renders;
     resolution.text_renders = text_renders;
     Ok(resolution)
+}
+
+fn member_issue(
+    target: Option<&DocumentObjectIdV1>,
+    issue: DepictionIssueV1,
+) -> Result<MoleculeMemberDepictionIssueV1, DepictionError> {
+    let target = target.cloned().ok_or_else(|| {
+        DepictionError::Render(crate::RenderError::InvalidRequest(
+            "molecule member diagnostic requires a durable member ID".to_owned(),
+        ))
+    })?;
+    Ok(MoleculeMemberDepictionIssueV1::new(
+        target,
+        issue.code(),
+        issue.detail(),
+    ))
+}
+
+fn molecule_member_ids(molecule: &MoleculeProjectionV1) -> Vec<DocumentObjectIdV1> {
+    molecule
+        .atoms()
+        .iter()
+        .filter_map(|atom| atom.id().cloned())
+        .chain(
+            molecule
+                .bonds()
+                .iter()
+                .filter_map(|bond| bond.id().cloned()),
+        )
+        .chain(
+            molecule
+                .compact_groups()
+                .iter()
+                .map(|group| group.id().clone()),
+        )
+        .collect()
 }
 
 impl DepictionResolutionV1 {
@@ -442,7 +531,6 @@ impl DepictionResolutionV1 {
         projection_revision: u64,
         projection_digest: [u8; 32],
         plans: Vec<DocumentMoleculeRenderPlanV2>,
-        issues: Vec<DepictionIssueV1>,
     ) -> Self {
         Self {
             schema: DEPICTION_RESOLUTION_SCHEMA_V1,
@@ -452,7 +540,6 @@ impl DepictionResolutionV1 {
             plans,
             plus_renders: Vec::new(),
             text_renders: Vec::new(),
-            issues,
             suppression: None,
         }
     }
@@ -482,11 +569,6 @@ impl DepictionResolutionV1 {
     #[must_use]
     pub fn text_renders(&self) -> &[DocumentTextRenderV1] {
         &self.text_renders
-    }
-    /// Return named exclusions that have no renderer fallback.
-    #[must_use]
-    pub fn issues(&self) -> &[DepictionIssueV1] {
-        &self.issues
     }
     /// Return the typed whole-projection suppression, when malformed facts prevent plans.
     #[must_use]

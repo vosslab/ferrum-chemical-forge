@@ -353,7 +353,11 @@ impl DrawSinkV1 for SvgSinkV1 {
         self.output.check()
     }
 
-    fn begin_root(&mut self, _: u32, _: &str) -> Result<(), Self::Error> {
+    fn begin_root(
+        &mut self,
+        _: u32,
+        _: &ferrum_document_projection::DocumentObjectIdV1,
+    ) -> Result<(), Self::Error> {
         self.reserve(3)?;
         self.output.push_str("<g>");
         self.output.check()

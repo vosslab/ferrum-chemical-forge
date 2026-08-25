@@ -14,8 +14,12 @@ import defusedxml.ElementTree
 
 
 CDML = (
-	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
-	'<point x="10" y="20"/></atom></molecule></cdml>'
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:object="urn:ferrum:document-object:v1">'
+	'<molecule id="m" '
+	'object:id="ferrum-document-object-v1/00000000000000000000000000000001">'
+	'<atom id="a" '
+	'object:id="ferrum-document-object-v1/00000000000000000000000000000002" '
+	'name="C"><point x="10" y="20"/></atom></molecule></cdml>'
 )
 INCHI = "InChI=1S/CH4/h1H4"
 MOLFILE = (

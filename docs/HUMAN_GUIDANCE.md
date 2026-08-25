@@ -10,3 +10,5 @@
 - Fix the design that permits a problem rather than masking it with incidental fallbacks. Prefer
   adaptable ownership boundaries and durable improvements when their value justifies the cost;
   stop at a good, correct system when further refinement would not materially improve it.
+- Target a 16:10 desktop aspect for Ferrum screenshots. Measure the complete outer application
+  window, including the ribbon/menu and status bar; the canvas is not the aspect-ratio boundary.

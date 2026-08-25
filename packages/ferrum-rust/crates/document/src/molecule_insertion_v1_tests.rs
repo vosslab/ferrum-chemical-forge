@@ -441,6 +441,10 @@ fn generic_ez_stereo_round_trip_preserves_typed_semantics_and_depiction() {
     let molecule_id = observation.projection().molecules()[0]
         .id()
         .expect("inserted molecule has one durable ID");
+    let carrier_bond_id = observation.projection().molecules()[0].bonds()[1]
+        .id()
+        .expect("E/Z carrier bond has one durable ID")
+        .clone();
     let typed = TypedDocument::parse(saved.cdml()).expect("saved CDML types");
     assert_eq!(
         typed
@@ -458,20 +462,20 @@ fn generic_ez_stereo_round_trip_preserves_typed_semantics_and_depiction() {
         .observe_render_v1(0)
         .expect("persisted E/Z depiction resolves through the normal render observation");
     let plan = render.resolved().molecule_plans()[0].plan();
-    let Some(RenderOp::DoubleBondCarrierMark(mark)) = plan
+    let carrier_batch = plan
         .batches()
         .iter()
-        .flat_map(|batch| batch.operations())
+        .find(|batch| batch.target().document_object_id() == &carrier_bond_id)
+        .expect("E/Z carrier bond admits one durable render target");
+    assert_eq!(carrier_batch.paint_order(), 5);
+    let Some(RenderOp::DoubleBondCarrierMark(mark)) = carrier_batch
+        .operations()
+        .iter()
         .find(|operation| matches!(operation, RenderOp::DoubleBondCarrierMark(_)))
     else {
-        panic!("persisted E/Z carrier mark emits its dedicated render operation");
+        panic!("persisted E/Z carrier mark emits from its admitted durable target");
     };
     assert_eq!(mark.direction(), DoubleBondCarrierMarkDirectionV1::Up);
-    assert!(
-        plan.batches()
-            .iter()
-            .any(|batch| batch.target().record_id() == mark.central_double_bond())
-    );
 }
 
 #[test]

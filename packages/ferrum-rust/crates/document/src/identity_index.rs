@@ -8,6 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 use xot::{Node, Xot};
 
+use ferrum_document_projection::DocumentObjectIdV1;
+
 use super::{is_ferrum_cdml_name, is_ferrum_cdml_root};
 static NEXT_DOCUMENT_INSTANCE: AtomicU64 = AtomicU64::new(0);
 
@@ -282,6 +284,7 @@ pub struct IndexedDocument {
     pub(crate) xml: XmlDocument,
     records: Vec<DocumentRecord>,
     id_index: BTreeMap<PersistentId, ResolvedId>,
+    document_object_index: BTreeMap<DocumentObjectIdV1, ElementPath>,
     issued_tokens: HashSet<u64>,
     consumed_tokens: HashSet<u64>,
     document_instance: u64,
@@ -346,6 +349,7 @@ impl IndexedDocument {
             xml,
             records,
             id_index,
+            document_object_index: BTreeMap::new(),
             issued_tokens: HashSet::new(),
             consumed_tokens: HashSet::new(),
             document_instance: NEXT_DOCUMENT_INSTANCE.fetch_add(1, Ordering::Relaxed),
@@ -401,6 +405,31 @@ impl IndexedDocument {
 
     pub(crate) fn persistent_ids(&self) -> impl Iterator<Item = &PersistentId> {
         self.id_index.keys()
+    }
+
+    /// Resolve a persisted opaque selector to its retained typed-record path.
+    #[must_use]
+    pub(crate) fn resolve_document_object_id_path_v1(
+        &self,
+        object_id: &DocumentObjectIdV1,
+    ) -> Option<&ElementPath> {
+        self.document_object_index.get(object_id)
+    }
+
+    pub(crate) fn reset_document_object_index_v1(&mut self) {
+        self.document_object_index.clear();
+    }
+
+    pub(crate) fn index_document_object_id_v1(
+        &mut self,
+        object_id: DocumentObjectIdV1,
+        path: ElementPath,
+    ) {
+        let previous = self.document_object_index.insert(object_id, path);
+        debug_assert!(
+            previous.is_none(),
+            "typed ingress rejects durable-ID collisions"
+        );
     }
 
     /// Fallibly reserve both token registries before issuing one token.

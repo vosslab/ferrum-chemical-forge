@@ -1,7 +1,8 @@
 //! Private, bounded document SMARTS execution over one owned snapshot.
 
 use ferrum_chemistry::{ChemEngine, SmartsMatchOptions};
-use ferrum_document::{DocumentSession, DocumentSmartsSnapshotErrorV1};
+use ferrum_document::{DocumentObjectIdV1, DocumentSession, DocumentSmartsSnapshotErrorV1};
+use ferrum_render::RenderTarget;
 
 use super::{
     document_smarts_snapshot_v1::OwnedDocumentSmartsSnapshotV1,
@@ -56,10 +57,14 @@ pub(super) fn execute_document_smarts_query_v1<R: ChemistryRuntimeV1>(
             value
         }
         DocumentSmartsQueryInputV1::SelectedMolecule { molecule_id } => {
+            let document_object_id = DocumentObjectIdV1::parse(molecule_id).map_err(|_| {
+                ExecutionFailureV1::document_invalid("selected_target_not_molecule".to_owned())
+            })?;
+            let render_target = RenderTarget::document_object(document_object_id);
             let target = snapshot
-                .selected_target_by_durable_selector(&molecule_id)
+                .selected_target_by_render_target(&render_target)
                 .ok_or_else(|| {
-                    ExecutionFailureV1::document_invalid("selected_source_not_molecule".to_owned())
+                    ExecutionFailureV1::document_invalid("selected_target_not_molecule".to_owned())
                 })?;
             runtime
                 .with_engine(|engine| {
@@ -111,7 +116,7 @@ fn execute_owned_snapshot(
             .ok_or(ChemistryRuntimeErrorV1::Unavailable)?;
         if count != 0 {
             molecules.push(DocumentSmartsQueryMoleculeSummaryV1 {
-                source_order: target.source_order(),
+                document_paint_order: target.document_paint_order(),
                 match_count: count,
                 completeness: if result.truncated() {
                     "truncated"

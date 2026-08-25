@@ -1,6 +1,8 @@
 use ferrum_core::{Identifier, RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 use xot::{Node, Xot};
 
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::*;
 
 fn point(x: f64, y: f64) -> RenderPoint {
@@ -15,9 +17,26 @@ fn paint(value: &str) -> Paint {
     Paint::rgb24(Rgb24::new(value).expect("test paint is valid"))
 }
 
-fn target(kind: RecordKind, source: &str, source_order: u32) -> RenderTarget {
-    let identifier = Identifier::new(source).expect("test identifier is valid");
-    RenderTarget::new(RecordId::from_source(kind, &identifier), source_order)
+fn target(id: u8) -> RenderTarget {
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([id; 16]))
+}
+
+fn context(
+    kind: RecordKind,
+    source: &str,
+    target_id: u8,
+    paint_order: u32,
+) -> RenderPlanEntryContextV1 {
+    RenderPlanEntryContextV1::new(
+        target(target_id),
+        RecordId::new(
+            kind,
+            Identifier::new(source).expect("test identifier is valid"),
+        )
+        .expect("test record ID"),
+        paint_order,
+        None,
+    )
 }
 
 fn metrics() -> VerifiedTelexGlyphMetrics {
@@ -27,7 +46,7 @@ fn metrics() -> VerifiedTelexGlyphMetrics {
 
 fn mixed_plan() -> MoleculeRenderPlan {
     let atom = AtomRenderTarget::new(
-        target(RecordKind::Atom, "svg-atom", 1),
+        context(RecordKind::Atom, "svg-atom", 0x11, 1),
         point(10.0, 20.0),
         AtomLabelFacts::new("N", 1, 2).expect("label facts"),
         TargetVisibility::Visible,
@@ -46,18 +65,23 @@ fn mixed_plan() -> MoleculeRenderPlan {
         .expect("plus mark"),
     ]);
     let bond = BondRenderTarget::new(
-        target(RecordKind::Bond, "svg-bond", 2),
-        atom.target().record_id().clone(),
-        RecordId::from_source(
+        context(RecordKind::Bond, "svg-bond", 0x12, 2),
+        RecordId::new(
             RecordKind::Atom,
-            &Identifier::new("svg-neighbor").expect("test identifier"),
-        ),
+            Identifier::new("svg-atom").expect("test identifier"),
+        )
+        .expect("test record ID"),
+        RecordId::new(
+            RecordKind::Atom,
+            Identifier::new("svg-neighbor").expect("test identifier"),
+        )
+        .expect("test record ID"),
         BondStyle::NormalSingle,
         TargetVisibility::Visible,
     )
     .expect("bond target");
     let neighbor = AtomRenderTarget::new(
-        target(RecordKind::Atom, "svg-neighbor", 3),
+        context(RecordKind::Atom, "svg-neighbor", 0x13, 3),
         point(50.0, 20.0),
         AtomLabelFacts::new("C", 0, 0).expect("label facts"),
         TargetVisibility::Visible,
@@ -77,7 +101,8 @@ fn mixed_plan() -> MoleculeRenderPlan {
     .expect("render request");
     let plan = build_atom_bond_plan(&request, &metrics()).expect("atom and bond plan");
     let extra_batch = RenderBatch::new(
-        target(RecordKind::Atom, "svg-shape", 4),
+        target(0x14),
+        4,
         BatchSpace::AtomLocal {
             anchor: point(-3.0, 4.0),
         },
@@ -272,7 +297,8 @@ fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
         vec![
             RenderBatch::new(
-                target(RecordKind::Bond, "svg-path", 1),
+                target(0x15),
+                1,
                 BatchSpace::Scene,
                 vec![RenderOp::Path(path)],
             )
@@ -304,7 +330,7 @@ fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
 #[test]
 fn svg_backend_returns_a_typed_error_for_valid_extreme_text_geometry() {
     let atom = AtomRenderTarget::new(
-        target(RecordKind::Atom, "svg-extreme", 1),
+        context(RecordKind::Atom, "svg-extreme", 0x16, 1),
         point(0.0, 0.0),
         AtomLabelFacts::new("N", 0, 0).expect("label facts"),
         TargetVisibility::Visible,

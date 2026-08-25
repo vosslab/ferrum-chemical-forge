@@ -5,7 +5,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use xot::{Node, Xot};
 
 use super::{
-    CDML_NAMESPACE, PersistentId, TypedDocument, TypedDocumentError, element_name,
+    CDML_NAMESPACE, PersistentId, TypedDocument, TypedDocumentError,
+    document_object_identity_v1::{DOCUMENT_OBJECT_NAMESPACE_V1, is_document_object_attribute_v1},
+    element_name,
     reaction_reference_graph_v1::direct_reaction_reference_graph,
 };
 
@@ -205,6 +207,9 @@ impl TypedDocument {
                 .skip(1)
                 .map(|component| {
                     let clone = tree.clone_with_prefixes(molecule);
+                    let object_namespace = tree.add_namespace(DOCUMENT_OBJECT_NAMESPACE_V1);
+                    let object_id = tree.add_name_ns("id", object_namespace);
+                    tree.remove_attribute(clone, object_id);
                     let retained = component
                         .0
                         .iter()
@@ -225,9 +230,8 @@ impl TypedDocument {
                         .collect::<Vec<_>>()
                     {
                         if attribute(tree, child, "id").is_some_and(|id| retained.contains(id)) {
-                            let child_clone = tree.clone_with_prefixes(child);
-                            tree.append(clone, child_clone)
-                                .expect("a detached component clone accepts direct children");
+                            tree.append(clone, child)
+                                .expect("a detached component root accepts moved direct children");
                         }
                     }
                     (clone, component)
@@ -433,7 +437,9 @@ fn validate_molecule_profile(
 ) -> Result<(), TypedDocumentError> {
     for (name, _) in tree.attributes(molecule).iter() {
         let (local, namespace) = tree.name_ns_str(name);
-        if !namespace.is_empty() || (local != "id" && local != "name") {
+        if !is_document_object_attribute_v1(namespace, local)
+            && (!namespace.is_empty() || (local != "id" && local != "name"))
+        {
             return Err(TypedDocumentError::UnsupportedStructureDeletionMolecule(
                 identifier.clone(),
             ));

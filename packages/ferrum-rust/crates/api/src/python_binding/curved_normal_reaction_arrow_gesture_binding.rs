@@ -12,8 +12,7 @@ use pyo3::create_exception;
 use pyo3::prelude::*;
 
 use super::binding::PyDocumentSession;
-use super::presentation_creation_gesture_binding::digest;
-use super::presentation_render_plan_binding::PyPresentationRenderPlanV1;
+use super::presentation_creation_gesture_binding::{PyPresentationPreviewRenderPlanV1, digest};
 
 create_exception!(
     ferrum_chem,
@@ -77,7 +76,7 @@ pub(crate) struct PyCurvedNormalReactionArrowGestureV1 {
 pub(crate) struct PyCurvedNormalReactionArrowPreviewV1 {
     preview: Option<CurvedNormalReactionArrowPreviewV1>,
     #[pyo3(get)]
-    plan: PyPresentationRenderPlanV1,
+    plan: PyPresentationPreviewRenderPlanV1,
 }
 
 #[pymethods]

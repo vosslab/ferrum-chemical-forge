@@ -142,10 +142,62 @@ pub enum PreparedSessionTransitionPresentationRefusalV1 {
 
 #[derive(Debug)]
 pub(super) enum PreparedSessionTransitionKindV1 {
-    NoChange {
-        result: Option<SessionOperationResultV1>,
-    },
-    Changed(PreparedChangedSessionTransitionV1),
+    NoChange(Box<PreparedNoChangeSessionTransitionV1>),
+    Changed(Box<PreparedChangedSessionTransitionV1>),
+}
+
+#[derive(Debug)]
+pub(super) struct PreparedNoChangeSessionTransitionV1 {
+    pub(super) result: Option<SessionOperationResultV1>,
+}
+
+/// Candidate facts that remain fenced together until one changed transition commits.
+#[derive(Debug)]
+pub(in crate::session) struct ChangedSessionTransitionRequestV1 {
+    pub(super) source_revision: u64,
+    pub(super) source_digest: [u8; 32],
+    pub(super) state: RevisionState,
+    pub(super) effects: SessionTransitionEffectsV1,
+}
+
+impl ChangedSessionTransitionRequestV1 {
+    #[must_use]
+    pub(in crate::session) const fn new(
+        source_revision: u64,
+        source_digest: [u8; 32],
+        state: RevisionState,
+        effects: SessionTransitionEffectsV1,
+    ) -> Self {
+        Self {
+            source_revision,
+            source_digest,
+            state,
+            effects,
+        }
+    }
+}
+
+/// Commit-only facts redeemed atomically with one fenced changed candidate.
+#[derive(Debug)]
+pub(in crate::session) struct ChangedSessionTransitionCommitRequestV1 {
+    pub(super) commit: ChangedTransitionCommitV1,
+    pub(super) outcome: SessionOperationOutcomeStagingV1,
+    pub(super) authorization_claim: Option<AuthoringCapabilityClaimV1>,
+}
+
+impl ChangedSessionTransitionCommitRequestV1 {
+    #[must_use]
+    pub(in crate::session) const fn new(
+        commit: ChangedTransitionCommitV1,
+        outcome: SessionOperationOutcomeStagingV1,
+        authorization_claim: Option<AuthoringCapabilityClaimV1>,
+    ) -> Self {
+        Self {
+            commit,
+            outcome,
+            authorization_claim,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -190,9 +242,9 @@ pub(in crate::session) enum SessionOperationOutcomeStagingV1 {
         crate::PresentationRootSelectorV1,
         CreatedPresentationRootKindV1,
     ),
-    ReactionCreatedV1(String),
-    ReactionMembershipReplacedV1(String),
-    ReactionDefinitionDeletedV1(String),
+    ReactionCreatedV1(crate::DocumentObjectIdV1),
+    ReactionMembershipReplacedV1(crate::DocumentObjectIdV1),
+    ReactionDefinitionDeletedV1(crate::DocumentObjectIdV1),
 }
 
 impl PreparedSessionTransitionV1 {
@@ -202,8 +254,8 @@ impl PreparedSessionTransitionV1 {
     /// preflight have succeeded, or while terminally retiring the transition.
     pub(super) fn consume_terminal_authorization_v1(&mut self) {
         match &mut self.kind {
-            PreparedSessionTransitionKindV1::NoChange { result } => {
-                let _ = result.take();
+            PreparedSessionTransitionKindV1::NoChange(no_change) => {
+                let _ = no_change.result.take();
             }
             PreparedSessionTransitionKindV1::Changed(changed) => {
                 changed.consume_authorization_claim_v1();
@@ -329,7 +381,7 @@ impl PreparedSessionTransitionV1 {
     #[must_use]
     pub fn is_consumed_v1(&self) -> bool {
         match &self.kind {
-            PreparedSessionTransitionKindV1::NoChange { result } => result.is_none(),
+            PreparedSessionTransitionKindV1::NoChange(no_change) => no_change.result.is_none(),
             PreparedSessionTransitionKindV1::Changed(changed) => changed.state.is_none(),
         }
     }
@@ -344,12 +396,14 @@ impl PreparedSessionTransitionV1 {
         PreparedSessionTransitionPresentationRefusalV1,
     > {
         let precommit_overlay = match &self.kind {
-            PreparedSessionTransitionKindV1::NoChange { result: Some(_) } => None,
-            PreparedSessionTransitionKindV1::Changed(PreparedChangedSessionTransitionV1 {
-                state: Some(_),
-                precommit_overlay,
-                ..
-            }) => precommit_overlay.as_ref(),
+            PreparedSessionTransitionKindV1::NoChange(no_change) if no_change.result.is_some() => {
+                None
+            }
+            PreparedSessionTransitionKindV1::Changed(changed)
+                if changed.state.is_some() && changed.result.is_some() =>
+            {
+                changed.precommit_overlay.as_ref()
+            }
             _ => return Err(PreparedSessionTransitionPresentationRefusalV1::Retired),
         };
         Ok(PreparedSessionTransitionPresentationV1 {

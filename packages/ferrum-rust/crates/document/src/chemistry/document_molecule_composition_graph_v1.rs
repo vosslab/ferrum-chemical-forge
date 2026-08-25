@@ -29,10 +29,7 @@ pub fn document_molecule_composition_graph_v1(
         .try_reserve(molecule.atoms().len())
         .map_err(|_| DocumentMoleculeCompositionGraphErrorV1::ResourceAllocation)?;
     for (index, atom) in molecule.atoms().iter().enumerate() {
-        let identity = atom
-            .identity()
-            .try_clone()
-            .map_err(|_| DocumentMoleculeCompositionGraphErrorV1::ResourceAllocation)?;
+        let identity = atom.identity().clone();
         if atom_indices.insert(identity, index).is_some() {
             return Err(
                 DocumentMoleculeCompositionGraphErrorV1::DuplicateAtomIdentity {

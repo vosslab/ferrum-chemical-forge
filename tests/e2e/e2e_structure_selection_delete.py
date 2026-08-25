@@ -1,9 +1,12 @@
 """Offscreen P0.3 atom/bond structural deletion workflow."""
 
-import os
 import pathlib
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# local repo modules
+import ferrum_qt_e2e
+
+
+ferrum_qt_e2e.select_offscreen_qt_platform()
 
 import ferrum_chem
 import PySide6.QtCore

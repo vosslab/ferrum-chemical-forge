@@ -123,24 +123,46 @@ document snapshot, establishes canonical record order, and provides the complete
 file before Qt publishes it atomically. The established one-record SDF actions
 remain available for their existing workflow.
 
-## Attach, delete, and materialize `Me`
+## Place, attach, delete, and materialize compact groups
 
-The current compact-group authoring route is Qt-only and intentionally narrow:
+The current compact-group authoring routes are Qt-only and intentionally
+narrow. Free placement and attachment are separate operations:
+
+1. Choose Chemistry > `Place Compact Group...`.
+2. Select `Me` and release once on the canvas.
+3. Ferrum creates one direct-root compact group. It is initially represented as
+   zero atoms and zero bonds.
+
+For an attached group:
 
 1. Select one eligible atom on the canvas.
 2. Choose Chemistry > `Attach Compact Group...`.
-3. Select `Me`, then choose `Attach to Selected Atom`.
+3. Select the Rust-projected `Me` or `NO2` choice, then choose `Attach to Selected Atom`.
 4. Release once on the canvas to supply the attachment direction.
 5. Explicitly select the resulting compact-group label.
 6. Choose Chemistry > `Materialize Selected Compact Group`.
 7. Choose Chemistry > `Molecule Report...` to inspect the materialized result.
 
-Rust refuses an unavailable selection or invalid release without changing the
-document, durable IDs, history, or selection. This slice has no free placement,
-no other compact-group author keys, and no CLI or stateless attachment route.
-Materialization remains a separate delivered operation.
+Qt maps the canvas release through its current view-snapping policy and sends
+the resulting finite coordinates through the private PyO3 seam. Rust validates
+the typed `Point3V1` and candidate geometry, then owns the anchor, canonical
+orientation, durable IDs, renderer admission, and history transition. Rust
+cannot establish that a coordinate originated from Qt's view-snapping policy;
+that policy remains a Qt responsibility. The delivered public surface admits
+only `Me` for free placement and `Me` or `NO2` for attached authoring. `NO2`
+materializes as `R-[N+](=O)[O-]`; Rust preserves its atom formal charges through
+history and reopen, while Molecule Report exposes the supported net formal
+charge. No CLI or stateless attachment route is part of this slice.
 
-If exactly one selected atom has an exact-current unavailable result for `Me`,
+Materialization is a separate delivered operation. For a sole direct-root
+compact group with zero atoms and zero bonds, it replaces that group in the
+same molecule with the immutable recipe atoms and bonds; it does not rewrite
+another root or change attached-group topology. Methyl materializes to one
+explicit carbon. The replacement is one history transition and survives Undo,
+Redo, and reopen.
+
+If exactly one selected atom has an exact-current unavailable result for a
+reviewed choice, the existing action can present a label-derived refusal. For `Me`,
 the existing `Attach Compact Group...` action remains enabled. Activating it
 opens Ferrum's standard accessible `Action Not Available` dialog with the
 visible message `Me cannot attach to the selected atom. Select another atom and
@@ -185,6 +207,34 @@ molecule IDs. See
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for the exact request,
 completed receipt, aggregate, and typed-refusal fields.
 
+## Check structure diagnostics
+
+`Check Structure...` is a distinct, runtime-free read-only operation, not a
+Molecule Report variant. Select one or more direct-root molecules and choose
+Chemistry > `Check Structure...`. Ferrum captures the current CDML, revision,
+digest, and durable selected-root IDs, then returns deterministic structural
+findings in an accessible modeless dialog. It never changes the document,
+history, selection, canvas, or current navigation.
+
+Automation can use the named local CLI operation:
+
+```bash
+build/bin/ferrum document command document.molecule.diagnostics.v1 diagnostics-request.json
+```
+
+The request contains `snapshot { cdml, revision, digest_hex }` and selected
+durable direct-root `molecule_ids`. It accepts at most 128 IDs and 2 KiB of
+selector bytes; exceeding either bound returns a typed resource refusal, with
+no partial result. The findings are deterministic and bounded. Missing
+authored `formal_charge` remains an unknown source fact, not a delivered
+chemical defect; `IncompleteAuthoredCharge` is reserved for later work.
+
+For example, an attached unexpanded `Me` group is reported with recovery
+guidance to use the existing materialization action. Diagnostics neither
+materialize the group nor auto-fix any finding. See
+[FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for the closed request and
+receipt boundary.
+
 ## Six V1 executor verbs
 
 The six general-purpose commands below create one V1 operation request and use
@@ -227,8 +277,8 @@ request and response contract is in
 
 ### Compact-group materialization
 
-`document.compact-group.materialize.v1` materializes one attached direct-root
-typed compact group from a caller-supplied fenced snapshot. It accepts exactly
+`document.compact-group.materialize.v1` materializes one typed compact group in
+a direct-root molecule from a caller-supplied fenced snapshot. It accepts exactly
 `document { cdml, expected_revision, expected_digest_hex }`, opaque
 `molecule_id`, and opaque `compact_group_id`; these identifiers are neither
 labels nor recipes. Only typed `Me` and `NO2` groups materialize. The route
@@ -276,7 +326,10 @@ pair as eligible for the installed revision/digest fence. On success Ferrum
 installs the returned observation and selects Rust's replacement focus atom.
 Undo, Redo, and reopen create a current observation and therefore require a
 fresh availability result; the UI does not retain a chemistry decision, raw
-CDML, or a source-ID substitute for the live durable address.
+CDML, or a source-ID substitute for the live durable address. A sole free `Me`
+root becomes one explicit-carbon molecule; an attached group retains its
+existing exterior topology while its group is replaced by the immutable recipe
+graph.
 
 `inspect --json` returns a `document_fence`. Use its revision and digest with the same input
 document in a later request-owned document command. This local workflow authors one vector:
@@ -389,3 +442,8 @@ CPython 3.12 route; it is not a cross-platform consumer release. The Rust CLI
 and Qt application are both local build products. See [INSTALL.md](INSTALL.md)
 for the local workflow and [PROVENANCE.md](PROVENANCE.md) for concise lineage
 and licensing information.
+## Place a free compact group
+
+Use **Place Compact Group...**, select **Me**, then release once on the canvas. Ferrum creates a new molecule root containing the methyl compact group at the snapped canvas position. This is a direct-root group, so it has no atoms or bonds until a later supported materialization workflow.
+
+The chooser currently offers only `Me`. Attached compact groups, templates, arbitrary orientation, dragging, batch placement, raw CDML authoring, and command-line placement are separate capabilities and are not implied by this action.

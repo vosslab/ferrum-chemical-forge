@@ -122,8 +122,9 @@ mod tests {
     fn python_protocol_serialization_redacts_hostile_runtime_failures() {
         Python::initialize();
         Python::attach(|py| {
-            for request in [
-                serde_json::json!({
+            for (request, expected_category) in [
+                (
+                    serde_json::json!({
                     "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
                     "request_id": "python-hostile-convert",
                     "operation": {
@@ -131,12 +132,17 @@ mod tests {
                         "input": {"format": "smiles", "text": "CCO"},
                         "output_format": "inchi_standard",
                     },
-                }),
-                serde_json::json!({
+                    }),
+                    "chemistry_unavailable",
+                ),
+                (
+                    serde_json::json!({
                     "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
                     "request_id": "python-hostile-coordinates",
                     "operation": {"kind": "document.generate_coordinates", "document": CDML},
-                }),
+                    }),
+                    "chemistry_unavailable",
+                ),
             ] {
                 let envelope =
                     execute_operation_with_runtime_v1(&request.to_string(), &HostileRuntime)
@@ -145,7 +151,7 @@ mod tests {
                     .expect("Python bridge serializes protocol envelope");
                 let value: serde_json::Value = serde_json::from_str(&json).expect("response JSON");
                 assert_eq!(value["request_id"], request["request_id"]);
-                assert_eq!(value["error"]["category"], "chemistry_unavailable");
+                assert_eq!(value["error"]["category"], expected_category);
                 assert_eq!(
                     value["error"]["message"],
                     "Ferrum chemistry runtime is unavailable"

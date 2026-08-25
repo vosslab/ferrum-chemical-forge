@@ -169,16 +169,17 @@ pub(crate) fn observe_current_document_atom_oxidation_v1(
     let root_source = root
         .attribute("id")
         .ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?;
-    let selected_atom_record_id = RecordId::from_source(
+    let selected_atom_record_id = RecordId::new(
         RecordKind::Atom,
-        &Identifier::new(
+        Identifier::new(
             selected
                 .attribute("id")
                 .ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?
                 .to_owned(),
         )
         .map_err(|_| DocumentAtomOxidationRefusalV1::DirectRootMismatch)?,
-    );
+    )
+    .map_err(|_| DocumentAtomOxidationRefusalV1::DirectRootMismatch)?;
     if let Some(reason) = selected_root_profile_unavailability_v1(root) {
         return Ok(unavailable(reason));
     }
@@ -186,7 +187,7 @@ pub(crate) fn observe_current_document_atom_oxidation_v1(
         .core_molecule(&request.molecule_id)
         .map_err(|_| DocumentAtomOxidationRefusalV1::UnsupportedDocument)?
         .ok_or(DocumentAtomOxidationRefusalV1::DirectRootMismatch)?;
-    if molecule.source_id().map(Identifier::as_str) != Some(root_source) {
+    if molecule.source_id().as_str() != root_source {
         return Err(DocumentAtomOxidationRefusalV1::DirectRootMismatch);
     }
     let lowered = match document_molecule_graph_v1(&molecule) {
@@ -426,7 +427,10 @@ mod tests {
 
     #[test]
     fn remote_unsupported_fact_makes_the_selected_atom_unavailable() {
-        let source = water().replace("</molecule>", "<group id=\"remote\"/></molecule>");
+        let source = water().replace(
+            "</molecule>",
+            "<query id=\"remote\" name=\"R\"><point x=\"3\" y=\"0\"/></query></molecule>",
+        );
         let session = DocumentSession::load(&source).expect("root with group");
         assert_eq!(
             session.observe_atom_oxidation_v1(&selected_request(&session, 0, 0)),

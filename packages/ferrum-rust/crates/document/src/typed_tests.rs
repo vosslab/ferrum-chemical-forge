@@ -12,7 +12,7 @@ const AUTHORED: &str = r##"
   <molecule id="m1" name="probe">
     <template atom="a1" bond_first="b1" bond_second="b2"/>
     <atom id="a1" name="C" charge="1" multiplicity="2" valency="4" free_sites="1" isotope="13" explicit_hydrogens="1" show="yes" hydrogens="on" number="1" pos="center-first" background-color="#fff" local_extension="literal"><point x="0cm" y="0cm" z="0"/><font color="#111" family="sans" size="12"/><ftext>C&lt;sub&gt;2&lt;/sub&gt;&lt;sup&gt;+&lt;/sup&gt;</ftext><mark type="plus" x="1" y="2" size="10" text="+" refname="p" auto="no" draw_circle="yes" line_width="2"/></atom>
-    <group id="g1" name="Me" group-type="builtin" pos="center-last" show_number="yes" number="2" background-color="#eee"><point x="1cm" y="0cm"/></group>
+    <compact-group id="g1" version="1" catalog-key="methyl" attachment-index="0" orientation-degrees="0"><point x="1cm" y="0cm"/></compact-group>
     <text id="tatom" pos="center-first"><point x="2cm" y="0cm"/><font size="10"/><ftext>R&lt;sub&gt;x&lt;/sub&gt;</ftext></text><query id="q1" name="R" free_sites="1"><point x="3cm" y="0cm"/></query>
     <bond id="b1" type="w1" start="a1" end="g1" line_width="1" bond_width="2" wedge_width="3" double_ratio="0.7" center="yes" auto_sign="-1" equithick="1" simple_double="0" color="#123" wavy_style="sine" haworth_position="front"/><bond id="b2" type="q1" start="g1" end="tatom"/><bond id="b3" type="n1" start="tatom" end="q1"/>
     <fragment id="f1" type="linear_form"><name>linear_form</name><bond id="b1"/><vertex id="a1"/><property name="bond_length" value="10" type="IntType"/></fragment><display-form><future-local id="display-opaque">keep</future-local></display-form><user-data><vendor-data id="user-opaque">keep</vendor-data></user-data>
@@ -135,7 +135,7 @@ fn preservation_only_containers_have_typed_identity_and_opaque_payloads() {
 
 #[test]
 fn excess_child_is_retained_with_a_non_demoting_diagnostic() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"1\" y=\"2\"/><point x=\"3\" y=\"4\"/></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"1\" y=\"2\"/><point x=\"3\" y=\"4\"/></atom></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("diagnostic source must type");
     let atom = child(
         child(document.root(), TypedClass::Molecule),
@@ -174,8 +174,46 @@ fn atom_only_typed_documents_supply_the_validated_core_projection() {
 }
 
 #[test]
+fn typed_ingress_refuses_a_missing_structural_source_id() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule>",
+        "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "</molecule></cdml>",
+    );
+    assert!(matches!(
+        TypedDocument::parse(source),
+        Err(TypedDocumentError::MissingStructuralSourceId { .. })
+    ));
+}
+
+#[test]
+fn typed_admission_refuses_blank_and_cross_molecule_duplicate_source_ids() {
+    let blank = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
+        "<atom id=\" \" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "</molecule></cdml>",
+    );
+    let cross_molecule_duplicate = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m1\">",
+        "<atom id=\"shared\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "</molecule><molecule id=\"m2\"><atom id=\"shared\" name=\"O\">",
+        "<point x=\"1\" y=\"0\"/></atom></molecule></cdml>",
+    );
+
+    assert!(matches!(
+        TypedDocument::parse(blank),
+        Err(TypedDocumentError::InvalidStructuralSourceId { .. })
+    ));
+    assert!(matches!(
+        TypedDocument::parse(cross_molecule_duplicate),
+        Err(TypedDocumentError::DuplicateStructuralSourceId { .. })
+    ));
+}
+
+#[test]
 fn core_projection_reports_missing_required_geometry() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"/></molecule></cdml>";
+    let source =
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"/></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()
@@ -188,7 +226,7 @@ fn core_projection_reports_missing_required_geometry() {
 
 #[test]
 fn core_projection_reports_invalid_authored_scalars() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\" charge=\"many\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" charge=\"many\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()
@@ -205,7 +243,7 @@ fn core_projection_reports_invalid_authored_scalars() {
 
 #[test]
 fn core_projection_reports_unresolved_bond_endpoints() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><bond start=\"a\" end=\"missing\"/></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><bond id=\"b\" start=\"a\" end=\"missing\"/></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()
@@ -222,7 +260,7 @@ fn core_projection_reports_unresolved_bond_endpoints() {
 
 #[test]
 fn core_projection_reports_core_model_rejections() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"NaN\" y=\"0\"/></atom></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"NaN\" y=\"0\"/></atom></molecule></cdml>";
     let document = TypedDocument::parse(source).expect("source must type");
     let error = document
         .core_projection()
@@ -270,7 +308,7 @@ fn typed_admission_rejects_vertexless_direct_molecule_roots_but_keeps_blank_docu
 
     for source in [
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"empty\"/></cdml>",
-        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"bond-only\"><bond start=\"a\" end=\"b\"/></molecule></cdml>",
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"bond-only\"><bond id=\"bond\" start=\"a\" end=\"b\"/></molecule></cdml>",
     ] {
         assert!(matches!(
             TypedDocument::parse(source),

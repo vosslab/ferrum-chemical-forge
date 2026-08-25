@@ -69,18 +69,21 @@ impl TextPlacementContentV1 {
 }
 #[derive(Clone, Debug)]
 pub struct CommittedTextPlacementV1 {
-    identifier: crate::PersistentId,
+    document_object_id: crate::DocumentObjectIdV1,
     result: crate::SessionOperationResultV1,
 }
 impl CommittedTextPlacementV1 {
     pub(crate) fn new(
-        identifier: crate::PersistentId,
+        document_object_id: crate::DocumentObjectIdV1,
         result: crate::SessionOperationResultV1,
     ) -> Self {
-        Self { identifier, result }
+        Self {
+            document_object_id,
+            result,
+        }
     }
-    pub fn identifier(&self) -> &str {
-        self.identifier.as_str()
+    pub fn document_object_id(&self) -> &crate::DocumentObjectIdV1 {
+        &self.document_object_id
     }
     pub fn result(&self) -> &crate::SessionOperationResultV1 {
         &self.result

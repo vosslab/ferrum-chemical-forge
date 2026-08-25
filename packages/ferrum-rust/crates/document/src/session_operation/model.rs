@@ -185,9 +185,9 @@ pub enum SessionOperationV1 {
         /// Complete validated source-ID-targeted appearance intent.
         patch: GeometricPropertiesPatchV1,
     },
-    /// Apply one validated appearance patch to a direct-root Wavy polyline.
+    /// Apply one validated appearance patch to a durable Wavy polyline.
     SetWavyProperties {
-        /// Complete validated source-ID-targeted Wavy appearance intent.
+        /// Complete validated durable-ID-targeted Wavy appearance intent.
         patch: WavyPropertiesPatchV1,
     },
     /// Apply one validated common appearance patch to a durable bracket pair.
@@ -326,11 +326,11 @@ pub enum SessionOperationError {
     #[error("typed geometric presentation does not exist: {0}")]
     UnknownGeometricPresentation(String),
     /// The requested direct-root Wavy polyline does not occur in the document.
-    #[error("typed Wavy presentation does not exist: {0}")]
-    UnknownWavy(String),
-    /// The requested durable bracket pair does not occur in the document.
-    #[error("typed bracket pair does not exist: {0}")]
-    UnknownBracketPair(String),
+    #[error("typed Wavy presentation does not exist")]
+    UnknownWavy(ferrum_document_projection::DocumentObjectIdV1),
+    /// The requested durable bracket members do not occur in the document.
+    #[error("typed bracket pair does not exist: {0:?}")]
+    UnknownBracketPair([ferrum_document_projection::DocumentObjectIdV1; 2]),
     /// A durable document-object selector does not occur in the retained document.
     #[error("document object does not exist: {0}")]
     UnknownDocumentObject(String),
@@ -406,7 +406,7 @@ pub(crate) enum Candidate {
     Changed(Box<TypedDocument>),
 }
 
-pub(super) fn validate_reaction_members(
+pub(crate) fn validate_reaction_members(
     members: &[(DirectReactionRoleV1, String)],
 ) -> Result<(), ReactionOperationRefusalV1> {
     let reactants = members
@@ -451,7 +451,7 @@ fn expected_reaction_member_kind(role: DirectReactionRoleV1) -> DirectCdmlRootKi
     }
 }
 
-pub(super) fn validate_reaction_members_against_document(
+pub(crate) fn validate_reaction_members_against_document(
     document: &TypedDocument,
     members: &[(DirectReactionRoleV1, String)],
     excluded_reaction: Option<&str>,
@@ -491,10 +491,21 @@ pub(super) fn strict_reaction_exists(document: &TypedDocument, reaction_id: &str
     })
 }
 
+fn reaction_document_object_id(
+    document: &TypedDocument,
+    reaction_id: &str,
+) -> Result<crate::DocumentObjectIdV1, SessionOperationError> {
+    let source_id = PersistentId::new(reaction_id.to_owned())
+        .map_err(|_| ReactionOperationRefusalV1::InvalidDefinition)?;
+    document
+        .document_object_id_for_source_id_v1(&source_id)
+        .ok_or(ReactionOperationRefusalV1::InvalidDefinition.into())
+}
+
 pub(super) fn prepare_create_reaction(
     current: &TypedDocument,
     request: &CreateReactionV1,
-) -> Result<(TypedDocument, String), SessionOperationError> {
+) -> Result<(TypedDocument, crate::DocumentObjectIdV1), SessionOperationError> {
     validate_reaction_members_against_document(current, request.members(), None)?;
     let index = DirectCdmlSemanticIndexV1::from_document(current);
     let reaction_id = (1_u64..)
@@ -504,15 +515,15 @@ pub(super) fn prepare_create_reaction(
     let source = current.to_xml()?;
     let candidate = append_direct_cdml_reaction_v1(&source, &reaction_id, request.members())
         .map_err(|_| ReactionOperationRefusalV1::InvalidDefinition)?;
-    TypedDocument::parse(&candidate)
-        .map(|candidate| (candidate, reaction_id))
-        .map_err(SessionOperationError::Candidate)
+    let candidate = TypedDocument::parse(&candidate).map_err(SessionOperationError::Candidate)?;
+    let reaction_document_object_id = reaction_document_object_id(&candidate, &reaction_id)?;
+    Ok((candidate, reaction_document_object_id))
 }
 
 pub(super) fn prepare_replace_reaction_members(
     current: &TypedDocument,
     request: &ReplaceReactionMembersV1,
-) -> Result<(TypedDocument, String), SessionOperationError> {
+) -> Result<(TypedDocument, crate::DocumentObjectIdV1), SessionOperationError> {
     if !strict_reaction_exists(current, request.reaction_id()) {
         return Err(ReactionOperationRefusalV1::InvalidDefinition.into());
     }
@@ -521,26 +532,26 @@ pub(super) fn prepare_replace_reaction_members(
         request.members(),
         Some(request.reaction_id()),
     )?;
+    let reaction_document_object_id = reaction_document_object_id(current, request.reaction_id())?;
     let source = current.to_xml()?;
     let candidate =
         replace_direct_cdml_reaction_members_v1(&source, request.reaction_id(), request.members())
             .map_err(|_| ReactionOperationRefusalV1::InvalidDefinition)?;
-    TypedDocument::parse(&candidate)
-        .map(|candidate| (candidate, request.reaction_id().to_owned()))
-        .map_err(SessionOperationError::Candidate)
+    let candidate = TypedDocument::parse(&candidate).map_err(SessionOperationError::Candidate)?;
+    Ok((candidate, reaction_document_object_id))
 }
 
 pub(super) fn prepare_delete_reaction(
     current: &TypedDocument,
     request: &DeleteReactionV1,
-) -> Result<(TypedDocument, String), SessionOperationError> {
+) -> Result<(TypedDocument, crate::DocumentObjectIdV1), SessionOperationError> {
     if !strict_reaction_exists(current, request.reaction_id()) {
         return Err(ReactionOperationRefusalV1::InvalidDefinition.into());
     }
+    let reaction_document_object_id = reaction_document_object_id(current, request.reaction_id())?;
     let source = current.to_xml()?;
     let candidate = delete_direct_cdml_reaction_definition_v1(&source, request.reaction_id())
         .map_err(|_| ReactionOperationRefusalV1::InvalidDefinition)?;
-    TypedDocument::parse(&candidate)
-        .map(|candidate| (candidate, request.reaction_id().to_owned()))
-        .map_err(SessionOperationError::Candidate)
+    let candidate = TypedDocument::parse(&candidate).map_err(SessionOperationError::Candidate)?;
+    Ok((candidate, reaction_document_object_id))
 }

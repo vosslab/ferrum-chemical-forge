@@ -270,6 +270,7 @@ fn clean_geometry_equal_authored_coordinates_do_not_create_history() {
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let observation = session.observe(0).expect("fixture projects");
+    let admitted_cdml = observation.snapshot().cdml().to_owned();
     let molecule = &observation.projection().molecules()[0];
     let molecule_id = molecule.id().expect("durable molecule").clone();
     let positions = molecule
@@ -291,7 +292,7 @@ fn clean_geometry_equal_authored_coordinates_do_not_create_history() {
         )
         .expect("equal authored coordinates are a no-op");
     assert_eq!(unchanged.observation().snapshot().revision(), 0);
-    assert_eq!(unchanged.observation().snapshot().cdml(), source);
+    assert_eq!(unchanged.observation().snapshot().cdml(), admitted_cdml);
 }
 
 #[test]
@@ -308,6 +309,7 @@ fn clean_geometry_rejects_a_later_count_mismatch_without_partial_mutation() {
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let observation = session.observe(0).expect("fixture projects");
+    let admitted_cdml = observation.snapshot().cdml().to_owned();
     let ids = observation
         .projection()
         .molecules()
@@ -347,5 +349,5 @@ fn clean_geometry_rejects_a_later_count_mismatch_without_partial_mutation() {
         .observe(0)
         .expect("failed batch leaves revision zero");
     assert_eq!(retained.snapshot().revision(), 0);
-    assert_eq!(retained.snapshot().cdml(), source);
+    assert_eq!(retained.snapshot().cdml(), admitted_cdml);
 }

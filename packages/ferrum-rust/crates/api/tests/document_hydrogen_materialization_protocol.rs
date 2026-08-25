@@ -2,46 +2,49 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use ferrum_api::{OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1, execute_operation_v1};
-use ferrum_document::DocumentSession;
+use ferrum_document::{
+    DocumentSession, load_document_utf8_bytes_with_budget, local_cdml_ingress_format_v1,
+};
 use serde_json::{Value, json};
 
 const OXYGEN_SKELETON: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"oxygen-root\">",
-    "<atom id=\"oxygen-anchor\" name=\"O\"><point x=\"0\" y=\"0\"/></atom>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:object=\"urn:ferrum:document-object:v1\" version=\"1.0\"><molecule id=\"oxygen-root\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\">",
+    "<atom id=\"oxygen-anchor\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000002\" name=\"O\"><point x=\"0\" y=\"0\"/></atom>",
     "</molecule></cdml>"
 );
 
-fn digest(document: &str) -> String {
-    DocumentSession::load(document)
-        .expect("ordinary skeleton loads")
+fn protocol_session(document: &str) -> DocumentSession {
+    load_document_utf8_bytes_with_budget(document.as_bytes(), local_cdml_ingress_format_v1())
+        .expect("inline document admits through the protocol ingress")
+}
+
+fn current_fence(document: &str) -> (u64, String) {
+    let snapshot = protocol_session(document)
         .snapshot()
-        .expect("ordinary skeleton snapshots")
-        .digest()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+        .expect("admitted document snapshots");
+    (
+        snapshot.revision(),
+        snapshot
+            .digest()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+    )
 }
 
 fn selection(document: &str) -> (String, String) {
-    let session = DocumentSession::load(document).expect("ordinary skeleton loads");
+    let session = protocol_session(document);
     let observation = session.observe(0).expect("ordinary skeleton projects");
     let molecule = &observation.projection().molecules()[0];
     (
-        molecule
-            .id()
-            .expect("root has a public durable selector")
-            .as_str()
-            .to_owned(),
-        molecule.atoms()[0]
-            .id()
-            .expect("anchor has a public durable selector")
-            .as_str()
-            .to_owned(),
+        molecule.document_object_id().as_str().to_owned(),
+        molecule.atoms()[0].document_object_id().as_str().to_owned(),
     )
 }
 
 fn materialization_request(document: &str) -> Value {
     let (molecule_id, anchor_atom_id) = selection(document);
+    let (expected_revision, expected_digest_hex) = current_fence(document);
     json!({
         "schema": "ferrum-operation-request-v1",
         "request_id": "hydrogen-materialization-protocol-test",
@@ -49,8 +52,8 @@ fn materialization_request(document: &str) -> Value {
             "kind": "document.molecule.hydrogen.materialize.v1",
             "document": {
                 "cdml": document,
-                "expected_revision": 0,
-                "expected_digest_hex": digest(document),
+                "expected_revision": expected_revision,
+                "expected_digest_hex": expected_digest_hex,
             },
             "molecule_id": molecule_id,
             "anchor_atom_id": anchor_atom_id,
@@ -61,7 +64,7 @@ fn materialization_request(document: &str) -> Value {
 fn response_limited_oxygen_skeleton() -> String {
     let source_id = "oxygen".repeat(OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1);
     format!(
-        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"oxygen-root\"><atom id=\"{source_id}\" name=\"O\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:object=\"urn:ferrum:document-object:v1\" version=\"1.0\"><molecule id=\"oxygen-root\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\"><atom id=\"{source_id}\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000002\" name=\"O\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
     )
 }
 

@@ -30,8 +30,8 @@ mod chemistry;
 mod clean_geometry_update_v1;
 mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
-mod compact_group_deletion_v1;
 mod clipboard_paste_v1;
+mod compact_group_deletion_v1;
 mod compact_group_materialization_v1;
 mod compact_group_projection_v1;
 mod compact_group_v1;
@@ -44,11 +44,14 @@ mod direct_cdml_semantic_index_v1;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
 mod document_compact_group_materialization_v1;
+mod document_direct_root_index_v1;
 mod document_explicit_fragment_api_v1;
 mod document_ingress_v1;
+mod document_object_identity_v1;
 mod document_smarts_snapshot_v1;
 mod drawing_standard_patch_v1;
 mod explicit_fragment_v1;
+mod free_compact_group_v1;
 mod generated_ids;
 mod geometric_properties_patch_v1;
 mod geometry_repair_v1;
@@ -151,10 +154,9 @@ pub use atom_properties_patch_v1::{
     AtomPropertiesPatchV1, AtomPropertiesPatchV1Error, AtomPropertyChangeV1,
 };
 pub use atom_rotation_v1::{AtomRotationTargetV1, AtomRotationV1, AtomRotationV1Error};
-pub use attached_compact_group_v1::{AttachedCompactGroupErrorV1, AttachedCompactGroupReleaseV1};
-pub use session::{
-    AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
-    AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1, PendingAttachedCompactGroupV1,
+pub use attached_compact_group_v1::{
+    AttachCompactGroupV1, AttachedCompactGroupChoiceV1, AttachedCompactGroupErrorV1,
+    AttachedCompactGroupReleaseV1, attached_compact_group_choices_v1,
 };
 pub use attached_cyclohexane_v1::{AttachedCyclohexaneErrorV1, AttachedCyclohexaneReleaseV1};
 pub use authored_text_v1::{
@@ -203,7 +205,7 @@ pub use clipboard_paste_v1::{
 pub use compact_group_v1::{
     CompactGroupAttachmentV1, CompactGroupCatalogKeyV1, CompactGroupV1, CompactGroupV1Error,
 };
-pub use core_projection::{CoreProjection, CoreProjectionError};
+pub use core_projection::{CoreProjection, CoreProjectionError, StructuralSourceIdError};
 pub use direct_bond_mutation::DirectBondEndpointIntent;
 pub use direct_bond_primitives_v1::{
     DirectBondAdmissionRefusalV1, DirectBondGestureErrorV1, DirectBondPoint2V1,
@@ -222,8 +224,10 @@ pub use direct_haworth_reobservation_v1::{
 };
 pub use document_compact_group_materialization_v1::{
     DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
-    DocumentCompactGroupMaterializationTargetErrorV1,
-    DocumentCompactGroupMaterializationResultV1,
+    DocumentCompactGroupMaterializationResultV1, DocumentCompactGroupMaterializationTargetErrorV1,
+};
+pub use document_direct_root_index_v1::{
+    DocumentDirectRootIndexErrorV1, document_direct_root_paint_orders_v1,
 };
 pub use document_explicit_fragment_api_v1::{
     DOCUMENT_EXPLICIT_FRAGMENT_SCHEMA_V1, DocumentExplicitFragmentApiErrorV1,
@@ -275,6 +279,7 @@ pub use ferrum_document_projection::{
     DOCUMENT_PROJECTION_SCHEMA_V1, DocumentProjectionProvenanceV1, DocumentProjectionV1,
     DocumentProjectionV1Error, ProjectionIssueCodeV1, ProjectionIssueV1, ProjectionIssueV1Error,
 };
+pub use ferrum_document_projection::{DocumentDirectRootKindV1, DocumentDirectRootV1};
 pub use ferrum_document_projection::{
     PRESENTATION_STACK_PROJECTION_SCHEMA_V1, PolylinePathV1, PolylineProjectionV1,
     PresentationBracketStyleV1, PresentationFactProvenanceV1, PresentationFontFaceV1,
@@ -286,6 +291,7 @@ pub use ferrum_document_projection::{PlusProjectionV1, PresentationFontV1};
 pub use ferrum_document_projection::{
     PresentationTextFontV1, PresentationTextRunV1, PresentationTextStyleV1, TextProjectionV1,
 };
+pub use free_compact_group_v1::{FreeCompactGroupErrorV1, PlaceFreeCompactGroupV1};
 pub use geometric_properties_patch_v1::{
     GeometricLineWidthV1, GeometricPropertiesPatchV1, GeometricPropertiesPatchV1Error,
     GeometricPropertyChangeV1,
@@ -365,7 +371,7 @@ pub use presentation_path_gesture_v1::{
 };
 pub use presentation_root_deletion_v1::{
     PresentationRootDeletionSetV1, PresentationRootDeletionSetV1Error, PresentationRootDeletionV1,
-    PresentationRootDeletionV1Error, PresentationRootSelectorV1, PresentationRootSelectorV1Error,
+    PresentationRootSelectorV1,
 };
 pub use presentation_stack_reorder_v1::{
     PresentationStackOrderV1, PresentationStackReorderV1, PresentationStackReorderV1Error,
@@ -407,13 +413,26 @@ pub use session::{
     TransitionAuthorizationV1,
 };
 pub use session::{
-    AttachedCyclohexaneSessionErrorV1, DocumentClipboardPasteResultV1, DocumentSession,
+    AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
+    AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1,
+    FreeCompactGroupPlacementCommitResultV1, FreeCompactGroupPlacementSessionErrorV1,
+    PendingAttachedCompactGroupV1, PendingPlaceFreeCompactGroupV1,
+};
+pub use session::{
+    AttachedCyclohexaneSessionErrorV1, DocumentClipboardPasteResultV1,
+    DocumentReactionListDispositionV1, DocumentReactionListObservationV1,
+    DocumentReactionListReactionV1, DocumentReactionMemberObservationV1,
+    DocumentReactionMemberSelectionV1, DocumentReactionSelectionObservationV1, DocumentSession,
     DocumentSessionError, DocumentSnapshot, DocumentUserTemplateResultV1,
-    LiveChemicalPresentationTargetV1,
-    PendingAttachedCyclohexaneV1, PendingCreateBracket, PendingCreateWavy,
-    PendingDeleteCompactGroupV1, PendingDeleteStructureV1, PendingLinearFormConvertV1,
-    PreparedLinearFormConvertResultV1,
-    Publication, SaveOutcome,
+    LiveChemicalPresentationTargetV1, PendingAttachedCyclohexaneV1, PendingCreateBracket,
+    PendingCreateWavy, PendingDeleteCompactGroupV1, PendingDeleteStructureV1,
+    PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1, Publication,
+    ReactionMemberSelectionRefusalV1, SaveOutcome,
+};
+pub use session::{
+    DocumentCreateReactionCommandV1, DocumentDeleteReactionCommandV1,
+    DocumentReactionAuthoringCommandKindV1, DocumentReactionMemberTargetsV1,
+    DocumentReplaceReactionMembersCommandV1, ReactionAuthoringCommandRefusalV1,
 };
 
 /// Renderer-only translation support for document-owned interaction transitions.
@@ -422,6 +441,7 @@ pub mod renderer_admission {
         RendererTranslationSnapDeltaV1, RendererTranslationSnapRefusalV1,
     };
 }
+pub use compact_group_deletion_v1::CompactGroupDeletionReceiptV1;
 pub use session::{
     PresentationAppearanceV1, PresentationCreateRequestV1, PresentationVectorCreateKindV1,
 };
@@ -431,14 +451,14 @@ pub use session_operation::{
     CatalogMoleculePlacementOutcomeV1, CatalogMoleculePlacementV1, CatalogPlacementKeyV1,
     CreateAtomV1, CreateBondV1, CreateCurvedEquilibriumArrowV1, CreateCurvedTerminalArrowV1,
     CreateDirectBondV1, CreateHaworthMoleculeV1, CreatePresentationPathV1,
-    CreatePresentationRootV1, CreatePresentationVectorV1, CreateReactionV1,
-    CreatedPresentationRootKindV1, CreatedPresentationRootOutcomeV1, DeleteReactionV1,
-    DirectBondOperationOutcomeV1, InterchangeRecordBatchInsertedOutcomeV1,
-    MoleculeInsertedOutcomeV1, ReactionCreatedOutcomeV1, ReactionDefinitionDeletedOutcomeV1,
-    ReactionMembershipReplacedOutcomeV1, ReactionOperationRefusalV1, ReplaceReactionMembersV1,
-    SessionOperation, SessionOperationError, SessionOperationOutcomeV1, SessionOperationResultV1,
-    SessionOperationV1,
+    CreatePresentationRootV1, CreatePresentationVectorV1, CreatedPresentationRootKindV1,
+    CreatedPresentationRootOutcomeV1, DirectBondOperationOutcomeV1,
+    InterchangeRecordBatchInsertedOutcomeV1, MoleculeInsertedOutcomeV1, ReactionCreatedOutcomeV1,
+    ReactionDefinitionDeletedOutcomeV1, ReactionMembershipReplacedOutcomeV1,
+    ReactionOperationRefusalV1, SessionOperation, SessionOperationError, SessionOperationOutcomeV1,
+    SessionOperationResultV1, SessionOperationV1,
 };
+pub(crate) use session_operation::{CreateReactionV1, DeleteReactionV1, ReplaceReactionMembersV1};
 pub use straighten_depiction_update_v1::{
     PreparedStraightenDepictionsV1, StraightenDepictionUpdateV1Error,
     StraightenedDepictionMoleculeV1,
@@ -462,7 +482,6 @@ pub use typed::{
 };
 pub use typed_diagnostic::{TypedDiagnostic, TypedDiagnosticKind};
 pub use typed_document_error::TypedDocumentError;
-pub use compact_group_deletion_v1::CompactGroupDeletionReceiptV1;
 pub use typed_record_deletion::{StructureDeletionComponentV1, StructureDeletionReceiptV1};
 pub use user_template_v1::{
     DOCUMENT_USER_TEMPLATE_SCHEMA_V1, DocumentUserTemplateErrorV1,
@@ -505,6 +524,9 @@ mod user_template_v1_tests;
 
 #[cfg(test)]
 mod identity_index_tests;
+
+#[cfg(test)]
+mod document_object_identity_v1_tests;
 
 #[cfg(test)]
 mod session_tests;

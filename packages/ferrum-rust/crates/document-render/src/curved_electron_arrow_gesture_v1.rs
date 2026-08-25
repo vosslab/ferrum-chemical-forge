@@ -7,7 +7,7 @@ use ferrum_document::{
     PresentationStrokeV1, Rgb24V1, SessionOperation, SessionOperationTransitionRequestV1,
     SessionOperationV1, TransitionAuthorizationV1,
 };
-use ferrum_render::{PresentationRenderPlanV1, lower_arrow_preview_v1};
+use ferrum_render::{PresentationPreviewRenderPlanV1, lower_arrow_preview_v1};
 use thiserror::Error;
 
 const MINIMUM_SPAN_PT: f64 = 2.0;
@@ -30,12 +30,12 @@ pub struct CurvedElectronArrowPreviewV1 {
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
-    plan: PresentationRenderPlanV1,
+    plan: PresentationPreviewRenderPlanV1,
 }
 
 impl CurvedElectronArrowPreviewV1 {
     #[must_use]
-    pub const fn plan(&self) -> &PresentationRenderPlanV1 {
+    pub const fn plan(&self) -> &PresentationPreviewRenderPlanV1 {
         &self.plan
     }
 }
@@ -214,7 +214,7 @@ fn preview_plan(
     start: PresentationGesturePoint2V1,
     control: PresentationGesturePoint2V1,
     end: PresentationGesturePoint2V1,
-) -> Result<PresentationRenderPlanV1, CurvedElectronArrowGestureErrorV1> {
+) -> Result<PresentationPreviewRenderPlanV1, CurvedElectronArrowGestureErrorV1> {
     let dx = end.x() - start.x();
     let dy = end.y() - start.y();
     let span = dx.hypot(dy);

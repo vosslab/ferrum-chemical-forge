@@ -274,10 +274,11 @@ pub(super) fn authenticated_report_finding_summary_v1(
             Some(identifier) => {
                 let molecule = molecule
                     .ok_or(MoleculeReportDiagnosticMappingErrorV1::UnauthenticatedLocation)?;
-                if !molecule.atoms().iter().any(|atom| {
-                    atom.source_id()
-                        .is_some_and(|candidate| candidate.as_str() == identifier.as_str())
-                }) {
+                if !molecule
+                    .atoms()
+                    .iter()
+                    .any(|atom| atom.source_id().as_str() == identifier.as_str())
+                {
                     return Err(MoleculeReportDiagnosticMappingErrorV1::UnauthenticatedLocation);
                 }
                 DocumentMoleculeReportFindingLocationSummaryV1::Atom {
@@ -292,16 +293,11 @@ pub(super) fn authenticated_report_finding_summary_v1(
             Some(identifier) => {
                 let molecule = molecule
                     .ok_or(MoleculeReportDiagnosticMappingErrorV1::UnauthenticatedLocation)?;
-                let contains_vertex =
-                    molecule
-                        .texts()
-                        .iter()
-                        .chain(molecule.groups())
-                        .any(|vertex| {
-                            vertex
-                                .source_id()
-                                .is_some_and(|candidate| candidate.as_str() == identifier.as_str())
-                        });
+                let contains_vertex = molecule
+                    .texts()
+                    .iter()
+                    .chain(molecule.groups())
+                    .any(|vertex| vertex.source_id().as_str() == identifier.as_str());
                 if !contains_vertex {
                     return Err(MoleculeReportDiagnosticMappingErrorV1::UnauthenticatedLocation);
                 }
@@ -317,10 +313,11 @@ pub(super) fn authenticated_report_finding_summary_v1(
             Some(identifier) => {
                 let molecule = molecule
                     .ok_or(MoleculeReportDiagnosticMappingErrorV1::UnauthenticatedLocation)?;
-                if !molecule.bonds().iter().any(|bond| {
-                    bond.source_id()
-                        .is_some_and(|candidate| candidate.as_str() == identifier.as_str())
-                }) {
+                if !molecule
+                    .bonds()
+                    .iter()
+                    .any(|bond| bond.source_id().as_str() == identifier.as_str())
+                {
                     return Err(MoleculeReportDiagnosticMappingErrorV1::UnauthenticatedLocation);
                 }
                 DocumentMoleculeReportFindingLocationSummaryV1::Bond {
@@ -391,9 +388,6 @@ pub(super) const fn finding_code_summary_v1(
         }
         MoleculeDiagnosticCodeV1::InconsistentAromaticity => {
             DocumentMoleculeReportFindingCodeSummaryV1::InconsistentAromaticity
-        }
-        MoleculeDiagnosticCodeV1::IncompleteAuthoredCharge => {
-            DocumentMoleculeReportFindingCodeSummaryV1::IncompleteAuthoredCharge
         }
         MoleculeDiagnosticCodeV1::NeutralCapacityNotChecked => {
             DocumentMoleculeReportFindingCodeSummaryV1::NeutralCapacityNotChecked

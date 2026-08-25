@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 use super::binding::operation_validation_error;
+use super::document_error_binding::document_object_id as parse_document_object_id;
 
 /// Closed direct-root record kinds accepted by presentation deletion.
 #[pyclass(
@@ -50,11 +51,13 @@ impl From<PyDocumentPresentationRootKindV1> for PresentationRecordKindV1 {
 
 pub(crate) fn delete_presentation_root(
     py: Python<'_>,
-    presentation_id: String,
+    document_object_id: String,
     kind: PyRef<'_, PyDocumentPresentationRootKindV1>,
 ) -> PyResult<SessionOperation> {
-    let deletion = PresentationRootDeletionV1::new(presentation_id, (*kind).into())
-        .map_err(|error| operation_validation_error(py, error.to_string()))?;
+    let deletion = PresentationRootDeletionV1::new(
+        parse_document_object_id(py, document_object_id)?,
+        (*kind).into(),
+    );
     Ok(SessionOperation::V1(
         SessionOperationV1::DeletePresentationRoot { deletion },
     ))
@@ -69,7 +72,13 @@ pub(crate) fn delete_presentation_roots(
         targets,
         "presentation deletion",
     )?;
-    let deletions = PresentationRootDeletionSetV1::new(targets)
+    let deletions = targets
+        .into_iter()
+        .map(|target| {
+            PresentationRootDeletionV1::new(target.document_object_id().clone(), target.kind())
+        })
+        .collect();
+    let deletions = PresentationRootDeletionSetV1::new(deletions)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(SessionOperation::V1(
         SessionOperationV1::DeletePresentationRoots { deletions },

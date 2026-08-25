@@ -1,5 +1,6 @@
 //! Concrete failures while projecting or mutating one retained typed document.
 
+use ferrum_document_projection::{DocumentLocationV1, DocumentObjectIdV1};
 use thiserror::Error;
 
 use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
@@ -7,6 +8,35 @@ use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
 /// Parse or typed-projection failure.
 #[derive(Debug, Error)]
 pub enum TypedDocumentError {
+    /// An addressable typed record did not carry its required source identifier.
+    #[error("addressable typed record has no source identifier at {location:?}")]
+    MissingStructuralSourceId { location: DocumentLocationV1 },
+    /// An addressable typed record carried a blank source identifier.
+    #[error("addressable typed record has an invalid source identifier at {location:?}")]
+    InvalidStructuralSourceId { location: DocumentLocationV1 },
+    /// Two addressable typed records claimed one source identifier.
+    #[error("duplicate source identifier at {first:?} and {duplicate:?}")]
+    DuplicateStructuralSourceId {
+        first: DocumentLocationV1,
+        duplicate: DocumentLocationV1,
+    },
+    /// Persisted opaque metadata did not use the closed document-object grammar.
+    #[error(
+        "addressable typed record has invalid persisted document-object identity at {location:?}"
+    )]
+    InvalidPersistedDocumentObjectId { location: DocumentLocationV1 },
+    /// Two addressable records claimed one persisted opaque document-object identity.
+    #[error("duplicate persisted document-object identity at {first:?} and {duplicate:?}")]
+    DuplicatePersistedDocumentObjectId {
+        first: DocumentLocationV1,
+        duplicate: DocumentLocationV1,
+    },
+    /// The OS entropy source could not allocate a document-object identity.
+    #[error("could not allocate a document-object identity")]
+    DocumentObjectIdEntropy(#[source] getrandom::Error),
+    /// Bounded allocation retries collided with already persisted identities.
+    #[error("document-object identity allocation exhausted at {location:?}")]
+    DocumentObjectIdAllocationExhausted { location: DocumentLocationV1 },
     /// A direct Text or Plus requested a font outside the bundled closed face set.
     #[error("unsupported_text_face for {root_id}: {family:?}; use Telex Regular (bundled)")]
     UnsupportedTextFace {
@@ -61,8 +91,8 @@ pub enum TypedDocumentError {
     #[error("structural deletion cannot remove or split reaction-referenced molecule: {0}")]
     ReactionReferencedStructureDeletion(PersistentId),
     /// A presentation deletion would leave a direct reaction role dangling.
-    #[error("presentation deletion cannot remove reaction-referenced root: {0}")]
-    ReactionReferencedPresentationDeletion(PersistentId),
+    #[error("presentation deletion cannot remove reaction-referenced root")]
+    ReactionReferencedPresentationDeletion(DocumentObjectIdV1),
     /// Session-only structural deletion must receive its allocated split identities.
     #[error("structural deletion requires session-owned split identities")]
     StructuralDeletionRequiresSession,
@@ -148,26 +178,26 @@ pub enum TypedDocumentError {
     #[error("typed Text has multiple direct fonts: {0}")]
     AmbiguousTextFonts(PersistentId),
     /// An individual presentation deletion targeted one member of a durable bracket pair.
-    #[error("typed presentation is a bracket member and requires pair deletion: {0}")]
-    PresentationRootIsBracketMember(PersistentId),
+    #[error("typed presentation is a bracket member and requires pair deletion")]
+    PresentationRootIsBracketMember(DocumentObjectIdV1),
     /// A multi-root deletion selected only one member of a durable bracket pair.
-    #[error("presentation deletion requires both members of bracket pair: {0}")]
-    PartialBracketDeletion(String),
+    #[error("presentation deletion requires both members of bracket pair")]
+    PartialBracketDeletion([DocumentObjectIdV1; 2]),
     /// A stack reorder selected only one member of a durable bracket pair.
-    #[error("presentation stack reorder requires both members of bracket pair: {0}")]
-    PartialBracketStackSelection(String),
+    #[error("presentation stack reorder requires both members of bracket pair")]
+    PartialBracketStackSelection([DocumentObjectIdV1; 2]),
     /// A rigid transform selected only one member of a durable bracket pair.
-    #[error("top-level transform requires both members of bracket pair: {0}")]
-    PartialBracketTransform(String),
+    #[error("top-level transform requires both members of bracket pair")]
+    PartialBracketTransform([DocumentObjectIdV1; 2]),
     /// A durable direct-root transform target did not match its exact kind.
-    #[error("typed top-level transform root does not exist: {0}")]
-    UnknownTopLevelTransformRoot(PersistentId),
+    #[error("typed top-level transform root does not exist")]
+    UnknownTopLevelTransformRoot(DocumentObjectIdV1),
     /// A direct-root transform target has ambiguous or invalid persistent geometry.
-    #[error("typed top-level transform root has unsupported geometry: {0}")]
-    InvalidTopLevelTransformGeometry(PersistentId),
+    #[error("typed top-level transform root has unsupported geometry")]
+    InvalidTopLevelTransformGeometry(DocumentObjectIdV1),
     /// A finite source geometry would become nonfinite under the requested transform.
-    #[error("typed top-level transform produces nonfinite geometry: {0}")]
-    NonFiniteTopLevelTransform(PersistentId),
+    #[error("typed top-level transform produces nonfinite geometry")]
+    NonFiniteTopLevelTransform(DocumentObjectIdV1),
     /// A rotation target did not resolve to one direct atom in its declared molecule.
     #[error("typed atom rotation target does not exist: molecule {molecule_id}, atom {atom_id}")]
     UnknownAtomRotationTarget {
@@ -232,8 +262,8 @@ pub enum TypedDocumentError {
     #[error("drawing standard has invalid bracket stroke facts")]
     InvalidBracketStandard,
     /// A marked bracket pair does not have exactly two editable retained sides.
-    #[error("typed bracket has unsupported editable pair structure: {0}")]
-    InvalidBracketPair(PersistentId),
+    #[error("typed bracket has unsupported editable pair structure")]
+    InvalidBracketPair([DocumentObjectIdV1; 2]),
     /// An atom-number edit targeted an atom carrying the incompatible legacy mark.
     #[error("typed atom has a direct legacy atom-number mark: {0}")]
     LegacyAtomNumberMark(PersistentId),

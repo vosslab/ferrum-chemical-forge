@@ -52,9 +52,9 @@ struct DirectBondSemanticCandidateV1 {
 
 #[derive(Clone, Debug)]
 pub(crate) struct DirectBondOutcomeStagingV1 {
-    pub(crate) bond: PersistentId,
-    pub(crate) end_atom: PersistentId,
-    pub(crate) second_created_atom: Option<PersistentId>,
+    pub(crate) bond_document_object_id: DocumentObjectIdV1,
+    pub(crate) end_atom_document_object_id: DocumentObjectIdV1,
+    pub(crate) second_created_atom_document_object_id: Option<DocumentObjectIdV1>,
     pub(crate) created_new_atom: bool,
     pub(crate) created_new_molecule: bool,
 }
@@ -85,23 +85,17 @@ impl DocumentSession {
                 built.candidate,
                 built.effects,
                 DirectBondOutcomeStagingV1 {
-                    bond: built.bond.clone(),
-                    end_atom: built.end_atom.clone(),
-                    second_created_atom: built.second_created_atom.clone(),
+                    bond_document_object_id: built.bond_document_object_id,
+                    end_atom_document_object_id: built.end_atom_document_object_id,
+                    second_created_atom_document_object_id: built
+                        .second_created_atom_document_object_id,
                     created_new_atom: built.created_new_atom,
                     created_new_molecule: built.created_new_molecule,
                 },
                 authorization_claim,
             )
             .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
-        let mut overlay_targets = built
-            .created_atoms
-            .iter()
-            .map(|atom| ferrum_render::AcceptedRenderOverlayTargetV1::atom(atom.as_str()))
-            .collect::<Vec<_>>();
-        overlay_targets.push(ferrum_render::AcceptedRenderOverlayTargetV1::bond(
-            built.bond.as_str(),
-        ));
+        let overlay_targets = built.overlay_targets;
         let overlay_request = ferrum_render::AcceptedRenderOverlayRequestV1::new(overlay_targets)
             .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
         let overlay = transition
@@ -143,15 +137,19 @@ impl DocumentSession {
                     .with_insert_bond(&molecule, &bond, &start_id, &end_atom, *presentation)
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
                 Ok(BuiltDirectBondCandidateV1::new(
-                    revision,
-                    typed,
-                    effects,
-                    bond,
-                    end_atom,
-                    None,
-                    Vec::new(),
-                    false,
-                    false,
+                    DirectBondCandidateContextV1 {
+                        revision,
+                        document: typed,
+                        effects,
+                    },
+                    DirectBondAdmittedFactsV1 {
+                        bond,
+                        end_atom,
+                        second_created_atom: None,
+                        created_atoms: Vec::new(),
+                        created_new_atom: false,
+                        created_new_molecule: false,
+                    },
                 )?)
             }
             DirectBondCandidateV2::ExistingNew {
@@ -198,15 +196,19 @@ impl DocumentSession {
                     identities.atom.clone()
                 };
                 Ok(BuiltDirectBondCandidateV1::new(
-                    revision,
-                    typed,
-                    effects,
-                    identities.bond,
-                    end_atom,
-                    None,
-                    vec![identities.atom],
-                    true,
-                    false,
+                    DirectBondCandidateContextV1 {
+                        revision,
+                        document: typed,
+                        effects,
+                    },
+                    DirectBondAdmittedFactsV1 {
+                        bond: identities.bond,
+                        end_atom,
+                        second_created_atom: None,
+                        created_atoms: vec![identities.atom],
+                        created_new_atom: true,
+                        created_new_molecule: false,
+                    },
                 )?)
             }
             DirectBondCandidateV2::NewNew {
@@ -249,15 +251,19 @@ impl DocumentSession {
                     )
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
                 Ok(BuiltDirectBondCandidateV1::new(
-                    revision,
-                    typed,
-                    effects,
-                    identities.bonds[0].clone(),
-                    identities.atoms[1].clone(),
-                    Some(identities.atoms[0].clone()),
-                    identities.atoms,
-                    true,
-                    true,
+                    DirectBondCandidateContextV1 {
+                        revision,
+                        document: typed,
+                        effects,
+                    },
+                    DirectBondAdmittedFactsV1 {
+                        bond: identities.bonds[0].clone(),
+                        end_atom: identities.atoms[1].clone(),
+                        second_created_atom: Some(identities.atoms[0].clone()),
+                        created_atoms: identities.atoms,
+                        created_new_atom: true,
+                        created_new_molecule: true,
+                    },
                 )?)
             }
         }
@@ -516,8 +522,9 @@ impl DocumentSession {
         candidate: &TypedDocument,
         molecule: &PersistentId,
     ) -> Result<(), DirectBondAdmissionRefusalV1> {
-        let object = DocumentObjectIdV1::from_class_source("cdml/molecule", molecule.as_str())
-            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
+        let object = candidate
+            .document_object_id_for_source_id_v1(molecule)
+            .ok_or(DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
         let molecule = candidate
             .core_molecule(&object)
             .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?
@@ -534,9 +541,13 @@ impl DocumentSession {
     }
 }
 
-struct BuiltDirectBondCandidateV1 {
-    candidate: RevisionState,
+struct DirectBondCandidateContextV1 {
+    revision: u64,
+    document: TypedDocument,
     effects: SessionTransitionEffectsV1,
+}
+
+struct DirectBondAdmittedFactsV1 {
     bond: PersistentId,
     end_atom: PersistentId,
     second_created_atom: Option<PersistentId>,
@@ -544,28 +555,64 @@ struct BuiltDirectBondCandidateV1 {
     created_new_atom: bool,
     created_new_molecule: bool,
 }
+
+struct BuiltDirectBondCandidateV1 {
+    candidate: RevisionState,
+    effects: SessionTransitionEffectsV1,
+    bond_document_object_id: DocumentObjectIdV1,
+    end_atom_document_object_id: DocumentObjectIdV1,
+    second_created_atom_document_object_id: Option<DocumentObjectIdV1>,
+    overlay_targets: Vec<ferrum_render::AcceptedRenderOverlayTargetV1>,
+    created_new_atom: bool,
+    created_new_molecule: bool,
+}
 impl BuiltDirectBondCandidateV1 {
     fn new(
-        revision: u64,
-        document: TypedDocument,
-        effects: SessionTransitionEffectsV1,
-        bond: PersistentId,
-        end_atom: PersistentId,
-        second_created_atom: Option<PersistentId>,
-        created_atoms: Vec<PersistentId>,
-        created_new_atom: bool,
-        created_new_molecule: bool,
+        context: DirectBondCandidateContextV1,
+        facts: DirectBondAdmittedFactsV1,
     ) -> Result<Self, DirectBondAdmissionRefusalV1> {
+        let mut overlay_targets = facts
+            .created_atoms
+            .iter()
+            .map(|atom| {
+                context
+                    .document
+                    .document_object_id_for_source_id_v1(atom)
+                    .map(ferrum_render::AcceptedRenderOverlayTargetV1::atom)
+                    .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let bond_object_id = context
+            .document
+            .document_object_id_for_source_id_v1(&facts.bond)
+            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        let end_atom_document_object_id = context
+            .document
+            .document_object_id_for_source_id_v1(&facts.end_atom)
+            .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
+        let second_created_atom_document_object_id = facts
+            .second_created_atom
+            .as_ref()
+            .map(|atom| {
+                context
+                    .document
+                    .document_object_id_for_source_id_v1(atom)
+                    .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)
+            })
+            .transpose()?;
+        overlay_targets.push(ferrum_render::AcceptedRenderOverlayTargetV1::bond(
+            bond_object_id.clone(),
+        ));
         Ok(Self {
-            candidate: RevisionState::from_document(revision, document)
+            candidate: RevisionState::from_document(context.revision, context.document)
                 .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?,
-            effects,
-            bond,
-            end_atom,
-            second_created_atom,
-            created_atoms,
-            created_new_atom,
-            created_new_molecule,
+            effects: context.effects,
+            bond_document_object_id: bond_object_id,
+            end_atom_document_object_id,
+            second_created_atom_document_object_id,
+            overlay_targets,
+            created_new_atom: facts.created_new_atom,
+            created_new_molecule: facts.created_new_molecule,
         })
     }
 }

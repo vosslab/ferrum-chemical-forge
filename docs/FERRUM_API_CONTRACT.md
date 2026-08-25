@@ -44,6 +44,7 @@ The V1 operation set is closed:
 | `catalog.list.v1` | no document input | immutable catalog schema, version, and entry summaries |
 | `catalog.insert.v1` | `document`, revision/digest fence, catalog ID, finite anchor | changed `document`, `identifier`, `committed_revision`, `document_fence` |
 | `document.molecule.report.v1` | `snapshot { cdml, revision, digest_hex }`, one or more durable direct-root `molecule_ids` | source receipt, source-ordered root records, complete-or-omitted aggregate, deterministic structured findings |
+| `document.molecule.diagnostics.v1` | `snapshot { cdml, revision, digest_hex }`, up to 128 durable direct-root `molecule_ids` whose selector bytes total at most 2 KiB | bounded deterministic structural findings or a typed refusal |
 | `document.molecule.smarts.query.v1` | admitted document and bounded raw or selected SMARTS query | bounded, non-redeemable query summary |
 | `document.atom.oxidation.observe.v1` | fenced `document`, durable direct-root `molecule_id`, durable `atom_id` | one fenced accepted oxidation number or closed unavailable reason |
 | `document.compact-group.materialize.v1` | fenced `document`, opaque direct-root `molecule_id`, opaque `compact_group_id` | source receipt, committed document, next fence, replacement focus |
@@ -130,6 +131,30 @@ and closed `up` or `down` marks for E/Z drawing. These are Rust-issued drawing
 facts: clients display them but never derive an E/Z configuration from a mark,
 or manufacture a mark from configuration or coordinates. Chemical meaning
 remains exclusively in `stereo_semantics`.
+
+### Molecule diagnostics
+
+`document.molecule.diagnostics.v1` is separate from
+`document.molecule.report.v1`. It reads a fenced immutable
+`snapshot { cdml, revision, digest_hex }` and durable selected direct-root
+`molecule_ids`, then produces only deterministic, bounded structural findings.
+At most 128 selectors and 2 KiB of selector bytes are admitted. An over-limit
+request uses the typed resource-refusal path; it is neither truncated nor
+partially executed.
+
+The operation is runtime-free and read-only: it never requests chemistry
+runtime work or changes the snapshot, document session, history, renderer,
+selection, or navigation. Findings carry Rust-owned codes, severity, locations,
+and recovery data. Missing authored `formal_charge` is intentional unknown
+source state. `IncompleteAuthoredCharge` is reserved and is not a V1 result.
+
+The named CLI form is `ferrum document command
+document.molecule.diagnostics.v1 <input>`. Qt captures owned snapshot values
+and durable selected-root IDs on its UI thread; a detached worker invokes the
+module-level owned-snapshot PyO3 executor, never a session-bound method. On
+delivery, Qt authenticates the current tab, fence, and selected roots before
+showing its accessible modeless read-only dialog. It does not auto-fix,
+materialize, navigate the canvas, or alter selection.
 
 ### Atom oxidation observation
 

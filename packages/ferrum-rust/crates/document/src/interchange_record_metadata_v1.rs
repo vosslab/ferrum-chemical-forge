@@ -194,8 +194,8 @@ fn decode_utf8_hex(value: &str) -> Result<String, InterchangeRecordMetadataError
     bytes
         .try_reserve_exact(value.len() / 2)
         .map_err(|_| InterchangeRecordMetadataErrorV1::ResourceAllocation)?;
-    for pair in value.as_bytes().chunks_exact(2) {
-        bytes.push((hex_value(pair[0]) << 4) | hex_value(pair[1]));
+    for &[high, low] in value.as_bytes().as_chunks::<2>().0 {
+        bytes.push((hex_value(high) << 4) | hex_value(low));
     }
     String::from_utf8(bytes).map_err(|_| InterchangeRecordMetadataErrorV1::InvalidUtf8)
 }

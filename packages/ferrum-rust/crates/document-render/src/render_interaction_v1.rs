@@ -11,21 +11,19 @@ use std::{
 };
 
 use ferrum_document::{
-    CompleteDocumentIdentityFactsV1, DirectCdmlRootKindV1, DirectCdmlSemanticIndexV1,
-    DocumentFenceV1, DocumentRenderObservationV1, DocumentSession, DocumentSessionError,
+    CompleteDocumentIdentityFactsV1, DocumentFenceV1, DocumentObjectIdV1,
+    DocumentRenderObservationV1, DocumentSession, DocumentSessionError,
     DocumentSmartsSnapshotErrorV1, PreparedDocumentSmartsSnapshotV1, PresentationCreationGestureV1,
     PresentationGestureErrorV1, PresentationGestureKindV1, PresentationGesturePoint2V1,
     PresentationGestureSnapPolicyV1, PresentationGestureStyleV1, PresentationRecordKindV1,
     SessionOperationResultV1, TopLevelRootKindV1,
 };
 use ferrum_render::{
-    PathOpV2, PresentationRenderPlanV1, PresentationRenderRootV1, RenderOp, ScenePathCommandV2,
+    DocumentRenderContentV1, DocumentRenderOutcomeV1, PathOpV2, PresentationRenderPlanV1,
+    PresentationRenderRootV1, RenderOp, ScenePathCommandV2, compose_document_render_plan_v1,
     measure_molecule_render_plan_bounds_v1, render_presentation_stack_v1,
 };
 use thiserror::Error;
-
-use crate::reaction_observation_v1;
-pub use crate::reaction_observation_v1::{ReactionListObservationV1, ReactionSelectionV1};
 
 const HIT_SLOP_PT_V1: f64 = 6.0;
 const VIEW_HEX_GRID_SPACING_PT_V1: f64 = 40.0;
@@ -41,14 +39,6 @@ pub struct RenderInteractionBoundsV1 {
 }
 
 impl RenderInteractionBoundsV1 {
-    pub(crate) fn union(self, other: Self) -> Self {
-        Self {
-            left: self.left.min(other.left),
-            top: self.top.min(other.top),
-            right: self.right.max(other.right),
-            bottom: self.bottom.max(other.bottom),
-        }
-    }
     fn contains_point(self, x: f64, y: f64) -> bool {
         x >= self.left - HIT_SLOP_PT_V1
             && x <= self.right + HIT_SLOP_PT_V1
@@ -89,19 +79,19 @@ impl RenderInteractionBoundsV1 {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RenderInteractionRootV1 {
-    identifier: String,
-    source_order: u32,
+    document_object_id: DocumentObjectIdV1,
+    paint_order: u32,
     bounds: RenderInteractionBoundsV1,
     kind: TopLevelRootKindV1,
 }
 impl RenderInteractionRootV1 {
     #[must_use]
-    pub fn identifier(&self) -> &str {
-        &self.identifier
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
     #[must_use]
     pub const fn bounds(&self) -> RenderInteractionBoundsV1 {
@@ -132,8 +122,8 @@ pub enum ReactionAuthoringChoiceAvailabilityV1 {
 /// One durable, renderer-observed direct root usable by the reaction composer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReactionAuthoringChoiceV1 {
-    identifier: String,
-    source_order: u32,
+    document_object_id: DocumentObjectIdV1,
+    paint_order: u32,
     kind: ReactionAuthoringChoiceKindV1,
     availability: ReactionAuthoringChoiceAvailabilityV1,
     label: String,
@@ -141,12 +131,12 @@ pub struct ReactionAuthoringChoiceV1 {
 }
 impl ReactionAuthoringChoiceV1 {
     #[must_use]
-    pub fn identifier(&self) -> &str {
-        &self.identifier
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
     #[must_use]
     pub const fn kind(&self) -> ReactionAuthoringChoiceKindV1 {
@@ -259,7 +249,7 @@ pub enum RenderInteractionQueryV1 {
     },
     /// Resolve a known authorable root or diagnostic key without fallback geometry.
     Root {
-        identifier: String,
+        document_object_id: DocumentObjectIdV1,
         modifier: RenderInteractionModifierV1,
     },
     Clear,
@@ -320,11 +310,6 @@ pub struct RenderInteractionObservationV1 {
     roots: Vec<RenderInteractionRootV1>,
     exclusions: Vec<RenderInteractionExclusionV1>,
 }
-impl RenderInteractionObservationV1 {
-    pub(crate) const fn capability(&self) -> u64 {
-        self.capability
-    }
-}
 
 /// Why a durable root cannot become an authoring target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -337,13 +322,13 @@ pub enum RenderInteractionExclusionReasonV1 {
 /// Revision-bound diagnostic for one known but non-authorable durable root.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RenderInteractionExclusionV1 {
-    identifier: String,
+    document_object_id: DocumentObjectIdV1,
     reason: RenderInteractionExclusionReasonV1,
 }
 impl RenderInteractionExclusionV1 {
     #[must_use]
-    pub fn identifier(&self) -> &str {
-        &self.identifier
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
     #[must_use]
     pub const fn reason(&self) -> RenderInteractionExclusionReasonV1 {
@@ -389,10 +374,8 @@ pub enum StructureTargetKindV1 {
 /// One exact child hit envelope derived by Rust from the fenced document projection.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructureInteractionTargetV1 {
-    molecule_id: String,
-    identifier: String,
-    durable_molecule_object_id: Option<String>,
-    durable_object_id: Option<String>,
+    molecule_object_id: DocumentObjectIdV1,
+    object_id: DocumentObjectIdV1,
     source_order: u32,
     kind: StructureTargetKindV1,
     bounds: RenderInteractionBoundsV1,
@@ -414,25 +397,16 @@ struct StructureSegmentV1 {
     stroke_radius: f64,
 }
 impl StructureInteractionTargetV1 {
-    #[must_use]
-    pub fn molecule_id(&self) -> &str {
-        &self.molecule_id
-    }
-    #[must_use]
-    pub fn identifier(&self) -> &str {
-        &self.identifier
-    }
-    #[must_use]
-    pub fn durable_molecule_object_id(&self) -> Option<&str> {
-        self.durable_molecule_object_id.as_deref()
-    }
-    #[must_use]
-    pub fn durable_object_id(&self) -> Option<&str> {
-        self.durable_object_id.as_deref()
-    }
-    #[must_use]
-    pub const fn source_order(&self) -> u32 {
+    pub(crate) const fn source_order(&self) -> u32 {
         self.source_order
+    }
+    #[must_use]
+    pub const fn molecule_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.molecule_object_id
+    }
+    #[must_use]
+    pub const fn object_id(&self) -> &DocumentObjectIdV1 {
+        &self.object_id
     }
     #[must_use]
     pub const fn kind(&self) -> StructureTargetKindV1 {

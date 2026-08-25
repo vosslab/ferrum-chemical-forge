@@ -3,7 +3,8 @@
 use std::collections::BTreeSet;
 
 use ferrum_document_projection::{
-    PresentationBracketStyleV1, PresentationRecordKindV1, PresentationRootProjectionV1,
+    BracketPairProjectionV1, DocumentObjectIdV1, PresentationBracketStyleV1,
+    PresentationProjectionIssueV1, PresentationRecordKindV1, PresentationRootProjectionV1,
     PresentationStackProjectionV1, PresentationTargetV1,
 };
 
@@ -16,117 +17,121 @@ use super::presentation_shape_projection_v1::{box_shape, polygon};
 use super::presentation_text_projection_v1::text;
 use super::{DocumentSnapshot, TypedChild, TypedClass, TypedDocument};
 
-pub(crate) fn project_presentation_stack_v1(
-    document: &TypedDocument,
-    snapshot: &DocumentSnapshot,
-) -> Result<PresentationStackProjectionV1, crate::ProjectionError> {
-    let defaults = RootStrokeDefaultsV1::from_document(document);
-    let bracket_pairs = super::bracket_pair_projection_v1::bracket_pairs(document);
-    let round_members = bracket_pairs
-        .iter()
-        .filter(|pair| pair.style() == PresentationBracketStyleV1::Round)
-        .flat_map(|pair| pair.member_ids().iter().map(String::as_str))
-        .collect::<BTreeSet<_>>();
-    let mut roots = Vec::new();
-    let mut issues = Vec::new();
-    for child in document.root().typed_children() {
-        match child.record().class() {
-            TypedClass::CanvasArrow => push_root(
-                &mut roots,
-                arrow(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::arrow,
-            )?,
-            TypedClass::CanvasPlus => push_root(
-                &mut roots,
-                plus(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::plus,
-            )?,
-            TypedClass::CanvasText => push_root(
-                &mut roots,
-                text(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::text,
-            )?,
-            TypedClass::Polyline => {
-                let round_bracket_member = child
-                    .record()
-                    .attribute("id")
-                    .is_some_and(|identifier| round_members.contains(identifier));
-                if let Some((kind, polyline)) =
-                    polyline(child, defaults, round_bracket_member, &mut issues)?
-                {
-                    let root = match kind {
-                        PolylineProjectionKindV1::Ordinary => {
-                            PresentationRootProjectionV1::polyline(polyline)
-                        }
-                        PolylineProjectionKindV1::Wavy => {
-                            PresentationRootProjectionV1::wavy(polyline)
-                        }
-                        PolylineProjectionKindV1::RoundBracket => {
-                            PresentationRootProjectionV1::round_bracket(polyline)
-                        }
-                    };
-                    roots.push(root.map_err(projection_construction_error)?);
-                }
-            }
-            TypedClass::Rectangle => push_root(
-                &mut roots,
-                box_shape(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::rectangle,
-            )?,
-            TypedClass::Square => push_root(
-                &mut roots,
-                box_shape(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::square,
-            )?,
-            TypedClass::Oval => push_root(
-                &mut roots,
-                box_shape(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::oval,
-            )?,
-            TypedClass::Circle => push_root(
-                &mut roots,
-                box_shape(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::circle,
-            )?,
-            TypedClass::Polygon => push_root(
-                &mut roots,
-                polygon(child, defaults, &mut issues)?,
-                PresentationRootProjectionV1::polygon,
-            )?,
-            TypedClass::Cdml
-            | TypedClass::Info
-            | TypedClass::Metadata
-            | TypedClass::Standard
-            | TypedClass::Paper
-            | TypedClass::Viewport
-            | TypedClass::Molecule
-            | TypedClass::Reaction
-            | TypedClass::ExternalData => {}
-            class => {
-                return Err(crate::ProjectionError::InvalidValue {
-                    context: child.record().path().to_string(),
-                    field: "presentation root",
-                    value: class.name().to_owned(),
-                });
-            }
-        }
-    }
-    PresentationStackProjectionV1::new(
-        snapshot.revision(),
-        *snapshot.digest(),
-        roots,
-        bracket_pairs,
-        issues,
-    )
-    .map_err(|error| crate::ProjectionError::InvalidValue {
-        context: "presentation stack".to_owned(),
-        field: "round bracket roots",
-        value: error.to_string(),
-    })
+pub(crate) struct PresentationProjectionContextV1<'a> {
+    defaults: RootStrokeDefaultsV1<'a>,
+    bracket_pairs: Vec<BracketPairProjectionV1>,
+    round_members: BTreeSet<DocumentObjectIdV1>,
 }
 
-fn push_root<T>(
-    roots: &mut Vec<PresentationRootProjectionV1>,
+impl<'a> PresentationProjectionContextV1<'a> {
+    pub(crate) fn new(document: &'a TypedDocument) -> Self {
+        let bracket_pairs = crate::bracket_pair_projection_v1::bracket_pairs(document);
+        let round_members = bracket_pairs
+            .iter()
+            .filter(|pair| pair.style() == PresentationBracketStyleV1::Round)
+            .flat_map(|pair| pair.members().iter().cloned())
+            .collect();
+        Self {
+            defaults: RootStrokeDefaultsV1::from_document(document),
+            bracket_pairs,
+            round_members,
+        }
+    }
+
+    pub(crate) fn project_root(
+        &self,
+        child: &TypedChild,
+        issues: &mut Vec<PresentationProjectionIssueV1>,
+    ) -> Result<Option<PresentationRootProjectionV1>, crate::ProjectionError> {
+        match child.record().class() {
+            TypedClass::CanvasArrow => wrap_root(
+                arrow(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::arrow,
+            ),
+            TypedClass::CanvasPlus => wrap_root(
+                plus(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::plus,
+            ),
+            TypedClass::CanvasText => wrap_root(
+                text(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::text,
+            ),
+            TypedClass::Polyline => {
+                let round_bracket_member =
+                    crate::projection_identity_v1::projection_document_object_id_from_record_v1(
+                        child.record(),
+                    )?
+                    .is_some_and(|identifier| self.round_members.contains(&identifier));
+                let Some((kind, polyline)) =
+                    polyline(child, self.defaults, round_bracket_member, issues)?
+                else {
+                    return Ok(None);
+                };
+                let root = match kind {
+                    PolylineProjectionKindV1::Ordinary => {
+                        PresentationRootProjectionV1::polyline(polyline)
+                    }
+                    PolylineProjectionKindV1::Wavy => PresentationRootProjectionV1::wavy(polyline),
+                    PolylineProjectionKindV1::RoundBracket => {
+                        PresentationRootProjectionV1::round_bracket(polyline)
+                    }
+                };
+                Ok(Some(root.map_err(projection_construction_error)?))
+            }
+            TypedClass::Rectangle => wrap_root(
+                box_shape(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::rectangle,
+            ),
+            TypedClass::Square => wrap_root(
+                box_shape(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::square,
+            ),
+            TypedClass::Oval => wrap_root(
+                box_shape(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::oval,
+            ),
+            TypedClass::Circle => wrap_root(
+                box_shape(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::circle,
+            ),
+            TypedClass::Polygon => wrap_root(
+                polygon(child, self.defaults, issues)?,
+                PresentationRootProjectionV1::polygon,
+            ),
+            class => Err(crate::ProjectionError::InvalidValue {
+                context: child.record().path().to_string(),
+                field: "presentation root",
+                value: class.name().to_owned(),
+            }),
+        }
+    }
+
+    pub(crate) fn into_stack(
+        self,
+        snapshot: &DocumentSnapshot,
+        roots: Vec<PresentationRootProjectionV1>,
+        issues: Vec<PresentationProjectionIssueV1>,
+    ) -> Result<PresentationStackProjectionV1, crate::ProjectionError> {
+        PresentationStackProjectionV1::new(
+            snapshot.revision(),
+            *snapshot.digest(),
+            roots,
+            self.bracket_pairs,
+            issues,
+        )
+        .map_err(|error| crate::ProjectionError::InvalidValue {
+            context: "presentation stack".to_owned(),
+            field: "round bracket roots",
+            value: error.to_string(),
+        })
+    }
+}
+
+pub(crate) fn is_presentation_class_v1(class: TypedClass) -> bool {
+    presentation_record_kind_from_class_v1(class).is_some()
+}
+
+fn wrap_root<T>(
     value: Option<T>,
     wrap: impl FnOnce(
         T,
@@ -134,11 +139,11 @@ fn push_root<T>(
         PresentationRootProjectionV1,
         ferrum_document_projection::PresentationStackProjectionV1Error,
     >,
-) -> Result<(), crate::ProjectionError> {
-    if let Some(value) = value {
-        roots.push(wrap(value).map_err(projection_construction_error)?);
-    }
-    Ok(())
+) -> Result<Option<PresentationRootProjectionV1>, crate::ProjectionError> {
+    value
+        .map(wrap)
+        .transpose()
+        .map_err(projection_construction_error)
 }
 
 fn projection_construction_error(
@@ -162,14 +167,15 @@ pub(crate) fn presentation_target_from_child_v1(
             value: record.class().name().to_owned(),
         }
     })?;
-    PresentationTargetV1::try_new(
-        crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?,
-        crate::projection_local_object_key_from_record_v1(record)?,
-        record.attribute("id").map(str::to_owned),
-        child.position(),
+    Ok(PresentationTargetV1::new(
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?
+            .ok_or_else(|| crate::ProjectionError::InvalidValue {
+                context: record.path().to_string(),
+                field: "document object identity",
+                value: "missing persisted identity".to_owned(),
+            })?,
         record_kind,
-    )
-    .map_err(projection_construction_error)
+    ))
 }
 
 fn presentation_record_kind_from_class_v1(class: TypedClass) -> Option<PresentationRecordKindV1> {

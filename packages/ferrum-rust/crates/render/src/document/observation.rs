@@ -7,114 +7,37 @@ use crate::{
     RenderProvenance, RenderRevision,
 };
 use ferrum_document_projection::{
-    DocumentProjectionV1, MoleculeProjectionV1, PresentationRootProjectionV1,
+    DocumentObjectIdV1, DocumentProjectionV1, MoleculeProjectionV1, PresentationRootProjectionV1,
+    PresentationStackEntryV1,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    DEPICTION_PROFILE_SCHEMA_V1, DepictionError, DepictionIssueV1, DepictionProfileV1,
-    DepictionSuppressionV1, DocumentPlusRenderV1, DocumentTextRenderV1,
+    DEPICTION_PROFILE_SCHEMA_V1, DepictionError, DepictionProfileV1, DepictionSuppressionV1,
+    DocumentPlusRenderV1, DocumentTextRenderV1, MoleculeMemberDepictionIssueV1,
     render_document_projection_v1,
 };
 
 /// Closed schema identifier for the final API-owned render observation.
 pub const RESOLVED_DOCUMENT_RENDER_SCHEMA_V1: &str = "ferrum-resolved-document-render-v1";
 
-/// Document-root identity and order for one molecule render plan.
-///
-/// The fields are copied from the same immutable projection that produced the
-/// plan. They let a frontend retain root-level ordering without interpreting
-/// CDML or treating molecule-local atom and bond order as document-root order.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+/// The durable document-root identity for one molecule render plan.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct MoleculeRenderRootV1 {
-    id: Option<String>,
-    projection_key: String,
-    source_id: Option<String>,
-    source_order: u32,
+    document_object_id: DocumentObjectIdV1,
 }
 
 impl MoleculeRenderRootV1 {
-    fn from_projection(value: &MoleculeProjectionV1) -> Self {
-        Self {
-            id: value.id().map(|id| id.as_str().to_owned()),
-            projection_key: value.projection_key().as_str().to_owned(),
-            source_id: value.source_id().map(str::to_owned),
-            source_order: value.source_order(),
-        }
+    pub(crate) const fn new(document_object_id: DocumentObjectIdV1) -> Self {
+        Self { document_object_id }
     }
 
-    fn new(
-        id: Option<String>,
-        projection_key: String,
-        source_id: Option<String>,
-        source_order: u32,
-    ) -> Result<Self, String> {
-        if !valid_projection_key(&projection_key) {
-            return Err("invalid molecule render projection key".to_owned());
-        }
-        match (&id, &source_id) {
-            (None, None) => {}
-            (Some(id), Some(source_id))
-                if !source_id.is_empty() && *id == molecule_object_id(source_id) => {}
-            _ => return Err("molecule render identity does not match its source ID".to_owned()),
-        }
-        Ok(Self {
-            id,
-            projection_key,
-            source_id,
-            source_order,
-        })
-    }
-
-    /// Return the durable document object key, when the molecule authored an ID.
+    /// Return the required durable document object identity.
     #[must_use]
-    pub fn id(&self) -> Option<&str> {
-        self.id.as_deref()
-    }
-
-    /// Return the non-operation key unique within this immutable projection.
-    #[must_use]
-    pub fn projection_key(&self) -> &str {
-        &self.projection_key
-    }
-
-    /// Return the literal authored CDML ID, when present.
-    #[must_use]
-    pub fn source_id(&self) -> Option<&str> {
-        self.source_id.as_deref()
-    }
-
-    /// Return the molecule's direct document-root child position.
-    #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
-    }
-}
-
-impl<'de> Deserialize<'de> for MoleculeRenderRootV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct Wire {
-            id: Option<String>,
-            projection_key: String,
-            source_id: Option<String>,
-            source_order: u32,
-        }
-
-        let wire = Wire::deserialize(deserializer)?;
-        Self::new(
-            wire.id,
-            wire.projection_key,
-            wire.source_id,
-            wire.source_order,
-        )
-        .map_err(serde::de::Error::custom)
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
 }
 
@@ -124,21 +47,29 @@ impl<'de> Deserialize<'de> for MoleculeRenderRootV1 {
 pub struct DocumentMoleculeRenderPlanV2 {
     molecule: MoleculeRenderRootV1,
     plan: MoleculeRenderPlan,
+    member_ids: Vec<DocumentObjectIdV1>,
+    member_issues: Vec<MoleculeMemberDepictionIssueV1>,
     #[serde(skip, default)]
     compact_group_primitives: Vec<CompactGroupRenderPrimitiveV1>,
 }
 
 impl DocumentMoleculeRenderPlanV2 {
-    pub(crate) fn from_projection(
-        molecule: &MoleculeProjectionV1,
+    pub(crate) fn from_document_object_id(
+        document_object_id: DocumentObjectIdV1,
         plan: MoleculeRenderPlan,
         compact_group_primitives: Vec<CompactGroupRenderPrimitiveV1>,
-    ) -> Self {
-        Self {
-            molecule: MoleculeRenderRootV1::from_projection(molecule),
+        member_ids: Vec<DocumentObjectIdV1>,
+        member_issues: Vec<MoleculeMemberDepictionIssueV1>,
+    ) -> Result<Self, RenderError> {
+        let entry = Self {
+            molecule: MoleculeRenderRootV1::new(document_object_id),
             plan,
+            member_ids,
+            member_issues,
             compact_group_primitives,
-        }
+        };
+        entry.validate_member_issues()?;
+        Ok(entry)
     }
 
     /// Return the document-root molecule facts that own this plan.
@@ -182,6 +113,33 @@ impl DocumentMoleculeRenderPlanV2 {
     pub fn issues(&self) -> &[RenderIssue] {
         self.plan.issues()
     }
+
+    /// Return durable projected atom, bond, and compact-group member identities.
+    #[must_use]
+    pub fn member_ids(&self) -> &[DocumentObjectIdV1] {
+        &self.member_ids
+    }
+
+    /// Return diagnostics retained by this molecule's durable owner.
+    #[must_use]
+    pub fn member_issues(&self) -> &[MoleculeMemberDepictionIssueV1] {
+        &self.member_issues
+    }
+
+    fn validate_member_issues(&self) -> Result<(), RenderError> {
+        let members = self.member_ids.iter().collect::<HashSet<_>>();
+        if members.len() != self.member_ids.len()
+            || self
+                .member_issues
+                .iter()
+                .any(|issue| !members.contains(issue.target()))
+        {
+            return Err(RenderError::InvalidRequest(
+                "molecule depiction issue target is not a projected molecule member".to_owned(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// A revision-checked immutable document observation with its complete render result.
@@ -197,7 +155,6 @@ pub struct ResolvedDocumentRenderV1 {
     molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
-    issues: Vec<DepictionIssueV1>,
     suppression: Option<DepictionSuppressionV1>,
 }
 
@@ -223,11 +180,11 @@ impl ResolvedDocumentRenderV1 {
         }
         validate_projection_plan_roots(projection.molecules(), resolution.plans())?;
         validate_projection_plus_roots(
-            projection.presentation_stack().roots(),
+            projection.presentation_stack().entries(),
             resolution.plus_renders(),
         )?;
         validate_projection_text_roots(
-            projection.presentation_stack().roots(),
+            projection.presentation_stack().entries(),
             resolution.text_renders(),
         )?;
         Ok(Self {
@@ -236,7 +193,6 @@ impl ResolvedDocumentRenderV1 {
             molecule_plans: resolution.plans().to_vec(),
             plus_renders: resolution.plus_renders().to_vec(),
             text_renders: resolution.text_renders().to_vec(),
-            issues: resolution.issues().to_vec(),
             suppression: resolution.suppression(),
         })
     }
@@ -271,12 +227,6 @@ impl ResolvedDocumentRenderV1 {
         &self.text_renders
     }
 
-    /// Return explicit profile exclusions without a fallback batch.
-    #[must_use]
-    pub fn issues(&self) -> &[DepictionIssueV1] {
-        &self.issues
-    }
-
     /// Return the typed whole-projection suppression, when presentation is invalid.
     #[must_use]
     pub const fn suppression(&self) -> Option<DepictionSuppressionV1> {
@@ -296,7 +246,6 @@ impl ResolvedDocumentRenderV1 {
             molecule_plans: self.molecule_plans.clone(),
             plus_renders: self.plus_renders.clone(),
             text_renders: self.text_renders.clone(),
-            issues: self.issues.clone(),
             suppression: self.suppression,
         }
     }
@@ -366,7 +315,6 @@ pub struct ResolvedDocumentRenderWireV1 {
     molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
-    issues: Vec<DepictionIssueV1>,
     suppression: Option<DepictionSuppressionV1>,
 }
 
@@ -379,7 +327,6 @@ struct UncheckedResolvedDocumentRenderWireV1 {
     molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
-    issues: Vec<DepictionIssueV1>,
     suppression: Option<DepictionSuppressionV1>,
 }
 
@@ -392,7 +339,6 @@ impl ResolvedDocumentRenderWireV1 {
             molecule_plans,
             plus_renders,
             text_renders,
-            issues,
             suppression,
         } = wire;
         if schema != RESOLVED_DOCUMENT_RENDER_SCHEMA_V1 || profile != DEPICTION_PROFILE_SCHEMA_V1 {
@@ -419,7 +365,6 @@ impl ResolvedDocumentRenderWireV1 {
             molecule_plans,
             plus_renders,
             text_renders,
-            issues,
             suppression,
         })
     }
@@ -472,22 +417,15 @@ impl<'de> Deserialize<'de> for ResolvedDocumentRenderWireV1 {
 }
 
 fn validate_projection_plus_roots(
-    roots: &[PresentationRootProjectionV1],
+    entries: &[PresentationStackEntryV1],
     renders: &[DocumentPlusRenderV1],
 ) -> Result<(), ResolvedDocumentRenderErrorV1> {
-    let pluses = roots.iter().filter_map(|root| match root {
+    let pluses = entries.iter().filter_map(|entry| match entry.root() {
         PresentationRootProjectionV1::Plus { plus } => Some(plus),
         _ => None,
     });
-    let mut pluses = pluses.peekable();
     for render in renders {
-        while pluses
-            .peek()
-            .is_some_and(|plus| plus.target().source_order() < render.target().source_order())
-        {
-            pluses.next();
-        }
-        let Some(plus) = pluses.next() else {
+        let Some(plus) = pluses.clone().find(|plus| plus.target() == render.target()) else {
             return Err(ResolvedDocumentRenderErrorV1::PlusRootMismatch);
         };
         if plus.target() != render.target() {
@@ -498,22 +436,15 @@ fn validate_projection_plus_roots(
 }
 
 fn validate_projection_text_roots(
-    roots: &[PresentationRootProjectionV1],
+    entries: &[PresentationStackEntryV1],
     renders: &[DocumentTextRenderV1],
 ) -> Result<(), ResolvedDocumentRenderErrorV1> {
-    let texts = roots.iter().filter_map(|root| match root {
+    let texts = entries.iter().filter_map(|entry| match entry.root() {
         PresentationRootProjectionV1::Text { text } => Some(text),
         _ => None,
     });
-    let mut texts = texts.peekable();
     for render in renders {
-        while texts
-            .peek()
-            .is_some_and(|text| text.target().source_order() < render.target().source_order())
-        {
-            texts.next();
-        }
-        let Some(text) = texts.next() else {
+        let Some(text) = texts.clone().find(|text| text.target() == render.target()) else {
             return Err(ResolvedDocumentRenderErrorV1::TextRootMismatch);
         };
         if text.target() != render.target() {
@@ -527,108 +458,107 @@ fn validate_projection_plan_roots(
     molecules: &[MoleculeProjectionV1],
     plans: &[DocumentMoleculeRenderPlanV2],
 ) -> Result<(), ResolvedDocumentRenderErrorV1> {
-    let mut molecule_index = 0;
-    for entry in plans {
-        while molecule_index < molecules.len()
-            && molecules[molecule_index].source_order() < entry.molecule().source_order()
-        {
-            molecule_index += 1;
-        }
-        let Some(molecule) = molecules.get(molecule_index) else {
-            return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
-        };
-        if MoleculeRenderRootV1::from_projection(molecule) != *entry.molecule() {
+    if molecules.len() != plans.len() {
+        return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
+    }
+    for (molecule, entry) in molecules.iter().zip(plans) {
+        if molecule.id() != Some(entry.molecule().document_object_id()) {
             return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
         }
-        molecule_index += 1;
     }
     Ok(())
 }
 
 fn validate_wire_plan_roots(plans: &[DocumentMoleculeRenderPlanV2]) -> Result<(), String> {
-    let mut previous_order = None;
-    let mut projection_keys = HashSet::new();
     let mut durable_ids = HashSet::new();
     for entry in plans {
         let root = entry.molecule();
-        if previous_order.is_some_and(|order| root.source_order() <= order) {
-            return Err("molecule render plans are not in document root order".to_owned());
-        }
-        if !projection_keys.insert(root.projection_key()) {
-            return Err("molecule render plans contain a duplicate projection key".to_owned());
-        }
-        if root.id().is_some_and(|id| !durable_ids.insert(id)) {
+        if !durable_ids.insert(root.document_object_id()) {
             return Err("molecule render plans contain a duplicate durable ID".to_owned());
         }
-        previous_order = Some(root.source_order());
     }
     Ok(())
 }
 
 fn validate_wire_plus_roots(renders: &[DocumentPlusRenderV1]) -> Result<(), String> {
-    let mut previous_order = None;
-    let mut projection_keys = HashSet::new();
     let mut durable_ids = HashSet::new();
     for render in renders {
         let target = render.target();
-        if previous_order.is_some_and(|order| target.source_order() <= order) {
-            return Err("plus renders are not in document root order".to_owned());
-        }
-        if !projection_keys.insert(target.projection_key().as_str()) {
-            return Err("plus renders contain a duplicate projection key".to_owned());
-        }
-        if target
-            .id()
-            .is_some_and(|id| !durable_ids.insert(id.as_str()))
-        {
+        if !durable_ids.insert(target.document_object_id()) {
             return Err("plus renders contain a duplicate durable ID".to_owned());
         }
-        previous_order = Some(target.source_order());
     }
     Ok(())
 }
 
 fn validate_wire_text_roots(renders: &[DocumentTextRenderV1]) -> Result<(), String> {
-    let mut previous_order = None;
-    let mut projection_keys = HashSet::new();
     let mut durable_ids = HashSet::new();
     for render in renders {
         let target = render.target();
-        if previous_order.is_some_and(|order| target.source_order() <= order) {
-            return Err("Text renders are not in document root order".to_owned());
-        }
-        if !projection_keys.insert(target.projection_key().as_str()) {
-            return Err("Text renders contain a duplicate projection key".to_owned());
-        }
-        if target
-            .id()
-            .is_some_and(|id| !durable_ids.insert(id.as_str()))
-        {
+        if !durable_ids.insert(target.document_object_id()) {
             return Err("Text renders contain a duplicate durable ID".to_owned());
         }
-        previous_order = Some(target.source_order());
     }
     Ok(())
 }
 
-fn valid_projection_key(value: &str) -> bool {
-    let Some(path) = value.strip_prefix("ferrum-projection-local-v1/") else {
-        return false;
-    };
-    !path.is_empty()
-        && path
-            .split('.')
-            .all(|component| component.parse::<u32>().is_ok())
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{DepictionIssueCodeV1, MoleculeMemberDepictionIssueV1};
 
-fn molecule_object_id(source_id: &str) -> String {
-    format!(
-        "ferrum-document-object-v1/{}/source/{}",
-        hex(b"cdml/molecule"),
-        hex(source_id.as_bytes())
-    )
-}
+    fn object_id(seed: u8) -> DocumentObjectIdV1 {
+        DocumentObjectIdV1::from_entropy_bytes([seed; 16])
+    }
 
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    fn plan() -> MoleculeRenderPlan {
+        MoleculeRenderPlan::new(
+            RenderProvenance::new(RenderRevision::new(1).expect("test revision"), [1; 32]),
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("empty molecule plan")
+    }
+
+    #[test]
+    fn molecule_member_issue_refuses_a_foreign_durable_target() {
+        let owner = object_id(1);
+        let member = object_id(2);
+        let foreign = object_id(3);
+        let result = DocumentMoleculeRenderPlanV2::from_document_object_id(
+            owner,
+            plan(),
+            Vec::new(),
+            vec![member],
+            vec![MoleculeMemberDepictionIssueV1::new(
+                foreign,
+                DepictionIssueCodeV1::UnsupportedRichLabel,
+                "test foreign member",
+            )],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn molecule_member_issue_is_retained_by_its_molecule_plan() {
+        let owner = object_id(4);
+        let atom = object_id(5);
+        let entry = DocumentMoleculeRenderPlanV2::from_document_object_id(
+            owner,
+            plan(),
+            Vec::new(),
+            vec![atom.clone(), object_id(6), object_id(7)],
+            vec![MoleculeMemberDepictionIssueV1::new(
+                atom.clone(),
+                DepictionIssueCodeV1::UnsupportedRichLabel,
+                "structured label unavailable",
+            )],
+        )
+        .expect("owner-bound member issue");
+        assert_eq!(entry.member_issues()[0].target(), &atom);
+        assert_eq!(
+            entry.member_issues()[0].code(),
+            DepictionIssueCodeV1::UnsupportedRichLabel
+        );
+    }
 }

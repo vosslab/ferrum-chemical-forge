@@ -9,12 +9,20 @@ import subprocess
 import sys
 
 
+MOLECULE_ID = "ferrum-document-object-v1/00000000000000000000000000000010"
+ANCHOR_ATOM_ID = "ferrum-document-object-v1/00000000000000000000000000000011"
+COMPACT_GROUP_ID = "ferrum-document-object-v1/00000000000000000000000000000012"
+EXTERIOR_BOND_ID = "ferrum-document-object-v1/00000000000000000000000000000013"
 COMPACT_CDML = (
-	'<cdml xmlns="urn:ferrum:cdml"><molecule id="source-molecule">'
-	'<atom id="anchor" name="C"><point x="0" y="0"/></atom>'
-	'<compact-group id="source-group" version="1" catalog-key="methyl" '
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:object="urn:ferrum:document-object:v1">'
+	f'<molecule id="source-molecule" object:id="{MOLECULE_ID}">'
+	f'<atom id="anchor" object:id="{ANCHOR_ATOM_ID}" name="C">'
+	'<point x="0" y="0"/></atom>'
+	f'<compact-group id="source-group" object:id="{COMPACT_GROUP_ID}" '
+	'version="1" catalog-key="methyl" '
 	'attachment-index="0" orientation-degrees="0"><point x="20" y="0"/></compact-group>'
-	'<bond id="outside" start="anchor" end="source-group" type="n1"/>'
+	f'<bond id="outside" object:id="{EXTERIOR_BOND_ID}" '
+	'start="anchor" end="source-group" type="n1"/>'
 	'</molecule></cdml>'
 )
 
@@ -64,7 +72,7 @@ def inspect_fence(ferrum: Path, document: str) -> dict[str, object]:
 
 
 def materialize_operation(fence: dict[str, object]) -> dict[str, object]:
-	"""Build the stateless request with opaque source identifiers."""
+	"""Build the stateless request with persisted opaque object identifiers."""
 	return {
 		"kind": "document.compact-group.materialize.v1",
 		"document": {
@@ -72,8 +80,8 @@ def materialize_operation(fence: dict[str, object]) -> dict[str, object]:
 			"expected_revision": fence["expected_revision"],
 			"expected_digest_hex": fence["expected_digest_hex"],
 		},
-		"molecule_id": "source-molecule",
-		"compact_group_id": "source-group",
+		"molecule_id": MOLECULE_ID,
+		"compact_group_id": COMPACT_GROUP_ID,
 	}
 
 

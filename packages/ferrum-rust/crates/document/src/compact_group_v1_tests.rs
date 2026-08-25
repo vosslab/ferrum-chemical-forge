@@ -19,7 +19,9 @@ fn projected(source: &str) -> Result<DocumentProjectionV1, ProjectionError> {
 
 #[test]
 fn typed_compact_group_projects_a_key_derived_label_and_reopens_without_translation() {
-    let initial = projected(SOURCE).expect("supported compact group must project");
+    let session = DocumentSession::load(SOURCE).expect("source must open in a session");
+    let saved = session.snapshot().expect("source snapshot must serialize");
+    let initial = projected(saved.cdml()).expect("saved compact group must project");
     let group = &initial.molecules()[0].compact_groups()[0];
     assert_eq!(group.catalog_key(), CompactGroupCatalogKeyV1::Methyl);
     assert_eq!(group.label(), "Me");
@@ -28,8 +30,6 @@ fn typed_compact_group_projects_a_key_derived_label_and_reopens_without_translat
     assert_eq!(group.attachment_index(), 0);
     assert_eq!(group.orientation_degrees(), 30.0);
 
-    let session = DocumentSession::load(SOURCE).expect("source must open in a session");
-    let saved = session.snapshot().expect("source snapshot must serialize");
     let reopened = projected(saved.cdml()).expect("saved compact group must reopen");
     assert_eq!(initial, reopened);
     assert_eq!(reopened.molecules()[0].compact_groups()[0].id(), group.id());
@@ -44,15 +44,17 @@ fn compact_group_projection_preserves_two_group_source_order_and_reopen_identiti
         "<compact-group id=\"nitro\" version=\"1\" catalog-key=\"nitro\" attachment-index=\"0\" orientation-degrees=\"90\"><point x=\"40\" y=\"0\"/></compact-group>",
         "</molecule></cdml>",
     );
-    let initial = projected(source).expect("two compact groups must project");
+    let session = DocumentSession::load(source).expect("two compact groups must open");
+    let snapshot = session
+        .snapshot()
+        .expect("two compact groups must snapshot");
+    let initial = projected(snapshot.cdml()).expect("two compact groups must project");
     let groups = initial.molecules()[0].compact_groups();
     assert_eq!(groups.len(), 2);
     assert_eq!(groups[0].source_order(), 0);
     assert_eq!(groups[1].source_order(), 2);
     assert_ne!(groups[0].id(), groups[1].id());
 
-    let session = DocumentSession::load(source).expect("source must open in a session");
-    let snapshot = session.snapshot().expect("source must snapshot");
     let reopened = projected(snapshot.cdml()).expect("saved source must reopen");
     assert_eq!(reopened.molecules()[0].compact_groups(), groups);
 }
@@ -75,10 +77,7 @@ fn compact_group_is_a_durable_core_group_endpoint_and_reopens_without_translatio
     let group = molecule.groups()[0].identity();
     let bond = &molecule.bonds()[0];
     assert_eq!(molecule.groups().len(), 1);
-    assert_eq!(
-        molecule.groups()[0].source_id().map(|id| id.as_str()),
-        Some("group")
-    );
+    assert_eq!(molecule.groups()[0].source_id().as_str(), "group");
     assert_eq!(bond.start(), &VertexRef::Atom(anchor.clone()));
     assert_eq!(bond.end(), &VertexRef::Group(group.clone()));
     assert_eq!(bond.order(), Some(BondOrder::Single));
@@ -124,18 +123,14 @@ fn compact_group_core_bridge_refuses_missing_or_unresolved_endpoint_facts() {
         "</molecule></cdml>",
     );
     assert!(matches!(
-        TypedDocument::parse(missing_id)
-            .expect("missing compact ID remains structurally typed")
-            .core_projection(),
-        Err(CoreProjectionError::CompactGroup(
-            ProjectionError::InvalidCompactGroupField { field: "id", .. }
-        ))
+        TypedDocument::parse(missing_id),
+        Err(TypedDocumentError::MissingStructuralSourceId { .. })
     ));
 
     let unknown_endpoint = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"root\">",
         "<atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "<bond start=\"anchor\" end=\"missing\" type=\"n1\"/>",
+        "<bond id=\"bond\" start=\"anchor\" end=\"missing\" type=\"n1\"/>",
         "</molecule></cdml>",
     );
     assert!(matches!(

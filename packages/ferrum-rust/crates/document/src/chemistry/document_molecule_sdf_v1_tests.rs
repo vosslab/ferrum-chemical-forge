@@ -177,10 +177,9 @@ fn stale_foreign_and_malformed_metadata_are_rejected_before_native_execution() {
         Err(DocumentMoleculeSdfErrorV1::Observation(_))
     ));
 
-    let foreign = DocumentObjectIdV1::parse(
-        "ferrum-document-object-v1/63646d6c2f6d6f6563756c65/source/666f726569676e",
-    )
-    .expect("foreign selector grammar");
+    let foreign =
+        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
+            .expect("foreign selector grammar");
     let foreign = DocumentMoleculeSdfRequestV1::new(
         0,
         *request.expected_digest(),

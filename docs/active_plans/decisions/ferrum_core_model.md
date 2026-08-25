@@ -16,46 +16,30 @@ intentional mutation proof are recorded in
 
 ## Structural identity
 
-- `source_id: Option<Identifier>` preserves exact CDML `@id` presence. The core
-  never fabricates a source ID.
-- `RecordId` is structural: `RecordKind` plus `RecordOrigin::Source(exact_id)` or
-  `RecordOrigin::Legacy { fingerprint, occurrence }`. Public constructors cannot
-  create arbitrary string identities.
-- Source-backed records derive their identity from the exact source ID. Validated
-  construction and deserialization reject a source/kind/origin mismatch.
-- Legacy fingerprints use `ferrum-core-legacy-v1`, record kind, and length-prefixed
-  UTF-8 fields. The format is unambiguous, deterministic across processes/platforms,
-  and versioned for future incompatible changes.
-- Internal snapshot rehydration parses the complete encoding, checks its version,
-  embedded kind, field lengths, full consumption, and record-kind field shape before
-  accepting it. This is structural integrity checking, not a cryptographic security
-  boundary and not proof of historical semantic provenance after an edit.
-- Atom fingerprints include all carried scalar presence and values plus coordinate
-  bits. Bond fingerprints include source-ID presence, ordered typed endpoint identity,
-  source-type presence/value, optional observed order/style, and aromatic presence.
-- A fingerprint seeds a legacy identity only at load/construction time. It is not
-  recomputed to rename an existing idless record after a replacement edit. Source ID
-  identities are reload-stable; idless identities are typed document/session anchors.
-- Internal Serde rehydration validates record kind, origin, source-ID/occurrence
-  consistency, scalar invariants, endpoint kinds, and graph resolution while retaining
-  an already-issued legacy anchor. It does not reseed that anchor from edited fields.
+### Supersession
 
-## Idless duplicate policy
+The approved [source_only_record_identity_v1.md](source_only_record_identity_v1.md)
+supersedes this document's former optional `source_id`, `RecordOrigin`, legacy
+fingerprint, and idless-occurrence design. Those mechanisms are no longer
+valid contracts or migration options.
 
-An idless record adds an occurrence only among records with an identical canonical
-fingerprint. It is not a general collection position: nonidentical records retain the
-same identity when reordered. The CDML reader assigns the occurrence while loading,
-and internal persistence retains it, so exact duplicates stay distinct during a live
-session and through an internal snapshot round trip. For idless group/text/query
-vertices, this typed occurrence is the minimal document-provided anchor until M6-M8
-can derive one from the typed or opaque CDML node; it is never an arbitrary raw string.
+Every typed persisted structural record and recognized direct-root presentation
+record has a canonical, nonblank, document-unique source ID. Core `RecordId` is
+internal only: `{ kind, source_id }`. Construction and serialization reject
+missing, malformed, duplicate, or kind-mismatched source identity.
 
-Source-only reload has an unavoidable limitation: exact duplicate idless records have
-no source fact that distinguishes them. Their assigned occurrences are deterministic
-within the loaded sequence but cannot preserve user meaning across a reorder of those
-indistinguishable duplicates. The core therefore supports representable documents
-without pretending that source XML contains an absent identity. M6 can improve the
-document-node anchor, but cannot invent semantic distinction absent from source data.
+`DocumentObjectIdV1` is a separate, high-entropy, document-scoped opaque
+selector. Ferrum-owned namespaced metadata persists it, validates its canonical
+grammar and collisions, and preserves it through save, snapshot, history,
+undo, redo, and reload. It is neither a source-ID, hash, fingerprint, decoder,
+nor graph derivation. Typed ingress allocates or preserves it before
+`RevisionState` serialization.
+
+Persisted `PresentationTargetV1` and `RenderTarget` use only this durable
+selector. Identifier-free preview targets are separate transient values. Public
+diagnostics and exclusions use durable IDs when addressable and the closed
+numeric `DocumentLocationV1` vocabulary before allocation; source IDs remain
+internal and never appear in public results.
 
 ## Graph and mutation invariants
 
@@ -69,7 +53,8 @@ document-node anchor, but cannot invent semantic distinction absent from source 
   Bond endpoints preserve their type and order; chemistry code can explicitly require
   atom endpoints.
 - Each endpoint resolves to a matching local vertex and cannot self-link.
-- Internal identities and present molecule-local source IDs are unique.
+- Internal source `RecordId` values and durable document selectors are unique in
+  their respective document scopes.
 - M2 mutation is replacement-only. `Atom::replace_source_fields`,
   `Bond::replace_source_fields`, and `Molecule::replace_records` are bounded
   immutable replacements that retain identity anchors; full document/session edit
@@ -81,12 +66,12 @@ document-node anchor, but cannot invent semantic distinction absent from source 
 
 | Source field | Treatment | Presence policy or reason |
 | --- | --- | --- |
-| Molecule id and name | Carried | Both remain optional source facts. |
-| Atom id, name, point x/y, OASA z | Carried | ID/name preserve absence; finite position is required in this core atom shape. |
+| Molecule id and name | Carried | ID is required canonical source identity; name remains an optional source fact. |
+| Atom id, name, point x/y, OASA z | Carried | ID is required canonical source identity; name remains optional and finite position is required in this core atom shape. |
 | Charge, isotope, explicit H, valency, multiplicity, free sites | Carried | `Option` preserves absent versus default source state. |
 | Atom periodic facts, formula, mass, valence perception | Computed | Chemistry adapter/RDKit owns derivation. |
-| Group, text, query identity | Carried minimally | Required for typed endpoint resolution; document layer owns payload. |
-| Bond id, start/end, source type | Carried | ID/type preserve source absence; endpoints stay ordered and typed. |
+| Group, text, query identity | Carried minimally | Required canonical source identity for typed endpoint resolution; document layer owns payload. |
+| Bond id, start/end, source type | Carried | ID is required canonical source identity; source type may preserve absence and endpoints stay ordered and typed. |
 | Bond order, style, aromatic flag | Carried optionally | No missing source type/order/style is normalized into an authored default. |
 | Bond depiction attributes and atom presentation | Dropped | M6-M8 document and M12 rendering own them. |
 | Stereo, cycles, bond length | Computed or deferred | Chemistry/geometry contracts own derivation. |
@@ -97,15 +82,14 @@ document-node anchor, but cannot invent semantic distinction absent from source 
 
 ## Validation evidence
 
-- Serde uses private wire records and structurally validates issued identities and
-  anchors before accepting Position, Atom, Bond, vertex, or Molecule values. It only
-  derives a fresh identity at initial construction, never while rehydrating an edited
-  legacy record.
-- Tests reject spoofed source identity, kind-mismatched endpoint variants, and
-  nonfinite position; distinguish delimiter inputs in canonical fingerprints; preserve
-  absent bond type/order/style; prove child-set/reorder stability for idless molecules;
-  retain exact duplicate idless occurrences in a session; and exercise typed
-  endpoint/source-absence round trips.
+- Serde uses private wire records and validates admitted source identities plus
+  independently allocated durable selectors before accepting Position, Atom,
+  Bond, vertex, or Molecule values. It neither derives nor rehydrates a legacy
+  identity.
+- Evidence rejects missing, malformed, duplicate, or spoofed source identity;
+  kind-mismatched endpoint variants; malformed/colliding durable selectors; and
+  nonfinite positions. It preserves durable selectors independently through
+  revision-state persistence while retaining absent non-identity source fields.
 - One property varies every carried optional atom scalar plus bond order, style, and
   aromatic presence through internal serialization without collapsing absence into a
   default.

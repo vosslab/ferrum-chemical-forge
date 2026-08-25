@@ -41,13 +41,6 @@ fn assign_clear_undo_and_redo_preserve_the_retained_atom() {
             .observation()
             .snapshot()
             .cdml()
-            .contains("id=\"a\" name=\"C\" number=\"11\" show_number=\"no\"")
-    );
-    assert!(
-        assigned
-            .observation()
-            .snapshot()
-            .cdml()
             .contains("<opaque retained=\"yes\"/>")
     );
 

@@ -1,7 +1,4 @@
-use super::{
-    DocumentSession, DocumentSessionError, SessionOperationError, TypedClass, TypedDocument,
-    TypedDocumentError,
-};
+use super::{DocumentSession, DocumentSessionError, SessionOperationError, TypedDocumentError};
 
 const CHAIN: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\" name=\"chain\">",
@@ -15,62 +12,97 @@ const CHAIN: &str = concat!(
 #[test]
 fn structural_deletion_splits_in_source_order_and_receipts_induced_bonds() {
     let mut session = DocumentSession::load(CHAIN).expect("fixture loads");
+    let observation = session.observe(0).expect("fixture projects");
+    let initial_molecule = &observation.projection().molecules()[0];
+    let molecule = initial_molecule
+        .id()
+        .expect("fixture molecule is durable")
+        .clone();
+    let atom = initial_molecule.atoms()[1]
+        .id()
+        .expect("fixture atom is durable")
+        .clone();
+    let surviving_child_ids = vec![
+        initial_molecule.atoms()[0]
+            .id()
+            .expect("surviving atom is durable")
+            .clone(),
+        initial_molecule.atoms()[2]
+            .id()
+            .expect("surviving atom is durable")
+            .clone(),
+        initial_molecule.atoms()[3]
+            .id()
+            .expect("surviving atom is durable")
+            .clone(),
+        initial_molecule.bonds()[2]
+            .id()
+            .expect("surviving bond is durable")
+            .clone(),
+    ];
     let mut pending = session
-        .prepare_delete_structure_v1(0, "m".to_owned(), vec!["b".to_owned()], vec![])
+        .prepare_delete_structure_v1(0, &molecule, &[atom], &[])
         .expect("plan prepares");
     let receipt = pending.receipt();
-    assert_eq!(
-        receipt
-            .removed_atom_ids()
-            .iter()
-            .map(|id| id.as_str())
-            .collect::<Vec<_>>(),
-        ["b"]
-    );
-    assert_eq!(
-        receipt
-            .removed_bond_ids()
-            .iter()
-            .map(|id| id.as_str())
-            .collect::<Vec<_>>(),
-        ["ab", "bc"]
-    );
+    assert_eq!(receipt.removed_atom_ids().len(), 1);
+    assert_eq!(receipt.removed_bond_ids().len(), 2);
     assert_eq!(receipt.components().len(), 2);
-    assert_eq!(
-        receipt.components()[0]
-            .atom_ids()
-            .iter()
-            .map(|id| id.as_str())
-            .collect::<Vec<_>>(),
-        ["a"]
-    );
-    assert_eq!(
-        receipt.components()[1]
-            .atom_ids()
-            .iter()
-            .map(|id| id.as_str())
-            .collect::<Vec<_>>(),
-        ["c", "d"]
-    );
-    assert_ne!(receipt.components()[1].molecule_id().as_str(), "m");
     let committed = session
         .commit_delete_structure_v1(0, &mut pending)
         .expect("commit succeeds");
     assert_eq!(committed.observation().snapshot().revision(), 1);
-    let cdml = committed.observation().snapshot().cdml();
-    assert!(cdml.contains("<molecule id=\"m\" name=\"chain\"><atom id=\"a\">"));
-    assert!(cdml.contains("id=\"c\""));
-    let document = TypedDocument::parse(cdml).expect("committed CDML reparses");
-    assert!(
-        document
-            .root()
-            .children_of(TypedClass::Molecule)
-            .any(|molecule| {
-                molecule
-                    .children_of(TypedClass::Bond)
-                    .any(|record| record.attribute("id") == Some("cd"))
-            })
-    );
+    let molecules = committed.observation().projection().molecules();
+    assert_eq!(molecules.len(), 2);
+    assert_eq!(molecules[0].atoms().len(), 1);
+    assert_eq!(molecules[1].atoms().len(), 2);
+    assert_eq!(molecules[1].bonds().len(), 1);
+    let split_root_ids = molecules
+        .iter()
+        .map(|split| split.id().expect("split root is durable").clone())
+        .collect::<Vec<_>>();
+    assert_eq!(split_root_ids[0], molecule);
+    assert_ne!(split_root_ids[0], split_root_ids[1]);
+    let committed_child_ids = molecules
+        .iter()
+        .flat_map(|split| {
+            split
+                .atoms()
+                .iter()
+                .filter_map(|atom| atom.id().cloned())
+                .chain(split.bonds().iter().filter_map(|bond| bond.id().cloned()))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(committed_child_ids, surviving_child_ids);
+    for object_id in split_root_ids.iter().chain(&surviving_child_ids) {
+        assert!(
+            session
+                .current_document_v1()
+                .resolve_document_object_id(object_id)
+                .is_some()
+        );
+    }
+    let undone = session.undo(1).expect("split deletion undoes");
+    for object_id in &surviving_child_ids {
+        assert!(
+            session
+                .current_document_v1()
+                .resolve_document_object_id(object_id)
+                .is_some()
+        );
+    }
+    let redone = session
+        .redo(undone.observation().snapshot().revision())
+        .expect("split deletion redoes");
+    let reopened = DocumentSession::load(redone.observation().snapshot().cdml())
+        .expect("serialized split document reopens");
+    for object_id in split_root_ids.iter().chain(&surviving_child_ids) {
+        assert!(
+            reopened
+                .current_document_v1()
+                .resolve_document_object_id(object_id)
+                .is_some()
+        );
+    }
 }
 
 #[test]
@@ -81,8 +113,17 @@ fn reaction_referenced_split_is_atomic() {
     ) + "</cdml>";
     let mut session = DocumentSession::load(&source).expect("fixture loads");
     let before = session.snapshot().expect("snapshot works");
+    let observation = session.observe(0).expect("fixture projects");
+    let molecule = observation.projection().molecules()[0]
+        .id()
+        .expect("fixture molecule is durable")
+        .clone();
+    let atom = observation.projection().molecules()[0].atoms()[1]
+        .id()
+        .expect("fixture atom is durable")
+        .clone();
     assert!(matches!(
-        session.prepare_delete_structure_v1(0, "m".to_owned(), vec!["b".to_owned()], vec![]),
+        session.prepare_delete_structure_v1(0, &molecule, &[atom], &[]),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(
                 TypedDocumentError::ReactionReferencedStructureDeletion(_)
@@ -94,11 +135,20 @@ fn reaction_referenced_split_is_atomic() {
 
 #[test]
 fn unsupported_direct_content_is_atomic() {
-    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"/><note/></molecule></cdml>";
+    let source = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><note/></molecule></cdml>";
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let before = session.snapshot().expect("snapshot works");
+    let observation = session.observe(0).expect("fixture projects");
+    let molecule = observation.projection().molecules()[0]
+        .id()
+        .expect("fixture molecule is durable")
+        .clone();
+    let atom = observation.projection().molecules()[0].atoms()[0]
+        .id()
+        .expect("fixture atom is durable")
+        .clone();
     assert!(matches!(
-        session.prepare_delete_structure_v1(0, "m".to_owned(), vec!["a".to_owned()], vec![]),
+        session.prepare_delete_structure_v1(0, &molecule, &[atom], &[]),
         Err(DocumentSessionError::Operation(
             SessionOperationError::Candidate(
                 TypedDocumentError::UnsupportedStructureDeletionMolecule(_)

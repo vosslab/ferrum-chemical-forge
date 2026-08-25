@@ -91,6 +91,7 @@ pub fn build_haworth_front_preview_ops(
 /// Complete source facts for one already label-clipped Haworth front edge.
 pub(crate) struct HaworthFrontBondInput {
     pub(crate) target: RenderTarget,
+    pub(crate) paint_order: u32,
     pub(crate) style: BondStyle,
     pub(crate) tip: RenderPoint,
     pub(crate) base: RenderPoint,
@@ -106,6 +107,7 @@ pub(crate) fn build_haworth_front_batch(
 ) -> Result<RenderBatch, RenderIssueKind> {
     let HaworthFrontBondInput {
         target,
+        paint_order,
         style,
         tip,
         base,
@@ -132,7 +134,7 @@ pub(crate) fn build_haworth_front_batch(
         wedge_width,
         paint,
     )?;
-    RenderBatch::new(target, BatchSpace::Scene, operations)
+    RenderBatch::new(target, paint_order, BatchSpace::Scene, operations)
         .map(|batch| batch.with_display_layer(layer))
         .map_err(|error| RenderIssueKind::UnrenderableTarget {
             reason: format!("Haworth front bond batch is not renderable: {error}"),

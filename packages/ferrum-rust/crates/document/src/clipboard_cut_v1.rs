@@ -8,7 +8,7 @@ use xot::Node;
 use super::{
     DocumentClipboardFragmentErrorV1, DocumentClipboardFragmentKindV1, DocumentClipboardFragmentV1,
     DocumentClipboardSelectionV1, DocumentObjectIdV1, PresentationRecordKindV1,
-    PresentationRootDeletionSetV1, PresentationRootSelectorV1, SessionDocumentObservationV1,
+    PresentationRootDeletionSetV1, PresentationRootDeletionV1, SessionDocumentObservationV1,
     TypedClass, TypedDocument, TypedDocumentError, extract_document_clipboard_fragment_v1,
 };
 
@@ -133,13 +133,7 @@ fn presentation_deletion(
         }
         let kind = presentation_kind(record.class())
             .ok_or(DocumentClipboardCutErrorV1::UnsupportedTopLevelSelection)?;
-        let identifier = record
-            .attribute("id")
-            .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?;
-        targets.push(
-            PresentationRootSelectorV1::new(identifier, kind)
-                .map_err(|_| DocumentClipboardCutErrorV1::IdentityInvariant)?,
-        );
+        targets.push(PresentationRootDeletionV1::new(object.clone(), kind));
     }
     PresentationRootDeletionSetV1::new(targets)
         .map_err(|_| DocumentClipboardCutErrorV1::IdentityInvariant)
@@ -187,6 +181,7 @@ fn compose_structure_cut(
     }
     let molecule_index = molecule.path().components()[0];
     let mut selected_atoms = BTreeSet::new();
+    let mut removed_structural_ids = BTreeSet::new();
     let mut removed_children = BTreeSet::new();
     for object in selected {
         let record = current
@@ -198,13 +193,19 @@ fn compose_structure_cut(
         }
         match record.class() {
             TypedClass::Atom => {
-                selected_atoms.insert(
+                let identifier = record
+                    .attribute("id")
+                    .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?;
+                selected_atoms.insert(identifier);
+                removed_structural_ids.insert(identifier);
+            }
+            TypedClass::Bond => {
+                removed_structural_ids.insert(
                     record
                         .attribute("id")
                         .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?,
                 );
             }
-            TypedClass::Bond => {}
             _ => return Err(DocumentClipboardCutErrorV1::IdentityInvariant),
         }
         removed_children.insert(path[1]);
@@ -222,6 +223,34 @@ fn compose_structure_cut(
                 .attribute("end")
                 .is_some_and(|id| selected_atoms.contains(id))
         {
+            let identifier = record
+                .attribute("id")
+                .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?;
+            let child_index = record
+                .path()
+                .components()
+                .last()
+                .copied()
+                .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?;
+            removed_structural_ids.insert(identifier);
+            removed_children.insert(child_index);
+        }
+    }
+    for child in molecule.typed_children() {
+        let record = child.record();
+        if !super::typed_linear_form_metadata::is_exact_generated_linear_form_record(record) {
+            continue;
+        }
+        let invalidated = record.typed_children().iter().any(|member| {
+            matches!(
+                member.record().class(),
+                TypedClass::FragmentBond | TypedClass::FragmentVertex
+            ) && member
+                .record()
+                .attribute("id")
+                .is_some_and(|id| removed_structural_ids.contains(id))
+        });
+        if invalidated {
             let child_index = record
                 .path()
                 .components()
@@ -256,10 +285,6 @@ fn compose_structure_cut(
         for target in targets {
             tree.remove(target).map_err(TypedDocumentError::Mutation)?;
         }
-        super::typed_linear_form_metadata::retire_invalid_generated_linear_forms(
-            tree,
-            molecule_node,
-        )?;
     }
     let serialized = candidate.to_xml().map_err(TypedDocumentError::from)?;
     TypedDocument::parse(&serialized).map_err(Into::into)

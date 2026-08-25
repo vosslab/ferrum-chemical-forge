@@ -3,27 +3,28 @@
 use ferrum_core::{BondOrder, BondStyle};
 use ferrum_document::{
     AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointV1, BondProjectionV1,
-    BoxShapeProjectionV1, CompactGroupProjectionV1, DocumentHaworthPositionV1,
-    DocumentProjectionV1, FontFactsV1, MoleculeProjectionV1, PlusProjectionV1, PolygonPathV1,
-    PolygonProjectionV1, PolylinePathV1, PolylineProjectionV1, PresentationBoundsV1,
-    PresentationFactProvenanceV1, PresentationFillV1, PresentationFontV1,
+    BoxShapeProjectionV1, CompactGroupProjectionV1, DocumentDirectRootKindV1, DocumentDirectRootV1,
+    DocumentHaworthPositionV1, DocumentProjectionV1, FontFactsV1, MoleculeProjectionV1,
+    PlusProjectionV1, PolygonPathV1, PolygonProjectionV1, PolylinePathV1, PolylineProjectionV1,
+    PresentationBoundsV1, PresentationFactProvenanceV1, PresentationFillV1, PresentationFontV1,
     PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationRecordKindV1,
     PresentationStackProjectionV1, PresentationStrokeV1, PresentationTargetV1,
     ProjectionIssueCodeV1, ProjectionIssueV1, SessionDocumentObservationV1, VisibilityV1,
 };
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 
 pub(crate) use super::arrow_projection_binding::{
     PyArrowHeadShapeV1, PyArrowPathV1, PyArrowProjectionKindV1, PyArrowProjectionV1,
 };
 use super::atom_mark_binding::PyAtomMarkKindV1;
-use super::binding::PyDocumentBondOrderV1;
-use super::binding::PyDocumentSnapshot;
+use super::binding::{PyDocumentBondOrderV1, PyDocumentSnapshot};
 use super::bond_properties_binding::PyDocumentBondStyleV1;
 use super::bracket_binding::PyBracketPairProjectionV1;
 use super::drawing_standard_binding::PyDrawingStandardV1;
 use super::paper_properties_binding::PyPaperLayoutProjectionV1;
 use super::presentation_root_binding::PyPresentationRootProjectionV1;
+use super::render_binding::frozen_tuple;
 
 #[pyclass(frozen, name = "Point3V1", skip_from_py_object)]
 #[derive(Clone)]
@@ -61,9 +62,7 @@ impl From<&FontFactsV1> for PyFontFactsV1 {
 #[derive(Clone)]
 pub(crate) struct PyBondEndpointV1 {
     #[pyo3(get)]
-    pub(crate) source_id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) object_id: Option<String>,
+    pub(crate) document_object_id: Option<String>,
     #[pyo3(get)]
     pub(crate) kind: String,
 }
@@ -71,8 +70,7 @@ pub(crate) struct PyBondEndpointV1 {
 impl From<&BondEndpointV1> for PyBondEndpointV1 {
     fn from(value: &BondEndpointV1) -> Self {
         Self {
-            source_id: value.source_id().map(str::to_owned),
-            object_id: value.object_id().map(|v| v.as_str().to_owned()),
+            document_object_id: value.object_id().map(|v| v.as_str().to_owned()),
             kind: format!("{:?}", value.kind()).to_ascii_lowercase(),
         }
     }
@@ -83,8 +81,6 @@ impl From<&BondEndpointV1> for PyBondEndpointV1 {
 pub(crate) struct PyAtomMarkProjectionV1 {
     #[pyo3(get)]
     pub(crate) kind: PyAtomMarkKindV1,
-    #[pyo3(get)]
-    pub(crate) source_order: u32,
     #[pyo3(get)]
     pub(crate) same_type_ordinal: u32,
     #[pyo3(get)]
@@ -103,7 +99,6 @@ impl From<&AtomMarkProjectionV1> for PyAtomMarkProjectionV1 {
     fn from(value: &AtomMarkProjectionV1) -> Self {
         Self {
             kind: py_atom_mark_kind(value.kind()),
-            source_order: value.source_order(),
             same_type_ordinal: value.same_type_ordinal(),
             angle_degrees: value.angle_degrees(),
             radial_offset: value.radial_offset(),
@@ -130,13 +125,7 @@ fn py_atom_mark_kind(value: AtomMarkKindV1) -> PyAtomMarkKindV1 {
 #[derive(Clone)]
 pub(crate) struct PyAtomProjectionV1 {
     #[pyo3(get)]
-    pub(crate) id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) projection_key: String,
-    #[pyo3(get)]
-    pub(crate) source_id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) source_order: u32,
+    pub(crate) document_object_id: String,
     #[pyo3(get)]
     pub(crate) element: Option<String>,
     #[pyo3(get)]
@@ -173,10 +162,7 @@ impl From<&AtomProjectionV1> for PyAtomProjectionV1 {
     fn from(value: &AtomProjectionV1) -> Self {
         let point = value.position();
         Self {
-            id: value.id().map(|v| v.as_str().to_owned()),
-            projection_key: value.projection_key().as_str().to_owned(),
-            source_id: value.source_id().map(str::to_owned),
-            source_order: value.source_order(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
             element: value.element().map(str::to_owned),
             position: PyPoint3V1 {
                 x: point.x(),
@@ -227,13 +213,7 @@ pub(crate) enum PyDocumentHaworthPositionV1 {
 #[derive(Clone)]
 pub(crate) struct PyBondProjectionV1 {
     #[pyo3(get)]
-    pub(crate) id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) projection_key: String,
-    #[pyo3(get)]
-    pub(crate) source_id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) source_order: u32,
+    pub(crate) document_object_id: String,
     #[pyo3(get)]
     pub(crate) start: PyBondEndpointV1,
     #[pyo3(get)]
@@ -261,10 +241,7 @@ pub(crate) struct PyBondProjectionV1 {
 impl From<&BondProjectionV1> for PyBondProjectionV1 {
     fn from(value: &BondProjectionV1) -> Self {
         Self {
-            id: value.id().map(|v| v.as_str().to_owned()),
-            projection_key: value.projection_key().as_str().to_owned(),
-            source_id: value.source_id().map(str::to_owned),
-            source_order: value.source_order(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
             start: value.start().into(),
             end: value.end().into(),
             source_type: value.source_type().map(str::to_owned),
@@ -316,7 +293,7 @@ fn py_bond_style(value: &BondStyle) -> Option<PyDocumentBondStyleV1> {
 #[derive(Clone)]
 pub(crate) struct PyCompactGroupProjectionV1 {
     #[pyo3(get)]
-    pub(crate) id: String,
+    pub(crate) document_object_id: String,
     #[pyo3(get)]
     pub(crate) catalog_key: String,
     #[pyo3(get)]
@@ -327,15 +304,13 @@ pub(crate) struct PyCompactGroupProjectionV1 {
     pub(crate) attachment_index: u8,
     #[pyo3(get)]
     pub(crate) orientation_degrees: f64,
-    #[pyo3(get)]
-    pub(crate) source_order: u32,
 }
 
 impl From<&CompactGroupProjectionV1> for PyCompactGroupProjectionV1 {
     fn from(value: &CompactGroupProjectionV1) -> Self {
         let anchor = value.anchor();
         Self {
-            id: value.id().as_str().to_owned(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
             catalog_key: value.catalog_key().as_str().to_owned(),
             label: value.label().to_owned(),
             anchor: PyPoint3V1 {
@@ -345,7 +320,6 @@ impl From<&CompactGroupProjectionV1> for PyCompactGroupProjectionV1 {
             },
             attachment_index: value.attachment_index(),
             orientation_degrees: value.orientation_degrees(),
-            source_order: value.source_order(),
         }
     }
 }
@@ -354,13 +328,7 @@ impl From<&CompactGroupProjectionV1> for PyCompactGroupProjectionV1 {
 #[derive(Clone)]
 pub(crate) struct PyMoleculeProjectionV1 {
     #[pyo3(get)]
-    pub(crate) id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) projection_key: String,
-    #[pyo3(get)]
-    pub(crate) source_id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) source_order: u32,
+    pub(crate) document_object_id: String,
     #[pyo3(get)]
     pub(crate) name: Option<String>,
     #[pyo3(get)]
@@ -374,10 +342,7 @@ pub(crate) struct PyMoleculeProjectionV1 {
 impl From<&MoleculeProjectionV1> for PyMoleculeProjectionV1 {
     fn from(value: &MoleculeProjectionV1) -> Self {
         Self {
-            id: value.id().map(|v| v.as_str().to_owned()),
-            projection_key: value.projection_key().as_str().to_owned(),
-            source_id: value.source_id().map(str::to_owned),
-            source_order: value.source_order(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
             name: value.name().map(str::to_owned),
             atoms: value.atoms().iter().map(Into::into).collect(),
             compact_groups: value.compact_groups().iter().map(Into::into).collect(),
@@ -433,6 +398,7 @@ pub(crate) struct PyDocumentProjectionV1 {
     pub(crate) drawing_standard: Option<PyDrawingStandardV1>,
     #[pyo3(get)]
     pub(crate) molecules: Vec<PyMoleculeProjectionV1>,
+    pub(crate) direct_roots: Vec<PyDocumentDirectRootV1>,
     #[pyo3(get)]
     pub(crate) presentation_stack: PyPresentationStackProjectionV1,
     #[pyo3(get)]
@@ -449,9 +415,18 @@ impl From<&DocumentProjectionV1> for PyDocumentProjectionV1 {
             paper_layout: value.paper_layout().into(),
             drawing_standard: value.drawing_standard().map(Into::into),
             molecules: value.molecules().iter().map(Into::into).collect(),
+            direct_roots: value.direct_roots().iter().map(Into::into).collect(),
             presentation_stack: value.presentation_stack().into(),
             issues: value.issues().iter().map(Into::into).collect(),
         }
+    }
+}
+
+#[pymethods]
+impl PyDocumentProjectionV1 {
+    #[getter]
+    fn direct_roots(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        frozen_tuple(py, &self.direct_roots)
     }
 }
 
@@ -466,7 +441,7 @@ pub(crate) struct PyPresentationStackProjectionV1 {
     #[pyo3(get)]
     pub(crate) digest: String,
     #[pyo3(get)]
-    pub(crate) roots: Vec<PyPresentationRootProjectionV1>,
+    entries: Vec<PyPresentationRootProjectionV1>,
     #[pyo3(get)]
     pub(crate) bracket_pairs: Vec<PyBracketPairProjectionV1>,
     #[pyo3(get)]
@@ -479,9 +454,43 @@ impl From<&PresentationStackProjectionV1> for PyPresentationStackProjectionV1 {
             schema: value.schema().to_owned(),
             revision: value.revision(),
             digest: hex_digest(value.digest()),
-            roots: value.roots().iter().map(Into::into).collect(),
+            entries: value
+                .entries()
+                .iter()
+                .map(|entry| entry.root().into())
+                .collect(),
             bracket_pairs: value.bracket_pairs().iter().map(Into::into).collect(),
             issues: value.issues().iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[pymethods]
+impl PyPresentationStackProjectionV1 {
+    #[getter]
+    fn entries(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        frozen_tuple(py, &self.entries)
+    }
+}
+
+/// One durable direct root at its explicit document-wide paint position.
+#[pyclass(frozen, name = "DocumentDirectRootV1", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyDocumentDirectRootV1 {
+    #[pyo3(get)]
+    document_object_id: String,
+    #[pyo3(get)]
+    paint_order: u32,
+    #[pyo3(get)]
+    kind: String,
+}
+
+impl From<&DocumentDirectRootV1> for PyDocumentDirectRootV1 {
+    fn from(value: &DocumentDirectRootV1) -> Self {
+        Self {
+            document_object_id: value.document_object_id().as_str().to_owned(),
+            paint_order: value.paint_order(),
+            kind: document_direct_root_kind(value.kind()).to_owned(),
         }
     }
 }
@@ -574,13 +583,7 @@ impl From<&PolylineProjectionV1> for PyPolylineProjectionV1 {
 #[derive(Clone)]
 pub(crate) struct PyPresentationTargetV1 {
     #[pyo3(get)]
-    pub(crate) id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) projection_key: String,
-    #[pyo3(get)]
-    pub(crate) source_id: Option<String>,
-    #[pyo3(get)]
-    pub(crate) source_order: u32,
+    pub(crate) document_object_id: String,
     #[pyo3(get)]
     pub(crate) record_kind: String,
 }
@@ -588,10 +591,7 @@ pub(crate) struct PyPresentationTargetV1 {
 impl From<&PresentationTargetV1> for PyPresentationTargetV1 {
     fn from(value: &PresentationTargetV1) -> Self {
         Self {
-            id: value.id().map(|id| id.as_str().to_owned()),
-            projection_key: value.projection_key().as_str().to_owned(),
-            source_id: value.source_id().map(str::to_owned),
-            source_order: value.source_order(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
             record_kind: presentation_record_kind(value.record_kind()).to_owned(),
         }
     }
@@ -805,6 +805,14 @@ fn presentation_record_kind(value: PresentationRecordKindV1) -> &'static str {
         PresentationRecordKindV1::Oval => "oval",
         PresentationRecordKindV1::Circle => "circle",
         PresentationRecordKindV1::Polygon => "polygon",
+    }
+}
+
+fn document_direct_root_kind(value: DocumentDirectRootKindV1) -> &'static str {
+    match value {
+        DocumentDirectRootKindV1::Molecule => "molecule",
+        DocumentDirectRootKindV1::Presentation(kind) => presentation_record_kind(kind),
+        DocumentDirectRootKindV1::RejectedPresentation(_) => "rejected_presentation",
     }
 }
 

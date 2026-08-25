@@ -119,11 +119,11 @@ pub enum CompleteRenderRootLoweringV1 {
     MissingRequiredPrimitive,
 }
 
-/// One exact direct root in durable document source order.
+/// One exact direct root in canonical paint order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompleteRenderRootCandidateV1 {
     identity: CompleteRenderRootIdentityV1,
-    source_order: u32,
+    paint_order: u32,
     lowering: CompleteRenderRootLoweringV1,
 }
 
@@ -132,12 +132,12 @@ impl CompleteRenderRootCandidateV1 {
     #[must_use]
     pub const fn new(
         identity: CompleteRenderRootIdentityV1,
-        source_order: u32,
+        paint_order: u32,
         lowering: CompleteRenderRootLoweringV1,
     ) -> Self {
         Self {
             identity,
-            source_order,
+            paint_order,
             lowering,
         }
     }
@@ -148,10 +148,10 @@ impl CompleteRenderRootCandidateV1 {
         &self.identity
     }
 
-    /// Return the direct-child source order.
+    /// Return the canonical paint order.
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
 
     /// Return the exact immutable lowering status.
@@ -170,7 +170,7 @@ pub struct DocumentCompleteRenderCandidateV1 {
 }
 
 impl DocumentCompleteRenderCandidateV1 {
-    /// Construct a complete candidate with strictly increasing root source order.
+    /// Construct a complete candidate with strictly increasing root paint order.
     pub fn new(
         source_fence: CompleteDocumentSourceFenceV1,
         pending_identity: CompleteRenderPendingIdentityV1,
@@ -178,7 +178,7 @@ impl DocumentCompleteRenderCandidateV1 {
     ) -> Result<Self, CandidateDerivationFailureV1> {
         if roots
             .windows(2)
-            .any(|pair| pair[0].source_order() >= pair[1].source_order())
+            .any(|pair| pair[0].paint_order() >= pair[1].paint_order())
         {
             return Err(CandidateDerivationFailureV1::InconsistentObservation);
         }
@@ -201,7 +201,7 @@ impl DocumentCompleteRenderCandidateV1 {
         self.pending_identity
     }
 
-    /// Return root facts in exact durable source order.
+    /// Return root facts in exact canonical paint order.
     #[must_use]
     pub fn roots(&self) -> &[CompleteRenderRootCandidateV1] {
         &self.roots
@@ -263,7 +263,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn candidate_rejects_nonincreasing_source_order() {
+    fn candidate_rejects_nonincreasing_paint_order() {
         let first = CompleteRenderRootCandidateV1::new(
             CompleteRenderRootIdentityV1::new("root-a").expect("identity"),
             2,

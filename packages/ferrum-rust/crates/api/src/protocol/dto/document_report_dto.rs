@@ -66,8 +66,7 @@ pub enum DocumentMoleculeReportAggregateOmissionReasonSummaryV1 {
 #[serde(deny_unknown_fields)]
 pub struct DocumentMoleculeReportRecordSummaryV1 {
     pub molecule_id: String,
-    pub source_id: String,
-    pub document_root_order: u32,
+    pub document_paint_order: u32,
     pub authored_name: Option<String>,
     pub atom_count: usize,
     pub bond_count: usize,
@@ -215,7 +214,6 @@ pub enum DocumentMoleculeReportFindingCodeSummaryV1 {
     UnsupportedBondStyle,
     UnsupportedBondOrder,
     InconsistentAromaticity,
-    IncompleteAuthoredCharge,
     NeutralCapacityNotChecked,
     NeutralCapacityExceeded,
     IdentifierUnavailable,
@@ -237,7 +235,6 @@ impl DocumentMoleculeReportFindingCodeSummaryV1 {
             Self::UnsupportedBondStyle => "unsupported_bond_style",
             Self::UnsupportedBondOrder => "unsupported_bond_order",
             Self::InconsistentAromaticity => "inconsistent_aromaticity",
-            Self::IncompleteAuthoredCharge => "incomplete_authored_charge",
             Self::NeutralCapacityNotChecked => "neutral_capacity_not_checked",
             Self::NeutralCapacityExceeded => "neutral_capacity_exceeded",
             Self::IdentifierUnavailable => "identifier_unavailable",

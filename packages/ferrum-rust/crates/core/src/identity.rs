@@ -3,8 +3,6 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::ModelError;
-
 /// Error returned when source text is blank.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 #[error("{kind} identifier must contain at least one non-whitespace character")]
@@ -21,11 +19,16 @@ pub struct Identifier(String);
 impl Identifier {
     /// Construct nonblank source text.
     pub fn new(value: impl Into<String>) -> Result<Self, InvalidIdentifier> {
-        let value = value.into();
-        if value.trim().is_empty() {
+        let identifier = Self(value.into());
+        identifier.validate()?;
+        Ok(identifier)
+    }
+
+    fn validate(&self) -> Result<(), InvalidIdentifier> {
+        if self.0.trim().is_empty() {
             return Err(InvalidIdentifier { kind: "source" });
         }
-        Ok(Self(value))
+        Ok(())
     }
 
     /// Return the exact source text.
@@ -67,134 +70,20 @@ pub enum RecordKind {
     Bond,
 }
 
-/// A versioned canonical encoding for an idless record's carried source facts.
+/// A source-only internal record locator.
 ///
-/// The text is internally constructed with length-prefixed UTF-8 fields, so
-/// delimiter-containing input cannot alias another field sequence.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct LegacyFingerprint(pub(crate) String);
-
-impl LegacyFingerprint {
-    pub(crate) fn new(kind: RecordKind, fields: &[String]) -> Self {
-        let mut encoded = format!("ferrum-core-legacy-v1:{kind:?}");
-        for field in fields {
-            encoded.push(':');
-            encoded.push_str(&field.len().to_string());
-            encoded.push(':');
-            encoded.push_str(field);
-        }
-        Self(encoded)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn test_encoding(kind: RecordKind, fields: &[String]) -> Self {
-        Self::new(kind, fields)
-    }
-
-    pub(crate) fn kind(&self) -> Result<RecordKind, ModelError> {
-        Self::parse(&self.0).map(|parsed| parsed.kind)
-    }
-
-    fn parse(value: &str) -> Result<ParsedFingerprint, ModelError> {
-        const PREFIX: &str = "ferrum-core-legacy-v1:";
-        let remainder = value
-            .strip_prefix(PREFIX)
-            .ok_or(ModelError::MalformedLegacyFingerprint)?;
-        let (kind_text, mut encoded) = remainder
-            .split_once(':')
-            .ok_or(ModelError::MalformedLegacyFingerprint)?;
-        let kind = match kind_text {
-            "Molecule" => RecordKind::Molecule,
-            "Atom" => RecordKind::Atom,
-            "Group" => RecordKind::Group,
-            "Text" => RecordKind::Text,
-            "Query" => RecordKind::Query,
-            "Bond" => RecordKind::Bond,
-            _ => return Err(ModelError::MalformedLegacyFingerprint),
-        };
-        let mut field_count = 0;
-        while !encoded.is_empty() {
-            let (length, after_length) = encoded
-                .split_once(':')
-                .ok_or(ModelError::MalformedLegacyFingerprint)?;
-            if length.is_empty() || !length.bytes().all(|byte| byte.is_ascii_digit()) {
-                return Err(ModelError::MalformedLegacyFingerprint);
-            }
-            let length: usize = length
-                .parse()
-                .map_err(|_| ModelError::MalformedLegacyFingerprint)?;
-            if after_length.len() < length || !after_length.is_char_boundary(length) {
-                return Err(ModelError::MalformedLegacyFingerprint);
-            }
-            let (_, remaining) = after_length.split_at(length);
-            encoded = if remaining.is_empty() {
-                ""
-            } else {
-                remaining
-                    .strip_prefix(':')
-                    .ok_or(ModelError::MalformedLegacyFingerprint)?
-            };
-            field_count += 1;
-        }
-        let shape_valid = match kind {
-            RecordKind::Molecule => field_count >= 2,
-            RecordKind::Atom => field_count == 9,
-            RecordKind::Group | RecordKind::Text | RecordKind::Query => field_count == 1,
-            RecordKind::Bond => field_count == 7,
-        };
-        if shape_valid {
-            Ok(ParsedFingerprint { kind })
-        } else {
-            Err(ModelError::MalformedLegacyFingerprint)
-        }
-    }
-}
-
-struct ParsedFingerprint {
-    kind: RecordKind,
-}
-
-impl<'de> Deserialize<'de> for LegacyFingerprint {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let fingerprint = Self(String::deserialize(deserializer)?);
-        Self::parse(&fingerprint.0).map_err(serde::de::Error::custom)?;
-        Ok(fingerprint)
-    }
-}
-
-/// Origin of a structurally typed internal identity.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum RecordOrigin {
-    /// Identity derived exactly from a present source `@id`.
-    Source(Identifier),
-    /// Identity derived from source facts that carried no `@id`.
-    Legacy {
-        /// Canonical source-fact fingerprint.
-        fingerprint: LegacyFingerprint,
-        /// Occurrence only among exact same-fingerprint siblings in one session.
-        occurrence: u32,
-    },
-}
-
-/// A stable internal identity whose kind and origin are executable invariants.
+/// This identity is intentionally separate from document-owned
+/// `DocumentObjectIdV1`, which identifies durable interaction targets.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct RecordId {
     pub(crate) kind: RecordKind,
-    pub(crate) origin: RecordOrigin,
+    pub(crate) source_id: Identifier,
 }
-
-/// Failure to make an owned identity copy without relying on infallible allocation.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-#[error("could not allocate an owned record identity")]
-pub struct RecordIdCloneError;
 
 #[derive(Deserialize)]
 struct WireRecordId {
     kind: RecordKind,
-    origin: RecordOrigin,
+    source_id: Identifier,
 }
 
 impl<'de> Deserialize<'de> for RecordId {
@@ -203,42 +92,15 @@ impl<'de> Deserialize<'de> for RecordId {
         D: serde::Deserializer<'de>,
     {
         let wire = WireRecordId::deserialize(deserializer)?;
-        if let RecordOrigin::Legacy { fingerprint, .. } = &wire.origin
-            && fingerprint.kind().map_err(serde::de::Error::custom)? != wire.kind
-        {
-            return Err(serde::de::Error::custom(
-                "legacy fingerprint kind does not match record kind",
-            ));
-        }
-        Ok(Self {
-            kind: wire.kind,
-            origin: wire.origin,
-        })
+        Self::new(wire.kind, wire.source_id).map_err(serde::de::Error::custom)
     }
 }
 
 impl RecordId {
-    /// Derive a source-backed identity without fabricating a source ID.
-    #[must_use]
-    pub fn from_source(kind: RecordKind, source_id: &Identifier) -> Self {
-        Self {
-            kind,
-            origin: RecordOrigin::Source(source_id.clone()),
-        }
-    }
-
-    pub(crate) fn from_legacy(
-        kind: RecordKind,
-        fingerprint: LegacyFingerprint,
-        occurrence: u32,
-    ) -> Self {
-        Self {
-            kind,
-            origin: RecordOrigin::Legacy {
-                fingerprint,
-                occurrence,
-            },
-        }
+    /// Construct a source-only record locator from an explicit nonblank ID.
+    pub fn new(kind: RecordKind, source_id: Identifier) -> Result<Self, InvalidIdentifier> {
+        source_id.validate()?;
+        Ok(Self { kind, source_id })
     }
 
     /// Return the record class encoded in this identity.
@@ -247,71 +109,11 @@ impl RecordId {
         self.kind
     }
 
-    /// Return its structural origin.
+    /// Return the exact typed-source locator.
     #[must_use]
-    pub fn origin(&self) -> &RecordOrigin {
-        &self.origin
+    pub fn source_id(&self) -> &Identifier {
+        &self.source_id
     }
-
-    /// Return the exact bytes owned by this identity's source or legacy spelling.
-    ///
-    /// A record identity owns exactly one variable-length spelling, so this
-    /// count cannot overflow and excludes fixed enum and occurrence storage.
-    #[must_use]
-    pub fn owned_string_bytes(&self) -> usize {
-        match &self.origin {
-            RecordOrigin::Source(identifier) => identifier.0.len(),
-            RecordOrigin::Legacy { fingerprint, .. } => fingerprint.0.len(),
-        }
-    }
-
-    /// Fallibly copy the exact private identity spelling without exposing it.
-    pub fn try_clone(&self) -> Result<Self, RecordIdCloneError> {
-        let origin = match &self.origin {
-            RecordOrigin::Source(identifier) => {
-                RecordOrigin::Source(Identifier(fallible_copy(&identifier.0)?))
-            }
-            RecordOrigin::Legacy {
-                fingerprint,
-                occurrence,
-            } => RecordOrigin::Legacy {
-                fingerprint: LegacyFingerprint(fallible_copy(&fingerprint.0)?),
-                occurrence: *occurrence,
-            },
-        };
-        Ok(Self {
-            kind: self.kind,
-            origin,
-        })
-    }
-
-    pub(crate) fn canonical(&self) -> String {
-        match &self.origin {
-            RecordOrigin::Source(id) => {
-                format!("{:?}:source:{}:{}", self.kind, id.as_str().len(), id)
-            }
-            RecordOrigin::Legacy {
-                fingerprint,
-                occurrence,
-            } => {
-                format!(
-                    "{:?}:legacy:{}:{}",
-                    self.kind,
-                    fingerprint.0.len(),
-                    fingerprint.0
-                ) + &format!(":{occurrence}")
-            }
-        }
-    }
-}
-
-fn fallible_copy(value: &str) -> Result<String, RecordIdCloneError> {
-    let mut copied = String::new();
-    copied
-        .try_reserve_exact(value.len())
-        .map_err(|_| RecordIdCloneError)?;
-    copied.push_str(value);
-    Ok(copied)
 }
 
 #[cfg(test)]
@@ -319,19 +121,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn record_id_owned_bytes_and_fallible_clone_keep_source_and_legacy_identity() {
-        let source = RecordId::from_source(
-            RecordKind::Bond,
-            &Identifier::new("source-id").expect("identifier"),
-        );
-        let legacy = RecordId::from_legacy(
-            RecordKind::Atom,
-            LegacyFingerprint::test_encoding(RecordKind::Atom, &vec!["a".to_owned(); 9]),
-            2,
-        );
-        for identity in [&source, &legacy] {
-            assert_eq!(identity.try_clone().expect("copy"), *identity);
-            assert!(identity.owned_string_bytes() > 0);
-        }
+    fn record_id_serde_refuses_blank_source_id() {
+        let wire = serde_json::json!({"kind": "Atom", "source_id": "  "});
+        assert!(serde_json::from_value::<RecordId>(wire).is_err());
     }
 }

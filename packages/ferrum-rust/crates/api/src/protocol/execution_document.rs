@@ -40,6 +40,21 @@ pub(super) fn execute_document_molecule_report<R: ChemistryRuntimeV1>(
     )
 }
 
+/// Evaluate one frozen structure-diagnostics request without chemistry runtime.
+pub(super) fn execute_document_molecule_diagnostics(
+    request: DocumentMoleculeDiagnosticsRequestV1,
+) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
+    let snapshot = super::super::frozen_document_snapshot_v1::FrozenDocumentSnapshotV1::admit(
+        &request.snapshot.cdml,
+        request.snapshot.revision,
+        &request.snapshot.digest_hex,
+    )
+    .map_err(map_document_molecule_report_snapshot_error)?;
+    super::super::molecule_diagnostics_core_v1::execute_document_molecule_diagnostics_v1(
+        snapshot, request,
+    )
+}
+
 fn map_document_molecule_report_snapshot_error(
     error: FrozenDocumentSnapshotAdmissionErrorV1,
 ) -> ExecutionFailureV1 {

@@ -74,7 +74,7 @@ fn empty_document_constructor_creates_a_clean_observable_canonical_baseline() {
         observation
             .projection()
             .presentation_stack()
-            .roots()
+            .entries()
             .is_empty()
     );
     assert!(!observation.snapshot().is_dirty());

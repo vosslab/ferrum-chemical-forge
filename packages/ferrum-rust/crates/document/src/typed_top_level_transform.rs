@@ -2,11 +2,12 @@
 
 use std::collections::HashSet;
 
+use ferrum_document_projection::DocumentObjectIdV1;
 use xot::{Node, Xot};
 
 use super::{
-    CDML_NAMESPACE, PersistentId, TopLevelRootSelectorV1, TopLevelTransformModeV1,
-    TopLevelTransformV1, TypedDocument, TypedDocumentError, element_name,
+    CDML_NAMESPACE, TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelTransformModeV1,
+    TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError, element_name,
 };
 
 #[derive(Clone, Copy)]
@@ -19,7 +20,7 @@ struct CoordinatePair {
 }
 
 pub(crate) struct RootGeometry {
-    id: PersistentId,
+    id: DocumentObjectIdV1,
     node: Node,
     is_molecule: bool,
     pairs: Vec<CoordinatePair>,
@@ -111,17 +112,17 @@ pub(crate) fn validate_complete_bracket_selection(
     let selected = request
         .targets()
         .iter()
-        .map(|target| target.root_id().as_str())
+        .map(|target| target.document_object_id())
         .collect::<HashSet<_>>();
     for pair in super::bracket_pair_projection_v1::bracket_pairs(document) {
         let selected_members = pair
-            .member_ids()
+            .members()
             .iter()
-            .filter(|identifier| selected.contains(identifier.as_str()))
+            .filter(|identifier| selected.contains(*identifier))
             .count();
         if selected_members == 1 {
             return Err(TypedDocumentError::PartialBracketTransform(
-                pair.pair_id().to_owned(),
+                pair.members().clone(),
             ));
         }
     }
@@ -133,30 +134,45 @@ pub(crate) fn resolve_geometries(
     targets: &[TopLevelRootSelectorV1],
 ) -> Result<Vec<RootGeometry>, TypedDocumentError> {
     let tree = &document.indexed().xml.tree;
-    let root = tree
-        .document_element(document.indexed().xml.document)
-        .expect("a parsed CDML document has a document element");
-    let id_name = tree
-        .name("id")
-        .expect("validated root IDs intern the id name");
     targets
         .iter()
         .map(|target| {
-            let matching = tree
-                .children(root)
-                .filter(|node| {
-                    is_cdml_element(tree, *node, target.kind().local_name())
-                        && tree.get_attribute(*node, id_name) == Some(target.root_id().as_str())
+            let record = document
+                .resolve_document_object_id(target.document_object_id())
+                .filter(|record| {
+                    record.path().components().len() == 1
+                        && matches_top_level_root_kind(record.class(), target.kind())
                 })
-                .collect::<Vec<_>>();
-            if matching.len() != 1 {
-                return Err(TypedDocumentError::UnknownTopLevelTransformRoot(
-                    target.root_id().clone(),
-                ));
-            }
-            geometry(tree, matching[0], target)
+                .ok_or_else(|| {
+                    TypedDocumentError::UnknownTopLevelTransformRoot(
+                        target.document_object_id().clone(),
+                    )
+                })?;
+            let node = node_at_path(
+                tree,
+                document.indexed().xml.document,
+                record.path().components(),
+            )
+            .expect("typed record path remains present in its indexed XML tree");
+            geometry(tree, node, target)
         })
         .collect()
+}
+
+fn matches_top_level_root_kind(class: TypedClass, kind: TopLevelRootKindV1) -> bool {
+    matches!(
+        (class, kind),
+        (TypedClass::Molecule, TopLevelRootKindV1::Molecule)
+            | (TypedClass::CanvasArrow, TopLevelRootKindV1::Arrow)
+            | (TypedClass::CanvasPlus, TopLevelRootKindV1::Plus)
+            | (TypedClass::CanvasText, TopLevelRootKindV1::Text)
+            | (TypedClass::Rectangle, TopLevelRootKindV1::Rectangle)
+            | (TypedClass::Square, TopLevelRootKindV1::Square)
+            | (TypedClass::Oval, TopLevelRootKindV1::Oval)
+            | (TypedClass::Circle, TopLevelRootKindV1::Circle)
+            | (TypedClass::Polygon, TopLevelRootKindV1::Polygon)
+            | (TypedClass::Polyline, TopLevelRootKindV1::Polyline)
+    )
 }
 
 fn geometry(
@@ -166,13 +182,13 @@ fn geometry(
 ) -> Result<RootGeometry, TypedDocumentError> {
     let name = target.kind().local_name();
     let pairs = if name == "molecule" {
-        molecule_pairs(tree, root, target.root_id())?
+        molecule_pairs(tree, root, target.document_object_id())?
     } else if matches!(name, "arrow" | "polygon" | "polyline" | "text" | "plus") {
-        point_root_pairs(tree, root, target.root_id(), name)?
+        point_root_pairs(tree, root, target.document_object_id(), name)?
     } else {
-        box_pairs(tree, root, target.root_id())?
+        box_pairs(tree, root, target.document_object_id())?
     };
-    reject_ambiguous_coordinates(tree, root, &pairs, target.root_id())?;
+    reject_ambiguous_coordinates(tree, root, &pairs, target.document_object_id())?;
     let minimum_x = pairs
         .iter()
         .map(|pair| pair.x)
@@ -194,7 +210,7 @@ fn geometry(
         .reduce(f64::max)
         .expect("validated geometry");
     Ok(RootGeometry {
-        id: target.root_id().clone(),
+        id: target.document_object_id().clone(),
         node: root,
         is_molecule: name == "molecule",
         pairs,
@@ -205,7 +221,7 @@ fn geometry(
 fn molecule_pairs(
     tree: &Xot,
     root: Node,
-    id: &PersistentId,
+    id: &DocumentObjectIdV1,
 ) -> Result<Vec<CoordinatePair>, TypedDocumentError> {
     let mut pairs = Vec::new();
     for vertex in tree.children(root).filter(|node| {
@@ -250,7 +266,7 @@ fn molecule_pairs(
 fn point_root_pairs(
     tree: &Xot,
     root: Node,
-    id: &PersistentId,
+    id: &DocumentObjectIdV1,
     kind: &str,
 ) -> Result<Vec<CoordinatePair>, TypedDocumentError> {
     let points = tree
@@ -275,7 +291,7 @@ fn point_root_pairs(
 fn box_pairs(
     tree: &Xot,
     root: Node,
-    id: &PersistentId,
+    id: &DocumentObjectIdV1,
 ) -> Result<Vec<CoordinatePair>, TypedDocumentError> {
     let (Some(x1), Some(y1), Some(x2), Some(y2)) = (
         attribute_coordinate(tree, root, "x1", id)?,
@@ -306,7 +322,7 @@ fn box_pairs(
 fn point_pair(
     tree: &Xot,
     point: Node,
-    id: &PersistentId,
+    id: &DocumentObjectIdV1,
 ) -> Result<CoordinatePair, TypedDocumentError> {
     if tree.children(point).any(|child| tree.is_element(child)) {
         return invalid_geometry(id);
@@ -331,7 +347,7 @@ fn reject_ambiguous_coordinates(
     tree: &Xot,
     root: Node,
     pairs: &[CoordinatePair],
-    id: &PersistentId,
+    id: &DocumentObjectIdV1,
 ) -> Result<(), TypedDocumentError> {
     let accounted = pairs.iter().map(|pair| pair.node).collect::<HashSet<_>>();
     let x_name = tree.name("x");
@@ -354,7 +370,7 @@ fn attribute_coordinate(
     tree: &Xot,
     node: Node,
     field: &str,
-    id: &PersistentId,
+    id: &DocumentObjectIdV1,
 ) -> Result<Option<f64>, TypedDocumentError> {
     let Some(name) = tree.name(field) else {
         return Ok(None);
@@ -507,10 +523,21 @@ fn set_coordinate(tree: &mut Xot, node: Node, field: &str, old: f64, new: f64) {
     );
 }
 
-fn invalid_geometry<T>(id: &PersistentId) -> Result<T, TypedDocumentError> {
+fn invalid_geometry<T>(id: &DocumentObjectIdV1) -> Result<T, TypedDocumentError> {
     Err(TypedDocumentError::InvalidTopLevelTransformGeometry(
         id.clone(),
     ))
+}
+
+fn node_at_path(tree: &Xot, document: Node, path: &[u32]) -> Option<Node> {
+    let mut node = tree.document_element(document).ok()?;
+    for component in path {
+        node = tree
+            .children(node)
+            .filter(|child| element_name(tree, *child).is_some())
+            .nth(*component as usize)?;
+    }
+    Some(node)
 }
 
 fn is_cdml_element(tree: &Xot, node: Node, expected: &str) -> bool {

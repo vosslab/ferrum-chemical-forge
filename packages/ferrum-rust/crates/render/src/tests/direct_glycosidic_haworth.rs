@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::direct_glycosidic_haworth::DirectGlycosidicHaworthDrawOpV1;
 use crate::*;
@@ -11,10 +11,9 @@ use ferrum_domain::haworth::{
 
 fn atom(index: usize, element: &str) -> Atom {
     Atom::new(
-        Some(Identifier::new(format!("a{index}")).expect("id")),
+        Identifier::new(format!("a{index}")).expect("id"),
         Some(element.to_owned()),
         Position::new(index as f64, 0.0, 0.0).expect("position"),
-        None,
         None,
         None,
         None,
@@ -26,14 +25,13 @@ fn atom(index: usize, element: &str) -> Atom {
 }
 fn bond(index: usize, first: &Atom, second: &Atom) -> Bond {
     Bond::new(
-        Some(Identifier::new(format!("b{index}")).expect("id")),
+        Identifier::new(format!("b{index}")).expect("id"),
         VertexRef::Atom(first.identity().clone()),
         VertexRef::Atom(second.identity().clone()),
         None,
         Some(BondOrder::Single),
         None,
         Some(false),
-        None,
     )
     .expect("bond")
 }
@@ -51,14 +49,13 @@ fn spec(scale: f64) -> ferrum_domain::haworth::DirectGlycosidicHaworthDepictionS
         ])
         .collect();
     let molecule = Molecule::new(
-        Some(Identifier::new("direct").expect("id")),
+        Identifier::new("direct").expect("id"),
         None,
         atoms.clone(),
         vec![],
         vec![],
         vec![],
         bonds.clone(),
-        None,
     )
     .expect("molecule");
     let ring = |offset: usize| {
@@ -107,32 +104,65 @@ pub(crate) fn request() -> DirectGlycosidicHaworthRenderRequestV1 {
 fn direct_profile_partitions_closed_targets_and_uses_semantic_tiers() {
     let input = request();
     let plan = lower_direct_glycosidic_haworth_v1(&input).expect("profile");
-    let expected: BTreeSet<_> = input
+    let expected_tiers: BTreeMap<_, _> = input
         .spec()
         .ring_bonds()
-        .keys()
-        .chain(input.spec().bridge_bonds().keys())
-        .cloned()
+        .values()
+        .map(|fact| {
+            let tier = match fact.style() {
+                ferrum_domain::haworth::DirectGlycosidicHaworthBondStyleV1::N1 => "ordinary",
+                ferrum_domain::haworth::DirectGlycosidicHaworthBondStyleV1::Q1 => "front stroke",
+                ferrum_domain::haworth::DirectGlycosidicHaworthBondStyleV1::W1 => "front wedge",
+            };
+            (
+                u32::try_from(fact.source_order()).expect("source order"),
+                tier,
+            )
+        })
+        .chain(input.spec().bridge_bonds().values().map(|fact| {
+            (
+                u32::try_from(fact.source_order()).expect("source order"),
+                "ordinary",
+            )
+        }))
         .collect();
-    let mut tiers = BTreeMap::new();
     for operation in plan.operations() {
-        let tier = match operation {
-            DirectGlycosidicHaworthDrawOpV1::OrdinaryLine { .. } => "ordinary",
-            DirectGlycosidicHaworthDrawOpV1::HaworthFrontStroke { .. } => "front stroke",
-            DirectGlycosidicHaworthDrawOpV1::RoundedFrontWedge { .. } => "front wedge",
+        let (source_order, tier) = match operation {
+            DirectGlycosidicHaworthDrawOpV1::OrdinaryLine {
+                source_order,
+                endpoints,
+                width,
+                ..
+            } => {
+                assert_ne!(endpoints[0], endpoints[1]);
+                assert_eq!(*width, input.line_width());
+                (*source_order, "ordinary")
+            }
+            DirectGlycosidicHaworthDrawOpV1::HaworthFrontStroke {
+                source_order,
+                endpoints,
+                width,
+                ..
+            } => {
+                assert_ne!(endpoints[0], endpoints[1]);
+                assert_eq!(*width, input.wedge_width());
+                (*source_order, "front stroke")
+            }
+            DirectGlycosidicHaworthDrawOpV1::RoundedFrontWedge {
+                source_order,
+                tip,
+                base,
+                width,
+                commands,
+                ..
+            } => {
+                assert_ne!(tip, base);
+                assert_eq!(*width, input.wedge_width());
+                assert!(!commands.is_empty());
+                (*source_order, "front wedge")
+            }
         };
-        assert!(tiers.insert(operation.bond().clone(), tier).is_none());
+        assert_eq!(expected_tiers.get(&source_order), Some(&tier));
     }
-    assert_eq!(tiers.keys().cloned().collect::<BTreeSet<_>>(), expected);
-    for bond in input.spec().bridge_bonds().keys() {
-        assert_eq!(tiers.get(bond), Some(&"ordinary"));
-    }
-    for (bond, fact) in input.spec().ring_bonds() {
-        let expected_tier = match fact.style() {
-            ferrum_domain::haworth::DirectGlycosidicHaworthBondStyleV1::N1 => "ordinary",
-            ferrum_domain::haworth::DirectGlycosidicHaworthBondStyleV1::Q1 => "front stroke",
-            ferrum_domain::haworth::DirectGlycosidicHaworthBondStyleV1::W1 => "front wedge",
-        };
-        assert_eq!(tiers.get(bond), Some(&expected_tier));
-    }
+    assert_eq!(plan.operations().len(), expected_tiers.len());
 }

@@ -1,6 +1,6 @@
 //! Fenced durable-root adapters for direct presentation property mutations.
 
-use ferrum_document::{DocumentSessionError, TopLevelRootKindV1};
+use ferrum_document::{DocumentObjectIdV1, DocumentSessionError, TopLevelRootKindV1};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
@@ -19,7 +19,7 @@ impl PyDocumentSession {
         plus_object_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<PySessionOperationResultV1> {
-        let plus_id = presentation_root_source_id(
+        let plus_id = presentation_root_document_object_id(
             py,
             &self.session,
             expected_revision,
@@ -45,7 +45,7 @@ impl PyDocumentSession {
         arrow_object_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<PySessionOperationResultV1> {
-        let arrow_id = presentation_root_source_id(
+        let arrow_id = presentation_root_document_object_id(
             py,
             &self.session,
             expected_revision,
@@ -72,7 +72,7 @@ impl PyDocumentSession {
         text_object_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<PySessionOperationResultV1> {
-        let text_id = presentation_root_source_id(
+        let text_id = presentation_root_document_object_id(
             py,
             &self.session,
             expected_revision,
@@ -90,36 +90,48 @@ impl PyDocumentSession {
     }
 }
 
-fn presentation_root_source_id(
+fn presentation_root_document_object_id(
     py: Python<'_>,
     session: &ferrum_document_render::RenderInteractionSessionV1,
     expected_revision: u64,
     expected_digest_hex: &str,
     object_id: String,
     kind: TopLevelRootKindV1,
-) -> PyResult<String> {
+) -> PyResult<DocumentObjectIdV1> {
     require_live_fence(py, session, expected_revision, expected_digest_hex)?;
     let object_id = document_object_id(py, object_id)?;
-    let targets = document_result(
+    document_result(
         py,
         session
-            .lower_live_top_level_roots_v1(&[(object_id, kind)])
+            .lower_live_top_level_roots_v1(&[(object_id.clone(), kind)])
             .map_err(DocumentSessionError::Operation),
     )?;
-    Ok(targets[0].root_id().as_str().to_owned())
+    Ok(object_id)
 }
 
 #[cfg(test)]
 mod tests {
-    use ferrum_document::DocumentObjectIdV1;
+    use ferrum_document::DocumentFenceV1;
 
     use super::*;
 
     const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><plus id=\"plus\"><point x=\"0\" y=\"0\"/></plus><arrow id=\"arrow\" type=\"normal\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></arrow><text id=\"text\"><point x=\"0\" y=\"0\"/><ftext>text</ftext></text></cdml>";
 
-    fn object(class: &str, source: &str) -> String {
-        DocumentObjectIdV1::from_class_source(class, source)
-            .expect("durable presentation identity")
+    fn plus_root_document_object_id(
+        live: &PyDocumentSession,
+        snapshot: &ferrum_document::DocumentSnapshot,
+    ) -> String {
+        live.session
+            .observe_render_interaction_v1(DocumentFenceV1::new(
+                snapshot.revision(),
+                *snapshot.digest(),
+            ))
+            .expect("current render interaction observation")
+            .roots()
+            .iter()
+            .find(|root| root.kind() == TopLevelRootKindV1::Plus)
+            .expect("render observation exposes Plus root")
+            .document_object_id()
             .as_str()
             .to_owned()
     }
@@ -143,37 +155,39 @@ mod tests {
             );
             let before = live.session.snapshot().expect("before mutation");
             let current_digest = digest(&live.session);
+            let plus_document_object_id = plus_root_document_object_id(&live, &before);
             assert_eq!(
-                presentation_root_source_id(
+                presentation_root_document_object_id(
                     py,
                     &live.session,
                     before.revision(),
                     &current_digest,
-                    object("cdml/plus", "plus"),
+                    plus_document_object_id.clone(),
                     TopLevelRootKindV1::Plus,
                 )
-                .expect("current Plus lowers"),
-                "plus",
+                .expect("current Plus lowers")
+                .as_str(),
+                plus_document_object_id.clone(),
             );
             assert!(
-                presentation_root_source_id(
+                presentation_root_document_object_id(
                     py,
                     &live.session,
                     before.revision(),
                     &current_digest,
-                    object("cdml/arrow", "arrow"),
-                    TopLevelRootKindV1::Plus,
+                    plus_document_object_id.clone(),
+                    TopLevelRootKindV1::Arrow,
                 )
                 .is_err()
             );
             assert!(
-                presentation_root_source_id(
+                presentation_root_document_object_id(
                     py,
                     &live.session,
                     before.revision() + 1,
                     &current_digest,
-                    object("cdml/text", "text"),
-                    TopLevelRootKindV1::Text,
+                    plus_document_object_id,
+                    TopLevelRootKindV1::Plus,
                 )
                 .is_err()
             );

@@ -140,8 +140,8 @@ fn prepared_whole_depictions_are_revision_digest_bound_and_apply_as_one_history_
 fn whole_depiction_preparation_rejects_a_later_unsupported_target_without_mutation() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"good\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
-        "</atom></molecule><molecule id=\"bad\"><atom id=\"bad-atom\" name=\"C\"><point x=\"2\" y=\"2\"/></atom><group id=\"g\"><point x=\"1\" y=\"1\"/>",
-        "</group></molecule></cdml>",
+        "</atom></molecule><molecule id=\"bad\"><atom id=\"bad-atom\" name=\"C\"><point x=\"2\" y=\"2\"/></atom><query id=\"q\" name=\"R\"><point x=\"1\" y=\"1\"/>",
+        "</query></molecule></cdml>",
     );
     let session = DocumentSession::load(source).expect("fixture loads");
     let before = session.snapshot().expect("snapshot");
@@ -292,8 +292,8 @@ fn repair_envelope_and_later_unsupported_target_are_atomic() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"good\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0.2\" y=\"0.2\"/></atom></molecule>",
-        "<molecule id=\"bad\"><atom id=\"bad-atom\" name=\"C\"><point x=\"2\" y=\"2\"/></atom><group id=\"g\"><point x=\"1\" y=\"1\"/>",
-        "</group></molecule></cdml>",
+        "<molecule id=\"bad\"><atom id=\"bad-atom\" name=\"C\"><point x=\"2\" y=\"2\"/></atom><query id=\"q\" name=\"R\"><point x=\"1\" y=\"1\"/>",
+        "</query></molecule></cdml>",
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let before = session.snapshot().expect("snapshot");

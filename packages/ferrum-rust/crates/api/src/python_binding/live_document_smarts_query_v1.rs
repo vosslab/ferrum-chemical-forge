@@ -12,7 +12,7 @@ use ferrum_document::{
     DocumentRenderObservationV1, SessionDocumentObservationV1,
     derive_document_render_observation_from_accepted_operation_v1,
 };
-use ferrum_render::BatchSpace;
+use ferrum_render::{BatchSpace, RenderTarget};
 use getrandom::fill;
 use pyo3::{create_exception, prelude::*};
 
@@ -67,7 +67,7 @@ pub(crate) enum PyLiveDocumentSmartsReasonV1 {
     MatchCapsInconsistent,
     SelectedRootEmpty,
     SelectedRootMultiple,
-    SelectedSourceNotMolecule,
+    SelectedTargetNotMolecule,
     UnsupportedDocument,
     StaleDocument,
     StaleSelection,
@@ -267,8 +267,6 @@ pub(crate) struct PyLiveDocumentSmartsSelectedReadinessV1 {
 )]
 pub(crate) struct PyLiveDocumentSmartsMoleculeSummaryV1 {
     #[pyo3(get)]
-    source_order: u32,
-    #[pyo3(get)]
     match_count: u32,
     #[pyo3(get)]
     completeness: String,
@@ -358,8 +356,8 @@ impl LiveDocumentSmartsBridgeV1 {
         };
         let mut expected = HashSet::new();
         for target in snapshot.targets() {
-            for record in target.graph_position_to_record_id() {
-                if !expected.insert(record.clone()) {
+            for object_id in target.graph_position_to_document_object_ids() {
+                if !expected.insert(object_id.clone()) {
                     return Err(unavailable_failure().into_pyerr());
                 }
             }
@@ -370,10 +368,10 @@ impl LiveDocumentSmartsBridgeV1 {
                 let BatchSpace::AtomLocal { anchor } = batch.coordinate_space() else {
                     continue;
                 };
-                let record = batch.target().record_id();
-                if !expected.contains(record)
+                let object_id = batch.target().document_object_id();
+                if !expected.contains(object_id)
                     || anchors
-                        .insert(record.clone(), (anchor.x(), anchor.y()))
+                        .insert(object_id.clone(), (anchor.x(), anchor.y()))
                         .is_some()
                 {
                     return Err(unavailable_failure().into_pyerr());
@@ -390,9 +388,9 @@ impl LiveDocumentSmartsBridgeV1 {
         let mut atom_points_by_graph_position = Vec::new();
         for target in snapshot.targets() {
             let mut points = Vec::new();
-            for record in target.graph_position_to_record_id() {
+            for object_id in target.graph_position_to_document_object_ids() {
                 let point = anchors
-                    .get(record)
+                    .get(object_id)
                     .copied()
                     .ok_or_else(|| unavailable_failure().into_pyerr())?;
                 if !point.0.is_finite() || !point.1.is_finite() {
@@ -475,7 +473,6 @@ impl LiveDocumentSmartsBridgeV1 {
             molecules.push(Py::new(
                 py,
                 PyLiveDocumentSmartsMoleculeSummaryV1 {
-                    source_order: target.source_order(),
                     match_count: count,
                     completeness: if result.truncated() {
                         "truncated"
@@ -653,11 +650,12 @@ impl LiveDocumentSmartsBridgeV1 {
             super::direct_root_interaction_binding::SelectedDirectRootV1::One(value) => value,
         };
         let plan = self.validate_plan_current_failure(session)?;
+        let render_target = RenderTarget::document_object(identifier.clone());
         let target = plan
             .snapshot
-            .selected_target_by_renderer_source_id(identifier)
+            .selected_target_by_render_target(&render_target)
             .ok_or(LiveFailureV1::UnsupportedDocument(
-                PyLiveDocumentSmartsReasonV1::SelectedSourceNotMolecule,
+                PyLiveDocumentSmartsReasonV1::SelectedTargetNotMolecule,
             ))?;
         plan.snapshot
             .targets()

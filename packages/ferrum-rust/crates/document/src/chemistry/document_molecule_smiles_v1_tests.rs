@@ -171,10 +171,9 @@ fn stale_foreign_and_drawing_style_requests_never_reach_the_engine() {
         Err(DocumentMoleculeSmilesErrorV1::Observation(_))
     ));
 
-    let foreign = DocumentObjectIdV1::parse(
-        "ferrum-document-object-v1/63646d6c2f6d6f6563756c65/source/666f726569676e",
-    )
-    .expect("foreign selector grammar");
+    let foreign =
+        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
+            .expect("foreign selector grammar");
     let foreign = DocumentMoleculeSmilesRequestV1::new(0, *request.expected_digest(), foreign);
     assert!(matches!(
         prepare_document_molecule_smiles_v1(&observation, &foreign),

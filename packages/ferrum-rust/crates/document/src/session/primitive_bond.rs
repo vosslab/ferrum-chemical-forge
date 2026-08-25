@@ -33,13 +33,17 @@ impl DocumentSession {
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
         self.prepare_changed_session_transition_with_commit_v1(
-            expected_revision,
-            self.current_digest_v1(),
-            candidate,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::AtomCreatedV1(atom_id),
-            Some(authorization_claim),
+            super::admitted_transition_v1::ChangedSessionTransitionRequestV1::new(
+                expected_revision,
+                self.current_digest_v1(),
+                candidate,
+                effects,
+            ),
+            super::admitted_transition_v1::ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::AtomCreatedV1(atom_id),
+                Some(authorization_claim),
+            ),
         )
     }
 
@@ -107,13 +111,17 @@ impl DocumentSession {
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
         self.prepare_changed_session_transition_with_commit_v1(
-            expected_revision,
-            self.current_digest_v1(),
-            candidate,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::BondCreatedV1(bond_id),
-            Some(authorization_claim),
+            super::admitted_transition_v1::ChangedSessionTransitionRequestV1::new(
+                expected_revision,
+                self.current_digest_v1(),
+                candidate,
+                effects,
+            ),
+            super::admitted_transition_v1::ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::BondCreatedV1(bond_id),
+                Some(authorization_claim),
+            ),
         )
     }
 

@@ -3,6 +3,7 @@
 use ferrum_core::{Identifier, RecordId, RecordKind};
 use ferrum_document_projection::{CompactGroupProjectionV1, DocumentObjectIdV1};
 
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     BatchSpace, GlyphBounds, LineOp, Paint, PositiveFinite, RenderBatch, RenderError, RenderOp,
     RenderPoint, RenderTarget, VerifiedTelexGlyphMetrics,
@@ -18,7 +19,7 @@ const GROUP_GLYPH_WIDTH_PT_V1: f64 = 1.0;
 /// atom or chemistry graph vertex.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompactGroupRenderPrimitiveV1 {
-    target: RenderTarget,
+    context: RenderPlanEntryContextV1,
     identifier: String,
     anchor: RenderPoint,
     attachment: RenderPoint,
@@ -33,24 +34,24 @@ pub struct CompactGroupRenderPrimitiveV1 {
 /// turning the group into an atom.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompactGroupBondEndpointV1 {
-    target: RenderTarget,
+    context: RenderPlanEntryContextV1,
     position: RenderPoint,
     bounds: GlyphBounds,
 }
 
 impl CompactGroupBondEndpointV1 {
     fn new(
-        target: RenderTarget,
+        context: RenderPlanEntryContextV1,
         position: RenderPoint,
         bounds: GlyphBounds,
     ) -> Result<Self, RenderError> {
-        if target.record_id().kind() != RecordKind::Group {
+        if context.record_id().kind() != RecordKind::Group {
             return Err(RenderError::InvalidRequest(
                 "compact-group bond endpoint requires a group RecordId".to_owned(),
             ));
         }
         Ok(Self {
-            target,
+            context,
             position,
             bounds,
         })
@@ -59,7 +60,11 @@ impl CompactGroupBondEndpointV1 {
     /// Return the durable compact-group target.
     #[must_use]
     pub fn target(&self) -> &RenderTarget {
-        &self.target
+        self.context.target()
+    }
+
+    pub(crate) const fn context(&self) -> &RenderPlanEntryContextV1 {
+        &self.context
     }
 
     /// Return the finite scene attachment point.
@@ -89,10 +94,14 @@ impl CompactGroupRenderPrimitiveV1 {
                 "compact-group identity must be a valid identifier".to_owned(),
             )
         })?;
-        let target = RenderTarget::document_object(
-            RecordId::from_source(RecordKind::Group, &source),
+        let context = RenderPlanEntryContextV1::new(
+            RenderTarget::document_object(group.id().clone()),
+            RecordId::new(RecordKind::Group, source).map_err(|_| {
+                RenderError::InvalidRequest(
+                    "compact-group identity must be a valid identifier".to_owned(),
+                )
+            })?,
             group.source_order(),
-            group.id().clone(),
             Some(owner_molecule_object_id.clone()),
         );
         let anchor = RenderPoint::new(group.anchor().x(), group.anchor().y())?;
@@ -114,8 +123,8 @@ impl CompactGroupRenderPrimitiveV1 {
             paint,
             10,
         )?;
-        let batch = RenderBatch::new(
-            target.clone(),
+        let batch = RenderBatch::from_context(
+            context.clone(),
             BatchSpace::AtomLocal { anchor },
             vec![
                 RenderOp::Line(glyph),
@@ -125,7 +134,7 @@ impl CompactGroupRenderPrimitiveV1 {
         let bounds = union_bounds(layout.bounds(), end)?;
         let attachment = RenderPoint::new(anchor.x() + end.x(), anchor.y() + end.y())?;
         Ok(Self {
-            target,
+            context,
             identifier,
             anchor,
             attachment,
@@ -137,7 +146,7 @@ impl CompactGroupRenderPrimitiveV1 {
     /// Return the durable group target carried by the render primitive.
     #[must_use]
     pub fn target(&self) -> &RenderTarget {
-        &self.target
+        self.context.target()
     }
 
     /// Return the durable compact-group identifier.
@@ -180,7 +189,7 @@ impl CompactGroupRenderPrimitiveV1 {
             self.bounds.max_x() - offset_x,
             self.bounds.max_y() - offset_y,
         )?;
-        CompactGroupBondEndpointV1::new(self.target.clone(), self.attachment, bounds)
+        CompactGroupBondEndpointV1::new(self.context.clone(), self.attachment, bounds)
     }
 }
 

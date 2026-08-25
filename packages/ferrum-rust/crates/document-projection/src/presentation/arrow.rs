@@ -5,8 +5,8 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::{PresentationRecordKindV1, PresentationStrokeV1, PresentationTargetV1};
-use crate::{Point3V1, ProjectionLocalObjectKeyV1};
+use super::{PresentationStrokeV1, PresentationTargetV1};
+use crate::Point3V1;
 
 /// Ordered finite authored points for one supported arrow.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -280,43 +280,44 @@ impl<'de> Deserialize<'de> for ArrowProjectionV1 {
 
 /// Immutable lower request for one disposable renderer-owned arrow preview.
 ///
-/// It carries only semantic arrow facts and a synthetic target required by the
-/// shared presentation-plan grammar. Session fencing and mutation capability
-/// remain owned by the calling document workflow.
+/// It carries only semantic arrow facts. Session fencing and mutation
+/// capability remain owned by the calling document workflow.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PresentationArrowPreviewRequestV1 {
-    arrow: ArrowProjectionV1,
+    source_path: ArrowPathV1,
+    kind: ArrowProjectionKindV1,
+    stroke: PresentationStrokeV1,
 }
 
 impl PresentationArrowPreviewRequestV1 {
-    /// Create one synthetic-root request from semantic arrow facts.
+    /// Create one identifier-free request from semantic arrow facts.
     pub fn new(
         source_points: Vec<Point3V1>,
         kind: ArrowProjectionKindV1,
         stroke: PresentationStrokeV1,
     ) -> Result<Self, ArrowProjectionV1Error> {
-        let target = PresentationTargetV1::try_new(
-            None,
-            ProjectionLocalObjectKeyV1::from_path_components(&[0])
-                .expect("preview target has a nonempty local path"),
-            None,
-            0,
-            PresentationRecordKindV1::Arrow,
-        )
-        .expect("synthetic preview target has coherent local identity");
         Ok(Self {
-            arrow: ArrowProjectionV1::try_new(
-                target,
-                ArrowPathV1::try_new(source_points)?,
-                kind,
-                stroke,
-            )?,
+            source_path: ArrowPathV1::try_new(source_points)?,
+            kind,
+            stroke,
         })
     }
 
-    /// Return the semantic arrow lowered through the ordinary renderer path.
+    /// Return the preview source path.
     #[must_use]
-    pub const fn arrow(&self) -> &ArrowProjectionV1 {
-        &self.arrow
+    pub const fn source_path(&self) -> &ArrowPathV1 {
+        &self.source_path
+    }
+
+    /// Return the preview semantic arrow family.
+    #[must_use]
+    pub const fn kind(&self) -> &ArrowProjectionKindV1 {
+        &self.kind
+    }
+
+    /// Return the preview stroke facts.
+    #[must_use]
+    pub const fn stroke(&self) -> &PresentationStrokeV1 {
+        &self.stroke
     }
 }

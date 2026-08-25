@@ -6,6 +6,13 @@ import pathlib
 import subprocess  # nosec B404 - fixed-argv local staged CLI invocation below.
 import sys
 
+# local repo modules
+import ferrum_qt_e2e
+
+
+ferrum_qt_e2e.select_offscreen_qt_platform()
+
+
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtGui

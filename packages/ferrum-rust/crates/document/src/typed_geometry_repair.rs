@@ -316,7 +316,8 @@ fn endpoint_record(tree: &Xot, bond: Node, field: &str) -> Result<RecordId, Type
 fn record_id(kind: RecordKind, id: &PersistentId) -> Result<RecordId, TypedDocumentError> {
     let identifier = Identifier::new(id.as_str().to_owned())
         .map_err(|_| TypedDocumentError::InvalidGeometryRepairIdentity(id.clone()))?;
-    Ok(RecordId::from_source(kind, &identifier))
+    RecordId::new(kind, identifier)
+        .map_err(|_| TypedDocumentError::InvalidGeometryRepairIdentity(id.clone()))
 }
 
 fn direct_molecule(tree: &Xot, document: Node, molecule_id: &PersistentId) -> Option<Node> {

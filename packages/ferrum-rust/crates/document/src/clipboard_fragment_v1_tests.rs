@@ -102,10 +102,10 @@ fn disconnected_structure_is_rejected_without_changing_the_observation() {
 fn mixed_selection_copies_complete_roots_in_document_order() {
     let session = DocumentSession::load(MIXED_SOURCE).expect("fixture must load");
     let observation = session.observe(0).expect("fixture must project");
-    let plus = observation.projection().presentation_stack().roots()[0]
+    let plus = observation.projection().presentation_stack().entries()[0]
+        .root()
         .target()
-        .id()
-        .expect("fixture plus must have durable identity")
+        .document_object_id()
         .clone();
     let atom = durable_atom(&observation, 0);
     let molecule = observation.projection().molecules()[0]

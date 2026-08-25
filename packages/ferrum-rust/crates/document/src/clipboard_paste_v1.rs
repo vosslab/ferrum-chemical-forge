@@ -110,6 +110,9 @@ pub enum DocumentClipboardPasteErrorV1 {
     /// A supported direct root did not have one durable source ID.
     #[error("clipboard Paste root lacks a durable persistent ID")]
     MissingRootId,
+    /// A known Ferrum reference was absent, malformed, or outside the copied declarations.
+    #[error("clipboard Paste {field} reference is not internal to the copied structural records")]
+    InvalidReference { field: &'static str },
     /// Root-level comments, processing instructions, or non-whitespace text are not Paste roots.
     #[error("clipboard Paste fragment has unsupported root-level content")]
     UnsupportedRootContent,
@@ -151,11 +154,8 @@ pub(super) fn prepare_admitted_document_clipboard_paste_v1(
     document: TypedDocument,
 ) -> Result<DocumentClipboardPastePlanV1, DocumentClipboardPasteErrorV1> {
     let roots = validate_roots(&document)?;
-    let declared_ids = document
-        .indexed()
-        .persistent_ids()
-        .cloned()
-        .collect::<Vec<_>>();
+    let declared_ids = structural_declarations(&document)?;
+    validate_structural_references(&document, &declared_ids)?;
     let canonical_fragment = document.to_xml()?;
     Ok(DocumentClipboardPastePlanV1 {
         schema: DOCUMENT_CLIPBOARD_PASTE_SCHEMA_V1,
@@ -228,17 +228,13 @@ pub(super) fn compose_clipboard_paste_candidate_v1(
         .zip(generated_ids.iter().cloned())
         .collect::<BTreeMap<_, _>>();
     let mut fragment = TypedDocument::parse(&plan.canonical_fragment)?;
-    remap_exact_attribute_values(&mut fragment, &replacements)?;
+    remap_structural_records(&mut fragment, &replacements)?;
     let mut selectors = Vec::new();
     let mut inserted_roots = Vec::new();
     for root in &plan.roots {
         let generated = replacements
             .get(&root.source_id)
             .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
-        selectors.push(TopLevelRootSelectorV1::new(
-            generated.as_str().to_owned(),
-            root.kind,
-        )?);
         let record = fragment
             .root()
             .typed_children()
@@ -248,6 +244,7 @@ pub(super) fn compose_clipboard_paste_candidate_v1(
             .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
         let object_id = crate::document_object_id_from_record_v1(record)
             .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
+        selectors.push(TopLevelRootSelectorV1::new(object_id.clone(), root.kind));
         inserted_roots.push(DocumentClipboardPastedRootV1 {
             object_id,
             source_id: generated.clone(),
@@ -261,39 +258,166 @@ pub(super) fn compose_clipboard_paste_candidate_v1(
     Ok((candidate, inserted_roots))
 }
 
-fn remap_exact_attribute_values(
+fn structural_declarations(
+    document: &TypedDocument,
+) -> Result<Vec<PersistentId>, DocumentClipboardPasteErrorV1> {
+    let mut declarations = Vec::new();
+    visit_typed_records(document.root(), &mut |record| {
+        if !has_structural_declaration(record.class()) {
+            return Ok(());
+        }
+        let identifier = record
+            .attribute("id")
+            .ok_or(DocumentClipboardPasteErrorV1::MissingRootId)?;
+        declarations.push(
+            PersistentId::new(identifier.to_owned())
+                .map_err(|_| DocumentClipboardPasteErrorV1::MissingRootId)?,
+        );
+        Ok(())
+    })?;
+    Ok(declarations)
+}
+
+fn validate_structural_references(
+    document: &TypedDocument,
+    declarations: &[PersistentId],
+) -> Result<(), DocumentClipboardPasteErrorV1> {
+    visit_typed_records(document.root(), &mut |record| {
+        for field in structural_reference_fields(record.class()) {
+            let reference = record
+                .attribute(field)
+                .ok_or(DocumentClipboardPasteErrorV1::InvalidReference { field })?;
+            let reference = PersistentId::new(reference.to_owned())
+                .map_err(|_| DocumentClipboardPasteErrorV1::InvalidReference { field })?;
+            if !declarations.contains(&reference) {
+                return Err(DocumentClipboardPasteErrorV1::InvalidReference { field });
+            }
+        }
+        Ok(())
+    })
+}
+
+fn visit_typed_records(
+    record: &super::TypedRecord,
+    visit: &mut impl FnMut(&super::TypedRecord) -> Result<(), DocumentClipboardPasteErrorV1>,
+) -> Result<(), DocumentClipboardPasteErrorV1> {
+    visit(record)?;
+    for child in record.typed_children() {
+        visit_typed_records(child.record(), visit)?;
+    }
+    Ok(())
+}
+
+fn has_structural_declaration(class: TypedClass) -> bool {
+    matches!(
+        class,
+        TypedClass::Paper
+            | TypedClass::Viewport
+            | TypedClass::Molecule
+            | TypedClass::CanvasArrow
+            | TypedClass::CanvasPlus
+            | TypedClass::CanvasText
+            | TypedClass::Rectangle
+            | TypedClass::Square
+            | TypedClass::Oval
+            | TypedClass::Circle
+            | TypedClass::Polygon
+            | TypedClass::Polyline
+            | TypedClass::Reaction
+            | TypedClass::Atom
+            | TypedClass::CompactGroup
+            | TypedClass::Group
+            | TypedClass::MoleculeText
+            | TypedClass::Query
+            | TypedClass::Bond
+            | TypedClass::Fragment
+    )
+}
+
+fn structural_reference_fields(class: TypedClass) -> &'static [&'static str] {
+    match class {
+        TypedClass::Bond => &["start", "end"],
+        TypedClass::Template => &["atom", "bond_first", "bond_second"],
+        TypedClass::ReactionReactant
+        | TypedClass::ReactionProduct
+        | TypedClass::ReactionArrow
+        | TypedClass::ReactionCondition
+        | TypedClass::ReactionPlus => &["idref"],
+        TypedClass::FragmentBond | TypedClass::FragmentVertex => &["id"],
+        _ => &[],
+    }
+}
+
+fn remap_structural_records(
     document: &mut TypedDocument,
     replacements: &BTreeMap<PersistentId, PersistentId>,
 ) -> Result<(), DocumentClipboardPasteErrorV1> {
+    let mut records = Vec::new();
+    collect_typed_records(document.root(), &mut records);
     let indexed = document.detached_indexed_mut();
     let root = indexed
         .xml
         .tree
         .document_element(indexed.xml.document)
         .map_err(DocumentClipboardPasteErrorV1::Mutation)?;
-    let nodes = indexed.xml.tree.descendants(root).collect::<Vec<_>>();
-    for node in nodes {
-        if indexed.xml.tree.element(node).is_none() {
-            continue;
+    for (path, class) in records {
+        let node = node_at_element_path(&indexed.xml.tree, root, &path)
+            .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
+        let mut fields = structural_reference_fields(class).to_vec();
+        if has_structural_declaration(class) {
+            fields.push("id");
         }
-        let changes = indexed
-            .xml
-            .tree
-            .attributes(node)
-            .iter()
-            .filter_map(|(name, value)| {
-                let source = PersistentId::new(value.clone()).ok()?;
+        let changes = fields
+            .into_iter()
+            .filter_map(|field| {
+                let name = indexed.xml.tree.add_name(field);
+                let value = indexed.xml.tree.get_attribute(node, name)?;
+                let source = PersistentId::new(value.to_owned()).ok()?;
                 replacements
                     .get(&source)
                     .map(|replacement| (name, replacement.as_str().to_owned()))
             })
             .collect::<Vec<_>>();
+        let durable_identity_attributes = indexed
+            .xml
+            .tree
+            .attributes(node)
+            .iter()
+            .filter_map(|(name, _)| {
+                let (local_name, namespace) = indexed.xml.tree.name_ns_str(name);
+                crate::document_object_identity_v1::is_document_object_attribute_v1(
+                    namespace, local_name,
+                )
+                .then_some(name)
+            })
+            .collect::<Vec<_>>();
         for (name, value) in changes {
             indexed.xml.tree.set_attribute(node, name, value);
+        }
+        for name in durable_identity_attributes {
+            indexed.xml.tree.remove_attribute(node, name);
         }
     }
     *document = TypedDocument::parse(&document.to_xml()?)?;
     Ok(())
+}
+
+fn collect_typed_records(record: &super::TypedRecord, records: &mut Vec<(Vec<u32>, TypedClass)>) {
+    records.push((record.path().components().to_vec(), record.class()));
+    for child in record.typed_children() {
+        collect_typed_records(child.record(), records);
+    }
+}
+
+fn node_at_element_path(tree: &xot::Xot, root: Node, path: &[u32]) -> Option<Node> {
+    let mut node = root;
+    for &position in path {
+        node = tree
+            .children(node)
+            .filter(|child| tree.element(*child).is_some())
+            .nth(position as usize)?;
+    }
+    Some(node)
 }
 
 fn append_fragment_roots(

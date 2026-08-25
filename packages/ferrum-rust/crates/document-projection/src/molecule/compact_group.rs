@@ -80,6 +80,12 @@ impl CompactGroupV1 {
         &self.id
     }
 
+    /// Return the exact durable document object ID for this compact group.
+    #[must_use]
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.id
+    }
+
     /// Return the closed catalog definition key.
     #[must_use]
     pub const fn catalog_key(&self) -> CompactGroupCatalogKeyV1 {
@@ -129,6 +135,12 @@ impl CompactGroupProjectionV1 {
     /// Return the durable compact-group object key.
     #[must_use]
     pub const fn id(&self) -> &DocumentObjectIdV1 {
+        &self.id
+    }
+
+    /// Return the exact durable document object ID for this compact group.
+    #[must_use]
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
         &self.id
     }
 

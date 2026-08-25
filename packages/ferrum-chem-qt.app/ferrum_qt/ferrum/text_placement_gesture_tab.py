@@ -33,7 +33,7 @@ class FerrumNativeTextPlacementGestureTabMixin:
 		self._require_mutable()
 		commit = self._session.commit_text_placement_gesture_v1(gesture, preview)
 		try:
-			self._install_mutation_result(commit.result, (("text", commit.identifier),))
+			self._install_mutation_result(commit.result, (("text", commit.document_object_id),))
 		except Exception as exc:
 			from ferrum_qt.ferrum.document_tab_errors import \
 				FerrumNativeDocumentTabMutationPresentationError

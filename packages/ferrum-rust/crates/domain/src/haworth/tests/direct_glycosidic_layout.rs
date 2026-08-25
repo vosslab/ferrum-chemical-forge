@@ -8,10 +8,9 @@ use crate::haworth::{
 
 fn atom(index: usize, element: &str) -> Atom {
     Atom::new(
-        Some(Identifier::new(format!("a{index}")).expect("identifier")),
+        Identifier::new(format!("a{index}")).expect("identifier"),
         Some(element.to_owned()),
         Position::new(index as f64, 0.0, 0.0).expect("position"),
-        None,
         None,
         None,
         None,
@@ -24,14 +23,13 @@ fn atom(index: usize, element: &str) -> Atom {
 
 fn bond(index: usize, start: &Atom, end: &Atom) -> Bond {
     Bond::new(
-        Some(Identifier::new(format!("b{index}")).expect("identifier")),
+        Identifier::new(format!("b{index}")).expect("identifier"),
         VertexRef::Atom(start.identity().clone()),
         VertexRef::Atom(end.identity().clone()),
         None,
         Some(BondOrder::Single),
         None,
         Some(false),
-        None,
     )
     .expect("bond")
 }
@@ -93,14 +91,13 @@ pub(super) fn topology(
         &atoms[bridge_index],
     ));
     let molecule = Molecule::new(
-        Some(Identifier::new("two-rings").expect("identifier")),
+        Identifier::new("two-rings").expect("identifier"),
         None,
         atoms,
         Vec::new(),
         Vec::new(),
         Vec::new(),
         bonds,
-        None,
     )
     .expect("molecule");
     let build = |form: RingForm, vertices: Vec<HaworthVertex>| {
@@ -113,10 +110,7 @@ pub(super) fn topology(
     let bridge = molecule
         .atoms()
         .iter()
-        .find(|atom| {
-            atom.source_id()
-                .is_some_and(|id| id.as_str() == format!("a{bridge_index}"))
-        })
+        .find(|atom| atom.source_id().as_str() == format!("a{bridge_index}"))
         .expect("bridge atom")
         .identity()
         .clone();
@@ -124,20 +118,14 @@ pub(super) fn topology(
         molecule
             .bonds()
             .iter()
-            .find(|bond| {
-                bond.source_id()
-                    .is_some_and(|id| id.as_str() == format!("b{first_bridge_bond}"))
-            })
+            .find(|bond| bond.source_id().as_str() == format!("b{first_bridge_bond}"))
             .expect("first bridge bond")
             .identity()
             .clone(),
         molecule
             .bonds()
             .iter()
-            .find(|bond| {
-                bond.source_id()
-                    .is_some_and(|id| id.as_str() == format!("b{second_bridge_bond}"))
-            })
+            .find(|bond| bond.source_id().as_str() == format!("b{second_bridge_bond}"))
             .expect("second bridge bond")
             .identity()
             .clone(),

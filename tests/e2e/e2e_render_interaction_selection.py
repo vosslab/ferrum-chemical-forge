@@ -3,11 +3,13 @@
 # Standard Library
 import json
 import math
-import os
 import pathlib
 
+# local repo modules
+import ferrum_qt_e2e
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+ferrum_qt_e2e.select_offscreen_qt_platform()
 
 # PIP3 modules
 import ferrum_chem

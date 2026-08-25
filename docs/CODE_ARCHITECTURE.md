@@ -46,12 +46,14 @@ the edition-2024 workspace. Its crates divide responsibility as follows:
   stateless operation request/response DTOs, generated schema, and pure
   owned-value executor described in [USAGE.md](USAGE.md#machine-protocol).
 
-Selected-molecule diagnostics are a read-only boundary: `ferrum-domain` owns
-the closed source-representation finding classification, `ferrum-document`
-defines the report record boundary for selected direct-root molecules, and
-`ferrum-api` exposes `document.molecule.report.v1`. A supplied snapshot carries
-CDML, delivery revision, and digest. The route is read-only and has no mutation,
-renderer admission, external corpus, or chemistry-engine ownership.
+Selected-molecule read-only work has two distinct contracts. The existing
+`document.molecule.report.v1` produces its multi-root report receipt. M4
+`document.molecule.diagnostics.v1` is narrower: `ferrum-domain` owns the
+closed source-representation finding classification, `ferrum-document` resolves
+the fenced selected direct roots, and `ferrum-api` owns deterministic bounded
+diagnostic DTOs and typed resource refusal. Its snapshot carries CDML, delivery
+revision, digest, and durable selected-root IDs. It has no mutation, renderer
+admission, external corpus, or chemistry-runtime ownership.
 
 ### Native Python extension
 
@@ -66,6 +68,11 @@ The extension's V1 public automation additions are deliberately narrower:
 `OperationProtocolErrorV1`. They exchange request/response JSON only; the
 existing broad extension namespace remains the Ferrum integration surface,
 not a blanket third-party API promise.
+
+The diagnostics executor is a module-level owned-snapshot PyO3 function. Qt
+captures CDML, revision, digest, and durable selected-root IDs on the UI thread,
+then a detached worker calls that executor with owned values only.
+`PyDocumentSession` is unsendable and is never used by the worker.
 
 Native chemistry adapters remain private to their owning Rust and Ferrum
 workflows. The local Rust CLI consumes the sealed engine bundle at
@@ -106,14 +113,33 @@ mutate document state. Qt authenticates each returned record against the
 captured durable molecule ID. Source ID and source order remain Rust response
 facts, rather than Qt-authored identity or ordering.
 
-The attached compact-group slice has one deliberate ownership boundary. Rust
-owns the closed catalog, selected-atom availability, capacity and attachment
-geometry admission, deferred durable ID allocation, complete-render admission,
-and the atomic history transition. Qt owns the accessible `Me` chooser, the
-one-shot pointer handoff, and presentation of the committed receipt or typed
-refusal. The private PyO3 bridge is only the local Qt implementation seam; it
-does not create a public attachment contract. Compact-group materialization is
-a separate operation after explicit group selection.
+`Check Structure...` is a separate modeless accessible read-only surface for
+`document.molecule.diagnostics.v1`. Before presenting a worker result, Qt
+authenticates the current tab, revision/digest fence, and selected direct roots.
+It renders Rust-owned findings and recovery wording without mutation, auto-fix,
+canvas navigation, or selection changes.
+
+Compact-group authoring has two deliberate ownership boundaries. For attached
+authoring, Rust owns the closed catalog, selected-atom availability, capacity
+and attachment-geometry admission, deferred durable-ID allocation,
+complete-render admission, and the atomic history transition. For free
+placement, Qt maps the release through its current view snapping; PyO3 accepts
+the resulting finite coordinates; Rust validates the typed `Point3V1` and
+candidate geometry, then owns anchor/orientation, durable IDs, renderer
+admission, and history. Qt does not create a typed snap contract, so Rust does
+not claim to prove that an accepted coordinate came from Qt snapping. Qt owns
+two distinct accessible chooser workflows: the direct-root `Place Compact
+Group...` Me-only chooser and the generic attached `Attach Compact Group...`
+chooser for `Me` and `NO2`. Qt also owns one-shot pointer handoffs and
+presentation of committed receipts or typed refusals. The private PyO3 bridge
+is only the local Qt implementation seam; it does not create a public
+attachment contract.
+Compact-group materialization is a separate operation after explicit group
+selection.
+
+Ferrum-specific end-to-end authoring and validation guidance is in
+[FERRUM_E2E_TESTS.md](FERRUM_E2E_TESTS.md). It distinguishes staged public
+workflows from Rust, PyO3, and Qt unit-level responsibilities.
 
 For one selected atom with an exact-current unavailable result, Qt keeps the
 existing `Attach Compact Group...` action enabled. Its activation reaches the
@@ -244,8 +270,56 @@ boundary, not a performance target.
   disposable local evidence for package and visual checks that do not warrant a
   permanent suite test.
 
+## Attached compact-group authoring
+
+Attached compact-group authoring uses one Rust-owned `AttachCompactGroupV1`
+transaction. Rust projects reviewed catalog key-and-derived-label choices; the
+delivered set is `Me` and `NO2`. A current anchor observation establishes only
+general action readiness; Rust evaluates choice-specific availability after
+chooser selection. Both delivered keys use the reviewed normal-single profile.
+A future key must receive a row-level chooser availability review before it is
+admitted. Rust owns chemistry and geometry admission, renderer admission,
+durable identity allocation, history, save/reopen, and typed refusals. The
+earlier methyl-specific Rust, PyO3, and Qt APIs have been removed without
+compatibility aliases.
+
+The native Python binding remains private and session-affine. It exposes
+generic choices, availability, begin, preview, commit, and cancel while keeping
+prepared candidates opaque. Qt renders the Rust-projected choices and owns only
+the accessible chooser plus the one-release canvas capture; it does not derive
+recipes or availability.
+
+`CompactGroupRecipeAtomV1` carries an optional formal charge. The canonical
+nitro materialization recipe is `R-[N+](=O)[O-]`, and Rust preserves those atom
+charges through history and reopen. Rust tests establish the individual `+1`
+nitrogen and `-1` oxygen facts; public Molecule Report evidence intentionally
+asserts only the net formal charge.
+
 ## Known gaps
 
 - Complete the remaining codec, corpus, render-backend, domain, and platform
   work tracked in [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
 - Extend local-runtime validation as native adapter contracts evolve.
+- Add reviewed recipes and attachment profiles for the other seven persisted
+  compact-group keys, expand free placement beyond `Me`, and introduce a public
+  generic attached CLI/protocol command when that command surface is designed.
+## Free compact-group placement
+
+`PlaceFreeCompactGroupV1` is the Rust-owned direct-root compact-group
+transition. Qt maps the release through its current view-snapping policy and
+PyO3 accepts finite coordinates; Rust validates the resulting typed `Point3V1`
+and candidate geometry. Rust admits the closed key (`Methyl` is the current
+admitted key; other keys return `UnsupportedCatalogKey`), derives canonical
+anchor/orientation, allocates molecule-root and compact-group durable IDs, and
+prepares a zero-atom, zero-bond candidate with no capacity witness. Complete
+renderer admission occurs before the single atomic history transition and
+persistence/reload outcome. No typed snap contract currently proves the origin
+of the coordinate once it reaches Rust.
+
+The PyO3 binding keeps the pending transition session-affine and opaque: callers may begin, commit, or cancel and receive durable commit facts, but cannot construct or mutate the prepared candidate. Qt owns the distinct `Place Compact Group...` Me-only chooser and a one-release canvas capture. It does not delegate to attached compact-group authoring or template placement. The renderer's current precommit-overlay target is limited to atoms and bonds, so free placement intentionally has no preview overlay.
+
+Direct-root materialization replaces a sole compact group with its immutable
+recipe atoms and bonds in the same molecule. A zero-atom, zero-bond free methyl
+root becomes one explicit carbon without an exterior rewrite; attached-group
+topology remains unchanged. Rust commits this replacement in one history
+transition, so Undo, Redo, and reopen operate on the authoritative replacement.

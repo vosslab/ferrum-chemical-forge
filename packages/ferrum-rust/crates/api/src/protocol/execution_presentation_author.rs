@@ -259,16 +259,17 @@ fn execute_direct_bond(
         ));
     };
     let direct_bond = PresentationAuthorDirectBondOutcomeV1 {
-        end_atom_identifier: committed.end_atom().as_str().to_owned(),
-        second_created_atom_identifier: committed
-            .second_created_atom()
+        bond_document_object_id: committed.bond_document_object_id().as_str().to_owned(),
+        end_atom_document_object_id: committed.end_atom_document_object_id().as_str().to_owned(),
+        second_created_atom_document_object_id: committed
+            .second_created_atom_document_object_id()
             .map(|identifier| identifier.as_str().to_owned()),
         created_new_atom: committed.created_new_atom(),
         created_new_molecule: committed.created_new_molecule(),
     };
     finish(
         kind,
-        committed.bond().as_str().to_owned(),
+        committed.bond_document_object_id().as_str().to_owned(),
         "bond".to_owned(),
         &result,
         Some(direct_bond),
@@ -318,7 +319,7 @@ fn finish_created_presentation_root(
     };
     finish(
         kind,
-        outcome.root().presentation_id().as_str().to_owned(),
+        outcome.root().document_object_id().as_str().to_owned(),
         format!("{:?}", outcome.kind()),
         &result,
         None,

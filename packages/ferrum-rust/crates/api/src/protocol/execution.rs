@@ -10,10 +10,10 @@ use ferrum_document::{
     AdmittedSessionTransitionRefusalV1, CdmlError, DocumentFenceV1, DocumentObjectIdV1,
     DocumentSession, DocumentSessionError, InterchangeCodecErrorV1, InterchangeFormatV1,
     MoleculeCoordinateBatchUpdateV1, PresentationGesturePoint2V1, SessionOperation,
-    SessionOperationOutcomeV1, SessionOperationV1, TransitionAuthorizationV1, TypedClass,
-    TypedDocument, build_molecule_coordinate_update_v1, decode_interchange_v1,
-    encode_interchange_v1, load_document_utf8_bytes_with_budget, local_cdml_ingress_format_v1,
-    rewrite_cdml, validate_cdml, verify_cdml_rewrite,
+    SessionOperationOutcomeV1, SessionOperationV1, TransitionAuthorizationV1,
+    build_molecule_coordinate_update_v1, decode_interchange_v1, encode_interchange_v1,
+    load_document_utf8_bytes_with_budget, local_cdml_ingress_format_v1, rewrite_cdml,
+    validate_cdml, verify_cdml_rewrite,
 };
 use ferrum_document::{
     DocumentNativeArtifactErrorV1, DocumentNativeArtifactProfileV1,
@@ -27,13 +27,7 @@ use super::runtime::{ChemistryRuntimeErrorV1, ChemistryRuntimeV1, NoChemistryRun
 #[cfg(test)]
 use super::schema::generated_operation_protocol_schema_v1;
 use crate::{
-    PresentationVectorGestureCategoryV1, PresentationVectorKindV1, ReactionDefinitionDispositionV1,
-    ReactionGestureCategoryV1, ReactionGestureErrorV1, ReactionGestureRecoveryV1,
-    ReactionMembershipPatchRequestV1, RenderInteractionGridSnapPolicyV1,
-    RenderInteractionSessionV1, RenderInteractionSnapV1, begin_api_reaction_definition_delete_v1,
-    begin_api_reaction_gesture_v1, begin_api_reaction_membership_patch_v1,
-    begin_api_reaction_translation_v1, resolve_api_reaction_gesture_v1,
-    resolve_api_reaction_lifecycle_v1, resolve_api_reaction_translation_v1,
+    PresentationVectorGestureCategoryV1, PresentationVectorKindV1, RenderInteractionSessionV1,
 };
 
 #[path = "execution_chemistry.rs"]
@@ -113,13 +107,39 @@ fn execute_operation_with_runtime_and_shared_response_budget_v1<R: ChemistryRunt
         OperationProtocolAdmissionV1::Response(response) => return Ok(response),
         OperationProtocolAdmissionV1::Request(request) => request,
     };
+    Ok(
+        execute_admitted_operation_with_runtime_and_shared_response_budget_v1(
+            request,
+            runtime,
+            shared_response_budget,
+        ),
+    )
+}
+
+/// Execute one already-admitted typed request with the ordinary local capability set.
+///
+/// This is the Rust-owned transport seam for adapters that already possess
+/// immutable protocol facts. It applies the same response policy as JSON
+/// execution without reconstructing the request through a wire format.
+#[cfg(feature = "python-binding")]
+pub(crate) fn execute_admitted_operation_v1(
+    request: OperationProtocolRequestV1,
+) -> OperationProtocolEnvelopeV1 {
+    execute_admitted_operation_with_runtime_and_shared_response_budget_v1(
+        request,
+        &NoChemistryRuntimeV1,
+        OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
+    )
+}
+
+fn execute_admitted_operation_with_runtime_and_shared_response_budget_v1<R: ChemistryRuntimeV1>(
+    request: OperationProtocolRequestV1,
+    runtime: &R,
+    shared_response_budget: usize,
+) -> OperationProtocolEnvelopeV1 {
     let operation_kind = request.operation.kind();
     let envelope = execute_admitted_operation(request.request_id, request.operation, runtime);
-    Ok(admit_shared_response_budget_v1(
-        envelope,
-        operation_kind,
-        shared_response_budget,
-    ))
+    admit_shared_response_budget_v1(envelope, operation_kind, shared_response_budget)
 }
 
 /// Result of the shared V1 envelope-admission stage.
@@ -249,11 +269,11 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
         OperationProtocolOperationV1::ReactionDeleteDefinition(request) => {
             execute_reaction_delete(request)
         }
-        OperationProtocolOperationV1::ReactionTranslate(request) => {
-            execute_reaction_translate(request)
-        }
         OperationProtocolOperationV1::DocumentMoleculeReport(request) => {
             execute_document_molecule_report(request, runtime)
+        }
+        OperationProtocolOperationV1::DocumentMoleculeDiagnostics(request) => {
+            execute_document_molecule_diagnostics(request)
         }
         OperationProtocolOperationV1::DocumentSmartsQuery(request) => {
             execute_document_smarts_query(request, runtime)
@@ -317,6 +337,7 @@ const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> b
     matches!(
         operation,
         ProtocolOperationKindV1::DocumentMoleculeReport
+            | ProtocolOperationKindV1::DocumentMoleculeDiagnostics
             | ProtocolOperationKindV1::DocumentSmartsQuery
             | ProtocolOperationKindV1::DocumentAtomOxidationObserve
             | ProtocolOperationKindV1::DocumentMoleculeHydrogenMaterialize

@@ -110,45 +110,75 @@ fn insertion_places_only_the_molecule_with_fresh_ids_as_one_history_step() {
             .iter()
             .all(|identifier| !matches!(*identifier, "source-a" | "source-b"))
     );
-    assert!(!inserted.snapshot().cdml().contains("id=\"source-opaque\""));
-    assert!(!inserted.snapshot().cdml().contains("link=\"source-a\""));
+    assert!(inserted.snapshot().cdml().contains("id=\"source-opaque\""));
+    assert!(inserted.snapshot().cdml().contains("link=\"source-a\""));
 
+    let inserted_object_id = result.inserted_molecule().object_id().clone();
+    assert!(
+        session
+            .current_document_v1()
+            .resolve_document_object_id(&inserted_object_id)
+            .is_some(),
+        "the insertion receipt must identify the installed molecule"
+    );
     let inserted_cdml = inserted.snapshot().cdml().to_owned();
     let undone = session.undo(1).expect("template insertion must undo");
     assert_eq!(undone.observation().snapshot().cdml(), baseline.cdml());
+    assert!(
+        session
+            .current_document_v1()
+            .resolve_document_object_id(&inserted_object_id)
+            .is_none(),
+        "undo must remove the inserted molecule from the current document"
+    );
     let redone = session.redo(2).expect("template insertion must redo");
     assert_eq!(redone.observation().snapshot().cdml(), inserted_cdml);
+    assert!(
+        session
+            .current_document_v1()
+            .resolve_document_object_id(&inserted_object_id)
+            .is_some(),
+        "redo must restore the receipt's durable object ID"
+    );
+    let reopened = DocumentSession::load(&inserted_cdml).expect("serialized insertion must reopen");
+    assert!(
+        reopened
+            .current_document_v1()
+            .resolve_document_object_id(&inserted_object_id)
+            .is_some(),
+        "reopened insertion must retain the receipt's durable object ID"
+    );
 }
 
 #[test]
 fn eligibility_rejects_content_that_cannot_be_a_detached_molecule_template() {
     let cases = [
         (
-            "<cdml xmlns=\"urn:ferrum:cdml\"><info/><molecule><atom><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><info/><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
             "root",
         ),
         (
             concat!(
-                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom><point x=\"0\" y=\"0\"/></atom></molecule>",
-                "<molecule><atom><point x=\"1\" y=\"1\"/></atom></molecule></cdml>"
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+                "<molecule id=\"second\"><atom id=\"b\"><point x=\"1\" y=\"1\"/></atom></molecule></cdml>"
             ),
             "cardinality",
         ),
         (
             concat!(
-                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
-                "<template atom=\"a\"/></molecule></cdml>"
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
+                "<template id=\"template\" atom=\"a\"/></molecule></cdml>"
             ),
             "legacy",
         ),
         (
-            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></atom></molecule></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></atom></molecule></cdml>",
             "point",
         ),
         (
             concat!(
-                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
-                "<bond start=\"a\" end=\"outside\"/></molecule></cdml>"
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"><point x=\"0\" y=\"0\"/></atom>",
+                "<bond id=\"bond\" start=\"a\" end=\"outside\"/></molecule></cdml>"
             ),
             "reference",
         ),
@@ -168,4 +198,24 @@ fn eligibility_rejects_content_that_cannot_be_a_detached_molecule_template() {
         };
         assert_eq!(matched, expected);
     }
+}
+
+#[test]
+fn missing_source_id_refuses_without_mutating_the_session() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule>",
+        "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "</molecule></cdml>",
+    );
+    let session = DocumentSession::create_empty_document_v1().expect("empty session");
+    let baseline = session.snapshot().expect("baseline snapshot");
+
+    let error = prepare_document_user_template_v1(source, budget())
+        .expect_err("a template missing a structural source ID must refuse");
+
+    assert!(matches!(error, DocumentUserTemplateErrorV1::Typed(_)));
+    assert_eq!(
+        session.snapshot().expect("unchanged snapshot").cdml(),
+        baseline.cdml()
+    );
 }

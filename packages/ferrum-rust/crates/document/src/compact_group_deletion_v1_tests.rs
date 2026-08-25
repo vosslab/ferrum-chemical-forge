@@ -16,9 +16,7 @@ fn compact_group_address(session: &DocumentSession) -> (DocumentObjectIdV1, Docu
     let molecule = &observation.projection().molecules()[0];
     (
         molecule.id().expect("renderer-issued molecule ID").clone(),
-        molecule.compact_groups()[0]
-            .id()
-            .clone(),
+        molecule.compact_groups()[0].id().clone(),
     )
 }
 
@@ -45,9 +43,21 @@ fn compact_group_deletion_removes_exact_group_and_bond_then_reopens() {
         Err(DocumentSessionError::PreparedOperationConsumed)
     ));
     let undone = session.undo(1).expect("undo restores the group");
-    assert!(undone.observation().snapshot().cdml().contains("compact-group"));
+    assert!(
+        undone
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("compact-group")
+    );
     let redone = session.redo(2).expect("redo removes the group again");
-    assert!(!redone.observation().snapshot().cdml().contains("compact-group"));
+    assert!(
+        !redone
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("compact-group")
+    );
 }
 
 #[test]
@@ -66,12 +76,21 @@ fn compact_group_deletion_refuses_zero_or_multiple_exterior_bonds_atomically() {
         let (molecule_object_id, compact_group_object_id) = compact_group_address(&session);
         let before = session.snapshot().expect("snapshot works");
         assert!(matches!(
-            session.prepare_delete_compact_group_v1(0, &molecule_object_id, &compact_group_object_id),
-            Err(DocumentSessionError::Operation(SessionOperationError::Candidate(
-                TypedDocumentError::InvalidCompactGroupDeletionTopology(_)
-            )))
+            session.prepare_delete_compact_group_v1(
+                0,
+                &molecule_object_id,
+                &compact_group_object_id
+            ),
+            Err(DocumentSessionError::Operation(
+                SessionOperationError::Candidate(
+                    TypedDocumentError::InvalidCompactGroupDeletionTopology(_)
+                )
+            ))
         ));
-        assert_eq!(session.snapshot().expect("snapshot remains unchanged"), before);
+        assert_eq!(
+            session.snapshot().expect("snapshot remains unchanged"),
+            before
+        );
     }
 }
 
@@ -103,7 +122,10 @@ fn compact_group_deletion_refuses_a_foreign_durable_group_without_mutation() {
             SessionOperationError::InvalidLiveChemicalTarget(_)
         ))
     ));
-    assert_eq!(session.snapshot().expect("snapshot remains unchanged"), before);
+    assert_eq!(
+        session.snapshot().expect("snapshot remains unchanged"),
+        before
+    );
 }
 
 #[test]

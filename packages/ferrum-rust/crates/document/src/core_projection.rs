@@ -1,6 +1,6 @@
 //! Projection from typed CDML persistence facts into the chemistry-independent core.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use ferrum_core::{
     Atom, Bond, BondOrder, BondStyle, Identifier, ModelError, Molecule, NonAtomVertex, Position,
@@ -57,6 +57,15 @@ pub enum CoreProjectionError {
         /// Exact source spelling.
         value: String,
     },
+    /// A Ferrum structural record did not carry one unique nonblank source ID.
+    #[error("{context}: structural source ID error: {source}")]
+    StructuralSourceId {
+        /// Typed record path and class.
+        context: String,
+        /// Exact source-ID admission failure.
+        #[source]
+        source: StructuralSourceIdError,
+    },
     /// A bond endpoint does not name a carried local vertex.
     #[error("{context}: {field} names unknown molecule-local vertex {identifier:?}")]
     UnknownVertex {
@@ -78,19 +87,33 @@ pub enum CoreProjectionError {
     },
 }
 
+/// One source-ID admission failure at the typed structural projection boundary.
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+pub enum StructuralSourceIdError {
+    /// The canonical structural record had no `id` attribute.
+    #[error("id attribute is required")]
+    Missing,
+    /// The canonical structural record supplied only whitespace for `id`.
+    #[error("id attribute is blank")]
+    Blank,
+    /// Another Ferrum structural record already owns the exact source ID.
+    #[error("id {source_id:?} duplicates structural record at {first_context}")]
+    Duplicate {
+        /// Exact duplicated source spelling.
+        source_id: String,
+        /// Typed path and class of the first structural owner.
+        first_context: String,
+    },
+}
+
 impl TypedDocument {
     /// Project typed molecule records into validated, owned `ferrum-core` values.
     pub fn core_projection(&self) -> Result<CoreProjection, CoreProjectionError> {
         let document_version = self.root().attribute("version").map(str::to_owned);
-        let mut used_identities = HashSet::new();
+        validate_structural_source_ids(self.root())?;
         let mut molecules = Vec::new();
         for molecule_record in self.root().children_of(TypedClass::Molecule) {
-            let molecule = load_molecule(
-                molecule_record,
-                document_version.as_deref(),
-                &mut used_identities,
-            )?;
-            used_identities.insert(molecule.identity().clone());
+            let molecule = load_molecule(molecule_record, document_version.as_deref())?;
             molecules.push(molecule);
         }
         Ok(CoreProjection {
@@ -101,9 +124,9 @@ impl TypedDocument {
 
     /// Project one durable typed molecule without requiring unrelated molecules.
     ///
-    /// This targeted form is intended for bounded chemistry operations. Invalid
-    /// facts in another retained molecule must not prevent a caller from preparing
-    /// an operation for the selected molecule.
+    /// This targeted form is intended for bounded chemistry operations. It still
+    /// admits the document-wide structural source-ID contract before projecting
+    /// the selected molecule, while unrelated molecule semantics remain local.
     pub fn core_molecule(
         &self,
         object_id: &DocumentObjectIdV1,
@@ -114,18 +137,13 @@ impl TypedDocument {
         if record.class() != TypedClass::Molecule {
             return Ok(None);
         }
-        let mut used_identities = HashSet::new();
-        load_molecule(
-            record,
-            self.root().attribute("version"),
-            &mut used_identities,
-        )
-        .map(Some)
+        validate_structural_source_ids(self.root())?;
+        load_molecule(record, self.root().attribute("version")).map(Some)
     }
 }
 
 struct RawBond {
-    source_id: Option<Identifier>,
+    source_id: Identifier,
     start: String,
     end: String,
     source_type: Option<String>,
@@ -143,44 +161,31 @@ struct MoleculeVertices {
 fn load_molecule(
     record: &TypedRecord,
     document_version: Option<&str>,
-    used_identities: &mut HashSet<RecordId>,
 ) -> Result<Molecule, CoreProjectionError> {
     let context = record_context(record);
-    let source_id = optional_identifier(record, "id");
+    let source_id = required_source_identifier(record)?;
     let name = record.attribute("name").map(str::to_owned);
-    let vertices = load_vertices(record, used_identities)?;
+    let vertices = load_vertices(record)?;
     let raw_bonds = read_raw_bonds(record)?;
     let mut bonds = Vec::new();
     for raw_bond in &raw_bonds {
-        let bond = build_bond(
-            raw_bond,
-            document_version,
-            &vertices.references,
-            used_identities,
-        )?;
-        used_identities.insert(bond.identity().clone());
+        let bond = build_bond(raw_bond, document_version, &vertices.references)?;
         bonds.push(bond);
     }
-    let molecule = build_record(used_identities, Molecule::identity, |occurrence| {
-        Molecule::new(
-            source_id.clone(),
-            name.clone(),
-            vertices.atoms.clone(),
-            vertices.groups.clone(),
-            vertices.texts.clone(),
-            vertices.queries.clone(),
-            bonds.clone(),
-            occurrence,
-        )
-    })
+    let molecule = Molecule::new(
+        source_id,
+        name,
+        vertices.atoms,
+        vertices.groups,
+        vertices.texts,
+        vertices.queries,
+        bonds,
+    )
     .map_err(|source| CoreProjectionError::Model { context, source })?;
     Ok(molecule)
 }
 
-fn load_vertices(
-    molecule: &TypedRecord,
-    used_identities: &mut HashSet<RecordId>,
-) -> Result<MoleculeVertices, CoreProjectionError> {
+fn load_vertices(molecule: &TypedRecord) -> Result<MoleculeVertices, CoreProjectionError> {
     let mut vertices = MoleculeVertices {
         atoms: Vec::new(),
         groups: Vec::new(),
@@ -192,8 +197,7 @@ fn load_vertices(
         let record = child.record();
         match record.class() {
             TypedClass::Atom => {
-                let atom = load_atom(record, used_identities)?;
-                used_identities.insert(atom.identity().clone());
+                let atom = load_atom(record)?;
                 register_reference(
                     &mut vertices.references,
                     atom.source_id(),
@@ -206,8 +210,7 @@ fn load_vertices(
                 // retaining only its durable non-atom identity in the core topology.
                 crate::compact_group_projection_v1::compact_group(child)?;
                 let kind = RecordKind::Group;
-                let vertex = load_non_atom_vertex(record, kind, used_identities)?;
-                used_identities.insert(vertex.identity().clone());
+                let vertex = load_non_atom_vertex(record, kind)?;
                 register_reference(
                     &mut vertices.references,
                     vertex.source_id(),
@@ -217,8 +220,7 @@ fn load_vertices(
             }
             TypedClass::MoleculeText | TypedClass::Query => {
                 let kind = vertex_kind(record.class());
-                let vertex = load_non_atom_vertex(record, kind, used_identities)?;
-                used_identities.insert(vertex.identity().clone());
+                let vertex = load_non_atom_vertex(record, kind)?;
                 register_reference(
                     &mut vertices.references,
                     vertex.source_id(),
@@ -237,12 +239,9 @@ fn load_vertices(
     Ok(vertices)
 }
 
-fn load_atom(
-    record: &TypedRecord,
-    used_identities: &HashSet<RecordId>,
-) -> Result<Atom, CoreProjectionError> {
+fn load_atom(record: &TypedRecord) -> Result<Atom, CoreProjectionError> {
     let context = record_context(record);
-    let source_id = optional_identifier(record, "id");
+    let source_id = required_source_identifier(record)?;
     let element = record.attribute("name").map(str::to_owned);
     let point = record
         .children_of(TypedClass::Point)
@@ -258,20 +257,17 @@ fn load_atom(
     let valence = optional_scalar(record, "valency")?;
     let multiplicity = optional_scalar(record, "multiplicity")?;
     let free_sites = optional_scalar(record, "free_sites")?;
-    let atom = build_record(used_identities, Atom::identity, |occurrence| {
-        Atom::new(
-            source_id.clone(),
-            element.clone(),
-            position,
-            formal_charge,
-            isotope,
-            explicit_hydrogens,
-            valence,
-            multiplicity,
-            free_sites,
-            occurrence,
-        )
-    })
+    let atom = Atom::new(
+        source_id,
+        element,
+        position,
+        formal_charge,
+        isotope,
+        explicit_hydrogens,
+        valence,
+        multiplicity,
+        free_sites,
+    )
     .map_err(|source| CoreProjectionError::Model { context, source })?;
     Ok(atom)
 }
@@ -279,14 +275,11 @@ fn load_atom(
 fn load_non_atom_vertex(
     record: &TypedRecord,
     kind: RecordKind,
-    used_identities: &HashSet<RecordId>,
 ) -> Result<NonAtomVertex, CoreProjectionError> {
     let context = record_context(record);
-    let source_id = optional_identifier(record, "id");
-    let vertex = build_record(used_identities, NonAtomVertex::identity, |occurrence| {
-        NonAtomVertex::new(kind, source_id.clone(), occurrence)
-    })
-    .map_err(|source| CoreProjectionError::Model { context, source })?;
+    let source_id = required_source_identifier(record)?;
+    let vertex = NonAtomVertex::new(kind, source_id)
+        .map_err(|source| CoreProjectionError::Model { context, source })?;
     Ok(vertex)
 }
 
@@ -296,7 +289,7 @@ fn read_raw_bonds(molecule: &TypedRecord) -> Result<Vec<RawBond>, CoreProjection
         .map(|record| {
             let context = record_context(record);
             Ok(RawBond {
-                source_id: optional_identifier(record, "id"),
+                source_id: required_source_identifier(record)?,
                 start: required_attribute(record, "start")?.to_owned(),
                 end: required_attribute(record, "end")?.to_owned(),
                 source_type: record.attribute("type").map(str::to_owned),
@@ -310,7 +303,6 @@ fn build_bond(
     raw_bond: &RawBond,
     document_version: Option<&str>,
     references: &HashMap<String, VertexRef>,
-    used_identities: &HashSet<RecordId>,
 ) -> Result<Bond, CoreProjectionError> {
     let start = resolve_vertex(references, &raw_bond.start, "start", &raw_bond.context)?;
     let end = resolve_vertex(references, &raw_bond.end, "end", &raw_bond.context)?;
@@ -320,18 +312,15 @@ fn build_bond(
         .map(|source_type| bond_semantics(document_version, source_type))
         .unwrap_or((None, None));
     let aromatic = order.map(|value| value == BondOrder::Aromatic);
-    let bond = build_record(used_identities, Bond::identity, |occurrence| {
-        Bond::new(
-            raw_bond.source_id.clone(),
-            start.clone(),
-            end.clone(),
-            raw_bond.source_type.clone(),
-            order,
-            style.clone(),
-            aromatic,
-            occurrence,
-        )
-    })
+    let bond = Bond::new(
+        raw_bond.source_id.clone(),
+        start,
+        end,
+        raw_bond.source_type.clone(),
+        order,
+        style,
+        aromatic,
+    )
     .map_err(|source| CoreProjectionError::Model {
         context: raw_bond.context.clone(),
         source,
@@ -386,10 +375,60 @@ fn coordinate(
         })
 }
 
-fn optional_identifier(record: &TypedRecord, field: &'static str) -> Option<Identifier> {
-    record.attribute(field).map(|value| {
-        Identifier::new(value)
-            .expect("the document identity index validates every projected declaration ID")
+fn validate_structural_source_ids(root: &TypedRecord) -> Result<(), CoreProjectionError> {
+    let mut identifiers = StructuralSourceIdRegistry::default();
+    for molecule in root.children_of(TypedClass::Molecule) {
+        identifiers.register(molecule)?;
+        for child in molecule.typed_children() {
+            if matches!(
+                child.record().class(),
+                TypedClass::Atom
+                    | TypedClass::CompactGroup
+                    | TypedClass::MoleculeText
+                    | TypedClass::Query
+                    | TypedClass::Bond
+            ) {
+                identifiers.register(child.record())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct StructuralSourceIdRegistry {
+    contexts: HashMap<Identifier, String>,
+}
+
+impl StructuralSourceIdRegistry {
+    fn register(&mut self, record: &TypedRecord) -> Result<(), CoreProjectionError> {
+        let source_id = required_source_identifier(record)?;
+        let context = record_context(record);
+        if let Some(first_context) = self.contexts.get(&source_id) {
+            return Err(CoreProjectionError::StructuralSourceId {
+                context,
+                source: StructuralSourceIdError::Duplicate {
+                    source_id: source_id.as_str().to_owned(),
+                    first_context: first_context.clone(),
+                },
+            });
+        }
+        self.contexts.insert(source_id, context);
+        Ok(())
+    }
+}
+
+fn required_source_identifier(record: &TypedRecord) -> Result<Identifier, CoreProjectionError> {
+    let context = record_context(record);
+    let value = record
+        .attribute("id")
+        .ok_or_else(|| CoreProjectionError::StructuralSourceId {
+            context: context.clone(),
+            source: StructuralSourceIdError::Missing,
+        })?;
+    Identifier::new(value).map_err(|_| CoreProjectionError::StructuralSourceId {
+        context,
+        source: StructuralSourceIdError::Blank,
     })
 }
 
@@ -428,39 +467,14 @@ fn required_attribute<'a>(
 
 fn register_reference(
     references: &mut HashMap<String, VertexRef>,
-    source_id: Option<&Identifier>,
+    source_id: &Identifier,
     reference: VertexRef,
 ) {
-    let Some(source_id) = source_id else {
-        return;
-    };
     let previous = references.insert(source_id.as_str().to_owned(), reference);
     debug_assert!(
         previous.is_none(),
-        "the document identity index rejects duplicate declaration IDs"
+        "structural source-ID admission rejects duplicate declarations"
     );
-}
-
-fn build_record<T, B, I>(
-    used_identities: &HashSet<RecordId>,
-    identity: I,
-    build: B,
-) -> Result<T, ModelError>
-where
-    B: Fn(Option<u32>) -> Result<T, ModelError>,
-    I: Fn(&T) -> &RecordId,
-{
-    if let Ok(record) = build(None) {
-        return Ok(record);
-    }
-    let mut occurrence = 0_u32;
-    loop {
-        let record = build(Some(occurrence))?;
-        if !used_identities.contains(identity(&record)) {
-            return Ok(record);
-        }
-        occurrence += 1;
-    }
 }
 
 fn vertex_kind(class: TypedClass) -> RecordKind {

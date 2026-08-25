@@ -127,7 +127,6 @@ pub enum ProtocolReactionRefusalCategoryV1 {
     RenderPreparation,
     SessionConflict,
     MissingReaction,
-    LegacyDefinitionNotEditable,
     MembershipChanged,
     RendererExclusion,
 }
@@ -138,7 +137,6 @@ pub enum ProtocolReactionRefusalRecoveryV1 {
     RefreshAndRestart,
     CorrectSelectors,
     ChooseRenderableMembers,
-    RepairLegacyDefinition,
 }
 
 #[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
@@ -291,11 +289,12 @@ pub enum ProtocolOperationKindV1 {
     ReactionPatchMembership,
     #[serde(rename = "reaction.delete-definition.v1")]
     ReactionDeleteDefinition,
-    #[serde(rename = "reaction.translate.v1")]
-    ReactionTranslate,
     /// `document.molecule.report.v1`.
     #[serde(rename = "document.molecule.report.v1")]
     DocumentMoleculeReport,
+    /// `document.molecule.diagnostics.v1`.
+    #[serde(rename = "document.molecule.diagnostics.v1")]
+    DocumentMoleculeDiagnostics,
     /// `document.molecule.smarts.query.v1`.
     #[serde(rename = "document.molecule.smarts.query.v1")]
     DocumentSmartsQuery,

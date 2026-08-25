@@ -250,7 +250,13 @@ pub(crate) fn finish(
             return Err(DirectHaworthReobservationErrorV1::SelectedProfile);
         }
     }
-    let root_order = molecule.source_order();
+    let root_order = observation
+        .projection()
+        .direct_roots()
+        .iter()
+        .find(|root| root.document_object_id() == &extracted.molecule)
+        .map(|root| root.paint_order())
+        .ok_or(DirectHaworthReobservationErrorV1::SelectedProfile)?;
     Ok(ReobservedDirectHaworthV1 {
         observation,
         molecule: extracted.molecule,
@@ -334,7 +340,7 @@ fn record_id(
 ) -> Result<RecordId, DirectHaworthReobservationErrorV1> {
     let source = Identifier::new(persistent_id(record)?.as_str().to_owned())
         .map_err(|_| DirectHaworthReobservationErrorV1::SelectedProfile)?;
-    Ok(RecordId::from_source(kind, &source))
+    RecordId::new(kind, source).map_err(|_| DirectHaworthReobservationErrorV1::SelectedProfile)
 }
 
 fn atom(

@@ -1,19 +1,27 @@
 use ferrum_api::execute_operation_v1;
-use ferrum_document::{DocumentObjectIdV1, DocumentSession};
+use ferrum_document::{
+    DocumentObjectIdV1, DocumentSession, load_document_utf8_bytes_with_budget,
+    local_cdml_ingress_format_v1,
+};
 use serde_json::{Value, json};
 
 const COMPACT_CDML: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"source-molecule\">",
-    "<atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-    "<compact-group id=\"source-group\" version=\"1\" catalog-key=\"methyl\" ",
+    "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:object=\"urn:ferrum:document-object:v1\">",
+    "<molecule id=\"source-molecule\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\">",
+    "<atom id=\"anchor\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000002\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+    "<compact-group id=\"source-group\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000003\" version=\"1\" catalog-key=\"methyl\" ",
     "attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group>",
-    "<bond id=\"outside\" start=\"anchor\" end=\"source-group\" type=\"n1\"/>",
+    "<bond id=\"outside\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000004\" start=\"anchor\" end=\"source-group\" type=\"n1\"/>",
     "</molecule></cdml>"
 );
 
+fn protocol_session(document: &str) -> DocumentSession {
+    load_document_utf8_bytes_with_budget(document.as_bytes(), local_cdml_ingress_format_v1())
+        .expect("inline compact document admits")
+}
+
 fn digest(document: &str) -> String {
-    DocumentSession::load(document)
-        .expect("inline compact document loads")
+    protocol_session(document)
         .snapshot()
         .expect("inline compact document snapshots")
         .digest()
@@ -22,7 +30,27 @@ fn digest(document: &str) -> String {
         .collect()
 }
 
-fn compact_request(document: &str, revision: u64, digest_hex: &str, group_id: &str) -> Value {
+fn compact_target_ids(document: &str) -> (String, String) {
+    let observation = protocol_session(document)
+        .observe(0)
+        .expect("compact document observes");
+    let molecule = &observation.projection().molecules()[0];
+    (
+        molecule.document_object_id().as_str().to_owned(),
+        molecule.compact_groups()[0]
+            .document_object_id()
+            .as_str()
+            .to_owned(),
+    )
+}
+
+fn compact_request(
+    document: &str,
+    revision: u64,
+    digest_hex: &str,
+    molecule_id: &str,
+    compact_group_id: &str,
+) -> Value {
     json!({
         "schema": "ferrum-operation-request-v1",
         "request_id": "compact-group-protocol-test",
@@ -33,8 +61,8 @@ fn compact_request(document: &str, revision: u64, digest_hex: &str, group_id: &s
                 "expected_revision": revision,
                 "expected_digest_hex": digest_hex,
             },
-            "molecule_id": "source-molecule",
-            "compact_group_id": group_id,
+            "molecule_id": molecule_id,
+            "compact_group_id": compact_group_id,
         },
     })
 }
@@ -46,12 +74,31 @@ fn execute(request: Value) -> Value {
     .expect("protocol envelope serializes")
 }
 
+fn inspected_fence(document: &str) -> Value {
+    execute(json!({
+        "schema": "ferrum-operation-request-v1",
+        "request_id": "compact-group-inspect",
+        "operation": {
+            "kind": "document.inspect",
+            "document": document,
+        },
+    }))["outcome"]["document_fence"]
+        .clone()
+}
+
 fn materialized() -> Value {
+    let (molecule_id, compact_group_id) = compact_target_ids(COMPACT_CDML);
+    let fence = inspected_fence(COMPACT_CDML);
     execute(compact_request(
         COMPACT_CDML,
-        0,
-        &digest(COMPACT_CDML),
-        "source-group",
+        fence["expected_revision"]
+            .as_u64()
+            .expect("inspection returns a revision"),
+        fence["expected_digest_hex"]
+            .as_str()
+            .expect("inspection returns a digest"),
+        &molecule_id,
+        &compact_group_id,
     ))
 }
 
@@ -63,30 +110,25 @@ fn accepted_compact_receipt_focus_resolves_and_its_fence_accepts_a_follow_up() {
         response["outcome"]["kind"],
         "document.compact-group.materialize.v1"
     );
-    assert_eq!(receipt["molecule_id"], "source-molecule");
-    assert_eq!(receipt["compact_group_id"], "source-group");
+    let (molecule_id, compact_group_id) = compact_target_ids(COMPACT_CDML);
+    assert_eq!(receipt["molecule_id"], molecule_id);
+    assert_eq!(receipt["compact_group_id"], compact_group_id);
     let document = receipt["document"]
         .as_str()
         .expect("accepted CDML document");
     let focus = receipt["replacement_focus_atom_id"]
         .as_str()
         .expect("replacement focus identifier");
-    let session = DocumentSession::load(document).expect("accepted CDML reloads");
+    let session = protocol_session(document);
     let observation = session.observe(0).expect("accepted CDML observes");
     assert!(
         observation.projection().molecules()[0]
             .atoms()
             .iter()
-            .any(|atom| {
-                atom.id()
-                    .is_some_and(|identifier| identifier.as_str() == focus)
-            })
+            .any(|atom| { atom.document_object_id().as_str() == focus })
     );
 
     let fence = &receipt["document_fence"];
-    let committed_molecule_id =
-        DocumentObjectIdV1::from_class_source("cdml/molecule", "source-molecule")
-            .expect("source molecule has a durable document identity");
     let follow_up = execute(json!({
         "schema": "ferrum-operation-request-v1",
         "request_id": "compact-follow-up",
@@ -97,7 +139,7 @@ fn accepted_compact_receipt_focus_resolves_and_its_fence_accepts_a_follow_up() {
                 "expected_revision": fence["expected_revision"],
                 "expected_digest_hex": fence["expected_digest_hex"],
             },
-            "molecule_id": committed_molecule_id.as_str(),
+            "molecule_id": receipt["molecule_id"],
             "anchor_atom_id": receipt["replacement_focus_atom_id"],
         },
     }));
@@ -110,17 +152,27 @@ fn accepted_compact_receipt_focus_resolves_and_its_fence_accepts_a_follow_up() {
 #[test]
 fn stale_and_foreign_compact_refusals_leave_the_source_snapshot_current() {
     let source_digest = digest(COMPACT_CDML);
+    let (molecule_id, compact_group_id) = compact_target_ids(COMPACT_CDML);
+    let fence = inspected_fence(COMPACT_CDML);
+    let revision = fence["expected_revision"]
+        .as_u64()
+        .expect("inspection returns a revision");
+    let digest_hex = fence["expected_digest_hex"]
+        .as_str()
+        .expect("inspection returns a digest");
     let stale = execute(compact_request(
         COMPACT_CDML,
-        1,
-        &source_digest,
-        "source-group",
+        revision + 1,
+        digest_hex,
+        &molecule_id,
+        &compact_group_id,
     ));
     let foreign = execute(compact_request(
         COMPACT_CDML,
-        0,
-        &source_digest,
-        "foreign-group",
+        revision,
+        digest_hex,
+        &molecule_id,
+        DocumentObjectIdV1::from_entropy_bytes([0xf1; 16]).as_str(),
     ));
     for (response, category, recovery) in [
         (stale, "stale_document_fence", "refresh_and_retry"),
@@ -137,13 +189,25 @@ fn stale_and_foreign_compact_refusals_leave_the_source_snapshot_current() {
 
 #[test]
 fn compact_materialization_uses_the_shared_response_budget_refusal() {
-    let oversized_group_id = "g".repeat(ferrum_api::OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1);
-    let document = COMPACT_CDML.replace("source-group", &oversized_group_id);
+    let oversized_text = "g".repeat(ferrum_api::OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1);
+    let document = COMPACT_CDML.replace(
+        "</cdml>",
+        &format!(
+            "<text id=\"payload\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000005\"><point x=\"1\" y=\"2\"/><font family=\"Telex\"/><ftext>{oversized_text}</ftext></text></cdml>"
+        ),
+    );
+    let (molecule_id, compact_group_id) = compact_target_ids(&document);
+    let fence = inspected_fence(&document);
     let response = execute(compact_request(
         &document,
-        0,
-        &digest(&document),
-        &oversized_group_id,
+        fence["expected_revision"]
+            .as_u64()
+            .expect("inspection returns a revision"),
+        fence["expected_digest_hex"]
+            .as_str()
+            .expect("inspection returns a digest"),
+        &molecule_id,
+        &compact_group_id,
     ));
     assert_eq!(
         response["error"]["operation"],

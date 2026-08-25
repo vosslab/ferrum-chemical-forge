@@ -18,15 +18,6 @@ impl RenderInteractionSessionV1 {
         }
     }
 
-    /// Return the private renderer-session identity for sibling opaque bridges.
-    ///
-    /// This must not be confused with the embedded document-session identity:
-    /// observations and selections are issued by this renderer boundary.
-    #[must_use]
-    pub(crate) const fn render_interaction_origin_v1(&self) -> u64 {
-        self.origin
-    }
-
     /// Issue one opaque receipt for a gesture that may request an authoring
     /// transition. The document owns its lifecycle after preparation.
     #[must_use]
@@ -126,82 +117,49 @@ impl RenderInteractionSessionV1 {
 
     /// Classify the exact current renderer-admitted roots for reaction authoring.
     ///
-    /// The namespace-aware semantic index supplies durable kind and existing
-    /// reaction membership; the direct-root interaction observation supplies
-    /// only admitted geometry and identity. Neither source is sufficient alone.
+    /// Renderer-admitted roots supply choice identity, paint order, kind, and
+    /// geometry. The document session supplies durable reaction membership.
     pub fn observe_reaction_authoring_choices_v1(
         &self,
         fence: DocumentFenceV1,
     ) -> Result<ReactionAuthoringChoicesV1, RenderInteractionErrorV1> {
         let roots = self.observe_render_interaction_v1(fence)?;
-        let snapshot = self
+        let members = self
             .session
-            .snapshot()
+            .observe_reaction_list_v1()
             .map_err(|_| RenderInteractionErrorV1::SessionConflict)?;
-        let index = DirectCdmlSemanticIndexV1::parse(snapshot.cdml())
-            .map_err(|_| RenderInteractionErrorV1::Observation)?;
-        let members = index
-            .roots()
+        let members = members
+            .reactions()
             .iter()
-            .filter(|root| root.kind() == DirectCdmlRootKindV1::Reaction)
-            .flat_map(|root| root.reaction_members().iter().cloned())
-            .collect::<HashSet<_>>();
+            .flat_map(|reaction| reaction.members().iter())
+            .map(|member| member.object_id().clone())
+            .collect::<HashSet<DocumentObjectIdV1>>();
         let mut choices = Vec::new();
         let mut exclusions = Vec::new();
         let mut diagnosed = HashSet::new();
         for root in roots.roots() {
-            let semantic = index
-                .roots()
-                .iter()
-                .filter(|candidate| candidate.identifier() == Some(root.identifier()))
-                .collect::<Vec<_>>();
-            match semantic.as_slice() {
-                [] => push_reaction_exclusion(
+            match reaction_choice_kind(root.kind()) {
+                Some(kind) => {
+                    let availability = if members.contains(root.document_object_id()) {
+                        ReactionAuthoringChoiceAvailabilityV1::AlreadyInReaction
+                    } else {
+                        ReactionAuthoringChoiceAvailabilityV1::Eligible
+                    };
+                    choices.push(ReactionAuthoringChoiceV1 {
+                        document_object_id: root.document_object_id().clone(),
+                        paint_order: root.paint_order(),
+                        kind,
+                        availability,
+                        label: reaction_choice_label(kind),
+                        bounds: root.bounds(),
+                    });
+                }
+                None => push_reaction_exclusion(
                     &mut exclusions,
                     &mut diagnosed,
-                    root.identifier(),
-                    ReactionAuthoringExclusionReasonV1::MissingSemanticIdentity,
-                    reaction_exclusion_label(
-                        ReactionAuthoringExclusionReasonV1::MissingSemanticIdentity,
-                        root.identifier(),
-                    ),
-                ),
-                [semantic] => match reaction_choice_kind(semantic.kind(), root.kind()) {
-                    Some(kind) => {
-                        let availability = if members.contains(root.identifier()) {
-                            ReactionAuthoringChoiceAvailabilityV1::AlreadyInReaction
-                        } else {
-                            ReactionAuthoringChoiceAvailabilityV1::Eligible
-                        };
-                        choices.push(ReactionAuthoringChoiceV1 {
-                            identifier: root.identifier().to_owned(),
-                            source_order: root.source_order(),
-                            kind,
-                            availability,
-                            label: reaction_choice_label(kind, root.identifier()),
-                            bounds: root.bounds(),
-                        });
-                    }
-                    None => {
-                        let reason = reaction_root_exclusion_reason(semantic.kind(), root.kind());
-                        push_reaction_exclusion(
-                            &mut exclusions,
-                            &mut diagnosed,
-                            root.identifier(),
-                            reason,
-                            reaction_exclusion_label(reason, root.identifier()),
-                        );
-                    }
-                },
-                _ => push_reaction_exclusion(
-                    &mut exclusions,
-                    &mut diagnosed,
-                    root.identifier(),
-                    ReactionAuthoringExclusionReasonV1::AmbiguousSemanticIdentity,
-                    reaction_exclusion_label(
-                        ReactionAuthoringExclusionReasonV1::AmbiguousSemanticIdentity,
-                        root.identifier(),
-                    ),
+                    root.document_object_id().as_str(),
+                    ReactionAuthoringExclusionReasonV1::DisplayOnly,
+                    reaction_exclusion_label(ReactionAuthoringExclusionReasonV1::DisplayOnly),
                 ),
             }
         }
@@ -217,91 +175,22 @@ impl RenderInteractionSessionV1 {
                     ReactionAuthoringExclusionReasonV1::AmbiguousSemanticIdentity
                 }
             };
-            let label = index
-                .roots()
-                .iter()
-                .find(|root| root.identifier() == Some(value.identifier()))
-                .and_then(|root| direct_reaction_choice_kind(root.kind()))
-                .map_or_else(
-                    || reaction_exclusion_label(reason, value.identifier()),
-                    |kind| reaction_choice_label(kind, value.identifier()),
-                );
             push_reaction_exclusion(
                 &mut exclusions,
                 &mut diagnosed,
-                value.identifier(),
+                value.document_object_id().as_str(),
                 reason,
-                label,
+                reaction_exclusion_label(reason),
             );
         }
-        let observed = roots
-            .roots()
-            .iter()
-            .map(RenderInteractionRootV1::identifier)
-            .collect::<HashSet<_>>();
-        for root in index.roots() {
-            let Some(identifier) = root.identifier() else {
-                continue;
-            };
-            let Some(kind) = direct_reaction_choice_kind(root.kind()) else {
-                continue;
-            };
-            if !observed.contains(identifier) {
-                push_reaction_exclusion(
-                    &mut exclusions,
-                    &mut diagnosed,
-                    identifier,
-                    ReactionAuthoringExclusionReasonV1::Unrenderable,
-                    reaction_choice_label(kind, identifier),
-                );
-            }
-        }
-        choices.sort_by_key(ReactionAuthoringChoiceV1::source_order);
+        choices.sort_by_key(ReactionAuthoringChoiceV1::paint_order);
         Ok(ReactionAuthoringChoicesV1 {
             origin: self.origin,
-            capability: roots.capability,
+            capability: NEXT_CAPABILITY.fetch_add(1, Ordering::Relaxed),
             fence,
             choices,
             exclusions,
         })
-    }
-
-    /// Return all retained direct reaction records with renderer-backed member facts.
-    pub fn observe_reaction_list_v1(
-        &self,
-        fence: DocumentFenceV1,
-    ) -> Result<ReactionListObservationV1, RenderInteractionErrorV1> {
-        let rendered = self.observe_render_interaction_v1(fence)?;
-        reaction_observation_v1::observe_reaction_list_v1(&self.session, self.origin, &rendered)
-    }
-
-    /// Refuse a foreign or stale reaction list without mutating CDML.
-    pub fn validate_reaction_list_v1(
-        &self,
-        list: &ReactionListObservationV1,
-    ) -> Result<(), RenderInteractionErrorV1> {
-        reaction_observation_v1::validate_reaction_list_v1(&self.session, self.origin, list)
-    }
-
-    /// Issue an opaque aggregate-selection capability from one fresh list fact.
-    pub fn select_reaction_v1(
-        &self,
-        list: &ReactionListObservationV1,
-        reaction_id: &str,
-    ) -> Result<ReactionSelectionV1, RenderInteractionErrorV1> {
-        reaction_observation_v1::select_reaction_v1(&self.session, self.origin, list, reaction_id)
-    }
-
-    /// Validate an opaque reaction selection before a future lifecycle mutation.
-    pub fn validate_reaction_selection_v1(
-        &self,
-        selection: &ReactionSelectionV1,
-    ) -> Result<(), RenderInteractionErrorV1> {
-        reaction_observation_v1::validate_reaction_selection_v1(
-            &self.session,
-            self.origin,
-            selection,
-        )
     }
 
     /// Refuse a foreign or stale immutable composer observation without mutation.
@@ -333,26 +222,25 @@ impl RenderInteractionSessionV1 {
         }
         let mut targets = Vec::new();
         for molecule in rendered.document().projection().molecules() {
-            let Some(molecule_id) = molecule.source_id() else {
-                continue;
-            };
-            let Some(molecule_object_id) = molecule.id() else {
-                continue;
-            };
+            let molecule_object_id = molecule.id().ok_or(RenderInteractionErrorV1::Observation)?;
+            let plan = rendered
+                .resolved()
+                .molecule_plans()
+                .iter()
+                .find(|entry| entry.molecule().document_object_id() == molecule_object_id)
+                .ok_or(RenderInteractionErrorV1::Observation)?;
             for atom in molecule.atoms() {
-                let Some(identifier) = atom.source_id() else {
-                    continue;
-                };
-                let Some(atom_object_id) = atom.id() else {
-                    continue;
-                };
+                let atom_object_id = atom.id().ok_or(RenderInteractionErrorV1::Observation)?;
+                let batch = plan
+                    .batches()
+                    .iter()
+                    .find(|batch| batch.target().document_object_id() == atom_object_id)
+                    .ok_or(RenderInteractionErrorV1::Observation)?;
                 let point = atom.position();
                 targets.push(StructureInteractionTargetV1 {
-                    molecule_id: molecule_id.to_owned(),
-                    identifier: identifier.to_owned(),
-                    durable_molecule_object_id: Some(molecule_object_id.as_str().to_owned()),
-                    durable_object_id: Some(atom_object_id.as_str().to_owned()),
-                    source_order: atom.source_order(),
+                    molecule_object_id: molecule_object_id.clone(),
+                    object_id: atom_object_id.clone(),
+                    source_order: batch.paint_order(),
                     kind: StructureTargetKindV1::Atom,
                     // `contains_point` owns the single shared hit slop.  The
                     // issued atom envelope itself stays at the atom anchor so
@@ -364,30 +252,14 @@ impl RenderInteractionSessionV1 {
                     },
                 });
             }
-            let Some(plan) = rendered
-                .resolved()
-                .molecule_plans()
-                .iter()
-                .find(|entry| entry.molecule().source_id() == Some(molecule_id))
-            else {
-                continue;
-            };
             for group in plan.compact_group_primitives() {
-				let ferrum_core::RecordOrigin::Source(identifier) = group.target().record_id().origin() else {
-					continue;
-				};
+                let object_id = group.target().document_object_id();
                 let bounds = group.bounds();
                 let anchor = group.anchor();
                 targets.push(StructureInteractionTargetV1 {
-                    molecule_id: molecule_id.to_owned(),
-					identifier: identifier.as_str().to_owned(),
-					durable_molecule_object_id: group.target()
-						.owner_molecule_object_id()
-						.map(|value| value.as_str().to_owned()),
-					durable_object_id: group.target()
-						.document_object_id()
-						.map(|value| value.as_str().to_owned()),
-                    source_order: group.target().source_order(),
+                    molecule_object_id: molecule_object_id.clone(),
+                    object_id: object_id.clone(),
+                    source_order: group.batch().paint_order(),
                     kind: StructureTargetKindV1::CompactGroup,
                     bounds: RenderInteractionBoundsV1 {
                         left: anchor.x() + bounds.min_x(),
@@ -399,21 +271,16 @@ impl RenderInteractionSessionV1 {
                 });
             }
             for bond in molecule.bonds() {
-                let Some(identifier) = bond.source_id() else {
-                    continue;
-                };
-                let Some(bond_object_id) = bond.id() else {
-                    continue;
-                };
-                let operations = plan
+                let bond_object_id = bond.id().ok_or(RenderInteractionErrorV1::Observation)?;
+                let batch = plan
                     .batches()
                     .iter()
-                    .filter(|batch| batch.target().source_order() == bond.source_order())
-                    .flat_map(|batch| batch.operations());
+                    .find(|batch| batch.target().document_object_id() == bond_object_id)
+                    .ok_or(RenderInteractionErrorV1::Observation)?;
                 let mut segments = Vec::new();
                 let mut primitive_bounds = Vec::new();
                 let mut has_path = false;
-                for operation in operations {
+                for operation in batch.operations() {
                     match operation {
                         RenderOp::Line(line) => {
                             let segment = StructureSegmentV1 {
@@ -428,7 +295,7 @@ impl RenderInteractionSessionV1 {
                         }
                         RenderOp::Path(path) => {
                             has_path = true;
-                            primitive_bounds.push(path_bounds(&path));
+                            primitive_bounds.push(path_bounds(path));
                         }
                         RenderOp::Text(_)
                         | RenderOp::Mask(_)
@@ -440,11 +307,9 @@ impl RenderInteractionSessionV1 {
                     continue;
                 }
                 targets.push(StructureInteractionTargetV1 {
-                    molecule_id: molecule_id.to_owned(),
-                    identifier: identifier.to_owned(),
-                    durable_molecule_object_id: Some(molecule_object_id.as_str().to_owned()),
-                    durable_object_id: Some(bond_object_id.as_str().to_owned()),
-                    source_order: bond.source_order(),
+                    molecule_object_id: molecule_object_id.clone(),
+                    object_id: bond_object_id.clone(),
+                    source_order: batch.paint_order(),
                     kind: if has_path {
                         StructureTargetKindV1::DisplayOnly
                     } else {
@@ -569,7 +434,7 @@ impl RenderInteractionSessionV1 {
         targets.sort_by_key(StructureInteractionTargetV1::source_order);
         if targets
             .iter()
-            .map(StructureInteractionTargetV1::molecule_id)
+            .map(StructureInteractionTargetV1::molecule_object_id)
             .collect::<HashSet<_>>()
             .len()
             > 1
@@ -593,11 +458,11 @@ impl RenderInteractionSessionV1 {
         if selection.targets.is_empty() {
             return Err(RenderInteractionErrorV1::EmptySelection);
         }
-        let molecule_id = selection.targets[0].molecule_id.clone();
+        let molecule_object_id = selection.targets[0].molecule_object_id.clone();
         if selection
             .targets
             .iter()
-            .any(|target| target.molecule_id != molecule_id)
+            .any(|target| target.molecule_object_id != molecule_object_id)
         {
             return Err(RenderInteractionErrorV1::CrossMoleculeSelection);
         }
@@ -617,29 +482,15 @@ impl RenderInteractionSessionV1 {
             if selection.targets.len() != 1 || compact_groups.len() != 1 {
                 return Err(RenderInteractionErrorV1::InvalidCompactGroupDeletionSelection);
             }
-			let target = compact_groups[0];
-			let molecule_object_id = target
-				.durable_molecule_object_id
-				.as_deref()
-				.ok_or(RenderInteractionErrorV1::UnsupportedTarget)
-				.and_then(|value| {
-					ferrum_document::DocumentObjectIdV1::parse(value.to_owned())
-						.map_err(|_| RenderInteractionErrorV1::UnsupportedTarget)
-				})?;
-			let compact_group_object_id = target
-				.durable_object_id
-				.as_deref()
-				.ok_or(RenderInteractionErrorV1::UnsupportedTarget)
-				.and_then(|value| {
-					ferrum_document::DocumentObjectIdV1::parse(value.to_owned())
-						.map_err(|_| RenderInteractionErrorV1::UnsupportedTarget)
-				})?;
+            let target = compact_groups[0];
+            let molecule_object_id = target.molecule_object_id.clone();
+            let compact_group_object_id = target.object_id.clone();
             let mut pending = self
                 .session
                 .prepare_delete_compact_group_v1(
                     selection.fence.revision(),
-					&molecule_object_id,
-					&compact_group_object_id,
+                    &molecule_object_id,
+                    &compact_group_object_id,
                 )
                 .map_err(structure_deletion_prepare_error)?;
             let result = self
@@ -653,25 +504,14 @@ impl RenderInteractionSessionV1 {
                 removed_compact_group_count: 1,
             });
         }
-        let atom_ids = selection
-            .targets
-            .iter()
-            .filter(|target| target.kind == StructureTargetKindV1::Atom)
-            .map(|target| target.identifier.clone())
-            .collect::<Vec<_>>();
-        let bond_ids = selection
-            .targets
-            .iter()
-            .filter(|target| target.kind == StructureTargetKindV1::Bond)
-            .map(|target| target.identifier.clone())
-            .collect::<Vec<_>>();
+        let (atom_ids, bond_ids) = structure_deletion_targets(selection);
         let mut pending = self
             .session
             .prepare_delete_structure_v1(
                 selection.fence.revision(),
-                molecule_id,
-                atom_ids,
-                bond_ids,
+                &molecule_object_id,
+                &atom_ids,
+                &bond_ids,
             )
             .map_err(structure_deletion_prepare_error)?;
         let receipt = pending.receipt().clone();
@@ -739,11 +579,13 @@ impl RenderInteractionSessionV1 {
                     .cloned()
                     .collect()
             }
-            RenderInteractionQueryV1::Root { identifier, .. } => {
+            RenderInteractionQueryV1::Root {
+                document_object_id, ..
+            } => {
                 if let Some(exclusion) = observation
                     .exclusions
                     .iter()
-                    .find(|exclusion| exclusion.identifier == *identifier)
+                    .find(|exclusion| exclusion.document_object_id() == document_object_id)
                 {
                     return Err(match exclusion.reason {
                         RenderInteractionExclusionReasonV1::UnrenderableDepiction => {
@@ -760,7 +602,7 @@ impl RenderInteractionSessionV1 {
                 observation
                     .roots
                     .iter()
-                    .find(|root| root.identifier == *identifier)
+                    .find(|root| root.document_object_id() == document_object_id)
                     .cloned()
                     .map_or_else(
                         || Err(RenderInteractionErrorV1::NoTarget),
@@ -915,13 +757,30 @@ impl RenderInteractionSessionV1 {
     }
 }
 
+/// Separate durable atom and bond selections for the document-owned deletion boundary.
+fn structure_deletion_targets(
+    selection: &StructureInteractionSelectionV1,
+) -> (Vec<DocumentObjectIdV1>, Vec<DocumentObjectIdV1>) {
+    let atom_ids = selection
+        .targets
+        .iter()
+        .filter(|target| target.kind == StructureTargetKindV1::Atom)
+        .map(|target| target.object_id.clone())
+        .collect();
+    let bond_ids = selection
+        .targets
+        .iter()
+        .filter(|target| target.kind == StructureTargetKindV1::Bond)
+        .map(|target| target.object_id.clone())
+        .collect();
+    (atom_ids, bond_ids)
+}
+
 fn structure_deletion_prepare_error(error: DocumentSessionError) -> RenderInteractionErrorV1 {
     match error {
-        DocumentSessionError::Operation(
-            ferrum_document::SessionOperationError::Candidate(
-                ferrum_document::TypedDocumentError::InvalidCompactGroupDeletionTopology(_),
-            ),
-        ) => RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology,
+        DocumentSessionError::Operation(ferrum_document::SessionOperationError::Candidate(
+            ferrum_document::TypedDocumentError::InvalidCompactGroupDeletionTopology(_),
+        )) => RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology,
         DocumentSessionError::RendererAdmission => RenderInteractionErrorV1::UnrenderableCandidate,
         _ => RenderInteractionErrorV1::UnsupportedTarget,
     }

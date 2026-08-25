@@ -1,211 +1,160 @@
-"""Installed private binding behavior for atom-anchored methyl compact groups."""
+"""Installed behavior for reviewed atom-anchored compact-group attachment."""
+
+import json
 
 import pytest
 
 import ferrum_chem
 
 
-SOURCE = (
-	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
-	'<point x="0" y="0"/></atom></molecule></cdml>'
-)
-
-SATURATED_CARBON_SOURCE = (
-	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m">'
-	'<atom id="a" name="C"><point x="0" y="0"/></atom>'
-	'<atom id="h1" name="H"><point x="1" y="0"/></atom>'
-	'<atom id="h2" name="H"><point x="-1" y="0"/></atom>'
-	'<atom id="h3" name="H"><point x="0" y="1"/></atom>'
-	'<atom id="h4" name="H"><point x="0" y="-1"/></atom>'
-	'<bond id="b1" start="a" end="h1" type="n1"/>'
-	'<bond id="b2" start="a" end="h2" type="n1"/>'
-	'<bond id="b3" start="a" end="h3" type="n1"/>'
-	'<bond id="b4" start="a" end="h4" type="n1"/>'
-	'</molecule></cdml>'
-)
-
-ATTACHED_GROUP_SOURCE = (
-	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m">'
-	'<atom id="a" name="C"><point x="0" y="0"/></atom>'
-	'<compact-group id="g" version="1" catalog-key="methyl" attachment-index="0" '
-	'orientation-degrees="0"><point x="20" y="0"/></compact-group>'
-	'<bond id="b" start="a" end="g" type="n1"/></molecule></cdml>'
-)
-
-INVALID_TOPOLOGY_GROUP_SOURCE = ATTACHED_GROUP_SOURCE.replace(
-	'<bond id="b" start="a" end="g" type="n1"/>', "")
-
-
 def _snapshot_facts(session: object) -> tuple[str, int, str, bool]:
-	"""Return the durable facts that refused private operations must preserve."""
+	"""Return durable facts that refused operations must preserve."""
 	snapshot = session.snapshot()
-	return (snapshot.cdml, snapshot.revision, snapshot.digest, snapshot.is_dirty)
+	return snapshot.cdml, snapshot.revision, snapshot.digest, snapshot.is_dirty
+
+
+def _session() -> object:
+	"""Create one direct carbon through the supported molecule-insertion route."""
+	session = ferrum_chem.DocumentSession.create_empty_document_v1()
+	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
+	molecule = ferrum_chem.prepare_smiles_molecule_v1("C", placement)
+	operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
+	pending = session.prepare_session_operation_transition_v1(
+		operation.transition_request_v1(session.snapshot().revision))
+	session.commit_session_operation_transition_v1(pending)
+	return session
 
 
 def _anchor_id(session: object) -> str:
-	"""Return the direct atom's Rust-issued durable object ID."""
+	"""Return the direct atom's public Rust-issued durable object ID."""
 	return session.observe(session.snapshot().revision).projection.molecules[0].atoms[0].id
 
 
-def _commit_attachment(session: object, release_x: float = 20.0) -> object:
-	"""Commit one private attachment and return its authoritative typed facts."""
+def _begin(session: object, catalog_key: str, release_x: float = 20.0) -> object:
+	"""Begin one generic attachment with the current document fence."""
 	snapshot = session.snapshot()
-	pending = session._begin_attach_methyl_compact_group_v1(
-		snapshot.revision, snapshot.digest, _anchor_id(session), release_x, 0.0)
-	return session._commit_attach_methyl_compact_group_v1(pending)
+	return session._begin_attach_compact_group_v1(
+		snapshot.revision,
+		snapshot.digest,
+		_anchor_id(session),
+		catalog_key,
+		release_x,
+		0.0,
+	)
 
 
-def _select_structure_target(session: object, x: float, y: float, previous: object | None = None,
-		modifier: object | None = None) -> object:
-	"""Select one renderer-issued structural target through the public opaque bridge."""
+def _materialize(session: object, molecule_object_id: str, compact_group_object_id: str) -> object:
+	"""Materialize a committed compact group through the supported live operation."""
 	snapshot = session.snapshot()
-	observation = session.observe_structure_interaction_v1(snapshot.revision, snapshot.digest)
-	if modifier is None:
-		modifier = ferrum_chem.RenderInteractionModifierV1.replace
-	query = ferrum_chem.StructureInteractionQueryV1.point(x, y, modifier)
-	return session.select_structure_interaction_v1(observation, previous, query)
+	request = json.dumps({
+		"schema": "ferrum-operation-request-v1",
+		"request_id": "attached-compact-group-materialization",
+		"operation": {
+			"kind": "document.compact-group.materialize.v1",
+			"expected_revision": snapshot.revision,
+			"expected_digest_hex": snapshot.digest,
+			"molecule_object_id": molecule_object_id,
+			"compact_group_object_id": compact_group_object_id,
+		},
+	})
+	return session.apply_live_document_operation_v1(request)
 
 
-def test_private_methyl_availability_is_frozen_and_advisory() -> None:
-	"""Availability returns current enablement facts without issuing a candidate."""
-	session = ferrum_chem.DocumentSession.load(SOURCE)
+def test_attached_compact_group_choices_are_rust_owned_public_facts() -> None:
+	"""The private seam exposes reviewed catalog facts without a Python choice table."""
+	session = _session()
+	choices = {(choice.catalog_key, choice.label) for choice in session._attached_compact_group_choices_v1()}
+
+	assert ("methyl", "Me") in choices
+	assert ("nitro", "NO2") in choices
+
+
+def test_attached_compact_group_availability_echoes_the_selected_choice() -> None:
+	"""Read-only availability authenticates one reviewed choice and never mutates."""
+	session = _session()
 	before = _snapshot_facts(session)
-	anchor = _anchor_id(session)
-	facts = session._attach_methyl_compact_group_availability_v1(
-		before[1], before[2], anchor)
+	facts = session._attach_compact_group_availability_v1(
+		before[1], before[2], _anchor_id(session), "methyl")
 
 	assert facts.available is True
 	assert facts.category == ferrum_chem.AttachedCompactGroupAvailabilityCategoryV1.available
-	assert (facts.revision, facts.digest, facts.anchor_object_id) == (before[1], before[2], anchor)
+	assert facts.catalog_key == "methyl"
 	assert _snapshot_facts(session) == before
 
 
-def test_private_methyl_availability_reports_capacity_without_mutation() -> None:
-	"""A saturated direct carbon is a typed unavailable action target."""
-	session = ferrum_chem.DocumentSession.load(SATURATED_CARBON_SOURCE)
+@pytest.mark.parametrize("catalog_key, category", [
+	("unknown", ferrum_chem.AttachedCompactGroupCategoryV1.invalid_catalog_key),
+	("ethyl", ferrum_chem.AttachedCompactGroupCategoryV1.unsupported_attachment_catalog_key),
+])
+def test_attached_compact_group_refuses_unapproved_keys_without_mutation(
+		catalog_key: str, category: object) -> None:
+	"""The boundary distinguishes unrecognized keys from known unreviewed choices."""
+	session = _session()
 	before = _snapshot_facts(session)
-	facts = session._attach_methyl_compact_group_availability_v1(
-		before[1], before[2], _anchor_id(session))
 
-	assert facts.available is False
-	assert facts.category == ferrum_chem.AttachedCompactGroupAvailabilityCategoryV1.candidate_admission
+	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as refused:
+		_begin(session, catalog_key)
+	assert refused.value.category == category
 	assert _snapshot_facts(session) == before
 
 
-def test_private_methyl_attachment_commits_authoritative_durable_facts() -> None:
-	"""One pending methyl attachment previews and commits exactly once."""
-	session = ferrum_chem.DocumentSession.load(SOURCE)
+def test_generic_methyl_attachment_previews_commits_and_retires_once() -> None:
+	"""A generic reviewed request retains the opaque one-use lifecycle."""
+	session = _session()
 	before = session.snapshot()
 	anchor = _anchor_id(session)
-	pending = session._begin_attach_methyl_compact_group_v1(
-		before.revision, before.digest, anchor, 20.0, 0.0)
+	pending = _begin(session, "methyl")
 
-	assert session._preview_attach_methyl_compact_group_v1(pending).overlay is not None
-	assert _snapshot_facts(session) == (before.cdml, before.revision, before.digest, before.is_dirty)
-
-	committed = session._commit_attach_methyl_compact_group_v1(pending)
-	assert (committed.revision, committed.digest, committed.is_dirty) == (
-		before.revision + 1, session.snapshot().digest, True)
+	assert session._preview_attach_compact_group_v1(pending).overlay is not None
+	committed = session._commit_attach_compact_group_v1(pending)
+	assert committed.revision == before.revision + 1
+	assert committed.digest == session.snapshot().digest
+	assert committed.is_dirty is True
 	assert committed.focus_object_id == anchor
 	assert committed.compact_group_object_id
-	assert committed.compact_group_object_id != committed.focus_object_id
 
 	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as replayed:
-		session._commit_attach_methyl_compact_group_v1(pending)
+		session._commit_attach_compact_group_v1(pending)
 	assert replayed.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.retired
 
 
-@pytest.mark.parametrize("begin", [False, True])
-def test_private_methyl_attachment_rejects_malformed_digests_with_a_typed_category(
-	begin: bool,
-) -> None:
-	"""Availability and begin expose one stable malformed-digest refusal category."""
-	session = ferrum_chem.DocumentSession.load(SOURCE)
-	snapshot = session.snapshot()
-	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as refused:
-		if begin:
-			session._begin_attach_methyl_compact_group_v1(
-				snapshot.revision, "malformed", _anchor_id(session), 20.0, 0.0)
-		else:
-			session._attach_methyl_compact_group_availability_v1(
-				snapshot.revision, "malformed", _anchor_id(session))
-	assert refused.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.invalid_digest
+def test_generic_nitro_attachment_preserves_projected_and_materialized_charge_chemistry() -> None:
+	"""A reviewed nitro attachment reaches the ordinary materialization contract."""
+	session = _session()
+	committed = session._commit_attach_compact_group_v1(_begin(session, "nitro"))
+	molecule = session.observe(session.snapshot().revision).projection.molecules[0]
+	group = next(group for group in molecule.compact_groups if group.id == committed.compact_group_object_id)
+
+	assert (group.catalog_key, group.label) == ("nitro", "NO2")
+	materialized = _materialize(session, molecule.id, group.id)
+	atoms = materialized.mutation_result.observation.projection.molecules[0].atoms
+	charges = {atom.formal_charge for atom in atoms}
+	assert 1 in charges
+	assert -1 in charges
 
 
-def test_private_methyl_attachment_rejects_foreign_and_stale_pending_handles() -> None:
-	"""Session affinity and stale fences refuse before either session mutates."""
-	owner = ferrum_chem.DocumentSession.load(SOURCE)
-	foreign = ferrum_chem.DocumentSession.load(SOURCE)
+def test_generic_attachment_rejects_foreign_cancelled_and_stale_pending_handles() -> None:
+	"""Session affinity, retirement, and stale commits preserve durable state."""
+	owner = _session()
+	foreign = _session()
 	before_owner = _snapshot_facts(owner)
 	before_foreign = _snapshot_facts(foreign)
-	owner_snapshot = owner.snapshot()
-	pending = owner._begin_attach_methyl_compact_group_v1(
-		owner_snapshot.revision, owner_snapshot.digest, _anchor_id(owner), 20.0, 0.0)
+	pending = _begin(owner, "methyl")
 
 	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as foreign_error:
-		foreign._commit_attach_methyl_compact_group_v1(pending)
+		foreign._commit_attach_compact_group_v1(pending)
 	assert foreign_error.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.foreign_session
 	assert _snapshot_facts(owner) == before_owner
 	assert _snapshot_facts(foreign) == before_foreign
 
-	owner._cancel_attach_methyl_compact_group_v1(pending)
+	owner._cancel_attach_compact_group_v1(pending)
 	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as retired:
-		owner._preview_attach_methyl_compact_group_v1(pending)
+		owner._preview_attach_compact_group_v1(pending)
 	assert retired.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.retired
 
-	stale = owner._begin_attach_methyl_compact_group_v1(
-		owner_snapshot.revision, owner_snapshot.digest, _anchor_id(owner), 20.0, 0.0)
-	accepted = owner._begin_attach_methyl_compact_group_v1(
-		owner_snapshot.revision, owner_snapshot.digest, _anchor_id(owner), 30.0, 0.0)
-	owner._commit_attach_methyl_compact_group_v1(accepted)
+	stale = _begin(owner, "methyl")
+	owner._commit_attach_compact_group_v1(_begin(owner, "methyl", 30.0))
 	stable = _snapshot_facts(owner)
 	with pytest.raises(ferrum_chem.RevisionConflictError):
-		owner._commit_attach_methyl_compact_group_v1(stale)
+		owner._commit_attach_compact_group_v1(stale)
 	assert _snapshot_facts(owner) == stable
-
-
-def test_structure_deletion_returns_the_compact_group_receipt() -> None:
-	"""One selected compact group uses the ordinary deletion receipt shape."""
-	session = ferrum_chem.DocumentSession.load(ATTACHED_GROUP_SOURCE)
-	commit = session.commit_structure_deletion_v1(_select_structure_target(session, 20.0, 0.0))
-
-	assert (
-		commit.removed_atom_count,
-		commit.removed_bond_count,
-		commit.removed_compact_group_count,
-	) == (0, 1, 1)
-	assert "compact-group" not in session.snapshot().cdml
-
-
-def test_structure_deletion_refuses_mixed_compact_group_selection_before_prepare() -> None:
-	"""A compact group cannot be combined with an atom or bond deletion target."""
-	session = ferrum_chem.DocumentSession.load(ATTACHED_GROUP_SOURCE)
-	before = _snapshot_facts(session)
-	group = _select_structure_target(session, 20.0, 0.0)
-	mixed = _select_structure_target(
-		session, 0.0, 0.0, group, ferrum_chem.RenderInteractionModifierV1.toggle,
-	)
-
-	with pytest.raises(ferrum_chem.RenderInteractionError) as refused:
-		session.commit_structure_deletion_v1(mixed)
-	assert refused.value.category == (
-		ferrum_chem.RenderInteractionCategoryV1.invalid_compact_group_deletion_selection
-	)
-	assert _snapshot_facts(session) == before
-
-
-def test_structure_deletion_refuses_invalid_compact_topology_with_document_repair() -> None:
-	"""Topology-only compact refusal stays redacted and gives the repair recovery."""
-	session = ferrum_chem.DocumentSession.load(INVALID_TOPOLOGY_GROUP_SOURCE)
-	before = _snapshot_facts(session)
-
-	with pytest.raises(ferrum_chem.RenderInteractionError) as refused:
-		session.commit_structure_deletion_v1(_select_structure_target(session, 20.0, 0.0))
-	assert refused.value.category == (
-		ferrum_chem.RenderInteractionCategoryV1.invalid_compact_group_deletion_topology
-	)
-	assert refused.value.recovery == ferrum_chem.RenderInteractionRecoveryV1.repair_document
-	assert str(refused.value) == (
-		"the compact group deletion topology requires document repair before retry"
-	)
-	assert _snapshot_facts(session) == before

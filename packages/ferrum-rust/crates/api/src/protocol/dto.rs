@@ -6,6 +6,7 @@
 mod catalog_reaction_dto;
 mod document_general_dto;
 mod document_interchange_dto;
+mod document_molecule_diagnostics_dto;
 mod document_observation_dto;
 mod document_report_dto;
 mod dto_errors;
@@ -15,6 +16,7 @@ mod presentation_author_dto;
 pub use catalog_reaction_dto::*;
 pub use document_general_dto::*;
 pub use document_interchange_dto::*;
+pub use document_molecule_diagnostics_dto::*;
 pub use document_observation_dto::*;
 pub use document_report_dto::*;
 pub use dto_errors::*;

@@ -13,12 +13,9 @@ use crate::{
     BatchSpace, DocumentRenderCompositeV1, Paint, PositiveFinite, RenderPoint, RenderProvenance,
     RenderTarget, RenderViewportV1, VectorFillRuleV1, VectorStrokeLineJoinV1,
 };
-use ferrum_core::RecordId;
 
 /// Caller-owned structural limits for one composite recording.
 ///
-/// `max_copied_string_bytes` covers every root identity, target identity, and
-/// paint spelling copied into the owned recording.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CompositeRecordingBudgetV1 {
     pub max_roots: usize,
@@ -27,7 +24,6 @@ pub struct CompositeRecordingBudgetV1 {
     pub max_path_commands: usize,
     pub max_transform_depth: usize,
     pub max_text_scopes: usize,
-    pub max_copied_string_bytes: usize,
 }
 
 /// One resource that can reject a bounded recording.
@@ -39,7 +35,6 @@ pub enum CompositeRecordingResourceV1 {
     PathCommands,
     TransformDepth,
     TextScopes,
-    CopiedStringBytes,
 }
 
 /// Typed recording failures; no partial record is returned.
@@ -197,13 +192,13 @@ pub enum CompositeRecordingEventV1 {
         provenance: RenderProvenance,
     },
     RootBegin {
-        identity: String,
-        source_order: u32,
+        document_object_id: ferrum_document_projection::DocumentObjectIdV1,
+        paint_order: u32,
         kind: CompositeRootKindV1,
     },
     RootEnd,
     TargetBegin {
-        target: RenderTarget,
+        target: Option<RenderTarget>,
         space: Option<BatchSpace>,
         direct: bool,
     },
@@ -299,7 +294,6 @@ pub(crate) struct RecordingSink {
     path_commands: usize,
     transform_depth: usize,
     text_scopes: usize,
-    copied_bytes: usize,
     paint_index: u64,
     page_open: bool,
     page_started: bool,
@@ -309,7 +303,7 @@ pub(crate) struct RecordingSink {
     document_text_open: bool,
     text_operation_open: bool,
     root_kind: Option<CompositeRootKindV1>,
-    last_root_order: Option<u32>,
+    last_root_paint_order: Option<u32>,
 }
 
 impl RecordingSink {
@@ -324,7 +318,6 @@ impl RecordingSink {
             path_commands: 0,
             transform_depth: 0,
             text_scopes: 0,
-            copied_bytes: 0,
             paint_index: 0,
             page_open: false,
             page_started: false,
@@ -334,7 +327,7 @@ impl RecordingSink {
             document_text_open: false,
             text_operation_open: false,
             root_kind: None,
-            last_root_order: None,
+            last_root_paint_order: None,
         }
     }
 
@@ -368,7 +361,6 @@ impl RecordingSink {
             CompositeRecordingResourceV1::PathCommands => &mut self.path_commands,
             CompositeRecordingResourceV1::TransformDepth => &mut self.transform_depth,
             CompositeRecordingResourceV1::TextScopes => &mut self.text_scopes,
-            CompositeRecordingResourceV1::CopiedStringBytes => &mut self.copied_bytes,
         };
         *count = count
             .checked_add(1)
@@ -377,68 +369,6 @@ impl RecordingSink {
             return Err(CompositeRecordingErrorV1::BudgetExceeded { resource });
         }
         Ok(())
-    }
-
-    fn copy_string(&mut self, value: &str) -> Result<String, CompositeRecordingErrorV1> {
-        let bytes = value.len();
-        let next = self.copied_bytes.checked_add(bytes).ok_or(
-            CompositeRecordingErrorV1::CounterOverflow {
-                resource: CompositeRecordingResourceV1::CopiedStringBytes,
-            },
-        )?;
-        if next > self.budget.max_copied_string_bytes {
-            return Err(CompositeRecordingErrorV1::BudgetExceeded {
-                resource: CompositeRecordingResourceV1::CopiedStringBytes,
-            });
-        }
-        let mut copied = String::new();
-        copied
-            .try_reserve(bytes)
-            .map_err(|_| CompositeRecordingErrorV1::ResourceExhausted {
-                resource: CompositeRecordingResourceV1::CopiedStringBytes,
-            })?;
-        copied.push_str(value);
-        self.copied_bytes = next;
-        Ok(copied)
-    }
-
-    fn copy_paint(&mut self, paint: &Paint) -> Result<Paint, CompositeRecordingErrorV1> {
-        let color = crate::Rgb24::new(self.copy_string(paint.color().as_str())?)
-            .map_err(|_| CompositeRecordingErrorV1::InvalidStream)?;
-        Ok(Paint::rgb24(color))
-    }
-
-    fn copy_target(
-        &mut self,
-        target: &RenderTarget,
-    ) -> Result<RenderTarget, CompositeRecordingErrorV1> {
-        self.copy_record_id(target.record_id(), target.source_order())
-    }
-
-    fn copy_record_id(
-        &mut self,
-        record_id: &RecordId,
-        source_order: u32,
-    ) -> Result<RenderTarget, CompositeRecordingErrorV1> {
-        let next = self
-            .copied_bytes
-            .checked_add(record_id.owned_string_bytes())
-            .ok_or(CompositeRecordingErrorV1::CounterOverflow {
-                resource: CompositeRecordingResourceV1::CopiedStringBytes,
-            })?;
-        if next > self.budget.max_copied_string_bytes {
-            return Err(CompositeRecordingErrorV1::BudgetExceeded {
-                resource: CompositeRecordingResourceV1::CopiedStringBytes,
-            });
-        }
-        let record_id =
-            record_id
-                .try_clone()
-                .map_err(|_| CompositeRecordingErrorV1::ResourceExhausted {
-                    resource: CompositeRecordingResourceV1::CopiedStringBytes,
-                })?;
-        self.copied_bytes = next;
-        Ok(RenderTarget::new(record_id, source_order))
     }
 
     fn push(&mut self, event: CompositeRecordingEventV1) -> Result<(), CompositeRecordingErrorV1> {
@@ -482,7 +412,7 @@ impl RecordingSink {
         let fill = style
             .fill
             .map(|paint| {
-                let paint = self.copy_paint(paint)?;
+                let paint = paint.clone();
                 Ok(CompositeFillV1 {
                     paint,
                     rule: match style.fill_rule {
@@ -495,7 +425,7 @@ impl RecordingSink {
         let stroke = style
             .stroke
             .map(|stroke| {
-                let paint = self.copy_paint(stroke.paint)?;
+                let paint = stroke.paint.clone();
                 if !stroke.miter_limit.is_finite() {
                     return Err(CompositeRecordingErrorV1::InvalidStream);
                 }
@@ -636,25 +566,28 @@ impl DrawSinkV1 for RecordingSink {
             provenance: self.provenance,
         })
     }
-    fn begin_root(&mut self, _: u32, _: &str) -> Result<(), Self::Error> {
+    fn begin_root(
+        &mut self,
+        _: u32,
+        _: &ferrum_document_projection::DocumentObjectIdV1,
+    ) -> Result<(), Self::Error> {
         Err(CompositeRecordingErrorV1::InvalidStream)
     }
     fn begin_root_with_kind(
         &mut self,
-        source_order: u32,
-        identity: &str,
+        paint_order: u32,
+        document_object_id: &ferrum_document_projection::DocumentObjectIdV1,
         root_kind: DrawRootKindV1,
     ) -> Result<(), Self::Error> {
         if !self.page_open
             || self.root_open
             || self
-                .last_root_order
-                .is_some_and(|last| last >= source_order)
+                .last_root_paint_order
+                .is_some_and(|last| last >= paint_order)
         {
             return Err(CompositeRecordingErrorV1::InvalidStream);
         }
         self.count(CompositeRecordingResourceV1::Roots, self.budget.max_roots)?;
-        let identity = self.copy_string(identity)?;
         let kind = match root_kind {
             DrawRootKindV1::Molecule => CompositeRootKindV1::Molecule,
             DrawRootKindV1::Text => CompositeRootKindV1::Text,
@@ -662,10 +595,10 @@ impl DrawSinkV1 for RecordingSink {
         };
         self.root_open = true;
         self.root_kind = Some(kind);
-        self.last_root_order = Some(source_order);
+        self.last_root_paint_order = Some(paint_order);
         self.push(CompositeRecordingEventV1::RootBegin {
-            identity,
-            source_order,
+            document_object_id: document_object_id.clone(),
+            paint_order,
             kind,
         })
     }
@@ -688,6 +621,7 @@ impl DrawSinkV1 for RecordingSink {
     fn begin_molecule_target_group(
         &mut self,
         target: &RenderTarget,
+        _: u32,
         space: BatchSpace,
     ) -> Result<(), Self::Error> {
         if !self.root_open
@@ -701,10 +635,10 @@ impl DrawSinkV1 for RecordingSink {
             CompositeRecordingResourceV1::TargetGroups,
             self.budget.max_target_groups,
         )?;
-        let target = self.copy_target(target)?;
+        let target = target.clone();
         self.target_open = true;
         self.push(CompositeRecordingEventV1::TargetBegin {
-            target,
+            target: Some(target),
             space: Some(space),
             direct: false,
         })
@@ -716,11 +650,7 @@ impl DrawSinkV1 for RecordingSink {
         self.target_open = false;
         self.push(CompositeRecordingEventV1::TargetEnd)
     }
-    fn begin_direct_target_group(
-        &mut self,
-        record_id: &RecordId,
-        source_order: u32,
-    ) -> Result<(), Self::Error> {
+    fn begin_direct_target_group(&mut self, _: u32) -> Result<(), Self::Error> {
         if !self.root_open
             || self.root_kind != Some(CompositeRootKindV1::Molecule)
             || self.target_open
@@ -732,10 +662,9 @@ impl DrawSinkV1 for RecordingSink {
             CompositeRecordingResourceV1::TargetGroups,
             self.budget.max_target_groups,
         )?;
-        let target = self.copy_record_id(record_id, source_order)?;
         self.target_open = true;
         self.push(CompositeRecordingEventV1::TargetBegin {
-            target,
+            target: None,
             space: Some(BatchSpace::Scene),
             direct: true,
         })
@@ -776,7 +705,7 @@ impl DrawSinkV1 for RecordingSink {
             CompositeRecordingResourceV1::TextScopes,
             self.budget.max_text_scopes,
         )?;
-        let paint = self.copy_paint(paint)?;
+        let paint = paint.clone();
         self.text_operation_open = true;
         self.push(CompositeRecordingEventV1::TextOperationBegin { z, paint })
     }
@@ -817,7 +746,7 @@ impl DrawSinkV1 for RecordingSink {
         metadata: DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         self.require_paint_scope()?;
-        let paint = self.copy_paint(paint)?;
+        let paint = paint.clone();
         let paint_index = self.paint_index()?;
         self.push(CompositeRecordingEventV1::FillRect {
             origin: rect.origin,

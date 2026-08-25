@@ -274,7 +274,7 @@ impl PngSinkV1 {
                     .pixels()
                     .chunks_exact(usize::try_from(width).unwrap_or(0))
                 {
-                    for (target, pixel) in row.chunks_exact_mut(4).zip(pixels) {
+                    for (target, pixel) in row.as_chunks_mut::<4>().0.iter_mut().zip(pixels) {
                         let color = pixel.demultiply();
                         target.copy_from_slice(&[
                             color.red(),
@@ -304,7 +304,11 @@ impl DrawSinkV1 for PngSinkV1 {
     fn begin_page(&mut self, _: RenderViewportV1) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn begin_root(&mut self, _: u32, _: &str) -> Result<(), Self::Error> {
+    fn begin_root(
+        &mut self,
+        _: u32,
+        _: &ferrum_document_projection::DocumentObjectIdV1,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
     fn end_root(&mut self) -> Result<(), Self::Error> {
@@ -505,6 +509,12 @@ impl Write for BoundedWriter {
 mod tests {
     use super::*;
 
+    fn target(id: u8) -> crate::RenderTarget {
+        crate::RenderTarget::document_object(
+            ferrum_document_projection::DocumentObjectIdV1::from_entropy_bytes([id; 16]),
+        )
+    }
+
     fn empty_plan() -> DocumentRenderPlanV1 {
         DocumentRenderPlanV1::new(
             crate::RenderProvenance::new(crate::RenderRevision::new(1).expect("revision"), [0; 32]),
@@ -529,8 +539,8 @@ mod tests {
             RenderViewportV1::new(0.0, 0.0, 10.0, 10.0).expect("page"),
             vec![crate::DocumentRenderOutcomeV1::Root(
                 crate::DocumentRenderRootV1::new(
+                    target(0x01),
                     1,
-                    crate::DocumentRenderIdentityV1::projection_local("ellipse").expect("identity"),
                     crate::DocumentRenderContentV1::Vector(
                         crate::DocumentVectorRootV1::new(vec![ellipse]).expect("root"),
                     ),
@@ -554,9 +564,8 @@ mod tests {
             RenderViewportV1::new(0.0, 0.0, 10.0, 20.0).expect("page"),
             vec![crate::DocumentRenderOutcomeV1::Root(
                 crate::DocumentRenderRootV1::new(
+                    target(0x02),
                     1,
-                    crate::DocumentRenderIdentityV1::projection_local("offset-ellipse")
-                        .expect("identity"),
                     crate::DocumentRenderContentV1::Vector(
                         crate::DocumentVectorRootV1::new(vec![ellipse]).expect("root"),
                     ),

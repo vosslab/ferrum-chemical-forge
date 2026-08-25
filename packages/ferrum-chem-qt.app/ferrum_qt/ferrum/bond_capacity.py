@@ -18,7 +18,7 @@ import ferrum_qt.ferrum.molecule_inspection
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class _BondCapacityIntent:
-	"""One immutable source address set and its worker."""
+	"""One immutable durable molecule selection and its worker."""
 
 	tab: object
 	revision: int
@@ -128,8 +128,8 @@ def format_bond_capacity(result: object) -> str:
 	"""Format only Rust receipt facts; Qt performs no capacity arithmetic."""
 	lines = []
 	for index, record in enumerate(result.records):
-		name = record.authored_name if record.authored_name else "Molecule"
-		lines.extend((name, f"Source ID: {record.source_id}"))
+		name = record.authored_name or f"Molecule {record.document_paint_order + 1}"
+		lines.append(name)
 		if record.category == "not_checked":
 			lines.extend((
 				"Not checked",
@@ -139,20 +139,20 @@ def format_bond_capacity(result: object) -> str:
 		elif record.category == "within_capacity":
 			lines.append("No atom exceeds Ferrum's supported neutral bond-capacity table.")
 			for atom in record.atoms:
-				where = atom.source_id if atom.source_id else atom.element
+				where = atom.element
 				lines.append(f"{where}: {_authored_capacity_facts(atom)}.")
 		else:
 			lines.append("Bond-capacity finding")
 			for atom in record.atoms:
 				if atom.category == "exceeds_capacity":
-					where = atom.source_id if atom.source_id else atom.element
+					where = atom.element
 					lines.append(
 						f"{where}: demand {atom.demand}; supported capacity {atom.capacity}; "
 						f"{_authored_capacity_facts(atom)}.",
 					)
 			for atom in record.atoms:
 				if atom.category == "within_capacity":
-					where = atom.source_id if atom.source_id else atom.element
+					where = atom.element
 					lines.append(
 						f"{where}: demand {atom.demand}; supported capacity {atom.capacity}; "
 						f"{_authored_capacity_facts(atom)}.",
@@ -290,14 +290,23 @@ class FerrumNativeBondCapacityMixin:
 			or len(result.records) != len(intent.addresses)
 		):
 			return
-		for record, address in zip(result.records, intent.addresses, strict=True):
+		expected_molecule_ids = {address.molecule_id for address in intent.addresses}
+		if len(expected_molecule_ids) != len(intent.addresses):
+			return
+		seen_molecule_ids = set()
+		last_document_paint_order = -1
+		for record in result.records:
 			if (
-				record.molecule_id != address.molecule_id
-				or record.projection_key != address.projection_key
-				or record.source_id != address.source_id
-				or record.document_root_order != address.document_root_order
+				type(record.molecule_id) is not str
+				or record.molecule_id not in expected_molecule_ids
+				or record.molecule_id in seen_molecule_ids
+				or type(record.document_paint_order) is not int
+				or record.document_paint_order < 0
+				or record.document_paint_order <= last_document_paint_order
 			):
 				return
+			seen_molecule_ids.add(record.molecule_id)
+			last_document_paint_order = record.document_paint_order
 		FerrumNativeBondCapacityDialog(result, self).exec()
 
 	#============================================

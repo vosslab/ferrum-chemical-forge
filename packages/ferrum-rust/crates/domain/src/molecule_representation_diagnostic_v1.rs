@@ -73,8 +73,8 @@ fn zero_order_bond_finding(
     )
 }
 
-fn source_identifier(identifier: Option<&ferrum_core::Identifier>) -> Option<String> {
-    identifier.map(|value| value.as_str().to_owned())
+fn source_identifier(identifier: &ferrum_core::Identifier) -> Option<String> {
+    Some(identifier.as_str().to_owned())
 }
 
 #[cfg(test)]
@@ -87,10 +87,9 @@ mod molecule_representation_diagnostic_v1_tests {
 
     fn atom(identifier: &str, x: f64) -> Atom {
         Atom::new(
-            Some(Identifier::new(identifier).expect("identifier")),
+            Identifier::new(identifier).expect("identifier"),
             Some("C".to_owned()),
             Position::new(x, 0.0, 0.0).expect("position"),
-            None,
             None,
             None,
             None,
@@ -101,30 +100,23 @@ mod molecule_representation_diagnostic_v1_tests {
         .expect("atom")
     }
 
-    fn vertex(kind: RecordKind, source_identifier: Option<&str>) -> NonAtomVertex {
+    fn vertex(kind: RecordKind, source_identifier: &str) -> NonAtomVertex {
         NonAtomVertex::new(
             kind,
-            source_identifier.map(|value| Identifier::new(value).expect("identifier")),
-            source_identifier.is_none().then_some(0),
+            Identifier::new(source_identifier).expect("identifier"),
         )
         .expect("vertex")
     }
 
-    fn bond(
-        source_identifier: Option<&str>,
-        start: &Atom,
-        end: &Atom,
-        order: Option<BondOrder>,
-    ) -> Bond {
+    fn bond(source_identifier: &str, start: &Atom, end: &Atom, order: Option<BondOrder>) -> Bond {
         Bond::new(
-            source_identifier.map(|value| Identifier::new(value).expect("identifier")),
+            Identifier::new(source_identifier).expect("identifier"),
             VertexRef::Atom(start.identity().clone()),
             VertexRef::Atom(end.identity().clone()),
             None,
             order,
             None,
             Some(false),
-            source_identifier.is_none().then_some(0),
         )
         .expect("bond")
     }
@@ -136,14 +128,13 @@ mod molecule_representation_diagnostic_v1_tests {
         bonds: Vec<Bond>,
     ) -> Molecule {
         Molecule::new(
-            Some(Identifier::new("molecule").expect("identifier")),
+            Identifier::new("molecule").expect("identifier"),
             None,
             atoms,
             groups,
             texts,
             Vec::new(),
             bonds,
-            None,
         )
         .expect("molecule")
     }
@@ -153,12 +144,12 @@ mod molecule_representation_diagnostic_v1_tests {
         let molecule = molecule(
             Vec::new(),
             vec![
-                vertex(RecordKind::Group, Some("group-second")),
-                vertex(RecordKind::Group, Some("group-first")),
+                vertex(RecordKind::Group, "group-second"),
+                vertex(RecordKind::Group, "group-first"),
             ],
             vec![
-                vertex(RecordKind::Text, Some("text-second")),
-                vertex(RecordKind::Text, Some("text-first")),
+                vertex(RecordKind::Text, "text-second"),
+                vertex(RecordKind::Text, "text-first"),
             ],
             Vec::new(),
         );
@@ -208,14 +199,9 @@ mod molecule_representation_diagnostic_v1_tests {
             Vec::new(),
             Vec::new(),
             vec![
-                bond(None, &left, &right, None),
-                bond(
-                    Some("zero-second"),
-                    &left,
-                    &right,
-                    Some(BondOrder::Other(0)),
-                ),
-                bond(Some("single"), &left, &right, Some(BondOrder::Single)),
+                bond("unspecified", &left, &right, None),
+                bond("zero-second", &left, &right, Some(BondOrder::Other(0))),
+                bond("single", &left, &right, Some(BondOrder::Single)),
             ],
         );
 
@@ -242,7 +228,7 @@ mod molecule_representation_diagnostic_v1_tests {
             vec![left.clone(), right.clone()],
             Vec::new(),
             Vec::new(),
-            vec![bond(Some("single"), &left, &right, Some(BondOrder::Single))],
+            vec![bond("single", &left, &right, Some(BondOrder::Single))],
         );
         let original = molecule.clone();
 
@@ -255,14 +241,14 @@ mod molecule_representation_diagnostic_v1_tests {
     }
 
     #[test]
-    fn reports_idless_subjects_without_derived_debug_identity() {
+    fn reports_required_source_identifiers() {
         let left = atom("left", 0.0);
         let right = atom("right", 1.0);
         let molecule = molecule(
             vec![left.clone(), right.clone()],
-            vec![vertex(RecordKind::Group, None)],
-            vec![vertex(RecordKind::Text, None)],
-            vec![bond(None, &left, &right, Some(BondOrder::Other(0)))],
+            vec![vertex(RecordKind::Group, "group")],
+            vec![vertex(RecordKind::Text, "text")],
+            vec![bond("zero", &left, &right, Some(BondOrder::Other(0)))],
         );
 
         let findings = diagnose_molecule_representation_v1(&molecule).expect("findings");
@@ -274,13 +260,13 @@ mod molecule_representation_diagnostic_v1_tests {
             observed,
             vec![
                 MoleculeDiagnosticLocationV1::Vertex {
-                    source_identifier: None,
+                    source_identifier: Some("text".to_owned()),
                 },
                 MoleculeDiagnosticLocationV1::Vertex {
-                    source_identifier: None,
+                    source_identifier: Some("group".to_owned()),
                 },
                 MoleculeDiagnosticLocationV1::Bond {
-                    source_identifier: None,
+                    source_identifier: Some("zero".to_owned()),
                 },
             ]
         );

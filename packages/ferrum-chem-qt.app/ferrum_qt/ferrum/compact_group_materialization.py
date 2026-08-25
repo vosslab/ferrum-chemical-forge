@@ -21,7 +21,7 @@ _AVAILABILITY_SCHEMA = "ferrum-live-document-compact-group-materialization-avail
 _REFUSAL_RECOVERY = {
 	"stale_document_fence": "Refresh the selected compact group and try again.",
 	"unknown_or_foreign_target": "Refresh and select a current compact group.",
-	"ineligible_target": "Select an eligible attached compact group.",
+	"ineligible_target": "Select an eligible compact group.",
 	"renderer_preparation_refused": "Refresh the document, then try again.",
 	"session_conflict_or_replayed_preparation": "Refresh and restart materialization.",
 }
@@ -156,7 +156,7 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 			"Materialize the selected compact group with Ferrum Rust.",
 		))
 		action.setWhatsThis(self.tr(
-			"Replace one selected attached compact group with ordinary atoms and bonds. "
+			"Replace one selected compact group with its ordinary-atom representation. "
 			"Ferrum Rust validates chemistry, identifiers, geometry, and rendering.",
 		))
 		action.triggered.connect(self._materialize_selected_compact_group)

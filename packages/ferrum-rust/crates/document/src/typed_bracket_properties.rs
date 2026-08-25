@@ -2,9 +2,11 @@
 
 use xot::{Node, Xot};
 
+use ferrum_document_projection::DocumentObjectIdV1;
+
 use super::{
-    BracketPropertiesPatchV1, BracketPropertyChangeV1, CDML_NAMESPACE, PersistentId, TypedClass,
-    TypedDocument, TypedDocumentError, element_name,
+    BracketPropertiesPatchV1, BracketPropertyChangeV1, CDML_NAMESPACE, TypedClass, TypedDocument,
+    TypedDocumentError, element_name,
 };
 
 impl TypedDocument {
@@ -13,22 +15,15 @@ impl TypedDocument {
         &self,
         patch: &BracketPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let has_marker = self.root().typed_children().iter().any(|child| {
-            child.record().class() == TypedClass::Polyline
-                && child.record().attribute("bracket_pair") == Some(patch.pair_id().as_str())
-        });
-        if !has_marker {
-            return Ok(None);
-        }
         let pair = super::bracket_pair_projection_v1::bracket_pairs(self)
             .into_iter()
-            .find(|pair| pair.pair_id() == patch.pair_id().as_str())
-            .ok_or_else(|| TypedDocumentError::InvalidBracketPair(patch.pair_id().clone()))?;
+            .find(|pair| pair.members() == patch.members())
+            .ok_or_else(|| TypedDocumentError::InvalidBracketPair(patch.members().clone()))?;
         validate_pair_geometry(self, &pair)?;
 
         let mut candidate = self.detached_candidate()?;
         let indexed = candidate.detached_indexed_mut();
-        for identifier in pair.member_ids() {
+        for identifier in pair.members() {
             let element = direct_polyline(&mut indexed.xml.tree, indexed.xml.document, identifier)
                 .expect("the detached candidate preserves the validated bracket member");
             apply_changes(&mut indexed.xml.tree, element, patch.changes(), &pair);
@@ -42,7 +37,7 @@ fn validate_pair_geometry(
     document: &TypedDocument,
     pair: &super::BracketPairProjectionV1,
 ) -> Result<(), TypedDocumentError> {
-    for identifier in pair.member_ids() {
+    for identifier in pair.members() {
         let record = document
             .root()
             .typed_children()
@@ -50,29 +45,37 @@ fn validate_pair_geometry(
             .map(super::TypedChild::record)
             .find(|record| {
                 record.class() == TypedClass::Polyline
-                    && record.attribute("id") == Some(identifier.as_str())
+                    && crate::document_object_id_from_record_v1(record).as_ref() == Some(identifier)
             })
-            .ok_or_else(|| TypedDocumentError::InvalidBracketPair(pair_id(pair)))?;
+            .ok_or_else(|| TypedDocumentError::InvalidBracketPair(pair.members().clone()))?;
         if !super::bracket_pair_projection_v1::valid_bracket_member(record) {
-            return Err(TypedDocumentError::InvalidBracketPair(pair_id(pair)));
+            return Err(TypedDocumentError::InvalidBracketPair(
+                pair.members().clone(),
+            ));
         }
     }
     Ok(())
 }
 
-fn pair_id(pair: &super::BracketPairProjectionV1) -> PersistentId {
-    PersistentId::new(pair.pair_id().to_owned()).expect("a projected pair ID is valid")
-}
-
-fn direct_polyline(tree: &mut Xot, document: Node, identifier: &str) -> Option<Node> {
-    let id_name = tree.add_name("id");
+fn direct_polyline(
+    tree: &mut Xot,
+    document: Node,
+    identifier: &DocumentObjectIdV1,
+) -> Option<Node> {
+    let id_name = document_object_id_name(tree);
     let root = tree
         .document_element(document)
         .expect("a parsed CDML document has a document element");
     tree.children(root).find(|node| {
         is_cdml_element(tree, *node, "polyline")
-            && tree.get_attribute(*node, id_name) == Some(identifier)
+            && tree.get_attribute(*node, id_name) == Some(identifier.as_str())
     })
+}
+
+fn document_object_id_name(tree: &mut Xot) -> xot::NameId {
+    let namespace =
+        tree.add_namespace(super::document_object_identity_v1::DOCUMENT_OBJECT_NAMESPACE_V1);
+    tree.add_name_ns("id", namespace)
 }
 
 fn apply_changes(

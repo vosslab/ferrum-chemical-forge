@@ -48,7 +48,8 @@ impl DocumentSession {
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
         let (candidate, molecule, atoms, bonds, effects) = match request {
-            CreateHaworthMoleculeV1::DirectGlycosidic { receipt, anchor } => {
+            CreateHaworthMoleculeV1::DirectGlycosidic(payload) => {
+                let (receipt, anchor) = payload.into_parts();
                 let insertion = DirectHaworthInsertionV1::from_receipt(&receipt, anchor)
                     .map_err(DocumentSessionError::Operation)?;
                 let (identities, effects) =
@@ -125,38 +126,31 @@ impl DocumentSession {
         let revision = self
             .next_revision_v1()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
+        let overlay_targets = overlay_targets_from_document(&candidate, &atoms, &bonds)?;
         let state = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
         let mut transition = self
             .prepare_changed_session_transition_with_authorized_molecule_insertion_outcome_v1(
-                expected_revision,
-                self.current_digest_v1(),
-                state,
-                effects,
+                super::admitted_transition_v1::ChangedSessionTransitionRequestV1::new(
+                    expected_revision,
+                    self.current_digest_v1(),
+                    state,
+                    effects,
+                ),
                 molecule,
                 atoms.clone(),
                 bonds.clone(),
                 authorization_claim,
             )?;
-        install_haworth_overlay(&mut transition, &atoms, &bonds)?;
+        install_haworth_overlay(&mut transition, overlay_targets)?;
         Ok(transition)
     }
 }
 
 fn install_haworth_overlay(
     transition: &mut PreparedSessionTransitionV1,
-    atoms: &[PersistentId],
-    bonds: &[PersistentId],
+    targets: Vec<ferrum_render::AcceptedRenderOverlayTargetV1>,
 ) -> Result<(), DocumentSessionError> {
-    let targets = atoms
-        .iter()
-        .map(|atom| ferrum_render::AcceptedRenderOverlayTargetV1::atom(atom.as_str()))
-        .chain(
-            bonds
-                .iter()
-                .map(|bond| ferrum_render::AcceptedRenderOverlayTargetV1::bond(bond.as_str())),
-        )
-        .collect::<Vec<_>>();
     let request = ferrum_render::AcceptedRenderOverlayRequestV1::new(targets)
         .map_err(|_| DocumentSessionError::RendererAdmission)?;
     let overlay = transition
@@ -165,4 +159,27 @@ fn install_haworth_overlay(
     transition
         .install_precommit_overlay_v1(overlay)
         .map_err(|_| DocumentSessionError::RendererAdmission)
+}
+
+fn overlay_targets_from_document(
+    document: &TypedDocument,
+    atoms: &[PersistentId],
+    bonds: &[PersistentId],
+) -> Result<Vec<ferrum_render::AcceptedRenderOverlayTargetV1>, DocumentSessionError> {
+    let targets = atoms
+        .iter()
+        .map(|atom| {
+            document
+                .document_object_id_for_source_id_v1(atom)
+                .map(ferrum_render::AcceptedRenderOverlayTargetV1::atom)
+                .ok_or(DocumentSessionError::RendererAdmission)
+        })
+        .chain(bonds.iter().map(|bond| {
+            document
+                .document_object_id_for_source_id_v1(bond)
+                .map(ferrum_render::AcceptedRenderOverlayTargetV1::bond)
+                .ok_or(DocumentSessionError::RendererAdmission)
+        }))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(targets)
 }

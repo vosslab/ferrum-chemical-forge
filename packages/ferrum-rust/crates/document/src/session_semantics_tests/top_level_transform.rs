@@ -1,6 +1,6 @@
 use crate::{
-    DocumentSession, DocumentSessionError, PresentationRootProjectionV1, SessionOperation,
-    SessionOperationError, SessionOperationV1, TopLevelRootKindV1,
+    DocumentObjectIdV1, DocumentSession, DocumentSessionError, PresentationRootProjectionV1,
+    SessionOperation, SessionOperationError, SessionOperationV1, TopLevelRootKindV1,
     TopLevelRootLayoutTransformModeV1, TopLevelRootLayoutTransformV1, TopLevelRootSelectorV1,
     TopLevelRootTranslationV1, TopLevelTransformModeV1, TopLevelTransformV1,
     TopLevelTransformV1Error, TransitionAuthorizationV1, TypedDocumentError,
@@ -20,8 +20,57 @@ fn assert_authored_close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() <= AUTHORED_HALF_UNIT_POINTS);
 }
 
-fn selector(id: &str, kind: TopLevelRootKindV1) -> TopLevelRootSelectorV1 {
-    TopLevelRootSelectorV1::new(id, kind).expect("fixture selector")
+fn selector(
+    document_object_id: DocumentObjectIdV1,
+    kind: TopLevelRootKindV1,
+) -> TopLevelRootSelectorV1 {
+    TopLevelRootSelectorV1::new(document_object_id, kind)
+}
+
+fn molecule_selector(session: &DocumentSession, index: usize) -> TopLevelRootSelectorV1 {
+    let revision = session.snapshot().expect("fixture snapshot").revision();
+    let document_object_id = session
+        .observe(revision)
+        .expect("fixture observation")
+        .projection()
+        .molecules()[index]
+        .id()
+        .expect("fixture molecule is durable")
+        .clone();
+    selector(document_object_id, TopLevelRootKindV1::Molecule)
+}
+
+fn presentation_selector(
+    session: &DocumentSession,
+    index: usize,
+    kind: TopLevelRootKindV1,
+) -> TopLevelRootSelectorV1 {
+    let revision = session.snapshot().expect("fixture snapshot").revision();
+    let document_object_id = session
+        .observe(revision)
+        .expect("fixture observation")
+        .projection()
+        .presentation_stack()
+        .entries()[index]
+        .root()
+        .target()
+        .document_object_id()
+        .clone();
+    selector(document_object_id, kind)
+}
+
+fn mixed_targets(session: &DocumentSession) -> Vec<TopLevelRootSelectorV1> {
+    vec![
+        molecule_selector(session, 0),
+        presentation_selector(session, 0, TopLevelRootKindV1::Plus),
+    ]
+}
+
+fn opaque_selector(entropy_byte: u8, kind: TopLevelRootKindV1) -> TopLevelRootSelectorV1 {
+    selector(
+        DocumentObjectIdV1::from_entropy_bytes([entropy_byte; 16]),
+        kind,
+    )
 }
 
 fn operation(
@@ -99,12 +148,7 @@ fn submit_translation(
 #[test]
 fn direct_layouts_use_explicit_none_and_refuse_authoring_capabilities_before_mutation() {
     let mut session = DocumentSession::load(MIXED_SOURCE).expect("fixture loads");
-    let targets = || {
-        vec![
-            selector("m", TopLevelRootKindV1::Molecule),
-            selector("p", TopLevelRootKindV1::Plus),
-        ]
-    };
+    let targets = mixed_targets(&session);
     let before = session.snapshot().expect("snapshot");
     let capability = session.issue_authoring_capability_v1();
     assert!(matches!(
@@ -112,7 +156,7 @@ fn direct_layouts_use_explicit_none_and_refuse_authoring_capabilities_before_mut
             crate::SessionOperationTransitionRequestV1::new(
                 before.revision(),
                 layout_operation(
-                    targets(),
+                    targets.clone(),
                     TopLevelRootLayoutTransformModeV1::Scale {
                         scale_x: 2.0,
                         scale_y: 1.0,
@@ -129,17 +173,17 @@ fn direct_layouts_use_explicit_none_and_refuse_authoring_capabilities_before_mut
 
     for operation in [
         layout_operation(
-            targets(),
+            targets.clone(),
             TopLevelRootLayoutTransformModeV1::Scale {
                 scale_x: 2.0,
                 scale_y: 1.0,
             },
         ),
         layout_operation(
-            targets(),
+            targets.clone(),
             TopLevelRootLayoutTransformModeV1::MirrorHorizontal,
         ),
-        layout_operation(targets(), TopLevelRootLayoutTransformModeV1::AlignTop),
+        layout_operation(targets.clone(), TopLevelRootLayoutTransformModeV1::AlignTop),
     ] {
         let revision = session.snapshot().expect("current snapshot").revision();
         let mut prepared = session
@@ -162,8 +206,7 @@ fn direct_layouts_use_explicit_none_and_refuse_authoring_capabilities_before_mut
             crate::SessionOperationTransitionRequestV1::new(
                 3,
                 SessionOperation::V1(SessionOperationV1::TranslateTopLevelRootsV1(
-                    TopLevelRootTranslationV1::new(targets(), 1.0, 0.0)
-                        .expect("translation request"),
+                    TopLevelRootTranslationV1::new(targets, 1.0, 0.0).expect("translation request"),
                 )),
                 TransitionAuthorizationV1::None,
             )
@@ -184,20 +227,13 @@ fn direct_layouts_use_explicit_none_and_refuse_authoring_capabilities_before_mut
 #[test]
 fn rigid_translation_moves_molecule_and_presentation_and_history_restores_geometry() {
     let mut session = DocumentSession::load(MIXED_SOURCE).expect("fixture loads");
-    let result = submit_translation(
-        &mut session,
-        0,
-        vec![
-            selector("m", TopLevelRootKindV1::Molecule),
-            selector("p", TopLevelRootKindV1::Plus),
-        ],
-        3.0,
-        -1.0,
-    );
+    let targets = mixed_targets(&session);
+    let result = submit_translation(&mut session, 0, targets, 3.0, -1.0);
     let projection = result.observation().projection();
     assert_authored_close(projection.molecules()[0].atoms()[0].position().x(), 4.0);
     assert_authored_close(projection.molecules()[0].atoms()[0].position().y(), 1.0);
-    let PresentationRootProjectionV1::Plus { plus } = &projection.presentation_stack().roots()[0]
+    let PresentationRootProjectionV1::Plus { plus } =
+        projection.presentation_stack().entries()[0].root()
     else {
         panic!("fixture plus remains projected");
     };
@@ -229,7 +265,8 @@ fn rigid_translation_moves_molecule_and_presentation_and_history_restores_geomet
         .observation()
         .projection()
         .presentation_stack()
-        .roots()[0]
+        .entries()[0]
+        .root()
     else {
         panic!("fixture plus remains projected after undo");
     };
@@ -241,10 +278,7 @@ fn renderer_snap_delta_is_canonical_and_rigid_across_mixed_roots() {
     let mut session = DocumentSession::load(MIXED_SOURCE).expect("fixture loads");
     let grid = HexGrid::new(40.0, Point2::new(0.0, 0.0).expect("finite grid origin"))
         .expect("finite grid");
-    let targets = vec![
-        selector("m", TopLevelRootKindV1::Molecule),
-        selector("p", TopLevelRootKindV1::Plus),
-    ];
+    let targets = mixed_targets(&session);
     let forward = session
         .snap_top_level_translation_for_renderer_v1(0, targets.clone(), 3.0, -1.0, grid)
         .expect("mixed roots have a snapped delta");
@@ -252,8 +286,8 @@ fn renderer_snap_delta_is_canonical_and_rigid_across_mixed_roots() {
         .snap_top_level_translation_for_renderer_v1(
             0,
             vec![
-                selector("p", TopLevelRootKindV1::Plus),
-                selector("m", TopLevelRootKindV1::Molecule),
+                presentation_selector(&session, 0, TopLevelRootKindV1::Plus),
+                molecule_selector(&session, 0),
             ],
             3.0,
             -1.0,
@@ -266,7 +300,8 @@ fn renderer_snap_delta_is_canonical_and_rigid_across_mixed_roots() {
     let changed = submit_translation(&mut session, 0, targets, forward.dx(), forward.dy());
     let projection = changed.observation().projection();
     let atom = projection.molecules()[0].atoms()[0].position();
-    let PresentationRootProjectionV1::Plus { plus } = &projection.presentation_stack().roots()[0]
+    let PresentationRootProjectionV1::Plus { plus } =
+        projection.presentation_stack().entries()[0].root()
     else {
         panic!("fixture plus remains projected");
     };
@@ -293,8 +328,8 @@ fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
             0,
             operation(
                 vec![
-                    selector("a", TopLevelRootKindV1::Plus),
-                    selector("b", TopLevelRootKindV1::Plus),
+                    presentation_selector(&session, 0, TopLevelRootKindV1::Plus),
+                    presentation_selector(&session, 1, TopLevelRootKindV1::Plus),
                 ],
                 TopLevelTransformModeV1::AlignLeft,
             ),
@@ -304,9 +339,9 @@ fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
         .observation()
         .projection()
         .presentation_stack()
-        .roots()
+        .entries()
         .iter()
-        .map(|root| match root {
+        .map(|entry| match entry.root() {
             PresentationRootProjectionV1::Plus { plus } => plus.anchor(),
             _ => panic!("fixture contains only plus roots"),
         })
@@ -314,13 +349,8 @@ fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
     assert_authored_close(anchors[0].x(), 2.0);
     assert_authored_close(anchors[1].x(), 2.0);
 
-    let unchanged = submit_translation(
-        &mut session,
-        1,
-        vec![selector("a", TopLevelRootKindV1::Plus)],
-        0.0,
-        0.0,
-    );
+    let target = presentation_selector(&session, 0, TopLevelRootKindV1::Plus);
+    let unchanged = submit_translation(&mut session, 1, vec![target], 0.0, 0.0);
     assert_eq!(unchanged.observation().snapshot().revision(), 1);
 }
 
@@ -342,10 +372,7 @@ fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
         .apply_document_operation_v1(
             0,
             operation(
-                vec![
-                    selector("m", TopLevelRootKindV1::Molecule),
-                    selector("p", TopLevelRootKindV1::Plus),
-                ],
+                mixed_targets(&session),
                 TopLevelTransformModeV1::Scale {
                     scale_x: 2.0,
                     scale_y: 1.0,
@@ -356,7 +383,8 @@ fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
     let projection = scaled.observation().projection();
     assert_authored_close(projection.molecules()[0].atoms()[0].position().x(), -10.0);
     assert_authored_close(projection.molecules()[0].atoms()[1].position().x(), 10.0);
-    let PresentationRootProjectionV1::Plus { plus } = &projection.presentation_stack().roots()[0]
+    let PresentationRootProjectionV1::Plus { plus } =
+        projection.presentation_stack().entries()[0].root()
     else {
         panic!("plus remains projected");
     };
@@ -370,7 +398,7 @@ fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
         .apply_document_operation_v1(
             1,
             operation(
-                vec![selector("m", TopLevelRootKindV1::Molecule)],
+                vec![molecule_selector(&session, 0)],
                 TopLevelTransformModeV1::Scale {
                     scale_x: 1.0,
                     scale_y: 1.0,
@@ -392,15 +420,14 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
         "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>",
         "</molecule><plus id=\"p\"><point x=\"20\" y=\"15\"/></plus></cdml>",
     );
-    let targets = vec![
-        selector("m", TopLevelRootKindV1::Molecule),
-        selector("p", TopLevelRootKindV1::Plus),
-    ];
     let mut horizontal = DocumentSession::load(source).expect("fixture loads");
     let mirrored = horizontal
         .apply_document_operation_v1(
             0,
-            operation(targets.clone(), TopLevelTransformModeV1::MirrorHorizontal),
+            operation(
+                mixed_targets(&horizontal),
+                TopLevelTransformModeV1::MirrorHorizontal,
+            ),
         )
         .expect("horizontal mirror succeeds");
     assert_authored_close(
@@ -421,7 +448,10 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
     let mirrored = vertical
         .apply_document_operation_v1(
             0,
-            operation(targets, TopLevelTransformModeV1::MirrorVertical),
+            operation(
+                mixed_targets(&vertical),
+                TopLevelTransformModeV1::MirrorVertical,
+            ),
         )
         .expect("vertical mirror succeeds");
     assert_authored_close(
@@ -431,7 +461,7 @@ fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
         20.0,
     );
     assert!(
-        !mirrored
+        mirrored
             .observation()
             .snapshot()
             .cdml()
@@ -453,8 +483,8 @@ fn malformed_later_root_rejects_the_whole_transform() {
             0,
             operation(
                 vec![
-                    selector("good", TopLevelRootKindV1::Plus),
-                    selector("bad", TopLevelRootKindV1::Text),
+                    presentation_selector(&session, 0, TopLevelRootKindV1::Plus),
+                    presentation_selector(&session, 1, TopLevelRootKindV1::Text),
                 ],
                 TopLevelTransformModeV1::AlignTop,
             ),
@@ -488,7 +518,11 @@ fn renderer_snap_refuses_partial_brackets_without_changing_the_source() {
     let error = session
         .snap_top_level_translation_for_renderer_v1(
             0,
-            vec![selector("left", TopLevelRootKindV1::Polyline)],
+            vec![presentation_selector(
+                &session,
+                0,
+                TopLevelRootKindV1::Polyline,
+            )],
             1.0,
             0.0,
             grid,
@@ -509,7 +543,7 @@ fn renderer_snap_refuses_partial_brackets_without_changing_the_source() {
 
 #[test]
 fn transform_grammar_rejects_unbounded_or_ambiguous_intent() {
-    let one = vec![selector("a", TopLevelRootKindV1::Plus)];
+    let one = vec![opaque_selector(1, TopLevelRootKindV1::Plus)];
     assert_eq!(
         TopLevelTransformV1::new(one.clone(), TopLevelTransformModeV1::AlignLeft),
         Err(TopLevelTransformV1Error::AlignmentNeedsTwoTargets)
@@ -533,7 +567,7 @@ fn transform_grammar_rejects_unbounded_or_ambiguous_intent() {
     );
     assert_eq!(
         TopLevelTransformV1::new(
-            vec![selector("a", TopLevelRootKindV1::Plus)],
+            vec![opaque_selector(2, TopLevelRootKindV1::Plus)],
             TopLevelTransformModeV1::Scale {
                 scale_x: 0.0,
                 scale_y: 1.0,

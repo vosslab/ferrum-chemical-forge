@@ -115,9 +115,6 @@ pub enum DocumentUserTemplateErrorV1 {
     /// A finite centroid could not be represented after bounded aggregation.
     #[error("user template atom centroid is not representable")]
     CentroidUnrepresentable,
-    /// A private source-local identity could not be allocated for a missing declaration.
-    #[error("user template source identity allocation is exhausted")]
-    SourceIdentityExhausted,
     /// The retained tree refused a structural edit while isolating the molecule.
     #[error("user template molecule isolation failed: {0}")]
     Mutation(#[source] xot::Error),
@@ -153,8 +150,7 @@ pub fn prepare_document_user_template_v1(
     reject_legacy_template_marker(molecule)?;
     reject_nested_mark_geometry(molecule)?;
 
-    let mut molecule_document = isolate_molecule(document)?;
-    materialize_missing_declaration_ids(&mut molecule_document)?;
+    let molecule_document = isolate_molecule(document)?;
     let molecule = molecule_document
         .root()
         .children_of(TypedClass::Molecule)
@@ -269,54 +265,6 @@ fn isolate_molecule(
         }
     }
     TypedDocument::parse(&document.to_xml()?).map_err(Into::into)
-}
-
-fn materialize_missing_declaration_ids(
-    document: &mut TypedDocument,
-) -> Result<(), DocumentUserTemplateErrorV1> {
-    let retained_source = document.to_xml()?;
-    let indexed = document.detached_indexed_mut();
-    let root = indexed
-        .xml
-        .tree
-        .document_element(indexed.xml.document)
-        .map_err(DocumentUserTemplateErrorV1::Mutation)?;
-    let molecule = indexed
-        .xml
-        .tree
-        .children(root)
-        .find(|node| is_core_element(&indexed.xml.tree, *node, "molecule"))
-        .ok_or(DocumentUserTemplateErrorV1::MoleculeCardinality)?;
-    let mut declarations = vec![molecule];
-    declarations.extend(indexed.xml.tree.children(molecule).filter(|node| {
-        ["atom", "group", "text", "query", "bond", "fragment"]
-            .iter()
-            .any(|name| is_core_element(&indexed.xml.tree, *node, name))
-    }));
-    let id_name = indexed.xml.tree.add_name("id");
-    let mut serial = 0_u64;
-    for node in declarations {
-        if indexed.xml.tree.get_attribute(node, id_name).is_some() {
-            continue;
-        }
-        let identifier = loop {
-            let candidate = format!("ferrum-template-source-v1-{serial}");
-            serial = serial
-                .checked_add(1)
-                .ok_or(DocumentUserTemplateErrorV1::SourceIdentityExhausted)?;
-            if !retained_source.contains(&candidate) {
-                break candidate;
-            }
-        };
-        indexed.xml.tree.set_attribute(node, id_name, identifier);
-    }
-    *document = TypedDocument::parse(&document.to_xml()?)?;
-    Ok(())
-}
-
-fn is_core_element(tree: &xot::Xot, node: xot::Node, expected_name: &str) -> bool {
-    element_name(tree, node)
-        .is_some_and(|(name, namespace)| name == expected_name && (namespace == CDML_NAMESPACE))
 }
 
 fn validate_internal_references(molecule: &TypedRecord) -> Result<(), DocumentUserTemplateErrorV1> {
@@ -437,10 +385,11 @@ fn validate_complete_geometry(
     document: &TypedDocument,
     molecule: &TypedRecord,
 ) -> Result<(), DocumentUserTemplateErrorV1> {
-    let root_id = molecule
-        .attribute("id")
-        .ok_or(DocumentUserTemplateErrorV1::SourceIdentityExhausted)?;
-    let selector = TopLevelRootSelectorV1::new(root_id, TopLevelRootKindV1::Molecule)?;
+    let selector = TopLevelRootSelectorV1::new(
+        crate::document_object_id_from_record_v1(molecule)
+            .ok_or(DocumentUserTemplateErrorV1::MoleculeCardinality)?,
+        TopLevelRootKindV1::Molecule,
+    );
     let request = TopLevelTransformV1::new(
         vec![selector],
         TopLevelTransformModeV1::Translate { dx: 0.0, dy: 0.0 },

@@ -1,11 +1,14 @@
 use std::io::{Read, Write};
 
-use crate::cli::protocol::{run_protocol, write_protocol_schema};
+use crate::cli::protocol::{run_named_document_protocol, run_protocol, write_protocol_schema};
 use crate::cli::verbs::{
     convert, coords, document_export_sdf, haworth, inspect, open, render, rewrite, validate,
 };
 use crate::interchange_import_v1::{InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1};
 use crate::transport::errors::CliError;
+
+#[cfg(test)]
+use crate::cli::commands::NamedDocumentCommand;
 
 pub(crate) mod commands;
 pub(crate) mod engine_bundle;
@@ -15,8 +18,7 @@ pub(crate) mod verbs;
 pub use commands::Cli;
 pub(crate) use commands::{
     ArtifactOutputFormat, Command, DocumentCommand, InterchangeFormat, InterchangeInputFormat,
-    NamedDocumentCommand, ProtocolCommand, SdfVersion, ValidationLevel,
-    interchange_input_format_from_descriptor,
+    ProtocolCommand, SdfVersion, ValidationLevel, interchange_input_format_from_descriptor,
 };
 
 /// Execute accepted CLI arguments with caller-owned standard streams.
@@ -149,35 +151,17 @@ pub fn run(
                 stdout,
                 stderr,
             )?),
-            DocumentCommand::Command { command } => match command {
-                NamedDocumentCommand::CatalogList { input, output }
-                | NamedDocumentCommand::CatalogInsert { input, output }
-                | NamedDocumentCommand::PresentationAuthor { input, output }
-                | NamedDocumentCommand::DocumentCompactGroupMaterialize { input, output }
-                | NamedDocumentCommand::DocumentMoleculeSmartsQuery { input, output }
-                | NamedDocumentCommand::DocumentMoleculeInterchangeImport { input, output } => Ok(
-                    run_protocol(&input, output.as_deref(), stdin, stdout, stderr)?,
-                ),
-                NamedDocumentCommand::ReactionCreate { input, output } => Ok(run_protocol(
+            DocumentCommand::Command { command } => {
+                let (expected_operation, input, output) = command.into_protocol_request();
+                Ok(run_named_document_protocol(
+                    expected_operation,
                     &input,
                     output.as_deref(),
                     stdin,
                     stdout,
                     stderr,
-                )?),
-                NamedDocumentCommand::ReactionList { input, output }
-                | NamedDocumentCommand::ReactionObserve { input, output }
-                | NamedDocumentCommand::ReactionSelect { input, output }
-                | NamedDocumentCommand::ReactionPatchMembership { input, output }
-                | NamedDocumentCommand::ReactionDeleteDefinition { input, output }
-                | NamedDocumentCommand::ReactionTranslate { input, output } => Ok(run_protocol(
-                    &input,
-                    output.as_deref(),
-                    stdin,
-                    stdout,
-                    stderr,
-                )?),
-            },
+                )?)
+            }
         },
     }
 }
@@ -298,7 +282,7 @@ mod tests {
 
     use super::{Cli, interchange_open_descriptor_for_input, run};
 
-    const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
+    const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:f=\"urn:ferrum:document-object:v1\"><molecule id=\"m\" f:id=\"ferrum-document-object-v1/00112233445566778899aabbccddeeff\"><atom id=\"a\" name=\"C\" f:id=\"ferrum-document-object-v1/ffeeddccbbaa99887766554433221100\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
     const CML2: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0"/><atom id="a2" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="1"/></bondArray></molecule></cml>"#;
 
     #[test]
@@ -337,6 +321,34 @@ mod tests {
         let mut stderr = Vec::new();
         run(cli, &mut stdin, &mut stdout, &mut stderr).expect("verb should complete");
         (stdout, stderr)
+    }
+
+    struct SmartsRequestDocument {
+        cdml: String,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        selected_molecule_id: String,
+    }
+
+    fn smarts_request_document() -> SmartsRequestDocument {
+        let session = ferrum_document::DocumentSession::load(CDML).expect("fixture loads");
+        let observation = session.observe(0).expect("fixture observes");
+        let selected_molecule_id = observation.projection().molecules()[0]
+            .id()
+            .expect("fixture molecule has a durable identity")
+            .as_str()
+            .to_owned();
+        let snapshot = observation.snapshot();
+        SmartsRequestDocument {
+            cdml: snapshot.cdml().to_owned(),
+            expected_revision: snapshot.revision(),
+            expected_digest_hex: snapshot
+                .digest()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+            selected_molecule_id,
+        }
     }
 
     #[test]
@@ -489,19 +501,13 @@ mod tests {
 
     #[test]
     fn named_smarts_query_command_routes_one_complete_protocol_envelope() {
-        let session = ferrum_document::DocumentSession::load(CDML).expect("fixture loads");
-        let snapshot = session.snapshot().expect("fixture snapshots");
-        let digest = snapshot
-            .digest()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let document = smarts_request_document();
         let request = serde_json::json!({
             "schema": "ferrum-operation-request-v1",
             "request_id": "named-smarts-query",
             "operation": {
                 "kind": "document.molecule.smarts.query.v1",
-                "document": {"cdml": CDML, "expected_revision": 0, "expected_digest_hex": digest},
+                "document": {"cdml": document.cdml, "expected_revision": document.expected_revision, "expected_digest_hex": document.expected_digest_hex},
                 "query": {"kind": "smarts", "value": "[#6]"},
                 "limits": {"max_matches_per_molecule": 1, "max_total_matches": 1},
             },
@@ -586,33 +592,14 @@ mod tests {
 
     #[test]
     fn named_smarts_protocol_lowers_selected_molecules_and_emits_bounded_facts() {
-        let session = ferrum_document::DocumentSession::load(CDML).expect("fixture loads");
-        let snapshot = session.snapshot().expect("fixture snapshots");
-        let selected = session
-            .observe(0)
-            .expect("fixture observation")
-            .projection()
-            .molecules()[0]
-            .id()
-            .expect("fixture molecule has a durable identity")
-            .as_str()
-            .to_owned();
-        assert_ne!(
-            selected, "m",
-            "the named protocol must receive the durable direct-root selector"
-        );
-        let digest = snapshot
-            .digest()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let document = smarts_request_document();
         let request = serde_json::json!({
             "schema": "ferrum-operation-request-v1",
             "request_id": "named-selected-smarts-query",
             "operation": {
                 "kind": "document.molecule.smarts.query.v1",
-                "document": {"cdml": CDML, "expected_revision": 0, "expected_digest_hex": digest},
-                "query": {"kind": "selected_molecule", "molecule_id": selected},
+                "document": {"cdml": document.cdml, "expected_revision": document.expected_revision, "expected_digest_hex": document.expected_digest_hex},
+                "query": {"kind": "selected_molecule", "molecule_id": document.selected_molecule_id},
                 "limits": {"max_matches_per_molecule": 1, "max_total_matches": 1},
             },
         });
@@ -645,7 +632,7 @@ mod tests {
                 "schema": "ferrum-document-molecule-smarts-query-v1",
                 "traversal": {"kind": "complete"},
                 "molecules": [{
-                    "source_order": 0,
+                    "document_paint_order": 0,
                     "match_count": 1,
                     "completeness": "truncated",
                 }],
@@ -658,7 +645,7 @@ mod tests {
         let serialized = String::from_utf8(stdout).expect("CLI response is UTF-8 JSON");
         for forbidden in [
             "selected-fixture-smarts",
-            selected.as_str(),
+            document.selected_molecule_id.as_str(),
             CDML,
             "record_id",
             "receipt",
@@ -677,32 +664,17 @@ mod tests {
 
     #[test]
     fn named_smarts_query_response_admission_is_exact_and_redacted_for_raw_and_selected_forms() {
-        let session = ferrum_document::DocumentSession::load(CDML).expect("fixture loads");
-        let snapshot = session.snapshot().expect("fixture snapshots");
-        let selected = session
-            .observe(0)
-            .expect("fixture observation")
-            .projection()
-            .molecules()[0]
-            .id()
-            .expect("fixture molecule has a durable identity")
-            .as_str()
-            .to_owned();
-        let digest = snapshot
-            .digest()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let document = smarts_request_document();
         for query in [
             serde_json::json!({"kind": "smarts", "value": "FERRUM_PRIVATE_RAW_SMARTS"}),
-            serde_json::json!({"kind": "selected_molecule", "molecule_id": selected}),
+            serde_json::json!({"kind": "selected_molecule", "molecule_id": document.selected_molecule_id}),
         ] {
             let request = serde_json::json!({
                 "schema": "ferrum-operation-request-v1",
                 "request_id": "response-admission-correlation",
                 "operation": {
                     "kind": "document.molecule.smarts.query.v1",
-                    "document": {"cdml": CDML, "expected_revision": 0, "expected_digest_hex": digest},
+                    "document": {"cdml": document.cdml, "expected_revision": document.expected_revision, "expected_digest_hex": document.expected_digest_hex},
                     "query": query,
                     "limits": {"max_matches_per_molecule": 1, "max_total_matches": 1},
                 },

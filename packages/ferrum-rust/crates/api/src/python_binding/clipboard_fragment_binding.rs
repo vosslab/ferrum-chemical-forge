@@ -113,7 +113,7 @@ fn selectable_object_count(
                 .checked_add(molecule.atoms().len())?
                 .checked_add(molecule.bonds().len())
         })?;
-    structure.checked_add(projection.presentation_stack().roots().len())
+    structure.checked_add(projection.presentation_stack().entries().len())
 }
 
 fn receipt_to_python(

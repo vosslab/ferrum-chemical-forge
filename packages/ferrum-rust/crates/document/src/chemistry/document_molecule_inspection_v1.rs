@@ -1,5 +1,6 @@
 //! Exact-observation inspection of one durable direct-root molecule.
 
+use crate::document_direct_root_index_v1::document_direct_root_paint_orders_v1;
 use crate::{
     CoreProjectionError, DocumentObjectIdV1, DocumentProjectionV1, MoleculeProjectionV1,
     SessionDocumentObservationV1, TypedDocument, TypedDocumentError,
@@ -62,7 +63,7 @@ pub struct DocumentMoleculeInspectionV1 {
     molecule_id: DocumentObjectIdV1,
     projection_key: String,
     source_id: String,
-    document_root_order: u32,
+    document_paint_order: u32,
     authored_name: Option<String>,
     atom_count: usize,
     bond_count: usize,
@@ -102,10 +103,10 @@ impl DocumentMoleculeInspectionV1 {
     pub fn source_id(&self) -> &str {
         &self.source_id
     }
-    /// Return the molecule's root-child source order.
+    /// Return the molecule's exact document-wide direct-root paint order.
     #[must_use]
-    pub const fn document_root_order(&self) -> u32 {
-        self.document_root_order
+    pub const fn document_paint_order(&self) -> u32 {
+        self.document_paint_order
     }
     /// Return the authored molecule name, when supplied.
     #[must_use]
@@ -204,6 +205,11 @@ pub fn inspect_document_molecule_v1(
         &request.expected_digest,
     )?;
     let root = direct_projection_molecule_v1(projection, request.molecule_id())?;
+    let document_paint_orders = document_direct_root_paint_orders_v1(projection)
+        .map_err(|_| DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
+    let document_paint_order = *document_paint_orders
+        .get(request.molecule_id())
+        .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
     let root_source_id = root
         .source_id()
         .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
@@ -211,13 +217,14 @@ pub fn inspect_document_molecule_v1(
     let molecule = document
         .core_molecule(&request.molecule_id)?
         .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
-    if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(root_source_id) {
+    if molecule.source_id().as_str() != root_source_id {
         return Err(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch);
     }
     build_document_molecule_inspection_v1(
         snapshot.revision(),
         snapshot.digest(),
         request.molecule_id(),
+        document_paint_order,
         root,
         &molecule,
     )
@@ -267,6 +274,7 @@ pub fn build_document_molecule_inspection_v1(
     source_revision: u64,
     source_digest: &[u8; 32],
     molecule_id: &DocumentObjectIdV1,
+    document_paint_order: u32,
     root: &MoleculeProjectionV1,
     molecule: &Molecule,
 ) -> Result<DocumentMoleculeInspectionV1, DocumentMoleculeInspectionErrorV1> {
@@ -344,7 +352,7 @@ pub fn build_document_molecule_inspection_v1(
         molecule_id: copied_object_id(molecule_id)?,
         projection_key: copied(root.projection_key().as_str())?,
         source_id: copied(root_source_id)?,
-        document_root_order: root.source_order(),
+        document_paint_order,
         authored_name: root.name().map(copied).transpose()?,
         atom_count: molecule.atoms().len(),
         bond_count: molecule.bonds().len(),

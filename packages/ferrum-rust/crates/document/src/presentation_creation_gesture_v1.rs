@@ -6,7 +6,8 @@ use crate::{
     PresentationStrokeV1, Rgb24V1,
 };
 use ferrum_render::{
-    PresentationRenderPlanV1, RenderPoint, lower_arrow_preview_v1, lower_standard_plus_preview_v1,
+    PresentationPreviewRenderPlanV1, RenderPoint, lower_arrow_preview_v1,
+    lower_standard_plus_preview_v1,
 };
 use thiserror::Error;
 
@@ -122,12 +123,12 @@ impl PresentationCreationGestureV1 {
 pub struct PresentationCreationPreviewV1 {
     pub(crate) gesture: PresentationCreationGestureV1,
     pub(crate) end: PresentationGesturePoint2V1,
-    plan: PresentationRenderPlanV1,
+    plan: PresentationPreviewRenderPlanV1,
 }
 impl PresentationCreationPreviewV1 {
     /// Return the immutable renderer plan for this presentation preview.
     #[must_use]
-    pub const fn plan(&self) -> &PresentationRenderPlanV1 {
+    pub const fn plan(&self) -> &PresentationPreviewRenderPlanV1 {
         &self.plan
     }
 

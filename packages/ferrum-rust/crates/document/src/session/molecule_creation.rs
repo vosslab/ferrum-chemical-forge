@@ -58,10 +58,12 @@ impl DocumentSession {
         let candidate = RevisionState::from_document(revision, candidate)
             .map_err(DocumentSessionError::Load)?;
         self.prepare_changed_session_transition_with_molecule_insertion_outcome_v1(
-            expected_revision,
-            self.current_digest_v1(),
-            candidate,
-            effects,
+            super::admitted_transition_v1::ChangedSessionTransitionRequestV1::new(
+                expected_revision,
+                self.current_digest_v1(),
+                candidate,
+                effects,
+            ),
             identities.molecule,
             identities.atoms,
             identities.bonds,

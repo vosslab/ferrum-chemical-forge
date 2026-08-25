@@ -38,22 +38,24 @@ pub fn lower_presentation_vector_v1(
 pub(crate) fn lower_arrow_projection_v1(
     arrow: &ArrowProjectionV1,
 ) -> Result<DocumentVectorRootV1, RenderError> {
-    let stroke = stroke(arrow.stroke())?;
-    match arrow.kind() {
+    lower_arrow_semantics_v1(arrow.source_path(), arrow.kind(), arrow.stroke())
+}
+
+pub(crate) fn lower_arrow_semantics_v1(
+    source_path: &ArrowPathV1,
+    kind: &ArrowProjectionKindV1,
+    presentation_stroke: &PresentationStrokeV1,
+) -> Result<DocumentVectorRootV1, RenderError> {
+    let stroke = stroke(presentation_stroke)?;
+    match kind {
         ArrowProjectionKindV1::Normal {
             head_shape,
             start_head,
             end_head,
-        } => normal_arrow_root(
-            &stroke,
-            arrow.source_path(),
-            *head_shape,
-            *start_head,
-            *end_head,
-        ),
-        ArrowProjectionKindV1::Equilibrium => equilibrium_arrow_root(&stroke, arrow.source_path()),
+        } => normal_arrow_root(&stroke, source_path, *head_shape, *start_head, *end_head),
+        ArrowProjectionKindV1::Equilibrium => equilibrium_arrow_root(&stroke, source_path),
         ArrowProjectionKindV1::CurvedEquilibrium => {
-            curved_equilibrium_arrow_root(&stroke, arrow.source_path())
+            curved_equilibrium_arrow_root(&stroke, source_path)
         }
         // These authoring families remain semantically distinct in CDML, but
         // intentionally share one terminal shaft-and-head visual policy.
@@ -62,7 +64,7 @@ pub(crate) fn lower_arrow_projection_v1(
                 CurvedTerminalArrowKindV1::Electron
                 | CurvedTerminalArrowKindV1::Retro
                 | CurvedTerminalArrowKindV1::Normal,
-        } => curved_terminal_arrow_root(&stroke, arrow.source_path()),
+        } => curved_terminal_arrow_root(&stroke, source_path),
     }
 }
 

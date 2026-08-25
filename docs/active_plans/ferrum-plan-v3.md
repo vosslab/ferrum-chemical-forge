@@ -285,6 +285,15 @@ then recover through an eligible selection and the existing guarded chooser.
 Free placement, other compact-group catalog keys, and broader full-plan gates
 remain separate work.
 
+Attached compact-group authoring now has one generic Rust transaction for the
+reviewed `Me` and `NO2` keys. The next expansion adds a reviewed recipe and
+attachment profile for each remaining persisted key; it does not restore
+per-key compatibility APIs. Free placement remains limited to `Me`, and a
+public generic attached CLI/protocol command remains future work. `NO2`
+materializes as `R-[N+](=O)[O-]`; Rust retains per-atom charge facts through
+history and reopen, while public Qt evidence asserts only the editable graph,
+composition, formula, and net formal charge.
+
 | Decision | Owner | Required before |
 | --- | --- | --- |
 | WASM-native divergence, if any | `expert_coder` | M21 exit |
@@ -292,3 +301,34 @@ remain separate work.
 Update this file when status, an active decision, dependency, or exit criterion
 changes. Put commands, corpus measurements, receipts, and completed implementation
 detail in focused reports, then link them here.
+## Completed M1 slice: free methyl compact-group placement
+
+The local authoring surface now supports a free methyl compact group through the
+Rust-owned `PlaceFreeCompactGroupV1` transition. Qt maps a canvas release
+through its current view snapping and PyO3 accepts the resulting finite
+coordinates. Rust validates the typed `Point3V1` and candidate geometry, then
+admits the closed `Methyl` key, derives canonical anchor/orientation, allocates
+a new molecule root and compact-group durable IDs, and admits the full
+atom-free/bond-free candidate to rendering before one atomic,
+reload-persistent history commit. Rust owns no claim that the coordinate came
+from the Qt snap policy because there is no typed snap contract. This is not
+attached compact-group authoring or catalog/template placement.
+
+PyO3 keeps preparation session-affine and opaque, exposing only begin, commit,
+cancel, and durable committed facts. Qt supplies the distinct `Place Compact
+Group...` Me-only chooser and one-release canvas capture. The current
+atom/bond-only overlay target contract leaves this route without a precommit
+overlay; complete prepared-transition admission is the supported proof
+boundary. Direct-root materialization replaces a sole zero-atom, zero-bond
+compact group with its immutable recipe atoms/bonds in the same molecule;
+methyl becomes one explicit carbon. Attached topology remains unchanged, and
+the replacement has one history transition with Undo, Redo, and reopen.
+
+Native session semantics, opaque PyO3 lifecycle tests, and one visible GUI E2E
+are permanent contract evidence. The E2E reads `Authored graph: 1 atoms, 0
+bonds` and `Formula: CH4`, distinguishing the explicit representation from the
+compact-group chemistry. Fresh build, full-suite, and manual visual inspection
+remain implementation/release validation. Attached `NO2`, other recipes, free
+non-Me keys, Rust-projected chooser catalog expansion, orientation/drag/batch
+options, templates, raw CDML, individual CLI commands, publishing,
+installation, and workflows remain outside this completed slice.

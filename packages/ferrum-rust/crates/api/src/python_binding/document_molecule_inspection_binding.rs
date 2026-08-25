@@ -75,7 +75,7 @@ pub(crate) struct PyDocumentMoleculeInspectionV1 {
     #[pyo3(get)]
     source_id: String,
     #[pyo3(get)]
-    document_root_order: u32,
+    document_paint_order: u32,
     #[pyo3(get)]
     authored_name: Option<String>,
     #[pyo3(get)]
@@ -150,7 +150,7 @@ pub(crate) fn receipt_to_python(
         molecule_id: copied(py, receipt.molecule_id().as_str())?,
         projection_key: copied(py, receipt.projection_key())?,
         source_id: copied(py, receipt.source_id())?,
-        document_root_order: receipt.document_root_order(),
+        document_paint_order: receipt.document_paint_order(),
         authored_name: receipt
             .authored_name()
             .map(|name| copied(py, name))

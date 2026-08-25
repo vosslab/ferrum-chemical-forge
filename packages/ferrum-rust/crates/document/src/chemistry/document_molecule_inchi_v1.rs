@@ -109,7 +109,7 @@ pub fn prepare_document_molecule_inchi_v1(
     let molecule = document
         .core_molecule(molecule_id)?
         .ok_or(DocumentMoleculeInchiError::ProjectionRootMismatch)?;
-    if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(root_source_id) {
+    if molecule.source_id().as_str() != root_source_id {
         return Err(DocumentMoleculeInchiError::ProjectionRootMismatch);
     }
     let (molecule, _edges) = document_molecule_graph_v1(&molecule)

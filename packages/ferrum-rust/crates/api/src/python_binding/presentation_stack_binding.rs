@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 use super::binding::operation_validation_error;
-use super::document_error_binding::document_object_id;
+use super::document_error_binding::document_object_id as parse_document_object_id;
 use super::presentation_deletion_binding::PyDocumentPresentationRootKindV1;
 
 /// Closed ordering transformations accepted by the Rust document session.
@@ -49,25 +49,25 @@ impl From<PyDocumentPresentationStackOrderV1> for PresentationStackOrderV1 {
 pub(crate) struct PyDocumentPresentationRootSelectorV1 {
     pub(crate) selector: PresentationRootSelectorV1,
     #[pyo3(get)]
-    presentation_id: String,
+    document_object_id: String,
     #[pyo3(get)]
     kind: PyDocumentPresentationRootKindV1,
 }
 
 #[pymethods]
 impl PyDocumentPresentationRootSelectorV1 {
-    /// Validate one authored persistent ID and closed presentation kind.
+    /// Validate one durable document-object ID and closed presentation kind.
     #[staticmethod]
     fn create(
         py: Python<'_>,
-        presentation_id: String,
+        document_object_id: String,
         kind: PyRef<'_, PyDocumentPresentationRootKindV1>,
     ) -> PyResult<Self> {
-        let selector = PresentationRootSelectorV1::new(presentation_id.clone(), (*kind).into())
-            .map_err(|error| operation_validation_error(py, error.to_string()))?;
+        let document_object_id = parse_document_object_id(py, document_object_id)?;
+        let selector = PresentationRootSelectorV1::new(document_object_id.clone(), (*kind).into());
         Ok(Self {
             selector,
-            presentation_id,
+            document_object_id: document_object_id.as_str().to_owned(),
             kind: *kind,
         })
     }
@@ -129,7 +129,7 @@ pub(crate) fn live_targets(
                     format!("{operation} targets must contain durable root ID and kind"),
                 ));
             }
-            let object_id = document_object_id(py, pair.get_item(0)?.extract::<String>()?)?;
+            let object_id = parse_document_object_id(py, pair.get_item(0)?.extract::<String>()?)?;
             let kind = pair
                 .get_item(1)?
                 .extract::<PyRef<'_, PyDocumentPresentationRootKindV1>>()?;

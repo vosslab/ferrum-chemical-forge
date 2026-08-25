@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::PersistentId;
+use super::DocumentObjectIdV1;
 
 /// Direct-root record kinds supported by the transform boundary.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -41,23 +41,22 @@ impl TopLevelRootKindV1 {
 /// One exact-kind durable direct-root selector.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TopLevelRootSelectorV1 {
-    root_id: PersistentId,
+    document_object_id: DocumentObjectIdV1,
     kind: TopLevelRootKindV1,
 }
 
 impl TopLevelRootSelectorV1 {
-    pub fn new(
-        root_id: impl Into<String>,
-        kind: TopLevelRootKindV1,
-    ) -> Result<Self, TopLevelTransformV1Error> {
-        let root_id = PersistentId::new(root_id.into())
-            .map_err(|_| TopLevelTransformV1Error::InvalidRootId)?;
-        Ok(Self { root_id, kind })
+    #[must_use]
+    pub const fn new(document_object_id: DocumentObjectIdV1, kind: TopLevelRootKindV1) -> Self {
+        Self {
+            document_object_id,
+            kind,
+        }
     }
 
     #[must_use]
-    pub fn root_id(&self) -> &PersistentId {
-        &self.root_id
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.document_object_id
     }
 
     #[must_use]
@@ -103,7 +102,7 @@ impl TopLevelTransformV1 {
         let mut identifiers = HashSet::with_capacity(targets.len());
         if targets
             .iter()
-            .any(|target| !identifiers.insert(target.root_id().clone()))
+            .any(|target| !identifiers.insert(target.document_object_id().clone()))
         {
             return Err(TopLevelTransformV1Error::DuplicateTarget);
         }
@@ -278,8 +277,6 @@ impl TopLevelRootTranslationV1 {
 /// Invalid transform intent rejected before document lookup.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum TopLevelTransformV1Error {
-    #[error("top-level transform requires a valid persistent root ID")]
-    InvalidRootId,
     #[error("top-level transform requires at least one root")]
     EmptyTargets,
     #[error("top-level transform roots must be unique")]

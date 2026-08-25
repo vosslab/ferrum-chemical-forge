@@ -1,8 +1,8 @@
 //! Closed Python Arrow-property changes and bounded operation construction.
 
 use ferrum_document::{
-    ArrowLineWidthV1, ArrowPropertiesPatchV1, ArrowPropertyChangeV1, Rgb24V1, SessionOperation,
-    SessionOperationV1,
+    ArrowLineWidthV1, ArrowPropertiesPatchV1, ArrowPropertyChangeV1, DocumentObjectIdV1, Rgb24V1,
+    SessionOperation, SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyTuple};
@@ -74,7 +74,7 @@ impl PyDocumentArrowPropertyChangeV1 {
 
 pub(crate) fn set_arrow_properties(
     py: Python<'_>,
-    arrow_id: String,
+    arrow_object_id: DocumentObjectIdV1,
     changes: &Bound<'_, PyTuple>,
 ) -> PyResult<SessionOperation> {
     if !changes.is_exact_instance_of::<PyTuple>() {
@@ -98,7 +98,7 @@ pub(crate) fn set_arrow_properties(
                 .map_err(Into::into)
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let patch = ArrowPropertiesPatchV1::new(arrow_id, changes)
+    let patch = ArrowPropertiesPatchV1::new(arrow_object_id, changes)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(SessionOperation::V1(
         SessionOperationV1::SetArrowProperties { patch },
@@ -119,7 +119,12 @@ fn arrow_property_change(
     py: Python<'_>,
     change: ArrowPropertyChangeV1,
 ) -> PyResult<PyDocumentArrowPropertyChangeV1> {
-    ArrowPropertiesPatchV1::new("validation-arrow", vec![change.clone()])
+    ArrowPropertiesPatchV1::new(validation_object_id(), vec![change.clone()])
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(PyDocumentArrowPropertyChangeV1 { change })
+}
+
+fn validation_object_id() -> DocumentObjectIdV1 {
+    DocumentObjectIdV1::parse("ferrum-document-object-v1/00000000000000000000000000000000")
+        .expect("fixed validation document-object identity")
 }

@@ -3,8 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    Atom, Bond, Identifier, Molecule, NonAtomVertex, Position, RecordId, RecordKind, RecordOrigin,
-    VertexRef,
+    Atom, Bond, Identifier, Molecule, NonAtomVertex, Position, RecordId, RecordKind, VertexRef,
 };
 
 fn source(value: &str) -> Identifier {
@@ -13,10 +12,9 @@ fn source(value: &str) -> Identifier {
 
 fn atom(index: usize) -> Atom {
     Atom::new(
-        Some(source(&format!("a{index}"))),
+        source(&format!("a{index}")),
         Some("C".to_owned()),
         Position::new(index as f64, 0.0, 0.0).expect("test position is finite"),
-        None,
         None,
         None,
         None,
@@ -38,10 +36,9 @@ fn molecule(vertex_count: usize, edges: &[(usize, usize)]) -> Molecule {
         .enumerate()
         .map(|(index, &(start, end))| {
             Bond::new(
-                Some(source(&format!("b{index}"))),
+                source(&format!("b{index}")),
                 vertex(&atoms[start]),
                 vertex(&atoms[end]),
-                None,
                 None,
                 None,
                 None,
@@ -51,14 +48,13 @@ fn molecule(vertex_count: usize, edges: &[(usize, usize)]) -> Molecule {
         })
         .collect();
     Molecule::new(
-        Some(source("m1")),
+        source("m1"),
         None,
         atoms,
         Vec::new(),
         Vec::new(),
         Vec::new(),
         bonds,
-        None,
     )
     .expect("test molecule is valid")
 }
@@ -74,10 +70,7 @@ fn vertex_source_id(vertex: &VertexRef) -> &str {
 }
 
 fn record_source_id(identity: &RecordId) -> &str {
-    match identity.origin() {
-        RecordOrigin::Source(identifier) => identifier.as_str(),
-        RecordOrigin::Legacy { .. } => panic!("test records are source-backed"),
-    }
+    identity.source_id().as_str()
 }
 
 fn vertex_ids(vertices: &[VertexRef]) -> Vec<&str> {
@@ -91,16 +84,13 @@ fn bond_ids(bonds: &[RecordId]) -> Vec<&str> {
 #[test]
 fn graph_view_keeps_petgraph_indexes_private_and_all_vertex_kinds_connected() {
     let atoms = vec![atom(0)];
-    let group =
-        NonAtomVertex::new(RecordKind::Group, Some(source("g1")), None).expect("group is valid");
-    let query =
-        NonAtomVertex::new(RecordKind::Query, Some(source("q1")), None).expect("query is valid");
+    let group = NonAtomVertex::new(RecordKind::Group, source("g1")).expect("group is valid");
+    let query = NonAtomVertex::new(RecordKind::Query, source("q1")).expect("query is valid");
     let bonds = vec![
         Bond::new(
-            Some(source("b0")),
+            source("b0"),
             vertex(&atoms[0]),
             VertexRef::Group(group.identity().clone()),
-            None,
             None,
             None,
             None,
@@ -108,10 +98,9 @@ fn graph_view_keeps_petgraph_indexes_private_and_all_vertex_kinds_connected() {
         )
         .expect("atom-group bond is valid"),
         Bond::new(
-            Some(source("b1")),
+            source("b1"),
             VertexRef::Group(group.identity().clone()),
             VertexRef::Query(query.identity().clone()),
-            None,
             None,
             None,
             None,
@@ -120,14 +109,13 @@ fn graph_view_keeps_petgraph_indexes_private_and_all_vertex_kinds_connected() {
         .expect("group-query bond is valid"),
     ];
     let molecule = Molecule::new(
-        Some(source("mixed")),
+        source("mixed"),
         None,
         atoms,
         vec![group],
         Vec::new(),
         vec![query],
         bonds,
-        None,
     )
     .expect("mixed molecule is valid");
     let graph = molecule.graph();

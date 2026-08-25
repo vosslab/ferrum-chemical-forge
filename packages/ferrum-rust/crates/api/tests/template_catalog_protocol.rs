@@ -6,7 +6,7 @@ use ferrum_document::DocumentSession;
 use serde_json::Value;
 
 const EMPTY: &str = "<cdml xmlns=\"urn:ferrum:cdml\"/>";
-const EXCLUDED: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"bad\"><point x=\"1\" y=\"2\"/><ftext><b>x</b></ftext></text></cdml>";
+const EXCLUDED: &str = "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:object=\"urn:ferrum:document-object:v1\"><text id=\"bad\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\"><point x=\"1\" y=\"2\"/><ftext><b>x</b></ftext></text></cdml>";
 
 fn digest(document: &str) -> String {
     DocumentSession::load(document)
@@ -79,12 +79,19 @@ fn insert(document: &str, revision: u64, catalog_id: &str, x: f64, y: f64) -> St
         document,
         &DocumentRequestFenceV1 {
             expected_revision: revision,
-            expected_digest_hex: digest(document),
+            ..current_fence(document)
         },
         catalog_id,
         x,
         y,
     )
+}
+
+fn current_fence(document: &str) -> DocumentRequestFenceV1 {
+    DocumentRequestFenceV1 {
+        expected_revision: 0,
+        expected_digest_hex: digest(document),
+    }
 }
 
 fn insert_with_fence(

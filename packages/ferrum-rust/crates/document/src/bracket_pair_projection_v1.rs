@@ -76,9 +76,14 @@ fn observed_pair(
     let style = shared_style(left, right)?;
     let left_stroke = resolved_stroke(left, standard)?;
     let right_stroke = resolved_stroke(right, standard)?;
+    let left_object_id =
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(left)
+            .ok()??;
+    let right_object_id =
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(right)
+            .ok()??;
     BracketPairProjectionV1::try_new(
-        pair_id.to_owned(),
-        [left_id.to_owned(), right_id.to_owned()],
+        [left_object_id, right_object_id],
         style,
         (left_stroke.0 == right_stroke.0).then_some(left_stroke.0),
         (left_stroke.1 == right_stroke.1).then_some(left_stroke.1),

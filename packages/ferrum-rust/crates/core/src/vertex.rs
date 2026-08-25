@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Identifier, LegacyFingerprint, ModelError, RecordId, RecordKind, formatting::option_text,
-};
+use crate::{Identifier, ModelError, RecordId, RecordKind};
 
 /// A typed molecule-local endpoint reference.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
@@ -12,7 +10,6 @@ pub enum VertexRef {
     Text(RecordId),
     Query(RecordId),
 }
-
 #[derive(Deserialize)]
 enum WireVertexRef {
     Atom(RecordId),
@@ -20,14 +17,12 @@ enum WireVertexRef {
     Text(RecordId),
     Query(RecordId),
 }
-
 impl<'de> Deserialize<'de> for VertexRef {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let wire = WireVertexRef::deserialize(deserializer)?;
-        let value = match wire {
+        let value = match WireVertexRef::deserialize(deserializer)? {
             WireVertexRef::Atom(id) => Self::Atom(id),
             WireVertexRef::Group(id) => Self::Group(id),
             WireVertexRef::Text(id) => Self::Text(id),
@@ -37,21 +32,11 @@ impl<'de> Deserialize<'de> for VertexRef {
         Ok(value)
     }
 }
-
 impl VertexRef {
     /// Return whether this reference names a chemistry atom.
     #[must_use]
     pub fn is_atom(&self) -> bool {
         matches!(self, Self::Atom(_))
-    }
-    pub(crate) fn canonical(&self) -> String {
-        let tag = match self {
-            Self::Atom(_) => "atom",
-            Self::Group(_) => "group",
-            Self::Text(_) => "text",
-            Self::Query(_) => "query",
-        };
-        format!("{tag}:{}", self.record_id().canonical())
     }
     fn record_id(&self) -> &RecordId {
         match self {
@@ -77,41 +62,26 @@ impl VertexRef {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct NonAtomVertex {
     identity: RecordId,
-    source_id: Option<Identifier>,
-    legacy_occurrence: Option<u32>,
+    source_id: Identifier,
 }
 impl NonAtomVertex {
-    /// Construct an idless or source-backed non-atom vertex.
-    pub fn new(
-        kind: RecordKind,
-        source_id: Option<Identifier>,
-        legacy_occurrence: Option<u32>,
-    ) -> Result<Self, ModelError> {
+    /// Construct a source-identified non-atom vertex.
+    pub fn new(kind: RecordKind, source_id: Identifier) -> Result<Self, ModelError> {
         if !matches!(
             kind,
             RecordKind::Group | RecordKind::Text | RecordKind::Query
         ) {
             return Err(ModelError::InvalidVertexKind { kind });
         }
-        let fingerprint = LegacyFingerprint::new(
-            kind,
-            &[option_text(source_id.as_ref().map(Identifier::as_str))],
-        );
-        let identity = match (&source_id, legacy_occurrence) {
-            (Some(id), None) => RecordId::from_source(kind, id),
-            (None, Some(occurrence)) => RecordId::from_legacy(kind, fingerprint, occurrence),
-            (Some(_), Some(_)) => return Err(ModelError::SourceRecordHasLegacyOccurrence { kind }),
-            (None, None) => return Err(ModelError::MissingLegacyOccurrence { kind }),
-        };
+        let identity = RecordId::new(kind, source_id.clone())
+            .map_err(|_| ModelError::InvalidSourceIdentity { kind })?;
         Ok(Self {
             identity,
             source_id,
-            legacy_occurrence,
         })
     }
     pub(crate) fn validate(&self, kind: RecordKind) -> Result<(), ModelError> {
-        let expected = Self::new(kind, self.source_id.clone(), self.legacy_occurrence)?;
-        if expected.identity == self.identity {
+        if self.identity.kind() == kind && self.identity.source_id() == &self.source_id {
             Ok(())
         } else {
             Err(ModelError::IdentityMismatch { kind })
@@ -122,28 +92,26 @@ impl NonAtomVertex {
     pub fn identity(&self) -> &RecordId {
         &self.identity
     }
-    /// Return literal source ID if present.
+    /// Return its required literal source ID.
     #[must_use]
-    pub fn source_id(&self) -> Option<&Identifier> {
-        self.source_id.as_ref()
+    pub fn source_id(&self) -> &Identifier {
+        &self.source_id
     }
 }
 #[derive(Deserialize)]
 struct WireNonAtomVertex {
     identity: RecordId,
-    source_id: Option<Identifier>,
-    legacy_occurrence: Option<u32>,
+    source_id: Identifier,
 }
 impl<'de> Deserialize<'de> for NonAtomVertex {
-    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let w = WireNonAtomVertex::deserialize(d)?;
-        let kind = w.identity.kind;
+        let wire = WireNonAtomVertex::deserialize(deserializer)?;
         let result =
-            Self::new(kind, w.source_id, w.legacy_occurrence).map_err(serde::de::Error::custom)?;
-        if result.identity != w.identity {
+            Self::new(wire.identity.kind(), wire.source_id).map_err(serde::de::Error::custom)?;
+        if result.identity != wire.identity {
             return Err(serde::de::Error::custom(
                 "vertex identity does not match carried source fields",
             ));

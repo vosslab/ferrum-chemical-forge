@@ -52,11 +52,19 @@ impl TypedDocument {
             .expect("a parsed CDML document has a document element");
         let molecule = tree
             .children(root)
-            .find(|node| is_cdml_element(tree, *node, "molecule") && id(tree, *node) == Some(molecule_id.as_str()))
-            .ok_or_else(|| TypedDocumentError::InvalidCompactGroupDeletionMolecule(molecule_id.clone()))?;
+            .find(|node| {
+                is_cdml_element(tree, *node, "molecule")
+                    && id(tree, *node) == Some(molecule_id.as_str())
+            })
+            .ok_or_else(|| {
+                TypedDocumentError::InvalidCompactGroupDeletionMolecule(molecule_id.clone())
+            })?;
         let groups = tree
             .children(molecule)
-            .filter(|node| is_cdml_element(tree, *node, "compact-group") && id(tree, *node) == Some(compact_group_id.as_str()))
+            .filter(|node| {
+                is_cdml_element(tree, *node, "compact-group")
+                    && id(tree, *node) == Some(compact_group_id.as_str())
+            })
             .collect::<Vec<_>>();
         if groups.len() != 1 {
             return Err(TypedDocumentError::InvalidCompactGroupDeletionTarget(
@@ -69,8 +77,11 @@ impl TypedDocument {
             .filter_map(|bond| {
                 let start = attribute(tree, bond, "start")?;
                 let end = attribute(tree, bond, "end")?;
-                ((start == compact_group_id.as_str()) || (end == compact_group_id.as_str()))
-                    .then(|| (bond, start, end))
+                if (start == compact_group_id.as_str()) || (end == compact_group_id.as_str()) {
+                    Some((bond, start, end))
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>();
         if exterior_bonds.len() != 1 {
@@ -86,10 +97,14 @@ impl TypedDocument {
         };
         let matching_atoms = tree
             .children(molecule)
-            .filter(|node| is_cdml_element(tree, *node, "atom") && id(tree, *node) == Some(exterior_atom_id))
+            .filter(|node| {
+                is_cdml_element(tree, *node, "atom") && id(tree, *node) == Some(exterior_atom_id)
+            })
             .count();
         let exterior_bond_id = PersistentId::new(id(tree, bond).unwrap_or_default().to_owned())
-            .map_err(|_| TypedDocumentError::InvalidCompactGroupDeletionTopology(molecule_id.clone()))?;
+            .map_err(|_| {
+                TypedDocumentError::InvalidCompactGroupDeletionTopology(molecule_id.clone())
+            })?;
         if matching_atoms != 1 {
             return Err(TypedDocumentError::InvalidCompactGroupDeletionTopology(
                 molecule_id,
@@ -153,7 +168,7 @@ fn attribute<'a>(tree: &'a Xot, node: Node, expected: &str) -> Option<&'a str> {
     })
 }
 
-fn id<'a>(tree: &'a Xot, node: Node) -> Option<&'a str> {
+fn id(tree: &Xot, node: Node) -> Option<&str> {
     attribute(tree, node, "id")
 }
 

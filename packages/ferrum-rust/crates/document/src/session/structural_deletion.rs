@@ -1,9 +1,9 @@
 //! One-use session ownership for planned direct-molecule structural deletion.
 
 use super::{
-    AdmittedSessionTransitionRefusalV1, DocumentObjectIdV1, DocumentSession,
-    DocumentSessionError, PersistentId, PreparedSessionTransitionV1, RevisionState,
-    SessionOperationError, SessionOperationResultV1, TypedClass,
+    AdmittedSessionTransitionRefusalV1, DocumentObjectIdV1, DocumentSession, DocumentSessionError,
+    PersistentId, PreparedSessionTransitionV1, RevisionState, SessionOperationError,
+    SessionOperationResultV1, TypedClass,
 };
 use crate::{CompactGroupDeletionReceiptV1, StructureDeletionReceiptV1};
 
@@ -92,27 +92,16 @@ impl DocumentSession {
     pub fn prepare_delete_structure_v1(
         &mut self,
         expected_revision: u64,
-        molecule_id: String,
-        atom_ids: Vec<String>,
-        bond_ids: Vec<String>,
+        molecule_object_id: &DocumentObjectIdV1,
+        atom_object_ids: &[DocumentObjectIdV1],
+        bond_object_ids: &[DocumentObjectIdV1],
     ) -> Result<PendingDeleteStructureV1, DocumentSessionError> {
         self.require_current(expected_revision)?;
-        let molecule =
-            PersistentId::new(molecule_id).map_err(|_| SessionOperationError::UnknownMolecule)?;
-        let atoms = atom_ids
-            .into_iter()
-            .map(PersistentId::new)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| {
-                SessionOperationError::UnknownAtom("invalid structural atom".to_owned())
-            })?;
-        let bonds = bond_ids
-            .into_iter()
-            .map(PersistentId::new)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| {
-                SessionOperationError::UnknownBond("invalid structural bond".to_owned())
-            })?;
+        let (molecule, atoms, bonds) = self.lower_live_structure_deletion_targets_v1(
+            molecule_object_id,
+            atom_object_ids,
+            bond_object_ids,
+        )?;
         let plan = self
             .current_state_v1()
             .document()
@@ -143,6 +132,51 @@ impl DocumentSession {
             receipt,
             transition,
         })
+    }
+
+    /// Lower current durable structural selectors to private source identifiers.
+    fn lower_live_structure_deletion_targets_v1(
+        &self,
+        molecule_object_id: &DocumentObjectIdV1,
+        atom_object_ids: &[DocumentObjectIdV1],
+        bond_object_ids: &[DocumentObjectIdV1],
+    ) -> Result<(PersistentId, Vec<PersistentId>, Vec<PersistentId>), SessionOperationError> {
+        let molecule_record = self
+            .current_document_v1()
+            .resolve_document_object_id(molecule_object_id)
+            .ok_or_else(|| {
+                SessionOperationError::UnknownDocumentObject(molecule_object_id.as_str().to_owned())
+            })?;
+        if molecule_record.class() != TypedClass::Molecule
+            || molecule_record.path().components().len() != 1
+        {
+            return Err(SessionOperationError::InvalidLiveChemicalTarget(
+                molecule_object_id.as_str().to_owned(),
+            ));
+        }
+        let molecule = molecule_record
+            .attribute("id")
+            .ok_or_else(|| {
+                SessionOperationError::UnknownDocumentObject(molecule_object_id.as_str().to_owned())
+            })
+            .and_then(|source_id| {
+                PersistentId::new(source_id.to_owned()).map_err(|_| {
+                    SessionOperationError::UnknownDocumentObject(
+                        molecule_object_id.as_str().to_owned(),
+                    )
+                })
+            })?;
+        let atoms = self.lower_live_chemical_members_v1(
+            molecule_object_id,
+            atom_object_ids,
+            TypedClass::Atom,
+        )?;
+        let bonds = self.lower_live_chemical_members_v1(
+            molecule_object_id,
+            bond_object_ids,
+            TypedClass::Bond,
+        )?;
+        Ok((molecule, atoms, bonds))
     }
 
     /// Commit a prepared structural deletion exactly once.

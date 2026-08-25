@@ -31,8 +31,12 @@ pub(crate) fn lower_molecule_batch<S: DrawSinkV1>(
     face: &Face<'_>,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    sink.begin_molecule_target_group(batch.target(), batch.coordinate_space().clone())
-        .map_err(DrawStreamErrorV1::Sink)?;
+    sink.begin_molecule_target_group(
+        batch.target(),
+        batch.paint_order(),
+        batch.coordinate_space().clone(),
+    )
+    .map_err(DrawStreamErrorV1::Sink)?;
     if let BatchSpace::AtomLocal { anchor } = batch.coordinate_space() {
         scoped_translate(*anchor, sink, |sink| {
             lower_molecule_operations(batch.operations(), face, sink)

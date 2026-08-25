@@ -5,8 +5,9 @@ use super::{
     SessionOperationV1,
 };
 use crate::{
-    GeometricLineWidthV1, PresentationRecordKindV1, PresentationRootProjectionV1, Rgb24V1,
-    WavyPropertiesPatchV1, WavyPropertiesPatchV1Error, WavyPropertyChangeV1,
+    DocumentObjectIdV1, GeometricLineWidthV1, PresentationRecordKindV1,
+    PresentationRootProjectionV1, Rgb24V1, WavyPropertiesPatchV1, WavyPropertiesPatchV1Error,
+    WavyPropertyChangeV1,
 };
 
 const SOURCE: &str = concat!(
@@ -18,9 +19,9 @@ const SOURCE: &str = concat!(
     "<point x=\"1\" y=\"1\"/></polyline></cdml>"
 );
 
-fn patch(identifier: &str, changes: Vec<WavyPropertyChangeV1>) -> SessionOperation {
+fn patch(wavy_id: DocumentObjectIdV1, changes: Vec<WavyPropertyChangeV1>) -> SessionOperation {
     SessionOperation::V1(SessionOperationV1::SetWavyProperties {
-        patch: WavyPropertiesPatchV1::new(identifier, changes).expect("valid Wavy patch"),
+        patch: WavyPropertiesPatchV1::new(wavy_id, changes).expect("valid Wavy patch"),
     })
 }
 
@@ -28,11 +29,14 @@ fn patch(identifier: &str, changes: Vec<WavyPropertyChangeV1>) -> SessionOperati
 fn authored_wavy_path_and_appearance_commit_preserve_and_follow_history() {
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
     let before = session.observe(0).expect("source observation");
-    let [PresentationRootProjectionV1::Wavy { polyline }, ..] =
-        before.projection().presentation_stack().roots()
-    else {
+    let stack = before.projection().presentation_stack();
+    let [entry, ..] = stack.entries() else {
+        panic!("expected a distinct Wavy projection entry");
+    };
+    let PresentationRootProjectionV1::Wavy { polyline } = entry.root() else {
         panic!("expected a distinct Wavy projection root");
     };
+    let wavy_id = polyline.target().document_object_id().clone();
     assert_eq!(
         polyline.target().record_kind(),
         PresentationRecordKindV1::Polyline
@@ -52,7 +56,7 @@ fn authored_wavy_path_and_appearance_commit_preserve_and_follow_history() {
         .apply_document_operation_v1(
             0,
             patch(
-                "wave",
+                wavy_id.clone(),
                 vec![
                     WavyPropertyChangeV1::LineWidth(GeometricLineWidthV1::new(2.5).unwrap()),
                     WavyPropertyChangeV1::LineColor(Rgb24V1::new("#445566").unwrap()),
@@ -60,12 +64,11 @@ fn authored_wavy_path_and_appearance_commit_preserve_and_follow_history() {
             ),
         )
         .expect("Wavy patch must commit");
-    let [PresentationRootProjectionV1::Wavy { polyline }, ..] = changed
-        .observation()
-        .projection()
-        .presentation_stack()
-        .roots()
-    else {
+    let stack = changed.observation().projection().presentation_stack();
+    let [entry, ..] = stack.entries() else {
+        panic!("expected updated Wavy entry");
+    };
+    let PresentationRootProjectionV1::Wavy { polyline } = entry.root() else {
         panic!("expected updated Wavy root");
     };
     assert_eq!(polyline.stroke().width().value(), 2.5);
@@ -97,7 +100,7 @@ fn authored_wavy_path_and_appearance_commit_preserve_and_follow_history() {
 fn duplicate_unknown_ordinary_and_stale_wavy_intent_are_atomic() {
     assert_eq!(
         WavyPropertiesPatchV1::new(
-            "wave",
+            DocumentObjectIdV1::from_entropy_bytes([0x10; 16]),
             vec![
                 WavyPropertyChangeV1::LineColor(Rgb24V1::new("#010203").unwrap()),
                 WavyPropertyChangeV1::LineColor(Rgb24V1::new("#040506").unwrap()),
@@ -108,29 +111,38 @@ fn duplicate_unknown_ordinary_and_stale_wavy_intent_are_atomic() {
         })
     );
     let mut session = DocumentSession::load(SOURCE).expect("source must load");
+    let wavy_id = {
+        let observation = session.observe(0).expect("source observation");
+        let [entry, ..] = observation.projection().presentation_stack().entries() else {
+            panic!("expected a distinct Wavy projection entry");
+        };
+        let PresentationRootProjectionV1::Wavy { polyline } = entry.root() else {
+            panic!("expected a distinct Wavy projection root");
+        };
+        polyline.target().document_object_id().clone()
+    };
     let before = session.snapshot().expect("snapshot");
-    for identifier in ["ordinary", "missing"] {
-        assert!(matches!(
-            session.apply_document_operation_v1(
-                0,
-                patch(
-                    identifier,
-                    vec![WavyPropertyChangeV1::LineColor(
-                        Rgb24V1::new("#010203").unwrap()
-                    )]
-                )
-            ),
-            Err(DocumentSessionError::Operation(
-                SessionOperationError::UnknownWavy(_)
-            ))
-        ));
-        assert_eq!(session.snapshot().expect("snapshot"), before);
-    }
+    let unknown = DocumentObjectIdV1::from_entropy_bytes([0x20; 16]);
+    assert!(matches!(
+        session.apply_document_operation_v1(
+            0,
+            patch(
+                unknown,
+                vec![WavyPropertyChangeV1::LineColor(
+                    Rgb24V1::new("#010203").unwrap()
+                )]
+            )
+        ),
+        Err(DocumentSessionError::Operation(
+            SessionOperationError::UnknownWavy(_)
+        ))
+    ));
+    assert_eq!(session.snapshot().expect("snapshot"), before);
     session
         .apply_document_operation_v1(
             0,
             patch(
-                "wave",
+                wavy_id.clone(),
                 vec![WavyPropertyChangeV1::LineColor(
                     Rgb24V1::new("#010203").unwrap(),
                 )],
@@ -139,7 +151,7 @@ fn duplicate_unknown_ordinary_and_stale_wavy_intent_are_atomic() {
         .expect("valid patch");
     let accepted = session.snapshot().expect("snapshot");
     assert!(matches!(
-        session.apply_document_operation_v1(0, patch("wave", Vec::new())),
+        session.apply_document_operation_v1(0, patch(wavy_id, Vec::new())),
         Err(DocumentSessionError::RevisionConflict {
             expected: 0,
             actual: 1

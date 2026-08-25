@@ -28,6 +28,7 @@ import ferrum_qt.ferrum.rotation as native_rotation
 import ferrum_qt.ferrum.regular_ring_tab as native_regular_ring_tab
 import ferrum_qt.ferrum.attached_cyclohexane_tab as native_attached_cyclohexane_tab
 import ferrum_qt.ferrum.compact_group_authoring as native_compact_group_authoring
+import ferrum_qt.ferrum.free_compact_group_placement as native_free_compact_group_placement
 import ferrum_qt.ferrum.haworth_tab as native_haworth_tab
 import ferrum_qt.ferrum.direct_glycosidic_haworth_tab as native_direct_haworth_tab
 import ferrum_qt.ferrum.direct_bond_gesture_tab as native_direct_bond_gesture_tab
@@ -109,6 +110,7 @@ class FerrumNativeDocumentTab(
 		native_regular_ring_tab.FerrumNativeRegularRingTabMixin,
 		native_attached_cyclohexane_tab.FerrumNativeAttachedCyclohexaneTabMixin,
 		native_compact_group_authoring.FerrumNativeCompactGroupAuthoringTabMixin,
+		native_free_compact_group_placement.FerrumNativeFreeCompactGroupPlacementTabMixin,
 		native_haworth_tab.FerrumNativeHaworthTabMixin,
 		native_direct_haworth_tab.FerrumNativeDirectGlycosidicHaworthTabMixin,
 		native_direct_bond_gesture_tab.FerrumNativeDirectBondGestureTabMixin,
@@ -468,23 +470,71 @@ class FerrumNativeDocumentTab(
 
 	#============================================
 	def durable_molecule_choices(self) -> tuple[FerrumNativeMoleculeChoice, ...]:
-		"""Return source-ordered durable molecules from the installed observation."""
+		"""Return direct-root-ordered durable molecules from the installed observation."""
 		self._require_mutable()
 		if self._document_observation is None:
 			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
+		projection = self._document_observation.projection
+		molecules = projection.molecules
+		direct_roots = projection.direct_roots
+		if type(molecules) is not list:
+			raise FerrumNativeDocumentTabError("Rust molecule projections are not an exact DTO list")
+		if type(direct_roots) is not tuple:
+			raise FerrumNativeDocumentTabError("Rust document direct roots are not an exact DTO tuple")
+		molecules_by_id = {}
+		for molecule in molecules:
+			object_id = getattr(molecule, "document_object_id", None)
+			name = getattr(molecule, "name", None)
+			if type(object_id) is not str or not object_id:
+				raise FerrumNativeDocumentTabError("Rust molecule projection identity is invalid")
+			if name is not None and type(name) is not str:
+				raise FerrumNativeDocumentTabError("Rust molecule projection name is invalid")
+			if object_id in molecules_by_id:
+				raise FerrumNativeDocumentTabError("Rust molecule projection identities are not unique")
+			molecules_by_id[object_id] = name
+		molecule_roots = []
+		root_ids = set()
+		paint_orders = set()
+		for root in direct_roots:
+			object_id = getattr(root, "document_object_id", None)
+			kind = getattr(root, "kind", None)
+			paint_order = getattr(root, "paint_order", None)
+			if type(object_id) is not str or not object_id:
+				raise FerrumNativeDocumentTabError("Rust document direct-root identity is invalid")
+			if type(kind) is not str or not kind:
+				raise FerrumNativeDocumentTabError("Rust document direct-root kind is invalid")
+			if type(paint_order) is not int or paint_order < 0 or paint_order >= 2**32:
+				raise FerrumNativeDocumentTabError("Rust document direct-root paint order is invalid")
+			if object_id in root_ids or paint_order in paint_orders:
+				raise FerrumNativeDocumentTabError("Rust document direct roots are not unique")
+			root_ids.add(object_id)
+			paint_orders.add(paint_order)
+			if kind == "molecule":
+				molecule_roots.append((paint_order, object_id))
+		if len(molecule_roots) != len(molecules_by_id):
+			raise FerrumNativeDocumentTabError(
+				"Rust molecule projections and molecule direct roots do not agree",
+			)
 		choices = []
 		ordinal = 0
-		for molecule in self._document_observation.projection.molecules:
-			if molecule.id is None:
-				continue
+		for paint_order, object_id in sorted(molecule_roots):
+			try:
+				name = molecules_by_id.pop(object_id)
+			except KeyError as exc:
+				raise FerrumNativeDocumentTabError(
+					"Rust molecule direct root has no molecule projection",
+				) from exc
 			ordinal += 1
 			position_label = f"Molecule {ordinal}"
-			name = molecule.name
 			label = position_label if name is None or not name.strip() else (
 				f"{name} ({position_label})"
 			)
 			choices.append(
-				FerrumNativeMoleculeChoice(molecule.id, label, molecule.source_order),
+				FerrumNativeMoleculeChoice(object_id, label, paint_order),
+			)
+		if molecules_by_id:
+			raise FerrumNativeDocumentTabError(
+				"Rust molecule projection has no molecule direct root",
 			)
 		return tuple(choices)
 

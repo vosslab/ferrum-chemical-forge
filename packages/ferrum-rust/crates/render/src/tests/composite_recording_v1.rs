@@ -1,6 +1,6 @@
 //! Behavior checks for private whole-document composite recording.
 
-use ferrum_core::{Identifier, RecordId, RecordKind};
+use ferrum_document_projection::DocumentObjectIdV1;
 
 use crate::composite_recording_v1::RecordingSink;
 use crate::draw_stream_v1::{
@@ -17,7 +17,6 @@ fn budget() -> CompositeRecordingBudgetV1 {
         max_path_commands: 64,
         max_transform_depth: 8,
         max_text_scopes: 8,
-        max_copied_string_bytes: 128,
     }
 }
 
@@ -37,20 +36,14 @@ fn point(x: f64, y: f64) -> RenderPoint {
 }
 
 fn target() -> RenderTarget {
-    RenderTarget::new(
-        RecordId::from_source(
-            RecordKind::Bond,
-            &Identifier::new("bond").expect("identifier"),
-        ),
-        1,
-    )
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([0x51; 16]))
 }
 
 fn open_target(sink: &mut RecordingSink) {
     sink.begin_page(page()).expect("page begin");
-    sink.begin_root_with_kind(1, "root", DrawRootKindV1::Molecule)
+    sink.begin_root_with_kind(1, target().document_object_id(), DrawRootKindV1::Molecule)
         .expect("root begin");
-    sink.begin_molecule_target_group(&target(), BatchSpace::Scene)
+    sink.begin_molecule_target_group(&target(), 1, BatchSpace::Scene)
         .expect("target begin");
 }
 
@@ -61,7 +54,7 @@ fn recording_budget_rejects_each_structural_resource() {
     let mut recorder = sink(limits);
     recorder.begin_page(page()).expect("page begin");
     assert_eq!(
-        recorder.begin_root_with_kind(1, "root", DrawRootKindV1::Molecule),
+        recorder.begin_root_with_kind(1, target().document_object_id(), DrawRootKindV1::Molecule,),
         Err(CompositeRecordingErrorV1::BudgetExceeded {
             resource: CompositeRecordingResourceV1::Roots,
         })
@@ -72,10 +65,10 @@ fn recording_budget_rejects_each_structural_resource() {
     let mut recorder = sink(limits);
     recorder.begin_page(page()).expect("page begin");
     recorder
-        .begin_root_with_kind(1, "root", DrawRootKindV1::Molecule)
+        .begin_root_with_kind(1, target().document_object_id(), DrawRootKindV1::Molecule)
         .expect("root");
     assert_eq!(
-        recorder.begin_molecule_target_group(&target(), BatchSpace::Scene),
+        recorder.begin_molecule_target_group(&target(), 1, BatchSpace::Scene),
         Err(CompositeRecordingErrorV1::BudgetExceeded {
             resource: CompositeRecordingResourceV1::TargetGroups,
         })
@@ -128,37 +121,12 @@ fn recording_budget_rejects_each_structural_resource() {
     let mut recorder = sink(limits);
     recorder.begin_page(page()).expect("page begin");
     recorder
-        .begin_root_with_kind(1, "root", DrawRootKindV1::Text)
+        .begin_root_with_kind(1, target().document_object_id(), DrawRootKindV1::Text)
         .expect("root");
     assert_eq!(
         recorder.begin_document_text(),
         Err(CompositeRecordingErrorV1::BudgetExceeded {
             resource: CompositeRecordingResourceV1::TextScopes,
-        })
-    );
-
-    let mut limits = budget();
-    limits.max_copied_string_bytes = 0;
-    let mut recorder = sink(limits);
-    recorder.begin_page(page()).expect("page begin");
-    assert_eq!(
-        recorder.begin_root_with_kind(1, "root", DrawRootKindV1::Molecule),
-        Err(CompositeRecordingErrorV1::BudgetExceeded {
-            resource: CompositeRecordingResourceV1::CopiedStringBytes,
-        })
-    );
-
-    let mut limits = budget();
-    limits.max_copied_string_bytes = "root".len();
-    let mut recorder = sink(limits);
-    recorder.begin_page(page()).expect("page begin");
-    recorder
-        .begin_root_with_kind(1, "root", DrawRootKindV1::Molecule)
-        .expect("root");
-    assert_eq!(
-        recorder.begin_molecule_target_group(&target(), BatchSpace::Scene),
-        Err(CompositeRecordingErrorV1::BudgetExceeded {
-            resource: CompositeRecordingResourceV1::CopiedStringBytes,
         })
     );
 }

@@ -44,10 +44,12 @@ import ferrum_qt.ferrum.molfile_export
 import ferrum_qt.ferrum.sdf_export
 import ferrum_qt.ferrum.sdf_multi_export
 import ferrum_qt.ferrum.molecule_report
+import ferrum_qt.ferrum.molecule_diagnostics
 import ferrum_qt.ferrum.atom_oxidation
 import ferrum_qt.ferrum.explicit_hydrogen
 import ferrum_qt.ferrum.compact_group_materialization
 import ferrum_qt.ferrum.compact_group_authoring
+import ferrum_qt.ferrum.free_compact_group_placement
 import ferrum_qt.ferrum.document_installation
 import ferrum_qt.ferrum.operation_presentation
 import ferrum_qt.ferrum.molecule_name
@@ -89,6 +91,9 @@ class _AtomInsertionIntent:
 
 #============================================
 class FerrumNativeMainWindow(
+		ferrum_qt.ferrum.molecule_diagnostics.FerrumNativeMoleculeDiagnosticsMixin,
+		ferrum_qt.ferrum.free_compact_group_placement.
+		FerrumNativeFreeCompactGroupPlacementWindowMixin,
 		ferrum_qt.ferrum.main_window_lifecycle.
 		FerrumNativeMainWindowLifecycleMixin,
 		native_catalog_palette.FerrumNativeCatalogPlacementWindowMixin,
@@ -175,10 +180,12 @@ class FerrumNativeMainWindow(
 		self._initialize_molfile_exports()
 		self._initialize_molecule_exports()
 		self._initialize_molecule_inspection()
+		self._initialize_molecule_diagnostics()
 		self._initialize_atom_oxidation()
 		self._initialize_explicit_hydrogen()
 		self._initialize_compact_group_materialization()
 		self._initialize_compact_group_authoring()
+		self._initialize_free_compact_group_placement()
 		self._initialize_native_clipboard()
 		self._initialize_coordinate_generation()
 		self._initialize_snapshot_exports()
@@ -460,10 +467,12 @@ class FerrumNativeMainWindow(
 		self._build_molfile_export_actions(chemistry_menu)
 		self._build_molecule_export_actions(chemistry_menu)
 		self._build_molecule_inspection_actions(chemistry_menu)
+		self._build_molecule_diagnostics_action(chemistry_menu)
 		self._build_atom_oxidation_action(chemistry_menu)
 		self._build_explicit_hydrogen_action(chemistry_menu)
 		self._build_compact_group_materialization_action(chemistry_menu)
 		self._build_compact_group_authoring_action(chemistry_menu)
+		self._build_free_compact_group_placement_action(chemistry_menu)
 		self._build_molecule_name_action(chemistry_menu)
 		self._build_linear_form_action(chemistry_menu)
 		self._build_explicit_fragment_actions(chemistry_menu)
@@ -549,6 +558,7 @@ class FerrumNativeMainWindow(
 		self._cancel_line_gesture(clear_status=clear_status)
 		self._cancel_structure_selection()
 		self._cancel_compact_group_authoring(clear_status=clear_status)
+		self._cancel_free_compact_group_placement(clear_status=clear_status)
 		self._cancel_catalog_placement(clear_status=clear_status)
 		self._cancel_user_template_placement(clear_status=clear_status)
 

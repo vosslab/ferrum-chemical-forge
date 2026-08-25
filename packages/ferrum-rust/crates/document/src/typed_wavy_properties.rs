@@ -15,18 +15,31 @@ impl TypedDocument {
         &self,
         patch: &WavyPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let Some(record) = direct_wavy_record(self.root(), patch.wavy_id().as_str()) else {
+        let Some(record) = self.resolve_document_object_id(patch.wavy_id()) else {
             return Ok(None);
         };
-        validate_structure(record, patch.wavy_id())?;
-        let current = resolved_appearance(self, record, patch.wavy_id())?;
+        if record.class() != TypedClass::Polyline || record.attribute("style") != Some("wavy") {
+            return Ok(None);
+        };
+        let source_id = record.attribute("id").ok_or_else(|| {
+            TypedDocumentError::InvalidWavyStructure(
+                PersistentId::new("wavy").expect("valid fallback ID"),
+            )
+        })?;
+        let source_id = PersistentId::new(source_id.to_owned()).map_err(|_| {
+            TypedDocumentError::InvalidWavyStructure(
+                PersistentId::new("wavy").expect("valid fallback ID"),
+            )
+        })?;
+        validate_structure(record, &source_id)?;
+        let current = resolved_appearance(self, record, &source_id)?;
 
         let mut candidate = self.detached_candidate()?;
         let indexed = candidate.detached_indexed_mut();
         let element = direct_wavy(
             &mut indexed.xml.tree,
             indexed.xml.document,
-            patch.wavy_id().as_str(),
+            source_id.as_str(),
         )
         .expect("the detached candidate preserves the validated Wavy root");
         apply_changes(&mut indexed.xml.tree, element, patch.changes(), &current);
@@ -39,17 +52,6 @@ impl TypedDocument {
 struct ResolvedWavyAppearanceV1 {
     width: f64,
     color: Rgb24V1,
-}
-
-fn direct_wavy_record<'a>(root: &'a TypedRecord, identifier: &str) -> Option<&'a TypedRecord> {
-    root.typed_children()
-        .iter()
-        .map(super::TypedChild::record)
-        .find(|record| {
-            record.class() == TypedClass::Polyline
-                && record.attribute("id") == Some(identifier)
-                && record.attribute("style") == Some("wavy")
-        })
 }
 
 fn validate_structure(

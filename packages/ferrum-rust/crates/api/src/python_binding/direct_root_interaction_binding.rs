@@ -10,10 +10,13 @@ use crate::{
     StructureInteractionObservationV1, StructureInteractionQueryV1,
     StructureInteractionSelectionV1, StructureInteractionTargetV1, StructureTargetKindV1,
 };
-use ferrum_document::DocumentFenceV1;
+use ferrum_document::{DocumentFenceV1, DocumentObjectIdV1, TopLevelRootKindV1};
 use pyo3::{PyClass, create_exception, prelude::*, types::PyTuple};
 
-use super::binding::{PyDocumentSession, RevisionConflictError};
+use super::{
+    binding::{PyDocumentSession, RevisionConflictError},
+    document_error_binding::document_object_id as parse_document_object_id,
+};
 
 create_exception!(
     ferrum_chem,
@@ -144,6 +147,28 @@ enum PyStructureTargetKind {
     CompactGroup,
     DisplayOnly,
 }
+#[pyclass(
+    frozen,
+    eq,
+    hash,
+    module = "ferrum_chem",
+    name = "TopLevelRootKindV1",
+    rename_all = "snake_case",
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum PyRootKind {
+    Molecule,
+    Arrow,
+    Plus,
+    Text,
+    Rectangle,
+    Square,
+    Oval,
+    Circle,
+    Polygon,
+    Polyline,
+}
 impl From<PyModifier> for RenderInteractionModifierV1 {
     fn from(value: PyModifier) -> Self {
         match value {
@@ -175,6 +200,20 @@ fn structure_kind(value: StructureTargetKindV1) -> PyStructureTargetKind {
         StructureTargetKindV1::Bond => PyStructureTargetKind::Bond,
         StructureTargetKindV1::CompactGroup => PyStructureTargetKind::CompactGroup,
         StructureTargetKindV1::DisplayOnly => PyStructureTargetKind::DisplayOnly,
+    }
+}
+fn root_kind(value: TopLevelRootKindV1) -> PyRootKind {
+    match value {
+        TopLevelRootKindV1::Molecule => PyRootKind::Molecule,
+        TopLevelRootKindV1::Arrow => PyRootKind::Arrow,
+        TopLevelRootKindV1::Plus => PyRootKind::Plus,
+        TopLevelRootKindV1::Text => PyRootKind::Text,
+        TopLevelRootKindV1::Rectangle => PyRootKind::Rectangle,
+        TopLevelRootKindV1::Square => PyRootKind::Square,
+        TopLevelRootKindV1::Oval => PyRootKind::Oval,
+        TopLevelRootKindV1::Circle => PyRootKind::Circle,
+        TopLevelRootKindV1::Polygon => PyRootKind::Polygon,
+        TopLevelRootKindV1::Polyline => PyRootKind::Polyline,
     }
 }
 
@@ -213,16 +252,21 @@ impl PyQuery {
         }
     }
     #[staticmethod]
-    #[pyo3(signature = (identifier, modifier = None))]
-    fn root(identifier: String, modifier: Option<PyRef<'_, PyModifier>>) -> Self {
-        Self {
+    #[pyo3(signature = (document_object_id, modifier = None))]
+    fn root(
+        py: Python<'_>,
+        document_object_id: String,
+        modifier: Option<PyRef<'_, PyModifier>>,
+    ) -> PyResult<Self> {
+        let document_object_id = parse_document_object_id(py, document_object_id)?;
+        Ok(Self {
             query: RenderInteractionQueryV1::Root {
-                identifier,
+                document_object_id,
                 modifier: modifier.map_or(RenderInteractionModifierV1::Replace, |value| {
                     (*value).into()
                 }),
             },
-        }
+        })
     }
     #[staticmethod]
     fn clear() -> Self {
@@ -323,9 +367,11 @@ struct PyBounds {
 )]
 struct PyRoot {
     #[pyo3(get)]
-    identifier: String,
+    document_object_id: String,
     #[pyo3(get)]
-    source_order: u32,
+    paint_order: u32,
+    #[pyo3(get)]
+    kind: PyRootKind,
     #[pyo3(get)]
     bounds: PyBounds,
 }
@@ -337,7 +383,7 @@ struct PyRoot {
 )]
 struct PyExclusion {
     #[pyo3(get)]
-    identifier: String,
+    document_object_id: String,
     #[pyo3(get)]
     reason: PyExclusionReason,
 }
@@ -349,15 +395,9 @@ struct PyExclusion {
 )]
 struct PyStructureTarget {
     #[pyo3(get)]
-    molecule_id: String,
+    molecule_object_id: String,
     #[pyo3(get)]
-    identifier: String,
-    #[pyo3(get)]
-    durable_molecule_object_id: Option<String>,
-    #[pyo3(get)]
-    durable_object_id: Option<String>,
-    #[pyo3(get)]
-    source_order: u32,
+    object_id: String,
     #[pyo3(get)]
     kind: PyStructureTargetKind,
     #[pyo3(get)]
@@ -399,11 +439,11 @@ pub(crate) struct PySelection {
 }
 
 /// A session-validated direct root selected through the opaque interaction API.
-/// The borrowed identifier stays within the private Rust binding boundary.
+/// The borrowed durable identity stays within the private Rust binding boundary.
 pub(crate) enum SelectedDirectRootV1<'a> {
     Empty,
     Multiple,
-    One(&'a str),
+    One(&'a DocumentObjectIdV1),
 }
 
 pub(crate) fn selection_value_v1(selection: &PySelection) -> &RenderInteractionSelectionV1 {
@@ -425,7 +465,7 @@ pub(crate) fn selected_direct_root_from_value_v1<'a>(
     session.validate_render_interaction_selection_v1(selection)?;
     match selection.roots() {
         [] => Ok(SelectedDirectRootV1::Empty),
-        [root] => Ok(SelectedDirectRootV1::One(root.identifier())),
+        [root] => Ok(SelectedDirectRootV1::One(root.document_object_id())),
         _ => Ok(SelectedDirectRootV1::Multiple),
     }
 }
@@ -672,8 +712,9 @@ fn root(py: Python<'_>, value: &RenderInteractionRootV1) -> PyResult<Py<PyRoot>>
     Py::new(
         py,
         PyRoot {
-            identifier: value.identifier().to_owned(),
-            source_order: value.source_order(),
+            document_object_id: value.document_object_id().as_str().to_owned(),
+            paint_order: value.paint_order(),
+            kind: root_kind(value.kind()),
             bounds: bounds(value.bounds()),
         },
     )
@@ -710,7 +751,7 @@ fn exclusions(
             Py::new(
                 py,
                 PyExclusion {
-                    identifier: value.identifier().to_owned(),
+                    document_object_id: value.document_object_id().as_str().to_owned(),
                     reason: exclusion_reason(value.reason()),
                 },
             )
@@ -766,11 +807,8 @@ fn structure_target(
     Py::new(
         py,
         PyStructureTarget {
-            molecule_id: value.molecule_id().to_owned(),
-            identifier: value.identifier().to_owned(),
-            durable_molecule_object_id: value.durable_molecule_object_id().map(str::to_owned),
-            durable_object_id: value.durable_object_id().map(str::to_owned),
-            source_order: value.source_order(),
+            molecule_object_id: value.molecule_object_id().as_str().to_owned(),
+            object_id: value.object_id().as_str().to_owned(),
             kind: structure_kind(value.kind()),
             bounds: bounds(value.bounds()),
         },
@@ -932,6 +970,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyAxis>()?;
     module.add_class::<PyGridSnapPolicy>()?;
     module.add_class::<PyStructureTargetKind>()?;
+    module.add_class::<PyRootKind>()?;
     module.add_class::<PyQuery>()?;
     module.add_class::<PyStructureQuery>()?;
     module.add_class::<PySnap>()?;

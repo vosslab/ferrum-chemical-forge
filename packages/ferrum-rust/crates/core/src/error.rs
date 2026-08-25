@@ -5,8 +5,8 @@ use crate::RecordKind;
 /// Core structural validation errors.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum ModelError {
-    #[error("legacy fingerprint has an invalid version, kind, length encoding, or field shape")]
-    MalformedLegacyFingerprint,
+    #[error("{kind:?} record requires a valid explicit source identifier")]
+    InvalidSourceIdentity { kind: RecordKind },
     #[error("{axis} coordinate must be finite")]
     NonFiniteCoordinate { axis: &'static str },
     #[error("present atom element is blank")]
@@ -15,10 +15,6 @@ pub enum ModelError {
     ZeroMultiplicity,
     #[error("present bond type is blank")]
     BlankBondType,
-    #[error("{kind:?} source record cannot carry a legacy occurrence")]
-    SourceRecordHasLegacyOccurrence { kind: RecordKind },
-    #[error("idless {kind:?} record needs an occurrence among equal fingerprints")]
-    MissingLegacyOccurrence { kind: RecordKind },
     #[error("invalid non-atom vertex kind {kind:?}")]
     InvalidVertexKind { kind: RecordKind },
     #[error("{kind:?} identity does not match its kind, origin, or carried fields")]

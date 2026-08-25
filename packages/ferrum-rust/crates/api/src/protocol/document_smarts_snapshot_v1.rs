@@ -1,12 +1,12 @@
 //! Private API-owned SMARTS target storage for one document preparation.
 //!
-//! This retains the separate durable-selector and renderer-source identity domains
-//! only while the API owns the query. Neither this snapshot nor its targets are
-//! serializable, cloneable, debuggable, or re-exported.
+//! This keeps one graph-position-to-durable-object mapping while the API owns
+//! the query. Neither this snapshot nor its targets are serializable, cloneable,
+//! debuggable, or re-exported.
 
 use ferrum_chemistry::MolGraph;
-use ferrum_core::RecordId;
 use ferrum_document::PreparedDocumentSmartsSnapshotV1;
+use ferrum_render::RenderTarget;
 
 pub(crate) struct OwnedDocumentSmartsSnapshotV1 {
     #[cfg_attr(not(feature = "python-binding"), allow(dead_code))]
@@ -17,16 +17,11 @@ pub(crate) struct OwnedDocumentSmartsSnapshotV1 {
 }
 
 pub(crate) struct OwnedSmartsTargetV1 {
-    // The stateless protocol accepts only the projection's durable direct-root
-    // selector. The live renderer capability joins only its authored source
-    // identity. Both remain private and deliberately have separate lookup APIs.
-    durable_selector: String,
-    #[cfg_attr(not(feature = "python-binding"), allow(dead_code))]
-    renderer_source_id: Option<String>,
-    source_order: u32,
+    target: RenderTarget,
+    document_paint_order: u32,
     graph: MolGraph,
     #[cfg_attr(not(feature = "python-binding"), allow(dead_code))]
-    graph_position_to_record_id: Vec<RecordId>,
+    graph_position_to_document_object_ids: Vec<ferrum_document::DocumentObjectIdV1>,
 }
 
 impl OwnedDocumentSmartsSnapshotV1 {
@@ -37,11 +32,12 @@ impl OwnedDocumentSmartsSnapshotV1 {
             .targets()
             .iter()
             .map(|target| OwnedSmartsTargetV1 {
-                durable_selector: target.durable_selector().as_str().to_owned(),
-                renderer_source_id: target.renderer_source_id().map(str::to_owned),
-                source_order: target.source_order(),
+                target: RenderTarget::document_object(target.durable_selector().clone()),
+                document_paint_order: target.document_paint_order(),
                 graph: target.graph().clone(),
-                graph_position_to_record_id: target.graph_position_to_record_id().to_vec(),
+                graph_position_to_document_object_ids: target
+                    .graph_position_to_document_object_ids()
+                    .to_vec(),
             })
             .collect();
         Self {
@@ -61,40 +57,30 @@ impl OwnedDocumentSmartsSnapshotV1 {
     pub(crate) fn targets(&self) -> &[OwnedSmartsTargetV1] {
         &self.targets
     }
-    pub(crate) fn selected_target_by_durable_selector(
+    pub(crate) fn selected_target_by_render_target(
         &self,
-        selector: &str,
+        render_target: &RenderTarget,
     ) -> Option<&OwnedSmartsTargetV1> {
         let mut matches = self
             .targets
             .iter()
-            .filter(|target| target.durable_selector == selector);
-        let target = matches.next()?;
-        matches.next().is_none().then_some(target)
-    }
-    #[cfg_attr(not(feature = "python-binding"), allow(dead_code))]
-    pub(crate) fn selected_target_by_renderer_source_id(
-        &self,
-        source_id: &str,
-    ) -> Option<&OwnedSmartsTargetV1> {
-        let mut matches = self
-            .targets
-            .iter()
-            .filter(|target| target.renderer_source_id.as_deref() == Some(source_id));
+            .filter(|target| target.target == *render_target);
         let target = matches.next()?;
         matches.next().is_none().then_some(target)
     }
 }
 
 impl OwnedSmartsTargetV1 {
-    pub(crate) const fn source_order(&self) -> u32 {
-        self.source_order
+    pub(crate) const fn document_paint_order(&self) -> u32 {
+        self.document_paint_order
     }
     pub(crate) fn graph(&self) -> &MolGraph {
         &self.graph
     }
     #[cfg_attr(not(feature = "python-binding"), allow(dead_code))]
-    pub(crate) fn graph_position_to_record_id(&self) -> &[RecordId] {
-        &self.graph_position_to_record_id
+    pub(crate) fn graph_position_to_document_object_ids(
+        &self,
+    ) -> &[ferrum_document::DocumentObjectIdV1] {
+        &self.graph_position_to_document_object_ids
     }
 }

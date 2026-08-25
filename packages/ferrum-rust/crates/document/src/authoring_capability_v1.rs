@@ -114,7 +114,7 @@ impl AuthoringCapabilityIssuerV1 {
         }
         gesture
             .claim_for_commit(self)
-            .map(|claim| drop(claim))
+            .map(drop)
             .map_err(|error| match error {
                 AuthoringCapabilityAccessErrorV1::ForeignSession => {
                     AuthoringGesturePairAccessErrorV1::ForeignSession

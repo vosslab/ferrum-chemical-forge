@@ -6,13 +6,12 @@ use crate::{
     DocumentRenderObservationErrorV1, SessionDocumentObservationV1,
     derive_document_render_observation_from_accepted_operation_v1,
 };
-use ferrum_document_projection::{DocumentObjectIdV1, MoleculeProjectionV1, PresentationTargetV1};
+use ferrum_document_projection::{DocumentObjectIdV1, MoleculeProjectionV1};
 use ferrum_render::{
-    DocumentContentBoundsErrorV1, DocumentRenderArtifactV1, DocumentRenderIdentityV1,
-    DocumentRenderOutcomeV1, DocumentRenderPlanCompositionError, DocumentRenderPlanV1,
-    RenderViewportV1, SvgDocumentV1, SvgOutputBudgetV1, SvgRenderError,
-    compose_document_render_plan_v1, fit_document_render_plan_to_content_v1,
-    render_document_plan_to_svg_with_budget_v1,
+    DocumentContentBoundsErrorV1, DocumentRenderArtifactV1, DocumentRenderOutcomeV1,
+    DocumentRenderPlanCompositionError, DocumentRenderPlanV1, RenderViewportV1, SvgDocumentV1,
+    SvgOutputBudgetV1, SvgRenderError, compose_document_render_plan_v1,
+    fit_document_render_plan_to_content_v1, render_document_plan_to_svg_with_budget_v1,
 };
 use thiserror::Error;
 
@@ -51,21 +50,21 @@ impl DocumentSvgSelectionV1 {
 /// One direct document root retained by a selected-root render plan.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentSelectionSvgRootV1 {
-    source_order: u32,
-    identity: DocumentRenderIdentityV1,
+    target: DocumentObjectIdV1,
+    paint_order: u32,
 }
 
 impl DocumentSelectionSvgRootV1 {
-    /// Return the direct-child source order.
+    /// Return the exact durable document root target.
     #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
+    pub const fn target(&self) -> &DocumentObjectIdV1 {
+        &self.target
     }
 
-    /// Return the exact durable or projection-local render identity.
+    /// Return the exact render paint order.
     #[must_use]
-    pub const fn identity(&self) -> &DocumentRenderIdentityV1 {
-        &self.identity
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
     }
 }
 
@@ -139,15 +138,23 @@ pub fn render_document_selection_to_svg_v1(
     let render_observation =
         derive_document_render_observation_from_accepted_operation_v1(observation)?;
     let complete_plan = compose_document_render_plan_v1(render_observation.resolved())?;
-    let selected_plan = select_plan_roots(&complete_plan, &selected.roots)?;
+    let selected_plan = select_plan_roots(&complete_plan, &selected.root_targets)?;
     let fitted_plan = fit_document_render_plan_to_content_v1(&selected_plan)?;
     let artifact = render_document_plan_to_svg_with_budget_v1(&fitted_plan, output_budget)?;
+    let selected_roots = selected_plan
+        .outcomes()
+        .iter()
+        .map(|outcome| DocumentSelectionSvgRootV1 {
+            target: outcome.target().document_object_id().clone(),
+            paint_order: outcome.paint_order(),
+        })
+        .collect();
     Ok(DocumentSelectionSvgV1 {
         schema: DOCUMENT_SELECTION_SVG_SCHEMA_V1,
         source_revision: observation.snapshot().revision(),
         source_digest: *observation.snapshot().digest(),
         selected_objects: selected.objects,
-        selected_roots: selected.roots,
+        selected_roots,
         artifact,
     })
 }
@@ -195,14 +202,12 @@ pub enum DocumentSelectionSvgErrorV1 {
 
 struct SelectedFact {
     object: DocumentObjectIdV1,
-    root_order: u32,
-    child_order: u32,
-    root_identity: DocumentRenderIdentityV1,
+    root_target: DocumentObjectIdV1,
 }
 
 struct ResolvedSelection {
     objects: Vec<DocumentObjectIdV1>,
-    roots: Vec<DocumentSelectionSvgRootV1>,
+    root_targets: HashSet<DocumentObjectIdV1>,
 }
 
 fn authenticate_observation(
@@ -234,18 +239,14 @@ fn resolve_selection(
     for molecule in observation.projection().molecules() {
         collect_molecule_facts(molecule, &mut match_counts, &mut facts)?;
     }
-    for root in observation.projection().presentation_stack().roots() {
-        let target = root.target();
-        let Some(object) = target.id() else {
-            continue;
-        };
+    for entry in observation.projection().presentation_stack().entries() {
+        let target = entry.root().target();
+        let object = target.document_object_id();
         if let Some(count) = match_counts.get_mut(object) {
             *count = count.saturating_add(1);
             facts.push(SelectedFact {
                 object: object.clone(),
-                root_order: target.source_order(),
-                child_order: 0,
-                root_identity: target_identity(target)?,
+                root_target: object.clone(),
             });
         }
     }
@@ -255,34 +256,19 @@ fn resolve_selection(
     if match_counts.values().any(|count| *count > 1) {
         return Err(DocumentSelectionSvgErrorV1::AmbiguousSelectedObject);
     }
-    facts.sort_unstable_by(|left, right| {
-        (left.root_order, left.child_order, &left.object).cmp(&(
-            right.root_order,
-            right.child_order,
-            &right.object,
-        ))
-    });
     let mut objects = Vec::new();
-    let mut roots = Vec::new();
+    let mut root_targets = HashSet::new();
     objects
-        .try_reserve_exact(facts.len())
-        .map_err(|_| DocumentSelectionSvgErrorV1::ResourceExhausted)?;
-    roots
         .try_reserve_exact(facts.len())
         .map_err(|_| DocumentSelectionSvgErrorV1::ResourceExhausted)?;
     for fact in facts {
         objects.push(fact.object);
-        if roots
-            .last()
-            .is_none_or(|root: &DocumentSelectionSvgRootV1| root.source_order != fact.root_order)
-        {
-            roots.push(DocumentSelectionSvgRootV1 {
-                source_order: fact.root_order,
-                identity: fact.root_identity,
-            });
-        }
+        root_targets.insert(fact.root_target);
     }
-    Ok(ResolvedSelection { objects, roots })
+    Ok(ResolvedSelection {
+        objects,
+        root_targets,
+    })
 }
 
 fn collect_molecule_facts(
@@ -290,16 +276,16 @@ fn collect_molecule_facts(
     match_counts: &mut HashMap<&DocumentObjectIdV1, u8>,
     facts: &mut Vec<SelectedFact>,
 ) -> Result<(), DocumentSelectionSvgErrorV1> {
-    let identity = molecule_identity(molecule)?;
+    let Some(root_target) = molecule.id() else {
+        return Ok(());
+    };
     if let Some(object) = molecule.id()
         && let Some(count) = match_counts.get_mut(object)
     {
         *count = count.saturating_add(1);
         facts.push(SelectedFact {
             object: object.clone(),
-            root_order: molecule.source_order(),
-            child_order: 0,
-            root_identity: identity.clone(),
+            root_target: root_target.clone(),
         });
     }
     for atom in molecule.atoms() {
@@ -310,9 +296,7 @@ fn collect_molecule_facts(
             *count = count.saturating_add(1);
             facts.push(SelectedFact {
                 object: object.clone(),
-                root_order: molecule.source_order(),
-                child_order: atom.source_order().saturating_add(1),
-                root_identity: identity.clone(),
+                root_target: root_target.clone(),
             });
         }
     }
@@ -324,56 +308,34 @@ fn collect_molecule_facts(
             *count = count.saturating_add(1);
             facts.push(SelectedFact {
                 object: object.clone(),
-                root_order: molecule.source_order(),
-                child_order: bond.source_order().saturating_add(1),
-                root_identity: identity.clone(),
+                root_target: root_target.clone(),
             });
         }
     }
     Ok(())
 }
 
-fn molecule_identity(
-    molecule: &MoleculeProjectionV1,
-) -> Result<DocumentRenderIdentityV1, DocumentSelectionSvgErrorV1> {
-    match molecule.id() {
-        Some(id) => DocumentRenderIdentityV1::durable(id.as_str()),
-        None => DocumentRenderIdentityV1::projection_local(molecule.projection_key().as_str()),
-    }
-    .map_err(|_| DocumentSelectionSvgErrorV1::RootPlanMismatch)
-}
-
-fn target_identity(
-    target: &PresentationTargetV1,
-) -> Result<DocumentRenderIdentityV1, DocumentSelectionSvgErrorV1> {
-    match target.id() {
-        Some(id) => DocumentRenderIdentityV1::durable(id.as_str()),
-        None => DocumentRenderIdentityV1::projection_local(target.projection_key().as_str()),
-    }
-    .map_err(|_| DocumentSelectionSvgErrorV1::RootPlanMismatch)
-}
-
 fn select_plan_roots(
     plan: &DocumentRenderPlanV1,
-    roots: &[DocumentSelectionSvgRootV1],
+    selected_targets: &HashSet<DocumentObjectIdV1>,
 ) -> Result<DocumentRenderPlanV1, DocumentSelectionSvgErrorV1> {
     let mut outcomes = Vec::new();
     outcomes
-        .try_reserve_exact(roots.len())
+        .try_reserve_exact(selected_targets.len())
         .map_err(|_| DocumentSelectionSvgErrorV1::ResourceExhausted)?;
-    for selected in roots {
-        let Some(outcome) = plan.outcomes().iter().find(|outcome| {
-            outcome.source_order() == selected.source_order
-                && outcome.identity() == &selected.identity
-        }) else {
-            return Err(DocumentSelectionSvgErrorV1::RootPlanMismatch);
-        };
+    for outcome in plan.outcomes() {
+        if !selected_targets.contains(outcome.target().document_object_id()) {
+            continue;
+        }
         match outcome {
             DocumentRenderOutcomeV1::Root(_) => outcomes.push(outcome.clone()),
             DocumentRenderOutcomeV1::Exclusion(_) => {
                 return Err(DocumentSelectionSvgErrorV1::SelectedRootExcluded);
             }
         }
+    }
+    if outcomes.len() != selected_targets.len() {
+        return Err(DocumentSelectionSvgErrorV1::RootPlanMismatch);
     }
     DocumentRenderPlanV1::new(plan.provenance(), plan.page(), outcomes)
         .map_err(|_| DocumentSelectionSvgErrorV1::RootPlanMismatch)

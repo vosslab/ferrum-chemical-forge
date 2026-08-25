@@ -193,13 +193,8 @@ pub(crate) fn plan_hydrogen_materialization_v1(
     let mut needs_normalization = false;
     let mut indices = HashMap::new();
     for (index, atom) in core.atoms().iter().enumerate() {
-        let id = PersistentId::new(
-            atom.source_id()
-                .ok_or(DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?
-                .as_str()
-                .to_owned(),
-        )
-        .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
+        let id = PersistentId::new(atom.source_id().as_str().to_owned())
+            .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?;
         let element = atom
             .element()
             .ok_or(DocumentMoleculeHydrogenMaterializationRefusalV1::ElementOutsideProfile)?;

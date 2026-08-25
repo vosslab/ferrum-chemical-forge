@@ -6,17 +6,20 @@
 
 use crate::{
     DocumentPlusRenderV1, DocumentTextRenderV1, DocumentVectorOpV1, DocumentVectorRootV1,
-    FerrumFontEnvironmentV1, PathCommandV1, RenderError, RenderPoint, VerifiedTelexGlyphMetrics,
+    FerrumFontEnvironmentV1, Paint, PathCommandV1, RenderError, RenderPoint, TextOp,
+    VerifiedTelexGlyphMetrics,
 };
 use ferrum_document_projection::{
-    PlusProjectionV1, Point3V1, PositiveFiniteV1, PresentationArrowPreviewRequestV1,
-    PresentationFactProvenanceV1, PresentationFillV1, PresentationFontFaceV1, PresentationFontV1,
-    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
-    PresentationTargetV1, ProjectionLocalObjectKeyV1, Rgb24V1,
+    PresentationArrowPreviewRequestV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
+    PresentationTargetV1,
 };
+use std::collections::HashSet;
 
 /// Closed schema identifier for renderer-owned presentation delivery plans.
 pub const PRESENTATION_RENDER_PLAN_SCHEMA_V1: &str = "ferrum-presentation-render-plan-v1";
+/// Closed schema identifier for identifier-free transient presentation previews.
+pub const PRESENTATION_PREVIEW_RENDER_PLAN_SCHEMA_V1: &str =
+    "ferrum-presentation-preview-render-plan-v1";
 
 /// Finite scene-space bounds calculated from renderer-issued operations.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -70,7 +73,7 @@ impl PresentationRenderBoundsV1 {
     }
 }
 
-/// One target-preserving renderer outcome in direct-root paint order.
+/// One target-preserving renderer outcome with no document-order authority.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PresentationRenderRootV1 {
     /// Renderer-neutral vector operations for a geometric root.
@@ -92,7 +95,7 @@ pub enum PresentationRenderRootV1 {
 }
 
 impl PresentationRenderRootV1 {
-    /// Return the target whose source order owns this issued render root.
+    /// Return the target whose durable identity owns this issued render root.
     #[must_use]
     pub fn target(&self) -> &PresentationTargetV1 {
         match self {
@@ -130,18 +133,82 @@ pub struct PresentationRenderPlanV1 {
     roots: Vec<PresentationRenderRootV1>,
 }
 
+/// One identifier-free renderer outcome for a disposable presentation preview.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PresentationPreviewRenderRootV1 {
+    /// Renderer-neutral vector operations for a preview gesture.
+    Vector {
+        vector: DocumentVectorRootV1,
+        bounds: PresentationRenderBoundsV1,
+    },
+    /// Verified Telex operations for a preview-only standard Plus sign.
+    Plus {
+        anchor: RenderPoint,
+        operation: TextOp,
+        bounds: PresentationRenderBoundsV1,
+        background: Option<Paint>,
+    },
+}
+
+impl PresentationPreviewRenderRootV1 {
+    /// Return renderer-calculated painted bounds for this preview root.
+    #[must_use]
+    pub const fn bounds(&self) -> PresentationRenderBoundsV1 {
+        match self {
+            Self::Vector { bounds, .. } | Self::Plus { bounds, .. } => *bounds,
+        }
+    }
+
+    /// Return vector operations when this preview root is vector-backed.
+    #[must_use]
+    pub fn vector(&self) -> Option<&DocumentVectorRootV1> {
+        match self {
+            Self::Vector { vector, .. } => Some(vector),
+            Self::Plus { .. } => None,
+        }
+    }
+}
+
+/// A complete identifier-free renderer plan for one transient presentation preview.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PresentationPreviewRenderPlanV1 {
+    roots: Vec<PresentationPreviewRenderRootV1>,
+}
+
+impl PresentationPreviewRenderPlanV1 {
+    fn new(roots: Vec<PresentationPreviewRenderRootV1>) -> Self {
+        Self { roots }
+    }
+
+    /// Return the fixed renderer-owned preview delivery schema.
+    #[must_use]
+    pub const fn schema(&self) -> &'static str {
+        PRESENTATION_PREVIEW_RENDER_PLAN_SCHEMA_V1
+    }
+
+    /// Return identifier-free preview roots in paint order.
+    #[must_use]
+    pub fn roots(&self) -> &[PresentationPreviewRenderRootV1] {
+        &self.roots
+    }
+}
+
 impl PresentationRenderPlanV1 {
     fn new(
         revision: u64,
         digest: [u8; 32],
         roots: Vec<PresentationRenderRootV1>,
     ) -> Result<Self, RenderError> {
+        let mut targets = HashSet::new();
+        targets
+            .try_reserve(roots.len())
+            .map_err(|_| RenderError::ResourceExhausted)?;
         if roots
-            .windows(2)
-            .any(|pair| pair[0].target().source_order() >= pair[1].target().source_order())
+            .iter()
+            .any(|root| !targets.insert(root.target().document_object_id().clone()))
         {
             return Err(RenderError::InvalidRequest(
-                "presentation render roots must use strictly increasing source order".to_owned(),
+                "presentation render roots must have unique durable targets".to_owned(),
             ));
         }
         Ok(Self {
@@ -173,7 +240,7 @@ impl PresentationRenderPlanV1 {
         &self.digest
     }
 
-    /// Return target-preserving roots in direct-root source order.
+    /// Return target-preserving content roots without document-order authority.
     #[must_use]
     pub fn roots(&self) -> &[PresentationRenderRootV1] {
         &self.roots
@@ -191,10 +258,10 @@ pub fn render_presentation_stack_v1(
     let metrics = VerifiedTelexGlyphMetrics::new(&environment)?;
     let mut roots = Vec::new();
     roots
-        .try_reserve(stack.roots().len())
+        .try_reserve(stack.entries().len())
         .map_err(|_| RenderError::ResourceExhausted)?;
-    for root in stack.roots() {
-        roots.push(render_root(root, &metrics)?);
+    for entry in stack.entries() {
+        roots.push(render_root(entry.root(), &metrics)?);
     }
     PresentationRenderPlanV1::new(stack.revision(), *stack.digest(), roots)
 }
@@ -207,70 +274,38 @@ pub fn render_presentation_stack_v1(
 /// operations and renderer-calculated bounds.
 pub fn lower_arrow_preview_v1(
     request: &PresentationArrowPreviewRequestV1,
-) -> Result<PresentationRenderPlanV1, RenderError> {
-    let vector = super::vector::lower_arrow_projection_v1(request.arrow())?;
+) -> Result<PresentationPreviewRenderPlanV1, RenderError> {
+    let vector = super::vector::lower_arrow_semantics_v1(
+        request.source_path(),
+        request.kind(),
+        request.stroke(),
+    )?;
     let bounds = vector_bounds(&vector)?;
-    PresentationRenderPlanV1::new(
-        0,
-        [0; 32],
-        vec![PresentationRenderRootV1::Vector {
-            target: request.arrow().target().clone(),
-            vector,
-            bounds,
-        }],
-    )
+    Ok(PresentationPreviewRenderPlanV1::new(vec![
+        PresentationPreviewRenderRootV1::Vector { vector, bounds },
+    ]))
 }
 
 /// Lower one identifier-free standard Plus preview through the ordinary
 /// verified-Telex presentation path.
 ///
-/// The returned plan contains a synthetic local target only because the shared
-/// presentation-plan grammar requires one. It has neither a durable nor a
-/// source identifier, and it carries no session, mutation, or transition
-/// authority.
+/// The returned value has no document, source, or projection identifier and
+/// carries no session, mutation, or transition authority.
 pub fn lower_standard_plus_preview_v1(
     anchor: RenderPoint,
-) -> Result<PresentationRenderPlanV1, RenderError> {
+) -> Result<PresentationPreviewRenderPlanV1, RenderError> {
     let environment = FerrumFontEnvironmentV1::load()?;
     let metrics = VerifiedTelexGlyphMetrics::new(&environment)?;
-    let plus = standard_plus_projection(anchor);
-    let render = DocumentPlusRenderV1::from_projection(&plus, &metrics)?;
-    let bounds = text_bounds(render.anchor(), render.bounds())?;
-    PresentationRenderPlanV1::new(
-        0,
-        [0; 32],
-        vec![PresentationRenderRootV1::Plus { render, bounds }],
-    )
-}
-
-fn standard_plus_projection(anchor: RenderPoint) -> PlusProjectionV1 {
-    let target = PresentationTargetV1::try_new(
-        None,
-        ProjectionLocalObjectKeyV1::from_path_components(&[0])
-            .expect("preview target has a nonempty local path"),
-        None,
-        0,
-        PresentationRecordKindV1::Plus,
-    )
-    .expect("synthetic preview target has coherent local identity");
-    let font = PresentationFontV1::try_new(
-        PresentationFontFaceV1::TelexRegularV1,
-        PresentationFactProvenanceV1::Builtin,
-        PositiveFiniteV1::new(14.0).expect("built-in Plus font size is positive"),
-        PresentationFactProvenanceV1::Builtin,
-        Rgb24V1::new("#000000").expect("built-in Plus colour is valid"),
-        PresentationFactProvenanceV1::Builtin,
-    )
-    .expect("built-in Plus font facts are coherent");
-    let background = PresentationFillV1::try_new(None, PresentationFactProvenanceV1::Builtin)
-        .expect("built-in Plus background facts are coherent");
-    PlusProjectionV1::try_new(
-        target,
-        Point3V1::new(anchor.x(), anchor.y(), 0.0).expect("render point is finite"),
-        font,
-        background,
-    )
-    .expect("synthetic Plus projection is coherent")
+    let (operation, preview_text_bounds) = super::plus::lower_standard_plus_preview_v1(&metrics)?;
+    let bounds = text_bounds(anchor, preview_text_bounds)?;
+    Ok(PresentationPreviewRenderPlanV1::new(vec![
+        PresentationPreviewRenderRootV1::Plus {
+            anchor,
+            operation,
+            bounds,
+            background: None,
+        },
+    ]))
 }
 
 fn render_root(
@@ -420,10 +455,10 @@ mod tests {
             let request = PresentationArrowPreviewRequestV1::new(points, kind, stroke())
                 .expect("closed semantic preview request");
             let preview = lower_arrow_preview_v1(&request).expect("preview plan");
-            let committed = super::super::vector::lower_presentation_vector_v1(
-                &PresentationRootProjectionV1::Arrow {
-                    arrow: request.arrow().clone(),
-                },
+            let committed = super::super::vector::lower_arrow_semantics_v1(
+                request.source_path(),
+                request.kind(),
+                request.stroke(),
             )
             .expect("committed vector root");
             let root = preview.roots().first().expect("one preview root");

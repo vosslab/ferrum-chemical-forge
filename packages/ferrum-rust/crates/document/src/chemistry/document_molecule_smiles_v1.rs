@@ -167,7 +167,7 @@ pub fn prepare_document_molecule_smiles_v1(
         .core_molecule(&request.molecule_id)
         .map_err(DocumentMoleculeInspectionErrorV1::CoreProjection)?
         .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
-    if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(root_source_id) {
+    if molecule.source_id().as_str() != root_source_id {
         return Err(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch.into());
     }
     let molecule = document_molecule_graph_v1(&molecule)?.into_parts().0;

@@ -63,8 +63,14 @@ run_e2e "Ferrum Qt attached-Me authoring and materialization E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_author_to_materialize.py"
 run_e2e "Ferrum Qt attached-Me unavailable-anchor recovery E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_unavailable_anchor_recovery.py"
+run_e2e "Ferrum Qt attached-NO2 authoring and materialization E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_attached_no2_materialization.py"
 run_e2e "Ferrum Qt attached-Me compact-group deletion and Undo E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_delete.py"
+run_e2e "Ferrum Qt free-Me compact-group placement and materialization E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_free_compact_group_placement.py"
+run_e2e "Ferrum Qt Check Structure diagnostics and compact-group recovery E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_molecule_diagnostics.py"
 run_e2e "Ferrum Qt E/Z carrier-mark projection E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_ez_carrier_mark_projection.py"
 run_e2e "Ferrum Qt arrow authoring E2E" \

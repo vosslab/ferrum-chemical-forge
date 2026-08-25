@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use ferrum_core::RecordId;
+use ferrum_document_projection::DocumentObjectIdV1;
 use ferrum_domain::haworth::{
     AuthoredDirectGlycosidicHaworthBondRoleV1, AuthoredDirectGlycosidicHaworthDepictionV1,
     DirectGlycosidicHaworthBondStyleV1, DirectGlycosidicHaworthPositionV1,
@@ -23,6 +24,7 @@ const MAX_TARGETS: usize = 14;
 pub struct AuthoredDirectGlycosidicHaworthRenderRequestV1<'a> {
     provenance: RenderProvenance,
     depiction: &'a AuthoredDirectGlycosidicHaworthDepictionV1,
+    canonical_bond_targets: &'a [crate::RenderTarget],
     paint: Paint,
     line_width: PositiveFinite,
     wedge_width: PositiveFinite,
@@ -34,6 +36,7 @@ impl<'a> AuthoredDirectGlycosidicHaworthRenderRequestV1<'a> {
     pub fn new(
         provenance: RenderProvenance,
         depiction: &'a AuthoredDirectGlycosidicHaworthDepictionV1,
+        canonical_bond_targets: &'a [crate::RenderTarget],
         paint: Paint,
         line_width: PositiveFinite,
         wedge_width: PositiveFinite,
@@ -41,6 +44,7 @@ impl<'a> AuthoredDirectGlycosidicHaworthRenderRequestV1<'a> {
         Self {
             provenance,
             depiction,
+            canonical_bond_targets,
             paint,
             line_width,
             wedge_width,
@@ -52,19 +56,19 @@ impl<'a> AuthoredDirectGlycosidicHaworthRenderRequestV1<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum AuthoredDirectGlycosidicHaworthDrawOpV1 {
     OrdinaryLine {
-        bond: RecordId,
+        bond: DocumentObjectIdV1,
         authored_child_order: u32,
         endpoints: [RenderPoint; 2],
         width: PositiveFinite,
     },
     HaworthFrontStroke {
-        bond: RecordId,
+        bond: DocumentObjectIdV1,
         authored_child_order: u32,
         endpoints: [RenderPoint; 2],
         width: PositiveFinite,
     },
     RoundedFrontWedge {
-        bond: RecordId,
+        bond: DocumentObjectIdV1,
         authored_child_order: u32,
         tip: RenderPoint,
         base: RenderPoint,
@@ -74,13 +78,14 @@ pub(crate) enum AuthoredDirectGlycosidicHaworthDrawOpV1 {
 }
 
 impl AuthoredDirectGlycosidicHaworthDrawOpV1 {
-    pub(crate) const fn bond(&self) -> &RecordId {
+    pub(crate) const fn bond(&self) -> &DocumentObjectIdV1 {
         match self {
             Self::OrdinaryLine { bond, .. }
             | Self::HaworthFrontStroke { bond, .. }
             | Self::RoundedFrontWedge { bond, .. } => bond,
         }
     }
+
     pub(crate) const fn authored_child_order(&self) -> u32 {
         match self {
             Self::OrdinaryLine {
@@ -138,9 +143,12 @@ pub fn lower_authored_direct_glycosidic_haworth_v1(
     request: AuthoredDirectGlycosidicHaworthRenderRequestV1<'_>,
 ) -> Result<AuthoredDirectGlycosidicHaworthRenderPlanV1, RenderError> {
     let bonds = request.depiction.canonical_bonds();
-    if bonds.is_empty() || bonds.len() > MAX_TARGETS {
+    if bonds.is_empty()
+        || bonds.len() > MAX_TARGETS
+        || request.canonical_bond_targets.len() != bonds.len()
+    {
         return Err(RenderError::InvalidRequest(
-            "authored direct depiction has invalid bond count".to_owned(),
+            "authored direct depiction has invalid canonical bond targets".to_owned(),
         ));
     }
     let mut operations = Vec::new();
@@ -152,7 +160,7 @@ pub fn lower_authored_direct_glycosidic_haworth_v1(
         .map_err(|_| RenderError::ResourceExhausted)?;
     // The direct profile, not document child order, owns this tiered paint order.
     for tier in 0..3 {
-        for fact in bonds {
+        for (index, fact) in bonds.iter().enumerate() {
             let style = fact.token();
             let selected_tier = match tier {
                 0 => {
@@ -172,10 +180,13 @@ pub fn lower_authored_direct_glycosidic_haworth_v1(
             }
             let points = endpoints(request.depiction, fact.endpoints())?;
             let order = fact.authored_child_order();
+            let bond = request.canonical_bond_targets[index]
+                .document_object_id()
+                .clone();
             match style {
                 DirectGlycosidicHaworthBondStyleV1::N1 => {
                     operations.push(AuthoredDirectGlycosidicHaworthDrawOpV1::OrdinaryLine {
-                        bond: fact.bond().clone(),
+                        bond,
                         authored_child_order: order,
                         endpoints: points,
                         width: request.line_width,
@@ -187,7 +198,7 @@ pub fn lower_authored_direct_glycosidic_haworth_v1(
                 {
                     operations.push(
                         AuthoredDirectGlycosidicHaworthDrawOpV1::HaworthFrontStroke {
-                            bond: fact.bond().clone(),
+                            bond,
                             authored_child_order: order,
                             endpoints: padded_direct_q(points, request.wedge_width)?,
                             width: request.wedge_width,
@@ -203,7 +214,7 @@ pub fn lower_authored_direct_glycosidic_haworth_v1(
                     let commands =
                         rounded_direct_wedge(tip, base, request.line_width, request.wedge_width)?;
                     operations.push(AuthoredDirectGlycosidicHaworthDrawOpV1::RoundedFrontWedge {
-                        bond: fact.bond().clone(),
+                        bond,
                         authored_child_order: order,
                         tip,
                         base,

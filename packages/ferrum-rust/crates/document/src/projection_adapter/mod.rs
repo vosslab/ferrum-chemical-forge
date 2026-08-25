@@ -1,15 +1,16 @@
 //! Typed-CDML to immutable lower-projection adaptation.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use ferrum_core::{BondOrder, BondStyle};
 use ferrum_document_projection::{
     AtomProjectionV1, BondEndpointKindV1, BondEndpointV1, BondProjectionV1,
-    DocumentHaworthPositionV1, DocumentObjectIdV1, DocumentProjectionProvenanceV1,
-    DocumentProjectionV1, DocumentProjectionV1Error, DrawingStandardV1, FontFactsV1,
-    MoleculeProjectionV1, NonZeroFiniteV1, Point3V1, PositiveFiniteV1, PresentationLengthV1,
-    ProjectionError, ProjectionIssueCodeV1, ProjectionIssueV1, Rgb24V1, RichTextV1,
-    TransparentOrRgb24V1, VisibilityV1,
+    DocumentDirectRootKindV1, DocumentDirectRootV1, DocumentHaworthPositionV1, DocumentObjectIdV1,
+    DocumentProjectionProvenanceV1, DocumentProjectionV1, DocumentProjectionV1Error,
+    DrawingStandardV1, FontFactsV1, MoleculeProjectionV1, NonZeroFiniteV1, Point3V1,
+    PositiveFiniteV1, PresentationLengthV1, PresentationProjectionIssueV1,
+    PresentationRootProjectionV1, ProjectionError, ProjectionIssueCodeV1, ProjectionIssueV1,
+    Rgb24V1, RichTextV1, TransparentOrRgb24V1, VisibilityV1,
 };
 
 use crate::atom_mark_projection::atom_marks;
@@ -31,13 +32,59 @@ pub(crate) fn document_projection_from_snapshot_v1(
     let mut issues = Vec::new();
     let mut persisted_standard = None;
     let mut molecules = Vec::new();
+    let mut direct_roots = Vec::new();
+    let mut presentation_roots = Vec::new();
+    let mut presentation_issues = Vec::new();
+    let presentation_context =
+        crate::presentation_stack_projection_v1::PresentationProjectionContextV1::new(&document);
     let version = document.root().attribute("version");
     for child in document.root().typed_children() {
         match child.record().class() {
             TypedClass::Standard if persisted_standard.is_none() => {
                 persisted_standard = Some(drawing_standard(child.record(), &mut issues)?);
             }
-            TypedClass::Molecule => molecules.push(molecule(child, version, &mut issues)?),
+            TypedClass::Molecule => {
+                let id = direct_root_id(child.record())?;
+                molecules.push(molecule(child, version, &mut issues)?);
+                direct_roots.push(DocumentDirectRootV1::new(
+                    id,
+                    child.position(),
+                    DocumentDirectRootKindV1::Molecule,
+                ));
+            }
+            class if crate::presentation_stack_projection_v1::is_presentation_class_v1(class) => {
+                let target =
+                    crate::presentation_stack_projection_v1::presentation_target_from_child_v1(
+                        child,
+                    )?;
+                let issue_start = presentation_issues.len();
+                match presentation_context.project_root(child, &mut presentation_issues)? {
+                    Some(root) => {
+                        direct_roots.push(DocumentDirectRootV1::new(
+                            target.document_object_id().clone(),
+                            child.position(),
+                            DocumentDirectRootKindV1::Presentation(target.record_kind()),
+                        ));
+                        presentation_roots.push(root);
+                    }
+                    None => {
+                        let issue = presentation_issues[issue_start..]
+                            .iter()
+                            .rev()
+                            .find(|issue| issue.target() == &target)
+                            .ok_or_else(|| ProjectionError::InvalidValue {
+                                context: child.record().path().to_string(),
+                                field: "presentation projection",
+                                value: "rejected presentation has no target issue".to_owned(),
+                            })?;
+                        direct_roots.push(DocumentDirectRootV1::new(
+                            target.document_object_id().clone(),
+                            child.position(),
+                            DocumentDirectRootKindV1::RejectedPresentation(issue.code()),
+                        ));
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -47,19 +94,110 @@ pub(crate) fn document_projection_from_snapshot_v1(
         snapshot.is_dirty(),
     );
     let paper_layout = crate::paper_properties_v1::paper_layout_from_snapshot(&document, snapshot);
+    validate_direct_root_payloads(
+        &direct_roots,
+        &molecules,
+        &presentation_roots,
+        &presentation_issues,
+    )?;
     let presentation_stack =
-        crate::presentation_stack_projection_v1::project_presentation_stack_v1(
-            &document, snapshot,
-        )?;
+        presentation_context.into_stack(snapshot, presentation_roots, presentation_issues)?;
     DocumentProjectionV1::try_new(
         provenance,
         persisted_standard,
         paper_layout,
         molecules,
+        direct_roots,
         presentation_stack,
         issues,
     )
     .map_err(projection_aggregate_error)
+}
+
+fn direct_root_id(record: &TypedRecord) -> Result<DocumentObjectIdV1, ProjectionError> {
+    crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?.ok_or_else(
+        || ProjectionError::InvalidValue {
+            context: record.path().to_string(),
+            field: "document object identity",
+            value: "missing persisted identity".to_owned(),
+        },
+    )
+}
+
+fn validate_direct_root_payloads(
+    direct_roots: &[DocumentDirectRootV1],
+    molecules: &[MoleculeProjectionV1],
+    presentation_roots: &[PresentationRootProjectionV1],
+    presentation_issues: &[PresentationProjectionIssueV1],
+) -> Result<(), ProjectionError> {
+    let direct_ids = direct_roots
+        .iter()
+        .map(|root| root.document_object_id().as_str())
+        .collect::<BTreeSet<_>>();
+    for molecule in molecules {
+        let id = molecule.id().ok_or_else(|| ProjectionError::InvalidValue {
+            context: "molecule projection".to_owned(),
+            field: "document object identity",
+            value: "missing persisted identity".to_owned(),
+        })?;
+        require_direct_root(&direct_ids, id, "molecule payload")?;
+    }
+    for root in presentation_roots {
+        require_direct_root(
+            &direct_ids,
+            root.target().document_object_id(),
+            "presentation payload",
+        )?;
+    }
+    for issue in presentation_issues {
+        require_direct_root(
+            &direct_ids,
+            issue.target().document_object_id(),
+            "presentation issue",
+        )?;
+    }
+    for root in direct_roots {
+        let id = root.document_object_id();
+        let has_payload = match root.kind() {
+            DocumentDirectRootKindV1::Molecule => {
+                molecules.iter().any(|molecule| molecule.id() == Some(id))
+            }
+            DocumentDirectRootKindV1::Presentation(kind) => presentation_roots.iter().any(|root| {
+                root.target().document_object_id() == id && root.target().record_kind() == kind
+            }),
+            DocumentDirectRootKindV1::RejectedPresentation(code) => {
+                presentation_issues
+                    .iter()
+                    .any(|issue| issue.target().document_object_id() == id && issue.code() == code)
+                    && !presentation_roots
+                        .iter()
+                        .any(|root| root.target().document_object_id() == id)
+            }
+        };
+        if !has_payload {
+            return Err(ProjectionError::InvalidValue {
+                context: id.as_str().to_owned(),
+                field: "document direct root",
+                value: "direct root has no corresponding payload".to_owned(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn require_direct_root(
+    direct_ids: &BTreeSet<&str>,
+    id: &DocumentObjectIdV1,
+    payload: &'static str,
+) -> Result<(), ProjectionError> {
+    if direct_ids.contains(id.as_str()) {
+        return Ok(());
+    }
+    Err(ProjectionError::InvalidValue {
+        context: id.as_str().to_owned(),
+        field: "document direct root",
+        value: format!("{payload} has no direct root"),
+    })
 }
 
 fn projection_aggregate_error(source: DocumentProjectionV1Error) -> ProjectionError {
@@ -106,7 +244,6 @@ fn molecule(
         crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?,
         crate::projection_local_object_key_from_record_v1(record)?,
         record.attribute("id").map(str::to_owned),
-        child.position(),
         record.attribute("name").map(str::to_owned),
         atoms,
         compact_groups,

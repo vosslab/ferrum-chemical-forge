@@ -128,7 +128,7 @@ pub struct DocumentAtomOxidationObservationV1 {
     pub source_digest_hex: String,
     pub molecule_id: String,
     pub atom_id: String,
-    pub document_root_order: u32,
+    pub document_paint_order: u32,
     pub convention: String,
     #[serde(flatten)]
     pub outcome: DocumentAtomOxidationObservationOutcomeV1,
@@ -219,11 +219,11 @@ pub enum DocumentSmartsQueryTraversalSummaryV1 {
     Incomplete { reason: String },
 }
 
-/// One source-ordered target with at least one retained match. No atom identity crosses JSON.
+/// One document-paint-ordered target with at least one retained match. No atom identity crosses JSON.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DocumentSmartsQueryMoleculeSummaryV1 {
-    pub source_order: u32,
+    pub document_paint_order: u32,
     pub match_count: u32,
     pub completeness: String,
 }

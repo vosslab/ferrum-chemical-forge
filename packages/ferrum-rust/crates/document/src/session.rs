@@ -49,19 +49,22 @@ mod construction;
 mod direct_bond;
 mod direct_haworth;
 mod explicit_fragment;
+mod free_compact_group;
 mod gestures;
 mod hydrogen_materialization;
 mod interchange;
 mod linear_form;
-mod live_structural_targets;
 mod live_chemical_targets;
 mod live_presentation_targets;
+mod live_structural_targets;
 pub use live_chemical_targets::LiveChemicalPresentationTargetV1;
 mod molecule_creation;
 mod prepared;
 mod presentation_creation;
 mod presentation_gesture;
 mod primitive_bond;
+mod reaction_authoring_command_v1;
+mod reaction_member_selection_v1;
 mod renderer_admitted_pending_v1;
 mod renderer_translation_snap_v1;
 mod standalone_haworth;
@@ -77,6 +80,11 @@ pub use admitted_transition_v1::{
     SessionOperationTransitionRequestV1, TransitionAuthorizationRefusalV1,
     TransitionAuthorizationV1,
 };
+pub use attached_compact_group::{
+    AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
+    AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1,
+    PendingAttachedCompactGroupV1,
+};
 /// Concrete internal Rust transaction seam for the API-owned attached-C6 bridge.
 ///
 /// This remains public because `ferrum-api` must retain and redeem the opaque prepared
@@ -84,17 +92,29 @@ pub use admitted_transition_v1::{
 /// general attachment API: the document session retains admission, fencing, deferred IDs,
 /// and atomic commit authority.
 pub use attached_cyclohexane::{AttachedCyclohexaneSessionErrorV1, PendingAttachedCyclohexaneV1};
-pub use attached_compact_group::{
-    AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
-    AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1, PendingAttachedCompactGroupV1,
-};
 pub use bracket::PendingCreateBracket;
 pub use clipboard::DocumentClipboardPasteResultV1;
 #[allow(unused_imports)]
 pub use explicit_fragment::PendingCreateExplicitFragmentV1;
+pub use free_compact_group::{
+    FreeCompactGroupPlacementCommitResultV1, FreeCompactGroupPlacementSessionErrorV1,
+    PendingPlaceFreeCompactGroupV1,
+};
 pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1};
 pub use presentation_creation::{
     PresentationAppearanceV1, PresentationCreateRequestV1, PresentationVectorCreateKindV1,
+};
+pub use reaction_authoring_command_v1::{
+    DocumentCreateReactionCommandV1, DocumentDeleteReactionCommandV1,
+    DocumentReactionAuthoringCommandKindV1, DocumentReactionMemberTargetsV1,
+    DocumentReplaceReactionMembersCommandV1, ReactionAuthoringCommandRefusalV1,
+};
+#[allow(unused_imports)]
+pub use reaction_member_selection_v1::{
+    DocumentReactionListDispositionV1, DocumentReactionListObservationV1,
+    DocumentReactionListReactionV1, DocumentReactionMemberObservationV1,
+    DocumentReactionMemberSelectionV1, DocumentReactionSelectionObservationV1,
+    ReactionMemberSelectionRefusalV1,
 };
 pub use structural_deletion::{PendingDeleteCompactGroupV1, PendingDeleteStructureV1};
 pub use text_placement::PendingTextPlacementV1;

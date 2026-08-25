@@ -153,30 +153,37 @@ pub struct PaperAttributesV1 {
     size_y: Option<String>,
 }
 
+/// Raw recognized tokens copied from one direct core paper record.
+///
+/// This input deliberately groups the complete authored paper appearance before
+/// it becomes the closed [`PaperAttributesV1`] wire value.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PaperAttributeTokensV1 {
+    pub id: Option<String>,
+    pub type_name: Option<String>,
+    pub orientation: Option<String>,
+    pub crop_svg: Option<String>,
+    pub crop_margin: Option<String>,
+    pub use_real_minus: Option<String>,
+    pub replace_minus: Option<String>,
+    pub size_x: Option<String>,
+    pub size_y: Option<String>,
+}
+
 impl PaperAttributesV1 {
-    /// Construct copied recognized paper attributes.
+    /// Construct closed paper attributes from one copied paper record.
     #[must_use]
-    pub fn new(
-        id: Option<String>,
-        type_name: Option<String>,
-        orientation: Option<String>,
-        crop_svg: Option<String>,
-        crop_margin: Option<String>,
-        use_real_minus: Option<String>,
-        replace_minus: Option<String>,
-        size_x: Option<String>,
-        size_y: Option<String>,
-    ) -> Self {
+    pub fn from_tokens(tokens: PaperAttributeTokensV1) -> Self {
         Self {
-            id,
-            type_name,
-            orientation,
-            crop_svg,
-            crop_margin,
-            use_real_minus,
-            replace_minus,
-            size_x,
-            size_y,
+            id: tokens.id,
+            type_name: tokens.type_name,
+            orientation: tokens.orientation,
+            crop_svg: tokens.crop_svg,
+            crop_margin: tokens.crop_margin,
+            use_real_minus: tokens.use_real_minus,
+            replace_minus: tokens.replace_minus,
+            size_x: tokens.size_x,
+            size_y: tokens.size_y,
         }
     }
 
@@ -277,31 +284,37 @@ pub struct PaperLayoutProjectionV1 {
     page: PaperPageV1,
 }
 
+/// Document-resolved paper layout facts for one immutable projection.
+///
+/// These values are already typed or closed values. The projection retains its
+/// own serialized fields so this construction input never changes the V1 wire
+/// schema.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaperLayoutFactsV1 {
+    pub paper_present: bool,
+    pub paper_attributes: PaperAttributesV1,
+    pub effective_paper_attributes: PaperAttributesV1,
+    pub viewport_attributes: ViewportAttributesV1,
+    pub default_type: String,
+    pub default_orientation: PaperOrientationV1,
+    pub page: PaperPageV1,
+}
+
 impl PaperLayoutProjectionV1 {
     /// Construct a projection from document-resolved paper facts.
     #[must_use]
-    pub fn new(
-        revision: u64,
-        digest: [u8; 32],
-        paper_present: bool,
-        paper_attributes: PaperAttributesV1,
-        effective_paper_attributes: PaperAttributesV1,
-        viewport_attributes: ViewportAttributesV1,
-        default_type: String,
-        default_orientation: PaperOrientationV1,
-        page: PaperPageV1,
-    ) -> Self {
+    pub fn new(revision: u64, digest: [u8; 32], facts: PaperLayoutFactsV1) -> Self {
         Self {
             schema: PAPER_LAYOUT_PROJECTION_SCHEMA_V1,
             revision,
             digest,
-            paper_present,
-            paper_attributes,
-            effective_paper_attributes,
-            viewport_attributes,
-            default_type,
-            default_orientation,
-            page,
+            paper_present: facts.paper_present,
+            paper_attributes: facts.paper_attributes,
+            effective_paper_attributes: facts.effective_paper_attributes,
+            viewport_attributes: facts.viewport_attributes,
+            default_type: facts.default_type,
+            default_orientation: facts.default_orientation,
+            page: facts.page,
         }
     }
 

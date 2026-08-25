@@ -135,9 +135,10 @@ pub enum PresentationAuthoringKindV1 {
 #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PresentationAuthorDirectBondOutcomeV1 {
-    pub end_atom_identifier: String,
+    pub bond_document_object_id: String,
+    pub end_atom_document_object_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub second_created_atom_identifier: Option<String>,
+    pub second_created_atom_document_object_id: Option<String>,
     pub created_new_atom: bool,
     pub created_new_molecule: bool,
 }

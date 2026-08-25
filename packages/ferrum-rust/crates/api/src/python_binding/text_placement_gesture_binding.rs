@@ -92,7 +92,7 @@ impl PyTextPlacementDefaultsV1 {
 #[pyclass(frozen, module = "ferrum_chem", name = "TextPlacementCommitV1")]
 pub(crate) struct PyTextPlacementCommitV1 {
     #[pyo3(get)]
-    identifier: String,
+    document_object_id: String,
     #[pyo3(get)]
     result: PySessionOperationResultV1,
 }
@@ -185,7 +185,7 @@ impl PyDocumentSession {
         self.session
             .commit_text_placement_gesture_v1(&mut preview.preview)
             .map(|value| PyTextPlacementCommitV1 {
-                identifier: value.identifier().to_owned(),
+                document_object_id: value.document_object_id().as_str().to_owned(),
                 result: value.result().clone().into(),
             })
             .map_err(|error| text_error(py, error))

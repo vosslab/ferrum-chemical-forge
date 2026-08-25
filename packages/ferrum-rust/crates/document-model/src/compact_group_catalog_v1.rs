@@ -13,6 +13,11 @@ pub struct CompactGroupRecipeAtomV1 {
     pub role: &'static str,
     /// Canonical element symbol for the materialized atom.
     pub element: &'static str,
+    /// Authored formal charge when the closed topology requires one.
+    ///
+    /// `None` preserves the ordinary uncharged atom representation rather
+    /// than manufacturing a zero-valued source attribute.
+    pub formal_charge: Option<i32>,
     /// Position in the recipe's attachment-relative local coordinate frame.
     pub x: f64,
     /// Position in the recipe's attachment-relative local coordinate frame.
@@ -59,6 +64,7 @@ pub struct CompactGroupMaterializationRecipeV1 {
 const METHYL_ATOMS: [CompactGroupRecipeAtomV1; 1] = [CompactGroupRecipeAtomV1 {
     role: "attachment_carbon",
     element: "C",
+    formal_charge: None,
     x: 0.0,
     y: 0.0,
 }];
@@ -67,18 +73,21 @@ const NITRO_ATOMS: [CompactGroupRecipeAtomV1; 3] = [
     CompactGroupRecipeAtomV1 {
         role: "attachment_nitrogen",
         element: "N",
+        formal_charge: Some(1),
         x: 0.0,
         y: 0.0,
     },
     CompactGroupRecipeAtomV1 {
         role: "double_oxygen",
         element: "O",
+        formal_charge: None,
         x: 24.0,
         y: 18.0,
     },
     CompactGroupRecipeAtomV1 {
         role: "single_oxygen",
         element: "O",
+        formal_charge: Some(-1),
         x: 24.0,
         y: -18.0,
     },
@@ -106,6 +115,8 @@ const METHYL_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMateriali
 };
 
 const NITRO_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMaterializationRecipeV1 {
+    // Nitro materializes canonically as R-[N+](=O)[O-]. This closed recipe
+    // owns one resonance form so materialization remains deterministic.
     atoms: &NITRO_ATOMS,
     bonds: &NITRO_BONDS,
     attachment_atom_role: "attachment_nitrogen",
@@ -124,6 +135,26 @@ pub enum CompactGroupCatalogKeyV1 {
     Carboxyl,
     AcylChloride,
     Hydroxymethyl,
+}
+
+const REVIEWED_ATTACHED_COMPACT_GROUP_KEYS_V1: [CompactGroupCatalogKeyV1; 2] = [
+    CompactGroupCatalogKeyV1::Methyl,
+    CompactGroupCatalogKeyV1::Nitro,
+];
+
+/// Return the closed catalog keys reviewed for attached compact-group authoring.
+///
+/// Persisted catalog support and materialization support are intentionally broader
+/// and separate from this authoring capability.
+#[must_use]
+pub const fn reviewed_attached_compact_group_keys_v1() -> [CompactGroupCatalogKeyV1; 2] {
+    REVIEWED_ATTACHED_COMPACT_GROUP_KEYS_V1
+}
+
+/// Return whether one persisted key is reviewed for attached compact-group authoring.
+#[must_use]
+pub fn is_reviewed_attached_compact_group_key_v1(key: CompactGroupCatalogKeyV1) -> bool {
+    reviewed_attached_compact_group_keys_v1().contains(&key)
 }
 
 impl CompactGroupCatalogKeyV1 {
@@ -267,5 +298,27 @@ mod tests {
             materialization_recipe_v1(CompactGroupCatalogKeyV1::Nitro).expect("nitro recipe");
         assert_eq!(nitro.attachment_atom_role, "attachment_nitrogen");
         assert!(materialization_recipe_v1(CompactGroupCatalogKeyV1::Ethyl).is_none());
+    }
+
+    #[test]
+    fn nitro_recipe_encodes_its_closed_formal_charge_topology() {
+        let nitro =
+            materialization_recipe_v1(CompactGroupCatalogKeyV1::Nitro).expect("nitro recipe");
+        assert_eq!(nitro.atoms.len(), 3);
+        assert_eq!(nitro.atoms[0].role, "attachment_nitrogen");
+        assert_eq!(nitro.atoms[0].formal_charge, Some(1));
+        assert_eq!(nitro.atoms[1].role, "double_oxygen");
+        assert_eq!(nitro.atoms[1].formal_charge, None);
+        assert_eq!(nitro.atoms[2].role, "single_oxygen");
+        assert_eq!(nitro.atoms[2].formal_charge, Some(-1));
+        assert_eq!(nitro.bonds.len(), 2);
+        assert_eq!(
+            nitro.bonds[0].order,
+            super::CompactGroupRecipeBondOrderV1::Double
+        );
+        assert_eq!(
+            nitro.bonds[1].order,
+            super::CompactGroupRecipeBondOrderV1::Single
+        );
     }
 }

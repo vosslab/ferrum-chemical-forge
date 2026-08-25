@@ -3,9 +3,49 @@
 use ferrum_domain::haworth::{BondDepiction, HaworthFragment, HaworthPoint};
 
 use crate::{
-    BatchSpace, LineOp, MoleculeRenderPlan, Paint, PositiveFinite, RenderBatch, RenderError,
-    RenderOp, RenderPoint, RenderProvenance, RenderTarget,
+    BatchSpace, LineOp, Paint, PositiveFinite, RenderError, RenderOp, RenderPoint, RenderProvenance,
 };
+
+/// Identifier-free Haworth paint batch for detached previews.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HaworthPreviewBatchV1 {
+    paint_order: u32,
+    coordinate_space: BatchSpace,
+    operations: Vec<RenderOp>,
+}
+
+impl HaworthPreviewBatchV1 {
+    #[must_use]
+    pub const fn paint_order(&self) -> u32 {
+        self.paint_order
+    }
+    #[must_use]
+    pub const fn coordinate_space(&self) -> &BatchSpace {
+        &self.coordinate_space
+    }
+    #[must_use]
+    pub fn operations(&self) -> &[RenderOp] {
+        &self.operations
+    }
+}
+
+/// Identifier-free Haworth preview preserving admitted geometry and paint order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HaworthPreviewV1 {
+    provenance: RenderProvenance,
+    batches: Vec<HaworthPreviewBatchV1>,
+}
+
+impl HaworthPreviewV1 {
+    #[must_use]
+    pub const fn provenance(&self) -> RenderProvenance {
+        self.provenance
+    }
+    #[must_use]
+    pub fn batches(&self) -> &[HaworthPreviewBatchV1] {
+        &self.batches
+    }
+}
 
 /// Complete presentation facts needed to lower a Haworth fragment.
 #[derive(Clone, Debug, PartialEq)]
@@ -29,7 +69,7 @@ pub struct HaworthRenderRequest {
 /// its label anchors are durable facts for a later explicit label request.
 pub fn lower_haworth_fragment(
     request: &HaworthRenderRequest,
-) -> Result<MoleculeRenderPlan, RenderError> {
+) -> Result<HaworthPreviewV1, RenderError> {
     let mut source = Vec::new();
     for (bond, depiction) in request.fragment.ring_bonds() {
         let endpoints = request.fragment.bond_geometry().get(bond).ok_or_else(|| {
@@ -54,7 +94,7 @@ pub fn lower_haworth_fragment(
     }
     let batches = source
         .into_iter()
-        .map(|(order, bond, points, depiction)| {
+        .map(|(order, _, points, depiction)| {
             let operations = match depiction {
                 Some(BondDepiction::HaworthFront {
                     face: ferrum_domain::haworth::Face::Front,
@@ -76,14 +116,17 @@ pub fn lower_haworth_fragment(
                     ));
                 }
             };
-            RenderBatch::new(
-                RenderTarget::new(bond, order),
-                BatchSpace::Scene,
+            Ok(HaworthPreviewBatchV1 {
+                paint_order: order,
+                coordinate_space: BatchSpace::Scene,
                 operations,
-            )
+            })
         })
         .collect::<Result<Vec<_>, RenderError>>()?;
-    MoleculeRenderPlan::new(request.provenance, batches, Vec::new())
+    Ok(HaworthPreviewV1 {
+        provenance: request.provenance,
+        batches,
+    })
 }
 
 fn point(value: HaworthPoint) -> Result<RenderPoint, RenderError> {
@@ -135,15 +178,14 @@ mod tests {
         HaworthLayoutRequest, HaworthTopologyBuilder, HaworthVertex, RingForm, layout_single_ring,
     };
 
-    use super::{HaworthRenderRequest, lower_haworth_fragment};
+    use super::{HaworthPreviewBatchV1, HaworthRenderRequest, lower_haworth_fragment};
     use crate::{Paint, PositiveFinite, RenderOp, RenderProvenance, RenderRevision, Rgb24};
 
     fn atom(index: usize, element: &str) -> Atom {
         Atom::new(
-            Some(Identifier::new(format!("render-a{index}")).expect("identifier")),
+            Identifier::new(format!("render-a{index}")).expect("identifier"),
             Some(element.to_owned()),
             Position::new(index as f64, 0.0, 0.0).expect("position"),
-            None,
             None,
             None,
             None,
@@ -163,27 +205,25 @@ mod tests {
         let bonds = (0..6)
             .map(|index| {
                 Bond::new(
-                    Some(Identifier::new(format!("render-b{index}")).expect("identifier")),
+                    Identifier::new(format!("render-b{index}")).expect("identifier"),
                     VertexRef::Atom(atoms[index].identity().clone()),
                     VertexRef::Atom(atoms[(index + 1) % 6].identity().clone()),
                     None,
                     Some(BondOrder::Single),
                     None,
                     Some(false),
-                    None,
                 )
                 .expect("bond")
             })
             .collect::<Vec<_>>();
         let molecule = Molecule::new(
-            Some(Identifier::new("render-molecule").expect("identifier")),
+            Identifier::new("render-molecule").expect("identifier"),
             None,
             atoms.clone(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
             bonds,
-            None,
         )
         .expect("molecule");
         let topology = HaworthTopologyBuilder::new(
@@ -229,11 +269,10 @@ mod tests {
         })
         .expect("plan");
         assert_eq!(plan.batches().len(), 6);
-        assert_eq!(plan.issues().len(), 0);
         let orders = plan
             .batches()
             .iter()
-            .map(|batch| batch.target().source_order())
+            .map(HaworthPreviewBatchV1::paint_order)
             .collect::<Vec<_>>();
         assert_eq!(orders, vec![0, 1, 2, 3, 4, 5]);
         assert_eq!(

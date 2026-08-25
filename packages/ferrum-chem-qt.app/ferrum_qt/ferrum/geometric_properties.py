@@ -73,7 +73,7 @@ def dialog_model_from_projection(root: object) -> FerrumNativeGeometricDialogMod
 		raise TypeError("selected Rust geometric payload does not match its root kind")
 	if payload.target.record_kind != root.kind:
 		raise ValueError("selected Rust geometric target kind is inconsistent")
-	if type(payload.target.id) is not str:
+	if type(payload.target.document_object_id) is not str:
 		raise ValueError("Ferrum geometric properties require a durable authored target")
 	width = payload.stroke.width
 	if (
@@ -93,7 +93,7 @@ def dialog_model_from_projection(root: object) -> FerrumNativeGeometricDialogMod
 	if area_color is not None and type(area_color) is not str:
 		raise TypeError("selected Rust geometric fill color must be a string or None")
 	return FerrumNativeGeometricDialogModel(
-		payload.target.id,
+		payload.target.document_object_id,
 		root.kind,
 		_TITLES[root.kind],
 		width,
@@ -146,11 +146,12 @@ def bracket_dialog_model_from_projection(
 	import ferrum_qt.ferrum.engine as engine
 	if type(pair) is not engine.BracketPairProjectionV1:
 		raise TypeError("Ferrum bracket properties require an exact Ferrum pair")
+	members = pair.members
 	if (
-			type(pair.pair_id) is not str
-			or type(pair.member_ids) is not list
-			or len(pair.member_ids) != 2
-			or any(type(identifier) is not str for identifier in pair.member_ids)
+			type(members) not in (list, tuple)
+			or len(members) != 2
+			or any(type(identifier) is not str for identifier in members)
+			or members[0] == members[1]
 		):
 		raise ValueError("selected Rust bracket pair has invalid durable identity")
 	width = pair.line_width
@@ -163,21 +164,24 @@ def bracket_dialog_model_from_projection(
 		raise ValueError("selected Rust bracket width is not representable by the current form")
 	if type(pair.line_color) is not str:
 		raise ValueError("selected Rust bracket has no common editable line color")
-	members: dict[str, str] = {}
+	member_target_ids: dict[str, str] = {}
 	for root in roots:
 		if type(root) is not engine.PresentationRootProjectionV1:
 			raise TypeError("Ferrum bracket properties require exact Ferrum roots")
 		if root.kind != "polyline" or root.polyline is None:
 			continue
-		if root.polyline.target.source_id not in pair.member_ids:
+		document_object_id = root.polyline.target.document_object_id
+		if document_object_id not in members:
 			continue
-		if type(root.polyline.target.id) is not str:
+		if type(document_object_id) is not str:
 			raise ValueError("selected Rust bracket member is not durable")
-		members[root.polyline.target.source_id] = root.polyline.target.id
-	if members.keys() != set(pair.member_ids):
+		if document_object_id in member_target_ids:
+			raise ValueError("selected Rust bracket has duplicate rendered members")
+		member_target_ids[document_object_id] = document_object_id
+	if set(member_target_ids) != set(members):
 		raise ValueError("selected Rust bracket has no complete rendered member pair")
 	return FerrumNativeBracketDialogModel(
-		(members[pair.member_ids[0]], members[pair.member_ids[1]]),
+		(member_target_ids[members[0]], member_target_ids[members[1]]),
 		"Bracket",
 		width,
 		pair.line_color,

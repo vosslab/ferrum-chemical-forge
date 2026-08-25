@@ -35,11 +35,8 @@ class _PopupTerminalLatch(PySide6.QtCore.QObject):
 		"""Observe a popup from its Show event until its destruction."""
 		super().__init__(handoff)
 		self._handoff = handoff
-		self._popup_ref = weakref.ref(popup)
 		self.terminal_seen = False
 		popup.destroyed.connect(self._on_popup_destroyed)
-		if isinstance(popup, PySide6.QtWidgets.QMenu):
-			popup.aboutToHide.connect(self.mark_terminal)
 
 	def mark_terminal(self) -> None:
 		"""Latch the first genuine terminal signal and notify current listeners."""
@@ -65,10 +62,8 @@ class _PopupTerminalLatch(PySide6.QtCore.QObject):
 class _PopupActionContinuation(PySide6.QtCore.QObject):
 	"""Own one action invocation until its transient popup has retired."""
 
-	MAX_POPUP_TRANSITIONS = 3
-
 	def __init__(self, handoff: "FerrumInteractionActionHandoff", action: PySide6.QtGui.QAction,
-			handler: object, accepts_checked: bool, checked: bool, watchdog_ms: int) -> None:
+			handler: object, accepts_checked: bool, checked: bool) -> None:
 		"""Retain exactly one guarded action invocation."""
 		super().__init__(handoff)
 		self._handoff = handoff
@@ -79,13 +74,8 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 		self._state = "waiting"
 		self._popup: PySide6.QtWidgets.QWidget | None = None
 		self._popup_latch: _PopupTerminalLatch | None = None
-		self._popup_transitions = 0
 		self._settle_queued = False
 		self._terminal_dispatch_authorized = False
-		self._watchdog = PySide6.QtCore.QTimer(self)
-		self._watchdog.setSingleShot(True)
-		self._watchdog.setInterval(watchdog_ms)
-		self._watchdog.timeout.connect(self._on_watchdog_timeout)
 
 	def arm_popup(self, popup: PySide6.QtWidgets.QWidget,
 			latch: _PopupTerminalLatch) -> None:
@@ -93,17 +83,12 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 		if self._state != "waiting":
 			return
 		self._disconnect_popup()
-		self._popup_transitions += 1
-		if self._popup_transitions > self.MAX_POPUP_TRANSITIONS:
-			self._fail("popup replacement limit reached")
-			return
 		self._popup = popup
 		self._popup_latch = latch
 		# A replacement popup needs its own terminal authorization.
 		self._terminal_dispatch_authorized = False
 		latch.terminal.connect(self._on_popup_terminal)
 		latch.destroyed_without_terminal.connect(self._on_popup_destroyed)
-		self._watchdog.start()
 		if latch.terminal_seen:
 			self._on_popup_terminal()
 
@@ -140,15 +125,13 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 			self.run_once()
 			return
 		if popup is self._popup:
-			self._fail("popup did not retire after its terminal event")
+			latch = self._popup_latch
+			if latch is not None and latch.terminal_seen:
+				# Qt can retain a just-hidden popup as active for this queued turn.
+				self._disconnect_popup()
+				self.run_once()
 			return
 		self.arm_popup(popup, self._handoff._popup_latch_for(popup))
-
-	@PySide6.QtCore.Slot()
-	def _on_watchdog_timeout(self) -> None:
-		"""Fail closed when a popup never provides a terminal lifecycle event."""
-		if self._state == "waiting":
-			self._fail("popup teardown timed out")
 
 	def run_once(self) -> None:
 		"""Run the atomic guard then handler exactly once while both owners live."""
@@ -196,8 +179,7 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 		self._cleanup()
 
 	def _cleanup(self) -> None:
-		"""Stop the one watchdog and release this continuation from its handoff."""
-		self._watchdog.stop()
+		"""Release popup and action state after a terminal outcome."""
 		self._disconnect_popup()
 		self._handoff._release_continuation(self._action, self)
 		self._handler = None
@@ -225,14 +207,13 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 	"""Cancel one temporary canvas capture before an incoming tool activates."""
 
 	def __init__(self, owner: PySide6.QtWidgets.QWidget, failure_reporter: object,
-			*, popup_watchdog_ms: int = 250) -> None:
+			) -> None:
 		"""Create the window-owned shared action handoff."""
 		super().__init__(owner)
 		if not callable(failure_reporter):
 			raise TypeError("Ferrum interaction failure reporter must be callable")
 		self._owner = owner
 		self._failure_reporter = failure_reporter
-		self._popup_watchdog_ms = popup_watchdog_ms
 		self._owner_destroyed = False
 		self._capture_canceller: collections.abc.Callable[[bool], None] | None = None
 		self._actions: dict[PySide6.QtGui.QAction, object] = {}
@@ -305,7 +286,6 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		if menu in menus:
 			return
 		self._popup_latch_for(menu)
-		menu.aboutToShow.connect(self._popup_latches[menu].rearm_for_show)
 		menus.add(menu)
 
 	def _dispatch(self, action: PySide6.QtGui.QAction, handler: object,
@@ -317,7 +297,7 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		if previous is not None:
 			previous.cancel()
 		continuation = _PopupActionContinuation(
-			self, action, handler, accepts_checked, checked, self._popup_watchdog_ms,
+			self, action, handler, accepts_checked, checked,
 		)
 		self._continuations[action] = continuation
 		popup = PySide6.QtWidgets.QApplication.activePopupWidget()
@@ -359,9 +339,20 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 	def _before_incoming_action(self, action: PySide6.QtGui.QAction,
 			checked: bool = False) -> None:
 		"""Retire prior pointer ownership while preserving the incoming tool state."""
+		self._uncheck_other_registered_actions(action)
 		self._owner.cancel_active_pointer_authoring(clear_status=False)
 		if checked and action.isCheckable() and action.isEnabled():
 			action.setChecked(True)
+
+	def _uncheck_other_registered_actions(self, incoming: PySide6.QtGui.QAction) -> None:
+		"""Retire checked pointer-tool presentation before the next action owns input."""
+		for action in tuple(self._actions):
+			if (
+				action is not incoming
+				and shiboken6.isValid(action)
+				and action.isCheckable()
+			):
+				action.setChecked(False)
 
 	def _release_continuation(self, action: PySide6.QtGui.QAction,
 			continuation: _PopupActionContinuation) -> None:

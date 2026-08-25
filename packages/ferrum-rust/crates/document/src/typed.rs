@@ -183,6 +183,7 @@ pub struct TypedRecord {
     class: TypedClass,
     path: ElementPath,
     typed_attributes: BTreeMap<String, String>,
+    document_object_id_metadata_v1: Option<String>,
     unknown_attributes: Vec<UnknownAttribute>,
     typed_children: Vec<TypedChild>,
     typed_text: Vec<TypedText>,
@@ -213,6 +214,12 @@ impl TypedRecord {
     #[must_use]
     pub fn typed_attributes(&self) -> &BTreeMap<String, String> {
         &self.typed_attributes
+    }
+
+    /// Return Ferrum-owned persisted opaque identity metadata when present.
+    #[must_use]
+    pub(crate) fn document_object_id_metadata_v1(&self) -> Option<&str> {
+        self.document_object_id_metadata_v1.as_deref()
     }
 
     /// Return attributes not assigned as named fields for this class.
@@ -273,7 +280,8 @@ pub struct TypedDocument {
 impl TypedDocument {
     /// Parse CDML once, establish persistent identity, then project recognized classes.
     pub fn parse(source: &str) -> Result<Self, TypedDocumentError> {
-        let indexed = IndexedDocument::parse(source)?;
+        let indexed = IndexedDocument::parse(source)
+            .map_err(|error| map_indexed_identity_error(source, error))?;
         Self::from_indexed(indexed)
     }
 
@@ -287,7 +295,10 @@ impl TypedDocument {
         budget: super::XmlInputBudgetV1,
     ) -> Result<Self, TypedDocumentError> {
         let xml = super::XmlDocument::parse_with_budget(source, budget)?;
-        let indexed = IndexedDocument::from_xml(xml).map_err(IndexedDocumentError::from)?;
+        let normalized_source = xml.to_xml()?;
+        let indexed = IndexedDocument::from_xml(xml)
+            .map_err(IndexedDocumentError::from)
+            .map_err(|error| map_indexed_identity_error(&normalized_source, error))?;
         Self::from_indexed(indexed)
     }
 
@@ -297,6 +308,7 @@ impl TypedDocument {
             .document_element(indexed.xml.document)
             .expect("an indexed XML document has a document element");
         let root = project_record(tree, root_node, TypedClass::Cdml, Vec::new())?;
+        super::document_object_identity_v1::normalize_document_object_ids_v1(&mut indexed, &root)?;
         validate_canonical_values(&root)?;
         super::typed_molecule_insertion::validate_document_stereo_semantics(&indexed)?;
         canonicalize_presentation_face_aliases(&mut indexed);
@@ -528,6 +540,65 @@ impl TypedDocument {
             .map_err(IndexedDocumentError::from)
             .map_err(TypedDocumentError::from)
     }
+}
+
+fn map_indexed_identity_error(source: &str, error: IndexedDocumentError) -> TypedDocumentError {
+    let IndexedDocumentError::Identity(identity_error) = &error else {
+        return TypedDocumentError::Indexed(error);
+    };
+    let Ok(xml) = super::XmlDocument::parse(source) else {
+        return TypedDocumentError::Indexed(error);
+    };
+    let tree = &xml.tree;
+    let root_node = tree
+        .document_element(xml.document)
+        .expect("a parsed XML document has a document element");
+    let Ok(root) = project_record(tree, root_node, TypedClass::Cdml, Vec::new()) else {
+        return TypedDocumentError::Indexed(error);
+    };
+    match identity_error {
+        super::DocumentIdentityError::BlankPersistentId => find_blank_source_record(&root)
+            .map(|record| TypedDocumentError::InvalidStructuralSourceId {
+                location: super::document_object_identity_v1::location_for_record_v1(record),
+            })
+            .unwrap_or(TypedDocumentError::Indexed(error)),
+        super::DocumentIdentityError::DuplicatePersistentId {
+            first, duplicate, ..
+        } => match (
+            find_record_at_path(&root, first.components()),
+            find_record_at_path(&root, duplicate.components()),
+        ) {
+            (Some(first), Some(duplicate)) => TypedDocumentError::DuplicateStructuralSourceId {
+                first: super::document_object_identity_v1::location_for_record_v1(first),
+                duplicate: super::document_object_identity_v1::location_for_record_v1(duplicate),
+            },
+            _ => TypedDocumentError::Indexed(error),
+        },
+        _ => TypedDocumentError::Indexed(error),
+    }
+}
+
+fn find_blank_source_record(record: &TypedRecord) -> Option<&TypedRecord> {
+    if record
+        .attribute("id")
+        .is_some_and(|value| value.trim().is_empty())
+    {
+        return Some(record);
+    }
+    record
+        .typed_children()
+        .iter()
+        .find_map(|child| find_blank_source_record(child.record()))
+}
+
+fn find_record_at_path<'a>(record: &'a TypedRecord, path: &[u32]) -> Option<&'a TypedRecord> {
+    if record.path().components() == path {
+        return Some(record);
+    }
+    record
+        .typed_children()
+        .iter()
+        .find_map(|child| find_record_at_path(child.record(), path))
 }
 
 /// Serialize every admitted presentation-face alias as the one canonical CDML spelling.

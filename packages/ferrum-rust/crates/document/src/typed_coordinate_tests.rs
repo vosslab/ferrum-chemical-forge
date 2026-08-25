@@ -1,12 +1,38 @@
 use crate::{
-    DocumentSession, PresentationRootProjectionV1, SessionOperation, SessionOperationV1,
-    TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelRootTranslationV1,
+    DocumentObjectIdV1, DocumentSession, PresentationRootProjectionV1, SessionOperation,
+    SessionOperationV1, TopLevelRootKindV1, TopLevelRootSelectorV1, TopLevelRootTranslationV1,
     TransitionAuthorizationV1,
     typed_coordinate::{canonical_authored_coordinate, parse_coordinate},
 };
 
-fn selector(id: &str, kind: TopLevelRootKindV1) -> TopLevelRootSelectorV1 {
-    TopLevelRootSelectorV1::new(id, kind).expect("fixture selector")
+fn selector(
+    document_object_id: DocumentObjectIdV1,
+    kind: TopLevelRootKindV1,
+) -> TopLevelRootSelectorV1 {
+    TopLevelRootSelectorV1::new(document_object_id, kind)
+}
+
+fn mixed_targets(session: &DocumentSession) -> Vec<TopLevelRootSelectorV1> {
+    let revision = session.snapshot().expect("fixture snapshot").revision();
+    let observation = session.observe(revision).expect("fixture observation");
+    let projection = observation.projection();
+    vec![
+        selector(
+            projection.molecules()[0]
+                .id()
+                .expect("fixture molecule is durable")
+                .clone(),
+            TopLevelRootKindV1::Molecule,
+        ),
+        selector(
+            projection.presentation_stack().entries()[0]
+                .root()
+                .target()
+                .document_object_id()
+                .clone(),
+            TopLevelRootKindV1::Plus,
+        ),
+    ]
 }
 
 fn translation(targets: Vec<TopLevelRootSelectorV1>, dx: f64, dy: f64) -> SessionOperation {
@@ -78,21 +104,14 @@ fn shared_translation_preserves_exact_multi_root_geometry_after_reparse() {
         "<plus id=\"p\"><point x=\"47\" y=\"47\"/></plus></cdml>",
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
-    let changed = submit_translation(
-        &mut session,
-        0,
-        vec![
-            selector("m", TopLevelRootKindV1::Molecule),
-            selector("p", TopLevelRootKindV1::Plus),
-        ],
-        7.0,
-        4.0,
-    );
+    let targets = mixed_targets(&session);
+    let changed = submit_translation(&mut session, 0, targets, 7.0, 4.0);
     assert_eq!(changed.observation().snapshot().revision(), 1);
     let projection = changed.observation().projection();
     let atom = projection.molecules()[0].atoms()[0].position();
     assert_eq!((atom.x(), atom.y()), (14.0, 11.0));
-    let PresentationRootProjectionV1::Plus { plus } = &projection.presentation_stack().roots()[0]
+    let PresentationRootProjectionV1::Plus { plus } =
+        projection.presentation_stack().entries()[0].root()
     else {
         panic!("fixture plus remains projected");
     };
@@ -100,16 +119,8 @@ fn shared_translation_preserves_exact_multi_root_geometry_after_reparse() {
 
     let mut reloaded = DocumentSession::load(changed.observation().snapshot().cdml())
         .expect("canonicalized document reloads");
-    let unchanged = submit_translation(
-        &mut reloaded,
-        0,
-        vec![
-            selector("m", TopLevelRootKindV1::Molecule),
-            selector("p", TopLevelRootKindV1::Plus),
-        ],
-        0.0,
-        0.0,
-    );
+    let targets = mixed_targets(&reloaded);
+    let unchanged = submit_translation(&mut reloaded, 0, targets, 0.0, 0.0);
     assert_eq!(unchanged.observation().snapshot().revision(), 0);
     let reloaded_projection = unchanged.observation().projection();
     assert_eq!(
@@ -120,7 +131,7 @@ fn shared_translation_preserves_exact_multi_root_geometry_after_reparse() {
         (14.0, 11.0)
     );
     let PresentationRootProjectionV1::Plus { plus } =
-        &reloaded_projection.presentation_stack().roots()[0]
+        reloaded_projection.presentation_stack().entries()[0].root()
     else {
         panic!("fixture plus remains projected after reload");
     };
@@ -136,12 +147,22 @@ fn nonfinite_transform_rejection_preserves_the_observation() {
     let mut session = DocumentSession::load(source).expect("finite fixture loads");
     let before = session.snapshot().expect("pre-operation observation");
     let capability = session.issue_authoring_capability_v1();
+    let revision = session.snapshot().expect("fixture snapshot").revision();
+    let observation = session.observe(revision).expect("fixture observation");
+    let target = selector(
+        observation.projection().presentation_stack().entries()[0]
+            .root()
+            .target()
+            .document_object_id()
+            .clone(),
+        TopLevelRootKindV1::Plus,
+    );
     assert!(
         session
             .prepare_session_operation_transition_v1(
                 crate::SessionOperationTransitionRequestV1::new(
                     0,
-                    translation(vec![selector("p", TopLevelRootKindV1::Plus)], f64::MAX, 4.0),
+                    translation(vec![target], f64::MAX, 4.0),
                     TransitionAuthorizationV1::authoring_capability(capability),
                 )
             )

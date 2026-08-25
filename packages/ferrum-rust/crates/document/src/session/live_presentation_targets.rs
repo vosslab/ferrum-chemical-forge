@@ -1,7 +1,7 @@
 //! Durable lowering for live direct-root presentation mutations.
 
 use crate::{
-    DocumentObjectIdV1, PersistentId, PresentationRecordKindV1, PresentationRootSelectorV1,
+    DocumentObjectIdV1, PresentationRecordKindV1, PresentationRootSelectorV1,
     SessionOperationError, TypedClass,
 };
 
@@ -29,9 +29,7 @@ impl DocumentSession {
                         object_id.as_str().to_owned(),
                     ));
                 }
-                PresentationRootSelectorV1::new(source_id(record, object_id)?, *kind).map_err(
-                    |_| SessionOperationError::UnknownPresentationRoot(object_id.as_str().to_owned()),
-                )
+                Ok(PresentationRootSelectorV1::new(object_id.clone(), *kind))
             })
             .collect()
     }
@@ -52,21 +50,10 @@ const fn presentation_kind(class: TypedClass) -> Option<PresentationRecordKindV1
     }
 }
 
-fn source_id(
-    record: &crate::TypedRecord,
-    object_id: &DocumentObjectIdV1,
-) -> Result<String, SessionOperationError> {
-    let source = record.attribute("id").ok_or_else(|| {
-        SessionOperationError::UnknownPresentationRoot(object_id.as_str().to_owned())
-    })?;
-    PersistentId::new(source.to_owned())
-        .map(|value| value.as_str().to_owned())
-        .map_err(|_| SessionOperationError::UnknownPresentationRoot(object_id.as_str().to_owned()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::PersistentId;
 
     const SOURCE: &str = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"note\"><point x=\"0\" y=\"0\"/>",
@@ -75,8 +62,13 @@ mod tests {
         "</atom></molecule></cdml>",
     );
 
-    fn object(class: &str, source: &str) -> DocumentObjectIdV1 {
-        DocumentObjectIdV1::from_class_source(class, source).expect("durable test identity")
+    fn object(session: &DocumentSession, source: &str) -> DocumentObjectIdV1 {
+        session
+            .current_document_v1()
+            .document_object_id_for_source_id_v1(
+                &PersistentId::new(source).expect("test source identifier"),
+            )
+            .expect("typed ingress persists the test record identity")
     }
 
     #[test]
@@ -85,23 +77,27 @@ mod tests {
         let before = session.snapshot().expect("before");
         let targets = session
             .lower_live_presentation_roots_v1(&[(
-                object("cdml/text", "note"),
+                object(&session, "note"),
                 PresentationRecordKindV1::Text,
             )])
             .expect("current text root lowers");
-        assert_eq!(targets[0].presentation_id().as_str(), "note");
-        assert!(session
-            .lower_live_presentation_roots_v1(&[(
-                object("cdml/text", "note"),
-                PresentationRecordKindV1::Plus,
-            )])
-            .is_err());
-        assert!(session
-            .lower_live_presentation_roots_v1(&[(
-                object("molecule/atom", "atom"),
-                PresentationRecordKindV1::Text,
-            )])
-            .is_err());
+        assert_eq!(targets[0].document_object_id(), &object(&session, "note"));
+        assert!(
+            session
+                .lower_live_presentation_roots_v1(&[(
+                    object(&session, "note"),
+                    PresentationRecordKindV1::Plus,
+                )])
+                .is_err()
+        );
+        assert!(
+            session
+                .lower_live_presentation_roots_v1(&[(
+                    object(&session, "atom"),
+                    PresentationRecordKindV1::Text,
+                )])
+                .is_err()
+        );
         assert_eq!(session.snapshot().expect("after"), before);
     }
 }

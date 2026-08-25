@@ -1,8 +1,8 @@
 //! Closed Python Text edit values and bounded operation construction.
 
 use ferrum_document::{
-    PresentationFontFaceV1, Rgb24V1, SessionOperation, SessionOperationV1, TextEditRunV1,
-    TextEditStyleV1, TextPropertiesPatchV1, TextPropertyChangeV1,
+    DocumentObjectIdV1, PresentationFontFaceV1, Rgb24V1, SessionOperation, SessionOperationV1,
+    TextEditRunV1, TextEditStyleV1, TextPropertiesPatchV1, TextPropertyChangeV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyInt, PyTuple};
@@ -186,7 +186,7 @@ impl PyDocumentTextPropertyChangeV1 {
 
 pub(crate) fn set_text_properties(
     py: Python<'_>,
-    text_id: String,
+    text_object_id: DocumentObjectIdV1,
     changes: &Bound<'_, PyTuple>,
 ) -> PyResult<SessionOperation> {
     if !changes.is_exact_instance_of::<PyTuple>() {
@@ -210,7 +210,7 @@ pub(crate) fn set_text_properties(
                 .map_err(Into::into)
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let patch = TextPropertiesPatchV1::new(text_id, changes)
+    let patch = TextPropertiesPatchV1::new(text_object_id, changes)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(SessionOperation::V1(
         SessionOperationV1::SetTextProperties { patch },
@@ -221,7 +221,12 @@ fn text_property_change(
     py: Python<'_>,
     change: TextPropertyChangeV1,
 ) -> PyResult<PyDocumentTextPropertyChangeV1> {
-    TextPropertiesPatchV1::new("validation-text", vec![change.clone()])
+    TextPropertiesPatchV1::new(validation_object_id(), vec![change.clone()])
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
     Ok(PyDocumentTextPropertyChangeV1 { change })
+}
+
+fn validation_object_id() -> DocumentObjectIdV1 {
+    DocumentObjectIdV1::parse("ferrum-document-object-v1/00000000000000000000000000000000")
+        .expect("fixed validation document-object identity")
 }

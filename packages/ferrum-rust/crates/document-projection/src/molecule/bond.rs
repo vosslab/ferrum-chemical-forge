@@ -163,6 +163,18 @@ impl BondProjectionV1 {
     pub fn id(&self) -> Option<&DocumentObjectIdV1> {
         self.id.as_ref()
     }
+
+    /// Return the exact durable document object ID for this retained bond.
+    ///
+    /// Typed document ingress assigns every retained structural record a
+    /// durable ID before projection. A projection without one is an invalid
+    /// internal test fixture, not a public observation state.
+    #[must_use]
+    pub fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        self.id
+            .as_ref()
+            .expect("retained bond projection must have a document object ID")
+    }
     /// Return the non-operation key unique within this projection.
     #[must_use]
     pub fn projection_key(&self) -> &ProjectionLocalObjectKeyV1 {
@@ -241,7 +253,6 @@ pub struct MoleculeProjectionV1 {
     id: Option<DocumentObjectIdV1>,
     projection_key: ProjectionLocalObjectKeyV1,
     source_id: Option<String>,
-    source_order: u32,
     name: Option<String>,
     atoms: Vec<AtomProjectionV1>,
     compact_groups: Vec<CompactGroupProjectionV1>,
@@ -277,15 +288,10 @@ pub enum MoleculeProjectionV1Error {
 
 impl MoleculeProjectionV1 {
     /// Construct a validated molecule projection from immutable source-ordered children.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each immutable molecule fact remains explicit at the projection boundary"
-    )]
     pub fn try_new(
         id: Option<DocumentObjectIdV1>,
         projection_key: ProjectionLocalObjectKeyV1,
         source_id: Option<String>,
-        source_order: u32,
         name: Option<String>,
         atoms: Vec<AtomProjectionV1>,
         compact_groups: Vec<CompactGroupProjectionV1>,
@@ -303,7 +309,6 @@ impl MoleculeProjectionV1 {
             id,
             projection_key,
             source_id,
-            source_order,
             name,
             atoms,
             compact_groups,
@@ -316,6 +321,18 @@ impl MoleculeProjectionV1 {
     pub fn id(&self) -> Option<&DocumentObjectIdV1> {
         self.id.as_ref()
     }
+
+    /// Return the exact durable document object ID for this retained molecule.
+    ///
+    /// Typed document ingress assigns every retained structural record a
+    /// durable ID before projection. A projection without one is an invalid
+    /// internal test fixture, not a public observation state.
+    #[must_use]
+    pub fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        self.id
+            .as_ref()
+            .expect("retained molecule projection must have a document object ID")
+    }
     /// Return the non-operation key unique within this projection.
     #[must_use]
     pub fn projection_key(&self) -> &ProjectionLocalObjectKeyV1 {
@@ -325,11 +342,6 @@ impl MoleculeProjectionV1 {
     #[must_use]
     pub fn source_id(&self) -> Option<&str> {
         self.source_id.as_deref()
-    }
-    /// Return the root-child position.
-    #[must_use]
-    pub fn source_order(&self) -> u32 {
-        self.source_order
     }
     /// Return the authored name.
     #[must_use]
@@ -539,7 +551,6 @@ mod tests {
             ProjectionLocalObjectKeyV1::from_path_components(&[0])
                 .expect("nonempty test path is a projection key"),
             Some("molecule-1".to_owned()),
-            0,
             None,
             atoms,
             Vec::new(),
@@ -549,15 +560,13 @@ mod tests {
 
     #[test]
     fn molecule_factory_accepts_mixed_children_and_refuses_cross_kind_identity_collision() {
-        let group_id = DocumentObjectIdV1::from_class_source("group", "group-1")
-            .expect("test group identity is valid");
+        let group_id = DocumentObjectIdV1::from_entropy_bytes([2; 16]);
         assert!(
             MoleculeProjectionV1::try_new(
                 None,
                 ProjectionLocalObjectKeyV1::from_path_components(&[0])
                     .expect("nonempty test path is a projection key"),
                 Some("molecule-1".to_owned()),
-                0,
                 None,
                 vec![atom(1, &[0, 0], "atom-1")],
                 vec![compact_group(group_id.clone(), 2)],
@@ -572,7 +581,6 @@ mod tests {
                 ProjectionLocalObjectKeyV1::from_path_components(&[0])
                     .expect("nonempty test path is a projection key"),
                 Some("molecule-1".to_owned()),
-                0,
                 None,
                 vec![atom_with_id(
                     Some(group_id.clone()),

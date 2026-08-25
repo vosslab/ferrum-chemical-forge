@@ -309,18 +309,22 @@ impl DocumentSession {
                     crate::SessionOperationError::PresentationCreateRequiresTransitionCore,
                 )
             })?;
+        let document_object_id = document
+            .document_object_id_for_source_id_v1(&identifier)
+            .expect("newly authored presentation root has a document-owned identity");
         let revision = self
             .next_revision_v1()
             .ok_or(DocumentSessionError::RevisionExhausted)?;
         let candidate =
             RevisionState::from_document(revision, document).map_err(DocumentSessionError::Load)?;
         let transition = self.prepare_changed_session_transition_with_presentation_outcome_v1(
-            expected_revision,
-            source_digest,
-            candidate,
-            effects,
-            PresentationRootSelectorV1::new(identifier.as_str(), root_kind)
-                .expect("session-reserved presentation identifier is valid"),
+            super::admitted_transition_v1::ChangedSessionTransitionRequestV1::new(
+                expected_revision,
+                source_digest,
+                candidate,
+                effects,
+            ),
+            PresentationRootSelectorV1::new(document_object_id, root_kind),
             kind,
             authorization_claim,
         )?;
@@ -397,9 +401,12 @@ mod tests {
         else {
             panic!("generic presentation result includes its committed root");
         };
-        assert_eq!(
-            outcome.root().presentation_id().as_str(),
-            "ferrum-presentation-v1-0"
+        assert!(
+            outcome
+                .root()
+                .document_object_id()
+                .as_str()
+                .starts_with("ferrum-document-object-v1/")
         );
     }
 }

@@ -1,6 +1,7 @@
 # Changelog history
 
 Entries through 2026-08-20 are archived here. For current changes, see [CHANGELOG.md](CHANGELOG.md).
+Earlier history is in [CHANGELOG-2026-08c.md](CHANGELOG-2026-08c.md).
 
 ## 2026-08-20
 ### Decisions and failures

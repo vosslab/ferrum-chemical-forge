@@ -38,8 +38,7 @@ class _Point:
 class _Target:
 	"""Detached durable target identity available to selection projection later."""
 
-	kind: str
-	source_order: int
+	document_object_id: str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -239,20 +238,11 @@ def _copy_batch(plan: object, batch_index: int,
 	if space.kind == "scene":
 		anchor = _Point(0.0, 0.0)
 		allowed = {"line", "double_bond_carrier_mark", "path"}
-		required_kind = "bond"
 	elif space.kind == "atom_local":
 		anchor = _point(space.anchor, "atom-local anchor")
-		if target.kind == "atom":
-			allowed = {"ellipse", "line", "mask", "text"}
-		elif target.kind == "compact_group":
-			allowed = {"line", "text"}
-		else:
-			raise FerrumPlanError("Ferrum atom-local render target has an unsupported record kind")
-		required_kind = target.kind
+		allowed = {"ellipse", "line", "mask", "text"}
 	else:
 		raise FerrumPlanError("Ferrum render batch has an unknown coordinate space")
-	if target.kind != required_kind:
-		raise FerrumPlanError("Ferrum render target kind does not match coordinate space")
 	commands: list[_Line | _Fill | _Shape] = []
 	previous_z: int | None = None
 	for source in batch.operations:
@@ -436,21 +426,14 @@ def _shape_for(commands: tuple[_Line | _Fill | _Shape, ...],
 
 #============================================
 def _target(source: object) -> _Target:
-	"""Copy durable target identity and validate the closed selectable record kinds."""
+	"""Copy one opaque durable target without exposing structural child kinds."""
 	kind = getattr(source, "kind", None)
-	if kind not in {"Atom", "Bond", "Group"}:
-		raise FerrumPlanError("Ferrum render target has an unsupported record kind")
-	for value, label in (
-		(getattr(source, "render_identifier", None), "render identifier"),
-		(getattr(source, "durable_object_id", None), "durable object identity"),
-		(getattr(source, "durable_molecule_object_id", None), "durable molecule identity"),
-	):
-		if type(value) is not str or not value:
-			raise FerrumPlanError(f"Ferrum render target {label} is invalid")
-	if not isinstance(source.source_order, int) or isinstance(source.source_order, bool) or not 0 <= source.source_order <= 2**32 - 1:
-		raise FerrumPlanError("Ferrum render target source order must be a u32 integer")
-	target_kind = {"Atom": "atom", "Bond": "bond", "Group": "compact_group"}[kind]
-	return _Target(target_kind, source.source_order)
+	if kind != "document_object":
+		raise FerrumPlanError("Ferrum render target has an invalid kind")
+	document_object_id = getattr(source, "document_object_id", None)
+	if type(document_object_id) is not str or not document_object_id:
+		raise FerrumPlanError("Ferrum render target document-object identity is invalid")
+	return _Target(document_object_id)
 
 
 #============================================

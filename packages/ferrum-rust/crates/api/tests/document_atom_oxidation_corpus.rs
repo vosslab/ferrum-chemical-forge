@@ -1,6 +1,10 @@
 use ferrum_api::execute_operation_v1;
-use ferrum_document::DocumentSession;
+use ferrum_document::{
+    DocumentSession, load_document_utf8_bytes_with_budget, local_cdml_ingress_format_v1,
+};
 use serde_json::{Value, json};
+
+const DOCUMENT_OBJECT_NAMESPACE_V1: &str = "urn:ferrum:document-object:v1";
 
 struct Atom {
     id: String,
@@ -9,13 +13,17 @@ struct Atom {
 }
 
 fn cdml(molecule_id: &str, atoms: &[Atom], bonds: &[(usize, usize, &str)]) -> String {
+    let atom_count = atoms.len();
     let atoms = atoms
         .iter()
         .enumerate()
         .map(|(index, atom)| {
             format!(
-                "<atom id=\"{}\" name=\"{}\" charge=\"{}\" explicit_hydrogens=\"0\"><point x=\"{index}\" y=\"0\"/></atom>",
-                atom.id, atom.element, atom.charge
+                "<atom id=\"{}\" ferrum-object:id=\"{}\" name=\"{}\" charge=\"{}\" explicit_hydrogens=\"0\"><point x=\"{index}\" y=\"0\"/></atom>",
+                atom.id,
+                document_object_id(index + 1),
+                atom.element,
+                atom.charge,
             )
         })
         .collect::<String>();
@@ -24,15 +32,21 @@ fn cdml(molecule_id: &str, atoms: &[Atom], bonds: &[(usize, usize, &str)]) -> St
         .enumerate()
         .map(|(index, &(start, end, order))| {
             format!(
-                "<bond id=\"bond-{index}\" start=\"{}\" end=\"{}\" type=\"{order}\"/>",
+                "<bond id=\"bond-{index}\" ferrum-object:id=\"{}\" start=\"{}\" end=\"{}\" type=\"{order}\"/>",
+                document_object_id(atom_count + index + 1),
                 atoms_for_bond_id(start, molecule_id),
                 atoms_for_bond_id(end, molecule_id),
             )
         })
         .collect::<String>();
     format!(
-        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"{molecule_id}\">{atoms}{bonds}</molecule></cdml>"
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:ferrum-object=\"{DOCUMENT_OBJECT_NAMESPACE_V1}\" version=\"1.0\"><molecule id=\"{molecule_id}\" ferrum-object:id=\"{}\">{atoms}{bonds}</molecule></cdml>",
+        document_object_id(0),
     )
+}
+
+fn document_object_id(ordinal: usize) -> String {
+    format!("ferrum-document-object-v1/{ordinal:032x}")
 }
 
 fn atoms_for_bond_id(index: usize, molecule_id: &str) -> String {
@@ -51,9 +65,13 @@ fn numbered_atoms(elements: &[(&'static str, i8)], molecule_id: &str) -> Vec<Ato
         .collect()
 }
 
+fn admitted_session(document: &str) -> DocumentSession {
+    load_document_utf8_bytes_with_budget(document.as_bytes(), local_cdml_ingress_format_v1())
+        .expect("corpus CDML admits")
+}
+
 fn digest(document: &str) -> String {
-    DocumentSession::load(document)
-        .expect("corpus CDML loads")
+    admitted_session(document)
         .snapshot()
         .expect("corpus CDML snapshots")
         .digest()
@@ -63,7 +81,7 @@ fn digest(document: &str) -> String {
 }
 
 fn selection(document: &str, atom_index: usize) -> (String, String) {
-    let session = DocumentSession::load(document).expect("corpus CDML loads");
+    let session = admitted_session(document);
     let observation = session.observe(0).expect("corpus CDML observes");
     let molecule = &observation.projection().molecules()[0];
     (
@@ -188,6 +206,7 @@ fn public_operation_returns_representative_hcno_oxidation_numbers() {
             receipt["source_digest_hex"], expected_digest,
             "{name}: {receipt}"
         );
+        assert_eq!(receipt["document_paint_order"], 0, "{name}: {receipt}");
         assert_eq!(receipt["molecule_id"], molecule_id, "{name}: {receipt}");
         assert_eq!(receipt["atom_id"], atom_id, "{name}: {receipt}");
     }

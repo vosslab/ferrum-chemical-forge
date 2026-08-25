@@ -1,8 +1,11 @@
-use super::{DocumentSession, DocumentSessionError, SessionOperation, SessionOperationV1};
+use super::{
+    DocumentObjectIdV1, DocumentSession, DocumentSessionError, SessionOperation, SessionOperationV1,
+};
 use crate::{
     PresentationRecordKindV1, PresentationRootSelectorV1, PresentationStackOrderV1,
     PresentationStackReorderV1,
 };
+use ferrum_document_projection::DocumentDirectRootKindV1;
 
 const SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><!--header--><info/><molecule id=\"m\"><atom id=\"m-atom\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
@@ -11,10 +14,6 @@ const SOURCE: &str = concat!(
     "<ftext>note</ftext></text><plus id=\"p\"><point x=\"3\" y=\"3\"/></plus>",
     "<!--tail--></cdml>",
 );
-
-fn target(id: &str, kind: PresentationRecordKindV1) -> PresentationRootSelectorV1 {
-    PresentationRootSelectorV1::new(id, kind).expect("valid test selector")
-}
 
 fn reorder(
     order: PresentationStackOrderV1,
@@ -25,20 +24,31 @@ fn reorder(
     })
 }
 
-fn presentation_order(session: &DocumentSession, revision: u64) -> Vec<String> {
+fn presentation_order(session: &DocumentSession, revision: u64) -> Vec<PresentationRootSelectorV1> {
+    let observation = session.observe(revision).expect("fixture observation");
+    observation
+        .projection()
+        .presentation_stack()
+        .entries()
+        .iter()
+        .map(|entry| {
+            let target = entry.root().target();
+            PresentationRootSelectorV1::new(
+                target.document_object_id().clone(),
+                target.record_kind(),
+            )
+        })
+        .collect()
+}
+
+fn direct_root_order(session: &DocumentSession, revision: u64) -> Vec<DocumentObjectIdV1> {
     session
         .observe(revision)
         .expect("fixture observation")
         .projection()
-        .presentation_stack()
-        .roots()
+        .direct_roots()
         .iter()
-        .map(|root| {
-            root.target()
-                .source_id()
-                .expect("durable fixture root")
-                .to_owned()
-        })
+        .map(|root| root.document_object_id().clone())
         .collect()
 }
 
@@ -46,30 +56,39 @@ fn presentation_order(session: &DocumentSession, revision: u64) -> Vec<String> {
 fn presentation_stack_modes_preserve_slots_content_and_history() {
     let mut session = DocumentSession::load(SOURCE).expect("fixture loads");
     let baseline = session.snapshot().expect("baseline");
+    let [arrow, text, plus] = presentation_order(&session, 0)
+        .try_into()
+        .expect("fixture has three ordered presentation roots");
     let brought = session
         .apply_document_operation_v1(
             0,
             reorder(
                 PresentationStackOrderV1::BringToFront,
-                vec![
-                    target("a", PresentationRecordKindV1::Arrow),
-                    target("t", PresentationRecordKindV1::Text),
-                ],
+                vec![arrow.clone(), text.clone()],
             ),
         )
         .expect("bring succeeds");
-    assert_eq!(presentation_order(&session, 1), ["p", "a", "t"]);
-    let observation = session.observe(1).expect("reordered observation");
-    assert_eq!(observation.projection().molecules()[0].source_order(), 2);
     assert_eq!(
-        observation
-            .projection()
-            .presentation_stack()
-            .roots()
-            .iter()
-            .map(|root| root.target().source_order())
-            .collect::<Vec<_>>(),
-        [4, 5, 6],
+        presentation_order(&session, 1),
+        [plus.clone(), arrow.clone(), text.clone()]
+    );
+    let observation = session.observe(1).expect("reordered observation");
+    let molecule = observation
+        .projection()
+        .direct_roots()
+        .iter()
+        .find(|root| matches!(root.kind(), DocumentDirectRootKindV1::Molecule))
+        .expect("fixture has one durable molecule direct root")
+        .document_object_id()
+        .clone();
+    assert_eq!(
+        direct_root_order(&session, 1),
+        vec![
+            molecule,
+            plus.document_object_id().clone(),
+            arrow.document_object_id().clone(),
+            text.document_object_id().clone(),
+        ]
     );
     assert!(
         brought
@@ -83,17 +102,17 @@ fn presentation_stack_modes_preserve_slots_content_and_history() {
             1,
             reorder(
                 PresentationStackOrderV1::ReverseSelectedSlots,
-                vec![
-                    target("a", PresentationRecordKindV1::Arrow),
-                    target("t", PresentationRecordKindV1::Text),
-                ],
+                vec![arrow.clone(), text.clone()],
             ),
         )
         .expect("reverse succeeds");
-    assert_eq!(presentation_order(&session, 2), ["p", "t", "a"]);
+    assert_eq!(
+        presentation_order(&session, 2),
+        [plus.clone(), text.clone(), arrow.clone()]
+    );
     assert_eq!(reversed.observation().snapshot().revision(), 2);
     session.undo(2).expect("undo succeeds");
-    assert_eq!(presentation_order(&session, 3), ["p", "a", "t"]);
+    assert_eq!(presentation_order(&session, 3), [plus, arrow, text]);
     session.undo(3).expect("second undo succeeds");
     assert_eq!(
         session.snapshot().expect("restored").cdml(),
@@ -103,6 +122,10 @@ fn presentation_stack_modes_preserve_slots_content_and_history() {
 
 #[test]
 fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
+    let mut session = DocumentSession::load(SOURCE).expect("fixture loads");
+    let [arrow, text, plus] = presentation_order(&session, 0)
+        .try_into()
+        .expect("fixture has three ordered presentation roots");
     assert!(
         PresentationStackReorderV1::new(PresentationStackOrderV1::BringToFront, Vec::new(),)
             .is_err()
@@ -110,25 +133,24 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
     assert!(
         PresentationStackReorderV1::new(
             PresentationStackOrderV1::SendToBack,
-            vec![
-                target("a", PresentationRecordKindV1::Arrow),
-                target("a", PresentationRecordKindV1::Arrow),
-            ],
+            vec![arrow.clone(), arrow.clone()],
         )
         .is_err()
     );
     assert!(
         PresentationStackReorderV1::new(
             PresentationStackOrderV1::ReverseSelectedSlots,
-            vec![target("a", PresentationRecordKindV1::Arrow)],
+            vec![arrow.clone()],
         )
         .is_err()
     );
-    let mut session = DocumentSession::load(SOURCE).expect("fixture loads");
     let before = session.snapshot().expect("baseline");
     let wrong_kind = reorder(
         PresentationStackOrderV1::BringToFront,
-        vec![target("a", PresentationRecordKindV1::Text)],
+        vec![PresentationRootSelectorV1::new(
+            arrow.document_object_id().clone(),
+            PresentationRecordKindV1::Text,
+        )],
     );
     assert!(matches!(
         session.apply_document_operation_v1(0, wrong_kind),
@@ -139,10 +161,7 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
     let no_change = session
         .apply_document_operation_v1(
             0,
-            reorder(
-                PresentationStackOrderV1::BringToFront,
-                vec![target("p", PresentationRecordKindV1::Plus)],
-            ),
+            reorder(PresentationStackOrderV1::BringToFront, vec![plus.clone()]),
         )
         .expect("already-front intent is accepted");
     assert_eq!(no_change.observation().snapshot().revision(), 0);
@@ -158,10 +177,10 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
     );
     let mut bracket = DocumentSession::load(bracket_source).expect("bracket fixture loads");
     let bracket_before = bracket.snapshot().expect("bracket baseline");
-    let partial = reorder(
-        PresentationStackOrderV1::BringToFront,
-        vec![target("left", PresentationRecordKindV1::Polyline)],
-    );
+    let [left, right, bracket_plus] = presentation_order(&bracket, 0)
+        .try_into()
+        .expect("bracket fixture has three ordered presentation roots");
+    let partial = reorder(PresentationStackOrderV1::BringToFront, vec![left.clone()]);
     assert!(matches!(
         bracket.apply_document_operation_v1(0, partial),
         Err(DocumentSessionError::Operation(_))
@@ -175,32 +194,23 @@ fn invalid_stale_partial_bracket_and_noop_reorders_are_atomic() {
             0,
             reorder(
                 PresentationStackOrderV1::BringToFront,
-                vec![
-                    target("left", PresentationRecordKindV1::Polyline),
-                    target("right", PresentationRecordKindV1::Polyline),
-                ],
+                vec![left.clone(), right.clone()],
             ),
         )
         .expect("complete bracket pair reorders together");
-    assert_eq!(presentation_order(&bracket, 1), ["p", "left", "right"]);
+    assert_eq!(presentation_order(&bracket, 1), [bracket_plus, left, right]);
 
     let changed = session
         .apply_document_operation_v1(
             0,
-            reorder(
-                PresentationStackOrderV1::SendToBack,
-                vec![target("a", PresentationRecordKindV1::Arrow)],
-            ),
+            reorder(PresentationStackOrderV1::SendToBack, vec![arrow.clone()]),
         )
         .expect("change succeeds");
     let after = session.snapshot().expect("changed snapshot");
     assert!(matches!(
         session.apply_document_operation_v1(
             0,
-            reorder(
-                PresentationStackOrderV1::SendToBack,
-                vec![target("t", PresentationRecordKindV1::Text)],
-            ),
+            reorder(PresentationStackOrderV1::SendToBack, vec![text],),
         ),
         Err(DocumentSessionError::RevisionConflict { .. })
     ));

@@ -98,10 +98,10 @@ class FerrumNativeLineToolCompletionMixin:
 		outcome = result.outcome
 		if outcome.kind != "direct_bond_v1" or outcome.direct_bond is None:
 			raise RuntimeError("Ferrum direct-bond transition returned an unknown outcome")
-		bond_identifier = outcome.direct_bond.bond_identifier
-		if type(bond_identifier) is not str or not bond_identifier:
-			raise RuntimeError("Ferrum direct-bond transition returned an invalid bond identifier")
-		tab._install_mutation_result(result, (("bond", bond_identifier),))
+		bond_document_object_id = outcome.direct_bond.bond_document_object_id
+		if type(bond_document_object_id) is not str or not bond_document_object_id:
+			raise RuntimeError("Ferrum direct-bond transition returned an invalid bond document ID")
+		tab._install_mutation_result(result, (("bond", bond_document_object_id),))
 		return result
 
 	#============================================
@@ -128,11 +128,11 @@ class FerrumNativeLineToolCompletionMixin:
 			raise RuntimeError("Ferrum visual transition returned an unknown operation outcome")
 		if created.kind != expected_root_kind:
 			raise RuntimeError("Ferrum visual transition returned an unexpected root kind")
-		root_identifier = created.identifier
-		if type(root_identifier) is not str or not root_identifier:
-			raise RuntimeError("Ferrum visual transition returned an invalid root identifier")
+		root_document_object_id = created.document_object_id
+		if type(root_document_object_id) is not str or not root_document_object_id:
+			raise RuntimeError("Ferrum visual transition returned an invalid root document ID")
 		tab._install_mutation_result(result)
-		return result, root_identifier
+		return result, root_document_object_id
 	#============================================
 	def _update_terminal_arrow_gesture(self, intent: _LineGestureIntent,
 			viewport_point: PySide6.QtCore.QPoint) -> None:
@@ -202,7 +202,7 @@ class FerrumNativeLineToolCompletionMixin:
 			)
 			if committed is None:
 				return
-			_result, root_identifier = committed
+			_result, root_document_object_id = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			current.tab.refresh_authoritative()
@@ -222,7 +222,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					root_identifier, engine.RenderInteractionModifierV1.replace,
+					root_document_object_id, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
@@ -305,7 +305,7 @@ class FerrumNativeLineToolCompletionMixin:
 			)
 			if committed is None:
 				return
-			_result, root_identifier = committed
+			_result, root_document_object_id = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			recovered = current.tab.refresh_authoritative()
@@ -332,7 +332,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					root_identifier, engine.RenderInteractionModifierV1.replace,
+					root_document_object_id, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
@@ -442,7 +442,7 @@ class FerrumNativeLineToolCompletionMixin:
 			)
 			if committed is None:
 				return
-			_result, root_identifier = committed
+			_result, root_document_object_id = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			current.tab.refresh_authoritative()
@@ -461,7 +461,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					root_identifier, engine.RenderInteractionModifierV1.replace,
+					root_document_object_id, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
@@ -570,7 +570,7 @@ class FerrumNativeLineToolCompletionMixin:
 			)
 			if committed is None:
 				return
-			_result, root_identifier = committed
+			_result, root_document_object_id = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			# Rust accepted the Arrow and the tab retained its exact pending snapshot.
 			# Reproject from that authority; do not reuse the preview or call it refused.
@@ -597,7 +597,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None, engine.RenderInteractionQueryV1.root(
-					root_identifier, engine.RenderInteractionModifierV1.replace,
+					root_document_object_id, engine.RenderInteractionModifierV1.replace,
 				),
 			)
 		except Exception:
@@ -665,7 +665,7 @@ class FerrumNativeLineToolCompletionMixin:
 			)
 			if committed is None:
 				return
-			_result, root_identifier = committed
+			_result, root_document_object_id = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, current.tab)
 			recovered = current.tab.refresh_authoritative()
@@ -690,7 +690,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = current.tab.observe_direct_root_interaction()
 			selection = current.tab.select_direct_roots(
 				observation, None,
-				engine.RenderInteractionQueryV1.root(root_identifier),
+				engine.RenderInteractionQueryV1.root(root_document_object_id),
 			)
 			self._replace_render_interaction_selection(selection, current.tab)
 		except Exception:
@@ -723,7 +723,7 @@ class FerrumNativeLineToolCompletionMixin:
 			)
 			if committed is None:
 				return
-			_result, root_identifier = committed
+			_result, root_document_object_id = committed
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabMutationPresentationError:
 			self._replace_render_interaction_selection(None, intent.tab)
 			recovered = intent.tab.refresh_authoritative()
@@ -747,7 +747,7 @@ class FerrumNativeLineToolCompletionMixin:
 			observation = intent.tab.observe_direct_root_interaction()
 			selection = intent.tab.select_direct_roots(
 				observation, None,
-				engine.RenderInteractionQueryV1.root(root_identifier),
+				engine.RenderInteractionQueryV1.root(root_document_object_id),
 			)
 			self._replace_render_interaction_selection(selection, intent.tab)
 		except Exception:
@@ -793,7 +793,7 @@ class FerrumNativeLineToolCompletionMixin:
 			import ferrum_qt.ferrum.engine as engine
 			observation = intent.tab.observe_direct_root_interaction()
 			selection = intent.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(commit.identifier),
+				observation, None, engine.RenderInteractionQueryV1.root(commit.document_object_id),
 			)
 			self._replace_render_interaction_selection(selection, intent.tab)
 		except Exception:

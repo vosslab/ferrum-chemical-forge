@@ -188,12 +188,18 @@ fn selected_query_token(
     let observation = session
         .observe_render_interaction_v1(expected)
         .expect("renderer observation");
+    let document_object_id = observation
+        .roots()
+        .first()
+        .expect("fixture observation contains one molecule root")
+        .document_object_id()
+        .clone();
     let selection = session
         .select_render_interaction_roots_v1(
             &observation,
             None,
             RenderInteractionQueryV1::Root {
-                identifier: "m".to_owned(),
+                document_object_id,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -324,12 +330,18 @@ fn receipt_only_retirement_retains_the_plan_for_raw_and_selected_reruns() {
         let observation = session
             .observe_render_interaction_v1(expected)
             .expect("renderer observation");
+        let document_object_id = observation
+            .roots()
+            .first()
+            .expect("fixture observation contains one molecule root")
+            .document_object_id()
+            .clone();
         let selection = session
             .select_render_interaction_roots_v1(
                 &observation,
                 None,
                 RenderInteractionQueryV1::Root {
-                    identifier: "m".to_owned(),
+                    document_object_id,
                     modifier: RenderInteractionModifierV1::Replace,
                 },
             )

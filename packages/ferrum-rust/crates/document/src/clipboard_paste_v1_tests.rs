@@ -7,7 +7,7 @@ use super::{
 const FRAGMENT: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\" xmlns:vendor=\"urn:vendor\">",
     "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
-    "<vendor:extension id=\"opaque\" link=\"a\"/></atom>",
+    "<vendor:extension link=\"a\"/></atom>",
     "<atom id=\"b\" name=\"O\"><point x=\"11\" y=\"2\"/></atom>",
     "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
     "<fragment id=\"f\" type=\"linear_form\"><name>linear_form</name>",
@@ -31,7 +31,7 @@ fn paste_remaps_every_declaration_and_exact_reference_then_translates_once() {
     let plan = prepare_document_clipboard_paste_v1(FRAGMENT, budget())
         .expect("closed copied fragment must prepare");
     assert_eq!(plan.roots().len(), 2);
-    assert_eq!(plan.declared_id_count(), 7);
+    assert_eq!(plan.declared_id_count(), 6);
     let mut session = DocumentSession::load(concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><info><vendor id=\"ferrum-import-v1-0\"/>",
         "</info></cdml>",
@@ -56,7 +56,7 @@ fn paste_remaps_every_declaration_and_exact_reference_then_translates_once() {
     assert!((molecule.atoms()[0].position().y() - 22.0).abs() < 0.02);
     assert!((molecule.atoms()[1].position().x() - 31.0).abs() < 0.02);
     let super::PresentationRootProjectionV1::Plus { plus } =
-        &projection.presentation_stack().roots()[0]
+        projection.presentation_stack().entries()[0].root()
     else {
         panic!("second pasted root must be a Plus");
     };
@@ -80,8 +80,7 @@ fn paste_remaps_every_declaration_and_exact_reference_then_translates_once() {
         .expect("pasted bond");
     assert_eq!(bond.attribute("start"), Some(atom_ids[0]));
     assert_eq!(bond.attribute("end"), Some(atom_ids[1]));
-    assert!(!observation.snapshot().cdml().contains("id=\"opaque\""));
-    assert!(!observation.snapshot().cdml().contains("link=\"a\""));
+    assert!(observation.snapshot().cdml().contains("link=\"a\""));
     assert!(!observation.snapshot().cdml().contains("<vertex id=\"a\""));
 }
 
@@ -98,6 +97,11 @@ fn paste_is_one_history_step_and_repeated_use_allocates_fresh_roots() {
         .iter()
         .map(|root| root.source_id().as_str().to_owned())
         .collect::<Vec<_>>();
+    let first_object_ids = first
+        .pasted_roots()
+        .iter()
+        .map(|root| root.object_id().clone())
+        .collect::<Vec<_>>();
     let first_snapshot = first.operation_result().observation().snapshot().clone();
     let undone = session.undo(1).expect("Paste must undo");
     assert_eq!(undone.observation().snapshot().cdml(), baseline.cdml());
@@ -106,6 +110,26 @@ fn paste_is_one_history_step_and_repeated_use_allocates_fresh_roots() {
         redone.observation().snapshot().cdml(),
         first_snapshot.cdml()
     );
+    for object_id in &first_object_ids {
+        assert!(
+            session
+                .current_document_v1()
+                .resolve_document_object_id(object_id)
+                .is_some(),
+            "redo must retain every accepted opaque root selector"
+        );
+    }
+    let reopened =
+        DocumentSession::load(first_snapshot.cdml()).expect("serialized Paste must reopen");
+    for object_id in &first_object_ids {
+        assert!(
+            reopened
+                .current_document_v1()
+                .resolve_document_object_id(object_id)
+                .is_some(),
+            "reopened Paste must retain every accepted opaque root selector"
+        );
+    }
     let second = session
         .paste_document_clipboard_v1(
             3,
@@ -120,10 +144,20 @@ fn paste_is_one_history_step_and_repeated_use_allocates_fresh_roots() {
         .iter()
         .map(|root| root.source_id().as_str().to_owned())
         .collect::<Vec<_>>();
+    let second_object_ids = second
+        .pasted_roots()
+        .iter()
+        .map(|root| root.object_id())
+        .collect::<Vec<_>>();
     assert!(
         first_ids
             .iter()
             .all(|identifier| !second_ids.contains(identifier))
+    );
+    assert!(
+        first_object_ids
+            .iter()
+            .all(|object_id| !second_object_ids.contains(&object_id))
     );
     assert_eq!(
         second
@@ -152,6 +186,13 @@ fn preparation_and_authentication_fail_without_mutating_the_target() {
         ),
         Err(DocumentClipboardPasteErrorV1::UnsupportedRoot)
     ));
+    assert!(matches!(
+        prepare_document_clipboard_paste_v1(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\"/><bond id=\"b\" start=\"a\" end=\"outside\"/></molecule></cdml>",
+            budget(),
+        ),
+        Err(DocumentClipboardPasteErrorV1::InvalidReference { field: "end" })
+    ));
 
     let plan = prepare_document_clipboard_paste_v1(FRAGMENT, budget()).expect("valid plan");
     let mut session = DocumentSession::create_empty_document_v1().expect("empty session");
@@ -163,4 +204,27 @@ fn preparation_and_authentication_fail_without_mutating_the_target() {
         ))
     ));
     assert_eq!(session.snapshot().expect("unchanged snapshot"), before);
+}
+
+#[test]
+fn malformed_owned_reference_refuses_without_changing_opaque_foreign_data_or_session() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\" xmlns:vendor=\"urn:vendor\">",
+        "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<vendor:data link=\"outside\"/><bond id=\"ab\" start=\"a\" end=\"outside\"/>",
+        "</molecule></cdml>",
+    );
+    let session = DocumentSession::load(concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\" xmlns:vendor=\"urn:vendor\">",
+        "<info><vendor:data link=\"outside\"/></info></cdml>",
+    ))
+    .expect("target with opaque foreign data must load");
+    let baseline = session.snapshot().expect("baseline snapshot");
+
+    assert!(matches!(
+        prepare_document_clipboard_paste_v1(source, budget()),
+        Err(DocumentClipboardPasteErrorV1::InvalidReference { field: "end" })
+    ));
+    assert!(source.contains("link=\"outside\""));
+    assert_eq!(session.snapshot().expect("unchanged snapshot"), baseline);
 }

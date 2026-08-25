@@ -11,6 +11,7 @@ mod stack_wire;
 pub use stack_model::{
     PRESENTATION_STACK_PROJECTION_SCHEMA_V1, PolylinePathV1, PolylineProjectionV1,
     PresentationFactProvenanceV1, PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1,
-    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
-    PresentationStackProjectionV1Error, PresentationStrokeV1, PresentationTargetV1,
+    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackEntryV1,
+    PresentationStackProjectionV1, PresentationStackProjectionV1Error, PresentationStrokeV1,
+    PresentationTargetV1,
 };

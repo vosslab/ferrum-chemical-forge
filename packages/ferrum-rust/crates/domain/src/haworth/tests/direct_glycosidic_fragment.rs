@@ -12,10 +12,9 @@ use super::direct_glycosidic_layout::topology as layout_topology;
 
 fn atom(index: usize, element: &str) -> Atom {
     Atom::new(
-        Some(Identifier::new(format!("a{index}")).expect("identifier")),
+        Identifier::new(format!("a{index}")).expect("identifier"),
         Some(element.to_owned()),
         Position::new(index as f64, 0.0, 0.0).expect("position"),
-        None,
         None,
         None,
         None,
@@ -28,14 +27,13 @@ fn atom(index: usize, element: &str) -> Atom {
 
 fn bond(index: usize, start: &Atom, end: &Atom) -> Bond {
     Bond::new(
-        Some(Identifier::new(format!("b{index}")).expect("identifier")),
+        Identifier::new(format!("b{index}")).expect("identifier"),
         VertexRef::Atom(start.identity().clone()),
         VertexRef::Atom(end.identity().clone()),
         None,
         Some(BondOrder::Single),
         None,
         Some(false),
-        None,
     )
     .expect("bond")
 }
@@ -64,14 +62,13 @@ fn topology_with_substituent() -> (DirectGlycosidicHaworthTopologyV1, RecordId, 
     bonds.push(bond(13, &atoms[7], &atoms[12]));
     bonds.push(bond(14, &atoms[2], &atoms[13]));
     let molecule = Molecule::new(
-        Some(Identifier::new("two-rings").expect("identifier")),
+        Identifier::new("two-rings").expect("identifier"),
         None,
         atoms.clone(),
         Vec::new(),
         Vec::new(),
         Vec::new(),
         bonds.clone(),
-        None,
     )
     .expect("molecule");
     let ring = |offset: usize| {

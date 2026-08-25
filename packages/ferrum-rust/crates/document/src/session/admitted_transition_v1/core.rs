@@ -103,8 +103,8 @@ impl DocumentSession {
         }
         prepared.consume_terminal_authorization_v1();
         match &mut prepared.kind {
-            PreparedSessionTransitionKindV1::NoChange { result } => {
-                debug_assert!(result.is_none());
+            PreparedSessionTransitionKindV1::NoChange(no_change) => {
+                debug_assert!(no_change.result.is_none());
             }
             PreparedSessionTransitionKindV1::Changed(changed) => {
                 let _ = changed.state.take();
@@ -126,9 +126,11 @@ impl DocumentSession {
             issuer: self.authoring_capability_issuer_v1(),
             source_revision: current.revision(),
             source_digest: *current.digest(),
-            kind: PreparedSessionTransitionKindV1::NoChange {
-                result: Some(self.operation_result()?.with_outcome(outcome)),
-            },
+            kind: PreparedSessionTransitionKindV1::NoChange(Box::new(
+                PreparedNoChangeSessionTransitionV1 {
+                    result: Some(self.operation_result()?.with_outcome(outcome)),
+                },
+            )),
         })
     }
 
@@ -353,9 +355,11 @@ impl DocumentSession {
                 issuer,
                 source_revision,
                 source_digest,
-                kind: PreparedSessionTransitionKindV1::NoChange {
-                    result: Some(self.operation_result()?),
-                },
+                kind: PreparedSessionTransitionKindV1::NoChange(Box::new(
+                    PreparedNoChangeSessionTransitionV1 {
+                        result: Some(self.operation_result()?),
+                    },
+                )),
             }),
             Candidate::Changed(document) => {
                 let revision = current
@@ -364,13 +368,17 @@ impl DocumentSession {
                 let state = RevisionState::from_document(revision, *document)
                     .map_err(DocumentSessionError::Load)?;
                 self.prepare_changed_session_transition_with_commit_v1(
-                    source_revision,
-                    source_digest,
-                    state,
-                    SessionTransitionEffectsV1::none(),
-                    ChangedTransitionCommitV1::Append,
-                    outcome,
-                    authorization_claim,
+                    ChangedSessionTransitionRequestV1::new(
+                        source_revision,
+                        source_digest,
+                        state,
+                        SessionTransitionEffectsV1::none(),
+                    ),
+                    ChangedSessionTransitionCommitRequestV1::new(
+                        ChangedTransitionCommitV1::Append,
+                        outcome,
+                        authorization_claim,
+                    ),
                 )
             }
         }
@@ -396,7 +404,8 @@ impl DocumentSession {
             return Err(AdmittedSessionTransitionRefusalV1::StaleSnapshot);
         }
         match &mut prepared.kind {
-            PreparedSessionTransitionKindV1::NoChange { result } => Ok(result
+            PreparedSessionTransitionKindV1::NoChange(no_change) => Ok(no_change
+                .result
                 .take()
                 .expect("the consumed check established the no-change result invariant")),
             PreparedSessionTransitionKindV1::Changed(changed) => {
@@ -483,13 +492,12 @@ impl DocumentSession {
         effects: SessionTransitionEffectsV1,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::Standard,
-            None,
+            ChangedSessionTransitionRequestV1::new(source_revision, source_digest, state, effects),
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::Standard,
+                None,
+            ),
         )
     }
 
@@ -503,34 +511,29 @@ impl DocumentSession {
         authorization_claim: AuthoringCapabilityClaimV1,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::DirectBondV1(outcome),
-            Some(authorization_claim),
+            ChangedSessionTransitionRequestV1::new(source_revision, source_digest, state, effects),
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::DirectBondV1(outcome),
+                Some(authorization_claim),
+            ),
         )
     }
 
     pub(in crate::session) fn prepare_changed_session_transition_with_presentation_outcome_v1(
         &mut self,
-        source_revision: u64,
-        source_digest: [u8; 32],
-        state: RevisionState,
-        effects: SessionTransitionEffectsV1,
+        request: ChangedSessionTransitionRequestV1,
         root: crate::PresentationRootSelectorV1,
         kind: CreatedPresentationRootKindV1,
         authorization_claim: AuthoringCapabilityClaimV1,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::CreatedPresentationRootV1(root, kind),
-            Some(authorization_claim),
+            request,
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::CreatedPresentationRootV1(root, kind),
+                Some(authorization_claim),
+            ),
         )
     }
 
@@ -543,64 +546,55 @@ impl DocumentSession {
         outcome: super::super::catalog_molecule_placement::CatalogMoleculePlacementOutcomeStagingV1,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::CatalogMoleculePlacementV1(outcome),
-            None,
+            ChangedSessionTransitionRequestV1::new(source_revision, source_digest, state, effects),
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::CatalogMoleculePlacementV1(outcome),
+                None,
+            ),
         )
     }
 
     pub(in crate::session) fn prepare_changed_session_transition_with_molecule_insertion_outcome_v1(
         &mut self,
-        source_revision: u64,
-        source_digest: [u8; 32],
-        state: RevisionState,
-        effects: SessionTransitionEffectsV1,
+        request: ChangedSessionTransitionRequestV1,
         molecule_identifier: PersistentId,
         atom_identifiers: Vec<PersistentId>,
         bond_identifiers: Vec<PersistentId>,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::MoleculeInsertedV1 {
-                molecule_identifier,
-                atom_identifiers,
-                bond_identifiers,
-            },
-            None,
+            request,
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::MoleculeInsertedV1 {
+                    molecule_identifier,
+                    atom_identifiers,
+                    bond_identifiers,
+                },
+                None,
+            ),
         )
     }
 
     pub(in crate::session) fn prepare_changed_session_transition_with_authorized_molecule_insertion_outcome_v1(
         &mut self,
-        source_revision: u64,
-        source_digest: [u8; 32],
-        state: RevisionState,
-        effects: SessionTransitionEffectsV1,
+        request: ChangedSessionTransitionRequestV1,
         molecule_identifier: PersistentId,
         atom_identifiers: Vec<PersistentId>,
         bond_identifiers: Vec<PersistentId>,
         authorization_claim: AuthoringCapabilityClaimV1,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::MoleculeInsertedV1 {
-                molecule_identifier,
-                atom_identifiers,
-                bond_identifiers,
-            },
-            Some(authorization_claim),
+            request,
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::MoleculeInsertedV1 {
+                    molecule_identifier,
+                    atom_identifiers,
+                    bond_identifiers,
+                },
+                Some(authorization_claim),
+            ),
         )
     }
 
@@ -613,13 +607,12 @@ impl DocumentSession {
         records: Vec<(PersistentId, Vec<PersistentId>, Vec<PersistentId>)>,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            effects,
-            ChangedTransitionCommitV1::Append,
-            SessionOperationOutcomeStagingV1::InterchangeRecordBatchInsertedV1(records),
-            None,
+            ChangedSessionTransitionRequestV1::new(source_revision, source_digest, state, effects),
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Append,
+                SessionOperationOutcomeStagingV1::InterchangeRecordBatchInsertedV1(records),
+                None,
+            ),
         )
     }
 
@@ -674,13 +667,17 @@ impl DocumentSession {
         let state =
             RevisionState::from_document(revision, document).map_err(DocumentSessionError::Load)?;
         self.prepare_changed_session_transition_with_commit_v1(
-            source_revision,
-            source_digest,
-            state,
-            SessionTransitionEffectsV1::none(),
-            ChangedTransitionCommitV1::Navigate(direction),
-            SessionOperationOutcomeStagingV1::Standard,
-            None,
+            ChangedSessionTransitionRequestV1::new(
+                source_revision,
+                source_digest,
+                state,
+                SessionTransitionEffectsV1::none(),
+            ),
+            ChangedSessionTransitionCommitRequestV1::new(
+                ChangedTransitionCommitV1::Navigate(direction),
+                SessionOperationOutcomeStagingV1::Standard,
+                None,
+            ),
         )
     }
 
@@ -697,14 +694,20 @@ impl DocumentSession {
 
     pub(in crate::session) fn prepare_changed_session_transition_with_commit_v1(
         &mut self,
-        source_revision: u64,
-        source_digest: [u8; 32],
-        state: RevisionState,
-        effects: SessionTransitionEffectsV1,
-        commit: ChangedTransitionCommitV1,
-        outcome: SessionOperationOutcomeStagingV1,
-        authorization_claim: Option<AuthoringCapabilityClaimV1>,
+        request: ChangedSessionTransitionRequestV1,
+        commit_request: ChangedSessionTransitionCommitRequestV1,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
+        let ChangedSessionTransitionRequestV1 {
+            source_revision,
+            source_digest,
+            state,
+            effects,
+        } = request;
+        let ChangedSessionTransitionCommitRequestV1 {
+            commit,
+            outcome,
+            authorization_claim,
+        } = commit_request;
         self.require_current(source_revision)?;
         if *self.admitted_history.current().digest() != source_digest {
             return Err(DocumentSessionError::RevisionConflict {
@@ -739,17 +742,19 @@ impl DocumentSession {
             issuer: self.authoring_capability_issuer_v1(),
             source_revision,
             source_digest,
-            kind: PreparedSessionTransitionKindV1::Changed(PreparedChangedSessionTransitionV1 {
-                state: Some(state),
-                result: Some(SessionOperationResultV1::new(observation.clone())),
-                observation,
-                renderer_admission,
-                effects,
-                commit,
-                outcome: Some(outcome),
-                precommit_overlay: None,
-                authorization_claim,
-            }),
+            kind: PreparedSessionTransitionKindV1::Changed(Box::new(
+                PreparedChangedSessionTransitionV1 {
+                    state: Some(state),
+                    result: Some(SessionOperationResultV1::new(observation.clone())),
+                    observation,
+                    renderer_admission,
+                    effects,
+                    commit,
+                    outcome: Some(outcome),
+                    precommit_overlay: None,
+                    authorization_claim,
+                },
+            )),
         })
     }
 
@@ -807,9 +812,9 @@ fn take_operation_outcome(
         SessionOperationOutcomeStagingV1::Standard => SessionOperationOutcomeV1::Standard,
         SessionOperationOutcomeStagingV1::DirectBondV1(staging) => {
             SessionOperationOutcomeV1::DirectBondV1(DirectBondOperationOutcomeV1::new(
-                staging.bond,
-                staging.end_atom,
-                staging.second_created_atom,
+                staging.bond_document_object_id,
+                staging.end_atom_document_object_id,
+                staging.second_created_atom_document_object_id,
                 staging.created_new_atom,
                 staging.created_new_molecule,
             ))

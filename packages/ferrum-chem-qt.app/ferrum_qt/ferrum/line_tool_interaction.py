@@ -204,7 +204,7 @@ class FerrumNativeLineToolInteractionMixin:
 		selection = None
 		for selector in selectors:
 			query = engine.RenderInteractionQueryV1.root(
-				selector.root_id,
+				selector.document_object_id,
 				engine.RenderInteractionModifierV1.toggle if selection is not None
 				else engine.RenderInteractionModifierV1.replace,
 			)
@@ -220,7 +220,7 @@ class FerrumNativeLineToolInteractionMixin:
 		selection = None
 		for root in previous.roots:
 			query = engine.RenderInteractionQueryV1.root(
-				root.identifier,
+				root.document_object_id,
 				engine.RenderInteractionModifierV1.toggle if selection is not None
 				else engine.RenderInteractionModifierV1.replace,
 			)
@@ -235,7 +235,7 @@ class FerrumNativeLineToolInteractionMixin:
 		if category == engine.RenderInteractionCategoryV1.unrenderable_depiction:
 			message = "Selection and drawing are unchanged. This root cannot be drawn; change its presentation and try again."
 		elif category == engine.RenderInteractionCategoryV1.ambiguous_root_identifier:
-			message = "Selection and drawing are unchanged. This root identifier is ambiguous; repair the document and try again."
+			message = "Selection and drawing are unchanged. This root target is ambiguous; repair the document and try again."
 		elif category == engine.RenderInteractionCategoryV1.display_only:
 			message = "Selection and drawing are unchanged. This visible root is display-only; add a durable supported presentation before moving it."
 		elif category in (

@@ -44,12 +44,15 @@ fn closed_shape_appearance_commits_once_preserves_content_and_follows_history() 
             ),
         )
         .expect("shape patch must commit");
-    let [PresentationRootProjectionV1::Rectangle { shape }, ..] = changed
+    let [entry, ..] = changed
         .observation()
         .projection()
         .presentation_stack()
-        .roots()
+        .entries()
     else {
+        panic!("expected the rectangle first");
+    };
+    let PresentationRootProjectionV1::Rectangle { shape } = entry.root() else {
         panic!("expected the rectangle first");
     };
     assert_eq!(changed.observation().snapshot().revision(), 1);
@@ -62,12 +65,15 @@ fn closed_shape_appearance_commits_once_preserves_content_and_follows_history() 
     assert!(cdml.contains("background-color=\"#dEf\""));
 
     let undone = session.undo(1).expect("one patch must undo once");
-    let [PresentationRootProjectionV1::Rectangle { shape }, ..] = undone
+    let [entry, ..] = undone
         .observation()
         .projection()
         .presentation_stack()
-        .roots()
+        .entries()
     else {
+        panic!("expected restored rectangle");
+    };
+    let PresentationRootProjectionV1::Rectangle { shape } = entry.root() else {
         panic!("expected restored rectangle");
     };
     assert_eq!(shape.stroke().color().as_str(), "#aabbcc");

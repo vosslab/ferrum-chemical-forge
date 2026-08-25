@@ -546,7 +546,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 				self.tr("Select one direct molecule to use it as the query."), False),
 			(category.refused, reason.selected_root_multiple, recovery.select_one_molecule,
 				self.tr("Select one direct molecule to use it as the query."), False),
-			(category.refused, reason.selected_source_not_molecule, recovery.select_one_molecule,
+			(category.refused, reason.selected_target_not_molecule, recovery.select_one_molecule,
 				self.tr("Select one direct molecule to use it as the query."), False),
 			(category.unsupported_document, reason.unsupported_document, recovery.refresh_and_rerun,
 				self.tr("Ferrum cannot search one or more structures in this drawing."), False),

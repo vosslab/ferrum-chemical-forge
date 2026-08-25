@@ -2,6 +2,7 @@
 
 use ferrum_core::RecordKind;
 
+use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     BatchSpace, EllipseOp, FontFace, GlyphBounds, GlyphMetrics, LineOp, MaskOp, Paint,
     PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderPoint, RenderTarget,
@@ -204,7 +205,7 @@ impl AtomLabelFacts {
 /// An atom with explicit source identity, finite position, and label facts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtomRenderTarget {
-    pub(super) target: RenderTarget,
+    pub(super) context: RenderPlanEntryContextV1,
     pub(super) position: RenderPoint,
     label: AtomLabelFacts,
     pub(super) visibility: TargetVisibility,
@@ -214,19 +215,19 @@ pub struct AtomRenderTarget {
 }
 impl AtomRenderTarget {
     /// Construct a valid atom target for this render slice.
-    pub fn new(
-        target: RenderTarget,
+    pub(crate) fn new(
+        context: RenderPlanEntryContextV1,
         position: RenderPoint,
         label: AtomLabelFacts,
         visibility: TargetVisibility,
     ) -> Result<Self, RenderError> {
-        if target.record_id().kind() != RecordKind::Atom {
+        if context.record_id().kind() != RecordKind::Atom {
             return Err(RenderError::InvalidRequest(
                 "atom render target requires an atom RecordId".to_owned(),
             ));
         }
         Ok(Self {
-            target,
+            context,
             position,
             label,
             visibility,
@@ -236,10 +237,14 @@ impl AtomRenderTarget {
         })
     }
 
-    /// Return the durable target and source order.
+    /// Return the durable target.
     #[must_use]
     pub fn target(&self) -> &RenderTarget {
-        &self.target
+        self.context.target()
+    }
+
+    pub(super) const fn context(&self) -> &RenderPlanEntryContextV1 {
+        &self.context
     }
 
     /// Attach source-resolved presentation facts for this target only.
@@ -313,8 +318,8 @@ pub(super) fn build_atom_batch<M: GlyphMetrics>(
     for mark in &atom.marks {
         append_mark_operations(mark, &mut operations, &mut next_mark_z)?;
     }
-    let batch = RenderBatch::new(
-        atom.target.clone(),
+    let batch = RenderBatch::from_context(
+        atom.context.clone(),
         BatchSpace::AtomLocal {
             anchor: atom.position,
         },

@@ -93,11 +93,16 @@ impl DocumentSession {
         Ok(source_id(record, object_id)?.as_str().to_owned())
     }
 
-    /// Lower one complete durable bracket pair after validating both current members.
-    pub fn lower_live_bracket_pair_target_v1(
+    /// Validate one complete ordered durable bracket pair in the current document.
+    ///
+    /// The public bracket command carries the durable pair itself.  The session
+    /// only authenticates that those two objects are the current left and right
+    /// members of one bracket pair; it deliberately does not lower a private
+    /// source identifier back across that boundary.
+    pub fn validate_live_bracket_pair_target_v1(
         &self,
         member_object_ids: &[DocumentObjectIdV1; 2],
-    ) -> Result<String, SessionOperationError> {
+    ) -> Result<(), SessionOperationError> {
         let document = self.current_document_v1();
         let [left_object_id, right_object_id] = member_object_ids;
         let left = document
@@ -123,16 +128,13 @@ impl DocumentSession {
         {
             return Err(invalid());
         }
-        let pair_id = left.attribute("bracket_pair").ok_or_else(invalid)?;
-        let left_source_id = source_id(left, left_object_id)?;
-        let right_source_id = source_id(right, right_object_id)?;
-        if right.attribute("bracket_pair") != Some(pair_id)
-            || left_source_id.as_str() != pair_id
-            || left_source_id == right_source_id
+        let pair_membership = left.attribute("bracket_pair").ok_or_else(invalid)?;
+        if left_object_id == right_object_id
+            || right.attribute("bracket_pair") != Some(pair_membership)
         {
             return Err(invalid());
         }
-        Ok(pair_id.to_owned())
+        Ok(())
     }
 }
 
@@ -179,8 +181,13 @@ mod tests {
 
     const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m-a\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><molecule id=\"m-b\"><atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom></molecule><rect id=\"shape\" x1=\"0\" y1=\"0\" x2=\"10\" y2=\"10\"/><polyline id=\"wave\" style=\"wavy\"><point x=\"0\" y=\"0\"/><point x=\"10\" y=\"0\"/></polyline></cdml>";
 
-    fn object(class: &str, source: &str) -> DocumentObjectIdV1 {
-        DocumentObjectIdV1::from_class_source(class, source).expect("durable test identity")
+    fn object(session: &DocumentSession, source: &str) -> DocumentObjectIdV1 {
+        session
+            .current_document_v1()
+            .document_object_id_for_source_id_v1(
+                &PersistentId::new(source).expect("test source identifier"),
+            )
+            .expect("typed ingress persists the test record identity")
     }
 
     #[test]
@@ -189,40 +196,47 @@ mod tests {
         let before = session.snapshot().expect("before");
         let members = session
             .lower_live_chemical_members_v1(
-                &object("cdml/molecule", "m-a"),
-                &[object("molecule/atom", "a")],
+                &object(&session, "m-a"),
+                &[object(&session, "a")],
                 TypedClass::Atom,
             )
             .expect("current owned atom lowers");
         assert_eq!(members[0].as_str(), "a");
-        assert!(session
-            .lower_live_chemical_members_v1(
-                &object("cdml/molecule", "m-a"),
-                &[object("molecule/atom", "b")],
-                TypedClass::Atom,
-            )
-            .is_err());
+        assert!(
+            session
+                .lower_live_chemical_members_v1(
+                    &object(&session, "m-a"),
+                    &[object(&session, "b")],
+                    TypedClass::Atom,
+                )
+                .is_err()
+        );
         assert_eq!(session.snapshot().expect("after"), before);
     }
 
     #[test]
     fn durable_chemical_member_address_preserves_the_validated_owner_pair() {
         let session = DocumentSession::load(SOURCE).expect("document");
-        let owner = object("cdml/molecule", "m-a");
-        let atom = object("molecule/atom", "a");
+        let owner = object(&session, "m-a");
+        let atom = object(&session, "a");
         assert_eq!(
             session
                 .lower_live_chemical_member_address_v1(&owner, &atom, TypedClass::Atom)
                 .expect("current durable address lowers"),
-            (PersistentId::new("m-a").expect("owner ID"), PersistentId::new("a").expect("atom ID")),
+            (
+                PersistentId::new("m-a").expect("owner ID"),
+                PersistentId::new("a").expect("atom ID")
+            ),
         );
-        assert!(session
-            .lower_live_chemical_member_address_v1(
-                &owner,
-                &object("molecule/atom", "b"),
-                TypedClass::Atom,
-            )
-            .is_err());
+        assert!(
+            session
+                .lower_live_chemical_member_address_v1(
+                    &owner,
+                    &object(&session, "b"),
+                    TypedClass::Atom,
+                )
+                .is_err()
+        );
     }
 
     #[test]
@@ -231,42 +245,45 @@ mod tests {
         assert_eq!(
             session
                 .lower_live_chemical_presentation_target_v1(
-                    &object("cdml/rect", "shape"),
+                    &object(&session, "shape"),
                     LiveChemicalPresentationTargetV1::Geometric,
                 )
                 .expect("geometric target lowers"),
             "shape"
         );
-        assert!(session
-            .lower_live_chemical_presentation_target_v1(
-                &object("cdml/rect", "shape"),
-                LiveChemicalPresentationTargetV1::Wavy,
-            )
-            .is_err());
+        assert!(
+            session
+                .lower_live_chemical_presentation_target_v1(
+                    &object(&session, "shape"),
+                    LiveChemicalPresentationTargetV1::Wavy,
+                )
+                .is_err()
+        );
     }
 
     #[test]
-    fn durable_bracket_pair_lowering_requires_both_current_ordered_members() {
+    fn durable_bracket_pair_validation_requires_both_current_ordered_members() {
         let source = "<cdml xmlns=\"urn:ferrum:cdml\"><polyline id=\"left\" bracket_pair=\"left\" bracket_side=\"left\"><point x=\"0\" y=\"0\"/><point x=\"0\" y=\"1\"/><point x=\"1\" y=\"1\"/><point x=\"1\" y=\"0\"/></polyline><polyline id=\"right\" bracket_pair=\"left\" bracket_side=\"right\"><point x=\"2\" y=\"0\"/><point x=\"2\" y=\"1\"/><point x=\"3\" y=\"1\"/><point x=\"3\" y=\"0\"/></polyline></cdml>";
         let session = DocumentSession::load(source).expect("document");
         let before = session.snapshot().expect("before");
-        let left = object("cdml/polyline", "left");
-        let right = object("cdml/polyline", "right");
-        assert_eq!(
+        let left = object(&session, "left");
+        let right = object(&session, "right");
+        session
+            .validate_live_bracket_pair_target_v1(&[left.clone(), right.clone()])
+            .expect("complete durable pair validates");
+        assert!(
             session
-                .lower_live_bracket_pair_target_v1(&[left.clone(), right.clone()])
-                .expect("complete pair lowers"),
-            "left"
+                .validate_live_bracket_pair_target_v1(&[right, left])
+                .is_err()
         );
-        assert!(session
-            .lower_live_bracket_pair_target_v1(&[right, left])
-            .is_err());
-        assert!(session
-            .lower_live_bracket_pair_target_v1(&[
-                object("cdml/polyline", "left"),
-                object("cdml/polyline", "missing"),
-            ])
-            .is_err());
+        assert!(
+            session
+                .validate_live_bracket_pair_target_v1(&[
+                    object(&session, "left"),
+                    DocumentObjectIdV1::from_entropy_bytes([0; 16]),
+                ])
+                .is_err()
+        );
         assert_eq!(session.snapshot().expect("after"), before);
     }
 }

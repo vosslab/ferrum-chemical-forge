@@ -202,7 +202,11 @@ def test_structure_path_target_is_display_only_and_cannot_create_a_delete_handle
     observation = session.observe_structure_interaction_v1(
         snapshot.revision, snapshot.digest
     )
-    target = next(value for value in observation.targets if value.identifier == "ab")
+    target = next(
+        value
+        for value in observation.targets
+        if value.kind == ferrum_chem.StructureTargetKindV1.display_only
+    )
     assert target.kind == ferrum_chem.StructureTargetKindV1.display_only
     with pytest.raises(ferrum_chem.RenderInteractionError) as caught:
         session.select_structure_interaction_v1(

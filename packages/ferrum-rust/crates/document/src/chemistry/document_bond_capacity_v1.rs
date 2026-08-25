@@ -15,6 +15,7 @@ use super::document_molecule_inspection_v1::{
     DocumentMoleculeInspectionErrorV1, direct_projection_molecule_v1,
     verify_molecule_observation_v1,
 };
+use crate::document_direct_root_index_v1::document_direct_root_paint_orders_v1;
 
 /// Stable schema identifier for neutral bond-capacity receipts.
 pub const DOCUMENT_BOND_CAPACITY_SCHEMA_V1: &str = "ferrum-document-bond-capacity-v1";
@@ -56,7 +57,7 @@ pub struct DocumentBondCapacitySourceV1 {
     molecule_id: DocumentObjectIdV1,
     projection_key: String,
     source_id: String,
-    document_root_order: u32,
+    document_paint_order: u32,
     authored_name: Option<String>,
 }
 impl DocumentBondCapacitySourceV1 {
@@ -73,8 +74,8 @@ impl DocumentBondCapacitySourceV1 {
         &self.source_id
     }
     #[must_use]
-    pub const fn document_root_order(&self) -> u32 {
-        self.document_root_order
+    pub const fn document_paint_order(&self) -> u32 {
+        self.document_paint_order
     }
     #[must_use]
     pub fn authored_name(&self) -> Option<&str> {
@@ -168,6 +169,8 @@ pub fn inspect_document_bond_capacity_v1(
     let snapshot = observation.snapshot();
     let projection = observation.projection();
     let document = TypedDocument::parse(snapshot.cdml())?;
+    let document_paint_orders = document_direct_root_paint_orders_v1(projection)
+        .map_err(|_| DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
     let mut records = Vec::new();
     records
         .try_reserve_exact(request.molecule_ids.len())
@@ -180,14 +183,16 @@ pub fn inspect_document_bond_capacity_v1(
         let molecule = document
             .core_molecule(molecule_id)?
             .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
-        if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(source_id) {
+        if molecule.source_id().as_str() != source_id {
             return Err(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch.into());
         }
         let source = DocumentBondCapacitySourceV1 {
             molecule_id: copied_id(molecule_id)?,
             projection_key: copied(root.projection_key().as_str())?,
             source_id: copied(source_id)?,
-            document_root_order: root.source_order(),
+            document_paint_order: *document_paint_orders
+                .get(molecule_id)
+                .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?,
             authored_name: root.name().map(copied).transpose()?,
         };
         records.push(DocumentBondCapacityRecordV1 {
@@ -195,7 +200,7 @@ pub fn inspect_document_bond_capacity_v1(
             outcome: evaluate_document_molecule_neutral_capacity_v1(&molecule)?,
         });
     }
-    records.sort_by_key(|record| record.source.document_root_order);
+    records.sort_by_key(|record| record.source.document_paint_order);
     Ok(DocumentBondCapacityV1 {
         schema: DOCUMENT_BOND_CAPACITY_SCHEMA_V1,
         source_revision: snapshot.revision(),
@@ -256,11 +261,7 @@ pub(crate) fn evaluate_document_molecule_neutral_capacity_v1(
             ));
         }
         atoms.push(NeutralBondCapacityAtomV1 {
-            source_id: atom
-                .source_id()
-                .map(ferrum_core::Identifier::as_str)
-                .map(copied)
-                .transpose()?,
+            source_id: Some(copied(atom.source_id().as_str())?),
             element: copied(element)?,
             explicit_hydrogens: NeutralBondCapacityExplicitHydrogensFactV1 {
                 was_authored: atom.explicit_hydrogens().is_some(),

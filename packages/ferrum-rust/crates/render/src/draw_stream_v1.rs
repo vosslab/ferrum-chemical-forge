@@ -29,34 +29,36 @@ pub(crate) trait DrawSinkV1 {
     type Error;
 
     fn begin_page(&mut self, page: RenderViewportV1) -> Result<(), Self::Error>;
-    fn begin_root(&mut self, source_order: u32, identity: &str) -> Result<(), Self::Error>;
+    fn begin_root(
+        &mut self,
+        paint_order: u32,
+        document_object_id: &ferrum_document_projection::DocumentObjectIdV1,
+    ) -> Result<(), Self::Error>;
     fn begin_root_with_kind(
         &mut self,
-        source_order: u32,
-        identity: &str,
+        paint_order: u32,
+        document_object_id: &ferrum_document_projection::DocumentObjectIdV1,
         _: DrawRootKindV1,
     ) -> Result<(), Self::Error> {
-        self.begin_root(source_order, identity)
+        self.begin_root(paint_order, document_object_id)
     }
     fn end_root(&mut self) -> Result<(), Self::Error>;
     fn begin_molecule_batch(
         &mut self,
-        source_order: u32,
+        paint_order: u32,
         space: BatchSpace,
     ) -> Result<(), Self::Error>;
     fn begin_molecule_target_group(
         &mut self,
         target: &RenderTarget,
+        paint_order: u32,
         space: BatchSpace,
     ) -> Result<(), Self::Error> {
-        self.begin_molecule_batch(target.source_order(), space)
+        let _ = target;
+        self.begin_molecule_batch(paint_order, space)
     }
     fn end_molecule_batch(&mut self) -> Result<(), Self::Error>;
-    fn begin_direct_target_group(
-        &mut self,
-        _: &ferrum_core::RecordId,
-        _: u32,
-    ) -> Result<(), Self::Error> {
+    fn begin_direct_target_group(&mut self, _: u32) -> Result<(), Self::Error> {
         Ok(())
     }
     fn end_direct_target_group(&mut self) -> Result<(), Self::Error> {
@@ -231,8 +233,8 @@ pub(crate) fn lower_document_plan_to_sink_v1<S: DrawSinkV1>(
             continue;
         };
         sink.begin_root_with_kind(
-            root.source_order(),
-            root.identity().as_str(),
+            root.paint_order(),
+            root.target().document_object_id(),
             root_kind(root.content()),
         )
         .map_err(DrawStreamErrorV1::Sink)?;
@@ -285,13 +287,13 @@ pub(crate) fn lower_document_render_composite_to_sink_v1<S: DrawSinkV1>(
             continue;
         };
         sink.begin_root_with_kind(
-            root.source_order(),
-            root.identity().as_str(),
+            root.paint_order(),
+            root.target().document_object_id(),
             root_kind(root.content()),
         )
         .map_err(DrawStreamErrorV1::Sink)?;
-        if root.identity() == replacement.root_identity()
-            && root.source_order() == replacement.root_order()
+        if root.target() == replacement.root_target()
+            && root.paint_order() == replacement.root_paint_order()
         {
             let DocumentRenderContentV1::Molecule(plan) = root.content() else {
                 return Err(DrawStreamErrorV1::InvalidComposite);
@@ -318,7 +320,7 @@ pub(crate) fn lower_document_render_composite_to_sink_v1<S: DrawSinkV1>(
 #[cfg_attr(not(test), allow(dead_code))]
 fn lower_replaced_molecule<S: DrawSinkV1>(
     plan: &MoleculeRenderPlan,
-    selected: &std::collections::HashSet<(ferrum_core::RecordId, u32)>,
+    selected: &std::collections::HashSet<(ferrum_document_projection::DocumentObjectIdV1, u32)>,
     direct: &AuthoredDirectGlycosidicHaworthRenderPlanV1,
     face: &Face<'_>,
     sink: &mut S,
@@ -327,16 +329,16 @@ fn lower_replaced_molecule<S: DrawSinkV1>(
     let mut issues = plan.issues().iter().peekable();
     let mut emitted_direct = false;
     while batches.peek().is_some() || issues.peek().is_some() {
-        let batch_next = batches.peek().map(|batch| batch.target().source_order());
-        let issue_next = issues.peek().map(|issue| issue.target().source_order());
+        let batch_next = batches.peek().map(|batch| batch.paint_order());
+        let issue_next = issues.peek().map(|issue| issue.paint_order());
         let selected_target = match (batch_next, issue_next) {
             (Some(batch), Some(issue)) if batch < issue => {
                 let Some(batch) = batches.next() else {
                     return Err(DrawStreamErrorV1::InvalidComposite);
                 };
                 if selected.contains(&(
-                    batch.target().record_id().clone(),
-                    batch.target().source_order(),
+                    batch.target().document_object_id().clone(),
+                    batch.paint_order(),
                 )) {
                     true
                 } else {
@@ -349,8 +351,8 @@ fn lower_replaced_molecule<S: DrawSinkV1>(
                     return Err(DrawStreamErrorV1::InvalidComposite);
                 };
                 selected.contains(&(
-                    issue.target().record_id().clone(),
-                    issue.target().source_order(),
+                    issue.target().document_object_id().clone(),
+                    issue.paint_order(),
                 ))
             }
             (Some(_), None) => {
@@ -358,8 +360,8 @@ fn lower_replaced_molecule<S: DrawSinkV1>(
                     return Err(DrawStreamErrorV1::InvalidComposite);
                 };
                 if selected.contains(&(
-                    batch.target().record_id().clone(),
-                    batch.target().source_order(),
+                    batch.target().document_object_id().clone(),
+                    batch.paint_order(),
                 )) {
                     true
                 } else {
@@ -383,7 +385,7 @@ fn lower_authored_direct_operations_to_sink_v1<S: DrawSinkV1>(
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
     for operation in plan.operations() {
-        sink.begin_direct_target_group(operation.bond(), operation.authored_child_order())
+        sink.begin_direct_target_group(operation.authored_child_order())
             .map_err(DrawStreamErrorV1::Sink)?;
         match operation {
             AuthoredDirectGlycosidicHaworthDrawOpV1::OrdinaryLine {
@@ -899,7 +901,11 @@ impl DrawSinkV1 for () {
     fn begin_page(&mut self, _: RenderViewportV1) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn begin_root(&mut self, _: u32, _: &str) -> Result<(), Self::Error> {
+    fn begin_root(
+        &mut self,
+        _: u32,
+        _: &ferrum_document_projection::DocumentObjectIdV1,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
     fn end_root(&mut self) -> Result<(), Self::Error> {

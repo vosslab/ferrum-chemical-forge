@@ -1,13 +1,15 @@
 use xot::{Node, Xot};
 
+use ferrum_document_projection::DocumentObjectIdV1;
+
 use crate::*;
 
 fn provenance(value: u8) -> RenderProvenance {
     RenderProvenance::new(RenderRevision::new(1).expect("test revision"), [value; 32])
 }
 
-fn identity(value: &str) -> DocumentRenderIdentityV1 {
-    DocumentRenderIdentityV1::projection_local(value).expect("test projection key")
+fn target(value: u8) -> RenderTarget {
+    RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([value; 16]))
 }
 
 fn point(x: f64, y: f64) -> RenderPoint {
@@ -90,26 +92,25 @@ fn document_plan_preserves_mixed_root_order_page_and_named_exclusion() {
         page(),
         vec![
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(2),
                 2,
-                identity("ferrum-projection-local-v1/2"),
-                DocumentRenderContentV1::Molecule(empty_molecule(source)),
+                DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                    empty_molecule(source),
+                    Vec::new(),
+                )),
             )),
             DocumentRenderOutcomeV1::Exclusion(
-                DocumentRenderExclusionV1::new(
-                    5,
-                    identity("ferrum-projection-local-v1/5"),
-                    "not_yet_lowered:arrow",
-                )
-                .expect("named exclusion"),
+                DocumentRenderExclusionV1::new(target(5), 5, "not_yet_lowered:arrow")
+                    .expect("named exclusion"),
             ),
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(8),
                 8,
-                identity("ferrum-projection-local-v1/8"),
                 DocumentRenderContentV1::Text(plus_text()),
             )),
             DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+                target(12),
                 12,
-                identity("ferrum-projection-local-v1/12"),
                 DocumentRenderContentV1::Text(presentation_text()),
             )),
         ],
@@ -121,7 +122,7 @@ fn document_plan_preserves_mixed_root_order_page_and_named_exclusion() {
     assert_eq!(
         plan.outcomes()
             .iter()
-            .map(DocumentRenderOutcomeV1::source_order)
+            .map(DocumentRenderOutcomeV1::paint_order)
             .collect::<Vec<_>>(),
         vec![2, 5, 8, 12]
     );
@@ -210,20 +211,16 @@ fn document_plan_preserves_mixed_root_order_page_and_named_exclusion() {
 }
 
 #[test]
-fn document_plan_rejects_duplicate_order_identity_and_mixed_provenance() {
+fn document_plan_rejects_duplicate_paint_order_and_mixed_provenance() {
     let source = provenance(5);
     let text = DocumentRenderContentV1::Text(plus_text());
     let duplicate_order = DocumentRenderPlanV1::new(
         source,
         page(),
         vec![
-            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                2,
-                identity("root-a"),
-                text.clone(),
-            )),
+            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(target(20), 2, text.clone())),
             DocumentRenderOutcomeV1::Exclusion(
-                DocumentRenderExclusionV1::new(2, identity("root-b"), "arrow").expect("exclusion"),
+                DocumentRenderExclusionV1::new(target(21), 2, "arrow").expect("exclusion"),
             ),
         ],
     );
@@ -232,39 +229,12 @@ fn document_plan_rejects_duplicate_order_identity_and_mixed_provenance() {
         Err(RenderError::InvalidRequest(_))
     ));
 
-    let duplicate_identity = DocumentRenderPlanV1::new(
-        source,
-        page(),
-        vec![
-            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                2,
-                identity("same"),
-                text.clone(),
-            )),
-            DocumentRenderOutcomeV1::Exclusion(
-                DocumentRenderExclusionV1::new(3, identity("same"), "arrow").expect("exclusion"),
-            ),
-        ],
-    );
-    assert!(matches!(
-        duplicate_identity,
-        Err(RenderError::InvalidRequest(_))
-    ));
-
     let unordered = DocumentRenderPlanV1::new(
         source,
         page(),
         vec![
-            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                4,
-                identity("root-four"),
-                text.clone(),
-            )),
-            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
-                3,
-                identity("root-three"),
-                text,
-            )),
+            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(target(24), 4, text.clone())),
+            DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(target(23), 3, text)),
         ],
     );
     assert!(matches!(unordered, Err(RenderError::InvalidRequest(_))));
@@ -273,9 +243,12 @@ fn document_plan_rejects_duplicate_order_identity_and_mixed_provenance() {
         source,
         page(),
         vec![DocumentRenderOutcomeV1::Root(DocumentRenderRootV1::new(
+            target(42),
             2,
-            identity("molecule"),
-            DocumentRenderContentV1::Molecule(empty_molecule(provenance(6))),
+            DocumentRenderContentV1::Molecule(DocumentMoleculeRenderContentV1::new(
+                empty_molecule(provenance(6)),
+                Vec::new(),
+            )),
         ))],
     );
     assert!(matches!(
