@@ -49,6 +49,8 @@ enum PyCategory {
     UnrenderableCandidate,
     CrossMoleculeSelection,
     UnsupportedTarget,
+    InvalidCompactGroupDeletionSelection,
+    InvalidCompactGroupDeletionTopology,
 }
 #[pyclass(
     frozen,
@@ -66,6 +68,7 @@ enum PyRecovery {
     CorrectInput,
     ChangePresentation,
     ReportConflict,
+    RepairDocument,
 }
 #[pyclass(
     frozen,
@@ -350,6 +353,10 @@ struct PyStructureTarget {
     #[pyo3(get)]
     identifier: String,
     #[pyo3(get)]
+    durable_molecule_object_id: Option<String>,
+    #[pyo3(get)]
+    durable_object_id: Option<String>,
+    #[pyo3(get)]
     source_order: u32,
     #[pyo3(get)]
     kind: PyStructureTargetKind,
@@ -470,9 +477,11 @@ pub(crate) struct PyStructureCommit {
     #[pyo3(get)]
     result: super::binding::PySessionOperationResultV1,
     #[pyo3(get)]
-    removed_atoms: Vec<String>,
+    removed_atom_count: usize,
     #[pyo3(get)]
-    removed_bonds: Vec<String>,
+    removed_bond_count: usize,
+    #[pyo3(get)]
+    removed_compact_group_count: usize,
 }
 #[pyclass(
     unsendable,
@@ -759,6 +768,8 @@ fn structure_target(
         PyStructureTarget {
             molecule_id: value.molecule_id().to_owned(),
             identifier: value.identifier().to_owned(),
+            durable_molecule_object_id: value.durable_molecule_object_id().map(str::to_owned),
+            durable_object_id: value.durable_object_id().map(str::to_owned),
             source_order: value.source_order(),
             kind: structure_kind(value.kind()),
             bounds: bounds(value.bounds()),
@@ -797,8 +808,9 @@ fn structure_selection(
 fn structure_commit(value: CommittedStructureDeletionV1) -> PyStructureCommit {
     PyStructureCommit {
         result: value.result().clone().into(),
-        removed_atoms: value.removed_atoms().to_vec(),
-        removed_bonds: value.removed_bonds().to_vec(),
+        removed_atom_count: value.removed_atom_count(),
+        removed_bond_count: value.removed_bond_count(),
+        removed_compact_group_count: value.removed_compact_group_count(),
     }
 }
 fn tuple<T: PyClass>(py: Python<'_>, values: &[Py<T>]) -> PyResult<Py<PyTuple>> {
@@ -849,6 +861,12 @@ fn category(error: &RenderInteractionErrorV1) -> PyCategory {
         RenderInteractionErrorV1::UnrenderableCandidate => PyCategory::UnrenderableCandidate,
         RenderInteractionErrorV1::CrossMoleculeSelection => PyCategory::CrossMoleculeSelection,
         RenderInteractionErrorV1::UnsupportedTarget => PyCategory::UnsupportedTarget,
+        RenderInteractionErrorV1::InvalidCompactGroupDeletionSelection => {
+            PyCategory::InvalidCompactGroupDeletionSelection
+        }
+        RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology => {
+            PyCategory::InvalidCompactGroupDeletionTopology
+        }
         RenderInteractionErrorV1::UnsupportedDocument => PyCategory::Observation,
     }
 }
@@ -860,7 +878,11 @@ fn recovery(error: &RenderInteractionErrorV1) -> PyRecovery {
         | RenderInteractionErrorV1::SelectionChanged => PyRecovery::RefreshAndRestart,
         RenderInteractionErrorV1::EmptySelection
         | RenderInteractionErrorV1::NoTarget
-        | RenderInteractionErrorV1::CrossMoleculeSelection => PyRecovery::SelectRenderableRoot,
+        | RenderInteractionErrorV1::CrossMoleculeSelection
+        | RenderInteractionErrorV1::InvalidCompactGroupDeletionSelection => {
+            PyRecovery::SelectRenderableRoot
+        }
+        RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology => PyRecovery::RepairDocument,
         RenderInteractionErrorV1::NonFinitePoint | RenderInteractionErrorV1::InvalidRectangle => {
             PyRecovery::CorrectInput
         }

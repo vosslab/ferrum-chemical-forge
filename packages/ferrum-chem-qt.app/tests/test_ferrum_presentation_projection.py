@@ -17,9 +17,8 @@ import ferrum_qt.ferrum.engine
 
 
 #============================================
-@pytest.fixture(scope="module")
-def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Return the shared offscreen application for plan-scene selection."""
+def _application() -> PySide6.QtWidgets.QApplication:
+	"""Return the process application required for native scene construction."""
 	application = PySide6.QtWidgets.QApplication.instance()
 	if application is None:
 		application = PySide6.QtWidgets.QApplication([])
@@ -37,11 +36,9 @@ def _renderer_plan(cdml: str) -> object:
 
 
 #============================================
-def test_renderer_plan_scene_preserves_durable_target_selection(
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
+def test_renderer_plan_scene_preserves_durable_target_selection() -> None:
 	"""A renderer plan installs one durable root that remains selectable by identity."""
-	del qapp
+	_application()
 	plan = _renderer_plan(
 		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal" '
 		'start="no" end="yes"><point x="0" y="0"/>'
@@ -53,11 +50,11 @@ def test_renderer_plan_scene_preserves_durable_target_selection(
 	graphics_scene = PySide6.QtWidgets.QGraphicsScene()
 	for root in scene.roots:
 		graphics_scene.addItem(root)
-	durable_id = scene.roots[0].target.id
-	assert durable_id is not None
-	scene.select_durable((durable_id,))
+	target = scene.roots[0].target
+	assert target.durable_object_id is not None
+	scene.select_durable((target.durable_selection_key(),))
 	selected = scene.selected_targets(graphics_scene)
-	assert len(selected) == 1 and selected[0].id == durable_id
+	assert selected[0].durable_selection_key() == target.durable_selection_key()
 	scene.dispose_detached()
 
 
@@ -73,11 +70,9 @@ def test_renderer_plan_scene_rejects_non_native_plan() -> None:
 
 
 #============================================
-def test_curved_arrow_plan_scene_retains_renderer_target(
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
+def test_curved_arrow_plan_scene_retains_renderer_target() -> None:
 	"""A curved authored arrow is displayed through its public renderer-plan target."""
-	del qapp
+	_application()
 	plan = _renderer_plan(
 		'<cdml xmlns="urn:ferrum:cdml"><arrow id="curve" type="curved-normal">'
 		'<point x="0" y="0"/><point x="20" y="20"/>'
@@ -86,5 +81,5 @@ def test_curved_arrow_plan_scene_retains_renderer_target(
 	scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
 		plan, ferrum_qt.ferrum.engine.verified_telex_regular(),
 	)
-	assert scene.roots[0].target.source_id == "curve"
+	assert scene.roots[0].target.render_identifier == "curve"
 	scene.dispose_detached()

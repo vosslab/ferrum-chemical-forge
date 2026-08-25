@@ -46,6 +46,6 @@ decision defines the shipped contract and its remaining evidence boundary.
 
 ## Related implementation
 
-- [peptide_template_insertion_binding.rs](../../../packages/ferrum-rust/crates/api/src/python_binding/peptide_template_insertion_binding.rs)
+- [peptide_insertion_binding.rs](../../../packages/ferrum-rust/crates/api/src/python_binding/peptide_insertion_binding.rs)
 - [peptide_structure_plan_document_adapter_v1.rs](../../../packages/ferrum-rust/crates/document/src/chemistry/peptide_structure_plan_document_adapter_v1.rs)
 - [peptide_import.py](../../../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/peptide_import.py)

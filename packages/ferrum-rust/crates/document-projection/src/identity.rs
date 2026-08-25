@@ -1,6 +1,6 @@
 //! Durable and projection-local identities without document traversal.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// An opaque, versioned selector for one durable typed record.
@@ -52,6 +52,15 @@ impl DocumentObjectIdV1 {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for DocumentObjectIdV1 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::parse(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 

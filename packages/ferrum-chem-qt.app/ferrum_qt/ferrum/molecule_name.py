@@ -137,8 +137,12 @@ class FerrumNativeMoleculeNameWindowMixin:
 		if root is None:
 			return None
 		targets = tab.selected_molecule_information_targets()
-		selection = tuple((target.kind, target.identifier) for target in targets)
-		if not selection:
+		selection = tuple(
+			(target.kind, target.durable_object_id)
+			for target in targets
+			if type(target.durable_object_id) is str and target.durable_object_id
+		)
+		if len(selection) != len(targets):
 			return None
 		snapshot = tab.current_snapshot
 		return _MoleculeNameCapture(
@@ -174,12 +178,9 @@ class FerrumNativeMoleculeNameWindowMixin:
 #============================================
 def _matching_projection_root(tab: object,
 		address: native_molecule_inspection.FerrumNativeMoleculeInspectionAddress) -> object | None:
-	"""Return the sole projection root matching every captured corroborator."""
+	"""Return the sole projection root matching the captured durable root ID."""
 	matches = tuple(
 		root for root in tab.current_document_observation().projection.molecules
 		if root.id == address.molecule_id
-		and root.projection_key == address.projection_key
-		and root.source_id == address.source_id
-		and root.source_order == address.document_root_order
 	)
 	return matches[0] if len(matches) == 1 else None

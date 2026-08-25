@@ -381,8 +381,10 @@ fragile; it is neither skipped evidence nor a remaining required E2E lane.
 
 The compact-materialization portion of M4 is governed by the selected
 [m4_compact_group_materialization_v1.md](../decisions/m4_compact_group_materialization_v1.md).
-Its generic protocol and named CLI route are complete; only compact PyO3
-live-session registration and the Qt action remain deferred.
+Its generic protocol, named CLI route, live-session PyO3 registration, and
+visible Qt action are complete. The action consumes only Rust-issued durable
+target IDs and a current document fence; it does not recover targets from raw
+CDML or source IDs.
 
 **Depends on:** M2.  **Parallel-plan ready:** yes; report and query lanes share
 DTO conventions only.
@@ -568,9 +570,8 @@ its limits.
 The M0 statement about document-private compact cleanup is superseded for
 materialization by the selected
 [m4_compact_group_materialization_v1.md](../decisions/m4_compact_group_materialization_v1.md):
-the generic protocol and named CLI route are delivered. This does not advance
-M5 catalog or reaction work, and it does not claim compact PyO3 live-session
-registration or a Qt action.
+the generic protocol, named CLI route, live-session PyO3 registration, and Qt
+action are delivered. This does not advance M5 catalog or reaction work.
 
 The subsequent confirmed queue remains M2 interchange/graph completion, M5
 catalogs and reactions, and M6 usable-application work. The completed catalog

@@ -31,15 +31,34 @@ def _empty_probe(x: float, y: float) -> object:
 	)
 
 
-def _direct_probe(atom_identifier: str) -> object:
-	"""Return a public pointer probe naming one existing atom."""
+def _direct_probe(atom_object_id: str) -> object:
+	"""Return a public pointer probe naming one durable atom object."""
 	return ferrum_chem.DirectBondPointerProbeV3(
 		0.0,
 		0.0,
 		_frame(),
 		ferrum_chem.DirectBondPointerHitStateV3.unique_atom,
-		atom_identifier,
+		atom_object_id,
 	)
+
+
+def _atom_object_id(session: object, source_id: str) -> str:
+	"""Return one current atom's public durable document identity."""
+	observation = session.observe(session.snapshot().revision)
+	for molecule in observation.projection.molecules:
+		for atom in molecule.atoms:
+			if atom.source_id == source_id:
+				assert atom.id is not None
+				return atom.id
+	raise AssertionError("direct-bond source fixture must retain its atom")
+
+
+def _molecule_object_id(session: object) -> str:
+	"""Return the fixture molecule's public durable document identity."""
+	observation = session.observe(session.snapshot().revision)
+	molecule = observation.projection.molecules[0]
+	assert molecule.id is not None
+	return molecule.id
 
 
 def _direct_bond_facts(result: object) -> object:
@@ -84,8 +103,8 @@ def _commit_direct_bond(
 	"""Commit one V3 gesture through the generic prepared-transition lifecycle."""
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	observation = session.observe(0)
-	start = _direct_probe(start_identifier) if start_identifier else _empty_probe(-40.0, 0.0)
-	end = _direct_probe(end_identifier) if end_identifier else _empty_probe(80.0, 0.0)
+	start = _direct_probe(_atom_object_id(session, start_identifier)) if start_identifier else _empty_probe(-40.0, 0.0)
+	end = _direct_probe(_atom_object_id(session, end_identifier)) if end_identifier else _empty_probe(80.0, 0.0)
 	gesture = session.begin_direct_bond_gesture_v3(
 		observation.snapshot.revision,
 		observation.snapshot.digest,
@@ -145,7 +164,7 @@ def test_direct_bond_v3_pointer_refusals_are_typed() -> None:
 
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	observation = session.observe(0)
-	non_atom_probe = _direct_probe("unknown-source-id")
+	non_atom_probe = _direct_probe(_molecule_object_id(session))
 	with pytest.raises(ferrum_chem.DirectBondPointerProbeErrorV3) as unknown:
 		session.begin_direct_bond_gesture_v3(
 			observation.snapshot.revision,
@@ -189,9 +208,7 @@ def test_direct_bond_v3_same_atom_refusal_preserves_admission_semantics(
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	observation = session.observe(0)
 	before = observation.snapshot
-	atom_identifier = observation.projection.molecules[0].atoms[0].source_id
-	assert atom_identifier == "atom-a"
-	probe = _direct_probe(atom_identifier)
+	probe = _direct_probe(_atom_object_id(session, "atom-a"))
 	gesture = session.begin_direct_bond_gesture_v3(
 		before.revision,
 		before.digest,
@@ -215,12 +232,12 @@ def test_direct_bond_v3_preparation_transfers_one_gesture_once() -> None:
 	gesture = session.begin_direct_bond_gesture_v3(
 		before.revision,
 		before.digest,
-		_direct_probe("atom-a"),
+		_direct_probe(_atom_object_id(session, "atom-a")),
 		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
 	)
-	request = gesture.resolve_end_v3(session, _direct_probe("atom-c"))
+	request = gesture.resolve_end_v3(session, _direct_probe(_atom_object_id(session, "atom-c")))
 	prepared = session.prepare_session_operation_transition_v1(request)
 	after_admissions = session.snapshot()
 	assert (after_admissions.revision, after_admissions.digest, after_admissions.cdml) == (
@@ -230,7 +247,7 @@ def test_direct_bond_v3_preparation_transfers_one_gesture_once() -> None:
 	)
 
 	with pytest.raises(ferrum_chem.DirectBondGestureError):
-		gesture.resolve_end_v3(session, _direct_probe("atom-c"))
+		gesture.resolve_end_v3(session, _direct_probe(_atom_object_id(session, "atom-c")))
 
 	result = session.commit_session_operation_transition_v1(prepared)
 	assert _direct_bond_facts(result).bond_identifier
@@ -248,12 +265,12 @@ def test_direct_bond_v3_foreign_commit_keeps_owner_transition_redeemable() -> No
 	gesture = owner.begin_direct_bond_gesture_v3(
 		before.revision,
 		before.digest,
-		_direct_probe("atom-a"),
+		_direct_probe(_atom_object_id(owner, "atom-a")),
 		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
 	)
-	request = gesture.resolve_end_v3(owner, _direct_probe("atom-c"))
+	request = gesture.resolve_end_v3(owner, _direct_probe(_atom_object_id(owner, "atom-c")))
 	prepared = owner.prepare_session_operation_transition_v1(request)
 
 	with pytest.raises(ferrum_chem.PreparedOperationForeignSessionError):
@@ -272,17 +289,17 @@ def test_direct_bond_v3_stale_preparation_preserves_intervening_mutation() -> No
 	gesture = session.begin_direct_bond_gesture_v3(
 		before.revision,
 		before.digest,
-		_direct_probe("atom-a"),
+		_direct_probe(_atom_object_id(session, "atom-a")),
 		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
 	)
-	stale_request = gesture.resolve_end_v3(session, _direct_probe("atom-c"))
+	stale_request = gesture.resolve_end_v3(session, _direct_probe(_atom_object_id(session, "atom-c")))
 	stale_prepared = session.prepare_session_operation_transition_v1(stale_request)
 	intervening_gesture = session.begin_direct_bond_gesture_v3(
 		before.revision,
 		before.digest,
-		_direct_probe("atom-c"),
+		_direct_probe(_atom_object_id(session, "atom-c")),
 		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
@@ -309,7 +326,7 @@ def test_direct_bond_v3_next_pointer_candidate_prepares_before_prior_commit() ->
 	first_gesture = session.begin_direct_bond_gesture_v3(
 		before.revision,
 		before.digest,
-		_direct_probe("atom-a"),
+		_direct_probe(_atom_object_id(session, "atom-a")),
 		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
@@ -321,7 +338,7 @@ def test_direct_bond_v3_next_pointer_candidate_prepares_before_prior_commit() ->
 	second_gesture = session.begin_direct_bond_gesture_v3(
 		before.revision,
 		before.digest,
-		_direct_probe("atom-a"),
+		_direct_probe(_atom_object_id(session, "atom-a")),
 		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
@@ -367,7 +384,7 @@ def test_direct_bond_v3_typed_probe_and_post_resolution_refusals_are_nonmutating
 		session.begin_direct_bond_gesture_v3(
 			before.revision,
 			"0" * 64,
-			_direct_probe("atom-a"),
+			_direct_probe(_atom_object_id(session, "atom-a")),
 			ferrum_chem.DocumentBondPresentationV1.normal_single,
 			"C",
 			ferrum_chem.DirectBondSnapPolicyV1(),
@@ -384,12 +401,14 @@ def test_direct_bond_v3_typed_probe_and_post_resolution_refusals_are_nonmutating
 	gesture = _committed_session.begin_direct_bond_gesture_v3(
 		committed_before.revision,
 		committed_before.digest,
-		_direct_probe("atom-a"),
+		_direct_probe(_atom_object_id(_committed_session, "atom-a")),
 		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
 	)
-	request = gesture.resolve_end_v3(_committed_session, _direct_probe("atom-c"))
+	request = gesture.resolve_end_v3(
+		_committed_session, _direct_probe(_atom_object_id(_committed_session, "atom-c")),
+	)
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		_committed_session.prepare_session_operation_transition_v1(request)
 	assert (

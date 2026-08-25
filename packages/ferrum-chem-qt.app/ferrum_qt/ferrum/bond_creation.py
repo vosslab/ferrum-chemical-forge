@@ -22,9 +22,13 @@ class FerrumNativeBondCreationMixin:
 		import ferrum_qt.ferrum.engine as engine
 		if type(presentation) is not engine.DocumentBondPresentationV1:
 			raise TypeError("Ferrum bond creation requires an exact Ferrum presentation value")
-		start, end = self._atom_object_ids((start_atom_id, end_atom_id))
-		operation = engine.DocumentOperationV1.create_bond_v1(start, end, presentation)
-		result = self._apply_current_document_operation_v1(operation)
+		# Resolve the live intent through the authoritative session so it owns the
+		# durable-target, revision-fence, and authoring-capability checks.
+		request = self._session.resolve_create_bond_v1(
+			self.current_snapshot.revision, start_atom_id, end_atom_id, presentation,
+		)
+		prepared = self._session.prepare_session_operation_transition_v1(request)
+		result = self._session.commit_session_operation_transition_v1(prepared)
 		outcome = result.outcome
 		if outcome.kind != "bond_created_v1" or outcome.bond_created is None:
 			raise FerrumNativeDocumentTabError("Ferrum bond creation returned an unknown operation outcome")

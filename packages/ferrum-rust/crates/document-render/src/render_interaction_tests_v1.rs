@@ -568,8 +568,9 @@ fn structure_selection_deletes_atom_and_incident_bond_in_one_fenced_commit() {
     let commit = session
         .commit_structure_deletion_v1(&selection)
         .expect("delete");
-    assert_eq!(commit.removed_atoms(), ["a"]);
-    assert_eq!(commit.removed_bonds(), ["ab"]);
+    assert_eq!(commit.removed_atom_count(), 1);
+    assert_eq!(commit.removed_bond_count(), 1);
+    assert_eq!(commit.removed_compact_group_count(), 0);
     let molecule = &commit.result().observation().projection().molecules()[0];
     assert_eq!(molecule.atoms().len(), 1);
     assert!(molecule.bonds().is_empty());
@@ -577,6 +578,40 @@ fn structure_selection_deletes_atom_and_incident_bond_in_one_fenced_commit() {
         session.commit_structure_deletion_v1(&selection),
         Err(RenderInteractionErrorV1::StaleRevision)
     ));
+}
+
+#[test]
+fn compact_group_deletion_topology_requires_document_repair_without_source_ids() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
+        "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<compact-group id=\"g\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group>",
+        "</molecule></cdml>",
+    );
+    let mut session = RenderInteractionSessionV1::new(DocumentSession::load(source).expect("load"));
+    let observation = session
+        .observe_structure_interaction_v1(fence(&session))
+        .expect("observe");
+    let selection = session
+        .select_structure_interaction_v1(
+            &observation,
+            None,
+            StructureInteractionQueryV1::Point {
+                x: 20.0,
+                y: 0.0,
+                modifier: RenderInteractionModifierV1::Replace,
+            },
+        )
+        .expect("select compact group");
+
+    let error = session
+        .commit_structure_deletion_v1(&selection)
+        .expect_err("invalid compact topology refuses");
+    assert_eq!(error, RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology);
+    assert_eq!(
+        error.to_string(),
+        "the compact group deletion topology requires document repair before retry"
+    );
 }
 
 #[test]

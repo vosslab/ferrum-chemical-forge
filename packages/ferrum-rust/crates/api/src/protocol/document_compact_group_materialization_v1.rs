@@ -37,25 +37,15 @@ pub(crate) fn execute_document_compact_group_materialize_on_session(
     let expected_digest = parse_digest(&request.document.expected_digest_hex)?;
     let source_revision = request.document.expected_revision;
     let source_digest_hex = request.document.expected_digest_hex.clone();
-    let transition = SessionOperationTransitionRequestV1::new(
-        source_revision,
-        SessionOperation::V1(SessionOperationV1::MaterializeCompactGroupV1(
-            DocumentRequest::new(
-                source_revision,
-                expected_digest,
-                molecule_id,
-                compact_group_id,
-            ),
-        )),
-        TransitionAuthorizationV1::None,
-    );
-
-    let result = match session.prepare_session_operation_transition_v1(transition) {
-        Ok(mut prepared) => session
-            .commit_session_operation_transition_v1(&mut prepared)
-            .map_err(map_commit_refusal)?,
-        Err(error) => return Err(map_prepare_error(error)),
-    };
+    let result = execute_document_compact_group_materialize_transition_on_session(
+        session,
+        DocumentRequest::new(
+            source_revision,
+            expected_digest,
+            molecule_id,
+            compact_group_id,
+        ),
+    )?;
     let SessionOperationOutcomeV1::CompactGroupMaterializedV1(materialization) = result.outcome()
     else {
         return Err(ExecutionFailureV1::internal(
@@ -66,28 +56,62 @@ pub(crate) fn execute_document_compact_group_materialize_on_session(
         .snapshot()
         .map_err(|error| ExecutionFailureV1::internal(error.to_string()))?;
     Ok((
-        OperationProtocolOutcomeV1::DocumentCompactGroupMaterialize {
-            materialization: DocumentCompactGroupMaterializationResultV1 {
-                schema: MATERIALIZATION_SCHEMA_V1.to_owned(),
-                source_revision,
-                source_digest_hex,
-                // The receipt identifies the selected source targets, while the
-                // session-owned result retains canonical record identities for
-                // internal transition chaining.
-                molecule_id: source_molecule_id,
-                compact_group_id: source_compact_group_id,
-                replacement_focus_atom_id: materialization.focus_atom_id().as_str().to_owned(),
-                document: snapshot.cdml().to_owned(),
-                // The returned canonical CDML is a new request-owned snapshot, so
-                // its next stateless operation starts at revision zero.
-                document_fence: DocumentRequestFenceV1 {
-                    expected_revision: 0,
-                    expected_digest_hex: hex_digest(snapshot.digest()),
-                },
-            },
-        },
+        compact_group_materialization_outcome(
+            source_revision,
+            source_digest_hex,
+            source_molecule_id,
+            source_compact_group_id,
+            materialization.focus_atom_id().as_str().to_owned(),
+            snapshot.cdml().to_owned(),
+            0,
+            hex_digest(snapshot.digest()),
+        ),
         Some(result),
     ))
+}
+
+pub(crate) fn execute_document_compact_group_materialize_transition_on_session(
+    session: &mut ferrum_document::DocumentSession,
+    request: DocumentRequest,
+) -> Result<ferrum_document::SessionOperationResultV1, ExecutionFailureV1> {
+    let transition = SessionOperationTransitionRequestV1::new(
+        request.expected_revision(),
+        SessionOperation::V1(SessionOperationV1::MaterializeCompactGroupV1(request)),
+        TransitionAuthorizationV1::None,
+    );
+    match session.prepare_session_operation_transition_v1(transition) {
+        Ok(mut prepared) => session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .map_err(map_commit_refusal),
+        Err(error) => Err(map_prepare_error(error)),
+    }
+}
+
+pub(crate) fn compact_group_materialization_outcome(
+    source_revision: u64,
+    source_digest_hex: String,
+    molecule_id: String,
+    compact_group_id: String,
+    replacement_focus_atom_id: String,
+    document: String,
+    document_revision: u64,
+    document_digest_hex: String,
+) -> OperationProtocolOutcomeV1 {
+    OperationProtocolOutcomeV1::DocumentCompactGroupMaterialize {
+        materialization: DocumentCompactGroupMaterializationResultV1 {
+            schema: MATERIALIZATION_SCHEMA_V1.to_owned(),
+            source_revision,
+            source_digest_hex,
+            molecule_id,
+            compact_group_id,
+            replacement_focus_atom_id,
+            document,
+            document_fence: DocumentRequestFenceV1 {
+                expected_revision: document_revision,
+                expected_digest_hex: document_digest_hex,
+            },
+        },
+    }
 }
 
 pub(crate) fn map_prepare_error(error: DocumentSessionError) -> ExecutionFailureV1 {
@@ -162,7 +186,7 @@ fn map_document_refusal(
     compact_refusal(category, recovery)
 }
 
-fn compact_refusal(
+pub(crate) fn compact_refusal(
     category: ProtocolCompactGroupMaterializationCategoryV1,
     recovery: ProtocolCompactGroupMaterializationRecoveryV1,
 ) -> ExecutionFailureV1 {
@@ -179,7 +203,7 @@ fn parse_object_id(value: &str, field: &str) -> Result<PersistentId, ExecutionFa
     })
 }
 
-fn parse_digest(value: &str) -> Result<[u8; 32], ExecutionFailureV1> {
+pub(crate) fn parse_digest(value: &str) -> Result<[u8; 32], ExecutionFailureV1> {
     if value.len() != 64
         || !value
             .bytes()

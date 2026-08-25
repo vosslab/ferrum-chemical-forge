@@ -70,8 +70,7 @@ require_local_runtime
 require_local_launchers
 run_step "Local Ferrum CLI E2E tests" bash "${REPO_ROOT}/tests/e2e/run_all.sh"
 
-readonly LOCAL_PYTHONPATH="${LOCAL_PYTHON_ROOT}:${QT_SOURCE_ROOT}"
 run_step "Local Ferrum-Chem Python tests" \
-	env PYTHONPATH="${LOCAL_PYTHONPATH}" pytest "${PYO3_TEST_ROOT}"
+	pytest "${PYO3_TEST_ROOT}"
 run_step "Ferrum Qt tests" \
-	env PYTHONPATH="${LOCAL_PYTHONPATH}" QT_QPA_PLATFORM=offscreen pytest "${QT_TEST_ROOT}"
+	env QT_QPA_PLATFORM=offscreen pytest "${QT_TEST_ROOT}"

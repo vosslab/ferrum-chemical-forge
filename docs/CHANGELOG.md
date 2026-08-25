@@ -2,42 +2,154 @@
 
 Earlier history is in [CHANGELOG-2026-08f.md](CHANGELOG-2026-08f.md).
 
-## 2026-08-24
+## 2026-08-25
 
-### Fixes and Maintenance
+### Additions and New Features
 
-- Registered `document.compact-group.materialize.v1` in the canonical generic
-  live-document session dispatcher. The existing PyO3 live bridge now applies
-  the owned fenced compact-group transition and returns its committed receipt
-  or typed no-change refusal without a compact-specific Python route.
+- Added compact-group deletion through the existing Select Structure/Delete and
+  Backspace controls. Rust accepts exactly one renderer-issued parent/group
+  durable-ID target, proves direct membership, removes only the group and its
+  unique exterior bond in one history transition, and returns the combined
+  `removed_compact_group_ids` receipt. The focused public E2E proves visible
+  author/select/Delete, the visible count receipt and `Formula: C2H6`, and public
+  Undo restoring the compact group. Public materialization of that restored group,
+  followed by `Molecule Report...` showing `Formula: C3H8`, proves semantic restoration.
 
-- Allowed molecule-root render groups to pass pointer events to their child
-  items. Compact-group, atom, and bond labels now enter the existing canonical
-  durable selection state through their own rendered item under the supported
-  offscreen Qt runtime.
+- Added the Chemistry `Attach Compact Group...` flow for the Rust-owned attached `Me`
+  candidate. The focused accessible chooser exposes only `Me` and `Attach to Selected
+  Atom`; one guarded canvas release begins, previews, and commits the opaque candidate,
+  then installs the authoritative Rust observation and focus selection. Selection, revision,
+  digest, durable identifiers, geometry, chemistry, and refusals remain Rust-owned.
 
-- Clicking a Rust-issued compact-group label now enters the same canonical durable Qt selection
-  state as atoms and bonds. The selected target retains both compact-group and parent-molecule
-  document IDs for the existing materialization action; presentation selection remains unchanged.
+- Added the private PyO3 one-use attached-methyl compact-group bridge. It accepts
+  only a current revision/digest fence, Rust-issued direct atom ID, and finite
+  release point; preview is renderer-owned and identifier-free, while commit returns
+  only authoritative fence facts plus durable focus and compact-group IDs. The shared
+  Python operation-error boundary maps compact-group ID exhaustion as an existing
+  stable operation-validation refusal.
+
+- Added typed live-atom revision and digest fence translation plus direct installed-extension
+  coverage for element, position, and deletion mutations using Rust-issued durable IDs.
+
+- Added compiled public coverage for durable live-atom mutations through typed fenced
+  constructors, preserving typed refusals and no-mutation behavior for invalid requests.
+
+- Added the dedicated Rust compact-group allocator and the fenced attached-`Me`
+  transaction, availability, binding, and Qt authoring flow. Compact selection
+  now propagates through the installed render projection, and Molecule Report
+  matches returned records to captured durable molecule IDs while retaining
+  Rust-issued source ID and source-order facts.
 
 ### Behavior or Interface Changes
 
-- Retired residual peptide-template vocabulary from the Qt peptide import flow and
-  public installation receipts. Native preparation now shares the source-neutral
-  prepared-molecule binding boundary with other insertion routes without depending
-  on the SMILES binding module.
+- Kept Qt presentation ownership at the canonical render-target, presentation-target, and
+  presentation-render-plan modules after removing the unnecessary projection facade.
 
-### Documentation
+- Local builds now publish one immutable program root through `build/current`. Stable CLI and Qt
+  paths use root-local wrapper/payload pairs with explicit runtime leases, preserving active
+  programs across promotion.
 
-- Corrected the CDML, usage, Qt, and backend-to-frontend contracts to list the
-  persisted `stereoDepictions` child and keep E/Z configuration separate from
-  Rust-issued editable carrier-mark depiction facts.
+### Fixes and Maintenance
 
-- Corrected the compact-group planning and public-contract records to recognize
-  the delivered generic protocol and named CLI route for
-  `document.compact-group.materialize.v1`; PyO3 live registration and the Qt
-  compact action remain deferred. Added the closed native-17 peptide sequence
-  import decision and its outstanding visible-UI E2E gate.
+- Completed the public unavailable-anchor recovery slice for attached `Me`.
+  With one selected unavailable atom, Qt disables the existing `Attach Compact
+  Group...` action and publishes exact learner guidance through its status tip,
+  tool tip, and What's This text. An eligible selection refreshes the same
+  action to enabled; pre-chooser revalidation retains the existing typed
+  nonmodal refusal and action refresh. The registered public E2E authors
+  saturated CH4 and eligible C-C, proves recovery, then attaches and
+  materializes `Me` to `Formula: C3H8`.
+
+- Replaced outward structural-deletion receipt identities with atom, bond, and compact-group
+  counts. The compact-topology refusal is now a closed redacted category with document-repair
+  recovery, while durable removal receipts remain internal to the document session.
+
+- Final aggregate verification for this delivery passed: fresh `./build.sh` passed;
+  `./all_test.sh` exited 0 with 7,221 hygiene tests, all registered CLI/Qt E2Es,
+  271 native bindings, and 204 Qt tests passed with 1 skipped.
+
+- Recorded audit corrections: public deletion receipts expose a count only;
+  topology-invalid `repair_document` calls retain their specific refusal;
+  accepted bonds publish durable selection; postcommit presentation failures
+  report truthfully after the mutation; and mixed selections remain immutable.
+
+- Corrected compact-group deletion to accept renderer-issued durable molecule
+  and compact-group object IDs, validate current parent-child containment, and
+  lower once to direct CDML IDs for detached mutation. Raw source IDs no longer
+  select the public deletion API.
+
+- Corrected attached-methyl compact-group admission so catalog, selector, geometry, and
+  chemistry-capacity validation complete before tentative group/bond allocation. Accepted
+  commits now expose typed focus and compact-group IDs while canceled and refused attempts
+  leave durable sequences and history unchanged.
+
+- Corrected Qt SMARTS results to show the accessible learner warning when Rust's canonical
+  `total_match_budget_reached` traversal fact reports unexamined molecules.
+
+- Added the deterministic public Qt SMARTS E2E for both partial and complete result runs, and
+  registered it in the aggregate E2E runner.
+
+- Centralized Qt import provenance in `source_me.sh`: repository `ferrum_qt` source precedes the
+  sealed runtime and retained caller paths. Aggregate and generated GUI launchers preserve that
+  order, while provenance E2Es prevent site-packages substitution.
+
+- Made `source_me.sh`'s canonical Qt/runtime path construction safe for macOS Bash 3.2 and
+  `set -u` callers with unset or empty `PYTHONPATH`, after a real build exposed empty-array
+  expansion; repeated sourcing remains idempotent.
+
+- Repaired local atomic-build promotion with owner-unique pointer staging, a parent-owned
+  close-on-exec lock, per-owner Cargo targets, and locked cleanup of inactive orphan roots.
+
+- Corrected compact durable and stateless documentation/test-policy wording, and aligned the
+  local-build lifecycle runner manifest with its behavior-level E2E coverage.
+
+- Sealed local-runtime Receipt V4 wrapper and payload bytes with an owner-executable predicate.
+  Corrected generated CLI argument forwarding, and reclaimed only stopped or malformed
+  non-current owned `program-*` roots without mutating the published root.
+
+- Pruned allocator- and render-cardinality assertions from bracket tests, retaining only
+  durable public behavior through commit, undo, and redo.
+
+- Removed the dead Molecule Information Qt, Rust, PyO3, and test stack, plus
+  fragile dialog pytest coverage. Audit cleanup corrected stale compact-group
+  prerequisites, receipt wording, and documentation claims.
+
+- Corrected the operation-protocol response-budget name and completed the Rustdoc contract for
+  the prepared Wavy insertion binding without changing the response schema or numeric limit.
+
+- Aligned the active architecture, file-layout, and atomic-promotion plan with the V4
+  current-root topology and distinct CLI-versus-Qt runtime bundles.
+
+### Removals and Deprecations
+
+- Removed the unused Qt presentation-projection re-export facade and fragile lifecycle tests
+  that enforced implementation history rather than durable behavior.
+
+- Removed confirmed dead pre-production configuration and build constants, plus material-tree
+  Python bytecode artifacts and the remaining EOF whitespace.
+
+### Decisions and Failures
+
+- Recorded M6's delivered public Qt attached-`Me` author-to-materialize slice.
+  Rust retains catalog, availability, chemistry, geometry, deferred durable
+  IDs, render admission, and atomic commit; Qt retains the accessible chooser,
+  one-release pointer handoff, and receipt/refusal presentation. The PyO3
+  bridge is private implementation detail. Unavailable-anchor recovery, free
+  placement, other catalog keys, and broader plan gates remain incomplete.
+
+- Recovered the restored changelog after a truncation failure, retaining every historical bullet
+  while consolidating the 2026-08-24 categories into the canonical order.
+
+### Developer Tests and Notes
+
+- Local evidence includes the installed-extension live-atom boundary review, the atomic-build
+  lifecycle E2E, the focused Qt presentation-target pytest, and the final aggregate suite.
+
+- Focused live-atom, bracket-fence, local-runtime receipt, Markdown, ASCII, and indentation
+  checks provide component evidence. The private Qt lifecycle pytest was a one-time implementation
+  check and is removed; it is not permanent evidence.
+
+## 2026-08-24
 
 ### Additions and New Features
 
@@ -114,6 +226,12 @@ Earlier history is in [CHANGELOG-2026-08f.md](CHANGELOG-2026-08f.md).
 
 ### Behavior or Interface Changes
 
+- Retired residual peptide-template vocabulary from the Qt peptide import flow and
+  public installation receipts. Native preparation now shares the source-neutral
+  prepared-molecule binding boundary with other insertion routes without depending
+  on the SMILES binding module.
+
+
 - Made `stereoSemantics` a first-class canonical CDML contract. Typed document
   admission refuses malformed, unknown, and graph-invalid semantic descriptors;
   reopening retains typed tetrahedral and E/Z facts, and snapshot-only molecule
@@ -186,6 +304,32 @@ Earlier history is in [CHANGELOG-2026-08f.md](CHANGELOG-2026-08f.md).
   deterministic report-category order, and the aggregate is complete or omitted.
 
 ### Fixes and Maintenance
+
+- Registered `document.compact-group.materialize.v1` in the canonical generic
+  live-document session dispatcher. The existing PyO3 live bridge now applies
+  the owned fenced compact-group transition and returns its committed receipt
+  or typed no-change refusal without a compact-specific Python route.
+
+- Allowed molecule-root render groups to pass pointer events to their child
+  items. Compact-group, atom, and bond labels now enter the existing canonical
+  durable selection state through their own rendered item under the supported
+  offscreen Qt runtime.
+
+- Clicking a Rust-issued compact-group label now enters the same canonical durable Qt selection
+  state as atoms and bonds. The selected target retains both compact-group and parent-molecule
+  document IDs for the existing materialization action; presentation selection remains unchanged.
+
+
+- Corrected the CDML, usage, Qt, and backend-to-frontend contracts to list the
+  persisted `stereoDepictions` child and keep E/Z configuration separate from
+  Rust-issued editable carrier-mark depiction facts.
+
+- Corrected the compact-group planning and public-contract records to recognize
+  the delivered generic protocol and named CLI route for
+  `document.compact-group.materialize.v1`; PyO3 live registration and the Qt
+  compact action remain deferred. Added the closed native-17 peptide sequence
+  import decision and its outstanding visible-UI E2E gate.
+
 
 - Hardened the Qt molecule-report stereo receipt boundary so malformed non-string enum values
 	are refused without raising a container-membership `TypeError`. Moved the full native E/Z
@@ -487,7 +631,6 @@ Earlier history is in [CHANGELOG-2026-08f.md](CHANGELOG-2026-08f.md).
   hygiene checks, local CLI/Qt E2Es including atom oxidation, 290 Python
   binding tests, and 416 Qt tests with 1 skipped. The final receipt passed 292
   Python binding tests and the same hygiene, E2E, and Qt gates.
-
 ## 2026-08-23
 
 ### Behavior or Interface Changes

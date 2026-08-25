@@ -9,6 +9,7 @@ _TAB_OPERATION_INTENTS = (
 	"_clipboard_paste_intent", "_coordinate_generation_intent",
 	"_user_template_placement_intent",
 	"_catalog_placement_intent",
+	"_compact_group_materialization_intent",
 	"_snapshot_export_intent",
 )
 

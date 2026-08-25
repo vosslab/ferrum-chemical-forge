@@ -134,7 +134,7 @@ def format_bond_capacity(result: object) -> str:
 			lines.extend((
 				"Not checked",
 				_not_checked_detail(record.not_checked_reason),
-				"Use Molecule Information for authored facts, or simplify or replace this representation before checking it.",
+				"Use Molecule Report for authored facts, or simplify or replace this representation before checking it.",
 			))
 		elif record.category == "within_capacity":
 			lines.append("No atom exceeds Ferrum's supported neutral bond-capacity table.")

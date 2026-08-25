@@ -4,13 +4,12 @@ use ferrum_core::{BondOrder, BondStyle};
 use ferrum_document::{
     AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointV1, BondProjectionV1,
     BoxShapeProjectionV1, CompactGroupProjectionV1, DocumentHaworthPositionV1,
-    DocumentProjectionV1, FontFactsV1,
-    MoleculeProjectionV1, PlusProjectionV1, PolygonPathV1, PolygonProjectionV1, PolylinePathV1,
-    PolylineProjectionV1, PresentationBoundsV1, PresentationFactProvenanceV1, PresentationFillV1,
-    PresentationFontV1, PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1,
-    PresentationRecordKindV1, PresentationStackProjectionV1, PresentationStrokeV1,
-    PresentationTargetV1, ProjectionIssueCodeV1, ProjectionIssueV1, SessionDocumentObservationV1,
-    VisibilityV1,
+    DocumentProjectionV1, FontFactsV1, MoleculeProjectionV1, PlusProjectionV1, PolygonPathV1,
+    PolygonProjectionV1, PolylinePathV1, PolylineProjectionV1, PresentationBoundsV1,
+    PresentationFactProvenanceV1, PresentationFillV1, PresentationFontV1,
+    PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationRecordKindV1,
+    PresentationStackProjectionV1, PresentationStrokeV1, PresentationTargetV1,
+    ProjectionIssueCodeV1, ProjectionIssueV1, SessionDocumentObservationV1, VisibilityV1,
 };
 use pyo3::prelude::*;
 

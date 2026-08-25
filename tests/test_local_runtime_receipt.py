@@ -70,6 +70,35 @@ def test_local_runtime_receipt_rejects_a_changed_staged_artifact(
 
 
 #============================================
+@pytest.mark.parametrize(
+	"artifact_name,label",
+	(
+		("ferrum", "cli"),
+		("ferrum.program", "cli_payload"),
+		("ferrum-qt", "gui"),
+		("ferrum-qt.program", "gui_payload"),
+	),
+)
+def test_local_runtime_receipt_rejects_removed_owner_execute_permission(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch, artifact_name: str, label: str,
+) -> None:
+	"""The receipt seals owner execute permission for wrappers and payloads."""
+	runtime_root = _write_runtime_tree(tmp_path)
+	monkeypatch.setattr(receipt, "local_runtime_inputs", lambda: {"input": "v1"})
+	receipt.write_local_runtime_receipt(runtime_root)
+	artifact = runtime_root.parents[1] / "bin" / artifact_name
+	mode = stat.S_IMODE(artifact.stat().st_mode)
+	try:
+		artifact.chmod(mode & ~stat.S_IXUSR)
+		with pytest.raises(
+			receipt.LocalRuntimeReceiptError, match=f"{label} must be owner-executable",
+		):
+			receipt.validate_local_runtime_receipt(runtime_root)
+	finally:
+		artifact.chmod(mode)
+
+
+#============================================
 def test_local_runtime_receipt_rejects_a_changed_engine_bundle(
 	tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -90,7 +119,7 @@ def test_local_runtime_receipt_requires_executable_launchers(
 	runtime_root = _write_runtime_tree(tmp_path)
 	(runtime_root.parents[1] / "bin/ferrum-qt").chmod(0o644)
 	monkeypatch.setattr(receipt, "local_runtime_inputs", lambda: {"input": "v1"})
-	with pytest.raises(receipt.LocalRuntimeReceiptError, match="gui must be executable"):
+	with pytest.raises(receipt.LocalRuntimeReceiptError, match="gui must be owner-executable"):
 		receipt.write_local_runtime_receipt(runtime_root)
 
 
@@ -215,6 +244,9 @@ def _write_runtime_tree(root: Path) -> Path:
 		launcher = bin_root / name
 		launcher.write_bytes(f"{name}-v1".encode("ascii"))
 		launcher.chmod(0o755)
+		payload = bin_root / f"{name}.program"
+		payload.write_bytes(f"{name}-payload-v1".encode("ascii"))
+		payload.chmod(0o755)
 	engine_bundle = runtime_root.parent / "engine-v1"
 	engine_bundle.mkdir()
 	(engine_bundle / "libferrum_chem.dylib").write_bytes(b"engine-adapter-v1")

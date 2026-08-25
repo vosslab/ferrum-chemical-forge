@@ -36,6 +36,15 @@ pub enum TypedDocumentError {
     /// Legacy molecule-local group records have no current typed CDML meaning.
     #[error("legacy molecule group records are unsupported")]
     UnsupportedLegacyGroup,
+    /// A compact-group deletion request did not name one eligible direct-root molecule.
+    #[error("compact-group deletion molecule is not one eligible direct-root molecule: {0}")]
+    InvalidCompactGroupDeletionMolecule(PersistentId),
+    /// A compact-group deletion request did not name one direct compact group.
+    #[error("compact-group deletion target is not one direct compact group: {0}")]
+    InvalidCompactGroupDeletionTarget(PersistentId),
+    /// A compact-group deletion target did not have one direct exterior atom bond.
+    #[error("compact-group deletion target has invalid direct exterior topology: {0}")]
+    InvalidCompactGroupDeletionTopology(PersistentId),
     /// A structural deletion request did not name one eligible direct-root molecule.
     #[error("structural deletion molecule is not one eligible direct-root molecule: {0}")]
     InvalidStructureDeletionMolecule(PersistentId),
@@ -111,6 +120,9 @@ pub enum TypedDocumentError {
     /// The requested atom ID is already reserved by retained document content.
     #[error("persistent atom ID already exists: {0}")]
     DuplicateAtomId(PersistentId),
+    /// The requested compact-group ID is already reserved by retained document content.
+    #[error("persistent compact-group ID already exists: {0}")]
+    DuplicateGroupId(PersistentId),
     /// The requested bond ID is already reserved by retained document content.
     #[error("persistent bond ID already exists: {0}")]
     DuplicateBondId(PersistentId),

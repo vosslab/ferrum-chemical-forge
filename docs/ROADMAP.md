@@ -15,8 +15,8 @@ authoritative milestone tracker and acceptance contract.
 - The explicit OASA compatibility host and its production dependency declarations are
   retired. Historical OASA and BKChem material is isolated provenance or oracle input,
   not a desktop runtime.
-- M15 is complete: supported native utility workflows are bounded peptide-template
-  insertion, selected-path linear-form conversion, and clean/hex-grid/terminal-bond/
+- M15 is complete: supported native utility workflows are bounded peptide sequence
+  insertion through `prepare_ferrum_peptide_insertion_v1`, selected-path linear-form conversion, and clean/hex-grid/terminal-bond/
   bond-length/bond-angle/ring geometry repair. Compact sugar code and names, known-group
   expansion, biomolecule/system catalogs, substructure search, oxidation, generated
   names, and broader chemistry checks are pre-production drops.

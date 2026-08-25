@@ -26,39 +26,22 @@ class FerrumNativeGeometryRepairTabMixin:
 		self._require_mutable()
 		projection = self._require_projection()
 		selected = projection.selected_targets()
-		if any(not target.is_durable for target in selected):
+		if any(target.durable_object_id is None for target in selected):
 			raise _tab_error("geometry repair requires durable selected objects")
 		if any(target.kind not in ("atom", "bond") for target in selected):
 			raise _tab_error("geometry repair selection may contain only atoms or bonds")
 		if self._document_observation is None:
 			raise _tab_error("Ferrum tab has no installed document projection")
-		molecules = self._document_observation.projection.molecules
-		if not molecules:
-			raise _tab_error("document has no molecule to repair")
 		if not selected:
-			if any(molecule.source_id is None for molecule in molecules):
-				raise _tab_error(
-					"repairing every molecule requires every molecule to have a durable ID",
-				)
-			return tuple(molecule.source_id for molecule in molecules), ()
-		requested = {(target.kind, target.identifier) for target in selected}
+			return (), ()
 		molecule_ids = []
-		matched = set()
-		for molecule in molecules:
-			members = {
-				*( ("atom", atom.source_id) for atom in molecule.atoms ),
-				*( ("bond", bond.source_id) for bond in molecule.bonds ),
-			}
-			selected_members = requested.intersection(members)
-			if not selected_members:
-				continue
-			if molecule.source_id is None:
-				raise _tab_error("selected molecule has no durable ID")
-			molecule_ids.append(molecule.source_id)
-			matched.update(selected_members)
-		if matched != requested:
-			raise _tab_error("selected object is not part of a durable projected molecule")
-		restore = tuple((target.kind, target.identifier) for target in selected)
+		for target in selected:
+			molecule_id = target.durable_molecule_object_id
+			if type(molecule_id) is not str or not molecule_id:
+				raise _tab_error("selected object has no durable molecule identity")
+			if molecule_id not in molecule_ids:
+				molecule_ids.append(molecule_id)
+		restore = tuple(target.durable_selection_key() for target in selected)
 		return tuple(molecule_ids), restore
 
 	#============================================
@@ -70,23 +53,13 @@ class FerrumNativeGeometryRepairTabMixin:
 			molecule_ids, _restore = self.selected_geometry_repair_molecules()
 		except (RuntimeError, TypeError, ValueError):
 			return False
-		return bool(molecule_ids)
+		return bool(molecule_ids) or bool(self._document_observation.projection.molecules)
 
 	#============================================
 	def selected_clean_geometry_molecules(
 			self) -> tuple[tuple[str, ...], tuple[tuple[str, str], ...]]:
 		"""Return durable document-object selectors for Ferrum preparation."""
-		source_ids, restore = self.selected_geometry_repair_molecules()
-		molecules = self._document_observation.projection.molecules
-		object_ids = []
-		for source_id in source_ids:
-			matches = tuple(
-				molecule for molecule in molecules if molecule.source_id == source_id
-			)
-			if len(matches) != 1 or matches[0].id is None:
-				raise _tab_error("clean geometry requires durable molecule object IDs")
-			object_ids.append(matches[0].id)
-		return tuple(object_ids), restore
+		return self.selected_geometry_repair_molecules()
 
 	#============================================
 	def repair_geometry_at_revision(
@@ -106,11 +79,11 @@ class FerrumNativeGeometryRepairTabMixin:
 		import ferrum_qt.ferrum.engine as engine
 		if type(kind) is not engine.DocumentGeometryRepairKindV1:
 			raise TypeError("Ferrum geometry repair requires an exact Ferrum kind")
-		operation = engine.DocumentOperationV1.repair_geometry(
-			molecule_ids, kind, target_spacing_points,
-		)
-		result = self._session.apply_document_operation_v1(
-			expected_revision, operation,
+		snapshot = self.current_snapshot
+		if snapshot.revision != expected_revision:
+			raise _tab_error("Ferrum document changed while geometry repair was open")
+		result = self._live_document_session_v1.repair_live_document_geometry_v1(
+			expected_revision, snapshot.digest, molecule_ids, kind, target_spacing_points,
 		)
 		self._install_mutation_result(result, restore)
 		return result

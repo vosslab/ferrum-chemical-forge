@@ -26,11 +26,11 @@ class FerrumNativeStructureSelectionMixin:
 
 	#============================================
 	def _build_structure_selection_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the explicit direct atom/bond selection tool."""
+		"""Add the explicit direct-structure selection tool."""
 		self._select_structure_action = PySide6.QtGui.QAction(self.tr("Select Structure"), self)
 		self._select_structure_action.setCheckable(True)
 		self._select_structure_action.setToolTip(self.tr(
-			"Select atoms or normal bonds; Shift toggles; Delete removes through Rust.",
+			"Select atoms, normal bonds, or compact groups; Shift toggles; Delete removes supported targets through Rust.",
 		))
 		self._connect_interaction_action_v1(
 			self._select_structure_action, self._toggle_structure_selection,
@@ -67,7 +67,7 @@ class FerrumNativeStructureSelectionMixin:
 		self._structure_viewport.installEventFilter(self)
 		self._structure_viewport.setFocus()
 		self.statusBar().showMessage(self.tr(
-			"Select atoms or normal bonds; Shift toggles; Delete removes selected structure.",
+			"Select atoms, normal bonds, or compact groups; Shift toggles; Delete removes supported targets through Rust.",
 		), 5000)
 
 	#============================================
@@ -178,20 +178,30 @@ class FerrumNativeStructureSelectionMixin:
 				return
 			commit = tab.commit_structure_deletion(selection)
 		except Exception as exc:
+			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
+				self._replace_structure_selection(None, tab)
+				self._refresh_actions()
+				self._show_edit_refusal(self._unavailable_edit_refusal(
+					"Selected structure was deleted, but its authoritative display still needs "
+					"recovery; refresh before saving or editing.",
+				))
+				return
 			if self._active_native_tab() is not None:
 				self._replace_structure_selection(selection, self._active_native_tab())
 			self._show_edit_refusal(self._structure_refusal(exc))
 			return
 		self._replace_structure_selection(None, tab)
 		self.statusBar().showMessage(self.tr(
-			"Deleted {0} atoms and {1} bonds through Rust.".format(
-				len(commit.removed_atoms), len(commit.removed_bonds),
+			"Deleted {0} atoms, {1} bonds, and {2} compact groups through Rust.".format(
+				commit.removed_atom_count, commit.removed_bond_count,
+				commit.removed_compact_group_count,
 			),
 		), 5000)
 		self._refresh_actions()
 
 	#============================================
-	def _structure_refusal(self, exc: Exception) -> str:
+	def _structure_refusal(self, exc: Exception) -> object:
 		"""Explain backend-declared structural exclusions without scene inference."""
 		import ferrum_qt.ferrum.engine as engine
 		category = getattr(exc, "category", None)
@@ -199,17 +209,25 @@ class FerrumNativeStructureSelectionMixin:
 			engine.RenderInteractionCategoryV1.display_only,
 			engine.RenderInteractionCategoryV1.unsupported_target,
 		):
-			return self.tr(
+			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. This target is display-only; change presentation first.",
-			)
+			))
 		if category == engine.RenderInteractionCategoryV1.unrenderable_candidate:
-			return self.tr(
+			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. The resulting structure cannot be rendered; change presentation first.",
-			)
+			))
 		if category == engine.RenderInteractionCategoryV1.cross_molecule_selection:
-			return self.tr(
+			return self._unavailable_edit_refusal(self.tr(
 				"Selection and drawing unchanged. Structural edits must stay within one molecule.",
-			)
+			))
+		if category == engine.RenderInteractionCategoryV1.invalid_compact_group_deletion_selection:
+			return self._unavailable_edit_refusal(self.tr(
+				"Selection and drawing unchanged. Select exactly one compact group without atoms or bonds.",
+			))
+		if category == engine.RenderInteractionCategoryV1.invalid_compact_group_deletion_topology:
+			return self._unavailable_edit_refusal(self.tr(
+				"Selection and drawing unchanged. This compact group needs document repair before deleting it.",
+			))
 		return self._render_interaction_refusal(exc)
 
 	#============================================
@@ -220,9 +238,17 @@ class FerrumNativeStructureSelectionMixin:
 		if selection is not None:
 			for target in selection.targets:
 				if target.kind == engine.StructureTargetKindV1.atom:
-					durable_targets.append(("atom", target.identifier))
+					if type(target.durable_object_id) is not str or not target.durable_object_id:
+						raise RuntimeError("Ferrum atom selection has no durable object identity")
+					durable_targets.append(("atom", target.durable_object_id))
 				elif target.kind == engine.StructureTargetKindV1.bond:
-					durable_targets.append(("bond", target.identifier))
+					if type(target.durable_object_id) is not str or not target.durable_object_id:
+						raise RuntimeError("Ferrum bond selection has no durable object identity")
+					durable_targets.append(("bond", target.durable_object_id))
+				elif target.kind == engine.StructureTargetKindV1.compact_group:
+					if type(target.durable_object_id) is not str or not target.durable_object_id:
+						raise RuntimeError("Ferrum compact-group selection has no durable object identity")
+					durable_targets.append(("compact_group", target.durable_object_id))
 		tab._require_projection().select_durable(tuple(durable_targets))
 		self._retire_line_preview(self._structure_selection_item)
 		self._structure_selection = selection

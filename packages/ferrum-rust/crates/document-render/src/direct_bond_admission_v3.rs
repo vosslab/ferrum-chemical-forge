@@ -117,7 +117,13 @@ mod tests {
             0.0,
             frame(),
             DirectBondPointerHitStateV3::UniqueAtom,
-            Some(source_id.to_owned()),
+            Some(
+                ferrum_document::DocumentObjectIdV1::from_class_source(
+                    "molecule/atom",
+                    source_id,
+                )
+                .expect("durable atom identity"),
+            ),
         )
         .expect("direct atom probe")
     }
@@ -364,7 +370,13 @@ mod tests {
             0.0,
             frame(),
             DirectBondPointerHitStateV3::UniqueAtom,
-            Some("unknown-source-id".to_owned()),
+            Some(
+                ferrum_document::DocumentObjectIdV1::from_class_source(
+                    "molecule/atom",
+                    "unknown-source-id",
+                )
+                .expect("durable atom identity"),
+            ),
         )
         .expect("probe");
         assert!(matches!(

@@ -6,18 +6,79 @@
 
 use ferrum_document::{
     DocumentCompactGroupMaterializationRefusalV1, DocumentMoleculeHydrogenMaterializationRefusalV1,
-    DocumentSession, SessionOperationResultV1,
+    DocumentObjectIdV1, DocumentSession, DocumentSessionError, SessionOperation,
+    SessionOperationError, SessionOperationOutcomeV1, SessionOperationResultV1,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
+use serde::{Deserialize, Serialize};
 
 use super::document_compact_group_materialization_v1::{
-    execute_document_compact_group_materialize_on_session, map_prepare_error,
+    compact_group_materialization_outcome, compact_refusal,
+    execute_document_compact_group_materialize_transition_on_session, parse_digest,
 };
 use super::document_hydrogen_materialization_v1::execute_document_molecule_hydrogen_materialize_on_session;
 use super::execution::{
     ExecutionFailureV1, OperationProtocolAdmissionV1, admit_operation_request_v1,
-    admit_shared_response_budget_v1, canonical_protocol_envelope_json_v1, operation_error_response,
+    admit_shared_response_budget_v1, canonical_protocol_envelope_json_v1, hex_digest,
+    operation_error_response,
 };
 use super::*;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LiveDocumentCompactGroupOperationEnvelopeV1 {
+    #[serde(rename = "schema")]
+    _schema: ProtocolRequestSchemaV1,
+    request_id: String,
+    operation: LiveDocumentCompactGroupMaterializationRequestV1,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", deny_unknown_fields)]
+enum LiveDocumentCompactGroupMaterializationRequestV1 {
+    #[serde(rename = "document.compact-group.materialize.v1")]
+    Materialize {
+        expected_revision: u64,
+        expected_digest_hex: String,
+        molecule_object_id: String,
+        compact_group_object_id: String,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LiveDocumentCompactGroupMaterializationAvailabilityRequestV1 {
+    expected_revision: u64,
+    expected_digest_hex: String,
+    molecule_object_id: String,
+    compact_group_object_id: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CompactGroupMaterializationAvailabilityV1 {
+    Eligible,
+    StaleDocumentFence,
+    UnknownOrForeignTarget,
+    IneligibleTarget,
+    RendererPreparationRefused,
+    InvalidDocumentState,
+}
+
+#[derive(Serialize)]
+struct LiveDocumentCompactGroupMaterializationAvailabilityResponseV1 {
+    schema: &'static str,
+    document_fence: LiveDocumentCompactGroupMaterializationAvailabilityFenceV1,
+    molecule_object_id: String,
+    compact_group_object_id: String,
+    availability: CompactGroupMaterializationAvailabilityV1,
+}
+
+#[derive(Serialize)]
+struct LiveDocumentCompactGroupMaterializationAvailabilityFenceV1 {
+    expected_revision: u64,
+    expected_digest_hex: String,
+}
 
 /// Owned result of one authenticated live-document operation.
 pub(crate) struct LiveDocumentOperationReceiptV1 {
@@ -49,11 +110,128 @@ impl LiveDocumentOperationReceiptV1 {
     }
 }
 
+/// Frozen result of one read-only compact-group availability query.
+pub(crate) struct LiveDocumentCompactGroupMaterializationAvailabilityReceiptV1 {
+    response_json: String,
+}
+
+impl LiveDocumentCompactGroupMaterializationAvailabilityReceiptV1 {
+    #[must_use]
+    pub(crate) fn response_json(&self) -> &str {
+        &self.response_json
+    }
+}
+
+/// Query whether one exact durable compact-group address is currently eligible.
+///
+/// This performs the same preparation path as mutation but never commits the
+/// prepared transition. The returned fact is advisory and remains fenced to
+/// the exact current live session document.
+pub(crate) fn query_live_compact_group_materialization_availability_v1(
+    session: &mut DocumentSession,
+    request_json: &str,
+) -> Result<
+    LiveDocumentCompactGroupMaterializationAvailabilityReceiptV1,
+    OperationProtocolInputErrorV1,
+> {
+    let request: LiveDocumentCompactGroupMaterializationAvailabilityRequestV1 =
+        serde_json::from_str(request_json).map_err(OperationProtocolInputErrorV1::InvalidJson)?;
+    let availability = compact_group_materialization_availability(session, &request);
+    let response = LiveDocumentCompactGroupMaterializationAvailabilityResponseV1 {
+        schema: "ferrum-live-document-compact-group-materialization-availability-v1",
+        document_fence: LiveDocumentCompactGroupMaterializationAvailabilityFenceV1 {
+            expected_revision: request.expected_revision,
+            expected_digest_hex: request.expected_digest_hex,
+        },
+        molecule_object_id: request.molecule_object_id,
+        compact_group_object_id: request.compact_group_object_id,
+        availability,
+    };
+    let response_json = serde_json::to_string(&response).map_err(internal_input_error)?;
+    Ok(LiveDocumentCompactGroupMaterializationAvailabilityReceiptV1 { response_json })
+}
+
+fn compact_group_materialization_availability(
+    session: &mut DocumentSession,
+    request: &LiveDocumentCompactGroupMaterializationAvailabilityRequestV1,
+) -> CompactGroupMaterializationAvailabilityV1 {
+    let snapshot = match session.snapshot() {
+        Ok(snapshot) => snapshot,
+        Err(_) => return CompactGroupMaterializationAvailabilityV1::InvalidDocumentState,
+    };
+    if request.expected_revision != snapshot.revision()
+        || request.expected_digest_hex != hex_digest(snapshot.digest())
+    {
+        return CompactGroupMaterializationAvailabilityV1::StaleDocumentFence;
+    }
+    let molecule_object_id = match DocumentObjectIdV1::parse(&request.molecule_object_id) {
+        Ok(value) => value,
+        Err(_) => return CompactGroupMaterializationAvailabilityV1::UnknownOrForeignTarget,
+    };
+    let compact_group_object_id = match DocumentObjectIdV1::parse(&request.compact_group_object_id)
+    {
+        Ok(value) => value,
+        Err(_) => return CompactGroupMaterializationAvailabilityV1::UnknownOrForeignTarget,
+    };
+    let (molecule_id, compact_group_id) = match session
+        .lower_compact_group_materialization_targets_v1(
+            &molecule_object_id,
+            &compact_group_object_id,
+        ) {
+        Ok(targets) => targets,
+        Err(_) => return CompactGroupMaterializationAvailabilityV1::UnknownOrForeignTarget,
+    };
+    let transition = SessionOperationTransitionRequestV1::new(
+        request.expected_revision,
+        SessionOperation::V1(SessionOperationV1::MaterializeCompactGroupV1(
+            ferrum_document::DocumentCompactGroupMaterializationRequestV1::new(
+                request.expected_revision,
+                *snapshot.digest(),
+                molecule_id,
+                compact_group_id,
+            ),
+        )),
+        TransitionAuthorizationV1::none(),
+    );
+    match session.prepare_session_operation_transition_v1(transition) {
+        Ok(_) => CompactGroupMaterializationAvailabilityV1::Eligible,
+        Err(error) => availability_from_prepare_error(error),
+    }
+}
+
+fn availability_from_prepare_error(
+    error: DocumentSessionError,
+) -> CompactGroupMaterializationAvailabilityV1 {
+    match error {
+        DocumentSessionError::RevisionConflict { .. }
+        | DocumentSessionError::Operation(SessionOperationError::CompactGroupMaterialization(
+            DocumentCompactGroupMaterializationRefusalV1::StaleObservation
+            | DocumentCompactGroupMaterializationRefusalV1::DigestMismatch,
+        )) => CompactGroupMaterializationAvailabilityV1::StaleDocumentFence,
+        DocumentSessionError::Operation(SessionOperationError::CompactGroupMaterialization(
+            DocumentCompactGroupMaterializationRefusalV1::RendererAdmission,
+        ))
+        | DocumentSessionError::RendererAdmission => {
+            CompactGroupMaterializationAvailabilityV1::RendererPreparationRefused
+        }
+        DocumentSessionError::Operation(SessionOperationError::CompactGroupMaterialization(
+            DocumentCompactGroupMaterializationRefusalV1::InvalidTarget
+            | DocumentCompactGroupMaterializationRefusalV1::UnsupportedRecipe
+            | DocumentCompactGroupMaterializationRefusalV1::InvalidTopology
+            | DocumentCompactGroupMaterializationRefusalV1::InvalidCandidate,
+        )) => CompactGroupMaterializationAvailabilityV1::IneligibleTarget,
+        _ => CompactGroupMaterializationAvailabilityV1::InvalidDocumentState,
+    }
+}
+
 /// Execute one registered mutation against an existing live session.
 pub(crate) fn execute_live_document_operation_v1(
     session: &mut DocumentSession,
     request_json: &str,
 ) -> Result<LiveDocumentOperationReceiptV1, OperationProtocolInputErrorV1> {
+    if live_compact_group_operation_requested(request_json)? {
+        return execute_live_compact_group_materialization_v1(session, request_json);
+    }
     let request = match admit_operation_request_v1(request_json)? {
         OperationProtocolAdmissionV1::Request(request) => request,
         OperationProtocolAdmissionV1::Response(response) => {
@@ -93,39 +271,6 @@ pub(crate) fn execute_live_document_operation_v1(
                 }
             }
         }
-        OperationProtocolOperationV1::DocumentCompactGroupMaterialize(request) => {
-            if request.document.cdml != source.cdml() {
-                (
-                    operation_error_response(
-                        Some(request_id),
-                        Some(kind),
-                        map_prepare_error(
-                            ferrum_document::DocumentSessionError::Operation(
-                                ferrum_document::SessionOperationError::CompactGroupMaterialization(
-                                    DocumentCompactGroupMaterializationRefusalV1::DigestMismatch,
-                                ),
-                            ),
-                        ),
-                    ),
-                    None,
-                )
-            } else {
-                match execute_document_compact_group_materialize_on_session(session, request) {
-                    Ok((outcome, mutation_result)) => (
-                        OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
-                            schema: ProtocolResponseSchemaV1::V1,
-                            request_id,
-                            outcome,
-                        }),
-                        mutation_result,
-                    ),
-                    Err(error) => (
-                        operation_error_response(Some(request_id), Some(kind), error),
-                        None,
-                    ),
-                }
-            }
-        }
         _ => (
             operation_error_response(
                 Some(request_id),
@@ -137,16 +282,143 @@ pub(crate) fn execute_live_document_operation_v1(
             None,
         ),
     };
-    let envelope = admit_shared_response_budget_v1(
-        envelope,
-        kind,
-        DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
-    );
+    let envelope =
+        admit_shared_response_budget_v1(envelope, kind, OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1);
     receipt_from_parts(
         source.revision(),
         *source.digest(),
         envelope,
         mutation_result,
+    )
+}
+
+fn live_compact_group_operation_requested(
+    request_json: &str,
+) -> Result<bool, OperationProtocolInputErrorV1> {
+    let value: serde_json::Value =
+        serde_json::from_str(request_json).map_err(OperationProtocolInputErrorV1::InvalidJson)?;
+    Ok(value
+        .get("operation")
+        .and_then(|operation| operation.get("kind"))
+        .and_then(serde_json::Value::as_str)
+        == Some("document.compact-group.materialize.v1"))
+}
+
+fn execute_live_compact_group_materialization_v1(
+    session: &mut DocumentSession,
+    request_json: &str,
+) -> Result<LiveDocumentOperationReceiptV1, OperationProtocolInputErrorV1> {
+    let request: LiveDocumentCompactGroupOperationEnvelopeV1 =
+        serde_json::from_str(request_json).map_err(OperationProtocolInputErrorV1::InvalidJson)?;
+    let LiveDocumentCompactGroupMaterializationRequestV1::Materialize {
+        expected_revision,
+        expected_digest_hex,
+        molecule_object_id,
+        compact_group_object_id,
+    } = request.operation;
+    let source = session.snapshot().map_err(internal_input_error)?;
+    let kind = ProtocolOperationKindV1::DocumentCompactGroupMaterialize;
+    let request_id = request.request_id;
+    let (envelope, mutation_result) = match parse_live_compact_group_targets(
+        session,
+        expected_revision,
+        &expected_digest_hex,
+        &molecule_object_id,
+        &compact_group_object_id,
+    ) {
+        Ok(document_request) => {
+            match execute_document_compact_group_materialize_transition_on_session(
+                session,
+                document_request,
+            ) {
+                Ok(result) => {
+                    let SessionOperationOutcomeV1::CompactGroupMaterializedV1(materialization) =
+                        result.outcome()
+                    else {
+                        return Err(internal_input_error(
+                            "generic compact-group transition returned an unexpected outcome",
+                        ));
+                    };
+                    let snapshot = session.snapshot().map_err(internal_input_error)?;
+                    let outcome = compact_group_materialization_outcome(
+                        expected_revision,
+                        expected_digest_hex,
+                        molecule_object_id,
+                        compact_group_object_id,
+                        materialization.focus_atom_id().as_str().to_owned(),
+                        snapshot.cdml().to_owned(),
+                        snapshot.revision(),
+                        hex_digest(snapshot.digest()),
+                    );
+                    (
+                        OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
+                            schema: ProtocolResponseSchemaV1::V1,
+                            request_id,
+                            outcome,
+                        }),
+                        Some(result),
+                    )
+                }
+                Err(error) => (
+                    operation_error_response(Some(request_id), Some(kind), error),
+                    None,
+                ),
+            }
+        }
+        Err(error) => (
+            operation_error_response(Some(request_id), Some(kind), error),
+            None,
+        ),
+    };
+    let envelope =
+        admit_shared_response_budget_v1(envelope, kind, OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1);
+    receipt_from_parts(
+        source.revision(),
+        *source.digest(),
+        envelope,
+        mutation_result,
+    )
+}
+
+fn parse_live_compact_group_targets(
+    session: &DocumentSession,
+    expected_revision: u64,
+    expected_digest_hex: &str,
+    molecule_object_id: &str,
+    compact_group_object_id: &str,
+) -> Result<ferrum_document::DocumentCompactGroupMaterializationRequestV1, ExecutionFailureV1> {
+    let molecule_object_id = DocumentObjectIdV1::parse(molecule_object_id).map_err(|_| {
+        compact_refusal(
+            ProtocolCompactGroupMaterializationCategoryV1::UnknownOrForeignTarget,
+            ProtocolCompactGroupMaterializationRecoveryV1::CorrectTarget,
+        )
+    })?;
+    let compact_group_object_id =
+        DocumentObjectIdV1::parse(compact_group_object_id).map_err(|_| {
+            compact_refusal(
+                ProtocolCompactGroupMaterializationCategoryV1::UnknownOrForeignTarget,
+                ProtocolCompactGroupMaterializationRecoveryV1::CorrectTarget,
+            )
+        })?;
+    let expected_digest = parse_digest(expected_digest_hex)?;
+    let (molecule_id, compact_group_id) = session
+        .lower_compact_group_materialization_targets_v1(
+            &molecule_object_id,
+            &compact_group_object_id,
+        )
+        .map_err(|_| {
+            compact_refusal(
+                ProtocolCompactGroupMaterializationCategoryV1::UnknownOrForeignTarget,
+                ProtocolCompactGroupMaterializationRecoveryV1::CorrectTarget,
+            )
+        })?;
+    Ok(
+        ferrum_document::DocumentCompactGroupMaterializationRequestV1::new(
+            expected_revision,
+            expected_digest,
+            molecule_id,
+            compact_group_id,
+        ),
     )
 }
 
@@ -267,8 +539,22 @@ mod tests {
             .expect("typed compact-group session")
     }
 
+    fn two_compact_group_live_session() -> DocumentSession {
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"first\"><atom id=\"first-anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"first-group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"first-outside\" start=\"first-anchor\" end=\"first-group\" type=\"n1\"/></molecule><molecule id=\"second\"><atom id=\"second-anchor\" name=\"C\"><point x=\"40\" y=\"0\"/></atom><compact-group id=\"second-group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"60\" y=\"0\"/></compact-group><bond id=\"second-outside\" start=\"second-anchor\" end=\"second-group\" type=\"n1\"/></molecule></cdml>")
+            .expect("two typed compact-group session")
+    }
+
+    fn unsupported_compact_group_live_session() -> DocumentSession {
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"ethyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\"/></molecule></cdml>")
+            .expect("unsupported compact-group session")
+    }
+
     fn compact_group_request(session: &DocumentSession) -> String {
         let snapshot = session.snapshot().expect("session snapshot");
+        let observation = session
+            .observe(snapshot.revision())
+            .expect("session observation");
+        let molecule = &observation.projection().molecules()[0];
         let digest = snapshot
             .digest()
             .iter()
@@ -277,6 +563,42 @@ mod tests {
         json!({
             "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
             "request_id": "live-compact-group-materialization-test",
+            "operation": {
+                "kind": "document.compact-group.materialize.v1",
+                "expected_revision": snapshot.revision(),
+                "expected_digest_hex": digest,
+                "molecule_object_id": molecule.id().expect("durable molecule").as_str(),
+                "compact_group_object_id": molecule.compact_groups()[0].id().as_str(),
+            },
+        })
+        .to_string()
+    }
+
+    fn compact_group_availability_request(session: &DocumentSession) -> String {
+        let snapshot = session.snapshot().expect("session snapshot");
+        let observation = session
+            .observe(snapshot.revision())
+            .expect("session observation");
+        let molecule = &observation.projection().molecules()[0];
+        json!({
+            "expected_revision": snapshot.revision(),
+            "expected_digest_hex": hex_digest(snapshot.digest()),
+            "molecule_object_id": molecule.id().expect("durable molecule").as_str(),
+            "compact_group_object_id": molecule.compact_groups()[0].id().as_str(),
+        })
+        .to_string()
+    }
+
+    fn stateless_compact_group_request(session: &DocumentSession) -> String {
+        let snapshot = session.snapshot().expect("session snapshot");
+        let digest = snapshot
+            .digest()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        json!({
+            "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+            "request_id": "stateless-compact-group-materialization-test",
             "operation": {
                 "kind": "document.compact-group.materialize.v1",
                 "document": {
@@ -321,21 +643,26 @@ mod tests {
     }
 
     #[test]
-    fn live_and_stateless_compact_group_materialization_return_the_same_canonical_protocol_response() {
+    fn live_compact_group_materialization_accepts_durable_targets_and_stateless_route_keeps_source_ids()
+     {
         let mut session = compact_group_live_session();
-        let request = compact_group_request(&session);
-        let live = execute_live_document_operation_v1(&mut session, &request)
+        let live_request = compact_group_request(&session);
+        let live = execute_live_document_operation_v1(&mut session, &live_request)
             .expect("live compact-group request admission");
-        let stateless =
-            execute_operation_v1(&request).expect("stateless compact-group request admission");
-        let stateless_json = String::from_utf8(
-            canonical_protocol_envelope_json_v1(&stateless)
-                .expect("canonical stateless compact-group response"),
-        )
-        .expect("UTF-8 canonical response");
+        let stateless = execute_operation_v1(&stateless_compact_group_request(
+            &compact_group_live_session(),
+        ))
+        .expect("stateless compact-group request admission");
+        let stateless_json = canonical_protocol_envelope_json_v1(&stateless)
+            .expect("canonical stateless compact-group response");
 
         assert!(live.mutation_result().is_some());
-        assert_eq!(live.response_json(), stateless_json);
+        assert!(live.response_json().contains("ferrum-document-object-v1"));
+        assert!(
+            String::from_utf8(stateless_json)
+                .expect("UTF-8 canonical response")
+                .contains("\"molecule_id\":\"m\"")
+        );
     }
 
     #[test]
@@ -344,7 +671,9 @@ mod tests {
         let before = session.snapshot().expect("source snapshot");
         let mut request: serde_json::Value =
             serde_json::from_str(&compact_group_request(&session)).expect("compact request");
-        request["operation"]["compact_group_id"] = json!("missing-group");
+        request["operation"]["compact_group_object_id"] = json!(
+            "ferrum-document-object-v1/63646d6c2f636f6d706163742d67726f7570/source/6d697373696e672d67726f7570"
+        );
 
         let receipt = execute_live_document_operation_v1(&mut session, &request.to_string())
             .expect("refused live compact-group request admission");
@@ -354,6 +683,91 @@ mod tests {
         assert!(receipt.mutation_result().is_none());
         assert_eq!(response["schema"], "ferrum-operation-error-v1");
         assert_eq!(session.snapshot().expect("after refusal"), before);
+    }
+
+    #[test]
+    fn live_compact_group_availability_accepts_only_the_current_durable_address() {
+        let mut session = compact_group_live_session();
+        let before = session.snapshot().expect("source snapshot");
+        let request = compact_group_availability_request(&session);
+        let receipt =
+            query_live_compact_group_materialization_availability_v1(&mut session, &request)
+                .expect("availability request admission");
+
+        assert!(
+            receipt
+                .response_json()
+                .contains("\"availability\":\"eligible\"")
+        );
+        assert_eq!(session.snapshot().expect("unchanged snapshot"), before);
+    }
+
+    #[test]
+    fn live_compact_group_availability_refuses_stale_or_source_style_addresses() {
+        let mut session = compact_group_live_session();
+        let mut stale: serde_json::Value =
+            serde_json::from_str(&compact_group_availability_request(&session))
+                .expect("availability request");
+        stale["expected_revision"] = json!(stale["expected_revision"].as_u64().unwrap() + 1);
+        let stale = query_live_compact_group_materialization_availability_v1(
+            &mut session,
+            &stale.to_string(),
+        )
+        .expect("stale availability receipt");
+        let mut source_style: serde_json::Value =
+            serde_json::from_str(&compact_group_availability_request(&session))
+                .expect("availability request");
+        source_style["compact_group_object_id"] = json!("group");
+        let source_style = query_live_compact_group_materialization_availability_v1(
+            &mut session,
+            &source_style.to_string(),
+        )
+        .expect("source-style availability receipt");
+
+        assert!(stale.response_json().contains("stale_document_fence"));
+        assert!(
+            source_style
+                .response_json()
+                .contains("unknown_or_foreign_target")
+        );
+    }
+
+    #[test]
+    fn live_compact_group_availability_refuses_a_group_owned_by_another_molecule() {
+        let mut session = two_compact_group_live_session();
+        let snapshot = session.snapshot().expect("session snapshot");
+        let observation = session
+            .observe(snapshot.revision())
+            .expect("session observation");
+        let first = &observation.projection().molecules()[0];
+        let second = &observation.projection().molecules()[1];
+        let request = json!({
+            "expected_revision": snapshot.revision(),
+            "expected_digest_hex": hex_digest(snapshot.digest()),
+            "molecule_object_id": first.id().expect("first durable molecule").as_str(),
+            "compact_group_object_id": second.compact_groups()[0].id().as_str(),
+        })
+        .to_string();
+        let receipt =
+            query_live_compact_group_materialization_availability_v1(&mut session, &request)
+                .expect("wrong-parent availability receipt");
+
+        assert!(
+            receipt
+                .response_json()
+                .contains("unknown_or_foreign_target")
+        );
+    }
+
+    #[test]
+    fn live_compact_group_availability_refuses_an_unsupported_recipe() {
+        let mut session = unsupported_compact_group_live_session();
+        let request = compact_group_availability_request(&session);
+        let receipt =
+            query_live_compact_group_materialization_availability_v1(&mut session, &request)
+                .expect("unsupported-recipe availability receipt");
+
+        assert!(receipt.response_json().contains("ineligible_target"));
     }
 
     #[test]
@@ -421,7 +835,7 @@ mod tests {
             ("expected_digest_hex", json!("0".repeat(64))),
         ] {
             let mut stale = request_value.clone();
-            stale["operation"]["document"][field] = stale_value;
+            stale["operation"][field] = stale_value;
             let stale_receipt =
                 execute_live_document_operation_v1(&mut session, &stale.to_string())
                     .expect("stale request admission");

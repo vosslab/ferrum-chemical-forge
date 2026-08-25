@@ -37,8 +37,6 @@ class Preferences:
 	KEY_GRID_SNAP_ENABLED: str = "appearance/grid_snap_enabled"
 	KEY_RECENT_FILES: str = "files/recent"
 	KEY_ZOOM_LEVEL: str = "view/zoom_level"
-	# legacy key retained only for hard-cut cleanup
-	KEY_BOND_LENGTH: str = "drawing/bond_length"
 	KEY_BOND_LENGTH_PT: str = "drawing/bond_length_pt"
 	KEY_LOGGING_LEVEL: str = "general/logging_level"
 

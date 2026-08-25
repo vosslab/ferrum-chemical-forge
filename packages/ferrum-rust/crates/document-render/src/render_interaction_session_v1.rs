@@ -336,14 +336,22 @@ impl RenderInteractionSessionV1 {
             let Some(molecule_id) = molecule.source_id() else {
                 continue;
             };
+            let Some(molecule_object_id) = molecule.id() else {
+                continue;
+            };
             for atom in molecule.atoms() {
                 let Some(identifier) = atom.source_id() else {
+                    continue;
+                };
+                let Some(atom_object_id) = atom.id() else {
                     continue;
                 };
                 let point = atom.position();
                 targets.push(StructureInteractionTargetV1 {
                     molecule_id: molecule_id.to_owned(),
                     identifier: identifier.to_owned(),
+                    durable_molecule_object_id: Some(molecule_object_id.as_str().to_owned()),
+                    durable_object_id: Some(atom_object_id.as_str().to_owned()),
                     source_order: atom.source_order(),
                     kind: StructureTargetKindV1::Atom,
                     // `contains_point` owns the single shared hit slop.  The
@@ -365,11 +373,20 @@ impl RenderInteractionSessionV1 {
                 continue;
             };
             for group in plan.compact_group_primitives() {
+				let ferrum_core::RecordOrigin::Source(identifier) = group.target().record_id().origin() else {
+					continue;
+				};
                 let bounds = group.bounds();
                 let anchor = group.anchor();
                 targets.push(StructureInteractionTargetV1 {
                     molecule_id: molecule_id.to_owned(),
-                    identifier: group.identifier().to_owned(),
+					identifier: identifier.as_str().to_owned(),
+					durable_molecule_object_id: group.target()
+						.owner_molecule_object_id()
+						.map(|value| value.as_str().to_owned()),
+					durable_object_id: group.target()
+						.document_object_id()
+						.map(|value| value.as_str().to_owned()),
                     source_order: group.target().source_order(),
                     kind: StructureTargetKindV1::CompactGroup,
                     bounds: RenderInteractionBoundsV1 {
@@ -383,6 +400,9 @@ impl RenderInteractionSessionV1 {
             }
             for bond in molecule.bonds() {
                 let Some(identifier) = bond.source_id() else {
+                    continue;
+                };
+                let Some(bond_object_id) = bond.id() else {
                     continue;
                 };
                 let operations = plan
@@ -422,6 +442,8 @@ impl RenderInteractionSessionV1 {
                 targets.push(StructureInteractionTargetV1 {
                     molecule_id: molecule_id.to_owned(),
                     identifier: identifier.to_owned(),
+                    durable_molecule_object_id: Some(molecule_object_id.as_str().to_owned()),
+                    durable_object_id: Some(bond_object_id.as_str().to_owned()),
                     source_order: bond.source_order(),
                     kind: if has_path {
                         StructureTargetKindV1::DisplayOnly
@@ -579,6 +601,58 @@ impl RenderInteractionSessionV1 {
         {
             return Err(RenderInteractionErrorV1::CrossMoleculeSelection);
         }
+        if selection
+            .targets
+            .iter()
+            .any(|target| target.kind == StructureTargetKindV1::DisplayOnly)
+        {
+            return Err(RenderInteractionErrorV1::DisplayOnly);
+        }
+        let compact_groups = selection
+            .targets
+            .iter()
+            .filter(|target| target.kind == StructureTargetKindV1::CompactGroup)
+            .collect::<Vec<_>>();
+        if !compact_groups.is_empty() {
+            if selection.targets.len() != 1 || compact_groups.len() != 1 {
+                return Err(RenderInteractionErrorV1::InvalidCompactGroupDeletionSelection);
+            }
+			let target = compact_groups[0];
+			let molecule_object_id = target
+				.durable_molecule_object_id
+				.as_deref()
+				.ok_or(RenderInteractionErrorV1::UnsupportedTarget)
+				.and_then(|value| {
+					ferrum_document::DocumentObjectIdV1::parse(value.to_owned())
+						.map_err(|_| RenderInteractionErrorV1::UnsupportedTarget)
+				})?;
+			let compact_group_object_id = target
+				.durable_object_id
+				.as_deref()
+				.ok_or(RenderInteractionErrorV1::UnsupportedTarget)
+				.and_then(|value| {
+					ferrum_document::DocumentObjectIdV1::parse(value.to_owned())
+						.map_err(|_| RenderInteractionErrorV1::UnsupportedTarget)
+				})?;
+            let mut pending = self
+                .session
+                .prepare_delete_compact_group_v1(
+                    selection.fence.revision(),
+					&molecule_object_id,
+					&compact_group_object_id,
+                )
+                .map_err(structure_deletion_prepare_error)?;
+            let result = self
+                .session
+                .commit_delete_compact_group_v1(selection.fence.revision(), &mut pending)
+                .map_err(structure_deletion_commit_error)?;
+            return Ok(CommittedStructureDeletionV1 {
+                result,
+                removed_atom_count: 0,
+                removed_bond_count: 1,
+                removed_compact_group_count: 1,
+            });
+        }
         let atom_ids = selection
             .targets
             .iter()
@@ -591,20 +665,6 @@ impl RenderInteractionSessionV1 {
             .filter(|target| target.kind == StructureTargetKindV1::Bond)
             .map(|target| target.identifier.clone())
             .collect::<Vec<_>>();
-        if selection
-            .targets
-            .iter()
-            .any(|target| target.kind == StructureTargetKindV1::DisplayOnly)
-        {
-            return Err(RenderInteractionErrorV1::DisplayOnly);
-        }
-        if selection
-            .targets
-            .iter()
-            .any(|target| target.kind == StructureTargetKindV1::CompactGroup)
-        {
-            return Err(RenderInteractionErrorV1::UnsupportedTarget);
-        }
         let mut pending = self
             .session
             .prepare_delete_structure_v1(
@@ -619,12 +679,11 @@ impl RenderInteractionSessionV1 {
             .session
             .commit_delete_structure_v1(selection.fence.revision(), &mut pending)
             .map_err(structure_deletion_commit_error)?;
-        let (removed_atoms, removed_bonds, components) = structure_deletion_receipt(receipt);
         Ok(CommittedStructureDeletionV1 {
             result,
-            removed_atoms,
-            removed_bonds,
-            components,
+            removed_atom_count: receipt.removed_atom_ids().len(),
+            removed_bond_count: receipt.removed_bond_ids().len(),
+            removed_compact_group_count: 0,
         })
     }
 
@@ -858,6 +917,11 @@ impl RenderInteractionSessionV1 {
 
 fn structure_deletion_prepare_error(error: DocumentSessionError) -> RenderInteractionErrorV1 {
     match error {
+        DocumentSessionError::Operation(
+            ferrum_document::SessionOperationError::Candidate(
+                ferrum_document::TypedDocumentError::InvalidCompactGroupDeletionTopology(_),
+            ),
+        ) => RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology,
         DocumentSessionError::RendererAdmission => RenderInteractionErrorV1::UnrenderableCandidate,
         _ => RenderInteractionErrorV1::UnsupportedTarget,
     }

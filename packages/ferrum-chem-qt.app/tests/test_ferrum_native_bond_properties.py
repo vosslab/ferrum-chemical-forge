@@ -260,9 +260,13 @@ def test_live_native_tab_submits_one_frozen_bond_patch_and_restores_selection(
 	)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(cdml, "bond")
 	try:
-		tab.select_atoms(("atom-c", "atom-o"))
+		atom_ids = tuple(
+			atom.id
+			for atom in tab.current_document_observation().projection.molecules[0].atoms
+		)
+		tab.select_atoms(atom_ids)
 		created = tab.add_single_bond_between_selected_atoms()
-		bond_id = created.observation.projection.molecules[0].bonds[0].source_id
+		bond_id = created.observation.projection.molecules[0].bonds[0].id
 		tab.select_bond(bond_id)
 		model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
 			tab.selected_bond_projection(),
@@ -275,6 +279,7 @@ def test_live_native_tab_submits_one_frozen_bond_patch_and_restores_selection(
 		tab.apply_selected_bond_properties(changes)
 		assert tab.has_one_selected_bond()
 		updated = tab.selected_bond_projection()
+		assert updated.id == bond_id
 		assert updated.order is ferrum_chem.DocumentBondOrderV1.double
 		assert updated.center is True
 	finally:

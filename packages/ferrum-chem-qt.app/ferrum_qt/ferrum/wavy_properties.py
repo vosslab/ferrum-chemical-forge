@@ -17,7 +17,6 @@ class FerrumNativeWavyDialogModel:
 	"""Appearance facts copied from one exact frozen Rust Wavy root."""
 
 	target_id: str
-	source_id: str
 	line_width: float
 	line_color: str
 
@@ -32,10 +31,7 @@ def dialog_model_from_projection(root: object) -> FerrumNativeWavyDialogModel:
 		raise ValueError("selected Rust presentation is not an editable Wavy line")
 	if root.polyline.target.record_kind != "polyline":
 		raise ValueError("selected Rust Wavy target kind is inconsistent")
-	if (
-		type(root.polyline.target.id) is not str
-		or type(root.polyline.target.source_id) is not str
-	):
+	if type(root.polyline.target.id) is not str:
 		raise ValueError("Ferrum Wavy properties require a durable authored target")
 	width = root.polyline.stroke.width
 	if (
@@ -50,7 +46,6 @@ def dialog_model_from_projection(root: object) -> FerrumNativeWavyDialogModel:
 		raise TypeError("selected Rust Wavy line color must be a string")
 	return FerrumNativeWavyDialogModel(
 		root.polyline.target.id,
-		root.polyline.target.source_id,
 		width,
 		color,
 	)
@@ -104,37 +99,37 @@ class FerrumNativeWavyPropertiesMixin:
 		selected = self._require_projection().selected_durable_targets()
 		if len(selected) != 1 or selected[0].kind != "polyline":
 			raise RuntimeError("select exactly one Wavy presentation first")
-		if selected[0].identifier is None or self._document_observation is None:
+		if selected[0].durable_object_id is None or self._document_observation is None:
 			raise RuntimeError("selected Wavy line has no current durable projection")
 		for root in self._document_observation.projection.presentation_stack.roots:
 			if root.kind != "wavy":
 				continue
 			model = dialog_model_from_projection(root)
-			if model.target_id == selected[0].identifier:
+			if model.target_id == selected[0].durable_object_id:
 				return root
 		raise RuntimeError("selected Wavy line is absent from the Rust projection")
 
 	#============================================
 	def apply_selected_wavy_properties(self, expected_target_id: str,
-			expected_source_id: str, changes: tuple[object, ...]) -> object:
+			changes: tuple[object, ...]) -> object:
 		"""Commit one closed Wavy patch without allowing selection retargeting."""
 		self._require_mutable()
-		if type(expected_target_id) is not str or type(expected_source_id) is not str:
+		if type(expected_target_id) is not str:
 			raise TypeError("Ferrum Wavy properties require durable string identifiers")
 		if type(changes) is not tuple:
 			raise TypeError("Ferrum Wavy properties require an exact change tuple")
 		root = self.selected_wavy_projection()
 		model = dialog_model_from_projection(root)
-		if model.target_id != expected_target_id or model.source_id != expected_source_id:
+		if model.target_id != expected_target_id:
 			raise RuntimeError("selected Wavy line changed while its properties form was open")
 		import ferrum_qt.ferrum.engine as engine
 		if any(type(change) is not engine.DocumentWavyPropertyChangeV1
 				for change in changes):
 			raise TypeError("Ferrum Wavy properties require exact frozen Ferrum changes")
-		operation = engine.DocumentOperationV1.set_wavy_properties(
-			expected_source_id, changes,
+		snapshot = self.current_snapshot
+		result = self._session.set_wavy_properties_v1(
+			snapshot.revision, snapshot.digest, expected_target_id, changes,
 		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, (("polyline", model.target_id),))
 		return result
 
@@ -181,9 +176,7 @@ def _on_edit_wavy_properties(window: object) -> None:
 		return
 	try:
 		changes = property_changes_from_dialog(dialog.changes())
-		tab.apply_selected_wavy_properties(
-			model.target_id, model.source_id, changes,
-		)
+		tab.apply_selected_wavy_properties(model.target_id, changes)
 	except Exception as exc:
 		window._refresh_actions()
 		window._show_edit_refusal(window._unavailable_edit_refusal(str(exc)))

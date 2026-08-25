@@ -2,7 +2,6 @@
 
 # Standard Library
 import dataclasses
-import functools
 import json
 
 # PIP3 modules
@@ -18,6 +17,7 @@ import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 _OPERATION_KIND = "document.compact-group.materialize.v1"
 _RESULT_SCHEMA = "ferrum-document-compact-group-materialization-v1"
 _ERROR_SCHEMA = "ferrum-operation-error-v1"
+_AVAILABILITY_SCHEMA = "ferrum-live-document-compact-group-materialization-availability-v1"
 _REFUSAL_RECOVERY = {
 	"stale_document_fence": "Refresh the selected compact group and try again.",
 	"unknown_or_foreign_target": "Refresh and select a current compact group.",
@@ -35,16 +35,24 @@ def _request_json(address: object) -> str:
 		"request_id": "qt-compact-group-materialization",
 		"operation": {
 			"kind": _OPERATION_KIND,
-			"document": {
-				"cdml": address.document,
-				"expected_revision": address.revision,
-				"expected_digest_hex": address.digest,
-			},
-			"molecule_id": address.molecule_id,
-			"compact_group_id": address.compact_group_id,
+			"expected_revision": address.revision,
+			"expected_digest_hex": address.digest,
+			"molecule_object_id": address.molecule_id,
+			"compact_group_object_id": address.compact_group_id,
 		},
 	}
 	return json.dumps(request, separators=(",", ":"), ensure_ascii=True)
+
+
+#============================================
+def _availability_request_json(address: object) -> str:
+	"""Build one fenced Rust-owned availability query from a durable address."""
+	return json.dumps({
+		"expected_revision": address.revision,
+		"expected_digest_hex": address.digest,
+		"molecule_object_id": address.molecule_id,
+		"compact_group_object_id": address.compact_group_id,
+	}, separators=(",", ":"), ensure_ascii=True)
 
 
 #============================================
@@ -61,7 +69,7 @@ def _response_from_receipt(receipt: object) -> dict | None:
 
 #============================================
 def _materialization_from_response(response: object, address: object) -> dict | None:
-	"""Decode one exact successful response matching its source-fenced selection."""
+	"""Decode one response for its durable target at the captured document fence."""
 	if type(response) is not dict or response.get("schema") != "ferrum-operation-response-v1":
 		return None
 	outcome = response.get("outcome")
@@ -94,9 +102,31 @@ def _typed_protocol_recovery(response: object) -> str | None:
 
 
 #============================================
+def _availability_is_eligible(receipt: object, address: object) -> bool:
+	"""Accept only the exact fenced Rust eligibility result for this selection."""
+	if type(getattr(receipt, "response_json", None)) is not str:
+		return False
+	try:
+		response = json.loads(receipt.response_json)
+	except json.JSONDecodeError:
+		return False
+	if type(response) is not dict or response.get("schema") != _AVAILABILITY_SCHEMA:
+		return False
+	fence = response.get("document_fence")
+	return (
+		type(fence) is dict
+		and fence.get("expected_revision") == address.revision
+		and fence.get("expected_digest_hex") == address.digest
+		and response.get("molecule_object_id") == address.molecule_id
+		and response.get("compact_group_object_id") == address.compact_group_id
+		and response.get("availability") == "eligible"
+	)
+
+
+#============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class _CompactGroupMaterializationIntent:
-	"""One queued owner-thread compact-group mutation at a fixed source fence."""
+	"""One queued owner-thread compact-group mutation at a fixed document fence."""
 
 	tab: object
 	address: object
@@ -149,12 +179,21 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 			self._cancel_structure_selection()
 		try:
 			address = tab.selected_molecule_compact_group_address()
+			availability = tab._session.compact_group_materialization_availability_v1(
+				_availability_request_json(address),
+			)
 		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 			self._refresh_actions()
 			return False
 		except (TypeError, ValueError, RuntimeError) as exc:
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			self._refresh_actions()
+			return False
+		if not _availability_is_eligible(availability, address):
+			self._show_edit_refusal(self._unavailable_edit_refusal(
+				"Ferrum no longer considers the selected compact group materializable.",
+			))
 			self._refresh_actions()
 			return False
 		self._compact_group_materialization_intent = _CompactGroupMaterializationIntent(
@@ -172,18 +211,15 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 		tab = intent.tab
 		address = intent.address
 		if self._native_tabs_by_page.get(tab) is not tab or tab.is_disposed:
-			self._compact_group_materialization_intent = None
-			self._refresh_actions()
+			self._finish_compact_group_materialization("unavailable", "unchanged")
 			return
 		try:
 			receipt = tab._session.apply_live_document_operation_v1(_request_json(address))
 		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
-			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
-			self._finish_compact_group_materialization("failed", "unchanged")
+			self._finish_then_present_compact_group_refusal(str(exc))
 			return
 		except (TypeError, ValueError, RuntimeError) as exc:
-			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
-			self._finish_compact_group_materialization("failed", "unchanged")
+			self._finish_then_present_compact_group_refusal(str(exc))
 			return
 		response = _response_from_receipt(receipt)
 		materialization = _materialization_from_response(response, address)
@@ -195,24 +231,21 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 				), 5000)
 				self._finish_compact_group_materialization("refused", "unchanged")
 				return
-			self._show_edit_refusal(self._unavailable_edit_refusal(
+			self._finish_then_present_compact_group_refusal(
 				"Ferrum returned an unrecognized compact-group operation result.",
-			))
-			self._finish_compact_group_materialization("failed", "unchanged")
+			)
 			return
 		result = receipt.mutation_result
 		if result is None:
-			self._show_edit_refusal(self._unavailable_edit_refusal(
+			self._finish_then_present_compact_group_refusal(
 				"Ferrum accepted compact-group materialization without a live mutation receipt.",
-			))
-			self._finish_compact_group_materialization("failed", "unchanged")
+			)
 			return
 		focus_atom_id = materialization["replacement_focus_atom_id"]
 		try:
-			tab._install_mutation_result(result, (("atom", focus_atom_id),))
+			tab._install_mutation_result(result, focus_atom_object_id=focus_atom_id)
 		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
-			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
-			self._finish_compact_group_materialization("failed", "unchanged")
+			self._finish_then_present_compact_group_refusal(str(exc))
 			return
 		self.statusBar().showMessage(self.tr(
 			"Materialized the selected compact group with Ferrum Rust.",
@@ -228,16 +261,24 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 			return
 		self._compact_group_materialization_intent = None
 		self._refresh_actions()
-		PySide6.QtCore.QTimer.singleShot(0, functools.partial(
-			self._queue_operation_presentation_v1,
+		self._publish_operation_presentation_v1(
 			intent.tab, _OPERATION_KIND, terminal_kind, document_effect,
 			intent.address.revision, intent.address.digest,
-		))
+		)
+
+	#============================================
+	def _finish_then_present_compact_group_refusal(self, details: str) -> None:
+		"""Release the operation before presenting one structured unexpected error."""
+		self._finish_compact_group_materialization("failed", "unchanged")
+		refusal = self._unavailable_edit_refusal(details)
+		PySide6.QtCore.QTimer.singleShot(
+			0, lambda: self._show_edit_refusal(refusal),
+		)
 
 	#============================================
 	def _refresh_compact_group_materialization_action(self, active: bool, pending: bool,
 			busy_elsewhere: bool) -> None:
-		"""Enable only for one current typed compact-group selection."""
+		"""Enable only for one current Rust-eligible compact-group selection."""
 		action = self._compact_group_materialization_action
 		if action is None:
 			return
@@ -248,9 +289,11 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 			tab = self._active_native_tab()
 			try:
 				if tab is not None:
-					tab.selected_molecule_compact_group_address()
+					address = tab.selected_molecule_compact_group_address()
+					receipt = tab._session.compact_group_materialization_availability_v1(
+						_availability_request_json(address),
+					)
+					available = _availability_is_eligible(receipt, address)
 			except native_document_tab_errors.FerrumNativeDocumentTabError:
 				available = False
-			else:
-				available = tab is not None
 		action.setEnabled(available)

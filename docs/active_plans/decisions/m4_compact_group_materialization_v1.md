@@ -2,11 +2,13 @@
 
 ## Status
 
-Selected. The generic protocol, named CLI forwarding route, and canonical live
-PyO3 session registration are complete on the completed M0
-complete-render-admission boundary. The Qt action uses the existing generic
-live-session operation and returned receipt; it adds no compact chemistry,
-geometry, identifiers, or mutation ownership.
+Selected. The generic protocol, named CLI forwarding route, canonical live
+PyO3 session registration, and Qt materialization action are delivered on the
+completed M0 complete-render-admission boundary. The durable-target and
+availability migration is complete: Qt uses the same generic live-session
+operation and returned receipt without compact chemistry, geometry, identifier
+recovery, or mutation ownership. The cross-cutting identity rule is recorded
+in [FERRUM_API_CONTRACT.md](../../FERRUM_API_CONTRACT.md#compact-group-materialization).
 
 ## Context
 
@@ -37,8 +39,8 @@ ownership instead of adding catalog, CLI, or frontend-specific mutation paths.
 - Reuse the existing document-owned compact-group materialization prepare and
   commit owners, including renderer admission, one-use transition ownership,
   history, generated IDs, and canonical next fence.
-- Define Rust-issued selected-target eligibility, typed materialization refusal,
-  generic CLI delivery, and a future thin Qt action boundary.
+- Define Rust-issued fenced selected-target availability, typed materialization
+  refusal, generic CLI delivery, and the thin delivered Qt action boundary.
 
 ## Non-goals
 
@@ -72,11 +74,19 @@ the source target and exposes `replacement_focus_atom_id`, a durable identifier
 that resolves in the committed snapshot. The returned focus is authoritative;
 clients do not infer it from geometry, labels, or chemistry.
 
-Before Qt action work, Rust must issue a read-only revision/digest-fenced selected
-compact-group availability fact. It is either `available` with opaque target IDs
-or `unavailable` with one closed reason: `no_selection`, `not_direct_root`,
-`not_compact_group`, or `not_materializable`. Qt derives enablement solely from
-that fact and the operation revalidates it at commit time.
+Rust issues a read-only revision/digest-fenced selected compact-group
+availability observation for one durable molecule/group pair. Its closed
+outcomes are `Eligible`, `StaleDocumentFence`, `UnknownOrForeignTarget`,
+`IneligibleTarget`, and `RendererPreparationRefused`. Qt recognizes only its
+local selection state; for a concrete durable pair it derives enablement solely
+from `Eligible`. The operation revalidates the same session-owned eligibility
+during preparation and commit.
+
+The stateless operation deliberately retains source IDs for its admitted CDML
+snapshot. The live session deliberately uses `DocumentObjectIdV1` IDs. Qt
+render targets retain visual/render identity separately from durable object and
+owner-molecule identity, so no source-ID bridge or raw-CDML selection payload
+can enter the live operation.
 
 ### Refusal and recovery
 
@@ -102,9 +112,11 @@ source CDML.
   document command document.compact-group.materialize.v1 <input>` forms. No
   `expand-group` parser, known-group flags, or second request shape is approved.
 - Qt provides one accessible `Materialize Selected Compact Group` QAction. Its
-  handler sends the selected Rust-issued target and current fence through the
-  generic live operation, installs Rust's result, restores the returned focus,
-  and presents typed refusal feedback. It does not implement chemistry.
+  handler sends the selected durable Rust-issued target and current fence
+  through the generic live operation, installs Rust's result, restores the
+  returned durable focus, and presents typed refusal feedback. Its enablement
+  comes only from the Rust-issued fenced availability observation; it does not
+  implement chemistry.
 
 ## Approach
 
@@ -117,20 +129,28 @@ source CDML.
 4. Reuse the generic live PyO3 operation receipt for Qt delivery; canonical
    live dispatch now executes the existing compact session transition without a
    compact-specific Python mutation method.
-5. Add the shared Qt action only after Rust exposes typed compact selection.
+5. Drive the delivered shared Qt action from Rust's fenced availability
+   observation and explicit durable render-target identity.
 
 ## Verification
 
-- Rust semantic cases cover representative compact groups, returned focus
-  resolution, next-fence chaining, and one typed no-change refusal.
-- Delivered generic protocol and named-CLI coverage submits canonical JSON,
-  consumes the next fence, and asserts the operation kind plus one semantic
-  result.
-- A Qt E2E is required only after compiled delivery exists. It creates state by
-  visible UI, invokes the shared action, and proves availability, focus, save/
-  reopen, and undo/redo without pixel, timing, raw-ID, or whole-CDML assertions.
-- The live PyO3 proof covers accepted compact-session installation, canonical
-  stateless-envelope equivalence, and typed refused no-change behavior.
+- Rust semantic coverage proves representative compact groups, returned durable
+  focus resolution, next-fence chaining, availability outcomes, and typed
+  no-change refusals.
+- Generic protocol and named-CLI coverage submits canonical JSON, consumes the
+  next fence, and asserts the operation kind plus one semantic result.
+- No public compact-materialization Qt E2E is retained: the former scenario
+  used raw CDML setup and a file-dialog mock, so it did not prove public UI
+  behavior. Semantic CLI materialization and native fenced-availability
+  coverage are the current permanent evidence.
+- Add a public Qt E2E only when an approved public UI authoring route can
+  create the required compact-group state. It must use visible actions through
+  materialization and assert a durable user-visible outcome without raw CDML,
+  file-dialog replacement, private controller/session access, raw IDs, timing,
+  or pixel equality.
+- Live PyO3 coverage proves accepted compact-session installation,
+  durable-target validation, and typed refused no-change behavior. Stateless
+  response coverage retains its separate admitted-snapshot source-ID contract.
 
 ## Risks and blockers
 

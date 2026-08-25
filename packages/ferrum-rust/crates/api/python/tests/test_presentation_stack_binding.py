@@ -84,3 +84,25 @@ def test_stack_reorder_rejects_forged_shape_wrong_kind_and_stale_revision() -> N
 	with pytest.raises(ferrum_chem.RevisionConflictError):
 		session.apply_document_operation_v1(0, changed)
 	assert session.snapshot == after
+
+
+#============================================
+def test_live_presentation_reorder_uses_durable_targets_and_current_fence() -> None:
+	"""The live adapter lowers durable roots only after fence validation."""
+	kinds = ferrum_chem.DocumentPresentationRootKindV1
+	orders = ferrum_chem.DocumentPresentationStackOrderV1
+	session = ferrum_chem.DocumentSession.load(_SOURCE)
+	snapshot = session.snapshot()
+	roots = session.observe(snapshot.revision).projection.presentation_stack.roots
+	targets = tuple(
+		(getattr(root, root.kind).target.id, getattr(kinds, root.kind))
+		for root in roots[:2]
+	)
+	result = session.apply_live_presentation_reorder_v1(
+		snapshot.revision, snapshot.digest, orders.bring_to_front, targets,
+	)
+	assert result.observation.snapshot.revision == snapshot.revision + 1
+	with pytest.raises(ferrum_chem.RevisionConflictError):
+		session.apply_live_presentation_reorder_v1(
+			snapshot.revision, snapshot.digest, orders.bring_to_front, targets,
+		)

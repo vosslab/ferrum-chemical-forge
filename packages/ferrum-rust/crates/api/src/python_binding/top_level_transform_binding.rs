@@ -1,13 +1,14 @@
 //! Exact Python factories for durable-root transforms.
 
 use ferrum_document::{
-    SessionOperation, SessionOperationV1, TopLevelRootKindV1, TopLevelRootLayoutTransformModeV1,
-    TopLevelRootLayoutTransformV1, TopLevelRootSelectorV1,
+    DocumentObjectIdV1, SessionOperation, SessionOperationV1, TopLevelRootKindV1,
+    TopLevelRootLayoutTransformModeV1, TopLevelRootLayoutTransformV1, TopLevelRootSelectorV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyTuple};
 
 use super::binding::operation_validation_error;
+use super::document_error_binding::document_object_id;
 
 #[pyclass(
     frozen,
@@ -148,6 +149,17 @@ pub(crate) fn scale(
     )
 }
 
+pub(crate) fn scale_mode(
+    py: Python<'_>,
+    scale_x: &Bound<'_, PyAny>,
+    scale_y: &Bound<'_, PyAny>,
+) -> PyResult<TopLevelRootLayoutTransformModeV1> {
+    Ok(TopLevelRootLayoutTransformModeV1::Scale {
+        scale_x: exact_scale(py, scale_x, "x")?,
+        scale_y: exact_scale(py, scale_y, "y")?,
+    })
+}
+
 pub(crate) fn mirror(
     py: Python<'_>,
     targets: &Bound<'_, PyTuple>,
@@ -181,6 +193,46 @@ pub(crate) fn selectors(
                 .map_err(Into::into)
         })
         .collect()
+}
+
+pub(crate) fn live_targets(
+    py: Python<'_>,
+    values: &Bound<'_, PyTuple>,
+) -> PyResult<Vec<(DocumentObjectIdV1, TopLevelRootKindV1)>> {
+    values
+        .iter()
+        .map(|value| {
+            let pair = value.cast::<PyTuple>().map_err(|_| {
+                operation_validation_error(
+                    py,
+                    "live top-level targets must contain exact built-in pairs".to_owned(),
+                )
+            })?;
+            if pair.len() != 2 {
+                return Err(operation_validation_error(
+                    py,
+                    "live top-level targets must contain root ID and kind".to_owned(),
+                ));
+            }
+            let object_id = document_object_id(py, pair.get_item(0)?.extract::<String>()?)?;
+            let kind = pair
+                .get_item(1)?
+                .extract::<PyRef<'_, PyDocumentTopLevelRootKindV1>>()?;
+            Ok((object_id, (*kind).into()))
+        })
+        .collect()
+}
+
+pub(crate) fn layout_operation(
+    py: Python<'_>,
+    targets: Vec<TopLevelRootSelectorV1>,
+    transform: TopLevelRootLayoutTransformModeV1,
+) -> PyResult<SessionOperation> {
+    let transform = TopLevelRootLayoutTransformV1::new(targets, transform)
+        .map_err(|error| operation_validation_error(py, error.to_string()))?;
+    Ok(SessionOperation::V1(
+        SessionOperationV1::ApplyTopLevelRootLayoutTransformV1(transform),
+    ))
 }
 
 fn operation(

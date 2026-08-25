@@ -48,21 +48,21 @@ def _document_lines(document: object) -> tuple[str, ...]:
 
 
 #============================================
-def _atom_for_target(document: object, identifier: str) -> object | None:
+def _atom_for_target(document: object, object_id: str) -> object | None:
 	"""Resolve one selected durable atom within its immutable Rust projection."""
 	for molecule in document.molecules:
 		for atom in molecule.atoms:
-			if atom.source_id == identifier:
+			if atom.id == object_id:
 				return atom
 	return None
 
 
 #============================================
-def _bond_for_target(document: object, identifier: str) -> object | None:
+def _bond_for_target(document: object, object_id: str) -> object | None:
 	"""Resolve one selected durable bond within its immutable Rust projection."""
 	for molecule in document.molecules:
 		for bond in molecule.bonds:
-			if bond.source_id == identifier:
+			if bond.id == object_id:
 				return bond
 	return None
 
@@ -87,8 +87,8 @@ def _atom_lines(atom: object) -> tuple[str, ...]:
 #============================================
 def _bond_lines(bond: object) -> tuple[str, ...]:
 	"""Present typed bond facts and their durable endpoint identities."""
-	start = bond.start.source_id or "Unresolved"
-	end = bond.end.source_id or "Unresolved"
+	start = bond.start.object_id or "Unresolved"
+	end = bond.end.object_id or "Unresolved"
 	return (
 		f"Order: {_value_label(bond.order)}",
 		f"Style: {_value_label(bond.style)}",
@@ -190,13 +190,13 @@ class FerrumNativePropertyDock(PySide6.QtWidgets.QDockWidget):
 				self._show("Document", _document_lines(observation.document), None)
 			return
 		target = selection[0]
-		if target.identifier is not None and target.kind == "atom":
-			atom = _atom_for_target(observation.document, target.identifier)
+		if target.durable_object_id is not None and target.kind == "atom":
+			atom = _atom_for_target(observation.document, target.durable_object_id)
 			if atom is not None:
 				self._show("Atom", _atom_lines(atom), "atom")
 				return
-		if target.identifier is not None and target.kind == "bond":
-			bond = _bond_for_target(observation.document, target.identifier)
+		if target.durable_object_id is not None and target.kind == "bond":
+			bond = _bond_for_target(observation.document, target.durable_object_id)
 			if bond is not None:
 				self._show("Bond", _bond_lines(bond), "bond")
 				return

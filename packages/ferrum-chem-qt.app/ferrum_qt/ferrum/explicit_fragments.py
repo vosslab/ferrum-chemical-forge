@@ -26,56 +26,47 @@ class FerrumNativeExplicitFragmentCapture:
 #============================================
 def capture_explicit_fragment_selection(
 		tab: object) -> FerrumNativeExplicitFragmentCapture | None:
-	"""Freeze selected ordinary members from exactly one projected direct root."""
+	"""Freeze one durable selected-membership request for a direct molecule root."""
 	if getattr(tab, "requires_refresh", True):
 		return None
 	targets = tab.selected_molecule_information_targets()
 	if type(targets) is not tuple or not targets:
 		return None
-	observation = tab.current_document_observation()
-	selected_root_index = None
+	selected_molecule_id = None
 	selected_atoms = set()
 	selected_bonds = set()
 	for target in targets:
 		if (
 			target.kind not in ("atom", "bond")
-			or type(target.identifier) is not str
-			or not target.identifier
-			or type(target.source_order) is not int
+			or type(target.durable_object_id) is not str
+			or not target.durable_object_id
+			or type(target.durable_molecule_object_id) is not str
+			or not target.durable_molecule_object_id
 		):
 			return None
-		matches = []
-		for root_index, molecule in enumerate(observation.projection.molecules):
-			children = molecule.atoms if target.kind == "atom" else molecule.bonds
-			matches.extend(
-				(root_index, molecule, child) for child in children
-				if child.source_id == target.identifier
-				and child.source_order == target.source_order
-			)
-		if len(matches) != 1:
+		if selected_molecule_id is None:
+			selected_molecule_id = target.durable_molecule_object_id
+		elif selected_molecule_id != target.durable_molecule_object_id:
 			return None
-		root_index, _molecule, _child = matches[0]
-		if selected_root_index is None:
-			selected_root_index = root_index
-		elif selected_root_index != root_index:
-			return None
-		(selected_atoms if target.kind == "atom" else selected_bonds).add(target.identifier)
-	if selected_root_index is None:
+		(selected_atoms if target.kind == "atom" else selected_bonds).add(
+			target.durable_object_id,
+		)
+	if selected_molecule_id is None:
 		return None
-	molecule = observation.projection.molecules[selected_root_index]
-	if type(molecule.id) is not str or not molecule.id:
-		return None
-	atom_ids = tuple(atom.source_id for atom in molecule.atoms if atom.source_id in selected_atoms)
-	bond_ids = tuple(bond.source_id for bond in molecule.bonds if bond.source_id in selected_bonds)
 	if (
-		len(atom_ids) != len(selected_atoms)
-		or len(bond_ids) != len(selected_bonds)
-		or any(type(identifier) is not str or not identifier for identifier in atom_ids + bond_ids)
+		any(type(identifier) is not str or not identifier for identifier in selected_atoms)
+		or any(type(identifier) is not str or not identifier for identifier in selected_bonds)
 	):
 		return None
+	observation = tab.current_document_observation()
 	snapshot = observation.snapshot
 	return FerrumNativeExplicitFragmentCapture(
-		tab, snapshot.revision, snapshot.digest, molecule.id, atom_ids, bond_ids,
+		tab,
+		snapshot.revision,
+		snapshot.digest,
+		selected_molecule_id,
+		tuple(sorted(selected_atoms)),
+		tuple(sorted(selected_bonds)),
 	)
 
 

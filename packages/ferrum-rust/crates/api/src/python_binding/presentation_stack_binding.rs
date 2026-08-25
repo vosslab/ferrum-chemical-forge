@@ -1,13 +1,14 @@
 //! Frozen Python intent values for direct-root presentation stack ordering.
 
 use ferrum_document::{
-    PresentationRootSelectorV1, PresentationStackOrderV1, PresentationStackReorderV1,
-    SessionOperation, SessionOperationV1,
+    DocumentObjectIdV1, PresentationRecordKindV1, PresentationRootSelectorV1,
+    PresentationStackOrderV1, PresentationStackReorderV1, SessionOperation, SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 use super::binding::operation_validation_error;
+use super::document_error_binding::document_object_id;
 use super::presentation_deletion_binding::PyDocumentPresentationRootKindV1;
 
 /// Closed ordering transformations accepted by the Rust document session.
@@ -105,4 +106,34 @@ pub(crate) fn presentation_selectors(
                 .map_err(Into::into)
         })
         .collect::<PyResult<Vec<_>>>()
+}
+
+/// Parse closed durable live-session presentation target pairs.
+pub(crate) fn live_targets(
+    py: Python<'_>,
+    values: &Bound<'_, PyTuple>,
+    operation: &str,
+) -> PyResult<Vec<(DocumentObjectIdV1, PresentationRecordKindV1)>> {
+    values
+        .iter()
+        .map(|value| {
+            let pair = value.cast::<PyTuple>().map_err(|_| {
+                operation_validation_error(
+                    py,
+                    format!("{operation} targets must contain exact built-in pairs"),
+                )
+            })?;
+            if pair.len() != 2 {
+                return Err(operation_validation_error(
+                    py,
+                    format!("{operation} targets must contain durable root ID and kind"),
+                ));
+            }
+            let object_id = document_object_id(py, pair.get_item(0)?.extract::<String>()?)?;
+            let kind = pair
+                .get_item(1)?
+                .extract::<PyRef<'_, PyDocumentPresentationRootKindV1>>()?;
+            Ok((object_id, (*kind).into()))
+        })
+        .collect()
 }

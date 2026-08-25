@@ -47,7 +47,7 @@ class FerrumNativeTextPropertiesMixin:
 		return (
 			len(selected) == 1
 			and selected[0].kind == "text"
-			and selected[0].identifier is not None
+			and selected[0].durable_object_id is not None
 		)
 
 	#============================================
@@ -59,8 +59,6 @@ class FerrumNativeTextPropertiesMixin:
 			raise RuntimeError("Ferrum tab has no installed document projection")
 		for root in self._document_observation.projection.presentation_stack.roots:
 			if root.kind == "text" and root.text.target.id == selected:
-				if root.text.target.source_id is None:
-					raise RuntimeError("selected Text has no durable authored source identifier")
 				return root.text
 		raise RuntimeError("selected Text is absent from the Rust projection")
 
@@ -73,12 +71,12 @@ class FerrumNativeTextPropertiesMixin:
 		if any(type(change) is not engine.DocumentTextPropertyChangeV1
 				for change in changes):
 			raise TypeError("Ferrum Text properties require exact frozen Ferrum changes")
-		text = self.selected_text_projection()
-		operation = engine.DocumentOperationV1.set_text_properties(
-			text.target.source_id, changes,
+		text_id = self._selected_durable_identifiers(1, "text")[0]
+		snapshot = self.current_snapshot
+		result = self._live_document_session_v1.set_text_properties_v1(
+			snapshot.revision, snapshot.digest, text_id, changes,
 		)
-		result = self._apply_current_document_operation_v1(operation)
-		self._install_mutation_result(result, (("text", text.target.id),))
+		self._install_mutation_result(result, (("text", text_id),))
 		return result
 
 

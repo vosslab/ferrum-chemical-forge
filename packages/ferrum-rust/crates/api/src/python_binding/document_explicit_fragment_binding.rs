@@ -4,7 +4,7 @@ use ferrum_document::{
     DocumentExplicitFragmentRequestV1, create_document_explicit_fragment_v1,
     inspect_document_explicit_fragments_v1 as inspect_rust_document_explicit_fragments_v1,
 };
-use ferrum_document::{DocumentObjectIdV1, DocumentSession, PersistentId};
+use ferrum_document::{DocumentObjectIdV1, DocumentSession, PersistentId, TypedClass};
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString, PyTuple};
@@ -82,8 +82,22 @@ pub(crate) fn create_explicit_fragment_v1(
     let digest = digest(py, expected_digest)?;
     let molecule_id = object_id(py, molecule_id)?;
     let name = text(py, name, "fragment name")?;
-    let atoms = ids(py, selected_atom_ids, "selected atom IDs")?;
-    let bonds = ids(py, selected_bond_ids, "selected bond IDs")?;
+    let atoms = super::chemical_live_binding::molecule_member_source_ids(
+        py,
+        session,
+        &molecule_id,
+        selected_atom_ids,
+        TypedClass::Atom,
+        "selected atom IDs",
+    )?;
+    let bonds = super::chemical_live_binding::molecule_member_source_ids(
+        py,
+        session,
+        &molecule_id,
+        selected_bond_ids,
+        TypedClass::Bond,
+        "selected bond IDs",
+    )?;
     let request = DocumentExplicitFragmentRequestV1::new(
         expected_revision,
         digest,
@@ -151,34 +165,9 @@ fn tuple_ids(py: Python<'_>, values: &[PersistentId]) -> PyResult<Py<PyTuple>> {
     copied.extend(values.iter().map(|value| value.as_str()));
     Ok(PyTuple::new(py, copied)?.unbind())
 }
-fn ids(py: Python<'_>, values: &Bound<'_, PyAny>, label: &str) -> PyResult<Vec<PersistentId>> {
-    if !values.is_exact_instance_of::<PyTuple>() {
-        return Err(feature_error(
-            py,
-            format!("{label} must be an exact built-in tuple of strings"),
-        ));
-    }
-    let values = values.cast::<PyTuple>()?;
-    let mut result = Vec::new();
-    result
-        .try_reserve_exact(values.len())
-        .map_err(|_| feature_error(py, RESOURCE_REASON))?;
-    for value in values.iter() {
-        let value = value.cast::<PyString>().map_err(|_| {
-            feature_error(
-                py,
-                format!("{label} must be an exact built-in tuple of strings"),
-            )
-        })?;
-        let value = text(py, value, label)?;
-        result
-            .push(PersistentId::new(value).map_err(|error| feature_error(py, error.to_string()))?);
-    }
-    Ok(result)
-}
 fn object_id(py: Python<'_>, value: &Bound<'_, PyString>) -> PyResult<DocumentObjectIdV1> {
     let value = text(py, value, "molecule selector")?;
-    DocumentObjectIdV1::parse(value).map_err(|error| feature_error(py, error.to_string()))
+    super::document_error_binding::document_object_id(py, value)
 }
 fn text(py: Python<'_>, value: &Bound<'_, PyString>, label: &str) -> PyResult<String> {
     let value = value

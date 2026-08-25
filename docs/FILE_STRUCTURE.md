@@ -84,11 +84,20 @@ replacement subtree. The ordinary package is the supported application route.
 
 ## Generated artifacts
 
-- Local developer build products use `build/`. `build/bin/` and
-  `build/runtime/` retain the runnable CLI, Qt launcher, extension, and sealed
-  runtime. Cargo intermediates are disposable subdirectories of `build/`:
-  `build/.cargo-target/` belongs to `build.sh`, while
-  `build/.cargo-check-target/` belongs to `check_rust.sh`.
+- Local developer build products use `build/`. Each retained runnable product
+  is one immutable `build/programs/program-*/` root, selected atomically by
+  `build/current`. `build/bin/` and `build/runtime/` are stable links through
+  that pointer, retaining the CLI, Qt launcher, extension, and sealed runtime
+  command paths without independently promoted output trees.
+- Every immutable program root has a `.ferrum-runtime.lease` inode. Generated
+  CLI and Qt launchers hold its shared lease while running; cleanup preserves a
+  lease-held root and reclaims only inactive, non-current owned `program-*`
+  roots.
+- Cargo intermediates are disposable per-owner subdirectories of `build/`.
+  `build/.cargo-target-<opaque-id>/` belongs to one `build.sh` invocation and
+  is removed on success, failure, interruption, or the next locked startup.
+  `build/.cargo-check-target/` belongs to `check_rust.sh` and is removed after
+  its gate finishes.
 - Rust packages do not own `target/` output directories. The front-door scripts
   clean their work areas, so `packages/ferrum-rust/target/` and nested PyO3
   target directories are absent after normal completion.

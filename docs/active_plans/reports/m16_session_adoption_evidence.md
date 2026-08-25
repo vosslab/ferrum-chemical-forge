@@ -39,8 +39,9 @@ profiles, not an unconstrained text-import subsystem. Unrepresentable chirality,
 radicals, maps, stereo facts, compression, CD-SVG, and other unsupported sources
 produce typed refusals before partial session mutation.
 
-Native Molfile import, peptide-template insertion, and linear-form conversion use
-their own complete-document/session contracts. The historical compatibility host,
+Native Molfile import, peptide sequence insertion through
+`prepare_ferrum_peptide_insertion_v1`, and linear-form conversion use their own
+complete-document/session contracts. The historical compatibility host,
 live OASA workers, plugin registrar, and product OASA dependency are retired. The
 application never redirects an unsupported route into a hidden OASA editor.
 

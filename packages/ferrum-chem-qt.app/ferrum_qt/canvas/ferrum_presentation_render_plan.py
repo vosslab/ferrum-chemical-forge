@@ -16,7 +16,7 @@ import ferrum_qt.canvas.ferrum_presentation_target
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.canvas.items.ferrum_plus_item
 import ferrum_qt.canvas.items.ferrum_text_item
-from ferrum_qt.canvas.ferrum_presentation_target import PresentationTarget
+from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
 
 
 _SCHEMA = "ferrum-presentation-render-plan-v1"
@@ -37,22 +37,26 @@ class FerrumPresentationScene:
 	digest: str
 	roots: tuple[PySide6.QtWidgets.QGraphicsItem, ...]
 	items: tuple[PySide6.QtWidgets.QGraphicsItem, ...]
-	durable_items: dict[str, PySide6.QtWidgets.QGraphicsItem]
-	local_items: dict[str, PySide6.QtWidgets.QGraphicsItem]
+	durable_items: dict[tuple[str, str], PySide6.QtWidgets.QGraphicsItem]
+	local_items: dict[RenderTargetKey, PySide6.QtWidgets.QGraphicsItem]
 
 	#============================================
 	def selected_targets(
 			self, scene: PySide6.QtWidgets.QGraphicsScene | None,
-			) -> tuple[PresentationTarget, ...]:
+			) -> tuple[RenderTargetKey, ...]:
 		"""Return selected plan targets without promoting local keys to IDs."""
 		selected = ferrum_qt.canvas.graphics_retirement.selected_items_from_captured_scene(scene)
 		return tuple(item.target for item in self.items if item in selected and item.isSelected())
 
 	#============================================
-	def select_durable(self, identifiers: tuple[str, ...]) -> None:
+	def select_durable(self, targets: tuple[tuple[str, str], ...]) -> None:
 		"""Restore selection using only durable target identity from the plan."""
+		requested = frozenset(targets)
 		for item in self.items:
-			item.setSelected(item.target.id in identifiers)
+			target = item.target
+			item.setSelected(
+				target.is_durable and target.durable_selection_key() in requested,
+			)
 
 	#============================================
 	def dispose_detached(self) -> None:
@@ -69,7 +73,7 @@ class RendererPlanRootItem(PySide6.QtWidgets.QGraphicsItem):
 	#============================================
 	def __init__(self, commands: tuple[tuple[PySide6.QtGui.QPainterPath,
 			PySide6.QtGui.QPen | None, PySide6.QtGui.QBrush | None], ...],
-			target: PresentationTarget, bounds: PySide6.QtCore.QRectF) -> None:
+			target: RenderTargetKey, bounds: PySide6.QtCore.QRectF) -> None:
 		"""Cache validated paths and explicit paints without deriving geometry."""
 		super().__init__()
 		self._commands = commands
@@ -92,7 +96,7 @@ class RendererPlanRootItem(PySide6.QtWidgets.QGraphicsItem):
 
 	#============================================
 	@property
-	def target(self) -> PresentationTarget:
+	def target(self) -> RenderTargetKey:
 		"""Return the immutable target identity supplied by the renderer."""
 		return self._target
 
@@ -138,8 +142,8 @@ def build_presentation_render_plan(plan: object, telex_resource: object) -> Ferr
 		raise PresentationRenderPlanError("presentation render-plan roots must be frozen")
 	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
 	roots: list[object] = []
-	durable_items: dict[str, object] = {}
-	local_items: dict[str, object] = {}
+	durable_items: dict[tuple[str, str], object] = {}
+	local_items: dict[RenderTargetKey, object] = {}
 	last_order = -1
 	try:
 		for root in plan.roots:
@@ -149,14 +153,15 @@ def build_presentation_render_plan(plan: object, telex_resource: object) -> Ferr
 				raise PresentationRenderPlanError("presentation render-plan roots are not source ordered")
 			last_order = target.source_order
 			item = _root_item(root, target, bounds, extension, telex)
-			if target.id is None:
-				if target.projection_key in local_items:
+			if target.durable_object_id is None:
+				if target in local_items:
 					raise PresentationRenderPlanError("duplicate local presentation target")
-				local_items[target.projection_key] = item
+				local_items[target] = item
 			else:
-				if target.id in durable_items:
+				durable_key = target.durable_selection_key()
+				if durable_key in durable_items:
 					raise PresentationRenderPlanError("duplicate durable presentation target")
-				durable_items[target.id] = item
+				durable_items[durable_key] = item
 			roots.append(item)
 	except (AttributeError, TypeError, ValueError, PresentationRenderPlanError) as exc:
 		for item in roots:
@@ -170,7 +175,7 @@ def build_presentation_render_plan(plan: object, telex_resource: object) -> Ferr
 
 
 #============================================
-def _root_item(root: object, target: PresentationTarget, bounds: PySide6.QtCore.QRectF,
+def _root_item(root: object, target: RenderTargetKey, bounds: PySide6.QtCore.QRectF,
 		extension: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex) -> object:
 	"""Validate one discriminated root and build only its documented variant."""
 	kind = getattr(root, "kind", None)
@@ -199,7 +204,7 @@ def _root_item(root: object, target: PresentationTarget, bounds: PySide6.QtCore.
 
 
 #============================================
-def _require_matching_item_target(item: object, target: PresentationTarget) -> object:
+def _require_matching_item_target(item: object, target: RenderTargetKey) -> object:
 	"""Ensure a specialized renderer root retained the plan root's exact identity."""
 	if item.target != target:
 		raise PresentationRenderPlanError("specialized render root target differs from plan target")
@@ -287,7 +292,7 @@ def _brush(value: object) -> PySide6.QtGui.QBrush | None:
 
 
 #============================================
-def _target(value: object, extension: object) -> PresentationTarget:
+def _target(value: object, extension: object) -> RenderTargetKey:
 	"""Authenticate one exact plan target as the Qt selection identity."""
 	try:
 		return ferrum_qt.canvas.ferrum_presentation_target.presentation_target_from_dto(

@@ -1,4 +1,4 @@
-"""Installed private binding behavior for Rust-owned explicit fragments."""
+"""Installed binding behavior for Rust-owned explicit fragments."""
 
 import ferrum_chem
 
@@ -10,13 +10,13 @@ CDML = (
 )
 
 
-def test_private_explicit_fragment_receipt_commits_authoritative_scalar_facts() -> None:
-	"""One exact private receipt returns Rust's owner, closure, and observation."""
+def test_explicit_fragment_creates_from_observed_durable_targets() -> None:
+	"""One durable molecule and bond target creates the requested fragment."""
 	session = ferrum_chem.DocumentSession.load(CDML)
 	before = session.snapshot()
 	molecule = session.observe(before.revision).projection.molecules[0]
 	result = session.create_explicit_fragment_v1(
-		before.revision, before.digest, molecule.id, "named part", (), ("ab",),
+		before.revision, before.digest, molecule.id, "named part", (), (molecule.bonds[0].id,),
 	)
 
 	assert (result.fragment.name, result.fragment.molecule_id) == ("named part", molecule.id)

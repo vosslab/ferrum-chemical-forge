@@ -2,10 +2,10 @@
 
 use std::collections::HashSet;
 
-use ferrum_core::{RecordId, RecordKind};
+use ferrum_core::RecordKind;
 use serde::{Deserialize, Serialize};
 
-use crate::{RenderError, RenderIssue};
+use crate::{RenderError, RenderIssue, RenderTarget};
 
 const SCHEMA_V2: &str = "ferrum-render-plan-v2";
 
@@ -671,35 +671,6 @@ impl RenderOp {
     }
 }
 
-/// A durable target identity and stable projection order.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RenderTarget {
-    record_id: RecordId,
-    source_order: u32,
-}
-
-impl RenderTarget {
-    /// Construct a projection target. The identity remains Ferrum-owned.
-    #[must_use]
-    pub fn new(record_id: RecordId, source_order: u32) -> Self {
-        Self {
-            record_id,
-            source_order,
-        }
-    }
-    /// Return the stable source record identity.
-    #[must_use]
-    pub fn record_id(&self) -> &RecordId {
-        &self.record_id
-    }
-    /// Return the deterministic document projection order.
-    #[must_use]
-    pub const fn source_order(&self) -> u32 {
-        self.source_order
-    }
-}
-
 /// The coordinate space in which a batch is interpreted.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
@@ -761,7 +732,7 @@ impl RenderBatch {
                 "render batch operations must have strictly increasing z".to_owned(),
             ));
         }
-        match (&coordinate_space, target.record_id.kind()) {
+        match (&coordinate_space, target.record_id().kind()) {
             (BatchSpace::AtomLocal { .. }, RecordKind::Atom | RecordKind::Group)
                 if operations.iter().all(|op| {
                     matches!(

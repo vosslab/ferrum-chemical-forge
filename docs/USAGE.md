@@ -123,6 +123,40 @@ document snapshot, establishes canonical record order, and provides the complete
 file before Qt publishes it atomically. The established one-record SDF actions
 remain available for their existing workflow.
 
+## Attach, delete, and materialize `Me`
+
+The current compact-group authoring route is Qt-only and intentionally narrow:
+
+1. Select one eligible atom on the canvas.
+2. Choose Chemistry > `Attach Compact Group...`.
+3. Select `Me`, then choose `Attach to Selected Atom`.
+4. Release once on the canvas to supply the attachment direction.
+5. Explicitly select the resulting compact-group label.
+6. Choose Chemistry > `Materialize Selected Compact Group`.
+7. Choose Chemistry > `Molecule Report...` to inspect the materialized result.
+
+Rust refuses an unavailable selection or invalid release without changing the
+document, durable IDs, history, or selection. This slice has no free placement,
+no other compact-group author keys, and no CLI or stateless attachment route.
+Materialization remains a separate delivered operation.
+
+If exactly one selected atom is unavailable for `Me`, the existing `Attach
+Compact Group...` action is disabled. Its status tip, tool tip, and What's This
+guidance say `Me cannot attach to the selected atom. Select another atom and try
+again.` Select an eligible atom to refresh the same action to enabled. If the
+selection changes before commit, Ferrum presents the existing typed nonmodal
+refusal and refreshes the action; it does not create a fallback route.
+
+To delete an attached compact group, use the existing Select Structure tool to
+select exactly one visible compact-group label, then press `Delete` or
+`Backspace`. Qt forwards only the renderer-issued parent molecule and
+compact-group durable IDs. Rust verifies direct membership, removes exactly the
+group and its unique exterior bond through one history transition. Its public
+receipt reports removed atom, bond, and compact-group counts. Document-private
+`PersistentId` values remain internal. Mixed or multi-group selection is refused
+before preparation. Use the platform Undo shortcut to restore the group; Redo
+reapplies the same committed deletion.
+
 ## Molecule diagnostics
 
 Select one or more direct-root molecules and use `Molecule Report...` to inspect
@@ -229,8 +263,17 @@ build/bin/ferrum protocol run compact-materialize.json
 build/bin/ferrum document command document.compact-group.materialize.v1 compact-materialize.json
 ```
 
-The generic protocol and named CLI route are delivered. PyO3 live-session
-registration and the Qt `chemistry.expand_compact_group` action remain deferred.
+The generic protocol and named CLI route are delivered. They are stateless:
+the request carries source IDs from the admitted CDML snapshot and its fence.
+
+In `ferrum-qt`, select one visible `Me` or `NO2` compact-group label and use
+Chemistry > `Materialize Selected Compact Group`. The action becomes available
+only when the Rust live session reports the selected durable molecule/group
+pair as eligible for the installed revision/digest fence. On success Ferrum
+installs the returned observation and selects Rust's replacement focus atom.
+Undo, Redo, and reopen create a current observation and therefore require a
+fresh availability result; the UI does not retain a chemistry decision, raw
+CDML, or a source-ID substitute for the live durable address.
 
 `inspect --json` returns a `document_fence`. Use its revision and digest with the same input
 document in a later request-owned document command. This local workflow authors one vector:

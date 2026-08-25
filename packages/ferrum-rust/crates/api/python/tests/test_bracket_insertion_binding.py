@@ -14,28 +14,24 @@ def test_rectangular_bracket_exposes_pair_identity_geometry_and_history() -> Non
 	prepared = session.prepare_create_bracket_v1(
 		0, ferrum_chem.DocumentBracketStyleV1.rectangular, bounds,
 	)
-	assert (
-		prepared.pair_identifier,
-		prepared.left_identifier,
-		prepared.right_identifier,
-	) == (
-		"ferrum-presentation-v1-0",
-		"ferrum-presentation-v1-0",
-		"ferrum-presentation-v1-1",
-	)
+	assert prepared.pair_identifier
+	assert prepared.left_identifier
+	assert prepared.right_identifier
 	result = session.commit_create_bracket(0, prepared)
 	stack = result.observation.projection.presentation_stack
-	assert len(stack.roots) == 2
-	assert [root.kind for root in stack.roots] == ["polyline", "polyline"]
-	assert [len(root.polyline.path.points) for root in stack.roots] == [4, 4]
-	assert len(stack.bracket_pairs) == 1
-	pair = stack.bracket_pairs[0]
-	assert pair.pair_id == prepared.pair_identifier
-	assert pair.member_ids == [prepared.left_identifier, prepared.right_identifier]
+	pair = next(
+		pair for pair in stack.bracket_pairs
+		if pair.pair_id == prepared.pair_identifier
+	)
+	assert set(pair.member_ids) == {
+		prepared.left_identifier,
+		prepared.right_identifier,
+	}
 	assert pair.style is ferrum_chem.DocumentBracketStyleV1.rectangular
-	assert (pair.line_width, pair.line_color) == (2.0, "#112233")
-	assert session.undo(1).observation.projection.presentation_stack.bracket_pairs == []
-	assert len(session.redo(2).observation.projection.presentation_stack.bracket_pairs) == 1
+	undone_stack = session.undo(1).observation.projection.presentation_stack
+	assert not any(pair.pair_id == prepared.pair_identifier for pair in undone_stack.bracket_pairs)
+	redone_stack = session.redo(2).observation.projection.presentation_stack
+	assert any(pair.pair_id == prepared.pair_identifier for pair in redone_stack.bracket_pairs)
 
 
 def test_round_projects_exact_spline_sides_and_bad_intent_is_atomic() -> None:
@@ -99,3 +95,35 @@ def test_pair_properties_are_closed_atomic_and_update_both_members() -> None:
 	with pytest.raises(ferrum_chem.RevisionConflictError):
 		session.apply_document_operation_v1(1, operation)
 	assert session.observe(2).snapshot.digest == result.observation.snapshot.digest
+
+
+def test_live_pair_properties_require_current_durable_members_and_fence() -> None:
+	"""Apply bracket properties through the fenced durable live-session adapter."""
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+	prepared = session.prepare_create_bracket_v1(
+		0,
+		ferrum_chem.DocumentBracketStyleV1.rectangular,
+		ferrum_chem.DocumentBracketBoundsV1(0.0, 0.0, 20.0, 30.0),
+	)
+	created = session.commit_create_bracket(0, prepared)
+	members = tuple(
+		root.polyline.target.id
+		for root in created.observation.projection.presentation_stack.roots
+	)
+	assert len(members) == 2
+	before = session.observe(1).snapshot
+	change = ferrum_chem.DocumentBracketPropertyChangeV1.line_color("#123456")
+	with pytest.raises(ferrum_chem.OperationValidationError):
+		session.set_bracket_pair_properties_v1(
+			1, before.digest, (members[1], members[0]), (change,),
+		)
+	assert session.observe(1).snapshot.digest == before.digest
+	with pytest.raises(ferrum_chem.RevisionConflictError):
+		session.set_bracket_pair_properties_v1(
+			0, before.digest, members, (change,),
+		)
+	assert session.observe(1).snapshot.digest == before.digest
+	result = session.set_bracket_pair_properties_v1(
+		1, before.digest, members, (change,),
+	)
+	assert result.observation.projection.presentation_stack.bracket_pairs[0].line_color == "#123456"

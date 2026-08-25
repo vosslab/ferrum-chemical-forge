@@ -5,6 +5,12 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 
+_PRESENTATION_KINDS = frozenset({
+	"arrow", "plus", "text", "polyline", "rectangle", "square", "oval", "circle",
+	"polygon",
+})
+
+
 #============================================
 class FerrumNativePresentationStackMixin:
 	"""Selection and mutation services for Rust-owned presentation ordering."""
@@ -19,11 +25,10 @@ class FerrumNativePresentationStackMixin:
 		selected = self._controller.projection.selected_durable_targets()
 		if len(selected) < minimum:
 			return False
-		try:
-			source_ids = tuple(self._presentation_source_id(target) for target in selected)
-		except (RuntimeError, TypeError, ValueError):
-			return False
-		return self._has_complete_bracket_selection(source_ids)
+		return all(
+			target.kind in _PRESENTATION_KINDS and target.durable_object_id is not None
+			for target in selected
+		)
 
 	#============================================
 	def reorder_selected_presentation_roots(self, order: object) -> object:
@@ -41,30 +46,15 @@ class FerrumNativePresentationStackMixin:
 			raise RuntimeError("select a complete durable presentation root set first")
 		selected = self._controller.projection.selected_durable_targets()
 		kinds = engine.DocumentPresentationRootKindV1
-		selectors = tuple(
-			engine.DocumentPresentationRootSelectorV1.create(
-				self._presentation_source_id(target), getattr(kinds, target.kind),
-			)
+		targets = tuple(
+			(target.durable_object_id, getattr(kinds, target.kind))
 			for target in selected
 		)
-		operation = engine.DocumentOperationV1.reorder_presentation_roots(
-			order, selectors,
+		result = self._session.apply_live_presentation_reorder_v1(
+			self.current_snapshot.revision, self.current_snapshot.digest, order, targets,
 		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result)
 		return result
-
-	#============================================
-	def _has_complete_bracket_selection(self, source_ids: tuple[str, ...]) -> bool:
-		"""Require both authoritative bracket members whenever either is selected."""
-		if self._document_observation is None:
-			return False
-		selected = frozenset(source_ids)
-		for pair in self._document_observation.projection.presentation_stack.bracket_pairs:
-			selected_members = selected.intersection(pair.member_ids)
-			if selected_members and len(selected_members) != len(pair.member_ids):
-				return False
-		return True
 
 
 #============================================

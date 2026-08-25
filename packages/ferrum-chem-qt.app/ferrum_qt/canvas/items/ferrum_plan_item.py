@@ -38,8 +38,7 @@ class _Point:
 class _Target:
 	"""Detached durable target identity available to selection projection later."""
 
-	record_id: object
-	record_kind: str
+	kind: str
 	source_order: int
 
 
@@ -121,7 +120,7 @@ class FerrumPlanItem(PySide6.QtWidgets.QGraphicsObject):
 	#============================================
 	def target(self) -> object:
 		"""Return the detached durable target for a future selection projection."""
-		return self._target.record_id
+		return self._target
 
 	#============================================
 	def boundingRect(self) -> PySide6.QtCore.QRectF:
@@ -243,16 +242,16 @@ def _copy_batch(plan: object, batch_index: int,
 		required_kind = "bond"
 	elif space.kind == "atom_local":
 		anchor = _point(space.anchor, "atom-local anchor")
-		if target.record_kind == "atom":
+		if target.kind == "atom":
 			allowed = {"ellipse", "line", "mask", "text"}
-		elif target.record_kind == "compact_group":
+		elif target.kind == "compact_group":
 			allowed = {"line", "text"}
 		else:
 			raise FerrumPlanError("Ferrum atom-local render target has an unsupported record kind")
-		required_kind = target.record_kind
+		required_kind = target.kind
 	else:
 		raise FerrumPlanError("Ferrum render batch has an unknown coordinate space")
-	if target.record_kind != required_kind:
+	if target.kind != required_kind:
 		raise FerrumPlanError("Ferrum render target kind does not match coordinate space")
 	commands: list[_Line | _Fill | _Shape] = []
 	previous_z: int | None = None
@@ -438,13 +437,20 @@ def _shape_for(commands: tuple[_Line | _Fill | _Shape, ...],
 #============================================
 def _target(source: object) -> _Target:
 	"""Copy durable target identity and validate the closed selectable record kinds."""
-	record_kind = source.record_id.kind
-	if record_kind not in {"Atom", "Bond", "Group"}:
+	kind = getattr(source, "kind", None)
+	if kind not in {"Atom", "Bond", "Group"}:
 		raise FerrumPlanError("Ferrum render target has an unsupported record kind")
+	for value, label in (
+		(getattr(source, "render_identifier", None), "render identifier"),
+		(getattr(source, "durable_object_id", None), "durable object identity"),
+		(getattr(source, "durable_molecule_object_id", None), "durable molecule identity"),
+	):
+		if type(value) is not str or not value:
+			raise FerrumPlanError(f"Ferrum render target {label} is invalid")
 	if not isinstance(source.source_order, int) or isinstance(source.source_order, bool) or not 0 <= source.source_order <= 2**32 - 1:
 		raise FerrumPlanError("Ferrum render target source order must be a u32 integer")
-	kind = {"Atom": "atom", "Bond": "bond", "Group": "compact_group"}[record_kind]
-	return _Target(source.record_id, kind, source.source_order)
+	target_kind = {"Atom": "atom", "Bond": "bond", "Group": "compact_group"}[kind]
+	return _Target(target_kind, source.source_order)
 
 
 #============================================

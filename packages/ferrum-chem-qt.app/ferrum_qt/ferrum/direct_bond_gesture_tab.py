@@ -33,8 +33,12 @@ class FerrumNativeDirectBondGestureTabMixin:
 			while current is not None:
 				target = projection.item_targets.get(current)
 				if target is not None:
-					if target.kind == "atom" and type(target.identifier) is str and target.identifier:
-						atom_ids.add(target.identifier)
+					if (
+							target.kind == "atom"
+							and type(target.durable_object_id) is str
+							and target.durable_object_id
+						):
+						atom_ids.add(target.durable_object_id)
 					break
 				current = current.parentItem()
 		if len(atom_ids) == 1:

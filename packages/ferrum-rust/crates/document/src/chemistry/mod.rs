@@ -10,7 +10,6 @@ mod document_bond_capacity_v1;
 mod document_molecule_composition_graph_v1;
 mod document_molecule_graph_v1;
 mod document_molecule_inchi_v1;
-mod document_molecule_information_v1;
 mod document_molecule_inspection_v1;
 mod document_molecule_molblock_v1;
 mod document_molecule_sdf_v1;
@@ -28,8 +27,6 @@ mod smiles_molecule_insertion_v1;
 
 #[cfg(test)]
 mod document_bond_capacity_v1_tests;
-#[cfg(test)]
-mod document_molecule_information_v1_tests;
 #[cfg(test)]
 mod document_molecule_inspection_v1_tests;
 
@@ -62,13 +59,6 @@ pub use document_molecule_inchi_v1::{
     DocumentMoleculeInchiError, DocumentMoleculeInchiV1, PreparedDocumentMoleculeInchiV1,
     export_document_molecule_inchi_v1, export_prepared_document_molecule_inchi_receipt_v1,
     export_prepared_document_molecule_inchi_v1, prepare_document_molecule_inchi_v1,
-};
-pub use document_molecule_information_v1::{
-    DOCUMENT_MOLECULE_INFORMATION_SCHEMA_V1, DocumentMoleculeInformationErrorV1,
-    DocumentMoleculeInformationRecordV1, DocumentMoleculeInformationRequestErrorV1,
-    DocumentMoleculeInformationRequestV1, DocumentMoleculeInformationV1,
-    PreparedDocumentMoleculeInformationV1, execute_prepared_document_molecule_information_v1,
-    prepare_document_molecule_information_v1,
 };
 pub use document_molecule_inspection_v1::{
     DOCUMENT_MOLECULE_INSPECTION_SCHEMA_V1, DocumentMoleculeBoundsV1,

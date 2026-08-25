@@ -420,7 +420,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		message = self.tr("Found {0} matches in {1} molecules.").format(match_count, molecule_count)
 		if truncated:
 			message += " " + self.tr("Additional matches not shown.")
-		if run.traversal == "incomplete":
+		if run.traversal == "total_match_budget_reached":
 			message += " " + self.tr("Unexamined molecules may contain matches.")
 		return message
 

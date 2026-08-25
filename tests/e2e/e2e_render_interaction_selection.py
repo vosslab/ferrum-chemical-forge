@@ -32,14 +32,6 @@ class RenderInteractionE2eError(RuntimeError):
 
 
 #============================================
-def _durable_point(tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-		key: tuple[str, str]) -> PySide6.QtCore.QPoint:
-	"""Return one visible projected point for one durable root member."""
-	item = tab._controller.projection.durable_items[key]
-	return tab.view.mapFromScene(item.mapToScene(item.shape().boundingRect().center()))
-
-
-#============================================
 def _mixed_positions(
 		tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 		) -> tuple[tuple[float, float], tuple[float, float]]:
@@ -48,6 +40,13 @@ def _mixed_positions(
 	atom = projection.molecules[0].atoms[0].position
 	plus = projection.presentation_stack.roots[0].plus.anchor
 	return (atom.x, atom.y), (plus.x, plus.y)
+
+
+#============================================
+def _view_point(tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+		position: tuple[float, float]) -> PySide6.QtCore.QPoint:
+	"""Map one current Rust-observed root coordinate to the visible viewport."""
+	return tab.view.mapFromScene(PySide6.QtCore.QPointF(*position))
 
 
 #============================================
@@ -61,11 +60,9 @@ def main() -> int:
 	app.processEvents()
 	try:
 		window._translate_roots_action.trigger()
-		left = _durable_point(tab, ("atom", "left-c"))
-		plus_key = next(
-			key for key in tab._controller.projection.durable_items if key[0] == "plus"
-		)
-		plus = _durable_point(tab, plus_key)
+		left_position, plus_position = _mixed_positions(tab)
+		left = _view_point(tab, left_position)
+		plus = _view_point(tab, plus_position)
 		PySide6.QtTest.QTest.mouseClick(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, left,
@@ -117,11 +114,9 @@ def main() -> int:
 		PySide6.QtTest.QTest.keyClick(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Right)
 		if tab.current_snapshot.revision <= before_nudge.revision:
 				raise RenderInteractionE2eError("keyboard nudge did not commit through Rust")
-		left = _durable_point(tab, ("atom", "left-c"))
-		plus_key = next(
-			key for key in tab._controller.projection.durable_items if key[0] == "plus"
-		)
-		plus = _durable_point(tab, plus_key)
+		left_position, plus_position = _mixed_positions(tab)
+		left = _view_point(tab, left_position)
+		plus = _view_point(tab, plus_position)
 		PySide6.QtTest.QTest.mouseClick(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, left,

@@ -272,10 +272,18 @@ fn render_with_verified_telex_metrics(
         return Ok(resolution);
     }
     for molecule in projection.molecules() {
+        let Some(owner_molecule_object_id) = molecule.id() else {
+            issues.push(issue(
+                DepictionIssueCodeV1::NonDurableTarget,
+                molecule.projection_key().as_str(),
+                "rendering structural targets requires a durable owner molecule ID",
+            ));
+            continue;
+        };
         let mut atoms = Vec::new();
         let mut endpoint_targets = std::collections::HashMap::new();
         for atom in molecule.atoms() {
-            match resolve_atom(atom, projection, profile) {
+            match resolve_atom(atom, owner_molecule_object_id, projection, profile) {
                 Ok(target) => {
                     if let Some(id) = atom.id() {
                         endpoint_targets.insert(id.clone(), target.target().clone());
@@ -320,6 +328,7 @@ fn render_with_verified_telex_metrics(
         for group in molecule.compact_groups() {
             compact_group_primitives.push(CompactGroupRenderPrimitiveV1::from_projection(
                 group,
+                owner_molecule_object_id,
                 metrics,
                 line_paint.clone(),
             )?);
@@ -332,7 +341,13 @@ fn render_with_verified_telex_metrics(
         );
         let mut bonds = Vec::new();
         for bond in molecule.bonds() {
-            match resolve_bond(bond, &endpoint_targets, projection, profile) {
+            match resolve_bond(
+                bond,
+                owner_molecule_object_id,
+                &endpoint_targets,
+                projection,
+                profile,
+            ) {
                 Ok(target) => bonds.push((bond, target)),
                 Err(issue) => issues.push(issue),
             }

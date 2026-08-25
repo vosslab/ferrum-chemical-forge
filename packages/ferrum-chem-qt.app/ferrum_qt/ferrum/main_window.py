@@ -47,6 +47,7 @@ import ferrum_qt.ferrum.molecule_report
 import ferrum_qt.ferrum.atom_oxidation
 import ferrum_qt.ferrum.explicit_hydrogen
 import ferrum_qt.ferrum.compact_group_materialization
+import ferrum_qt.ferrum.compact_group_authoring
 import ferrum_qt.ferrum.document_installation
 import ferrum_qt.ferrum.operation_presentation
 import ferrum_qt.ferrum.molecule_name
@@ -117,6 +118,8 @@ class FerrumNativeMainWindow(
 		ferrum_qt.ferrum.explicit_hydrogen.FerrumNativeExplicitHydrogenWindowMixin,
 		ferrum_qt.ferrum.compact_group_materialization.
 		FerrumNativeCompactGroupMaterializationWindowMixin,
+		ferrum_qt.ferrum.compact_group_authoring.
+		FerrumNativeCompactGroupAuthoringWindowMixin,
 		ferrum_qt.ferrum.molecule_name.FerrumNativeMoleculeNameWindowMixin,
 		ferrum_qt.ferrum.linear_form.FerrumNativeLinearFormWindowMixin,
 		ferrum_qt.ferrum.coordinate_generation.
@@ -175,6 +178,7 @@ class FerrumNativeMainWindow(
 		self._initialize_atom_oxidation()
 		self._initialize_explicit_hydrogen()
 		self._initialize_compact_group_materialization()
+		self._initialize_compact_group_authoring()
 		self._initialize_native_clipboard()
 		self._initialize_coordinate_generation()
 		self._initialize_snapshot_exports()
@@ -459,6 +463,7 @@ class FerrumNativeMainWindow(
 		self._build_atom_oxidation_action(chemistry_menu)
 		self._build_explicit_hydrogen_action(chemistry_menu)
 		self._build_compact_group_materialization_action(chemistry_menu)
+		self._build_compact_group_authoring_action(chemistry_menu)
 		self._build_molecule_name_action(chemistry_menu)
 		self._build_linear_form_action(chemistry_menu)
 		self._build_explicit_fragment_actions(chemistry_menu)
@@ -543,6 +548,7 @@ class FerrumNativeMainWindow(
 		self._cancel_atom_insertion(clear_status=clear_status)
 		self._cancel_line_gesture(clear_status=clear_status)
 		self._cancel_structure_selection()
+		self._cancel_compact_group_authoring(clear_status=clear_status)
 		self._cancel_catalog_placement(clear_status=clear_status)
 		self._cancel_user_template_placement(clear_status=clear_status)
 

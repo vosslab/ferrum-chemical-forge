@@ -340,6 +340,9 @@ pub enum SessionOperationError {
     /// A durable selector is not an atom usable by molecule-local bond creation.
     #[error("document object is not a bondable typed atom: {0}")]
     InvalidCreateBondTarget(String),
+    /// A durable selector cannot satisfy a named live chemistry operation.
+    #[error("document object is not a valid live chemistry target: {0}")]
+    InvalidLiveChemicalTarget(String),
     /// A durable selector is not a molecule usable by coordinate regeneration.
     #[error("document object is not a coordinate-editable typed molecule: {0}")]
     InvalidMoleculeCoordinateTarget(String),
@@ -366,6 +369,9 @@ pub enum SessionOperationError {
     /// The session cannot issue another generated persistent atom identity.
     #[error("generated atom identifier space is exhausted")]
     AtomIdentifierExhausted,
+    /// The session cannot issue another generated persistent compact-group identity.
+    #[error("generated compact-group identifier space is exhausted")]
+    GroupIdentifierExhausted,
     /// The session cannot issue another generated persistent molecule identity.
     #[error("generated molecule identifier space is exhausted")]
     MoleculeIdentifierExhausted,

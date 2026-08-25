@@ -12,6 +12,7 @@ mod atom_mark_action_v1;
 mod atom_mark_projection;
 mod atom_properties_patch_v1;
 mod atom_rotation_v1;
+mod attached_compact_group_v1;
 #[allow(dead_code)] // WP-A1 private topology is consumed by the later session capability.
 mod attached_cyclohexane_v1;
 mod authored_text_v1;
@@ -29,6 +30,7 @@ mod chemistry;
 mod clean_geometry_update_v1;
 mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
+mod compact_group_deletion_v1;
 mod clipboard_paste_v1;
 mod compact_group_materialization_v1;
 mod compact_group_projection_v1;
@@ -149,6 +151,11 @@ pub use atom_properties_patch_v1::{
     AtomPropertiesPatchV1, AtomPropertiesPatchV1Error, AtomPropertyChangeV1,
 };
 pub use atom_rotation_v1::{AtomRotationTargetV1, AtomRotationV1, AtomRotationV1Error};
+pub use attached_compact_group_v1::{AttachedCompactGroupErrorV1, AttachedCompactGroupReleaseV1};
+pub use session::{
+    AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
+    AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1, PendingAttachedCompactGroupV1,
+};
 pub use attached_cyclohexane_v1::{AttachedCyclohexaneErrorV1, AttachedCyclohexaneReleaseV1};
 pub use authored_text_v1::{
     AuthoredTextRunV1, AuthoredTextStyleV1, normalize_authored_text_runs_v1,
@@ -215,6 +222,7 @@ pub use direct_haworth_reobservation_v1::{
 };
 pub use document_compact_group_materialization_v1::{
     DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
+    DocumentCompactGroupMaterializationTargetErrorV1,
     DocumentCompactGroupMaterializationResultV1,
 };
 pub use document_explicit_fragment_api_v1::{
@@ -401,8 +409,10 @@ pub use session::{
 pub use session::{
     AttachedCyclohexaneSessionErrorV1, DocumentClipboardPasteResultV1, DocumentSession,
     DocumentSessionError, DocumentSnapshot, DocumentUserTemplateResultV1,
+    LiveChemicalPresentationTargetV1,
     PendingAttachedCyclohexaneV1, PendingCreateBracket, PendingCreateWavy,
-    PendingDeleteStructureV1, PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1,
+    PendingDeleteCompactGroupV1, PendingDeleteStructureV1, PendingLinearFormConvertV1,
+    PreparedLinearFormConvertResultV1,
     Publication, SaveOutcome,
 };
 
@@ -452,6 +462,7 @@ pub use typed::{
 };
 pub use typed_diagnostic::{TypedDiagnostic, TypedDiagnosticKind};
 pub use typed_document_error::TypedDocumentError;
+pub use compact_group_deletion_v1::CompactGroupDeletionReceiptV1;
 pub use typed_record_deletion::{StructureDeletionComponentV1, StructureDeletionReceiptV1};
 pub use user_template_v1::{
     DOCUMENT_USER_TEMPLATE_SCHEMA_V1, DocumentUserTemplateErrorV1,
@@ -517,6 +528,9 @@ mod session_semantics_tests;
 
 #[cfg(test)]
 mod structural_deletion_tests;
+
+#[cfg(test)]
+mod compact_group_deletion_v1_tests;
 
 #[cfg(test)]
 mod interchange_record_insertion_v1_tests;

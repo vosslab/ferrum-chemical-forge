@@ -9,30 +9,31 @@ set -euo pipefail
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly BUILD_ROOT="${REPO_ROOT}/build"
-readonly CARGO_TARGET_DIR="${BUILD_ROOT}/.cargo-target"
 readonly RUST_ROOT="${REPO_ROOT}/packages/ferrum-rust"
-readonly LOCAL_PYTHON_ROOT="${BUILD_ROOT}/runtime/python"
-readonly LOCAL_ADAPTER="${LOCAL_PYTHON_ROOT}/.dylibs/libferrum_chem.dylib"
-readonly LOCAL_ENGINE_BUNDLE="${BUILD_ROOT}/runtime/engine-v1"
-readonly LOCAL_CLI="${BUILD_ROOT}/bin/ferrum"
-readonly LOCAL_GUI="${BUILD_ROOT}/bin/ferrum-qt"
+readonly PROGRAMS_ROOT="${BUILD_ROOT}/programs"
+readonly CURRENT_PROGRAM="${BUILD_ROOT}/current"
+readonly STABLE_BIN_ROOT="${BUILD_ROOT}/bin"
+readonly STABLE_RUNTIME_ROOT="${BUILD_ROOT}/runtime"
+readonly LOCAL_PYTHON_ROOT="${CURRENT_PROGRAM}/runtime/python"
+readonly LOCAL_CLI="${CURRENT_PROGRAM}/bin/ferrum"
+readonly LOCAL_GUI="${CURRENT_PROGRAM}/bin/ferrum-qt"
 readonly LOCAL_RUNTIME_RECEIPT="${RUST_ROOT}/local_runtime_receipt.py"
 readonly LEGACY_WHEEL_ROOT="${REPO_ROOT}/output_native_wheel"
 readonly OBSOLETE_BUILD_CARGO_TARGET="${BUILD_ROOT}/cargo-target"
 readonly OBSOLETE_RUST_TARGET="${RUST_ROOT}/target"
 readonly OBSOLETE_PYO3_TARGET="${RUST_ROOT}/crates/api/python/target"
 readonly MAX_CHECKOUT_KIB=$((20 * 1024 * 1024))
-readonly BUILD_LOCK_DIR="${BUILD_ROOT}/.build.lock"
+readonly BUILD_LOCK_PATH="${BUILD_ROOT}/.build.lock"
 readonly BUILD_LOCK_OWNER="${$}-${RANDOM}-${RANDOM}"
-readonly LOCAL_BUILD_CANDIDATE="${BUILD_ROOT}/.ferrum-local-build-${BUILD_LOCK_OWNER}"
+readonly CARGO_TARGET_DIR="${BUILD_ROOT}/.cargo-target-${BUILD_LOCK_OWNER}"
+readonly LOCAL_BUILD_CANDIDATE="${PROGRAMS_ROOT}/.staging-${BUILD_LOCK_OWNER}"
+readonly CURRENT_POINTER_STAGING="${BUILD_ROOT}/.current-next-${BUILD_LOCK_OWNER}"
 readonly CANDIDATE_PYTHON_ROOT="${LOCAL_BUILD_CANDIDATE}/runtime/python"
 readonly CANDIDATE_ADAPTER="${CANDIDATE_PYTHON_ROOT}/.dylibs/libferrum_chem.dylib"
 readonly CANDIDATE_ENGINE_BUNDLE="${LOCAL_BUILD_CANDIDATE}/runtime/engine-v1"
 readonly CANDIDATE_CLI="${LOCAL_BUILD_CANDIDATE}/bin/ferrum"
 readonly CANDIDATE_GUI="${LOCAL_BUILD_CANDIDATE}/bin/ferrum-qt"
-BUILD_LOCK_HELD=0
-
-
+readonly CANDIDATE_RUNTIME_LEASE="${LOCAL_BUILD_CANDIDATE}/.ferrum-runtime.lease"
 #============================================
 fail() {
 	printf 'build error: %s\n' "$1" >&2
@@ -58,69 +59,47 @@ USAGE
 
 #============================================
 cleanup_transient_build_state() {
+	# Candidate-only cleanup must never resolve a stable path into a published root.
 	rm -rf -- "${CARGO_TARGET_DIR}" "${LOCAL_BUILD_CANDIDATE}" \
-		"${BUILD_ROOT}/runtime"/.native-engine-*
+		"${CURRENT_POINTER_STAGING}"
 }
 
 
 #============================================
 retire_obsolete_owned_build_state() {
 	# These fixed paths are historical compiler or staging outputs owned by the
-	# local build. Retire them while holding the build lock; retain build/bin and
-	# build/runtime so a failed candidate build never removes the prior program.
+	# local build. Retire them while holding the build lock before staging a new
+	# program. A direct build/bin or build/runtime directory predates the sole
+	# current-pointer topology and is disposable local build output.
+	if [[ ! -L "${STABLE_BIN_ROOT}" ]]; then
+		rm -rf -- "${STABLE_BIN_ROOT}"
+	fi
+	if [[ ! -L "${STABLE_RUNTIME_ROOT}" ]]; then
+		rm -rf -- "${STABLE_RUNTIME_ROOT}"
+	fi
 	rm -rf -- "${LEGACY_WHEEL_ROOT}" "${OBSOLETE_BUILD_CARGO_TARGET}" \
 		"${OBSOLETE_RUST_TARGET}" "${OBSOLETE_PYO3_TARGET}" \
+		"${BUILD_ROOT}"/.cargo-target "${BUILD_ROOT}"/.cargo-target-* \
+		"${BUILD_ROOT}"/.current-next-* \
 		"${BUILD_ROOT}"/.ferrum-local-build-* \
-		"${BUILD_ROOT}"/.previous-local-build-*
+		"${BUILD_ROOT}"/.previous-local-build-* \
+		"${PROGRAMS_ROOT}"/.staging-*
 }
 
 
 #============================================
-acquire_build_lock() {
-	local owner="unknown"
-	mkdir -p "${BUILD_ROOT}"
-	if ! mkdir "${BUILD_LOCK_DIR}" 2>/dev/null; then
-		if [[ -r "${BUILD_LOCK_DIR}/pid" ]]; then
-			owner="$(<"${BUILD_LOCK_DIR}/pid")"
-		fi
-		fail "another ./build.sh invocation owns ${BUILD_ROOT} (PID ${owner}); wait or inspect the stale ${BUILD_LOCK_DIR}"
+initialize_program_topology() {
+	mkdir -p "${PROGRAMS_ROOT}"
+	if [[ ! -e "${STABLE_BIN_ROOT}" && ! -L "${STABLE_BIN_ROOT}" ]]; then
+		ln -s "current/bin" "${STABLE_BIN_ROOT}"
 	fi
-	BUILD_LOCK_HELD=1
-	if ! printf '%s\n' "$$" >"${BUILD_LOCK_DIR}/pid"; then
-		rmdir "${BUILD_LOCK_DIR}" || printf 'build error: cannot release failed build lock %s\n' "${BUILD_LOCK_DIR}" >&2
-		BUILD_LOCK_HELD=0
-		fail "cannot record local build ownership in ${BUILD_LOCK_DIR}"
+	if [[ ! -e "${STABLE_RUNTIME_ROOT}" && ! -L "${STABLE_RUNTIME_ROOT}" ]]; then
+		ln -s "current/runtime" "${STABLE_RUNTIME_ROOT}"
 	fi
-	if ! printf '%s\n' "${BUILD_LOCK_OWNER}" >"${BUILD_LOCK_DIR}/owner"; then
-		rm -f "${BUILD_LOCK_DIR}/pid"
-		rmdir "${BUILD_LOCK_DIR}" || printf 'build error: cannot release failed build lock %s\n' "${BUILD_LOCK_DIR}" >&2
-		BUILD_LOCK_HELD=0
-		fail "cannot record local build owner token in ${BUILD_LOCK_DIR}"
-	fi
-}
-
-
-#============================================
-release_build_lock() {
-	if (( BUILD_LOCK_HELD )); then
-		if [[ ! -r "${BUILD_LOCK_DIR}/owner" ]] \
-			|| [[ "$(<"${BUILD_LOCK_DIR}/owner")" != "${BUILD_LOCK_OWNER}" ]]; then
-			printf 'build error: cannot release a build lock whose owner changed: %s\n' \
-				"${BUILD_LOCK_DIR}" >&2
-			return 1
-		fi
-		if ! rm "${BUILD_LOCK_DIR}/pid" "${BUILD_LOCK_DIR}/owner"; then
-			printf 'build error: cannot remove this build owner records: %s\n' \
-				"${BUILD_LOCK_DIR}" >&2
-			return 1
-		fi
-		if ! rmdir "${BUILD_LOCK_DIR}"; then
-			printf 'build error: cannot release nonempty build lock for inspection: %s\n' \
-				"${BUILD_LOCK_DIR}" >&2
-			return 1
-		fi
-		BUILD_LOCK_HELD=0
-	fi
+	[[ -L "${STABLE_BIN_ROOT}" && "$(readlink "${STABLE_BIN_ROOT}")" == "current/bin" ]] \
+		|| fail "local launcher root must resolve through ${CURRENT_PROGRAM}"
+	[[ -L "${STABLE_RUNTIME_ROOT}" && "$(readlink "${STABLE_RUNTIME_ROOT}")" == "current/runtime" ]] \
+		|| fail "local runtime root must resolve through ${CURRENT_PROGRAM}"
 }
 
 
@@ -128,9 +107,6 @@ release_build_lock() {
 finish_build() {
 	local status="$?"
 	if ! cleanup_transient_build_state; then
-		status=1
-	fi
-	if ! release_build_lock; then
 		status=1
 	fi
 	exit "${status}"
@@ -163,8 +139,51 @@ write_gui_launcher() {
 	(
 		cd "${RUST_ROOT}"
 		python3 -m engine_lib.local_runtime_launcher \
-			--write-gui --launcher-path "${CANDIDATE_GUI}"
+			--write-gui --launcher-path "${CANDIDATE_GUI}.program"
 	)
+	write_runtime_lease_launcher "${CANDIDATE_GUI}" "ferrum-qt.program"
+}
+
+
+#============================================
+write_runtime_lease_launcher() {
+	local launcher_path="$1"
+	local program_name="$2"
+
+	cat >"${launcher_path}" <<EOF
+#!/usr/bin/env bash
+# Hold this immutable program root's shared runtime lease through exec.
+
+set -euo pipefail
+
+readonly PROGRAM_ROOT="\$(cd -P "\$(dirname "\${BASH_SOURCE[0]}")" && cd -P .. && pwd -P)"
+readonly RUNTIME_LEASE="\${PROGRAM_ROOT}/.ferrum-runtime.lease"
+readonly PROGRAM_EXECUTABLE="\${PROGRAM_ROOT}/bin/${program_name}"
+
+[[ -f "\${RUNTIME_LEASE}" ]] || {
+	printf 'ferrum local runtime lease is missing: %s\\n' "\${RUNTIME_LEASE}" >&2
+	exit 1
+}
+[[ -x "\${PROGRAM_EXECUTABLE}" ]] || {
+	printf 'ferrum local program executable is missing: %s\\n' "\${PROGRAM_EXECUTABLE}" >&2
+	exit 1
+}
+
+# Perl retains this descriptor across exec only after FD_CLOEXEC is cleared.
+# The exec'd CLI or Python Qt process therefore retains LOCK_SH until it exits.
+exec /usr/bin/perl -e '
+	use Fcntl qw(:flock F_SETFD);
+	open my \$lease, "<", shift
+		or die "ferrum local runtime lease cannot open: \$!\\n";
+	flock(\$lease, LOCK_SH)
+		or die "ferrum local runtime lease cannot lock: \$!\\n";
+	fcntl(\$lease, F_SETFD, 0)
+		or die "ferrum local runtime lease cannot clear close-on-exec: \$!\\n";
+	exec { \$ARGV[0] } @ARGV;
+	die "ferrum local program cannot exec: \$!\\n";
+' "\${RUNTIME_LEASE}" "\${PROGRAM_EXECUTABLE}" "\$@"
+EOF
+	chmod 755 "${launcher_path}"
 }
 
 
@@ -173,9 +192,12 @@ build_local_program() {
 	local extension_source local_extension
 
 	retire_obsolete_owned_build_state
+	initialize_program_topology
+	cleanup_unreachable_programs
 	cleanup_transient_build_state
 	require_checkout_budget
 	mkdir -p "${LOCAL_BUILD_CANDIDATE}/bin"
+	: >"${CANDIDATE_RUNTIME_LEASE}"
 	(
 		cd "${RUST_ROOT}"
 		env CARGO_TARGET_DIR="${CARGO_TARGET_DIR}" \
@@ -195,7 +217,8 @@ build_local_program() {
 	[[ -f "${CANDIDATE_ENGINE_BUNDLE}/ferrum-engine-bundle-v1.json" ]] || \
 		fail "local engine build did not produce its sealed CLI bundle"
 
-	install -m 755 "${CARGO_TARGET_DIR}/release/ferrum" "${CANDIDATE_CLI}"
+	install -m 755 "${CARGO_TARGET_DIR}/release/ferrum" "${CANDIDATE_CLI}.program"
+	write_runtime_lease_launcher "${CANDIDATE_CLI}" "ferrum.program"
 	install -m 755 "${extension_source}" "${local_extension}"
 	write_gui_launcher
 	python3 "${LOCAL_RUNTIME_RECEIPT}" write \
@@ -214,99 +237,125 @@ build_local_program() {
 
 
 #============================================
-restore_saved_local_program() {
-	local previous_root="$1"
-	local restore_runtime="$2"
-	local restore_bin="$3"
-	local recovery_failed=0
+promote_local_program() {
+	local program_root="${PROGRAMS_ROOT}/program-${BUILD_LOCK_OWNER}"
 
-	if (( restore_runtime )); then
-		if ! rm -rf "${BUILD_ROOT}/runtime"; then
-			printf 'build error: cannot clear candidate runtime during recovery: %s\n' \
-				"${BUILD_ROOT}/runtime" >&2
-			recovery_failed=1
-		elif ! mv "${previous_root}/runtime" "${BUILD_ROOT}/runtime"; then
-			printf 'build error: cannot restore prior runtime from %s\n' \
-				"${previous_root}/runtime" >&2
-			recovery_failed=1
-		fi
+	[[ ! -e "${program_root}" && ! -L "${program_root}" ]] || \
+		fail "local program root already exists: ${program_root}"
+	mv "${LOCAL_BUILD_CANDIDATE}" "${program_root}"
+	if [[ "${FERRUM_BUILD_KILL_AFTER_PROGRAM_RENAME:-}" == "1" ]]; then
+		# Test-only crash checkpoint: the program root is now immutable but still
+		# unreachable through current. The E2E kills this process group here.
+		printf 'program-rename-ready\n' >&2
+		while :; do sleep 1; done
 	fi
-	if (( restore_bin )); then
-		if ! rm -rf "${BUILD_ROOT}/bin"; then
-			printf 'build error: cannot clear candidate launchers during recovery: %s\n' \
-				"${BUILD_ROOT}/bin" >&2
-			recovery_failed=1
-		elif ! mv "${previous_root}/bin" "${BUILD_ROOT}/bin"; then
-			printf 'build error: cannot restore prior launchers from %s\n' \
-				"${previous_root}/bin" >&2
-			recovery_failed=1
-		fi
+	ln -s "programs/$(basename "${program_root}")" "${CURRENT_POINTER_STAGING}"
+	if [[ "${FERRUM_BUILD_FAIL_AFTER_POINTER_STAGE:-}" == "1" ]]; then
+		fail "injected interruption after current-pointer staging"
 	fi
-	if (( recovery_failed )); then
-		printf 'build error: local build recovery is incomplete; recover retained components from %s\n' \
-			"${previous_root}" >&2
-		return 1
-	fi
-	if ! rm -rf "${previous_root}"; then
-		printf 'build error: restored the prior local program but cannot remove recovery path: %s\n' \
-			"${previous_root}" >&2
-		return 1
-	fi
+	python3 -c 'import os, sys; os.replace(sys.argv[1], sys.argv[2])' \
+		"${CURRENT_POINTER_STAGING}" "${CURRENT_PROGRAM}"
+	cleanup_inactive_programs "${program_root}"
 }
 
 
 #============================================
-promote_local_program() {
-	local previous_root="${BUILD_ROOT}/.previous-local-build-${BUILD_LOCK_OWNER}"
-	local saved_runtime=0
-	local saved_bin=0
-	[[ ! -e "${previous_root}" && ! -L "${previous_root}" ]] || \
-		fail "local build recovery path already exists: ${previous_root}"
-	if ! mkdir "${previous_root}"; then
-		fail "cannot create local build recovery path: ${previous_root}"
+program_root_lease_is_exclusive() {
+	local program_root="$1"
+
+	/usr/bin/perl -e '
+		use Errno qw(EAGAIN EWOULDBLOCK);
+		use Fcntl qw(:flock);
+		open my $lease, "<", shift @ARGV or exit 2;
+		flock($lease, LOCK_EX | LOCK_NB) or
+			exit($! == EAGAIN || $! == EWOULDBLOCK ? 1 : 2);
+	' "${program_root}/.ferrum-runtime.lease"
+}
+
+
+#============================================
+cleanup_inactive_program_root() {
+	local program_root="$1"
+	local runtime_lease="${program_root}/.ferrum-runtime.lease"
+	local lease_status
+
+	if [[ ! -f "${runtime_lease}" || -L "${runtime_lease}" || ! -r "${runtime_lease}" ]]; then
+		printf 'Removing malformed local program without a readable regular runtime lease: %s\n' \
+			"${program_root}" >&2
+		rm -rf -- "${program_root}"
+		return
 	fi
-	if [[ -e "${BUILD_ROOT}/runtime" || -L "${BUILD_ROOT}/runtime" ]]; then
-		if ! mv "${BUILD_ROOT}/runtime" "${previous_root}/runtime"; then
-			rm -rf "${previous_root}"
-			fail "cannot save the existing local runtime for promotion"
-		fi
-		saved_runtime=1
+	if program_root_lease_is_exclusive "${program_root}"; then
+		rm -rf -- "${program_root}"
+		return
+	else
+		lease_status="$?"
 	fi
-	if [[ -e "${BUILD_ROOT}/bin" || -L "${BUILD_ROOT}/bin" ]]; then
-		if ! mv "${BUILD_ROOT}/bin" "${previous_root}/bin"; then
-			if ! restore_saved_local_program "${previous_root}" "${saved_runtime}" "${saved_bin}"; then
-				fail "cannot save the existing local launchers for promotion; recovery is incomplete"
-			fi
-			fail "cannot save the existing local launchers for promotion; restored the prior local program"
-		fi
-		saved_bin=1
+	if [[ "${lease_status}" == "1" ]]; then
+		printf 'Retaining lease-held local program: %s\n' "${program_root}" >&2
+		return
 	fi
-	if ! mv "${LOCAL_BUILD_CANDIDATE}/runtime" "${BUILD_ROOT}/runtime"; then
-		if ! restore_saved_local_program "${previous_root}" "${saved_runtime}" "${saved_bin}"; then
-			fail "cannot promote the sealed local runtime; recovery is incomplete"
-		fi
-		fail "cannot promote the sealed local runtime; restored the prior local program"
+	printf 'Retaining indeterminate local program lease: %s\n' "${program_root}" >&2
+}
+
+
+#============================================
+cleanup_unreachable_programs() {
+	local selected_program=""
+	local retained_program
+
+	if [[ -e "${CURRENT_PROGRAM}" || -L "${CURRENT_PROGRAM}" ]]; then
+		[[ -d "${CURRENT_PROGRAM}" ]] || \
+			fail "current local program does not resolve to a directory: ${CURRENT_PROGRAM}"
+		selected_program="$(cd "${CURRENT_PROGRAM}" && pwd -P)"
 	fi
-	if ! mv "${LOCAL_BUILD_CANDIDATE}/bin" "${BUILD_ROOT}/bin"; then
-		if ! restore_saved_local_program "${previous_root}" "${saved_runtime}" "${saved_bin}"; then
-			fail "cannot promote the sealed local launchers; recovery is incomplete"
-		fi
-		fail "cannot promote the sealed local launchers; restored the prior local program"
-	fi
-	if ! python3 "${LOCAL_RUNTIME_RECEIPT}" validate \
-		--runtime-root "${LOCAL_PYTHON_ROOT}"; then
-		if ! restore_saved_local_program "${previous_root}" "${saved_runtime}" "${saved_bin}"; then
-			fail "promoted local runtime failed its receipt validation; recovery is incomplete"
-		fi
-		fail "promoted local runtime failed its receipt validation; restored the prior local program"
-	fi
-	rm -rf "${previous_root}" "${LOCAL_BUILD_CANDIDATE}"
+	for retained_program in "${PROGRAMS_ROOT}"/program-*; do
+		[[ -d "${retained_program}" && ! -L "${retained_program}" ]] || continue
+		[[ "$(cd "${retained_program}" && pwd -P)" == "${selected_program}" ]] && continue
+		cleanup_inactive_program_root "${retained_program}"
+	done
+}
+
+
+#============================================
+cleanup_inactive_programs() {
+	local selected_program="$1"
+	local retained_program
+
+	for retained_program in "${PROGRAMS_ROOT}"/program-*; do
+		[[ "${retained_program}" == "${selected_program}" ]] && continue
+		[[ -d "${retained_program}" && ! -L "${retained_program}" ]] || continue
+		cleanup_inactive_program_root "${retained_program}"
+	done
 }
 
 
 case "${1:-}" in
 	"")
-		acquire_build_lock
+		mkdir -p "${BUILD_ROOT}"
+		: >>"${BUILD_LOCK_PATH}"
+		exec /usr/bin/perl -e '
+			use Fcntl qw(:flock F_SETFD FD_CLOEXEC);
+			open my $lock, ">>", shift @ARGV
+				or die "build error: cannot open the local build lock: $!\\n";
+			flock($lock, LOCK_EX | LOCK_NB)
+				or die "build error: another ./build.sh invocation owns the local build; wait for it to finish\\n";
+			fcntl($lock, F_SETFD, FD_CLOEXEC)
+				or die "build error: cannot isolate the local build lock: $!\\n";
+			my $child = fork;
+			defined $child or die "build error: cannot enter the locked local build lifecycle: $!\\n";
+			if ($child == 0) {
+				exec @ARGV or die "build error: cannot enter the locked local build lifecycle: $!\\n";
+			}
+			$SIG{INT} = $SIG{TERM} = $SIG{HUP} = sub {
+				kill "TERM", $child;
+				exit 1;
+			};
+			waitpid($child, 0);
+			exit($? >> 8);
+		' "${BUILD_LOCK_PATH}" "${BASH_SOURCE[0]}" --locked
+		;;
+	--locked)
 		trap finish_build EXIT
 		trap 'exit 1' INT TERM HUP
 		build_local_program

@@ -37,6 +37,8 @@ use super::{
 
 mod admitted_transition_v1;
 #[doc(hidden)]
+pub mod attached_compact_group;
+#[doc(hidden)]
 pub mod attached_cyclohexane;
 mod bracket;
 mod catalog_molecule_placement;
@@ -51,6 +53,10 @@ mod gestures;
 mod hydrogen_materialization;
 mod interchange;
 mod linear_form;
+mod live_structural_targets;
+mod live_chemical_targets;
+mod live_presentation_targets;
+pub use live_chemical_targets::LiveChemicalPresentationTargetV1;
 mod molecule_creation;
 mod prepared;
 mod presentation_creation;
@@ -78,6 +84,10 @@ pub use admitted_transition_v1::{
 /// general attachment API: the document session retains admission, fencing, deferred IDs,
 /// and atomic commit authority.
 pub use attached_cyclohexane::{AttachedCyclohexaneSessionErrorV1, PendingAttachedCyclohexaneV1};
+pub use attached_compact_group::{
+    AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
+    AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1, PendingAttachedCompactGroupV1,
+};
 pub use bracket::PendingCreateBracket;
 pub use clipboard::DocumentClipboardPasteResultV1;
 #[allow(unused_imports)]
@@ -86,7 +96,7 @@ pub use linear_form::{PendingLinearFormConvertV1, PreparedLinearFormConvertResul
 pub use presentation_creation::{
     PresentationAppearanceV1, PresentationCreateRequestV1, PresentationVectorCreateKindV1,
 };
-pub use structural_deletion::PendingDeleteStructureV1;
+pub use structural_deletion::{PendingDeleteCompactGroupV1, PendingDeleteStructureV1};
 pub use text_placement::PendingTextPlacementV1;
 pub use user_template::DocumentUserTemplateResultV1;
 pub use wavy::PendingCreateWavy;

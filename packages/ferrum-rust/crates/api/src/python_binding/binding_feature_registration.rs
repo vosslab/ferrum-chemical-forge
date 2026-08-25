@@ -14,7 +14,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::document_linear_form_binding::initialize(module)?;
     super::document_explicit_fragment_binding::initialize(module)?;
     super::document_molecule_inchi_binding::initialize(module)?;
-    super::document_molecule_information_binding::initialize(module)?;
     super::document_bond_capacity_binding::initialize(module)?;
     super::document_molecule_inspection_binding::initialize(module)?;
     super::document_molecule_molblock_binding::initialize(module)?;

@@ -13,14 +13,17 @@ _GUI_LAUNCHER = """#!/usr/bin/env bash
 
 set -euo pipefail
 
-readonly BUILD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly REPO_ROOT="$(cd "${BUILD_ROOT}/.." && pwd)"
-readonly LOCAL_PYTHON_ROOT="${BUILD_ROOT}/runtime/python"
+readonly PROGRAM_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+readonly REPO_ROOT="$(cd "${PROGRAM_ROOT}/../../.." && pwd -P)"
+readonly LOCAL_PYTHON_ROOT="${PROGRAM_ROOT}/runtime/python"
 readonly QT_SOURCE_ROOT="${REPO_ROOT}/packages/ferrum-chem-qt.app"
 readonly LOCAL_RUNTIME_RECEIPT="${REPO_ROOT}/packages/ferrum-rust/local_runtime_receipt.py"
 
+[[ -f "${REPO_ROOT}/source_me.sh" ]] || {
+	printf 'ferrum local repository bootstrap is missing: %s\\n' "${REPO_ROOT}/source_me.sh" >&2
+	exit 1
+}
 source "${REPO_ROOT}/source_me.sh"
-export PYTHONPATH="${LOCAL_PYTHON_ROOT}:${QT_SOURCE_ROOT}"
 python3 "${LOCAL_RUNTIME_RECEIPT}" validate --runtime-root "${LOCAL_PYTHON_ROOT}"
 exec python3 -m ferrum_qt "$@"
 """

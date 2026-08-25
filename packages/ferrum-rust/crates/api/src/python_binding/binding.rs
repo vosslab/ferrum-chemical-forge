@@ -23,12 +23,11 @@ use super::projection_binding::{
     PyArrowHeadShapeV1, PyArrowPathV1, PyArrowProjectionKindV1, PyArrowProjectionV1,
     PyAtomMarkProjectionV1, PyAtomProjectionV1, PyBondEndpointV1, PyBondProjectionV1,
     PyBoxShapeProjectionV1, PyCompactGroupProjectionV1, PyDocumentHaworthPositionV1,
-    PyDocumentProjectionV1, PyFontFactsV1,
-    PyMoleculeProjectionV1, PyPlusProjectionV1, PyPoint3V1, PyPolygonPathV1, PyPolygonProjectionV1,
-    PyPolylinePathV1, PyPolylineProjectionV1, PyPresentationBoundsV1, PyPresentationFillV1,
-    PyPresentationFontV1, PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1,
-    PyPresentationStrokeV1, PyPresentationTargetV1, PyProjectionIssueV1,
-    PySessionDocumentObservationV1,
+    PyDocumentProjectionV1, PyFontFactsV1, PyMoleculeProjectionV1, PyPlusProjectionV1, PyPoint3V1,
+    PyPolygonPathV1, PyPolygonProjectionV1, PyPolylinePathV1, PyPolylineProjectionV1,
+    PyPresentationBoundsV1, PyPresentationFillV1, PyPresentationFontV1,
+    PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1, PyPresentationStrokeV1,
+    PyPresentationTargetV1, PyProjectionIssueV1, PySessionDocumentObservationV1,
 };
 use super::render_binding;
 pub(crate) use super::session_operation_result_binding::{
@@ -114,11 +113,16 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         "PublicationPossiblyCompletedError",
         module.py().get_type::<PublicationPossiblyCompletedError>(),
     )?;
+    super::attached_compact_group_binding::initialize(module)?;
     super::attached_cyclohexane_binding::initialize(module)?;
     super::document_native_artifact_binding::register(module)?;
     module.add_class::<PyDocumentSession>()?;
     module
         .add_class::<super::live_document_operation_binding::PyLiveDocumentOperationReceiptV1>()?;
+    module.add_class::<
+        super::live_document_operation_binding::PyLiveCompactGroupMaterializationAvailabilityReceiptV1,
+    >()?;
+    module.add_class::<super::live_atom_chemistry_binding::PyLiveAtomOxidationObservationV1>()?;
     module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsReceiptV1>()?;
     module
         .add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedReadinessV1>(

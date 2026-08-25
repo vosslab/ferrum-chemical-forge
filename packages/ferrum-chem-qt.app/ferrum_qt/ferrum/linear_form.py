@@ -22,7 +22,7 @@ class FerrumNativeLinearFormCapture:
 
 #============================================
 def capture_linear_form_selection(tab: object) -> FerrumNativeLinearFormCapture | None:
-	"""Expand selected bonds and freeze one source-ordered direct-root atom selection."""
+	"""Expand selected bonds and freeze one durable direct-root atom selection."""
 	if getattr(tab, "requires_refresh", True):
 		return None
 	targets = tab.selected_molecule_information_targets()
@@ -30,53 +30,53 @@ def capture_linear_form_selection(tab: object) -> FerrumNativeLinearFormCapture 
 		return None
 	observation = tab.current_document_observation()
 	molecules = observation.projection.molecules
-	selected_root_index = None
+	selected_molecule_id = None
 	selected_atom_ids = set()
 	for target in targets:
 		if (
 			target.kind not in ("atom", "bond")
-			or type(target.identifier) is not str
-			or not target.identifier
-			or type(target.source_order) is not int
+			or type(target.durable_object_id) is not str
+			or not target.durable_object_id
+			or type(target.durable_molecule_object_id) is not str
+			or not target.durable_molecule_object_id
 		):
 			return None
-		matches = []
-		for root_index, molecule in enumerate(molecules):
-			children = molecule.atoms if target.kind == "atom" else molecule.bonds
-			matches.extend(
-				(root_index, molecule, child) for child in children
-				if child.source_id == target.identifier
-				and child.source_order == target.source_order
-			)
-		if len(matches) != 1:
-			return None
-		root_index, _molecule, child = matches[0]
-		if selected_root_index is None:
-			selected_root_index = root_index
-		elif selected_root_index != root_index:
+		if selected_molecule_id is None:
+			selected_molecule_id = target.durable_molecule_object_id
+		elif selected_molecule_id != target.durable_molecule_object_id:
 			return None
 		if target.kind == "atom":
-			selected_atom_ids.add(target.identifier)
+			selected_atom_ids.add(target.durable_object_id)
 		else:
-			endpoints = (child.start, child.end)
+			matches = [
+				bond
+				for molecule in molecules
+				if molecule.id == target.durable_molecule_object_id
+				for bond in molecule.bonds
+				if bond.id == target.durable_object_id
+			]
+			if len(matches) != 1:
+				return None
+			endpoints = (matches[0].start, matches[0].end)
 			if any(
 				endpoint.kind != "atom"
-				or type(endpoint.source_id) is not str
-				or not endpoint.source_id
+				or type(endpoint.object_id) is not str
+				or not endpoint.object_id
 				for endpoint in endpoints
 			):
 				return None
-			selected_atom_ids.update(endpoint.source_id for endpoint in endpoints)
-	if selected_root_index is None:
+			selected_atom_ids.update(endpoint.object_id for endpoint in endpoints)
+	if selected_molecule_id is None:
 		return None
-	molecule = molecules[selected_root_index]
-	if type(molecule.id) is not str or not molecule.id:
+	molecule_matches = [molecule for molecule in molecules if molecule.id == selected_molecule_id]
+	if len(molecule_matches) != 1:
 		return None
+	molecule = molecule_matches[0]
 	ordered_atoms = tuple(
 		atom for atom in molecule.atoms
-		if atom.source_id in selected_atom_ids
+		if atom.id in selected_atom_ids
 	)
-	atom_ids = tuple(atom.source_id for atom in ordered_atoms)
+	atom_ids = tuple(atom.id for atom in ordered_atoms)
 	if (
 		not atom_ids
 		or len(atom_ids) != len(selected_atom_ids)
@@ -86,7 +86,7 @@ def capture_linear_form_selection(tab: object) -> FerrumNativeLinearFormCapture 
 		return None
 	snapshot = observation.snapshot
 	return FerrumNativeLinearFormCapture(
-		tab, snapshot.revision, snapshot.digest, molecule.id, atom_ids,
+		tab, snapshot.revision, snapshot.digest, selected_molecule_id, atom_ids,
 	)
 
 

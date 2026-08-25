@@ -2,19 +2,13 @@
 
 # Standard Library
 import dataclasses
-import json
 
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
-from ferrum_qt.ferrum.background_job import FerrumDetachedJobThread
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
-
-# local repo modules
-import ferrum_qt.ferrum.engine as engine
-
 
 #============================================
 _OPERATION_KIND = "document.atom.oxidation.observe.v1"
@@ -31,6 +25,7 @@ _UNAVAILABLE_RECOVERY = {
 	"coordination_or_delocalization_unsupported": "Use a non-coordination materialized molecule.",
 	"component_invariant_failed": "Repair the authored molecular graph, then run again.",
 	"arithmetic_overflow": "Use a smaller supported molecular graph.",
+	"resource_limit": "Use a smaller supported molecular graph.",
 }
 
 
@@ -44,8 +39,6 @@ class _AtomOxidationIntent:
 	digest: str
 	molecule_id: str
 	atom_id: str
-	document_root_order: int
-	worker: object
 
 
 #============================================
@@ -58,89 +51,6 @@ class _AtomOxidationPresentation:
 
 
 #============================================
-@dataclasses.dataclass(frozen=True, slots=True)
-class FerrumNativeAtomOxidationFailure:
-	"""Terminal public-operation transport failure."""
-
-	message: str
-
-
-#============================================
-def _request_json(address: object) -> str:
-	"""Build the one public operation request from a frozen selection address."""
-	request = {
-		"schema": "ferrum-operation-request-v1",
-		"request_id": "qt-atom-oxidation",
-		"operation": {
-			"kind": _OPERATION_KIND,
-			"document": {
-				"cdml": address.document,
-				"expected_revision": address.revision,
-				"expected_digest_hex": address.digest,
-			},
-			"molecule_id": address.molecule_id,
-			"atom_id": address.atom_id,
-		},
-	}
-	return json.dumps(request, separators=(",", ":"), ensure_ascii=True)
-
-
-#============================================
-def _execute_request(request_json: str) -> dict:
-	"""Run only the generic public JSON gateway and decode its envelope."""
-	response = json.loads(engine.extension_module().execute_operation_v1(request_json))
-	if type(response) is not dict:
-		raise TypeError("Ferrum atom oxidation returned a non-object protocol envelope")
-	return response
-
-
-#============================================
-class FerrumNativeAtomOxidationWorker(FerrumDetachedJobThread):
-	"""Deliver one public observation off the Qt event thread."""
-
-	observed = PySide6.QtCore.Signal(object)
-
-	#============================================
-	def __init__(self, request_json: str) -> None:
-		"""Retain protocol text only while the Rust call runs."""
-		if type(request_json) is not str:
-			raise TypeError("Ferrum atom oxidation requires a JSON request string")
-		super().__init__(
-			lambda: _execute_request(request_json),
-			lambda error: FerrumNativeAtomOxidationFailure(str(error)),
-		)
-
-	#============================================
-	def _emit_success(self, result: object) -> None:
-		"""Publish one decoded public envelope."""
-		self.observed.emit(result)
-
-
-#============================================
-class _AtomOxidationDeliveryRelay(PySide6.QtCore.QObject):
-	"""Forward queued worker events with their exact sender identity."""
-
-	#============================================
-	def __init__(self, owner: object) -> None:
-		super().__init__(owner)
-		self._owner = owner
-
-	#============================================
-	@PySide6.QtCore.Slot(object)
-	def on_observed(self, response: object) -> None:
-		self._owner._on_atom_oxidation_observed(self.sender(), response)
-
-	#============================================
-	@PySide6.QtCore.Slot(object)
-	def on_failed(self, failure: object) -> None:
-		self._owner._on_atom_oxidation_failed(self.sender(), failure)
-
-	#============================================
-	@PySide6.QtCore.Slot()
-	def on_finished(self) -> None:
-		self._owner._on_atom_oxidation_finished(self.sender())
-
-
 #============================================
 def _number_text(number: int) -> str:
 	"""Render a protocol-provided signed integer without deriving chemistry."""
@@ -277,7 +187,6 @@ class FerrumNativeAtomOxidationMixin:
 		self._atom_oxidation_intent: _AtomOxidationIntent | None = None
 		self._atom_oxidation_presentation: _AtomOxidationPresentation | None = None
 		self._atom_oxidation_dialog: FerrumNativeAtomOxidationDialog | None = None
-		self._atom_oxidation_relay = _AtomOxidationDeliveryRelay(self)
 
 	#============================================
 	def _build_atom_oxidation_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
@@ -306,12 +215,12 @@ class FerrumNativeAtomOxidationMixin:
 
 	#============================================
 	def _start_atom_oxidation(self) -> bool:
-		"""Capture one active selected-atom source and start its public operation."""
+		"""Capture one active selected atom and observe it through the live session."""
 		return self._start_atom_oxidation_for_tab(self._active_native_tab())
 
 	#============================================
 	def _start_atom_oxidation_for_tab(self, tab: object | None) -> bool:
-		"""Submit one fresh operation only for the original active source tab."""
+		"""Observe one fresh durable selected atom only on its original live tab."""
 		if (
 			self._atom_oxidation_busy()
 			or self._molecule_import_busy()
@@ -333,101 +242,63 @@ class FerrumNativeAtomOxidationMixin:
 		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 			return False
-		worker = FerrumNativeAtomOxidationWorker(_request_json(address))
-		self._atom_oxidation_intent = _AtomOxidationIntent(
+		intent = _AtomOxidationIntent(
 			tab, address.revision, address.digest, address.molecule_id, address.atom_id,
-			address.document_root_order, worker,
 		)
-		connection = PySide6.QtCore.Qt.ConnectionType.QueuedConnection
-		worker.observed.connect(self._atom_oxidation_relay.on_observed, connection)
-		worker.failed.connect(self._atom_oxidation_relay.on_failed, connection)
-		worker.finished.connect(self._atom_oxidation_relay.on_finished, connection)
+		self._atom_oxidation_intent = intent
 		self.statusBar().showMessage(self.tr("Observing atom oxidation state with Ferrum Rust..."), 0)
 		self._refresh_actions()
-		worker.start()
+		try:
+			receipt = tab._session.observe_live_atom_oxidation_v1(
+				address.revision, address.digest, address.molecule_id, address.atom_id,
+			)
+			observation = self._observation_from_live_receipt(intent, receipt)
+		except (TypeError, ValueError, RuntimeError) as exc:
+			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			self._record_atom_oxidation_presentation(intent, "failed")
+		else:
+			if observation is None:
+				self._show_edit_refusal(self._unavailable_edit_refusal(
+					"Ferrum returned an invalid live atom oxidation observation.",
+				))
+				self._record_atom_oxidation_presentation(intent, "failed")
+			else:
+				details = _accepted_text(observation) if observation["status"] == "accepted" else (
+					_unavailable_text(observation)
+				)
+				self._show_atom_oxidation_dialog(
+					intent, details, "Current source document revision {0}.".format(intent.revision),
+					"succeeded" if observation["status"] == "accepted" else "unavailable",
+				)
+		self._finish_atom_oxidation_intent(intent)
 		return True
 
 	#============================================
-	def _current_atom_oxidation_intent(self, worker: object) -> _AtomOxidationIntent | None:
-		intent = self._atom_oxidation_intent
-		if intent is None or worker is not intent.worker or worker.delivery_cancelled:
-			return None
-		if self._native_tabs_by_page.get(intent.tab) is not intent.tab or intent.tab.requires_refresh:
-			return None
-		snapshot = intent.tab.current_snapshot
-		if snapshot.revision != intent.revision or snapshot.digest != intent.digest:
-			return None
-		return intent
-
-	#============================================
-	def _observation_from_response(self, intent: _AtomOxidationIntent,
-			response: object) -> dict | None:
-		if type(response) is not dict or response.get("schema") != "ferrum-operation-response-v1":
-			return None
-		outcome = response.get("outcome")
-		if type(outcome) is not dict or outcome.get("kind") != _OPERATION_KIND:
-			return None
-		observation = outcome.get("observation")
+	def _observation_from_live_receipt(self, intent: _AtomOxidationIntent,
+			receipt: object) -> dict | None:
+		"""Copy one frozen live Rust receipt into the dialog's closed display vocabulary."""
 		if (
-			type(observation) is not dict
-			or observation.get("schema") != "ferrum-document-atom-oxidation-observation-v1"
-			or observation.get("source_revision") != intent.revision
-			or observation.get("source_digest_hex") != intent.digest
-			or observation.get("molecule_id") != intent.molecule_id
-			or observation.get("atom_id") != intent.atom_id
-			or observation.get("document_root_order") != intent.document_root_order
-			or observation.get("convention") != _CONVENTION
+			type(getattr(receipt, "source_revision", None)) is not int
+			or receipt.source_revision != intent.revision
+			or getattr(receipt, "source_digest_hex", None) != intent.digest
+			or getattr(receipt, "molecule_object_id", None) != intent.molecule_id
+			or getattr(receipt, "atom_object_id", None) != intent.atom_id
+			or getattr(receipt, "status", None) not in ("accepted", "unavailable")
 		):
 			return None
-		status = observation.get("status")
+		status = receipt.status
 		if status == "accepted":
-			return observation if type(observation.get("oxidation_number")) is int else None
-		if status == "unavailable":
-			reason = observation.get("unavailable_reason")
-			return observation if reason in _UNAVAILABLE_RECOVERY else None
-		return None
-
-	#============================================
-	def _on_atom_oxidation_observed(self, worker: object, response: object) -> None:
-		intent = self._current_atom_oxidation_intent(worker)
-		if intent is None:
-			return
-		if self._active_native_tab() is not intent.tab:
-			self.statusBar().showMessage(self.tr(
-				"Atom Oxidation State result was not displayed because its source document is no longer active.",
-			), 5000)
-			return
-		observation = self._observation_from_response(intent, response)
-		if observation is None:
-			error = response.get("error") if type(response) is dict else None
-			if type(error) is dict and type(error.get("category")) is str:
-				self._show_atom_oxidation_dialog(
-					intent,
-					"Oxidation state: not observed\n{0}".format(error.get("message", "Request refused.")),
-					"The document changed or no longer contains the selected atom. "
-					"Refresh the original document, select one atom, then run again.",
-					"refused",
-				)
-				return
-			self._show_edit_refusal(self._unavailable_edit_refusal(
-				"Ferrum returned an unrecognized atom oxidation observation.",
-			))
-			self._record_atom_oxidation_presentation(intent, "failed")
-			return
-		details = _accepted_text(observation) if observation["status"] == "accepted" else (
-			_unavailable_text(observation)
-		)
-		self._show_atom_oxidation_dialog(
-			intent, details, "Current source document revision {0}.".format(intent.revision),
-			"succeeded" if observation["status"] == "accepted" else "unavailable",
-		)
-
-	#============================================
-	def _on_atom_oxidation_failed(self, worker: object, failure: object) -> None:
-		intent = self._current_atom_oxidation_intent(worker)
-		if intent is not None:
-			self._show_edit_refusal(self._unavailable_edit_refusal(failure.message))
-			self._record_atom_oxidation_presentation(intent, "failed")
+			if type(receipt.oxidation_number) is not int:
+				return None
+			return {
+				"status": "accepted",
+				"oxidation_number": receipt.oxidation_number,
+				"convention": _CONVENTION,
+			}
+		reason = getattr(receipt, "unavailable_reason", None)
+		if reason not in _UNAVAILABLE_RECOVERY:
+			return None
+		return {"status": "unavailable", "unavailable_reason": reason}
 
 	#============================================
 	def _show_atom_oxidation_dialog(self, intent: _AtomOxidationIntent,
@@ -447,7 +318,7 @@ class FerrumNativeAtomOxidationMixin:
 	#============================================
 	def _record_atom_oxidation_presentation(self, intent: _AtomOxidationIntent,
 			terminal_kind: str) -> None:
-		"""Retain one visible terminal outcome until the worker finalizes UI state."""
+		"""Retain one visible terminal outcome until live-session presentation completes."""
 		if self._atom_oxidation_intent is intent:
 			self._atom_oxidation_presentation = _AtomOxidationPresentation(
 				intent, terminal_kind,
@@ -471,14 +342,13 @@ class FerrumNativeAtomOxidationMixin:
 			self._atom_oxidation_dialog = None
 
 	#============================================
-	def _on_atom_oxidation_finished(self, worker: object) -> None:
-		intent = self._atom_oxidation_intent
-		if intent is None or worker is not intent.worker:
+	def _finish_atom_oxidation_intent(self, intent: _AtomOxidationIntent) -> None:
+		"""Release one completed owner-thread live observation and publish its receipt."""
+		if self._atom_oxidation_intent is not intent:
 			return
 		presentation = self._atom_oxidation_presentation
 		self._atom_oxidation_presentation = None
 		self._atom_oxidation_intent = None
-		worker.deleteLater()
 		self._refresh_actions()
 		if presentation is not None and presentation.intent is intent:
 			self._queue_operation_presentation_v1(

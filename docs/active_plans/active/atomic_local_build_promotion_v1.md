@@ -2,29 +2,30 @@
 
 ## Status
 
-Active design plan. This plan is a narrowly scoped hardening follow-on for the
+Completed design plan. This plan is a narrowly scoped hardening follow-on for the
 local Ferrum program promotion boundary. It does not change chemistry,
 rendering, document admission, Qt workflows, or public packaging.
 
 ## Evidence and current stability
 
-The receipt-sealing review at
-`/private/tmp/ferrum-review-local-runtime-receipt-sealing.md` found the current
-receipt V2 sound for the local launcher source binding, artifact hashing,
-sealed `all_test.sh` runtime input, and cleanup direction. Its remaining P2
-issue is structural: the public local program is published through distinct
-`build/bin` and `build/runtime` trees. Recoverable moves can prevent a torn
-write, but they cannot make a reader observe both trees as one transaction.
+The delivered `ferrum-local-runtime-receipt-v4` seals the selected local
+program's extension, native adapter, lease wrappers, and the CLI and Qt
+payloads that the wrappers execute. One immutable `build/programs/program-*`
+root contains the complete local program. Atomic replacement of `build/current`
+publishes that root, while stable `build/bin` and `build/runtime` links preserve
+the local command paths without independently promoting launcher and runtime
+trees. The receipt therefore proves artifacts from one selected root and
+rejects mixed-root combinations.
 
 The P1 repair that validates the candidate under build before publication is a
 separate, earlier hardening item. This plan starts only after that repair is
 present and proven. It neither replaces nor weakens candidate validation.
 
-Graphify identifies `build.sh` as the owner of `build_local_program`, runtime
-cleanup, the checkout-size guard, launcher generation, and the build lock.
-The receipt implementation identifies the current local program as launchers,
-Python runtime, and `engine-v1`; `all_test.sh` consumes the sealed runtime from
-`build/runtime/python` and the two launchers from `build/bin`.
+`build.sh` owns local-program staging, the checkout-size guard, launcher
+generation, build locking, and cleanup. Each launcher holds the immutable
+program root's runtime lease through execution, so cleanup retains active roots
+and reclaims only inactive, non-current owned roots. `all_test.sh` consumes the
+sealed selected runtime through the stable paths.
 
 ## Scope
 
@@ -60,9 +61,10 @@ remains a disposable repository-local build for testing.
 - Artifact-retention policy beyond cleanup necessary to leave one current local
   program and remove failed or superseded temporary build material.
 - General Python package import policy, publishing, installation, or global
-  environment behavior. The `source_me.sh` selector is included only as a
-  repository-local development bootstrap for the staged native runtime; it is
-  not a package-policy, installer, or distribution mechanism.
+  environment behavior. Within this local-build contract, `source_me.sh` owns
+  the GUI import provenance order: repository Qt source first, sealed staged
+  runtime second, then retained caller entries. It is not a package-policy,
+  installer, or distribution mechanism.
 - Changes to chemistry behavior, Qt UI behavior, document admission, or the
   receipt schema's security semantics unless their path references must change
   to describe the selected topology.
@@ -80,10 +82,12 @@ build/
   bin -> current/bin
   runtime -> current/runtime
   programs/
-    <program-id>/
-      bin/
-        ferrum
-        ferrum-qt
+	<program-id>/
+		bin/
+			ferrum
+			ferrum.program
+			ferrum-qt
+			ferrum-qt.program
       runtime/
         python/
           ferrum-local-runtime-receipt.json
@@ -95,9 +99,11 @@ build/
 `build/bin` and `build/runtime` are stable relative references to `current`,
 not independently promoted directories. Existing commands therefore retain
 their spelling while every path resolution reaches the same immutable program
-root. Promotion creates a temporary `build/current.next` symlink to the fully
-validated program root and replaces `build/current` with `os.replace`/the
-platform-equivalent atomic same-directory rename. No read can resolve a new
+root. Promotion creates an owner-unique temporary current-pointer symlink to
+the fully validated program root and replaces `build/current` with
+`os.replace`/the platform-equivalent atomic same-directory rename. Startup
+removes stale owned pointer staging while holding the build lock. No read can
+resolve a new
 launcher with an old runtime after the pointer swap.
 
 The program identifier is an opaque build-local staging identifier, not a
@@ -142,11 +148,25 @@ is the sole public mutation, and existing local paths remain stable.
    after candidate validation succeeds. Stable `build/bin` and `build/runtime`
    links are created once as path infrastructure, or repaired before any build
    starts while no current program is changed.
-6. **Clean only unreachable local build material.** After successful pointer
-   promotion, remove the superseded inactive program and failed staging
-   directories. Keep the selected current root. The cleanup must not scan or
-   remove unrelated repository content, native source inputs, or the active
-   program.
+6. **Clean only lease-inactive local build material.** Before publication,
+   create one stable lease inode inside every immutable program root. Generated
+   CLI and GUI launchers retain a shared advisory lock on that inode through
+   exec and process exit. After successful pointer promotion, cleanup attempts
+   a nonblocking exclusive lock on each non-current `program-*` root's lease: remove when
+   it succeeds, preserve shared-held roots, and fail safe on indeterminate lock
+   errors. A missing, non-regular, or unreadable lease marks a non-current root
+   as malformed pre-production local build output and it is reclaimed. On every
+   locked startup, before the checkout guard or new compiler work, repeat that
+   lease check for non-current `program-*` roots. This recovers an immutable
+	root stranded after its rename but before current-pointer replacement. The
+   20 GiB checkout guard bounds retained local-build storage; cleanup must not
+   scan or remove unrelated repository content, native source inputs, or the
+   active program. After publication, cleanup never mutates a program root
+   through stable `build/current`, `build/bin`, or `build/runtime` paths;
+   candidate-native temporary work is removed only before staging promotion.
+   The wrapper and its executed payload are named closed artifact identities in
+   the receipt; payload resolution derives only from the selected program root
+   and its fixed repository-relative topology (ASVS 5.3.2).
 7. **Update consumers and documentation.** Make `all_test.sh`, receipt
    validation, CLI/Qt launchers, local E2E, and the sourced `source_me.sh`
    bootstrap selector use the authoritative current program root while retaining
@@ -163,6 +183,10 @@ alternate legacy root. A clean build establishes the stable link structure.
 This is a deliberate breaking internal-layout change with preserved developer
 commands.
 
+Under the stable build lock, obsolete direct `build/bin` and `build/runtime`
+directories are retired before candidate staging. They are disposable local
+build artifacts, not a launchable program or lease-bearing compatibility root.
+
 ## Verification design
 
 ### Permanent tests
@@ -178,8 +202,8 @@ Add only behavior-level tests that prove stable contracts:
 - build helper tests show an invalid candidate cannot replace the current
   pointer and that a successful candidate does;
 - cleanup tests use a temporary build root and prove it retains the selected
-  program while removing only its inactive staged/superseded local program
-  directories;
+  program and a valid lease-held superseded root while removing inactive owned
+  or malformed `program-*` directories, without touching unrelated content;
 - existing local CLI smoke, Python binding, Qt, and repository-hygiene gates
   remain part of `./all_test.sh`.
 
@@ -187,6 +211,12 @@ These are permanent because they protect stable build contracts and resource
 safety. They must use temporary directories and synthetic small trees, with no
 network, native rebuild, timing threshold, real user home, or screenshot
 assertion.
+
+A deterministic lifecycle test covers missing, non-regular, and unreadable
+lease states. It does not force a genuine non-contention lease-probe error:
+the supported platform offers no deterministic fixture for that error without
+fragile syscall monkeypatching, so fail-safe retention for such an error remains
+a documented residual behavior.
 
 ### One-time failure-injection evidence
 
@@ -215,8 +245,12 @@ build or filesystem fault injection unavailable in normal test environments.
 - `build/bin/ferrum`, `build/bin/ferrum-qt`, and `build/runtime/python` always
   resolve through the same selected root.
 - A failed candidate build preserves the prior runnable local program.
+- A locked startup removes an inactive promoted-root orphan after a crash before
+  pointer replacement, while preserving the prior current program.
 - The receipt proves artifacts from the same selected root and rejects mixed
-  roots.
+	roots.
+- The receipt seals both lease wrappers and the executable CLI and Qt payloads
+	that they execute.
 - `all_test.sh` retains sealed local runtime input and its normal gates.
 - From the checkout or an outside working directory, `source_me.sh` selects
   only the staged selected native runtime and fails closed when it cannot do so.

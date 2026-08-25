@@ -31,10 +31,7 @@ def run(ferrum: Path, *arguments: str, input_text: str) -> dict[str, object]:
 	)
 	if result.returncode != 0 or result.stderr:
 		raise CompactGroupCliE2eError("compact CLI route did not complete cleanly")
-	lines = result.stdout.splitlines()
-	if len(lines) != 1:
-		raise CompactGroupCliE2eError("compact CLI route did not emit one JSON object")
-	value = json.loads(lines[0])
+	value = json.loads(result.stdout)
 	if not isinstance(value, dict):
 		raise CompactGroupCliE2eError("compact CLI route did not emit a JSON object")
 	return value
@@ -67,7 +64,7 @@ def inspect_fence(ferrum: Path, document: str) -> dict[str, object]:
 
 
 def materialize_operation(fence: dict[str, object]) -> dict[str, object]:
-	"""Build the closed materialization request with opaque durable selectors."""
+	"""Build the stateless request with opaque source identifiers."""
 	return {
 		"kind": "document.compact-group.materialize.v1",
 		"document": {

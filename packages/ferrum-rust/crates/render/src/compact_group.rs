@@ -1,7 +1,7 @@
 //! Closed compact-group label primitives derived from typed document projections.
 
 use ferrum_core::{Identifier, RecordId, RecordKind};
-use ferrum_document_projection::CompactGroupProjectionV1;
+use ferrum_document_projection::{CompactGroupProjectionV1, DocumentObjectIdV1};
 
 use crate::{
     BatchSpace, GlyphBounds, LineOp, Paint, PositiveFinite, RenderBatch, RenderError, RenderOp,
@@ -79,6 +79,7 @@ impl CompactGroupRenderPrimitiveV1 {
     /// Lower one typed compact-group projection using Ferrum-owned geometry.
     pub fn from_projection(
         group: &CompactGroupProjectionV1,
+        owner_molecule_object_id: &DocumentObjectIdV1,
         metrics: &VerifiedTelexGlyphMetrics,
         paint: Paint,
     ) -> Result<Self, RenderError> {
@@ -88,9 +89,11 @@ impl CompactGroupRenderPrimitiveV1 {
                 "compact-group identity must be a valid identifier".to_owned(),
             )
         })?;
-        let target = RenderTarget::new(
+        let target = RenderTarget::document_object(
             RecordId::from_source(RecordKind::Group, &source),
             group.source_order(),
+            group.id().clone(),
+            Some(owner_molecule_object_id.clone()),
         );
         let anchor = RenderPoint::new(group.anchor().x(), group.anchor().y())?;
         let size = PositiveFinite::new(GROUP_LABEL_SIZE_PT_V1)?;

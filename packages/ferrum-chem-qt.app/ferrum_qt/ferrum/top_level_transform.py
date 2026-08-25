@@ -35,19 +35,21 @@ class FerrumNativeTopLevelTransformTabMixin:
 		if any(target.kind == "bond" for target in selected):
 			raise _tab_error("bonds are not independent top-level transform roots")
 		selected_atoms = {
-			target.identifier for target in selected if target.kind == "atom"
+			target.durable_object_id for target in selected if target.kind == "atom"
 		}
+		if any(atom_id is None for atom_id in selected_atoms):
+			raise _tab_error("selected atom lacks a durable document identity")
 		selectors = []
 		consumed_atoms = set()
 		kinds = engine.DocumentTopLevelRootKindV1
 		if self._document_observation is None:
 			raise _tab_error("Ferrum tab has no installed document projection")
 		for molecule in self._document_observation.projection.molecules:
-			atom_ids = tuple(atom.source_id for atom in molecule.atoms)
+			atom_ids = tuple(atom.id for atom in molecule.atoms)
 			if not selected_atoms.intersection(atom_ids):
 				continue
 			if (
-				molecule.source_id is None
+				molecule.id is None
 				or not atom_ids
 				or any(identifier is None for identifier in atom_ids)
 				or not set(atom_ids).issubset(selected_atoms)
@@ -56,9 +58,7 @@ class FerrumNativeTopLevelTransformTabMixin:
 					"select every atom of each molecule before transforming it",
 				)
 			selectors.append(
-				engine.DocumentTopLevelRootSelectorV1.create(
-					molecule.source_id, kinds.molecule,
-				),
+				(molecule.id, kinds.molecule),
 			)
 			consumed_atoms.update(atom_ids)
 		if consumed_atoms != selected_atoms:
@@ -78,17 +78,13 @@ class FerrumNativeTopLevelTransformTabMixin:
 			if target.kind == "atom":
 				continue
 			kind = kind_values.get(target.kind)
-			source_id = _presentation_source_id(self._document_observation, target)
-			if kind is None or source_id is None:
+			object_id = target.durable_object_id
+			if kind is None or type(object_id) is not str or not object_id:
 				raise _tab_error(
 					"selection contains an unsupported top-level transform target",
 				)
-			selectors.append(
-				engine.DocumentTopLevelRootSelectorV1.create(
-					source_id, kind,
-				),
-			)
-		restore = tuple((target.kind, target.identifier) for target in selected)
+			selectors.append((object_id, kind))
+		restore = tuple(target.durable_selection_key() for target in selected)
 		return tuple(selectors), restore
 
 	#============================================
@@ -121,10 +117,10 @@ class FerrumNativeTopLevelTransformTabMixin:
 		if type(alignment) is not engine.DocumentTopLevelAlignmentV1:
 			raise TypeError("Ferrum root alignment requires an exact Ferrum value")
 		targets, restore = self.selected_top_level_transform_targets()
-		operation = engine.DocumentOperationV1.align_top_level_roots(
-			targets, alignment,
+		snapshot = self.current_snapshot
+		result = self._live_document_session_v1.align_live_document_roots_v1(
+			snapshot.revision, snapshot.digest, targets, alignment,
 		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, restore)
 		return result
 
@@ -137,12 +133,11 @@ class FerrumNativeTopLevelTransformTabMixin:
 		self._require_mutable()
 		if type(expected_revision) is not int:
 			raise TypeError("Ferrum root scale requires an exact revision")
-		import ferrum_qt.ferrum.engine as engine
-		operation = engine.DocumentOperationV1.scale_top_level_roots(
-			targets, scale_x, scale_y,
-		)
-		result = self._session.apply_document_operation_v1(
-			expected_revision, operation,
+		snapshot = self.current_snapshot
+		if snapshot.revision != expected_revision:
+			raise _tab_error("active Ferrum document changed while scale was open")
+		result = self._live_document_session_v1.scale_live_document_roots_v1(
+			expected_revision, snapshot.digest, targets, scale_x, scale_y,
 		)
 		self._install_mutation_result(result, restore)
 		return result
@@ -155,10 +150,10 @@ class FerrumNativeTopLevelTransformTabMixin:
 		if type(orientation) is not engine.DocumentTopLevelMirrorV1:
 			raise TypeError("Ferrum root mirror requires an exact Ferrum value")
 		targets, restore = self.selected_top_level_transform_targets()
-		operation = engine.DocumentOperationV1.mirror_top_level_roots(
-			targets, orientation,
+		snapshot = self.current_snapshot
+		result = self._live_document_session_v1.mirror_live_document_roots_v1(
+			snapshot.revision, snapshot.digest, targets, orientation,
 		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, restore)
 		return result
 
@@ -275,25 +270,3 @@ def _tab_error(message: str) -> RuntimeError:
 	"""Create the Ferrum tab's public error without introducing an import cycle."""
 	from ferrum_qt.ferrum.document_tab import FerrumNativeDocumentTabError
 	return FerrumNativeDocumentTabError(message)
-
-
-#============================================
-def _presentation_source_id(observation: object, selected: object) -> str | None:
-	"""Resolve a disposable document-object key to its authored persistent ID."""
-	for root in observation.projection.presentation_stack.roots:
-		payload = {
-			"arrow": root.arrow,
-			"plus": root.plus,
-			"text": root.text,
-			"polyline": root.polyline,
-			"wavy": root.polyline,
-			"round_bracket": root.polyline,
-			"rectangle": root.shape,
-			"square": root.shape,
-			"oval": root.shape,
-			"circle": root.shape,
-			"polygon": root.polygon,
-		}[root.kind]
-		if payload.target.id == selected.identifier:
-			return payload.target.source_id
-	return None

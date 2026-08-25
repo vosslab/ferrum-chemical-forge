@@ -80,12 +80,12 @@ pub(crate) fn execute_operation_with_runtime_v1<R: ChemistryRuntimeV1>(
     request_json: &str,
     runtime: &R,
 ) -> Result<OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1> {
-    // The public constant keeps its established name; its value is the shared
-    // operation response budget for every operation admitted below.
+    // The public constant is the shared operation response budget for every
+    // operation admitted below.
     execute_operation_with_runtime_and_shared_response_budget_v1(
         request_json,
         runtime,
-        DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
+        OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
     )
 }
 

@@ -40,12 +40,12 @@ const OPERATION_PROTOCOL_V1_FRAMING_AND_REQUEST_ID_UTF8_BYTES: usize = 4 * 1024;
 /// This independent cap keeps every echoed success or admitted-error envelope
 /// bounded even when the surrounding transport budget has spare capacity.
 pub const MAX_REQUEST_ID_UTF8_BYTES_V1: usize = 2 * 1024;
-/// Maximum serialized public JSON envelope for one SMARTS query response.
+/// Maximum serialized public JSON envelope for one V1 operation response.
 ///
 /// The executor measures the exact canonical response-envelope bytes before a
 /// CLI or PyO3 transport can deliver them. The terminal newline written by the
 /// CLI is not part of the JSON envelope.
-pub const DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1: usize = 1024 * 1024;
+pub const OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1: usize = 1024 * 1024;
 /// Maximum UTF-8 request text accepted before any JSON allocation or parsing.
 ///
 /// This is `LOCAL_CDML_SOURCE_UTF8_BYTES_V1 * 6` for worst-case valid JSON

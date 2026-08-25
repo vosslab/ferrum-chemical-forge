@@ -81,7 +81,8 @@ the detailed commands, fixtures, measurements, and review findings.
   importer. The direct renderer uses explicit `q1`/`w1`/`n1` depiction facts. The
   CDML profile is documented in the format specification; a future authoring route
   needs its own session contract.
-- **M15:** Retained utilities are bounded peptide-template insertion, linear-form
+- **M15:** Retained utilities are bounded peptide sequence insertion through
+  `prepare_ferrum_peptide_insertion_v1`, linear-form
   conversion, Clean Geometry, and five geometry repairs. Compact sugar parsing,
   known-group catalogs, substructure search, oxidation, generated names, and broad
   biomolecule catalogs are intentional pre-production drops, not partial fallbacks.

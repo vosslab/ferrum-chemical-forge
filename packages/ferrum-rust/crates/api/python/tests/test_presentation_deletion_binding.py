@@ -69,3 +69,21 @@ def test_presentation_deletion_set_rejects_empty_target_tuple() -> None:
 	"""An atomic deletion must name at least one durable root."""
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		ferrum_chem.DocumentOperationV1.delete_presentation_roots(())
+
+
+#============================================
+def test_live_presentation_deletion_uses_durable_target_and_current_fence() -> None:
+	"""The live adapter owns durable target lowering and rejects a stale fence."""
+	kinds = ferrum_chem.DocumentPresentationRootKindV1
+	session = ferrum_chem.DocumentSession.load(SOURCE)
+	snapshot = session.snapshot()
+	root = session.observe(snapshot.revision).projection.presentation_stack.roots[0]
+	target = root.text.target
+	result = session.apply_live_presentation_deletion_v1(
+		snapshot.revision, snapshot.digest, ((target.id, kinds.text),),
+	)
+	assert result.observation.snapshot.revision == snapshot.revision + 1
+	with pytest.raises(ferrum_chem.RevisionConflictError):
+		session.apply_live_presentation_deletion_v1(
+			snapshot.revision, snapshot.digest, ((target.id, kinds.text),),
+		)

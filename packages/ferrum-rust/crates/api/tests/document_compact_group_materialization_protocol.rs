@@ -137,7 +137,7 @@ fn stale_and_foreign_compact_refusals_leave_the_source_snapshot_current() {
 
 #[test]
 fn compact_materialization_uses_the_shared_response_budget_refusal() {
-    let oversized_group_id = "g".repeat(ferrum_api::DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1);
+    let oversized_group_id = "g".repeat(ferrum_api::OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1);
     let document = COMPACT_CDML.replace("source-group", &oversized_group_id);
     let response = execute(compact_request(
         &document,

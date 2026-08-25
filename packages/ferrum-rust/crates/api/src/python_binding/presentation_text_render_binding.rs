@@ -4,8 +4,9 @@ use ferrum_render::{DocumentTextRenderV1, PresentationGlyphRun, PresentationText
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
-use super::projection_binding::PyPresentationTargetV1;
-use super::render_binding::{PyGlyphPlacementV1, PyPresentationTextBoundsV1, PyRenderPointV1};
+use super::render_binding::{
+    PyGlyphPlacementV1, PyPresentationTextBoundsV1, PyRenderPointV1, PyRenderTargetV1,
+};
 
 #[pyclass(frozen, name = "PresentationTextSourceRunV1", skip_from_py_object)]
 #[derive(Clone)]
@@ -64,7 +65,7 @@ impl PyPresentationTextOpV1 {
 #[derive(Clone)]
 pub(crate) struct PyDocumentTextRenderV1 {
     #[pyo3(get)]
-    target: PyPresentationTargetV1,
+    target: PyRenderTargetV1,
     #[pyo3(get)]
     anchor: PyRenderPointV1,
     source_runs: Vec<PyPresentationTextSourceRunV1>,

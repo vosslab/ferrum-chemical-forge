@@ -18,12 +18,36 @@ pub(crate) struct PyLiveDocumentOperationReceiptV1 {
     source_digest: Py<PyBytes>,
 }
 
+/// Frozen result of one read-only live compact-group availability query.
+#[pyclass(frozen, name = "_LiveCompactGroupMaterializationAvailabilityReceiptV1")]
+pub(crate) struct PyLiveCompactGroupMaterializationAvailabilityReceiptV1 {
+    #[pyo3(get)]
+    response_json: String,
+}
+
 #[pymethods]
 impl PyDocumentSession {
+    /// Query compact materialization eligibility for one fenced durable address.
+    fn compact_group_materialization_availability_v1(
+        &mut self,
+        request_json: &str,
+    ) -> PyResult<PyLiveCompactGroupMaterializationAvailabilityReceiptV1> {
+        let receipt = crate::protocol::live_document_operation_v1::
+            query_live_compact_group_materialization_availability_v1(
+                &mut self.session,
+                request_json,
+            )
+            .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+        Ok(PyLiveCompactGroupMaterializationAvailabilityReceiptV1 {
+            response_json: receipt.response_json().to_owned(),
+        })
+    }
+
     /// Execute one registered operation against this exact live session.
     ///
-    /// The request CDML is a fence witness: it must be byte-for-byte equal to
-    /// the current snapshot and can never replace the owned session document.
+    /// Stateless operations carry CDML as a byte-for-byte snapshot witness.
+    /// Live durable-target operations instead carry the current revision/digest
+    /// document fence and can never replace the owned session document.
     fn apply_live_document_operation_v1(
         &mut self,
         py: Python<'_>,
@@ -181,6 +205,44 @@ mod tests {
                     .expect("string no-change anchor identifier"),
                 anchor_atom_identifier
             );
+        });
+    }
+
+    #[test]
+    fn python_live_availability_receipt_exposes_only_closed_durable_facts() {
+        Python::initialize();
+        Python::attach(|py| {
+            let session = ferrum_document::DocumentSession::load(
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\"/></molecule></cdml>",
+            )
+            .expect("compact-group session");
+            let mut live = PyDocumentSession::from_session(session);
+            let snapshot = live.session.snapshot().expect("snapshot");
+            let observation = live
+                .session
+                .observe(snapshot.revision())
+                .expect("observation");
+            let molecule = &observation.projection().molecules()[0];
+            let request = json!({
+                "expected_revision": snapshot.revision(),
+                "expected_digest_hex": snapshot.digest().iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
+                "molecule_object_id": molecule.id().expect("durable molecule").as_str(),
+                "compact_group_object_id": molecule.compact_groups()[0].id().as_str(),
+            })
+            .to_string();
+            let receipt = live
+                .compact_group_materialization_availability_v1(&request)
+                .expect("availability receipt");
+            let response_json = Py::new(py, receipt)
+                .expect("frozen Python receipt")
+                .bind(py)
+                .getattr("response_json")
+                .expect("response JSON")
+                .extract::<String>()
+                .expect("string response JSON");
+
+            assert!(response_json.contains("\"availability\":\"eligible\""));
+            assert!(!response_json.contains("cdml"));
         });
     }
 }

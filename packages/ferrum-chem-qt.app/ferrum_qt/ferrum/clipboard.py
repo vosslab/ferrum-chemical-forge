@@ -26,16 +26,6 @@ _PRESENTATION_KINDS = frozenset({
 
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
-class _ClipboardSelectionFact:
-	"""One selected scene target authenticated to a durable projected object."""
-
-	object_id: str
-	document_root_order: int
-	child_order: int
-
-
-#============================================
-@dataclasses.dataclass(frozen=True, slots=True)
 class _ClipboardCopyIntent:
 	"""One source tab and immutable receipt corroborators for a running Copy."""
 
@@ -101,93 +91,18 @@ def selected_durable_clipboard_object_ids(tab: object) -> tuple[str, ...] | None
 	targets = tab.selected_molecule_information_targets()
 	if type(targets) is not tuple or not targets:
 		return None
-	observation = tab.current_document_observation()
-	projection = observation.projection
-	facts = []
+	object_ids = []
 	for target in targets:
-		matches = _structure_matches(projection, target)
-		if matches is None:
-			matches = _presentation_matches(projection, target)
-		if matches is None or len(matches) != 1:
+		if (
+			target.kind not in _STRUCTURE_KINDS | _PRESENTATION_KINDS
+			or type(target.durable_object_id) is not str
+			or not target.durable_object_id
+		):
 			return None
-		facts.append(matches[0])
-	object_ids = [fact.object_id for fact in facts]
+		object_ids.append(target.durable_object_id)
 	if len(set(object_ids)) != len(object_ids):
 		return None
-	facts.sort(key=lambda fact: (fact.document_root_order, fact.child_order))
-	return tuple(fact.object_id for fact in facts)
-
-
-#============================================
-def _structure_matches(projection: object,
-		target: object) -> list[_ClipboardSelectionFact] | None:
-	"""Map one selected atom/bond source address to its opaque Rust object ID."""
-	if target.kind not in _STRUCTURE_KINDS:
-		return None
-	if (
-		type(target.identifier) is not str
-		or not target.identifier
-		or type(target.source_order) is not int
-	):
-		return []
-	matches = []
-	for molecule in projection.molecules:
-		children = molecule.atoms if target.kind == "atom" else molecule.bonds
-		for child in children:
-			if (
-				child.source_id == target.identifier
-				and child.source_order == target.source_order
-				and type(child.id) is str
-				and child.id
-			):
-				matches.append(_ClipboardSelectionFact(
-					child.id, molecule.source_order, child.source_order,
-				))
-	return matches
-
-
-#============================================
-def _presentation_matches(projection: object,
-		target: object) -> list[_ClipboardSelectionFact] | None:
-	"""Map one selected presentation identity to its exact opaque Rust object ID."""
-	if target.kind not in _PRESENTATION_KINDS:
-		return None
-	if (
-		type(target.identifier) is not str
-		or not target.identifier
-		or type(target.source_order) is not int
-	):
-		return []
-	matches = []
-	for root in projection.presentation_stack.roots:
-		projected = _presentation_root_target(root)
-		if (
-			projected.id == target.identifier
-			and projected.record_kind == target.kind
-			and projected.source_order == target.source_order
-		):
-			matches.append(_ClipboardSelectionFact(
-				projected.id, projected.source_order, 0,
-			))
-	return matches
-
-
-#============================================
-def _presentation_root_target(root: object) -> object:
-	"""Return the exact target carried by one closed projection root variant."""
-	if root.kind == "arrow":
-		return root.arrow.target
-	if root.kind == "plus":
-		return root.plus.target
-	if root.kind == "text":
-		return root.text.target
-	if root.kind in ("polyline", "wavy", "round_bracket"):
-		return root.polyline.target
-	if root.kind in ("rectangle", "square", "oval", "circle"):
-		return root.shape.target
-	if root.kind == "polygon":
-		return root.polygon.target
-	raise ValueError("Rust projection contains an unsupported presentation root kind")
+	return tuple(object_ids)
 
 
 #============================================

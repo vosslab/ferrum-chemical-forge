@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use ferrum_api::{DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1, execute_operation_v1};
+use ferrum_api::{OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1, execute_operation_v1};
 use ferrum_document::DocumentSession;
 use serde_json::{Value, json};
 
@@ -59,7 +59,7 @@ fn materialization_request(document: &str) -> Value {
 }
 
 fn response_limited_oxygen_skeleton() -> String {
-    let source_id = "oxygen".repeat(DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1);
+    let source_id = "oxygen".repeat(OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1);
     format!(
         "<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"><molecule id=\"oxygen-root\"><atom id=\"{source_id}\" name=\"O\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
     )

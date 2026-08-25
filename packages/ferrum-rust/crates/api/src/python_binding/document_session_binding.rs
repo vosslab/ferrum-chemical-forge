@@ -6,6 +6,7 @@ use ferrum_document::{
     SessionOperationV1, TransitionAuthorizationV1,
 };
 use pyo3::prelude::*;
+use pyo3::types::{PyAny, PyTuple};
 
 use super::bracket_binding::{
     PyDocumentBracketBoundsV1, PyDocumentBracketStyleV1, PyPreparedBracketInsertion,
@@ -101,11 +102,12 @@ impl From<Publication> for PyPublication {
     }
 }
 
-/// Opaque one-use prepared atom insertion.
-///
-/// The Rust value binds its candidate to the revision at which it was prepared.
-/// It is deliberately thread-affine and exposes only the durable identifier that
 /// Opaque one-use prepared Wavy insertion.
+///
+/// The Rust value binds its candidate to the document revision at which the
+/// session prepared it. Commit it once through [`PyDocumentSession::commit_create_wavy`];
+/// later revisions or repeated commits are refused. The value is thread-affine
+/// and exposes only its durable identifier.
 #[pyclass(unsendable, module = "ferrum_chem", name = "PreparedWavyInsertion")]
 pub(crate) struct PyPreparedWavyInsertion {
     pending: PendingCreateWavy,
@@ -435,6 +437,148 @@ impl PyDocumentSession {
         .map(Into::into)
     }
 
+    /// Rotate durable molecule-owned atom targets under one exact live fence.
+    fn rotate_live_document_atoms_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        targets: &Bound<'_, PyTuple>,
+        center_x: &Bound<'_, PyAny>,
+        center_y: &Bound<'_, PyAny>,
+        angle_radians: &Bound<'_, PyAny>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        require_live_fence(py, &self.session, expected_revision, &expected_digest_hex)?;
+        let targets = super::atom_rotation_binding::live_targets(py, targets)?;
+        let targets = document_result(
+            py,
+            self.session
+                .lower_live_atom_rotation_targets_v1(&targets)
+                .map_err(ferrum_document::DocumentSessionError::Operation),
+        )?;
+        let operation =
+            super::atom_rotation_binding::rotation(py, targets, center_x, center_y, angle_radians)?;
+        document_result(
+            py,
+            self.session
+                .apply_document_operation_v1(expected_revision, operation),
+        )
+        .map(Into::into)
+    }
+
+    /// Repair durable molecule roots under one exact live fence.
+    fn repair_live_document_geometry_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        molecule_object_ids: &Bound<'_, PyTuple>,
+        kind: PyRef<'_, super::geometry_repair_binding::PyDocumentGeometryRepairKindV1>,
+        target_spacing_points: &Bound<'_, PyAny>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        require_live_fence(py, &self.session, expected_revision, &expected_digest_hex)?;
+        let molecule_object_ids =
+            super::geometry_repair_binding::live_molecule_ids(py, molecule_object_ids)?;
+        let molecule_ids = document_result(
+            py,
+            self.session
+                .lower_live_geometry_repair_molecules_v1(&molecule_object_ids)
+                .map_err(ferrum_document::DocumentSessionError::Operation),
+        )?;
+        let operation =
+            super::geometry_repair_binding::repair(py, molecule_ids, *kind, target_spacing_points)?;
+        document_result(
+            py,
+            self.session
+                .apply_document_operation_v1(expected_revision, operation),
+        )
+        .map(Into::into)
+    }
+
+    /// Align complete durable roots under one exact live fence.
+    fn align_live_document_roots_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        targets: &Bound<'_, PyTuple>,
+        alignment: PyRef<'_, super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        let transform = match *alignment {
+            super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1::Top => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::AlignTop
+            }
+            super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1::Bottom => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::AlignBottom
+            }
+            super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1::Left => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::AlignLeft
+            }
+            super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1::Right => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::AlignRight
+            }
+            super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1::CenterX => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::AlignCenterX
+            }
+            super::top_level_transform_binding::PyDocumentTopLevelAlignmentV1::CenterY => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::AlignCenterY
+            }
+        };
+        self.apply_live_top_level_layout_v1(
+            py,
+            expected_revision,
+            expected_digest_hex,
+            targets,
+            transform,
+        )
+    }
+
+    /// Scale complete durable roots under one exact live fence.
+    fn scale_live_document_roots_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        targets: &Bound<'_, PyTuple>,
+        scale_x: &Bound<'_, PyAny>,
+        scale_y: &Bound<'_, PyAny>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        let transform = super::top_level_transform_binding::scale_mode(py, scale_x, scale_y)?;
+        self.apply_live_top_level_layout_v1(
+            py,
+            expected_revision,
+            expected_digest_hex,
+            targets,
+            transform,
+        )
+    }
+
+    /// Mirror complete durable roots under one exact live fence.
+    fn mirror_live_document_roots_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        targets: &Bound<'_, PyTuple>,
+        orientation: PyRef<'_, super::top_level_transform_binding::PyDocumentTopLevelMirrorV1>,
+    ) -> PyResult<PySessionOperationResultV1> {
+        let transform = match *orientation {
+            super::top_level_transform_binding::PyDocumentTopLevelMirrorV1::Vertical => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::MirrorVertical
+            }
+            super::top_level_transform_binding::PyDocumentTopLevelMirrorV1::Horizontal => {
+                ferrum_document::TopLevelRootLayoutTransformModeV1::MirrorHorizontal
+            }
+        };
+        self.apply_live_top_level_layout_v1(
+            py,
+            expected_revision,
+            expected_digest_hex,
+            targets,
+            transform,
+        )
+    }
+
     /// Replace or clear one authenticated direct-root molecule name.
     fn set_document_molecule_name_v1(
         &mut self,
@@ -750,6 +894,86 @@ impl PyDocumentSession {
                 request,
             ),
         )
+    }
+}
+
+impl PyDocumentSession {
+    fn apply_live_top_level_layout_v1(
+        &mut self,
+        py: Python<'_>,
+        expected_revision: u64,
+        expected_digest_hex: String,
+        targets: &Bound<'_, PyTuple>,
+        transform: ferrum_document::TopLevelRootLayoutTransformModeV1,
+    ) -> PyResult<PySessionOperationResultV1> {
+        require_live_fence(py, &self.session, expected_revision, &expected_digest_hex)?;
+        let targets = super::top_level_transform_binding::live_targets(py, targets)?;
+        let targets = document_result(
+            py,
+            self.session
+                .lower_live_top_level_roots_v1(&targets)
+                .map_err(ferrum_document::DocumentSessionError::Operation),
+        )?;
+        let operation =
+            super::top_level_transform_binding::layout_operation(py, targets, transform)?;
+        document_result(
+            py,
+            self.session
+                .apply_document_operation_v1(expected_revision, operation),
+        )
+        .map(Into::into)
+    }
+}
+
+pub(crate) fn require_live_fence(
+    py: Python<'_>,
+    session: &RenderInteractionSessionV1,
+    expected_revision: u64,
+    expected_digest_hex: &str,
+) -> PyResult<()> {
+    let expected_digest = parse_live_digest(py, expected_digest_hex)?;
+    let snapshot = document_result(py, session.snapshot())?;
+    if snapshot.revision() != expected_revision {
+        return document_result(
+            py,
+            Err(ferrum_document::DocumentSessionError::RevisionConflict {
+                expected: expected_revision,
+                actual: snapshot.revision(),
+            }),
+        );
+    }
+    if snapshot.digest() != &expected_digest {
+        return Err(super::binding::operation_validation_error(
+            py,
+            "live document digest does not match the current document".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn parse_live_digest(py: Python<'_>, value: &str) -> PyResult<[u8; 32]> {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(super::binding::operation_validation_error(
+            py,
+            "expected digest must be exactly 64 lowercase hexadecimal characters".to_owned(),
+        ));
+    }
+    let mut digest = [0; 32];
+    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+        digest[index] = (hex_value(pair[0]) << 4) | hex_value(pair[1]);
+    }
+    Ok(digest)
+}
+
+const fn hex_value(value: u8) -> u8 {
+    match value {
+        b'0'..=b'9' => value - b'0',
+        b'a'..=b'f' => value - b'a' + 10,
+        _ => 0,
     }
 }
 

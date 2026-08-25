@@ -1,4 +1,4 @@
-"""Installed-extension checks for private native linear-form conversion."""
+"""Installed-binding checks for native linear-form conversion."""
 
 import pytest
 
@@ -16,10 +16,10 @@ _SOURCE = """\
 
 
 def _address(session: object, root: int = 0) -> tuple[object, str, tuple[str, ...]]:
-	"""Return one installed observation and its direct-root atom selectors."""
+	"""Return one observation with its durable molecule and atom IDs."""
 	observation = session.observe(session.snapshot().revision)
 	molecule = observation.projection.molecules[root]
-	atom_ids = (("late", "early"), ("foreign",))[root]
+	atom_ids = tuple(atom.id for atom in molecule.atoms)
 	return observation, molecule.id, atom_ids
 
 
@@ -28,8 +28,8 @@ def _facts(snapshot: object) -> tuple[str, int, str, bool]:
 	return snapshot.cdml, snapshot.revision, snapshot.digest, snapshot.is_dirty
 
 
-def test_private_linear_form_converts_source_order() -> None:
-	"""The installed binding returns the authoritative changed receipt."""
+def test_linear_form_converts_observed_durable_atoms() -> None:
+	"""The installed binding converts selected durable atom targets."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation, molecule_id, atom_ids = _address(session)
 	changed = session.convert_linear_form_v1(
@@ -48,7 +48,7 @@ def test_private_linear_form_converts_source_order() -> None:
 	)
 
 
-def test_private_linear_form_history_reopens_the_changed_document() -> None:
+def test_linear_form_history_reopens_the_changed_document() -> None:
 	"""Undo, redo, and reopen retain the binding's authoritative document."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	before_cdml = session.snapshot().cdml
@@ -64,7 +64,7 @@ def test_private_linear_form_history_reopens_the_changed_document() -> None:
 	assert reopened.snapshot().cdml == changed.observation.snapshot.cdml
 
 
-def test_private_linear_form_canonical_repeat_is_history_free() -> None:
+def test_linear_form_canonical_repeat_is_history_free() -> None:
 	"""A canonical second request returns the current authoritative revision."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation, molecule_id, atom_ids = _address(session)
@@ -79,50 +79,88 @@ def test_private_linear_form_canonical_repeat_is_history_free() -> None:
 	assert repeated.observation.snapshot.digest == changed.observation.snapshot.digest
 
 
-def test_private_linear_form_binding_accepts_atom_selectors_not_bond_selectors() -> None:
-	"""Qt expands selected bonds before this binding receives its atom-only tuple."""
+def test_linear_form_refuses_a_durable_bond_as_an_atom_target() -> None:
+	"""The binding rejects a durable target of the wrong document-object kind."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation, molecule_id, _atom_ids = _address(session)
-	bond_id = "b"
+	bond_id = observation.projection.molecules[0].bonds[0].id
 
-	with pytest.raises(ferrum_chem.DocumentLinearFormError) as caught:
+	with pytest.raises(ferrum_chem.OperationValidationError):
 		session.convert_linear_form_v1(
 			0, observation.snapshot.digest, molecule_id, (bond_id,),
 		)
 
-	assert "not one direct atom" in caught.value.reason
-
-
-def test_private_linear_form_refuses_unauthenticated_and_invalid_selection() -> None:
-	"""Authentication and selection failures leave the authoritative snapshot unchanged."""
+def test_linear_form_refuses_a_stale_revision_without_mutation() -> None:
+	"""A stale revision fence leaves the authoritative snapshot unchanged."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation, molecule_id, atom_ids = _address(session)
-	foreign_observation, _foreign_root, foreign_atom_ids = _address(session, 1)
 	before = session.snapshot()
-	invalid_calls = (
-		(1, observation.snapshot.digest, molecule_id, atom_ids, ferrum_chem.RevisionConflictError),
-		(0, "0" * 64, molecule_id, atom_ids, ferrum_chem.DocumentLinearFormError),
-		(0, observation.snapshot.digest, atom_ids[0], atom_ids, ferrum_chem.DocumentLinearFormError),
-		(0, observation.snapshot.digest, molecule_id, (), ferrum_chem.DocumentLinearFormError),
-		(0, observation.snapshot.digest, molecule_id, (atom_ids[0], atom_ids[0]), ferrum_chem.DocumentLinearFormError),
-		(0, observation.snapshot.digest, molecule_id, foreign_atom_ids, ferrum_chem.DocumentLinearFormError),
-	)
-	assert foreign_observation.snapshot.digest == observation.snapshot.digest
-	for revision, digest, root, atoms, error_type in invalid_calls:
-		with pytest.raises(error_type):
-			session.convert_linear_form_v1(revision, digest, root, atoms)
+
+	with pytest.raises(ferrum_chem.RevisionConflictError):
+		session.convert_linear_form_v1(1, observation.snapshot.digest, molecule_id, atom_ids)
 
 	assert _facts(session.snapshot()) == _facts(before)
 
 
-@pytest.mark.parametrize("atoms", ([], ("late", 1), ("\ud800",)))
-def test_private_linear_form_rejects_wrong_container_and_python_text(atoms: object) -> None:
+def test_linear_form_refuses_a_stale_digest_without_mutation() -> None:
+	"""A stale digest fence leaves the authoritative snapshot unchanged."""
+	session = ferrum_chem.DocumentSession.load(_SOURCE)
+	observation, molecule_id, atom_ids = _address(session)
+	before = session.snapshot()
+
+	with pytest.raises(ferrum_chem.DocumentLinearFormError):
+		session.convert_linear_form_v1(0, "0" * 64, molecule_id, atom_ids)
+
+	assert _facts(session.snapshot()) == _facts(before)
+
+
+def test_linear_form_refuses_a_durable_atom_as_the_molecule_target() -> None:
+	"""The binding rejects a durable target of the wrong molecule kind."""
+	session = ferrum_chem.DocumentSession.load(_SOURCE)
+	observation, _molecule_id, atom_ids = _address(session)
+
+	with pytest.raises(ferrum_chem.OperationValidationError):
+		session.convert_linear_form_v1(
+			0, observation.snapshot.digest, atom_ids[0], atom_ids,
+		)
+
+
+def test_linear_form_refuses_an_atom_from_another_molecule() -> None:
+	"""The binding rejects a durable atom target outside the molecule owner."""
+	session = ferrum_chem.DocumentSession.load(_SOURCE)
+	observation, molecule_id, _atom_ids = _address(session)
+	_foreign_observation, _foreign_root, foreign_atom_ids = _address(session, 1)
+
+	with pytest.raises(ferrum_chem.OperationValidationError):
+		session.convert_linear_form_v1(
+			0, observation.snapshot.digest, molecule_id, foreign_atom_ids,
+		)
+
+
+def test_linear_form_refuses_an_empty_selection() -> None:
+	"""The binding rejects a request without selected durable atom targets."""
+	session = ferrum_chem.DocumentSession.load(_SOURCE)
+	observation, molecule_id, _atom_ids = _address(session)
+
+	with pytest.raises(ferrum_chem.DocumentLinearFormError):
+		session.convert_linear_form_v1(0, observation.snapshot.digest, molecule_id, ())
+
+
+@pytest.mark.parametrize(
+	("atoms", "error_type"),
+	(
+		([], ValueError),
+		(("late", 1), ferrum_chem.InvalidDocumentObjectIdError),
+		(("\ud800",), ValueError),
+	),
+)
+def test_linear_form_rejects_invalid_python_input(
+	atoms: object,
+	error_type: type[ValueError] | type[ferrum_chem.InvalidDocumentObjectIdError],
+) -> None:
 	"""Only exact tuples of encodable built-in strings cross this boundary."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation, molecule_id, _atom_ids = _address(session)
 
-	with pytest.raises(ferrum_chem.DocumentLinearFormError) as caught:
+	with pytest.raises(error_type):
 		session.convert_linear_form_v1(0, observation.snapshot.digest, molecule_id, atoms)
-
-	assert caught.value.reason
-

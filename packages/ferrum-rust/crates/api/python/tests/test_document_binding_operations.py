@@ -260,6 +260,24 @@ def test_generic_atom_and_bond_authoring_expose_committed_typed_outcomes() -> No
 	assert bond_result.observation.snapshot.revision == 1
 
 
+def test_live_bond_authoring_requires_durable_endpoints_and_commits_one_transition() -> None:
+	"""The live authoring boundary owns durable target and revision fencing."""
+	session = ferrum_chem.DocumentSession.load(BOND_SOURCE)
+	with pytest.raises(ferrum_chem.OperationValidationError):
+		session.resolve_create_bond_v1(
+			0, "a", "b", ferrum_chem.DocumentBondPresentationV1.normal_single,
+		)
+	start, end = (atom.id for atom in session.observe(0).projection.molecules[0].atoms)
+	request = session.resolve_create_bond_v1(
+		0, start, end, ferrum_chem.DocumentBondPresentationV1.normal_single,
+	)
+	prepared = session.prepare_session_operation_transition_v1(request)
+	result = session.commit_session_operation_transition_v1(prepared)
+
+	assert result.outcome.kind == "bond_created_v1"
+	assert result.observation.snapshot.revision == 1
+
+
 def test_confirmed_save_or_unconfirmed_outcome_preserves_exact_contract(
 	tmp_path: Path,
 ) -> None:

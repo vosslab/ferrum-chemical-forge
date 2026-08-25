@@ -302,13 +302,32 @@ pub(crate) fn operation_validation_error(py: Python<'_>, reason: String) -> PyEr
     error
 }
 
-fn revision_conflict_error(py: Python<'_>, expected: u64, actual: u64) -> PyResult<PyErr> {
+pub(crate) fn revision_conflict_error(
+    py: Python<'_>,
+    expected: u64,
+    actual: u64,
+) -> PyResult<PyErr> {
     let error = RevisionConflictError::new_err(format!(
         "document revision conflict: expected {expected}, current revision is {actual}"
     ));
     let value = error.value(py);
     value.setattr("expected", expected)?;
     value.setattr("actual", actual)?;
+    Ok(error)
+}
+
+pub(crate) fn digest_conflict_error(
+    py: Python<'_>,
+    expected_revision: u64,
+    actual_revision: u64,
+) -> PyResult<PyErr> {
+    let error = RevisionConflictError::new_err(
+        "document digest conflict: expected digest does not match the live document",
+    );
+    let value = error.value(py);
+    value.setattr("expected", expected_revision)?;
+    value.setattr("actual", actual_revision)?;
+    value.setattr("reason", "expected digest does not match the live document")?;
     Ok(error)
 }
 
@@ -414,6 +433,7 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::UnknownMolecule
         | SessionOperationError::PaperDimensionsRequireCustom
         | SessionOperationError::InvalidCreateBondTarget(_)
+        | SessionOperationError::InvalidLiveChemicalTarget(_)
         | SessionOperationError::InvalidMoleculeCoordinateTarget(_)
         | SessionOperationError::MoleculeCoordinateRevisionMismatch { .. }
         | SessionOperationError::MoleculeCoordinateDigestMismatch
@@ -425,6 +445,7 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::AtomIdentifierExhausted
         | SessionOperationError::MoleculeIdentifierExhausted
         | SessionOperationError::BondIdentifierExhausted
+        | SessionOperationError::GroupIdentifierExhausted
         | SessionOperationError::PresentationIdentifierExhausted
         | SessionOperationError::FragmentImportIdentifierExhausted => {
             Ok(OperationValidationError::new_err(error.to_string()))

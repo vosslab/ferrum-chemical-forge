@@ -7,6 +7,7 @@ use std::fmt::Write;
 pub(super) struct GeneratedIdSequences {
     molecule: Option<u64>,
     atom: Option<u64>,
+    group: Option<u64>,
     bond: Option<u64>,
     presentation: Option<u64>,
     fragment: Option<u64>,
@@ -18,6 +19,7 @@ impl GeneratedIdSequences {
         Self {
             molecule: Some(0),
             atom: Some(0),
+            group: Some(0),
             bond: Some(0),
             presentation: Some(0),
             fragment: Some(0),
@@ -46,6 +48,7 @@ impl GeneratedIdSequences {
             Self {
                 molecule,
                 atom,
+                group: self.group,
                 bond,
                 presentation: self.presentation,
                 fragment: self.fragment,
@@ -89,6 +92,18 @@ impl GeneratedIdSequences {
             .try_into()
             .expect("one requested bond identity produces one result");
         Ok((identifier, Self { bond, ..self }))
+    }
+
+    /// Reserve one durable compact-group identity without installing its sequence.
+    pub(super) fn reserve_group(
+        self,
+        indexed: &IndexedDocument,
+    ) -> Result<(PersistentId, Self), SessionOperationError> {
+        let (groups, group) = allocate(indexed, GeneratedIdKind::Group, self.group, 1)?;
+        let [identifier] = groups
+            .try_into()
+            .expect("one requested group identity produces one result");
+        Ok((identifier, Self { group, ..self }))
     }
 
     pub(super) fn reserve_bonded_atom(
@@ -222,6 +237,7 @@ pub(super) struct GeneratedBondedAtomIdentities {
 enum GeneratedIdKind {
     Molecule,
     Atom,
+    Group,
     Bond,
     Presentation,
     #[cfg_attr(not(test), allow(dead_code))]
@@ -234,6 +250,7 @@ impl GeneratedIdKind {
         match self {
             Self::Molecule => "ferrum-molecule-v1-",
             Self::Atom => "ferrum-atom-v1-",
+            Self::Group => "ferrum-group-v1-",
             Self::Bond => "ferrum-bond-v1-",
             Self::Presentation => "ferrum-presentation-v1-",
             Self::Fragment => "ferrum-fragment-v1-",
@@ -245,6 +262,7 @@ impl GeneratedIdKind {
         match self {
             Self::Molecule => SessionOperationError::MoleculeIdentifierExhausted,
             Self::Atom => SessionOperationError::AtomIdentifierExhausted,
+            Self::Group => SessionOperationError::GroupIdentifierExhausted,
             Self::Bond => SessionOperationError::BondIdentifierExhausted,
             Self::Presentation => SessionOperationError::PresentationIdentifierExhausted,
             Self::Fragment => SessionOperationError::FragmentIdentifierExhausted,

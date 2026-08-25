@@ -73,12 +73,13 @@ not a route for additional recipes or a legacy alias.
   one exterior compact-group bond. Refusals leave document, IDs, history,
   selection, and receipt ownership unchanged.
 
-### Proposed M1 public-operation namespace
+### Delivered materialization namespace
 
-- When M1 authorizes public compact-group delivery, its only operations will be
-  `document.compact-group.place.v1` and
-  `document.compact-group.materialize.v1`.
-- Their envelopes will be request-owned and generic-dispatcher compatible.
+- `document.compact-group.materialize.v1` is the delivered public operation for
+  attached direct-root `Me` and `NO2` groups. Its stateless envelope is
+  request-owned and generic-dispatcher compatible.
+- Compact placement remains a separate planned capability; it does not broaden
+  the delivered materialization route.
 - Internal experiment methods are implementation evidence only; they are not
   aliases, alternate public contracts, CLI commands, or PyO3 entry points.
 - Publishing and installation are outside this plan. Local builds produce the
@@ -93,9 +94,10 @@ Owner: approved cross-crate architecture, then Rust document/render-contract.
 Status: closed on 2026-08-24. The authoritative
 [m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
 records the completed generic admission core, route migrations, and exit
-evidence. Compact-group protocol, CLI, PyO3, and Qt delivery remain deferred
-to M1; do not add unimplemented compact-group symbols to user or API
-documentation.
+evidence. Compact-group protocol, CLI, PyO3, and Qt materialization delivery
+are complete; the durable render-target and Rust-issued availability migration
+is complete for the delivered materialization workflow. Remaining compact
+authoring work is limited to separately scoped catalog and chooser capabilities.
 
 M0 delivered the immutable accepted-only render boundary, shared classifier,
 explicit nonvisual-root policy, retirement of raw public candidate routes, and
@@ -166,10 +168,18 @@ Owner: Rust document/session/render.
 
 Owner: Rust document/domain/render.
 
+Status: compact-group deletion is delivered for exactly one selected rendered
+compact group. The renderer supplies its parent molecule and compact-group
+`DocumentObjectIdV1` values; Rust verifies direct membership before preparation.
+The detached typed mutation removes exactly that group and its unique exterior
+bond, with no atoms, generated IDs, or component facts. It commits through one
+history transition and supports replay refusal, Undo, and Redo. Mixed or
+multi-group selections are refused before preparation.
+
 - Extend the proven insertion/materialization path to the nine reviewed keys,
   without adding free-form aliases or runtime chemistry parsers.
-- Implement typed compact-group deletion that atomically removes every incident
-  bond when the group is selected; preserve normal bond-only deletion.
+- Preserve the delivered one-group deletion contract. Broader selection forms
+  remain refused rather than being lowered into a synthetic batch operation.
 - Keep existing full-template catalog placement unchanged. Compact-group
   authoring is a sibling Rust operation, not a new Qt/CDML bypass.
 - Maintain closed unavailable/refusal mapping for stale fences, unknown root or
@@ -177,8 +187,8 @@ Owner: Rust document/domain/render.
   invalid geometry, capacity, resource limits, and unrenderable candidates.
 
 Exit evidence: per-record catalog facts; exact accepted/refused transaction
-invariants; atom-only operation refusals on compact-bearing roots; deletion;
-undo/redo; and renderer preflight.
+invariants; atom-only operation refusals on compact-bearing roots; the delivered
+one-group deletion/Undo/Redo receipt; and renderer preflight.
 
 ### M5. Complete remaining compact delivery adapters
 
@@ -197,9 +207,10 @@ perform materialization.
 - Keep materialization scoped to typed attached direct-root `Me` and `NO2`
   groups. Free-form labels, recipes, and legacy aliases remain outside it.
 - The generic live PyO3 operation bridge registers materialization beside its
-  closest existing live materialization operation. It accepts only the fenced
-  request-owned CDML witness and Rust-issued molecule/group identifiers, then
-  returns the existing committed transition receipt or typed no-change refusal.
+  closest existing live materialization operation. It accepts only the current
+  session fence and Rust-issued durable molecule/group IDs, then returns the
+  existing committed transition receipt or typed no-change refusal. The
+  stateless protocol separately retains its admitted-CDML source-ID contract.
 - Bound requests and responses with the shared protocol admission budget. Keep
   diagnostic text redacted; clients consume stable category/recovery facts.
 
@@ -211,43 +222,116 @@ live-session non-mutation, and exact fence behavior.
 
 Owner: Qt interaction layer.
 
-Status: materialization action delivered on 2026-08-24. The visible action is
-enabled only for one selected typed compact group, sends the current fence and
-Rust-issued IDs through the generic live operation, installs the committed
-receipt, restores Rust's focus atom, and presents closed typed recovery. The
-chooser/attachment workflow remains separate work.
+Status: delivered for the public, methyl-only attached workflow and
+unavailable-anchor recovery on 2026-08-25.
+The visible chooser accepts one eligible selected atom, `Me`, and `Attach to
+Selected Atom`; one canvas release supplies only pointer intent. Rust performs
+availability, capacity and geometry admission, durable group and bond ID
+allocation, complete-render admission, and the one atomic history transition.
+Qt installs the committed receipt, presents closed refusal recovery, and does
+not carry raw CDML or source IDs. The private PyO3 bridge remains an
+implementation detail of this local Qt route, not a public attachment API.
 
-- Add an accessible Chemistry chooser that presents the closed labels and
-  concise Rust-defined descriptions. It offers `Attach to Selected Atom` only
-  when the Rust availability result admits the current typed selection, and
-  always exposes explicit `Place Free` where supported.
-- Route the next canvas click only as pointer-to-scene intent. Rust computes
-  attachment geometry, chemistry, durable IDs, and committed document state.
-- Add `Expand Compact Group`, enabled from public typed selected-group facts.
-  It refreshes the authoritative replacement projection and selects the
-  returned focus atom.
+The delivered public E2E creates C-C through visible controls, selects an
+eligible carbon, attaches `Me`, explicitly selects the compact group,
+materializes it, and waits for the visible Molecule Report result `Formula:
+C3H8`. It does not use private bridge access, raw IDs, raw CDML, mocks, timing,
+or pixel equality.
+
+- Keep Rust responsible for availability, catalog chemistry, attachment
+  geometry, durable ID allocation, render admission, and the atomic commit.
+  Qt supplies chooser state and pointer intent; it does not reconstruct
+  chemistry, issue IDs, admit a render, or stage an independent mutation.
+- Keep the PyO3 bridge private to the local Qt application. Do not add a CLI
+  command, stateless protocol route, public binding contract, or public catalog
+  expansion for this slice.
+- Preserve `document.compact-group.materialize.v1` and its existing public
+  delivery route unchanged. This attachment slice does not reschedule,
+  duplicate, or broaden materialization.
+- Keep permanent coverage to durable contracts: the fenced private lifecycle,
+  Rust-issued inputs and outputs, closed refusals, renderer-admitted preview,
+  cancel/refusal non-mutation, and one atomic committed transition. Classify
+  attached-cyclohexane demonstrations, renderer inspection, and exploratory
+  timing or visual probes as one-time evidence, not routine gates.
+- The accessible Chemistry chooser is delivered only for `Me` and `Attach to
+  Selected Atom`. Preserve that narrow public surface until another catalog
+  key has its own reviewed contract and evidence.
+- Keep free placement out of the chooser. It remains unfinished work, as do
+  the remaining reviewed catalog keys.
+- For one selected unavailable atom, disable the existing `Attach Compact
+  Group...` action and publish the exact accessible recovery guidance: `Me
+  cannot attach to the selected atom. Select another atom and try again.`
+  in its status tip, tool tip, and What's This text. Selecting an eligible
+  atom refreshes that same action to enabled. The Rust availability taxonomy
+  remains advisory; Qt does not add a fallback or new action.
+- If the selection changes before the chooser commits, preserve the existing
+  typed nonmodal refusal and refresh the existing action. The race does not
+  create a second mutation route or alter the schema.
+- The existing Select Structure tool delivers compact deletion without a new
+  Qt action: select exactly one group and press `Delete` or `Backspace`. Qt
+  forwards the renderer-issued parent/group durable IDs and presents the
+  authoritative combined receipt; it does not derive membership or mutation
+  effects.
+- Expand beyond `Me` only after independent review of the supplied key,
+  availability/refusal recovery, and public semantic E2E evidence. The public
+  E2E prerequisite for the attached-`Me` slice is already complete.
+- Retain `Materialize Selected Compact Group` as the delivered action. It uses
+  only a Rust-issued fenced availability observation for enablement, refreshes
+  the authoritative replacement projection, and selects the returned durable
+  focus atom.
 - Use normal nonmodal typed unavailable/refusal feedback. Qt owns accessible
   wording, chooser state, and transient events; it owns no valence, catalog,
   CDML, or recipe construction.
 
-Exit evidence: a visible selected-group workflow can insert, expand, delete,
-and recover from an unavailable anchor through public actions.
+Exit evidence delivered: visible C-C to `Me` attachment, compact selection,
+deletion through the existing `Delete` control with a group-aware receipt,
+public Formula `C2H6`, and public Undo that restores the compact group. The
+restored group then materializes successfully through the public route, and
+`Molecule Report...` returns public Formula `C3H8`. The registered public
+unavailable-anchor E2E authors saturated CH4 and eligible C-C, proves the
+disabled action and its accessible recovery guidance, changes selection, then
+attaches and materializes `Me` to prove `Formula: C3H8`. Remaining M6 exit work
+is free placement, other catalog keys, and the full-plan completion criteria.
 
 ### M7. Establish public end-to-end evidence and documentation
 
 Owner: Qt E2E and documentation.
 
-- Add one durable public Qt E2E only after M6: create a document through the
-  visible UI, author/select carbon, attach `Me`, verify visible label and typed
-  selection, save/reopen, expand, verify ordinary editable structure, then
-  undo/redo.
+Status: the former raw-CDML/mock compact-group E2E remains retired. The
+replacement public E2E is delivered and registered as
+`tests/e2e/e2e_compact_group_author_to_materialize.py`; it proves the visible
+C-C to `Me` to materialized `Formula: C3H8` workflow.
+
+`tests/e2e/e2e_compact_group_delete.py` is also registered. It creates and
+authors `Me` through visible Qt controls, explicitly selects the group, presses
+the existing `Delete` control, verifies the group-aware committed receipt and
+public `Formula: C2H6`, then uses public Undo to restore the compact group.
+It materializes that restored group through the public route and verifies
+`Molecule Report...` returns public `Formula: C3H8`.
+
+`tests/e2e/e2e_compact_group_unavailable_anchor_recovery.py` is registered. It
+uses public Draw Bond gestures to author saturated CH4 and eligible C-C, checks
+the disabled existing attachment action and its accessible guidance, changes
+selection, then attaches and materializes `Me` to prove public `Formula: C3H8`.
+
+- Retain the public attached-`Me` E2E as the durable workflow gate. It must
+  keep using visible controls and event-driven report completion, without raw
+  CDML, private controller/session access, raw IDs, mocks, timing, or pixels.
 - Add a separate public `NO2` workflow only if it proves a distinct durable
   behavior rather than repeating the same path. Avoid raw CDML, generated IDs,
   private widget/session access, timing assertions, pixel equality, mocks, and
   fixture inventories.
-- Document supported catalog vocabulary, compact versus materialized behavior,
-  one-attachment limit, and the closed unavailable outcomes in user/API/Qt
-  docs. Record the implementation and evidence in the changelog.
+- Retain the public compact-group deletion E2E as the durable ownership gate:
+  it must use visible selection, `Delete`, public report, and public Undo rather
+  than raw CDML, generated IDs, private bridge/session access, mocks, timing,
+  or pixel comparisons.
+- Retain the public unavailable-anchor recovery E2E. It must use public Draw
+  Bond gestures and accessible UI only, with no raw CDML, private session or
+  bridge access, timers, pixels, network, mocks, or fixtures.
+- Keep user/API documentation aligned with the delivered `Me`/`NO2`
+  materialization boundary, compact versus materialized behavior, and closed
+  Rust availability outcomes. The broader catalog/chooser workflow remains its
+  own planned scope.
 
 ## Ownership boundaries
 
@@ -259,6 +343,7 @@ Owner: Qt E2E and documentation.
 | Capacity arithmetic and candidate witness | Rust domain/document chemistry |
 | Label/glyph geometry, bond endpoint rendering, hit targets, preflight | Rust renderer |
 | Request schema, generic dispatcher, CLI aliases, PyO3 forwarding | Rust API |
+| Private M6 methyl attachment lifecycle and atomic transition | Rust document/session via PyO3 |
 | Chooser, accessibility, pointer conversion, visible feedback | Qt |
 | Durable public workflow evidence | Qt E2E |
 
@@ -284,13 +369,19 @@ Owner: Qt E2E and documentation.
    protocol equivalence.
 2. Focused permanent Qt public behavior: accessibility/action enablement,
    authoritative refresh, and only public visible workflow assertions.
-3. One permanent public Qt E2E: attach, visible group, selection, Save/Open,
-   materialize, Undo/Redo. It remains semantic rather than pixel-based.
-4. One-time implementation evidence: differential-oracle comparisons between
+3. The registered permanent compact-materialization Qt E2E covers public
+   authoring, explicit compact selection, materialization, and the visible
+   `Formula: C3H8` report result.
+4. The M6 private methyl lifecycle receives permanent focused contract coverage
+   for fenced begin/preview/commit/cancel behavior and atomic no-mutation
+   refusals. Attached-cyclohexane demonstrations, renderer inspection, and
+   exploratory timing or visual probes remain one-time evidence; they do not
+   become routine gates or substitute for public Qt workflow evidence.
+5. One-time implementation evidence: differential-oracle comparisons between
    the retired experimental path and M0's profile, `Me`/`NO2` receipts,
    renderer visual inspection, and screenshot capture. These do not become
    routine gates unless they meet the permanent-test criteria.
-5. Completion gates: `./build.sh`, `./all_test.sh`, documentation-link/style
+6. Completion gates: `./build.sh`, `./all_test.sh`, documentation-link/style
    checks through the normal suite, and a fresh independent architecture/code
    audit after M7.
 
@@ -303,5 +394,8 @@ reviewed catalog entries are usable through the approved public generic
 operation, local CLI route, PyO3 route, and accessible Qt flow; groups remain
 durable visible/selectable document objects; materialization and deletion are
 atomic; refusal semantics are shared and bounded; public semantic E2E evidence
-is green; and the documented local build and full validation suite pass.
+is green; the M6 methyl attachment slice has passed its public Qt
+author-to-materialize E2E and independent review; and the documented local
+build and full validation suite pass. The eventual completion criterion remains
+the full reviewed nine-key catalog and workflow, not this methyl-only slice.
 Broader group grammar, publishing, and installation remain separate work.

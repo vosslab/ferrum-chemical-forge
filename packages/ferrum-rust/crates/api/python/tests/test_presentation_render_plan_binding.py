@@ -12,6 +12,12 @@ SOURCE = (
 	'<c:point x="0" y="0"/><c:point x="40" y="0"/></c:arrow></c:cdml>'
 )
 
+MUTABLE_VECTOR_SOURCE = (
+	'<c:cdml xmlns:c="urn:ferrum:cdml"><c:polyline id="wave" style="wavy">'
+	'<c:point x="0" y="0"/><c:point x="20" y="0"/></c:polyline>'
+	'<c:rect id="box" x1="30" y1="10" x2="50" y2="30"/></c:cdml>'
+)
+
 
 def _plan(session: object) -> object:
 	"""Observe the current immutable renderer plan through its exact fence."""
@@ -39,6 +45,19 @@ def test_presentation_plan_refuses_stale_or_wrong_provenance_without_mutation() 
 	with pytest.raises(ferrum_chem.RevisionConflictError):
 		session.observe_presentation_render_plan_v1(before.revision + 1, before.digest)
 	assert session.snapshot().digest == before.digest
+
+
+def test_presentation_vector_targets_expose_render_and_durable_identity() -> None:
+	"""Mutable vector roots retain separate visual and durable identities."""
+	plan = _plan(ferrum_chem.DocumentSession.load(MUTABLE_VECTOR_SOURCE))
+	targets = {root.target.kind: root.target for root in plan.roots}
+
+	for kind, render_identifier in (("polyline", "wave"), ("rectangle", "box")):
+		target = targets[kind]
+		assert target.render_identifier == render_identifier
+		assert target.durable_object_id is not None
+		assert target.durable_object_id != target.render_identifier
+		assert target.durable_molecule_object_id is None
 
 
 def test_presentation_plan_publication_fences_live_smarts_after_document_mutation() -> None:

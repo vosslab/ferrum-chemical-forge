@@ -359,8 +359,8 @@ def _valid_aggregate(aggregate: object) -> bool:
 
 
 #============================================
-def _valid_record(record: object, address: object) -> bool:
-	"""Validate one selected direct-root record against its captured public address."""
+def _valid_record(record: object) -> bool:
+	"""Validate one selected direct-root record supplied by the public response."""
 	if (
 		type(record) is not dict
 		or not {
@@ -375,10 +375,7 @@ def _valid_record(record: object, address: object) -> bool:
 	):
 		return False
 	return (
-		record["molecule_id"] == address.molecule_id
-		and record["source_id"] == address.source_id
-		and record["document_root_order"] == address.document_root_order
-		and type(record["molecule_id"]) is str
+		type(record["molecule_id"]) is str and bool(record["molecule_id"])
 		and type(record["source_id"]) is str
 		and type(record["document_root_order"]) is int and record["document_root_order"] >= 0
 		and (record["authored_name"] is None or type(record["authored_name"]) is str)
@@ -808,9 +805,24 @@ class FerrumNativeMoleculeReportMixin:
 			or not _valid_aggregate(report.get("aggregate"))
 		):
 			return None
-		for record, address in zip(report["records"], intent.addresses, strict=True):
-			if not _valid_record(record, address):
+		captured_addresses = {
+			address.molecule_id: address for address in intent.addresses
+		}
+		if len(captured_addresses) != len(intent.addresses):
+			return None
+		records_by_molecule_id = {}
+		for record in report["records"]:
+			if not _valid_record(record):
 				return None
+			molecule_id = record["molecule_id"]
+			if (
+				molecule_id not in captured_addresses
+				or molecule_id in records_by_molecule_id
+			):
+				return None
+			records_by_molecule_id[molecule_id] = record
+		if set(records_by_molecule_id) != set(captured_addresses):
+			return None
 		return _presentation_report(report)
 
 	#============================================

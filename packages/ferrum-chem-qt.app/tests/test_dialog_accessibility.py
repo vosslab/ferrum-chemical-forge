@@ -75,7 +75,6 @@ DIALOG_FACTORY_EXEMPTIONS = {
 	"BondDialog": "requires a durable bond presentation model",
 	"FerrumNativeBondCapacityDialog": "requires a Rust diagnostic receipt",
 	"FerrumNativeDrawingParametersDialog": "requires next-drawing model and action",
-	"FerrumNativeMoleculeInformationDialog": "requires a Rust molecule-information receipt",
 	"FerrumNativePreferencesDialog": "requires application settings model",
 	"PaperPropertiesDialog": "requires a paper-properties presentation model",
 	"RichTextDialog": "requires rich-text run fixture",
@@ -105,7 +104,6 @@ DIALOG_SUBCLASS_SOURCES = {
 	"../ferrum/explicit_fragments.py": (
 		"_CreateExplicitFragmentDialog", "_ExplicitFragmentViewDialog",
 	),
-	"../ferrum/molecule_inspection.py": ("FerrumNativeMoleculeInformationDialog",),
 	"../ferrum/preferences.py": ("FerrumNativePreferencesDialog",),
 }
 

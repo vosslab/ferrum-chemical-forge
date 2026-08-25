@@ -26,8 +26,14 @@ class FerrumNativeStructureInteractionTabMixin:
 
 	#============================================
 	def commit_structure_deletion(self, selection: object) -> object:
-		"""Commit one opaque atomic Rust structural deletion and reproject once."""
+		"""Commit one opaque Rust deletion, then install its authoritative result."""
 		self._require_mutable()
 		commit = self._session.commit_structure_deletion_v1(selection)
-		self._install_mutation_result(commit.result)
+		try:
+			self._install_mutation_result(commit.result)
+		except Exception as exc:
+			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
+				exc.accepted_receipt = commit
+			raise
 		return commit

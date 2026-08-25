@@ -56,6 +56,7 @@ mod model;
 mod pdf_backend;
 mod png_backend;
 mod presentation_path_v1;
+mod render_target;
 mod scene_path_v2;
 mod shape_ops;
 mod standalone_text;
@@ -173,8 +174,10 @@ pub use haworth_front_bond::build_haworth_front_preview_ops;
 pub use model::{
     BatchSpace, FontFace, LineOp, MaskOp, MoleculeRenderPlan, Paint, PositiveFinite, RenderBatch,
     RenderDisplayLayerV1, RenderOp, RenderPoint, RenderProvenance, RenderRevision,
-    RenderSchemaVersion, RenderTarget, Rgb24, TextOp, TextRun,
+    RenderSchemaVersion, Rgb24, TextOp, TextRun,
 };
+/// Stable visual and durable document identity for one render-plan target.
+pub use render_target::RenderTarget;
 /// In-memory, outline-only vector PDF V1 lowering with explicit caller-owned limits.
 pub use pdf_backend::{
     PdfComplexityResourceV1, PdfDocumentV1, PdfOutputBudgetV1, PdfPlanComplexityBudgetV1,

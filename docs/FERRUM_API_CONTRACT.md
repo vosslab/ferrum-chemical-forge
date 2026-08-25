@@ -166,8 +166,9 @@ request.
 one attached direct-root typed compact group. Its payload contains exactly
 `document { cdml, expected_revision, expected_digest_hex }`, `molecule_id`, and
 `compact_group_id`. The document is a revision/digest-fenced snapshot and both
-target identifiers are opaque Rust-issued IDs, not labels, catalog keys,
-formulae, paths, geometry, or recipe input.
+target identifiers are caller-supplied opaque source IDs that identify records
+only within that admitted snapshot. They are not Rust-issued durable live IDs,
+labels, catalog keys, formulae, paths, geometry, or recipe input.
 
 The successful `materialization` receipt has schema
 `ferrum-document-compact-group-materialization-v1`. It repeats the source
@@ -186,8 +187,30 @@ pairs are `stale_document_fence` / `refresh_and_retry`,
 
 Only typed `Me` and `NO2` compact groups materialize in this public route. It
 does not accept free-form labels, formulas, recipes, or a legacy alias. The
-generic protocol and named CLI command are delivered; PyO3 live-session
-registration and the Qt compact action remain deferred.
+generic protocol, named CLI command, PyO3 live-session route, and Qt action
+are delivered. The stateless route deliberately identifies the admitted
+snapshot's targets by source IDs. The live route instead accepts the current
+session's durable `DocumentObjectIdV1` molecule and compact-group IDs plus its
+revision/digest fence; it never reconstructs those IDs from source data.
+
+The live session also issues a closed, fenced compact-materialization
+availability observation for a selected durable molecule/group pair. Qt uses
+only `Eligible` from that observation to enable `Materialize Selected Compact
+Group`; the operation revalidates the same session-owned eligibility during
+preparation and commit. Availability is transient session interaction data,
+not a compact-group projection or persisted CDML field, and it exposes no
+candidate, recipe, or raw CDML to Qt.
+
+Live render targets retain separate identities: a disposable
+`render_identifier` for scene/render-plan ownership, a Rust-issued
+`durable_object_id` for live selection and mutation, and, when an operation
+needs a parent, a Rust-issued `durable_molecule_object_id`. `source_order` is
+display/projection ordering only. Qt submits the durable target, durable owner
+when required, and the installed revision/digest fence; it never converts a
+render ID, source ID, source order, or projected CDML into a live target.
+Returned Rust focus selects `(kind, durable_object_id)` after projection
+installation. Structural targets missing a required durable identity are
+rejected before Qt installs the observation.
 
 ## Success and error data
 

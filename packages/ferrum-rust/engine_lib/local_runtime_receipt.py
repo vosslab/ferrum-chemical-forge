@@ -17,7 +17,7 @@ from engine_lib.native_engine_receipt import directory_tree_sha256, native_polic
 
 
 LOCAL_RUNTIME_RECEIPT_FILENAME = "ferrum-local-runtime-receipt.json"
-LOCAL_RUNTIME_RECEIPT_SCHEMA = "ferrum-local-runtime-receipt-v2"
+LOCAL_RUNTIME_RECEIPT_SCHEMA = "ferrum-local-runtime-receipt-v4"
 LOCAL_ENGINE_BUNDLE_DIRECTORY_NAME = "engine-v1"
 _CARGO_ROOT = Path(__file__).resolve().parents[1]
 _REPO_ROOT = _CARGO_ROOT.parents[1]
@@ -218,11 +218,13 @@ def local_extension_path(runtime_root: Path) -> Path:
 
 #============================================
 def _local_launcher_paths(runtime_root: Path) -> dict[str, Path]:
-	"""Return the launchers that consume one checked local runtime tree."""
-	build_root = runtime_root.resolve().parents[1]
+	"""Return every executable component beneath one immutable program root."""
+	program_root = runtime_root.resolve().parents[1]
 	return {
-		"cli": build_root / "bin/ferrum",
-		"gui": build_root / "bin/ferrum-qt",
+		"cli": program_root / "bin/ferrum",
+		"cli_payload": program_root / "bin/ferrum.program",
+		"gui": program_root / "bin/ferrum-qt",
+		"gui_payload": program_root / "bin/ferrum-qt.program",
 	}
 
 
@@ -234,13 +236,13 @@ def _local_engine_bundle_path(runtime_root: Path) -> Path:
 
 #============================================
 def _sha256_executable(path: Path, label: str) -> str:
-	"""Hash one regular executable launcher without following a symlink."""
+	"""Hash one regular owner-executable file without following a symlink."""
 	try:
 		mode = path.lstat().st_mode
 	except OSError as error:
 		raise LocalRuntimeReceiptError(f"cannot inspect {label}: {path}") from error
 	if not mode & stat.S_IXUSR:
-		raise LocalRuntimeReceiptError(f"{label} must be executable: {path}")
+		raise LocalRuntimeReceiptError(f"{label} must be owner-executable: {path}")
 	return _sha256_file(path, label)
 
 
@@ -255,16 +257,34 @@ def _runtime_artifacts(runtime_root: Path) -> dict[str, Path]:
 
 
 #============================================
+def _artifact_identity(runtime_root: Path, path: Path, label: str) -> dict[str, object]:
+	"""Return one closed program-root-relative executable or runtime artifact identity."""
+	program_root = runtime_root.resolve().parents[1]
+	# ASVS 5.3.2: artifact paths derive only from the selected immutable program root.
+	identity: dict[str, object] = {
+		"path": path.relative_to(program_root).as_posix(),
+	}
+	if label in {"cli", "gui"} or label.endswith("_payload"):
+		identity["owner_executable"] = True
+		identity["sha256"] = _sha256_executable(path, label)
+	else:
+		identity["sha256"] = _sha256_file(path, label)
+	return identity
+
+
+#============================================
 def _receipt_record(runtime_root: Path) -> dict[str, object]:
 	artifacts = _runtime_artifacts(runtime_root)
 	return {
 		"artifacts": {
-			name: (_sha256_executable(path, name) if name in {"cli", "gui"}
-				else _sha256_file(path, name))
+			name: _artifact_identity(runtime_root, path, name)
 			for name, path in artifacts.items()
-		} | {"engine_bundle": directory_tree_sha256(
-			_local_engine_bundle_path(runtime_root), "local engine bundle"
-		)},
+		} | {"engine_bundle": {
+			"path": "runtime/engine-v1",
+			"sha256": directory_tree_sha256(
+				_local_engine_bundle_path(runtime_root), "local engine bundle"
+			),
+		}},
 		"inputs": local_runtime_inputs(),
 		"schema": LOCAL_RUNTIME_RECEIPT_SCHEMA,
 	}

@@ -31,7 +31,6 @@ class FerrumNativeGeometricDialogModel:
 	"""Appearance values copied from one exact frozen Rust projection root."""
 
 	target_id: str
-	source_id: str
 	kind: str
 	title: str
 	line_width: float
@@ -45,9 +44,7 @@ class FerrumNativeGeometricDialogModel:
 class FerrumNativeBracketDialogModel:
 	"""Common appearance and durable members copied from one Rust bracket pair."""
 
-	pair_id: str
 	member_target_ids: tuple[str, str]
-	member_source_ids: tuple[str, str]
 	title: str
 	line_width: float
 	line_color: str
@@ -76,7 +73,7 @@ def dialog_model_from_projection(root: object) -> FerrumNativeGeometricDialogMod
 		raise TypeError("selected Rust geometric payload does not match its root kind")
 	if payload.target.record_kind != root.kind:
 		raise ValueError("selected Rust geometric target kind is inconsistent")
-	if type(payload.target.id) is not str or type(payload.target.source_id) is not str:
+	if type(payload.target.id) is not str:
 		raise ValueError("Ferrum geometric properties require a durable authored target")
 	width = payload.stroke.width
 	if (
@@ -97,7 +94,6 @@ def dialog_model_from_projection(root: object) -> FerrumNativeGeometricDialogMod
 		raise TypeError("selected Rust geometric fill color must be a string or None")
 	return FerrumNativeGeometricDialogModel(
 		payload.target.id,
-		payload.target.source_id,
 		root.kind,
 		_TITLES[root.kind],
 		width,
@@ -181,9 +177,7 @@ def bracket_dialog_model_from_projection(
 	if members.keys() != set(pair.member_ids):
 		raise ValueError("selected Rust bracket has no complete rendered member pair")
 	return FerrumNativeBracketDialogModel(
-		pair.pair_id,
 		(members[pair.member_ids[0]], members[pair.member_ids[1]]),
-		(pair.member_ids[0], pair.member_ids[1]),
 		"Bracket",
 		width,
 		pair.line_color,
@@ -247,28 +241,23 @@ class FerrumNativeGeometricPropertiesMixin:
 	def selected_bracket_pair_projection(
 			self,
 			) -> tuple[object, FerrumNativeBracketDialogModel]:
-		"""Return the exact projected pair selected through both durable members."""
+		"""Return the one current complete pair selected through durable render targets."""
 		self._require_mutable()
 		selected = self._require_projection().selected_durable_targets()
-		if len(selected) != 2 or any(target.kind != "polyline" for target in selected):
-			raise RuntimeError("select both sides of exactly one bracket pair")
-		if any(target.identifier is None for target in selected):
-			raise RuntimeError("selected bracket has a non-durable member")
-		if self._document_observation is None:
-			raise RuntimeError("selected bracket has no current durable projection")
-		stack = self._document_observation.projection.presentation_stack
-		selected_ids = {target.identifier for target in selected}
-		matches = []
-		for pair in stack.bracket_pairs:
-			try:
-				model = bracket_dialog_model_from_projection(pair, stack.roots)
-			except (TypeError, ValueError):
-				continue
-			if set(model.member_target_ids) == selected_ids:
-				matches.append((pair, model))
-		if len(matches) != 1:
-			raise RuntimeError("selected polylines are not one complete Rust bracket pair")
-		return matches[0]
+		if (
+				len(selected) != 2
+				or any(target.kind != "polyline" or target.durable_object_id is None
+						for target in selected)
+				or self._document_observation is None
+			):
+			raise RuntimeError("select both members of one bracket pair first")
+		selected_ids = frozenset(target.durable_object_id for target in selected)
+		roots = self._document_observation.projection.presentation_stack.roots
+		for pair in self._document_observation.projection.presentation_stack.bracket_pairs:
+			model = bracket_dialog_model_from_projection(pair, roots)
+			if frozenset(model.member_target_ids) == selected_ids:
+				return pair, model
+		raise RuntimeError("selected polylines are not one complete editable bracket pair")
 
 	#============================================
 	def selected_geometric_projection(self) -> object:
@@ -277,68 +266,62 @@ class FerrumNativeGeometricPropertiesMixin:
 		selected = self._require_projection().selected_durable_targets()
 		if len(selected) != 1 or selected[0].kind not in _GEOMETRIC_KINDS:
 			raise RuntimeError("select exactly one geometric presentation first")
-		if selected[0].identifier is None or self._document_observation is None:
+		if selected[0].durable_object_id is None or self._document_observation is None:
 			raise RuntimeError("selected geometry has no current durable projection")
 		for root in self._document_observation.projection.presentation_stack.roots:
 			if root.kind != selected[0].kind:
 				continue
 			model = dialog_model_from_projection(root)
-			if model.target_id == selected[0].identifier:
+			if model.target_id == selected[0].durable_object_id:
 				return root
 		raise RuntimeError("selected geometry is absent from the Rust projection")
 
 	#============================================
 	def apply_selected_geometric_properties(self, expected_target_id: str,
-			expected_source_id: str, changes: tuple[object, ...]) -> object:
+			changes: tuple[object, ...]) -> object:
 		"""Commit one closed geometric patch without allowing selection retargeting."""
 		self._require_mutable()
-		if type(expected_target_id) is not str or type(expected_source_id) is not str:
+		if type(expected_target_id) is not str:
 			raise TypeError("Ferrum geometric properties require durable string identifiers")
 		if type(changes) is not tuple:
 			raise TypeError("Ferrum geometric properties require an exact change tuple")
 		root = self.selected_geometric_projection()
 		model = dialog_model_from_projection(root)
-		if (
-			model.target_id != expected_target_id
-			or model.source_id != expected_source_id
-		):
+		if model.target_id != expected_target_id:
 			raise RuntimeError("selected geometry changed while its properties form was open")
 		import ferrum_qt.ferrum.engine as engine
 		if any(type(change) is not engine.DocumentGeometricPropertyChangeV1
 				for change in changes):
 			raise TypeError("Ferrum geometric properties require exact frozen Ferrum changes")
-		operation = engine.DocumentOperationV1.set_geometric_properties(
-			expected_source_id, changes,
+		snapshot = self.current_snapshot
+		result = self._session.set_geometric_properties_v1(
+			snapshot.revision, snapshot.digest, expected_target_id, changes,
 		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(
 			result, ((model.kind, model.target_id),),
 		)
 		return result
 
 	#============================================
-	def apply_selected_bracket_properties(self, expected_pair_id: str,
-			expected_member_target_ids: tuple[str, str], changes: tuple[object, ...]) -> object:
+	def apply_selected_bracket_properties(self, expected_member_target_ids: tuple[str, str],
+			changes: tuple[object, ...]) -> object:
 		"""Commit one common pair patch without allowing selection retargeting."""
 		self._require_mutable()
-		if type(expected_pair_id) is not str or type(expected_member_target_ids) is not tuple:
+		if type(expected_member_target_ids) is not tuple:
 			raise TypeError("Ferrum bracket properties require exact durable identifiers")
 		if type(changes) is not tuple:
 			raise TypeError("Ferrum bracket properties require an exact change tuple")
 		_pair, model = self.selected_bracket_pair_projection()
-		if (
-				model.pair_id != expected_pair_id
-				or model.member_target_ids != expected_member_target_ids
-			):
+		if model.member_target_ids != expected_member_target_ids:
 			raise RuntimeError("selected bracket changed while its properties form was open")
 		import ferrum_qt.ferrum.engine as engine
 		if any(type(change) is not engine.DocumentBracketPropertyChangeV1
 				for change in changes):
 			raise TypeError("Ferrum bracket properties require exact frozen Ferrum changes")
-		operation = engine.DocumentOperationV1.set_bracket_properties(
-			expected_pair_id, changes,
+		snapshot = self.current_snapshot
+		result = self._session.set_bracket_pair_properties_v1(
+			snapshot.revision, snapshot.digest, expected_member_target_ids, changes,
 		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(
 			result,
 			tuple(("polyline", identifier) for identifier in model.member_target_ids),
@@ -393,14 +376,10 @@ def _on_edit_geometric_properties(window: object) -> None:
 	try:
 		if type(model) is FerrumNativeBracketDialogModel:
 			changes = bracket_property_changes_from_dialog(dialog.changes())
-			tab.apply_selected_bracket_properties(
-				model.pair_id, model.member_target_ids, changes,
-			)
+			tab.apply_selected_bracket_properties(model.member_target_ids, changes)
 		else:
 			changes = property_changes_from_dialog(payload, dialog.changes())
-			tab.apply_selected_geometric_properties(
-				model.target_id, model.source_id, changes,
-			)
+			tab.apply_selected_geometric_properties(model.target_id, changes)
 	except Exception as exc:
 		window._refresh_actions()
 		window._show_edit_refusal(window._unavailable_edit_refusal(str(exc)))

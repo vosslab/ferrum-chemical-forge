@@ -7,8 +7,6 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly LOCAL_CLI="${REPO_ROOT}/build/bin/ferrum"
 readonly LOCAL_PYTHON_ROOT="${REPO_ROOT}/build/runtime/python"
 readonly LOCAL_RUNTIME_RECEIPT="${REPO_ROOT}/packages/ferrum-rust/local_runtime_receipt.py"
-readonly QT_SOURCE_ROOT="${REPO_ROOT}/packages/ferrum-chem-qt.app"
-readonly LOCAL_PYTHONPATH="${LOCAL_PYTHON_ROOT}:${QT_SOURCE_ROOT}:${REPO_ROOT}/tests"
 
 
 #============================================
@@ -31,12 +29,14 @@ require_local_runtime() {
 }
 
 
+# Keep E2E-only support imports as caller entries. source_me.sh retains them
+# after its Qt-source and sealed-runtime roots without duplicating either root.
+export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${REPO_ROOT}/tests"
 source "${REPO_ROOT}/source_me.sh"
-export PYTHONPATH="${LOCAL_PYTHONPATH}"
 export QT_QPA_PLATFORM=offscreen
 
-run_e2e "Ferrum sourced local runtime E2E" \
-	python3 "${REPO_ROOT}/tests/e2e/e2e_source_me_local_runtime.py"
+run_e2e "Ferrum aggregate source-owned runtime provenance E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_source_me_local_runtime.py" --current-environment
 run_e2e "Ferrum local build cleanup E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_build_local_runtime_cleanup.py"
 require_local_runtime
@@ -59,6 +59,12 @@ run_e2e "Ferrum Qt render interaction E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_render_interaction_selection.py"
 run_e2e "Ferrum Qt atom oxidation observation E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_atom_oxidation_observation.py"
+run_e2e "Ferrum Qt attached-Me authoring and materialization E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_author_to_materialize.py"
+run_e2e "Ferrum Qt attached-Me unavailable-anchor recovery E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_unavailable_anchor_recovery.py"
+run_e2e "Ferrum Qt attached-Me compact-group deletion and Undo E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_delete.py"
 run_e2e "Ferrum Qt E/Z carrier-mark projection E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_ez_carrier_mark_projection.py"
 run_e2e "Ferrum Qt arrow authoring E2E" \
@@ -67,5 +73,5 @@ run_e2e "Ferrum Qt presentation vector authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_presentation_vector_authoring.py"
 run_e2e "Ferrum Qt template catalog authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_authoring.py"
-run_e2e "Ferrum Qt compact-group materialization E2E" \
-	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_materialization_qt.py"
+run_e2e "Ferrum Qt SMARTS partial-result warning E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_smarts_partial_result_warning.py"

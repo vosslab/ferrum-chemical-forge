@@ -36,6 +36,184 @@ pub(crate) struct PyDocumentOperationV1 {
     pub(crate) operation: SessionOperation,
 }
 
+pub(crate) fn atom_element_operation(atom_id: String, element: String) -> SessionOperation {
+    SessionOperation::V1(SessionOperationV1::SetAtomElement { atom_id, element })
+}
+
+pub(crate) fn atom_position_operation(
+    py: Python<'_>,
+    atom_id: String,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> PyResult<SessionOperation> {
+    let position = match Point3V1::new(x, y, z) {
+        Ok(position) => position,
+        Err(error) => return Err(projection_error(py, error)?),
+    };
+    Ok(SessionOperation::V1(SessionOperationV1::SetAtomPosition {
+        atom_id,
+        position,
+    }))
+}
+
+pub(crate) fn delete_atom_operation(atom_id: String) -> SessionOperation {
+    SessionOperation::V1(SessionOperationV1::DeleteAtom { atom_id })
+}
+
+pub(crate) fn bond_properties_operation(
+    py: Python<'_>,
+    bond_id: String,
+    changes: &Bound<'_, PyTuple>,
+) -> PyResult<SessionOperation> {
+    if !changes.is_exact_instance_of::<PyTuple>() {
+        return Err(operation_validation_error(
+            py,
+            "bond-properties changes must be an exact built-in tuple".to_owned(),
+        ));
+    }
+    if changes.len() > 7 {
+        return Err(operation_validation_error(
+            py,
+            "a bond-properties patch accepts at most seven unique changes".to_owned(),
+        ));
+    }
+    let changes = changes
+        .iter()
+        .map(|value| {
+            value
+                .extract::<PyRef<'_, PyDocumentBondPropertyChangeV1>>()
+                .map(|value| value.change.clone())
+                .map_err(Into::into)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let patch = BondPropertiesPatchV1::new(bond_id, changes)
+        .map_err(|error| operation_validation_error(py, error.to_string()))?;
+    Ok(SessionOperation::V1(
+        SessionOperationV1::SetBondProperties { patch },
+    ))
+}
+
+pub(crate) fn atom_properties_operation(
+    py: Python<'_>,
+    atom_id: String,
+    changes: &Bound<'_, PyTuple>,
+) -> PyResult<SessionOperation> {
+    if !changes.is_exact_instance_of::<PyTuple>() {
+        return Err(operation_validation_error(
+            py,
+            "atom-properties changes must be an exact built-in tuple".to_owned(),
+        ));
+    }
+    if changes.len() > 9 {
+        return Err(operation_validation_error(
+            py,
+            "an atom-properties patch accepts at most nine unique changes".to_owned(),
+        ));
+    }
+    let changes = changes
+        .iter()
+        .map(|value| {
+            value
+                .extract::<PyRef<'_, PyDocumentAtomPropertyChangeV1>>()
+                .map(|value| value.change.clone())
+                .map_err(Into::into)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let patch = AtomPropertiesPatchV1::new(atom_id, changes)
+        .map_err(|error| operation_validation_error(py, error.to_string()))?;
+    Ok(SessionOperation::V1(
+        SessionOperationV1::SetAtomProperties { patch },
+    ))
+}
+
+pub(crate) fn atom_number_operation(
+    py: Python<'_>,
+    molecule_id: String,
+    atom_id: String,
+    number: &Bound<'_, PyAny>,
+    show_number: &Bound<'_, PyAny>,
+) -> PyResult<SessionOperation> {
+    if !number.is_exact_instance_of::<PyInt>() || number.is_instance_of::<PyBool>() {
+        return Err(operation_validation_error(
+            py,
+            "atom number must be an exact positive integer".to_owned(),
+        ));
+    }
+    let number = number
+        .extract::<u64>()
+        .map_err(|_| operation_validation_error(py, "atom number is outside u64".to_owned()))?;
+    if number == 0 {
+        return Err(operation_validation_error(
+            py,
+            "atom number must be positive".to_owned(),
+        ));
+    }
+    if !show_number.is_exact_instance_of::<PyBool>() {
+        return Err(operation_validation_error(
+            py,
+            "atom number visibility must be an exact bool".to_owned(),
+        ));
+    }
+    Ok(SessionOperation::V1(SessionOperationV1::SetAtomNumber {
+        molecule_id,
+        atom_id,
+        number: Some(number),
+        show_number: Some(show_number.extract::<bool>()?),
+    }))
+}
+
+pub(crate) fn clear_atom_number_operation(
+    molecule_id: String,
+    atom_id: String,
+) -> SessionOperation {
+    SessionOperation::V1(SessionOperationV1::SetAtomNumber {
+        molecule_id,
+        atom_id,
+        number: None,
+        show_number: None,
+    })
+}
+
+pub(crate) fn atom_mark_operation(
+    py: Python<'_>,
+    molecule_id: String,
+    atom_id: String,
+    action: PyRef<'_, PyAtomMarkActionV1>,
+    kind: PyRef<'_, PyAtomMarkKindV1>,
+    matching_mark_index: &Bound<'_, PyAny>,
+) -> PyResult<SessionOperation> {
+    let matching_mark_index = if matching_mark_index.is_none() {
+        None
+    } else {
+        if !matching_mark_index.is_exact_instance_of::<PyInt>()
+            || matching_mark_index.is_instance_of::<PyBool>()
+        {
+            return Err(operation_validation_error(
+                py,
+                "matching mark index must be an exact nonnegative integer or None".to_owned(),
+            ));
+        }
+        Some(matching_mark_index.extract::<u32>().map_err(|_| {
+            operation_validation_error(py, "matching mark index is outside u32".to_owned())
+        })?)
+    };
+    let action = AtomMarkActionV1::from(*action);
+    if action == AtomMarkActionV1::Add && matching_mark_index.is_some() {
+        return Err(operation_validation_error(
+            py,
+            "an add operation cannot select an existing mark".to_owned(),
+        ));
+    }
+    Ok(SessionOperation::V1(SessionOperationV1::ApplyAtomMark {
+        molecule_id,
+        atom_id,
+        action,
+        kind: (*kind).into(),
+        matching_mark_index,
+    }))
+}
+
 #[pymethods]
 impl PyDocumentOperationV1 {
     /// Build one complete frozen-molecule insertion operation.
@@ -147,10 +325,7 @@ impl PyDocumentOperationV1 {
     #[staticmethod]
     fn set_atom_element(atom_id: String, element: String) -> Self {
         Self {
-            operation: SessionOperation::V1(SessionOperationV1::SetAtomElement {
-                atom_id,
-                element,
-            }),
+            operation: atom_element_operation(atom_id, element),
         }
     }
 
@@ -161,31 +336,8 @@ impl PyDocumentOperationV1 {
         atom_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<Self> {
-        if !changes.is_exact_instance_of::<PyTuple>() {
-            return Err(operation_validation_error(
-                py,
-                "atom-properties changes must be an exact built-in tuple".to_owned(),
-            ));
-        }
-        if changes.len() > 9 {
-            return Err(operation_validation_error(
-                py,
-                "an atom-properties patch accepts at most nine unique changes".to_owned(),
-            ));
-        }
-        let changes = changes
-            .iter()
-            .map(|value| {
-                value
-                    .extract::<PyRef<'_, PyDocumentAtomPropertyChangeV1>>()
-                    .map(|value| value.change.clone())
-                    .map_err(Into::into)
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let patch = AtomPropertiesPatchV1::new(atom_id, changes)
-            .map_err(|error| operation_validation_error(py, error.to_string()))?;
         Ok(Self {
-            operation: SessionOperation::V1(SessionOperationV1::SetAtomProperties { patch }),
+            operation: atom_properties_operation(py, atom_id, changes)?,
         })
     }
 
@@ -237,34 +389,8 @@ impl PyDocumentOperationV1 {
         number: &Bound<'_, PyAny>,
         show_number: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        if !number.is_exact_instance_of::<PyInt>() || number.is_instance_of::<PyBool>() {
-            return Err(operation_validation_error(
-                py,
-                "atom number must be an exact positive integer".to_owned(),
-            ));
-        }
-        let number = number
-            .extract::<u64>()
-            .map_err(|_| operation_validation_error(py, "atom number is outside u64".to_owned()))?;
-        if number == 0 {
-            return Err(operation_validation_error(
-                py,
-                "atom number must be positive".to_owned(),
-            ));
-        }
-        if !show_number.is_exact_instance_of::<PyBool>() {
-            return Err(operation_validation_error(
-                py,
-                "atom number visibility must be an exact bool".to_owned(),
-            ));
-        }
         Ok(Self {
-            operation: SessionOperation::V1(SessionOperationV1::SetAtomNumber {
-                molecule_id,
-                atom_id,
-                number: Some(number),
-                show_number: Some(show_number.extract::<bool>()?),
-            }),
+            operation: atom_number_operation(py, molecule_id, atom_id, number, show_number)?,
         })
     }
 
@@ -272,12 +398,7 @@ impl PyDocumentOperationV1 {
     #[staticmethod]
     fn clear_atom_number(molecule_id: String, atom_id: String) -> Self {
         Self {
-            operation: SessionOperation::V1(SessionOperationV1::SetAtomNumber {
-                molecule_id,
-                atom_id,
-                number: None,
-                show_number: None,
-            }),
+            operation: clear_atom_number_operation(molecule_id, atom_id),
         }
     }
 
@@ -291,36 +412,15 @@ impl PyDocumentOperationV1 {
         kind: PyRef<'_, PyAtomMarkKindV1>,
         matching_mark_index: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let matching_mark_index = if matching_mark_index.is_none() {
-            None
-        } else {
-            if !matching_mark_index.is_exact_instance_of::<PyInt>()
-                || matching_mark_index.is_instance_of::<PyBool>()
-            {
-                return Err(operation_validation_error(
-                    py,
-                    "matching mark index must be an exact nonnegative integer or None".to_owned(),
-                ));
-            }
-            Some(matching_mark_index.extract::<u32>().map_err(|_| {
-                operation_validation_error(py, "matching mark index is outside u32".to_owned())
-            })?)
-        };
-        let action = AtomMarkActionV1::from(*action);
-        if action == AtomMarkActionV1::Add && matching_mark_index.is_some() {
-            return Err(operation_validation_error(
-                py,
-                "an add operation cannot select an existing mark".to_owned(),
-            ));
-        }
         Ok(Self {
-            operation: SessionOperation::V1(SessionOperationV1::ApplyAtomMark {
+            operation: atom_mark_operation(
+                py,
                 molecule_id,
                 atom_id,
                 action,
-                kind: (*kind).into(),
+                kind,
                 matching_mark_index,
-            }),
+            )?,
         })
     }
 
@@ -331,32 +431,8 @@ impl PyDocumentOperationV1 {
         bond_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<Self> {
-        if !changes.is_exact_instance_of::<PyTuple>() {
-            return Err(operation_validation_error(
-                py,
-                "bond-properties changes must be an exact built-in tuple".to_owned(),
-            ));
-        }
-        if changes.len() > 7 {
-            return Err(operation_validation_error(
-                py,
-                "a bond-properties patch accepts at most seven unique changes".to_owned(),
-            ));
-        }
-        let changes = changes
-            .iter()
-            .map(|value| {
-                value
-                    .extract::<PyRef<'_, PyDocumentBondPropertyChangeV1>>()
-                    .map(|value| value.change.clone())
-                    .map_err(Into::into)
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let patch = BondPropertiesPatchV1::new(bond_id, changes)
-            .map_err(|error| operation_validation_error(py, error.to_string()))?;
-        Ok(Self {
-            operation: SessionOperation::V1(SessionOperationV1::SetBondProperties { patch }),
-        })
+        let operation = bond_properties_operation(py, bond_id, changes)?;
+        Ok(Self { operation })
     }
 
     /// Build one complete unique-field direct-root Plus properties patch.
@@ -439,15 +515,8 @@ impl PyDocumentOperationV1 {
         y: f64,
         z: f64,
     ) -> PyResult<Self> {
-        let position = match Point3V1::new(x, y, z) {
-            Ok(position) => position,
-            Err(error) => return Err(projection_error(py, error)?),
-        };
         Ok(Self {
-            operation: SessionOperation::V1(SessionOperationV1::SetAtomPosition {
-                atom_id,
-                position,
-            }),
+            operation: atom_position_operation(py, atom_id, x, y, z)?,
         })
     }
 
@@ -455,7 +524,7 @@ impl PyDocumentOperationV1 {
     #[staticmethod]
     fn delete_atom(atom_id: String) -> Self {
         Self {
-            operation: SessionOperation::V1(SessionOperationV1::DeleteAtom { atom_id }),
+            operation: delete_atom_operation(atom_id),
         }
     }
 

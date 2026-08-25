@@ -13,6 +13,19 @@ pub struct DocumentCompactGroupMaterializationRequestV1 {
     compact_group_id: PersistentId,
 }
 
+/// Closed reasons durable live targets cannot lower to one compact-group request.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum DocumentCompactGroupMaterializationTargetErrorV1 {
+    #[error("selected molecule does not occur in the current document")]
+    UnknownMolecule,
+    #[error("selected molecule is not a typed molecule")]
+    InvalidMolecule,
+    #[error("selected compact group does not occur in the selected molecule")]
+    UnknownOrForeignCompactGroup,
+    #[error("selected target is not a typed compact group")]
+    InvalidCompactGroup,
+}
+
 impl DocumentCompactGroupMaterializationRequestV1 {
     #[must_use]
     pub const fn new(

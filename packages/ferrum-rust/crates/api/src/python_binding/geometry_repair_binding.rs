@@ -1,12 +1,14 @@
 //! Exact Python factory for implemented Rust geometry repair.
 
 use ferrum_document::{
-    GeometryRepairKindV1, GeometryRepairV1, SessionOperation, SessionOperationV1,
+    DocumentObjectIdV1, GeometryRepairKindV1, GeometryRepairV1, SessionOperation,
+    SessionOperationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyFloat, PyInt, PyString, PyTuple};
 
 use super::binding::operation_validation_error;
+use super::document_error_binding::document_object_id;
 
 #[pyclass(
     frozen,
@@ -65,6 +67,33 @@ pub(crate) fn repair_geometry(
     let repair = GeometryRepairV1::new(
         molecule_ids,
         (*kind).into(),
+        exact_positive_finite(py, target_spacing_points)?,
+    )
+    .map_err(|error| operation_validation_error(py, error.to_string()))?;
+    Ok(SessionOperation::V1(SessionOperationV1::RepairGeometry {
+        repair,
+    }))
+}
+
+pub(crate) fn live_molecule_ids(
+    py: Python<'_>,
+    values: &Bound<'_, PyTuple>,
+) -> PyResult<Vec<DocumentObjectIdV1>> {
+    values
+        .iter()
+        .map(|value| document_object_id(py, value.extract::<String>()?))
+        .collect()
+}
+
+pub(crate) fn repair(
+    py: Python<'_>,
+    molecule_ids: Vec<String>,
+    kind: PyDocumentGeometryRepairKindV1,
+    target_spacing_points: &Bound<'_, PyAny>,
+) -> PyResult<SessionOperation> {
+    let repair = GeometryRepairV1::new(
+        molecule_ids,
+        kind.into(),
         exact_positive_finite(py, target_spacing_points)?,
     )
     .map_err(|error| operation_validation_error(py, error.to_string()))?;

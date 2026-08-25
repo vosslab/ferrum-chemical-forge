@@ -10,9 +10,9 @@ use pyo3::types::PyTuple;
 
 use super::binding::document_result;
 use super::document_session_binding::{PyDocumentSession, hex_digest};
-use super::projection_binding::PyPresentationTargetV1;
 use super::render_binding::{
-    PyDocumentPlusRenderV1, PyRenderPointV1, RenderDepictionError, RenderProvenanceError,
+    PyDocumentPlusRenderV1, PyRenderPointV1, PyRenderTargetV1, RenderDepictionError,
+    RenderProvenanceError,
 };
 
 /// Renderer-calculated finite painted scene bounds for one presentation root.
@@ -139,7 +139,7 @@ pub(crate) struct PyPresentationRenderRootV1 {
     #[pyo3(get)]
     kind: String,
     #[pyo3(get)]
-    target: PyPresentationTargetV1,
+    target: PyRenderTargetV1,
     #[pyo3(get)]
     bounds: PyPresentationRenderBoundsV1,
     vector_operations: Vec<PyPresentationVectorOperationV1>,

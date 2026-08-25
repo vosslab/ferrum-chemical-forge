@@ -5,8 +5,9 @@ use crate::compact_group_materialization_v1::{
 };
 use crate::{
     DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
-    DocumentCompactGroupMaterializationResultV1, PersistentId, SessionOperationError, TypedClass,
-    document_object_id_from_record_v1,
+    DocumentCompactGroupMaterializationResultV1,
+    DocumentCompactGroupMaterializationTargetErrorV1, DocumentObjectIdV1, PersistentId,
+    SessionOperationError, TypedClass, document_object_id_from_record_v1,
 };
 
 use super::{
@@ -15,6 +16,47 @@ use super::{
 };
 
 impl DocumentSession {
+    /// Lower one current durable molecule/group pair for the shared compact transition.
+    pub fn lower_compact_group_materialization_targets_v1(
+        &self,
+        molecule_object_id: &DocumentObjectIdV1,
+        compact_group_object_id: &DocumentObjectIdV1,
+    ) -> Result<
+        (PersistentId, PersistentId),
+        DocumentCompactGroupMaterializationTargetErrorV1,
+    > {
+        let document = self.current_document_v1();
+        let molecule = document
+            .resolve_document_object_id(molecule_object_id)
+            .ok_or(DocumentCompactGroupMaterializationTargetErrorV1::UnknownMolecule)?;
+        if molecule.class() != TypedClass::Molecule {
+            return Err(DocumentCompactGroupMaterializationTargetErrorV1::InvalidMolecule);
+        }
+        let molecule_id = persistent_id(
+            molecule,
+            DocumentCompactGroupMaterializationTargetErrorV1::InvalidMolecule,
+        )?;
+        let compact_group = molecule
+            .typed_children()
+            .iter()
+            .find(|child| {
+                document_object_id_from_record_v1(child.record()).as_ref()
+                    == Some(compact_group_object_id)
+            })
+            .ok_or(
+                DocumentCompactGroupMaterializationTargetErrorV1::UnknownOrForeignCompactGroup,
+            )?
+            .record();
+        if compact_group.class() != TypedClass::CompactGroup {
+            return Err(DocumentCompactGroupMaterializationTargetErrorV1::InvalidCompactGroup);
+        }
+        let compact_group_id = persistent_id(
+            compact_group,
+            DocumentCompactGroupMaterializationTargetErrorV1::InvalidCompactGroup,
+        )?;
+        Ok((molecule_id, compact_group_id))
+    }
+
     /// Prepare one replacement through the generic renderer-admitted lifecycle.
     pub(in crate::session) fn prepare_materialize_compact_group_transition_v1(
         &mut self,
@@ -128,6 +170,14 @@ impl DocumentSession {
             None,
         )
     }
+}
+
+fn persistent_id(
+    record: &crate::TypedRecord,
+    error: DocumentCompactGroupMaterializationTargetErrorV1,
+) -> Result<PersistentId, DocumentCompactGroupMaterializationTargetErrorV1> {
+    let source_id = record.attribute("id").ok_or(error)?;
+    PersistentId::new(source_id.to_owned()).map_err(|_| error)
 }
 
 fn compact_request(

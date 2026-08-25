@@ -21,6 +21,7 @@ source ~/.bashrc
 # compiled extension staged beneath this checkout.
 FERRUM_REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 FERRUM_RUNTIME_ROOT="${FERRUM_REPO_ROOT}/build/runtime/python"
+FERRUM_QT_SOURCE_ROOT="${FERRUM_REPO_ROOT}/packages/ferrum-chem-qt.app"
 FERRUM_EXTENSION_SUFFIX="$(python3 -c 'import sysconfig; print(sysconfig.get_config_var("EXT_SUFFIX") or "")')"
 FERRUM_EXTENSION_PATH="${FERRUM_RUNTIME_ROOT}/ferrum_chem${FERRUM_EXTENSION_SUFFIX}"
 
@@ -30,7 +31,18 @@ if [[ -z "${FERRUM_EXTENSION_SUFFIX}" || ! -f "${FERRUM_EXTENSION_PATH}" ]]; the
 	return 1 2>/dev/null || exit 1
 fi
 
-export PYTHONPATH="${FERRUM_RUNTIME_ROOT}${FERRUM_CALLER_PYTHONPATH:+:${FERRUM_CALLER_PYTHONPATH}}"
+# Re-sourcing must retain external caller entries without accumulating this
+# checkout's runtime roots. Keep the local extension and Qt application source
+# first so an installed ferrum_qt cannot replace the source under review.
+FERRUM_FILTERED_CALLER_PYTHONPATH=""
+FERRUM_PYTHONPATH_INPUT="${FERRUM_CALLER_PYTHONPATH}:"
+while IFS= read -r -d ':' FERRUM_PYTHONPATH_ENTRY; do
+	if [[ -z "${FERRUM_PYTHONPATH_ENTRY}" || "${FERRUM_PYTHONPATH_ENTRY}" == "${FERRUM_QT_SOURCE_ROOT}" || "${FERRUM_PYTHONPATH_ENTRY}" == "${FERRUM_RUNTIME_ROOT}" ]]; then
+		continue
+	fi
+	FERRUM_FILTERED_CALLER_PYTHONPATH="${FERRUM_FILTERED_CALLER_PYTHONPATH:+${FERRUM_FILTERED_CALLER_PYTHONPATH}:}${FERRUM_PYTHONPATH_ENTRY}"
+done <<< "${FERRUM_PYTHONPATH_INPUT}"
+export PYTHONPATH="${FERRUM_QT_SOURCE_ROOT}:${FERRUM_RUNTIME_ROOT}${FERRUM_FILTERED_CALLER_PYTHONPATH:+:${FERRUM_FILTERED_CALLER_PYTHONPATH}}"
 
 if ! python3 -c '
 import pathlib
@@ -47,8 +59,12 @@ raise SystemExit(0 if actual == expected else 1)
 fi
 
 unset FERRUM_CALLER_PYTHONPATH
+unset FERRUM_FILTERED_CALLER_PYTHONPATH
+unset FERRUM_PYTHONPATH_INPUT
+unset FERRUM_PYTHONPATH_ENTRY
 unset FERRUM_REPO_ROOT
 unset FERRUM_RUNTIME_ROOT
+unset FERRUM_QT_SOURCE_ROOT
 unset FERRUM_EXTENSION_SUFFIX
 unset FERRUM_EXTENSION_PATH
 

@@ -80,10 +80,11 @@ pub(super) fn apply_double_bond_carrier_marks(
 
 pub(super) fn resolve_atom(
     atom: &AtomProjectionV1,
+    owner_molecule_object_id: &DocumentObjectIdV1,
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
 ) -> Result<AtomRenderTarget, DepictionIssueV1> {
-    let target = atom_target(atom)?;
+    let target = atom_target(atom, owner_molecule_object_id)?;
     if atom.label_text().is_some() {
         return Err(issue(
             DepictionIssueCodeV1::UnsupportedRichLabel,
@@ -238,11 +239,12 @@ fn render_mark_kind(kind: AtomMarkKindV1) -> AtomMarkRenderKind {
 
 pub(super) fn resolve_bond(
     bond: &BondProjectionV1,
+    owner_molecule_object_id: &DocumentObjectIdV1,
     endpoints: &std::collections::HashMap<DocumentObjectIdV1, RenderTarget>,
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
 ) -> Result<BondRenderTarget, DepictionIssueV1> {
-    let target = bond_target(bond)?;
+    let target = bond_target(bond, owner_molecule_object_id)?;
     let first = endpoint_record(bond.start(), endpoints, bond.projection_key().as_str())?;
     let second = endpoint_record(bond.end(), endpoints, bond.projection_key().as_str())?;
     if let Some(value) = bond.bond_width().filter(|value| value.value() < 0.0) {
@@ -320,9 +322,13 @@ fn effective_hydrogens(local: Option<VisibilityV1>, projection: &DocumentProject
     }) == Some(VisibilityV1::Enabled)
 }
 
-fn atom_target(atom: &AtomProjectionV1) -> Result<RenderTarget, DepictionIssueV1> {
+fn atom_target(
+    atom: &AtomProjectionV1,
+    owner_molecule_object_id: &DocumentObjectIdV1,
+) -> Result<RenderTarget, DepictionIssueV1> {
     record_target(
         atom.id(),
+        owner_molecule_object_id,
         atom.source_id(),
         atom.source_order(),
         RecordKind::Atom,
@@ -330,9 +336,13 @@ fn atom_target(atom: &AtomProjectionV1) -> Result<RenderTarget, DepictionIssueV1
     )
 }
 
-fn bond_target(bond: &BondProjectionV1) -> Result<RenderTarget, DepictionIssueV1> {
+fn bond_target(
+    bond: &BondProjectionV1,
+    owner_molecule_object_id: &DocumentObjectIdV1,
+) -> Result<RenderTarget, DepictionIssueV1> {
     record_target(
         bond.id(),
+        owner_molecule_object_id,
         bond.source_id(),
         bond.source_order(),
         RecordKind::Bond,
@@ -342,12 +352,13 @@ fn bond_target(bond: &BondProjectionV1) -> Result<RenderTarget, DepictionIssueV1
 
 fn record_target(
     durable: Option<&ferrum_document_projection::DocumentObjectIdV1>,
+    owner_molecule_object_id: &DocumentObjectIdV1,
     source_id: Option<&str>,
     source_order: u32,
     kind: RecordKind,
     local: &str,
 ) -> Result<RenderTarget, DepictionIssueV1> {
-    let Some(_durable) = durable else {
+    let Some(durable) = durable else {
         return Err(issue(
             DepictionIssueCodeV1::NonDurableTarget,
             local,
@@ -368,9 +379,11 @@ fn record_target(
             error.to_string(),
         )
     })?;
-    Ok(RenderTarget::new(
+    Ok(RenderTarget::document_object(
         RecordId::from_source(kind, &identifier),
         source_order,
+        durable.clone(),
+        Some(owner_molecule_object_id.clone()),
     ))
 }
 

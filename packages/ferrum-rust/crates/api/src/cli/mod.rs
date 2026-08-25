@@ -220,7 +220,7 @@ fn run_with_runtime_for_test<R: crate::protocol::runtime::ChemistryRuntimeV1>(
         stdout,
         stderr,
         runtime,
-        crate::protocol::DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
+        crate::protocol::OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
     )
 }
 
@@ -266,7 +266,7 @@ fn run_with_runtime_and_smarts_response_limit_for_test<
                 "controlled named SMARTS test does not publish files"
             );
             let _ = stderr;
-            if response_limit == crate::protocol::DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1 {
+            if response_limit == crate::protocol::OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1 {
                 Ok(protocol::run_protocol_with_runtime_for_test(
                     &input, stdin, stdout, runtime,
                 )?)

@@ -5,7 +5,7 @@ use crate::{
     DocumentAtomOxidationResultV1, DocumentMoleculeHydrogenMaterializationRefusalV1,
     DocumentMoleculeHydrogenMaterializationRequestV1,
     DocumentMoleculeHydrogenMaterializationResultV1, PersistentId, SessionDocumentObservationV1,
-    SessionOperationError, SessionOperationOutcomeV1, TypedDocument,
+	SessionOperationError, SessionOperationOutcomeV1, SessionOperationResultV1, TypedDocument,
     hydrogen_materialization_v1::plan_hydrogen_materialization_v1,
 };
 
@@ -15,6 +15,20 @@ use super::{
 };
 
 impl DocumentSession {
+	/// Materialize one fenced durable molecule through the session-owned transition lifecycle.
+	pub fn materialize_molecule_hydrogens_v1(
+		&mut self,
+		expected_revision: u64,
+		request: DocumentMoleculeHydrogenMaterializationRequestV1,
+	) -> Result<SessionOperationResultV1, DocumentSessionError> {
+		let mut transition = self.prepare_materialize_molecule_hydrogens_transition_v1(
+			expected_revision,
+			request,
+		)?;
+		self.commit_session_operation_transition_v1(&mut transition)
+			.map_err(|refusal| map_transition_refusal(self, expected_revision, refusal))
+	}
+
     /// Prepare one generic explicit-hydrogen transition without mutating the session.
     ///
     /// This private lowering keeps planning, source fences, candidate validation,
@@ -155,6 +169,34 @@ impl DocumentSession {
             .map(|_| ())
             .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnrenderableCandidate)
     }
+}
+
+fn map_transition_refusal(
+	session: &DocumentSession,
+	expected_revision: u64,
+	refusal: super::AdmittedSessionTransitionRefusalV1,
+) -> DocumentSessionError {
+	match refusal {
+		super::AdmittedSessionTransitionRefusalV1::ForeignSession => {
+			DocumentSessionError::PreparedOperationForeignSession
+		}
+		super::AdmittedSessionTransitionRefusalV1::Replayed
+		| super::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+			DocumentSessionError::PreparedOperationConsumed
+		}
+		super::AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+			DocumentSessionError::RevisionConflict {
+				expected: expected_revision,
+				actual: session.current_revision_v1(),
+			}
+		}
+		super::AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+			DocumentSessionError::RendererAdmission
+		}
+		super::AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+			SessionOperationError::HistoryResourceExhausted.into()
+		}
+	}
 }
 
 fn temporary_ids(

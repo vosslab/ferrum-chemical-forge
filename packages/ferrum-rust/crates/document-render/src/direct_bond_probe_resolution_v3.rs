@@ -47,12 +47,11 @@ pub(crate) fn resolve_probe(
             Err(DirectBondPointerProbeErrorV3::AmbiguousAtom)
         }
         DirectBondPointerHitStateV3::UniqueAtom => {
-            let direct_source_id = probe
-                .direct_atom_source_id
+            let direct_object_id = probe
+                .direct_atom_object_id
                 .as_ref()
                 .expect("validated at construction");
-            let mut matching_atoms =
-                atoms.filter(|atom| atom.source_id() == Some(direct_source_id.as_str()));
+            let mut matching_atoms = atoms.filter(|atom| atom.id() == Some(direct_object_id));
             let Some(atom) = matching_atoms.next() else {
                 return Err(DirectBondPointerProbeErrorV3::UnknownDirectAtom);
             };

@@ -564,11 +564,30 @@ def test_render_observation_is_one_frozen_api_owned_plan_with_exact_glyphs() -> 
     assert (plan.schema, type(plan), type(batch), type(operation)) == ("ferrum-render-plan-v2",
         ferrum_chem.RenderPlanV2, ferrum_chem.RenderBatchV2, ferrum_chem.RenderOperationV2)
     assert (entry.molecule.source_id, entry.molecule.source_order) == ("m", 0)
-    assert batch.target.record_id.kind == "Atom"
+    assert batch.target.kind == "Atom"
     assert operation.kind == "text"
     assert operation.operation.runs[0].glyphs[0].glyph_index > 0
     with pytest.raises(AttributeError):
         plan.provenance.revision = 1
+
+
+def test_render_targets_publish_visual_and_durable_document_identities() -> None:
+    source = (
+        '<cdml xmlns="urn:ferrum:cdml"><molecule id="molecule">'
+        '<atom id="atom" name="C"><point x="0" y="0"/></atom>'
+        '<compact-group id="group" version="1" catalog-key="methyl" attachment-index="0" '
+        'orientation-degrees="0"><point x="20" y="0"/></compact-group>'
+        '<bond id="bond" start="atom" end="group" type="n1"/>'
+        '</molecule></cdml>'
+    )
+    entry = ferrum_chem.DocumentSession.load(source).observe_render(0).molecule_plans[0]
+    targets = {batch.target.kind: batch.target for batch in entry.plan.batches}
+
+    for kind in ("Atom", "Bond", "Group"):
+        target = targets[kind]
+        assert target.render_identifier is not None
+        assert target.durable_object_id is not None
+        assert target.durable_molecule_object_id == entry.molecule.id
 
 
 def test_render_observation_preserves_typed_stale_and_closed_telex_contracts() -> None:
@@ -607,7 +626,11 @@ def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -
     ]
     assert isinstance(render.operation.runs, tuple)
     assert all(glyph.glyph_index > 0 for run in render.operation.runs for glyph in run.glyphs)
-    assert (render.target.source_id, render.anchor.x, render.anchor.y) == ("label", 10.0, 20.0)
+    assert (render.target.render_identifier, render.anchor.x, render.anchor.y) == (
+        "label",
+        10.0,
+        20.0,
+    )
     with pytest.raises(AttributeError):
         render.operation.paint = "000000"
 

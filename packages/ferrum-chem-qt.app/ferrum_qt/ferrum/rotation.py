@@ -47,7 +47,8 @@ class FerrumNativeRotationTabMixin:
 			return False
 		selected = self._require_projection().selected_targets()
 		return bool(selected) and all(
-			target.is_durable and target.kind == "atom" for target in selected
+			target.durable_object_id is not None and target.kind == "atom"
+			for target in selected
 		)
 
 	#============================================
@@ -57,47 +58,51 @@ class FerrumNativeRotationTabMixin:
 		selected_targets = self._require_projection().selected_targets()
 		if (
 				not selected_targets
-				or any(not target.is_durable or target.kind != "atom" for target in selected_targets)
+				or any(
+					target.durable_object_id is None or target.kind != "atom"
+					for target in selected_targets
+				)
 			):
 			raise ValueError("select one or more durable atoms before rotating")
-		selected_ids = tuple(target.identifier for target in selected_targets)
-		if any(identifier is None for identifier in selected_ids):
+		selected_ids = tuple(target.durable_object_id for target in selected_targets)
+		addresses = tuple(
+			(target.durable_molecule_object_id, target.durable_object_id)
+			for target in selected_targets
+		)
+		if any(
+				type(molecule_id) is not str or not molecule_id
+				or type(atom_id) is not str or not atom_id
+				for molecule_id, atom_id in addresses
+			):
 			raise ValueError("selected rotation atom lacks durable identity")
 		selected = frozenset(selected_ids)
 		observation = self.current_document_observation()
-		addresses = []
 		positions = []
 		affected_bonds = []
 		selected_positions = []
 		for molecule in observation.projection.molecules:
-			molecule_selected = tuple(
-				atom for atom in molecule.atoms if atom.source_id in selected
-			)
-			if molecule_selected and molecule.source_id is None:
-				raise ValueError("selected rotation atom lacks a durable molecule")
 			for atom in molecule.atoms:
-				if atom.source_id is None:
+				if atom.id is None:
 					continue
-				position = (atom.source_id, float(atom.position.x), float(atom.position.y))
+				position = (atom.id, float(atom.position.x), float(atom.position.y))
 				positions.append(position)
-				if atom.source_id in selected:
-					addresses.append((molecule.source_id, atom.source_id))
+				if atom.id in selected:
 					selected_positions.append(position)
 			for bond in molecule.bonds:
-				start = bond.start.source_id
-				end = bond.end.source_id
+				start = bond.start.id
+				end = bond.end.id
 				if start is not None and end is not None and (
 						start in selected or end in selected
 						):
 					affected_bonds.append((start, end))
-		resolved = frozenset(atom_id for _, atom_id in addresses)
+		resolved = frozenset(position[0] for position in selected_positions)
 		if resolved != selected:
 			raise ValueError("selected rotation atom is absent from the Rust projection")
 		center_x = sum(position[1] for position in selected_positions) / len(selected_positions)
 		center_y = sum(position[2] for position in selected_positions) / len(selected_positions)
 		return FerrumNativeRotationSelection(
-			tuple(addresses),
-			tuple(("atom", atom_id) for _, atom_id in addresses),
+			addresses,
+			tuple(target.durable_selection_key() for target in selected_targets),
 			tuple(positions),
 			tuple(affected_bonds),
 			PySide6.QtCore.QPointF(center_x, center_y),
@@ -121,15 +126,11 @@ class FerrumNativeRotationTabMixin:
 		current = self.selected_atom_rotation()
 		if current.addresses != selection.addresses:
 			raise ValueError("Ferrum rotation selection changed during the gesture")
-		import ferrum_qt.ferrum.engine as engine
-		targets = tuple(
-			engine.DocumentAtomRotationTargetV1.create(molecule_id, atom_id)
-			for molecule_id, atom_id in selection.addresses
+		snapshot = self.current_snapshot
+		result = self._live_document_session_v1.rotate_live_document_atoms_v1(
+			snapshot.revision, snapshot.digest, selection.addresses,
+			center[0], center[1], angle_radians,
 		)
-		operation = engine.DocumentOperationV1.rotate_atoms(
-			targets, center[0], center[1], angle_radians,
-		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result, selection.durable_selection)
 		return result
 

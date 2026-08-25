@@ -8,12 +8,12 @@ use ferrum_document::{
     convert_document_linear_form_v1 as convert_rust_document_linear_form_v1,
 };
 use ferrum_document::{
-    DocumentObjectIdV1, DocumentSession, DocumentSessionError, PersistentId, SessionOperationError,
-    SessionOperationResultV1,
+    DocumentObjectIdV1, DocumentSession, DocumentSessionError, SessionOperationError,
+    SessionOperationResultV1, TypedClass,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyString, PyTuple};
+use pyo3::types::{PyAny, PyString};
 
 use super::binding::FerrumError;
 
@@ -23,8 +23,6 @@ const DIGEST_REASON: &str = "expected digest must be exactly 64 lowercase hexade
 const DIGEST_TEXT_REASON: &str = "expected digest must be valid UTF-8 text";
 const RESOURCE_REASON: &str = "linear-form conversion could not reserve input storage";
 const ROOT_TEXT_REASON: &str = "molecule selector must be valid UTF-8 text";
-const SELECTION_SHAPE_REASON: &str = "selected atom IDs must be an exact built-in tuple";
-const SELECTION_TEXT_REASON: &str = "selected atom ID must be valid UTF-8 text";
 
 pub(crate) fn convert_linear_form_v1(
     py: Python<'_>,
@@ -48,7 +46,14 @@ pub(crate) fn convert_linear_form_v1(
         Ok(value) => value,
         Err(error) => return Err(linear_form_error(py, error.to_string())?),
     };
-    let selected_atom_ids = atom_ids(py, selected_atom_ids)?;
+    let selected_atom_ids = super::chemical_live_binding::molecule_member_source_ids(
+        py,
+        session,
+        &molecule_id,
+        selected_atom_ids,
+        TypedClass::Atom,
+        "selected atom IDs",
+    )?;
     let request = DocumentLinearFormRequestV1::new(
         expected_revision,
         expected_digest,
@@ -69,34 +74,6 @@ pub(crate) fn convert_linear_form_v1(
             super::document_error_binding::map_document_error(py, error)?,
         ),
     }
-}
-
-fn atom_ids(py: Python<'_>, values: &Bound<'_, PyAny>) -> PyResult<Vec<PersistentId>> {
-    if !values.is_exact_instance_of::<PyTuple>() {
-        return Err(linear_form_error(py, SELECTION_SHAPE_REASON)?);
-    }
-    let values = values.cast::<PyTuple>()?;
-    let mut atom_ids = Vec::new();
-    if atom_ids.try_reserve_exact(values.len()).is_err() {
-        return Err(linear_form_error(py, RESOURCE_REASON)?);
-    }
-    for value in values.iter() {
-        if !value.is_exact_instance_of::<PyString>() {
-            return Err(linear_form_error(py, SELECTION_SHAPE_REASON)?);
-        }
-        let string = value.cast::<PyString>()?;
-        let value = match string.to_str() {
-            Ok(value) => value,
-            Err(_) => return Err(linear_form_error(py, SELECTION_TEXT_REASON)?),
-        };
-        let value = copied(py, value)?;
-        let atom_id = match PersistentId::new(value) {
-            Ok(value) => value,
-            Err(error) => return Err(linear_form_error(py, error.to_string())?),
-        };
-        atom_ids.push(atom_id);
-    }
-    Ok(atom_ids)
 }
 
 fn selection_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyErr> {

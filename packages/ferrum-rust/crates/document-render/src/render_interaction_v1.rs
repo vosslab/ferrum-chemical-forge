@@ -16,7 +16,7 @@ use ferrum_document::{
     DocumentSmartsSnapshotErrorV1, PreparedDocumentSmartsSnapshotV1, PresentationCreationGestureV1,
     PresentationGestureErrorV1, PresentationGestureKindV1, PresentationGesturePoint2V1,
     PresentationGestureSnapPolicyV1, PresentationGestureStyleV1, PresentationRecordKindV1,
-    SessionOperationResultV1, StructureDeletionReceiptV1, TopLevelRootKindV1,
+    SessionOperationResultV1, TopLevelRootKindV1,
 };
 use ferrum_render::{
     PathOpV2, PresentationRenderPlanV1, PresentationRenderRootV1, RenderOp, ScenePathCommandV2,
@@ -391,6 +391,8 @@ pub enum StructureTargetKindV1 {
 pub struct StructureInteractionTargetV1 {
     molecule_id: String,
     identifier: String,
+    durable_molecule_object_id: Option<String>,
+    durable_object_id: Option<String>,
     source_order: u32,
     kind: StructureTargetKindV1,
     bounds: RenderInteractionBoundsV1,
@@ -419,6 +421,14 @@ impl StructureInteractionTargetV1 {
     #[must_use]
     pub fn identifier(&self) -> &str {
         &self.identifier
+    }
+    #[must_use]
+    pub fn durable_molecule_object_id(&self) -> Option<&str> {
+        self.durable_molecule_object_id.as_deref()
+    }
+    #[must_use]
+    pub fn durable_object_id(&self) -> Option<&str> {
+        self.durable_object_id.as_deref()
     }
     #[must_use]
     pub const fn source_order(&self) -> u32 {
@@ -527,29 +537,9 @@ impl StructureInteractionSelectionV1 {
 #[derive(Clone, Debug)]
 pub struct CommittedStructureDeletionV1 {
     result: SessionOperationResultV1,
-    removed_atoms: Vec<String>,
-    removed_bonds: Vec<String>,
-    components: Vec<StructureDeletionComponentFactsV1>,
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StructureDeletionComponentFactsV1 {
-    molecule_id: String,
-    atom_ids: Vec<String>,
-    bond_ids: Vec<String>,
-}
-impl StructureDeletionComponentFactsV1 {
-    #[must_use]
-    pub fn molecule_id(&self) -> &str {
-        &self.molecule_id
-    }
-    #[must_use]
-    pub fn atom_ids(&self) -> &[String] {
-        &self.atom_ids
-    }
-    #[must_use]
-    pub fn bond_ids(&self) -> &[String] {
-        &self.bond_ids
-    }
+    removed_atom_count: usize,
+    removed_bond_count: usize,
+    removed_compact_group_count: usize,
 }
 impl CommittedStructureDeletionV1 {
     #[must_use]
@@ -557,16 +547,16 @@ impl CommittedStructureDeletionV1 {
         &self.result
     }
     #[must_use]
-    pub fn removed_atoms(&self) -> &[String] {
-        &self.removed_atoms
+    pub const fn removed_atom_count(&self) -> usize {
+        self.removed_atom_count
     }
     #[must_use]
-    pub fn removed_bonds(&self) -> &[String] {
-        &self.removed_bonds
+    pub const fn removed_bond_count(&self) -> usize {
+        self.removed_bond_count
     }
     #[must_use]
-    pub fn components(&self) -> &[StructureDeletionComponentFactsV1] {
-        &self.components
+    pub const fn removed_compact_group_count(&self) -> usize {
+        self.removed_compact_group_count
     }
 }
 impl RenderInteractionSelectionV1 {
@@ -666,6 +656,10 @@ pub enum RenderInteractionErrorV1 {
     CrossMoleculeSelection,
     #[error("a structural target no longer belongs to the observed molecule")]
     UnsupportedTarget,
+    #[error("select exactly one compact group without atoms or bonds before deleting it")]
+    InvalidCompactGroupDeletionSelection,
+    #[error("the compact group deletion topology requires document repair before retry")]
+    InvalidCompactGroupDeletionTopology,
     #[error("the current document cannot supply a complete SMARTS target set")]
     UnsupportedDocument,
 }

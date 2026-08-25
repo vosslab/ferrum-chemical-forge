@@ -58,11 +58,17 @@ def _clipboard_paste_selection(projection: object,
 					"Ferrum Paste molecule is absent from its committed projection",
 				)
 			for atom in matches[0].atoms:
-				if atom.source_id is not None:
-					selection.append(("atom", atom.source_id))
+				if type(atom.id) is not str or not atom.id:
+					raise native_document_tab_errors.FerrumNativeDocumentTabError(
+						"Ferrum Paste atom has no durable committed identity",
+					)
+				selection.append(("atom", atom.id))
 			for bond in matches[0].bonds:
-				if bond.source_id is not None:
-					selection.append(("bond", bond.source_id))
+				if type(bond.id) is not str or not bond.id:
+					raise native_document_tab_errors.FerrumNativeDocumentTabError(
+						"Ferrum Paste bond has no durable committed identity",
+					)
+				selection.append(("bond", bond.id))
 			continue
 		matches = tuple(
 			_presentation_target(root) for root in projection.presentation_stack.roots

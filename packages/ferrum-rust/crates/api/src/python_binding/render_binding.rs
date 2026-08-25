@@ -1,9 +1,9 @@
 //! Frozen Python DTOs for the API-owned final render observation.
 
-use ferrum_core::{RecordId, RecordOrigin};
+use ferrum_core::RecordOrigin;
 use ferrum_document::{
     DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1, DocumentRenderObservationErrorV1,
-    DocumentRenderObservationV1,
+    DocumentRenderObservationV1, PresentationTargetV1,
 };
 use ferrum_render::{
     BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
@@ -40,42 +40,46 @@ impl From<RenderPoint> for PyRenderPointV1 {
     }
 }
 
-#[pyclass(frozen, name = "RenderRecordIdV1", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyRenderRecordIdV1 {
-    #[pyo3(get)]
-    kind: String,
-    #[pyo3(get)]
-    id: Option<String>,
-}
-
-impl From<&RecordId> for PyRenderRecordIdV1 {
-    fn from(value: &RecordId) -> Self {
-        let id = match value.origin() {
-            RecordOrigin::Source(identifier) => Some(identifier.as_str().to_owned()),
-            RecordOrigin::Legacy { .. } => None,
-        };
-        Self {
-            kind: format!("{:?}", value.kind()),
-            id,
-        }
-    }
-}
-
 #[pyclass(frozen, name = "RenderTargetV1", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyRenderTargetV1 {
     #[pyo3(get)]
-    record_id: PyRenderRecordIdV1,
+    kind: String,
+    #[pyo3(get)]
+    render_identifier: Option<String>,
     #[pyo3(get)]
     source_order: u32,
+    #[pyo3(get)]
+    durable_object_id: Option<String>,
+    #[pyo3(get)]
+    durable_molecule_object_id: Option<String>,
 }
 
 impl From<&RenderTarget> for PyRenderTargetV1 {
     fn from(value: &RenderTarget) -> Self {
         Self {
-            record_id: value.record_id().into(),
+            kind: format!("{:?}", value.record_id().kind()),
+            render_identifier: match value.record_id().origin() {
+                RecordOrigin::Source(identifier) => Some(identifier.as_str().to_owned()),
+                RecordOrigin::Legacy { .. } => None,
+            },
             source_order: value.source_order(),
+            durable_object_id: value.document_object_id().map(|id| id.as_str().to_owned()),
+            durable_molecule_object_id: value
+                .owner_molecule_object_id()
+                .map(|id| id.as_str().to_owned()),
+        }
+    }
+}
+
+impl From<&PresentationTargetV1> for PyRenderTargetV1 {
+    fn from(value: &PresentationTargetV1) -> Self {
+        Self {
+            kind: format!("{:?}", value.record_kind()).to_ascii_lowercase(),
+            render_identifier: value.source_id().map(str::to_owned),
+            source_order: value.source_order(),
+            durable_object_id: value.id().map(|id| id.as_str().to_owned()),
+            durable_molecule_object_id: None,
         }
     }
 }
@@ -400,7 +404,7 @@ pub(crate) struct PyPresentationTextBoundsV1 {
 #[derive(Clone)]
 pub(crate) struct PyDocumentPlusRenderV1 {
     #[pyo3(get)]
-    target: super::projection_binding::PyPresentationTargetV1,
+    target: PyRenderTargetV1,
     #[pyo3(get)]
     anchor: PyRenderPointV1,
     #[pyo3(get)]
@@ -794,7 +798,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRenderProvenanceV1>()?;
     module.add_class::<PyRenderBatchV2>()?;
     module.add_class::<PyRenderTargetV1>()?;
-    module.add_class::<PyRenderRecordIdV1>()?;
     module.add_class::<PyAtomLocalSpaceV1>()?;
     module.add_class::<PySceneSpaceV1>()?;
     module.add_class::<PyRenderOperationV2>()?;

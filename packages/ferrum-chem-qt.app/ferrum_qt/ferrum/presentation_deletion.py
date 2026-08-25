@@ -24,16 +24,10 @@ class FerrumNativePresentationDeletionMixin:
 		if projection is None:
 			return False
 		selected = projection.selected_durable_targets()
-		if not selected or any(
-			target.kind not in _DELETABLE_KINDS or target.identifier is None
+		return bool(selected) and all(
+			target.kind in _DELETABLE_KINDS and target.durable_object_id is not None
 			for target in selected
-		):
-			return False
-		try:
-			source_ids = tuple(self._presentation_source_id(target) for target in selected)
-		except (RuntimeError, TypeError, ValueError):
-			return False
-		return self._has_complete_bracket_deletion(source_ids)
+		)
 
 	#============================================
 	def has_one_selected_presentation_root(self) -> bool:
@@ -61,62 +55,15 @@ class FerrumNativePresentationDeletionMixin:
 		selected = self._controller.projection.selected_durable_targets()
 		import ferrum_qt.ferrum.engine as engine
 		kinds = engine.DocumentPresentationRootKindV1
-		selectors = tuple(
-			engine.DocumentPresentationRootSelectorV1.create(
-				self._presentation_source_id(target), getattr(kinds, target.kind),
-			)
+		targets = tuple(
+			(target.durable_object_id, getattr(kinds, target.kind))
 			for target in selected
 		)
-		operation = engine.DocumentOperationV1.delete_presentation_roots(
-			selectors,
+		result = self._session.apply_live_presentation_deletion_v1(
+			self.current_snapshot.revision, self.current_snapshot.digest, targets,
 		)
-		result = self._apply_current_document_operation_v1(operation)
 		self._install_mutation_result(result)
 		return result
-
-	#============================================
-	def _presentation_source_id(self, selected: object) -> str:
-		"""Resolve one authenticated scene identity to its authored Rust selector."""
-		if self._document_observation is None:
-			raise RuntimeError("Ferrum tab has no installed document projection")
-		for root in self._document_observation.projection.presentation_stack.roots:
-			target = _root_target(root)
-			if target.id == selected.identifier and target.record_kind == selected.kind:
-				if type(target.source_id) is not str or not target.source_id:
-					raise ValueError("selected presentation has no durable source identifier")
-				return target.source_id
-		raise RuntimeError("selected presentation is absent from the Rust projection")
-
-	#============================================
-	def _has_complete_bracket_deletion(self, source_ids: tuple[str, ...]) -> bool:
-		"""Require both authoritative bracket members when either is selected."""
-		if self._document_observation is None:
-			return False
-		selected = frozenset(source_ids)
-		pairs = self._document_observation.projection.presentation_stack.bracket_pairs
-		for pair in pairs:
-			selected_members = selected.intersection(pair.member_ids)
-			if selected_members and selected_members != frozenset(pair.member_ids):
-				return False
-		return True
-
-
-#============================================
-def _root_target(root: object) -> object:
-	"""Return the one exact target payload selected by a closed root discriminator."""
-	if root.kind == "arrow":
-		return root.arrow.target
-	if root.kind == "plus":
-		return root.plus.target
-	if root.kind == "text":
-		return root.text.target
-	if root.kind in ("polyline", "wavy", "round_bracket"):
-		return root.polyline.target
-	if root.kind in ("rectangle", "square", "oval", "circle"):
-		return root.shape.target
-	if root.kind == "polygon":
-		return root.polygon.target
-	raise ValueError("Rust projection contains an unsupported presentation root kind")
 
 
 #============================================

@@ -121,42 +121,6 @@ pub(super) fn path_bounds(path: &PathOpV2) -> RenderInteractionBoundsV1 {
         path.stroke().map_or(0.0, |stroke| stroke.width().get()),
     )
 }
-pub(super) fn structure_deletion_receipt(
-    receipt: StructureDeletionReceiptV1,
-) -> (
-    Vec<String>,
-    Vec<String>,
-    Vec<StructureDeletionComponentFactsV1>,
-) {
-    let atoms = receipt
-        .removed_atom_ids()
-        .iter()
-        .map(|id| id.as_str().to_owned())
-        .collect();
-    let bonds = receipt
-        .removed_bond_ids()
-        .iter()
-        .map(|id| id.as_str().to_owned())
-        .collect();
-    let components = receipt
-        .components()
-        .iter()
-        .map(|component| StructureDeletionComponentFactsV1 {
-            molecule_id: component.molecule_id().as_str().to_owned(),
-            atom_ids: component
-                .atom_ids()
-                .iter()
-                .map(|id| id.as_str().to_owned())
-                .collect(),
-            bond_ids: component
-                .bond_ids()
-                .iter()
-                .map(|id| id.as_str().to_owned())
-                .collect(),
-        })
-        .collect();
-    (atoms, bonds, components)
-}
 pub(super) fn toggle_structure_targets(
     mut current: Vec<StructureInteractionTargetV1>,
     candidates: Vec<StructureInteractionTargetV1>,

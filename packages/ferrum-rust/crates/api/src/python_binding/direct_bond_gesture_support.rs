@@ -17,6 +17,8 @@ use ferrum_document_render::{
 use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+
+use super::document_error_binding::document_object_id;
 create_exception!(
     ferrum_chem,
     DirectBondGestureError,
@@ -193,6 +195,9 @@ impl PyDirectBondPointerProbeV3 {
                 DirectBondPointerHitStateV3::AmbiguousAtom
             }
         };
+        let direct_atom_id = direct_atom_id
+            .map(|value| document_object_id(py, value))
+            .transpose()?;
         DirectBondPointerProbeV3::new(
             scene_x,
             scene_y,

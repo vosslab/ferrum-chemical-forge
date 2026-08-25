@@ -16,6 +16,8 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.canvas.ferrum_presentation_render_plan
+import ferrum_qt.canvas.ferrum_presentation_target
+from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
 import ferrum_qt.canvas.ferrum_telex
 import ferrum_qt.canvas.items.ferrum_plan_item
 import ferrum_qt.canvas.items.ferrum_paper_item
@@ -32,6 +34,11 @@ _PRESENTATION_KINDS = frozenset((
 	"arrow", "plus", "text", "polyline", "rectangle", "square", "oval", "circle",
 	"polygon",
 ))
+_STRUCTURAL_KIND_MAP = {
+	"Atom": "atom",
+	"Bond": "bond",
+	"Group": "compact_group",
+}
 ObservationValidator = collections.abc.Callable[[object], None]
 PlanItemFactory = collections.abc.Callable[
 	[object, int, object, PySide6.QtWidgets.QGraphicsItem],
@@ -49,22 +56,6 @@ PaperItemFactory = collections.abc.Callable[
 #============================================
 class FerrumRenderProjectionError(ValueError):
 	"""Raised when a copied render observation violates the V1 contract."""
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class RenderTargetKey:
-	"""Detached target identity for one current graphics item."""
-
-	kind: str
-	identifier: str | None
-	source_order: int
-	molecule_identifier: str | None = None
-
-	#============================================
-	@property
-	def is_durable(self) -> bool:
-		"""Return whether this target can be submitted to a Rust operation."""
-		return self.identifier is not None
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -135,11 +126,12 @@ class FerrumRenderProjection:
 
 	#============================================
 	def select_durable(self, targets: tuple[tuple[str, str], ...]) -> None:
-		"""Restore selection only through durable kind/identifier identity."""
+		"""Restore selection only through Rust-issued durable identities."""
 		requested = frozenset(targets)
 		for item, target in self.item_targets.items():
-			key = (target.kind, target.identifier)
-			item.setSelected(target.is_durable and key in requested)
+			item.setSelected(
+				target.is_durable and target.durable_selection_key() in requested,
+			)
 
 	#============================================
 	def dispose(self) -> None:
@@ -476,9 +468,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 #============================================
 def _durable_target_key(target: RenderTargetKey) -> tuple[str, str]:
 	"""Return an exact durable key after the caller establishes durability."""
-	if target.identifier is None:
-		raise FerrumRenderProjectionError("render target is not durable")
-	return target.kind, target.identifier
+	return target.durable_selection_key()
 
 
 #============================================
@@ -556,7 +546,7 @@ def _build_plan(
 	root.setZValue(float(molecule.source_order))
 	scene.addItem(root)
 	for batch_index, batch in enumerate(batches):
-		target = _target(getattr(batch, "target", None), molecule.identifier)
+		target = _target(getattr(batch, "target", None))
 		if target.source_order <= last_order:
 			raise FerrumRenderProjectionError("render batches are not source ordered")
 		if target in seen_targets:
@@ -597,41 +587,38 @@ def _molecule_root(value: object) -> MoleculeRootKey:
 
 
 #============================================
-def _target(value: object, molecule_identifier: str | None = None) -> RenderTargetKey:
-	"""Copy one strict durable-or-local render target into a hashable selection key."""
+def _target(value: object) -> RenderTargetKey:
+	"""Copy one strict dual-identity document target into selection state."""
 	if not _is_frozen_dto(value):
 		raise FerrumRenderProjectionError("render target has the wrong DTO shape")
-	record = getattr(value, "record_id", None)
-	kind = getattr(record, "kind", None)
-	identifier = getattr(record, "id", None)
-	if type(kind) is not str or kind not in ("Atom", "Bond", "Group"):
+	kind = getattr(value, "kind", None)
+	render_identifier = getattr(value, "render_identifier", None)
+	durable_object_id = getattr(value, "durable_object_id", None)
+	durable_molecule_object_id = getattr(value, "durable_molecule_object_id", None)
+	if type(kind) is not str or kind not in _STRUCTURAL_KIND_MAP:
 		raise FerrumRenderProjectionError("render target kind is invalid")
-	if identifier is not None and (type(identifier) is not str or not identifier):
-		raise FerrumRenderProjectionError("render target identifier is invalid")
+	for field_value, label in (
+		(render_identifier, "render identifier"),
+		(durable_object_id, "durable object identity"),
+		(durable_molecule_object_id, "durable molecule identity"),
+	):
+		if type(field_value) is not str or not field_value:
+			raise FerrumRenderProjectionError(f"render target {label} is invalid")
 	order = getattr(value, "source_order", None)
 	if type(order) is not int or order not in _U32_RANGE:
 		raise FerrumRenderProjectionError("render target source order is invalid")
-	if molecule_identifier is not None and (type(molecule_identifier) is not str or not molecule_identifier):
-		raise FerrumRenderProjectionError("molecule durable identity is invalid")
-	if kind == "Group" and (identifier is None or molecule_identifier is None):
-		raise FerrumRenderProjectionError("compact-group render target requires durable group and molecule identities")
-	target_kind = {"Atom": "atom", "Bond": "bond", "Group": "compact_group"}[kind]
-	return RenderTargetKey(target_kind, identifier, order, molecule_identifier)
+	target_kind = _STRUCTURAL_KIND_MAP[kind]
+	return RenderTargetKey(
+		target_kind, render_identifier, order, durable_object_id, durable_molecule_object_id,
+	)
 
 
 #============================================
 def _presentation_target(value: object) -> RenderTargetKey:
-	"""Copy one already-authenticated presentation item target into selection state."""
-	kind = getattr(value, "record_kind", None)
-	identifier = getattr(value, "id", None)
-	order = getattr(value, "source_order", None)
-	if kind not in _PRESENTATION_KINDS:
-		raise FerrumRenderProjectionError("presentation render target kind is invalid")
-	if identifier is not None and (type(identifier) is not str or not identifier):
-		raise FerrumRenderProjectionError("presentation durable identity is invalid")
-	if type(order) is not int or order not in _U32_RANGE:
-		raise FerrumRenderProjectionError("presentation render source order is invalid")
-	return RenderTargetKey(kind, identifier, order)
+	"""Return the canonical target already validated by presentation replay."""
+	if type(value) is not RenderTargetKey:
+		raise FerrumRenderProjectionError("presentation item has no canonical render target")
+	return value
 
 
 #============================================

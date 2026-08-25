@@ -68,8 +68,10 @@ existing broad extension namespace remains the Ferrum integration surface,
 not a blanket third-party API promise.
 
 Native chemistry adapters remain private to their owning Rust and Ferrum
-workflows; the local CLI receives the repo-owned runtime assembled under
-`build/runtime/python/` and has no adapter argument or discovery behavior.
+workflows. The local Rust CLI consumes the sealed engine bundle at
+`build/runtime/engine-v1/`. `build/runtime/python/` is the `ferrum_chem` Qt and
+local-Python extension runtime, not the CLI runtime; neither route has adapter
+argument or discovery behavior.
 
 ### Ferrum application
 
@@ -100,7 +102,37 @@ observations before Qt adopts persistent document state.
 The native `Molecule Report...` information surface presents a frozen,
 multi-root diagnostic receipt. It renders typed records, aggregate outcome,
 findings, and any supplied recovery facts; it does not classify chemistry or
-mutate document state.
+mutate document state. Qt authenticates each returned record against the
+captured durable molecule ID. Source ID and source order remain Rust response
+facts, rather than Qt-authored identity or ordering.
+
+The attached compact-group slice has one deliberate ownership boundary. Rust
+owns the closed catalog, selected-atom availability, capacity and attachment
+geometry admission, deferred durable ID allocation, complete-render admission,
+and the atomic history transition. Qt owns the accessible `Me` chooser, the
+one-shot pointer handoff, and presentation of the committed receipt or typed
+refusal. The private PyO3 bridge is only the local Qt implementation seam; it
+does not create a public attachment contract. Compact-group materialization is
+a separate operation after explicit group selection.
+
+For one selected unavailable atom, Qt presents Rust's advisory availability
+result by disabling the existing `Attach Compact Group...` action and assigning
+the same learner recovery text to its status tip, tool tip, and What's This:
+`Me cannot attach to the selected atom. Select another atom and try again.` A
+later eligible selection refreshes that existing action to enabled. Pre-chooser
+revalidation still belongs to Rust: a changed selection receives the existing
+typed nonmodal refusal and action refresh, not a new action, schema, or Qt
+fallback.
+
+The compact-group deletion slice extends the existing Select Structure/Delete
+interaction rather than adding a Qt action. The renderer issues the selected
+parent molecule and compact-group `DocumentObjectIdV1` values; Rust lowers only
+one exact compact target after proving direct membership. Its detached typed
+candidate removes the group and its unique exterior bond, then commits one
+history transition. Its public receipt reports removed atom, bond, and
+compact-group counts; document-private `PersistentId` values remain internal.
+Mixed or multi-group selections are refused before preparation, while replay,
+Undo, and Redo use the same Rust session authority.
 
 The old compatibility host, its session and worker layers, legacy action and
 mode families, compatibility codecs, and their menu and mode resources have

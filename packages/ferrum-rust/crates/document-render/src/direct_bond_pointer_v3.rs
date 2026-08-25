@@ -2,6 +2,7 @@
 
 use ferrum_document::{
     DirectBondAdmissionRefusalV1, DirectBondGestureErrorV1, DirectBondPoint2V1, DocumentFenceV1,
+    DocumentObjectIdV1,
 };
 use thiserror::Error;
 
@@ -71,7 +72,7 @@ pub struct DirectBondPointerProbeV3 {
     pub(crate) scene_point: DirectBondPoint2V1,
     pub(crate) viewport_to_scene: DirectBondViewportToSceneV3,
     pub(crate) direct_hit_state: DirectBondPointerHitStateV3,
-    pub(crate) direct_atom_source_id: Option<String>,
+    pub(crate) direct_atom_object_id: Option<DocumentObjectIdV1>,
 }
 
 impl DirectBondPointerProbeV3 {
@@ -80,11 +81,11 @@ impl DirectBondPointerProbeV3 {
         scene_y: f64,
         viewport_to_scene: DirectBondViewportToSceneV3,
         direct_hit_state: DirectBondPointerHitStateV3,
-        direct_atom_source_id: Option<String>,
+        direct_atom_object_id: Option<DocumentObjectIdV1>,
     ) -> Result<Self, DirectBondPointerProbeErrorV3> {
         let scene_point = DirectBondPoint2V1::new(scene_x, scene_y)
             .map_err(|_| DirectBondPointerProbeErrorV3::NonFiniteScenePoint)?;
-        match (direct_hit_state, direct_atom_source_id.is_some()) {
+        match (direct_hit_state, direct_atom_object_id.is_some()) {
             (DirectBondPointerHitStateV3::UniqueAtom, true)
             | (
                 DirectBondPointerHitStateV3::None | DirectBondPointerHitStateV3::AmbiguousAtom,
@@ -96,7 +97,7 @@ impl DirectBondPointerProbeV3 {
             scene_point,
             viewport_to_scene,
             direct_hit_state,
-            direct_atom_source_id,
+            direct_atom_object_id,
         })
     }
 }
