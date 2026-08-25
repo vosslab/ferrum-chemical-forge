@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Exercise Ferrum's human CLI verbs against the frozen protocol executor."""
 
 # Standard Library
@@ -17,6 +16,15 @@ import defusedxml.ElementTree
 CDML = (
 	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
 	'<point x="10" y="20"/></atom></molecule></cdml>'
+)
+INCHI = "InChI=1S/CH4/h1H4"
+MOLFILE = (
+	"methane\n"
+	"  Ferrum\n"
+	"\n"
+	"  1  0  0  0  0  0  0  0  0  0999 V2000\n"
+	"    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n"
+	"M  END\n"
 )
 
 
@@ -91,7 +99,7 @@ def protocol_envelope(
 
 
 #============================================
-def semantic_xml(text: str, label: str) -> tuple:
+def semantic_xml(text: str) -> tuple:
 	"""Return a whitespace-neutral XML tree for semantic artifact comparison."""
 	root = defusedxml.ElementTree.fromstring(text)
 
@@ -179,8 +187,8 @@ def check_rewrite(
 		raise VerbE2eError("protocol rewrite outcome lacks its CDML document")
 	stream_result = run(ferrum, "rewrite", "-", input_text=CDML)
 	require_exit(stream_result, 0, "rewrite stdin/stdout")
-	if semantic_xml(stream_result.stdout, "rewrite stdout") != semantic_xml(
-			expected_document, "protocol rewrite",
+	if semantic_xml(stream_result.stdout) != semantic_xml(
+			expected_document,
 		):
 		raise VerbE2eError("rewrite output differs semantically from protocol run")
 	file_result = run(
@@ -188,8 +196,8 @@ def check_rewrite(
 	)
 	require_exit(file_result, 0, "rewrite file publication")
 	if file_result.stdout or semantic_xml(
-			destination.read_text(encoding="utf-8"), "published rewrite",
-		) != semantic_xml(expected_document, "protocol rewrite"):
+			destination.read_text(encoding="utf-8"),
+		) != semantic_xml(expected_document):
 		raise VerbE2eError("published rewrite differs semantically from protocol run")
 	return stream_result.stdout
 
@@ -215,8 +223,8 @@ def check_render(
 		ferrum, "render", "-", "--to", "svg", input_text=CDML,
 	)
 	require_exit(stream_result, 0, "render stdin/stdout")
-	if semantic_xml(stream_result.stdout, "render stdout") != semantic_xml(
-			expected_svg, "protocol render",
+	if semantic_xml(stream_result.stdout) != semantic_xml(
+			expected_svg,
 		):
 		raise VerbE2eError("render output differs semantically from protocol run")
 	file_result = run(
@@ -224,8 +232,8 @@ def check_render(
 	)
 	require_exit(file_result, 0, "render file publication")
 	if file_result.stdout or semantic_xml(
-			destination.read_text(encoding="utf-8"), "published render",
-		) != semantic_xml(expected_svg, "protocol render"):
+			destination.read_text(encoding="utf-8"),
+		) != semantic_xml(expected_svg):
 		raise VerbE2eError("published render differs semantically from protocol run")
 
 
@@ -289,8 +297,8 @@ def check_engine_verbs(
 		raise VerbE2eError("coords protocol outcome lacks CDML")
 	coords_stream = run(ferrum, "coords", "-", input_text=CDML)
 	require_exit(coords_stream, 0, "coords stdin/stdout")
-	if semantic_xml(coords_stream.stdout, "coords stdout") != semantic_xml(
-			coordinated, "coords protocol",
+	if semantic_xml(coords_stream.stdout) != semantic_xml(
+			coordinated,
 		):
 		raise VerbE2eError("coords stream output differs from protocol outcome")
 	coords_destination = temp / "coordinated.cdml"
@@ -299,9 +307,92 @@ def check_engine_verbs(
 	)
 	require_exit(coords_file, 0, "coords file publication")
 	if coords_file.stdout or semantic_xml(
-			coords_destination.read_text(encoding="utf-8"), "published coords",
-		) != semantic_xml(coordinated, "coords protocol"):
+			coords_destination.read_text(encoding="utf-8"),
+		) != semantic_xml(coordinated):
 		raise VerbE2eError("coords publication differs from protocol outcome")
+	invalid_cdml = temp / "invalid.cdml"
+	invalid_cdml.write_text("not CDML", encoding="utf-8")
+	refused_destination = temp / "refused-coords.cdml"
+	coords_refusal = run(
+		ferrum, "coords", str(invalid_cdml), "-o", str(refused_destination),
+	)
+	require_exit(coords_refusal, 1, "coords invalid CDML refusal")
+	if (
+		coords_refusal.stdout
+		or not coords_refusal.stderr.startswith("ferrum: ")
+		or refused_destination.exists()
+	):
+		raise VerbE2eError("coords refusal published an artifact or missed its diagnostic")
+
+
+#============================================
+def check_convert_format_boundaries(
+		ferrum: pathlib.Path, temp: pathlib.Path,
+		) -> None:
+	"""Compare representative closed conversion publications to protocol outcomes."""
+	smiles = temp / "methane.smi"
+	inchi = temp / "methane.inchi"
+	molfile = temp / "methane.mol"
+	cdml = temp / "methane.cdml"
+	smiles.write_text("C\n", encoding="utf-8")
+	inchi.write_text(INCHI, encoding="utf-8")
+	molfile.write_text(MOLFILE, encoding="utf-8")
+	cdml.write_text(CDML, encoding="utf-8")
+	cases = (
+		(smiles, "smiles", "C\n", "inchi_standard", temp / "methane.out.inchi"),
+		(inchi, "inchi_standard", INCHI, "molblock_v2000", temp / "methane.out.mol"),
+		(molfile, "molblock_v2000", MOLFILE, "cdml", temp / "methane.out.cdml"),
+		(cdml, "cdml", CDML, "smiles", temp / "methane.out.smi"),
+	)
+	for source, input_format, input_text, output_format, destination in cases:
+		expected = protocol_envelope(
+			ferrum,
+			{
+				"kind": "chemistry.convert",
+				"input": {"format": input_format, "text": input_text},
+				"output_format": output_format,
+			},
+		)
+		expected_text = outcome(expected, "chemistry.convert")["text"]
+		if not isinstance(expected_text, str):
+			raise VerbE2eError("convert protocol outcome lacks text")
+		result = run(
+			ferrum, "convert", str(source), "--to", output_format, "-o", str(destination),
+		)
+		require_exit(result, 0, f"convert {source.suffix} to {output_format}")
+		artifact = destination.read_text(encoding="utf-8")
+		if result.stdout or result.stderr or artifact != expected_text:
+			raise VerbE2eError(
+				f"convert {source.suffix} to {output_format} differs from its protocol outcome"
+			)
+
+
+#============================================
+def check_haworth(
+		ferrum: pathlib.Path, temp: pathlib.Path,
+		) -> None:
+	"""Verify Haworth SVG publication and invalid structural-SMILES refusal."""
+	destination = temp / "haworth.svg"
+	success = run(
+		ferrum, "haworth", "O1CCCCC1OC2CCCCO2", "-o", str(destination),
+	)
+	require_exit(success, 0, "haworth SVG publication")
+	haworth_svg = semantic_xml(destination.read_text(encoding="utf-8"))
+	if (
+		success.stdout
+		or success.stderr
+		or haworth_svg[0] != "{http://www.w3.org/2000/svg}svg"
+	):
+		raise VerbE2eError("haworth did not publish an SVG artifact")
+	refused_destination = temp / "refused-haworth.svg"
+	refusal = run(ferrum, "haworth", "C=O", "-o", str(refused_destination))
+	require_exit(refusal, 1, "haworth invalid SMILES refusal")
+	if (
+		refusal.stdout
+		or not refusal.stderr.startswith("ferrum: ")
+		or refused_destination.exists()
+	):
+		raise VerbE2eError("haworth refusal published an artifact or missed its diagnostic")
 
 
 #============================================
@@ -343,6 +434,8 @@ def main() -> int:
 		rewritten = check_rewrite(ferrum, source, temp / "rewritten.cdml")
 		check_render(ferrum, source, temp / "drawing.svg")
 		check_engine_verbs(ferrum, temp)
+		check_convert_format_boundaries(ferrum, temp)
+		check_haworth(ferrum, temp)
 		check_exit_channels(ferrum, rewritten)
 	result = {"schema": "ferrum-verb-cli-e2e-v1", "status": "ok"}
 	print(json.dumps(result, sort_keys=True))

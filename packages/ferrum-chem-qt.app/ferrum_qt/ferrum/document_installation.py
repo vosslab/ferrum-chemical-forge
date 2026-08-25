@@ -11,7 +11,7 @@ INSTALLATION_KINDS = frozenset((
 	"inchi_import",
 	"molfile_import",
 	"sdf_import",
-	"peptide_template_import",
+	"peptide_sequence_import",
 ))
 ACCESSIBLE_SUMMARIES = {
 	"catalog_template": "Ferrum installed one catalog template.",
@@ -19,7 +19,7 @@ ACCESSIBLE_SUMMARIES = {
 	"inchi_import": "Ferrum installed one InChI molecule.",
 	"molfile_import": "Ferrum installed one Molfile molecule.",
 	"sdf_import": "Ferrum installed Ferrum SDF records.",
-	"peptide_template_import": "Ferrum installed one peptide template molecule.",
+	"peptide_sequence_import": "Ferrum installed one supported peptide sequence molecule.",
 }
 
 

@@ -33,13 +33,15 @@ authority. Existing reports establish these completed foundations:
 - The ordinary attachment-capacity design defines the shared candidate-aware
   admission needed to keep Qt, CLI, and later fragment authoring aligned.
 
-The experiment also exposed an unresolved foundational failure: public
-`DocumentSession` preparation/commit paths can admit compact-group candidates
-without the renderer's complete admission. This is a design boundary failure,
-not a compact-group algorithm failure. Public compact-group operations, API,
-CLI, PyO3, and Qt work remain blocked until M0 supplies a document-owned lower
-complete-render admission contract. The internal experiment remains useful
-one-time evidence, but is not a public operation or a completion receipt.
+The complete-render-admission ownership failure exposed by the experiment is
+closed. [m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
+records M0 closure on 2026-08-24: generic preparation and one-use commit now
+own complete-render admission. Compact-group materialization is therefore an
+active typed-document delivery, not an M0 blocker. The generic protocol, named
+CLI route, canonical live-session registration, and Qt compact action are
+delivered for attached direct-root `Me` and `NO2` groups. The
+internal experiment remains one-time evidence for its implementation limits,
+not a route for additional recipes or a legacy alias.
 
 ## Frozen design choices
 
@@ -74,8 +76,8 @@ one-time evidence, but is not a public operation or a completion receipt.
 ### Proposed M1 public-operation namespace
 
 - When M1 authorizes public compact-group delivery, its only operations will be
-  `document.compact_group.place.v1` and
-  `document.compact_group.materialize.v1`.
+  `document.compact-group.place.v1` and
+  `document.compact-group.materialize.v1`.
 - Their envelopes will be request-owned and generic-dispatcher compatible.
 - Internal experiment methods are implementation evidence only; they are not
   aliases, alternate public contracts, CLI commands, or PyO3 entry points.
@@ -88,56 +90,20 @@ one-time evidence, but is not a public operation or a completion receipt.
 
 Owner: approved cross-crate architecture, then Rust document/render-contract.
 
-Status: architecture approved and recorded in
-[m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md).
-The generic admission core and its current route migrations are implemented,
-but M0 remains open for the remaining migration tranches and exit evidence.
-Compact-group protocol, CLI, PyO3, and Qt delivery remain deferred to M1; do
-not add unimplemented compact-group symbols to user or API documentation.
+Status: closed on 2026-08-24. The authoritative
+[m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
+records the completed generic admission core, route migrations, and exit
+evidence. Compact-group protocol, CLI, PyO3, and Qt delivery remain deferred
+to M1; do not add unimplemented compact-group symbols to user or API
+documentation.
 
-- Obtain architect approval for a document-owned lower complete-render admission
-  profile before changing the crate boundary. The profile accepts the exact
-  immutable candidate that would commit and produces only an accepted-only
-  render DTO. It is not a lossy observation DTO, a mutable document view, or a
-  renderer callback into a document session.
-- Define typed candidate-derivation failures and one shared classifier
-  vocabulary in `render-contract`. Document and renderer must classify the
-  same accepted/refused candidate facts without string matching or parallel
-  taxonomy.
-- Record an explicit policy for valid nonvisual roots. The profile must state
-  which roots are admitted without visible primitives and why; it must not
-  silently treat missing render output as an accepted visual candidate.
-- Remove raw candidate-CDML getters and bridge receipts from public session
-  mutation surfaces. Public mutation preparation and commit must depend on the
-  opaque accepted admission result, so no caller can create or redeem a raw
-  candidate that bypasses complete-render admission.
-- Use the existing compact-group placement and materialization implementations
-  only as differential-oracle inputs while comparing the new profile against
-  current renderer behavior. This comparison is one-time implementation
-  evidence, not a permanent test or compatibility commitment.
-- Add permanent contract, document, renderer, and no-bypass tests. They must
-  cover accepted DTO construction, typed derivation/classification failures,
-  nonvisual-root policy, exact-candidate binding, and rejection of every
-  public raw-preparation or bridge-receipt bypass. The tests should assert
-  stable behavior and ownership boundaries, not private layout or timing.
-
-Exit evidence: implemented architect-approved boundary, one immutable accepted-only DTO,
-shared classifier taxonomy, explicit nonvisual-root behavior, retired raw
-public candidate routes, and focused permanent tests proving a public compact
-operation cannot commit outside complete-render admission.
-
-M0 also retires admitted molecule/interchange pending bridges and moves
-explicit-hydrogen materialization through the same generic transition. During
-that work, compact-group materialization remains document-private M0 cleanup:
-it has no public `SessionOperationV1` variant, protocol envelope, CLI command,
-PyO3 symbol, Qt path, renderer re-export, or public prepare/commit adapter.
-M1 is the earliest authorized public compact-group operation surface. See the
-approved [m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
-amendment. The M0 catalog semantic migration is complete: closed catalog intent
-uses the generic document transition with `TransitionAuthorizationV1::None`,
-and the UI V2 lease is retained only for local paint scheduling. M0 remains
-incomplete pending its other migration tranches and exit evidence; this does
-not authorize compact-group public delivery.
+M0 delivered the immutable accepted-only render boundary, shared classifier,
+explicit nonvisual-root policy, retirement of raw public candidate routes, and
+focused semantic no-bypass evidence. It also moved explicit-hydrogen
+materialization and catalog semantic migration through the generic transition.
+The remaining compact-group risk is delivery correctness: the typed
+replacement transaction must use that completed boundary and the later public
+route must preserve the same fenced, one-use mutation ownership.
 
 ### M1. Lock the typed group representation and public contract
 
@@ -185,7 +151,8 @@ no-ID/no-history mutation on every refusal.
 Owner: Rust document/session/render.
 
 - Retain the existing attached/free `Me` and attached `NO2` results as a
-  focused internal experiment while M0 is being completed.
+  focused internal experiment while the typed replacement transaction is
+  completed.
 - Use it to prove deterministic orientation, exterior-bond preservation, focus
   mapping, one undoable transition, undo/redo, and save/reopen only through
   the new complete-render admission profile.
@@ -213,28 +180,42 @@ Exit evidence: per-record catalog facts; exact accepted/refused transaction
 invariants; atom-only operation refusals on compact-bearing roots; deletion;
 undo/redo; and renderer preflight.
 
-### M5. Route approved generic public operations through API, CLI, and PyO3
+### M5. Complete remaining compact delivery adapters
 
 Owner: Rust API and binding adapters.
 
-- Add `document.compact_group.place.v1` and
-  `document.compact_group.materialize.v1` to the single
-  `ferrum-operation-request-v1` schema and generic operation dispatcher only
-  after M0 has retired public bypasses.
-- Add local CLI aliases that delegate to that dispatcher and accept one complete
-  request envelope from a path or standard input.
-- Use existing `execute_operation_v1` as the sole stateless PyO3 surface and
-  the existing live operation receipt for applied resident-session mutations.
+Status: the read-only `MoleculeProjectionV1.compact_groups` PyO3 child DTO and
+the native Qt render-target prerequisite are complete. Every rendered compact
+group now has the closed Qt target kind `compact_group`, its Rust-issued group
+document ID, and its parent molecule document ID. This remains a passive
+projection/render bridge: it does not expose recipes, infer chemistry, or
+perform materialization.
+
+- `document.compact-group.materialize.v1` is already in the single
+  `ferrum-operation-request-v1` schema, generic dispatcher, `protocol run`,
+  and named document command. Do not reschedule or duplicate that route.
+- Keep materialization scoped to typed attached direct-root `Me` and `NO2`
+  groups. Free-form labels, recipes, and legacy aliases remain outside it.
+- The generic live PyO3 operation bridge registers materialization beside its
+  closest existing live materialization operation. It accepts only the fenced
+  request-owned CDML witness and Rust-issued molecule/group identifiers, then
+  returns the existing committed transition receipt or typed no-change refusal.
 - Bound requests and responses with the shared protocol admission budget. Keep
   diagnostic text redacted; clients consume stable category/recovery facts.
 
-Exit evidence: schema round trip, generic protocol/CLI/PyO3 equivalence for
-applied and closed outcomes, exact fence behavior, and no parallel CLI or
-Python chemistry engine.
+Exit evidence: preserve the delivered schema/protocol/named-CLI materialization
+coverage, live-versus-stateless canonical response equivalence, refused
+live-session non-mutation, and exact fence behavior.
 
 ### M6. Add the usable Qt compact-group workflow
 
 Owner: Qt interaction layer.
+
+Status: materialization action delivered on 2026-08-24. The visible action is
+enabled only for one selected typed compact group, sends the current fence and
+Rust-issued IDs through the generic live operation, installs the committed
+receipt, restores Rust's focus atom, and presents closed typed recovery. The
+chooser/attachment workflow remains separate work.
 
 - Add an accessible Chemistry chooser that presents the closed labels and
   concise Rust-defined descriptions. It offers `Attach to Selected Atom` only

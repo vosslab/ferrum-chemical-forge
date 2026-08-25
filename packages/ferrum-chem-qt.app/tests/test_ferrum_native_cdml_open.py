@@ -191,19 +191,24 @@ def test_visible_open_actions_pass_distinct_interchange_and_current_tab_filters(
 		_visible_action(window, "Open in Current Tab...").trigger()
 		assert len(captured_filters) == 2
 		new_document_filter, current_tab_filter = captured_filters
-		interchange_suffixes = {
-			suffix
-			for descriptor in window._local_interchange_open_descriptors
-			for suffix in descriptor.suffixes
-		}
-		assert {".cml", ".sdf"} <= interchange_suffixes
-		assert all("*" + suffix in new_document_filter for suffix in interchange_suffixes)
-		assert all("*" + suffix not in current_tab_filter for suffix in interchange_suffixes)
-		assert "*.cdml *.svg" in current_tab_filter
-		assert _current_tab_replacement_source_kind_for_path("molecule.cdml") is not None
-		assert _current_tab_replacement_source_kind_for_path("drawing.svg") is not None
-		assert _current_tab_replacement_source_kind_for_path("molecule.cml") is None
-		assert _current_tab_replacement_source_kind_for_path("records.sdf") is None
+		ingress_descriptors = window._local_ingress_registry.local_document_open_descriptors
+		ingress_suffixes = {
+		suffix
+		for descriptor in ingress_descriptors
+		for suffix in descriptor.suffixes
+	}
+		assert {".cdml", ".svg", ".cml"} == ingress_suffixes
+		assert all("*" + suffix in new_document_filter for suffix in ingress_suffixes)
+		assert "*.cml" not in current_tab_filter
+		assert _current_tab_replacement_source_kind_for_path(
+		"molecule.cdml", ingress_descriptors,
+	) is not None
+		assert _current_tab_replacement_source_kind_for_path(
+		"drawing.svg", ingress_descriptors,
+	) is not None
+		assert _current_tab_replacement_source_kind_for_path(
+		"molecule.cml", ingress_descriptors,
+	) is None
 	finally:
 		window.close()
 

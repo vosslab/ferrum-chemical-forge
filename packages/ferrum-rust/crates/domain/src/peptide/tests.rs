@@ -1,5 +1,5 @@
 //! Peptide behavior-test routing.
 
-mod legacy_template_smiles_v1;
 mod sequence_parsing;
+mod structure_plan_v1;
 mod wire_validation;

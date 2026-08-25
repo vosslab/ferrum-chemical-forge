@@ -23,7 +23,8 @@ use super::document_error_binding::{
     DocumentInputError, DocumentLoadError, PreparedOperationConsumedError,
 };
 use crate::{
-    InterchangeDirectionV1, InterchangeFormatRegistryV1,
+    CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, InterchangeDirectionV1, InterchangeFormatRegistryV1,
+    LocalDocumentIngressDirectionV1, LocalDocumentIngressRegistryV1,
     interchange_import_v1::InterchangeImportRefusalV1,
 };
 
@@ -67,7 +68,11 @@ pub(crate) struct PyLocalInterchangeOpenDescriptorV1 {
     display_name: String,
     #[pyo3(get)]
     suffixes: Vec<String>,
-    route_handle: Py<PyLocalInterchangeOpenRouteHandleV1>,
+    #[pyo3(get)]
+    source_kind: String,
+    #[pyo3(get)]
+    allows_current_tab_replacement: bool,
+    route_handle: Option<Py<PyLocalInterchangeOpenRouteHandleV1>>,
 }
 
 /// Opaque registry identity issued only inside an eligible File/Open descriptor.
@@ -88,8 +93,10 @@ pub(crate) struct PyLocalInterchangeOpenRouteHandleV1 {
 #[pymethods]
 impl PyLocalInterchangeOpenDescriptorV1 {
     #[getter]
-    fn route_handle(&self, py: Python<'_>) -> Py<PyLocalInterchangeOpenRouteHandleV1> {
-        self.route_handle.clone_ref(py)
+    fn route_handle(&self, py: Python<'_>) -> Option<Py<PyLocalInterchangeOpenRouteHandleV1>> {
+        self.route_handle
+            .as_ref()
+            .map(|handle| handle.clone_ref(py))
     }
 }
 
@@ -244,6 +251,42 @@ impl PyXmlInputBudgetV1 {
 
 #[pymethods]
 impl PyDocumentSession {
+    /// Return every accepted Rust-owned local document route for Qt File/Open.
+    #[staticmethod]
+    fn local_document_open_descriptors_v1(
+        py: Python<'_>,
+    ) -> PyResult<Vec<PyLocalInterchangeOpenDescriptorV1>> {
+        LocalDocumentIngressRegistryV1::descriptors()
+            .iter()
+            .map(|descriptor| {
+                let route_handle = if descriptor.route()
+                    == crate::LocalDocumentIngressRouteV1::CmlSimpleMolecule
+                {
+                    Some(Py::new(
+                        py,
+                        PyLocalInterchangeOpenRouteHandleV1 {
+                            format_id: CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
+                        },
+                    )?)
+                } else {
+                    None
+                };
+                Ok(PyLocalInterchangeOpenDescriptorV1 {
+                    display_name: descriptor.display_name().to_owned(),
+                    suffixes: descriptor
+                        .suffixes()
+                        .iter()
+                        .map(|suffix| (*suffix).to_owned())
+                        .collect(),
+                    source_kind: descriptor.route().source_kind().to_owned(),
+                    allows_current_tab_replacement: descriptor.direction()
+                        == LocalDocumentIngressDirectionV1::ReplacePristineOrNewTab,
+                    route_handle,
+                })
+            })
+            .collect()
+    }
+
     /// Return immutable Rust-owned interchange routes eligible for File/Open.
     #[staticmethod]
     fn local_interchange_open_descriptors_v1(
@@ -264,12 +307,16 @@ impl PyDocumentSession {
                         .iter()
                         .map(|suffix| (*suffix).to_owned())
                         .collect(),
-                    route_handle: Py::new(
+                    source_kind: LocalDocumentSourceKindV1::for_interchange_descriptor(descriptor)
+                        .as_str()
+                        .to_owned(),
+                    allows_current_tab_replacement: false,
+                    route_handle: Some(Py::new(
                         py,
                         PyLocalInterchangeOpenRouteHandleV1 {
                             format_id: descriptor.format_id(),
                         },
-                    )?,
+                    )?),
                 })
             })
             .collect::<PyResult<Vec<_>>>()

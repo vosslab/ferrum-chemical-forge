@@ -332,7 +332,7 @@ class FerrumNativeDocumentTab(
 	def durable_structure_at_viewport_point(
 			self, point: PySide6.QtCore.QPoint,
 			) -> tuple[str, str] | None:
-		"""Return the topmost installed durable atom or bond at one viewport point."""
+		"""Return the topmost installed durable chemical target at one viewport point."""
 		self._require_live()
 		if not isinstance(point, PySide6.QtCore.QPoint):
 			raise TypeError("Ferrum structure hit testing requires a QPoint")
@@ -346,7 +346,7 @@ class FerrumNativeDocumentTab(
 					# durable target vocabulary.  Keep window tools independent of
 					# graphics-item classes and transient scene decoration.
 					if (
-						target.kind in ("atom", "bond")
+						target.kind in ("atom", "bond", "compact_group")
 						and target.identifier is not None
 					):
 						return target.kind, target.identifier

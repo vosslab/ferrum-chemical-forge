@@ -410,7 +410,10 @@ impl RenderInteractionSessionV1 {
                             has_path = true;
                             primitive_bounds.push(path_bounds(&path));
                         }
-                        RenderOp::Text(_) | RenderOp::Mask(_) | RenderOp::Ellipse(_) => {}
+                        RenderOp::Text(_)
+                        | RenderOp::Mask(_)
+                        | RenderOp::Ellipse(_)
+                        | RenderOp::DoubleBondCarrierMark(_) => {}
                     }
                 }
                 if primitive_bounds.is_empty() {

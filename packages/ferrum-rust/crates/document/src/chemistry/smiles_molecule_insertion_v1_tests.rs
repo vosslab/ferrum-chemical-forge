@@ -108,17 +108,22 @@ fn aromatic_smiles_is_kekulized_placed_and_prepared_as_one_document_candidate() 
 
 #[test]
 fn unsupported_bond_order_is_rejected_before_document_state_changes() {
-    let engine = engine(graph(BondOrder::Quadruple, false, true), None);
+    let engine = engine(
+        graph(BondOrder::Quadruple, false, true),
+        Some(graph(BondOrder::Quadruple, false, true)),
+    );
     let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
         .expect("empty document must load");
     let result = prepare_smiles_molecule_v1(&engine, &mut session, 0, "C$C", placement());
     assert!(matches!(
         result,
         Err(SmilesMoleculeInsertionError::Build(
-            SmilesMoleculeBuildError::UnsupportedBondOrder {
-                order: BondOrder::Quadruple,
-                ..
-            }
+            SmilesMoleculeBuildError::Preparation(
+                crate::DocumentMoleculePreparationErrorV2::UnsupportedBondOrder {
+                    order: BondOrder::Quadruple,
+                    ..
+                }
+            )
         ))
     ));
     assert_eq!(
@@ -132,13 +137,18 @@ fn unsupported_bond_order_is_rejected_before_document_state_changes() {
 
 #[test]
 fn missing_engine_coordinates_are_a_typed_preparation_failure() {
-    let engine = engine(graph(BondOrder::Single, false, false), None);
+    let engine = engine(
+        graph(BondOrder::Single, false, false),
+        Some(graph(BondOrder::Single, false, false)),
+    );
     let mut session = DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"1.0\"/>")
         .expect("empty document must load");
     assert!(matches!(
         prepare_smiles_molecule_v1(&engine, &mut session, 0, "CC", placement()),
         Err(SmilesMoleculeInsertionError::Build(
-            SmilesMoleculeBuildError::MissingCoordinates
+            SmilesMoleculeBuildError::Preparation(
+                crate::DocumentMoleculePreparationErrorV2::MissingCoordinates
+            )
         ))
     ));
 }

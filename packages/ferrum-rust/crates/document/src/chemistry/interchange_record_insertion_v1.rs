@@ -3,18 +3,14 @@
 use crate::{
     InterchangePropertyInsertionV1, InterchangeRecordBatchInsertionV1,
     InterchangeRecordInsertionV1, InterchangeRecordInsertionV1Error, MoleculeInsertionAtomV1,
-    MoleculeInsertionV1, MoleculeInsertionV1Error, Point3V1, ProjectionError,
+    MoleculeInsertionV1, MoleculeInsertionV1Error, Point3V1, PreparedDocumentMoleculeV2,
+    ProjectionError,
 };
-use ferrum_chemistry::{
-    ChemEngine, ChemistryError, InterchangeRecordV1, KekulizeOptions, KekulizeOptionsError,
-};
+use ferrum_chemistry::{ChemEngine, ChemistryError, InterchangeRecordV1};
 use ferrum_geometry::{GeometryError, MoleculePlacementV1, Point2};
 use thiserror::Error;
 
-use super::complete_graph_molecule_insertion_v1::{
-    CompleteGraphMoleculeInsertionError, build_complete_graph_molecule_insertion_v1,
-    validate_supported_complete_graph_facts_v1,
-};
+use super::{DocumentMoleculePreparationErrorV2, prepare_complete_graph_for_document_v2};
 
 /// Convert every decoded interchange record into one ordered atomic document batch.
 ///
@@ -37,22 +33,9 @@ pub fn build_interchange_record_batch_insertion_v1<E: ChemEngine + ?Sized>(
     };
     let mut molecules = Vec::with_capacity(records.len());
     for record in records {
-        let mut graph = record.molecule().clone();
-        validate_supported_complete_graph_facts_v1(&graph)?;
-        if graph
-            .atoms()
-            .iter()
-            .any(ferrum_chemistry::MolAtom::is_aromatic)
-            || graph
-                .bonds()
-                .iter()
-                .any(ferrum_chemistry::MolBond::is_aromatic)
-        {
-            let options = KekulizeOptions::new(true, true, 100)?;
-            graph = engine.kekulize(&graph, options)?;
-        }
-        molecules.push(build_complete_graph_molecule_insertion_v1(
-            &graph,
+        molecules.push(prepare_complete_graph_for_document_v2(
+            engine,
+            record.molecule(),
             build_placement,
         )?);
     }
@@ -63,31 +46,36 @@ pub fn build_interchange_record_batch_insertion_v1<E: ChemEngine + ?Sized>(
     let records = records
         .iter()
         .zip(molecules)
-        .map(|(source, molecule)| {
-            let properties = source
-                .properties()
-                .iter()
-                .map(|property| {
-                    InterchangePropertyInsertionV1::new(property.name(), property.value())
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            InterchangeRecordInsertionV1::new(
-                molecule,
-                source.title().unwrap_or_default(),
-                properties,
-            )
-        })
+        .map(
+            |(source, molecule)| -> Result<_, InterchangeRecordBuildErrorV1> {
+                let properties = source
+                    .properties()
+                    .iter()
+                    .map(|property| {
+                        InterchangePropertyInsertionV1::new(property.name(), property.value())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let request = molecule
+                    .into_molecule_insertion_request_v1()
+                    .map_err(|_| InterchangeRecordBuildErrorV1::InvalidPreparedSemantics)?;
+                Ok(InterchangeRecordInsertionV1::new(
+                    request,
+                    source.title().unwrap_or_default(),
+                    properties,
+                )?)
+            },
+        )
         .collect::<Result<Vec<_>, _>>()?;
     InterchangeRecordBatchInsertionV1::new(records).map_err(Into::into)
 }
 
 fn arrange_record_row(
-    molecules: Vec<MoleculeInsertionV1>,
+    molecules: Vec<PreparedDocumentMoleculeV2>,
     placement: MoleculePlacementV1,
-) -> Result<Vec<MoleculeInsertionV1>, InterchangeRecordBuildErrorV1> {
+) -> Result<Vec<PreparedDocumentMoleculeV2>, InterchangeRecordBuildErrorV1> {
     let bounds = molecules
         .iter()
-        .map(horizontal_bounds)
+        .map(|molecule| horizontal_bounds(molecule.molecule_insertion()))
         .collect::<Result<Vec<_>, _>>()?;
     let widths = bounds
         .iter()
@@ -109,7 +97,7 @@ fn arrange_record_row(
         .zip(widths)
         .map(|((molecule, (minimum, _)), width)| {
             let translated =
-                translate_molecule(&molecule, cursor - minimum, placement.anchor().y())?;
+                translate_prepared_molecule(&molecule, cursor - minimum, placement.anchor().y())?;
             cursor += width + placement.bond_length();
             if !cursor.is_finite() {
                 return Err(GeometryError::UnrepresentableGeometry.into());
@@ -135,12 +123,13 @@ fn horizontal_bounds(
     Ok((minimum, maximum))
 }
 
-fn translate_molecule(
-    molecule: &MoleculeInsertionV1,
+fn translate_prepared_molecule(
+    molecule: &PreparedDocumentMoleculeV2,
     delta_x: f64,
     delta_y: f64,
-) -> Result<MoleculeInsertionV1, InterchangeRecordBuildErrorV1> {
-    let atoms = molecule
+) -> Result<PreparedDocumentMoleculeV2, InterchangeRecordBuildErrorV1> {
+    let molecule_insertion = molecule.molecule_insertion();
+    let atoms = molecule_insertion
         .atoms()
         .iter()
         .map(|atom| {
@@ -157,7 +146,13 @@ fn translate_molecule(
             .map_err(Into::into)
         })
         .collect::<Result<Vec<_>, InterchangeRecordBuildErrorV1>>()?;
-    MoleculeInsertionV1::new(atoms, molecule.bonds().to_vec()).map_err(Into::into)
+    let translated = MoleculeInsertionV1::new(atoms, molecule_insertion.bonds().to_vec())?;
+    PreparedDocumentMoleculeV2::with_stereo_reports(
+        translated,
+        molecule.stereo_semantics().cloned(),
+        molecule.stereo_depictions().cloned(),
+    )
+    .map_err(|_| InterchangeRecordBuildErrorV1::InvalidPreparedSemantics)
 }
 
 /// Failure while converting decoded interchange records into document facts.
@@ -166,12 +161,9 @@ pub enum InterchangeRecordBuildErrorV1 {
     /// Native chemistry normalization failed.
     #[error(transparent)]
     Chemistry(#[from] ChemistryError),
-    /// The explicit aromaticity-resolution request was invalid.
+    /// A complete chemistry graph cannot be represented in durable document facts.
     #[error(transparent)]
-    KekulizeOptions(#[from] KekulizeOptionsError),
-    /// A complete chemistry graph cannot be represented in CDML V1 facts.
-    #[error(transparent)]
-    CompleteGraph(#[from] CompleteGraphMoleculeInsertionError),
+    Preparation(#[from] DocumentMoleculePreparationErrorV2),
     /// Multi-record placement could not produce finite geometry.
     #[error(transparent)]
     Geometry(#[from] GeometryError),
@@ -184,13 +176,16 @@ pub enum InterchangeRecordBuildErrorV1 {
     /// Interchange title, property, or nonempty-batch validation failed.
     #[error(transparent)]
     Metadata(#[from] InterchangeRecordInsertionV1Error),
+    /// A previously admitted detached payload unexpectedly failed request lowering.
+    #[error("prepared interchange molecule has invalid document semantics")]
+    InvalidPreparedSemantics,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn molecule(element: &str, xs: &[f64]) -> MoleculeInsertionV1 {
+    fn molecule(element: &str, xs: &[f64]) -> PreparedDocumentMoleculeV2 {
         let atoms = xs
             .iter()
             .map(|x| {
@@ -204,7 +199,9 @@ mod tests {
                 .expect("test atom is valid")
             })
             .collect();
-        MoleculeInsertionV1::new(atoms, Vec::new()).expect("test molecule is valid")
+        PreparedDocumentMoleculeV2::new(
+            MoleculeInsertionV1::new(atoms, Vec::new()).expect("test molecule is valid"),
+        )
     }
 
     #[test]
@@ -217,8 +214,10 @@ mod tests {
             placement,
         )
         .expect("record row must arrange");
-        let first = horizontal_bounds(&arranged[0]).expect("first bounds are finite");
-        let second = horizontal_bounds(&arranged[1]).expect("second bounds are finite");
+        let first =
+            horizontal_bounds(arranged[0].molecule_insertion()).expect("first bounds are finite");
+        let second =
+            horizontal_bounds(arranged[1].molecule_insertion()).expect("second bounds are finite");
 
         assert_eq!(first, (5.5, 7.5));
         assert_eq!(second, (10.5, 14.5));
@@ -227,7 +226,7 @@ mod tests {
         assert!(
             arranged
                 .iter()
-                .flat_map(MoleculeInsertionV1::atoms)
+                .flat_map(|molecule| molecule.molecule_insertion().atoms())
                 .all(|atom| atom.position().y() == placement.anchor().y())
         );
     }

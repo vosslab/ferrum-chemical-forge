@@ -35,6 +35,9 @@ Create one atomic promotion boundary for the complete local Ferrum program:
 - the sealed Python runtime and its receipt;
 - the `engine-v1` native-engine bundle;
 - the existing local runtime validation relationship between these artifacts.
+- the sourced `source_me.sh` development bootstrap selector, which must select
+  the staged native runtime and fail closed when that runtime is absent or
+  cannot be selected, including when invoked outside the checkout directory.
 
 Preserve these user-facing local commands and inputs:
 
@@ -56,9 +59,13 @@ remains a disposable repository-local build for testing.
   CI workflows, and versioned release semantics.
 - Artifact-retention policy beyond cleanup necessary to leave one current local
   program and remove failed or superseded temporary build material.
-- Changes to Python package import policy, chemistry behavior, Qt UI behavior,
-  document admission, or the receipt schema's security semantics unless their
-  path references must change to describe the selected topology.
+- General Python package import policy, publishing, installation, or global
+  environment behavior. The `source_me.sh` selector is included only as a
+  repository-local development bootstrap for the staged native runtime; it is
+  not a package-policy, installer, or distribution mechanism.
+- Changes to chemistry behavior, Qt UI behavior, document admission, or the
+  receipt schema's security semantics unless their path references must change
+  to describe the selected topology.
 - Reintroducing legacy output roots, compatibility aliases, or independent
   launcher/runtime promotion paths.
 
@@ -141,9 +148,11 @@ is the sole public mutation, and existing local paths remain stable.
    remove unrelated repository content, native source inputs, or the active
    program.
 7. **Update consumers and documentation.** Make `all_test.sh`, receipt
-   validation, CLI/Qt launchers, and local E2E use the authoritative current
-   program root while retaining their documented stable paths. Update the
-   relevant local-build documentation in the implementation task.
+   validation, CLI/Qt launchers, local E2E, and the sourced `source_me.sh`
+   bootstrap selector use the authoritative current program root while retaining
+   their documented stable paths. The selector must fail closed rather than
+   import a globally installed extension. Update the relevant local-build
+   documentation in the implementation task.
 
 ## Pre-production compatibility decision
 
@@ -209,6 +218,8 @@ build or filesystem fault injection unavailable in normal test environments.
 - The receipt proves artifacts from the same selected root and rejects mixed
   roots.
 - `all_test.sh` retains sealed local runtime input and its normal gates.
+- From the checkout or an outside working directory, `source_me.sh` selects
+  only the staged selected native runtime and fails closed when it cannot do so.
 - The 20 GiB checkout guard and native-build cleanup remain active.
 - No install, publish, archive-retention, network, or legacy-output workflow
   is added.

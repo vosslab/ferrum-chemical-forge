@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 
 use serde::Serialize;
 
+use super::CompactGroupMaterializationRefusalV1;
 use super::PresentationAuthoringKindV1;
 
 #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
@@ -49,6 +50,9 @@ pub struct OperationProtocolErrorV1 {
     /// Closed reaction authoring recovery facts when this operation refused one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reaction_refusal: Option<ReactionRefusalV1>,
+    /// Closed compact-materialization recovery facts when this operation refused one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_group_materialization_refusal: Option<CompactGroupMaterializationRefusalV1>,
 }
 
 /// Typed public facts for a protocol-wide resource-limit refusal.
@@ -301,6 +305,9 @@ pub enum ProtocolOperationKindV1 {
     /// `document.molecule.hydrogen.materialize.v1`.
     #[serde(rename = "document.molecule.hydrogen.materialize.v1")]
     DocumentMoleculeHydrogenMaterialize,
+    /// `document.compact-group.materialize.v1`.
+    #[serde(rename = "document.compact-group.materialize.v1")]
+    DocumentCompactGroupMaterialize,
     /// `document.molecule.interchange.import.v1`.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport,

@@ -7,8 +7,8 @@ use ferrum_document::{
 };
 use ferrum_render::{
     BatchSpace, DepictionIssueV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2,
-    DocumentPlusRenderV1, MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1, RenderIssue,
-    RenderIssueKind, RenderOp, RenderPoint, RenderTarget, TextOp, TextScript,
+    DocumentPlusRenderV1, LineOp, MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1,
+    RenderIssue, RenderIssueKind, RenderOp, RenderPoint, RenderTarget, TextOp, TextScript,
     VectorStrokeLineCapV1, verified_telex_regular_v1,
 };
 use pyo3::create_exception;
@@ -252,6 +252,7 @@ pub(crate) struct PyRenderOperationV2 {
 enum PyRenderOperationPayload {
     Text(PyTextOpV1),
     Line(PyLineOpV1),
+    DoubleBondCarrierMark(PyLineOpV1),
     Mask(PyMaskOpV1),
     Ellipse(PyEllipseOpV1),
     Path(PyPathOpV2),
@@ -264,6 +265,9 @@ impl PyRenderOperationV2 {
         match &self.operation {
             PyRenderOperationPayload::Text(value) => Ok(Py::new(py, value.clone())?.into_any()),
             PyRenderOperationPayload::Line(value) => Ok(Py::new(py, value.clone())?.into_any()),
+            PyRenderOperationPayload::DoubleBondCarrierMark(value) => {
+                Ok(Py::new(py, value.clone())?.into_any())
+            }
             PyRenderOperationPayload::Mask(value) => Ok(Py::new(py, value.clone())?.into_any()),
             PyRenderOperationPayload::Ellipse(value) => Ok(Py::new(py, value.clone())?.into_any()),
             PyRenderOperationPayload::Path(value) => Ok(Py::new(py, value.clone())?.into_any()),
@@ -513,6 +517,15 @@ pub(crate) fn error_result(
         DocumentRenderObservationErrorV1::Render(error) => {
             Ok(RenderDepictionError::new_err(error.to_string()))
         }
+        DocumentRenderObservationErrorV1::StereoDepiction(error) => {
+            Ok(RenderDepictionError::new_err(error.to_string()))
+        }
+        DocumentRenderObservationErrorV1::StereoProjection(error) => {
+            Ok(RenderDepictionError::new_err(error.to_string()))
+        }
+        DocumentRenderObservationErrorV1::Projection(error) => {
+            Ok(RenderDepictionError::new_err(error.to_string()))
+        }
         DocumentRenderObservationErrorV1::ProvenanceMismatch => Ok(RenderProvenanceError::new_err(
             "render observation provenance did not match its authoritative document",
         )),
@@ -581,15 +594,10 @@ fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV2> 
 pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRenderOperationV2> {
     let (kind, operation) = match value {
         RenderOp::Text(text) => ("text", PyRenderOperationPayload::Text(text_from(text))),
-        RenderOp::Line(line) => (
-            "line",
-            PyRenderOperationPayload::Line(PyLineOpV1 {
-                start: line.start().into(),
-                end: line.end().into(),
-                width: line.width().get(),
-                paint: line.paint().color().as_str().to_owned(),
-                z: line.z(),
-            }),
+        RenderOp::Line(line) => ("line", PyRenderOperationPayload::Line(line_from(line))),
+        RenderOp::DoubleBondCarrierMark(mark) => (
+            "double_bond_carrier_mark",
+            PyRenderOperationPayload::DoubleBondCarrierMark(line_from(&mark.accent_line())),
         ),
         RenderOp::Mask(mask) => (
             "mask",
@@ -624,6 +632,16 @@ pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRe
         kind: kind.to_owned(),
         operation,
     })
+}
+
+fn line_from(line: &LineOp) -> PyLineOpV1 {
+    PyLineOpV1 {
+        start: line.start().into(),
+        end: line.end().into(),
+        width: line.width().get(),
+        paint: line.paint().color().as_str().to_owned(),
+        z: line.z(),
+    }
 }
 
 fn text_from(text: &TextOp) -> PyTextOpV1 {

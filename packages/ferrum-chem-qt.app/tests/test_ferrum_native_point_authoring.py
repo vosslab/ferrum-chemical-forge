@@ -8,6 +8,7 @@ import PySide6.QtCore
 import PySide6.QtTest
 import PySide6.QtWidgets
 
+import tests.ferrum_native_menu_actions
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.document_tab
 
@@ -17,34 +18,6 @@ _EDITABLE_CDML = """<cdml xmlns='urn:ferrum:cdml'>
     <atom id='atom-c' name='C'><point x='10' y='20'/></atom>
   </molecule>
 </cdml>"""
-
-
-def _click_visible_menu_action(
-		window: PySide6.QtWidgets.QMainWindow, label: str,
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""Activate one labelled Ferrum command through the visible menu route."""
-	for menu_action in window.menuBar().actions():
-		menu = menu_action.menu()
-		if menu is None:
-			continue
-		for candidate in menu.actions():
-			if candidate.text().replace("&", "") != label:
-				continue
-			PySide6.QtTest.QTest.mouseClick(
-				window.menuBar(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				window.menuBar().actionGeometry(menu_action).center(),
-			)
-			qapp.processEvents()
-			PySide6.QtTest.QTest.mouseClick(
-				menu, PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				menu.actionGeometry(candidate).center(),
-			)
-			qapp.processEvents()
-			return
-	raise AssertionError(f"No visible menu action is labelled {label!r}")
 
 
 def test_add_atom_action_maps_one_view_click_to_the_rust_scene_point(
@@ -64,7 +37,7 @@ def test_add_atom_action_maps_one_view_click_to_the_rust_scene_point(
 		window._drawing_parameters.set_element("O")
 		click = PySide6.QtCore.QPoint(40, 55)
 		expected = tab.view.snap_authored_scene_point(tab.view.mapToScene(click))
-		_click_visible_menu_action(window, "Add Atom at Point", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Add Atom at Point", qapp)
 		PySide6.QtTest.QTest.mouseClick(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, click,
@@ -101,7 +74,7 @@ def test_unchecked_snap_control_keeps_new_atom_at_the_click_position(
 		click = PySide6.QtCore.QPoint(40, 55)
 		expected = tab.view.mapToScene(click)
 		tab.view.set_hex_grid_snap_enabled(False)
-		_click_visible_menu_action(window, "Add Atom at Point", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Add Atom at Point", qapp)
 		PySide6.QtTest.QTest.mouseClick(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, click,

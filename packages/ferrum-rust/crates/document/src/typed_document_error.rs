@@ -33,6 +33,9 @@ pub enum TypedDocumentError {
         /// Authored molecule ID, or a stable descriptive fallback when absent.
         molecule_id: String,
     },
+    /// Legacy molecule-local group records have no current typed CDML meaning.
+    #[error("legacy molecule group records are unsupported")]
+    UnsupportedLegacyGroup,
     /// A structural deletion request did not name one eligible direct-root molecule.
     #[error("structural deletion molecule is not one eligible direct-root molecule: {0}")]
     InvalidStructureDeletionMolecule(PersistentId),
@@ -294,6 +297,21 @@ pub enum TypedDocumentError {
     /// Session-owned atom or bond identities did not match the validated insertion graph.
     #[error("molecule insertion identity counts do not match its graph")]
     InsertionIdentityCountMismatch,
+    /// A requested durable stereo report cannot be represented by this molecule.
+    #[error("molecule insertion has invalid durable stereo semantics")]
+    InvalidStereoSemantics,
+    /// A retained CDML stereo-semantics child has malformed scalar content.
+    #[error("CDML stereo semantics has malformed {field}")]
+    MalformedStereoSemantics {
+        /// The canonical scalar or attribute that could not be decoded.
+        field: &'static str,
+    },
+    /// A retained CDML stereo-semantics child uses an unsupported entry or value.
+    #[error("CDML stereo semantics has unsupported {field}")]
+    UnsupportedStereoSemantics {
+        /// The canonical child, attribute, or enum spelling that is unsupported.
+        field: &'static str,
+    },
     /// A structured XML mutation could not be applied to the retained tree.
     #[error("cannot mutate retained CDML: {0}")]
     Mutation(#[source] xot::Error),

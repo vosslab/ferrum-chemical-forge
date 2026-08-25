@@ -15,6 +15,7 @@ import PySide6.QtWidgets
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.molecule_report
+import ferrum_qt.ferrum.molecule_report_stereo_contract
 
 
 _DIAGNOSTIC_CDML = """<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">
@@ -176,3 +177,72 @@ def test_molecule_report_ingress_rejects_malformed_refusals_and_classifies_resou
 	refusal = ferrum_qt.ferrum.molecule_report.decode_molecule_report_refusal(resource_refusal)
 	assert refusal is not None and refusal.recovery == "reduce_requested_result"
 	assert "Reduce the selected molecules" in refusal.message
+
+
+#============================================
+def test_molecule_report_stereo_receipt_requires_typed_rust_facts() -> None:
+	"""The Qt boundary displays admitted descriptors and refuses absent or malformed facts."""
+	semantics = {
+		"tetrahedral": [{
+			"center": 4,
+			"ligands": [
+				{"kind": "atom", "index": 2},
+				{"kind": "explicit_hydrogen"},
+				{"kind": "atom", "index": 8},
+				{"kind": "atom", "index": 9},
+			],
+			"parity": "clockwise",
+		}],
+		"double_bonds": [
+			{"bond_index": 7, "start_ligand": 1, "end_ligand": 6, "configuration": "e"},
+			{"bond_index": 10, "start_ligand": 3, "end_ligand": 11, "configuration": "z"},
+		],
+	}
+	depiction = {
+		"directed_bonds": [{
+			"bond_index": 5, "start": 4, "end": 2, "presentation": "solid_wedge",
+		}],
+		"double_bond_carrier_marks": [{
+			"double_bond_index": 7, "carrier_bond_index": 6, "mark": "up",
+		}],
+	}
+	contract = ferrum_qt.ferrum.molecule_report_stereo_contract
+	assert contract.valid_stereo_semantics(semantics)
+	assert contract.valid_stereo_depiction(depiction)
+	assert contract.display_lines(semantics, depiction) == [
+		"Stereo semantics:",
+		"  tetrahedral atom 4: [2, explicit hydrogen, 8, 9], clockwise",
+		"  double bond 7: ligands 1/6, e",
+		"  double bond 10: ligands 3/11, z",
+		"Stereo depiction:",
+		"  directed bond 5: 4 -> 2, solid_wedge",
+		"  double bond carrier: double bond 7, carrier bond 6, up",
+	]
+	assert contract.display_lines(None, None) == ["Stereo semantics: none", "Stereo depiction: none"]
+	assert not contract.valid_stereo_semantics({
+		"tetrahedral": [{"center": 4, "ligands": [], "parity": "clockwise"}],
+		"double_bonds": [],
+	})
+	assert not contract.valid_stereo_depiction({
+		"directed_bonds": [],
+		"double_bond_carrier_marks": [{"double_bond_index": 7, "carrier_bond_index": 6, "mark": "sideways"}],
+	})
+	assert not contract.valid_stereo_semantics({
+		"tetrahedral": [{
+			"center": 4, "ligands": [{"kind": "explicit_hydrogen"}] * 4,
+			"parity": ["clockwise"],
+		}],
+		"double_bonds": [{
+			"bond_index": 7, "start_ligand": 1, "end_ligand": 6,
+			"configuration": ["e"],
+		}],
+	})
+	assert not contract.valid_stereo_depiction({
+		"directed_bonds": [{
+			"bond_index": 5, "start": 4, "end": 2, "presentation": ["solid_wedge"],
+		}],
+		"double_bond_carrier_marks": [{
+			"double_bond_index": 7, "carrier_bond_index": 6, "mark": ["up"],
+		}],
+	})
+	assert not ferrum_qt.ferrum.molecule_report._valid_record({}, object())

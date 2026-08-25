@@ -2,8 +2,9 @@
 
 ## Verdict
 
-M2 is complete. Every molecule in the three committed CDML corpus files loads into
-the validated `ferrum-core` model. The separate-process comparison records 96 exact
+M2 is complete. The accepted historical corpus comparison loaded every molecule in
+the then-committed CDML corpus into the validated `ferrum-core` model. That
+separate-process comparison recorded 96 exact
 source-fact agreements, 29 classified differences, and zero unexpected differences.
 One mutation changes an atom element; another removes a non-atom vertex. Each exits 1
 with exactly one unexpected difference, proving both comparison routes detect drift.
@@ -13,13 +14,13 @@ The machine-readable evidence is
 normalized outputs, the oracle and Ferrum version facts, direct source facts, every
 exact field path, and every classification.
 
-## Self-contained boundary
+## Historical evidence boundary
 
-The authoritative Rust reader, corpus, and accepted report are Ferrum files. They
-do not read, import, package, or locate `OTHER_REPOS/`. The live Python backend
-comparison runner and its dependency environment were retired after this report
-was accepted; the commands below remain a historical execution record, not a
-supported current-checkout workflow.
+The authoritative Rust reader, corpus, and accepted report were Ferrum files. They
+did not read, import, package, or locate `OTHER_REPOS/`. The Python backend
+comparison runner, its CDML corpus paths, and its dependency environment are
+retired. The commands below are a historical execution record, not current
+runtime input, supported checkout workflow, or present proof of runtime coverage.
 
 For this completion run, OASA 26.8 was copied into that isolated environment from the
 read-only reference checkout and RDKit 2026.03.5 came from the repository Python 3.12
@@ -28,7 +29,7 @@ measurement requires an explicitly scoped evidence plan. The current checkout bu
 and tests Ferrum only through `./build.sh` and `./all_test.sh`; it does not recreate
 this retired oracle environment or install a package.
 
-## Exact agreements
+## Historical exact agreements
 
 All source facts that both models represent agree exactly:
 
@@ -43,7 +44,7 @@ All source facts that both models represent agree exactly:
   and identity of every bond involving them. These fields are read independently from
   CDML with the Python standard library because the chemistry-only oracle drops them.
 
-## Classified differences
+## Historical classified differences
 
 | Class | Count | Authority and treatment |
 | --- | ---: | --- |
@@ -56,14 +57,14 @@ All source facts that both models represent agree exactly:
 The exact source token remains `d` even when its versioned meaning is corrected. This
 keeps compatibility data and interpreted semantics separate.
 
-## Authoritative reader boundary
+## Historical reader boundary
 
-M8 retired the dev-only `ferrum-core` loader. The comparison example now consumes the
-production `ferrum-document` typed overlay and its validated core projection. The
-reader-inventory test permits only the document crate to recognize the CDML namespace
-in Rust production code. The E2E runner separately reads a deliberately small set of
-direct source facts with `xml.etree.ElementTree`; it is comparison evidence, not a
-runtime parser or a document model.
+M8 retired the dev-only `ferrum-core` loader. At acceptance, the comparison example
+consumed the production `ferrum-document` typed overlay and its validated core
+projection. The reader-inventory test then permitted only the document crate to
+recognize the CDML namespace in Rust production code. The retired E2E runner read a
+deliberately small set of direct source facts with `xml.etree.ElementTree`; it was
+comparison evidence, not a runtime parser or a document model.
 
 ## Historical reproduction
 

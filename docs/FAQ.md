@@ -29,8 +29,9 @@ artifact-export routes remain distinct native workflows rather than general conv
 
 The `ferrum` CLI accepts a JSON protocol request containing CDML text; it does not
 offer direct file-format subcommands. The native Qt route opens uncompressed `.cdml`
-or decoded `.svg` with exactly one canonical embedded CDML payload. It refuses CDXML,
-CML, `.cdsvg`, `.svgz`, and compressed input before document mutation.
+or decoded `.svg` with exactly one canonical embedded CDML payload. It imports closed-profile
+uncompressed `.cml` as a clean new document with reallocated IDs. It refuses CDXML,
+`.cdsvg`, `.svgz`, and compressed input before document mutation.
 
 Ferrum preserves parsed CDML structure rather than promising byte-for-byte output.
 For the precise protocol and desktop boundaries, read [USAGE.md](USAGE.md).

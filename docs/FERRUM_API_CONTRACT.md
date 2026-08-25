@@ -46,6 +46,7 @@ The V1 operation set is closed:
 | `document.molecule.report.v1` | `snapshot { cdml, revision, digest_hex }`, one or more durable direct-root `molecule_ids` | source receipt, source-ordered root records, complete-or-omitted aggregate, deterministic structured findings |
 | `document.molecule.smarts.query.v1` | admitted document and bounded raw or selected SMARTS query | bounded, non-redeemable query summary |
 | `document.atom.oxidation.observe.v1` | fenced `document`, durable direct-root `molecule_id`, durable `atom_id` | one fenced accepted oxidation number or closed unavailable reason |
+| `document.compact-group.materialize.v1` | fenced `document`, opaque direct-root `molecule_id`, opaque `compact_group_id` | source receipt, committed document, next fence, replacement focus |
 
 The closed interchange format names are `smiles`, `inchi_standard`, `inchi_fixed_h`,
 `molblock_v2000`, `molblock_v3000`, `sdf_v2000`, `sdf_v3000`, and `cdml`. Render formats are `svg`,
@@ -106,6 +107,30 @@ budget. An over-budget response is refused rather than delivered partially and
 is the response-budget case that carries structured recovery for reducing the
 request.
 
+Each root record has a nullable `stereo_semantics` descriptor. When present, its
+tetrahedral descriptors are ordered by ascending center position and its E/Z
+descriptors by ascending bond position. Tetrahedral ligands are exactly four
+entries: atom positions are strictly ascending, distinct neighbors of the center,
+or the tagged explicit-hydrogen sentinel as the fourth entry for a center with
+exactly one explicit hydrogen. E/Z ligands are distinct from each other and the
+double-bond endpoints, and each neighbors its corresponding endpoint. All
+positions are zero-based molecular source indices. These are durable molecular
+facts, separate from directional wedge/hash drawing presentation. The checked-in
+schema is generated directly from the Rust DTOs and defines the exact closed JSON
+grammar, including the nullable field, fixed tetrahedral cardinality, and
+descriptor vocabularies:
+[ferrum-operation-v1.schema.json](../packages/ferrum-rust/crates/api/protocol/ferrum-operation-v1.schema.json).
+
+Each root record also has a required nullable `stereo_depiction` descriptor.
+`null` is the only absence state. When present, `directed_bonds` preserves the
+source-order bond index, endpoint direction, and closed `solid_wedge` or
+`hashed_wedge` drawing presentation for tetrahedral depiction. Its
+`double_bond_carrier_marks` preserve `double_bond_index`, `carrier_bond_index`,
+and closed `up` or `down` marks for E/Z drawing. These are Rust-issued drawing
+facts: clients display them but never derive an E/Z configuration from a mark,
+or manufacture a mark from configuration or coordinates. Chemical meaning
+remains exclusively in `stereo_semantics`.
+
 ### Atom oxidation observation
 
 `document.atom.oxidation.observe.v1` reads one selected durable atom in one durable direct-root
@@ -134,6 +159,35 @@ non-direct molecule, atom/root mismatch, unsupported document, or bounded-resour
 the ordinary typed error envelope instead. Clients must use the error category and recovery facts,
 not diagnostic text, to decide whether to refresh the source, select another atom, or reduce the
 request.
+
+### Compact-group materialization
+
+`document.compact-group.materialize.v1` is a stateless generic operation for
+one attached direct-root typed compact group. Its payload contains exactly
+`document { cdml, expected_revision, expected_digest_hex }`, `molecule_id`, and
+`compact_group_id`. The document is a revision/digest-fenced snapshot and both
+target identifiers are opaque Rust-issued IDs, not labels, catalog keys,
+formulae, paths, geometry, or recipe input.
+
+The successful `materialization` receipt has schema
+`ferrum-document-compact-group-materialization-v1`. It repeats the source
+revision, source digest, molecule ID, and compact-group ID, then returns the
+committed canonical `document`, its next request-owned `document_fence`, and
+the authoritative `replacement_focus_atom_id` in that committed snapshot.
+Preparation state and generated replacement IDs remain session-private.
+
+The error envelope may carry exactly one
+`compact_group_materialization_refusal { category, recovery }` pair. The closed
+pairs are `stale_document_fence` / `refresh_and_retry`,
+`unknown_or_foreign_target` / `correct_target`, `ineligible_target` /
+`choose_eligible_target`, `renderer_preparation_refusal` /
+`document_unchanged`, and `session_conflict_or_replayed_preparation` /
+`refresh_and_retry`. They expose no source CDML, candidate, or recipe.
+
+Only typed `Me` and `NO2` compact groups materialize in this public route. It
+does not accept free-form labels, formulas, recipes, or a legacy alias. The
+generic protocol and named CLI command are delivered; PyO3 live-session
+registration and the Qt compact action remain deferred.
 
 ## Success and error data
 
@@ -187,11 +241,12 @@ contains one complete standard-base64 artifact or no artifact; it never exposes 
 
 ## CLI presentation rules
 
-The `inspect`, `validate`, `rewrite`, `render`, `convert`, and `coords` commands construct their
+The `inspect`, `validate`, `rewrite`, `render`, `convert`, `coords`, and `open` commands construct their
 corresponding requests. The named document commands
-`document command presentation.author.v1` and `document command catalog.insert.v1` accept one
+`document command presentation.author.v1`, `document command catalog.insert.v1`, and
+`document command document.compact-group.materialize.v1` accept one
 complete operation JSON object, just as `protocol run` does, so a script can use the fence from
-`document.inspect` without an in-process session. `--json` emits the complete envelope. Without
+`document.inspect` without an in-process session. `--json` emits the complete envelope. `ferrum open --json` emits the same `document.molecule.interchange.import.v1` success or typed-refusal envelope as the named protocol operation, with the verb-owned opaque request ID `ferrum-cli`. An admitted CML refusal writes exactly one error envelope to standard output, leaves standard error empty, exits `0`, and publishes no CDML artifact. Without
 `--json`, inspection and validation print their reports while result-producing commands emit raw
 text or artifact bytes. Named output uses safe publication and cannot replace a retained source or
 observed hard-link alias.

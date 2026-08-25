@@ -1,6 +1,7 @@
 """Installed-extension behavior for bounded native molfile insertion."""
 
 # Standard Library
+import json
 import pathlib
 
 # PIP3 modules
@@ -42,6 +43,49 @@ def test_bounded_molfile_prepares_and_commits_one_owned_molecule(
 
 	assert tuple(atom.element for atom in molecule.atoms) == ("C", "C", "O")
 	assert tuple(bond.source_type for bond in molecule.bonds) == ("n1", "n1")
+
+
+#============================================
+def test_native_molblock_stereo_reaches_the_durable_molecule_report() -> None:
+	"""A native molblock coordinator retains tetrahedral source semantics."""
+	molblock = ferrum_chem.molecule_to_molblock(
+		ferrum_chem.parse_smiles("F[C@](Cl)(Br)I"),
+		ferrum_chem.MolblockVersionV1.v2000,
+	)
+	molecule = ferrum_chem.prepare_molblock_molecule_v1(molblock, _placement())
+	session = ferrum_chem.DocumentSession.load('<cdml xmlns="urn:ferrum:cdml"/>')
+	operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
+	prepared = session.prepare_session_operation_transition_v1(
+		operation.transition_request_v1(0))
+	committed = session.commit_session_operation_transition_v1(prepared)
+	snapshot = committed.observation.snapshot
+	molecule_id = committed.observation.projection.molecules[0].id
+	response = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
+		"schema": "ferrum-operation-request-v1",
+		"request_id": "native-molblock-stereo",
+		"operation": {
+			"kind": "document.molecule.report.v1",
+			"snapshot": {
+				"cdml": snapshot.cdml,
+				"revision": snapshot.revision,
+				"digest_hex": snapshot.digest,
+			},
+			"molecule_ids": [molecule_id],
+		},
+	})))
+
+	semantics = response["outcome"]["report"]["records"][0]["stereo_semantics"]
+	assert semantics["tetrahedral"] == [{
+		"center": 1,
+		"ligands": [
+			{"kind": "atom", "index": 0},
+			{"kind": "atom", "index": 2},
+			{"kind": "atom", "index": 3},
+			{"kind": "atom", "index": 4},
+		],
+		"parity": "counter_clockwise",
+	}]
+	assert semantics["double_bonds"] == []
 
 
 #============================================

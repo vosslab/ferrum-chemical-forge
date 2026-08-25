@@ -9,9 +9,8 @@ use pyo3::prelude::*;
 
 use super::geometry_binding::PyInsertionPlacementV1;
 use super::interchange_insertion_binding::PyInterchangeRecordBatchInsertionV1;
-use super::smiles_insertion_binding::{
-    MoleculeInsertionError, map_complete_graph_error, structured_insertion_error,
-};
+use super::molecule_insertion_binding::structured_insertion_error;
+use super::smiles_insertion_binding::{MoleculeInsertionError, map_preparation_error};
 
 const OPERATION: &str = "prepare_sdf_molecules_v1";
 
@@ -86,20 +85,20 @@ fn map_build_error(
                 error,
             )
         }
-        InterchangeRecordBuildErrorV1::CompleteGraph(error) => map_complete_graph_error(py, error),
+        InterchangeRecordBuildErrorV1::Preparation(error) => map_preparation_error(py, error),
         InterchangeRecordBuildErrorV1::Geometry(error) => Ok(
             super::geometry_binding::geometry_error(py, error.to_string()),
         ),
         InterchangeRecordBuildErrorV1::Position(error) => {
             super::binding::projection_error(py, error)
         }
-        InterchangeRecordBuildErrorV1::KekulizeOptions(error) => {
-            structured_insertion_error(py, MoleculeInsertionError::new_err, error)
-        }
         InterchangeRecordBuildErrorV1::Insertion(error) => {
             structured_insertion_error(py, MoleculeInsertionError::new_err, error)
         }
         InterchangeRecordBuildErrorV1::Metadata(error) => {
+            structured_insertion_error(py, MoleculeInsertionError::new_err, error)
+        }
+        InterchangeRecordBuildErrorV1::InvalidPreparedSemantics => {
             structured_insertion_error(py, MoleculeInsertionError::new_err, error)
         }
     }

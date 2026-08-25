@@ -2,15 +2,15 @@
 
 ## Purpose and status
 
-This is the M1d evidence baseline for the later M10 preservation gate. It states what
-the committed `tests/e2e/corpus/` represents; it does not declare the corpus complete.
-The separate-process oracle and corpus comparison now exist as independent evidence.
+This is historical M1d coverage evidence for a possible later M10 preservation
+gate. The two compact semantic profiles were retired from the external corpus
+and now live inline in the Rust semantic tests. No active `tests/e2e/corpus/`
+input set or E2E corpus runner exists in this checkout.
 
-Status: M1d is complete. The inventory, compact inputs, separate-process harness, and
-divergence report are established, and every unavailable form names the missing
-authority and the evidence that could extend coverage. No real user documents are
-available; that remains an explicit evidence limit rather than an unfinishable gate.
-The backend-only M10 preservation gate is also green over the committed corpus.
+Status: historical evidence only. The inventory records the available format
+authority and the missing evidence needed to extend coverage. No real user
+documents are available; that remains an explicit evidence limit. This audit
+does not claim a current M10 gate, separate-process oracle, or corpus comparison.
 
 ## Evidence and authority
 
@@ -21,16 +21,16 @@ The backend-only M10 preservation gate is also green over the committed corpus.
 | Shipped templates and references | `packages/bkchem-app/bkchem_data/templates/*.cdml`; `docs/reference_outputs/` | Four templates exist (40,265 bytes); one informed a retired one-time legacy probe. Reference outputs are Haworth SVG/PNG, not CDML. |
 | Real user documents | No supplied user document exists in this checkout. | Coverage is unavailable for unanticipated extensions, namespace combinations, producer quirks, and real CD-SVG. A consented representative set is needed. |
 
-The active corpus is intentionally two XML documents, not a historical-tree or production-code
-import. Each fixture declares its classification and source-of-truth level in an XML comment.
-The former reduced legacy probe was removed because no test or runtime path consumed it; its
-historical findings remain documented here but do not count as active corpus evidence.
+The former compact profiles are historical evidence, not a historical-tree or
+production-code import. The reduced legacy probe was removed because no test or
+runtime path consumed it. Its findings remain documented here but do not count
+as active test, runtime, or E2E corpus evidence.
 
 | Corpus file | Classification | Source-of-truth level | Purpose |
 | --- | --- | --- | --- |
 | Retired `legacy_groups_template.cdml` probe | Historical, not active corpus | Shipped historical template and legacy reader behavior | Original reduced re-expression of `groups.cdml`; removed because it had no test or runtime consumer. No verbatim template block or OASA code. Upstream BKChem application license: GPL-2.0-or-later; central M1 documentation owner records final disposition. |
-| Retired authored-document profile | Historical evidence | Format specification plus OASA core vocabulary | Its original compact XML now lives inline beside the semantic assertions in `packages/ferrum-rust/crates/document/src/typed_tests.rs`; it is not a runtime or E2E input. |
-| Retired opaque-namespace profile | Historical evidence | Format preservation rules and shipped conformance manifest | Its original compact XML now lives inline beside the semantic assertions in `packages/ferrum-rust/crates/document/src/typed_tests.rs`; it is not a runtime or E2E input. |
+| Retired authored-document profile | Historical evidence | Format specification plus OASA core vocabulary | Its original compact XML now lives inline beside the semantic assertions in [packages/ferrum-rust/crates/document/src/typed_tests.rs](../../../packages/ferrum-rust/crates/document/src/typed_tests.rs); it is not a runtime or E2E input. |
+| Retired opaque-namespace profile | Historical evidence | Format preservation rules and shipped conformance manifest | Its original compact XML now lives inline beside the semantic assertions in [packages/ferrum-rust/crates/document/src/typed_tests.rs](../../../packages/ferrum-rust/crates/document/src/typed_tests.rs); it is not a runtime or E2E input. |
 
 No known defect is represented as a passing preservation fixture. No implementation accident is
 promoted to corpus authority. The 26.07 entries are explicitly marked intended authored behavior;
@@ -38,8 +38,8 @@ they do not redefine legacy acceptance.
 
 ## Coverage inventory
 
-`Covered` means an input carries the form. It does not mean Rust behavior exists or a future
-structural round-trip gate has passed.
+`Covered` means a retired one-time profile carried the form. It does not mean
+current Rust behavior exists or that a structural round-trip gate has passed.
 
 | Form and attributes | Namespace and reference case | Status | Evidence or precise next evidence |
 | --- | --- | --- | --- |
@@ -83,18 +83,10 @@ enumerate expanded names and reference classes, then fail only when a form is ne
 nor accompanied by its recorded reason and next evidence. This baseline cannot prove real-user
 extension coverage.
 
-Verification for this package:
-
-- Parse every corpus XML document with `xml.etree.ElementTree` in the required environment.
-- Check the audit and corpus for ASCII-only bytes.
-- Run the Markdown-link check on this audit's relative links.
-- Cross-check corpus element names and documented reference attributes against this table.
-- Run `tests/e2e/e2e_cdml_preservation.py` against an already-built Ferrum CLI; it
-  discovers every committed `.cdml` corpus document and requires the public structural
-  rewrite check to succeed.
-
-The accepted gate and its comparison semantics are recorded in
-[`cdml_preservation_gate.md`](../reports/cdml_preservation_gate.md).
+Historical verification compared the retired profiles structurally. There is no
+current corpus directory, E2E runner, or accepted M10 gate to invoke. A future
+gate must define its committed input set, public boundary, comparison rule, and
+evidence limits before it can make a passing preservation claim.
 
 No Rust crate, frontend, runner, or root manifest is changed by this package. The central M1
 documentation owner records this package in the changelog.

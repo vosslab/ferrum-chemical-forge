@@ -5,6 +5,10 @@
 pub enum BondStyle {
     /// The sole supported bond style in this vertical slice.
     NormalSingle,
+    /// An ordinary single carrier bond with an explicit positive-normal E/Z accent.
+    DoubleBondCarrierUp,
+    /// An ordinary single carrier bond with an explicit negative-normal E/Z accent.
+    DoubleBondCarrierDown,
     /// A parallel double bond.
     Double,
     /// A parallel triple bond.
@@ -29,6 +33,8 @@ impl BondStyle {
     pub(crate) fn unsupported_name(&self) -> Option<&str> {
         match self {
             Self::NormalSingle
+            | Self::DoubleBondCarrierUp
+            | Self::DoubleBondCarrierDown
             | Self::Double
             | Self::Triple
             | Self::SolidWedge

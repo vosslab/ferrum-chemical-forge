@@ -3,8 +3,11 @@
 Status update, 2026-08-11: all six tasks below are complete and M2 has exited. This
 document remains the historical gap snapshot that defined the work; current evidence
 and classifications are in
-`docs/active_plans/reports/corpus_molecule_parity.md`.
-M8 has since retired the disposable reader described below.
+[corpus_molecule_parity.md](../reports/corpus_molecule_parity.md).
+M8 has since retired the disposable reader described below. Every corpus path,
+CDML loader, OASA command, and E2E runner named below is historical inline
+semantic evidence only. None is a current runtime input, supported workflow, or
+active proof obligation.
 
 Read-only gap analysis for milestone M2 (core model) in
 [../ferrum-plan-v3.md](../ferrum-plan-v3.md), lines 398-408. Every claim below carries a file and
@@ -74,10 +77,10 @@ representation, which [../decisions/ferrum_core_model.md](../decisions/ferrum_co
 lines 5-9 scopes to internal persistence and testing. M2 cannot demonstrate field agreement for a
 field nothing can read.
 
-## Corpus loading path
+## Historical corpus loading gap
 
-No loading path exists. Nothing in the repository turns a corpus CDML file into a `ferrum-core`
-`Molecule`.
+At the time of this audit, no loading path existed. Nothing in the repository then turned a
+corpus CDML file into a `ferrum-core` `Molecule`.
 
 - Searching every `.rs` file under `packages/ferrum-rust/crates` for `cdml` returns only doc
   comments plus the document crate's opaque XML code. The single core-crate hit is a comment at
@@ -199,7 +202,7 @@ the corpus loading and field comparison remain absent, and the plan status table
 started ([../ferrum-plan-v3.md](../ferrum-plan-v3.md):251) while the decision record calls it in
 progress.
 
-## Remaining atomic tasks
+## Historical completed task sequence
 
 | Step | Task | Outcome | Verification command | Mode |
 | --- | --- | --- | --- | --- |
@@ -212,7 +215,7 @@ progress.
 
 Steps 1, 2, and 3 run concurrently with three owners. Steps 4, 5, and 6 are strictly ordered.
 
-## Verification runs
+## Historical verification runs
 
 | Command | Result |
 | --- | --- |
@@ -220,7 +223,7 @@ Steps 1, 2, and 3 run concurrently with three owners. Steps 4, 5, and 6 are stri
 | `source source_me.sh && python3 tests/e2e/e2e_oracle_molecule_core.py` | exit 0, `"status": "match"`, OASA 26.2a1, RDKit 2026.03.4 |
 | `source source_me.sh && pytest tests/test_markdown_links.py tests/test_ascii_compliance.py -q` | 366 passed before this document was added |
 
-## Residual risks
+## Historical residual risks
 
 - The harness loader is a second CDML reader from M2 through M8. Name its deletion in M8's entry
   criteria so it does not drift.

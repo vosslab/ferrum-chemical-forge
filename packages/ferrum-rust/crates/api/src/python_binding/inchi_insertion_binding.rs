@@ -3,20 +3,18 @@
 use ferrum_chemistry::{
     ChemistryError as RustChemistryError, NativeChemEngine, validate_inchi_input,
 };
-use ferrum_document::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
+use ferrum_document::{InchiMoleculePreparationErrorV2, prepare_inchi_molecule_for_document_v2};
 use pyo3::prelude::*;
 
 use super::geometry_binding::PyInsertionPlacementV1;
-use super::smiles_insertion_binding::{
-    MoleculeInsertionError, PyMoleculeInsertionV1, map_complete_graph_error,
-    structured_insertion_error,
-};
+use super::molecule_insertion_binding::{PyMoleculeInsertionV1, structured_insertion_error};
+use super::smiles_insertion_binding::{MoleculeInsertionError, map_preparation_error};
 
 const OPERATION: &str = "prepare_inchi_molecule_v1";
 
 enum NativePreparationFailure {
     Load(RustChemistryError),
-    Build(InchiMoleculeBuildError),
+    Build(InchiMoleculePreparationErrorV2),
 }
 
 /// Parse and place one InChI molecule without borrowing a document session.
@@ -38,11 +36,18 @@ fn prepare_inchi_molecule_v1(
     let result = py.detach(move || {
         let engine =
             NativeChemEngine::load(&worker_path).map_err(NativePreparationFailure::Load)?;
-        build_inchi_molecule_insertion_v1(&engine, &inchi, placement)
+        prepare_inchi_molecule_for_document_v2(&engine, &inchi, placement)
             .map_err(NativePreparationFailure::Build)
     });
     match result {
-        Ok(insertion) => Ok(PyMoleculeInsertionV1::new(insertion)),
+        Ok(prepared) => match PyMoleculeInsertionV1::from_prepared(prepared) {
+            Ok(insertion) => Ok(insertion),
+            Err(error) => Err(structured_insertion_error(
+                py,
+                MoleculeInsertionError::new_err,
+                error,
+            )?),
+        },
         Err(NativePreparationFailure::Load(error)) => Err(
             super::chemistry_binding::map_load_error(py, OPERATION, &library_path, error)?,
         ),
@@ -55,10 +60,10 @@ fn prepare_inchi_molecule_v1(
 fn map_build_error(
     py: Python<'_>,
     library_path: &std::path::Path,
-    error: InchiMoleculeBuildError,
+    error: InchiMoleculePreparationErrorV2,
 ) -> PyResult<PyErr> {
     match error {
-        InchiMoleculeBuildError::Chemistry(error) => {
+        InchiMoleculePreparationErrorV2::Chemistry(error) => {
             super::chemistry_binding::map_packaged_operation_error(
                 py,
                 OPERATION,
@@ -66,10 +71,7 @@ fn map_build_error(
                 error,
             )
         }
-        InchiMoleculeBuildError::KekulizeOptions(error) => {
-            structured_insertion_error(py, MoleculeInsertionError::new_err, error)
-        }
-        InchiMoleculeBuildError::CompleteGraph(error) => map_complete_graph_error(py, error),
+        InchiMoleculePreparationErrorV2::Preparation(error) => map_preparation_error(py, error),
     }
 }
 

@@ -1,9 +1,10 @@
 use ferrum_document::{
     AtomCreatedOutcomeV1, BondCreatedOutcomeV1, CreatedPresentationRootKindV1,
     CreatedPresentationRootOutcomeV1, DirectBondOperationOutcomeV1,
-    DocumentMoleculeHydrogenMaterializationResultV1, InterchangeRecordBatchInsertedOutcomeV1,
-    MoleculeInsertedOutcomeV1, ReactionCreatedOutcomeV1, ReactionDefinitionDeletedOutcomeV1,
-    ReactionMembershipReplacedOutcomeV1, SessionOperationOutcomeV1, SessionOperationResultV1,
+    DocumentCompactGroupMaterializationResultV1, DocumentMoleculeHydrogenMaterializationResultV1,
+    InterchangeRecordBatchInsertedOutcomeV1, MoleculeInsertedOutcomeV1, ReactionCreatedOutcomeV1,
+    ReactionDefinitionDeletedOutcomeV1, ReactionMembershipReplacedOutcomeV1,
+    SessionOperationOutcomeV1, SessionOperationResultV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -46,6 +47,8 @@ pub(crate) struct PySessionOperationOutcomeV1 {
     #[pyo3(get)]
     molecule_hydrogens_materialized: Option<PyMoleculeHydrogensMaterializedOutcomeV1>,
     #[pyo3(get)]
+    compact_group_materialized: Option<PyCompactGroupMaterializedOutcomeV1>,
+    #[pyo3(get)]
     molecule_inserted: Option<PyMoleculeInsertedOutcomeV1>,
     #[pyo3(get)]
     interchange_record_batch_inserted: Option<PyInterchangeRecordBatchInsertedOutcomeV1>,
@@ -68,6 +71,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -81,6 +85,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -94,6 +99,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: Some(outcome.into()),
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -107,6 +113,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: Some(outcome.into()),
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -120,6 +127,21 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: Some(outcome.into()),
+                compact_group_materialized: None,
+                molecule_inserted: None,
+                interchange_record_batch_inserted: None,
+                reaction_created: None,
+                reaction_membership_replaced: None,
+                reaction_definition_deleted: None,
+                created_presentation_root: None,
+            },
+            SessionOperationOutcomeV1::CompactGroupMaterializedV1(outcome) => Self {
+                kind: "compact_group_materialized_v1".to_owned(),
+                direct_bond: None,
+                atom_created: None,
+                bond_created: None,
+                molecule_hydrogens_materialized: None,
+                compact_group_materialized: Some(outcome.into()),
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -133,6 +155,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -146,6 +169,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -159,6 +183,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: Some(outcome.into()),
@@ -172,6 +197,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -185,6 +211,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -198,6 +225,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: Some(outcome.into()),
                 interchange_record_batch_inserted: None,
                 reaction_created: None,
@@ -211,6 +239,7 @@ impl From<&SessionOperationOutcomeV1> for PySessionOperationOutcomeV1 {
                 atom_created: None,
                 bond_created: None,
                 molecule_hydrogens_materialized: None,
+                compact_group_materialized: None,
                 molecule_inserted: None,
                 interchange_record_batch_inserted: Some(outcome.into()),
                 reaction_created: None,
@@ -279,6 +308,33 @@ impl From<&DocumentMoleculeHydrogenMaterializationResultV1>
             anchor_atom_identifier: outcome.anchor_atom_id().as_str().to_owned(),
             added_hydrogen_count: outcome.added_hydrogen_count(),
             changed: outcome.changed(),
+        }
+    }
+}
+
+/// Durable identities from one committed compact-group materialization.
+#[pyclass(
+    frozen,
+    module = "ferrum_chem",
+    name = "CompactGroupMaterializedOutcomeV1",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(crate) struct PyCompactGroupMaterializedOutcomeV1 {
+    #[pyo3(get)]
+    molecule_identifier: String,
+    #[pyo3(get)]
+    compact_group_identifier: String,
+    #[pyo3(get)]
+    replacement_focus_atom_identifier: String,
+}
+
+impl From<&DocumentCompactGroupMaterializationResultV1> for PyCompactGroupMaterializedOutcomeV1 {
+    fn from(outcome: &DocumentCompactGroupMaterializationResultV1) -> Self {
+        Self {
+            molecule_identifier: outcome.molecule_id().as_str().to_owned(),
+            compact_group_identifier: outcome.compact_group_id().as_str().to_owned(),
+            replacement_focus_atom_identifier: outcome.focus_atom_id().as_str().to_owned(),
         }
     }
 }

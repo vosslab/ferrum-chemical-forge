@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use super::MoleculeInsertionV1;
+use super::MoleculeInsertionRequestV1;
 
 /// Ferrum-owned extension namespace for lossless imported interchange metadata.
 pub const INTERCHANGE_IMPORT_NAMESPACE_V1: &str = "urn:ferrum-chemical-forge:interchange-import:v1";
@@ -47,7 +47,7 @@ impl InterchangePropertyInsertionV1 {
 /// One complete molecule plus its exact ordered interchange record metadata.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterchangeRecordInsertionV1 {
-    molecule: MoleculeInsertionV1,
+    request: MoleculeInsertionRequestV1,
     title: String,
     properties: Vec<InterchangePropertyInsertionV1>,
 }
@@ -55,7 +55,7 @@ pub struct InterchangeRecordInsertionV1 {
 impl InterchangeRecordInsertionV1 {
     /// Construct one record without dropping blank titles or repeated property names.
     pub fn new(
-        molecule: MoleculeInsertionV1,
+        request: MoleculeInsertionRequestV1,
         title: impl Into<String>,
         properties: Vec<InterchangePropertyInsertionV1>,
     ) -> Result<Self, InterchangeRecordInsertionV1Error> {
@@ -64,16 +64,16 @@ impl InterchangeRecordInsertionV1 {
             return Err(InterchangeRecordInsertionV1Error::InvalidTitle);
         }
         Ok(Self {
-            molecule,
+            request,
             title,
             properties,
         })
     }
 
-    /// Return the complete handle-free molecule insertion.
+    /// Return the complete generic insertion request, including stereo semantics.
     #[must_use]
-    pub fn molecule(&self) -> &MoleculeInsertionV1 {
-        &self.molecule
+    pub const fn request(&self) -> &MoleculeInsertionRequestV1 {
+        &self.request
     }
 
     /// Return the exact imported title, including an empty title.

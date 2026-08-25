@@ -15,6 +15,7 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
+import tests.ferrum_native_menu_actions
 import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.direct_bond_gesture_tab
@@ -168,35 +169,29 @@ def _mixed_root_positions(
 
 
 #============================================
-def _click_visible_menu_action(
-		window: PySide6.QtWidgets.QMainWindow, label: str,
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""Activate one labelled command through its visible top-level menu item."""
-	menu_bar = window.menuBar()
-	for menu_action in menu_bar.actions():
-		menu = menu_action.menu()
-		if menu is None:
-			continue
-		for candidate in menu.actions():
-			if candidate.text().replace("&", "") != label:
+#============================================
+def _visible_form_field(
+		dialog: PySide6.QtWidgets.QDialog, label: str,
+		) -> PySide6.QtWidgets.QWidget:
+	"""Return the visible form field paired with one visible dialog label."""
+	for form in dialog.findChildren(PySide6.QtWidgets.QFormLayout):
+		for row in range(form.rowCount()):
+			label_item = form.itemAt(row, PySide6.QtWidgets.QFormLayout.ItemRole.LabelRole)
+			if label_item is None:
 				continue
-			PySide6.QtTest.QTest.mouseClick(
-				menu_bar, PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				menu_bar.actionGeometry(menu_action).center(),
-			)
-			qapp.processEvents()
-			if not menu.isVisible():
-				raise AssertionError(f"Visible menu did not open for {label!r}")
-			PySide6.QtTest.QTest.mouseClick(
-				menu, PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				menu.actionGeometry(candidate).center(),
-			)
-			qapp.processEvents()
-			return
-	raise AssertionError(f"No visible menu action is labelled {label!r}")
+			label_widget = label_item.widget()
+			if not isinstance(label_widget, PySide6.QtWidgets.QLabel):
+				continue
+			if label_widget.text() != label:
+				continue
+			field_item = form.itemAt(row, PySide6.QtWidgets.QFormLayout.ItemRole.FieldRole)
+			if field_item is None or field_item.widget() is None:
+				raise AssertionError(f"Visible form label {label!r} has no field")
+			field = field_item.widget()
+			if not field.isVisible():
+				raise AssertionError(f"Form field for {label!r} is not visible")
+			return field
+	raise AssertionError(f"Visible property form has no {label!r} field")
 
 
 #============================================
@@ -385,6 +380,79 @@ def test_change_bond_order_action_uses_the_closed_rust_enum(
 	tab.save_atomic(tmp_path / "double-bond-action.cdml")
 	window.close()
 	window.deleteLater()
+
+
+#============================================
+def test_visible_property_actions_persist_one_atom_and_bond_change(
+		tmp_path: pathlib.Path,
+		) -> None:
+	"""The visible property forms save accepted atom and bond edits through Rust."""
+	app = PySide6.QtWidgets.QApplication.instance()
+	if app is None:
+		app = PySide6.QtWidgets.QApplication([])
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_BOND_CDML, "property-actions.cdml",
+	)
+	window._register_native_tab(tab, activate=True)
+	window.show()
+	app.processEvents()
+
+	def accept_atom_charge() -> None:
+		"""Set one visible atom field and accept its real modal dialog."""
+		dialog = app.activeModalWidget()
+		if not isinstance(dialog, PySide6.QtWidgets.QDialog):
+			raise AssertionError("Atom Properties dialog did not open")
+		charge_spin = _visible_form_field(dialog, "Charge:")
+		if not isinstance(charge_spin, PySide6.QtWidgets.QSpinBox):
+			raise AssertionError("Charge field is not a visible spin box")
+		charge_spin.setValue(1)
+		dialog.accept()
+
+	def accept_double_bond() -> None:
+		"""Set one visible bond field and accept its real modal dialog."""
+		dialog = app.activeModalWidget()
+		if not isinstance(dialog, PySide6.QtWidgets.QDialog):
+			raise AssertionError("Bond Properties dialog did not open")
+		order_combo = _visible_form_field(dialog, "Order:")
+		if not isinstance(order_combo, PySide6.QtWidgets.QComboBox):
+			raise AssertionError("Order field is not a visible combo box")
+		order_combo.setCurrentText("Double")
+		dialog.accept()
+
+	try:
+		tab.select_atom("atom-c")
+		window._refresh_actions()
+		tests.ferrum_native_menu_actions.click_visible_menu_action(
+			window, "Edit Atom Properties", app,
+			lambda: PySide6.QtCore.QTimer.singleShot(0, accept_atom_charge),
+		)
+		assert tab.selected_atom_projection().formal_charge == 1
+		assert "Updated one Ferrum atom." in window.statusBar().currentMessage()
+
+		tab.select_atoms(("atom-c", "atom-o"))
+		window._add_single_bond_action.trigger()
+		tests.ferrum_native_menu_actions.click_visible_menu_action(
+			window, "Edit Bond Properties", app,
+			lambda: PySide6.QtCore.QTimer.singleShot(0, accept_double_bond),
+		)
+		assert tab.selected_bond_projection().source_type == "n2"
+		assert "Updated one bond." in window.statusBar().currentMessage()
+
+		saved = tmp_path / "property-actions.cdml"
+		tab.save_atomic(saved)
+		persisted = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+			saved.read_text(encoding="utf-8"), "reopened-property-actions.cdml",
+		)
+		try:
+			molecule = persisted.current_document_observation().projection.molecules[0]
+			assert molecule.atoms[0].formal_charge == 1
+			assert molecule.bonds[0].source_type == "n2"
+		finally:
+			persisted.dispose()
+	finally:
+		window.close()
+		window.deleteLater()
 
 
 #============================================

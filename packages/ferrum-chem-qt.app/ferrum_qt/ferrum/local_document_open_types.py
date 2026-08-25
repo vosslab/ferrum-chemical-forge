@@ -24,30 +24,60 @@ class _LocalDocumentSourceKind(enum.Enum):
 
 
 #============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumNativeLocalIngressRegistryV1:
+	"""Retain each Rust-issued local-ingress descriptor set for one window."""
+
+	local_document_open_descriptors: tuple[engine.LocalInterchangeOpenDescriptorV1, ...]
+	local_interchange_open_descriptors: tuple[engine.LocalInterchangeOpenDescriptorV1, ...]
+
+	#============================================
+	@classmethod
+	def from_rust(cls) -> "FerrumNativeLocalIngressRegistryV1":
+		"""Capture the complete immutable ingress registry before any Qt route starts."""
+		return cls(
+			tuple(engine.DocumentSession.local_document_open_descriptors_v1()),
+			tuple(engine.DocumentSession.local_interchange_open_descriptors_v1()),
+		)
+
+	#============================================
+	def interchange_route_handle_for_suffix(self, suffix: str) -> object:
+		"""Return one Rust-issued handle for an exact registered interchange suffix."""
+		for descriptor in self.local_interchange_open_descriptors:
+			if suffix not in descriptor.suffixes:
+				continue
+			if descriptor.route_handle is None:
+				raise RuntimeError("Ferrum published an interchange route without a handle")
+			return descriptor.route_handle
+		raise RuntimeError(f"Ferrum did not publish a local interchange route for {suffix}")
+
+
+#============================================
 def _local_document_source_kind_for_path(
 		path: str, descriptors: tuple[object, ...] = (),
 		) -> _LocalDocumentSourceKind | None:
-	"""Select a named Rust admission profile solely from the requested suffix."""
+	"""Select the Rust-issued route kind from its descriptor suffix."""
 	suffix = pathlib.Path(path).suffix.lower()
-	if suffix == ".cdml":
-		return _LocalDocumentSourceKind.CDML
-	if suffix == ".svg":
-		return _LocalDocumentSourceKind.DECODED_CDSVG
-	if any(suffix in descriptor.suffixes for descriptor in descriptors):
-		return _LocalDocumentSourceKind.INTERCHANGE
+	for descriptor in descriptors:
+		if suffix not in descriptor.suffixes:
+			continue
+		return {
+			"cdml": _LocalDocumentSourceKind.CDML,
+			"decoded_cdsvg": _LocalDocumentSourceKind.DECODED_CDSVG,
+			"cml": _LocalDocumentSourceKind.INTERCHANGE,
+		}.get(descriptor.source_kind)
 	return None
 
 
 #============================================
 def _current_tab_replacement_source_kind_for_path(
-		path: str,
+		path: str, descriptors: tuple[object, ...],
 		) -> _LocalDocumentSourceKind | None:
-	"""Select the closed CDML/CDSVG policy for explicit tab replacement."""
+	"""Select only a registry route whose direction permits replacement."""
 	suffix = pathlib.Path(path).suffix.lower()
-	if suffix == ".cdml":
-		return _LocalDocumentSourceKind.CDML
-	if suffix == ".svg":
-		return _LocalDocumentSourceKind.DECODED_CDSVG
+	for descriptor in descriptors:
+		if suffix in descriptor.suffixes and descriptor.allows_current_tab_replacement:
+			return _local_document_source_kind_for_path(path, (descriptor,))
 	return None
 
 

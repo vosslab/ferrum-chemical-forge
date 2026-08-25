@@ -28,9 +28,6 @@ import ferrum_qt.ferrum.canvas_interaction
 import ferrum_qt.ferrum.tab_operations
 
 
-_CURRENT_TAB_REPLACEMENT_FILTER = "Ferrum chemical drawings (*.cdml *.svg);;All Files (*)"
-
-
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class _LocalDocumentOpenIntent:
@@ -111,9 +108,6 @@ class FerrumNativeLocalDocumentOpenMixin:
 	def _initialize_local_document_open(self) -> None:
 		"""Create the sole local-document Open intent and Qt-thread relay."""
 		self._local_document_open_intent: _LocalDocumentOpenIntent | None = None
-		self._local_interchange_open_descriptors = tuple(
-			engine.DocumentSession.local_interchange_open_descriptors_v1(),
-		)
 		self._local_document_open_queue: collections.deque[tuple[str, _LocalDocumentSourceKind, object | None, _LocalDocumentOpenDisposition, object | None, int | None, str | None, bool, object | None, bool, bool]] = collections.deque()
 		self._local_document_open_outcome: bool | None = None
 		self._local_document_open_batch_success = True
@@ -137,19 +131,24 @@ class FerrumNativeLocalDocumentOpenMixin:
 
 	#============================================
 	def _native_new_document_filter(self) -> str:
-		"""Build ordinary File/Open from Rust-owned interchange descriptors."""
-		filters = [_CURRENT_TAB_REPLACEMENT_FILTER.removesuffix(";;All Files (*)")]
-		filters.extend(
+		"""Build ordinary File/Open solely from Rust-owned route descriptors."""
+		filters = [
 			f"{descriptor.display_name} ({' '.join('*' + suffix for suffix in descriptor.suffixes)})"
-			for descriptor in self._local_interchange_open_descriptors
-		)
+			for descriptor in self._local_ingress_registry.local_document_open_descriptors
+		]
 		filters.append("All Files (*)")
 		return ";;".join(filters)
 
 	#============================================
 	def _current_tab_replacement_filter(self) -> str:
-		"""Expose only document representations that can replace the current tab."""
-		return _CURRENT_TAB_REPLACEMENT_FILTER
+		"""Expose only registry routes allowed to replace the current tab."""
+		filters = [
+			f"{descriptor.display_name} ({' '.join('*' + suffix for suffix in descriptor.suffixes)})"
+			for descriptor in self._local_ingress_registry.local_document_open_descriptors
+			if descriptor.allows_current_tab_replacement
+		]
+		filters.append("All Files (*)")
+		return ";;".join(filters)
 
 	#============================================
 	def _build_open_in_current_tab_action(
@@ -186,7 +185,9 @@ class FerrumNativeLocalDocumentOpenMixin:
 		if not self._can_begin_explicit_current_replacement():
 			return False
 		absolute_path = os.path.abspath(file_path)
-		source_kind = _current_tab_replacement_source_kind_for_path(absolute_path)
+		source_kind = _current_tab_replacement_source_kind_for_path(
+			absolute_path, self._local_ingress_registry.local_document_open_descriptors,
+		)
 		if source_kind is None:
 			self._show_unsupported_local_document(absolute_path)
 			return False
@@ -270,13 +271,13 @@ class FerrumNativeLocalDocumentOpenMixin:
 			return False
 		absolute_path = os.path.abspath(file_path)
 		source_kind = _local_document_source_kind_for_path(
-			absolute_path, self._local_interchange_open_descriptors,
+			absolute_path, self._local_ingress_registry.local_document_open_descriptors,
 		)
 		if source_kind is None:
 			self._show_unsupported_local_document(absolute_path)
 			return False
 		route_handle = _interchange_route_handle_for_path(
-			absolute_path, self._local_interchange_open_descriptors,
+			absolute_path, self._local_ingress_registry.local_document_open_descriptors,
 		)
 		focus_target = self._active_native_tab() if interactive else None
 		focus_busy = (

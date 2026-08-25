@@ -2,13 +2,14 @@
 
 ## Decision
 
-M6 stores CDML as an opaque `xot` XML tree. The storage API is deliberately limited to
-parse and structural serialization; it assigns no CDML type, identifier, reference, wire, or
-frontend meaning. This establishes the preservation substrate for the M7 and M8 work in
+The historical M6 decision stores CDML as an opaque `xot` XML tree. The storage API is
+deliberately limited to parse and structural serialization; it assigns no CDML type,
+identifier, reference, wire, or frontend meaning. This establishes the preservation
+substrate for the M7 and M8 work in
 [ferrum-plan-v3.md](../ferrum-plan-v3.md).
 
-Raw source-slice retention is not adopted. The current corpus did not lose structural meaning
-when parsed and serialized through `xot`.
+Raw source-slice retention is not adopted. The retired one-time profiles did
+not lose their recorded structural meaning when parsed and serialized through `xot`.
 
 ## Experiment
 
@@ -28,10 +29,10 @@ spelling and attribute order.
 
 ## Achieved fidelity
 
-The experiment establishes historical structural-retention evidence only. The retired profiles
-now live as compact inline XML beside the semantic assertions in
-`packages/ferrum-rust/crates/document/src/typed_tests.rs`; the retired legacy-probe result is
-also historical context only:
+The experiment establishes historical structural-retention evidence only. The
+retired profiles now live as compact inline XML beside the semantic assertions
+in [packages/ferrum-rust/crates/document/src/typed_tests.rs](../../../packages/ferrum-rust/crates/document/src/typed_tests.rs);
+the retired legacy-probe result is also historical context only:
 
 - Unrecognized elements and nested foreign-namespace content survive.
 - Namespace identities survive even where multiple prefixes name the same URI.
@@ -54,8 +55,9 @@ Callers provide decoded text, so byte encoding detection remains outside this M6
 
 ## M6 conclusion
 
-The accepted M1d inventory package bounds the current corpus, and this experiment meets M6's
-structural opaque-retention exit criterion. M7 adds stable IDs, order, and reference behavior;
-M8 assigns CDML types; and M10 wires the full-corpus preservation gate. Those later dependent
-milestones are not M6 blockers. Revisit raw source-slice retention before M8 only if a real
-fixture demonstrates lost semantic meaning under this structural contract.
+The historical M1d inventory bounded the one-time profiles, and this experiment
+met the recorded M6 structural opaque-retention criterion for those profiles.
+It does not establish a current corpus or M10 preservation gate. M7 adds stable
+IDs, order, and reference behavior; M8 assigns CDML types. Revisit raw
+source-slice retention before M8 only if a real fixture demonstrates lost
+semantic meaning under this structural contract.

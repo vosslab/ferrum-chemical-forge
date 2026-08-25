@@ -322,6 +322,18 @@ screen-reader announcement reports either the successful element change after
 the authoritative replacement installs or a typed refusal with recovery
 guidance; it does not announce success for cancellation or a refused request.
 
+`Edit Atom Properties...` is the visible property action for exactly one current
+durable selected atom. Its modal dialog exposes the atom's `Charge:` control.
+Qt captures the durable atom ID and observation revision, then submits the
+requested charge only through the revision-bound Rust property mutation; Qt
+does not alter a scene item, cache, or serialized document itself. Cancellation,
+Escape, invalid charge input, stale/busy/closed/tab-switched state, or a changed
+selection preserve the document and make no success announcement. On acceptance,
+Qt installs Rust's authoritative replacement observation before presenting the
+new charge. The accepted mutation participates in Rust-owned history and save
+state, and a normal Save followed by reopen retains the edited charge. The
+canonical Qt menu helper is permanent visible-dialog evidence for this route.
+
 The native vector-properties action is available only for one selected durable
 rectangle, square, oval, circle, polygon, or ordinary polyline issued by the
 current Rust projection. The detached form may submit width and stroke changes;
@@ -563,6 +575,13 @@ selection; it cannot resolve the current selection from another tab. Before its 
 disposed, Qt terminally retires the dialog and its rerun action. Rust remains the sole source of
 report facts; Qt neither reveals an inferred atom nor mutates a document while presenting or
 retiring the receipt.
+
+For each molecule-report record, Qt treats `stereo_semantics` and
+`stereo_depiction` as distinct Rust receipts. The former alone carries chemical
+tetrahedral and E/Z configuration. The latter carries Rust-issued editable
+directed-bond and E/Z carrier-mark facts. Qt renders the issued marks but never
+derives configuration from marks or coordinates, and never invents marks from
+configuration.
 
 `Chemistry -> Create Fragment...` and `View Fragments...` are accepted ordinary-native
 Explicit Fragment V1 clients. Create captures one live source tab, revision, digest, direct-root

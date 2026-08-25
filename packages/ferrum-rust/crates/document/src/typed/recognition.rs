@@ -40,6 +40,9 @@ pub(super) fn project_record(
                 None
             };
             if let Some(child_class) = candidate {
+                if class == TypedClass::Molecule && child_class == TypedClass::Group {
+                    return Err(TypedDocumentError::UnsupportedLegacyGroup);
+                }
                 let count = counts.entry(child_class).or_default();
                 let (_, maximum) = child_cardinality(class, child_class);
                 if maximum.is_some_and(|maximum| *count >= maximum) {

@@ -239,12 +239,17 @@ def _copy_batch(plan: object, batch_index: int,
 	space = batch.coordinate_space
 	if space.kind == "scene":
 		anchor = _Point(0.0, 0.0)
-		allowed = {"line", "path"}
+		allowed = {"line", "double_bond_carrier_mark", "path"}
 		required_kind = "bond"
 	elif space.kind == "atom_local":
 		anchor = _point(space.anchor, "atom-local anchor")
-		allowed = {"ellipse", "line", "mask", "text"}
-		required_kind = "atom"
+		if target.record_kind == "atom":
+			allowed = {"ellipse", "line", "mask", "text"}
+		elif target.record_kind == "compact_group":
+			allowed = {"line", "text"}
+		else:
+			raise FerrumPlanError("Ferrum atom-local render target has an unsupported record kind")
+		required_kind = target.record_kind
 	else:
 		raise FerrumPlanError("Ferrum render batch has an unknown coordinate space")
 	if target.record_kind != required_kind:
@@ -270,7 +275,7 @@ def _copy_operation(source: object, anchor: _Point,
 		) -> tuple[_Line | _Fill | _Shape, int]:
 	"""Detach one exact wire enum operation and construct its cached paint command."""
 	payload = source.operation
-	if source.kind == "line":
+	if source.kind in {"line", "double_bond_carrier_mark"}:
 		start = _translated_point(payload.start, anchor, "line start")
 		end = _translated_point(payload.end, anchor, "line end")
 		if start == end:
@@ -434,11 +439,12 @@ def _shape_for(commands: tuple[_Line | _Fill | _Shape, ...],
 def _target(source: object) -> _Target:
 	"""Copy durable target identity and validate the closed selectable record kinds."""
 	record_kind = source.record_id.kind
-	if record_kind not in {"Atom", "Bond"}:
+	if record_kind not in {"Atom", "Bond", "Group"}:
 		raise FerrumPlanError("Ferrum render target has an unsupported record kind")
 	if not isinstance(source.source_order, int) or isinstance(source.source_order, bool) or not 0 <= source.source_order <= 2**32 - 1:
 		raise FerrumPlanError("Ferrum render target source order must be a u32 integer")
-	return _Target(source.record_id, record_kind.lower(), source.source_order)
+	kind = {"Atom": "atom", "Bond": "bond", "Group": "compact_group"}[record_kind]
+	return _Target(source.record_id, kind, source.source_order)
 
 
 #============================================

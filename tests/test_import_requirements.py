@@ -27,7 +27,6 @@ LOCAL_IMPORT_WHITELIST = {
 	# Imported by bioproblems_site/llm_helpers.py and problem_set_title.py.
 	"local_llm_wrapper",
 }
-REPO_LOCAL_IMPORT_MODULES = file_utils.load_repo_import_modules()
 IMPORT_REQUIREMENT_ALIASES = {
 	"applefoundationmodels": "apple-foundation-models",
 	"applescript": "py-applescript",
@@ -283,7 +282,6 @@ def get_stdlib_modules() -> set[str]:
 def is_allowed_module(
 	module_name: str,
 	repo_modules: set[str],
-	repo_local_modules: set[str],
 	stdlib_modules: set[str],
 	requirement_modules: set[str],
 ) -> bool:
@@ -293,8 +291,6 @@ def is_allowed_module(
 	if module_name in LOCAL_IMPORT_WHITELIST:
 		return True
 	if module_name in repo_modules:
-		return True
-	if module_name in repo_local_modules:
 		return True
 	normalized = normalize_name(module_name)
 	if normalized in stdlib_modules:
@@ -311,7 +307,6 @@ def is_allowed_module(
 def build_violations_by_file(
 	paths: list[str],
 	repo_modules: set[str],
-	repo_local_modules: set[str],
 	stdlib_modules: set[str],
 	requirement_modules: set[str],
 	check_optional_imports: bool,
@@ -351,7 +346,9 @@ def build_violations_by_file(
 			if optional_import and not check_optional_imports:
 				continue
 			if is_allowed_module(
-				module_name, repo_modules, repo_local_modules, stdlib_modules,
+				module_name,
+				repo_modules,
+				stdlib_modules,
 				requirement_modules,
 			):
 				continue
@@ -421,15 +418,17 @@ def collect_report() -> None:
 		return
 	check_optional_imports = resolve_check_optional_imports()
 	repo_modules = collect_repo_module_names(FILES)
-	repo_local_modules = REPO_LOCAL_IMPORT_MODULES
 	stdlib_modules = get_stdlib_modules()
 	# load_requirement_modules raises RuntimeError when no requirements file is found;
 	# that is an environment error, not a test failure -- let it propagate.
 	requirement_modules, requirement_source = load_requirement_modules(REPO_ROOT)
 	VIOLATIONS_BY_FILE.update(
 		build_violations_by_file(
-			FILES, repo_modules, repo_local_modules, stdlib_modules,
-			requirement_modules, check_optional_imports,
+			FILES,
+			repo_modules,
+			stdlib_modules,
+			requirement_modules,
+			check_optional_imports,
 		)
 	)
 	lines = make_report_lines(VIOLATIONS_BY_FILE, requirement_source, check_optional_imports)
@@ -448,3 +447,4 @@ def test_import_requirements(path: str) -> None:
 	assert rel not in VIOLATIONS_BY_FILE, file_utils.format_violation_assert_message(
 		rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME
 	)
+# Vendored pytest file. Local changes can and will be overwritten.

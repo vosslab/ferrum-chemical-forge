@@ -654,6 +654,8 @@ pub enum RenderOp {
     Ellipse(crate::EllipseOp),
     /// An explicit filled and/or stroked scene path.
     Path(crate::PathOpV2),
+    /// A stored E/Z carrier accent linked to its central double-bond provenance.
+    DoubleBondCarrierMark(crate::DoubleBondCarrierMarkOp),
 }
 
 impl RenderOp {
@@ -664,6 +666,7 @@ impl RenderOp {
             Self::Mask(operation) => operation.z(),
             Self::Ellipse(operation) => operation.z(),
             Self::Path(operation) => operation.z(),
+            Self::DoubleBondCarrierMark(operation) => operation.z(),
         }
     }
 }
@@ -770,9 +773,12 @@ impl RenderBatch {
                     )
                 }) => {}
             (BatchSpace::Scene, RecordKind::Bond)
-                if operations
-                    .iter()
-                    .all(|op| matches!(op, RenderOp::Line(_) | RenderOp::Path(_))) => {}
+                if operations.iter().all(|op| {
+                    matches!(
+                        op,
+                        RenderOp::Line(_) | RenderOp::Path(_) | RenderOp::DoubleBondCarrierMark(_)
+                    )
+                }) => {}
             (BatchSpace::AtomLocal { .. }, _) => {
                 return Err(RenderError::InvalidRequest(
                     "object-local batch requires an atom or compact-group target and annotation operations".to_owned(),

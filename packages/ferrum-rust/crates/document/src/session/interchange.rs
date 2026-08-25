@@ -18,8 +18,8 @@ impl DocumentSession {
                 for record in batch.records() {
                     let (next, generated) = ids.reserve_molecule(
                         indexed,
-                        record.molecule().atoms().len(),
-                        record.molecule().bonds().len(),
+                        record.request().molecule().atoms().len(),
+                        record.request().molecule().bonds().len(),
                     )?;
                     identities.push((next.molecule, next.atoms, next.bonds));
                     ids = generated;

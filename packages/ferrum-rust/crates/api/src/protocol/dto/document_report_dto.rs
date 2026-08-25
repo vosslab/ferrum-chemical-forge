@@ -77,8 +77,106 @@ pub struct DocumentMoleculeReportRecordSummaryV1 {
     /// supported composition. `findings` explains that absence.
     pub composition: Option<DocumentMoleculeReportCompositionSummaryV1>,
     pub neutral_bond_capacity: String,
+    /// Durable source stereo facts, separate from drawing-only bond presentation.
+    pub stereo_semantics: Option<DocumentMoleculeReportStereoSemanticsSummaryV1>,
+    /// Durable stereo drawing facts, separate from chemical configuration.
+    pub stereo_depiction: Option<DocumentMoleculeReportStereoDepictionSummaryV1>,
     /// Authenticated structured diagnostics in report order.
     pub findings: Vec<DocumentMoleculeReportFindingSummaryV1>,
+}
+
+/// Canonical graph-source-indexed stereo facts retained by one direct molecule.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportStereoSemanticsSummaryV1 {
+    pub tetrahedral: Vec<DocumentMoleculeReportTetrahedralStereoSummaryV1>,
+    pub double_bonds: Vec<DocumentMoleculeReportDoubleBondStereoSummaryV1>,
+}
+
+/// Canonical source-indexed drawing facts retained by one direct molecule.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportStereoDepictionSummaryV1 {
+    pub directed_bonds: Vec<DocumentMoleculeReportDirectedBondDepictionSummaryV1>,
+    pub double_bond_carrier_marks: Vec<DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1>,
+}
+
+/// One tetrahedral wedge/hash drawing fact with its authored endpoint direction.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportDirectedBondDepictionSummaryV1 {
+    pub bond_index: usize,
+    pub start: usize,
+    pub end: usize,
+    pub presentation: DocumentMoleculeReportDirectedBondPresentationSummaryV1,
+}
+
+/// Closed wedge/hash drawing vocabulary.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportDirectedBondPresentationSummaryV1 {
+    SolidWedge,
+    HashedWedge,
+}
+
+/// One E/Z directional carrier drawing fact.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1 {
+    pub double_bond_index: usize,
+    pub carrier_bond_index: usize,
+    pub mark: DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1,
+}
+
+/// Closed E/Z carrier-mark vocabulary.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1 {
+    Up,
+    Down,
+}
+
+/// One tetrahedral descriptor with exactly four atom positions or an explicit-H sentinel.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportTetrahedralStereoSummaryV1 {
+    pub center: usize,
+    pub ligands: [DocumentMoleculeReportStereoLigandSummaryV1; 4],
+    pub parity: DocumentMoleculeReportTetrahedralParitySummaryV1,
+}
+
+/// One ligand in the source-defined tetrahedral order.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DocumentMoleculeReportStereoLigandSummaryV1 {
+    Atom { index: usize },
+    ExplicitHydrogen,
+}
+
+/// Closed tetrahedral parity vocabulary.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportTetrahedralParitySummaryV1 {
+    Clockwise,
+    CounterClockwise,
+}
+
+/// One E/Z double-bond source descriptor.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeReportDoubleBondStereoSummaryV1 {
+    pub bond_index: usize,
+    pub start_ligand: usize,
+    pub end_ligand: usize,
+    pub configuration: DocumentMoleculeReportDoubleBondConfigurationSummaryV1,
+}
+
+/// Closed E/Z configuration vocabulary.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportDoubleBondConfigurationSummaryV1 {
+    E,
+    Z,
 }
 
 /// One bounded report diagnostic with closed facts and an authenticated location.

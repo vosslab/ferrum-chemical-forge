@@ -241,6 +241,8 @@ def check_path_like_text(
 def check_local_link(
 	repo_root: str,
 	file_dir: str,
+	tracked_set: set,
+	tracked_dirs: set,
 	link_text: str,
 	url: str,
 ) -> str:
@@ -272,11 +274,10 @@ def check_local_link(
 			f"and will not work on GitHub"
 		)
 
-	# Existence: a contained target must exist in the working tree. This validates
-	# authored local links during the interval before a new file is recorded,
-	# while containment above still rejects filesystem escapes.
+	# Existence: the target must be a tracked file or a tracked directory
+	# (GitHub renders dir links as a directory listing). Untracked files 404.
 	rel_posix = to_posix(rel_from_root)
-	if not os.path.exists(target):
+	if rel_posix not in tracked_set and rel_posix not in tracked_dirs:
 		return f"local link [{link_text}]({url}) target not found: {rel_posix}"
 
 	# Redundant traversal: the URL uses ".." but a ..-free path exists.
@@ -293,8 +294,28 @@ def check_local_link(
 
 
 #============================================
+def build_tracked_dirs(tracked_set: set) -> set:
+	"""
+	Compute the set of directories implied by tracked files.
+
+	Every parent of every tracked path (in POSIX form) is included so that
+	directory-target links such as `[skills/](../skills/)` resolve to a known
+	location even though no file path matches the bare directory name.
+	"""
+	dirs = set()
+	for path in tracked_set:
+		parts = to_posix(path).split("/")
+		# Build each parent prefix: parts[0], parts[0]/parts[1], ...
+		for end in range(1, len(parts)):
+			dirs.add("/".join(parts[:end]))
+	return dirs
+
+
+#============================================
 def scan_file(
 	repo_root: str,
+	tracked_set: set,
+	tracked_dirs: set,
 	md_path: str,
 ) -> list[str]:
 	"""
@@ -302,6 +323,8 @@ def scan_file(
 
 	Args:
 		repo_root: Absolute path to the repository root.
+		tracked_set: Set of tracked repo-relative paths.
+		tracked_dirs: Set of tracked-directory repo-relative paths.
 		md_path: Repo-relative path to the markdown file.
 
 	Returns:
@@ -320,6 +343,8 @@ def scan_file(
 			message = check_local_link(
 				repo_root,
 				file_dir,
+				tracked_set,
+				tracked_dirs,
 				link_text,
 				url,
 			)
@@ -380,9 +405,12 @@ def collect_violations(files: list[str]) -> dict[str, list[str]]:
 	"""
 	Scan every markdown file and distribute issues into a violations dict.
 
-	Scans each file against the current repository filesystem. Each markdown
-	file's issues are keyed by its repo-relative POSIX path. Files with no
-	issues are omitted; all_issues is preserved flat for print_issue_samples.
+	Builds tracked_set and tracked_dirs once from git, then scans each file.
+	Each markdown file's issues are keyed by its repo-relative POSIX path.
+	Files with no issues are omitted. Uses a closure approach: tracked_set
+	and tracked_dirs are whole-repo context computed once here, then passed
+	into scan_file for each file. all_issues is preserved flat for
+	print_issue_samples; per-file distribution is a dict comprehension.
 
 	Args:
 		files: Absolute paths to markdown files to scan.
@@ -393,10 +421,14 @@ def collect_violations(files: list[str]) -> dict[str, list[str]]:
 	# Convert absolute paths to repo-relative POSIX strings for scan_file.
 	rel_files = sorted(to_posix(os.path.relpath(abs_path, REPO_ROOT)) for abs_path in files)
 
+	# Build whole-repo context once -- never per file.
+	tracked_set = set(file_utils.list_tracked_files(REPO_ROOT))
+	tracked_dirs = build_tracked_dirs(tracked_set)
+
 	violations: dict[str, list[str]] = {}
 	all_issues: list[str] = []
 	for md_path in rel_files:
-		issues = scan_file(REPO_ROOT, md_path)
+		issues = scan_file(REPO_ROOT, tracked_set, tracked_dirs, md_path)
 		all_issues.extend(issues)
 		if issues:
 			violations[md_path] = issues
@@ -414,9 +446,10 @@ def collect_report() -> None:
 	Autouse fixture: clear stale reports, populate VIOLATIONS_BY_FILE, write report.
 
 	Runs the guarded once-per-process cleanup first, rebuilds the module-level
-	violations dict by scanning all markdown files, then writes the report only
-	when there are violations. Cleanup owns removal of clean-run reports, so a
-	clean module writes nothing.
+	violations dict by scanning all markdown files (tracked_set and tracked_dirs
+	are built once in collect_violations), then writes the report only when there
+	are violations. Cleanup owns removal of clean-run reports, so a clean module
+	writes nothing.
 	"""
 	# Once-per-process guarded cleanup of repo-root report_*.txt (no-op after first call).
 	file_utils.clear_stale_reports()
@@ -439,3 +472,4 @@ def test_markdown_links(path: str) -> None:
 	assert rel not in VIOLATIONS_BY_FILE, file_utils.format_violation_assert_message(
 		rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME
 	)
+# Vendored pytest file. Local changes can and will be overwritten.

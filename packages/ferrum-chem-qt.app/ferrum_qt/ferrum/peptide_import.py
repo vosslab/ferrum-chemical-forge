@@ -1,4 +1,4 @@
-"""Ferrum background preparation for one supported peptide-template insertion."""
+"""Ferrum background preparation for one native peptide insertion."""
 
 # Standard Library
 import dataclasses
@@ -20,10 +20,10 @@ class FerrumNativePeptidePreparationFailure:
 
 #============================================
 class FerrumNativePeptidePreparationWorker(FerrumDetachedJobThread):
-	"""Prepare one strict supported peptide template off the Qt thread.
+	"""Prepare one strict native peptide insertion off the Qt thread.
 
 	The exact dialog text and captured placement cross this boundary unchanged.
-	Rust owns strict sequence admission, template composition, Ferrum chemistry,
+	Rust owns strict sequence admission, closed-profile plan construction, Ferrum chemistry,
 	and the returned handle-free insertion. Cancellation invalidates delivery; it
 	does not claim to preempt a Ferrum library call already in progress.
 	"""
@@ -33,14 +33,14 @@ class FerrumNativePeptidePreparationWorker(FerrumDetachedJobThread):
 
 	#============================================
 	def __init__(self, sequence: str, placement: object) -> None:
-		"""Capture immutable strict-template inputs before this thread starts."""
+		"""Capture immutable native-peptide inputs before this thread starts."""
 		if type(sequence) is not str:
 			raise TypeError("Ferrum peptide preparation requires exact text")
 		if type(placement) is not engine.InsertionPlacementV1:
 			raise TypeError("Ferrum peptide preparation requires exact Ferrum placement")
 		self._sequence = sequence
 		self._placement = placement
-		self._prepare_operation = engine.prepare_supported_peptide_template_molecule_v1
+		self._prepare_operation = engine.prepare_ferrum_peptide_insertion_v1
 		super().__init__(
 			lambda: self._prepare_operation(self._sequence, self._placement),
 			lambda error: FerrumNativePeptidePreparationFailure(

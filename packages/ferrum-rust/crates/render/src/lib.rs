@@ -43,6 +43,7 @@ mod document_content_bounds_v1;
 mod document_plan_v1;
 mod document_precommit_overlay_v1;
 mod document_vector_v1;
+mod double_bond_carrier_mark;
 mod draw_stream_molecule_v1;
 mod draw_stream_v1;
 mod error;
@@ -62,6 +63,7 @@ mod svg_backend;
 mod verified_telex_glyph_metrics;
 mod document {
     pub(crate) mod depiction_profile;
+    pub(crate) mod depiction_profile_resolution;
     pub(crate) mod observation;
     pub(crate) mod plan;
 }
@@ -152,6 +154,8 @@ pub use document_vector_v1::{
     DocumentVectorOpV1, DocumentVectorRootV1, PathCommandV1, StrokeV1, VectorFillRuleV1,
     VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
 };
+/// Explicit, durable E/Z carrier-mark operation facts.
+pub use double_bond_carrier_mark::{DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp};
 /// Rendering errors and explicit target diagnostics.
 pub use error::{RenderError, RenderIssue, RenderIssueKind};
 pub use font::telex::{VerifiedTelexRegularV1, verified_telex_regular_v1};

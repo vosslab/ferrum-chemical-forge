@@ -14,6 +14,7 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
+import tests.ferrum_native_menu_actions
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.document_tab
@@ -115,37 +116,6 @@ def _mixed_root_positions(
 
 
 #============================================
-def _click_visible_menu_action(
-		window: PySide6.QtWidgets.QMainWindow, label: str,
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""Activate one labelled command through its visible top-level menu item."""
-	menu_bar = window.menuBar()
-	for menu_action in menu_bar.actions():
-		menu = menu_action.menu()
-		if menu is None:
-			continue
-		for candidate in menu.actions():
-			if candidate.text().replace("&", "") != label:
-				continue
-			PySide6.QtTest.QTest.mouseClick(
-				menu_bar, PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				menu_bar.actionGeometry(menu_action).center(),
-			)
-			qapp.processEvents()
-			if not menu.isVisible():
-				raise AssertionError(f"Visible menu did not open for {label!r}")
-			PySide6.QtTest.QTest.mouseClick(
-				menu, PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				menu.actionGeometry(candidate).center(),
-			)
-			qapp.processEvents()
-			return
-	raise AssertionError(f"No visible menu action is labelled {label!r}")
-
-
 #============================================
 def _restore_drawing_parameters(
 		window: ferrum_qt.main_window.MainWindow, snapshot: object,
@@ -187,7 +157,7 @@ def test_editing_tools_draw_bond_commits_rust_and_escape_preserves_result(
 		end = _atom_viewport_point(tab, "atom-o")
 		assert window._drawing_parameters.set_order_name("single")
 		qapp.processEvents()
-		_click_visible_menu_action(window, "Draw Bond", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Draw Bond", qapp)
 		assert "Normal single" in window.statusBar().currentMessage()
 		assert "drag between atoms or empty canvas locations" in window._draw_bond_action.toolTip()
 		PySide6.QtTest.QTest.mousePress(
@@ -235,8 +205,8 @@ def test_editing_tools_cancel_preserves_document_and_selected_atom(
 		before_atom_id = tab.selected_atom_projection().source_id
 		window._drawing_parameters.set_element("N")
 		window._drawing_parameters.set_order_name("triple")
-		_click_visible_menu_action(window, "Draw Bond", qapp)
-		_click_visible_menu_action(window, "Cancel Tool", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Draw Bond", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Cancel Tool", qapp)
 		assert tab.current_snapshot == before_snapshot
 		assert tab.selected_atom_projection().source_id == before_atom_id
 		assert window._drawing_parameters.snapshot() == (
@@ -267,7 +237,7 @@ def test_draw_bond_to_empty_space_uses_normal_order(
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
 		window._drawing_parameters.set_order_name("triple")
-		_click_visible_menu_action(window, "Draw Bond", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Draw Bond", qapp)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
@@ -308,7 +278,7 @@ def test_draw_bond_gesture_freezes_normal_order_at_mouse_press(
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
 		window._drawing_parameters.set_order_name("triple")
-		_click_visible_menu_action(window, "Draw Bond", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Draw Bond", qapp)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
@@ -388,7 +358,7 @@ def test_move_complete_roots_drag_resolves_one_snapped_rust_anchor_delta(
 	try:
 		durable_selection = _select_mixed_complete_roots(tab)
 		window._refresh_actions()
-		_click_visible_menu_action(window, "Move Complete Roots", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Move Complete Roots", qapp)
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
 		raw_start = tab.view.mapToScene(start)
@@ -443,7 +413,7 @@ def test_move_complete_roots_drag_keeps_the_unsnapped_raw_delta(
 		_select_mixed_complete_roots(tab)
 		window._refresh_actions()
 		tab.view.set_hex_grid_snap_enabled(False)
-		_click_visible_menu_action(window, "Move Complete Roots", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Move Complete Roots", qapp)
 		start = _atom_viewport_point(tab, "atom-c")
 		end = _empty_viewport_point(tab)
 		start_scene = tab.view.mapToScene(start)

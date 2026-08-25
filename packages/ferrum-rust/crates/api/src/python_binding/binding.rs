@@ -22,7 +22,8 @@ use super::presentation_root_binding::PyPresentationRootProjectionV1;
 use super::projection_binding::{
     PyArrowHeadShapeV1, PyArrowPathV1, PyArrowProjectionKindV1, PyArrowProjectionV1,
     PyAtomMarkProjectionV1, PyAtomProjectionV1, PyBondEndpointV1, PyBondProjectionV1,
-    PyBoxShapeProjectionV1, PyDocumentHaworthPositionV1, PyDocumentProjectionV1, PyFontFactsV1,
+    PyBoxShapeProjectionV1, PyCompactGroupProjectionV1, PyDocumentHaworthPositionV1,
+    PyDocumentProjectionV1, PyFontFactsV1,
     PyMoleculeProjectionV1, PyPlusProjectionV1, PyPoint3V1, PyPolygonPathV1, PyPolygonProjectionV1,
     PyPolylinePathV1, PyPolylineProjectionV1, PyPresentationBoundsV1, PyPresentationFillV1,
     PyPresentationFontV1, PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1,
@@ -163,6 +164,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPresentationFillV1>()?;
     module.add_class::<PyPresentationProjectionIssueV1>()?;
     module.add_class::<PyMoleculeProjectionV1>()?;
+    module.add_class::<PyCompactGroupProjectionV1>()?;
     module.add_class::<PyAtomMarkProjectionV1>()?;
     module.add_class::<PyAtomProjectionV1>()?;
     module.add_class::<PyBondProjectionV1>()?;

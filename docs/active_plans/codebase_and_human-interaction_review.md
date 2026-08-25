@@ -328,8 +328,9 @@ route does. Regenerate the schema.
 recorded in `reports/coordinate_parity_v1.md`.
 
 **T7a. Verb CLI over existing operations** (`coder`)
-Add `inspect`, `validate`, `render`, `rewrite` to `crates/api/src/cli.rs` plus
-a new `crates/api/src/verb_cli/` directory, one file per verb, each well under
+Add `inspect`, `validate`, `render`, `rewrite` to
+`packages/ferrum-rust/crates/api/src/cli/commands.rs` plus the existing
+`packages/ferrum-rust/crates/api/src/cli/verbs/` directory, one file per verb, each well under
 999 lines. Every verb constructs a `ferrum-operation-request-v1` and calls the
 existing executor - no verb reaches past the protocol. Extension-based format
 inference overridable by `--from`/`--to`; `-` means stdin/stdout; exit codes

@@ -134,6 +134,12 @@ graph/composition facts. The aggregate composition is complete or omitted. The
 command does not alter the document, selection, history, renderer state, or
 authored molecule name.
 
+Each returned molecule keeps chemical configuration and drawing evidence
+separate: `stereo_semantics` carries durable tetrahedral and E/Z configuration,
+while Rust-issued `stereo_depiction` carries editable directed-bond and E/Z
+carrier-mark facts. Qt displays those facts and never derives configuration from
+a mark or coordinates, or invents a mark from configuration.
+
 Automation sends the existing `document.molecule.report.v1` request through
 `build/bin/ferrum protocol run`; it is an operation-protocol route, not a
 separate local CLI verb or named report command. Use
@@ -181,6 +187,50 @@ request and response contract is in
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md).
 
 ## Fenced document commands
+
+### Compact-group materialization
+
+`document.compact-group.materialize.v1` materializes one attached direct-root
+typed compact group from a caller-supplied fenced snapshot. It accepts exactly
+`document { cdml, expected_revision, expected_digest_hex }`, opaque
+`molecule_id`, and opaque `compact_group_id`; these identifiers are neither
+labels nor recipes. Only typed `Me` and `NO2` groups materialize. The route
+accepts no free-form labels or recipes and has no legacy alias.
+
+```json
+{
+  "schema": "ferrum-operation-request-v1",
+  "request_id": "caller-chosen-opaque-id",
+  "operation": {
+    "kind": "document.compact-group.materialize.v1",
+    "document": {
+      "cdml": "canonical-cdml-text",
+      "expected_revision": 0,
+      "expected_digest_hex": "lowercase-sha256-digest"
+    },
+    "molecule_id": "opaque-rust-issued-id",
+    "compact_group_id": "opaque-rust-issued-id"
+  }
+}
+```
+
+On success, `materialization` returns source revision and digest, source
+molecule/group IDs, `replacement_focus_atom_id`, committed canonical
+`document`, and its next `document_fence`. A typed refusal exposes only one
+closed `compact_group_materialization_refusal { category, recovery }` pair:
+`stale_document_fence`/`refresh_and_retry`,
+`unknown_or_foreign_target`/`correct_target`,
+`ineligible_target`/`choose_eligible_target`,
+`renderer_preparation_refusal`/`document_unchanged`, or
+`session_conflict_or_replayed_preparation`/`refresh_and_retry`.
+
+```bash
+build/bin/ferrum protocol run compact-materialize.json
+build/bin/ferrum document command document.compact-group.materialize.v1 compact-materialize.json
+```
+
+The generic protocol and named CLI route are delivered. PyO3 live-session
+registration and the Qt `chemistry.expand_compact_group` action remain deferred.
 
 `inspect --json` returns a `document_fence`. Use its revision and digest with the same input
 document in a later request-owned document command. This local workflow authors one vector:

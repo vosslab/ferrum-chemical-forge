@@ -30,6 +30,7 @@ mod clean_geometry_update_v1;
 mod clipboard_cut_v1;
 mod clipboard_fragment_v1;
 mod clipboard_paste_v1;
+mod compact_group_materialization_v1;
 mod compact_group_projection_v1;
 mod compact_group_v1;
 #[cfg(test)]
@@ -40,6 +41,7 @@ mod direct_bond_primitives_v1;
 mod direct_cdml_semantic_index_v1;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
+mod document_compact_group_materialization_v1;
 mod document_explicit_fragment_api_v1;
 mod document_ingress_v1;
 mod document_smarts_snapshot_v1;
@@ -211,6 +213,10 @@ pub use direct_haworth_insertion_v1::{
 pub use direct_haworth_reobservation_v1::{
     DirectHaworthReobservationErrorV1, ReobservedDirectHaworthBondFactV1, ReobservedDirectHaworthV1,
 };
+pub use document_compact_group_materialization_v1::{
+    DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
+    DocumentCompactGroupMaterializationResultV1,
+};
 pub use document_explicit_fragment_api_v1::{
     DOCUMENT_EXPLICIT_FRAGMENT_SCHEMA_V1, DocumentExplicitFragmentApiErrorV1,
     DocumentExplicitFragmentCreateResultV1, DocumentExplicitFragmentObservationReceiptV1,
@@ -244,12 +250,14 @@ pub use ferrum_document_projection::{
 pub use ferrum_document_projection::{
     AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointKindV1, BondEndpointV1,
     BondProjectionV1, CompactGroupProjectionV1, DocumentHaworthPositionV1, DocumentObjectIdV1,
-    DocumentObjectIdV1Error, DrawingStandardV1, FontFactsV1, MoleculeProjectionV1,
-    MoleculeProjectionV1Error, PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributesV1,
-    PaperLayoutProjectionV1, PaperOrientationV1, PaperPageIssueV1, PaperPageV1, Point3V1,
-    PositiveFiniteV1, PresentationLengthUnitV1, PresentationLengthV1, ProjectionError,
-    ProjectionLocalObjectKeyV1, ProjectionLocalObjectKeyV1Error, Rgb24V1, RichTextV1,
-    TransparentOrRgb24V1, ViewportAttributesV1, VisibilityV1,
+    DocumentObjectIdV1Error, DoubleBondCarrierMarkProjectionV1,
+    DoubleBondCarrierMarkProjectionV1Error, DoubleBondCarrierMarkV1, DrawingStandardV1,
+    FontFactsV1, MoleculeProjectionV1, MoleculeProjectionV1Error,
+    PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributesV1, PaperLayoutProjectionV1,
+    PaperOrientationV1, PaperPageIssueV1, PaperPageV1, Point3V1, PositiveFiniteV1,
+    PresentationLengthUnitV1, PresentationLengthV1, ProjectionError, ProjectionLocalObjectKeyV1,
+    ProjectionLocalObjectKeyV1Error, Rgb24V1, RichTextV1, TransparentOrRgb24V1,
+    ViewportAttributesV1, VisibilityV1,
 };
 pub use ferrum_document_projection::{
     BoxShapeProjectionV1, PolygonPathV1, PolygonProjectionV1, PresentationBoundsV1,
@@ -312,8 +320,8 @@ pub use molecule_coordinate_update_v1::{
     MoleculeCoordinateUpdateV1, MoleculeCoordinateUpdateV1Error,
 };
 pub use molecule_insertion_v1::{
-    DocumentBondOrderV1, MoleculeInsertionAtomV1, MoleculeInsertionBondV1, MoleculeInsertionV1,
-    MoleculeInsertionV1Error,
+    DocumentBondOrderV1, MoleculeInsertionAtomV1, MoleculeInsertionBondV1,
+    MoleculeInsertionRequestV1, MoleculeInsertionV1, MoleculeInsertionV1Error,
 };
 pub use operations::{
     DOCUMENT_CLIPBOARD_PASTE_PROFILE_V1, DOCUMENT_CLIPBOARD_PASTE_TRANSLATION_V1,

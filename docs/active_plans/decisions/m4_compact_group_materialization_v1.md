@@ -2,24 +2,27 @@
 
 ## Status
 
-Selected and incomplete. This decision authorizes one bounded M4 delivery after
-the existing complete-render-admission stabilization gate is satisfied. It is
-not a public API, CLI, PyO3, or Qt completion receipt.
+Selected. The generic protocol, named CLI forwarding route, and canonical live
+PyO3 session registration are complete on the completed M0
+complete-render-admission boundary. The Qt action uses the existing generic
+live-session operation and returned receipt; it adds no compact chemistry,
+geometry, identifiers, or mutation ownership.
 
 ## Context
 
 Ferrum already has a typed compact-group representation and an internal
-materialization experiment, but the public preparation/commit path remains
-blocked by the unresolved complete-render-admission ownership failure recorded
-in [compact_group_authoring_v1.md](../active/compact_group_authoring_v1.md).
-The selected M4 operation must preserve document-owned candidate admission,
-one-use preparation, atomic history, and Rust-issued durable identity.
+materialization experiment. [m0_complete_render_admission_v1.md](m0_complete_render_admission_v1.md)
+records M0 closure on 2026-08-24, so the selected M4 operation builds on the
+completed document-owned candidate admission, one-use preparation, atomic
+history, and Rust-issued durable identity. The public stateless materialization
+route is delivered through the generic protocol and CLI only.
 
 ## Objectives
 
 - Define one document-owned operation for materializing a selected compact group.
 - Preserve one generic protocol and CLI transport without a special parser.
-- Reserve Qt work until Rust exposes the required compiled delivery surface.
+- Deliver one Qt action only after Rust exposes its typed compact selection and
+  generic live-operation receipt surface.
 
 ## Design philosophy
 
@@ -44,8 +47,7 @@ ownership instead of adding catalog, CLI, or frontend-specific mutation paths.
 - Expand multiple attachments, batches, or all compact groups in one request.
 - Recreate chemistry, selection, direct CDML mutation, or focus inference in Qt.
 - Extend the M5 catalog, reaction, catalog-row, or reaction-translation scope.
-- Add permanent API or usage documentation before concrete DTO names and wire
-  shape land in implementation.
+- Add a legacy alias, free-form group label, formula parser, or recipe input.
 
 ## Resolved decisions
 
@@ -96,46 +98,45 @@ source CDML.
 
 ### Delivery boundaries
 
-- CLI uses only the existing generic `protocol run <input>` and `document
-  command document.compact-group.materialize.v1 <input>` forms. No
+- CLI uses only the existing generic `ferrum protocol run <input>` and `ferrum
+  document command document.compact-group.materialize.v1 <input>` forms. No
   `expand-group` parser, known-group flags, or second request shape is approved.
-- PyO3 live-session registration is deferred. Generic protocol and CLI delivery
-  are sufficient for this M4 slice. Reconsider registration only if Qt requires
-  compiled live-session execution and a Rust-issued installation receipt.
-- Qt later provides one accessible `chemistry.expand_compact_group` QAction,
-  reusing it in other surfaces as appropriate. Its handler sends the Rust-issued
-  target and current fence, installs Rust's result, restores the returned focus,
+- Qt provides one accessible `Materialize Selected Compact Group` QAction. Its
+  handler sends the selected Rust-issued target and current fence through the
+  generic live operation, installs Rust's result, restores the returned focus,
   and presents typed refusal feedback. It does not implement chemistry.
 
 ## Approach
 
-1. Complete the existing document-owned complete-render-admission stabilization
-   gate before exposing this operation publicly.
-2. Add the closed generic protocol request, success receipt, target availability
-   fact, and typed refusal/recovery mapping in Rust.
+1. Complete the typed document replacement transaction through the established
+   complete-render-admission boundary.
+2. Add the closed generic protocol request, success receipt, and typed
+   refusal/recovery mapping in Rust.
 3. Dispatch through the generic executor and existing CLI forms, exercising the
-   current prepare/commit owners exactly once.
-4. Decide live PyO3 registration only when the Qt delivery requirement is
-   concrete; otherwise leave the live-session surface closed.
-5. Add the shared Qt action only after compiled Rust delivery exists.
+   current prepare/commit owners exactly once. This is complete.
+4. Reuse the generic live PyO3 operation receipt for Qt delivery; canonical
+   live dispatch now executes the existing compact session transition without a
+   compact-specific Python mutation method.
+5. Add the shared Qt action only after Rust exposes typed compact selection.
 
 ## Verification
 
 - Rust semantic cases cover representative compact groups, returned focus
   resolution, next-fence chaining, and one typed no-change refusal.
-- One named generic-CLI E2E submits canonical JSON, consumes the next fence, and
-  asserts operation kind plus one semantic result.
+- Delivered generic protocol and named-CLI coverage submits canonical JSON,
+  consumes the next fence, and asserts the operation kind plus one semantic
+  result.
 - A Qt E2E is required only after compiled delivery exists. It creates state by
   visible UI, invokes the shared action, and proves availability, focus, save/
   reopen, and undo/redo without pixel, timing, raw-ID, or whole-CDML assertions.
-- A PyO3 proof is required only if live registration is deliberately added; it
-  then proves accepted installation and typed refused no-change behavior.
+- The live PyO3 proof covers accepted compact-session installation, canonical
+  stateless-envelope equivalence, and typed refused no-change behavior.
 
 ## Risks and blockers
 
 | Risk | Trigger | Mitigation | Owner |
 | --- | --- | --- | --- |
-| Admission bypass | Public route reaches prepare/commit without complete render admission. | Complete the M0 stabilization gate first. | Rust document/render owner |
+| Admission bypass | Public route bypasses the completed generic admission boundary. | Reuse generic preparation and one-use commit without route-specific receipts. | Rust document/render owner |
 | Qt chemistry duplication | Action enablement reconstructs target eligibility. | Use only the Rust-issued availability fact. | Qt owner |
 | Replay corruption | A prepared transition is reused after a conflict. | Retain one-use typed no-change refusal. | Rust document owner |
 | Scope expansion | Formula, legacy CDML, or M5 work enters the operation. | Keep the operation target-specific and fenced. | M4 owner |
@@ -143,6 +144,6 @@ source CDML.
 ## Files to modify
 
 - [FULL_PARITY_RUST_FIRST.md](../active/FULL_PARITY_RUST_FIRST.md): retain M4
-  status and link this selected, incomplete decision.
-- [CHANGELOG.md](../../CHANGELOG.md): record the decision under 2026-08-24.
-
+  status and link this decision as the compact-materialization authority.
+- [USAGE.md](../../USAGE.md) and [FERRUM_API_CONTRACT.md](../../FERRUM_API_CONTRACT.md):
+  document the delivered closed public operation without broadening its scope.

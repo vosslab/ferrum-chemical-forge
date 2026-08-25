@@ -45,6 +45,9 @@ delete_find_matches() {
 # Generic build outputs (any language).
 delete_path dist
 delete_path dist-single
+delete_path dist_browser_test
+delete_path dist_wasm
+delete_path generated
 delete_path _site
 delete_path build
 delete_path out
@@ -114,6 +117,7 @@ delete_find_matches eggInfo -type d -name '*.egg-info'
 delete_find_matches eggFiles -type f -name '*.egg'
 delete_path .eggs
 delete_path sdist
+delete_path wheelhouse
 delete_path pip-wheel-metadata
 delete_path .installed.cfg
 

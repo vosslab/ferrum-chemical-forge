@@ -1,5 +1,6 @@
 use super::*;
 use crate::{
+    DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
     DocumentMoleculeHydrogenMaterializationRefusalV1,
     DocumentMoleculeHydrogenMaterializationRequestV1, InterchangeRecordBatchInsertionV1,
 };
@@ -14,10 +15,13 @@ pub enum SessionOperation {
 /// First version of Rust-owned typed document operations.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SessionOperationV1 {
+    /// Materialize one attached typed compact group into ordinary editable chemistry.
+    MaterializeCompactGroupV1(DocumentCompactGroupMaterializationRequestV1),
     /// Materialize the ordinary implicit hydrogens of one selected direct molecule.
     MaterializeMoleculeHydrogensV1(DocumentMoleculeHydrogenMaterializationRequestV1),
     /// Insert one complete frozen molecule through document-owned identity allocation.
-    InsertMoleculeV1(MoleculeInsertionV1),
+    InsertMoleculeV1(crate::MoleculeInsertionRequestV1),
+
     /// Create one Haworth molecule through document-owned semantic lowering.
     CreateHaworthMoleculeV1(CreateHaworthMoleculeV1),
     /// Insert one nonempty source-ordered interchange batch atomically.
@@ -214,8 +218,23 @@ pub enum SessionOperationV1 {
 }
 
 /// Typed operation failure before an accepted state transition.
+impl SessionOperationV1 {
+    /// Create one ordinary topology-only molecule insertion operation.
+    #[must_use]
+    pub fn insert_molecule_v1(molecule: MoleculeInsertionV1) -> Self {
+        Self::InsertMoleculeV1(molecule.into())
+    }
+}
+
+/// Typed operation failure before an accepted state transition.
 #[derive(Debug, Error)]
 pub enum SessionOperationError {
+    /// Typed compact-group materialization was refused before a candidate transition.
+    #[error(transparent)]
+    CompactGroupMaterialization(#[from] DocumentCompactGroupMaterializationRefusalV1),
+    /// Typed compact-group materialization must be prepared by the transition core.
+    #[error("compact-group materialization must be prepared by the session transition core")]
+    CompactGroupMaterializationRequiresTransitionCore,
     /// Explicit-hydrogen materialization was refused before a candidate transition.
     #[error(transparent)]
     HydrogenMaterialization(#[from] DocumentMoleculeHydrogenMaterializationRefusalV1),

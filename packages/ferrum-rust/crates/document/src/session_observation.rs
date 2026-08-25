@@ -1,6 +1,9 @@
 //! Immutable, revision-bound document observations for frontend projections.
 
-use super::{DocumentProjectionV1, DocumentSnapshot, ProjectionError};
+use super::{
+    DocumentObjectIdV1, DocumentProjectionV1, DocumentSnapshot, DocumentStereoDepictionReportV1,
+    ProjectionError, TypedDocument, TypedDocumentError,
+};
 
 /// The complete Rust-owned document observation available before render-plan
 /// resolution is part of the document dependency graph.
@@ -45,5 +48,16 @@ impl SessionDocumentObservationV1 {
     #[must_use]
     pub fn projection(&self) -> &DocumentProjectionV1 {
         &self.projection
+    }
+
+    /// Return durable drawing facts through the typed document boundary.
+    ///
+    /// Projection and rendering callers receive the report owned by this exact
+    /// snapshot rather than inspecting CDML or deriving directional marks.
+    pub fn molecule_stereo_depictions_v1(
+        &self,
+        molecule_id: &DocumentObjectIdV1,
+    ) -> Result<Option<DocumentStereoDepictionReportV1>, TypedDocumentError> {
+        TypedDocument::parse(self.snapshot.cdml())?.molecule_stereo_depictions_v1(molecule_id)
     }
 }

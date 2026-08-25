@@ -306,6 +306,9 @@ fn measure_molecule_operation(
 ) -> Result<(), PdfRenderError> {
     match operation {
         RenderOp::Line(_) => counter.add(PdfComplexityResourceV1::DrawPathCommands, 2),
+        RenderOp::DoubleBondCarrierMark(_) => {
+            counter.add(PdfComplexityResourceV1::DrawPathCommands, 2)
+        }
         RenderOp::Path(path) => counter.add(
             PdfComplexityResourceV1::DrawPathCommands,
             path.commands().len(),

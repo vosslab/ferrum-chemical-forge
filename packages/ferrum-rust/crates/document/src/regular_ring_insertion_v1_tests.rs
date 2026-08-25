@@ -54,7 +54,7 @@ fn regular_ring_geometry_is_lowered_to_the_generic_molecule_operation() {
         .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
             0,
             SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(
-                ring.molecule().expect("ring molecule"),
+                ring.molecule().expect("ring molecule").into(),
             )),
             TransitionAuthorizationV1::None,
         ))

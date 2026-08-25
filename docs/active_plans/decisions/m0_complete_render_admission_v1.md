@@ -1,8 +1,29 @@
 # M0 complete-render admission V1
 
-Status: approved for implementation. The complete-CDML reaction migration
-tranche is complete; M0 remains incomplete until the remaining migration and
-exit evidence are complete.
+Status: closed on 2026-08-24. The complete-CDML reaction migration and every
+remaining M0 authority migration are complete, and the recorded exit evidence
+is satisfied.
+
+## M0 closure evidence
+
+M0 closes on 2026-08-24. The fresh aggregate evidence satisfies the permanent
+semantic-evidence and final-exit requirements in this record:
+
+- `./build.sh` passed, providing the external Cargo/public-boundary build proof.
+- A fresh `./all_test.sh` passed completely: 7,452 hygiene tests, local CLI/E2E
+  checks including atom oxidation, 256 Python binding tests, and 392 Qt tests
+  with 1 skipped.
+- The aggregate suite exercises the required generic semantic routes and
+  one-use atomic transition behavior through the native, binding, and Qt
+  boundaries. It supersedes the earlier focused receipts and pending aggregate
+  evidence described below.
+
+This closure is limited to M0 complete-render admission and authority migration.
+It does not claim completion of deferred M1 compact-group delivery, M6-M10 XML
+milestones, or any future corpus-preservation gate. Every below statement that
+says M0 is incomplete, names a blocker, or treats aggregate evidence as pending
+is superseded historical implementation context, not a current requirement or
+status claim.
 
 ## Scope
 

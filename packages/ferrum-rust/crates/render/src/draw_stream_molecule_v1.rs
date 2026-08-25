@@ -55,6 +55,7 @@ fn lower_molecule_operations<S: DrawSinkV1>(
             RenderOp::Mask(mask) => lower_mask(mask, sink)?,
             RenderOp::Ellipse(ellipse) => lower_ellipse(ellipse, sink)?,
             RenderOp::Path(path) => lower_path(path, sink)?,
+            RenderOp::DoubleBondCarrierMark(mark) => lower_line(&mark.accent_line(), sink)?,
             RenderOp::Text(text) => crate::draw_stream_v1::lower_text(text, face, sink)?,
         }
     }

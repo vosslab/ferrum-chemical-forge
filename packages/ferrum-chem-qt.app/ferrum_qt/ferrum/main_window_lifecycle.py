@@ -194,20 +194,21 @@ class FerrumNativeMainWindowLifecycleMixin:
 		busy_export = self._molecule_export_busy()
 		busy_inspection = self._molecule_inspection_busy()
 		busy_atom_oxidation = self._atom_oxidation_busy()
+		busy_compact_group_materialization = self._compact_group_materialization_intent is not None
 		busy_clipboard = self._clipboard_busy()
 		busy_coordinates = self._coordinate_generation_intent is not None
 		busy_user_template = self._user_template_placement_intent is not None
 		busy_catalog_template = self._catalog_placement_intent is not None
 		busy_snapshot_export = self._snapshot_export_busy()
 		busy = (
-			busy_import or busy_export or busy_inspection or busy_atom_oxidation or busy_clipboard or busy_coordinates
+			busy_import or busy_export or busy_inspection or busy_atom_oxidation or busy_compact_group_materialization or busy_clipboard or busy_coordinates
 			or busy_user_template or busy_catalog_template or busy_snapshot_export
 		)
 		# A template placement is itself a terminal authoring intent.  Keep ordinary
 		# document commands protected, but leave the exclusive authoring actions
 		# reachable so selecting one can retire the template owner before it arms.
 		authoring_busy = (
-			busy_import or busy_export or busy_inspection or busy_atom_oxidation or busy_clipboard
+			busy_import or busy_export or busy_inspection or busy_atom_oxidation or busy_compact_group_materialization or busy_clipboard
 			or busy_coordinates or busy_snapshot_export
 		)
 		if self._atom_insertion_intent is not None and (
@@ -320,6 +321,10 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._refresh_explicit_hydrogen_action(
 			active, pending, busy_import or busy_export or busy_inspection or busy_clipboard
 			or busy_coordinates,
+		)
+		self._refresh_compact_group_materialization_action(
+			active, pending, busy_import or busy_export or busy_inspection or busy_clipboard
+			or busy_coordinates or busy_atom_oxidation,
 		)
 		self._refresh_native_clipboard_actions(
 			active, pending,

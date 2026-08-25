@@ -3,6 +3,15 @@ use ferrum_chemistry::{
     MoleculeCompositionEntry, SmilesMolecule,
 };
 use ferrum_document::DocumentSession;
+use ferrum_document::{
+    DocumentBondOrderV1, DocumentBondPresentationV1, DocumentDirectedBondDepictionV1,
+    DocumentDoubleBondCarrierMarkDepictionV1, DocumentDoubleBondCarrierMarkV1,
+    DocumentDoubleBondConfigurationV1, DocumentDoubleBondStereoV1, DocumentStereoDepictionReportV1,
+    DocumentStereoLigandV1, DocumentStereoSemanticReportV1, DocumentTetrahedralParityV1,
+    DocumentTetrahedralStereoV1, MoleculeInsertionAtomV1, MoleculeInsertionBondV1,
+    MoleculeInsertionRequestV1, MoleculeInsertionV1, Point3V1, SessionOperation,
+    SessionOperationV1,
+};
 use ferrum_domain::{
     MoleculeDiagnosticCodeV1, MoleculeDiagnosticFindingV1, MoleculeDiagnosticLocationV1,
     MoleculeDiagnosticRecoveryV1, MoleculeDiagnosticSeverityV1, NeutralBondCapacityAtomOutcomeV1,
@@ -26,6 +35,7 @@ use super::super::{
     DocumentMoleculeReportCompositionElementSummaryV1, DocumentMoleculeReportCompositionSummaryV1,
     OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OperationProtocolEnvelopeV1,
     OperationProtocolErrorCategoryV1, OperationProtocolOutcomeV1,
+    generated_operation_protocol_schema_v1, operation_protocol_schema_v1,
 };
 use super::{
     DocumentMoleculeReportAggregateOmissionReasonV1, DocumentMoleculeReportErrorV1,
@@ -117,6 +127,172 @@ fn request(
         ids,
     )
     .expect("request")
+}
+
+fn assert_checked_in_schema_accepts_molecule_report(report: &serde_json::Value) {
+    let checked_in: serde_json::Value =
+        serde_json::from_str(operation_protocol_schema_v1()).expect("checked-in schema is JSON");
+    assert_eq!(checked_in, generated_operation_protocol_schema_v1());
+    let report_schema = serde_json::json!({
+        "$ref": "#/$defs/DocumentMoleculeReportSummaryV1",
+        "$defs": checked_in["$defs"].clone(),
+    });
+    let validator = jsonschema::validator_for(&report_schema).expect("report schema compiles");
+    assert!(
+        validator.is_valid(report),
+        "checked-in protocol schema rejects the molecule report: {report}"
+    );
+}
+
+#[test]
+fn checked_in_schema_refuses_tetrahedral_descriptor_without_four_ligands() {
+    let checked_in: serde_json::Value =
+        serde_json::from_str(operation_protocol_schema_v1()).expect("checked-in schema is JSON");
+    assert_eq!(checked_in, generated_operation_protocol_schema_v1());
+    let tetrahedral_schema = serde_json::json!({
+        "$ref": "#/$defs/DocumentMoleculeReportTetrahedralStereoSummaryV1",
+        "$defs": checked_in["$defs"].clone(),
+    });
+    let validator = jsonschema::validator_for(&tetrahedral_schema)
+        .expect("tetrahedral descriptor schema compiles");
+    let invalid_descriptor = serde_json::json!({
+        "center": 0,
+        "ligands": [
+            {"kind": "atom", "index": 1},
+            {"kind": "atom", "index": 2},
+            {"kind": "atom", "index": 3}
+        ],
+        "parity": "clockwise"
+    });
+    assert!(
+        !validator.is_valid(&invalid_descriptor),
+        "the schema must require exactly four tetrahedral ligands"
+    );
+}
+
+#[test]
+fn snapshot_report_retains_generic_inserted_tetrahedral_and_ez_semantics() {
+    let atoms = (0..7)
+        .map(|index| {
+            MoleculeInsertionAtomV1::new(
+                "C",
+                Point3V1::new(index as f64, 0.0, 0.0).expect("finite position"),
+                None,
+                None,
+                (index == 0).then_some(1),
+            )
+            .expect("valid atom")
+        })
+        .collect();
+    let molecule = MoleculeInsertionV1::new(
+        atoms,
+        vec![
+            MoleculeInsertionBondV1::new_with_presentation(
+                0,
+                1,
+                DocumentBondPresentationV1::SolidWedge,
+            ),
+            MoleculeInsertionBondV1::new(0, 2, DocumentBondOrderV1::Single),
+            MoleculeInsertionBondV1::new(0, 3, DocumentBondOrderV1::Single),
+            MoleculeInsertionBondV1::new(4, 5, DocumentBondOrderV1::Double),
+            MoleculeInsertionBondV1::new(4, 6, DocumentBondOrderV1::Single),
+            MoleculeInsertionBondV1::new(5, 3, DocumentBondOrderV1::Single),
+        ],
+    )
+    .expect("valid source graph");
+    let semantics = DocumentStereoSemanticReportV1::new(
+        vec![
+            DocumentTetrahedralStereoV1::new(
+                0,
+                [
+                    DocumentStereoLigandV1::Atom(1),
+                    DocumentStereoLigandV1::Atom(2),
+                    DocumentStereoLigandV1::Atom(3),
+                    DocumentStereoLigandV1::ExplicitHydrogen,
+                ],
+                DocumentTetrahedralParityV1::Clockwise,
+            )
+            .expect("valid tetrahedral descriptor"),
+        ],
+        vec![
+            DocumentDoubleBondStereoV1::new(3, 6, 3, DocumentDoubleBondConfigurationV1::Z)
+                .expect("valid E/Z descriptor"),
+        ],
+    );
+    let mut session = DocumentSession::create_empty_document_v1().expect("empty session");
+    session
+        .apply_document_operation_v1(
+            0,
+            SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(
+                MoleculeInsertionRequestV1::with_stereo_reports(
+                    molecule,
+                    Some(semantics),
+                    Some(DocumentStereoDepictionReportV1::new(
+                        vec![
+                            DocumentDirectedBondDepictionV1::new(
+                                0,
+                                0,
+                                1,
+                                DocumentBondPresentationV1::SolidWedge,
+                            )
+                            .expect("valid directed depiction"),
+                        ],
+                        vec![DocumentDoubleBondCarrierMarkDepictionV1::new(
+                            3,
+                            4,
+                            DocumentDoubleBondCarrierMarkV1::Up,
+                        )],
+                    )),
+                )
+                .expect("valid stereo semantics"),
+            )),
+        )
+        .expect("one generic insertion commits");
+    let saved = session.snapshot().expect("document saves");
+    let reopened = DocumentSession::load(saved.cdml()).expect("document reopens");
+    let observation = reopened.observe(0).expect("reopened document observes");
+    let summary = report_summary(
+        execute_prepared_document_molecule_report_v1(
+            &CompositionEngine,
+            prepare_document_molecule_report_v1(&observation, &request(&observation, &[0]))
+                .expect("snapshot report prepares"),
+        )
+        .expect("snapshot report executes"),
+    );
+    let semantics = summary.records[0]
+        .stereo_semantics
+        .as_ref()
+        .expect("report retains semantic descriptors");
+    assert_eq!(semantics.tetrahedral[0].center, 0);
+    assert!(matches!(
+        semantics.tetrahedral[0].ligands[3],
+        super::super::dto::DocumentMoleculeReportStereoLigandSummaryV1::ExplicitHydrogen
+    ));
+    assert_eq!(semantics.double_bonds[0].bond_index, 3);
+    assert_eq!(semantics.double_bonds[0].start_ligand, 6);
+    assert_eq!(semantics.double_bonds[0].end_ligand, 3);
+    assert!(matches!(
+        semantics.double_bonds[0].configuration,
+        super::super::dto::DocumentMoleculeReportDoubleBondConfigurationSummaryV1::Z
+    ));
+    let depiction = summary.records[0]
+        .stereo_depiction
+        .as_ref()
+        .expect("report retains drawing descriptors");
+    assert_eq!(depiction.directed_bonds[0].bond_index, 0);
+    assert!(matches!(
+        depiction.directed_bonds[0].presentation,
+        super::super::dto::DocumentMoleculeReportDirectedBondPresentationSummaryV1::SolidWedge
+    ));
+    assert_eq!(depiction.double_bond_carrier_marks[0].double_bond_index, 3);
+    assert_eq!(depiction.double_bond_carrier_marks[0].carrier_bond_index, 4);
+    assert!(matches!(
+        depiction.double_bond_carrier_marks[0].mark,
+        super::super::dto::DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1::Up
+    ));
+    assert_checked_in_schema_accepts_molecule_report(
+        &serde_json::to_value(summary).expect("stereo-bearing report serializes"),
+    );
 }
 
 #[test]

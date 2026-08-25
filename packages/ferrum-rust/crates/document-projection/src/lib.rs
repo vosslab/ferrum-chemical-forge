@@ -26,8 +26,9 @@ pub use issue::{ProjectionIssueCodeV1, ProjectionIssueV1, ProjectionIssueV1Error
 pub use molecule::{
     AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointKindV1, BondEndpointV1,
     BondProjectionV1, CompactGroupAttachmentV1, CompactGroupCatalogKeyV1, CompactGroupProjectionV1,
-    CompactGroupV1, CompactGroupV1Error, DocumentHaworthPositionV1, MoleculeProjectionV1,
-    MoleculeProjectionV1Error,
+    CompactGroupV1, CompactGroupV1Error, DocumentHaworthPositionV1,
+    DoubleBondCarrierMarkProjectionV1, DoubleBondCarrierMarkProjectionV1Error,
+    DoubleBondCarrierMarkV1, MoleculeProjectionV1, MoleculeProjectionV1Error,
 };
 pub use paper::{
     PAPER_LAYOUT_PROJECTION_SCHEMA_V1, PaperAttributesV1, PaperLayoutProjectionV1,

@@ -45,3 +45,6 @@ getrandom = { version = "*", optional = true }
 # a cross-crate convention, seals the installed-wheel runtime capability.
 python-binding = ["dep:pyo3", "dep:getrandom"]
 python-extension-module = ["python-binding", "pyo3/extension-module"]
+
+[dev-dependencies]
+jsonschema = "0.33"

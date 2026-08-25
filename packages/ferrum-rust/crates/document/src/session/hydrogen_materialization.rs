@@ -208,7 +208,7 @@ mod tests {
         let mut pending = session
             .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
                 revision,
-                SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(insertion)),
+                SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(insertion.into())),
                 TransitionAuthorizationV1::None,
             ))
             .expect("molecule candidate");

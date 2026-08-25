@@ -7,11 +7,50 @@
 set | grep -q '^BASH_VERSION=' || echo "use bash for your shell"
 set | grep -q '^BASH_VERSION=' || exit 1
 
+# Preserve the caller's Python search path before ~/.bashrc resets it. The local
+# runtime remains first after the shell setup, while explicit caller entries
+# remain available after it.
+FERRUM_CALLER_PYTHONPATH="${PYTHONPATH-}"
+
 # Source ~/.bashrc FIRST, before any repo-specific environment extension below.
-# ~/.bashrc applies local shell setup (PATH, etc.) and resets some variables --
-# it clears PYTHONPATH (verified). Anything that sets PYTHONPATH must run after
-# this line, or ~/.bashrc would wipe it.
+# ~/.bashrc applies local shell setup (PATH, etc.) and resets some variables.
 source ~/.bashrc
+
+# Resolve this checkout from the sourced file, not the caller's working
+# directory. Refuse to continue unless this interpreter can import the exact
+# compiled extension staged beneath this checkout.
+FERRUM_REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+FERRUM_RUNTIME_ROOT="${FERRUM_REPO_ROOT}/build/runtime/python"
+FERRUM_EXTENSION_SUFFIX="$(python3 -c 'import sysconfig; print(sysconfig.get_config_var("EXT_SUFFIX") or "")')"
+FERRUM_EXTENSION_PATH="${FERRUM_RUNTIME_ROOT}/ferrum_chem${FERRUM_EXTENSION_SUFFIX}"
+
+if [[ -z "${FERRUM_EXTENSION_SUFFIX}" || ! -f "${FERRUM_EXTENSION_PATH}" ]]; then
+	printf 'Ferrum local runtime is unavailable: %s is missing.\n' "${FERRUM_EXTENSION_PATH}" >&2
+	printf 'Run ./build.sh from %s, then source source_me.sh again.\n' "${FERRUM_REPO_ROOT}" >&2
+	return 1 2>/dev/null || exit 1
+fi
+
+export PYTHONPATH="${FERRUM_RUNTIME_ROOT}${FERRUM_CALLER_PYTHONPATH:+:${FERRUM_CALLER_PYTHONPATH}}"
+
+if ! python3 -c '
+import pathlib
+import sys
+expected = pathlib.Path(sys.argv[1]).resolve()
+import ferrum_chem
+actual = pathlib.Path(ferrum_chem.__file__).resolve()
+raise SystemExit(0 if actual == expected else 1)
+' "${FERRUM_EXTENSION_PATH}"; then
+	printf 'Ferrum local runtime is unavailable: the staged extension did not load from %s.\n' \
+		"${FERRUM_EXTENSION_PATH}" >&2
+	printf 'Run ./build.sh from %s, then source source_me.sh again.\n' "${FERRUM_REPO_ROOT}" >&2
+	return 1 2>/dev/null || exit 1
+fi
+
+unset FERRUM_CALLER_PYTHONPATH
+unset FERRUM_REPO_ROOT
+unset FERRUM_RUNTIME_ROOT
+unset FERRUM_EXTENSION_SUFFIX
+unset FERRUM_EXTENSION_PATH
 
 # Python runtime defaults: unbuffered stdout/stderr, and no .pyc/__pycache__
 # files written on import.

@@ -94,11 +94,7 @@ pub(super) fn execute_document_molecule_interchange_import_envelope(
         ) {
             Ok(descriptor) => descriptor,
             Err(refusal) => {
-                return admit_interchange_import_response_envelope(
-                    request_id,
-                    None,
-                    interchange_import_error_envelope(request_id, refusal),
-                );
+                return interchange_import_refusal_envelope_v1(request_id, None, refusal);
             }
         };
     let source = crate::document_interchange_import_v1::admit_interchange_source_v1(
@@ -110,11 +106,7 @@ pub(super) fn execute_document_molecule_interchange_import_envelope(
     let source = match source {
         Ok(source) => source,
         Err(refusal) => {
-            return admit_interchange_import_response_envelope(
-                request_id,
-                Some(descriptor),
-                interchange_import_error_envelope(request_id, refusal),
-            );
+            return interchange_import_refusal_envelope_v1(request_id, Some(descriptor), refusal);
         }
     };
     let provenance = DocumentInterchangeProvenanceV1 {
@@ -128,53 +120,63 @@ pub(super) fn execute_document_molecule_interchange_import_envelope(
     let prepared = match preparation {
         Ok(prepared) => prepared,
         Err(refusal) => {
-            return admit_interchange_import_response_envelope(
-                request_id,
-                Some(descriptor),
-                interchange_import_error_envelope(request_id, refusal),
-            );
+            return interchange_import_refusal_envelope_v1(request_id, Some(descriptor), refusal);
         }
     };
     let (_, summary) = match prepared.commit_and_take_session() {
         Ok(committed) => committed,
         Err(refusal) => {
-            return admit_interchange_import_response_envelope(
-                request_id,
-                Some(descriptor),
-                interchange_import_error_envelope(request_id, refusal),
-            );
+            return interchange_import_refusal_envelope_v1(request_id, Some(descriptor), refusal);
         }
     };
-    let outcome = OperationProtocolOutcomeV1::DocumentMoleculeInterchangeImport { summary };
-    let envelope = OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
-        schema: ProtocolResponseSchemaV1::V1,
-        request_id: request_id.to_owned(),
-        outcome: outcome.clone(),
-    });
-    if !interchange_import_response_fits(descriptor, &envelope) {
-        return admit_interchange_import_response_envelope(
-            request_id,
-            Some(descriptor),
-            interchange_import_error_envelope(
-                request_id,
-                crate::InterchangeImportRefusalV1::for_reason(
-                    crate::InterchangeImportRefusalReasonV1::ResponseBytesLimit,
-                ),
-            ),
-        );
+    match interchange_import_success_envelope_v1(request_id, descriptor, summary) {
+        Ok(envelope) => envelope,
+        Err(refusal) => {
+            interchange_import_refusal_envelope_v1(request_id, Some(descriptor), refusal)
+        }
     }
-    admit_interchange_import_response_envelope(request_id, Some(descriptor), envelope)
 }
 
-pub(super) fn interchange_import_error_envelope(
+/// Build the canonical typed refusal envelope for an admitted interchange operation.
+///
+/// CLI presentations use this after their own source transport admits a descriptor,
+/// so local-file provenance and safe artifact publication remain outside the stateless
+/// operation protocol while response semantics stay identical.
+pub(crate) fn interchange_import_refusal_envelope_v1(
     request_id: &str,
+    descriptor: Option<&crate::InterchangeFormatDescriptorV1>,
     refusal: crate::InterchangeImportRefusalV1,
 ) -> OperationProtocolEnvelopeV1 {
-    operation_error_response(
+    let envelope = operation_error_response(
         Some(request_id.to_owned()),
         Some(ProtocolOperationKindV1::DocumentMoleculeInterchangeImport),
         ExecutionFailureV1::interchange_import_refusal(refusal),
-    )
+    );
+    admit_interchange_import_response_envelope(request_id, descriptor, envelope)
+}
+
+/// Build the canonical typed success envelope for one committed interchange import.
+///
+/// The caller retains the committed session until it safely publishes the CDML
+/// artifact. A response that cannot fit the descriptor's public budget is returned
+/// as the same redacted refusal used by the protocol executor.
+pub(crate) fn interchange_import_success_envelope_v1(
+    request_id: &str,
+    descriptor: &crate::InterchangeFormatDescriptorV1,
+    summary: DocumentInterchangeImportSummaryV1,
+) -> Result<OperationProtocolEnvelopeV1, crate::InterchangeImportRefusalV1> {
+    let envelope = OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
+        schema: ProtocolResponseSchemaV1::V1,
+        request_id: request_id.to_owned(),
+        outcome: OperationProtocolOutcomeV1::DocumentMoleculeInterchangeImport { summary },
+    });
+    if interchange_import_response_fits(descriptor, &envelope) {
+        Ok(envelope)
+    } else {
+        Err(crate::InterchangeImportRefusalV1::for_reason(
+            crate::InterchangeImportRefusalReasonV1::ResponseBytesLimit,
+        ))
+    }
 }
 
 pub(super) fn interchange_import_response_fits(
@@ -193,10 +195,13 @@ pub(super) fn admit_interchange_import_response_envelope(
     if descriptor.is_none_or(|descriptor| interchange_import_response_fits(descriptor, &envelope)) {
         return envelope;
     }
-    let limited = interchange_import_error_envelope(
-        request_id,
-        crate::InterchangeImportRefusalV1::for_reason(
-            crate::InterchangeImportRefusalReasonV1::ResponseBytesLimit,
+    let limited = operation_error_response(
+        Some(request_id.to_owned()),
+        Some(ProtocolOperationKindV1::DocumentMoleculeInterchangeImport),
+        ExecutionFailureV1::interchange_import_refusal(
+            crate::InterchangeImportRefusalV1::for_reason(
+                crate::InterchangeImportRefusalReasonV1::ResponseBytesLimit,
+            ),
         ),
     );
     // The request identifier is already bounded before this operation is

@@ -14,9 +14,12 @@ use thiserror::Error;
 
 use ferrum_document::{
     DocumentBondCapacityErrorV1, DocumentBondCapacityOutcomeV1, DocumentBondCapacityRequestV1,
-    DocumentMoleculeInspectionErrorV1, DocumentObjectIdV1, MoleculeProjectionV1,
-    SessionDocumentObservationV1, TypedDocument, direct_projection_molecule_v1,
-    document_molecule_composition_graph_v1, verify_molecule_observation_v1,
+    DocumentBondPresentationV1, DocumentDoubleBondCarrierMarkV1, DocumentDoubleBondConfigurationV1,
+    DocumentMoleculeInspectionErrorV1, DocumentObjectIdV1, DocumentStereoDepictionReportV1,
+    DocumentStereoLigandV1, DocumentStereoSemanticReportV1, DocumentTetrahedralParityV1,
+    MoleculeProjectionV1, SessionDocumentObservationV1, TypedDocument,
+    direct_projection_molecule_v1, document_molecule_composition_graph_v1,
+    verify_molecule_observation_v1,
 };
 
 use super::dto::{
@@ -90,6 +93,8 @@ struct DocumentMoleculeReportSourceV1 {
     bond_count: usize,
     authored_elements: Vec<DocumentMoleculeReportElementCountV1>,
     authored_charge: Option<i64>,
+    stereo_semantics: Option<DocumentStereoSemanticReportV1>,
+    stereo_depiction: Option<DocumentStereoDepictionReportV1>,
 }
 /// One canonical authored-element count retained from an authenticated root.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -139,6 +144,14 @@ impl DocumentMoleculeReportSourceV1 {
     #[must_use]
     const fn authored_charge(&self) -> Option<i64> {
         self.authored_charge
+    }
+    #[must_use]
+    fn stereo_semantics(&self) -> Option<&DocumentStereoSemanticReportV1> {
+        self.stereo_semantics.as_ref()
+    }
+    #[must_use]
+    fn stereo_depiction(&self) -> Option<&DocumentStereoDepictionReportV1> {
+        self.stereo_depiction.as_ref()
     }
 }
 
@@ -410,13 +423,28 @@ fn resolve_document_molecule_sources_v1(
             .map_err(map_inspection_error)?
             .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)
             .map_err(map_inspection_error)?;
+        let stereo_semantics = document
+            .molecule_stereo_semantics_v1(molecule_id)
+            .map_err(DocumentMoleculeInspectionErrorV1::Document)
+            .map_err(map_inspection_error)?;
+        let stereo_depiction = observation
+            .molecule_stereo_depictions_v1(molecule_id)
+            .map_err(DocumentMoleculeInspectionErrorV1::Document)
+            .map_err(map_inspection_error)?;
         if molecule.source_id().map(ferrum_core::Identifier::as_str) != Some(source_id) {
             return Err(map_inspection_error(
                 DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch,
             ));
         }
         sources.push(ResolvedDocumentMoleculeSourceV1 {
-            source: source_facts(molecule_id, source_id, root, &molecule)?,
+            source: source_facts(
+                molecule_id,
+                source_id,
+                root,
+                &molecule,
+                stereo_semantics,
+                stereo_depiction,
+            )?,
             molecule,
         });
     }
@@ -429,6 +457,8 @@ fn source_facts(
     source_id: &str,
     root: &MoleculeProjectionV1,
     molecule: &Molecule,
+    stereo_semantics: Option<DocumentStereoSemanticReportV1>,
+    stereo_depiction: Option<DocumentStereoDepictionReportV1>,
 ) -> Result<DocumentMoleculeReportSourceV1, DocumentMoleculeReportErrorV1> {
     let mut inventory: Vec<(&str, usize)> = Vec::new();
     inventory
@@ -472,6 +502,8 @@ fn source_facts(
         bond_count: molecule.bonds().len(),
         authored_elements,
         authored_charge: charge,
+        stereo_semantics,
+        stereo_depiction,
     })
 }
 
@@ -717,6 +749,11 @@ fn report_summary_with_source_provenance(
                 .collect(),
             composition: record.composition().map(composition_summary),
             neutral_bond_capacity: capacity_name(record.neutral_bond_capacity()).to_owned(),
+            stereo_semantics: record.source().stereo_semantics().map(stereo_summary),
+            stereo_depiction: record
+                .source()
+                .stereo_depiction()
+                .map(stereo_depiction_summary),
             findings: record.findings().to_vec(),
         })
         .collect();
@@ -729,6 +766,99 @@ fn report_summary_with_source_provenance(
             .collect(),
         records,
         aggregate,
+    }
+}
+
+fn stereo_summary(
+    report: &DocumentStereoSemanticReportV1,
+) -> super::dto::DocumentMoleculeReportStereoSemanticsSummaryV1 {
+    super::dto::DocumentMoleculeReportStereoSemanticsSummaryV1 {
+        tetrahedral: report
+            .tetrahedral()
+            .iter()
+            .map(|value| super::dto::DocumentMoleculeReportTetrahedralStereoSummaryV1 {
+                center: value.center(),
+                ligands: std::array::from_fn(|index| match value.ligands()[index] {
+                        DocumentStereoLigandV1::Atom(index) => {
+                            super::dto::DocumentMoleculeReportStereoLigandSummaryV1::Atom {
+                                index,
+                            }
+                        }
+                        DocumentStereoLigandV1::ExplicitHydrogen => {
+                            super::dto::DocumentMoleculeReportStereoLigandSummaryV1::ExplicitHydrogen
+                        }
+                    }),
+                parity: match value.parity() {
+                    DocumentTetrahedralParityV1::Clockwise => {
+                        super::dto::DocumentMoleculeReportTetrahedralParitySummaryV1::Clockwise
+                    }
+                    DocumentTetrahedralParityV1::CounterClockwise => {
+                        super::dto::DocumentMoleculeReportTetrahedralParitySummaryV1::CounterClockwise
+                    }
+                },
+            })
+            .collect(),
+        double_bonds: report
+            .double_bonds()
+            .iter()
+            .map(|value| super::dto::DocumentMoleculeReportDoubleBondStereoSummaryV1 {
+                bond_index: value.bond_index(),
+                start_ligand: value.start_ligand(),
+                end_ligand: value.end_ligand(),
+                configuration: match value.configuration() {
+                    DocumentDoubleBondConfigurationV1::E => {
+                        super::dto::DocumentMoleculeReportDoubleBondConfigurationSummaryV1::E
+                    }
+                    DocumentDoubleBondConfigurationV1::Z => {
+                        super::dto::DocumentMoleculeReportDoubleBondConfigurationSummaryV1::Z
+                    }
+                },
+            })
+            .collect(),
+    }
+}
+
+fn stereo_depiction_summary(
+    report: &DocumentStereoDepictionReportV1,
+) -> super::dto::DocumentMoleculeReportStereoDepictionSummaryV1 {
+    super::dto::DocumentMoleculeReportStereoDepictionSummaryV1 {
+        directed_bonds: report
+            .directed_bonds()
+            .iter()
+            .map(|value| {
+                let (start, end) = value.endpoints();
+                super::dto::DocumentMoleculeReportDirectedBondDepictionSummaryV1 {
+                    bond_index: value.bond_index(),
+                    start,
+                    end,
+                    presentation: match value.presentation() {
+                        DocumentBondPresentationV1::SolidWedge => {
+                            super::dto::DocumentMoleculeReportDirectedBondPresentationSummaryV1::SolidWedge
+                        }
+                        DocumentBondPresentationV1::HashedWedge => {
+                            super::dto::DocumentMoleculeReportDirectedBondPresentationSummaryV1::HashedWedge
+                        }
+                        _ => unreachable!("document stereo depictions admit wedges only"),
+                    },
+                }
+            })
+            .collect(),
+        double_bond_carrier_marks: report
+            .double_bond_carrier_marks()
+            .iter()
+            .map(|value| super::dto::DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1 {
+                double_bond_index: value.double_bond_index(),
+                carrier_bond_index: value.carrier_bond_index(),
+                mark: match value.mark() {
+                    DocumentDoubleBondCarrierMarkV1::Up => {
+                        super::dto::DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1::Up
+                    }
+                    DocumentDoubleBondCarrierMarkV1::Down => {
+                        super::dto::DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1::Down
+                    }
+                },
+            })
+            .collect(),
     }
 }
 

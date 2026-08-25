@@ -88,6 +88,8 @@ def main() -> int:
 			app.processEvents()
 			tab = _active_canvas_tab(window)
 			initial_revision = tab.current_snapshot.revision
+			if window._sdf_import_route_handle() is None:
+				raise SdfImportE2eError("Ferrum did not retain the SDF ingress route handle")
 			if not window.start_sdf_import(str(path)):
 				raise SdfImportE2eError("Ferrum did not start the supplied SDF import")
 			completion_loop.exec()

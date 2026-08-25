@@ -4,7 +4,7 @@
 //! owns the CDML/session side of their boundary.
 
 mod clean_geometry_v1;
-mod complete_graph_molecule_insertion_v1;
+mod complete_graph_document_preparation;
 mod document_atom_oxidation_observation_v1;
 mod document_bond_capacity_v1;
 mod document_molecule_composition_graph_v1;
@@ -16,12 +16,13 @@ mod document_molecule_molblock_v1;
 mod document_molecule_sdf_v1;
 mod document_molecule_smiles_v1;
 mod document_molecules_sdf_v2;
+mod document_stereo_semantics_v1;
 mod inchi_molecule_insertion_v1;
 mod interchange_record_insertion_v1;
 mod molblock_molecule_insertion_v1;
 mod molblock_source_v1;
 mod molecule_coordinate_generation_v1;
-mod peptide_template_molecule_insertion_v1;
+mod peptide_structure_plan_document_adapter_v1;
 mod sdf_source_v1;
 mod smiles_molecule_insertion_v1;
 
@@ -33,11 +34,8 @@ mod document_molecule_information_v1_tests;
 mod document_molecule_inspection_v1_tests;
 
 pub use clean_geometry_v1::{CleanGeometryBuildError, build_clean_geometry_update_v1};
-pub use complete_graph_molecule_insertion_v1::{
-    CompleteGraphMoleculeInsertionError,
-    build_complete_graph_molecule_insertion_from_validated_facts_v1,
-    build_complete_graph_molecule_insertion_v1, validate_supported_complete_graph_facts_v1,
-    validate_supported_peptide_template_complete_graph_facts_v1,
+pub use complete_graph_document_preparation::{
+    DocumentMoleculePreparationErrorV2, prepare_complete_graph_for_document_v2,
 };
 pub(crate) use document_atom_oxidation_observation_v1::observe_current_document_atom_oxidation_v1;
 pub use document_atom_oxidation_observation_v1::{
@@ -103,23 +101,32 @@ pub use document_molecules_sdf_v2::{
     export_prepared_document_molecules_sdf_v2, prepare_document_molecules_sdf_from_source_ids_v2,
     prepare_document_molecules_sdf_v2,
 };
-pub use inchi_molecule_insertion_v1::{InchiMoleculeBuildError, build_inchi_molecule_insertion_v1};
+pub(crate) use document_stereo_semantics_v1::canonicalize_stereo_reports_for_molecule;
+pub use document_stereo_semantics_v1::{
+    DocumentDirectedBondDepictionV1, DocumentDoubleBondCarrierMarkDepictionV1,
+    DocumentDoubleBondCarrierMarkV1, DocumentDoubleBondConfigurationV1, DocumentDoubleBondStereoV1,
+    DocumentStereoDepictionReportV1, DocumentStereoLigandV1, DocumentStereoSemanticReportV1,
+    DocumentStereoSemanticsErrorV1, DocumentTetrahedralParityV1, DocumentTetrahedralStereoV1,
+    PreparedDocumentMoleculeV2,
+};
+pub use inchi_molecule_insertion_v1::{
+    InchiMoleculePreparationErrorV2, prepare_inchi_molecule_for_document_v2,
+};
 pub use interchange_record_insertion_v1::{
     InterchangeRecordBuildErrorV1, build_interchange_record_batch_insertion_v1,
 };
 pub use molblock_molecule_insertion_v1::{
-    MolblockMoleculeBuildError, build_molblock_molecule_insertion_v1,
+    MolblockMoleculeBuildError, prepare_molblock_molecule_for_document_v2,
 };
 pub use molblock_source_v1::{MolblockSourceErrorV1, read_molblock_file_v1};
 pub use molecule_coordinate_generation_v1::{
     MoleculeCoordinateBuildError, build_molecule_coordinate_update_v1,
 };
-pub use peptide_template_molecule_insertion_v1::{
-    PeptideTemplateMoleculeBuildErrorV1, build_native_template_insertion_with_engine,
-    build_supported_peptide_template_molecule_insertion_v1,
+pub use peptide_structure_plan_document_adapter_v1::{
+    PeptideStructurePlanDocumentPreparationErrorV1, prepare_peptide_structure_plan_for_document_v1,
 };
 pub use sdf_source_v1::{SdfSourceErrorV1, read_sdf_file_v1};
 pub use smiles_molecule_insertion_v1::{
-    SmilesMoleculeBuildError, SmilesMoleculeInsertionError, build_smiles_molecule_insertion_v1,
-    prepare_smiles_molecule_v1,
+    SmilesMoleculeBuildError, SmilesMoleculeInsertionError,
+    prepare_smiles_molecule_for_document_v2, prepare_smiles_molecule_v1,
 };

@@ -248,6 +248,12 @@ impl DocumentSession {
             return self
                 .prepare_materialize_molecule_hydrogens_transition_v1(expected_revision, request);
         }
+        if let SessionOperation::V1(SessionOperationV1::MaterializeCompactGroupV1(request)) =
+            operation
+        {
+            return self
+                .prepare_materialize_compact_group_transition_v1(expected_revision, request);
+        }
         let presentation = match operation {
             SessionOperation::V1(SessionOperationV1::CreateCurvedTerminalArrowV1(ref request)) => {
                 Some((
@@ -462,11 +468,7 @@ impl DocumentSession {
             _ => TransitionAuthorizationV1::None,
         };
         let mut prepared = self.prepare_session_operation_transition_v1(
-            SessionOperationTransitionRequestV1::new(
-                expected_revision,
-                operation,
-                authorization,
-            ),
+            SessionOperationTransitionRequestV1::new(expected_revision, operation, authorization),
         )?;
         self.commit_session_operation_transition_v1(&mut prepared)
             .map_err(|refusal| self.map_admitted_transition_refusal_v1(&prepared, refusal))
@@ -820,6 +822,9 @@ fn take_operation_outcome(
         }
         SessionOperationOutcomeStagingV1::MoleculeHydrogensMaterializedV1(result) => {
             SessionOperationOutcomeV1::MoleculeHydrogensMaterializedV1(result)
+        }
+        SessionOperationOutcomeStagingV1::CompactGroupMaterializedV1(result) => {
+            SessionOperationOutcomeV1::CompactGroupMaterializedV1(result)
         }
         SessionOperationOutcomeStagingV1::MoleculeInsertedV1 {
             molecule_identifier,

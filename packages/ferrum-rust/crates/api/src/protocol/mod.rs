@@ -4,6 +4,7 @@
 //! portable wire contract remains easy to audit independently of adapter use.
 
 mod document_atom_oxidation_v1;
+mod document_compact_group_materialization_v1;
 mod document_hydrogen_materialization_v1;
 pub(crate) mod document_smarts_snapshot_v1;
 mod dto;
@@ -20,13 +21,15 @@ pub(crate) mod smarts_query_core_v1;
 pub use dto::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
     CatalogPlacementRefusalV1, CatalogProvenanceSummaryV1, ChemistryConvertInputV1,
-    ChemistryConvertRequestV1, DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1,
-    DocumentAtomOxidationObservationOutcomeV1, DocumentAtomOxidationObservationV1,
-    DocumentAtomOxidationObserveRequestV1, DocumentAtomOxidationUnavailableReasonV1,
-    DocumentGenerateCoordinatesRequestV1, DocumentInspectRequestV1,
-    DocumentInterchangeImportLossReportV1, DocumentInterchangeImportSummaryV1,
-    DocumentInterchangeLossCategoryV1, DocumentInterchangeProvenanceV1,
-    DocumentInterchangeSourceKindV1, DocumentMoleculeHydrogenMaterializationOutcomeV1,
+    ChemistryConvertRequestV1, CompactGroupMaterializationRefusalV1,
+    DOCUMENT_SMARTS_QUERY_RESPONSE_UTF8_BYTES_V1, DocumentAtomOxidationObservationOutcomeV1,
+    DocumentAtomOxidationObservationV1, DocumentAtomOxidationObserveRequestV1,
+    DocumentAtomOxidationUnavailableReasonV1, DocumentCompactGroupMaterializationRequestV1,
+    DocumentCompactGroupMaterializationResultV1, DocumentGenerateCoordinatesRequestV1,
+    DocumentInspectRequestV1, DocumentInterchangeImportLossReportV1,
+    DocumentInterchangeImportSummaryV1, DocumentInterchangeLossCategoryV1,
+    DocumentInterchangeProvenanceV1, DocumentInterchangeSourceKindV1,
+    DocumentMoleculeHydrogenMaterializationOutcomeV1,
     DocumentMoleculeHydrogenMaterializationRequestV1,
     DocumentMoleculeHydrogenMaterializationResultV1,
     DocumentMoleculeHydrogenMaterializationUnavailableReasonV1,
@@ -34,13 +37,22 @@ pub use dto::{
     DocumentMoleculeReportAggregateOmissionReasonSummaryV1,
     DocumentMoleculeReportAggregateOutcomeSummaryV1,
     DocumentMoleculeReportCompositionElementSummaryV1, DocumentMoleculeReportCompositionSummaryV1,
-    DocumentMoleculeReportElementCountSummaryV1, DocumentMoleculeReportRecordSummaryV1,
-    DocumentMoleculeReportRequestV1, DocumentMoleculeReportSnapshotV1,
-    DocumentMoleculeReportSummaryV1, DocumentRenderArtifactRequestV1, DocumentRequestFenceV1,
-    DocumentRewriteRequestV1, DocumentSmartsQueryInputV1, DocumentSmartsQueryLimitsV1,
-    DocumentSmartsQueryMoleculeSummaryV1, DocumentSmartsQueryRequestV1,
-    DocumentSmartsQuerySummaryV1, DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1,
-    DocumentValidateRequestV1, MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
+    DocumentMoleculeReportDirectedBondDepictionSummaryV1,
+    DocumentMoleculeReportDirectedBondPresentationSummaryV1,
+    DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1,
+    DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1,
+    DocumentMoleculeReportDoubleBondConfigurationSummaryV1,
+    DocumentMoleculeReportDoubleBondStereoSummaryV1, DocumentMoleculeReportElementCountSummaryV1,
+    DocumentMoleculeReportRecordSummaryV1, DocumentMoleculeReportRequestV1,
+    DocumentMoleculeReportSnapshotV1, DocumentMoleculeReportStereoDepictionSummaryV1,
+    DocumentMoleculeReportStereoLigandSummaryV1, DocumentMoleculeReportStereoSemanticsSummaryV1,
+    DocumentMoleculeReportSummaryV1, DocumentMoleculeReportTetrahedralParitySummaryV1,
+    DocumentMoleculeReportTetrahedralStereoSummaryV1, DocumentRenderArtifactRequestV1,
+    DocumentRequestFenceV1, DocumentRewriteRequestV1, DocumentSmartsQueryInputV1,
+    DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
+    DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
+    DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1, DocumentValidateRequestV1,
+    MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
     OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
     OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OperationProtocolEnvelopeV1,
     OperationProtocolErrorCategoryV1, OperationProtocolErrorResponseV1,
@@ -49,7 +61,8 @@ pub use dto::{
     PresentationAuthorPointV1, PresentationAuthorRefusalV1, PresentationAuthorRequestV1,
     PresentationAuthoringKindV1, PresentationAuthoringRequestV1, ProtocolArtifactFormatV1,
     ProtocolCatalogFamilyV1, ProtocolCatalogPlacementCategoryV1,
-    ProtocolCatalogPlacementRecoveryV1, ProtocolCurvedTerminalArrowKindV1,
+    ProtocolCatalogPlacementRecoveryV1, ProtocolCompactGroupMaterializationCategoryV1,
+    ProtocolCompactGroupMaterializationRecoveryV1, ProtocolCurvedTerminalArrowKindV1,
     ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1, ProtocolDirectBondPresentationV1,
     ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1, ProtocolOperationKindV1,
     ProtocolPresentationAuthorCategoryV1, ProtocolPresentationAuthorRecoveryV1,
@@ -65,5 +78,6 @@ pub use execution::execute_operation_v1;
 pub(crate) use execution::execute_operation_with_runtime_and_smarts_response_limit_for_test;
 pub(crate) use execution::{
     canonical_protocol_envelope_json_v1, execute_operation_with_runtime_v1,
+    interchange_import_refusal_envelope_v1, interchange_import_success_envelope_v1,
 };
 pub use schema::{generated_operation_protocol_schema_v1, operation_protocol_schema_v1};

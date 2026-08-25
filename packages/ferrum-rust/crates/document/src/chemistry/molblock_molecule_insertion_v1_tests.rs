@@ -4,7 +4,7 @@ use ferrum_chemistry::{
 };
 use ferrum_geometry::{MoleculePlacementV1, Point2};
 
-use super::{MolblockMoleculeBuildError, build_molblock_molecule_insertion_v1};
+use super::{MolblockMoleculeBuildError, prepare_molblock_molecule_for_document_v2};
 
 struct FixedMolblockEngine {
     parsed: SmilesMolecule,
@@ -32,9 +32,7 @@ impl ChemEngine for FixedMolblockEngine {
         _molecule: &MolGraph,
         _options: KekulizeOptions,
     ) -> Result<MolGraph, ChemistryError> {
-        Err(ChemistryError::OperationUnavailable {
-            operation: "kekulize",
-        })
+        Ok(self.parsed.molecule().clone())
     }
 }
 
@@ -72,20 +70,26 @@ fn placement() -> MoleculePlacementV1 {
 
 #[test]
 fn complete_molblock_graph_is_placed_without_document_mutation() {
-    let insertion = build_molblock_molecule_insertion_v1(
+    let insertion = prepare_molblock_molecule_for_document_v2(
         &engine(BondOrder::Single),
         "accepted by fixed engine",
         placement(),
     )
     .expect("representable molblock graph must convert");
 
-    assert_eq!(insertion.atoms()[0].position().x(), 80.0);
-    assert_eq!(insertion.atoms()[1].position().x(), 120.0);
+    assert_eq!(
+        insertion.molecule_insertion().atoms()[0].position().x(),
+        80.0
+    );
+    assert_eq!(
+        insertion.molecule_insertion().atoms()[1].position().x(),
+        120.0
+    );
 }
 
 #[test]
 fn unsupported_molblock_fact_is_rejected_before_a_candidate_exists() {
-    let result = build_molblock_molecule_insertion_v1(
+    let result = prepare_molblock_molecule_for_document_v2(
         &engine(BondOrder::Quadruple),
         "accepted by fixed engine",
         placement(),
@@ -93,6 +97,6 @@ fn unsupported_molblock_fact_is_rejected_before_a_candidate_exists() {
 
     assert!(matches!(
         result,
-        Err(MolblockMoleculeBuildError::CompleteGraph(_))
+        Err(MolblockMoleculeBuildError::Preparation(_))
     ));
 }

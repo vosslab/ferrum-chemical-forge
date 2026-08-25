@@ -32,7 +32,7 @@ fn record(
     properties: &[(&str, &str)],
 ) -> InterchangeRecordInsertionV1 {
     InterchangeRecordInsertionV1::new(
-        molecule(element, x),
+        molecule(element, x).into(),
         title,
         properties
             .iter()

@@ -20,6 +20,172 @@ pub const SDF_IMPORT_PROFILE_V1: &str = "sdf_v1";
 const CML_IMPORT_MAX_SOURCE_BYTES_V1: usize = 1_048_576;
 const INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1: usize = 1_048_576;
 
+/// Product-facing disposition for one locally selected document source.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalDocumentIngressDirectionV1 {
+    ReplacePristineOrNewTab,
+    NewDocumentOnly,
+}
+
+/// Decoder selected by the closed local-document ingress registry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalDocumentIngressDecoderV1 {
+    Cdml,
+    DecodedCdsvg,
+    CmlSimpleMolecule,
+}
+
+/// Stable route identity issued to desktop adapters for an accepted source.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalDocumentIngressRouteV1 {
+    Cdml,
+    DecodedCdsvg,
+    CmlSimpleMolecule,
+}
+
+impl LocalDocumentIngressRouteV1 {
+    #[must_use]
+    pub const fn source_kind(self) -> &'static str {
+        match self {
+            Self::Cdml => "cdml",
+            Self::DecodedCdsvg => "decoded_cdsvg",
+            Self::CmlSimpleMolecule => "cml",
+        }
+    }
+}
+
+/// Accepted local-document route facts owned by the API layer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LocalDocumentIngressDescriptorV1 {
+    display_name: &'static str,
+    suffixes: &'static [&'static str],
+    direction: LocalDocumentIngressDirectionV1,
+    decoder: LocalDocumentIngressDecoderV1,
+    route: LocalDocumentIngressRouteV1,
+    profile_id: &'static str,
+}
+
+impl LocalDocumentIngressDescriptorV1 {
+    #[must_use]
+    pub const fn display_name(self) -> &'static str {
+        self.display_name
+    }
+    #[must_use]
+    pub const fn suffixes(self) -> &'static [&'static str] {
+        self.suffixes
+    }
+    #[must_use]
+    pub const fn direction(self) -> LocalDocumentIngressDirectionV1 {
+        self.direction
+    }
+    #[must_use]
+    pub const fn decoder(self) -> LocalDocumentIngressDecoderV1 {
+        self.decoder
+    }
+    #[must_use]
+    pub const fn route(self) -> LocalDocumentIngressRouteV1 {
+        self.route
+    }
+    #[must_use]
+    pub const fn profile_id(self) -> &'static str {
+        self.profile_id
+    }
+}
+
+/// Stable typed refusal identity for a known-but-closed local source form.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LocalDocumentIngressRefusalV1 {
+    category: &'static str,
+    recovery: &'static str,
+}
+
+impl LocalDocumentIngressRefusalV1 {
+    #[must_use]
+    pub const fn category(self) -> &'static str {
+        self.category
+    }
+    #[must_use]
+    pub const fn recovery(self) -> &'static str {
+        self.recovery
+    }
+}
+
+const LOCAL_CDML_SUFFIXES_V1: [&str; 1] = [".cdml"];
+const LOCAL_CDSVG_SUFFIXES_V1: [&str; 1] = [".svg"];
+const LOCAL_CML_SUFFIXES_V1: [&str; 1] = [".cml"];
+const LOCAL_REFUSAL_V1: LocalDocumentIngressRefusalV1 = LocalDocumentIngressRefusalV1 {
+    category: "unsupported_local_document",
+    recovery: "choose_supported_format",
+};
+const LOCAL_DOCUMENT_INGRESS_DESCRIPTORS_V1: [LocalDocumentIngressDescriptorV1; 3] = [
+    LocalDocumentIngressDescriptorV1 {
+        display_name: "Ferrum CDML",
+        suffixes: &LOCAL_CDML_SUFFIXES_V1,
+        direction: LocalDocumentIngressDirectionV1::ReplacePristineOrNewTab,
+        decoder: LocalDocumentIngressDecoderV1::Cdml,
+        route: LocalDocumentIngressRouteV1::Cdml,
+        profile_id: "local_cdml_v1",
+    },
+    LocalDocumentIngressDescriptorV1 {
+        display_name: "SVG with embedded CDML",
+        suffixes: &LOCAL_CDSVG_SUFFIXES_V1,
+        direction: LocalDocumentIngressDirectionV1::ReplacePristineOrNewTab,
+        decoder: LocalDocumentIngressDecoderV1::DecodedCdsvg,
+        route: LocalDocumentIngressRouteV1::DecodedCdsvg,
+        profile_id: "local_decoded_cdsvg_v1",
+    },
+    LocalDocumentIngressDescriptorV1 {
+        display_name: "Chemical Markup Language (CML/CML2)",
+        suffixes: &LOCAL_CML_SUFFIXES_V1,
+        direction: LocalDocumentIngressDirectionV1::NewDocumentOnly,
+        decoder: LocalDocumentIngressDecoderV1::CmlSimpleMolecule,
+        route: LocalDocumentIngressRouteV1::CmlSimpleMolecule,
+        profile_id: CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
+    },
+];
+
+/// The sole API-owned product contract for local document ingress.
+pub struct LocalDocumentIngressRegistryV1;
+
+impl LocalDocumentIngressRegistryV1 {
+    #[must_use]
+    pub const fn descriptors() -> &'static [LocalDocumentIngressDescriptorV1] {
+        &LOCAL_DOCUMENT_INGRESS_DESCRIPTORS_V1
+    }
+
+    #[must_use]
+    pub fn lookup_suffix(suffix: &str) -> Option<&'static LocalDocumentIngressDescriptorV1> {
+        Self::descriptors()
+            .iter()
+            .find(|descriptor| descriptor.suffixes().contains(&suffix))
+    }
+
+    #[must_use]
+    pub fn refusal_for_suffix(suffix: &str) -> Option<LocalDocumentIngressRefusalV1> {
+        match suffix {
+            ".cdxml" | ".cdsvg" | ".svgz" | ".gz" | ".bz2" | ".xz" | ".zip" | ".zst" => {
+                Some(LOCAL_REFUSAL_V1)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn validate_exact_join() -> Result<(), InterchangeImportRefusalV1> {
+        let cml = Self::lookup_suffix(".cml");
+        if cml.is_some_and(|descriptor| {
+            descriptor.decoder() == LocalDocumentIngressDecoderV1::CmlSimpleMolecule
+                && descriptor.direction() == LocalDocumentIngressDirectionV1::NewDocumentOnly
+                && descriptor.profile_id() == CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1
+        }) {
+            Ok(())
+        } else {
+            Err(InterchangeImportRefusalV1::for_reason(
+                InterchangeImportRefusalReasonV1::InternalFailure,
+            ))
+        }
+    }
+}
+
 /// Closed import direction advertised by a Ferrum interchange descriptor.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -507,5 +673,20 @@ mod tests {
                 "recovery": "reduce_input",
             })
         );
+    }
+
+    #[test]
+    fn local_document_registry_keeps_routes_and_refusals_closed() {
+        LocalDocumentIngressRegistryV1::validate_exact_join().expect("local registry joins CML");
+        assert_eq!(
+            LocalDocumentIngressRegistryV1::lookup_suffix(".cml")
+                .expect("CML route")
+                .direction(),
+            LocalDocumentIngressDirectionV1::NewDocumentOnly
+        );
+        let refusal = LocalDocumentIngressRegistryV1::refusal_for_suffix(".cdxml")
+            .expect("CDXML has a typed refusal");
+        assert_eq!(refusal.category(), "unsupported_local_document");
+        assert!(LocalDocumentIngressRegistryV1::lookup_suffix(".cdxml").is_none());
     }
 }

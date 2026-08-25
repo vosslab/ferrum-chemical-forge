@@ -429,14 +429,78 @@ A molecular graph containing atoms (vertices) and bonds (edges).
 | `text` | 0..* | Rich-text labels in molecule context (since v0.14) |
 | `query` | 0..* | Query/wildcard atoms |
 | `bond` | 0..* | Chemical bonds |
+| `stereoSemantics` | 0..1 | Canonical durable molecular stereo descriptors |
+| `stereoDepictions` | 0..1 | Canonical durable stereo drawing facts |
 | `display-form` | 0..1 | Verbatim DOM children preserved on round-trip |
 | `fragment` | 0..* | Named substructure fragments |
 | `user-data` | 0..1 | Arbitrary DOM nodes preserved on round-trip |
 
 All listed children are established CDML records. In the current delivery, the
-Ferrum-Chem typed molecule adapter provides editable chemistry for `<atom>` and
-`<bond>`. Other established molecule children remain complete-document content
-unless an active frontend documents a supported projection for them.
+Ferrum-Chem typed molecule adapter provides editable chemistry for `<atom>`,
+`<bond>`, `<stereoSemantics>`, and `<stereoDepictions>`. Other established
+molecule children remain complete-document content unless an active frontend
+documents a supported projection for them.
+
+### `<stereoSemantics>`
+
+`<stereoSemantics>` is the optional canonical chemical-semantics child of one
+`<molecule>`. It records source-declared tetrahedral and E/Z facts independently
+of two-dimensional bond depiction. It has no attributes or text. Canonical
+serialization writes all `<tetrahedral>` children in ascending `center` order,
+followed by all `<doubleBond>` children in ascending `bondIndex` order.
+
+```xml
+<stereoSemantics>
+  <tetrahedral center="0" ligands="1,2,3,H" parity="clockwise"/>
+  <doubleBond bondIndex="3" startLigand="6" endLigand="3" configuration="Z"/>
+</stereoSemantics>
+```
+
+`<tetrahedral>` has exactly `center`, `ligands`, and `parity` attributes.
+`center` is a zero-based atom position. `ligands` is exactly four comma-separated
+entries: atom positions must be strictly ascending, distinct, and adjacent to
+`center`; the explicit-hydrogen sentinel `H` may occur only as the fourth entry
+and only when `center` records exactly one explicit hydrogen. `parity` is
+`clockwise` or `counterClockwise`.
+
+`<doubleBond>` has exactly `bondIndex`, `startLigand`, `endLigand`, and
+`configuration` attributes. The first three are zero-based positions in the
+molecule's bond or atom sequence. `bondIndex` identifies an `n2` bond.
+`startLigand` and `endLigand` are distinct from each other and from both double-
+bond endpoints; each is adjacent to its corresponding endpoint. `configuration`
+is `E` or `Z`.
+
+Malformed or unsupported semantic content is rejected rather than preserved as
+opaque content because silently retaining an untyped semantics record would lose
+chemical meaning. A missing `<stereoSemantics>` child declares no durable stereo
+semantics. `w1` and `h1` bonds remain directed wedge/hash depiction: their
+tip-to-base endpoint direction is preserved for rendering, but it neither
+creates nor infers a `<stereoSemantics>` descriptor.
+
+### `<stereoDepictions>`
+
+`<stereoDepictions>` is the optional canonical drawing-facts child of one
+`<molecule>`. It is separate from `<stereoSemantics>`: semantic descriptors
+carry chemical configuration, while this child preserves only authored drawing
+facts. Canonical serialization orders tetrahedral directed bonds by `bondIndex`
+and E/Z carrier marks by `(doubleBondIndex, carrierBondIndex)`.
+
+```xml
+<stereoDepictions>
+  <tetrahedralDirectedBond bondIndex="0" start="0" end="1" presentation="w1"/>
+  <doubleBondCarrierMark doubleBondIndex="3" carrierBondIndex="4" mark="up"/>
+</stereoDepictions>
+```
+
+`<tetrahedralDirectedBond>` has exactly `bondIndex`, `start`, `end`, and `presentation`.
+It records an admitted `w1` or `h1` tetrahedral drawing direction, with
+`presentation` `w1` or `h1`; it does not create tetrahedral
+chemical meaning. `<doubleBondCarrierMark>` has exactly `doubleBondIndex`,
+`carrierBondIndex`, and `mark`. It records a single-bond carrier associated
+with an existing E/Z semantic descriptor; `mark` is only lowercase `up` or
+`down`. A carrier mark never derives E/Z configuration, and E/Z configuration
+never creates a carrier mark. Missing `<stereoDepictions>` declares no durable
+stereo drawing facts.
 
 ---
 

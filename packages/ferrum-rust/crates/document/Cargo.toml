@@ -18,6 +18,7 @@ ferrum-chemistry = { path = "../chemistry" }
 ferrum-domain = { path = "../domain" }
 ferrum-geometry = { path = "../geometry" }
 ferrum-document-projection = { path = "../document-projection" }
+ferrum-document-model = { path = "../document-model" }
 ferrum-render = { path = "../render" }
 ferrum-render-contract = { path = "../render-contract" }
 getrandom = { version = "*" }

@@ -5,9 +5,13 @@
 //! envelope together with an installable result only when that session changed.
 
 use ferrum_document::{
-    DocumentMoleculeHydrogenMaterializationRefusalV1, DocumentSession, SessionOperationResultV1,
+    DocumentCompactGroupMaterializationRefusalV1, DocumentMoleculeHydrogenMaterializationRefusalV1,
+    DocumentSession, SessionOperationResultV1,
 };
 
+use super::document_compact_group_materialization_v1::{
+    execute_document_compact_group_materialize_on_session, map_prepare_error,
+};
 use super::document_hydrogen_materialization_v1::execute_document_molecule_hydrogen_materialize_on_session;
 use super::execution::{
     ExecutionFailureV1, OperationProtocolAdmissionV1, admit_operation_request_v1,
@@ -74,6 +78,39 @@ pub(crate) fn execute_live_document_operation_v1(
                 )
             } else {
                 match execute_document_molecule_hydrogen_materialize_on_session(session, request) {
+                    Ok((outcome, mutation_result)) => (
+                        OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
+                            schema: ProtocolResponseSchemaV1::V1,
+                            request_id,
+                            outcome,
+                        }),
+                        mutation_result,
+                    ),
+                    Err(error) => (
+                        operation_error_response(Some(request_id), Some(kind), error),
+                        None,
+                    ),
+                }
+            }
+        }
+        OperationProtocolOperationV1::DocumentCompactGroupMaterialize(request) => {
+            if request.document.cdml != source.cdml() {
+                (
+                    operation_error_response(
+                        Some(request_id),
+                        Some(kind),
+                        map_prepare_error(
+                            ferrum_document::DocumentSessionError::Operation(
+                                ferrum_document::SessionOperationError::CompactGroupMaterialization(
+                                    DocumentCompactGroupMaterializationRefusalV1::DigestMismatch,
+                                ),
+                            ),
+                        ),
+                    ),
+                    None,
+                )
+            } else {
+                match execute_document_compact_group_materialize_on_session(session, request) {
                     Ok((outcome, mutation_result)) => (
                         OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
                             schema: ProtocolResponseSchemaV1::V1,
@@ -170,7 +207,7 @@ mod tests {
         let mut prepared = session
             .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
                 revision,
-                SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(insertion)),
+                SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(insertion.into())),
                 TransitionAuthorizationV1::none(),
             ))
             .expect("ordinary skeleton preparation");
@@ -225,6 +262,35 @@ mod tests {
         .to_string()
     }
 
+    fn compact_group_live_session() -> DocumentSession {
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\"/></molecule></cdml>")
+            .expect("typed compact-group session")
+    }
+
+    fn compact_group_request(session: &DocumentSession) -> String {
+        let snapshot = session.snapshot().expect("session snapshot");
+        let digest = snapshot
+            .digest()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        json!({
+            "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+            "request_id": "live-compact-group-materialization-test",
+            "operation": {
+                "kind": "document.compact-group.materialize.v1",
+                "document": {
+                    "cdml": snapshot.cdml(),
+                    "expected_revision": snapshot.revision(),
+                    "expected_digest_hex": digest,
+                },
+                "molecule_id": "m",
+                "compact_group_id": "group",
+            },
+        })
+        .to_string()
+    }
+
     #[test]
     fn live_materialization_returns_only_the_committed_session_result() {
         let mut session = stateless_equivalent_live_session();
@@ -252,6 +318,42 @@ mod tests {
         .expect("UTF-8 canonical response");
 
         assert_eq!(live.response_json(), stateless_json);
+    }
+
+    #[test]
+    fn live_and_stateless_compact_group_materialization_return_the_same_canonical_protocol_response() {
+        let mut session = compact_group_live_session();
+        let request = compact_group_request(&session);
+        let live = execute_live_document_operation_v1(&mut session, &request)
+            .expect("live compact-group request admission");
+        let stateless =
+            execute_operation_v1(&request).expect("stateless compact-group request admission");
+        let stateless_json = String::from_utf8(
+            canonical_protocol_envelope_json_v1(&stateless)
+                .expect("canonical stateless compact-group response"),
+        )
+        .expect("UTF-8 canonical response");
+
+        assert!(live.mutation_result().is_some());
+        assert_eq!(live.response_json(), stateless_json);
+    }
+
+    #[test]
+    fn live_compact_group_materialization_refusal_preserves_the_live_session() {
+        let mut session = compact_group_live_session();
+        let before = session.snapshot().expect("source snapshot");
+        let mut request: serde_json::Value =
+            serde_json::from_str(&compact_group_request(&session)).expect("compact request");
+        request["operation"]["compact_group_id"] = json!("missing-group");
+
+        let receipt = execute_live_document_operation_v1(&mut session, &request.to_string())
+            .expect("refused live compact-group request admission");
+        let response: serde_json::Value =
+            serde_json::from_str(receipt.response_json()).expect("public response JSON");
+
+        assert!(receipt.mutation_result().is_none());
+        assert_eq!(response["schema"], "ferrum-operation-error-v1");
+        assert_eq!(session.snapshot().expect("after refusal"), before);
     }
 
     #[test]

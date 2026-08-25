@@ -6,7 +6,7 @@ use ferrum_core::{BondOrder, BondStyle};
 use serde::Serialize;
 use thiserror::Error;
 
-use super::AtomProjectionV1;
+use super::{AtomProjectionV1, DoubleBondCarrierMarkProjectionV1};
 use crate::{
     CompactGroupProjectionV1, DocumentObjectIdV1, NonZeroFiniteV1, PositiveFiniteV1,
     ProjectionLocalObjectKeyV1, Rgb24V1,
@@ -246,6 +246,7 @@ pub struct MoleculeProjectionV1 {
     atoms: Vec<AtomProjectionV1>,
     compact_groups: Vec<CompactGroupProjectionV1>,
     bonds: Vec<BondProjectionV1>,
+    stereo_depictions: Vec<DoubleBondCarrierMarkProjectionV1>,
 }
 
 /// Closed refusal taxonomy for invalid molecule child aggregates.
@@ -307,6 +308,7 @@ impl MoleculeProjectionV1 {
             atoms,
             compact_groups,
             bonds,
+            stereo_depictions: Vec::new(),
         })
     }
     /// Return the stable object key.
@@ -348,6 +350,22 @@ impl MoleculeProjectionV1 {
     #[must_use]
     pub fn bonds(&self) -> &[BondProjectionV1] {
         &self.bonds
+    }
+
+    /// Attach resolved E/Z carrier facts from the same document observation.
+    #[must_use]
+    pub fn with_double_bond_carrier_marks(
+        mut self,
+        stereo_depictions: Vec<DoubleBondCarrierMarkProjectionV1>,
+    ) -> Self {
+        self.stereo_depictions = stereo_depictions;
+        self
+    }
+
+    /// Return explicit E/Z carrier marks without deriving geometry or chemistry.
+    #[must_use]
+    pub fn double_bond_carrier_marks(&self) -> &[DoubleBondCarrierMarkProjectionV1] {
+        &self.stereo_depictions
     }
 }
 

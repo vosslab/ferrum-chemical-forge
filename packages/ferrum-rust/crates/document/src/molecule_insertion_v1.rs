@@ -4,7 +4,11 @@ use std::collections::BTreeSet;
 
 use thiserror::Error;
 
+use super::chemistry::canonicalize_stereo_reports_for_molecule;
 use super::{DocumentBondPresentationV1, Point3V1};
+use super::{
+    DocumentStereoDepictionReportV1, DocumentStereoSemanticReportV1, DocumentStereoSemanticsErrorV1,
+};
 
 /// One atom in a complete detached molecule insertion.
 #[derive(Clone, Debug, PartialEq)]
@@ -173,6 +177,80 @@ pub struct MoleculeInsertionV1 {
     atoms: Vec<MoleculeInsertionAtomV1>,
     bonds: Vec<MoleculeInsertionBondV1>,
     name: Option<String>,
+}
+
+/// One complete molecule insertion together with optional durable semantics.
+///
+/// `MoleculeInsertionV1` remains restricted to topology and depiction.  This
+/// request carries facts which are independently serialized with the same
+/// generic document transition.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MoleculeInsertionRequestV1 {
+    molecule: MoleculeInsertionV1,
+    stereo_semantics: Option<DocumentStereoSemanticReportV1>,
+    stereo_depictions: Option<DocumentStereoDepictionReportV1>,
+}
+
+impl MoleculeInsertionRequestV1 {
+    /// Build an ordinary topology-only insertion request.
+    #[must_use]
+    pub const fn new(molecule: MoleculeInsertionV1) -> Self {
+        Self {
+            molecule,
+            stereo_semantics: None,
+            stereo_depictions: None,
+        }
+    }
+
+    /// Build one insertion request retaining an admitted stereo semantic report.
+    pub fn with_stereo_semantics(
+        molecule: MoleculeInsertionV1,
+        stereo_semantics: DocumentStereoSemanticReportV1,
+    ) -> Result<Self, DocumentStereoSemanticsErrorV1> {
+        Self::with_stereo_reports(molecule, Some(stereo_semantics), None)
+    }
+
+    /// Build one insertion request retaining distinct admitted stereo reports.
+    pub fn with_stereo_reports(
+        molecule: MoleculeInsertionV1,
+        stereo_semantics: Option<DocumentStereoSemanticReportV1>,
+        stereo_depictions: Option<DocumentStereoDepictionReportV1>,
+    ) -> Result<Self, DocumentStereoSemanticsErrorV1> {
+        let (stereo_semantics, stereo_depictions) = canonicalize_stereo_reports_for_molecule(
+            &molecule,
+            stereo_semantics,
+            stereo_depictions,
+        )?;
+        Ok(Self {
+            molecule,
+            stereo_semantics,
+            stereo_depictions,
+        })
+    }
+
+    /// Return the topology and depiction payload.
+    #[must_use]
+    pub const fn molecule(&self) -> &MoleculeInsertionV1 {
+        &self.molecule
+    }
+
+    /// Return the optional source semantic report.
+    #[must_use]
+    pub const fn stereo_semantics(&self) -> Option<&DocumentStereoSemanticReportV1> {
+        self.stereo_semantics.as_ref()
+    }
+
+    /// Return optional source-order stereo drawing facts.
+    #[must_use]
+    pub const fn stereo_depictions(&self) -> Option<&DocumentStereoDepictionReportV1> {
+        self.stereo_depictions.as_ref()
+    }
+}
+
+impl From<MoleculeInsertionV1> for MoleculeInsertionRequestV1 {
+    fn from(molecule: MoleculeInsertionV1) -> Self {
+        Self::new(molecule)
+    }
 }
 
 impl MoleculeInsertionV1 {

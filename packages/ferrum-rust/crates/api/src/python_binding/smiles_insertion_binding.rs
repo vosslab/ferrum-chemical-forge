@@ -3,16 +3,16 @@
 use ferrum_chemistry::{
     ChemistryError as RustChemistryError, NativeChemEngine, validate_smiles_input,
 };
-use ferrum_document::MoleculeInsertionV1;
 use ferrum_document::{
-    CompleteGraphMoleculeInsertionError, MolblockMoleculeBuildError, MolblockSourceErrorV1,
-    SmilesMoleculeBuildError, build_smiles_molecule_insertion_v1,
+    DocumentMoleculePreparationErrorV2, MolblockMoleculeBuildError, MolblockSourceErrorV1,
+    SmilesMoleculeBuildError, prepare_smiles_molecule_for_document_v2,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
 
 use super::binding::{FerrumError, projection_error};
 use super::geometry_binding::PyInsertionPlacementV1;
+use super::molecule_insertion_binding::{PyMoleculeInsertionV1, structured_insertion_error};
 
 create_exception!(ferrum_chem, MoleculeInsertionError, FerrumError);
 create_exception!(
@@ -23,42 +23,6 @@ create_exception!(
 create_exception!(ferrum_chem, MolblockInputError, MoleculeInsertionError);
 
 const OPERATION: &str = "prepare_smiles_molecule_v1";
-
-/// One immutable, native-handle-free molecule ready for a session transaction.
-#[pyclass(
-    frozen,
-    module = "ferrum_chem",
-    name = "MoleculeInsertionV1",
-    skip_from_py_object
-)]
-pub(crate) struct PyMoleculeInsertionV1 {
-    insertion: MoleculeInsertionV1,
-}
-
-impl PyMoleculeInsertionV1 {
-    pub(crate) fn new(insertion: MoleculeInsertionV1) -> Self {
-        Self { insertion }
-    }
-
-    pub(crate) fn insertion(&self) -> &MoleculeInsertionV1 {
-        &self.insertion
-    }
-}
-
-#[pymethods]
-impl PyMoleculeInsertionV1 {
-    /// Return the number of source-ordered atoms in this complete graph.
-    #[getter]
-    fn atom_count(&self) -> usize {
-        self.insertion.atoms().len()
-    }
-
-    /// Return the number of source-ordered bonds in this complete graph.
-    #[getter]
-    fn bond_count(&self) -> usize {
-        self.insertion.bonds().len()
-    }
-}
 
 enum NativePreparationFailure {
     Load(RustChemistryError),
@@ -84,11 +48,12 @@ pub(crate) fn prepare_smiles_molecule_v1(
     let result = py.detach(move || {
         let engine =
             NativeChemEngine::load(&worker_path).map_err(NativePreparationFailure::Load)?;
-        build_smiles_molecule_insertion_v1(&engine, &smiles, placement)
+        prepare_smiles_molecule_for_document_v2(&engine, &smiles, placement)
             .map_err(NativePreparationFailure::Build)
     });
     match result {
-        Ok(insertion) => Ok(PyMoleculeInsertionV1::new(insertion)),
+        Ok(prepared) => PyMoleculeInsertionV1::from_prepared(prepared)
+            .map_err(|error| MoleculeInsertionError::new_err(error.to_string())),
         Err(NativePreparationFailure::Load(error)) => Err(
             super::chemistry_binding::map_load_error(py, OPERATION, &library_path, error)?,
         ),
@@ -112,32 +77,11 @@ pub(crate) fn map_build_error(
                 error,
             )
         }
-        SmilesMoleculeBuildError::Geometry(error) => Ok(super::geometry_binding::geometry_error(
-            py,
-            error.to_string(),
-        )),
-        SmilesMoleculeBuildError::Position(error) => projection_error(py, error),
-        SmilesMoleculeBuildError::MissingCoordinates
-        | SmilesMoleculeBuildError::UnsupportedAtomFact { .. }
-        | SmilesMoleculeBuildError::UnsupportedBondFact { .. }
-        | SmilesMoleculeBuildError::UnsupportedBondOrder { .. } => {
-            structured_insertion_error(py, UnsupportedMoleculeInsertionError::new_err, error)
-        }
-        SmilesMoleculeBuildError::KekulizeOptions(_) | SmilesMoleculeBuildError::Insertion(_) => {
+        SmilesMoleculeBuildError::Preparation(error) => map_preparation_error(py, error),
+        SmilesMoleculeBuildError::InvalidPreparedSemantics => {
             structured_insertion_error(py, MoleculeInsertionError::new_err, error)
         }
     }
-}
-
-pub(crate) fn structured_insertion_error(
-    py: Python<'_>,
-    constructor: impl FnOnce(String) -> PyErr,
-    error: impl std::fmt::Display,
-) -> PyResult<PyErr> {
-    let reason = error.to_string();
-    let py_error = constructor(reason.clone());
-    py_error.value(py).setattr("reason", reason)?;
-    Ok(py_error)
 }
 
 pub(crate) fn map_molblock_build_error(
@@ -154,31 +98,34 @@ pub(crate) fn map_molblock_build_error(
                 error,
             )
         }
-        MolblockMoleculeBuildError::KekulizeOptions(error) => {
-            structured_insertion_error(py, MoleculeInsertionError::new_err, error)
-        }
-        MolblockMoleculeBuildError::CompleteGraph(error) => map_complete_graph_error(py, error),
+        MolblockMoleculeBuildError::Preparation(error) => map_preparation_error(py, error),
     }
 }
 
-pub(crate) fn map_complete_graph_error(
+pub(crate) fn map_preparation_error(
     py: Python<'_>,
-    error: CompleteGraphMoleculeInsertionError,
+    error: DocumentMoleculePreparationErrorV2,
 ) -> PyResult<PyErr> {
     match error {
-        CompleteGraphMoleculeInsertionError::Geometry(error) => Ok(
+        DocumentMoleculePreparationErrorV2::Geometry(error) => Ok(
             super::geometry_binding::geometry_error(py, error.to_string()),
         ),
-        CompleteGraphMoleculeInsertionError::Position(error) => projection_error(py, error),
-        CompleteGraphMoleculeInsertionError::UnsupportedAtomFact { .. }
-        | CompleteGraphMoleculeInsertionError::UnsupportedBondFact { .. }
-        | CompleteGraphMoleculeInsertionError::UnsupportedBondOrder { .. } => {
+        DocumentMoleculePreparationErrorV2::Position(error) => projection_error(py, error),
+        DocumentMoleculePreparationErrorV2::AromaticityResolutionFailed
+        | DocumentMoleculePreparationErrorV2::InvalidStereoReference { .. }
+        | DocumentMoleculePreparationErrorV2::InvalidStereoSemantics
+        | DocumentMoleculePreparationErrorV2::UnrepresentableTetrahedral { .. }
+        | DocumentMoleculePreparationErrorV2::UnrepresentableDoubleBondStereo { .. }
+        | DocumentMoleculePreparationErrorV2::UnrepresentableDoubleBondDepiction { .. }
+        | DocumentMoleculePreparationErrorV2::UnsupportedStereoClass { .. }
+        | DocumentMoleculePreparationErrorV2::UnsupportedAtomFact { .. }
+        | DocumentMoleculePreparationErrorV2::UnsupportedBondOrder { .. } => {
             structured_insertion_error(py, UnsupportedMoleculeInsertionError::new_err, error)
         }
-        CompleteGraphMoleculeInsertionError::MissingCoordinates
-        | CompleteGraphMoleculeInsertionError::CoordinateCountMismatch { .. }
-        | CompleteGraphMoleculeInsertionError::NonFiniteCoordinate { .. }
-        | CompleteGraphMoleculeInsertionError::Insertion(_) => {
+        DocumentMoleculePreparationErrorV2::MissingCoordinates
+        | DocumentMoleculePreparationErrorV2::CoordinateCountMismatch { .. }
+        | DocumentMoleculePreparationErrorV2::NonFiniteCoordinate { .. }
+        | DocumentMoleculePreparationErrorV2::Insertion(_) => {
             structured_insertion_error(py, MoleculeInsertionError::new_err, error)
         }
     }
@@ -228,7 +175,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         "MolblockInputError",
         module.py().get_type::<MolblockInputError>(),
     )?;
-    module.add_class::<PyMoleculeInsertionV1>()?;
     module.add_function(wrap_pyfunction!(prepare_smiles_molecule_v1, module)?)?;
     Ok(())
 }

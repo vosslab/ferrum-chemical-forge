@@ -25,6 +25,7 @@ import ferrum_qt.ferrum.arrow_properties
 import ferrum_qt.ferrum.bond_properties
 import ferrum_qt.ferrum.clipboard
 import ferrum_qt.ferrum.local_document_open
+import ferrum_qt.ferrum.local_document_open_types
 import ferrum_qt.ferrum.coordinate_generation
 import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 import ferrum_qt.ferrum.geometry_actions
@@ -45,6 +46,7 @@ import ferrum_qt.ferrum.sdf_multi_export
 import ferrum_qt.ferrum.molecule_report
 import ferrum_qt.ferrum.atom_oxidation
 import ferrum_qt.ferrum.explicit_hydrogen
+import ferrum_qt.ferrum.compact_group_materialization
 import ferrum_qt.ferrum.document_installation
 import ferrum_qt.ferrum.operation_presentation
 import ferrum_qt.ferrum.molecule_name
@@ -113,6 +115,8 @@ class FerrumNativeMainWindow(
 		ferrum_qt.ferrum.molecule_report.FerrumNativeMoleculeReportMixin,
 		ferrum_qt.ferrum.atom_oxidation.FerrumNativeAtomOxidationMixin,
 		ferrum_qt.ferrum.explicit_hydrogen.FerrumNativeExplicitHydrogenWindowMixin,
+		ferrum_qt.ferrum.compact_group_materialization.
+		FerrumNativeCompactGroupMaterializationWindowMixin,
 		ferrum_qt.ferrum.molecule_name.FerrumNativeMoleculeNameWindowMixin,
 		ferrum_qt.ferrum.linear_form.FerrumNativeLinearFormWindowMixin,
 		ferrum_qt.ferrum.coordinate_generation.
@@ -153,6 +157,10 @@ class FerrumNativeMainWindow(
 		)
 		self._initialize_native_user_templates(user_template_directory)
 		self._initialize_catalog_placement()
+		self._local_ingress_registry = (
+			ferrum_qt.ferrum.local_document_open_types.
+			FerrumNativeLocalIngressRegistryV1.from_rust()
+		)
 		self._initialize_local_document_open()
 		self._initialize_view_controls()
 		self._atom_insertion_intent: _AtomInsertionIntent | None = None
@@ -166,6 +174,7 @@ class FerrumNativeMainWindow(
 		self._initialize_molecule_inspection()
 		self._initialize_atom_oxidation()
 		self._initialize_explicit_hydrogen()
+		self._initialize_compact_group_materialization()
 		self._initialize_native_clipboard()
 		self._initialize_coordinate_generation()
 		self._initialize_snapshot_exports()
@@ -449,6 +458,7 @@ class FerrumNativeMainWindow(
 		self._build_molecule_inspection_actions(chemistry_menu)
 		self._build_atom_oxidation_action(chemistry_menu)
 		self._build_explicit_hydrogen_action(chemistry_menu)
+		self._build_compact_group_materialization_action(chemistry_menu)
 		self._build_molecule_name_action(chemistry_menu)
 		self._build_linear_form_action(chemistry_menu)
 		self._build_explicit_fragment_actions(chemistry_menu)

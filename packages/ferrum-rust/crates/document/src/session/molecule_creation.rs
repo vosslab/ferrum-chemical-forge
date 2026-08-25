@@ -1,23 +1,24 @@
 //! Revision-bound complete-molecule creation owned by the document session.
 
 use super::{
-    DocumentSession, DocumentSessionError, MoleculeInsertionV1, PersistentId,
-    PreparedSessionTransitionV1, RevisionState, SessionOperationError, TypedDocument,
+    DocumentSession, DocumentSessionError, PersistentId, PreparedSessionTransitionV1,
+    RevisionState, SessionOperationError, TypedDocument,
 };
+use crate::MoleculeInsertionRequestV1;
 
 impl DocumentSession {
     pub(in crate::session) fn prepare_insert_molecule_transition_v1(
         &mut self,
         expected_revision: u64,
-        molecule: &MoleculeInsertionV1,
+        request: &MoleculeInsertionRequestV1,
     ) -> Result<PreparedSessionTransitionV1, DocumentSessionError> {
         self.prepare_complete_molecule_candidate(
             expected_revision,
-            molecule.atoms().len(),
-            molecule.bonds().len(),
+            request.molecule().atoms().len(),
+            request.molecule().bonds().len(),
             |document, molecule_id, atom_ids, bond_ids| {
                 document
-                    .with_insert_molecule(molecule_id, atom_ids, bond_ids, molecule)
+                    .with_insert_molecule_request(molecule_id, atom_ids, bond_ids, request)
                     .map_err(SessionOperationError::Candidate)
             },
         )

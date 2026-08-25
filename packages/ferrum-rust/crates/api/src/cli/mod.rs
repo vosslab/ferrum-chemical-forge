@@ -153,6 +153,7 @@ pub fn run(
                 NamedDocumentCommand::CatalogList { input, output }
                 | NamedDocumentCommand::CatalogInsert { input, output }
                 | NamedDocumentCommand::PresentationAuthor { input, output }
+                | NamedDocumentCommand::DocumentCompactGroupMaterialize { input, output }
                 | NamedDocumentCommand::DocumentMoleculeSmartsQuery { input, output }
                 | NamedDocumentCommand::DocumentMoleculeInterchangeImport { input, output } => Ok(
                     run_protocol(&input, output.as_deref(), stdin, stdout, stderr)?,

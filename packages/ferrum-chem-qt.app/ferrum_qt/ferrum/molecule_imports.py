@@ -67,7 +67,7 @@ class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 	#============================================
 	@PySide6.QtCore.Slot(object)
 	def on_peptide_prepared(self, molecule: object) -> None:
-		"""Forward one peptide-template result with its exact emitting worker."""
+		"""Forward one supported peptide sequence result with its emitting worker."""
 		self._owner._on_peptide_prepared(self.sender(), molecule)
 
 	#============================================
@@ -97,7 +97,7 @@ class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 	#============================================
 	@PySide6.QtCore.Slot(object)
 	def on_peptide_failed(self, failure: object) -> None:
-		"""Forward one peptide-template failure with its exact emitting worker."""
+		"""Forward one supported peptide sequence failure with its emitting worker."""
 		self._owner._on_peptide_failed(self.sender(), failure)
 
 	#============================================
@@ -127,7 +127,7 @@ class _MoleculeImportDeliveryRelay(PySide6.QtCore.QObject):
 	#============================================
 	@PySide6.QtCore.Slot()
 	def on_peptide_finished(self) -> None:
-		"""Release the exact peptide-template worker that has stopped."""
+		"""Release the exact supported peptide sequence worker that has stopped."""
 		self._owner._finish_import("peptide", self.sender())
 
 #============================================
@@ -195,7 +195,7 @@ class FerrumNativeMoleculeImportsMixin:
 		self._cancel_sdf_action.triggered.connect(self._cancel_sdf_import)
 		menu.addAction(self._cancel_sdf_action)
 		self._cancel_peptide_action = PySide6.QtGui.QAction(
-			self.tr("Cancel Peptide Template Import"), self,
+			self.tr("Cancel Supported Peptide Sequence Import"), self,
 		)
 		self._cancel_peptide_action.triggered.connect(self._cancel_peptide_import)
 		menu.addAction(self._cancel_peptide_action)
@@ -423,10 +423,7 @@ class FerrumNativeMoleculeImportsMixin:
 	#============================================
 	def _sdf_import_route_handle(self) -> object:
 		"""Return the registry-issued route handle for the selected SDF source."""
-		for descriptor in self._local_interchange_open_descriptors:
-			if ".sdf" in descriptor.suffixes:
-				return descriptor.route_handle
-		raise RuntimeError("Ferrum did not publish an SDF local interchange route")
+		return self._local_ingress_registry.interchange_route_handle_for_suffix(".sdf")
 
 	#============================================
 	def _on_import_peptide(self) -> None:
@@ -443,7 +440,7 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def start_supported_peptide_import(self, sequence: str) -> bool:
-		"""Start strict Ferrum peptide-template preparation for the active document."""
+		"""Start strict native peptide preparation for the active document."""
 		if type(sequence) is not str:
 			raise TypeError("Ferrum peptide import requires exact text")
 		if (
@@ -475,7 +472,7 @@ class FerrumNativeMoleculeImportsMixin:
 			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
 		)
 		self.statusBar().showMessage(
-			self.tr("Preparing supported peptide template with Ferrum Rust..."), 0,
+			self.tr("Preparing supported peptide sequence with native Ferrum..."), 0,
 		)
 		self._refresh_actions()
 		worker.start()
@@ -528,10 +525,10 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def _on_peptide_prepared(self, worker: object, molecule: object) -> None:
-		"""Commit one still-current strict peptide-template result."""
+		"""Commit one still-current supported peptide sequence result."""
 		self._commit_prepared_import(
-			self._peptide_import_intent, worker, molecule, "Peptide Template",
-			"peptide_template_import",
+			self._peptide_import_intent, worker, molecule, "Supported Peptide Sequence",
+			"peptide_sequence_import",
 		)
 
 	#============================================
@@ -607,9 +604,9 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def _on_peptide_failed(self, worker: object, failure: object) -> None:
-		"""Present one current strict peptide-template preparation failure."""
+		"""Present one current supported peptide sequence preparation failure."""
 		self._show_import_failure(
-			self._peptide_import_intent, worker, failure, "Peptide Template",
+			self._peptide_import_intent, worker, failure, "Supported Peptide Sequence",
 		)
 
 	#============================================
@@ -657,8 +654,8 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def _cancel_peptide_import(self) -> None:
-		"""Invalidate pending strict peptide-template delivery."""
-		self._cancel_import(self._peptide_import_intent, "Peptide Template")
+		"""Invalidate pending supported peptide sequence delivery."""
+		self._cancel_import(self._peptide_import_intent, "Supported Peptide Sequence")
 
 	#============================================
 	def _cancel_import(self, intent: _MoleculeImportIntent | None, label: str) -> None:
@@ -712,7 +709,7 @@ class FerrumNativeMoleculeImportsMixin:
 			("InChI", self._inchi_import_intent),
 			("Molfile", self._molblock_import_intent),
 			("SDF", self._sdf_import_intent),
-			("Peptide Template", self._peptide_import_intent),
+			("Supported Peptide Sequence", self._peptide_import_intent),
 		):
 			if intent is not None and intent.tab is tab:
 				self._show_edit_refusal(self._unavailable_edit_refusal(f"Cancel the {label} import and wait for the current operation before closing."))
@@ -727,7 +724,7 @@ class FerrumNativeMoleculeImportsMixin:
 			("InChI", self._inchi_import_intent, self._cancel_inchi_import),
 			("Molfile", self._molblock_import_intent, self._cancel_molblock_import),
 			("SDF", self._sdf_import_intent, self._cancel_sdf_import),
-			("Peptide Template", self._peptide_import_intent, self._cancel_peptide_import),
+			("Supported Peptide Sequence", self._peptide_import_intent, self._cancel_peptide_import),
 		):
 			if intent is not None:
 				cancel()

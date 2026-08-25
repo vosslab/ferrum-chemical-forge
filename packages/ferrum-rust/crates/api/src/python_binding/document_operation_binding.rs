@@ -2,8 +2,8 @@
 
 use ferrum_document::{
     AtomMarkActionV1, AtomPropertiesPatchV1, BondPropertiesPatchV1, CreateAtomV1, CreateBondV1,
-    DetachedRegularRingInsertionV1, Point3V1, RegularRingOrientationV1, RegularRingSizeV1,
-    SessionOperation, SessionOperationTransitionRequestV1, SessionOperationV1,
+    DetachedRegularRingInsertionV1, MoleculeInsertionRequestV1, Point3V1, RegularRingOrientationV1,
+    RegularRingSizeV1, SessionOperation, SessionOperationTransitionRequestV1, SessionOperationV1,
     TransitionAuthorizationV1,
 };
 use pyo3::prelude::*;
@@ -13,13 +13,13 @@ use super::atom_mark_binding::{PyAtomMarkActionV1, PyAtomMarkKindV1};
 use super::atom_properties_binding::PyDocumentAtomPropertyChangeV1;
 use super::binding::{PyDocumentBondOrderV1, operation_validation_error, projection_error};
 use super::bond_properties_binding::PyDocumentBondPropertyChangeV1;
-use super::drawing_standard_binding;
 use super::document_error_binding::document_object_id;
+use super::document_session_binding::PyDocumentBondPresentationV1;
+use super::drawing_standard_binding;
 use super::interchange_insertion_binding::PyInterchangeRecordBatchInsertionV1;
+use super::molecule_insertion_binding::PyMoleculeInsertionV1;
 use super::paper_properties_binding::{PyDocumentPaperPropertyChangeV1, validate_patch};
 use super::prepared_transition_binding::PySessionOperationTransitionRequestV1;
-use super::document_session_binding::PyDocumentBondPresentationV1;
-use super::smiles_insertion_binding::PyMoleculeInsertionV1;
 
 /// Closed V1 operation grammar for authoritative session mutations.
 ///
@@ -43,7 +43,7 @@ impl PyDocumentOperationV1 {
     fn insert_molecule_v1(molecule: PyRef<'_, PyMoleculeInsertionV1>) -> Self {
         Self {
             operation: SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(
-                molecule.insertion().clone(),
+                molecule.request().clone(),
             )),
         }
     }
@@ -84,7 +84,9 @@ impl PyDocumentOperationV1 {
         .and_then(DetachedRegularRingInsertionV1::molecule)
         .map_err(|error| operation_validation_error(py, error.to_string()))?;
         Ok(Self {
-            operation: SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(molecule)),
+            operation: SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(
+                MoleculeInsertionRequestV1::new(molecule),
+            )),
         })
     }
 

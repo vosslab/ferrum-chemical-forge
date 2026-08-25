@@ -218,6 +218,23 @@
       ],
       "type": "object"
     },
+    "CompactGroupMaterializationRefusalV1": {
+      "additionalProperties": false,
+      "description": "Closed public recovery facts for compact-group materialization refusals.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ProtocolCompactGroupMaterializationCategoryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolCompactGroupMaterializationRecoveryV1"
+        }
+      },
+      "required": [
+        "category",
+        "recovery"
+      ],
+      "type": "object"
+    },
     "DocumentAtomOxidationObservationV1": {
       "description": "Completed V1 oxidation observation for one fenced durable atom selection.",
       "oneOf": [
@@ -333,6 +350,70 @@
         "arithmetic_overflow"
       ],
       "type": "string"
+    },
+    "DocumentCompactGroupMaterializationRequestV1": {
+      "additionalProperties": false,
+      "description": "Stateless request to materialize one attached compact group from a fenced snapshot.",
+      "properties": {
+        "compact_group_id": {
+          "type": "string"
+        },
+        "document": {
+          "$ref": "#/$defs/DocumentSnapshotRequestV1"
+        },
+        "molecule_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "document",
+        "molecule_id",
+        "compact_group_id"
+      ],
+      "type": "object"
+    },
+    "DocumentCompactGroupMaterializationResultV1": {
+      "additionalProperties": false,
+      "description": "Committed compact-group replacement facts. Preparation state remains session-private.",
+      "properties": {
+        "compact_group_id": {
+          "type": "string"
+        },
+        "document": {
+          "type": "string"
+        },
+        "document_fence": {
+          "$ref": "#/$defs/DocumentRequestFenceV1"
+        },
+        "molecule_id": {
+          "type": "string"
+        },
+        "replacement_focus_atom_id": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_digest_hex": {
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "source_revision",
+        "source_digest_hex",
+        "molecule_id",
+        "compact_group_id",
+        "replacement_focus_atom_id",
+        "document",
+        "document_fence"
+      ],
+      "type": "object"
     },
     "DocumentInterchangeImportLossReportV1": {
       "additionalProperties": false,
@@ -708,6 +789,117 @@
       ],
       "type": "object"
     },
+    "DocumentMoleculeReportDirectedBondDepictionSummaryV1": {
+      "additionalProperties": false,
+      "description": "One tetrahedral wedge/hash drawing fact with its authored endpoint direction.",
+      "properties": {
+        "bond_index": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "end": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "presentation": {
+          "$ref": "#/$defs/DocumentMoleculeReportDirectedBondPresentationSummaryV1"
+        },
+        "start": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bond_index",
+        "start",
+        "end",
+        "presentation"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportDirectedBondPresentationSummaryV1": {
+      "description": "Closed wedge/hash drawing vocabulary.",
+      "enum": [
+        "solid_wedge",
+        "hashed_wedge"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1": {
+      "description": "Closed E/Z carrier-mark vocabulary.",
+      "enum": [
+        "up",
+        "down"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1": {
+      "additionalProperties": false,
+      "description": "One E/Z directional carrier drawing fact.",
+      "properties": {
+        "carrier_bond_index": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "double_bond_index": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mark": {
+          "$ref": "#/$defs/DocumentMoleculeReportDoubleBondCarrierMarkKindSummaryV1"
+        }
+      },
+      "required": [
+        "double_bond_index",
+        "carrier_bond_index",
+        "mark"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportDoubleBondConfigurationSummaryV1": {
+      "description": "Closed E/Z configuration vocabulary.",
+      "enum": [
+        "e",
+        "z"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportDoubleBondStereoSummaryV1": {
+      "additionalProperties": false,
+      "description": "One E/Z double-bond source descriptor.",
+      "properties": {
+        "bond_index": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "configuration": {
+          "$ref": "#/$defs/DocumentMoleculeReportDoubleBondConfigurationSummaryV1"
+        },
+        "end_ligand": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start_ligand": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bond_index",
+        "start_ligand",
+        "end_ligand",
+        "configuration"
+      ],
+      "type": "object"
+    },
     "DocumentMoleculeReportElementCountSummaryV1": {
       "additionalProperties": false,
       "properties": {
@@ -958,6 +1150,28 @@
         },
         "source_id": {
           "type": "string"
+        },
+        "stereo_depiction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentMoleculeReportStereoDepictionSummaryV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Durable stereo drawing facts, separate from chemical configuration."
+        },
+        "stereo_semantics": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentMoleculeReportStereoSemanticsSummaryV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Durable source stereo facts, separate from drawing-only bond presentation."
         }
       },
       "required": [
@@ -995,6 +1209,89 @@
       ],
       "type": "object"
     },
+    "DocumentMoleculeReportStereoDepictionSummaryV1": {
+      "additionalProperties": false,
+      "description": "Canonical source-indexed drawing facts retained by one direct molecule.",
+      "properties": {
+        "directed_bonds": {
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportDirectedBondDepictionSummaryV1"
+          },
+          "type": "array"
+        },
+        "double_bond_carrier_marks": {
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportDoubleBondCarrierMarkSummaryV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "directed_bonds",
+        "double_bond_carrier_marks"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportStereoLigandSummaryV1": {
+      "description": "One ligand in the source-defined tetrahedral order.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "index": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "atom",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "index"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "explicit_hydrogen",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DocumentMoleculeReportStereoSemanticsSummaryV1": {
+      "additionalProperties": false,
+      "description": "Canonical graph-source-indexed stereo facts retained by one direct molecule.",
+      "properties": {
+        "double_bonds": {
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportDoubleBondStereoSummaryV1"
+          },
+          "type": "array"
+        },
+        "tetrahedral": {
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportTetrahedralStereoSummaryV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "tetrahedral",
+        "double_bonds"
+      ],
+      "type": "object"
+    },
     "DocumentMoleculeReportSummaryV1": {
       "additionalProperties": false,
       "properties": {
@@ -1026,6 +1323,42 @@
         "source_digest_hex",
         "records",
         "aggregate"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeReportTetrahedralParitySummaryV1": {
+      "description": "Closed tetrahedral parity vocabulary.",
+      "enum": [
+        "clockwise",
+        "counter_clockwise"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportTetrahedralStereoSummaryV1": {
+      "additionalProperties": false,
+      "description": "One tetrahedral descriptor with exactly four atom positions or an explicit-H sentinel.",
+      "properties": {
+        "center": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ligands": {
+          "items": {
+            "$ref": "#/$defs/DocumentMoleculeReportStereoLigandSummaryV1"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "parity": {
+          "$ref": "#/$defs/DocumentMoleculeReportTetrahedralParitySummaryV1"
+        }
+      },
+      "required": [
+        "center",
+        "ligands",
+        "parity"
       ],
       "type": "object"
     },
@@ -1441,6 +1774,17 @@
         "category": {
           "$ref": "#/$defs/OperationProtocolErrorCategoryV1",
           "description": "Stable machine-readable failure category."
+        },
+        "compact_group_materialization_refusal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompactGroupMaterializationRefusalV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Closed compact-materialization recovery facts when this operation refused one."
         },
         "message": {
           "description": "Human-readable diagnostic detail.",
@@ -2147,6 +2491,32 @@
         },
         {
           "additionalProperties": false,
+          "description": "Materialize one attached compact group through the generic session transition.",
+          "properties": {
+            "compact_group_id": {
+              "type": "string"
+            },
+            "document": {
+              "$ref": "#/$defs/DocumentSnapshotRequestV1"
+            },
+            "kind": {
+              "const": "document.compact-group.materialize.v1",
+              "type": "string"
+            },
+            "molecule_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "molecule_id",
+            "compact_group_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Import one explicitly selected interchange format into a new request-owned document.",
           "properties": {
             "format_alias": {
@@ -2801,6 +3171,24 @@
         },
         {
           "additionalProperties": false,
+          "description": "One committed renderer-admitted compact-group replacement.",
+          "properties": {
+            "kind": {
+              "const": "document.compact-group.materialize.v1",
+              "type": "string"
+            },
+            "materialization": {
+              "$ref": "#/$defs/DocumentCompactGroupMaterializationResultV1"
+            }
+          },
+          "required": [
+            "kind",
+            "materialization"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Bounded interchange import summary without a document artifact or identifiers.",
           "properties": {
             "kind": {
@@ -3138,6 +3526,27 @@
       ],
       "type": "string"
     },
+    "ProtocolCompactGroupMaterializationCategoryV1": {
+      "description": "Stable compact-group refusal categories. No candidate or source CDML is exposed.",
+      "enum": [
+        "stale_document_fence",
+        "unknown_or_foreign_target",
+        "ineligible_target",
+        "renderer_preparation_refusal",
+        "session_conflict_or_replayed_preparation"
+      ],
+      "type": "string"
+    },
+    "ProtocolCompactGroupMaterializationRecoveryV1": {
+      "description": "Stable client recovery instructions for compact-group materialization.",
+      "enum": [
+        "refresh_and_retry",
+        "correct_target",
+        "choose_eligible_target",
+        "document_unchanged"
+      ],
+      "type": "string"
+    },
     "ProtocolCurvedTerminalArrowKindV1": {
       "enum": [
         "electron",
@@ -3355,6 +3764,11 @@
         {
           "const": "document.molecule.hydrogen.materialize.v1",
           "description": "`document.molecule.hydrogen.materialize.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "document.compact-group.materialize.v1",
+          "description": "`document.compact-group.materialize.v1`.",
           "type": "string"
         },
         {
@@ -3755,6 +4169,9 @@
   "x-ferrum-roots": {
     "document_atom_oxidation_observe_request": {
       "$ref": "#/$defs/DocumentAtomOxidationObserveRequestV1"
+    },
+    "document_compact_group_materialization_request": {
+      "$ref": "#/$defs/DocumentCompactGroupMaterializationRequestV1"
     },
     "document_molecule_hydrogen_materialization_request": {
       "$ref": "#/$defs/DocumentMoleculeHydrogenMaterializationRequestV1"

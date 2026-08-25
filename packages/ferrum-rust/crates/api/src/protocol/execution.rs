@@ -55,8 +55,10 @@ mod execution_tests;
 
 use super::document_hydrogen_materialization_v1::execute_document_molecule_hydrogen_materialize;
 use execution_chemistry::*;
-pub(crate) use execution_document::admit_document;
 use execution_document::*;
+pub(crate) use execution_document::{
+    admit_document, interchange_import_refusal_envelope_v1, interchange_import_success_envelope_v1,
+};
 pub(super) use execution_failure::ExecutionFailureV1;
 pub(crate) use execution_placement::hex_digest;
 use execution_placement::*;
@@ -262,6 +264,11 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
         OperationProtocolOperationV1::DocumentMoleculeHydrogenMaterialize(request) => {
             execute_document_molecule_hydrogen_materialize(request)
         }
+        OperationProtocolOperationV1::DocumentCompactGroupMaterialize(request) => {
+            super::document_compact_group_materialization_v1::execute_document_compact_group_materialize(
+                request,
+            )
+        }
         OperationProtocolOperationV1::DocumentMoleculeInterchangeImport(request) => {
             return execute_document_molecule_interchange_import_envelope(
                 &request_id,
@@ -304,8 +311,8 @@ pub(crate) fn admit_shared_response_budget_v1(
 /// Closed V1 admission policy for operations whose result volume is bounded.
 ///
 /// The current shared budget covers molecule reports, SMARTS result enumeration, oxidation
-/// observation, and explicit-hydrogen materialization. New operations must opt in here deliberately rather than
-/// inheriting a bound from a similarly shaped response.
+/// observation, and both materialization receipts. Materialization returns canonical CDML, so
+/// sharing this envelope bound prevents one generic route from bypassing transport policy.
 const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> bool {
     matches!(
         operation,
@@ -313,6 +320,7 @@ const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> b
             | ProtocolOperationKindV1::DocumentSmartsQuery
             | ProtocolOperationKindV1::DocumentAtomOxidationObserve
             | ProtocolOperationKindV1::DocumentMoleculeHydrogenMaterialize
+            | ProtocolOperationKindV1::DocumentCompactGroupMaterialize
     )
 }
 
@@ -340,6 +348,7 @@ fn response_size_exceeded_error(
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         },
     })
 }
@@ -372,6 +381,7 @@ fn error_response(
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         },
     })
 }
@@ -392,6 +402,7 @@ pub(crate) fn operation_error_response(
             presentation_author_refusal: failure.presentation_author_refusal,
             catalog_placement_refusal: failure.catalog_placement_refusal,
             reaction_refusal: failure.reaction_refusal,
+            compact_group_materialization_refusal: failure.compact_group_materialization_refusal,
         },
     })
 }

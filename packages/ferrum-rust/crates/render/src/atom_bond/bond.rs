@@ -9,8 +9,8 @@ use crate::bond_style::BondStyle;
 use crate::directed_stereo_bond::directed_stereo_operations;
 use crate::haworth_front_bond::{HaworthFrontBondInput, build_haworth_front_batch};
 use crate::{
-    BatchSpace, GlyphBounds, LineOp, Paint, PositiveFinite, RenderBatch, RenderError,
-    RenderIssueKind, RenderOp, RenderTarget,
+    BatchSpace, DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp, GlyphBounds, LineOp,
+    Paint, PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderTarget,
 };
 
 use super::{RenderEndpointGeometry, TargetVisibility, geometry_to_render_point};
@@ -24,6 +24,7 @@ pub struct BondRenderTarget {
     pub(super) style: BondStyle,
     pub(super) visibility: TargetVisibility,
     pub(super) appearance: Option<BondLineAppearance>,
+    carrier_marks: Vec<CarrierMarkRenderFact>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct BondLineAppearance {
@@ -31,6 +32,12 @@ pub(super) struct BondLineAppearance {
     pub(super) lane_spacing: PositiveFinite,
     pub(super) wedge_width: PositiveFinite,
     pub(super) paint: Paint,
+}
+#[derive(Clone, Debug, PartialEq)]
+struct CarrierMarkRenderFact {
+    shared_endpoint_is_start: bool,
+    direction: DoubleBondCarrierMarkDirectionV1,
+    central_double_bond: RecordId,
 }
 impl BondRenderTarget {
     /// Construct a valid bond target for this render slice.
@@ -60,6 +67,7 @@ impl BondRenderTarget {
             style,
             visibility,
             appearance: None,
+            carrier_marks: Vec::new(),
         })
     }
 
@@ -85,6 +93,26 @@ impl BondRenderTarget {
             paint,
         });
         self
+    }
+
+    /// Attach an explicit E/Z carrier mark without changing bond connectivity.
+    pub fn with_double_bond_carrier_mark(
+        mut self,
+        direction: DoubleBondCarrierMarkDirectionV1,
+        shared_endpoint_is_start: bool,
+        central_double_bond: RecordId,
+    ) -> Result<Self, RenderError> {
+        if self.style != BondStyle::NormalSingle {
+            return Err(RenderError::InvalidRequest(
+                "E/Z carrier mark requires one ordinary single-bond carrier".to_owned(),
+            ));
+        }
+        self.carrier_marks.push(CarrierMarkRenderFact {
+            shared_endpoint_is_start,
+            direction,
+            central_double_bond,
+        });
+        Ok(self)
     }
 }
 
@@ -133,7 +161,9 @@ pub(super) fn build_bond_batch(
     // centered double-lane separation, while triple outer lanes use 70% of it.
     const TRIPLE_OUTER_LANE_FACTOR: f64 = 0.7;
     let offsets: &[f64] = match &bond.style {
-        BondStyle::NormalSingle => &[0.0],
+        BondStyle::NormalSingle
+        | BondStyle::DoubleBondCarrierUp
+        | BondStyle::DoubleBondCarrierDown => &[0.0],
         BondStyle::Double => &[-0.5, 0.5],
         BondStyle::Triple => &[-TRIPLE_OUTER_LANE_FACTOR, 0.0, TRIPLE_OUTER_LANE_FACTOR],
         BondStyle::SolidWedge
@@ -181,6 +211,22 @@ pub(super) fn build_bond_batch(
             10 + i32::try_from(index).expect("bond line count fits i32"),
         )?;
         operations.push(RenderOp::Line(line));
+    }
+    for (index, mark) in bond.carrier_marks.iter().enumerate() {
+        let RenderOp::Line(carrier_line) = &operations[0] else {
+            unreachable!("ordinary carrier bonds begin with their base line")
+        };
+        let operation = DoubleBondCarrierMarkOp::from_carrier_line(
+            carrier_line,
+            mark.shared_endpoint_is_start,
+            mark.direction,
+            mark.central_double_bond.clone(),
+            11 + i32::try_from(index).expect("carrier mark count fits i32"),
+        )
+        .map_err(|error| RenderIssueKind::UnrenderableTarget {
+            reason: error.to_string(),
+        })?;
+        operations.push(RenderOp::DoubleBondCarrierMark(operation));
     }
     RenderBatch::new(bond.target.clone(), BatchSpace::Scene, operations).map_err(|error| {
         RenderIssueKind::UnrenderableTarget {

@@ -10,9 +10,36 @@ pub(crate) struct ExecutionFailureV1 {
     pub(super) presentation_author_refusal: Option<PresentationAuthorRefusalV1>,
     pub(super) catalog_placement_refusal: Option<CatalogPlacementRefusalV1>,
     pub(super) reaction_refusal: Option<ReactionRefusalV1>,
+    pub(super) compact_group_materialization_refusal: Option<CompactGroupMaterializationRefusalV1>,
 }
 
 impl ExecutionFailureV1 {
+    pub(crate) fn compact_group_materialization_refusal(
+        refusal: CompactGroupMaterializationRefusalV1,
+    ) -> Self {
+        let category = match refusal.category {
+            ProtocolCompactGroupMaterializationCategoryV1::StaleDocumentFence => {
+                OperationProtocolErrorCategoryV1::StaleDocument
+            }
+            ProtocolCompactGroupMaterializationCategoryV1::UnknownOrForeignTarget
+            | ProtocolCompactGroupMaterializationCategoryV1::IneligibleTarget
+            | ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrReplayedPreparation => {
+                OperationProtocolErrorCategoryV1::DocumentInvalid
+            }
+            ProtocolCompactGroupMaterializationCategoryV1::RendererPreparationRefusal => {
+                OperationProtocolErrorCategoryV1::RenderUnsupported
+            }
+        };
+        Self {
+            category,
+            message: "compact-group materialization refused".to_owned(),
+            resource_limit: None,
+            presentation_author_refusal: None,
+            catalog_placement_refusal: None,
+            reaction_refusal: None,
+            compact_group_materialization_refusal: Some(refusal),
+        }
+    }
     pub(crate) fn invalid_request(message: impl Into<String>) -> Self {
         Self {
             category: OperationProtocolErrorCategoryV1::InvalidRequest,
@@ -21,6 +48,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -50,6 +78,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
     pub(crate) fn document_admission(message: String) -> Self {
@@ -60,6 +89,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -71,6 +101,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -82,6 +113,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -93,6 +125,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -104,6 +137,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -119,6 +153,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -130,6 +165,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -141,6 +177,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -152,6 +189,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -179,6 +217,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -220,6 +259,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -254,6 +294,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -265,6 +306,7 @@ impl ExecutionFailureV1 {
             presentation_author_refusal: None,
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -294,6 +336,7 @@ impl ExecutionFailureV1 {
             }),
             catalog_placement_refusal: None,
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -313,6 +356,7 @@ impl ExecutionFailureV1 {
                 recovery: catalog_recovery(error.recovery()),
             }),
             reaction_refusal: None,
+            compact_group_materialization_refusal: None,
         }
     }
 
@@ -333,6 +377,7 @@ impl ExecutionFailureV1 {
                 category: reaction_category(error.category()),
                 recovery: reaction_recovery(error.recovery()),
             }),
+            compact_group_materialization_refusal: None,
         }
     }
 }

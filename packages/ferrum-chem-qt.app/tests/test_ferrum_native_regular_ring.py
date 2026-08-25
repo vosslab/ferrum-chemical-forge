@@ -9,36 +9,9 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 import pytest
 
+import tests.ferrum_native_menu_actions
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.document_tab
-
-
-def _click_visible_menu_action(
-		window: PySide6.QtWidgets.QMainWindow, label: str,
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""Activate a labelled command through the visible menu route."""
-	for menu_action in window.menuBar().actions():
-		menu = menu_action.menu()
-		if menu is None:
-			continue
-		for candidate in menu.actions():
-			if candidate.text().replace("&", "") != label:
-				continue
-			PySide6.QtTest.QTest.mouseClick(
-				window.menuBar(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				window.menuBar().actionGeometry(menu_action).center(),
-			)
-			qapp.processEvents()
-			PySide6.QtTest.QTest.mouseClick(
-				menu, PySide6.QtCore.Qt.MouseButton.LeftButton,
-				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-				menu.actionGeometry(candidate).center(),
-			)
-			qapp.processEvents()
-			return
-	raise AssertionError(f"No visible menu action is labelled {label!r}")
 
 
 def _ring_centre(molecule: object) -> tuple[float, float]:
@@ -66,7 +39,7 @@ def test_insert_cyclohexane_ring_uses_the_shared_authored_centre_and_selects_rus
 		expected_snapped = tab.view.snap_authored_scene_point(
 			tab.view.mapToScene(snapped_click),
 		)
-		_click_visible_menu_action(window, "Insert Cyclohexane Ring", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Insert Cyclohexane Ring", qapp)
 		PySide6.QtTest.QTest.mouseClick(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, snapped_click,
@@ -106,7 +79,7 @@ def test_insert_cyclohexane_ring_refuses_an_occupied_atom_without_mutation(
 		qapp.processEvents()
 		before_snapshot = tab.current_snapshot
 		occupied = tab.view.mapFromScene(PySide6.QtCore.QPointF(10.0, 20.0))
-		_click_visible_menu_action(window, "Insert Cyclohexane Ring", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Insert Cyclohexane Ring", qapp)
 		PySide6.QtTest.QTest.mouseClick(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, occupied,
@@ -133,7 +106,7 @@ def test_attach_cyclohexane_ring_drag_commits_and_escape_retires_pending_receipt
 		qapp.processEvents()
 		anchor = tab.view.mapFromScene(PySide6.QtCore.QPointF(10.0, 20.0))
 		before = tab.current_snapshot
-		_click_visible_menu_action(window, "Attach Cyclohexane Ring", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Attach Cyclohexane Ring", qapp)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, anchor,
@@ -145,7 +118,7 @@ def test_attach_cyclohexane_ring_drag_commits_and_escape_retires_pending_receipt
 		qapp.processEvents()
 		assert tab.current_snapshot == before
 
-		_click_visible_menu_action(window, "Attach Cyclohexane Ring", qapp)
+		tests.ferrum_native_menu_actions.click_visible_menu_action(window, "Attach Cyclohexane Ring", qapp)
 		PySide6.QtTest.QTest.mousePress(
 			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, anchor,
@@ -164,4 +137,3 @@ def test_attach_cyclohexane_ring_drag_commits_and_escape_retires_pending_receipt
 	finally:
 		window.close()
 		window.deleteLater()
-

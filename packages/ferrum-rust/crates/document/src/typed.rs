@@ -298,6 +298,7 @@ impl TypedDocument {
             .expect("an indexed XML document has a document element");
         let root = project_record(tree, root_node, TypedClass::Cdml, Vec::new())?;
         validate_canonical_values(&root)?;
+        super::typed_molecule_insertion::validate_document_stereo_semantics(&indexed)?;
         canonicalize_presentation_face_aliases(&mut indexed);
         let tree = &indexed.xml.tree;
         let root_node = tree

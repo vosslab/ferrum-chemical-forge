@@ -1,9 +1,11 @@
 # === UNIVERSAL ===
 .DS_Store
-report_*.txt
-output*/
+/report_*.txt
+/output*/
+/generated/
 /graphify-out/
 _temp*.?*
+/temp/
 /OTHER_REPOS/
 /LOCAL_ONLY/
 
@@ -18,7 +20,6 @@ sdist/
 site/
 
 # === RUST ===
-/packages/ferrum-rust/target/
 /target/
 **/target/
 **/*.rs.bk

@@ -720,6 +720,13 @@ history, saved baseline, or dirty state. Missing, nested, opaque, and
 wrong-kind IDs are typed target failures; a direct-root molecule without a
 supported chemistry conversion returns the typed SMILES-unavailable failure.
 
+For rendering, Rust carries chemical E/Z configuration only in
+`stereo_semantics` and issues any editable E/Z `up` or `down` carrier marks in
+`stereo_depiction`. The frontend renders those issued marks; it never derives
+configuration from a mark or coordinates, or creates a mark from configuration.
+This matches directed `w1` and `h1` drawing facts: depiction is not an
+independent source of chemical meaning.
+
 Repair geometry is a bounded backend operation. Its accepted kinds are
 `normalize-bond-lengths`, `normalize-bond-angles`, `normalize-rings`,
 `straighten-bonds`, `clean-geometry`, and `snap-to-hex-grid`. Every immutable

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import json
 from pathlib import Path
 import sys
 import types
@@ -395,22 +396,94 @@ def test_smiles_molecule_preparation_is_frozen_and_one_atomic_document_edit() ->
 
 
 @pytest.mark.parametrize("smiles", (
-    "F/C=C/F",
-    "[C@H](F)(Cl)Br",
     "[CH3:1]O",
     "[CH2]",
-    "[c:1]1ccccc1",
-    "c1ccccc1/C=C/F",
-    "c1ccccc1[CH2]",
 ))
 def test_unproven_cdml_fact_mappings_are_rejected_instead_of_discarded(smiles: str) -> None:
     placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
 
-    with pytest.raises(
-        ferrum_chem.UnsupportedMoleculeInsertionError,
-        match="cannot encode yet",
-    ):
+    with pytest.raises(ferrum_chem.UnsupportedMoleculeInsertionError):
         ferrum_chem.prepare_smiles_molecule_v1(smiles, placement)
+
+
+@pytest.mark.parametrize(("smiles", "expected_semantics"), (
+    (
+        "[C@H](F)(Cl)Br",
+        {
+            "tetrahedral": [{
+                "center": 0,
+                "ligands": [
+                    {"kind": "atom", "index": 1},
+                    {"kind": "atom", "index": 2},
+                    {"kind": "atom", "index": 3},
+                    {"kind": "explicit_hydrogen"},
+                ],
+                "parity": "clockwise",
+            }],
+            "double_bonds": [],
+        },
+    ),
+))
+def test_native_smiles_stereo_reaches_the_durable_molecule_report(
+        smiles: str, expected_semantics: dict[str, object]) -> None:
+    """Native P0 stereo facts cross the source coordinator into the report."""
+    placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
+    molecule = ferrum_chem.prepare_smiles_molecule_v1(smiles, placement)
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+    operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
+    prepared = session.prepare_session_operation_transition_v1(
+        operation.transition_request_v1(0))
+    committed = session.commit_session_operation_transition_v1(prepared)
+    snapshot = committed.observation.snapshot
+    molecule_id = committed.observation.projection.molecules[0].id
+    response = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
+        "schema": "ferrum-operation-request-v1",
+        "request_id": "native-smiles-stereo",
+        "operation": {
+            "kind": "document.molecule.report.v1",
+            "snapshot": {
+                "cdml": snapshot.cdml,
+                "revision": snapshot.revision,
+                "digest_hex": snapshot.digest,
+            },
+            "molecule_ids": [molecule_id],
+        },
+    })))
+
+    record = response["outcome"]["report"]["records"][0]
+    assert record["stereo_semantics"] == expected_semantics
+
+
+def test_native_inchi_stereo_reaches_the_durable_molecule_report() -> None:
+    """Public InChI preparation retains durable E/Z semantics through commit."""
+    placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
+    molecule = ferrum_chem.prepare_inchi_molecule_v1(
+        "InChI=1S/C4H8/c1-3-4-2/h3-4H,1-2H3/b4-3+", placement)
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+    operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
+    prepared = session.prepare_session_operation_transition_v1(
+        operation.transition_request_v1(0))
+    committed = session.commit_session_operation_transition_v1(prepared)
+    snapshot = committed.observation.snapshot
+    molecule_id = committed.observation.projection.molecules[0].id
+    response = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
+        "schema": "ferrum-operation-request-v1",
+        "request_id": "native-inchi-stereo",
+        "operation": {
+            "kind": "document.molecule.report.v1",
+            "snapshot": {
+                "cdml": snapshot.cdml,
+                "revision": snapshot.revision,
+                "digest_hex": snapshot.digest,
+            },
+            "molecule_ids": [molecule_id],
+        },
+    })))
+
+    semantics = response["outcome"]["report"]["records"][0]["stereo_semantics"]
+    assert semantics["tetrahedral"] == []
+    assert len(semantics["double_bonds"]) == 1
+    assert semantics["double_bonds"][0]["configuration"] == "e"
 
 
 def test_periodic_display_catalog_is_closed_immutable_and_picker_scoped() -> None:

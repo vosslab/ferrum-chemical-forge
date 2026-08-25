@@ -11,6 +11,9 @@ impl SessionOperation {
         current_digest: &[u8; 32],
     ) -> Result<Candidate, SessionOperationError> {
         match self {
+            Self::V1(SessionOperationV1::MaterializeCompactGroupV1(_)) => {
+                Err(SessionOperationError::CompactGroupMaterializationRequiresTransitionCore)
+            }
             Self::V1(SessionOperationV1::MaterializeMoleculeHydrogensV1(_)) => {
                 Err(SessionOperationError::HydrogenMaterializationRequiresTransitionCore)
             }

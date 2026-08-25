@@ -58,6 +58,7 @@ class RenderTargetKey:
 	kind: str
 	identifier: str | None
 	source_order: int
+	molecule_identifier: str | None = None
 
 	#============================================
 	@property
@@ -551,10 +552,11 @@ def _build_plan(
 	seen_targets: set[RenderTargetKey] = set()
 	result = []
 	root = PySide6.QtWidgets.QGraphicsItemGroup()
+	root.setHandlesChildEvents(False)
 	root.setZValue(float(molecule.source_order))
 	scene.addItem(root)
 	for batch_index, batch in enumerate(batches):
-		target = _target(getattr(batch, "target", None))
+		target = _target(getattr(batch, "target", None), molecule.identifier)
 		if target.source_order <= last_order:
 			raise FerrumRenderProjectionError("render batches are not source ordered")
 		if target in seen_targets:
@@ -595,21 +597,26 @@ def _molecule_root(value: object) -> MoleculeRootKey:
 
 
 #============================================
-def _target(value: object) -> RenderTargetKey:
+def _target(value: object, molecule_identifier: str | None = None) -> RenderTargetKey:
 	"""Copy one strict durable-or-local render target into a hashable selection key."""
 	if not _is_frozen_dto(value):
 		raise FerrumRenderProjectionError("render target has the wrong DTO shape")
 	record = getattr(value, "record_id", None)
 	kind = getattr(record, "kind", None)
 	identifier = getattr(record, "id", None)
-	if type(kind) is not str or kind not in ("Atom", "Bond"):
+	if type(kind) is not str or kind not in ("Atom", "Bond", "Group"):
 		raise FerrumRenderProjectionError("render target kind is invalid")
 	if identifier is not None and (type(identifier) is not str or not identifier):
 		raise FerrumRenderProjectionError("render target identifier is invalid")
 	order = getattr(value, "source_order", None)
 	if type(order) is not int or order not in _U32_RANGE:
 		raise FerrumRenderProjectionError("render target source order is invalid")
-	return RenderTargetKey(kind.lower(), identifier, order)
+	if molecule_identifier is not None and (type(molecule_identifier) is not str or not molecule_identifier):
+		raise FerrumRenderProjectionError("molecule durable identity is invalid")
+	if kind == "Group" and (identifier is None or molecule_identifier is None):
+		raise FerrumRenderProjectionError("compact-group render target requires durable group and molecule identities")
+	target_kind = {"Atom": "atom", "Bond": "bond", "Group": "compact_group"}[kind]
+	return RenderTargetKey(target_kind, identifier, order, molecule_identifier)
 
 
 #============================================

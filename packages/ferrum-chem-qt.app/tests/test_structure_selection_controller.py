@@ -37,6 +37,11 @@ _TWO_MOLECULES = """<cdml xmlns="urn:ferrum:cdml"><molecule id='left'>
 <molecule id='right'><atom id='b' name='O'><point x='40' y='0'/></atom>
 </molecule></cdml>"""
 
+_COMPACT_GROUP = """<cdml xmlns="urn:ferrum:cdml"><molecule id='molecule'>
+<atom id='atom' name='C'><point x='0' y='0'/></atom>
+<compact-group id='group' version='1' catalog-key='methyl' attachment-index='0' orientation-degrees='45'><point x='36' y='18'/></compact-group>
+</molecule></cdml>"""
+
 
 #============================================
 @pytest.fixture
@@ -95,6 +100,32 @@ def test_structure_click_marquee_shift_delete_and_undo(qapp: PySide6.QtWidgets.Q
 		assert {target.identifier for target in window._structure_selection.targets} == {
 			"a", "b", "c", "ab", "bc",
 		}
+	finally:
+		window.close()
+		tab.dispose()
+		window.deleteLater()
+		qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+		qapp.processEvents()
+
+
+#============================================
+def test_compact_group_projection_and_canvas_target_preserve_rust_issued_addresses(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""One visible compact-group target retains its current group and molecule IDs."""
+	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_COMPACT_GROUP, "group.cdml")
+	window._register_native_tab(tab, activate=True)
+	window.show()
+	qapp.processEvents()
+	try:
+		molecule = tab.current_document_observation().projection.molecules[0]
+		group = molecule.compact_groups[0]
+		assert molecule.id == "molecule" and group.id == "group"
+		item = tab._controller.projection.durable_items[("compact_group", group.id)]
+		target = tab._controller.projection.item_targets[item]
+		assert target.kind == "compact_group"
+		assert target.identifier == group.id and target.molecule_identifier == molecule.id
+		assert item.shape().contains(item.shape().boundingRect().center())
 	finally:
 		window.close()
 		tab.dispose()

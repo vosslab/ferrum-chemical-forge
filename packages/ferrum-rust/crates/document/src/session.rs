@@ -42,6 +42,7 @@ mod bracket;
 mod catalog_molecule_placement;
 mod clipboard;
 mod clipboard_cut;
+mod compact_group_materialization;
 mod construction;
 mod direct_bond;
 mod direct_haworth;

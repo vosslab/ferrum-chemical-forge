@@ -592,18 +592,6 @@ def path_has_skip_dir(path: str) -> bool:
 
 
 #============================================
-def _load_repo_hygiene_conftest() -> object | None:
-	"""Load the repository's root test configuration without module-name shadowing."""
-	conftest_path = os.path.join(get_repo_root(), "tests", "conftest.py")
-	if not os.path.isfile(conftest_path):
-		return None
-	spec = importlib.util.spec_from_file_location("_repo_hygiene_conftest", conftest_path)
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
-	return module
-
-
-#============================================
 def _load_repo_hygiene_filters() -> dict:
 	"""
 	Load the repo-local hygiene-filter registry from conftest.
@@ -630,40 +618,18 @@ def _load_repo_hygiene_filters() -> dict:
 		dict: Mapping of key -> list of repo-relative POSIX glob patterns.
 			Keys are "all" plus vendored test keys. Empty when absent.
 	"""
-	module = _load_repo_hygiene_conftest()
-	if module is None:
+	# Anchor the load at the explicit repo-root conftest path, not a name.
+	conftest_path = os.path.join(get_repo_root(), "tests", "conftest.py")
+	# An absent conftest is normal for a repo with no repo-local exclusions.
+	if not os.path.isfile(conftest_path):
 		return {}
+	# Load by file path under a private module name so the load never touches
+	# or trusts sys.modules["conftest"]; do not insert it into sys.modules.
+	spec = importlib.util.spec_from_file_location("_repo_hygiene_conftest", conftest_path)
+	module = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(module)
 	registry = getattr(module, "REPO_HYGIENE_FILTERS", {})
 	return registry
-
-
-#============================================
-def load_repo_import_modules() -> set[str]:
-	"""Load explicit repo-local module registrations from the root test config."""
-	module = _load_repo_hygiene_conftest()
-	if module is None:
-		return set()
-	registry = getattr(module, "REPO_LOCAL_IMPORT_MODULES", {})
-	if not isinstance(registry, dict):
-		raise RuntimeError("REPO_LOCAL_IMPORT_MODULES must map module names to source paths")
-	module_names = set()
-	repo_root = get_repo_root()
-	for module_name, rel_path in registry.items():
-		if not isinstance(module_name, str) or not module_name.isidentifier():
-			raise RuntimeError("REPO_LOCAL_IMPORT_MODULES keys must be Python module names")
-		if not isinstance(rel_path, str) or os.path.isabs(rel_path):
-			raise RuntimeError("REPO_LOCAL_IMPORT_MODULES paths must be repo-relative strings")
-		candidate = os.path.normpath(os.path.join(repo_root, rel_path))
-		if os.path.commonpath((repo_root, candidate)) != repo_root:
-			raise RuntimeError("REPO_LOCAL_IMPORT_MODULES paths must remain inside the repo")
-		if not os.path.isfile(candidate):
-			raise RuntimeError(f"Registered local import source is missing: {rel_path}")
-		if os.path.splitext(os.path.basename(candidate))[0] != module_name:
-			raise RuntimeError(
-			"REPO_LOCAL_IMPORT_MODULES source basename must match its module name"
-		)
-		module_names.add(module_name)
-	return module_names
 
 
 

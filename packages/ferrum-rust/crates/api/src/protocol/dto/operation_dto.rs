@@ -137,6 +137,9 @@ pub enum OperationProtocolOperationV1 {
     /// Materialize one selected direct root's neutral hydrogen topology.
     #[serde(rename = "document.molecule.hydrogen.materialize.v1")]
     DocumentMoleculeHydrogenMaterialize(DocumentMoleculeHydrogenMaterializationRequestV1),
+    /// Materialize one attached compact group through the generic session transition.
+    #[serde(rename = "document.compact-group.materialize.v1")]
+    DocumentCompactGroupMaterialize(DocumentCompactGroupMaterializationRequestV1),
     /// Import one explicitly selected interchange format into a new request-owned document.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport(DocumentMoleculeInterchangeImportRequestV1),
@@ -326,6 +329,11 @@ pub enum OperationProtocolOutcomeV1 {
     DocumentMoleculeHydrogenMaterialize {
         materialization: DocumentMoleculeHydrogenMaterializationResultV1,
     },
+    /// One committed renderer-admitted compact-group replacement.
+    #[serde(rename = "document.compact-group.materialize.v1")]
+    DocumentCompactGroupMaterialize {
+        materialization: DocumentCompactGroupMaterializationResultV1,
+    },
     /// Bounded interchange import summary without a document artifact or identifiers.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport {
@@ -413,6 +421,9 @@ impl OperationProtocolOperationV1 {
             }
             Self::DocumentMoleculeHydrogenMaterialize(_) => {
                 ProtocolOperationKindV1::DocumentMoleculeHydrogenMaterialize
+            }
+            Self::DocumentCompactGroupMaterialize(_) => {
+                ProtocolOperationKindV1::DocumentCompactGroupMaterialize
             }
             Self::DocumentMoleculeInterchangeImport(_) => {
                 ProtocolOperationKindV1::DocumentMoleculeInterchangeImport

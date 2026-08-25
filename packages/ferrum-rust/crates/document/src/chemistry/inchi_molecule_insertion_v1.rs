@@ -1,16 +1,12 @@
-//! Rust-owned InChI parsing and conversion into one document insertion.
+//! Rust-owned InChI parsing and detached document preparation.
 
-use crate::MoleculeInsertionV1;
-use ferrum_chemistry::{
-    ChemEngine, ChemistryError, KekulizeOptions, KekulizeOptionsError, validate_inchi_input,
-};
+use ferrum_chemistry::{ChemEngine, ChemistryError, validate_inchi_input};
 use ferrum_geometry::MoleculePlacementV1;
 use thiserror::Error;
 
-use super::complete_graph_molecule_insertion_v1::{
-    CompleteGraphMoleculeInsertionError,
-    build_complete_graph_molecule_insertion_from_validated_facts_v1,
-    validate_supported_inchi_complete_graph_facts_v1,
+use super::{
+    DocumentMoleculePreparationErrorV2, PreparedDocumentMoleculeV2,
+    prepare_complete_graph_for_document_v2,
 };
 
 /// Parse, normalize, place, and validate one InChI molecule off-session.
@@ -18,42 +14,23 @@ use super::complete_graph_molecule_insertion_v1::{
 /// The chemistry engine remains the sole InChI parser. The returned value is
 /// handle-free and cannot mutate a document until a session prepares and commits it
 /// against an exact current revision.
-pub fn build_inchi_molecule_insertion_v1<E: ChemEngine>(
+pub fn prepare_inchi_molecule_for_document_v2<E: ChemEngine>(
     engine: &E,
     inchi: &str,
     placement: MoleculePlacementV1,
-) -> Result<MoleculeInsertionV1, InchiMoleculeBuildError> {
+) -> Result<PreparedDocumentMoleculeV2, InchiMoleculePreparationErrorV2> {
     validate_inchi_input(inchi)?;
     let parsed = engine.inchi_to_molecule(inchi)?;
-    let mut graph = parsed.molecule().clone();
-    validate_supported_inchi_complete_graph_facts_v1(&graph)?;
-    if graph
-        .atoms()
-        .iter()
-        .any(ferrum_chemistry::MolAtom::is_aromatic)
-        || graph
-            .bonds()
-            .iter()
-            .any(ferrum_chemistry::MolBond::is_aromatic)
-    {
-        let options = KekulizeOptions::new(true, true, 100)?;
-        graph = engine.kekulize(&graph, options)?;
-    }
-    validate_supported_inchi_complete_graph_facts_v1(&graph)?;
-    build_complete_graph_molecule_insertion_from_validated_facts_v1(&graph, placement)
-        .map_err(Into::into)
+    prepare_complete_graph_for_document_v2(engine, parsed.molecule(), placement).map_err(Into::into)
 }
 
 /// Failure while converting one untrusted InChI into persistable molecule facts.
 #[derive(Debug, Error)]
-pub enum InchiMoleculeBuildError {
+pub enum InchiMoleculePreparationErrorV2 {
     /// Input validation, parsing, or native chemistry failed.
     #[error(transparent)]
     Chemistry(#[from] ChemistryError),
-    /// The closed Kekule request could not be formed.
+    /// The complete graph cannot be represented by the durable document grammar.
     #[error(transparent)]
-    KekulizeOptions(#[from] KekulizeOptionsError),
-    /// The complete graph cannot be represented by the current CDML insertion grammar.
-    #[error(transparent)]
-    CompleteGraph(#[from] CompleteGraphMoleculeInsertionError),
+    Preparation(#[from] DocumentMoleculePreparationErrorV2),
 }

@@ -1,6 +1,11 @@
 //! Session-provenance wrapper around the renderer's immutable resolved value.
 
-use crate::{DocumentSession, DocumentSessionError, SessionDocumentObservationV1};
+use crate::{
+    DocumentDoubleBondCarrierMarkV1, DocumentProjectionV1, DocumentProjectionV1Error,
+    DocumentSession, DocumentSessionError, DoubleBondCarrierMarkProjectionV1,
+    DoubleBondCarrierMarkProjectionV1Error, DoubleBondCarrierMarkV1, SessionDocumentObservationV1,
+    TypedDocumentError,
+};
 use ferrum_render::{
     DepictionProfileV1, ResolvedDocumentRenderErrorV1, ResolvedDocumentRenderV1,
     ResolvedDocumentRenderWireV1, resolve_document_render_v1,
@@ -27,7 +32,8 @@ impl DocumentRenderObservationV1 {
         {
             return Err(DocumentRenderObservationErrorV1::ProvenanceMismatch);
         }
-        let resolved = resolve_document_render_v1(document.projection().clone(), profile)?;
+        let projection = projection_with_stereo_depictions(&document)?;
+        let resolved = resolve_document_render_v1(projection, profile)?;
         if resolved.projection().revision() != document.snapshot().revision()
             || resolved.projection().digest() != document.snapshot().digest()
         {
@@ -53,6 +59,44 @@ impl DocumentRenderObservationV1 {
     pub fn wire(&self) -> ResolvedDocumentRenderWireV1 {
         self.resolved.wire()
     }
+}
+
+fn projection_with_stereo_depictions(
+    document: &SessionDocumentObservationV1,
+) -> Result<DocumentProjectionV1, DocumentRenderObservationErrorV1> {
+    let mut projection = document.projection().clone();
+    let molecule_ids = projection
+        .molecules()
+        .iter()
+        .filter_map(|molecule| molecule.id().cloned())
+        .collect::<Vec<_>>();
+    for molecule_id in molecule_ids {
+        let Some(depictions) = document.molecule_stereo_depictions_v1(&molecule_id)? else {
+            continue;
+        };
+        let molecule = projection
+            .molecules()
+            .iter()
+            .find(|molecule| molecule.id() == Some(&molecule_id))
+            .expect("projection molecule identity remains stable while attaching its depictions");
+        let marks = depictions
+            .double_bond_carrier_marks()
+            .iter()
+            .map(|mark| {
+                DoubleBondCarrierMarkProjectionV1::from_bond_indexes(
+                    molecule.bonds(),
+                    mark.double_bond_index(),
+                    mark.carrier_bond_index(),
+                    match mark.mark() {
+                        DocumentDoubleBondCarrierMarkV1::Up => DoubleBondCarrierMarkV1::Up,
+                        DocumentDoubleBondCarrierMarkV1::Down => DoubleBondCarrierMarkV1::Down,
+                    },
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        projection = projection.with_molecule_double_bond_carrier_marks(&molecule_id, marks)?;
+    }
+    Ok(projection)
 }
 
 /// Derive a session-authenticated render observation from an accepted operation.
@@ -93,6 +137,15 @@ pub enum DocumentRenderObservationErrorV1 {
     /// The immutable renderer resolver refused the exact document projection.
     #[error(transparent)]
     Render(#[from] ResolvedDocumentRenderErrorV1),
+    /// Typed document stereo depiction observation failed.
+    #[error(transparent)]
+    StereoDepiction(#[from] TypedDocumentError),
+    /// A persisted stereo depiction could not resolve to the exact projection graph.
+    #[error(transparent)]
+    StereoProjection(#[from] DoubleBondCarrierMarkProjectionV1Error),
+    /// The exact projection had no molecule to receive a typed stereo depiction.
+    #[error(transparent)]
+    Projection(#[from] DocumentProjectionV1Error),
     /// Snapshot, projection, and resolved result did not share exact provenance.
     #[error("document render observation provenance did not match")]
     ProvenanceMismatch,

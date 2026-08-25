@@ -176,6 +176,7 @@ pub(in crate::session) enum SessionOperationOutcomeStagingV1 {
     AtomCreatedV1(PersistentId),
     BondCreatedV1(PersistentId),
     MoleculeHydrogensMaterializedV1(crate::DocumentMoleculeHydrogenMaterializationResultV1),
+    CompactGroupMaterializedV1(crate::DocumentCompactGroupMaterializationResultV1),
     MoleculeInsertedV1 {
         molecule_identifier: PersistentId,
         atom_identifiers: Vec<PersistentId>,

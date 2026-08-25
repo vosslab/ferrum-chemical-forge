@@ -25,6 +25,19 @@ class FerrumSelectedMoleculeAtomAddress:
 
 
 #============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumSelectedMoleculeCompactGroupAddress:
+	"""Public selected compact-group address and installed document fence."""
+
+	document: str
+	revision: int
+	digest: str
+	molecule_id: str
+	compact_group_id: str
+	document_root_order: int
+
+
+#============================================
 class FerrumNativeDocumentSelectionMixin:
 	"""Selection-backed document actions owned by the host tab session."""
 
@@ -384,5 +397,57 @@ class FerrumNativeDocumentSelectionMixin:
 			snapshot.digest,
 			molecule.id,
 			atom.id,
+			document_root_order,
+		)
+
+	#============================================
+	def selected_molecule_compact_group_address(self) -> FerrumSelectedMoleculeCompactGroupAddress:
+		"""Resolve one selected compact group through the Rust projection."""
+		self._require_mutable()
+		selected = self._require_projection().selected_durable_targets()
+		if (
+			len(selected) != 1
+			or selected[0].kind != "compact_group"
+			or type(selected[0].identifier) is not str
+			or not selected[0].identifier
+			or type(selected[0].molecule_identifier) is not str
+			or not selected[0].molecule_identifier
+			or type(selected[0].source_order) is not int
+		):
+			raise FerrumNativeDocumentTabError(
+				"select exactly one current compact group for materialization",
+			)
+		target = selected[0]
+		observation = self.current_document_observation()
+		matches = []
+		for document_root_order, molecule in enumerate(observation.projection.molecules):
+			for group in molecule.compact_groups:
+				if (
+					molecule.id == target.molecule_identifier
+					and group.id == target.identifier
+					and group.source_order == target.source_order
+				):
+					matches.append((document_root_order, molecule, group))
+		if len(matches) != 1:
+			raise FerrumNativeDocumentTabError(
+				"selected compact group does not map to one current durable document projection",
+			)
+		document_root_order, molecule, group = matches[0]
+		if (
+			type(molecule.id) is not str
+			or not molecule.id
+			or type(group.id) is not str
+			or not group.id
+		):
+			raise FerrumNativeDocumentTabError(
+				"selected compact group projection lacks durable document object identifiers",
+			)
+		snapshot = self.current_snapshot
+		return FerrumSelectedMoleculeCompactGroupAddress(
+			snapshot.cdml,
+			snapshot.revision,
+			snapshot.digest,
+			target.molecule_identifier,
+			target.identifier,
 			document_root_order,
 		)

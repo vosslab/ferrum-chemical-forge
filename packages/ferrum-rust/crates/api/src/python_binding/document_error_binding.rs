@@ -318,6 +318,8 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::InvalidCatalogPlacement(_)
         | SessionOperationError::DirectBond(_)
         | SessionOperationError::Reaction(_)
+        | SessionOperationError::CompactGroupMaterialization(_)
+        | SessionOperationError::CompactGroupMaterializationRequiresTransitionCore
         | SessionOperationError::HydrogenMaterialization(_)
         | SessionOperationError::HydrogenMaterializationRequiresTransitionCore
         | SessionOperationError::MoleculeInsertionRequiresTransitionCore

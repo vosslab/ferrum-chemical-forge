@@ -125,8 +125,9 @@ cyclohexane. The renderer supplies `DocumentPrecommitOverlayV1` only as an
 identifier-free paint value for the relevant UI previews. Route-specific
 prepared receipts and migration-history fixture/catalog checks are retired;
 wavy and bracket bindings keep their supported semantics. This records an
-implementation checkpoint only. M0 remains open until fresh aggregate evidence
-confirms its exit criteria.
+implemented M0 authority boundary. The authoritative
+[m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
+records M0 closure on 2026-08-24 with fresh aggregate exit evidence.
 
 ### M1: P0 direct structure editor
 
@@ -378,6 +379,11 @@ fragile; it is neither skipped evidence nor a remaining required E2E lane.
 
 ### M4: P1 chemistry operation catalog
 
+The compact-materialization portion of M4 is governed by the selected
+[m4_compact_group_materialization_v1.md](../decisions/m4_compact_group_materialization_v1.md).
+Its generic protocol and named CLI route are complete; only compact PyO3
+live-session registration and the Qt action remain deferred.
+
 **Depends on:** M2.  **Parallel-plan ready:** yes; report and query lanes share
 DTO conventions only.
 
@@ -559,11 +565,12 @@ contract. Each candidate remains supported only after it has a typed refusal
 and recovery contract, a durable workflow proof, and an explicit statement of
 its limits.
 
-No public compact-group route is selected in M0. Compact-group materialization
-remains document-private cleanup; M1 is the earliest authorized public surface.
-When M1 is selected, its design must use the generic lifecycle and provide its
-own semantic, CLI, and workflow evidence. This does not advance M5 catalog or
-reaction work.
+The M0 statement about document-private compact cleanup is superseded for
+materialization by the selected
+[m4_compact_group_materialization_v1.md](../decisions/m4_compact_group_materialization_v1.md):
+the generic protocol and named CLI route are delivered. This does not advance
+M5 catalog or reaction work, and it does not claim compact PyO3 live-session
+registration or a Qt action.
 
 The subsequent confirmed queue remains M2 interchange/graph completion, M5
 catalogs and reactions, and M6 usable-application work. The completed catalog

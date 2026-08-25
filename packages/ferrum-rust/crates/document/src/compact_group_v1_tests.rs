@@ -103,6 +103,19 @@ fn compact_group_is_a_durable_core_group_endpoint_and_reopens_without_translatio
 }
 
 #[test]
+fn compact_group_bond_without_stereo_reports_loads_at_document_boundary() {
+    let source = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"root\">",
+        "<atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "<compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group>",
+        "<bond id=\"attachment\" start=\"anchor\" end=\"group\" type=\"n1\"/>",
+        "</molecule></cdml>",
+    );
+
+    assert!(DocumentSession::load(source).is_ok());
+}
+
+#[test]
 fn compact_group_core_bridge_refuses_missing_or_unresolved_endpoint_facts() {
     let missing_id = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"root\">",
@@ -193,7 +206,7 @@ fn invalid_compact_group_forms_refuse_at_the_typed_projection_boundary() {
 }
 
 #[test]
-fn legacy_group_records_remain_structurally_retained_without_compact_group_classification() {
+fn legacy_group_records_are_rejected_at_typed_document_admission() {
     let source = SOURCE.replace(
         concat!(
             "<compact-group id=\"group\" version=\"1\" catalog-key=\"methyl\" ",
@@ -206,19 +219,14 @@ fn legacy_group_records_remain_structurally_retained_without_compact_group_class
             "<molecule id=\"molecule\">",
             "<molecule id=\"molecule\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         );
-    let document = TypedDocument::parse(&source).expect("legacy group stays structurally valid");
-    assert_eq!(document.to_xml().expect("legacy group serializes"), source);
-    assert!(
-        projected(&source)
-            .expect("legacy group is not translated")
-            .molecules()[0]
-            .compact_groups()
-            .is_empty()
-    );
+    assert!(matches!(
+        TypedDocument::parse(&source),
+        Err(TypedDocumentError::UnsupportedLegacyGroup)
+    ));
 }
 
 #[test]
-fn legacy_generic_group_endpoint_is_excluded_from_the_core_graph() {
+fn legacy_generic_group_endpoint_is_rejected_at_typed_document_admission() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"root\">",
         "<atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
@@ -227,10 +235,7 @@ fn legacy_generic_group_endpoint_is_excluded_from_the_core_graph() {
         "</molecule></cdml>",
     );
     assert!(matches!(
-        TypedDocument::parse(source)
-            .expect("legacy group remains structurally typed")
-            .core_projection(),
-        Err(CoreProjectionError::UnknownVertex { field: "end", identifier, .. })
-            if identifier == "legacy"
+        TypedDocument::parse(source),
+        Err(TypedDocumentError::UnsupportedLegacyGroup)
     ));
 }

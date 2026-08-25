@@ -1,5 +1,8 @@
 use super::*;
-use crate::{DocumentMoleculeHydrogenMaterializationResultV1, DocumentObjectIdV1};
+use crate::{
+    DocumentCompactGroupMaterializationResultV1, DocumentMoleculeHydrogenMaterializationResultV1,
+    DocumentObjectIdV1,
+};
 
 /// Immutable result of one accepted session mutation or history transition.
 ///
@@ -50,6 +53,8 @@ pub enum SessionOperationOutcomeV1 {
     BondCreatedV1(BondCreatedOutcomeV1),
     /// Explicit-hydrogen facts produced by a successful materialization operation.
     MoleculeHydrogensMaterializedV1(DocumentMoleculeHydrogenMaterializationResultV1),
+    /// Typed compact-group facts produced by a successful materialization operation.
+    CompactGroupMaterializedV1(DocumentCompactGroupMaterializationResultV1),
     /// Identity facts produced by a successful complete molecule insertion.
     MoleculeInsertedV1(MoleculeInsertedOutcomeV1),
     /// Source-ordered identity facts produced by a successful interchange batch insertion.

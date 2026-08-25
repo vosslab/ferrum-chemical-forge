@@ -42,8 +42,9 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::reaction_binding::initialize(module)?;
     super::direct_root_interaction_binding::initialize(module)?;
     super::live_document_smarts_query_v1::initialize(module)?;
+    super::molecule_insertion_binding::initialize(module)?;
     super::smiles_insertion_binding::initialize(module)?;
-    super::peptide_template_insertion_binding::initialize(module)?;
+    super::peptide_insertion_binding::initialize(module)?;
     super::inchi_insertion_binding::initialize(module)?;
     super::molblock_insertion_binding::initialize(module)?;
     super::interchange_insertion_binding::initialize(module)?;

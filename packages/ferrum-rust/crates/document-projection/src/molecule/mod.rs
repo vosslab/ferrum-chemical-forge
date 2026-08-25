@@ -4,6 +4,7 @@ mod atom;
 mod bond;
 mod compact_group;
 mod mark;
+mod stereo_depiction;
 
 pub use atom::AtomProjectionV1;
 pub use bond::{
@@ -15,3 +16,7 @@ pub use compact_group::{
     CompactGroupV1Error,
 };
 pub use mark::{AtomMarkKindV1, AtomMarkProjectionV1};
+pub use stereo_depiction::{
+    DoubleBondCarrierMarkProjectionV1, DoubleBondCarrierMarkProjectionV1Error,
+    DoubleBondCarrierMarkV1,
+};

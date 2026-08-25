@@ -3,7 +3,8 @@
 use ferrum_core::{BondOrder, BondStyle};
 use ferrum_document::{
     AtomMarkKindV1, AtomMarkProjectionV1, AtomProjectionV1, BondEndpointV1, BondProjectionV1,
-    BoxShapeProjectionV1, DocumentHaworthPositionV1, DocumentProjectionV1, FontFactsV1,
+    BoxShapeProjectionV1, CompactGroupProjectionV1, DocumentHaworthPositionV1,
+    DocumentProjectionV1, FontFactsV1,
     MoleculeProjectionV1, PlusProjectionV1, PolygonPathV1, PolygonProjectionV1, PolylinePathV1,
     PolylineProjectionV1, PresentationBoundsV1, PresentationFactProvenanceV1, PresentationFillV1,
     PresentationFontV1, PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1,
@@ -311,6 +312,45 @@ fn py_bond_style(value: &BondStyle) -> Option<PyDocumentBondStyleV1> {
     }
 }
 
+/// Frozen typed compact-group facts copied from one molecule projection.
+#[pyclass(frozen, name = "CompactGroupProjectionV1", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyCompactGroupProjectionV1 {
+    #[pyo3(get)]
+    pub(crate) id: String,
+    #[pyo3(get)]
+    pub(crate) catalog_key: String,
+    #[pyo3(get)]
+    pub(crate) label: String,
+    #[pyo3(get)]
+    pub(crate) anchor: PyPoint3V1,
+    #[pyo3(get)]
+    pub(crate) attachment_index: u8,
+    #[pyo3(get)]
+    pub(crate) orientation_degrees: f64,
+    #[pyo3(get)]
+    pub(crate) source_order: u32,
+}
+
+impl From<&CompactGroupProjectionV1> for PyCompactGroupProjectionV1 {
+    fn from(value: &CompactGroupProjectionV1) -> Self {
+        let anchor = value.anchor();
+        Self {
+            id: value.id().as_str().to_owned(),
+            catalog_key: value.catalog_key().as_str().to_owned(),
+            label: value.label().to_owned(),
+            anchor: PyPoint3V1 {
+                x: anchor.x(),
+                y: anchor.y(),
+                z: anchor.z(),
+            },
+            attachment_index: value.attachment_index(),
+            orientation_degrees: value.orientation_degrees(),
+            source_order: value.source_order(),
+        }
+    }
+}
+
 #[pyclass(frozen, name = "MoleculeProjectionV1", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyMoleculeProjectionV1 {
@@ -327,6 +367,8 @@ pub(crate) struct PyMoleculeProjectionV1 {
     #[pyo3(get)]
     pub(crate) atoms: Vec<PyAtomProjectionV1>,
     #[pyo3(get)]
+    pub(crate) compact_groups: Vec<PyCompactGroupProjectionV1>,
+    #[pyo3(get)]
     pub(crate) bonds: Vec<PyBondProjectionV1>,
 }
 
@@ -339,6 +381,7 @@ impl From<&MoleculeProjectionV1> for PyMoleculeProjectionV1 {
             source_order: value.source_order(),
             name: value.name().map(str::to_owned),
             atoms: value.atoms().iter().map(Into::into).collect(),
+            compact_groups: value.compact_groups().iter().map(Into::into).collect(),
             bonds: value.bonds().iter().map(Into::into).collect(),
         }
     }

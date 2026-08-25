@@ -58,6 +58,58 @@ pub struct DocumentMoleculeHydrogenMaterializationRequestV1 {
     pub anchor_atom_id: String,
 }
 
+/// Stateless request to materialize one attached compact group from a fenced snapshot.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentCompactGroupMaterializationRequestV1 {
+    pub document: DocumentSnapshotRequestV1,
+    pub molecule_id: String,
+    pub compact_group_id: String,
+}
+
+/// Committed compact-group replacement facts. Preparation state remains session-private.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentCompactGroupMaterializationResultV1 {
+    pub schema: String,
+    pub source_revision: u64,
+    pub source_digest_hex: String,
+    pub molecule_id: String,
+    pub compact_group_id: String,
+    pub replacement_focus_atom_id: String,
+    pub document: String,
+    pub document_fence: DocumentRequestFenceV1,
+}
+
+/// Closed public recovery facts for compact-group materialization refusals.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompactGroupMaterializationRefusalV1 {
+    pub category: ProtocolCompactGroupMaterializationCategoryV1,
+    pub recovery: ProtocolCompactGroupMaterializationRecoveryV1,
+}
+
+/// Stable compact-group refusal categories. No candidate or source CDML is exposed.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolCompactGroupMaterializationCategoryV1 {
+    StaleDocumentFence,
+    UnknownOrForeignTarget,
+    IneligibleTarget,
+    RendererPreparationRefusal,
+    SessionConflictOrReplayedPreparation,
+}
+
+/// Stable client recovery instructions for compact-group materialization.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolCompactGroupMaterializationRecoveryV1 {
+    RefreshAndRetry,
+    CorrectTarget,
+    ChooseEligibleTarget,
+    DocumentUnchanged,
+}
+
 /// Public SMARTS query facts. Match membership remains private to the live bridge.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

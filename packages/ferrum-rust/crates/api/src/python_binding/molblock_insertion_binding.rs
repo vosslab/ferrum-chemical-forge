@@ -6,14 +6,14 @@ use ferrum_chemistry::{
     ChemistryError as RustChemistryError, NativeChemEngine, validate_molblock_input,
 };
 use ferrum_document::{
-    MolblockMoleculeBuildError, build_molblock_molecule_insertion_v1, read_molblock_file_v1,
+    MolblockMoleculeBuildError, prepare_molblock_molecule_for_document_v2, read_molblock_file_v1,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString};
 
 use super::geometry_binding::PyInsertionPlacementV1;
-use super::smiles_insertion_binding::PyMoleculeInsertionV1;
+use super::molecule_insertion_binding::PyMoleculeInsertionV1;
 
 const OPERATION: &str = "prepare_molblock_molecule_v1";
 
@@ -71,11 +71,13 @@ fn prepare_source(
     let result = py.detach(move || {
         let engine =
             NativeChemEngine::load(&worker_path).map_err(NativePreparationFailure::Load)?;
-        build_molblock_molecule_insertion_v1(&engine, &source, placement)
+        prepare_molblock_molecule_for_document_v2(&engine, &source, placement)
             .map_err(NativePreparationFailure::Build)
     });
     match result {
-        Ok(insertion) => Ok(PyMoleculeInsertionV1::new(insertion)),
+        Ok(prepared) => PyMoleculeInsertionV1::from_prepared(prepared).map_err(|error| {
+            super::smiles_insertion_binding::MoleculeInsertionError::new_err(error.to_string())
+        }),
         Err(NativePreparationFailure::Load(error)) => Err(
             super::chemistry_binding::map_load_error(py, OPERATION, &library_path, error)?,
         ),

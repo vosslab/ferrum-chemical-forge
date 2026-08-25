@@ -56,7 +56,16 @@ def main() -> None:
 			envelope = json.loads(result.stdout)
 		except json.JSONDecodeError as error:
 			raise CmlOpenE2eError("CML open did not emit one JSON response") from error
-		if envelope.get("status") != "success" or "<cdml" in result.stdout:
+		if (
+			envelope.get("schema") != "ferrum-operation-response-v1"
+			or envelope.get("request_id") != "ferrum-cli"
+			or envelope.get("outcome", {}).get("kind") != "document.molecule.interchange.import.v1"
+			or envelope.get("outcome", {}).get("summary", {}).get("format_id")
+			!= "cml_simple_molecule_import_v1"
+			or "<cdml" in result.stdout
+			or CML in result.stdout
+			or "source_molecule_id" in result.stdout
+		):
 			raise CmlOpenE2eError("CML open did not keep the document out of its JSON response")
 		if not destination.read_text(encoding="utf-8").startswith("<cdml"):
 			raise CmlOpenE2eError("CML open did not publish the new CDML document")
@@ -66,7 +75,7 @@ def main() -> None:
 			"request_id": "cml-open-e2e",
 			"operation": {
 				"kind": "document.molecule.interchange.import.v1",
-				"format_alias": "cml", "cml_utf8": CML,
+				"format_alias": "cml", "source_utf8": CML,
 			},
 		}), encoding="utf-8")
 		protocol = subprocess.run(
@@ -102,9 +111,13 @@ def main() -> None:
 		except json.JSONDecodeError as error:
 			raise CmlOpenE2eError("typed refusal did not emit one JSON envelope") from error
 		if (
-			refused.returncode == 0
-			or not refused.stderr.strip()
-			or refusal_envelope.get("status") != "refused"
+			refused.returncode != 0
+			or refused.stderr
+			or refusal_envelope.get("schema") != "ferrum-operation-error-v1"
+			or refusal_envelope.get("request_id") != "ferrum-cli"
+			or refusal_envelope.get("error", {}).get("operation")
+			!= "document.molecule.interchange.import.v1"
+			or refusal_envelope.get("error", {}).get("category") != "conversion_failed"
 			or "<cdml" in refused.stdout
 			or "<cdml" in refused.stderr
 			or invalid_cml in refused.stdout
@@ -112,13 +125,13 @@ def main() -> None:
 			or invalid_source.name in refused.stderr
 			or refused_output.exists()
 		):
-			raise CmlOpenE2eError("typed refusal leaked output or did not preserve output absence")
+			raise CmlOpenE2eError("JSON CML refusal did not preserve the canonical contract")
 		protocol_request.write_text(json.dumps({
 			"schema": "ferrum-operation-request-v1",
 			"request_id": "cml-open-refusal-e2e",
 			"operation": {
 				"kind": "document.molecule.interchange.import.v1",
-				"format_alias": "cml", "cml_utf8": "not XML",
+				"format_alias": "cml", "source_utf8": "not XML",
 			},
 		}), encoding="utf-8")
 		protocol_refusal = subprocess.run(

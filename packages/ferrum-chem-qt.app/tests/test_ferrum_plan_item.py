@@ -357,6 +357,23 @@ def test_canonical_scene_line_paints_explicit_rgb24_and_is_immovable(
 	item.paint(painter, PySide6.QtWidgets.QStyleOptionGraphicsItem())
 	painter.end()
 	assert image.pixelColor(20, 7) == PySide6.QtGui.QColor("#aa3300")
+
+
+#============================================
+def test_double_bond_carrier_mark_uses_the_received_thin_line_geometry(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A carrier-mark operation uses Rust-supplied geometry without deriving stereo facts."""
+	observation, unused_atom_batch, line_batch = _observation_and_batches()
+	carrier = OperationV2("double_bond_carrier_mark", LinePayloadV1(
+		PointV1(12.0, 4.0), PointV1(24.0, 4.0), 1.0, "aa3300", 11,
+	))
+	plan = dataclasses.replace(
+		observation.molecule_plans[0].plan,
+		batches=(dataclasses.replace(line_batch, operations=(carrier,)),),
+	)
+	item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture(plan, 0, _telex())
+	assert item.shape().contains(PySide6.QtCore.QPointF(18.0, 4.0))
+	assert item.boundingRect().contains(PySide6.QtCore.QPointF(18.0, 4.0))
 	item.setSelected(True)
 	assert item.isSelected()
 

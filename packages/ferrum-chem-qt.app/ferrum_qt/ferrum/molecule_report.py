@@ -15,6 +15,7 @@ from ferrum_qt.ferrum.background_job import FerrumDetachedJobThread
 # local repo modules
 import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.ferrum.molecule_inspection
+import ferrum_qt.ferrum.molecule_report_stereo_contract
 
 
 _FINDING_SEVERITIES = {"info", "warning", "error"}
@@ -158,6 +159,9 @@ def _record_text(record: dict) -> str:
 		"Authored elements: {0}".format(elements),
 		"Complete authored formal charge: {0}".format(charge_text),
 	]
+	lines.extend(ferrum_qt.ferrum.molecule_report_stereo_contract.display_lines(
+		record["stereo_semantics"], record["stereo_depiction"],
+	))
 	composition = record["composition"]
 	if composition is None:
 		lines.append("Composition: unavailable (see diagnostics)")
@@ -241,18 +245,6 @@ def _finding_text(finding: dict) -> str:
 	if finding["detail"] is not None:
 		lines.append("Detail: {0}".format(finding["detail"]))
 	text = "\n".join(lines)
-	return text
-
-
-#============================================
-def _finding_summary_text(finding: dict) -> str:
-	"""Provide a compact tree label for one already-validated Rust finding."""
-	text = "{0}: {1} - {2}; {3}".format(
-		finding["severity"],
-		finding["code"],
-		_finding_location_text(finding["location"]),
-		finding["recovery"],
-	)
 	return text
 
 
@@ -373,12 +365,12 @@ def _valid_record(record: object, address: object) -> bool:
 		type(record) is not dict
 		or not {
 			"molecule_id", "source_id", "document_root_order", "atom_count", "bond_count",
-			"authored_elements", "neutral_bond_capacity", "findings",
+			"authored_elements", "neutral_bond_capacity", "stereo_semantics", "stereo_depiction", "findings",
 		} <= set(record)
 		or not set(record) <= {
 			"molecule_id", "source_id", "document_root_order", "authored_name", "atom_count",
 			"bond_count", "authored_charge", "authored_elements", "composition",
-			"neutral_bond_capacity", "findings",
+			"neutral_bond_capacity", "stereo_semantics", "stereo_depiction", "findings",
 		}
 	):
 		return False
@@ -396,6 +388,16 @@ def _valid_record(record: object, address: object) -> bool:
 		and type(record["authored_elements"]) is list
 		and all(_valid_element_count(element) for element in record["authored_elements"])
 		and (record["composition"] is None or _valid_composition(record["composition"]))
+		and (record["stereo_semantics"] is None or (
+			ferrum_qt.ferrum.molecule_report_stereo_contract.valid_stereo_semantics(
+				record["stereo_semantics"],
+			)
+		))
+		and (record["stereo_depiction"] is None or (
+			ferrum_qt.ferrum.molecule_report_stereo_contract.valid_stereo_depiction(
+				record["stereo_depiction"],
+			)
+		))
 		and record["neutral_bond_capacity"] in _NEUTRAL_BOND_CAPACITY
 		and type(record["findings"]) is list
 		and all(_valid_finding(finding) for finding in record["findings"])

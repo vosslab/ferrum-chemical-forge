@@ -46,12 +46,14 @@ impl DocumentProjectionProvenanceV1 {
 }
 
 /// Failure while composing immutable values from one snapshot.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum DocumentProjectionV1Error {
     #[error("presentation stack revision differs from document projection provenance")]
     PresentationRevisionMismatch,
     #[error("presentation stack digest differs from document projection provenance")]
     PresentationDigestMismatch,
+    #[error("stereo depiction names a molecule outside this projection: {molecule_id}")]
+    StereoDepictionMoleculeMissing { molecule_id: String },
 }
 
 /// Immutable V1 projection from one authoritative document snapshot.
@@ -136,6 +138,25 @@ impl DocumentProjectionV1 {
     #[must_use]
     pub fn issues(&self) -> &[ProjectionIssueV1] {
         &self.issues
+    }
+
+    /// Attach resolved E/Z drawing facts to one existing molecule projection.
+    pub fn with_molecule_double_bond_carrier_marks(
+        mut self,
+        molecule_id: &crate::DocumentObjectIdV1,
+        marks: Vec<crate::DoubleBondCarrierMarkProjectionV1>,
+    ) -> Result<Self, DocumentProjectionV1Error> {
+        let Some(molecule) = self
+            .molecules
+            .iter_mut()
+            .find(|molecule| molecule.id() == Some(molecule_id))
+        else {
+            return Err(DocumentProjectionV1Error::StereoDepictionMoleculeMissing {
+                molecule_id: molecule_id.as_str().to_owned(),
+            });
+        };
+        *molecule = molecule.clone().with_double_bond_carrier_marks(marks);
+        Ok(self)
     }
 }
 

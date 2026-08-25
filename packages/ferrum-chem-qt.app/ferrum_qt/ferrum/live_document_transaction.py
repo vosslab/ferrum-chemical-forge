@@ -341,9 +341,14 @@ class FerrumLiveDocumentTransactionMixin:
 			operation: collections.abc.Callable[..., object],
 			*args: object, **kwargs: object) -> object:
 		"""Fence a Rust mutation before invoking its bound session method."""
+		self._retire_live_document_mutation_v1()
+		return operation(*args, **kwargs)
+
+	#============================================
+	def _retire_live_document_mutation_v1(self) -> None:
+		"""Fence transient state before one detached live-session mutation."""
 		self._require_live_smarts_retirement_v1("document_mutation")
 		self._notify_live_smarts_invalidation_v1()
-		return operation(*args, **kwargs)
 
 	#============================================
 	def _retire_then_reproject_document_v1(self,

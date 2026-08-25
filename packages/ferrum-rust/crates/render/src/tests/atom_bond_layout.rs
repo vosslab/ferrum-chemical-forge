@@ -204,6 +204,151 @@ fn atom_bond_request_emits_structured_labels_and_metric_clipped_single_bonds() {
 }
 
 #[test]
+fn ez_carrier_mark_emits_a_distinct_provenance_bearing_render_operation() {
+    let first = atom_target("carrier-start", 1, 0.0, 0.0);
+    let second = atom_target("carrier-end", 3, 40.0, 0.0);
+    let central = target(RecordKind::Bond, "central-double", 2)
+        .record_id()
+        .clone();
+    let carrier_target = target(RecordKind::Bond, "carrier-single", 4);
+    let carrier = BondRenderTarget::new(
+        carrier_target.clone(),
+        first.target().record_id().clone(),
+        second.target().record_id().clone(),
+        BondStyle::NormalSingle,
+        TargetVisibility::Visible,
+    )
+    .expect("carrier target")
+    .with_double_bond_carrier_mark(DoubleBondCarrierMarkDirectionV1::Up, true, central.clone())
+    .expect("ordinary single bond accepts its explicit E/Z mark");
+    let request = AtomBondRenderRequest::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [7; 32]),
+        vec![first, second],
+        vec![carrier],
+        atom_bond_font(),
+        size(1.0),
+        size(10.0),
+        paint("112233"),
+    )
+    .expect("carrier request");
+
+    let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("carrier plan");
+    let operations = plan
+        .batches()
+        .iter()
+        .find(|batch| batch.target() == &carrier_target)
+        .expect("carrier target has one render batch")
+        .operations();
+    assert!(matches!(operations[0], RenderOp::Line(_)));
+    let RenderOp::DoubleBondCarrierMark(mark) = &operations[1] else {
+        panic!("E/Z carrier is a dedicated operation, not a double lane or wedge");
+    };
+    assert_eq!(mark.direction(), DoubleBondCarrierMarkDirectionV1::Up);
+    assert_eq!(mark.central_double_bond(), &central);
+}
+
+#[test]
+fn shared_ez_carrier_emits_one_operation_for_each_central_double_bond() {
+    let first = atom_target("shared-carrier-start", 1, 0.0, 0.0);
+    let second = atom_target("shared-carrier-end", 3, 40.0, 0.0);
+    let first_central = target(RecordKind::Bond, "first-central-double", 2)
+        .record_id()
+        .clone();
+    let second_central = target(RecordKind::Bond, "second-central-double", 4)
+        .record_id()
+        .clone();
+    let carrier_target = target(RecordKind::Bond, "shared-carrier-single", 5);
+    let carrier = BondRenderTarget::new(
+        carrier_target.clone(),
+        first.target().record_id().clone(),
+        second.target().record_id().clone(),
+        BondStyle::NormalSingle,
+        TargetVisibility::Visible,
+    )
+    .expect("carrier target")
+    .with_double_bond_carrier_mark(
+        DoubleBondCarrierMarkDirectionV1::Up,
+        true,
+        first_central.clone(),
+    )
+    .expect("first central double bond accepts the shared carrier")
+    .with_double_bond_carrier_mark(
+        DoubleBondCarrierMarkDirectionV1::Down,
+        false,
+        second_central.clone(),
+    )
+    .expect("second central double bond accepts the shared carrier");
+    let request = AtomBondRenderRequest::new(
+        RenderProvenance::new(RenderRevision::new(1).expect("revision"), [7; 32]),
+        vec![first, second],
+        vec![carrier],
+        atom_bond_font(),
+        size(1.0),
+        size(10.0),
+        paint("112233"),
+    )
+    .expect("carrier request");
+
+    let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("carrier plan");
+    let operations = plan
+        .batches()
+        .iter()
+        .find(|batch| batch.target() == &carrier_target)
+        .expect("carrier target has one render batch")
+        .operations();
+    assert!(matches!(operations[0], RenderOp::Line(_)));
+    let RenderOp::DoubleBondCarrierMark(first_mark) = &operations[1] else {
+        panic!("first shared carrier association is a dedicated operation");
+    };
+    let RenderOp::DoubleBondCarrierMark(second_mark) = &operations[2] else {
+        panic!("second shared carrier association is a dedicated operation");
+    };
+    assert_eq!(first_mark.central_double_bond(), &first_central);
+    assert_eq!(first_mark.direction(), DoubleBondCarrierMarkDirectionV1::Up);
+    assert_eq!(second_mark.central_double_bond(), &second_central);
+    assert_eq!(
+        second_mark.direction(),
+        DoubleBondCarrierMarkDirectionV1::Down
+    );
+    assert!(first_mark.z() < second_mark.z());
+}
+
+#[test]
+fn ez_carrier_mark_uses_opposite_signed_normals_for_its_stored_direction() {
+    let carrier = LineOp::new(
+        point(0.0, 0.0),
+        point(40.0, 0.0),
+        size(1.0),
+        paint("112233"),
+        10,
+    )
+    .expect("carrier line");
+    let central = target(RecordKind::Bond, "central-double", 2)
+        .record_id()
+        .clone();
+    let up = DoubleBondCarrierMarkOp::from_carrier_line(
+        &carrier,
+        true,
+        DoubleBondCarrierMarkDirectionV1::Up,
+        central.clone(),
+        11,
+    )
+    .expect("up carrier mark");
+    let down = DoubleBondCarrierMarkOp::from_carrier_line(
+        &carrier,
+        true,
+        DoubleBondCarrierMarkDirectionV1::Down,
+        central,
+        11,
+    )
+    .expect("down carrier mark");
+    assert!(up.accent_start().y() > 0.0);
+    assert!(down.accent_start().y() < 0.0);
+    assert_eq!(up.accent_start().x(), down.accent_start().x());
+    assert_eq!(up.accent_end().x(), down.accent_end().x());
+}
+
+#[test]
 fn visible_atom_number_is_a_separate_explicit_text_operation() {
     let number_font =
         AtomLabelFontProfile::new(FontFace::telex_regular(), size(9.0), paint("0000c8"));
@@ -281,7 +426,10 @@ fn atom_marks_lower_to_closed_semantic_primitives_without_toolkit_defaults() {
             .map(|operation| match operation {
                 RenderOp::Line(_) => "line",
                 RenderOp::Ellipse(_) => "ellipse",
-                RenderOp::Text(_) | RenderOp::Mask(_) | RenderOp::Path(_) => "unexpected",
+                RenderOp::Text(_)
+                | RenderOp::Mask(_)
+                | RenderOp::Path(_)
+                | RenderOp::DoubleBondCarrierMark(_) => "unexpected",
             })
             .collect::<Vec<_>>();
         assert_eq!(actual, expected, "{kind:?}");

@@ -181,16 +181,6 @@ impl PeptideSequence {
         crate::peptide::validate::parse_one_letter_sequence(input)
     }
 
-    /// Fallibly duplicate this sequence for a receipt that requires ownership.
-    pub(crate) fn try_clone(&self) -> Result<Self, PeptideSyntaxError> {
-        let mut residues = Vec::new();
-        residues
-            .try_reserve(self.residues.len())
-            .map_err(|_| PeptideSyntaxError::AllocationFailed)?;
-        residues.extend_from_slice(&self.residues);
-        Ok(Self { residues })
-    }
-
     /// Return the sequence in N-to-C order.
     #[must_use]
     pub fn residues(&self) -> &[ResidueCode] {

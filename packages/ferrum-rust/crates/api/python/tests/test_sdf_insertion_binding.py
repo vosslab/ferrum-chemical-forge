@@ -1,5 +1,8 @@
 """Public boundary behavior for atomic multi-record SDF insertion."""
 
+# Standard Library
+import json
+
 # PIP3 modules
 import ferrum_chem
 import pytest
@@ -55,6 +58,45 @@ def test_sdf_batch_is_frozen_ordered_and_one_document_history_step() -> None:
 	assert len(session.redo(2).observation.projection.molecules) == 2
 	with pytest.raises(AttributeError):
 		batch.record_count = 3
+
+
+#============================================
+def test_decoded_sdf_stereo_reaches_the_durable_molecule_report() -> None:
+	"""A decoded SDF batch retains E/Z semantics through its generic request."""
+	placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
+	record = ferrum_chem.prepare_sdf_record(
+		ferrum_chem.parse_smiles("F/C=C/F"), "stereo input", ())
+	sdf = ferrum_chem.records_to_sdf((record,), ferrum_chem.MolblockVersionV1.v3000)
+	batch = ferrum_chem.prepare_sdf_molecules_v1(sdf, placement)
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+	operation = ferrum_chem.DocumentOperationV1.insert_interchange_record_batch_v1(batch)
+	prepared = session.prepare_session_operation_transition_v1(
+		operation.transition_request_v1(0))
+	committed = session.commit_session_operation_transition_v1(prepared)
+	snapshot = committed.observation.snapshot
+	molecule_id = committed.observation.projection.molecules[0].id
+	response = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
+		"schema": "ferrum-operation-request-v1",
+		"request_id": "decoded-sdf-stereo",
+		"operation": {
+			"kind": "document.molecule.report.v1",
+			"snapshot": {
+				"cdml": snapshot.cdml,
+				"revision": snapshot.revision,
+				"digest_hex": snapshot.digest,
+			},
+			"molecule_ids": [molecule_id],
+		},
+	})))
+
+	semantics = response["outcome"]["report"]["records"][0]["stereo_semantics"]
+	assert semantics["tetrahedral"] == []
+	assert semantics["double_bonds"] == [{
+		"bond_index": 1,
+		"start_ligand": 0,
+		"end_ligand": 3,
+		"configuration": "e",
+	}]
 
 
 #============================================
