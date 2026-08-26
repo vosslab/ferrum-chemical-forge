@@ -36,11 +36,10 @@ def _projected_structure_occupies_haworth_location(tab: object,
 			))
 			if any(_device_points_coincide(point, position) for point in placement_points):
 				return True
-			if type(atom.source_id) is str and atom.source_id:
-				atom_positions[atom.source_id] = position
+			atom_positions[atom.document_object_id] = position
 		for bond in molecule.bonds:
-			start = atom_positions.get(bond.start.source_id)
-			end = atom_positions.get(bond.end.source_id)
+			start = atom_positions.get(bond.start.document_object_id)
+			end = atom_positions.get(bond.end.document_object_id)
 			if start is not None and end is not None and any(
 					_device_point_is_on_segment(point, start, end)
 					for point in placement_points

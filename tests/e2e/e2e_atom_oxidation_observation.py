@@ -128,7 +128,8 @@ def _select_atom(tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 		raise AtomOxidationE2eError("Edit -> Select Structure action was disabled")
 	if not select_action.isCheckable():
 		raise AtomOxidationE2eError("Edit -> Select Structure action did not expose active state")
-	select_action.trigger()
+	if not select_action.isChecked():
+		select_action.trigger()
 	_wait_for(select_action.isChecked, "Edit -> Select Structure mode to become active")
 	viewport = tab.view.viewport()
 	viewport.setFocus()

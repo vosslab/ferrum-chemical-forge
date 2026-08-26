@@ -221,6 +221,47 @@ class FerrumNativeGeometricPropertiesMixin:
 	"""Durable selection and mutation methods mixed into the Ferrum document tab."""
 
 	#============================================
+	def _current_presentation_entries(self) -> tuple[object, ...]:
+		"""Return the exact current Rust presentation payload sequence."""
+		self._require_mutable()
+		import ferrum_qt.ferrum.engine as engine
+		observation = self._document_observation
+		if type(observation) is not engine.SessionDocumentObservationV1:
+			raise RuntimeError("Ferrum tab has no current document observation")
+		entries = observation.projection.presentation_stack.entries
+		if type(entries) is not tuple:
+			raise RuntimeError("Rust presentation entries are not an exact DTO tuple")
+		if any(type(entry) is not engine.PresentationRootProjectionV1 for entry in entries):
+			raise RuntimeError("Rust presentation entries contain an invalid DTO")
+		return entries
+
+	#============================================
+	def _selected_geometric_root(
+			self, document_object_id: str, selector_kind: object,
+			) -> object:
+		"""Join one typed direct-root selector to one exact geometric payload."""
+		import ferrum_qt.ferrum.engine as engine
+		if type(document_object_id) is not str or not document_object_id:
+			raise RuntimeError("selected geometry lacks a durable document-object identity")
+		presentation_kinds = engine.DocumentPresentationRootKindV1
+		matches: list[object] = []
+		for root in self._current_presentation_entries():
+			if root.kind not in _GEOMETRIC_KINDS:
+				continue
+			model = dialog_model_from_projection(root)
+			if model.target_id != document_object_id:
+				continue
+			expected_kind = getattr(presentation_kinds, model.kind, None)
+			if type(expected_kind) is not presentation_kinds:
+				raise RuntimeError("Rust geometric presentation selector kind is unavailable")
+			if selector_kind != expected_kind:
+				raise RuntimeError("selected geometry has an inconsistent Rust root kind")
+			matches.append(root)
+		if len(matches) != 1:
+			raise RuntimeError("selected geometry is absent or duplicated in the Rust projection")
+		return matches[0]
+
+	#============================================
 	def has_one_selected_geometric(self) -> bool:
 		"""Return whether one geometric root or complete bracket pair is selected."""
 		if self._disposed or self.requires_refresh:
@@ -247,17 +288,23 @@ class FerrumNativeGeometricPropertiesMixin:
 			) -> tuple[object, FerrumNativeBracketDialogModel]:
 		"""Return the one current complete pair selected through durable render targets."""
 		self._require_mutable()
-		selected = self._require_projection().selected_durable_targets()
+		selected = self._selected_presentation_root_selectors()
+		import ferrum_qt.ferrum.engine as engine
+		polyline_kind = engine.DocumentPresentationRootKindV1.polyline
 		if (
 				len(selected) != 2
-				or any(target.kind != "polyline" or target.durable_object_id is None
-						for target in selected)
-				or self._document_observation is None
+				or any(type(identifier) is not str or not identifier or kind != polyline_kind
+						for identifier, kind in selected)
 			):
 			raise RuntimeError("select both members of one bracket pair first")
-		selected_ids = frozenset(target.durable_object_id for target in selected)
-		roots = self._document_observation.projection.presentation_stack.roots
-		for pair in self._document_observation.projection.presentation_stack.bracket_pairs:
+		selected_ids = frozenset(identifier for identifier, _kind in selected)
+		if len(selected_ids) != 2:
+			raise RuntimeError("select two distinct members of one bracket pair first")
+		roots = self._current_presentation_entries()
+		bracket_pairs = self._document_observation.projection.presentation_stack.bracket_pairs
+		if type(bracket_pairs) is not tuple:
+			raise RuntimeError("Rust bracket pairs are not an exact DTO tuple")
+		for pair in bracket_pairs:
 			model = bracket_dialog_model_from_projection(pair, roots)
 			if frozenset(model.member_target_ids) == selected_ids:
 				return pair, model
@@ -267,18 +314,10 @@ class FerrumNativeGeometricPropertiesMixin:
 	def selected_geometric_projection(self) -> object:
 		"""Return the selected exact frozen Rust geometric root projection."""
 		self._require_mutable()
-		selected = self._require_projection().selected_durable_targets()
-		if len(selected) != 1 or selected[0].kind not in _GEOMETRIC_KINDS:
+		selected = self._selected_presentation_root_selectors()
+		if len(selected) != 1:
 			raise RuntimeError("select exactly one geometric presentation first")
-		if selected[0].durable_object_id is None or self._document_observation is None:
-			raise RuntimeError("selected geometry has no current durable projection")
-		for root in self._document_observation.projection.presentation_stack.roots:
-			if root.kind != selected[0].kind:
-				continue
-			model = dialog_model_from_projection(root)
-			if model.target_id == selected[0].durable_object_id:
-				return root
-		raise RuntimeError("selected geometry is absent from the Rust projection")
+		return self._selected_geometric_root(*selected[0])
 
 	#============================================
 	def apply_selected_geometric_properties(self, expected_target_id: str,
@@ -302,7 +341,7 @@ class FerrumNativeGeometricPropertiesMixin:
 			snapshot.revision, snapshot.digest, expected_target_id, changes,
 		)
 		self._install_mutation_result(
-			result, ((model.kind, model.target_id),),
+			result, (model.target_id,),
 		)
 		return result
 
@@ -328,7 +367,7 @@ class FerrumNativeGeometricPropertiesMixin:
 		)
 		self._install_mutation_result(
 			result,
-			tuple(("polyline", identifier) for identifier in model.member_target_ids),
+			model.member_target_ids,
 		)
 		return result
 

@@ -40,6 +40,7 @@ pub enum MoleculeDiagnosticRecoveryV1 {
     InspectStructure,
     CorrectChemicalFacts,
     ChooseSupportedRepresentation,
+    MaterializeCompactGroup,
     ReduceSelection,
     RetryWithChemistryRuntime,
 }

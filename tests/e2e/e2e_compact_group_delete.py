@@ -119,14 +119,19 @@ def _choose_me(app: PySide6.QtWidgets.QApplication) -> None:
 			"Attach Compact Group did not open its accessible chooser",
 		)
 	choice = next(
-		widget for widget in dialog.findChildren(PySide6.QtWidgets.QLabel)
-		if widget.isVisible() and widget.accessibleName() == "Compact group Me"
+		widget for widget in dialog.findChildren(PySide6.QtWidgets.QComboBox)
+		if widget.isVisible() and widget.accessibleName() == "Compact group"
 	)
+	choice_index = choice.findText("Me", PySide6.QtCore.Qt.MatchFlag.MatchExactly)
+	if choice_index < 0:
+		raise CompactGroupDeleteE2eError(
+			"the visible compact-group chooser did not offer Me",
+		)
+	choice.setCurrentIndex(choice_index)
 	confirm = next(
 		widget for widget in dialog.findChildren(PySide6.QtWidgets.QPushButton)
 		if widget.isVisible() and widget.text() == "Attach to Selected Atom"
 	)
-	PySide6.QtTest.QTest.mouseClick(choice, PySide6.QtCore.Qt.MouseButton.LeftButton)
 	PySide6.QtTest.QTest.mouseClick(confirm, PySide6.QtCore.Qt.MouseButton.LeftButton)
 	app.processEvents()
 	if dialog.isVisible():

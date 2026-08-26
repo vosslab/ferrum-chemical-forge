@@ -7,7 +7,7 @@ import pytest
 
 def _rectangle(observation: object) -> object:
 	"""Return the projected durable rectangle from an exact observation."""
-	root = next(root for root in observation.projection.presentation_stack.roots
+	root = next(root for root in observation.projection.presentation_stack.entries
 				if root.kind == "rectangle")
 	return root.shape
 
@@ -86,8 +86,8 @@ def test_geometric_properties_reject_hostile_or_inapplicable_intent() -> None:
 			session.apply_document_operation_v1(0, operation)
 		assert session.observe(0).snapshot.digest == before.digest
 	unknown = ferrum_chem.DocumentOperationV1.set_geometric_properties(
-		"missing", (change_type.line_width(2.0),),
+		"ferrum-document-object-v1/00000000000000000000000000000000",
+		(change_type.line_width(2.0),),
 	)
-	with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as error:
+	with pytest.raises(ferrum_chem.UnknownDocumentObjectError):
 		session.apply_document_operation_v1(0, unknown)
-	assert error.value.object_id == "missing"

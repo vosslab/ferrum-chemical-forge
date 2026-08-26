@@ -25,45 +25,36 @@ class FerrumNativeTopLevelTransformTabMixin:
 
 	#============================================
 	def selected_top_level_transform_targets(
-			self) -> tuple[tuple[object, ...], tuple[tuple[str, str], ...]]:
+			self) -> tuple[tuple[object, ...], tuple[str, ...]]:
 		"""Return complete durable roots plus the selection to restore."""
 		self._require_mutable()
 		import ferrum_qt.ferrum.engine as engine
-		selected = self._require_projection().selected_durable_targets()
-		if not selected:
+		from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
+		projection = self._require_projection()
+		selected = projection.selected_targets()
+		if type(selected) is not tuple or not selected:
 			raise _tab_error("select complete molecules or durable presentation roots first")
-		if any(target.kind == "bond" for target in selected):
-			raise _tab_error("bonds are not independent top-level transform roots")
-		selected_atoms = {
-			target.durable_object_id for target in selected if target.kind == "atom"
-		}
-		if any(atom_id is None for atom_id in selected_atoms):
-			raise _tab_error("selected atom lacks a durable document identity")
-		selectors = []
-		consumed_atoms = set()
-		kinds = engine.DocumentTopLevelRootKindV1
-		if self._document_observation is None:
+		selected_ids = set()
+		for target in selected:
+			if type(target) is not RenderTargetKey or target.kind != "document_object":
+				raise _tab_error("selected canvas target is not a current document object")
+			if type(target.document_object_id) is not str or not target.document_object_id:
+				raise _tab_error("selected canvas target lacks a durable document identity")
+			if target.document_object_id in selected_ids:
+				raise _tab_error("selected canvas targets are not unique")
+			selected_ids.add(target.document_object_id)
+		observation = self._document_observation
+		if type(observation) is not engine.SessionDocumentObservationV1:
 			raise _tab_error("Ferrum tab has no installed document projection")
-		for molecule in self._document_observation.projection.molecules:
-			atom_ids = tuple(atom.id for atom in molecule.atoms)
-			if not selected_atoms.intersection(atom_ids):
-				continue
-			if (
-				molecule.id is None
-				or not atom_ids
-				or any(identifier is None for identifier in atom_ids)
-				or not set(atom_ids).issubset(selected_atoms)
-			):
-				raise _tab_error(
-					"select every atom of each molecule before transforming it",
-				)
-			selectors.append(
-				(molecule.id, kinds.molecule),
-			)
-			consumed_atoms.update(atom_ids)
-		if consumed_atoms != selected_atoms:
-			raise _tab_error("selected atom is not part of a complete durable molecule")
+		document = observation.projection
+		if type(document) is not engine.DocumentProjectionV1:
+			raise _tab_error("Ferrum tab has no exact Rust document projection")
+		direct_roots = document.direct_roots
+		if type(direct_roots) is not tuple:
+			raise _tab_error("Rust document direct roots are not an exact DTO tuple")
+		kinds = engine.DocumentTopLevelRootKindV1
 		kind_values = {
+			"molecule": kinds.molecule,
 			"arrow": kinds.arrow,
 			"plus": kinds.plus,
 			"text": kinds.text,
@@ -74,18 +65,103 @@ class FerrumNativeTopLevelTransformTabMixin:
 			"circle": kinds.circle,
 			"polygon": kinds.polygon,
 		}
-		for target in selected:
-			if target.kind == "atom":
-				continue
-			kind = kind_values.get(target.kind)
-			object_id = target.durable_object_id
-			if kind is None or type(object_id) is not str or not object_id:
+		roots_by_id = {}
+		paint_orders = set()
+		for root in direct_roots:
+			if type(root) is not engine.DocumentDirectRootV1:
+				raise _tab_error("Rust document direct root has the wrong DTO type")
+			object_id = root.document_object_id
+			if (
+				type(object_id) is not str
+				or not object_id
+				or type(root.kind) is not str
+				or type(root.paint_order) is not int
+				or root.paint_order < 0
+				or root.paint_order >= 2**32
+				or object_id in roots_by_id
+				or root.paint_order in paint_orders
+			):
+				raise _tab_error("Rust document direct roots are invalid")
+			roots_by_id[object_id] = (root.kind, root.paint_order)
+			paint_orders.add(root.paint_order)
+		selected_root_ids = selected_ids.intersection(roots_by_id)
+		selected_member_ids = selected_ids.difference(selected_root_ids)
+		selected_member_order = tuple(
+			target.document_object_id for target in selected
+			if target.document_object_id in selected_member_ids
+		)
+		resolved = []
+		for object_id in selected_root_ids:
+			root_kind, paint_order = roots_by_id[object_id]
+			selector_kind = kind_values.get(root_kind)
+			if selector_kind is None:
 				raise _tab_error(
 					"selection contains an unsupported top-level transform target",
 				)
-			selectors.append((object_id, kind))
-		restore = tuple(target.durable_selection_key() for target in selected)
-		return tuple(selectors), restore
+			resolved.append((paint_order, object_id, selector_kind))
+		if selected_member_ids:
+			selected_members = self.structure_targets_for_ids(selected_member_order)
+			if len(selected_members) != len(selected_member_ids):
+				raise _tab_error("selected canvas target has no current Rust structural fact")
+			selected_atoms = set()
+			molecule_ids = set()
+			for target in selected_members:
+				if type(target) is not engine.StructureInteractionTargetV1:
+					raise _tab_error("Rust structure selection returned an invalid target")
+				if target.kind == engine.StructureTargetKindV1.bond:
+					raise _tab_error("bonds are not independent top-level transform roots")
+				if target.kind != engine.StructureTargetKindV1.atom:
+					raise _tab_error("selection contains an unsupported top-level transform target")
+				if (
+					type(target.object_id) is not str
+					or not target.object_id
+					or type(target.molecule_object_id) is not str
+					or not target.molecule_object_id
+					or target.object_id not in selected_member_ids
+					or target.object_id in selected_atoms
+				):
+					raise _tab_error("Rust structure selection returned an invalid durable address")
+				selected_atoms.add(target.object_id)
+				molecule_ids.add(target.molecule_object_id)
+			if selected_atoms != selected_member_ids:
+				raise _tab_error("selected canvas target is absent from Rust structure selection")
+			molecules_by_id = {}
+			for molecule in document.molecules:
+				if type(molecule) is not engine.MoleculeProjectionV1:
+					raise _tab_error("Rust molecule projection has the wrong DTO type")
+				molecule_id = molecule.document_object_id
+				atom_ids = tuple(atom.document_object_id for atom in molecule.atoms)
+				if (
+					type(molecule_id) is not str
+					or not molecule_id
+					or not atom_ids
+					or any(type(atom_id) is not str or not atom_id for atom_id in atom_ids)
+					or len(set(atom_ids)) != len(atom_ids)
+					or molecule_id in molecules_by_id
+				):
+					raise _tab_error("Rust molecule projection has an invalid durable identity")
+				molecules_by_id[molecule_id] = frozenset(atom_ids)
+			for molecule_id in molecule_ids:
+				try:
+					atom_ids = molecules_by_id[molecule_id]
+					root_kind, paint_order = roots_by_id[molecule_id]
+				except KeyError as exc:
+					raise _tab_error(
+						"selected atom is not part of a complete durable molecule",
+					) from exc
+				if root_kind != "molecule" or not atom_ids.issubset(selected_atoms):
+					raise _tab_error(
+						"select every atom of each molecule before transforming it",
+					)
+				resolved.append((paint_order, molecule_id, kinds.molecule))
+		if len({object_id for _order, object_id, _kind in resolved}) != len(resolved):
+			raise _tab_error("selection contains duplicate top-level transform roots")
+		selectors = tuple(
+			(object_id, selector_kind)
+			for _paint_order, object_id, selector_kind in sorted(resolved)
+		)
+		restore = tuple(target.document_object_id for target in selected)
+		return selectors, restore
 
 	#============================================
 	def can_align_top_level_selection(self) -> bool:
@@ -127,7 +203,7 @@ class FerrumNativeTopLevelTransformTabMixin:
 	#============================================
 	def scale_top_level_roots_at_revision(
 			self, expected_revision: int, targets: tuple[object, ...],
-			restore: tuple[tuple[str, str], ...], scale_x: float,
+			restore: tuple[str, ...], scale_x: float,
 			scale_y: float) -> object:
 		"""Scale captured roots while retaining the pre-dialog revision guard."""
 		self._require_mutable()

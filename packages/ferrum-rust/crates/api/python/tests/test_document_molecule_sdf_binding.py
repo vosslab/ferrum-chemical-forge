@@ -24,7 +24,7 @@ def _observation(source: str) -> tuple[object, object, str]:
 	"""Return one exact observation, root, and unchanged snapshot."""
 	session = ferrum_chem.DocumentSession.load(source)
 	observation = session.observe(0)
-	molecule_id = observation.projection.molecules[0].id
+	molecule_id = observation.projection.molecules[0].document_object_id
 	return observation, molecule_id, observation.snapshot.cdml
 
 

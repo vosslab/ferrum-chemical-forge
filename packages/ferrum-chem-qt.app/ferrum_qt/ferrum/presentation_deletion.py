@@ -4,11 +4,12 @@
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 
-_DELETABLE_KINDS = frozenset({
-	"arrow", "plus", "text", "polyline", "rectangle", "square", "oval", "circle",
-	"polygon",
-})
+
+#============================================
+FerrumNativeDocumentTabError = native_document_tab_errors.FerrumNativeDocumentTabError
 
 
 #============================================
@@ -20,24 +21,20 @@ class FerrumNativePresentationDeletionMixin:
 		"""Return whether the durable selection is complete and deletable."""
 		if self._disposed or self.requires_refresh:
 			return False
-		projection = self._controller.projection
-		if projection is None:
+		try:
+			return bool(self._selected_presentation_root_selectors())
+		except FerrumNativeDocumentTabError:
 			return False
-		selected = projection.selected_durable_targets()
-		return bool(selected) and all(
-			target.kind in _DELETABLE_KINDS and target.durable_object_id is not None
-			for target in selected
-		)
 
 	#============================================
 	def has_one_selected_presentation_root(self) -> bool:
 		"""Return whether one durable non-bracket presentation root is selected."""
-		projection = self._controller.projection
-		return (
-			projection is not None
-			and len(projection.selected_durable_targets()) == 1
-			and self.has_selected_presentation_roots_for_deletion()
-		)
+		if self._disposed or self.requires_refresh:
+			return False
+		try:
+			return len(self._selected_presentation_root_selectors()) == 1
+		except FerrumNativeDocumentTabError:
+			return False
 
 	#============================================
 	def delete_selected_presentation_root(self) -> object:
@@ -52,13 +49,7 @@ class FerrumNativePresentationDeletionMixin:
 		self._require_mutable()
 		if not self.has_selected_presentation_roots_for_deletion():
 			raise RuntimeError("select a complete durable presentation root set first")
-		selected = self._controller.projection.selected_durable_targets()
-		import ferrum_qt.ferrum.engine as engine
-		kinds = engine.DocumentPresentationRootKindV1
-		targets = tuple(
-			(target.durable_object_id, getattr(kinds, target.kind))
-			for target in selected
-		)
+		targets = self._selected_presentation_root_selectors()
 		result = self._session.apply_live_presentation_deletion_v1(
 			self.current_snapshot.revision, self.current_snapshot.digest, targets,
 		)

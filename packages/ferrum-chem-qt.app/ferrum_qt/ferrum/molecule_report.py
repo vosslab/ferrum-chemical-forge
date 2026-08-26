@@ -24,6 +24,7 @@ _FINDING_RECOVERIES = {
 	"inspect_structure",
 	"correct_chemical_facts",
 	"choose_supported_representation",
+	"materialize_compact_group",
 	"reduce_selection",
 	"retry_with_chemistry_runtime",
 }

@@ -83,14 +83,14 @@ def test_molecule_report_serializes_structured_diagnostic_findings() -> None:
 	"""One public selected-molecule report preserves typed source diagnostics."""
 	session = ferrum_chem.DocumentSession.load(DIAGNOSTIC_CDML)
 	snapshot = session.snapshot()
-	molecule_id = session.observe(snapshot.revision).projection.molecules[0].id
+	molecule_id = session.observe(snapshot.revision).projection.molecules[0].document_object_id
 	completed = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
 		"schema": "ferrum-operation-request-v1",
 		"request_id": "diagnostic-location-example",
 		"operation": {
 			"kind": "document.molecule.report.v1",
 			"snapshot": {
-				"cdml": DIAGNOSTIC_CDML,
+				"cdml": snapshot.cdml,
 				"revision": snapshot.revision,
 				"digest_hex": snapshot.digest,
 			},
@@ -113,7 +113,7 @@ def test_molecule_report_serializes_structured_diagnostic_findings() -> None:
 	assert text_finding["location"] == {"kind": "vertex", "identifier": "text"}
 	assert text_finding["detail"] is None
 	assert group_finding["severity"] == "warning"
-	assert group_finding["recovery"] == "choose_supported_representation"
+	assert group_finding["recovery"] == "materialize_compact_group"
 	assert group_finding["location"] == {"kind": "vertex", "identifier": "group"}
 	assert group_finding["detail"] is None
 	assert zero_bond_finding["severity"] == "warning"
@@ -140,8 +140,8 @@ def test_generic_operation_protocol_preserves_nonzero_oxidation_snapshot_provena
 				"expected_revision": 7,
 				"expected_digest_hex": snapshot.digest,
 			},
-			"molecule_id": molecule.id,
-			"atom_id": molecule.atoms[0].id,
+			"molecule_id": molecule.document_object_id,
+			"atom_id": molecule.atoms[0].document_object_id,
 		},
 	})))
 
@@ -169,8 +169,8 @@ def test_generic_oxidation_protocol_refuses_malformed_and_mismatched_digests() -
 					"expected_revision": 0,
 					"expected_digest_hex": expected_digest_hex,
 				},
-				"molecule_id": molecule.id,
-				"atom_id": molecule.atoms[0].id,
+				"molecule_id": molecule.document_object_id,
+				"atom_id": molecule.atoms[0].document_object_id,
 			},
 		}))
 		return json.loads(response)
@@ -195,7 +195,7 @@ def test_smarts_query_schema_and_stateless_protocol_keep_live_state_private() ->
 	assert '"smarts"' in json.dumps(definitions["DocumentSmartsQueryInputV1"])
 	assert '"selected_molecule"' in json.dumps(definitions["DocumentSmartsQueryInputV1"])
 	assert set(summary) == {"schema", "traversal", "molecules"}
-	assert set(molecule) == {"source_order", "match_count", "completeness"}
+	assert set(molecule) == {"document_paint_order", "match_count", "completeness"}
 	assert resource_reason["oneOf"][0]["const"] == "response_size_exceeded"
 	private_names = {
 		"receipt",
@@ -215,7 +215,7 @@ def test_smarts_query_schema_and_stateless_protocol_keep_live_state_private() ->
 		"request_id": "stateless-smarts-redaction",
 		"operation": {
 			"kind": "document.molecule.smarts.query.v1",
-			"document": {"cdml": CDML, "expected_revision": snapshot.revision, "expected_digest_hex": snapshot.digest},
+			"document": {"cdml": snapshot.cdml, "expected_revision": snapshot.revision, "expected_digest_hex": snapshot.digest},
 			"query": {"kind": "smarts", "value": "FERRUM_SECRET_SMARTS_TEXT_91"},
 			"limits": {"max_matches_per_molecule": 1, "max_total_matches": 1},
 		},

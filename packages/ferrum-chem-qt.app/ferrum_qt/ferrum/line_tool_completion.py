@@ -101,7 +101,7 @@ class FerrumNativeLineToolCompletionMixin:
 		bond_document_object_id = outcome.direct_bond.bond_document_object_id
 		if type(bond_document_object_id) is not str or not bond_document_object_id:
 			raise RuntimeError("Ferrum direct-bond transition returned an invalid bond document ID")
-		tab._install_mutation_result(result, (("bond", bond_document_object_id),))
+		tab._install_mutation_result(result, (bond_document_object_id,))
 		return result
 
 	#============================================
@@ -131,8 +131,31 @@ class FerrumNativeLineToolCompletionMixin:
 		root_document_object_id = created.document_object_id
 		if type(root_document_object_id) is not str or not root_document_object_id:
 			raise RuntimeError("Ferrum visual transition returned an invalid root document ID")
-		tab._install_mutation_result(result)
+		tab._install_mutation_result(result, (root_document_object_id,))
 		return result, root_document_object_id
+
+	#============================================
+	def _restore_created_presentation_root_selection(self, tab: object,
+			root_document_object_id: str) -> bool:
+		"""Select one committed root unless Rust reports the fresh interaction is stale."""
+		import ferrum_qt.ferrum.engine as engine
+		from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
+		try:
+			observation = tab.observe_direct_root_interaction()
+			selection = tab.select_direct_roots(
+				observation, None, engine.RenderInteractionQueryV1.root(
+					root_document_object_id, engine.RenderInteractionModifierV1.replace,
+				),
+			)
+			self._replace_render_interaction_selection(selection, tab)
+		except (
+			engine.RevisionConflictError,
+			engine.RenderInteractionError,
+			FerrumNativeDocumentTabMutationPresentationError,
+		):
+			self._replace_render_interaction_selection(None, tab)
+			return False
+		return True
 	#============================================
 	def _update_terminal_arrow_gesture(self, intent: _LineGestureIntent,
 			viewport_point: PySide6.QtCore.QPoint) -> None:
@@ -217,17 +240,7 @@ class FerrumNativeLineToolCompletionMixin:
 				self._show_edit_refusal(self._terminal_arrow_refusal(current_state.kind, exc))
 				return
 			raise
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = current.tab.observe_direct_root_interaction()
-			selection = current.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(
-					root_document_object_id, engine.RenderInteractionModifierV1.replace,
-				),
-			)
-			self._replace_render_interaction_selection(selection, current.tab)
-		except Exception:
-			self._replace_render_interaction_selection(None, current.tab)
+		self._restore_created_presentation_root_selection(current.tab, root_document_object_id)
 		self._finish_line_gesture(current, self.tr(
 			f"Added one Ferrum {current_state.kind.description}; click a new start point or press Esc.",
 		))
@@ -327,16 +340,9 @@ class FerrumNativeLineToolCompletionMixin:
 			self._refresh_actions()
 			self._show_curved_equilibrium_arrow_refusal(exc)
 			return
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = current.tab.observe_direct_root_interaction()
-			selection = current.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(
-					root_document_object_id, engine.RenderInteractionModifierV1.replace,
-				),
-			)
-			self._replace_render_interaction_selection(selection, current.tab)
-		except Exception:
+		if not self._restore_created_presentation_root_selection(
+				current.tab, root_document_object_id,
+		):
 			# The accepted Rust mutation remains durable, while selection is a separate
 			# authoritative observation. Recover the installed scene before describing success.
 			self._replace_render_interaction_selection(None, current.tab)
@@ -456,17 +462,7 @@ class FerrumNativeLineToolCompletionMixin:
 				self._refresh_actions()
 			self._show_presentation_path_refusal(exc)
 			return
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = current.tab.observe_direct_root_interaction()
-			selection = current.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(
-					root_document_object_id, engine.RenderInteractionModifierV1.replace,
-				),
-			)
-			self._replace_render_interaction_selection(selection, current.tab)
-		except Exception:
-			self._replace_render_interaction_selection(None, current.tab)
+		self._restore_created_presentation_root_selection(current.tab, root_document_object_id)
 		self._finish_line_gesture(current, self.tr(
 			"Added one Ferrum {0}; click a new start point or press Esc."
 		).format("Polygon" if current.tool is _NativeLineTool.DRAW_POLYGON else "Polyline"))
@@ -592,15 +588,9 @@ class FerrumNativeLineToolCompletionMixin:
 			self._refresh_actions()
 			self._show_edit_refusal(self._presentation_gesture_refusal(exc))
 			return
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = current.tab.observe_direct_root_interaction()
-			selection = current.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(
-					root_document_object_id, engine.RenderInteractionModifierV1.replace,
-				),
-			)
-		except Exception:
+		if not self._restore_created_presentation_root_selection(
+				current.tab, root_document_object_id,
+		):
 			# Commit already installed its accepted Rust snapshot. Selection recovery
 			# is secondary and must never describe this persisted Arrow as unchanged.
 			self._replace_render_interaction_selection(None, current.tab)
@@ -611,7 +601,6 @@ class FerrumNativeLineToolCompletionMixin:
 				f"The {self._presentation_arrow_description(current.tool)} was added. Its selection could not be restored; refresh the Rust view before selecting or moving it.",
 			))
 			return
-		self._replace_render_interaction_selection(selection, current.tab)
 		self._finish_line_gesture(current, self.tr(
 			f"Added one Ferrum {self._presentation_arrow_description(current.tool)}; drag again or press Esc.",
 		))
@@ -685,16 +674,9 @@ class FerrumNativeLineToolCompletionMixin:
 			self._refresh_actions()
 			self._show_edit_refusal(self._vector_gesture_refusal(exc))
 			return
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = current.tab.observe_direct_root_interaction()
-			selection = current.tab.select_direct_roots(
-				observation, None,
-				engine.RenderInteractionQueryV1.root(root_document_object_id),
-			)
-			self._replace_render_interaction_selection(selection, current.tab)
-		except Exception:
-			self._replace_render_interaction_selection(None, current.tab)
+		if not self._restore_created_presentation_root_selection(
+				current.tab, root_document_object_id,
+		):
 			self._show_edit_refusal(self._unavailable_edit_refusal(
 				"The vector was added, but selection could not be restored; refresh before moving it.",
 			))
@@ -742,16 +724,7 @@ class FerrumNativeLineToolCompletionMixin:
 			self._cancel_line_gesture()
 			self._show_edit_refusal(self._presentation_gesture_refusal(exc))
 			return
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = intent.tab.observe_direct_root_interaction()
-			selection = intent.tab.select_direct_roots(
-				observation, None,
-				engine.RenderInteractionQueryV1.root(root_document_object_id),
-			)
-			self._replace_render_interaction_selection(selection, intent.tab)
-		except Exception:
-			self._replace_render_interaction_selection(None, intent.tab)
+		self._restore_created_presentation_root_selection(intent.tab, root_document_object_id)
 		self._finish_line_gesture(intent, self.tr(
 			"Added one Ferrum Plus; click again or press Esc.",
 		))
@@ -789,15 +762,9 @@ class FerrumNativeLineToolCompletionMixin:
 			self._refresh_actions()
 			self._show_edit_refusal(self._text_placement_refusal(exc))
 			return
-		try:
-			import ferrum_qt.ferrum.engine as engine
-			observation = intent.tab.observe_direct_root_interaction()
-			selection = intent.tab.select_direct_roots(
-				observation, None, engine.RenderInteractionQueryV1.root(commit.document_object_id),
-			)
-			self._replace_render_interaction_selection(selection, intent.tab)
-		except Exception:
-			self._replace_render_interaction_selection(None, intent.tab)
+		if not self._restore_created_presentation_root_selection(
+				intent.tab, commit.document_object_id,
+		):
 			recovered = intent.tab.refresh_authoritative()
 			self._finish_line_gesture(intent, self.tr(
 				"Text added; the display was refreshed after selection recovery."

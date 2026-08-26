@@ -93,7 +93,7 @@ def test_native_text_adapter_refuses_unsupported_face_before_session_creation() 
 	supported_session = ferrum_chem.DocumentSession.load(
 		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="0" y="0"/><ftext>text</ftext></text></cdml>',
 	)
-	supported = supported_session.observe(0).projection.presentation_stack.roots[0].text
+	supported = supported_session.observe(0).projection.presentation_stack.entries[0].text
 	model = ferrum_qt.ferrum.text_properties.dialog_model_from_projection(supported)
 	with pytest.raises(ValueError, match="baseline, subscript, and superscript"):
 		ferrum_qt.ferrum.text_properties.property_changes_from_dialog(

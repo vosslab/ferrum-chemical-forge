@@ -17,8 +17,6 @@ class FerrumNativeRegularRingTabMixin:
 		outcome = result.outcome
 		if outcome.kind != "molecule_inserted_v1" or outcome.molecule_inserted is None:
 			raise RuntimeError("Ferrum regular-ring insertion returned an unknown operation outcome")
-		selection = tuple(
-			("atom", identifier) for identifier in outcome.molecule_inserted.atom_identifiers
-		)
+		selection = tuple(outcome.molecule_inserted.atom_identifiers)
 		self._install_mutation_result(result, selection)
 		return result

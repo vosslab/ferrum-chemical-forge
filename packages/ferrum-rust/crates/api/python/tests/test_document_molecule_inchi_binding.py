@@ -26,7 +26,7 @@ def _address(source: str = _SOURCE) -> tuple[object, object, str]:
 	"""Return one session, observation, and durable direct-root selector."""
 	session = ferrum_chem.DocumentSession.load(source)
 	observation = session.observe(0)
-	return session, observation, observation.projection.molecules[0].id
+	return session, observation, observation.projection.molecules[0].document_object_id
 
 
 #============================================
@@ -34,7 +34,7 @@ def test_unsupported_document_graph_is_rejected_before_packaged_adapter_loading(
 	"""A drawing-only bond style cannot cross FFI or change the source session."""
 	session = ferrum_chem.DocumentSession.load(_STYLED_SOURCE)
 	observation = session.observe(0)
-	molecule_id = observation.projection.molecules[0].id
+	molecule_id = observation.projection.molecules[0].document_object_id
 	before = session.snapshot()
 
 	with pytest.raises(

@@ -4,11 +4,12 @@
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 
-_PRESENTATION_KINDS = frozenset({
-	"arrow", "plus", "text", "polyline", "rectangle", "square", "oval", "circle",
-	"polygon",
-})
+
+#============================================
+FerrumNativeDocumentTabError = native_document_tab_errors.FerrumNativeDocumentTabError
 
 
 #============================================
@@ -20,15 +21,12 @@ class FerrumNativePresentationStackMixin:
 		"""Return whether a complete durable selection can be reordered."""
 		if type(minimum) is not int or minimum < 1:
 			raise ValueError("presentation stack minimum must be a positive integer")
-		if self._disposed or self.requires_refresh or self._controller.projection is None:
+		if self._disposed or self.requires_refresh:
 			return False
-		selected = self._controller.projection.selected_durable_targets()
-		if len(selected) < minimum:
+		try:
+			return len(self._selected_presentation_root_selectors()) >= minimum
+		except FerrumNativeDocumentTabError:
 			return False
-		return all(
-			target.kind in _PRESENTATION_KINDS and target.durable_object_id is not None
-			for target in selected
-		)
 
 	#============================================
 	def reorder_selected_presentation_roots(self, order: object) -> object:
@@ -44,12 +42,7 @@ class FerrumNativePresentationStackMixin:
 		)
 		if not self.has_selected_presentation_stack_roots(minimum):
 			raise RuntimeError("select a complete durable presentation root set first")
-		selected = self._controller.projection.selected_durable_targets()
-		kinds = engine.DocumentPresentationRootKindV1
-		targets = tuple(
-			(target.durable_object_id, getattr(kinds, target.kind))
-			for target in selected
-		)
+		targets = self._selected_presentation_root_selectors()
 		result = self._session.apply_live_presentation_reorder_v1(
 			self.current_snapshot.revision, self.current_snapshot.digest, order, targets,
 		)

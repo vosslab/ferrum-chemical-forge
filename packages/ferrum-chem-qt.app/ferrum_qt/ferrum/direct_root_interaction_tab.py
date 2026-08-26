@@ -1,5 +1,8 @@
 """Rust-owned direct-root interaction methods for one Ferrum document tab."""
 
+# local repo modules
+import ferrum_qt.ferrum.document_tab_errors
+
 
 #============================================
 class FerrumNativeDirectRootInteractionTabMixin:
@@ -15,30 +18,15 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		)
 
 	#============================================
-	def observe_reaction_authoring_choices(self) -> object:
-		"""Return Rust-classified complete roots for one fenced reaction form."""
-		self._require_mutable()
-		snapshot = self.current_snapshot
-		return self._session.observe_reaction_authoring_choices_v1(
-			snapshot.revision, snapshot.digest,
-		)
-
-	#============================================
-	def validate_reaction_authoring_choices(self, choices: object) -> None:
-		"""Reject a stale or foreign read-only reaction choice observation."""
-		self._require_mutable()
-		self._session.validate_reaction_authoring_choices_v1(choices)
-
-	#============================================
-	def resolve_reaction_create(self, reactants: list[str], products: list[str],
+	def resolve_create_reaction_command(self, reactants: list[str], products: list[str],
 			arrow: str, conditions: list[str], pluses: list[str]) -> object:
-		"""Resolve one authored reaction into an opaque generic transition request."""
+		"""Resolve one durable reaction-creation command to the generic transition."""
 		self._require_mutable()
 		snapshot = self.current_snapshot
-		gesture = self._session.begin_reaction_gesture_v1(
+		command = self._session.begin_create_reaction_v1(
 			snapshot.revision, snapshot.digest, reactants, products, arrow, conditions, pluses,
 		)
-		return self._session.resolve_reaction_gesture_v1(gesture)
+		return self._session.resolve_create_reaction_command_v1(command)
 
 	#============================================
 	def observe_reaction_list(self) -> object:
@@ -48,42 +36,39 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		return self._session.observe_reaction_list_v1(snapshot.revision, snapshot.digest)
 
 	#============================================
-	def select_reaction(self, observation: object, reaction_id: str) -> object:
+	def select_reaction(self, observation: object, reaction_document_object_id: str) -> object:
 		"""Acquire one opaque strict reaction capability from a fresh list."""
 		self._require_mutable()
-		return self._session.select_reaction_v1(observation, reaction_id)
+		return self._session.select_reaction_v1(observation, reaction_document_object_id)
 
 	#============================================
-	def resolve_reaction_membership_patch(
+	def resolve_replace_reaction_members_command(
 			self, selection: object, reactants: list[str], products: list[str],
 			arrow: str, conditions: list[str], pluses: list[str],
 			) -> object:
-		"""Resolve one role replacement into an opaque generic transition request."""
+		"""Resolve one durable role-replacement command to the generic transition."""
 		self._require_mutable()
-		gesture = self._session.begin_reaction_membership_patch_v1(
-			selection, self.current_snapshot.revision,
+		command = self._session.begin_replace_reaction_members_v1(
+			selection,
 			reactants, products, arrow, conditions, pluses,
 		)
-		return self._session.resolve_reaction_lifecycle_v1(gesture)
+		return self._session.resolve_replace_reaction_members_command_v1(command)
 
 	#============================================
-	def resolve_reaction_definition_delete(self, selection: object) -> object:
-		"""Resolve one strict-definition deletion into a generic transition request."""
+	def resolve_delete_reaction_command(self, selection: object) -> object:
+		"""Resolve one durable definition-deletion command to the generic transition."""
 		self._require_mutable()
-		gesture = self._session.begin_reaction_definition_delete_v1(selection)
-		return self._session.resolve_reaction_lifecycle_v1(gesture)
+		command = self._session.begin_delete_reaction_v1(selection)
+		return self._session.resolve_delete_reaction_command_v1(command)
 
 	#============================================
-	def resolve_reaction_translation(
+	def translate_direct_root_selection_from_origin(
 			self, selection: object, delta_x: float, delta_y: float,
-			view_hex_grid: bool,
+			snap: object,
 			) -> object:
-		"""Resolve one aggregate nudge into an opaque generic transition request."""
-		self._require_mutable()
-		gesture = self._session.begin_reaction_translation_v1(
-			selection, 0.0, 0.0, view_hex_grid,
-		)
-		return self._session.resolve_reaction_translation_v1(gesture, delta_x, delta_y)
+		"""Translate a current direct-root selection through Rust's typed snap policy."""
+		gesture = self.begin_direct_root_translation(selection, 0.0, 0.0, snap)
+		return self.commit_direct_root_translation(gesture, delta_x, delta_y)
 
 	#============================================
 	def install_reaction_created_result(self, result: object) -> object:
@@ -113,22 +98,12 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		return outcome
 
 	#============================================
-	def install_reaction_translation_result(self, result: object) -> object:
-		"""Install one generic translation while leaving selection ownership to the caller."""
-		if result.outcome.kind != "standard":
-			raise RuntimeError("Ferrum reaction translation returned an unknown outcome")
-		self._install_reaction_transition_result(result)
-		return result.outcome
-
-	#============================================
 	def _install_reaction_transition_result(self, result: object) -> None:
 		"""Install one already-validated generic reaction result."""
 		try:
 			self._install_mutation_result(result)
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = result
+		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError as exc:
+			exc.accepted_receipt = result
 			raise
 
 	#============================================
@@ -177,9 +152,7 @@ class FerrumNativeDirectRootInteractionTabMixin:
 		)
 		try:
 			self._install_mutation_result(commit.result)
-		except Exception as exc:
-			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
-			if isinstance(exc, FerrumNativeDocumentTabMutationPresentationError):
-				exc.accepted_receipt = commit
+		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError as exc:
+			exc.accepted_receipt = commit
 			raise
 		return commit

@@ -250,6 +250,7 @@ pub enum DocumentMoleculeReportFindingRecoverySummaryV1 {
     InspectStructure,
     CorrectChemicalFacts,
     ChooseSupportedRepresentation,
+    MaterializeCompactGroup,
     ReduceSelection,
     RetryWithChemistryRuntime,
 }

@@ -393,10 +393,10 @@ def _build_render_projection(observation: object, telex_resource: object,
 					durable_key = _durable_target_key(target)
 					if durable_key in durable_items:
 						raise FerrumRenderProjectionError("duplicate durable presentation target")
-					durable_items[durable_key] = item
-				local_items[target] = item
-				item_targets[item] = target
-				items.append(item)
+					durable_items[durable_key] = root
+				local_items[target] = root
+				item_targets[root] = target
+				items.append(root)
 		for plus in plus_renders:
 			item = ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItem._from_observation(
 				plus, telex,

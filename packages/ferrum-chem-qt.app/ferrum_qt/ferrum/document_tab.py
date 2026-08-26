@@ -46,6 +46,7 @@ import ferrum_qt.ferrum.tab_view_state
 import ferrum_qt.ferrum.wavy_properties as native_wavy_properties
 import ferrum_qt.ferrum.document_tab_publication as native_publication
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
+import ferrum_qt.ferrum.document_tab_molecules as native_document_tab_molecules
 import ferrum_qt.ferrum.document_tab_selection as native_document_tab_selection
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.explicit_fragment_tab as native_explicit_fragment
@@ -82,6 +83,12 @@ FerrumNativeDocumentTabMutationPresentationError = (
 _IMPLICIT_ATOM_PICK_RADIUS_PX = 6
 
 
+_PRESENTATION_ROOT_KIND_NAMES = frozenset({
+	"arrow", "plus", "text", "polyline", "rectangle", "square", "oval", "circle",
+	"polygon",
+})
+
+
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class _ImplicitAtomPick:
@@ -91,20 +98,11 @@ class _ImplicitAtomPick:
 
 
 #============================================
-@dataclasses.dataclass(frozen=True, slots=True)
-class FerrumNativeMoleculeChoice:
-	"""One durable molecule choice copied from the installed Rust projection."""
-
-	object_id: str
-	label: str
-	source_order: int
-
-
-#============================================
 class FerrumNativeDocumentTab(
 		native_document_tab_selection.FerrumNativeDocumentSelectionMixin,
 		native_smarts_selected_root_capture.FerrumNativeSmartsSelectedRootCaptureTabMixin,
 		native_live_document_transaction.FerrumLiveDocumentTransactionMixin,
+		native_document_tab_molecules.FerrumNativeDocumentMoleculeChoicesMixin,
 		native_catalog_palette.FerrumNativeCatalogPlacementTabMixin,
 		native_local_cdml_origin_tab.FerrumNativeLocalCdmlOriginTabMixin,
 		native_regular_ring_tab.FerrumNativeRegularRingTabMixin,
@@ -228,7 +226,7 @@ class FerrumNativeDocumentTab(
 		self._render_observation: object | None = None
 		self._pending_result: object | None = None
 		self._pending_snapshot: object | None = None
-		self._pending_durable_selection: tuple[tuple[str, str], ...] | None = None
+		self._pending_durable_selection: tuple[str, ...] | None = None
 		self._pending_focus_atom_object_id: str | None = None
 		self._selection_scene: PySide6.QtWidgets.QGraphicsScene | None = None
 		self._file_path: pathlib.Path | None = None
@@ -316,27 +314,31 @@ class FerrumNativeDocumentTab(
 			or len(frozenset(atom_ids)) != len(atom_ids)
 		):
 			raise ValueError("Ferrum atom selection requires distinct non-empty identifiers")
-		projection = self._require_projection()
-		if any(("atom", atom_id) not in projection.durable_items for atom_id in atom_ids):
+		import ferrum_qt.ferrum.engine as engine
+		targets = self.structure_targets_for_ids(atom_ids)
+		if any(target.kind is not engine.StructureTargetKindV1.atom for target in targets):
 			raise FerrumNativeDocumentTabError("selected atom is not in the current projection")
-		projection.select_durable(tuple(("atom", atom_id) for atom_id in atom_ids))
+		self._require_projection().select_durable(
+			tuple(("document_object", atom_id) for atom_id in atom_ids),
+		)
 	#============================================
 	def select_bond(self, bond_id: str) -> None:
 		"""Select one current durable bond by Rust identifier for Ferrum actions."""
 		self._require_live()
 		if type(bond_id) is not str or not bond_id:
 			raise ValueError("Ferrum bond selection requires a non-empty identifier")
-		projection = self._require_projection()
-		if ("bond", bond_id) not in projection.durable_items:
+		import ferrum_qt.ferrum.engine as engine
+		targets = self.structure_targets_for_ids((bond_id,))
+		if targets[0].kind is not engine.StructureTargetKindV1.bond:
 			raise FerrumNativeDocumentTabError(
 				"selected bond is not in the current projection",
 			)
-		projection.select_durable((("bond", bond_id),))
+		self._require_projection().select_durable((("document_object", bond_id),))
 	#============================================
 	def durable_structure_at_viewport_point(
 			self, point: PySide6.QtCore.QPoint,
 			) -> tuple[str, str] | None:
-		"""Return the topmost installed durable chemical target at one viewport point."""
+		"""Return the topmost installed opaque document target at one viewport point."""
 		self._require_live()
 		if not isinstance(point, PySide6.QtCore.QPoint):
 			raise TypeError("Ferrum structure hit testing requires a QPoint")
@@ -346,17 +348,10 @@ class FerrumNativeDocumentTab(
 			while current is not None:
 				target = projection.item_targets.get(current)
 				if target is not None:
-					# The installed projection owns both this Qt item mapping and the
-					# durable target vocabulary.  Keep window tools independent of
-					# graphics-item classes and transient scene decoration.
-					if (
-						target.kind in ("atom", "bond", "compact_group")
-						and target.durable_object_id is not None
-					):
+					# Canvas targets deliberately carry only opaque durable document
+					# identities. Rust restores chemical type when an operation needs it.
+					if target.kind == "document_object":
 						return target.durable_selection_key()
-					# An overlaid presentation root is not durable chemical content.
-					# Move to the next hit-stack item so it cannot mask a bond or
-					# atom beneath it; climbing farther would only revisit its root.
 					break
 				current = current.parentItem()
 		return None
@@ -365,9 +360,13 @@ class FerrumNativeDocumentTab(
 	def durable_atom_at_viewport_point(self, point: PySide6.QtCore.QPoint) -> str | None:
 		"""Return the topmost durable Rust atom hit by one viewport point."""
 		target = self.durable_structure_at_viewport_point(point)
-		if target is None or target[0] != "atom":
+		if target is None:
 			return None
-		return target[1]
+		resolved = self.structure_targets_for_ids((target[1],))
+		import ferrum_qt.ferrum.engine as engine
+		if resolved[0].kind is not engine.StructureTargetKindV1.atom:
+			return None
+		return resolved[0].object_id
 
 	#============================================
 	def durable_attachment_atom_at_viewport_point(
@@ -398,17 +397,17 @@ class FerrumNativeDocumentTab(
 			for molecule in self._document_observation.projection.molecules:
 				for atom in molecule.atoms:
 					if (
-						type(atom.id) is str and atom.id
-						and atom.id == rendered_atom_id
+						type(atom.document_object_id) is str and atom.document_object_id
+						and atom.document_object_id == rendered_atom_id
 					):
-						rendered_atoms.append(_ImplicitAtomPick(atom.id))
+						rendered_atoms.append(_ImplicitAtomPick(atom.document_object_id))
 			return rendered_atoms[0] if len(rendered_atoms) == 1 else None
 		radius_squared = _IMPLICIT_ATOM_PICK_RADIUS_PX ** 2
 		nearest_distance: int | None = None
 		nearest_atoms: list[_ImplicitAtomPick] = []
 		for molecule in self._document_observation.projection.molecules:
 			for atom in molecule.atoms:
-				if type(atom.id) is not str or not atom.id:
+				if type(atom.document_object_id) is not str or not atom.document_object_id:
 					continue
 				viewport_atom = self._view.mapFromScene(PySide6.QtCore.QPointF(
 					atom.position.x, atom.position.y,
@@ -420,9 +419,9 @@ class FerrumNativeDocumentTab(
 					continue
 				if nearest_distance is None or distance_squared < nearest_distance:
 					nearest_distance = distance_squared
-					nearest_atoms = [_ImplicitAtomPick(atom.id)]
+					nearest_atoms = [_ImplicitAtomPick(atom.document_object_id)]
 				elif distance_squared == nearest_distance:
-					nearest_atoms.append(_ImplicitAtomPick(atom.id))
+					nearest_atoms.append(_ImplicitAtomPick(atom.document_object_id))
 		return nearest_atoms[0] if len(nearest_atoms) == 1 else None
 
 	#============================================
@@ -439,11 +438,11 @@ class FerrumNativeDocumentTab(
 		if self._document_observation is None:
 			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
 		matches = tuple(
-			atom.id
+			atom.document_object_id
 			for molecule in self._document_observation.projection.molecules
 			for atom in molecule.atoms
 			if (
-				atom.id is not None
+				atom.document_object_id is not None
 				and atom.position.x == point.x()
 				and atom.position.y == point.y()
 			)
@@ -464,115 +463,9 @@ class FerrumNativeDocumentTab(
 			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
 		for molecule in self._document_observation.projection.molecules:
 			for atom in molecule.atoms:
-				if atom.id == atom_id:
+				if atom.document_object_id == atom_id:
 					return PySide6.QtCore.QPointF(atom.position.x, atom.position.y)
 		raise FerrumNativeDocumentTabError("atom is not in the current Rust projection")
-
-	#============================================
-	def durable_molecule_choices(self) -> tuple[FerrumNativeMoleculeChoice, ...]:
-		"""Return direct-root-ordered durable molecules from the installed observation."""
-		self._require_mutable()
-		if self._document_observation is None:
-			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
-		projection = self._document_observation.projection
-		molecules = projection.molecules
-		direct_roots = projection.direct_roots
-		if type(molecules) is not list:
-			raise FerrumNativeDocumentTabError("Rust molecule projections are not an exact DTO list")
-		if type(direct_roots) is not tuple:
-			raise FerrumNativeDocumentTabError("Rust document direct roots are not an exact DTO tuple")
-		molecules_by_id = {}
-		for molecule in molecules:
-			object_id = getattr(molecule, "document_object_id", None)
-			name = getattr(molecule, "name", None)
-			if type(object_id) is not str or not object_id:
-				raise FerrumNativeDocumentTabError("Rust molecule projection identity is invalid")
-			if name is not None and type(name) is not str:
-				raise FerrumNativeDocumentTabError("Rust molecule projection name is invalid")
-			if object_id in molecules_by_id:
-				raise FerrumNativeDocumentTabError("Rust molecule projection identities are not unique")
-			molecules_by_id[object_id] = name
-		molecule_roots = []
-		root_ids = set()
-		paint_orders = set()
-		for root in direct_roots:
-			object_id = getattr(root, "document_object_id", None)
-			kind = getattr(root, "kind", None)
-			paint_order = getattr(root, "paint_order", None)
-			if type(object_id) is not str or not object_id:
-				raise FerrumNativeDocumentTabError("Rust document direct-root identity is invalid")
-			if type(kind) is not str or not kind:
-				raise FerrumNativeDocumentTabError("Rust document direct-root kind is invalid")
-			if type(paint_order) is not int or paint_order < 0 or paint_order >= 2**32:
-				raise FerrumNativeDocumentTabError("Rust document direct-root paint order is invalid")
-			if object_id in root_ids or paint_order in paint_orders:
-				raise FerrumNativeDocumentTabError("Rust document direct roots are not unique")
-			root_ids.add(object_id)
-			paint_orders.add(paint_order)
-			if kind == "molecule":
-				molecule_roots.append((paint_order, object_id))
-		if len(molecule_roots) != len(molecules_by_id):
-			raise FerrumNativeDocumentTabError(
-				"Rust molecule projections and molecule direct roots do not agree",
-			)
-		choices = []
-		ordinal = 0
-		for paint_order, object_id in sorted(molecule_roots):
-			try:
-				name = molecules_by_id.pop(object_id)
-			except KeyError as exc:
-				raise FerrumNativeDocumentTabError(
-					"Rust molecule direct root has no molecule projection",
-				) from exc
-			ordinal += 1
-			position_label = f"Molecule {ordinal}"
-			label = position_label if name is None or not name.strip() else (
-				f"{name} ({position_label})"
-			)
-			choices.append(
-				FerrumNativeMoleculeChoice(object_id, label, paint_order),
-			)
-		if molecules_by_id:
-			raise FerrumNativeDocumentTabError(
-				"Rust molecule projection has no molecule direct root",
-			)
-		return tuple(choices)
-
-	#============================================
-	def canvas_authorable_molecule_choices(self) -> tuple[FerrumNativeMoleculeChoice, ...]:
-		"""Return durable molecules proven by the installed Rust render plans."""
-		self._require_mutable()
-		import ferrum_qt.ferrum.engine as engine
-		observation = self._render_observation
-		if type(observation) is not engine.RenderObservationV1:
-			raise FerrumNativeDocumentTabError(
-				"Ferrum tab has no exact installed Rust render observation",
-			)
-		if (
-			observation.document.snapshot.revision != self.current_snapshot.revision
-			or observation.document.snapshot.digest != self.current_snapshot.digest
-		):
-			raise FerrumNativeDocumentTabError(
-				"installed Rust render observation does not match the current document snapshot",
-			)
-		plan_ids = {
-			plan.molecule.id
-			for plan in observation.molecule_plans
-			if plan.molecule.id is not None
-		}
-		return tuple(
-			choice for choice in self.durable_molecule_choices()
-			if choice.object_id in plan_ids
-		)
-
-	#============================================
-	def _require_canvas_authorable_molecule(self, molecule_object_id: str) -> None:
-		"""Require exact installed Rust render evidence before a canvas mutation."""
-		if not any(
-			choice.object_id == molecule_object_id
-			for choice in self.canvas_authorable_molecule_choices()
-		):
-			raise FerrumNativeDocumentTabUnrenderableMoleculeError(molecule_object_id)
 
 	#============================================
 	def current_document_observation(self) -> object:
@@ -605,23 +498,16 @@ class FerrumNativeDocumentTab(
 
 	#============================================
 	def apply_prepared_clean_geometry(
-			self, prepared: object,
-			restore: tuple[tuple[str, str], ...]) -> object:
+			self, prepared: object, restore: tuple[str, ...]) -> object:
 		"""Commit one exact multi-molecule clean result and restore selection."""
 		self._require_mutable()
 		import ferrum_qt.ferrum.engine as engine
 		if type(prepared) is not engine.PreparedCleanGeometryV1:
 			raise TypeError("Ferrum clean geometry requires exact frozen Ferrum data")
 		if type(restore) is not tuple or any(
-			type(item) is not tuple
-			or len(item) != 2
-			or type(item[0]) is not str
-			or item[0] not in ("atom", "bond")
-			or type(item[1]) is not str
-			or not item[1]
-			for item in restore
+			type(object_id) is not str or not object_id for object_id in restore
 		):
-			raise TypeError("Ferrum clean geometry requires an exact selection tuple")
+			raise TypeError("Ferrum clean geometry requires exact durable object IDs")
 		result = self._session.apply_clean_geometry_v1(
 			self.current_snapshot.revision, prepared,
 		)
@@ -647,8 +533,8 @@ class FerrumNativeDocumentTab(
 		if outcome.kind != "atom_created_v1" or outcome.atom_created is None:
 			raise FerrumNativeDocumentTabError("Ferrum atom creation returned an unknown operation outcome")
 		self._install_mutation_result(
-			result, (("atom", outcome.atom_created.atom_identifier),),
-		)
+				result, (outcome.atom_created.atom_identifier,),
+			)
 		return result
 
 	#============================================
@@ -668,9 +554,7 @@ class FerrumNativeDocumentTab(
 			raise FerrumNativeDocumentTabError(
 				"Ferrum molecule insertion returned an unknown operation outcome",
 			)
-		selection = tuple(
-			("atom", identifier) for identifier in outcome.molecule_inserted.atom_identifiers
-		)
+		selection = tuple(outcome.molecule_inserted.atom_identifiers)
 		self._install_mutation_result(result, selection)
 		return result
 
@@ -682,7 +566,7 @@ class FerrumNativeDocumentTab(
 		result = self._live_document_session_v1.set_atom_element_v1(
 			address.revision, address.digest, address.molecule_id, address.atom_id, element,
 		)
-		self._install_mutation_result(result, (("atom", address.atom_id),))
+		self._install_mutation_result(result, (address.atom_id,))
 		return result
 
 	#============================================
@@ -707,7 +591,7 @@ class FerrumNativeDocumentTab(
 		result = self._live_document_session_v1.set_atom_position_v1(
 			address.revision, address.digest, address.molecule_id, address.atom_id, x, y, 0.0,
 		)
-		self._install_mutation_result(result, (("atom", address.atom_id),))
+		self._install_mutation_result(result, (address.atom_id,))
 		return result
 
 	#============================================
@@ -722,17 +606,27 @@ class FerrumNativeDocumentTab(
 			revision, start_x, start_y, end_x, end_y,
 		)
 		result = self._session.commit_create_wavy(revision, prepared)
-		created = tuple(
-			root.polyline for root in result.observation.projection.presentation_stack.roots
-			if root.kind == "wavy"
-			and root.polyline.target.source_id == prepared.identifier
+		prior_wavy_ids = frozenset(
+			entry.polyline.target.document_object_id
+			for entry in self.current_document_observation().projection.presentation_stack.entries
+			if entry.kind == "wavy"
+			and entry.polyline is not None
+			and entry.polyline.target.record_kind == "wavy"
 		)
-		if len(created) != 1 or created[0].target.id is None:
+		created = tuple(
+			entry.polyline.target.document_object_id
+			for entry in result.observation.projection.presentation_stack.entries
+			if entry.kind == "wavy"
+			and entry.polyline is not None
+			and entry.polyline.target.record_kind == "wavy"
+			and entry.polyline.target.document_object_id not in prior_wavy_ids
+		)
+		if len(created) != 1:
 			self._install_mutation_result(result)
 			raise FerrumNativeDocumentTabError(
 				"accepted Wavy creation has no unique durable projected target",
 			)
-		self._install_mutation_result(result, (("polyline", created[0].target.id),))
+		self._install_mutation_result(result, (created[0],))
 		return result
 
 	#============================================
@@ -767,6 +661,7 @@ class FerrumNativeDocumentTab(
 		self._pending_result = None
 		self._pending_snapshot = None
 		self._pending_durable_selection = None
+		self._pending_focus_atom_object_id = None
 		self.selection_changed.emit()
 		return True
 	#============================================
@@ -811,13 +706,18 @@ class FerrumNativeDocumentTab(
 
 	#============================================
 	def _install_mutation_result(self, result: object,
-			durable_selection: tuple[tuple[str, str], ...] | None = None, *,
+			durable_selection: tuple[str, ...] | None = None, *,
 			focus_atom_object_id: str | None = None) -> None:
 		"""Install a Rust-accepted result or retain exact recovery ownership."""
 		if focus_atom_object_id is not None and (
 			type(focus_atom_object_id) is not str or not focus_atom_object_id
 		):
 			raise TypeError("Ferrum focus atom requires a durable document object identifier")
+		if durable_selection is not None and (
+			type(durable_selection) is not tuple
+			or any(type(object_id) is not str or not object_id for object_id in durable_selection)
+		):
+			raise TypeError("Ferrum selection restore requires exact durable document object IDs")
 		keyboard_cursor_scene = self._view.keyboard_cursor_scene()
 		authoritative = result.observation
 		self._pending_result = result
@@ -849,15 +749,20 @@ class FerrumNativeDocumentTab(
 		focus_atom_object_id = self._pending_focus_atom_object_id
 		if focus_atom_object_id is not None:
 			projection = self._require_projection()
-			if ("atom", focus_atom_object_id) not in projection.durable_items:
+			import ferrum_qt.ferrum.engine as engine
+			targets = self._resolve_structure_targets_for_ids((focus_atom_object_id,))
+			if targets[0].kind is not engine.StructureTargetKindV1.atom:
 				raise FerrumNativeDocumentTabError(
 					"Ferrum focus atom does not map to one installed render target",
 				)
-			projection.select_durable((("atom", focus_atom_object_id),))
+			projection.select_durable((("document_object", focus_atom_object_id),))
 			return
 		if self._pending_durable_selection is None:
 			return
-		self._require_projection().select_durable(self._pending_durable_selection)
+		self._require_projection().select_durable(tuple(
+			("document_object", object_id)
+			for object_id in self._pending_durable_selection
+		))
 
 	#============================================
 	def _connect_current_selection_scene(self) -> None:
@@ -883,22 +788,113 @@ class FerrumNativeDocumentTab(
 	#============================================
 	def _selected_atom_identifiers(self, expected: int) -> tuple[str, ...]:
 		"""Return an exact count of current durable atom operation selectors."""
-		return self._selected_durable_identifiers(expected, "atom")
+		import ferrum_qt.ferrum.engine as engine
+		targets = self.selected_structure_targets()
+		if (
+			len(targets) != expected
+			or any(target.kind is not engine.StructureTargetKindV1.atom for target in targets)
+		):
+			raise FerrumNativeDocumentTabError(
+				f"select exactly {expected} atom{'s' if expected != 1 else ''} first",
+			)
+		return tuple(target.object_id for target in targets)
+
 	#============================================
-	def _selected_durable_identifiers(self, expected: int,
-			kind: str) -> tuple[str, ...]:
-		"""Return exact current durable selectors of one closed record kind."""
+	def _selected_presentation_root_selectors(self) -> tuple[tuple[str, object], ...]:
+		"""Resolve selected generic canvas IDs into exact Rust presentation selectors."""
+		self._require_live()
+		self._require_current_projection()
+		import ferrum_qt.ferrum.engine as engine
+		observation = self._document_observation
+		if type(observation) is not engine.SessionDocumentObservationV1:
+			raise FerrumNativeDocumentTabError(
+				"Ferrum tab has no installed document projection",
+			)
+		document_projection = observation.projection
+		if type(document_projection) is not engine.DocumentProjectionV1:
+			raise FerrumNativeDocumentTabError(
+				"Ferrum tab has no exact Rust document projection",
+			)
+		direct_roots = document_projection.direct_roots
+		if type(direct_roots) is not tuple:
+			raise FerrumNativeDocumentTabError(
+				"Rust document direct roots are not an exact DTO tuple",
+			)
+		roots_by_id = {}
+		paint_orders = set()
+		for root in direct_roots:
+			if type(root) is not engine.DocumentDirectRootV1:
+				raise FerrumNativeDocumentTabError(
+					"Rust document direct root has the wrong DTO type",
+				)
+			object_id = root.document_object_id
+			kind = root.kind
+			paint_order = root.paint_order
+			if type(object_id) is not str or not object_id:
+				raise FerrumNativeDocumentTabError(
+					"Rust document direct-root identity is invalid",
+				)
+			if type(kind) is not str or not kind:
+				raise FerrumNativeDocumentTabError(
+					"Rust document direct-root kind is invalid",
+				)
+			if type(paint_order) is not int or paint_order < 0 or paint_order >= 2**32:
+				raise FerrumNativeDocumentTabError(
+					"Rust document direct-root paint order is invalid",
+				)
+			if object_id in roots_by_id or paint_order in paint_orders:
+				raise FerrumNativeDocumentTabError(
+					"Rust document direct roots are not unique",
+				)
+			roots_by_id[object_id] = (kind, paint_order)
+			paint_orders.add(paint_order)
 		selected = self._require_projection().selected_durable_targets()
-		if len(selected) != expected or any(target.kind != kind for target in selected):
-			raise FerrumNativeDocumentTabError(
-				f"select exactly {expected} {kind}{'s' if expected != 1 else ''} first",
-			)
-		identifiers = tuple(target.durable_object_id for target in selected)
-		if any(identifier is None for identifier in identifiers):
-			raise FerrumNativeDocumentTabError(
-				f"selected {kind} lacks a durable identifier",
-			)
-		return tuple(identifier for identifier in identifiers if identifier is not None)
+		selected_ids = set()
+		resolved = []
+		presentation_kinds = engine.DocumentPresentationRootKindV1
+		for target in selected:
+			if target.kind != "document_object":
+				raise FerrumNativeDocumentTabError(
+					"selected canvas target is not a generic document object",
+				)
+			object_id = target.document_object_id
+			if type(object_id) is not str or not object_id:
+				raise FerrumNativeDocumentTabError(
+					"selected canvas target lacks a durable document-object identity",
+				)
+			if object_id in selected_ids:
+				raise FerrumNativeDocumentTabError(
+					"selected canvas targets are not unique",
+				)
+			selected_ids.add(object_id)
+			try:
+				root_kind, paint_order = roots_by_id[object_id]
+			except KeyError as exc:
+				raise FerrumNativeDocumentTabError(
+					"selected canvas target is absent from Rust document direct roots",
+				) from exc
+			if root_kind == "molecule":
+				raise FerrumNativeDocumentTabError(
+					"selected canvas target is a molecule, not a presentation root",
+				)
+			if root_kind == "rejected_presentation":
+				raise FerrumNativeDocumentTabError(
+					"selected canvas target is a rejected presentation root",
+				)
+			if root_kind not in _PRESENTATION_ROOT_KIND_NAMES:
+				raise FerrumNativeDocumentTabError(
+					"selected canvas target has an unsupported direct-root kind",
+				)
+			selector_kind = getattr(presentation_kinds, root_kind, None)
+			if type(selector_kind) is not presentation_kinds:
+				raise FerrumNativeDocumentTabError(
+					"Rust presentation selector kind is unavailable",
+				)
+			resolved.append((paint_order, object_id, selector_kind))
+		return tuple(
+			(object_id, selector_kind)
+			for _paint_order, object_id, selector_kind in sorted(resolved)
+		)
 	#============================================
 	def _require_projection(self) -> object:
 		"""Return the one current installed projection needed for local selection."""

@@ -12,7 +12,8 @@ def test_standalone_haworth_uses_generic_transition_and_renderer_overlay() -> No
 	prepared = session.prepare_session_operation_transition_v1(request)
 	assert prepared.presentation_v1().precommit_overlay is not None
 	result = session.commit_session_operation_transition_v1(prepared)
-	assert any(
-		molecule.source_id == result.outcome.molecule_inserted.molecule_identifier
-		for molecule in result.observation.projection.molecules
-	)
+	inserted = result.outcome.molecule_inserted
+	assert inserted is not None
+	assert inserted.molecule_identifier
+	assert len(inserted.atom_identifiers) == len(result.observation.projection.molecules[0].atoms)
+	assert result.observation.projection.molecules[0].document_object_id

@@ -18,13 +18,21 @@ SOURCE = (
 HALF_AUTHORED_UNIT_POINTS = (0.001 * 72.0 / 2.54) / 2.0
 
 
+def _repair_live_molecule(session: object, kind: object, spacing: float) -> object:
+    """Repair the current projected molecule through its Rust-issued address."""
+    snapshot = session.snapshot()
+    molecule = session.observe(snapshot.revision).projection.molecules[0]
+    return session.repair_live_document_geometry_v1(
+        snapshot.revision, snapshot.digest, (molecule.document_object_id,), kind, spacing,
+    ).observation
+
+
 def test_hex_snap_is_one_revisioned_sparse_repair() -> None:
     """The supported repair delegates to Rust and preserves non-planar facts."""
-    operation = ferrum_chem.DocumentOperationV1.repair_geometry(
-        ("m",), ferrum_chem.DocumentGeometryRepairKindV1.snap_to_hex_grid, 1.0,
-    )
     session = ferrum_chem.DocumentSession.load(SOURCE)
-    repaired = session.apply_document_operation_v1(0, operation).observation
+    repaired = _repair_live_molecule(
+        session, ferrum_chem.DocumentGeometryRepairKindV1.snap_to_hex_grid, 1.0,
+    )
     atom = repaired.projection.molecules[0].atoms[0]
     assert atom.position.x == pytest.approx(0.0, abs=HALF_AUTHORED_UNIT_POINTS)
     assert atom.position.y == pytest.approx(0.0, abs=HALF_AUTHORED_UNIT_POINTS)
@@ -32,22 +40,31 @@ def test_hex_snap_is_one_revisioned_sparse_repair() -> None:
     assert session.undo(1).observation.projection.molecules[0].atoms[0].position.x == 0.2
 
 
-def test_repair_factory_and_target_fail_without_mutation() -> None:
+def test_live_repair_target_failures_preserve_current_snapshot() -> None:
     """Exact immutable IDs, spacing, and durable targets fail closed."""
     kind = ferrum_chem.DocumentGeometryRepairKindV1.snap_to_hex_grid
-    with pytest.raises(TypeError):
-        ferrum_chem.DocumentOperationV1.repair_geometry(["m"], kind, 1.0)
-    with pytest.raises(ferrum_chem.OperationValidationError):
-        ferrum_chem.DocumentOperationV1.repair_geometry(("m",), kind, True)
-    with pytest.raises(ferrum_chem.OperationValidationError):
-        ferrum_chem.DocumentOperationV1.repair_geometry(("m", "m"), kind, 1.0)
-
     session = ferrum_chem.DocumentSession.load(SOURCE)
-    operation = ferrum_chem.DocumentOperationV1.repair_geometry(("missing",), kind, 1.0)
     before = session.snapshot()
+    molecule_id = session.observe(before.revision).projection.molecules[0].document_object_id
+    with pytest.raises(TypeError):
+        session.repair_live_document_geometry_v1(
+            before.revision, before.digest, [molecule_id], kind, 1.0,
+        )
+    with pytest.raises(ferrum_chem.OperationValidationError):
+        session.repair_live_document_geometry_v1(
+            before.revision, before.digest, (molecule_id,), kind, True,
+        )
+    with pytest.raises(ferrum_chem.OperationValidationError):
+        session.repair_live_document_geometry_v1(
+            before.revision, before.digest, (molecule_id, molecule_id), kind, 1.0,
+        )
+
     with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as caught:
-        session.apply_document_operation_v1(0, operation)
-    assert caught.value.object_id == "missing"
+        session.repair_live_document_geometry_v1(
+            before.revision, before.digest,
+            ("ferrum-document-object-v1/00000000000000000000000000000000",), kind, 1.0,
+        )
+    assert str(caught.value)
     after = session.snapshot()
     assert (after.revision, after.digest) == (before.revision, before.digest)
 
@@ -60,10 +77,10 @@ def test_straighten_bonds_uses_terminal_endpoint_contract() -> None:
         '</atom><atom id="a" name="C"><point x="0" y="0"/></atom>'
         '<bond id="az" start="a" end="z" type="n1"/></molecule></cdml>'
     )
-    operation = ferrum_chem.DocumentOperationV1.repair_geometry(
-        ("m",), ferrum_chem.DocumentGeometryRepairKindV1.straighten_bonds, 777.0,
+    repaired = _repair_live_molecule(
+        ferrum_chem.DocumentSession.load(source),
+        ferrum_chem.DocumentGeometryRepairKindV1.straighten_bonds, 777.0,
     )
-    repaired = ferrum_chem.DocumentSession.load(source).apply_document_operation_v1(0, operation).observation
     moved, fixed = repaired.projection.molecules[0].atoms
     assert moved.position.x == pytest.approx(
         math.sqrt(3.0) / 2.0, abs=HALF_AUTHORED_UNIT_POINTS,
@@ -82,10 +99,10 @@ def test_normalize_bond_lengths_uses_explicit_spacing_and_preserves_direction() 
         '<bond id="ab" start="a" end="b" type="n1"/>'
         '<bond id="bc" start="b" end="c" type="n1"/></molecule></cdml>'
     )
-    operation = ferrum_chem.DocumentOperationV1.repair_geometry(
-        ("m",), ferrum_chem.DocumentGeometryRepairKindV1.normalize_bond_lengths, 10.0,
+    repaired = _repair_live_molecule(
+        ferrum_chem.DocumentSession.load(source),
+        ferrum_chem.DocumentGeometryRepairKindV1.normalize_bond_lengths, 10.0,
     )
-    repaired = ferrum_chem.DocumentSession.load(source).apply_document_operation_v1(0, operation).observation
     first, root, last = repaired.projection.molecules[0].atoms
     assert first.position.x == pytest.approx(-10.0, abs=HALF_AUTHORED_UNIT_POINTS)
     assert (first.position.y, root.position.x, root.position.y) == (0.0, 0.0, 0.0)
@@ -103,18 +120,18 @@ def test_normalize_bond_angles_preserves_length_and_authored_child_order() -> No
         '<bond id="a_second_bond" start="root" end="a_second" type="n1"/>'
         '</molecule></cdml>'
     )
-    operation = ferrum_chem.DocumentOperationV1.repair_geometry(
-        ("m",), ferrum_chem.DocumentGeometryRepairKindV1.normalize_bond_angles, 20.0,
+    repaired = _repair_live_molecule(
+        ferrum_chem.DocumentSession.load(source),
+        ferrum_chem.DocumentGeometryRepairKindV1.normalize_bond_angles, 20.0,
     )
-    repaired = ferrum_chem.DocumentSession.load(source).apply_document_operation_v1(0, operation).observation
-    atoms = {atom.source_id: atom.position for atom in repaired.projection.molecules[0].atoms}
+    root, first, second = repaired.projection.molecules[0].atoms
     first_distance = math.hypot(10.0, 1.0)
     second_distance = math.hypot(10.0, 2.0)
-    assert (atoms["z_first"].x, atoms["z_first"].y) == pytest.approx(
+    assert (first.position.x, first.position.y) == pytest.approx(
         (first_distance, 0.0), abs=HALF_AUTHORED_UNIT_POINTS,
     )
-    assert atoms["z_first"].z == 3.0
-    assert (atoms["a_second"].x, atoms["a_second"].y) == pytest.approx(
+    assert first.position.z == 3.0
+    assert (second.position.x, second.position.y) == pytest.approx(
         (second_distance / 2.0, second_distance * math.sqrt(3.0) / 2.0),
         abs=HALF_AUTHORED_UNIT_POINTS,
     )
@@ -135,21 +152,20 @@ def test_normalize_rings_preserves_centroid_and_moves_substituent_rigidly() -> N
         '<bond id="ds" start="d" end="side" type="n1"/></molecule></cdml>'
     )
     session = ferrum_chem.DocumentSession.load(source)
-    before = {atom.source_id: atom.position for atom in session.observe(0).projection.molecules[0].atoms}
-    operation = ferrum_chem.DocumentOperationV1.repair_geometry(
-        ("m",), ferrum_chem.DocumentGeometryRepairKindV1.normalize_rings, 20.0,
+    before = tuple(atom.position for atom in session.observe(0).projection.molecules[0].atoms)
+    after = tuple(
+        atom.position for atom in _repair_live_molecule(
+            session, ferrum_chem.DocumentGeometryRepairKindV1.normalize_rings, 20.0,
+        ).projection.molecules[0].atoms
     )
-    after_atoms = session.apply_document_operation_v1(0, operation).observation.projection.molecules[0].atoms
-    after = {atom.source_id: atom.position for atom in after_atoms}
-    ring = ("a", "b", "c", "d")
-    before_center = tuple(sum(getattr(before[key], axis) for key in ring) / 4 for axis in ("x", "y"))
-    after_center = tuple(sum(getattr(after[key], axis) for key in ring) / 4 for axis in ("x", "y"))
+    before_center = tuple(sum(getattr(point, axis) for point in before[:4]) / 4 for axis in ("x", "y"))
+    after_center = tuple(sum(getattr(point, axis) for point in after[:4]) / 4 for axis in ("x", "y"))
     assert after_center == pytest.approx(before_center, abs=HALF_AUTHORED_UNIT_POINTS)
-    assert after["side"].z == 4.0
+    assert after[4].z == 4.0
     assert (
-        after["side"].x - before["side"].x,
-        after["side"].y - before["side"].y,
+        after[4].x - before[4].x,
+        after[4].y - before[4].y,
     ) == pytest.approx(
-        (after["d"].x - before["d"].x, after["d"].y - before["d"].y),
+        (after[3].x - before[3].x, after[3].y - before[3].y),
         abs=HALF_AUTHORED_UNIT_POINTS,
     )

@@ -74,7 +74,7 @@ def test_decoded_sdf_stereo_reaches_the_durable_molecule_report() -> None:
 		operation.transition_request_v1(0))
 	committed = session.commit_session_operation_transition_v1(prepared)
 	snapshot = committed.observation.snapshot
-	molecule_id = committed.observation.projection.molecules[0].id
+	molecule_id = committed.observation.projection.molecules[0].document_object_id
 	response = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
 		"schema": "ferrum-operation-request-v1",
 		"request_id": "decoded-sdf-stereo",

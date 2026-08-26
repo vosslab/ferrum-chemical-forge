@@ -16,6 +16,13 @@ FERRUM_CALLER_PYTHONPATH="${PYTHONPATH-}"
 # ~/.bashrc applies local shell setup (PATH, etc.) and resets some variables.
 source ~/.bashrc
 
+# Python runtime defaults: unbuffered stdout/stderr, and no .pyc/__pycache__
+# files written on import. Apply these after ~/.bashrc and before the first
+# extension probe so every Python process in this supported environment inherits
+# the repository-required values.
+export PYTHONUNBUFFERED=1
+export PYTHONDONTWRITEBYTECODE=1
+
 # Resolve this checkout from the sourced file, not the caller's working
 # directory. Refuse to continue unless this interpreter can import the exact
 # compiled extension staged beneath this checkout.
@@ -67,11 +74,6 @@ unset FERRUM_RUNTIME_ROOT
 unset FERRUM_QT_SOURCE_ROOT
 unset FERRUM_EXTENSION_SUFFIX
 unset FERRUM_EXTENSION_PATH
-
-# Python runtime defaults: unbuffered stdout/stderr, and no .pyc/__pycache__
-# files written on import.
-export PYTHONUNBUFFERED=1
-export PYTHONDONTWRITEBYTECODE=1
 
 # --- Optional: repo-root import path (disabled by default) -------------------
 # Uncomment ONLY if this repo needs its repo-root modules importable when

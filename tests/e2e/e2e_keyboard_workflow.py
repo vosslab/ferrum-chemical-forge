@@ -21,6 +21,7 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
+import ferrum_qt.canvas.ferrum_render_target
 
 
 #============================================
@@ -59,11 +60,11 @@ def press(window: PySide6.QtWidgets.QWidget, key: object,
 
 
 #============================================
-def find_atom(projection: object, identifier: str) -> object | None:
-	"""Return one Rust projection atom by durable source identity, if present."""
+def find_atom(projection: object, document_object_id: str) -> object | None:
+	"""Return one Rust projection atom by its durable document-object identity."""
 	for molecule in projection.molecules:
 		for atom in molecule.atoms:
-			if atom.source_id == identifier:
+			if atom.document_object_id == document_object_id:
 				return atom
 	return None
 
@@ -73,7 +74,7 @@ def find_bond_between(projection: object, first: str, second: str) -> object | N
 	"""Return the bond with these exact durable endpoint identities, if present."""
 	for molecule in projection.molecules:
 		for bond in molecule.bonds:
-			if frozenset((bond.start.source_id, bond.end.source_id)) == frozenset((first, second)):
+			if frozenset((bond.start.document_object_id, bond.end.document_object_id)) == frozenset((first, second)):
 				return bond
 	return None
 
@@ -107,11 +108,15 @@ def main() -> int:
 		tab = window._active_native_tab()
 		if tab is None:
 			raise KeyboardWorkflowError("Open shortcut did not install a document tab")
-		original_atom_id = "keyboard-carbon"
 		initial_projection = tab.current_document_observation().projection
-		if find_atom(initial_projection, original_atom_id) is None:
+		initial_atoms = initial_projection.molecules[0].atoms
+		if len(initial_atoms) != 1 or initial_atoms[0].element != "C":
 			raise KeyboardWorkflowError("keyboard fixture lost its ordinary carbon projection")
-		if ("atom", original_atom_id) not in tab._require_projection().durable_items:
+		original_atom_id = initial_atoms[0].document_object_id
+		original_target = ferrum_qt.canvas.ferrum_render_target.RenderTargetKey(
+			"document_object", original_atom_id,
+		)
+		if original_target not in tab._require_projection().durable_items:
 			raise KeyboardWorkflowError(
 				"keyboard fixture lacks a durable Rust-to-Qt render target",
 			)
@@ -123,14 +128,17 @@ def main() -> int:
 		created = tab.selected_atom_projection()
 		if (
 			created is None
-			or created.source_id == original_atom_id
+			or created.document_object_id == original_atom_id
 			or (created.position.x, created.position.y) != (90.0, 80.0)
 		):
 			raise KeyboardWorkflowError(
 				"Return did not immediately select the newly created Rust atom at (90, 80)",
 			)
-		created_atom_id = created.source_id
-		if ("atom", created_atom_id) not in tab._require_projection().durable_items:
+		created_atom_id = created.document_object_id
+		created_target = ferrum_qt.canvas.ferrum_render_target.RenderTargetKey(
+			"document_object", created_atom_id,
+		)
+		if created_target not in tab._require_projection().durable_items:
 			raise KeyboardWorkflowError("newly created Rust atom lacks a durable Qt render target")
 		tab.view.set_keyboard_cursor_scene(PySide6.QtCore.QPointF(10.0, 20.0))
 		press(window, PySide6.QtCore.Qt.Key.Key_2,
@@ -168,7 +176,7 @@ def main() -> int:
 				or find_bond_between(reopened_projection, original_atom_id, created_atom_id) is not None
 			):
 				raise KeyboardWorkflowError("Rust reopen lost the saved keyboard workflow state")
-			if ("atom", created_atom_id) not in reopened._require_projection().durable_items:
+			if created_target not in reopened._require_projection().durable_items:
 				raise KeyboardWorkflowError("Rust reopen lost the created atom's durable render target")
 		finally:
 			reopened.dispose()

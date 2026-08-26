@@ -21,8 +21,9 @@ def test_clean_geometry_rejects_malformed_requests_before_native_loading() -> No
     """Closed Python inputs fail without mutation or a packaged RDKit adapter."""
     session = ferrum_chem.DocumentSession.load(SOURCE)
     observation = session.observe(0)
+    baseline = session.snapshot()
     molecule_ids = tuple(
-        molecule.id for molecule in observation.projection.molecules
+        molecule.document_object_id for molecule in observation.projection.molecules
     )
 
     class TupleSubclass(tuple):
@@ -49,6 +50,7 @@ def test_clean_geometry_rejects_malformed_requests_before_native_loading() -> No
             )
 
     retained = session.snapshot()
-    assert retained.revision == 0
-    assert retained.cdml == SOURCE
+    assert (retained.revision, retained.digest, retained.is_dirty) == (
+        baseline.revision, baseline.digest, baseline.is_dirty,
+    )
     assert ferrum_chem.PreparedCleanGeometryV1.__module__ == "ferrum_chem"

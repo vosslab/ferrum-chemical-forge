@@ -159,6 +159,7 @@ class FerrumNativeMainWindow(
 		)
 		getattr(self, "_initialize_native_file_menu_clients", lambda: None)()
 		self._native_tabs_by_page = {}
+		self._native_selection_refresh_queued = False
 		self._drawing_parameters = (
 			ferrum_qt.ferrum.drawing_parameters.
 			FerrumNativeDrawingParameters()

@@ -58,9 +58,10 @@ ownership instead of adding catalog, CLI, or frontend-specific mutation paths.
 The operation kind is exactly `document.compact-group.materialize.v1`. It is a
 closed variant of the existing generic operation protocol and uses the canonical
 request/envelope transport. It carries only the request schema and ID, a fenced
-document snapshot (`cdml`, expected revision, expected digest), and opaque Rust-
-issued `molecule_id` and `compact_group_id` target identifiers. The identifiers
-are not labels, catalog keys, paths, geometry, formula text, or frontend values.
+document snapshot (`cdml`, expected revision, expected digest), and serialized
+`DocumentObjectIdV1` molecule and compact-group target identifiers. Rust parses
+and resolves those opaque durable selectors in the admitted snapshot; they are
+not labels, catalog keys, paths, geometry, formula text, or frontend values.
 
 The generic executor verifies the fence before preparation, invokes the existing
 prepare/commit owners, preserves renderer admission, and commits once. Clients
@@ -82,11 +83,10 @@ local selection state; for a concrete durable pair it derives enablement solely
 from `Eligible`. The operation revalidates the same session-owned eligibility
 during preparation and commit.
 
-The stateless operation deliberately retains source IDs for its admitted CDML
-snapshot. The live session deliberately uses `DocumentObjectIdV1` IDs. Qt
-render targets retain visual/render identity separately from durable object and
-owner-molecule identity, so no source-ID bridge or raw-CDML selection payload
-can enter the live operation.
+The stateless operation and live session both use `DocumentObjectIdV1` target
+selectors. Qt render targets retain visual/render identity separately from
+durable object and owner-molecule identity, so no identity conversion or
+raw-CDML selection payload can enter the live operation.
 
 ### Refusal and recovery
 

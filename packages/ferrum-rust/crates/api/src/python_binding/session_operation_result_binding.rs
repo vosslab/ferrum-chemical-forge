@@ -386,7 +386,7 @@ impl From<CreatedPresentationRootKindV1> for PyCreatedPresentationRootKindV1 {
 #[derive(Clone)]
 pub(crate) struct PyCreatedPresentationRootOutcomeV1 {
     #[pyo3(get)]
-    identifier: String,
+    document_object_id: String,
     #[pyo3(get)]
     kind: PyCreatedPresentationRootKindV1,
 }
@@ -394,7 +394,7 @@ pub(crate) struct PyCreatedPresentationRootOutcomeV1 {
 impl From<&CreatedPresentationRootOutcomeV1> for PyCreatedPresentationRootOutcomeV1 {
     fn from(outcome: &CreatedPresentationRootOutcomeV1) -> Self {
         Self {
-            identifier: outcome.root().document_object_id().as_str().to_owned(),
+            document_object_id: outcome.root().document_object_id().as_str().to_owned(),
             kind: outcome.kind().into(),
         }
     }

@@ -217,11 +217,13 @@ fn typed_text_face_alias_is_canonicalized_before_session_state_exists() {
         "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"t\"><point x=\"0\" y=\"0\"/><font family=\"Telex Regular\"/><ftext>x</ftext></text></cdml>",
     )
     .expect("approved Telex alias must load");
-    assert!(session
-        .snapshot()
-        .expect("snapshot")
-        .cdml()
-        .contains("family=\"Telex\""));
+    assert!(
+        session
+            .snapshot()
+            .expect("snapshot")
+            .cdml()
+            .contains("family=\"Telex\"")
+    );
 }
 
 #[test]

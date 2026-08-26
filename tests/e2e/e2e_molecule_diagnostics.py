@@ -32,9 +32,9 @@ class MoleculeDiagnosticsE2eError(RuntimeError):
 
 
 #============================================
-def _trigger_exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
-		app: PySide6.QtWidgets.QApplication, menu_label: str, action_label: str) -> None:
-	"""Trigger one visible enabled public menu action by its displayed text."""
+def _exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
+		menu_label: str, action_label: str) -> PySide6.QtGui.QAction:
+	"""Return one visible enabled public menu action by its displayed text."""
 	menu_bar = window.menuBar()
 	menu_action = next(
 		action for action in menu_bar.actions()
@@ -57,8 +57,30 @@ def _trigger_exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
 		raise MoleculeDiagnosticsE2eError(
 			f"{menu_label} -> {action_label} was not publicly available",
 		)
+	return action
+
+
+#============================================
+def _trigger_exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
+		app: PySide6.QtWidgets.QApplication, menu_label: str, action_label: str) -> None:
+	"""Trigger one visible enabled public menu action by its displayed text."""
+	action = _exposed_menu_action(window, menu_label, action_label)
 	action.trigger()
 	app.processEvents()
+
+
+#============================================
+def _ensure_exposed_menu_action_checked(window: PySide6.QtWidgets.QMainWindow,
+		app: PySide6.QtWidgets.QApplication, menu_label: str, action_label: str) -> None:
+	"""Activate one public checkable action while preserving an active tool."""
+	action = _exposed_menu_action(window, menu_label, action_label)
+	if not action.isCheckable():
+		raise MoleculeDiagnosticsE2eError(
+			f"{menu_label} -> {action_label} was not a checkable public tool",
+		)
+	if not action.isChecked():
+		action.trigger()
+		app.processEvents()
 
 
 #============================================
@@ -282,6 +304,48 @@ def _close_visible_dialog(dialog: PySide6.QtWidgets.QDialog,
 
 
 #============================================
+def _select_visible_structure_finding(dialog: PySide6.QtWidgets.QDialog,
+		app: PySide6.QtWidgets.QApplication, code: str) -> str:
+	"""Select one public finding row and return its visible details and guidance."""
+	tree = next((
+		widget for widget in dialog.findChildren(PySide6.QtWidgets.QTreeWidget)
+		if widget.isVisible() and widget.accessibleName() == "Structure findings"
+	), None)
+	if tree is None:
+		raise MoleculeDiagnosticsE2eError(
+			"Check Structure did not expose its accessible findings tree",
+		)
+	item = next((
+		tree.topLevelItem(index) for index in range(tree.topLevelItemCount())
+		if tree.topLevelItem(index).text(1) == code
+	), None)
+	if item is None:
+		observed = tuple(
+			tree.topLevelItem(index).text(1) for index in range(tree.topLevelItemCount())
+		)
+		raise MoleculeDiagnosticsE2eError(
+			f"Check Structure did not expose finding row {code!r}; observed {observed!r}",
+		)
+	tree.setCurrentItem(item)
+	tree.scrollToItem(item)
+	app.processEvents()
+	details = next((
+		widget for widget in dialog.findChildren(PySide6.QtWidgets.QPlainTextEdit)
+		if widget.isVisible() and widget.isReadOnly()
+		and widget.accessibleName() == "Selected finding details"
+	), None)
+	if details is None:
+		raise MoleculeDiagnosticsE2eError(
+			"Check Structure did not expose accessible selected-finding details",
+		)
+	labels = (
+		widget.text() for widget in dialog.findChildren(PySide6.QtWidgets.QLabel)
+		if widget.isVisible() and widget.text()
+	)
+	return "\n".join((details.toPlainText(), *labels))
+
+
+#============================================
 def _require_diagnostics_contract(details: str) -> None:
 	"""Require the public non-mutating finding and recovery guidance semantics."""
 	normalized = details.lower()
@@ -337,7 +401,7 @@ def main() -> int:
 			canvas.mapFromScene(second_carbon),
 		)
 		app.processEvents()
-		_trigger_exposed_menu_action(window, app, "Edit", "Select Structure")
+		_ensure_exposed_menu_action_checked(window, app, "Edit", "Select Structure")
 		PySide6.QtTest.QTest.mouseClick(
 			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
@@ -352,7 +416,7 @@ def main() -> int:
 			canvas.mapFromScene(group_anchor),
 		)
 		app.processEvents()
-		_trigger_exposed_menu_action(window, app, "Edit", "Select Structure")
+		_ensure_exposed_menu_action_checked(window, app, "Edit", "Select Structure")
 		PySide6.QtTest.QTest.mouseClick(
 			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
@@ -362,12 +426,15 @@ def main() -> int:
 		diagnostics_observer = _AccessibleDialogObserver(app, "Check Structure", True)
 		try:
 			_trigger_exposed_menu_action(window, app, "Chemistry", "Check Structure...")
-			diagnostics = diagnostics_observer.await_text()
-			_require_diagnostics_contract(diagnostics)
+			diagnostics_observer.await_text()
 			if diagnostics_observer.dialog is None:
 				raise MoleculeDiagnosticsE2eError(
 					"Check Structure did not expose its accessible modeless dialog",
 				)
+			diagnostics = _select_visible_structure_finding(
+				diagnostics_observer.dialog, app, "unexpanded_group_present",
+			)
+			_require_diagnostics_contract(diagnostics)
 			_close_visible_dialog(diagnostics_observer.dialog, app, "Check Structure")
 		finally:
 			diagnostics_observer.close()

@@ -20,7 +20,9 @@ def test_private_cut_prepares_fragment_then_commits_one_topology_edit() -> None:
 	"""One source-authenticated plan carries Copy content and atomic deletion."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation = session.observe(0)
-	selected = observation.projection.molecules[0].atoms[1].id
+	initial_atoms = observation.projection.molecules[0].atoms
+	selected = initial_atoms[1].document_object_id
+	expected_remaining = (initial_atoms[0].document_object_id, initial_atoms[2].document_object_id)
 	plan = ferrum_chem.prepare_document_clipboard_cut_v1(
 		observation, (selected,),
 	)
@@ -32,17 +34,17 @@ def test_private_cut_prepares_fragment_then_commits_one_topology_edit() -> None:
 	) == (0, observation.snapshot.digest, (selected,))
 	assert (
 		result.observation.snapshot.revision,
-		tuple(atom.source_id for atom in molecule.atoms),
+		tuple(atom.document_object_id for atom in molecule.atoms),
 		len(molecule.bonds),
-	) == (1, ("a", "c"), 0)
+	) == (1, expected_remaining, 0)
 
 
 def test_private_cut_refuses_copy_fallback_with_partial_root_deletion() -> None:
 	"""Mixed structure and artwork stays available to Copy but has no Cut meaning."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation = session.observe(0)
-	atom = observation.projection.molecules[0].atoms[0].id
-	plus = observation.projection.presentation_stack.roots[0].plus.target.id
+	atom = observation.projection.molecules[0].atoms[0].document_object_id
+	plus = observation.projection.presentation_stack.entries[0].plus.target.document_object_id
 
 	with pytest.raises(ferrum_chem.DocumentClipboardCutError) as caught:
 		ferrum_chem.prepare_document_clipboard_cut_v1(observation, (atom, plus))

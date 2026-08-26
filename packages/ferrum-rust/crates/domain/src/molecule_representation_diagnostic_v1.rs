@@ -28,12 +28,14 @@ pub fn diagnose_molecule_representation_v1(
         findings.push(vertex_finding(
             vertex,
             MoleculeDiagnosticCodeV1::TextAtomPresent,
+            MoleculeDiagnosticRecoveryV1::ChooseSupportedRepresentation,
         )?);
     }
     for vertex in molecule.groups() {
         findings.push(vertex_finding(
             vertex,
             MoleculeDiagnosticCodeV1::UnexpandedGroupPresent,
+            MoleculeDiagnosticRecoveryV1::MaterializeCompactGroup,
         )?);
     }
     for bond in molecule.bonds() {
@@ -47,11 +49,12 @@ pub fn diagnose_molecule_representation_v1(
 fn vertex_finding(
     vertex: &NonAtomVertex,
     code: MoleculeDiagnosticCodeV1,
+    recovery: MoleculeDiagnosticRecoveryV1,
 ) -> Result<MoleculeDiagnosticFindingV1, MoleculeDiagnosticFindingErrorV1> {
     MoleculeDiagnosticFindingV1::new(
         MoleculeDiagnosticSeverityV1::Warning,
         code,
-        MoleculeDiagnosticRecoveryV1::ChooseSupportedRepresentation,
+        recovery,
         MoleculeDiagnosticLocationV1::Vertex {
             source_identifier: source_identifier(vertex.source_id()),
         },

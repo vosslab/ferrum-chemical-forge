@@ -3,6 +3,9 @@
 
 set -euo pipefail
 
+# Keep local E2E imports from writing __pycache__ directories.
+export PYTHONDONTWRITEBYTECODE=1
+
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly LOCAL_CLI="${REPO_ROOT}/build/bin/ferrum"
 readonly LOCAL_PYTHON_ROOT="${REPO_ROOT}/build/runtime/python"
@@ -75,6 +78,8 @@ run_e2e "Ferrum Qt E/Z carrier-mark projection E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_ez_carrier_mark_projection.py"
 run_e2e "Ferrum Qt arrow authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_arrow_authoring.py"
+run_e2e "Ferrum Qt reaction authoring, inspection, editing, movement, and deletion E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_reaction_workflow.py"
 run_e2e "Ferrum Qt presentation vector authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_presentation_vector_authoring.py"
 run_e2e "Ferrum Qt template catalog authoring E2E" \

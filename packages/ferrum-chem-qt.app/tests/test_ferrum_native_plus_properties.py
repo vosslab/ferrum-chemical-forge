@@ -86,7 +86,7 @@ def test_native_plus_dialog_rejects_unrepresentable_source_without_mutation(
 	session = ferrum_chem.DocumentSession.load(
 		'<cdml xmlns="urn:ferrum:cdml"><plus id="p" font_size="14.5"><point x="1" y="2"/></plus></cdml>',
 	)
-	plus = session.observe(0).projection.presentation_stack.roots[0].plus
+	plus = session.observe(0).projection.presentation_stack.entries[0].plus
 	with pytest.raises(ValueError, match="not representable"):
 		ferrum_qt.ferrum.plus_properties.dialog_model_from_projection(plus)
 	assert session.observe(0).snapshot.revision == 0

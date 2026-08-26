@@ -29,7 +29,7 @@ class _ReactionComposerPanel(PySide6.QtWidgets.QWidget):
 			parent: PySide6.QtWidgets.QWidget) -> None:
 		"""Build role lists from an immutable Rust observation, not canvas items."""
 		super().__init__(parent)
-		self._choices = tuple(sorted(choices, key=lambda choice: choice.source_order))
+		self._choices = tuple(sorted(choices, key=lambda choice: choice.document_paint_order))
 		self._updating = False
 		self.setAccessibleName(self.tr("Define Reaction"))
 		layout = PySide6.QtWidgets.QVBoxLayout(self)
@@ -113,7 +113,7 @@ class _ReactionComposerPanel(PySide6.QtWidgets.QWidget):
 		)
 		for choice in self._choices:
 			item = PySide6.QtWidgets.QListWidgetItem(
-				f"{choice.label} ({choice.identifier}) [{_enum_token(choice.kind)}; {_enum_token(choice.availability)}]",
+				f"{choice.label} ({choice.document_object_id}) [{_enum_token(choice.kind)}; {_enum_token(choice.availability)}]",
 			)
 			item.setToolTip(item.text())
 			list_widget.addItem(item)
@@ -169,8 +169,8 @@ class _ReactionComposerPanel(PySide6.QtWidgets.QWidget):
 		for choice in self._choices:
 			if _enum_token(choice.kind) not in kinds:
 				continue
-			item = PySide6.QtWidgets.QListWidgetItem(f"{choice.label} ({choice.identifier})")
-			item.setData(PySide6.QtCore.Qt.ItemDataRole.UserRole, choice.identifier)
+			item = PySide6.QtWidgets.QListWidgetItem(f"{choice.label} ({choice.document_object_id})")
+			item.setData(PySide6.QtCore.Qt.ItemDataRole.UserRole, choice.document_object_id)
 			item.setFlags(item.flags() | PySide6.QtCore.Qt.ItemFlag.ItemIsUserCheckable)
 			item.setCheckState(PySide6.QtCore.Qt.CheckState.Unchecked)
 			if _enum_token(choice.availability) != "eligible":
@@ -203,14 +203,14 @@ class _ReactionComposerPanel(PySide6.QtWidgets.QWidget):
 			return
 		self._updating = True
 		try:
-			identifier = item.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
+			document_object_id = item.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
 			for other_role, list_widget in self._lists.items():
 				for index in range(list_widget.count()):
 					candidate = list_widget.item(index)
 					if candidate is item:
 						continue
 					if (
-						candidate.data(PySide6.QtCore.Qt.ItemDataRole.UserRole) == identifier
+						candidate.data(PySide6.QtCore.Qt.ItemDataRole.UserRole) == document_object_id
 						or (role == "arrow" and other_role == "arrow")
 					):
 						candidate.setCheckState(PySide6.QtCore.Qt.CheckState.Unchecked)
@@ -320,17 +320,20 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 			)
 			return
 		try:
-			choices = tab.observe_reaction_authoring_choices()
-			tab.validate_reaction_authoring_choices(choices)
-		except ferrum_qt.ferrum.engine.ReactionAuthoringChoicesError:
+			observation = tab.observe_direct_root_interaction()
+		except (
+			ferrum_qt.ferrum.engine.RenderInteractionError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		):
 			self._window._replace_render_interaction_selection(None, tab)
 			self._window.statusBar().showMessage(
 				self.tr("Refresh and select the reaction members again."), 5000,
 			)
 			return
-		selected_ids = {root.identifier for root in selection.roots}
+		choices = observation.reaction_authoring
+		selected_ids = {root.document_object_id for root in selection.roots}
 		selected_choices = tuple(
-			choice for choice in choices.choices if choice.identifier in selected_ids
+			choice for choice in choices.choices if choice.document_object_id in selected_ids
 		)
 		selected_exclusions = tuple(
 			exclusion for exclusion in choices.exclusions
@@ -343,8 +346,8 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 			return
 		self._tab = tab
 		self._choices = choices
-		self._revision = choices.revision
-		self._digest = choices.digest
+		self._revision = observation.revision
+		self._digest = observation.digest
 		self._dock = PySide6.QtWidgets.QDockWidget(self.tr("Define Reaction"), self._window)
 		self._dock.setObjectName("reaction-composer-dock")
 		self._dock.setAccessibleName(self.tr("Define Reaction"))
@@ -467,8 +470,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 			return
 		member_ids = reactants + products + [arrow] + pluses + conditions
 		try:
-			tab.validate_reaction_authoring_choices(choices)
-			request = tab.resolve_reaction_create(reactants, products, arrow, conditions, pluses)
+			request = tab.resolve_create_reaction_command(reactants, products, arrow, conditions, pluses)
 			prepared = tab.prepare_session_operation_transition_v1(request)
 			result = tab.commit_session_operation_transition_v1(prepared)
 			created = tab.install_reaction_created_result(result)
@@ -480,9 +482,6 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 			return
 		except ferrum_qt.ferrum.engine.PreparedOperationError as exc:
 			panel.show_refusal(str(exc))
-			return
-		except ferrum_qt.ferrum.engine.ReactionAuthoringChoicesError:
-			self._restart_after_typed_refusal()
 			return
 		except ferrum_qt.ferrum.engine.ReactionGestureError as exc:
 			self._handle_refusal(exc)
@@ -498,15 +497,15 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 			recovered = tab.refresh_authoritative()
 			self._window.statusBar().showMessage(
 				self.tr("Reaction {0} was created, but the authoritative display needs recovery.").format(
-					created.reaction_id,
+					created.reaction_document_object_id,
 				) if not recovered else self.tr(
 					"Reaction {0} was created. Refresh and select the reaction members again.",
-				).format(created.reaction_id), 5000,
+				).format(created.reaction_document_object_id), 5000,
 			)
 			return
 		self._window.statusBar().showMessage(
 			self.tr("Created reaction {0}. {1} member roots are selected.").format(
-				created.reaction_id, len(member_ids),
+				created.reaction_document_object_id, len(member_ids),
 			), 5000,
 		)
 		self._window._refresh_actions()
@@ -530,10 +529,10 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 				recovered = False
 		self._window.statusBar().showMessage(
 			self.tr("Reaction {0} was created, but the authoritative display needs recovery.").format(
-				result.outcome.reaction_created.reaction_id,
+				result.outcome.reaction_created.reaction_document_object_id,
 			) if not recovered else self.tr(
 				"Reaction {0} was created. Refresh and select the reaction members again.",
-			).format(result.outcome.reaction_created.reaction_id), 5000,
+			).format(result.outcome.reaction_created.reaction_document_object_id), 5000,
 		)
 		self._window._refresh_actions()
 

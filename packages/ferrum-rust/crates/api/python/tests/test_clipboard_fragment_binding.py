@@ -28,7 +28,7 @@ def test_private_clipboard_binding_closes_bond_endpoints_without_mutation() -> N
 	session, observation = _observation()
 	before = session.snapshot()
 	molecule = observation.projection.molecules[0]
-	bond = molecule.bonds[1].id
+	bond = molecule.bonds[1].document_object_id
 	receipt = ferrum_chem.extract_document_clipboard_fragment_v1(
 		observation, (bond,),
 	)
@@ -38,8 +38,11 @@ def test_private_clipboard_binding_closes_bond_endpoints_without_mutation() -> N
 	assert receipt.source_digest == observation.snapshot.digest
 	assert receipt.kind == "structure"
 	assert receipt.selected_objects == (bond,)
-	assert receipt.copied_roots == (molecule.id,)
-	assert receipt.copied_atoms == (molecule.atoms[1].id, molecule.atoms[2].id)
+	assert receipt.copied_roots == (molecule.document_object_id,)
+	assert receipt.copied_atoms == (
+		molecule.atoms[1].document_object_id,
+		molecule.atoms[2].document_object_id,
+	)
 	assert receipt.copied_bonds == (bond,)
 	assert 'id="a"' not in receipt.fragment_cdml
 	assert 'id="ab"' not in receipt.fragment_cdml
@@ -53,15 +56,15 @@ def test_private_clipboard_binding_canonicalizes_mixed_selection_to_whole_roots(
 	"""Mixed atom/artwork selection copies complete roots in source order."""
 	_session, observation = _observation()
 	molecule = observation.projection.molecules[0]
-	atom = molecule.atoms[0].id
-	plus = observation.projection.presentation_stack.roots[0].plus.target.id
+	atom = molecule.atoms[0].document_object_id
+	plus = observation.projection.presentation_stack.entries[0].plus.target.document_object_id
 	receipt = ferrum_chem.extract_document_clipboard_fragment_v1(
 		observation, (atom, plus),
 	)
 
 	assert receipt.kind == "top_level"
 	assert receipt.selected_objects == (plus, atom)
-	assert receipt.copied_roots == (plus, molecule.id)
+	assert receipt.copied_roots == (plus, molecule.document_object_id)
 	assert 'id="a"' in receipt.fragment_cdml
 	assert 'id="bc"' in receipt.fragment_cdml
 
@@ -75,11 +78,10 @@ def test_private_clipboard_binding_contains_invalid_python_and_rust_inputs() -> 
 		((), "nonempty exact tuple"),
 		(("\ud800",), "valid UTF-8 text"),
 		(("not-an-object-id",), "document object"),
-		((molecule.atoms[0].id, molecule.atoms[0].id), "must be unique"),
-		((molecule.atoms[0].id, molecule.atoms[2].id), "must be connected"),
+		((molecule.atoms[0].document_object_id, molecule.atoms[0].document_object_id), "must be unique"),
+		((molecule.atoms[0].document_object_id, molecule.atoms[2].document_object_id), "must be connected"),
 	)
 	for selected, message in invalid_values:
 		with pytest.raises(ferrum_chem.DocumentClipboardFragmentError) as caught:
 			ferrum_chem.extract_document_clipboard_fragment_v1(observation, selected)
 		assert message in caught.value.reason
-

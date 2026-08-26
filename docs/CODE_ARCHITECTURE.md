@@ -188,6 +188,12 @@ opaque prepared interaction handles and never receive the proof. The generic
 route covers terminal, equilibrium, and straight arrows; paths; vectors; plus;
 and explicit-hydrogen materialization.
 
+Presentation creation uses a separate transient contract. Renderer-issued,
+identifier-free preview plans replay only through the preview-plan builder and
+remain noninteractive Qt scene state. Commit instead returns a durable root
+receipt, after which Qt installs a committed Rust observation through the normal
+render-plan boundary.
+
 The same transition authority owns generic `CreateAtomV1`, `CreateBondV1`, and
 `CreateHaworthMoleculeV1` operations. Attached cyclohexane, direct-bond, and
 Haworth UI previews receive only a renderer-issued, identifier-free

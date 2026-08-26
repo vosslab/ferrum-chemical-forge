@@ -23,9 +23,9 @@ def _window_with_selected_root() -> tuple[object, object, str]:
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "diagnostics.cdml")
 	window._register_native_tab(tab, activate=True)
 	molecule = tab.current_document_observation().projection.molecules[0]
-	tab.select_atom(molecule.atoms[0].id)
+	tab.select_atom(molecule.atoms[0].document_object_id)
 	window._refresh_actions()
-	return window, tab, molecule.id
+	return window, tab, molecule.document_object_id
 
 
 #============================================
@@ -75,7 +75,9 @@ def test_check_structure_dialog_recovers_when_the_original_selection_returns(
 		qapp.processEvents()
 		window._refresh_actions()
 		was_stale = dialog._stale.isVisible() and not dialog._rerun.isEnabled()
-		tab.select_atom(tab.current_document_observation().projection.molecules[0].atoms[0].id)
+		tab.select_atom(
+			tab.current_document_observation().projection.molecules[0].atoms[0].document_object_id,
+		)
 		qapp.processEvents()
 		window._refresh_actions()
 		assert (was_stale, dialog._stale.isVisible(), dialog._rerun.isEnabled()) == (

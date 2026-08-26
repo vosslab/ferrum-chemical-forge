@@ -85,9 +85,13 @@ def test_private_template_insertion_is_atomic_history_and_reauthenticates() -> N
 	(
 		(b"<cdml xmlns='urn:ferrum:cdml'/>", "exact built-in string"),
 		("\ud800", "valid UTF-8 text"),
-		("<cdml xmlns='urn:ferrum:cdml'><molecule/></cdml>", "no supported molecular vertex"),
 		(
-			"<cdml xmlns='urn:ferrum:cdml'><molecule><atom><point x='0' y='0'/></atom>"
+			"<cdml xmlns='urn:ferrum:cdml'><molecule id='empty'/></cdml>",
+			"no supported molecular vertex",
+		),
+		(
+			"<cdml xmlns='urn:ferrum:cdml'><molecule id='legacy'><atom id='atom' name='C'>"
+			"<point x='0' y='0'/></atom>"
 			"<template/></molecule></cdml>",
 			"legacy template",
 		),

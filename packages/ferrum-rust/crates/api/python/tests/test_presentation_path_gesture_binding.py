@@ -31,7 +31,7 @@ def test_path_authoring_commits_a_created_root_through_generic_transition() -> N
 	result = commit_transition(session, request)
 
 	assert result.outcome.kind == "created_presentation_root_v1"
-	assert result.outcome.created_presentation_root.identifier
+	assert result.outcome.created_presentation_root.document_object_id
 	assert result.outcome.created_presentation_root.kind == ferrum_chem.CreatedPresentationRootKindV1.path
 	assert result.observation.snapshot.revision == 1
 	assert "<polyline id=\"" in result.observation.snapshot.cdml
@@ -90,4 +90,3 @@ def test_equilibrium_arrow_refuses_invalid_geometry_without_mutation() -> None:
 
 	assert captured.value.category == ferrum_chem.CurvedEquilibriumArrowGestureCategoryV1.control_too_near_chord
 	assert session.snapshot().revision == snapshot.revision
-

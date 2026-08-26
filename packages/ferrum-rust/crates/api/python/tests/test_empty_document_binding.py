@@ -17,7 +17,7 @@ def test_create_empty_document_v1_is_clean_and_projects_no_selectable_roots() ->
 	assert (
 		observation.snapshot.is_dirty is False
 		and observation.projection.molecules == []
-		and observation.projection.presentation_stack.roots == []
+		and observation.projection.presentation_stack.entries == ()
 	)
 
 

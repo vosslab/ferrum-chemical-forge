@@ -4,8 +4,8 @@ use crate::{TypedDocument, TypedRecord};
 use xot::{Node, Value, Xot};
 
 use crate::reports_v1::{
-    CdmlInspection, CdmlValidation, MoleculeInspection, RewriteCheck, INSPECTION_SCHEMA,
-    REWRITE_CHECK_SCHEMA, VALIDATION_SCHEMA,
+    CdmlInspection, CdmlValidation, INSPECTION_SCHEMA, MoleculeInspection, REWRITE_CHECK_SCHEMA,
+    RewriteCheck, VALIDATION_SCHEMA,
 };
 use thiserror::Error;
 
@@ -273,7 +273,7 @@ fn count_typed_records(
 
 #[cfg(test)]
 mod tests {
-    use super::{inspect_cdml, validate_cdml, verify_cdml_rewrite, XmlShape};
+    use super::{XmlShape, inspect_cdml, validate_cdml, verify_cdml_rewrite};
 
     const SIMPLE_CDML: &str = r#"<cdml xmlns="urn:ferrum:cdml" version="0.16"><molecule id="m1"><atom id="a1" name="C"><point x="1" y="2"/></atom></molecule></cdml>"#;
 

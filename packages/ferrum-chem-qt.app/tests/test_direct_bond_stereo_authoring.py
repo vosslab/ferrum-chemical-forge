@@ -76,11 +76,11 @@ def _action(window: ferrum_qt.main_window.MainWindow,
 
 
 #============================================
-def _viewport_point(tab: object, atom_id: str) -> PySide6.QtCore.QPoint:
+def _viewport_point(tab: object, document_object_id: str) -> PySide6.QtCore.QPoint:
 	"""Map one publicly observed atom position to the canvas viewport."""
 	atom = next(
 		atom for molecule in tab.current_document_observation().projection.molecules
-		for atom in molecule.atoms if atom.source_id == atom_id
+		for atom in molecule.atoms if atom.document_object_id == document_object_id
 	)
 	return tab.view.mapFromScene(PySide6.QtCore.QPointF(atom.position.x, atom.position.y))
 
@@ -98,6 +98,15 @@ def _open_window(qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		raise AssertionError("Ferrum did not finish opening the stereo-bond document")
 	qapp.processEvents()
 	return window, _current_tab(window)
+
+
+#============================================
+def _atom_document_object_ids(tab: object) -> tuple[str, ...]:
+	"""Return current Rust atom addresses in their fixture presentation order."""
+	return tuple(
+		atom.document_object_id
+		for atom in tab.current_document_observation().projection.molecules[0].atoms
+	)
 
 
 #============================================
@@ -156,8 +165,9 @@ def test_stereo_actions_create_directed_bonds(
 	):
 		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 		try:
-			start = _viewport_point(tab, "tip")
-			end = _viewport_point(tab, "base")
+			tip_id, base_id = _atom_document_object_ids(tab)
+			start = _viewport_point(tab, tip_id)
+			end = _viewport_point(tab, base_id)
 			_action(window, action_id).trigger()
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
@@ -167,7 +177,7 @@ def test_stereo_actions_create_directed_bonds(
 			qapp.processEvents()
 			bond = tab.current_document_observation().projection.molecules[0].bonds[0]
 			assert bond.source_type == source_type
-			assert (bond.start.source_id, bond.end.source_id) == ("tip", "base")
+			assert (bond.start.document_object_id, bond.end.document_object_id) == (tip_id, base_id)
 		finally:
 			_close_window(qapp, window)
 
@@ -183,7 +193,8 @@ def test_stereo_actions_direct_existing_new_bonds_from_tip_to_blank_base(
 	):
 		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 		try:
-			start = _viewport_point(tab, "tip")
+			tip_id, _base_id = _atom_document_object_ids(tab)
+			start = _viewport_point(tab, tip_id)
 			end = tab.view.mapFromScene(PySide6.QtCore.QPointF(150.0, 20.0))
 			_action(window, action_id).trigger()
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
@@ -194,8 +205,8 @@ def test_stereo_actions_direct_existing_new_bonds_from_tip_to_blank_base(
 			qapp.processEvents()
 			molecule = tab.current_document_observation().projection.molecules[0]
 			bond = molecule.bonds[0]
-			assert (bond.source_type, bond.start.source_id) == (source_type, "tip")
-			assert bond.end.source_id != "tip"
+			assert (bond.source_type, bond.start.document_object_id) == (source_type, tip_id)
+			assert bond.end.document_object_id != tip_id
 		finally:
 			_close_window(qapp, window)
 
@@ -211,8 +222,9 @@ def test_stereo_actions_support_new_existing_and_new_new_endpoints(
 	):
 		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 		try:
+			tip_id, _base_id = _atom_document_object_ids(tab)
 			start = tab.view.mapFromScene(PySide6.QtCore.QPointF(150.0, 20.0))
-			end = _viewport_point(tab, "tip")
+			end = _viewport_point(tab, tip_id)
 			_action(window, action_id).trigger()
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
@@ -222,7 +234,7 @@ def test_stereo_actions_support_new_existing_and_new_new_endpoints(
 			qapp.processEvents()
 			molecule = tab.current_document_observation().projection.molecules[0]
 			bond = molecule.bonds[0]
-			assert (len(molecule.atoms), bond.source_type, bond.end.source_id) == (3, source_type, "tip")
+			assert (len(molecule.atoms), bond.source_type, bond.end.document_object_id) == (3, source_type, tip_id)
 		finally:
 			_close_window(qapp, window)
 
@@ -253,7 +265,7 @@ def test_stereo_escape_unchecks_every_direct_bond_action(
 	"""Escape and action handoff retire every visible normal or wedge tool state."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
-		start = _viewport_point(tab, "tip")
+		start = _viewport_point(tab, _atom_document_object_ids(tab)[0])
 		actions = tuple(_action(window, action_id) for action_id in (
 			"mode.draw", "mode.draw_solid_wedge", "mode.draw_hashed_wedge",
 		))
@@ -275,7 +287,7 @@ def test_stereo_refusal_is_modal_and_actionable(
 	"""A typed wedge self-loop has the generic visible recovery dialog and no bond."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
-		start = _viewport_point(tab, "tip")
+		start = _viewport_point(tab, _atom_document_object_ids(tab)[0])
 		refusal_dialogs: list[tuple[str, str, str]] = []
 		observer = _ModalRefusalObserver(refusal_dialogs)
 		qapp.installEventFilter(observer)
@@ -294,7 +306,7 @@ def test_stereo_refusal_is_modal_and_actionable(
 			"What happened: This action is not available for the current drawing.\n\n"
 			"Why: The needed selection or document state is not available.\n\n"
 			"What to do now: Select the required item or change the drawing, then try again.",
-			"direct bond gesture cannot join an atom to itself",
+			"document operation rejected",
 		)]
 		assert not _action(window, "mode.draw_hashed_wedge").isChecked()
 		assert not tab.current_document_observation().projection.molecules[0].bonds

@@ -4,15 +4,15 @@ use crate::compact_group_materialization_v1::{
     CompactGroupMaterializationRefusalV1, TypedCompactGroupMaterializationRequestV1,
 };
 use crate::{
-    document_object_id_from_record_v1, DocumentCompactGroupMaterializationRefusalV1,
-    DocumentCompactGroupMaterializationRequestV1, DocumentCompactGroupMaterializationResultV1,
-    DocumentCompactGroupMaterializationTargetErrorV1, DocumentObjectIdV1, PersistentId,
-    SessionOperationError, TypedClass,
+    DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
+    DocumentCompactGroupMaterializationResultV1, DocumentCompactGroupMaterializationTargetErrorV1,
+    DocumentObjectIdV1, PersistentId, SessionOperationError, TypedClass,
+    document_object_id_from_record_v1,
 };
 
 use super::{
-    admitted_transition_v1::SessionOperationOutcomeStagingV1, DocumentSession,
-    DocumentSessionError, PreparedSessionTransitionV1, RevisionState,
+    DocumentSession, DocumentSessionError, PreparedSessionTransitionV1, RevisionState,
+    admitted_transition_v1::SessionOperationOutcomeStagingV1,
 };
 
 impl DocumentSession {
@@ -353,10 +353,12 @@ mod tests {
             .iter()
             .find(|molecule| molecule.id() == Some(outcome.molecule_id()))
             .expect("materialized molecule remains projected");
-        assert!(focused_molecule
-            .atoms()
-            .iter()
-            .any(|atom| { atom.id() == Some(outcome.focus_atom_id()) }));
+        assert!(
+            focused_molecule
+                .atoms()
+                .iter()
+                .any(|atom| { atom.id() == Some(outcome.focus_atom_id()) })
+        );
         assert!(!after.cdml().contains("<compact-group"));
         assert_eq!(
             session.commit_session_operation_transition_v1(&mut prepared),
@@ -365,19 +367,23 @@ mod tests {
         let undone = session
             .undo(after.revision())
             .expect("materialization undoes");
-        assert!(undone
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("<compact-group"));
+        assert!(
+            undone
+                .observation()
+                .snapshot()
+                .cdml()
+                .contains("<compact-group")
+        );
         let redone = session
             .redo(undone.observation().snapshot().revision())
             .expect("materialization redoes");
-        assert!(!redone
-            .observation()
-            .snapshot()
-            .cdml()
-            .contains("<compact-group"));
+        assert!(
+            !redone
+                .observation()
+                .snapshot()
+                .cdml()
+                .contains("<compact-group")
+        );
         assert_ne!(before, after);
     }
 

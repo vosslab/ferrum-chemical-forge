@@ -13,7 +13,7 @@ def _round_root() -> object:
 		ferrum_chem.DocumentBracketBoundsV1(0.0, 0.0, 20.0, 40.0),
 	)
 	result = session.commit_create_bracket(0, prepared)
-	return result.observation.projection.presentation_stack.roots[0]
+	return result.observation.projection.presentation_stack.entries[0]
 
 
 def test_round_bracket_lowering_emits_only_frozen_replay_commands() -> None:
@@ -32,9 +32,9 @@ def test_round_bracket_lowering_emits_only_frozen_replay_commands() -> None:
 def test_path_lowering_refuses_an_ordinary_document_polyline() -> None:
 	"""Normal spline admission stays owned by document projection, not this seam."""
 	session = ferrum_chem.DocumentSession.load(
-		"<cdml xmlns='urn:ferrum:cdml'><polyline><point x=\"0\" y=\"0\"/>"
+		"<cdml xmlns='urn:ferrum:cdml'><polyline id=\"ordinary\"><point x=\"0\" y=\"0\"/>"
 		"<point x=\"1\" y=\"1\"/></polyline></cdml>",
 	)
-	root = session.observe(0).projection.presentation_stack.roots[0]
+	root = session.observe(0).projection.presentation_stack.entries[0]
 	with pytest.raises(ferrum_chem.PresentationPathError):
 		ferrum_chem.lower_round_bracket_presentation_path_v1(root)

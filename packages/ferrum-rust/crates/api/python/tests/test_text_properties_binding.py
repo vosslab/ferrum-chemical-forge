@@ -15,7 +15,7 @@ SOURCE = (
 
 def text_projection(observation: object) -> object:
 	"""Return the one Text projection from this focused source."""
-	root = observation.projection.presentation_stack.roots[0]
+	root = observation.projection.presentation_stack.entries[0]
 	assert root.kind == "text"
 	return root.text
 
@@ -37,8 +37,9 @@ def test_text_properties_are_one_frozen_atomic_edit_with_history() -> None:
 		change_type.background_color(None),
 	)
 	session = ferrum_chem.DocumentSession.load(SOURCE)
+	text_object_id = text_projection(session.observe(0)).target.document_object_id
 	changed = session.apply_document_operation_v1(
-		0, ferrum_chem.DocumentOperationV1.set_text_properties("label", changes),
+		0, ferrum_chem.DocumentOperationV1.set_text_properties(text_object_id, changes),
 	).observation
 	text = text_projection(changed)
 
@@ -71,6 +72,7 @@ def test_text_properties_reject_non_closed_python_intent_without_mutation() -> N
 	run = run_type.create("x", (style.superscript,))
 	change = change_type.runs((run,))
 	session = ferrum_chem.DocumentSession.load(SOURCE)
+	text_object_id = text_projection(session.observe(0)).target.document_object_id
 	before = session.snapshot()
 
 	with pytest.raises(TypeError):
@@ -82,13 +84,13 @@ def test_text_properties_reject_non_closed_python_intent_without_mutation() -> N
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		change_type.runs(())
 	with pytest.raises(TypeError):
-		ferrum_chem.DocumentOperationV1.set_text_properties("label", [change])
+		ferrum_chem.DocumentOperationV1.set_text_properties(text_object_id, [change])
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		ferrum_chem.DocumentOperationV1.set_text_properties(
-			"label", TupleSubclass((change,)),
+			text_object_id, TupleSubclass((change,)),
 		)
 	with pytest.raises(ferrum_chem.OperationValidationError):
-		ferrum_chem.DocumentOperationV1.set_text_properties("label", (change,) * 6)
+		ferrum_chem.DocumentOperationV1.set_text_properties(text_object_id, (change,) * 6)
 
 	after = session.snapshot()
 	assert (after.revision, after.digest) == (before.revision, before.digest)

@@ -31,7 +31,10 @@ def dialog_model_from_projection(root: object) -> FerrumNativeWavyDialogModel:
 		raise ValueError("selected Rust presentation is not an editable Wavy line")
 	if root.polyline.target.record_kind != "polyline":
 		raise ValueError("selected Rust Wavy target kind is inconsistent")
-	if type(root.polyline.target.id) is not str:
+	if (
+		type(root.polyline.target.document_object_id) is not str
+		or not root.polyline.target.document_object_id
+		):
 		raise ValueError("Ferrum Wavy properties require a durable authored target")
 	width = root.polyline.stroke.width
 	if (
@@ -45,7 +48,7 @@ def dialog_model_from_projection(root: object) -> FerrumNativeWavyDialogModel:
 	if type(color) is not str:
 		raise TypeError("selected Rust Wavy line color must be a string")
 	return FerrumNativeWavyDialogModel(
-		root.polyline.target.id,
+		root.polyline.target.document_object_id,
 		width,
 		color,
 	)
@@ -96,17 +99,39 @@ class FerrumNativeWavyPropertiesMixin:
 	def selected_wavy_projection(self) -> object:
 		"""Return the selected exact frozen Rust Wavy root projection."""
 		self._require_mutable()
-		selected = self._require_projection().selected_durable_targets()
-		if len(selected) != 1 or selected[0].kind != "polyline":
+		import ferrum_qt.ferrum.engine as engine
+		selectors = self._selected_presentation_root_selectors()
+		if len(selectors) != 1:
 			raise RuntimeError("select exactly one Wavy presentation first")
-		if selected[0].durable_object_id is None or self._document_observation is None:
+		document_object_id, selector_kind = selectors[0]
+		if selector_kind != engine.DocumentPresentationRootKindV1.polyline:
+			raise RuntimeError("select exactly one Wavy presentation first")
+		observation = self._document_observation
+		if type(observation) is not engine.SessionDocumentObservationV1:
 			raise RuntimeError("selected Wavy line has no current durable projection")
-		for root in self._document_observation.projection.presentation_stack.roots:
+		entries = observation.projection.presentation_stack.entries
+		if type(entries) is not tuple:
+			raise RuntimeError("Rust Wavy presentation entries are not an exact DTO tuple")
+		matched_root = None
+		for root in entries:
+			if type(root) is not engine.PresentationRootProjectionV1:
+				raise RuntimeError("Rust Wavy presentation entry has the wrong DTO type")
 			if root.kind != "wavy":
 				continue
-			model = dialog_model_from_projection(root)
-			if model.target_id == selected[0].durable_object_id:
-				return root
+			if type(root.polyline) is not engine.PolylineProjectionV1:
+				raise RuntimeError("Rust Wavy presentation has no exact polyline payload")
+			target = root.polyline.target
+			if target.record_kind != "polyline":
+				raise RuntimeError("Rust Wavy presentation target kind is inconsistent")
+			if type(target.document_object_id) is not str or not target.document_object_id:
+				raise RuntimeError("Rust Wavy presentation has no durable identity")
+			if target.document_object_id != document_object_id:
+				continue
+			if matched_root is not None:
+				raise RuntimeError("Rust Wavy presentation has duplicate durable roots")
+			matched_root = root
+		if matched_root is not None:
+			return matched_root
 		raise RuntimeError("selected Wavy line is absent from the Rust projection")
 
 	#============================================
@@ -130,7 +155,7 @@ class FerrumNativeWavyPropertiesMixin:
 		result = self._session.set_wavy_properties_v1(
 			snapshot.revision, snapshot.digest, expected_target_id, changes,
 		)
-		self._install_mutation_result(result, (("polyline", model.target_id),))
+		self._install_mutation_result(result, (model.target_id,))
 		return result
 
 

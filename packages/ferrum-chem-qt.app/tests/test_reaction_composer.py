@@ -4,7 +4,6 @@
 import PySide6.QtCore
 import PySide6.QtTest
 import PySide6.QtWidgets
-import pytest
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab
@@ -19,20 +18,16 @@ _REACTION_CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'>
 
 
 #============================================
-@pytest.fixture
-def qapp() -> PySide6.QtWidgets.QApplication:
-	"""Provide one offscreen application for modeless composer widgets."""
-	app = PySide6.QtWidgets.QApplication.instance()
-	return app if app is not None else PySide6.QtWidgets.QApplication([])
-
-
-#============================================
 def _click_role(panel: PySide6.QtWidgets.QWidget, role: str, identifier: str) -> None:
 	"""Choose one visible reaction-member row through its rendered checkbox."""
-	list_widget = panel.findChild(
-		PySide6.QtWidgets.QListWidget, f"reaction-composer-{role}",
+	list_widget = next(
+		(
+			candidate for candidate in panel.findChildren(PySide6.QtWidgets.QListWidget)
+			if role in candidate.accessibleName().casefold() and candidate.isVisible()
+		),
+		None,
 	)
-	assert list_widget is not None
+	assert list_widget is not None, f"missing visible {role} reaction-role control"
 	for index in range(list_widget.count()):
 		item = list_widget.item(index)
 		if item.data(PySide6.QtCore.Qt.ItemDataRole.UserRole) == identifier:
@@ -59,14 +54,20 @@ def _click_role(panel: PySide6.QtWidgets.QWidget, role: str, identifier: str) ->
 #============================================
 def _create_reaction_button(panel: PySide6.QtWidgets.QWidget) -> PySide6.QtWidgets.QPushButton:
 	"""Return the visible, enabled submit control by its accessible UI contract."""
-	buttons = [
-		button for button in panel.findChildren(PySide6.QtWidgets.QPushButton)
-		if button.accessibleName() == "Create Reaction"
-	]
-	assert len(buttons) == 1
-	button = buttons[0]
-	assert button.isVisible() and button.isEnabled()
-	return button
+	for button in panel.findChildren(PySide6.QtWidgets.QPushButton):
+		if button.accessibleName() == "Create Reaction":
+			assert button.isVisible() and button.isEnabled()
+			return button
+	raise AssertionError("missing Create Reaction control")
+
+
+#============================================
+def _reaction_role_members(reaction: object) -> dict[str, set[str]]:
+	"""Return durable reaction members grouped by their Rust-observed role."""
+	members_by_role: dict[str, set[str]] = {}
+	for member in reaction.members:
+		members_by_role.setdefault(member.role, set()).add(member.document_object_id)
+	return members_by_role
 
 
 #============================================
@@ -82,15 +83,22 @@ def test_live_window_commits_roles_only_through_the_rust_reaction_bridge(
 	)
 	main_window._register_native_tab(tab, activate=True)
 	observation = tab.observe_direct_root_interaction()
+	root_ids = tuple(
+		root.document_object_id
+		for root in sorted(observation.roots, key=lambda root: root.paint_order)
+	)
+	left_document_object_id, right_document_object_id, arrow_document_object_id = root_ids
 	selection = None
-	for identifier in ("left", "right", "arrow"):
+	for document_object_id in root_ids:
 		modifier = (
 			ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace
 			if selection is None else ferrum_qt.ferrum.engine.RenderInteractionModifierV1.toggle
 		)
 		selection = tab.select_direct_roots(
 			observation, selection,
-			ferrum_qt.ferrum.engine.RenderInteractionQueryV1.root(identifier, modifier),
+			ferrum_qt.ferrum.engine.RenderInteractionQueryV1.root(
+				document_object_id, modifier,
+			),
 		)
 	main_window._replace_render_interaction_selection(selection, tab)
 	main_window._create_reaction_action.trigger()
@@ -98,14 +106,24 @@ def test_live_window_commits_roles_only_through_the_rust_reaction_bridge(
 	panel = main_window._reaction_composer._panel
 	assert panel is not None, main_window.statusBar().currentMessage()
 	try:
-		_click_role(panel, "reactants", "left")
-		_click_role(panel, "products", "right")
-		_click_role(panel, "arrow", "arrow")
+		_click_role(panel, "reactants", left_document_object_id)
+		_click_role(panel, "products", right_document_object_id)
+		_click_role(panel, "arrow", arrow_document_object_id)
 		PySide6.QtTest.QTest.mouseClick(
 			_create_reaction_button(panel), PySide6.QtCore.Qt.MouseButton.LeftButton,
 		)
 		qapp.processEvents()
-		assert "<reaction id=\"rxn-1\"" in tab.current_snapshot.cdml
+		snapshot = tab.current_snapshot
+		reaction_list = tab._session.observe_reaction_list_v1(
+			snapshot.revision, snapshot.digest,
+		)
+		assert len(reaction_list.reactions) == 1
+		members_by_role = _reaction_role_members(reaction_list.reactions[0])
+		assert members_by_role == {
+			"reactant": {left_document_object_id},
+			"product": {right_document_object_id},
+			"arrow": {arrow_document_object_id},
+		}
 	finally:
 		main_window._reaction_composer.close()
 		tab_widget = main_window.centralWidget()

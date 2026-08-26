@@ -17,11 +17,6 @@ import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 
 
 CDML_MIME_TYPE = "application/x-ferrum-cdml"
-_STRUCTURE_KINDS = frozenset({"atom", "bond"})
-_PRESENTATION_KINDS = frozenset({
-	"arrow", "plus", "text", "polyline", "rectangle", "square", "oval", "circle",
-	"polygon",
-})
 
 
 #============================================
@@ -85,23 +80,27 @@ class FerrumNativeClipboardPasteFailure:
 
 #============================================
 def selected_durable_clipboard_object_ids(tab: object) -> tuple[str, ...] | None:
-	"""Resolve every selected scene target to one exact durable projection object."""
+	"""Resolve selected opaque canvas identities in their current scene order."""
 	if getattr(tab, "requires_refresh", True):
 		return None
 	targets = tab.selected_molecule_information_targets()
 	if type(targets) is not tuple or not targets:
 		return None
-	object_ids = []
+	from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
+	object_ids: list[str] = []
+	seen_object_ids: set[str] = set()
 	for target in targets:
 		if (
-			target.kind not in _STRUCTURE_KINDS | _PRESENTATION_KINDS
-			or type(target.durable_object_id) is not str
-			or not target.durable_object_id
+			type(target) is not RenderTargetKey
+			or target.kind != "document_object"
+			or type(target.document_object_id) is not str
+			or not target.document_object_id
 		):
 			return None
-		object_ids.append(target.durable_object_id)
-	if len(set(object_ids)) != len(object_ids):
-		return None
+		if target.document_object_id in seen_object_ids:
+			return None
+		seen_object_ids.add(target.document_object_id)
+		object_ids.append(target.document_object_id)
 	return tuple(object_ids)
 
 

@@ -21,7 +21,7 @@ class _MoleculeNameCapture:
 	digest: str
 	address: native_molecule_inspection.FerrumNativeMoleculeInspectionAddress
 	current_name: str
-	selection: tuple[tuple[str, str], ...]
+	selection: tuple[str, ...]
 
 
 #============================================
@@ -31,7 +31,7 @@ class FerrumNativeMoleculeNameTabMixin:
 	#============================================
 	def set_durable_molecule_name_v1(self, expected_revision: int,
 			expected_digest: str, molecule_id: str, name: str,
-			selection: tuple[tuple[str, str], ...]) -> object:
+			selection: tuple[str, ...]) -> object:
 		"""Submit exact name intent and install only a changed observation."""
 		self._require_mutable()
 		if (
@@ -43,12 +43,8 @@ class FerrumNativeMoleculeNameTabMixin:
 		):
 			raise TypeError("Ferrum molecule name requires exact frozen Ferrum inputs")
 		if any(
-			type(target) is not tuple
-			or len(target) != 2
-			or type(target[0]) is not str
-			or type(target[1]) is not str
-			for target in selection
-		):
+			type(object_id) is not str or not object_id for object_id in selection
+		) or len(frozenset(selection)) != len(selection):
 			raise TypeError("Ferrum molecule name requires exact durable selection targets")
 		snapshot = self.current_snapshot
 		if snapshot.revision != expected_revision or snapshot.digest != expected_digest:
@@ -130,19 +126,14 @@ class FerrumNativeMoleculeNameWindowMixin:
 		tab = self._active_native_tab()
 		if tab is None:
 			return None
-		address = native_molecule_inspection.selected_durable_molecule_address(tab)
+		address = _selected_molecule_name_address(tab)
 		if address is None:
 			return None
 		root = _matching_projection_root(tab, address)
-		if root is None:
+		if root is None or (root.name is not None and type(root.name) is not str):
 			return None
-		targets = tab.selected_molecule_information_targets()
-		selection = tuple(
-			(target.kind, target.durable_object_id)
-			for target in targets
-			if type(target.durable_object_id) is str and target.durable_object_id
-		)
-		if len(selection) != len(targets):
+		selection = _selected_document_object_selection(tab)
+		if selection is None:
 			return None
 		snapshot = tab.current_snapshot
 		return _MoleculeNameCapture(
@@ -179,8 +170,118 @@ class FerrumNativeMoleculeNameWindowMixin:
 def _matching_projection_root(tab: object,
 		address: native_molecule_inspection.FerrumNativeMoleculeInspectionAddress) -> object | None:
 	"""Return the sole projection root matching the captured durable root ID."""
+	import ferrum_qt.ferrum.engine as engine
 	matches = tuple(
 		root for root in tab.current_document_observation().projection.molecules
-		if root.id == address.molecule_id
+		if (
+			type(root) is engine.MoleculeProjectionV1
+			and root.document_object_id == address.molecule_id
+		)
 	)
 	return matches[0] if len(matches) == 1 else None
+
+
+#============================================
+def _selected_molecule_name_address(
+		tab: object) -> native_molecule_inspection.FerrumNativeMoleculeInspectionAddress | None:
+	"""Resolve one selected root or one molecule-owned structural selection."""
+	import ferrum_qt.ferrum.engine as engine
+	if getattr(tab, "requires_refresh", True):
+		return None
+	observation = tab.current_document_observation()
+	if type(observation) is not engine.SessionDocumentObservationV1:
+		return None
+	projection = observation.projection
+	if type(projection) is not engine.DocumentProjectionV1:
+		return None
+	molecules = projection.molecules
+	direct_roots = projection.direct_roots
+	if type(molecules) is not list or type(direct_roots) is not tuple:
+		return None
+	molecule_ids: set[str] = set()
+	for molecule in molecules:
+		if (
+			type(molecule) is not engine.MoleculeProjectionV1
+			or type(molecule.document_object_id) is not str
+			or not molecule.document_object_id
+			or molecule.document_object_id in molecule_ids
+		):
+			return None
+		molecule_ids.add(molecule.document_object_id)
+	direct_molecule_ids: set[str] = set()
+	direct_root_ids: set[str] = set()
+	for root in direct_roots:
+		object_id = getattr(root, "document_object_id", None)
+		kind = getattr(root, "kind", None)
+		if (
+			type(object_id) is not str
+			or not object_id
+			or type(kind) is not str
+			or not kind
+			or object_id in direct_root_ids
+		):
+			return None
+		direct_root_ids.add(object_id)
+		if kind == "molecule":
+			direct_molecule_ids.add(object_id)
+	if direct_molecule_ids != molecule_ids:
+		return None
+	selection = _selected_document_object_selection(tab)
+	if selection is None:
+		return None
+	selected_ids = selection
+	if len(selected_ids) == 1 and selected_ids[0] in direct_molecule_ids:
+		return native_molecule_inspection.FerrumNativeMoleculeInspectionAddress(selected_ids[0])
+	if any(object_id in direct_molecule_ids for object_id in selected_ids):
+		return None
+	try:
+		members = tab.selected_structure_targets()
+	except (RuntimeError, TypeError, ValueError):
+		return None
+	if type(members) is not tuple or not members:
+		return None
+	member_ids: set[str] = set()
+	member_molecule_ids: set[str] = set()
+	for member in members:
+		object_id = getattr(member, "object_id", None)
+		molecule_id = getattr(member, "molecule_object_id", None)
+		if (
+			type(object_id) is not str
+			or not object_id
+			or type(molecule_id) is not str
+			or not molecule_id
+			or object_id in member_ids
+		):
+			return None
+		member_ids.add(object_id)
+		member_molecule_ids.add(molecule_id)
+	if set(selected_ids) != member_ids or len(member_molecule_ids) != 1:
+		return None
+	molecule_id = next(iter(member_molecule_ids))
+	if molecule_id not in direct_molecule_ids:
+		return None
+	return native_molecule_inspection.FerrumNativeMoleculeInspectionAddress(molecule_id)
+
+
+#============================================
+def _selected_document_object_selection(
+		tab: object) -> tuple[str, ...] | None:
+	"""Freeze exact generic canvas identities for post-mutation restoration."""
+	from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
+	targets = tab.selected_molecule_information_targets()
+	if type(targets) is not tuple or not targets:
+		return None
+	selection = []
+	seen = set()
+	for target in targets:
+		if (
+			type(target) is not RenderTargetKey
+			or target.kind != "document_object"
+			or type(target.document_object_id) is not str
+			or not target.document_object_id
+			or target.document_object_id in seen
+		):
+			return None
+		seen.add(target.document_object_id)
+		selection.append(target.document_object_id)
+	return tuple(selection)

@@ -20,6 +20,8 @@ from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
 
 
 _SCHEMA = "ferrum-presentation-render-plan-v1"
+_PREVIEW_SCHEMA = "ferrum-presentation-preview-render-plan-v1"
+_TELEX_FACE = "ferrum-telex-regular-v1"
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _RGB24 = re.compile(r"^[0-9a-f]{6}$")
 
@@ -64,6 +66,20 @@ class FerrumPresentationScene:
 		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
 		coordinator.retire_detached_projection_items(list(self.roots))
 		coordinator.raise_if_callback_failed("Ferrum presentation-scene disposal failed")
+
+
+@dataclasses.dataclass(slots=True)
+class FerrumPresentationPreviewScene:
+	"""Detached Qt replay of one immutable identifier-free preview plan."""
+
+	roots: tuple[PySide6.QtWidgets.QGraphicsItem, ...]
+
+	#============================================
+	def dispose_detached(self) -> None:
+		"""Release never-installed preview roots through the shared reaper."""
+		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
+		coordinator.retire_detached_projection_items(list(self.roots))
+		coordinator.raise_if_callback_failed("Ferrum presentation-preview disposal failed")
 
 
 #============================================
@@ -126,6 +142,112 @@ class RendererPlanRootItem(PySide6.QtWidgets.QGraphicsItem):
 
 
 #============================================
+class RendererPreviewRootItem(PySide6.QtWidgets.QGraphicsItem):
+	"""One noninteractive root that paints preview vector operations exactly."""
+
+	#============================================
+	def __init__(self, commands: tuple[tuple[PySide6.QtGui.QPainterPath,
+			PySide6.QtGui.QPen | None, PySide6.QtGui.QBrush | None], ...],
+			bounds: PySide6.QtCore.QRectF) -> None:
+		"""Cache validated preview paths without creating a selection identity."""
+		super().__init__()
+		self._commands = commands
+		self._bounds = bounds
+		self.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
+		self.setFlag(
+			PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False,
+		)
+		self.setFlag(
+			PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False,
+		)
+
+	#============================================
+	def boundingRect(self) -> PySide6.QtCore.QRectF:
+		"""Return renderer-issued finite preview bounds for Qt scene indexing."""
+		return PySide6.QtCore.QRectF(self._bounds)
+
+	#============================================
+	def paint(self, painter: PySide6.QtGui.QPainter,
+			option: PySide6.QtWidgets.QStyleOptionGraphicsItem,
+			widget: PySide6.QtWidgets.QWidget | None = None) -> None:
+		"""Replay exact preview paths, strokes, and fills in operation order."""
+		del option, widget
+		for path, pen, brush in self._commands:
+			painter.setPen(PySide6.QtCore.Qt.PenStyle.NoPen if pen is None else pen)
+			painter.setBrush(PySide6.QtCore.Qt.BrushStyle.NoBrush if brush is None else brush)
+			painter.drawPath(path)
+
+	#============================================
+	def dispose(self) -> None:
+		"""Provide the established projection-retirement callback contract."""
+
+
+#============================================
+class RendererPreviewPlusItem(PySide6.QtWidgets.QGraphicsItem):
+	"""One noninteractive identifier-free Plus preview from the closed DTO."""
+
+	#============================================
+	def __init__(self, plus: object, bounds: PySide6.QtCore.QRectF,
+			extension: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex) -> None:
+		"""Authenticate and paint the sole preview-plus grammar without a target."""
+		super().__init__()
+		if type(plus) is not extension.PresentationPreviewPlusV1:
+			raise PresentationRenderPlanError("preview Plus has the wrong DTO type")
+		if plus.text != "+" or plus.face != _TELEX_FACE or type(plus.z) is not int or plus.z != 20:
+			raise PresentationRenderPlanError("preview Plus has invalid fixed text semantics")
+		anchor = _point(plus.anchor, extension, "preview Plus anchor")
+		origin = _point(plus.operation_origin, extension, "preview Plus text origin")
+		font = telex.raw_font(_positive(plus.size, "preview Plus text size"))
+		glyph_indexes = font.glyphIndexesForString(plus.text)
+		if len(glyph_indexes) != 1 or type(glyph_indexes[0]) is not int or glyph_indexes[0] <= 0:
+			raise PresentationRenderPlanError("preview Plus has no verified Telex glyph")
+		glyph_path = font.pathForGlyph(glyph_indexes[0])
+		if glyph_path.isEmpty():
+			raise PresentationRenderPlanError("preview Plus Telex glyph has no outline")
+		transform = PySide6.QtGui.QTransform()
+		transform.translate(anchor.x() + origin.x(), anchor.y() + origin.y())
+		self._glyph_path = transform.map(glyph_path)
+		self._foreground = PySide6.QtGui.QBrush(_color(plus.paint, "preview Plus foreground"))
+		self._background_path = PySide6.QtGui.QPainterPath()
+		self._background = None
+		if plus.background is not None:
+			self._background_path.addRect(bounds)
+			self._background = PySide6.QtGui.QBrush(
+				_color(plus.background, "preview Plus background"),
+			)
+		self._bounds = PySide6.QtCore.QRectF(bounds)
+		self.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
+		self.setFlag(
+			PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False,
+		)
+		self.setFlag(
+			PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False,
+		)
+
+	#============================================
+	def boundingRect(self) -> PySide6.QtCore.QRectF:
+		"""Return renderer-issued preview bounds without deriving a target shape."""
+		return PySide6.QtCore.QRectF(self._bounds)
+
+	#============================================
+	def paint(self, painter: PySide6.QtGui.QPainter,
+			option: PySide6.QtWidgets.QStyleOptionGraphicsItem,
+			widget: PySide6.QtWidgets.QWidget | None = None) -> None:
+		"""Paint fixed preview Plus paths without selection affordances."""
+		del option, widget
+		painter.setPen(PySide6.QtCore.Qt.PenStyle.NoPen)
+		if self._background is not None:
+			painter.setBrush(self._background)
+			painter.drawPath(self._background_path)
+		painter.setBrush(self._foreground)
+		painter.drawPath(self._glyph_path)
+
+	#============================================
+	def dispose(self) -> None:
+		"""Provide the established projection-retirement callback contract."""
+
+
+#============================================
 def build_presentation_render_plan(plan: object, telex_resource: object) -> FerrumPresentationScene:
 	"""Build detached Qt roots from one exact fenced renderer plan."""
 	extension = _ferrum_chem()
@@ -168,6 +290,37 @@ def build_presentation_render_plan(plan: object, telex_resource: object) -> Ferr
 
 
 #============================================
+def build_presentation_preview_render_plan(
+		plan: object, telex_resource: object,
+		) -> FerrumPresentationPreviewScene:
+	"""Build detached noninteractive roots from one exact preview-only plan."""
+	extension = _ferrum_chem()
+	if type(plan) is not extension.PresentationPreviewRenderPlanV1:
+		raise PresentationRenderPlanError(
+			"presentation preview render plan must be engine.PresentationPreviewRenderPlanV1",
+		)
+	if plan.schema != _PREVIEW_SCHEMA:
+		raise PresentationRenderPlanError("unknown presentation preview render-plan schema")
+	if type(plan.roots) is not tuple:
+		raise PresentationRenderPlanError("presentation preview render-plan roots must be frozen")
+	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
+	roots: list[PySide6.QtWidgets.QGraphicsItem] = []
+	try:
+		for root in plan.roots:
+			if type(root) is not extension.PresentationPreviewRenderRootV1:
+				raise PresentationRenderPlanError("preview render root has the wrong DTO type")
+			bounds = _bounds(root.bounds, extension)
+			roots.append(_preview_root_item(root, bounds, extension, telex))
+	except (AttributeError, TypeError, ValueError, PresentationRenderPlanError) as exc:
+		for item in roots:
+			item.dispose()
+		if isinstance(exc, PresentationRenderPlanError):
+			raise
+		raise PresentationRenderPlanError("invalid frozen presentation preview render plan") from exc
+	return FerrumPresentationPreviewScene(tuple(roots))
+
+
+#============================================
 def _root_item(root: object, target: RenderTargetKey, bounds: PySide6.QtCore.QRectF,
 		extension: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex) -> object:
 	"""Validate one discriminated root and build only its documented variant."""
@@ -194,6 +347,24 @@ def _root_item(root: object, target: RenderTargetKey, bounds: PySide6.QtCore.QRe
 		)
 		return _require_matching_item_target(item, target)
 	raise PresentationRenderPlanError("unknown presentation render-root kind")
+
+
+#============================================
+def _preview_root_item(root: object, bounds: PySide6.QtCore.QRectF, extension: object,
+		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex) -> PySide6.QtWidgets.QGraphicsItem:
+	"""Validate one identifier-free root and build its documented preview variant."""
+	if root.kind == "vector":
+		if root.plus is not None or type(root.vector_operations) is not tuple:
+			raise PresentationRenderPlanError("preview vector render root has mixed variants")
+		commands = tuple(_vector_operation(operation, extension) for operation in root.vector_operations)
+		if not commands:
+			raise PresentationRenderPlanError("preview vector render root has no operations")
+		return RendererPreviewRootItem(commands, bounds)
+	if root.kind == "plus":
+		if root.plus is None or root.vector_operations != ():
+			raise PresentationRenderPlanError("preview Plus render root has mixed variants")
+		return RendererPreviewPlusItem(root.plus, bounds, extension, telex)
+	raise PresentationRenderPlanError("unknown presentation preview render-root kind")
 
 
 #============================================

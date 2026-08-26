@@ -3,11 +3,15 @@
 # Standard Library
 import dataclasses
 
+# local repo modules
+import ferrum_qt.ferrum.document_tab_errors as document_tab_errors
+import ferrum_qt.ferrum.engine as engine
+
 
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class FerrumNativeMoleculeInspectionAddress:
-	"""One direct molecule root issued by the current render observation."""
+	"""One exact Rust-owned molecule identity selected through a structure target."""
 
 	molecule_id: str
 
@@ -18,21 +22,31 @@ def selected_durable_molecule_addresses(
 	"""Resolve selected structural targets through their durable owner IDs."""
 	if getattr(tab, "requires_refresh", True):
 		return None
-	targets = tab.selected_molecule_information_targets()
+	try:
+		targets = tab.selected_structure_targets()
+	except document_tab_errors.FerrumNativeDocumentTabError:
+		return None
 	if type(targets) is not tuple or not targets:
 		return None
-	addresses = {}
+	addresses: dict[str, FerrumNativeMoleculeInspectionAddress] = {}
+	object_ids: set[str] = set()
 	for target in targets:
 		if (
-			target.kind not in ("atom", "bond")
-			or type(target.durable_object_id) is not str
-			or not target.durable_object_id
-			or type(target.durable_molecule_object_id) is not str
-			or not target.durable_molecule_object_id
+			target.kind not in (
+				engine.StructureTargetKindV1.atom,
+				engine.StructureTargetKindV1.bond,
+			)
+			or type(target.molecule_object_id) is not str
+			or not target.molecule_object_id
+			or type(target.object_id) is not str
+			or not target.object_id
 		):
 			return None
+		if target.object_id in object_ids:
+			return None
+		object_ids.add(target.object_id)
 		address = FerrumNativeMoleculeInspectionAddress(
-			target.durable_molecule_object_id,
+			target.molecule_object_id,
 		)
 		previous = addresses.setdefault(address.molecule_id, address)
 		if previous != address:

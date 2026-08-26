@@ -18,7 +18,7 @@ def _address(source: str = _SOURCE) -> tuple[object, object, str]:
 	"""Return one frozen observation, snapshot, and durable root selector."""
 	session = ferrum_chem.DocumentSession.load(source)
 	observation = session.observe(0)
-	return session, observation, observation.projection.molecules[0].id
+	return session, observation, observation.projection.molecules[0].document_object_id
 
 
 def test_private_inspection_is_frozen_and_reports_exact_retained_facts() -> None:
@@ -33,9 +33,8 @@ def test_private_inspection_is_frozen_and_reports_exact_retained_facts() -> None
 	assert receipt.source_revision == 0
 	assert receipt.source_digest == observation.snapshot.digest
 	assert receipt.molecule_id == molecule_id
-	assert receipt.projection_key == observation.projection.molecules[0].projection_key
 	assert receipt.source_id == "m1"
-	assert receipt.document_root_order == 0
+	assert receipt.document_paint_order == 0
 	assert receipt.authored_name == "Example"
 	assert (receipt.atom_count, receipt.bond_count) == (2, 1)
 	assert isinstance(receipt.element_inventory, tuple)
@@ -93,7 +92,7 @@ def test_private_inspection_maps_object_and_rust_failures_to_its_error() -> None
 	with pytest.raises(ferrum_chem.DocumentMoleculeInspectionError) as digest:
 		ferrum_chem.inspect_document_molecule_v1(observation, 0, "0" * 64, molecule_id)
 	assert "digest changed" in digest.value.reason
-	atom_id = "ferrum-document-object-v1/6d6f6c6563756c652f61746f6d/source/6131"
+	atom_id = observation.projection.molecules[0].atoms[0].document_object_id
 	with pytest.raises(ferrum_chem.DocumentMoleculeInspectionError) as root:
 		ferrum_chem.inspect_document_molecule_v1(
 			observation, 0, observation.snapshot.digest, atom_id,
@@ -112,4 +111,3 @@ def test_private_inspection_maps_object_and_rust_failures_to_its_error() -> None
 	assert "invalid element" in invalid.value.reason
 	assert session.snapshot().revision == before.revision
 	assert session.snapshot().digest == before.digest
-

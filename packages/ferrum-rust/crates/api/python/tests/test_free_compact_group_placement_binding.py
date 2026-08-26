@@ -34,14 +34,14 @@ def test_free_methyl_placement_commits_one_revision_with_durable_projection_id()
 	observation = committed.observation
 	molecule = next(
 		item for item in observation.projection.molecules
-		if item.id == committed.molecule_object_id
+		if item.document_object_id == committed.molecule_object_id
 	)
 
 	assert (committed.revision, committed.digest, committed.is_dirty) == (
 		before.revision + 1, observation.snapshot.digest, True)
 	assert observation.snapshot.revision == committed.revision
 	assert any(
-		item.id == committed.compact_group_object_id and item.catalog_key == "methyl"
+		item.document_object_id == committed.compact_group_object_id and item.catalog_key == "methyl"
 		for item in molecule.compact_groups)
 
 

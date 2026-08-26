@@ -51,7 +51,7 @@ def test_native_arrow_dialog_rejects_unrepresentable_facts(
 		'<cdml xmlns="urn:ferrum:cdml"><arrow id="a" type="normal" width="0.2"><point x="0" y="0"/>'
 		'<point x="40" y="0"/></arrow></cdml>',
 	)
-	arrow = session.observe(0).projection.presentation_stack.roots[0].arrow
+	arrow = session.observe(0).projection.presentation_stack.entries[0].arrow
 	with pytest.raises(ValueError, match="not representable"):
 		ferrum_qt.ferrum.arrow_properties.dialog_model_from_projection(arrow)
 	with pytest.raises(ValueError, match="spline rendering"):

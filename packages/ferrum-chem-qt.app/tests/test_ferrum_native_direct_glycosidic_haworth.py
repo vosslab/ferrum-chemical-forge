@@ -18,13 +18,17 @@ SMILES = "O1CCCC1OC2CCCCO2"
 
 def _is_direct_glycosidic_profile(molecule: object) -> bool:
 	"""Recognize durable C/O bridge and front-depth facts without XML details."""
-	atoms = {atom.source_id: atom for atom in molecule.atoms}
+	atoms = {atom.document_object_id: atom for atom in molecule.atoms}
 	if any(atom.element not in {"C", "O"} for atom in atoms.values()):
 		return False
 	adjacency = {identifier: [] for identifier in atoms}
 	for bond in molecule.bonds:
-		adjacency[bond.start.source_id].append((bond.end.source_id, bond))
-		adjacency[bond.end.source_id].append((bond.start.source_id, bond))
+		start = bond.start.document_object_id
+		end = bond.end.document_object_id
+		if start not in adjacency or end not in adjacency:
+			return False
+		adjacency[start].append((end, bond))
+		adjacency[end].append((start, bond))
 	bridges = [
 		identifier for identifier, neighbors in adjacency.items()
 		if atoms[identifier].element == "O" and len(neighbors) == 2
@@ -42,7 +46,7 @@ def _is_direct_glycosidic_profile(molecule: object) -> bool:
 		for _, bond in adjacency[bridge]
 	):
 		return False
-	bridge_bond_ids = {bond.source_id for _, bond in adjacency[bridge]}
+	bridge_bond_ids = {bond.document_object_id for _, bond in adjacency[bridge]}
 	remaining = set(atoms) - {bridge}
 	components: list[set[str]] = []
 	while remaining:
@@ -51,7 +55,7 @@ def _is_direct_glycosidic_profile(molecule: object) -> bool:
 		while frontier:
 			current = frontier.pop()
 			for neighbor, bond in adjacency[current]:
-				if neighbor in remaining and bond.source_id not in bridge_bond_ids:
+				if neighbor in remaining and bond.document_object_id not in bridge_bond_ids:
 					remaining.remove(neighbor)
 					component.add(neighbor)
 					frontier.append(neighbor)

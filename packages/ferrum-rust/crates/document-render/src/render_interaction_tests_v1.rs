@@ -873,9 +873,10 @@ fn fragment_member_idref_does_not_exclude_renderable_root() {
 fn reaction_authoring_choices_keep_renderer_paint_order() {
     let session =
         RenderInteractionSessionV1::new(DocumentSession::load(MIXED_SOURCE).expect("load"));
-    let choices = session
-        .observe_reaction_authoring_choices_v1(fence(&session))
-        .expect("observe reaction authoring choices");
+    let observation = session
+        .observe_render_interaction_v1(fence(&session))
+        .expect("observe direct-root interaction");
+    let choices = observation.reaction_authoring();
     assert_eq!(
         choices
             .choices()

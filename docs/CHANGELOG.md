@@ -8,6 +8,28 @@ where that historical branch applies.
 
 ### Fixes and Maintenance
 
+- Completed the durable `document_object_id` migration for projection,
+  property, Haworth, render-interaction, molecule report/export, and reaction
+  consumers. Ferrum now has one opaque document-object identity contract with
+  no source-ID compatibility layer.
+
+- Separated transient presentation-preview replay from committed render-plan
+  replay. Arrow authoring now redeems the canonical durable receipt field, and
+  its public E2E reports unexpected modal or refusal failures promptly.
+
+- Added `materialize_compact_group` as the precise molecule-diagnostics
+  recovery for an unexpanded compact group.
+
+- Completed Rust-owned reaction authoring transitions: dedicated
+  create/replace/delete commands redeem through generic transitions, member
+  movement uses generic direct-root translation, and authoring choices nest in
+  `RenderInteractionObservationV1`.
+
+- Split the direct-root PyO3 binding into cohesive query, DTO, session,
+  conversion, and error modules. Tests now parse XML safely, use canonical
+  source-owned CDML and durable observed IDs, and acknowledge the stale
+  user-template refusal through the accessible event loop.
+
 - Stabilized the public CLI verb E2E around Ferrum's durable document contract.
   Its shared CDML input now persists opaque molecule and atom IDs, so comparing
   `inspect --json` with the equivalent protocol execution authenticates the
@@ -64,8 +86,9 @@ where that historical branch applies.
   unexpanded-group finding and materialization recovery -> `Formula: C3H8`.
   Missing `formal_charge` remains unknown source state; no
   `IncompleteAuthoredCharge`, mutation, auto-fix, or canvas navigation is
-  delivered. Fresh staged-extension execution, registered E2E execution, and
-  complete-suite proof remain pending at this changelog point.
+  delivered. Fresh build and `all_test.sh` evidence records hygiene (`7518`),
+  bindings (`277`), Qt (`207` passed and `1` skipped), and all registered CLI
+  and GUI E2Es.
 
 - Added the local `Place Compact Group...` Me-only canvas workflow. Rust owns the closed
   `PlaceFreeCompactGroupV1` transition: Methyl-only key admission, finite snapped anchor and

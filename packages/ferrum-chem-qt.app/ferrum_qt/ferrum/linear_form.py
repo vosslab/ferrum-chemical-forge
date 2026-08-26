@@ -22,71 +22,93 @@ class FerrumNativeLinearFormCapture:
 
 #============================================
 def capture_linear_form_selection(tab: object) -> FerrumNativeLinearFormCapture | None:
-	"""Expand selected bonds and freeze one durable direct-root atom selection."""
+	"""Expand one Rust-resolved atom/bond selection into ordered durable atoms."""
 	if getattr(tab, "requires_refresh", True):
 		return None
-	targets = tab.selected_molecule_information_targets()
+	targets = tab.selected_structure_targets()
 	if type(targets) is not tuple or not targets:
 		return None
+	import ferrum_qt.ferrum.engine as engine
 	observation = tab.current_document_observation()
-	molecules = observation.projection.molecules
 	selected_molecule_id = None
 	selected_atom_ids = set()
 	for target in targets:
 		if (
-			target.kind not in ("atom", "bond")
-			or type(target.durable_object_id) is not str
-			or not target.durable_object_id
-			or type(target.durable_molecule_object_id) is not str
-			or not target.durable_molecule_object_id
+			target.kind not in (
+				engine.StructureTargetKindV1.atom,
+				engine.StructureTargetKindV1.bond,
+			)
+			or type(target.object_id) is not str
+			or not target.object_id
+			or type(target.molecule_object_id) is not str
+			or not target.molecule_object_id
 		):
 			return None
 		if selected_molecule_id is None:
-			selected_molecule_id = target.durable_molecule_object_id
-		elif selected_molecule_id != target.durable_molecule_object_id:
+			selected_molecule_id = target.molecule_object_id
+		elif selected_molecule_id != target.molecule_object_id:
 			return None
-		if target.kind == "atom":
-			selected_atom_ids.add(target.durable_object_id)
-		else:
-			matches = [
-				bond
-				for molecule in molecules
-				if molecule.id == target.durable_molecule_object_id
-				for bond in molecule.bonds
-				if bond.id == target.durable_object_id
-			]
-			if len(matches) != 1:
-				return None
-			endpoints = (matches[0].start, matches[0].end)
-			if any(
-				endpoint.kind != "atom"
-				or type(endpoint.object_id) is not str
-				or not endpoint.object_id
-				for endpoint in endpoints
-			):
-				return None
-			selected_atom_ids.update(endpoint.object_id for endpoint in endpoints)
 	if selected_molecule_id is None:
 		return None
-	molecule_matches = [molecule for molecule in molecules if molecule.id == selected_molecule_id]
+	molecule_matches = [
+		molecule for molecule in observation.projection.molecules
+		if molecule.document_object_id == selected_molecule_id
+	]
 	if len(molecule_matches) != 1:
 		return None
 	molecule = molecule_matches[0]
+	atom_ids_by_document_object = set()
+	for atom in molecule.atoms:
+		atom_id = atom.document_object_id
+		if (
+			type(atom_id) is not str
+			or not atom_id
+			or atom_id in atom_ids_by_document_object
+		):
+			return None
+		atom_ids_by_document_object.add(atom_id)
+	bonds_by_document_object = {}
+	for bond in molecule.bonds:
+		bond_id = bond.document_object_id
+		if (
+			type(bond_id) is not str
+			or not bond_id
+			or bond_id in bonds_by_document_object
+		):
+			return None
+		bonds_by_document_object[bond_id] = bond
+	for target in targets:
+		if target.kind is engine.StructureTargetKindV1.atom:
+			if target.object_id not in atom_ids_by_document_object:
+				return None
+			selected_atom_ids.add(target.object_id)
+			continue
+		bond = bonds_by_document_object.get(target.object_id)
+		if bond is None:
+			return None
+		endpoints = (bond.start, bond.end)
+		if any(
+			endpoint.kind != "atom"
+			or type(endpoint.document_object_id) is not str
+			or not endpoint.document_object_id
+			or endpoint.document_object_id not in atom_ids_by_document_object
+			for endpoint in endpoints
+		):
+			return None
+		selected_atom_ids.update(endpoint.document_object_id for endpoint in endpoints)
 	ordered_atoms = tuple(
-		atom for atom in molecule.atoms
-		if atom.id in selected_atom_ids
+		atom.document_object_id for atom in molecule.atoms
+		if atom.document_object_id in selected_atom_ids
 	)
-	atom_ids = tuple(atom.id for atom in ordered_atoms)
 	if (
-		not atom_ids
-		or len(atom_ids) != len(selected_atom_ids)
-		or any(type(atom_id) is not str or not atom_id for atom_id in atom_ids)
-		or len(frozenset(atom_ids)) != len(atom_ids)
+		not ordered_atoms
+		or len(ordered_atoms) != len(selected_atom_ids)
+		or len(frozenset(ordered_atoms)) != len(ordered_atoms)
 	):
 		return None
 	snapshot = observation.snapshot
 	return FerrumNativeLinearFormCapture(
-		tab, snapshot.revision, snapshot.digest, selected_molecule_id, atom_ids,
+		tab, snapshot.revision, snapshot.digest, selected_molecule_id, ordered_atoms,
 	)
 
 
@@ -127,8 +149,7 @@ class FerrumNativeLinearFormTabMixin:
 			and authoritative.digest == snapshot.digest
 		):
 			return result
-		selection = tuple(("atom", atom_id) for atom_id in atom_ids)
-		self._install_mutation_result(result, selection)
+		self._install_mutation_result(result, atom_ids)
 		return result
 
 

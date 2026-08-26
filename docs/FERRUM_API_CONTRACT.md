@@ -188,18 +188,20 @@ request.
 ### Compact-group materialization
 
 `document.compact-group.materialize.v1` is a stateless generic operation for
-one attached direct-root typed compact group. Its payload contains exactly
+one eligible typed compact group in a direct-root molecule. It supports an
+attached group and a self-contained free group. Its payload contains exactly
 `document { cdml, expected_revision, expected_digest_hex }`, `molecule_id`, and
 `compact_group_id`. The document is a revision/digest-fenced snapshot and both
-target identifiers are caller-supplied opaque source IDs that identify records
-only within that admitted snapshot. They are not Rust-issued durable live IDs,
-labels, catalog keys, formulae, paths, geometry, or recipe input.
+target identifiers are caller-supplied serialized `DocumentObjectIdV1` values.
+Rust parses and resolves them in the admitted snapshot. They are opaque durable
+document-object selectors, not labels, catalog keys, formulae, paths, geometry,
+or recipe input.
 
 The successful `materialization` receipt has schema
-`ferrum-document-compact-group-materialization-v1`. It repeats the source
-revision, source digest, molecule ID, and compact-group ID, then returns the
-committed canonical `document`, its next request-owned `document_fence`, and
-the authoritative `replacement_focus_atom_id` in that committed snapshot.
+`ferrum-document-compact-group-materialization-v1`. It repeats the fenced
+revision, digest, molecule ID, and compact-group ID, then returns the committed
+canonical `document`, its next request-owned `document_fence`, and the
+authoritative durable `replacement_focus_atom_id` in that committed snapshot.
 Preparation state and generated replacement IDs remain session-private.
 
 The error envelope may carry exactly one
@@ -213,10 +215,9 @@ pairs are `stale_document_fence` / `refresh_and_retry`,
 Only typed `Me` and `NO2` compact groups materialize in this public route. It
 does not accept free-form labels, formulas, recipes, or a legacy alias. The
 generic protocol, named CLI command, PyO3 live-session route, and Qt action
-are delivered. The stateless route deliberately identifies the admitted
-snapshot's targets by source IDs. The live route instead accepts the current
-session's durable `DocumentObjectIdV1` molecule and compact-group IDs plus its
-revision/digest fence; it never reconstructs those IDs from source data.
+are delivered. Both stateless and live routes use durable
+`DocumentObjectIdV1` molecule and compact-group selectors with their applicable
+revision/digest fence; neither reconstructs a target from source data.
 
 The live session also issues a closed, fenced compact-materialization
 availability observation for a selected durable molecule/group pair. Qt uses
@@ -312,7 +313,8 @@ response and rejects `--output -`.
 
 ## Python boundary
 
-The `ferrum_chem` extension exposes only these protocol functions:
+The stateless public automation surface of `ferrum_chem` exposes only these
+protocol functions:
 
 ```python
 def execute_operation_v1(request_json: str) -> str: ...
@@ -321,8 +323,14 @@ def operation_protocol_schema_v1() -> str: ...
 
 `OperationProtocolErrorV1(FerrumError)` exposes a stable `category` for invalid JSON,
 resource-limit, or execution-unavailable failures that occur before an envelope can exist.
-Non-string input follows normal Python type checking. The binding accepts no mapping, bytes, path,
-session, receipt, or Qt object.
+Non-string input follows normal Python type checking. This surface accepts no mapping, bytes,
+path, session, receipt, or Qt object.
+
+The in-tree Qt bridge is a separate private, session-affine extension surface.
+Each native tab owns a Rust document session and accepts committed changes only
+through durable receipts and replacement observations. It is not part of the
+stateless automation API; see [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md) for
+the desktop ownership boundary.
 
 ## Exclusions
 

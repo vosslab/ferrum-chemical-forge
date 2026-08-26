@@ -115,8 +115,8 @@ pub(crate) fn apply_clipboard_paste_v1_binding(
         .iter()
         .map(|root| {
             let kind = copied(py, root_kind(root.kind()))?;
-            let source_id = copied(py, root.source_id().as_str())?;
-            PyTuple::new(py, [kind, source_id]).map(Bound::unbind)
+            let document_object_id = copied(py, root.object_id().as_str())?;
+            PyTuple::new(py, [kind, document_object_id]).map(Bound::unbind)
         })
         .collect::<PyResult<Vec<_>>>()?;
     let pasted_roots = PyTuple::new(py, roots)?.unbind();

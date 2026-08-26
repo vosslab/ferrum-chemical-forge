@@ -5,9 +5,9 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    element_name, DocumentObjectIdV1, PlusPropertiesPatchV1, PlusPropertiesPatchV1Error,
+    CDML_NAMESPACE, DocumentObjectIdV1, PlusPropertiesPatchV1, PlusPropertiesPatchV1Error,
     PlusPropertyChangeV1, PresentationFactProvenanceV1, PresentationFontFaceV1,
-    PresentationRootProjectionV1, Rgb24V1, CDML_NAMESPACE,
+    PresentationRootProjectionV1, Rgb24V1, element_name,
 };
 use xot::Xot;
 

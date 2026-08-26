@@ -3,6 +3,9 @@
 
 set -euo pipefail
 
+# Keep repository verification imports from writing __pycache__ directories.
+export PYTHONDONTWRITEBYTECODE=1
+
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PYO3_TEST_ROOT="${REPO_ROOT}/packages/ferrum-rust/crates/api/python/tests"
 readonly QT_TEST_ROOT="${REPO_ROOT}/packages/ferrum-chem-qt.app/tests"

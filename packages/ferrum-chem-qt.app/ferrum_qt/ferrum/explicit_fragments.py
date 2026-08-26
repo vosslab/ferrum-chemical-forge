@@ -29,7 +29,7 @@ def capture_explicit_fragment_selection(
 	"""Freeze one durable selected-membership request for a direct molecule root."""
 	if getattr(tab, "requires_refresh", True):
 		return None
-	targets = tab.selected_molecule_information_targets()
+	targets = tab.selected_structure_targets()
 	if type(targets) is not tuple or not targets:
 		return None
 	selected_molecule_id = None
@@ -37,19 +37,26 @@ def capture_explicit_fragment_selection(
 	selected_bonds = set()
 	for target in targets:
 		if (
-			target.kind not in ("atom", "bond")
-			or type(target.durable_object_id) is not str
-			or not target.durable_object_id
-			or type(target.durable_molecule_object_id) is not str
-			or not target.durable_molecule_object_id
+			target.kind not in (
+				engine.StructureTargetKindV1.atom,
+				engine.StructureTargetKindV1.bond,
+			)
+			or type(target.object_id) is not str
+			or not target.object_id
+			or type(target.molecule_object_id) is not str
+			or not target.molecule_object_id
 		):
 			return None
 		if selected_molecule_id is None:
-			selected_molecule_id = target.durable_molecule_object_id
-		elif selected_molecule_id != target.durable_molecule_object_id:
+			selected_molecule_id = target.molecule_object_id
+		elif selected_molecule_id != target.molecule_object_id:
 			return None
-		(selected_atoms if target.kind == "atom" else selected_bonds).add(
-			target.durable_object_id,
+		(
+			selected_atoms
+			if target.kind == engine.StructureTargetKindV1.atom
+			else selected_bonds
+		).add(
+			target.object_id,
 		)
 	if selected_molecule_id is None:
 		return None

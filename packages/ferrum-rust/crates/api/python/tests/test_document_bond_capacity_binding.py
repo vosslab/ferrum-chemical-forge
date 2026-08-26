@@ -32,7 +32,7 @@ def test_private_bond_capacity_orders_roots_and_preserves_observation() -> None:
 
 	receipt = ferrum_chem.inspect_document_bond_capacity_v1(
 		observation, 0, observation.snapshot.digest,
-		(roots[1].id, roots[0].id),
+		(roots[1].document_object_id, roots[0].document_object_id),
 	)
 
 	assert [record.source_id for record in receipt.records] == ["within", "exceeds"]
@@ -57,7 +57,7 @@ def test_private_bond_capacity_refuses_incomplete_profile_without_partial_atoms(
 """
 	session = ferrum_chem.DocumentSession.load(source)
 	observation = session.observe(0)
-	root_id = observation.projection.molecules[0].id
+	root_id = observation.projection.molecules[0].document_object_id
 
 	receipt = ferrum_chem.inspect_document_bond_capacity_v1(
 		observation, 0, observation.snapshot.digest, (root_id,),
@@ -87,7 +87,7 @@ def test_private_bond_capacity_retains_absent_and_authored_neutral_facts() -> No
 """
 	session = ferrum_chem.DocumentSession.load(source)
 	observation = session.observe(0)
-	root_ids = tuple(root.id for root in observation.projection.molecules)
+	root_ids = tuple(root.document_object_id for root in observation.projection.molecules)
 
 	receipt = ferrum_chem.inspect_document_bond_capacity_v1(
 		observation, 0, observation.snapshot.digest, root_ids,

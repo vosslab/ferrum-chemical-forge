@@ -26,7 +26,7 @@ def _observed_roots() -> tuple[object, tuple[str, str]]:
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	observation = session.observe(0)
 	left, right = observation.projection.molecules
-	return observation, (left.id, right.id)
+	return observation, (left.document_object_id, right.document_object_id)
 
 
 #============================================

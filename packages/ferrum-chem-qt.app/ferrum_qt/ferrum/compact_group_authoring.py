@@ -15,6 +15,7 @@ import PySide6.QtWidgets
 import ferrum_qt.canvas.graphics_retirement
 import ferrum_qt.ferrum.direct_bond_overlay
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
+import ferrum_qt.ferrum.engine
 import ferrum_qt.ferrum.interaction_action_handoff
 
 
@@ -383,17 +384,26 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			self._current_attach_compact_group_fence()
 		)
 		choices = tab.attached_compact_group_choices()
-		if not any(
-			_attached_compact_group_choice_has_current_known_anchor(
-				tab.attach_compact_group_availability(anchor_object_id, choice.catalog_key),
-				revision, digest, anchor_object_id, choice.catalog_key,
+		known_anchor = False
+		available_choices = []
+		for choice in choices:
+			facts = tab.attach_compact_group_availability(
+				anchor_object_id, choice.catalog_key,
 			)
-			for choice in choices
-		):
+			if not _attached_compact_group_choice_has_current_known_anchor(
+				facts, revision, digest, anchor_object_id, choice.catalog_key,
+			):
+				continue
+			known_anchor = True
+			if facts.available:
+				available_choices.append(choice)
+		if not known_anchor:
 			raise native_document_tab_errors.FerrumNativeDocumentTabError(
 				"Select another atom before attaching a compact group.",
 			)
-		return tab, revision, digest, anchor_object_id, choices
+		if not available_choices:
+			raise _AttachCompactGroupUnavailableError(choices[0].label)
+		return tab, revision, digest, anchor_object_id, tuple(available_choices)
 
 	def _current_attach_compact_group_fence(self) -> tuple[object, int, str, str]:
 		"""Return the live tab fence before interpreting a choice-specific fact."""
@@ -455,7 +465,10 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 				intent.tab, intent.revision, intent.digest, intent.anchor_object_id,
 				_AttachedCompactGroupChoice(intent.catalog_key, intent.label),
 			)
-		except native_document_tab_errors.FerrumNativeDocumentTabError:
+		except (
+			native_document_tab_errors.FerrumNativeDocumentTabError,
+			ferrum_qt.ferrum.engine.RevisionConflictError,
+		):
 			return False
 		return True
 

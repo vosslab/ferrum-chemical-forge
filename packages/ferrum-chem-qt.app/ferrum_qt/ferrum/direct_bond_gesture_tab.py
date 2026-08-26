@@ -26,21 +26,14 @@ class FerrumNativeDirectBondGestureTabMixin:
 		if not isinstance(point, PySide6.QtCore.QPoint):
 			raise TypeError("Ferrum direct-bond pointer probe requires a QPoint")
 		import ferrum_qt.ferrum.engine as engine
-		projection = self._require_projection()
-		atom_ids: set[str] = set()
-		for item in self.view.items(point):
-			current = item
-			while current is not None:
-				target = projection.item_targets.get(current)
-				if target is not None:
-					if (
-							target.kind == "atom"
-							and type(target.durable_object_id) is str
-							and target.durable_object_id
-						):
-						atom_ids.add(target.durable_object_id)
-					break
-				current = current.parentItem()
+		atom_ids = {
+			target.object_id for target in self.selected_structure_targets()
+			if (
+				target.kind == engine.StructureTargetKindV1.atom
+				and type(target.object_id) is str
+				and target.object_id
+			)
+		}
 		if len(atom_ids) == 1:
 			hit_state = engine.DirectBondPointerHitStateV3.unique_atom
 			direct_atom_id = next(iter(atom_ids))

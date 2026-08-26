@@ -415,6 +415,9 @@ pub(super) const fn finding_recovery_summary_v1(
         MoleculeDiagnosticRecoveryV1::ChooseSupportedRepresentation => {
             DocumentMoleculeReportFindingRecoverySummaryV1::ChooseSupportedRepresentation
         }
+        MoleculeDiagnosticRecoveryV1::MaterializeCompactGroup => {
+            DocumentMoleculeReportFindingRecoverySummaryV1::MaterializeCompactGroup
+        }
         MoleculeDiagnosticRecoveryV1::ReduceSelection => {
             DocumentMoleculeReportFindingRecoverySummaryV1::ReduceSelection
         }

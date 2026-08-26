@@ -12,11 +12,11 @@ import ferrum_qt.io.user_template_catalog
 
 
 _NAMED_TEMPLATE = (
-	'<cdml xmlns="urn:ferrum:cdml"><molecule name="Named molecule"><atom id="atom">'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule id="molecule" name="Named molecule"><atom id="atom">'
 	'<point x="0cm" y="0cm"/></atom></molecule></cdml>'
 )
 _UNNAMED_TEMPLATE = (
-	'<cdml xmlns="urn:ferrum:cdml"><molecule><atom id="atom"><point x="0cm" y="0cm"/>'
+	'<cdml xmlns="urn:ferrum:cdml"><molecule id="molecule"><atom id="atom"><point x="0cm" y="0cm"/>'
 	'</atom></molecule></cdml>'
 )
 _RAW_BYTE_FILENAMES_SUPPORTED = (
@@ -159,7 +159,9 @@ def test_whitespace_only_backend_name_falls_back_to_filename_stem(
 		tmp_path: pathlib.Path,
 		) -> None:
 	"""A nonblank label cannot be invented from whitespace-only molecule metadata."""
-	template = _UNNAMED_TEMPLATE.replace("<molecule>", '<molecule name=" ">')
+	template = _UNNAMED_TEMPLATE.replace(
+		'<molecule id="molecule">', '<molecule id="molecule" name=" ">',
+	)
 	(tmp_path / "fallback.cdml").write_text(template, encoding="utf-8")
 	snapshot = ferrum_qt.io.user_template_catalog.scan_user_template_catalog(tmp_path)
 	assert snapshot.entries[0].label == "fallback"

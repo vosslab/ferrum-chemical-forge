@@ -79,7 +79,7 @@ class FerrumNativeExplicitHydrogenWindowMixin:
 			return False
 		if materialization.changed:
 			try:
-				tab._install_mutation_result(result, (("atom", address.atom_id),))
+				tab._install_mutation_result(result, (address.atom_id,))
 			except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
 				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 				self._refresh_actions()

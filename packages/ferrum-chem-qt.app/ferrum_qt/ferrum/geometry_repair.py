@@ -17,32 +17,40 @@ _UNUSED_STRAIGHTEN_SPACING_POINTS = 1.0
 
 #============================================
 class FerrumNativeGeometryRepairTabMixin:
-	"""Map disposable atom/bond selection to durable Rust molecule repairs."""
+	"""Submit one Rust-authenticated atom/bond selection for molecule repairs."""
 
 	#============================================
 	def selected_geometry_repair_molecules(
-			self) -> tuple[tuple[str, ...], tuple[tuple[str, str], ...]]:
-		"""Return ordered durable molecule IDs and exact selection to restore."""
+			self) -> tuple[tuple[str, ...], tuple[str, ...]]:
+		"""Return one selected molecule and its exact Rust-authenticated members."""
 		self._require_mutable()
-		projection = self._require_projection()
-		selected = projection.selected_targets()
-		if any(target.durable_object_id is None for target in selected):
-			raise _tab_error("geometry repair requires durable selected objects")
-		if any(target.kind not in ("atom", "bond") for target in selected):
-			raise _tab_error("geometry repair selection may contain only atoms or bonds")
-		if self._document_observation is None:
-			raise _tab_error("Ferrum tab has no installed document projection")
-		if not selected:
-			return (), ()
-		molecule_ids = []
-		for target in selected:
-			molecule_id = target.durable_molecule_object_id
-			if type(molecule_id) is not str or not molecule_id:
+		import ferrum_qt.ferrum.engine as engine
+		targets = self.selected_structure_targets()
+		if type(targets) is not tuple or not targets:
+			raise _tab_error("select one or more atoms or bonds to repair their molecule")
+		allowed_kinds = frozenset((
+			engine.StructureTargetKindV1.atom,
+			engine.StructureTargetKindV1.bond,
+		))
+		molecule_id: str | None = None
+		restore: list[str] = []
+		for target in targets:
+			if type(target) is not engine.StructureInteractionTargetV1:
+				raise _tab_error("geometry repair requires exact Rust structure targets")
+			if target.kind not in allowed_kinds:
+				raise _tab_error("geometry repair selection may contain only atoms or bonds")
+			if type(target.molecule_object_id) is not str or not target.molecule_object_id:
 				raise _tab_error("selected object has no durable molecule identity")
-			if molecule_id not in molecule_ids:
-				molecule_ids.append(molecule_id)
-		restore = tuple(target.durable_selection_key() for target in selected)
-		return tuple(molecule_ids), restore
+			if type(target.object_id) is not str or not target.object_id:
+				raise _tab_error("selected object has no durable object identity")
+			if molecule_id is None:
+				molecule_id = target.molecule_object_id
+			elif target.molecule_object_id != molecule_id:
+				raise _tab_error("geometry repair selection must belong to exactly one molecule")
+			restore.append(target.object_id)
+		if molecule_id is None:
+			raise _tab_error("geometry repair requires a current atom or bond selection")
+		return (molecule_id,), tuple(restore)
 
 	#============================================
 	def can_repair_geometry_selection(self) -> bool:
@@ -53,25 +61,30 @@ class FerrumNativeGeometryRepairTabMixin:
 			molecule_ids, _restore = self.selected_geometry_repair_molecules()
 		except (RuntimeError, TypeError, ValueError):
 			return False
-		return bool(molecule_ids) or bool(self._document_observation.projection.molecules)
+		return bool(molecule_ids)
 
 	#============================================
 	def selected_clean_geometry_molecules(
-			self) -> tuple[tuple[str, ...], tuple[tuple[str, str], ...]]:
+			self) -> tuple[tuple[str, ...], tuple[str, ...]]:
 		"""Return durable document-object selectors for Ferrum preparation."""
 		return self.selected_geometry_repair_molecules()
 
 	#============================================
 	def repair_geometry_at_revision(
 			self, expected_revision: int, molecule_ids: tuple[str, ...],
-			restore: tuple[tuple[str, str], ...], kind: object,
+			restore: tuple[str, ...], kind: object,
 			target_spacing_points: float) -> object:
 		"""Submit one captured repair through the exact frozen Rust boundary."""
 		self._require_mutable()
 		if type(expected_revision) is not int:
 			raise TypeError("Ferrum geometry repair requires an exact revision")
-		if type(molecule_ids) is not tuple or any(type(value) is not str for value in molecule_ids):
-			raise TypeError("Ferrum geometry repair requires an exact tuple of molecule IDs")
+		if (
+			type(molecule_ids) is not tuple
+			or len(molecule_ids) != 1
+			or type(molecule_ids[0]) is not str
+			or not molecule_ids[0]
+		):
+			raise TypeError("Ferrum geometry repair requires one durable molecule ID")
 		if type(restore) is not tuple:
 			raise TypeError("Ferrum geometry repair requires an exact selection tuple")
 		if type(target_spacing_points) not in (int, float):

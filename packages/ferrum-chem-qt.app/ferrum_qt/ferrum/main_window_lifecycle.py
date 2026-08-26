@@ -173,7 +173,20 @@ class FerrumNativeMainWindowLifecycleMixin:
 	#============================================
 	@PySide6.QtCore.Slot()
 	def _on_native_selection_changed(self) -> None:
-		"""Refresh actions after a Ferrum scene selection changes."""
+		"""Queue one settled action refresh after scene selection changes."""
+		if (
+			not hasattr(self, "_native_tabs_by_page")
+			or self._native_selection_refresh_queued
+		):
+			return
+		self._native_selection_refresh_queued = True
+		PySide6.QtCore.QTimer.singleShot(0, self._refresh_after_native_selection)
+
+	#============================================
+	@PySide6.QtCore.Slot()
+	def _refresh_after_native_selection(self) -> None:
+		"""Refresh actions after a synchronous projection transition settles."""
+		self._native_selection_refresh_queued = False
 		if hasattr(self, "_native_tabs_by_page"):
 			self._refresh_actions()
 

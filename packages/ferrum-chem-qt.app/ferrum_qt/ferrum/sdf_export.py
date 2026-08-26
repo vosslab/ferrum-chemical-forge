@@ -233,7 +233,7 @@ class FerrumNativeSdfExportMixin:
 			observation = tab.current_document_observation()
 			projection_matches = tuple(
 				molecule for molecule in observation.projection.molecules
-				if molecule.id == molecule_id
+				if molecule.document_object_id == molecule_id
 			)
 			if len(projection_matches) != 1:
 				raise ValueError("Ferrum SDF export requires one exact projection root")

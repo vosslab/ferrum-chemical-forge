@@ -32,7 +32,7 @@ class FerrumNativeBondCreationMixin:
 		outcome = result.outcome
 		if outcome.kind != "bond_created_v1" or outcome.bond_created is None:
 			raise FerrumNativeDocumentTabError("Ferrum bond creation returned an unknown operation outcome")
-		self._install_mutation_result(result, (("bond", outcome.bond_created.bond_identifier),))
+		self._install_mutation_result(result, (outcome.bond_created.bond_identifier,))
 		return result
 
 	#============================================

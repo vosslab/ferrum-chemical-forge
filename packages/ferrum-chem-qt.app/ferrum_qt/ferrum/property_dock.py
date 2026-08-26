@@ -5,6 +5,9 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
+
 
 #============================================
 def _count_label(count: int, singular: str) -> str:
@@ -29,7 +32,7 @@ def _document_lines(document: object) -> tuple[str, ...]:
 	molecules = tuple(document.molecules)
 	atoms = sum(len(molecule.atoms) for molecule in molecules)
 	bonds = sum(len(molecule.bonds) for molecule in molecules)
-	drawings = len(document.presentation_stack.roots)
+	drawings = len(document.presentation_stack.entries)
 	if not molecules and not drawings:
 		return ("No drawable objects",)
 	lines = []
@@ -48,23 +51,39 @@ def _document_lines(document: object) -> tuple[str, ...]:
 
 
 #============================================
-def _atom_for_target(document: object, object_id: str) -> object | None:
-	"""Resolve one selected durable atom within its immutable Rust projection."""
+
+def _atom_for_target(document: object, molecule_id: str,
+		atom_id: str) -> object | None:
+	"""Resolve one Rust-addressed atom within its immutable Rust projection."""
+	match = None
 	for molecule in document.molecules:
+		if molecule.document_object_id != molecule_id:
+			continue
 		for atom in molecule.atoms:
-			if atom.id == object_id:
-				return atom
-	return None
+			if atom.document_object_id != atom_id:
+				continue
+			if match is not None:
+				return None
+			match = atom
+	return match
 
 
 #============================================
-def _bond_for_target(document: object, object_id: str) -> object | None:
-	"""Resolve one selected durable bond within its immutable Rust projection."""
+
+def _bond_for_target(document: object, molecule_id: str,
+		bond_id: str) -> object | None:
+	"""Resolve one Rust-addressed bond within its immutable Rust projection."""
+	match = None
 	for molecule in document.molecules:
+		if molecule.document_object_id != molecule_id:
+			continue
 		for bond in molecule.bonds:
-			if bond.id == object_id:
-				return bond
-	return None
+			if bond.document_object_id != bond_id:
+				continue
+			if match is not None:
+				return None
+			match = bond
+	return match
 
 
 #============================================
@@ -97,11 +116,16 @@ def _bond_lines(bond: object) -> tuple[str, ...]:
 
 
 #============================================
-def _selection_lines(selection: tuple[object, ...]) -> tuple[str, ...]:
-	"""Summarize a mixed or multi-selection without inventing edit semantics."""
+def _selection_lines(document: object, selection: tuple[object, ...]) -> tuple[str, ...]:
+	"""Summarize generic targets using Rust-owned top-level root kinds when present."""
+	root_kinds = {
+		root.document_object_id: root.kind
+		for root in document.direct_roots
+	}
 	counts: dict[str, int] = {}
 	for target in selection:
-		label = target.kind.replace("_", " ").title()
+		root_kind = root_kinds.get(target.document_object_id)
+		label = "Selected Object" if root_kind is None else root_kind.replace("_", " ").title()
 		counts[label] = counts.get(label, 0) + 1
 	return tuple(
 		_count_label(counts[label], label.lower())
@@ -185,24 +209,35 @@ class FerrumNativePropertyDock(PySide6.QtWidgets.QDockWidget):
 		selection = observation.selection
 		if len(selection) != 1:
 			if selection:
-				self._show("Selection", _selection_lines(selection), None)
+				self._show("Selection", _selection_lines(observation.document, selection), None)
 			else:
 				self._show("Document", _document_lines(observation.document), None)
 			return
-		target = selection[0]
-		if target.durable_object_id is not None and target.kind == "atom":
-			atom = _atom_for_target(observation.document, target.durable_object_id)
+		try:
+			atom_address = tab.selected_molecule_atom_address()
+		except native_document_tab_errors.FerrumNativeDocumentTabError:
+			atom_address = None
+		if atom_address is not None:
+			atom = _atom_for_target(
+				observation.document, atom_address.molecule_id, atom_address.atom_id,
+			)
 			if atom is not None:
 				self._show("Atom", _atom_lines(atom), "atom")
 				return
-		if target.durable_object_id is not None and target.kind == "bond":
-			bond = _bond_for_target(observation.document, target.durable_object_id)
+		try:
+			bond_address = tab.selected_molecule_bond_address()
+		except native_document_tab_errors.FerrumNativeDocumentTabError:
+			bond_address = None
+		if bond_address is not None:
+			bond = _bond_for_target(
+				observation.document, bond_address.molecule_id, bond_address.bond_id,
+			)
 			if bond is not None:
 				self._show("Bond", _bond_lines(bond), "bond")
 				return
 		self._show(
-			target.kind.replace("_", " ").title(),
-			("Drawing object selected",), None,
+			"Selected object",
+			("No typed structural details are available.",), None,
 		)
 
 	#============================================

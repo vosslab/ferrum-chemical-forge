@@ -24,7 +24,7 @@ class FerrumNativeSdfInsertionTabMixin:
 		):
 			raise RuntimeError("Ferrum SDF insertion returned an unknown operation outcome")
 		selection = tuple(
-			("atom", atom_identifier)
+			atom_identifier
 			for record in outcome.interchange_record_batch_inserted.records
 			for atom_identifier in record.atom_identifiers
 		)

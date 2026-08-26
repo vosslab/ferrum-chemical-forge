@@ -4,36 +4,24 @@
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 
 
-#============================================
-def _presentation_target(root: object) -> object:
-	"""Return the durable target carried by one supported clipboard root."""
-	if root.kind == "arrow":
-		return root.arrow.target
-	if root.kind == "plus":
-		return root.plus.target
-	if root.kind == "text":
-		return root.text.target
-	if root.kind == "polyline":
-		return root.polyline.target
-	if root.kind in ("rectangle", "square", "oval", "circle"):
-		return root.shape.target
-	if root.kind == "polygon":
-		return root.polygon.target
-	raise native_document_tab_errors.FerrumNativeDocumentTabError(
-		"Ferrum Paste projection contains an unsupported presentation root",
-	)
+_PASTE_ROOT_KINDS = frozenset((
+	"molecule", "arrow", "plus", "text", "rectangle", "square", "oval",
+	"circle", "polygon", "polyline",
+))
 
 
 #============================================
 def _clipboard_paste_selection(projection: object,
-		pasted_roots: object) -> tuple[tuple[str, str], ...]:
-	"""Resolve inserted source IDs to current projection-owned durable selectors."""
+		pasted_roots: object) -> tuple[str, ...]:
+	"""Select committed paste roots through their Rust-issued durable identities."""
 	if type(pasted_roots) is not tuple or not pasted_roots:
 		raise native_document_tab_errors.FerrumNativeDocumentTabError(
 			"Ferrum Paste returned no inserted roots",
 		)
 	selection = []
 	seen_roots = set()
+	seen_object_ids = set()
+	seen_selection = set()
 	for receipt in pasted_roots:
 		if (
 			type(receipt) is not tuple
@@ -41,44 +29,72 @@ def _clipboard_paste_selection(projection: object,
 			or type(receipt[0]) is not str
 			or type(receipt[1]) is not str
 			or not receipt[1]
+			or receipt[0] not in _PASTE_ROOT_KINDS
 			or receipt in seen_roots
+			or receipt[1] in seen_object_ids
 		):
 			raise native_document_tab_errors.FerrumNativeDocumentTabError(
 				"Ferrum Paste returned invalid inserted-root identity",
 			)
 		seen_roots.add(receipt)
-		kind, source_id = receipt
+		kind, document_object_id = receipt
+		seen_object_ids.add(document_object_id)
+		root_matches = tuple(
+			root for root in projection.direct_roots
+			if (
+				getattr(root, "kind", None) == kind
+				and getattr(root, "document_object_id", None) == document_object_id
+			)
+		)
+		if len(root_matches) != 1:
+			raise native_document_tab_errors.FerrumNativeDocumentTabError(
+				"Ferrum Paste root is absent from its committed projection",
+			)
 		if kind == "molecule":
 			matches = tuple(
 				molecule for molecule in projection.molecules
-				if molecule.source_id == source_id
+				if getattr(molecule, "document_object_id", None) == document_object_id
 			)
 			if len(matches) != 1:
 				raise native_document_tab_errors.FerrumNativeDocumentTabError(
 					"Ferrum Paste molecule is absent from its committed projection",
 				)
+			selection_start = len(selection)
 			for atom in matches[0].atoms:
-				if type(atom.id) is not str or not atom.id:
+				atom_object_id = getattr(atom, "document_object_id", None)
+				if (
+					type(atom_object_id) is not str
+					or not atom_object_id
+					or atom_object_id in seen_selection
+				):
 					raise native_document_tab_errors.FerrumNativeDocumentTabError(
 						"Ferrum Paste atom has no durable committed identity",
 					)
-				selection.append(("atom", atom.id))
+				seen_selection.add(atom_object_id)
+				selection.append(atom_object_id)
 			for bond in matches[0].bonds:
-				if type(bond.id) is not str or not bond.id:
+				bond_object_id = getattr(bond, "document_object_id", None)
+				if (
+					type(bond_object_id) is not str
+					or not bond_object_id
+					or bond_object_id in seen_selection
+				):
 					raise native_document_tab_errors.FerrumNativeDocumentTabError(
 						"Ferrum Paste bond has no durable committed identity",
 					)
-				selection.append(("bond", bond.id))
+				seen_selection.add(bond_object_id)
+				selection.append(bond_object_id)
+			if len(selection) == selection_start:
+				raise native_document_tab_errors.FerrumNativeDocumentTabError(
+					"Ferrum Paste molecule has no committed selectable members",
+				)
 			continue
-		matches = tuple(
-			_presentation_target(root) for root in projection.presentation_stack.roots
-			if root.kind == kind and _presentation_target(root).source_id == source_id
-		)
-		if len(matches) != 1 or matches[0].id is None:
+		if document_object_id in seen_selection:
 			raise native_document_tab_errors.FerrumNativeDocumentTabError(
-				"Ferrum Paste presentation root is absent from its committed projection",
+				"Ferrum Paste returned duplicate committed selection identity",
 			)
-		selection.append((kind, matches[0].id))
+		seen_selection.add(document_object_id)
+		selection.append(document_object_id)
 	return tuple(selection)
 
 

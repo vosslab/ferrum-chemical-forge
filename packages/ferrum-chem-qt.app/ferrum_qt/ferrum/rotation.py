@@ -19,7 +19,7 @@ class FerrumNativeRotationSelection:
 	"""Immutable projection facts captured for one Ferrum rotation gesture."""
 
 	addresses: tuple[tuple[str, str], ...]
-	durable_selection: tuple[tuple[str, str], ...]
+	durable_selection: tuple[str, ...]
 	positions: tuple[tuple[str, float, float], ...]
 	affected_bonds: tuple[tuple[str, str], ...]
 	center: PySide6.QtCore.QPointF
@@ -42,31 +42,34 @@ class FerrumNativeRotationTabMixin:
 
 	#============================================
 	def has_rotatable_atom_selection(self) -> bool:
-		"""Return whether every selected target is one durable rendered atom."""
+		"""Return whether Rust resolves one molecule-owned atom selection."""
 		if self.requires_refresh:
 			return False
-		selected = self._require_projection().selected_targets()
-		return bool(selected) and all(
-			target.durable_object_id is not None and target.kind == "atom"
-			for target in selected
+		try:
+			selected = self.selected_structure_targets()
+		except (RuntimeError, TypeError, ValueError):
+			return False
+		import ferrum_qt.ferrum.engine as engine
+		return (
+			bool(selected)
+			and all(target.kind is engine.StructureTargetKindV1.atom for target in selected)
+			and len({target.molecule_object_id for target in selected}) == 1
 		)
 
 	#============================================
 	def selected_atom_rotation(self) -> FerrumNativeRotationSelection:
-		"""Copy one exact durable atom selection from the installed projection."""
+		"""Copy one exact Rust-resolved atom selection from the current projection."""
 		self._require_mutable()
-		selected_targets = self._require_projection().selected_targets()
+		import ferrum_qt.ferrum.engine as engine
+		selected_targets = self.selected_structure_targets()
 		if (
 				not selected_targets
-				or any(
-					target.durable_object_id is None or target.kind != "atom"
-					for target in selected_targets
-				)
+				or any(target.kind is not engine.StructureTargetKindV1.atom
+						for target in selected_targets)
 			):
-			raise ValueError("select one or more durable atoms before rotating")
-		selected_ids = tuple(target.durable_object_id for target in selected_targets)
+			raise ValueError("select one or more current atoms before rotating")
 		addresses = tuple(
-			(target.durable_molecule_object_id, target.durable_object_id)
+			(target.molecule_object_id, target.object_id)
 			for target in selected_targets
 		)
 		if any(
@@ -75,26 +78,35 @@ class FerrumNativeRotationTabMixin:
 				for molecule_id, atom_id in addresses
 			):
 			raise ValueError("selected rotation atom lacks durable identity")
-		selected = frozenset(selected_ids)
+		molecule_ids = frozenset(molecule_id for molecule_id, _atom_id in addresses)
+		if len(molecule_ids) != 1:
+			raise ValueError("select atoms from one molecule before rotating")
+		selected = frozenset(atom_id for _molecule_id, atom_id in addresses)
 		observation = self.current_document_observation()
+		molecule_id = next(iter(molecule_ids))
+		molecule_matches = tuple(
+			molecule for molecule in observation.projection.molecules
+			if molecule.document_object_id == molecule_id
+		)
+		if len(molecule_matches) != 1:
+			raise ValueError("selected rotation molecule is absent from the Rust projection")
+		molecule = molecule_matches[0]
 		positions = []
 		affected_bonds = []
 		selected_positions = []
-		for molecule in observation.projection.molecules:
-			for atom in molecule.atoms:
-				if atom.id is None:
-					continue
-				position = (atom.id, float(atom.position.x), float(atom.position.y))
-				positions.append(position)
-				if atom.id in selected:
-					selected_positions.append(position)
-			for bond in molecule.bonds:
-				start = bond.start.id
-				end = bond.end.id
-				if start is not None and end is not None and (
-						start in selected or end in selected
-						):
-					affected_bonds.append((start, end))
+		for atom in molecule.atoms:
+			atom_id = atom.document_object_id
+			position = (atom_id, float(atom.position.x), float(atom.position.y))
+			positions.append(position)
+			if atom_id in selected:
+				selected_positions.append(position)
+		for bond in molecule.bonds:
+			start = bond.start.document_object_id
+			end = bond.end.document_object_id
+			if start is not None and end is not None and (
+					start in selected or end in selected
+					):
+				affected_bonds.append((start, end))
 		resolved = frozenset(position[0] for position in selected_positions)
 		if resolved != selected:
 			raise ValueError("selected rotation atom is absent from the Rust projection")
@@ -102,7 +114,7 @@ class FerrumNativeRotationTabMixin:
 		center_y = sum(position[2] for position in selected_positions) / len(selected_positions)
 		return FerrumNativeRotationSelection(
 			addresses,
-			tuple(target.durable_selection_key() for target in selected_targets),
+			tuple(target.object_id for target in selected_targets),
 			tuple(positions),
 			tuple(affected_bonds),
 			PySide6.QtCore.QPointF(center_x, center_y),

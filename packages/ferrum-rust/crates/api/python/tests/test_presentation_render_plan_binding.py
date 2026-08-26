@@ -47,17 +47,16 @@ def test_presentation_plan_refuses_stale_or_wrong_provenance_without_mutation() 
 	assert session.snapshot().digest == before.digest
 
 
-def test_presentation_vector_targets_expose_render_and_durable_identity() -> None:
-	"""Mutable vector roots retain separate visual and durable identities."""
+def test_presentation_vector_roots_expose_render_and_durable_identity() -> None:
+	"""Vector render roots carry distinct opaque durable document-object targets."""
 	plan = _plan(ferrum_chem.DocumentSession.load(MUTABLE_VECTOR_SOURCE))
-	targets = {root.target.kind: root.target for root in plan.roots}
 
-	for kind, render_identifier in (("polyline", "wave"), ("rectangle", "box")):
-		target = targets[kind]
-		assert target.render_identifier == render_identifier
-		assert target.durable_object_id is not None
-		assert target.durable_object_id != target.render_identifier
-		assert target.durable_molecule_object_id is None
+	assert [root.kind for root in plan.roots] == ["vector", "vector"]
+	assert all(root.vector_operations for root in plan.roots)
+	assert [root.target.kind for root in plan.roots] == ["document_object", "document_object"]
+	object_ids = {root.target.document_object_id for root in plan.roots}
+	assert len(object_ids) == 2
+	assert object_ids.isdisjoint({"wave", "box"})
 
 
 def test_presentation_plan_publication_fences_live_smarts_after_document_mutation() -> None:

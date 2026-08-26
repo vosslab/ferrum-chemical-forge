@@ -39,8 +39,6 @@ class FerrumNativeExplicitFragmentTabMixin:
 			authoritative.revision != snapshot.revision
 			or authoritative.digest != snapshot.digest
 		):
-			selection = tuple(("atom", identifier) for identifier in atom_ids) + tuple(
-				("bond", identifier) for identifier in bond_ids
-			)
+			selection = atom_ids + bond_ids
 			self._install_mutation_result(result.operation, selection)
 		return result

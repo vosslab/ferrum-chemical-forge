@@ -123,6 +123,22 @@ document snapshot, establishes canonical record order, and provides the complete
 file before Qt publishes it atomically. The established one-record SDF actions
 remain available for their existing workflow.
 
+## Create and inspect reactions
+
+Select the complete roots that make up a reaction, then choose Chemistry >
+`Create Reaction...`. In the modeless `Define Reaction` panel, assign the
+Rust-projected roles for reactants, products, the arrow, optional pluses, and
+optional condition text, then select `Create Reaction`. Ferrum refuses an
+incomplete or stale definition without changing the document and directs the
+user to refresh the selection when needed.
+
+Choose Chemistry > `Reaction Inspector` to review the current Rust-issued
+definitions. The inspector can highlight a definition's members, edit its
+roles, delete only the definition while retaining its member roots, or nudge
+all members together with an optional view-hex-grid snap. Each action refreshes
+from current Rust observations; typed refusals leave the document unchanged,
+and the platform Undo shortcut restores an accepted deletion or movement.
+
 ## Place, attach, delete, and materialize compact groups
 
 The current compact-group authoring routes are Qt-only and intentionally
@@ -280,8 +296,9 @@ request and response contract is in
 `document.compact-group.materialize.v1` materializes one typed compact group in
 a direct-root molecule from a caller-supplied fenced snapshot. It accepts exactly
 `document { cdml, expected_revision, expected_digest_hex }`, opaque
-`molecule_id`, and opaque `compact_group_id`; these identifiers are neither
-labels nor recipes. Only typed `Me` and `NO2` groups materialize. The route
+`molecule_id`, and opaque `compact_group_id`; Rust parses both as durable
+`DocumentObjectIdV1` selectors, and they are neither labels nor recipes. Only
+typed `Me` and `NO2` groups materialize. The route
 accepts no free-form labels or recipes and has no legacy alias.
 
 ```json
@@ -301,9 +318,9 @@ accepts no free-form labels or recipes and has no legacy alias.
 }
 ```
 
-On success, `materialization` returns source revision and digest, source
-molecule/group IDs, `replacement_focus_atom_id`, committed canonical
-`document`, and its next `document_fence`. A typed refusal exposes only one
+On success, `materialization` returns the fenced revision and digest, durable
+molecule/group selectors, a durable `replacement_focus_atom_id`, committed
+canonical `document`, and its next `document_fence`. A typed refusal exposes only one
 closed `compact_group_materialization_refusal { category, recovery }` pair:
 `stale_document_fence`/`refresh_and_retry`,
 `unknown_or_foreign_target`/`correct_target`,
@@ -317,7 +334,7 @@ build/bin/ferrum document command document.compact-group.materialize.v1 compact-
 ```
 
 The generic protocol and named CLI route are delivered. They are stateless:
-the request carries source IDs from the admitted CDML snapshot and its fence.
+the request carries durable selectors and the admitted CDML snapshot fence.
 
 In `ferrum-qt`, select one visible `Me` or `NO2` compact-group label and use
 Chemistry > `Materialize Selected Compact Group`. The action becomes available

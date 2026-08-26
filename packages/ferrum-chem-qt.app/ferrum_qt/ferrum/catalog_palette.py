@@ -115,7 +115,7 @@ class FerrumNativeCatalogPlacementTabMixin:
 		self._require_mutable()
 		commit = self._session.place_catalog_molecule_v1(revision, digest, key, x, y)
 		try:
-			self._install_mutation_result(commit.result, (("molecule", commit.root_identifier),))
+			self._install_mutation_result(commit.result, (commit.root_identifier,))
 		except Exception as error:
 			from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabMutationPresentationError
 			if isinstance(error, FerrumNativeDocumentTabMutationPresentationError):

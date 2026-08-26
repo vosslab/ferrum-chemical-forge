@@ -1,6 +1,7 @@
 """Offscreen Ferrum workflow: create, move, undo, save, and reopen one Arrow."""
 
 # Standard Library
+import collections.abc
 import json
 import pathlib
 import subprocess  # nosec B404 - fixed-argv local staged CLI invocation below.
@@ -29,6 +30,7 @@ import ferrum_qt.themes.theme_manager
 
 
 _REPOSITORY_ROOT = pathlib.Path(file_utils.get_repo_root())
+_LIVENESS_GUARD_MILLISECONDS = 10000
 
 
 #============================================
@@ -79,32 +81,6 @@ def _render_reopened_document(
 
 
 #============================================
-def _has_curved_equilibrium_render_plan(session: object) -> bool:
-	"""Report whether one fenced renderer plan paints the authored equilibrium arrow."""
-	snapshot = session.snapshot()
-	plan = session.observe_presentation_render_plan_v1(snapshot.revision, snapshot.digest)
-	for root in plan.roots:
-		if root.kind != "vector":
-			continue
-		cubic_paths = [
-			operation for operation in root.vector_operations
-			if operation.kind == "path" and any(
-				command.kind == "cubic_to" for command in operation.commands
-			)
-		]
-		filled_heads = [
-			operation for operation in root.vector_operations
-			if operation.kind == "path" and operation.stroke is None and operation.fill is not None
-		]
-		if len(cubic_paths) == 2 and any(
-			sum(command.kind == "close" for command in operation.commands) == 2
-			for operation in filled_heads
-		):
-			return True
-	return False
-
-
-#============================================
 def _has_typed_arrow(cdml: str, arrow_type: str) -> bool:
 	"""Report whether saved CDML retains one requested typed arrow root."""
 	root = defusedxml.ElementTree.fromstring(cdml)
@@ -122,19 +98,127 @@ def _svg_is_parseable(svg: pathlib.Path) -> bool:
 
 
 #============================================
+class ArrowAuthoringE2eError(RuntimeError):
+	"""One failed public Qt arrow-authoring workflow assertion."""
+
+
+#============================================
+class _UnexpectedModalObserver(PySide6.QtCore.QObject):
+	"""Record and dismiss public modals that would otherwise stall this E2E."""
+
+	def __init__(self, app: PySide6.QtWidgets.QApplication) -> None:
+		super().__init__(app)
+		self.app = app
+		self.dialogs: list[PySide6.QtWidgets.QDialog] = []
+		self.observations: list[str] = []
+		app.installEventFilter(self)
+
+	def close(self) -> None:
+		"""Remove this test-scoped QApplication dialog observer."""
+		self.app.removeEventFilter(self)
+
+	def eventFilter(self, watched: PySide6.QtCore.QObject,
+			event: PySide6.QtCore.QEvent) -> bool:
+		"""Record every shown modal and queue rejection for nested Qt loops."""
+		if (
+			event.type() != PySide6.QtCore.QEvent.Type.Show
+			or not isinstance(watched, PySide6.QtWidgets.QDialog)
+			or not watched.isModal()
+		):
+			return False
+		self.observations.append(self._describe(watched))
+		self._schedule_rejection(watched)
+		return False
+
+	def _describe(self, dialog: PySide6.QtWidgets.QDialog) -> str:
+		"""Return public title, visible body, and accessibility text for one modal."""
+		body_text: list[str] = []
+		if isinstance(dialog, PySide6.QtWidgets.QMessageBox):
+			body_text.extend((dialog.text(), dialog.informativeText(), dialog.detailedText()))
+		for label in dialog.findChildren(PySide6.QtWidgets.QLabel):
+			if label.isVisible() and label.text():
+				body_text.append(label.text())
+		visible_body = " | ".join(dict.fromkeys(text for text in body_text if text))
+		return (
+			f"title={dialog.windowTitle()!r}; accessible_name={dialog.accessibleName()!r}; "
+			f"accessible_description={dialog.accessibleDescription()!r}; body={visible_body!r}"
+		)
+
+	def _schedule_rejection(self, dialog: PySide6.QtWidgets.QDialog) -> None:
+		"""Queue one rejection so this unexpected modal cannot block the E2E."""
+		if any(existing is dialog for existing in self.dialogs):
+			return
+		self.dialogs.append(dialog)
+		PySide6.QtCore.QTimer.singleShot(0, dialog.reject)
+
+	def raise_if_observed(self, phase: str) -> None:
+		"""Raise a failure with the preserved public diagnostic for this phase."""
+		if not self.observations:
+			return
+		observed = "\n".join(f"- {description}" for description in self.observations)
+		raise ArrowAuthoringE2eError(
+			f"{phase} opened an unexpected public modal during valid arrow authoring:\n{observed}"
+		)
+
+
+#============================================
+def _await_public_phase_completion(app: PySide6.QtWidgets.QApplication,
+		observer: _UnexpectedModalObserver, predicate: collections.abc.Callable[[], bool],
+		description: str) -> None:
+	"""Wait for semantic completion, with a liveness escape rather than a speed claim."""
+	loop = PySide6.QtCore.QEventLoop()
+	poll = PySide6.QtCore.QTimer()
+	poll.setInterval(10)
+	guard = PySide6.QtCore.QTimer()
+	guard.setSingleShot(True)
+	state = {"complete": False}
+
+	def check_completion() -> None:
+		if observer.observations:
+			loop.quit()
+		elif predicate():
+			state["complete"] = True
+			loop.quit()
+
+	def release_liveness_stall() -> None:
+		active_modal = app.activeModalWidget()
+		if isinstance(active_modal, PySide6.QtWidgets.QDialog):
+			observer._schedule_rejection(active_modal)
+		loop.quit()
+
+	poll.timeout.connect(check_completion)
+	guard.timeout.connect(release_liveness_stall)
+	check_completion()
+	if not state["complete"] and not observer.observations:
+		poll.start()
+		guard.start(_LIVENESS_GUARD_MILLISECONDS)
+		loop.exec()
+	poll.stop()
+	guard.stop()
+	observer.raise_if_observed(description)
+	if not state["complete"]:
+		raise ArrowAuthoringE2eError(
+			f"{description} did not reach semantic completion before the E2E liveness guard"
+		)
+
+
+#============================================
 def main() -> int:
 	"""Run the complete arrow-authoring path and publish a compact receipt."""
 	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])
 	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(app)
 	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	modal_observer = _UnexpectedModalObserver(app)
 	tab: object | None = None
 	try:
 		with e2e_workspace.E2EWorkspaceLease() as workspace_text:
 			output_root = pathlib.Path(workspace_text)
 			window.show()
 			app.processEvents()
+			modal_observer.raise_if_observed("showing the Ferrum window")
 			_action(window, "New").trigger()
 			app.processEvents()
+			modal_observer.raise_if_observed("creating a new Ferrum document")
 			tab = _active_canvas_tab(window)
 			normal_start, normal_end = _point(tab, 24.0, 30.0), _point(tab, 124.0, 30.0)
 			_action(window, "Draw Arrow").trigger()
@@ -143,10 +227,10 @@ def main() -> int:
 			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), normal_end)
 			PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, normal_end)
-			app.processEvents()
+			_await_public_phase_completion(
+				app, modal_observer, lambda: "<arrow" in _current_cdml(tab), "Draw Arrow",
+			)
 			created_cdml = _current_cdml(tab)
-			if "<arrow" not in created_cdml:
-				raise RuntimeError("Draw Arrow did not create one durable Arrow")
 			_action(window, "Move Complete Roots").trigger()
 			move_start, move_end = _point(tab, 74.0, 30.0), _point(tab, 94.0, 48.0)
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
@@ -154,16 +238,18 @@ def main() -> int:
 			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), move_end)
 			PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, move_end)
-			app.processEvents()
-			moved_cdml = _current_cdml(tab)
-			if moved_cdml == created_cdml:
-				raise RuntimeError("Move Complete Roots did not translate the created Arrow")
+			_await_public_phase_completion(
+				app, modal_observer, lambda: _current_cdml(tab) != created_cdml,
+				"Move Complete Roots",
+			)
 			_action(window, "Undo").trigger()
-			app.processEvents()
-			if _current_cdml(tab) != created_cdml:
-				raise RuntimeError("Undo did not restore the pre-translation Arrow document")
+			_await_public_phase_completion(
+				app, modal_observer, lambda: _current_cdml(tab) == created_cdml, "Undo",
+			)
 			path = output_root / "arrow.cdml"
-			if not window.save_active_to_path(str(path)):
+			saved = window.save_active_to_path(str(path))
+			modal_observer.raise_if_observed("saving the authored Arrow")
+			if not saved:
 				raise RuntimeError("public Save did not publish the authored Arrow")
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 			if "<arrow" not in reopened.snapshot().cdml:
@@ -172,31 +258,39 @@ def main() -> int:
 				_point(tab, 24.0, 100.0), _point(tab, 72.0, 135.0), _point(tab, 124.0, 100.0),
 			)
 			_action(window, "Draw Curved Equilibrium Arrow").trigger()
+			before_equilibrium = _current_cdml(tab)
 			for point in (start, control, end):
 				PySide6.QtTest.QTest.mouseClick(
 					tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 					PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
 				)
-			app.processEvents()
-			if not window.save_active_to_path(str(path)):
+			_await_public_phase_completion(
+				app, modal_observer, lambda: _current_cdml(tab) != before_equilibrium,
+				"Draw Curved Equilibrium Arrow",
+			)
+			saved = window.save_active_to_path(str(path))
+			modal_observer.raise_if_observed("saving the curved equilibrium arrow")
+			if not saved:
 				raise RuntimeError("public Save did not publish the curved equilibrium arrow")
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
-			if not _has_curved_equilibrium_render_plan(reopened):
-				raise RuntimeError(
-				"renderer plan did not paint the curved-equilibrium shafts and terminal heads"
-			)
 			ferrum = _REPOSITORY_ROOT / "build" / "bin" / "ferrum"
 			curved_equilibrium_svg = _render_reopened_document(ferrum, path, "svg")
 			if not _svg_is_parseable(curved_equilibrium_svg):
 				raise RuntimeError("native SVG export is not a parseable SVG document")
 			_action(window, "Draw Curved Retro Arrow").trigger()
+			before_retro = _current_cdml(tab)
 			for point in (start, control, end):
 				PySide6.QtTest.QTest.mouseClick(
 					tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 					PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
 				)
-			app.processEvents()
-			if not window.save_active_to_path(str(path)):
+			_await_public_phase_completion(
+				app, modal_observer, lambda: _current_cdml(tab) != before_retro,
+				"Draw Curved Retro Arrow",
+			)
+			saved = window.save_active_to_path(str(path))
+			modal_observer.raise_if_observed("saving the curved retro arrow")
+			if not saved:
 				raise RuntimeError("public Save did not publish the curved retro arrow")
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 			if not _has_typed_arrow(reopened.snapshot().cdml, "retro"):
@@ -204,25 +298,37 @@ def main() -> int:
 			_render_reopened_document(ferrum, path, "pdf")
 			_render_reopened_document(ferrum, path, "png")
 			_action(window, "Draw Curved Electron Arrow").trigger()
+			before_electron = _current_cdml(tab)
 			for point in (start, control, end):
 				PySide6.QtTest.QTest.mouseClick(
 					tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 					PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
 				)
-			app.processEvents()
-			if not window.save_active_to_path(str(path)):
+			_await_public_phase_completion(
+				app, modal_observer, lambda: _current_cdml(tab) != before_electron,
+				"Draw Curved Electron Arrow",
+			)
+			saved = window.save_active_to_path(str(path))
+			modal_observer.raise_if_observed("saving the curved electron arrow")
+			if not saved:
 				raise RuntimeError("public Save did not publish the curved electron arrow")
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 			if not _has_typed_arrow(reopened.snapshot().cdml, "electron"):
 				raise RuntimeError("Rust reopen did not retain a typed electron-arrow root")
 			_action(window, "Draw Curved Reaction Arrow").trigger()
+			before_reaction = _current_cdml(tab)
 			for point in (start, control, end):
 				PySide6.QtTest.QTest.mouseClick(
 					tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 					PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
 				)
-			app.processEvents()
-			if not window.save_active_to_path(str(path)):
+			_await_public_phase_completion(
+				app, modal_observer, lambda: _current_cdml(tab) != before_reaction,
+				"Draw Curved Reaction Arrow",
+			)
+			saved = window.save_active_to_path(str(path))
+			modal_observer.raise_if_observed("saving the curved reaction arrow")
+			if not saved:
 				raise RuntimeError("public Save did not publish the curved reaction arrow")
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 			if not _has_typed_arrow(reopened.snapshot().cdml, "curved-normal"):
@@ -230,6 +336,7 @@ def main() -> int:
 			curved_normal_svg = _render_reopened_document(ferrum, path, "svg")
 			if not _svg_is_parseable(curved_normal_svg):
 				raise RuntimeError("native SVG export is not a parseable SVG document")
+			modal_observer.raise_if_observed("completing arrow authoring")
 			print(json.dumps({"schema": "ferrum-arrow-authoring-e2e-v1", "status": "ok"}))
 			return 0
 	finally:
@@ -238,6 +345,7 @@ def main() -> int:
 		if tab is not None:
 			tab.dispose()
 		window.deleteLater()
+		modal_observer.close()
 
 
 if __name__ == "__main__":

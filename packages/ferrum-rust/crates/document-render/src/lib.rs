@@ -15,7 +15,6 @@ mod direct_bond_probe_resolution_v3;
 mod direct_bond_v3_lifecycle;
 mod presentation_path_gesture_v1;
 mod presentation_vector_gesture_v1;
-mod reaction_translation_v1;
 mod render_interaction_v1;
 
 fn require_fence(session: &DocumentSession, fence: DocumentFenceV1) -> Result<(), ()> {
@@ -67,22 +66,19 @@ pub use presentation_vector_gesture_v1::{
     PresentationVectorOverlayV1, PresentationVectorPreviewV1, begin_presentation_vector_gesture_v1,
     preview_presentation_vector_gesture_v1, resolve_presentation_vector_gesture_v1,
 };
-pub use reaction_translation_v1::{
-    ReactionTranslationGestureV1, ReactionTranslationPreviewV1, begin_reaction_translation_v1,
-    preview_reaction_translation_v1, resolve_reaction_translation_v1,
-};
 pub use render_interaction_v1::{
     CommittedRenderInteractionTranslationV1, CommittedStructureDeletionV1,
     ReactionAuthoringChoiceAvailabilityV1, ReactionAuthoringChoiceKindV1,
-    ReactionAuthoringChoiceV1, ReactionAuthoringChoicesV1, ReactionAuthoringExclusionReasonV1,
-    ReactionAuthoringExclusionRecoveryV1, ReactionAuthoringExclusionV1, RenderInteractionAxisV1,
-    RenderInteractionBoundsV1, RenderInteractionErrorV1, RenderInteractionExclusionReasonV1,
-    RenderInteractionExclusionV1, RenderInteractionGridSnapPolicyV1, RenderInteractionModifierV1,
-    RenderInteractionObservationV1, RenderInteractionQueryV1, RenderInteractionRootV1,
-    RenderInteractionSelectionV1, RenderInteractionSessionV1, RenderInteractionSnapV1,
-    RenderInteractionTranslationGestureV1, RenderInteractionTranslationPreviewV1,
-    StructureInteractionObservationV1, StructureInteractionQueryV1,
-    StructureInteractionSelectionV1, StructureInteractionTargetV1, StructureTargetKindV1,
+    ReactionAuthoringChoiceV1, ReactionAuthoringExclusionReasonV1,
+    ReactionAuthoringExclusionRecoveryV1, ReactionAuthoringExclusionV1,
+    ReactionAuthoringObservationV1, RenderInteractionAxisV1, RenderInteractionBoundsV1,
+    RenderInteractionErrorV1, RenderInteractionExclusionReasonV1, RenderInteractionExclusionV1,
+    RenderInteractionGridSnapPolicyV1, RenderInteractionModifierV1, RenderInteractionObservationV1,
+    RenderInteractionQueryV1, RenderInteractionRootV1, RenderInteractionSelectionV1,
+    RenderInteractionSessionV1, RenderInteractionSnapV1, RenderInteractionTranslationGestureV1,
+    RenderInteractionTranslationPreviewV1, StructureInteractionObservationV1,
+    StructureInteractionQueryV1, StructureInteractionSelectionV1, StructureInteractionTargetV1,
+    StructureTargetKindV1,
 };
 
 #[cfg(test)]

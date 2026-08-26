@@ -20,7 +20,8 @@ _SCHEMA = "ferrum-document-molecule-diagnostics-v1"
 _SEVERITIES = {"info", "warning", "error"}
 _RECOVERIES = {
 	"none", "inspect_structure", "correct_chemical_facts",
-	"choose_supported_representation", "reduce_selection", "retry_with_chemistry_runtime",
+	"choose_supported_representation", "materialize_compact_group", "reduce_selection",
+	"retry_with_chemistry_runtime",
 }
 
 

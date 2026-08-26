@@ -151,7 +151,7 @@ class FerrumNativeFreeCompactGroupPlacementTabMixin:
 				"Ferrum did not return the placed compact-group identifier.",
 			)
 		self._install_mutation_result(
-			result, durable_selection=(("compact_group", compact_group_object_id),),
+			result, durable_selection=(compact_group_object_id,),
 		)
 
 

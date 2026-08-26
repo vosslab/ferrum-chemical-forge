@@ -7,10 +7,15 @@ import pytest
 
 def _wavy(observation: object) -> object:
 	"""Return the projected durable Wavy payload from an exact observation."""
-	root = next(root for root in observation.projection.presentation_stack.roots
+	root = next(root for root in observation.projection.presentation_stack.entries
 				if root.kind == "wavy")
 	assert root.polyline.target.record_kind == "polyline"
 	return root.polyline
+
+
+def _wavy_id(session: object) -> str:
+	"""Return the durable Wavy target from the current observation."""
+	return _wavy(session.observe(session.snapshot().revision)).target.document_object_id
 
 
 def test_wavy_properties_preserve_authored_path_and_history() -> None:
@@ -24,7 +29,7 @@ def test_wavy_properties_preserve_authored_path_and_history() -> None:
 	session = ferrum_chem.DocumentSession.load(source)
 	change_type = ferrum_chem.DocumentWavyPropertyChangeV1
 	operation = ferrum_chem.DocumentOperationV1.set_wavy_properties(
-		"wave",
+		_wavy_id(session),
 		(change_type.line_width(2.5), change_type.line_color("#445566")),
 	)
 	changed = session.apply_document_operation_v1(0, operation).observation
@@ -48,6 +53,7 @@ def test_wavy_properties_reject_hostile_or_wrong_targets_atomically() -> None:
 	)
 	session = ferrum_chem.DocumentSession.load(source)
 	change_type = ferrum_chem.DocumentWavyPropertyChangeV1
+	wavy_id = _wavy_id(session)
 	before = session.observe(0).snapshot
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		change_type.line_width(True)
@@ -55,7 +61,7 @@ def test_wavy_properties_reject_hostile_or_wrong_targets_atomically() -> None:
 		change_type.line_color("#abc")
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		ferrum_chem.DocumentOperationV1.set_wavy_properties(
-			"wave", tuple(change_type.line_width(1.0) for _ in range(3)),
+			wavy_id, tuple(change_type.line_width(1.0) for _ in range(3)),
 		)
 
 	class TupleSubclass(tuple):
@@ -63,15 +69,16 @@ def test_wavy_properties_reject_hostile_or_wrong_targets_atomically() -> None:
 
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		ferrum_chem.DocumentOperationV1.set_wavy_properties(
-			"wave", TupleSubclass((change_type.line_width(1.0),)),
+			wavy_id, TupleSubclass((change_type.line_width(1.0),)),
 		)
-	for identifier in ("ordinary", "missing"):
+	ordinary_id = session.observe(0).projection.presentation_stack.entries[1].polyline.target.document_object_id
+	missing_id = "ferrum-document-object-v1/00000000000000000000000000000000"
+	for identifier in (ordinary_id, missing_id):
 		operation = ferrum_chem.DocumentOperationV1.set_wavy_properties(
 			identifier, (change_type.line_width(2.0),),
 		)
-		with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as error:
+		with pytest.raises(ferrum_chem.UnknownDocumentObjectError):
 			session.apply_document_operation_v1(0, operation)
-		assert error.value.object_id == identifier
 		assert session.observe(0).snapshot.digest == before.digest
 
 
@@ -84,10 +91,13 @@ def test_prepared_wavy_creation_exposes_rust_owned_identity_and_path() -> None:
 	assert session.observe(0).snapshot.revision == 0
 	result = session.commit_create_wavy(0, prepared)
 	root = next(
-		root for root in result.observation.projection.presentation_stack.roots
+		root for root in result.observation.projection.presentation_stack.entries
 		if root.kind == "wavy"
 	)
-	assert root.polyline.target.source_id == prepared.identifier
+	assert root.polyline.target.document_object_id in {
+		direct_root.document_object_id
+		for direct_root in result.observation.projection.direct_roots
+	}
 	assert len(root.polyline.path.points) == 5
 	assert (root.polyline.path.points[0].x, root.polyline.path.points[0].y) == (0.0, 0.0)
 	assert (root.polyline.path.points[-1].x, root.polyline.path.points[-1].y) == (48.0, 0.0)

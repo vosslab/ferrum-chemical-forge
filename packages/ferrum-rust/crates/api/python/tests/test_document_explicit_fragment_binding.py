@@ -16,7 +16,7 @@ def test_explicit_fragment_creates_from_observed_durable_targets() -> None:
 	before = session.snapshot()
 	molecule = session.observe(before.revision).projection.molecules[0]
 	result = session.create_explicit_fragment_v1(
-		before.revision, before.digest, molecule.id, "named part", (), (molecule.bonds[0].id,),
+		before.revision, before.digest, molecule.document_object_id, "named part", (), (molecule.bonds[0].document_object_id,),
 	)
 
-	assert (result.fragment.name, result.fragment.molecule_id) == ("named part", molecule.id)
+	assert (result.fragment.name, result.fragment.molecule_id) == ("named part", molecule.document_object_id)

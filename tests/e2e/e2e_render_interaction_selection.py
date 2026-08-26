@@ -40,7 +40,7 @@ def _mixed_positions(
 	"""Return current backend-owned coordinates for the molecule and plus root."""
 	projection = tab.current_document_observation().projection
 	atom = projection.molecules[0].atoms[0].position
-	plus = projection.presentation_stack.roots[0].plus.anchor
+	plus = projection.presentation_stack.entries[0].plus.anchor
 	return (atom.x, atom.y), (plus.x, plus.y)
 
 

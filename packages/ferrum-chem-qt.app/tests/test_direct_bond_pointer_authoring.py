@@ -78,19 +78,19 @@ def _action(window: ferrum_qt.main_window.MainWindow,
 
 
 #============================================
-def _viewport_point(tab: object, atom_id: str) -> PySide6.QtCore.QPoint:
+def _viewport_point(tab: object, document_object_id: str) -> PySide6.QtCore.QPoint:
 	"""Map one publicly observed atom position to the canvas viewport."""
 	atom = next(
 		atom for molecule in tab.current_document_observation().projection.molecules
-		for atom in molecule.atoms if atom.source_id == atom_id
+		for atom in molecule.atoms if atom.document_object_id == document_object_id
 	)
 	return tab.view.mapFromScene(PySide6.QtCore.QPointF(atom.position.x, atom.position.y))
 
 
 #============================================
-def _nearby_non_hit(tab: object, atom_id: str) -> PySide6.QtCore.QPoint:
+def _nearby_non_hit(tab: object, document_object_id: str) -> PySide6.QtCore.QPoint:
 	"""Find a close viewport point with no direct atom item for native V3 resolution."""
-	center = _viewport_point(tab, atom_id)
+	center = _viewport_point(tab, document_object_id)
 	for offset in range(1, 7):
 		candidate = center + PySide6.QtCore.QPoint(offset, 0)
 		if tab.durable_atom_at_viewport_point(candidate) is None:
@@ -111,6 +111,15 @@ def _open_window(qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		raise AssertionError("Ferrum did not finish opening the direct-bond document")
 	qapp.processEvents()
 	return window, _current_tab(window)
+
+
+#============================================
+def _atom_document_object_ids(tab: object) -> tuple[str, ...]:
+	"""Return the current projection's Rust-issued atom addresses in fixture order."""
+	return tuple(
+		atom.document_object_id
+		for atom in tab.current_document_observation().projection.molecules[0].atoms
+	)
 
 
 #============================================
@@ -165,8 +174,9 @@ def test_normal_pointer_direct_hits_create_the_durable_normal_bond(
 	"""Exact atom hits become V3 evidence and commit the public durable bond."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
-		start = _viewport_point(tab, "atom-c")
-		end = _viewport_point(tab, "atom-o")
+		start_id, end_id = _atom_document_object_ids(tab)
+		start = _viewport_point(tab, start_id)
+		end = _viewport_point(tab, end_id)
 		_action(window, "mode.draw").trigger()
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
@@ -188,8 +198,9 @@ def test_normal_direct_bond_native_no_hit_resolution_reaches_new_endpoints(
 	"""Empty Qt hits leave nearest and new-endpoint decisions to native V3."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
-		start = _nearby_non_hit(tab, "atom-c")
-		end = _viewport_point(tab, "atom-o")
+		start_id, end_id = _atom_document_object_ids(tab)
+		start = _nearby_non_hit(tab, start_id)
+		end = _viewport_point(tab, end_id)
 		_action(window, "mode.draw").trigger()
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
@@ -198,7 +209,7 @@ def test_normal_direct_bond_native_no_hit_resolution_reaches_new_endpoints(
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end)
 		qapp.processEvents()
 		molecule = tab.current_document_observation().projection.molecules[0]
-		assert (len(molecule.atoms), molecule.bonds[0].start.source_id) == (2, "atom-c")
+		assert (len(molecule.atoms), molecule.bonds[0].start.document_object_id) == (2, start_id)
 	finally:
 		_close_window(qapp, window)
 
@@ -229,7 +240,7 @@ def test_normal_direct_bond_ambiguous_scene_evidence_is_non_modal(
 	"""Overlapping atom items remain V3 ambiguity rather than a Qt stacking-order pick."""
 	window, tab = _open_window(qapp, tmp_path, _OVERLAPPING_CDML)
 	try:
-		point = _viewport_point(tab, "atom-a")
+		point = _viewport_point(tab, _atom_document_object_ids(tab)[0])
 		action = _action(window, "mode.draw")
 		action.trigger()
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
@@ -248,7 +259,7 @@ def test_normal_direct_bond_escape_unchecks_its_visible_action(
 	"""Escape retires normal authoring while preserving the observed document."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
-		start = _viewport_point(tab, "atom-c")
+		start = _viewport_point(tab, _atom_document_object_ids(tab)[0])
 		before = tab.current_document_observation().projection.molecules[0]
 		action = _action(window, "mode.draw")
 		action.trigger()
@@ -270,7 +281,7 @@ def test_normal_direct_bond_refusal_is_modal_and_actionable(
 	"""A generic self-loop refusal is visible, actionable, and leaves no bond."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
-		start = _viewport_point(tab, "atom-c")
+		start = _viewport_point(tab, _atom_document_object_ids(tab)[0])
 		refusal_dialogs: list[tuple[str, str, str]] = []
 		observer = _ModalRefusalObserver(refusal_dialogs)
 		qapp.installEventFilter(observer)
@@ -289,7 +300,7 @@ def test_normal_direct_bond_refusal_is_modal_and_actionable(
 			"What happened: This action is not available for the current drawing.\n\n"
 			"Why: The needed selection or document state is not available.\n\n"
 			"What to do now: Select the required item or change the drawing, then try again.",
-			"direct bond gesture cannot join an atom to itself",
+			"document operation rejected",
 		)]
 		assert not _action(window, "mode.draw").isChecked()
 		assert not tab.current_document_observation().projection.molecules[0].bonds

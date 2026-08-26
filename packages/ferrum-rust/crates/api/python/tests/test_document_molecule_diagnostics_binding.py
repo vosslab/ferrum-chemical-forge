@@ -15,11 +15,11 @@ _DIAGNOSTIC_CDML = (
 
 
 def _address(source: str = _DIAGNOSTIC_CDML) -> tuple[str, int, str, str]:
-	"""Return owned snapshot facts and one durable root ID."""
+	"""Return canonical owned snapshot facts and one durable root ID."""
 	session = ferrum_chem.DocumentSession.load(source)
 	snapshot = session.snapshot()
-	molecule_id = session.observe(snapshot.revision).projection.molecules[0].id
-	return source, snapshot.revision, snapshot.digest, molecule_id
+	molecule_id = session.observe(snapshot.revision).projection.molecules[0].document_object_id
+	return snapshot.cdml, snapshot.revision, snapshot.digest, molecule_id
 
 
 def test_owned_diagnostics_returns_a_reachable_closed_finding() -> None:
@@ -53,7 +53,7 @@ def test_owned_diagnostics_refuses_nonroot_and_missing_durable_ids() -> None:
 	"""Only current direct molecule roots can enter the frozen diagnostics route."""
 	cdml, source_revision, source_digest, molecule_id = _address()
 	session = ferrum_chem.DocumentSession.load(cdml)
-	atom_id = session.observe(source_revision).projection.molecules[0].atoms[0].id
+	atom_id = session.observe(source_revision).projection.molecules[0].atoms[0].document_object_id
 	_other_cdml, _other_revision, _other_digest, missing_id = _address(
 		_DIAGNOSTIC_CDML.replace('molecule id="m"', 'molecule id="other"'),
 	)

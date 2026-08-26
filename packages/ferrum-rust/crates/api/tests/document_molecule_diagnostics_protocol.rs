@@ -184,7 +184,7 @@ fn diagnostics_report_attached_compact_group_membership_and_rust_recovery() {
         .iter()
         .find(|finding| finding["code"] == "unexpanded_group_present")
         .expect("attached compact group is reported semantically");
-    assert_eq!(group_finding["recovery"], "choose_supported_representation");
+    assert_eq!(group_finding["recovery"], "materialize_compact_group");
 }
 
 #[test]

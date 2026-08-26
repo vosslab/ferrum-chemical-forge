@@ -9,6 +9,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.dialogs.rich_text_dialog
+from ferrum_qt.ferrum.document_tab_errors import FerrumNativeDocumentTabError
 
 
 _STYLE_TO_DIALOG = {
@@ -40,27 +41,37 @@ class FerrumNativeTextPropertiesMixin:
 		"""Return whether current selection names one durable rendered Text."""
 		if self._disposed or self.requires_refresh:
 			return False
-		projection = self._controller.projection
-		if projection is None:
+		import ferrum_qt.ferrum.engine as engine
+		try:
+			self._selected_presentation_identifier(
+				engine.DocumentPresentationRootKindV1.text,
+			)
+		except FerrumNativeDocumentTabError:
 			return False
-		selected = projection.selected_durable_targets()
-		return (
-			len(selected) == 1
-			and selected[0].kind == "text"
-			and selected[0].durable_object_id is not None
-		)
+		return True
 
 	#============================================
 	def selected_text_projection(self) -> object:
 		"""Return one selected frozen Rust Text projection for a Ferrum dialog."""
 		self._require_mutable()
-		selected = self._selected_durable_identifiers(1, "text")[0]
+		import ferrum_qt.ferrum.engine as engine
+		selected = self._selected_presentation_identifier(
+			engine.DocumentPresentationRootKindV1.text,
+		)
 		if self._document_observation is None:
-			raise RuntimeError("Ferrum tab has no installed document projection")
-		for root in self._document_observation.projection.presentation_stack.roots:
-			if root.kind == "text" and root.text.target.id == selected:
-				return root.text
-		raise RuntimeError("selected Text is absent from the Rust projection")
+			raise FerrumNativeDocumentTabError("Ferrum tab has no installed document projection")
+		matches = tuple(
+			root.text for root in self._document_observation.projection.presentation_stack.entries
+			if (
+				root.kind == "text"
+				and root.text is not None
+				and root.text.target.record_kind == "text"
+				and root.text.target.document_object_id == selected
+			)
+		)
+		if len(matches) == 1:
+			return matches[0]
+		raise FerrumNativeDocumentTabError("selected Text is absent from the Rust projection")
 
 	#============================================
 	def apply_selected_text_properties(self, changes: tuple[object, ...]) -> object:
@@ -71,12 +82,14 @@ class FerrumNativeTextPropertiesMixin:
 		if any(type(change) is not engine.DocumentTextPropertyChangeV1
 				for change in changes):
 			raise TypeError("Ferrum Text properties require exact frozen Ferrum changes")
-		text_id = self._selected_durable_identifiers(1, "text")[0]
+		text_id = self._selected_presentation_identifier(
+			engine.DocumentPresentationRootKindV1.text,
+		)
 		snapshot = self.current_snapshot
 		result = self._live_document_session_v1.set_text_properties_v1(
 			snapshot.revision, snapshot.digest, text_id, changes,
 		)
-		self._install_mutation_result(result, (("text", text_id),))
+		self._install_mutation_result(result, (text_id,))
 		return result
 
 

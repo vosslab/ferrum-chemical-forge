@@ -200,24 +200,17 @@ impl ReactionAuthoringExclusionV1 {
     }
 }
 
-/// Immutable, session-origin-bound reaction-composer observation.
+/// Immutable Rust-issued reaction-authoring facts carried by one direct-root observation.
 ///
 /// This is deliberately not a selection, gesture, receipt, candidate, or
-/// transaction. Consumers may display its facts and must revalidate them before
-/// retaining a panel across an external document mutation.
+/// transaction. Its enclosing direct-root observation owns the session and
+/// document fence that make these display facts current.
 #[derive(Clone, Debug)]
-pub struct ReactionAuthoringChoicesV1 {
-    origin: u64,
-    capability: u64,
-    fence: DocumentFenceV1,
+pub struct ReactionAuthoringObservationV1 {
     choices: Vec<ReactionAuthoringChoiceV1>,
     exclusions: Vec<ReactionAuthoringExclusionV1>,
 }
-impl ReactionAuthoringChoicesV1 {
-    #[must_use]
-    pub const fn fence(&self) -> DocumentFenceV1 {
-        self.fence
-    }
+impl ReactionAuthoringObservationV1 {
     #[must_use]
     pub fn choices(&self) -> &[ReactionAuthoringChoiceV1] {
         &self.choices
@@ -309,6 +302,7 @@ pub struct RenderInteractionObservationV1 {
     fence: DocumentFenceV1,
     roots: Vec<RenderInteractionRootV1>,
     exclusions: Vec<RenderInteractionExclusionV1>,
+    reaction_authoring: ReactionAuthoringObservationV1,
 }
 
 /// Why a durable root cannot become an authoring target.
@@ -348,6 +342,11 @@ impl RenderInteractionObservationV1 {
     #[must_use]
     pub fn exclusions(&self) -> &[RenderInteractionExclusionV1] {
         &self.exclusions
+    }
+    /// Rust-classified role candidates for the renderer-admitted direct roots.
+    #[must_use]
+    pub const fn reaction_authoring(&self) -> &ReactionAuthoringObservationV1 {
+        &self.reaction_authoring
     }
 }
 

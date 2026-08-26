@@ -117,16 +117,20 @@ fn arrow_properties_compare_historical_spellings_without_normalizing_them() {
         )
         .expect("semantic equal patch must be accepted");
     assert_eq!(result.observation().snapshot().revision(), 0);
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("start=\"false\""));
-    assert!(result
-        .observation()
-        .snapshot()
-        .cdml()
-        .contains("width=\"1px\""));
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("start=\"false\"")
+    );
+    assert!(
+        result
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("width=\"1px\"")
+    );
 }
 
 #[test]

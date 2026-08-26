@@ -27,7 +27,7 @@ def _session() -> object:
 
 def _anchor_id(session: object) -> str:
 	"""Return the direct atom's public Rust-issued durable object ID."""
-	return session.observe(session.snapshot().revision).projection.molecules[0].atoms[0].id
+	return session.observe(session.snapshot().revision).projection.molecules[0].atoms[0].document_object_id
 
 
 def _begin(session: object, catalog_key: str, release_x: float = 20.0) -> object:
@@ -123,10 +123,10 @@ def test_generic_nitro_attachment_preserves_projected_and_materialized_charge_ch
 	session = _session()
 	committed = session._commit_attach_compact_group_v1(_begin(session, "nitro"))
 	molecule = session.observe(session.snapshot().revision).projection.molecules[0]
-	group = next(group for group in molecule.compact_groups if group.id == committed.compact_group_object_id)
+	group = next(group for group in molecule.compact_groups if group.document_object_id == committed.compact_group_object_id)
 
 	assert (group.catalog_key, group.label) == ("nitro", "NO2")
-	materialized = _materialize(session, molecule.id, group.id)
+	materialized = _materialize(session, molecule.document_object_id, group.document_object_id)
 	atoms = materialized.mutation_result.observation.projection.molecules[0].atoms
 	charges = {atom.formal_charge for atom in atoms}
 	assert 1 in charges

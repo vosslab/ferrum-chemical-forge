@@ -55,6 +55,39 @@ def _snapshot_facts(snapshot: object) -> tuple[str, int, str, bool]:
 
 
 #============================================
+class _StalePlacementRefusalObserver(PySide6.QtCore.QObject):
+	"""Acknowledge and retain visible stale-placement refusal evidence."""
+
+	def __init__(self, refusals: list[tuple[str, str, str, str]]) -> None:
+		"""Keep the caller-owned visible-refusal evidence."""
+		super().__init__()
+		self._refusals = refusals
+
+	def eventFilter(self, watched: PySide6.QtCore.QObject,
+			event: PySide6.QtCore.QEvent) -> bool:
+		"""Queue acknowledgement after the intended modal enters its event loop."""
+		if event.type() != PySide6.QtCore.QEvent.Type.Show:
+			return False
+		if not isinstance(watched, PySide6.QtWidgets.QMessageBox):
+			return False
+		if watched.accessibleName() != "Action Not Available":
+			return False
+		PySide6.QtCore.QTimer.singleShot(0, lambda: self._capture_and_dismiss(watched))
+		return False
+
+	def _capture_and_dismiss(self, dialog: PySide6.QtWidgets.QMessageBox) -> None:
+		"""Record and acknowledge the actionable public refusal."""
+		self._refusals.append((dialog.windowTitle(), dialog.accessibleName(),
+			dialog.text(), dialog.detailedText()))
+		button = dialog.button(PySide6.QtWidgets.QMessageBox.StandardButton.Ok)
+		if button is None:
+			raise AssertionError("Stale template refusal has no visible acknowledgement")
+		PySide6.QtTest.QTest.mouseClick(
+			button, PySide6.QtCore.Qt.MouseButton.LeftButton,
+		)
+
+
+#============================================
 def test_catalog_choice_places_only_authored_scale_molecule_at_scene_click(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path) -> None:
 	"""One visible placement intent maps the click through the shared point policy."""
@@ -121,18 +154,14 @@ def test_save_and_refresh_publish_eligible_snapshot_without_saving_document(
 
 #============================================
 def test_escape_and_stale_provenance_cancel_without_a_template_mutation(
-		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch) -> None:
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path) -> None:
 	"""Cancelled or obsolete click intents leave the authoritative state unchanged."""
 	directory = tmp_path / "templates"
 	directory.mkdir()
 	(directory / "pair.cdml").write_text(_TEMPLATE, encoding="utf-8")
 	window, tab = _window_with_tab(directory)
-	warnings = []
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QMessageBox, "warning",
-		lambda _parent, title, text: warnings.append((title, text)),
-	)
+	refusals: list[tuple[str, str, str, str]] = []
+	observer = _StalePlacementRefusalObserver(refusals)
 	try:
 		entry = window.user_template_catalog.entries[0]
 		baseline = tab.current_snapshot
@@ -148,16 +177,25 @@ def test_escape_and_stale_provenance_cancel_without_a_template_mutation(
 		stale_started = window.start_user_template_placement(entry.catalog_key)
 		result = tab.insert_user_template(entry.native_plan, 0.0, 0.0)
 		accepted = result.operation.observation.snapshot
-		PySide6.QtTest.QTest.mouseClick(
-			tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			pos=PySide6.QtCore.QPoint(),
-		)
+		qapp.installEventFilter(observer)
+		try:
+			PySide6.QtTest.QTest.mouseClick(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				pos=PySide6.QtCore.QPoint(),
+			)
+		finally:
+			qapp.removeEventFilter(observer)
+		qapp.processEvents()
 		assert (
 			stale_started,
-			window._user_template_placement_intent,
 			_snapshot_facts(tab.current_snapshot),
-			warnings,
-		) == (True, None, _snapshot_facts(accepted), [])
+		) == (True, _snapshot_facts(accepted))
+		assert any(
+			accessible_name == "Action Not Available"
+			and "Select the required item or change the drawing, then try again." in text
+			and "The document or catalog changed; choose the template again." in details
+			for _title, accessible_name, text, details in refusals
+		)
 	finally:
 		_retire(window, tab)
 		del qapp

@@ -22,7 +22,7 @@ def _address(source: str = _SOURCE) -> tuple[object, object, str]:
 	"""Return one session, frozen observation, and durable direct-root selector."""
 	session = ferrum_chem.DocumentSession.load(source)
 	observation = session.observe(0)
-	return session, observation, observation.projection.molecules[0].id
+	return session, observation, observation.projection.molecules[0].document_object_id
 
 
 @pytest.mark.parametrize(
@@ -104,7 +104,7 @@ def test_private_document_molfile_rejects_source_facts_before_native_export() ->
 			ferrum_chem.MolblockVersionV1.v2000,
 		)
 	assert "document changed" in stale.value.reason
-	atom_id = "ferrum-document-object-v1/6d6f6c6563756c652f61746f6d/source/6131"
+	atom_id = observation.projection.molecules[0].atoms[0].document_object_id
 	with pytest.raises(ferrum_chem.DocumentMoleculeMolblockError) as root:
 		ferrum_chem.export_document_molecule_molblock_v1(
 			observation, 0, observation.snapshot.digest, atom_id,

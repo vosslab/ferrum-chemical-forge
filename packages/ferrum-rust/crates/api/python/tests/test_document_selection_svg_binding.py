@@ -22,8 +22,8 @@ def test_private_selected_svg_keeps_complete_roots_and_source_provenance() -> No
 	"""Atom and artwork selection produces two fitted roots without mutation."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation = session.observe(0)
-	plus = observation.projection.presentation_stack.roots[0].plus.target.id
-	atom = observation.projection.molecules[0].atoms[0].id
+	plus = observation.projection.presentation_stack.entries[0].plus.target.document_object_id
+	atom = observation.projection.molecules[0].atoms[0].document_object_id
 	before = session.snapshot()
 	receipt = ferrum_chem.render_document_selection_svg_v1(
 		observation, (atom, plus),
@@ -41,7 +41,7 @@ def test_private_selected_svg_keeps_complete_roots_and_source_provenance() -> No
 		"ferrum-document-selection-svg-v1",
 		0,
 		observation.snapshot.digest,
-		(plus, atom),
+		(atom, plus),
 		2,
 	)
 	assert (

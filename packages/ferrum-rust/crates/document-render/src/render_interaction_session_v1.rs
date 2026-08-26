@@ -106,41 +106,39 @@ impl RenderInteractionSessionV1 {
             .observe_complete_document_identity_facts_v1(fence.revision())
             .map_err(|_| RenderInteractionErrorV1::SessionConflict)?;
         let (roots, exclusions) = roots_from_render(rendered, presentation_plan, &identities);
+        let reaction_members = self
+            .session
+            .observe_reaction_list_v1()
+            .map_err(|_| RenderInteractionErrorV1::SessionConflict)?
+            .reactions()
+            .iter()
+            .flat_map(|reaction| reaction.members().iter())
+            .map(|member| member.object_id().clone())
+            .collect::<HashSet<DocumentObjectIdV1>>();
+        let reaction_authoring =
+            Self::reaction_authoring_observation(&roots, &exclusions, &reaction_members);
         Ok(RenderInteractionObservationV1 {
             origin: self.origin,
             capability: NEXT_CAPABILITY.fetch_add(1, Ordering::Relaxed),
             fence,
             roots,
             exclusions,
+            reaction_authoring,
         })
     }
 
-    /// Classify the exact current renderer-admitted roots for reaction authoring.
-    ///
-    /// Renderer-admitted roots supply choice identity, paint order, kind, and
-    /// geometry. The document session supplies durable reaction membership.
-    pub fn observe_reaction_authoring_choices_v1(
-        &self,
-        fence: DocumentFenceV1,
-    ) -> Result<ReactionAuthoringChoicesV1, RenderInteractionErrorV1> {
-        let roots = self.observe_render_interaction_v1(fence)?;
-        let members = self
-            .session
-            .observe_reaction_list_v1()
-            .map_err(|_| RenderInteractionErrorV1::SessionConflict)?;
-        let members = members
-            .reactions()
-            .iter()
-            .flat_map(|reaction| reaction.members().iter())
-            .map(|member| member.object_id().clone())
-            .collect::<HashSet<DocumentObjectIdV1>>();
+    fn reaction_authoring_observation(
+        roots: &[RenderInteractionRootV1],
+        root_exclusions: &[RenderInteractionExclusionV1],
+        reaction_members: &HashSet<DocumentObjectIdV1>,
+    ) -> ReactionAuthoringObservationV1 {
         let mut choices = Vec::new();
         let mut exclusions = Vec::new();
         let mut diagnosed = HashSet::new();
-        for root in roots.roots() {
+        for root in roots {
             match reaction_choice_kind(root.kind()) {
                 Some(kind) => {
-                    let availability = if members.contains(root.document_object_id()) {
+                    let availability = if reaction_members.contains(root.document_object_id()) {
                         ReactionAuthoringChoiceAvailabilityV1::AlreadyInReaction
                     } else {
                         ReactionAuthoringChoiceAvailabilityV1::Eligible
@@ -163,7 +161,7 @@ impl RenderInteractionSessionV1 {
                 ),
             }
         }
-        for value in roots.exclusions() {
+        for value in root_exclusions {
             let reason = match value.reason() {
                 RenderInteractionExclusionReasonV1::DisplayOnly => {
                     ReactionAuthoringExclusionReasonV1::DisplayOnly
@@ -184,27 +182,10 @@ impl RenderInteractionSessionV1 {
             );
         }
         choices.sort_by_key(ReactionAuthoringChoiceV1::paint_order);
-        Ok(ReactionAuthoringChoicesV1 {
-            origin: self.origin,
-            capability: NEXT_CAPABILITY.fetch_add(1, Ordering::Relaxed),
-            fence,
+        ReactionAuthoringObservationV1 {
             choices,
             exclusions,
-        })
-    }
-
-    /// Refuse a foreign or stale immutable composer observation without mutation.
-    pub fn validate_reaction_authoring_choices_v1(
-        &self,
-        choices: &ReactionAuthoringChoicesV1,
-    ) -> Result<(), RenderInteractionErrorV1> {
-        if choices.origin != self.origin {
-            return Err(RenderInteractionErrorV1::ForeignSession);
         }
-        if choices.capability == 0 {
-            return Err(RenderInteractionErrorV1::SelectionChanged);
-        }
-        self.require_fence(choices.fence)
     }
 
     /// Observe exact direct atom/bond target envelopes for structural selection.

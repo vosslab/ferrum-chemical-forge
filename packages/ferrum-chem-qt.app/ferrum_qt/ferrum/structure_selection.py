@@ -247,23 +247,14 @@ class FerrumNativeStructureSelectionMixin:
 
 	#============================================
 	def _replace_structure_selection(self, selection: object | None, tab: object) -> None:
-		"""Publish durable targets before retaining Rust's opaque selection handle."""
-		durable_targets: list[tuple[str, str]] = []
+		"""Publish generic document-object keys before retaining Rust's opaque selection."""
+		generic_targets: list[tuple[str, str]] = []
 		if selection is not None:
 			for target in selection.targets:
-				if target.kind == ferrum_qt.ferrum.engine.StructureTargetKindV1.atom:
-					if type(target.object_id) is not str or not target.object_id:
-						raise RuntimeError("Ferrum atom selection has no durable object identity")
-					durable_targets.append(("atom", target.object_id))
-				elif target.kind == ferrum_qt.ferrum.engine.StructureTargetKindV1.bond:
-					if type(target.object_id) is not str or not target.object_id:
-						raise RuntimeError("Ferrum bond selection has no durable object identity")
-					durable_targets.append(("bond", target.object_id))
-				elif target.kind == ferrum_qt.ferrum.engine.StructureTargetKindV1.compact_group:
-					if type(target.object_id) is not str or not target.object_id:
-						raise RuntimeError("Ferrum compact-group selection has no durable object identity")
-					durable_targets.append(("compact_group", target.object_id))
-		tab._require_projection().select_durable(tuple(durable_targets))
+				if type(target.object_id) is not str or not target.object_id:
+					raise RuntimeError("Ferrum structure selection has no durable object identity")
+				generic_targets.append(("document_object", target.object_id))
+		tab._require_projection().select_durable(tuple(generic_targets))
 		self._retire_line_preview(self._structure_selection_item)
 		self._structure_selection = selection
 		self._structure_selection_item = None if selection is None else (

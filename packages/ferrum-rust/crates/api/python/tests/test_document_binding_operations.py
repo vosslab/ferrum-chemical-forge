@@ -52,9 +52,9 @@ BOND_PROPERTIES_SOURCE = (
 HAWORTH_POSITION_SOURCE = (
 	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/></atom>'
 	'<atom id="b" name="O"><point x="1" y="0"/></atom>'
-	'<bond start="a" end="b" haworth_position="front"/>'
-	'<bond start="b" end="a" haworth_position="back"/>'
-	'<bond start="a" end="b" haworth_position="side"/></molecule></cdml>'
+		'<bond id="front" start="a" end="b" haworth_position="front"/>'
+		'<bond id="back" start="b" end="a" haworth_position="back"/>'
+		'<bond id="malformed" start="a" end="b" haworth_position="side"/></molecule></cdml>'
 )
 
 
@@ -144,11 +144,14 @@ def test_atom_deletion_removes_incident_bonds_and_uses_one_history_entry() -> No
 		'</molecule></cdml>'
 	)
 	session = ferrum_chem.DocumentSession.load(source)
+	expected_remaining = session.observe(0).projection.molecules[0].atoms[0].document_object_id
 	deleted = session.apply_document_operation_v1(
 		0, ferrum_chem.DocumentOperationV1.delete_atom("b"),
 	).observation
 
-	assert tuple(atom.source_id for atom in deleted.projection.molecules[0].atoms) == ("a",)
+	assert tuple(
+		atom.document_object_id for atom in deleted.projection.molecules[0].atoms
+	) == (expected_remaining,)
 	assert not deleted.projection.molecules[0].bonds
 	restored = session.undo(1).observation.projection.molecules[0]
 	assert len(restored.atoms) == 2 and len(restored.bonds) == 1
@@ -175,7 +178,7 @@ def test_bond_deletion_preserves_atoms_and_uses_one_history_entry() -> None:
 	assert not session.redo(2).observation.projection.molecules[0].bonds
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as caught:
 		session.apply_document_operation_v1(3, ferrum_chem.DocumentOperationV1.delete_bond("missing"))
-	assert caught.value.object_id == "missing"
+	assert caught.value.category == "unknown_document_object"
 	assert session.snapshot().revision == 3
 
 
@@ -214,7 +217,7 @@ def test_bond_order_change_is_typed_noop_aware_and_undoable() -> None:
 				"missing", ferrum_chem.DocumentBondOrderV1.triple,
 			),
 		)
-	assert caught.value.object_id == "missing"
+	assert caught.value.category == "unknown_document_object"
 	assert session.snapshot().revision == 3
 
 
@@ -231,13 +234,13 @@ def test_operation_validation_errors_are_specific_and_structured() -> None:
 			ferrum_chem.DocumentOperationV1.set_atom_element("missing", "N"),
 		)
 
-	assert caught.value.object_id == "missing"
+	assert caught.value.category == "unknown_document_object"
 	assert session.snapshot().revision == 0
 
 
 def test_generic_atom_and_bond_authoring_expose_committed_typed_outcomes() -> None:
 	session = ferrum_chem.DocumentSession.load(SOURCE)
-	molecule_object_id = session.observe(0).projection.molecules[0].id
+	molecule_object_id = session.observe(0).projection.molecules[0].document_object_id
 	atom_operation = ferrum_chem.DocumentOperationV1.create_atom_v1(
 		molecule_object_id, "O", 3.0, 4.0, 0.0,
 	)
@@ -250,7 +253,9 @@ def test_generic_atom_and_bond_authoring_expose_committed_typed_outcomes() -> No
 	assert session.snapshot().revision == 1
 
 	bonds = ferrum_chem.DocumentSession.load(BOND_SOURCE)
-	start, end = (atom.id for atom in bonds.observe(0).projection.molecules[0].atoms)
+	start, end = (
+		atom.document_object_id for atom in bonds.observe(0).projection.molecules[0].atoms
+	)
 	bond_operation = ferrum_chem.DocumentOperationV1.create_bond_v1(
 		start, end, ferrum_chem.DocumentBondPresentationV1.solid_wedge,
 	)
@@ -267,7 +272,9 @@ def test_live_bond_authoring_requires_durable_endpoints_and_commits_one_transiti
 		session.resolve_create_bond_v1(
 			0, "a", "b", ferrum_chem.DocumentBondPresentationV1.normal_single,
 		)
-	start, end = (atom.id for atom in session.observe(0).projection.molecules[0].atoms)
+	start, end = (
+		atom.document_object_id for atom in session.observe(0).projection.molecules[0].atoms
+	)
 	request = session.resolve_create_bond_v1(
 		0, start, end, ferrum_chem.DocumentBondPresentationV1.normal_single,
 	)
@@ -330,7 +337,8 @@ def test_render_interaction_binding_uses_render_plan_authority() -> None:
 	observation = session.observe_render_interaction_v1(
 		initial.revision, initial.digest,
 	)
-	assert [root.identifier for root in observation.roots] == ["m"]
+	root_ids = [root.document_object_id for root in observation.roots]
+	assert len(root_ids) == 1
 	selection = session.select_render_interaction_roots_v1(
 		observation, None,
 		ferrum_chem.RenderInteractionQueryV1.point(
@@ -355,17 +363,21 @@ def test_render_interaction_binding_uses_render_plan_authority() -> None:
 		blocked_snapshot.revision, blocked_snapshot.digest,
 	)
 	assert blocked.roots == ()
-	assert [(entry.identifier, entry.reason) for entry in blocked.exclusions] == [
-		("blocked", ferrum_chem.RenderInteractionExclusionReasonV1.unrenderable_depiction),
-	]
+	assert len(blocked.exclusions) == 1
+	assert blocked.exclusions[0].reason == (
+		ferrum_chem.RenderInteractionExclusionReasonV1.unrenderable_depiction
+	)
 	with pytest.raises(ferrum_chem.RenderInteractionError) as blocked_error:
 		unsupported.select_render_interaction_roots_v1(
 			blocked, None,
-			ferrum_chem.RenderInteractionQueryV1.root("blocked"),
+			ferrum_chem.RenderInteractionQueryV1.root(
+				blocked.exclusions[0].document_object_id,
+			),
 		)
 	assert blocked_error.value.category == ferrum_chem.RenderInteractionCategoryV1.unrenderable_depiction
 	display_only = ferrum_chem.DocumentSession.load(
-		'<cdml xmlns="urn:ferrum:cdml"><plus><point x="4" y="5"/></plus></cdml>',
+		'<cdml xmlns="urn:ferrum:cdml"><polyline id="short">'
+		'<point x="4" y="5"/></polyline></cdml>',
 	)
 	display_snapshot = display_only.snapshot()
 	display_observation = display_only.observe_render_interaction_v1(
@@ -379,23 +391,25 @@ def test_render_interaction_binding_uses_render_plan_authority() -> None:
 		display_only.select_render_interaction_roots_v1(
 			display_observation, None,
 			ferrum_chem.RenderInteractionQueryV1.root(
-				display_observation.exclusions[0].identifier,
+				display_observation.exclusions[0].document_object_id,
 			),
 		)
 	assert display_error.value.category == ferrum_chem.RenderInteractionCategoryV1.display_only
 	fragment_reference = ferrum_chem.DocumentSession.load(
 		'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
-		'<point x="0" y="0"/></atom><fragment><bond id="m"/>'
+		'<point x="0" y="0"/></atom><fragment id="f"><bond id="m"/>'
 		'</fragment></molecule></cdml>',
 	)
 	fragment_snapshot = fragment_reference.snapshot()
 	fragment_observation = fragment_reference.observe_render_interaction_v1(
 		fragment_snapshot.revision, fragment_snapshot.digest,
 	)
-	assert [root.identifier for root in fragment_observation.roots] == ["m"]
+	assert len(fragment_observation.roots) == 1
 	fragment_selection = fragment_reference.select_render_interaction_roots_v1(
 		fragment_observation, None,
-		ferrum_chem.RenderInteractionQueryV1.root("m"),
+		ferrum_chem.RenderInteractionQueryV1.root(
+			fragment_observation.roots[0].document_object_id,
+		),
 	)
 	fragment_gesture = fragment_reference.begin_render_interaction_translation_v1(
 		fragment_selection, 0.0, 0.0, ferrum_chem.RenderInteractionSnapV1.free(),
@@ -422,7 +436,9 @@ def test_render_interaction_translation_rejects_stale_gesture_without_history_mu
 		initial.revision, initial.digest,
 	)
 	selection = session.select_render_interaction_roots_v1(
-		observation, None, ferrum_chem.RenderInteractionQueryV1.root("m"),
+		observation,
+		None,
+		ferrum_chem.RenderInteractionQueryV1.root(observation.roots[0].document_object_id),
 	)
 	gesture = session.begin_render_interaction_translation_v1(
 		selection, 0.0, 0.0, ferrum_chem.RenderInteractionSnapV1.free(),
@@ -450,10 +466,10 @@ def test_render_interaction_binding_moves_molecule_and_plus_atomically() -> None
 	observation = session.observe_render_interaction_v1(
 		initial.revision, initial.digest,
 	)
-	assert [root.identifier for root in observation.roots] == ["m", "p"]
+	assert len(observation.roots) == 2
 	initial_projection = session.observe(initial.revision).projection
 	initial_position = initial_projection.molecules[0].atoms[0].position
-	initial_plus = initial_projection.presentation_stack.roots[0].plus.anchor
+	initial_plus = initial_projection.presentation_stack.entries[0].plus.anchor
 	molecule = session.select_render_interaction_roots_v1(
 		observation, None,
 		ferrum_chem.RenderInteractionQueryV1.point(
@@ -466,7 +482,9 @@ def test_render_interaction_binding_moves_molecule_and_plus_atomically() -> None
 			40.0, 0.0, ferrum_chem.RenderInteractionModifierV1.toggle,
 		),
 	)
-	assert [root.identifier for root in mixed.roots] == ["m", "p"]
+	assert [root.document_object_id for root in mixed.roots] == [
+		root.document_object_id for root in observation.roots
+	]
 	press = (10.0, 20.0)
 	preview_point = (13.0, 22.0)
 	release = (17.0, 24.0)
@@ -479,7 +497,7 @@ def test_render_interaction_binding_moves_molecule_and_plus_atomically() -> None
 	assert (committed.changed, committed.result.observation.snapshot.revision) == (True, 1)
 	projection = committed.result.observation.projection
 	position = projection.molecules[0].atoms[0].position
-	plus = projection.presentation_stack.roots[0].plus.anchor
+	plus = projection.presentation_stack.entries[0].plus.anchor
 	displacement = (release[0] - press[0], release[1] - press[1])
 	assert (position.x, position.y) == pytest.approx((
 		initial_position.x + displacement[0], initial_position.y + displacement[1],
@@ -511,7 +529,9 @@ def test_render_interaction_binding_returns_toggled_roots_in_source_order() -> N
 		),
 	)
 
-	assert [root.identifier for root in selection.roots] == ["m1", "m2"]
+	assert [root.document_object_id for root in selection.roots] == [
+		root.document_object_id for root in observation.roots
+	]
 
 
 def test_render_interaction_binding_captures_raw_or_view_hex_grid_snap() -> None:
@@ -519,7 +539,9 @@ def test_render_interaction_binding_captures_raw_or_view_hex_grid_snap() -> None
 	initial = session.snapshot()
 	observation = session.observe_render_interaction_v1(initial.revision, initial.digest)
 	selection = session.select_render_interaction_roots_v1(
-		observation, None, ferrum_chem.RenderInteractionQueryV1.root("m"),
+		observation,
+		None,
+		ferrum_chem.RenderInteractionQueryV1.root(observation.roots[0].document_object_id),
 	)
 	raw = session.begin_render_interaction_translation_v1(
 		selection, 0.0, 0.0, ferrum_chem.RenderInteractionSnapV1.free(),
@@ -549,7 +571,8 @@ def test_presentation_creation_gesture_binding_resolves_normal_arrow_generically
 		),
 	)
 	preview = session.preview_presentation_creation_gesture_v1(gesture, 8.0, 9.0)
-	assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+	assert type(preview.plan) is ferrum_chem.PresentationPreviewRenderPlanV1
+	assert preview.plan.schema == "ferrum-presentation-preview-render-plan-v1"
 	assert len(preview.plan.roots) == 1
 	assert len(preview.plan.roots[0].vector_operations) == 2
 	assert preview.plan.roots[0].bounds.right > 14.0
@@ -561,7 +584,9 @@ def test_presentation_creation_gesture_binding_resolves_normal_arrow_generically
 	assert result.outcome.created_presentation_root.kind == (
 		ferrum_chem.CreatedPresentationRootKindV1.straight_normal_arrow
 	)
-	assert result.outcome.created_presentation_root.identifier.startswith("ferrum-presentation-v1-")
+	assert result.outcome.created_presentation_root.document_object_id.startswith(
+		"ferrum-document-object-v1/",
+	)
 	assert result.observation.snapshot.revision == 1
 	cdml = result.observation.snapshot.cdml
 	assert 'width="1.0"' in cdml
@@ -577,7 +602,8 @@ def test_equilibrium_creation_binding_requires_kind_owned_style() -> None:
 		0.0, 0.0, None, ferrum_chem.PresentationGestureSnapPolicyV1(),
 	)
 	preview = session.preview_presentation_creation_gesture_v1(gesture, 40.0, 0.0)
-	assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+	assert type(preview.plan) is ferrum_chem.PresentationPreviewRenderPlanV1
+	assert preview.plan.schema == "ferrum-presentation-preview-render-plan-v1"
 	assert len(preview.plan.roots[0].vector_operations) == 3
 	request = session.resolve_presentation_creation_gesture_v1(gesture, preview)
 	prepared = session.prepare_session_operation_transition_v1(request)
@@ -596,7 +622,8 @@ def test_presentation_creation_gesture_binding_resolves_plus_generically() -> No
 		72.0, 36.0, None, ferrum_chem.PresentationGestureSnapPolicyV1(),
 	)
 	preview = session.preview_presentation_creation_gesture_v1(gesture, 72.0, 36.0)
-	assert type(preview.plan) is ferrum_chem.PresentationRenderPlanV1
+	assert type(preview.plan) is ferrum_chem.PresentationPreviewRenderPlanV1
+	assert preview.plan.schema == "ferrum-presentation-preview-render-plan-v1"
 	assert session.snapshot().revision == 0
 	request = session.resolve_presentation_creation_gesture_v1(gesture, preview)
 	prepared = session.prepare_session_operation_transition_v1(request)

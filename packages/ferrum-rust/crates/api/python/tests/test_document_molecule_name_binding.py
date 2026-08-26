@@ -19,7 +19,7 @@ SOURCE = (
 def _address(session: object, root: int = 0) -> tuple[object, str]:
 	"""Return one exact installed observation and durable root selector."""
 	observation = session.observe(session.snapshot().revision)
-	return observation, observation.projection.molecules[root].id
+	return observation, observation.projection.molecules[root].document_object_id
 
 
 #============================================
@@ -46,7 +46,7 @@ def test_exact_name_clear_history_and_reopen_preserve_retained_content() -> None
 	assert spaced.observation.projection.molecules[0].name == "  "
 	assert cleared.observation.projection.molecules[0].name is None
 	assert undone.observation.projection.molecules[0].name == "  "
-	assert reopened.observe(0).projection.molecules[1].id is not None
+	assert reopened.observe(0).projection.molecules[1].document_object_id is not None
 
 
 #============================================
@@ -73,7 +73,7 @@ def test_digest_nonroot_and_invalid_xml_name_are_atomic() -> None:
 	"""Every unauthenticated or unserializable request leaves the snapshot exact."""
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	observation, molecule_id = _address(session)
-	atom_id = observation.projection.molecules[0].atoms[0].id
+	atom_id = observation.projection.molecules[0].atoms[0].document_object_id
 	before = session.snapshot()
 	with pytest.raises(ferrum_chem.DocumentMoleculeNameError):
 		session.set_document_molecule_name_v1(0, "0" * 64, molecule_id, "x")

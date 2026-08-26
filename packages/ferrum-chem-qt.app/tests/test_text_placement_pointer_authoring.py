@@ -259,8 +259,9 @@ def test_text_commit_selection_failure_reports_recovery_after_rust_acceptance(
 		monkeypatch.setattr(window, "_show_edit_refusal", lambda request: refusals.append(request))
 		monkeypatch.setattr(ferrum_qt.dialogs.rich_text_dialog.RichTextDialog, "exec",
 			lambda dialog: dialog.accept() or int(dialog.result()))
-		monkeypatch.setattr(tab, "observe_direct_root_interaction",
-			lambda: (_ for _ in ()).throw(RuntimeError("selection observation failed")))
+		monkeypatch.setattr(tab, "observe_direct_root_interaction", lambda: (
+			_ for _ in ()
+		).throw(ferrum_qt.ferrum.engine.RenderInteractionError("selection observation failed")))
 		window._register_native_tab(tab, activate=True)
 		window.show()
 		qapp.processEvents()

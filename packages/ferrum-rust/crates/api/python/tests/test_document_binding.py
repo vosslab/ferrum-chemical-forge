@@ -69,83 +69,24 @@ def test_reaction_creation_resolves_to_the_generic_transition_route() -> None:
     )
     session = ferrum_chem.DocumentSession.load(source)
     snapshot = session.snapshot()
-    gesture = session.begin_reaction_gesture_v1(
-        snapshot.revision, snapshot.digest, ["left"], ["product"], "arrow", [], [],
+    roots = session.observe_render_interaction_v1(snapshot.revision, snapshot.digest).roots
+    left, product, arrow = (
+        root.document_object_id for root in sorted(roots, key=lambda root: root.paint_order)
     )
-    request = session.resolve_reaction_gesture_v1(gesture)
+    command = session.begin_create_reaction_v1(
+        snapshot.revision, snapshot.digest, [left], [product], arrow, [], [],
+    )
+    request = session.resolve_create_reaction_command_v1(command)
     prepared = session.prepare_session_operation_transition_v1(request)
     commit = session.commit_session_operation_transition_v1(prepared)
     assert commit.outcome.kind == "reaction_created_v1"
-    assert commit.outcome.reaction_created.reaction_id == "rxn-1"
+    created = commit.outcome.reaction_created.reaction_document_object_id
+    assert created
     assert commit.observation.snapshot.revision == 1
-    assert '<reaction id="rxn-1"' in commit.observation.snapshot.cdml
-
-
-def test_reaction_authoring_choices_are_renderer_fenced_and_non_mutating() -> None:
-    source = (
-        '<cdml xmlns="urn:ferrum:cdml"><molecule id="left"><atom id="left-a" name="C">'
-        '<point x="0" y="0"/></atom></molecule><molecule id="product">'
-        '<atom id="product-a" name="O"><point x="100" y="0"/></atom></molecule>'
-        '<arrow id="arrow"><point x="25" y="0"/><point x="75" y="0"/></arrow>'
-        '<plus id="plus"><point x="20" y="-10"/></plus>'
-        '<text id="condition"><point x="50" y="-20"/><ftext>heat</ftext></text>'
-        '<rect id="annotation" x1="10" y1="10" x2="30" y2="30"/>'
-        '<reaction id="rxn-old"><reactant idref="left"/></reaction>'
-        '<plus><point x="0" y="20"/></plus>'
-        '</cdml>'
+    observed = session.observe_reaction_list_v1(
+        commit.observation.snapshot.revision, commit.observation.snapshot.digest,
     )
-    session = ferrum_chem.DocumentSession.load(source)
-    snapshot = session.snapshot()
-    choices = session.observe_reaction_authoring_choices_v1(
-        snapshot.revision, snapshot.digest,
-    )
-    assert choices.revision == snapshot.revision
-    assert choices.digest == snapshot.digest
-    assert [(item.identifier, item.kind, item.availability) for item in choices.choices] == [
-        ("left", ferrum_chem.ReactionAuthoringChoiceKindV1.molecule,
-         ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.already_in_reaction),
-        ("product", ferrum_chem.ReactionAuthoringChoiceKindV1.molecule,
-         ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
-        ("arrow", ferrum_chem.ReactionAuthoringChoiceKindV1.arrow,
-         ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
-        ("plus", ferrum_chem.ReactionAuthoringChoiceKindV1.plus,
-         ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
-        ("condition", ferrum_chem.ReactionAuthoringChoiceKindV1.condition_text,
-         ferrum_chem.ReactionAuthoringChoiceAvailabilityV1.eligible),
-    ]
-    annotation = next(
-        item for item in choices.exclusions if item.diagnostic_key == "annotation"
-    )
-    assert annotation.reason == ferrum_chem.ReactionAuthoringExclusionReasonV1.display_only
-    assert annotation.recovery == ferrum_chem.ReactionAuthoringExclusionRecoveryV1.choose_supported_member
-    assert "<rect" not in annotation.label
-    assert not hasattr(annotation, "cdml")
-    session.validate_reaction_authoring_choices_v1(choices)
-    with pytest.raises(ferrum_chem.OperationValidationError):
-        session.apply_document_operation_v1(
-            0, ferrum_chem.DocumentOperationV1.set_atom_element("left-a", "N"),
-        )
-    rejected = session.snapshot()
-    assert (rejected.revision, rejected.digest) == (snapshot.revision, snapshot.digest)
-
-    renderable = ferrum_chem.DocumentSession.load(SOURCE)
-    renderable_snapshot = renderable.snapshot()
-    renderable_choices = renderable.observe_reaction_authoring_choices_v1(
-        renderable_snapshot.revision, renderable_snapshot.digest,
-    )
-    commit = renderable.apply_document_operation_v1(
-        0, ferrum_chem.DocumentOperationV1.set_atom_element("a", "N"),
-    )
-    assert commit.observation.snapshot.revision == 1
-    with pytest.raises(ferrum_chem.ReactionAuthoringChoicesError) as captured:
-        renderable.validate_reaction_authoring_choices_v1(renderable_choices)
-    assert captured.value.category == ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.stale_snapshot
-    other = ferrum_chem.DocumentSession.load(SOURCE)
-    with pytest.raises(ferrum_chem.ReactionAuthoringChoicesError) as captured:
-        other.validate_reaction_authoring_choices_v1(renderable_choices)
-    assert captured.value.category == ferrum_chem.ReactionAuthoringChoicesRefusalCategoryV1.foreign_session
-
-
+    assert [reaction.document_object_id for reaction in observed.reactions] == [created]
 def test_text_placement_binding_uses_renderer_overlay_and_one_commit() -> None:
     session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'><standard font_size='18' line_color='#123456'/></cdml>")
     snapshot = session.snapshot()
@@ -439,7 +380,7 @@ def test_native_smiles_stereo_reaches_the_durable_molecule_report(
         operation.transition_request_v1(0))
     committed = session.commit_session_operation_transition_v1(prepared)
     snapshot = committed.observation.snapshot
-    molecule_id = committed.observation.projection.molecules[0].id
+    molecule_id = committed.observation.projection.molecules[0].document_object_id
     response = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
         "schema": "ferrum-operation-request-v1",
         "request_id": "native-smiles-stereo",
@@ -469,7 +410,7 @@ def test_native_inchi_stereo_reaches_the_durable_molecule_report() -> None:
         operation.transition_request_v1(0))
     committed = session.commit_session_operation_transition_v1(prepared)
     snapshot = committed.observation.snapshot
-    molecule_id = committed.observation.projection.molecules[0].id
+    molecule_id = committed.observation.projection.molecules[0].document_object_id
     response = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
         "schema": "ferrum-operation-request-v1",
         "request_id": "native-inchi-stereo",
@@ -567,8 +508,10 @@ def test_render_observation_is_one_frozen_api_owned_plan_with_exact_glyphs() -> 
     assert isinstance(observation.molecule_plans, tuple)
     assert (plan.schema, type(plan), type(batch), type(operation)) == ("ferrum-render-plan-v2",
         ferrum_chem.RenderPlanV2, ferrum_chem.RenderBatchV2, ferrum_chem.RenderOperationV2)
-    assert (entry.molecule.source_id, entry.molecule.source_order) == ("m", 0)
-    assert batch.target.kind == "Atom"
+    assert entry.molecule.document_object_id == (
+        observation.document.projection.molecules[0].document_object_id
+    )
+    assert batch.target.kind == "document_object"
     assert operation.kind == "text"
     assert operation.operation.runs[0].glyphs[0].glyph_index > 0
     with pytest.raises(AttributeError):
@@ -584,14 +527,20 @@ def test_render_targets_publish_visual_and_durable_document_identities() -> None
         '<bond id="bond" start="atom" end="group" type="n1"/>'
         '</molecule></cdml>'
     )
-    entry = ferrum_chem.DocumentSession.load(source).observe_render(0).molecule_plans[0]
-    targets = {batch.target.kind: batch.target for batch in entry.plan.batches}
+    session = ferrum_chem.DocumentSession.load(source)
+    observation = session.observe(0)
+    entry = session.observe_render(0).molecule_plans[0]
+    targets = tuple(batch.target for batch in entry.plan.batches)
+    molecule = observation.projection.molecules[0]
+    member_ids = {
+        *(atom.document_object_id for atom in molecule.atoms),
+        *(bond.document_object_id for bond in molecule.bonds),
+        *(group.document_object_id for group in molecule.compact_groups),
+    }
 
-    for kind in ("Atom", "Bond", "Group"):
-        target = targets[kind]
-        assert target.render_identifier is not None
-        assert target.durable_object_id is not None
-        assert target.durable_molecule_object_id == entry.molecule.id
+    assert targets
+    assert all(target.kind == "document_object" for target in targets)
+    assert {target.document_object_id for target in targets} <= member_ids
 
 
 def test_render_observation_preserves_typed_stale_and_closed_telex_contracts() -> None:
@@ -614,7 +563,7 @@ def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -
         '<ftext>Line one\nH&lt;sub&gt;2&lt;/sub&gt;O</ftext></text></cdml>',
     )
     observation = session.observe_render(0)
-    root = observation.document.projection.presentation_stack.roots[0]
+    root = observation.document.projection.presentation_stack.entries[0]
     render = observation.text_renders[0]
 
     assert root.kind == "text"
@@ -630,8 +579,8 @@ def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -
     ]
     assert isinstance(render.operation.runs, tuple)
     assert all(glyph.glyph_index > 0 for run in render.operation.runs for glyph in run.glyphs)
-    assert (render.target.render_identifier, render.anchor.x, render.anchor.y) == (
-        "label",
+    assert (render.target.document_object_id, render.anchor.x, render.anchor.y) == (
+        root.text.target.document_object_id,
         10.0,
         20.0,
     )
@@ -639,14 +588,14 @@ def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -
         render.operation.paint = "000000"
 
 
-def test_presentation_polyline_is_frozen_revision_bound_and_source_ordered() -> None:
+def test_presentation_polyline_is_frozen_revision_bound_and_durable() -> None:
     session = ferrum_chem.DocumentSession.load(
         "<cdml xmlns='urn:ferrum:cdml'><polyline id=\"line\" spline=\"no\" line_color=\"#AbC\" width=\"2px\">"
         "<point x=\"1cm\" y=\"2\"/><point x=\"3\" y=\"4\"/></polyline></cdml>"
     )
     observation = session.observe(0)
     stack = observation.projection.presentation_stack
-    root = stack.roots[0]
+    root = stack.entries[0]
 
     assert (stack.revision, stack.digest) == (
         observation.snapshot.revision,
@@ -662,29 +611,29 @@ def test_presentation_polyline_is_frozen_revision_bound_and_source_ordered() -> 
         "root",
         "root",
     )
-    assert (root.polyline.target.id is not None, root.polyline.target.source_id, root.polyline.target.source_order) == (
+    assert (bool(root.polyline.target.document_object_id), root.polyline.target.record_kind) == (
         True,
-        "line",
-        0,
+        "polyline",
     )
     with pytest.raises(AttributeError):
         root.polyline.stroke.width = 3.0
 
 
-def test_presentation_polyline_idless_targets_and_invalid_geometry_remain_explicit() -> None:
+def test_presentation_polyline_durable_targets_and_invalid_geometry_remain_explicit() -> None:
     session = ferrum_chem.DocumentSession.load(
-        "<cdml xmlns='urn:ferrum:cdml'><polyline><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline>"
+        "<cdml xmlns='urn:ferrum:cdml'><polyline id=\"first\"><point x=\"0\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline>"
         "<polyline id=\"bad\"><point x=\"NaN\" y=\"0\"/><point x=\"1\" y=\"1\"/></polyline>"
-        "<polyline><point x=\"2\" y=\"2\"/><point x=\"3\" y=\"3\"/></polyline></cdml>"
+        "<polyline id=\"third\"><point x=\"2\" y=\"2\"/><point x=\"3\" y=\"3\"/></polyline></cdml>"
     )
     stack = session.observe(0).projection.presentation_stack
 
-    assert stack.roots[0].polyline.target.id is None
-    assert stack.roots[0].polyline.target.projection_key != stack.roots[1].polyline.target.projection_key
-    assert [root.polyline.target.source_order for root in stack.roots] == [0, 2]
-    assert (stack.issues[0].code, stack.issues[0].target.source_id) == (
+    assert all(root.polyline.target.document_object_id for root in stack.entries)
+    assert stack.entries[0].polyline.target.document_object_id != (
+        stack.entries[1].polyline.target.document_object_id
+    )
+    assert (stack.issues[0].code, bool(stack.issues[0].target.document_object_id)) == (
         "invalid_polyline_geometry",
-        "bad",
+        True,
     )
 
 

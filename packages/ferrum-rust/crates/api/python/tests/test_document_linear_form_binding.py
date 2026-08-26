@@ -1,5 +1,7 @@
 """Installed-binding checks for native linear-form conversion."""
 
+import defusedxml.ElementTree
+
 import pytest
 
 import ferrum_chem
@@ -19,8 +21,8 @@ def _address(session: object, root: int = 0) -> tuple[object, str, tuple[str, ..
 	"""Return one observation with its durable molecule and atom IDs."""
 	observation = session.observe(session.snapshot().revision)
 	molecule = observation.projection.molecules[root]
-	atom_ids = tuple(atom.id for atom in molecule.atoms)
-	return observation, molecule.id, atom_ids
+	atom_ids = tuple(atom.document_object_id for atom in molecule.atoms)
+	return observation, molecule.document_object_id, atom_ids
 
 
 def _facts(snapshot: object) -> tuple[str, int, str, bool]:
@@ -35,17 +37,13 @@ def test_linear_form_converts_observed_durable_atoms() -> None:
 	changed = session.convert_linear_form_v1(
 		0, observation.snapshot.digest, molecule_id, atom_ids,
 	)
-	changed_cdml = changed.observation.snapshot.cdml
+	root = defusedxml.ElementTree.fromstring(changed.observation.snapshot.cdml)
+	atoms = {atom.attrib["id"]: atom for atom in root.iter("{urn:ferrum:cdml}atom")}
 
 	assert changed.observation.snapshot.revision == 1
-	assert all(
-		marker in changed_cdml
-		for marker in (
-			'id="late" name="C" show_hydrogens="on"',
-			'id="early" name="O" show_hydrogens="on"',
-			'type="linear_form"',
-		)
-	)
+	assert atoms["late"].get("name") == "C" and atoms["late"].get("show_hydrogens") == "on"
+	assert atoms["early"].get("name") == "O" and atoms["early"].get("show_hydrogens") == "on"
+	assert any(node.get("type") == "linear_form" for node in root.iter())
 
 
 def test_linear_form_history_reopens_the_changed_document() -> None:
@@ -83,7 +81,7 @@ def test_linear_form_refuses_a_durable_bond_as_an_atom_target() -> None:
 	"""The binding rejects a durable target of the wrong document-object kind."""
 	session = ferrum_chem.DocumentSession.load(_SOURCE)
 	observation, molecule_id, _atom_ids = _address(session)
-	bond_id = observation.projection.molecules[0].bonds[0].id
+	bond_id = observation.projection.molecules[0].bonds[0].document_object_id
 
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		session.convert_linear_form_v1(

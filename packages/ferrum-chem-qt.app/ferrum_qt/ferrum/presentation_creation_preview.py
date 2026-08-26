@@ -14,7 +14,7 @@ def create_presentation_preview(tab: object, plan: object) -> PySide6.QtWidgets.
 	scene = tab.view.scene()
 	if scene is None:
 		raise RuntimeError("Ferrum presentation preview requires an installed scene")
-	replay = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
+	replay = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_preview_render_plan(
 		plan, tab._controller._telex_resource,
 	)
 	if len(replay.roots) != 1:

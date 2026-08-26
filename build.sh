@@ -7,6 +7,9 @@
 
 set -euo pipefail
 
+# Keep local-build helper imports from writing __pycache__ directories.
+export PYTHONDONTWRITEBYTECODE=1
+
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly BUILD_ROOT="${REPO_ROOT}/build"
 readonly RUST_ROOT="${REPO_ROOT}/packages/ferrum-rust"

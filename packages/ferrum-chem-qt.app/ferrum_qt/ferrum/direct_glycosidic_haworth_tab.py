@@ -27,7 +27,6 @@ class FerrumNativeDirectGlycosidicHaworthTabMixin:
 		"""Redeem one renderer-admitted generic Haworth transition."""
 		self._require_mutable()
 		result = self._session.commit_session_operation_transition_v1(prepared)
-		selection = tuple(("atom", identifier)
-			for identifier in result.outcome.molecule_inserted.atom_identifiers)
+		selection = tuple(result.outcome.molecule_inserted.atom_identifiers)
 		self._install_mutation_result(result, selection)
 		return result

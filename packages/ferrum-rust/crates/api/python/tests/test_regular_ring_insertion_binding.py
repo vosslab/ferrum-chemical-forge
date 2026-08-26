@@ -18,14 +18,16 @@ def _is_carbon_single_cycle(molecule: object) -> bool:
 		return False
 	if any(bond.source_type != "n1" for bond in molecule.bonds):
 		return False
-	degrees = {atom.source_id: 0 for atom in molecule.atoms}
+	degrees = {atom.document_object_id: 0 for atom in molecule.atoms}
 	for bond in molecule.bonds:
-		if bond.start.source_id == bond.end.source_id:
+		start_id = bond.start.document_object_id
+		end_id = bond.end.document_object_id
+		if start_id is None or end_id is None or start_id == end_id:
 			return False
-		if bond.start.source_id not in degrees or bond.end.source_id not in degrees:
+		if start_id not in degrees or end_id not in degrees:
 			return False
-		degrees[bond.start.source_id] += 1
-		degrees[bond.end.source_id] += 1
+		degrees[start_id] += 1
+		degrees[end_id] += 1
 	return all(degree == 2 for degree in degrees.values())
 
 
@@ -40,7 +42,12 @@ def test_regular_ring_generic_operation_commits_one_durable_cycle() -> None:
 	molecule = result.observation.projection.molecules[0]
 
 	assert _is_carbon_single_cycle(molecule)
-	assert result.outcome.molecule_inserted.molecule_identifier == molecule.source_id
+	inserted = result.outcome.molecule_inserted
+	assert inserted is not None
+	assert inserted.molecule_identifier
+	assert len(inserted.atom_identifiers) == len(molecule.atoms)
+	assert len(inserted.bond_identifiers) == len(molecule.bonds)
+	assert molecule.document_object_id
 
 
 def test_private_regular_ring_refusal_preserves_current_snapshot() -> None:

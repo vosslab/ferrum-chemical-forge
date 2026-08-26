@@ -8,15 +8,14 @@ use super::{
     SessionOperationResultV1,
 };
 use crate::{
-    attached_compact_group_v1::attached_compact_group_candidate_v1,
-    compact_group_materialization_v1::TypedCompactGroupMaterializationRequestV1,
     AttachCompactGroupV1, AttachedCompactGroupErrorV1, AttachedCompactGroupReleaseV1,
     AuthoringCapabilityIssuerV1, CompactGroupCatalogKeyV1, Point3V1,
+    attached_compact_group_v1::attached_compact_group_candidate_v1,
+    compact_group_materialization_v1::TypedCompactGroupMaterializationRequestV1,
 };
 use ferrum_chemistry::{
-    admit_ordinary_attachment_capacity_v1, OrdinaryAttachmentAnchorV1,
-    OrdinaryAttachmentBondOrderV1, OrdinaryAttachmentCapacityOutcomeV1,
-    OrdinaryAttachmentProfileV1,
+    OrdinaryAttachmentAnchorV1, OrdinaryAttachmentBondOrderV1, OrdinaryAttachmentCapacityOutcomeV1,
+    OrdinaryAttachmentProfileV1, admit_ordinary_attachment_capacity_v1,
 };
 use ferrum_document_model::materialization_recipe_v1;
 use ferrum_render::{
@@ -942,14 +941,16 @@ mod tests {
             assert_eq!(group.catalog_key(), catalog_key);
             let reopened =
                 DocumentSession::load(snapshot.cdml()).expect("reopen serialized compact group");
-            assert!(reopened
-                .document_observation()
-                .expect("reopened observation")
-                .projection()
-                .molecules()
-                .iter()
-                .flat_map(|molecule| molecule.compact_groups())
-                .any(|group| group.catalog_key() == catalog_key));
+            assert!(
+                reopened
+                    .document_observation()
+                    .expect("reopened observation")
+                    .projection()
+                    .molecules()
+                    .iter()
+                    .flat_map(|molecule| molecule.compact_groups())
+                    .any(|group| group.catalog_key() == catalog_key)
+            );
         }
     }
 }

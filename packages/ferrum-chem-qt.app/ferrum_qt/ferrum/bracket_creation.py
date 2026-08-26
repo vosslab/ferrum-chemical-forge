@@ -59,7 +59,7 @@ class FerrumNativeBracketCreationMixin:
 		)
 		created_by_member: dict[str, object] = {}
 		if len(pairs) == 1:
-			for root in stack.roots:
+			for root in stack.entries:
 				if root.kind != root_kind or root.polyline is None:
 					continue
 				document_object_id = root.polyline.target.document_object_id
@@ -86,9 +86,6 @@ class FerrumNativeBracketCreationMixin:
 			)
 		self._install_mutation_result(
 			result,
-			tuple(
-				("polyline", polyline.target.document_object_id)
-				for polyline in created
-			),
+			tuple(polyline.target.document_object_id for polyline in created),
 		)
 		return result

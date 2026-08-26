@@ -325,6 +325,9 @@ const fn recovery(value: DocumentMoleculeReportFindingRecoverySummaryV1) -> &'st
         DocumentMoleculeReportFindingRecoverySummaryV1::ChooseSupportedRepresentation => {
             "choose_supported_representation"
         }
+        DocumentMoleculeReportFindingRecoverySummaryV1::MaterializeCompactGroup => {
+            "materialize_compact_group"
+        }
         DocumentMoleculeReportFindingRecoverySummaryV1::ReduceSelection => "reduce_selection",
         DocumentMoleculeReportFindingRecoverySummaryV1::RetryWithChemistryRuntime => {
             "retry_with_chemistry_runtime"

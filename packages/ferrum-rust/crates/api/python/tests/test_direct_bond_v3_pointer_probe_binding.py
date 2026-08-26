@@ -42,23 +42,23 @@ def _direct_probe(atom_object_id: str) -> object:
 	)
 
 
-def _atom_object_id(session: object, source_id: str) -> str:
-	"""Return one current atom's public durable document identity."""
-	observation = session.observe(session.snapshot().revision)
-	for molecule in observation.projection.molecules:
-		for atom in molecule.atoms:
-			if atom.source_id == source_id:
-				assert atom.id is not None
-				return atom.id
-	raise AssertionError("direct-bond source fixture must retain its atom")
+def _atom_object_id(session: object, fixture_atom: str) -> str:
+	"""Return one fixture position's current durable document identity."""
+	fixture_atom_indexes = {"atom-a": 0, "atom-c": 1}
+	try:
+		atom_index = fixture_atom_indexes[fixture_atom]
+	except KeyError as error:
+		raise AssertionError("unknown direct-bond fixture atom") from error
+	molecule = session.observe(session.snapshot().revision).projection.molecules[0]
+	return molecule.atoms[atom_index].document_object_id
 
 
 def _molecule_object_id(session: object) -> str:
 	"""Return the fixture molecule's public durable document identity."""
 	observation = session.observe(session.snapshot().revision)
 	molecule = observation.projection.molecules[0]
-	assert molecule.id is not None
-	return molecule.id
+	assert molecule.document_object_id is not None
+	return molecule.document_object_id
 
 
 def _direct_bond_facts(result: object) -> object:
@@ -71,27 +71,30 @@ def _direct_bond_facts(result: object) -> object:
 def _committed_bond(result: object) -> object:
 	"""Return the public projection bond named by one generic operation result."""
 	facts = _direct_bond_facts(result)
-	return _projected_bond(result.observation, facts.bond_identifier)
+	return _projected_bond(result.observation, facts.bond_document_object_id)
 
 
-def _projected_bond(observation: object, bond_identifier: str) -> object:
+def _projected_bond(observation: object, bond_document_object_id: str) -> object:
 	"""Return one named bond from a public document observation."""
 	for molecule in observation.projection.molecules:
 		for bond in molecule.bonds:
-			if bond.source_id == bond_identifier:
+			if bond.document_object_id == bond_document_object_id:
 				return bond
 	raise AssertionError("direct-bond commit must retain its projected bond")
 
 
-def _directed_endpoint_categories(bond: object) -> tuple[str, str]:
-	"""Classify directed endpoints against the two source-document atoms."""
+def _directed_endpoint_categories(
+		bond: object,
+		existing_atom_object_ids: tuple[str, str],
+		) -> tuple[str, str]:
+	"""Classify directed endpoints against durable fixture atom identities."""
 	known_categories = {
-		"atom-a": "start-existing",
-		"atom-c": "end-existing",
+		existing_atom_object_ids[0]: "start-existing",
+		existing_atom_object_ids[1]: "end-existing",
 	}
 	return (
-		known_categories.get(bond.start.source_id, "new"),
-		known_categories.get(bond.end.source_id, "new"),
+		known_categories.get(bond.start.document_object_id, "new"),
+		known_categories.get(bond.end.document_object_id, "new"),
 	)
 
 
@@ -147,13 +150,13 @@ def test_direct_bond_v3_all_probe_forms_retain_directed_endpoint_identity(
 	facts = _direct_bond_facts(result)
 	bond = _committed_bond(result)
 
-	assert bond.end.source_id == facts.end_atom_identifier
+	assert bond.end.document_object_id == facts.end_atom_document_object_id
 	if start is not None:
-		assert bond.start.source_id == start
+		assert bond.start.document_object_id == _atom_object_id(session, start)
 	if end is not None:
-		assert facts.end_atom_identifier == end
+		assert facts.end_atom_document_object_id == _atom_object_id(session, end)
 	if start is None:
-		assert bond.start.source_id != "atom-a"
+		assert bond.start.document_object_id != _atom_object_id(session, "atom-a")
 	assert session.snapshot().digest == result.observation.snapshot.digest
 
 
@@ -250,7 +253,7 @@ def test_direct_bond_v3_preparation_transfers_one_gesture_once() -> None:
 		gesture.resolve_end_v3(session, _direct_probe(_atom_object_id(session, "atom-c")))
 
 	result = session.commit_session_operation_transition_v1(prepared)
-	assert _direct_bond_facts(result).bond_identifier
+	assert _direct_bond_facts(result).bond_document_object_id
 	after_first_commit = session.snapshot()
 	assert after_first_commit.revision == before.revision + 1
 	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
@@ -359,7 +362,7 @@ def test_direct_bond_v3_directed_wedge_is_undoable_and_durable(
 	changed = result.observation.snapshot
 	undone = session.undo(changed.revision).observation.snapshot
 	with pytest.raises(AssertionError, match="direct-bond commit must retain"):
-		_projected_bond(session.observe(undone.revision), facts.bond_identifier)
+		_projected_bond(session.observe(undone.revision), facts.bond_document_object_id)
 	redone = session.redo(undone.revision).observation.snapshot
 	path = tmp_path / "directed-wedge.cdml"
 	session.save_atomic(path, redone.revision)
@@ -367,12 +370,13 @@ def test_direct_bond_v3_directed_wedge_is_undoable_and_durable(
 		str(path),
 	)
 	reopened, _observation, _origin, _source_kind = prepared.take_admission_v1()
-	redone_bond = _projected_bond(session.observe(redone.revision), facts.bond_identifier)
-	reopened_bond = _projected_bond(reopened.observe(0), facts.bond_identifier)
+	redone_bond = _projected_bond(session.observe(redone.revision), facts.bond_document_object_id)
+	reopened_bond = _projected_bond(reopened.observe(0), facts.bond_document_object_id)
 
-	assert _directed_endpoint_categories(committed_bond) == ("start-existing", "new")
-	assert _directed_endpoint_categories(redone_bond) == ("start-existing", "new")
-	assert _directed_endpoint_categories(reopened_bond) == ("start-existing", "new")
+	existing_atom_object_ids = (_atom_object_id(session, "atom-a"), _atom_object_id(session, "atom-c"))
+	assert _directed_endpoint_categories(committed_bond, existing_atom_object_ids) == ("start-existing", "new")
+	assert _directed_endpoint_categories(redone_bond, existing_atom_object_ids) == ("start-existing", "new")
+	assert _directed_endpoint_categories(reopened_bond, existing_atom_object_ids) == ("start-existing", "new")
 	assert committed_bond.source_type == redone_bond.source_type == reopened_bond.source_type
 
 

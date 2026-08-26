@@ -18,17 +18,29 @@ def _selector(identifier: str, kind: object) -> object:
     return ferrum_chem.DocumentTopLevelRootSelectorV1.create(identifier, kind)
 
 
+def _targets(session: object, kinds: object) -> tuple[object, object]:
+    """Return observed durable molecule and Plus selectors in paint order."""
+    observation = session.observe(0).projection
+    return (
+        _selector(observation.molecules[0].document_object_id, kinds.molecule),
+        _selector(
+            observation.presentation_stack.entries[0].plus.target.document_object_id,
+            kinds.plus,
+        ),
+    )
+
+
 def test_scale_and_mirror_share_the_closed_revisioned_operation_boundary() -> None:
     """Affine factories preserve aggregate-pivot semantics and frozen intent."""
     kinds = ferrum_chem.DocumentTopLevelRootKindV1
-    targets = (_selector("m", kinds.molecule), _selector("p", kinds.plus))
     session = ferrum_chem.DocumentSession.load(SOURCE)
+    targets = _targets(session, kinds)
     scale = ferrum_chem.DocumentOperationV1.scale_top_level_roots(targets, 2, 1.0)
     scaled = session.apply_document_operation_v1(0, scale).observation
     assert scaled.projection.molecules[0].atoms[0].position.x == pytest.approx(
         -1.0, abs=AUTHORED_HALF_UNIT_POINTS,
     )
-    assert scaled.projection.presentation_stack.roots[0].plus.anchor.x == pytest.approx(
+    assert scaled.projection.presentation_stack.entries[0].plus.anchor.x == pytest.approx(
         7.0, abs=AUTHORED_HALF_UNIT_POINTS,
     )
 
@@ -39,7 +51,7 @@ def test_scale_and_mirror_share_the_closed_revisioned_operation_boundary() -> No
     assert mirrored.projection.molecules[0].atoms[0].position.y == pytest.approx(
         7.0, abs=AUTHORED_HALF_UNIT_POINTS,
     )
-    assert mirrored.projection.presentation_stack.roots[0].plus.anchor.y == pytest.approx(
+    assert mirrored.projection.presentation_stack.entries[0].plus.anchor.y == pytest.approx(
         2.0, abs=AUTHORED_HALF_UNIT_POINTS,
     )
 
@@ -47,7 +59,8 @@ def test_scale_and_mirror_share_the_closed_revisioned_operation_boundary() -> No
 def test_rigid_transform_factory_rejects_forged_or_invalid_intent() -> None:
     """Exact tuple, scalar, kind, and alignment grammar fail before mutation."""
     kinds = ferrum_chem.DocumentTopLevelRootKindV1
-    selector = _selector("p", kinds.plus)
+    session = ferrum_chem.DocumentSession.load(SOURCE)
+    selector = _targets(session, kinds)[1]
     with pytest.raises(ferrum_chem.OperationValidationError):
         ferrum_chem.DocumentOperationV1.scale_top_level_roots((selector,), 0, 2)
     with pytest.raises(ferrum_chem.OperationValidationError):

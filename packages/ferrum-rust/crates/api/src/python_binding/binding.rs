@@ -23,10 +23,10 @@ use super::presentation_root_binding::PyPresentationRootProjectionV1;
 use super::projection_binding::{
     PyArrowHeadShapeV1, PyArrowPathV1, PyArrowProjectionKindV1, PyArrowProjectionV1,
     PyAtomMarkProjectionV1, PyAtomProjectionV1, PyBondEndpointV1, PyBondProjectionV1,
-    PyBoxShapeProjectionV1, PyCompactGroupProjectionV1, PyDocumentHaworthPositionV1,
-    PyDocumentProjectionV1, PyFontFactsV1, PyMoleculeProjectionV1, PyPlusProjectionV1, PyPoint3V1,
-    PyPolygonPathV1, PyPolygonProjectionV1, PyPolylinePathV1, PyPolylineProjectionV1,
-    PyPresentationBoundsV1, PyPresentationFillV1, PyPresentationFontV1,
+    PyBoxShapeProjectionV1, PyCompactGroupProjectionV1, PyDocumentDirectRootV1,
+    PyDocumentHaworthPositionV1, PyDocumentProjectionV1, PyFontFactsV1, PyMoleculeProjectionV1,
+    PyPlusProjectionV1, PyPoint3V1, PyPolygonPathV1, PyPolygonProjectionV1, PyPolylinePathV1,
+    PyPolylineProjectionV1, PyPresentationBoundsV1, PyPresentationFillV1, PyPresentationFontV1,
     PyPresentationProjectionIssueV1, PyPresentationStackProjectionV1, PyPresentationStrokeV1,
     PyPresentationTargetV1, PyProjectionIssueV1, PySessionDocumentObservationV1,
 };
@@ -147,6 +147,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDocumentSnapshot>()?;
     module.add_class::<PySessionDocumentObservationV1>()?;
     module.add_class::<PyDocumentProjectionV1>()?;
+    module.add_class::<PyDocumentDirectRootV1>()?;
     module.add_class::<PyPresentationStackProjectionV1>()?;
     module.add_class::<PyBracketPairProjectionV1>()?;
     module.add_class::<PyPresentationRootProjectionV1>()?;

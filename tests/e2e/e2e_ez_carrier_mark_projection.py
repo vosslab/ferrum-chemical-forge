@@ -88,7 +88,7 @@ def main() -> int:
 		0, ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule),
 	)
 	observation = committed.observation
-	molecule_id = observation.projection.molecules[0].id
+	molecule_id = observation.projection.molecules[0].document_object_id
 	record = _molecule_report(observation, molecule_id)
 	if not record["stereo_depiction"]["double_bond_carrier_marks"]:
 		raise EzCarrierMarkProjectionE2eError(

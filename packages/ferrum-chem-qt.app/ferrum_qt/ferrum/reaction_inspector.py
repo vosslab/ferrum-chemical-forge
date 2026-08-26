@@ -20,6 +20,12 @@ def _enum_token(value: object) -> str:
 
 
 #============================================
+def _reaction_validation_label(strict: bool) -> str:
+	"""Present the current Rust reaction-validation fact without a retired enum."""
+	return "Strict" if strict else "Display only"
+
+
+#============================================
 class _ReactionInspectorMembershipChangedError(RuntimeError):
 	"""Report a stale role projection through the controller's typed recovery route."""
 
@@ -43,7 +49,7 @@ class _ReactionRoleEditor(PySide6.QtWidgets.QDialog):
 		layout = PySide6.QtWidgets.QVBoxLayout(self)
 		layout.addWidget(PySide6.QtWidgets.QLabel(self.tr(
 			"Replace every role for {0}. Ferrum validates the complete reaction atomically."
-		).format(reaction.reaction_id), self))
+		).format(reaction.document_object_id), self))
 		members_by_role: dict[str, list[object]] = {
 			"reactant": [], "product": [], "arrow": [], "condition": [], "plus": [],
 		}
@@ -51,8 +57,8 @@ class _ReactionRoleEditor(PySide6.QtWidgets.QDialog):
 			members_by_role[_enum_token(member.role)].append(member)
 		for members in members_by_role.values():
 			members.sort(key=lambda member: member.role_ordinal)
-		member_role_by_identifier = {
-			member.identifier: _enum_token(member.role) for member in reaction.members
+		member_role_by_document_object_id = {
+			member.document_object_id: _enum_token(member.role) for member in reaction.members
 		}
 		for role, title, kinds in (
 			("reactants", self.tr("Reactants"), {"reactant"}),
@@ -72,15 +78,17 @@ class _ReactionRoleEditor(PySide6.QtWidgets.QDialog):
 				"reactants": "reactant", "products": "product", "arrow": "arrow",
 				"conditions": "condition", "pluses": "plus",
 			}[role]
-			choices_by_identifier = {choice.identifier: choice for choice in choices.choices}
+			choices_by_document_object_id = {
+				choice.document_object_id: choice for choice in choices.choices
+			}
 			ordered_choices = [
-				choices_by_identifier[member.identifier]
+				choices_by_document_object_id[member.document_object_id]
 				for member in members_by_role[member_role]
 			]
 			ordered_choices.extend(
-				choice for choice in sorted(choices.choices, key=lambda item: item.source_order)
-				if choice.identifier not in {
-					member.identifier for member in members_by_role[member_role]
+				choice for choice in sorted(choices.choices, key=lambda item: item.document_paint_order)
+				if choice.document_object_id not in {
+					member.document_object_id for member in members_by_role[member_role]
 				}
 			)
 			for choice in ordered_choices:
@@ -94,18 +102,18 @@ class _ReactionRoleEditor(PySide6.QtWidgets.QDialog):
 				if not allowed:
 					continue
 				item = PySide6.QtWidgets.QListWidgetItem(
-					f"{choice.label} ({choice.identifier})",
+					f"{choice.label} ({choice.document_object_id})",
 				)
-				item.setData(PySide6.QtCore.Qt.ItemDataRole.UserRole, choice.identifier)
+				item.setData(PySide6.QtCore.Qt.ItemDataRole.UserRole, choice.document_object_id)
 				item.setFlags(item.flags() | PySide6.QtCore.Qt.ItemFlag.ItemIsUserCheckable)
 				item.setCheckState(
 					PySide6.QtCore.Qt.CheckState.Checked
-					if member_role_by_identifier.get(choice.identifier) == member_role
+					if member_role_by_document_object_id.get(choice.document_object_id) == member_role
 					else PySide6.QtCore.Qt.CheckState.Unchecked,
 				)
 				if (
 					_enum_token(choice.availability) != "eligible"
-					and choice.identifier not in member_role_by_identifier
+					and choice.document_object_id not in member_role_by_document_object_id
 				):
 					item.setFlags(PySide6.QtCore.Qt.ItemFlag.NoItemFlags)
 					item.setToolTip(self.tr("This root already belongs to another reaction."))
@@ -132,13 +140,13 @@ class _ReactionRoleEditor(PySide6.QtWidgets.QDialog):
 			return
 		self._updating = True
 		try:
-			identifier = item.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
+			document_object_id = item.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
 			for other_role, list_widget in self._lists.items():
 				for index in range(list_widget.count()):
 					candidate = list_widget.item(index)
 					if candidate is item:
 						continue
-					if candidate.data(PySide6.QtCore.Qt.ItemDataRole.UserRole) == identifier or (
+					if candidate.data(PySide6.QtCore.Qt.ItemDataRole.UserRole) == document_object_id or (
 						role == "arrow" and other_role == "arrow"
 					):
 						candidate.setCheckState(PySide6.QtCore.Qt.CheckState.Unchecked)
@@ -166,7 +174,7 @@ class _ReactionDefinitionDeleteDialog(PySide6.QtWidgets.QDialog):
 	"""Confirm the safe, definition-only reaction deletion in Ferrum controls."""
 
 	#============================================
-	def __init__(self, reaction_id: str, parent: PySide6.QtWidgets.QWidget) -> None:
+	def __init__(self, reaction_document_object_id: str, parent: PySide6.QtWidgets.QWidget) -> None:
 		"""Explain exactly what deletion changes before exposing one destructive action."""
 		super().__init__(parent)
 		self.setWindowTitle(self.tr("Delete Reaction Definition"))
@@ -176,7 +184,7 @@ class _ReactionDefinitionDeleteDialog(PySide6.QtWidgets.QDialog):
 		layout = PySide6.QtWidgets.QVBoxLayout(self)
 		question = PySide6.QtWidgets.QLabel(self.tr(
 			"Remove reaction definition {0}?"
-		).format(reaction_id), self)
+		).format(reaction_document_object_id), self)
 		question.setWordWrap(True)
 		layout.addWidget(question)
 		consequence = PySide6.QtWidgets.QLabel(self.tr(
@@ -217,7 +225,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		self._detail: PySide6.QtWidgets.QTextBrowser | None = None
 		self._tab: object | None = None
 		self._observation: object | None = None
-		self._reaction_id: str | None = None
+		self._reaction_document_object_id: str | None = None
 		self._owned_dialog: PySide6.QtWidgets.QDialog | None = None
 		self._window.installEventFilter(self)
 
@@ -254,7 +262,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		layout = PySide6.QtWidgets.QVBoxLayout(panel)
 		layout.setContentsMargins(10, 10, 10, 10)
 		layout.addWidget(PySide6.QtWidgets.QLabel(self.tr(
-			"Reaction membership, diagnostics, and bounds are issued by Rust."
+			"Reaction membership, validation, and diagnostics are issued by Rust."
 		), panel))
 		self._list = PySide6.QtWidgets.QListWidget(panel)
 		self._list.setObjectName("reaction-inspector-list")
@@ -300,7 +308,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		self._detail = None
 		self._tab = None
 		self._observation = None
-		self._reaction_id = None
+		self._reaction_document_object_id = None
 		if dock is not None:
 			dock.hide()
 			dock.deleteLater()
@@ -341,7 +349,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		"""Replace every observation with one current Rust-issued list."""
 		if self._tab is None or self._list is None:
 			return
-		selected = self._reaction_id
+		selected = self._reaction_document_object_id
 		try:
 			self._observation = self._tab.observe_reaction_list()
 		except (
@@ -355,11 +363,11 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		self._list.clear()
 		for reaction in self._observation.reactions:
 			item = PySide6.QtWidgets.QListWidgetItem(
-				f"{reaction.reaction_id} [{_enum_token(reaction.disposition)}]",
+				f"{reaction.document_object_id} [{_reaction_validation_label(reaction.strict)}]",
 			)
-			item.setData(PySide6.QtCore.Qt.ItemDataRole.UserRole, reaction.reaction_id)
+			item.setData(PySide6.QtCore.Qt.ItemDataRole.UserRole, reaction.document_object_id)
 			self._list.addItem(item)
-			if reaction.reaction_id == selected:
+			if reaction.document_object_id == selected:
 				self._list.setCurrentItem(item)
 		self._list.blockSignals(False)
 		if self._list.currentItem() is None and self._list.count():
@@ -372,12 +380,12 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		"""Render a faithful readable projection of selected Rust facts."""
 		if current is None or self._observation is None or self._detail is None:
 			return
-		self._reaction_id = current.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
+		self._reaction_document_object_id = current.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
 		reaction = self._reaction()
 		member_lines = "<br/>".join(
 			"{0} {1}: {2}".format(
 				html.escape(str(member.role)), member.role_ordinal + 1,
-				html.escape(str(member.identifier)),
+				html.escape(str(member.document_object_id)),
 			)
 			for member in reaction.members
 		)
@@ -387,55 +395,62 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			)
 			for item in reaction.diagnostics
 		) or self.tr("None")
-		bounds = reaction.union_bounds
-		bounds_text = self.tr("No complete render bounds") if bounds is None else (
-			f"{bounds.left:g}, {bounds.top:g} to {bounds.right:g}, {bounds.bottom:g}"
-		)
 		self._detail.setHtml(
-			f"<b>{html.escape(str(reaction.reaction_id))}</b><br/>"
-			f"Disposition: {html.escape(_enum_token(reaction.disposition))}<br/>"
-			f"Bounds: {html.escape(bounds_text)}<br/><br/><b>Members</b><br/>{member_lines}"
+			f"<b>{html.escape(str(reaction.document_object_id))}</b><br/>"
+			f"Validation: {html.escape(_reaction_validation_label(reaction.strict))}<br/>"
+			f"<br/><b>Members</b><br/>{member_lines}"
 			f"<br/><br/><b>Diagnostics</b><br/>{diagnostics}",
 		)
 
 	#============================================
 	def _reaction(self) -> object:
 		"""Resolve the selected projection only from the active Rust list."""
-		if self._observation is None or self._reaction_id is None:
+		if self._observation is None or self._reaction_document_object_id is None:
 			raise _ReactionInspectorMembershipChangedError()
 		for reaction in self._observation.reactions:
-			if reaction.reaction_id == self._reaction_id:
+			if reaction.document_object_id == self._reaction_document_object_id:
 				return reaction
 		raise _ReactionInspectorMembershipChangedError()
 
 	#============================================
 	def _selection(self) -> object:
 		"""Acquire a fresh opaque selection, never retaining it in Qt state."""
-		if self._tab is None or self._observation is None or self._reaction_id is None:
+		if self._tab is None or self._observation is None or self._reaction_document_object_id is None:
 			raise _ReactionInspectorMembershipChangedError()
-		return self._tab.select_reaction(self._observation, self._reaction_id)
+		return self._tab.select_reaction(self._observation, self._reaction_document_object_id)
+
+	#============================================
+	def _select_reaction_member_roots(self) -> object:
+		"""Build one current generic direct-root selection for the selected reaction members."""
+		reaction = self._reaction()
+		observation = self._tab.observe_direct_root_interaction()
+		selection = None
+		for member in reaction.members:
+			modifier = (
+				ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace
+				if selection is None else ferrum_qt.ferrum.engine.RenderInteractionModifierV1.toggle
+			)
+			selection = self._tab.select_direct_roots(
+				observation, selection,
+				ferrum_qt.ferrum.engine.RenderInteractionQueryV1.root(
+					member.document_object_id, modifier,
+				),
+			)
+		return selection
 
 	#============================================
 	def highlight_members(self) -> None:
-		"""Project exact Rust member identifiers through existing root selection."""
+		"""Project exact durable reaction members through generic root selection."""
 		if self._tab is None:
 			return
 		try:
 			reaction = self._reaction()
-			observation = self._tab.observe_direct_root_interaction()
-			selection = None
-			for member in reaction.members:
-				modifier = (
-					ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace
-					if selection is None else ferrum_qt.ferrum.engine.RenderInteractionModifierV1.toggle
-				)
-				selection = self._tab.select_direct_roots(
-					observation, selection,
-					ferrum_qt.ferrum.engine.RenderInteractionQueryV1.root(member.identifier, modifier),
-				)
+			selection = self._select_reaction_member_roots()
 			self._window._replace_render_interaction_selection(selection, self._tab)
 			self._window.statusBar().showMessage(
-				self.tr("Highlighted all Rust-issued members of {0}.").format(reaction.reaction_id), 5000,
+				self.tr("Highlighted all Rust-issued members of {0}.").format(
+					reaction.document_object_id,
+				), 5000,
 			)
 		except (
 			_ReactionInspectorMembershipChangedError,
@@ -452,11 +467,11 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			return
 		try:
 			reaction = self._reaction()
-			choices = self._tab.observe_reaction_authoring_choices()
+			choices = self._tab.observe_direct_root_interaction().reaction_authoring
 		except (
 			_ReactionInspectorMembershipChangedError,
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
-			ferrum_qt.ferrum.engine.ReactionAuthoringChoicesError,
+			ferrum_qt.ferrum.engine.RenderInteractionError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
 		) as exc:
 			self._recover(exc)
@@ -475,7 +490,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			)
 			return
 		try:
-			request = self._tab.resolve_reaction_membership_patch(
+			request = self._tab.resolve_replace_reaction_members_command(
 				self._selection(), reactants, products, arrow, conditions, pluses,
 			)
 			prepared = self._tab.prepare_session_operation_transition_v1(request)
@@ -507,11 +522,11 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		except _ReactionInspectorMembershipChangedError as exc:
 			self._recover(exc)
 			return
-		dialog = _ReactionDefinitionDeleteDialog(reaction.reaction_id, self._window)
+		dialog = _ReactionDefinitionDeleteDialog(reaction.document_object_id, self._window)
 		if self._run_owned_dialog(dialog) != PySide6.QtWidgets.QDialog.DialogCode.Accepted:
 			return
 		try:
-			request = self._tab.resolve_reaction_definition_delete(self._selection())
+			request = self._tab.resolve_delete_reaction_command(self._selection())
 			prepared = self._tab.prepare_session_operation_transition_v1(request)
 			result = self._tab.commit_session_operation_transition_v1(prepared)
 			self._tab.install_reaction_definition_deleted_result(result)
@@ -536,14 +551,20 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 
 	#============================================
 	def nudge(self, delta_x: float, delta_y: float) -> None:
-		"""Move every selected reaction member through one opaque Rust receipt."""
+		"""Move reaction members through the generic direct-root interaction boundary."""
 		try:
-			request = self._tab.resolve_reaction_translation(
-				self._selection(), delta_x, delta_y, self._snap.isChecked(),
+			selection = self._select_reaction_member_roots()
+			snap_policy = (
+				ferrum_qt.ferrum.engine.RenderInteractionGridSnapPolicyV1.view_hex_grid
+				if self._snap.isChecked()
+				else ferrum_qt.ferrum.engine.RenderInteractionGridSnapPolicyV1.free
 			)
-			prepared = self._tab.prepare_session_operation_transition_v1(request)
-			result = self._tab.commit_session_operation_transition_v1(prepared)
-			self._tab.install_reaction_translation_result(result)
+			snap = ferrum_qt.ferrum.engine.RenderInteractionSnapV1.with_grid_policy(
+				ferrum_qt.ferrum.engine.RenderInteractionAxisV1.free, snap_policy,
+			)
+			self._tab.translate_direct_root_selection_from_origin(
+				selection, delta_x, delta_y, snap,
+			)
 		except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError:
 			self._recover_accepted_mutation("Moved all reaction members", rehighlight=True)
 			return
@@ -598,10 +619,14 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 	#============================================
 	def _recover(self, error: Exception) -> None:
 		"""Map typed Rust refusal facts to one no-mutation refresh boundary."""
-		category = _enum_token(getattr(error, "category", "observation"))
+		category_value = getattr(error, "category", "observation")
+		category = _enum_token(category_value)
+		category_name = str(getattr(category_value, "name", category_value)).rsplit(".", 1)[-1]
 		recovery = _enum_token(getattr(error, "recovery", "refresh and restart"))
 		self._window.statusBar().showMessage(
 			self.tr("Reaction action refused: {0}. Recovery: {1}.").format(category, recovery), 7000,
 		)
-		if category in {"stale snapshot", "foreign session", "session conflict", "membership changed"}:
+		if category_name in {
+			"stale_revision", "stale_digest", "foreign_session", "session_conflict", "membership_changed",
+		}:
 			self.close()
