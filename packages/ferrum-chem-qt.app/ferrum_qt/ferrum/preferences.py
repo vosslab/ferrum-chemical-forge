@@ -189,14 +189,13 @@ def hex_grid_snap_enabled_preference(prefs: object) -> bool:
 
 
 #============================================
-def install_native_preferences_action(window: object,
-		options_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install one application-settings action on the ordinary product window."""
+def install_native_preferences_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct one application-settings action on the ordinary product window."""
 	action = PySide6.QtGui.QAction(window.tr("Preferences..."), window)
 	action.setToolTip(window.tr("Choose application appearance and workspace behavior"))
 	action.setMenuRole(PySide6.QtGui.QAction.MenuRole.PreferencesRole)
 	action.triggered.connect(lambda _checked=False: _on_preferences(window))
-	options_menu.addAction(action)
+	window._register_action("options.preferences", action)
 	return action
 
 

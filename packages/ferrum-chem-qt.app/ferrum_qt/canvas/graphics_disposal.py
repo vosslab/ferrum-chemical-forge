@@ -3,7 +3,7 @@
 The backend never sees these objects.  This module centralizes the narrow
 native-wrapper boundary used while a live Qt projection is discarded, so a
 caller identifies its roots instead of inferring ownership from a potentially
-retired ``QGraphicsItem``.
+disposed ``QGraphicsItem``.
 """
 
 # PIP3 modules
@@ -59,7 +59,7 @@ def selected_items_from_captured_scene(
 		) -> list[PySide6.QtWidgets.QGraphicsItem]:
 	"""Return selected items only from one still-live scene wrapper.
 
-	Selection is a Ferrum call. A retired scene therefore has no observable
+	Selection is a Ferrum call. A disposed scene therefore has no observable
 	selection, rather than a later caller entering C++ through its stale wrapper.
 	"""
 	if not is_valid_native_wrapper(scene):
@@ -140,11 +140,11 @@ def set_item_parent_in_captured_scene(
 
 #============================================
 @dataclasses.dataclass
-class GraphicsRetirementReport:
-	"""Observable result of one graphics retirement transition."""
+class GraphicsDisposalReport:
+	"""Observable result of one graphics disposal transition."""
 
-	retired_item_count: int = 0
-	already_retired_count: int = 0
+	disposed_item_count: int = 0
+	already_disposed_count: int = 0
 	callback_errors: list[BaseException] = dataclasses.field(default_factory=list)
 
 	#============================================
@@ -157,7 +157,7 @@ class GraphicsRetirementReport:
 #============================================
 @dataclasses.dataclass
 class RetainedDetachedGraphics:
-	"""Detached roots retained after an explicit native-retirement failure.
+	"""Detached roots retained after an explicit native-disposal failure.
 
 	The record owns only wrappers that were already detached from their scene and
 	parent tree.  Its long-lived reaper owner selects when a controlled terminal
@@ -224,7 +224,7 @@ class RetainedGraphicsRecords:
 
 
 #============================================
-class DetachedGraphicsRetirementReaper:
+class DetachedGraphicsDisposalReaper:
 	"""Own failed terminal graphics deletion until a controlled retry.
 
 	A caller gives this reaper a defined lifetime: a session owns replacement
@@ -261,12 +261,12 @@ class DetachedGraphicsRetirementReaper:
 	def drain(self) -> None:
 		"""Retry explicit scene and detached transitions at a safe boundary."""
 		for record in list(self._pending_scene_projections):
-			coordinator = GraphicsRetirementCoordinator()
+			coordinator = GraphicsDisposalCoordinator()
 			coordinator.resolve_retained_scene_projection_graphics(record, self)
 			if not record.unresolved:
 				self._pending_scene_projections.remove(record)
 		for record in list(self._pending):
-			coordinator = GraphicsRetirementCoordinator()
+			coordinator = GraphicsDisposalCoordinator()
 			coordinator.resolve_retained_detached_graphics(record)
 			if not record.unresolved:
 				self._pending.remove(record)
@@ -333,7 +333,7 @@ class DetachedGraphicsRetirementReaper:
 
 #============================================
 @dataclasses.dataclass
-class TemporarySceneRetirement:
+class TemporarySceneDisposal:
 	"""Own one export-only scene until Qt confirms its terminal deletion.
 
 	The record is intentionally frontend-only.  The temporary-scene reaper
@@ -348,7 +348,7 @@ class TemporarySceneRetirement:
 	detached_items: list[PySide6.QtWidgets.QGraphicsItem]
 	retained_detached_graphics: RetainedDetachedGraphics | None = None
 	diagnostics: list[BaseException] = dataclasses.field(default_factory=list)
-	contents_retired: bool = False
+	contents_disposed: bool = False
 	delete_requested: bool = False
 
 	#============================================
@@ -363,22 +363,22 @@ class TemporarySceneRetirement:
 
 
 #============================================
-class TemporarySceneRetirementReaper:
+class TemporarySceneDisposalReaper:
 	"""Retain temporary export scenes until ordinary Qt event delivery resolves them."""
 
 	#============================================
 	def __init__(self) -> None:
-		"""Initialize the frontend-only pending retirement records."""
-		self._pending: list[TemporarySceneRetirement] = []
+		"""Initialize the frontend-only pending disposal records."""
+		self._pending: list[TemporarySceneDisposal] = []
 
 	#============================================
-	def retire(
+	def dispose(
 			self, scene: PySide6.QtWidgets.QGraphicsScene,
 			scene_items: list[PySide6.QtWidgets.QGraphicsItem],
 			detached_items: list[PySide6.QtWidgets.QGraphicsItem],
-			) -> TemporarySceneRetirement:
-		"""Start one temporary-scene retirement and retain its terminal record."""
-		record = TemporarySceneRetirement(scene, scene_items, detached_items)
+			) -> TemporarySceneDisposal:
+		"""Start one temporary-scene disposal and retain its terminal record."""
+		record = TemporarySceneDisposal(scene, scene_items, detached_items)
 		self._pending.append(record)
 		self._advance(record)
 		return record
@@ -404,18 +404,18 @@ class TemporarySceneRetirementReaper:
 		return False
 
 	#============================================
-	def _advance(self, record: TemporarySceneRetirement) -> None:
+	def _advance(self, record: TemporarySceneDisposal) -> None:
 		"""Advance one record without dropping an unresolved Ferrum wrapper."""
-		if not record.contents_retired:
-			coordinator = GraphicsRetirementCoordinator()
+		if not record.contents_disposed:
+			coordinator = GraphicsDisposalCoordinator()
 			try:
-				coordinator.retire_temporary_scene(
+				coordinator.dispose_temporary_scene(
 					record.scene, record.scene_items, record.detached_items,
 				)
 			except RuntimeError as exc:
 				record.diagnostics.append(exc)
 			else:
-				record.contents_retired = True
+				record.contents_disposed = True
 				record.detached_items = []
 				record.scene_items = []
 			retained = coordinator.take_retained_detached_graphics()
@@ -427,7 +427,7 @@ class TemporarySceneRetirementReaper:
 
 		retained = record.retained_detached_graphics
 		if retained is not None and retained.unresolved:
-			coordinator = GraphicsRetirementCoordinator()
+			coordinator = GraphicsDisposalCoordinator()
 			coordinator.resolve_retained_detached_graphics(retained)
 			if coordinator.report.callback_errors:
 				record.diagnostics.extend(coordinator.report.callback_errors)
@@ -438,7 +438,7 @@ class TemporarySceneRetirementReaper:
 		if not is_valid_native_wrapper(scene):
 			record.scene = None
 			return
-		if record.contents_retired and not record.delete_requested:
+		if record.contents_disposed and not record.delete_requested:
 			if not is_valid_native_wrapper(scene):
 				record.scene = None
 				return
@@ -448,22 +448,22 @@ class TemporarySceneRetirementReaper:
 
 # The reaper is intentionally process-local: it keeps only temporary frontend
 # projection wrappers and releases them on the next ordinary Qt event delivery.
-temporary_scene_retirement_reaper = TemporarySceneRetirementReaper()
+temporary_scene_disposal_reaper = TemporarySceneDisposalReaper()
 
 
 # Failed terminal replacement/preparation roots have no retained document or
 # scene owner.  Keep that exceptional ownership explicit until normal Qt event
 # delivery reaches a controlled retry boundary.
-detached_graphics_retirement_reaper = DetachedGraphicsRetirementReaper()
+detached_graphics_disposal_reaper = DetachedGraphicsDisposalReaper()
 
 
 #============================================
-class GraphicsRetirementCoordinator:
-	"""Retire one Qt graphics ownership domain in an explicit order.
+class GraphicsDisposalCoordinator:
+	"""Dispose one Qt graphics ownership domain in an explicit order.
 
 	A coordinator receives either an explicitly live scene or roots already
 	known to be detached.  It checks ``shiboken6.isValid`` immediately before
-	each C++ boundary and never asks an item which scene owns it after retirement
+	each C++ boundary and never asks an item which scene owns it after disposal
 	may have begun.  Scene contents remain scene-owned until the scene performs
 	its established terminal clear; detached trees are unparented children first.
 	"""
@@ -471,19 +471,19 @@ class GraphicsRetirementCoordinator:
 	#============================================
 	def __init__(self) -> None:
 		"""Initialize the per-transition report and retained detached roots."""
-		self.report = GraphicsRetirementReport()
+		self.report = GraphicsDisposalReport()
 		self.retained_detached_roots: list[PySide6.QtWidgets.QGraphicsItem] = []
 
 	#============================================
-	def prepare_scene_retirement(
+	def prepare_scene_disposal(
 			self, scene: PySide6.QtWidgets.QGraphicsScene,
 			undo_stack: PySide6.QtGui.QUndoStack | None = None,
 			destroy_detached_undo_items: bool = False,
-			reaper: DetachedGraphicsRetirementReaper | None = None,
-			) -> GraphicsRetirementReport:
+			reaper: DetachedGraphicsDisposalReaper | None = None,
+			) -> GraphicsDisposalReport:
 		"""Detach callbacks before ``scene.dispose_contents`` clears one graph.
 
-		Failed terminal retirement of an undo-retained detached root transfers to
+		Failed terminal disposal of an undo-retained detached root transfers to
 		``reaper`` before a subsequent history-clear scan.  That transfer makes
 		the reaper the root's sole terminal owner until controlled resolution.
 		"""
@@ -502,13 +502,13 @@ class GraphicsRetirementCoordinator:
 			self, scene: PySide6.QtWidgets.QGraphicsScene,
 			items: list[PySide6.QtWidgets.QGraphicsItem],
 			undo_stack: PySide6.QtGui.QUndoStack | None = None,
-			) -> GraphicsRetirementReport:
+			) -> GraphicsDisposalReport:
 		"""Detach roots whose undo command remains their live future owner.
 
 		This is the only nonterminal scene-removal path.  It releases callbacks
 		and scene ownership while deliberately retaining Ferrum wrappers for a
 		future undo/redo command.  Terminal projection disposal uses
-		:meth:`retire_scene_projection_items` instead.
+		:meth:`dispose_scene_projection_items` instead.
 		"""
 		ordered = self._child_first_unique(items)
 		self._dispose_callbacks(ordered)
@@ -521,15 +521,15 @@ class GraphicsRetirementCoordinator:
 		return self.report
 
 	#============================================
-	def retire_scene_projection_items(
+	def dispose_scene_projection_items(
 			self, scene: PySide6.QtWidgets.QGraphicsScene,
 			items: list[PySide6.QtWidgets.QGraphicsItem],
 			undo_stack: PySide6.QtGui.QUndoStack | None = None,
-			reaper: DetachedGraphicsRetirementReaper | None = None,
-			) -> GraphicsRetirementReport:
-		"""Terminally retire named projection trees from one known live scene.
+			reaper: DetachedGraphicsDisposalReaper | None = None,
+			) -> GraphicsDisposalReport:
+		"""Terminally dispose named projection trees from one known live scene.
 
-		The caller identifies the still-live scene and roots before retirement.
+		The caller identifies the still-live scene and roots before disposal.
 		The coordinator snapshots every child, disconnects callbacks, removes
 		known roots, unparents children first, and explicitly deletes children
 		before parents.  Failed Ferrum deletions transfer to ``reaper`` (or the
@@ -574,12 +574,12 @@ class GraphicsRetirementCoordinator:
 		return self.report
 
 	#============================================
-	def retire_detached_projection_items(
+	def dispose_detached_projection_items(
 			self, items: list[PySide6.QtWidgets.QGraphicsItem],
-			reaper: DetachedGraphicsRetirementReaper | None = None,
+			reaper: DetachedGraphicsDisposalReaper | None = None,
 			callbacks_already_disposed: bool = False,
-			) -> GraphicsRetirementReport:
-		"""Terminally retire detached projection trees in child-first order.
+			) -> GraphicsDisposalReport:
+		"""Terminally dispose detached projection trees in child-first order.
 
 		A replacement transaction may have already run every callback while its old
 		projection remained scene-owned.  That explicit flag prevents a second,
@@ -593,22 +593,22 @@ class GraphicsRetirementCoordinator:
 		return self.report
 
 	#============================================
-	def retire_temporary_scene(
+	def dispose_temporary_scene(
 			self, scene: PySide6.QtWidgets.QGraphicsScene | None,
 			scene_items: list[PySide6.QtWidgets.QGraphicsItem],
 			detached_items: list[PySide6.QtWidgets.QGraphicsItem],
-			) -> GraphicsRetirementReport:
-		"""Retire a known export scene and explicit detached roots in one protocol."""
+			) -> GraphicsDisposalReport:
+		"""Dispose a known export scene and explicit detached roots in one protocol."""
 		if scene is None or not self._is_live(scene):
-			raise RuntimeError("Cannot retire an invalid temporary scene wrapper")
+			raise RuntimeError("Cannot dispose an invalid temporary scene wrapper")
 		# Explicitly supplied roots leave the scene before Ferrum deletion.  This
 		# preserves child-before-parent ordering for atom-attached presentation
 		# items instead of asking QGraphicsScene.clear() to destroy that mixed tree.
-		# Temporary scene retirement retains any failed Ferrum deletion in its
+		# Temporary scene disposal retains any failed Ferrum deletion in its
 		# own long-lived record, so this coordinator must keep failures until the
 		# caller transfers them below.
-		self._retire_scene_items(scene, scene_items)
-		self._retire_detached_items(detached_items)
+		self._dispose_scene_items(scene, scene_items)
+		self._dispose_detached_items(detached_items)
 		# The fully tracked export tree has crossed this coordinator's explicit
 		# child-before-parent deletion boundary.  The now-empty scene therefore has
 		# no second content owner: its reaper queues only QObject deletion.
@@ -618,7 +618,7 @@ class GraphicsRetirementCoordinator:
 	def dispose_undo_stack_graphics(
 			self, undo_stack: PySide6.QtGui.QUndoStack, seen: set[int] | None = None,
 			destroy_detached_items: bool = False,
-			) -> GraphicsRetirementReport:
+			) -> GraphicsDisposalReport:
 		"""Disconnect command-retained graphics without inferring scene ownership."""
 		known = seen if seen is not None else set()
 		for index in range(undo_stack.count()):
@@ -647,14 +647,14 @@ class GraphicsRetirementCoordinator:
 
 	#============================================
 	def _transfer_retained_detached_graphics(
-			self, reaper: DetachedGraphicsRetirementReaper | None,
+			self, reaper: DetachedGraphicsDisposalReaper | None,
 			) -> None:
 		"""Move native-deletion failures to a long-lived frontend owner."""
 		record = self.take_retained_detached_graphics()
 		if record is None:
 			return
 		target_reaper = (
-			detached_graphics_retirement_reaper
+			detached_graphics_disposal_reaper
 			if reaper is None else reaper
 		)
 		target_reaper.retain(record)
@@ -663,11 +663,11 @@ class GraphicsRetirementCoordinator:
 	def _transfer_retained_scene_projection_graphics(
 			self, scene: PySide6.QtWidgets.QGraphicsScene,
 			roots: list[PySide6.QtWidgets.QGraphicsItem],
-			reaper: DetachedGraphicsRetirementReaper | None,
+			reaper: DetachedGraphicsDisposalReaper | None,
 			) -> None:
 		"""Retain an incomplete scene-to-detached transition before surfacing it."""
 		target_reaper = (
-			detached_graphics_retirement_reaper
+			detached_graphics_disposal_reaper
 			if reaper is None else reaper
 		)
 		target_reaper.retain_scene_projection(
@@ -681,7 +681,7 @@ class GraphicsRetirementCoordinator:
 	#============================================
 	def resolve_retained_detached_graphics(
 			self, retained: RetainedDetachedGraphics,
-			) -> GraphicsRetirementReport:
+			) -> GraphicsDisposalReport:
 		"""Attempt one reaper-owned terminal resolution of detached roots.
 
 		A stale wrapper is released from the Python sentinel list without any C++
@@ -704,8 +704,8 @@ class GraphicsRetirementCoordinator:
 	#============================================
 	def resolve_retained_scene_projection_graphics(
 			self, retained: RetainedSceneProjectionGraphics,
-			reaper: DetachedGraphicsRetirementReaper,
-			) -> GraphicsRetirementReport:
+			reaper: DetachedGraphicsDisposalReaper,
+			) -> GraphicsDisposalReport:
 		"""Retry one reaper-owned scene transition without guessing ownership.
 
 		An invalid retained scene proves that it can no longer own live graphics
@@ -716,7 +716,7 @@ class GraphicsRetirementCoordinator:
 		scene = retained.scene
 		if scene is None or not self._is_live(scene):
 			retained.scene = None
-			self._retire_detached_items(retained.roots)
+			self._dispose_detached_items(retained.roots)
 			failed_detached = self.take_retained_detached_graphics()
 			if failed_detached is not None:
 				reaper.retain(failed_detached)
@@ -750,7 +750,7 @@ class GraphicsRetirementCoordinator:
 			) -> list[PySide6.QtWidgets.QGraphicsItem]:
 		"""Snapshot one known live scene before its terminal ownership transfer."""
 		if not self._is_live(scene):
-			raise RuntimeError("Cannot retire graphics from an invalid scene wrapper")
+			raise RuntimeError("Cannot dispose graphics from an invalid scene wrapper")
 		return self._child_first_unique(list(scene.items()))
 
 	#============================================
@@ -787,14 +787,14 @@ class GraphicsRetirementCoordinator:
 			except Exception as exc:
 				self.report.callback_errors.append(exc)
 			finally:
-				self.report.retired_item_count += 1
+				self.report.disposed_item_count += 1
 
 	#============================================
 	def _detach_parent_links(
 			self, ordered: list[PySide6.QtWidgets.QGraphicsItem],
 			destroy: bool = False,
 			) -> None:
-		"""Unparent and, when owned here, retire graphics child before parent."""
+		"""Unparent and, when owned here, dispose graphics child before parent."""
 		for item in ordered:
 			if self._is_live(item):
 				item.setParentItem(None)
@@ -812,11 +812,11 @@ class GraphicsRetirementCoordinator:
 				self.report.callback_errors.append(exc)
 
 	#============================================
-	def _retire_scene_items(
+	def _dispose_scene_items(
 			self, scene: PySide6.QtWidgets.QGraphicsScene,
 			items: list[PySide6.QtWidgets.QGraphicsItem],
 			) -> None:
-		"""Retire scene-owned roots while retaining failures on this coordinator."""
+		"""Dispose scene-owned roots while retaining failures on this coordinator."""
 		ordered = self._child_first_unique(items)
 		self._dispose_callbacks(ordered)
 		for root in self._roots(ordered):
@@ -837,10 +837,10 @@ class GraphicsRetirementCoordinator:
 		scene.removeItem(root)
 
 	#============================================
-	def _retire_detached_items(
+	def _dispose_detached_items(
 			self, items: list[PySide6.QtWidgets.QGraphicsItem],
 			) -> None:
-		"""Retire detached roots while retaining failures on this coordinator."""
+		"""Dispose detached roots while retaining failures on this coordinator."""
 		ordered = self._child_first_unique(items)
 		self._dispose_callbacks(ordered)
 		self._detach_parent_links(ordered, destroy=True)
@@ -893,5 +893,5 @@ class GraphicsRetirementCoordinator:
 		except TypeError:
 			valid = False
 		if not valid:
-			self.report.already_retired_count += 1
+			self.report.already_disposed_count += 1
 		return valid

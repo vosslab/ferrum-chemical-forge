@@ -166,15 +166,14 @@ def property_changes_from_dialog(
 
 
 #============================================
-def install_text_properties_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install one Ferrum Text action without adding dialog logic to the host."""
+def install_text_properties_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct one Ferrum Text action without adding dialog logic to the host."""
 	action = PySide6.QtGui.QAction(window.tr("Edit Text Properties"), window)
 	action.setToolTip(window.tr(
 		"Edit one selected durable Text through one operation",
 	))
 	action.triggered.connect(lambda _checked=False: _on_edit_text_properties(window))
-	edit_menu.addAction(action)
+	window._register_action("edit.text.properties", action)
 	return action
 
 

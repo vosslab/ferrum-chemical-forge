@@ -6,7 +6,10 @@
 
 mod cli;
 mod document_interchange_import_v1;
+mod interchange_capability_catalog_v1;
+mod interchange_capability_v1;
 mod interchange_import_v1;
+mod interchange_output_v1;
 mod presentation_path_gesture_v1;
 mod presentation_vector_gesture_v1;
 mod protocol;
@@ -40,15 +43,30 @@ pub use ferrum_document_render::{
     StructureInteractionQueryV1, StructureInteractionSelectionV1, StructureInteractionTargetV1,
     StructureTargetKindV1,
 };
+pub use interchange_capability_catalog_v1::{
+    INTERCHANGE_CAPABILITY_CATALOG_SCHEMA_V1, InterchangeCapabilityCatalogErrorV1,
+    InterchangeCapabilityCatalogV1, InterchangeCapabilityInputV1, InterchangeCapabilityOutputV1,
+    InterchangeCapabilityV1,
+};
+pub use interchange_capability_v1::{
+    ConversionInputCapabilityV1, InterchangeCapabilityResolverV1,
+    InterchangeGraphInspectionProfileV1, NativeConversionInputDescriptorV1,
+};
 pub use interchange_import_v1::{
     CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
-    InterchangeCompressionPolicyV1, InterchangeDecoderKeyV1, InterchangeDirectionV1,
-    InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1, InterchangeImportLimitsV1,
-    InterchangeImportRecoveryV1, InterchangeImportRefusalCategoryV1,
-    InterchangeImportRefusalReasonV1, InterchangeImportRefusalV1, InterchangeSemanticLossPolicyV1,
+    ConversionExecutionProfileV1, ConversionInputProfileV1, InterchangeCompressionPolicyV1,
+    InterchangeDecoderKeyV1, InterchangeDirectionV1, InterchangeFormatDescriptorV1,
+    InterchangeFormatRegistryV1, InterchangeImportLimitsV1, InterchangeImportRecoveryV1,
+    InterchangeImportRefusalCategoryV1, InterchangeImportRefusalReasonV1,
+    InterchangeImportRefusalV1, InterchangeRuntimeRequirementV1, InterchangeSemanticLossPolicyV1,
     LocalDocumentIngressDecoderV1, LocalDocumentIngressDescriptorV1,
     LocalDocumentIngressDirectionV1, LocalDocumentIngressRefusalV1, LocalDocumentIngressRegistryV1,
     LocalDocumentIngressRouteV1, SDF_IMPORT_FORMAT_V1, SDF_IMPORT_PROFILE_V1,
+};
+pub use interchange_output_v1::{
+    CML_SIMPLE_MOLECULE_OUTPUT_FORMAT_V1, CML_SIMPLE_MOLECULE_OUTPUT_PROFILE_V1,
+    ConversionOutputDescriptorV1, ConversionOutputRegistryRefusalV1, ConversionOutputRegistryV1,
+    ConversionOutputTargetV1,
 };
 pub use presentation_path_gesture_v1::{
     ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, PresentationPathProgressV1,
@@ -100,15 +118,18 @@ pub use protocol::{
     DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
     DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
     DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1, DocumentValidateRequestV1,
-    MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
-    OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
-    OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
-    OperationProtocolEnvelopeV1, OperationProtocolErrorCategoryV1,
-    OperationProtocolErrorResponseV1, OperationProtocolInputErrorV1, OperationProtocolOperationV1,
-    OperationProtocolOutcomeV1, OperationProtocolRequestV1, OperationProtocolResponseV1,
-    PresentationAuthorDirectBondOutcomeV1, PresentationAuthorPointV1, PresentationAuthorRefusalV1,
-    PresentationAuthorRequestV1, PresentationAuthoringKindV1, PresentationAuthoringRequestV1,
-    ProtocolArtifactFormatV1, ProtocolCatalogFamilyV1, ProtocolCatalogPlacementCategoryV1,
+    InspectGraphFactCoverageStatusV1, InspectGraphFactCoverageV1, InspectInterchangeGraphInputV1,
+    InspectInterchangeGraphRecordSummaryV1, InspectInterchangeGraphRequestV1,
+    InspectInterchangeGraphSummaryV1, MAX_REQUEST_ID_UTF8_BYTES_V1,
+    OPERATION_PROTOCOL_ERROR_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+    OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1, OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1,
+    OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1, OperationProtocolEnvelopeV1,
+    OperationProtocolErrorCategoryV1, OperationProtocolErrorResponseV1,
+    OperationProtocolInputErrorV1, OperationProtocolOperationV1, OperationProtocolOutcomeV1,
+    OperationProtocolRequestV1, OperationProtocolResponseV1, PresentationAuthorDirectBondOutcomeV1,
+    PresentationAuthorPointV1, PresentationAuthorRefusalV1, PresentationAuthorRequestV1,
+    PresentationAuthoringKindV1, PresentationAuthoringRequestV1, ProtocolArtifactFormatV1,
+    ProtocolCatalogFamilyV1, ProtocolCatalogPlacementCategoryV1,
     ProtocolCatalogPlacementRecoveryV1, ProtocolCurvedTerminalArrowKindV1,
     ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1, ProtocolDirectBondPresentationV1,
     ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1, ProtocolOperationKindV1,
@@ -117,7 +138,7 @@ pub use protocol::{
     ProtocolPresentationVectorKindV1, ProtocolReactionDefinitionDispositionV1,
     ProtocolRequestSchemaV1, ProtocolResourceLimitReasonV1, ProtocolResponseSchemaV1,
     ProtocolValidationLevelV1, ReactionMemberSummaryV1, ReactionObservationRequestV1,
-    ReactionObservationSummaryV1, ReactionObserveRequestV1, execute_operation_v1,
+    ReactionObservationSummaryV1, ReactionObserveRequestV1, SourceFactV1, execute_operation_v1,
     generated_operation_protocol_schema_v1, operation_protocol_schema_v1,
 };
 #[cfg(feature = "python-binding")]

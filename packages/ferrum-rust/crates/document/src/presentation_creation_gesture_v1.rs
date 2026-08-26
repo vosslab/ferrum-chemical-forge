@@ -141,7 +141,7 @@ pub enum PresentationGestureCategoryV1 {
     StaleRevision,
     StaleDigest,
     ForeignSession,
-    ReplayedGesture,
+    Consumed,
     PreviewMismatch,
     NonFinitePoint,
     CollapsedEndpoint,
@@ -167,7 +167,7 @@ pub enum PresentationGestureErrorV1 {
     #[error("presentation gesture belongs to a different document session")]
     ForeignSession,
     #[error("presentation gesture was already redeemed")]
-    ReplayedGesture,
+    Consumed,
     #[error("presentation preview belongs to a different gesture")]
     PreviewMismatch,
     #[error("presentation gesture point is not finite")]
@@ -192,7 +192,7 @@ impl PresentationGestureErrorV1 {
             Self::StaleRevision => PresentationGestureCategoryV1::StaleRevision,
             Self::StaleDigest => PresentationGestureCategoryV1::StaleDigest,
             Self::ForeignSession => PresentationGestureCategoryV1::ForeignSession,
-            Self::ReplayedGesture => PresentationGestureCategoryV1::ReplayedGesture,
+            Self::Consumed => PresentationGestureCategoryV1::Consumed,
             Self::PreviewMismatch => PresentationGestureCategoryV1::PreviewMismatch,
             Self::NonFinitePoint => PresentationGestureCategoryV1::NonFinitePoint,
             Self::CollapsedEndpoint => PresentationGestureCategoryV1::CollapsedEndpoint,
@@ -209,7 +209,7 @@ impl PresentationGestureErrorV1 {
             Self::StaleRevision
             | Self::StaleDigest
             | Self::ForeignSession
-            | Self::ReplayedGesture
+            | Self::Consumed
             | Self::PreviewMismatch => PresentationGestureRecoveryV1::RefreshAndRestart,
             Self::NonFinitePoint
             | Self::CollapsedEndpoint
@@ -632,7 +632,7 @@ mod replay_tests {
         let after = session.snapshot().expect("after commit");
         assert!(matches!(
             session.resolve_presentation_creation_gesture_v1(&gesture, &preview),
-            Err(PresentationGestureErrorV1::ReplayedGesture)
+            Err(PresentationGestureErrorV1::Consumed)
         ));
         assert_eq!(session.snapshot().expect("replay does not mutate"), after);
     }

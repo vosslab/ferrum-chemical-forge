@@ -1,7 +1,13 @@
-# Plan: Ferrum v3, a Rust chemistry backend for Ferrum
+# Historical implementation record: Ferrum v3
 
-**Authority:** this is the active implementation plan and status tracker.
-It supersedes `floofy-snacking-ripple.md` and `floofy-snacking-ripple-v2.md`.
+**Authority:** this is a subordinate historical implementation record, not an
+active full-parity plan or status ledger. Every `M*` identifier here is namespaced
+as `V3-M*` (for example, `M4a` means `V3-M4a` only). The canonical full-parity
+ledger and sequencing authority is
+[active/FULL_PARITY_RUST_FIRST.md](active/FULL_PARITY_RUST_FIRST.md), whose
+`PARITY-M*` identifiers have distinct meanings. This record supersedes
+`floofy-snacking-ripple.md` and `floofy-snacking-ripple-v2.md` only within its
+completed historical scope.
 Completed-milestone evidence lives in
 `docs/active_plans/reports/completed_milestone_evidence.md`; the large
 session-adoption record lives in
@@ -79,7 +85,7 @@ superseded by this local-only scope; M21 is deferred. The capability matrix rema
 the closure ledger:
 [Ferrum capability matrix](audits/ferrum_qt_capability_matrix.md).
 
-## Status tracker
+## Historical status tracker
 
 Allowed status vocabulary: `not started`, `in progress`, `blocked`, `done`,
 `superseded`.
@@ -274,7 +280,7 @@ The local-build checklist is intentionally short:
 - [x] `build/bin/ferrum` and `build/bin/ferrum-qt` resolve only that staged runtime.
 - [x] `all_test.sh` validates repository hygiene and the local runtime boundary.
 
-## Remaining active decisions
+## Historical decisions and handoff
 
 The attached-`Me` unavailable-anchor recovery is complete. Rust remains the
 authority for an exact-current revision/digest/anchor availability fact: an
@@ -282,25 +288,36 @@ exact-current unavailable selection keeps the existing Qt action actionable and
 produces its typed no-mutation refusal. Stale, missing, or nonmatching facts
 keep the action disabled with generic readiness guidance. The same document can
 then recover through an eligible selection and the existing guarded chooser.
-Free placement, other compact-group catalog keys, and broader full-plan gates
-remain separate work.
+Free placement beyond `Me` and broader full-parity gates remain separate work
+tracked only by [active/FULL_PARITY_RUST_FIRST.md](active/FULL_PARITY_RUST_FIRST.md).
 
-Attached compact-group authoring now has one generic Rust transaction for the
-reviewed `Me` and `NO2` keys. The next expansion adds a reviewed recipe and
-attachment profile for each remaining persisted key; it does not restore
-per-key compatibility APIs. Free placement remains limited to `Me`, and a
-public generic attached CLI/protocol command remains future work. `NO2`
-materializes as `R-[N+](=O)[O-]`; Rust retains per-atom charge facts through
-history and reopen, while public Qt evidence asserts only the editable graph,
-composition, formula, and net formal charge.
+Attached compact-group authoring now has one generic Rust transaction for all
+nine reviewed keys: `Me`, `NO2`, `Et`, `OMe`, `CH2OH`, `Carboxyl`, `Cyano`,
+`AcylChloride`, and `Phenyl`. This completes the attached compact-group recipe
+milestone without restoring per-key compatibility APIs. `Phenyl` / `phenyl` /
+`Ph` is the final delivered recipe: its neutral six-carbon alternating
+normal-order Kekule contract has carbon focus, preserved directed exterior
+identity, role-addressed native lowering, and target-addressed renderer proof
+at both exterior orientations. Aromatic-input `kekulize` is not a gate, and no
+aromatic schema branch was added. Final review, fresh build, public installed
+Qt workflow, installed binding 8/8, and repository-wide validation are closed;
+Full Rust/OASA/BKChem parity remains open. Free placement remains limited to
+`Me`; the next bounded parity slice is the missing public generic attached
+CLI/protocol command in
+[active/FULL_PARITY_RUST_FIRST.md](active/FULL_PARITY_RUST_FIRST.md#next-bounded-parity-slice).
+`NO2` materializes as `R-[N+](=O)[O-]`; Rust retains per-atom charge facts
+through history and reopen, while public Qt evidence asserts only the editable
+graph, composition, formula, and net formal charge.
 
 | Decision | Owner | Required before |
 | --- | --- | --- |
 | WASM-native divergence, if any | `expert_coder` | M21 exit |
 
-Update this file when status, an active decision, dependency, or exit criterion
-changes. Put commands, corpus measurements, receipts, and completed implementation
-detail in focused reports, then link them here.
+Do not use this file to update active parity status, dependencies, or exit
+criteria. Record new parity work and completion evidence in
+[active/FULL_PARITY_RUST_FIRST.md](active/FULL_PARITY_RUST_FIRST.md), then keep
+this historical record accurate only where its completed `V3-M*` scope needs
+context.
 ## Completed M1 slice: free methyl compact-group placement
 
 The local authoring surface now supports a free methyl compact group through the
@@ -328,7 +345,9 @@ Native session semantics, opaque PyO3 lifecycle tests, and one visible GUI E2E
 are permanent contract evidence. The E2E reads `Authored graph: 1 atoms, 0
 bonds` and `Formula: CH4`, distinguishing the explicit representation from the
 compact-group chemistry. Fresh build, full-suite, and manual visual inspection
-remain implementation/release validation. Attached `NO2`, other recipes, free
-non-Me keys, Rust-projected chooser catalog expansion, orientation/drag/batch
-options, templates, raw CDML, individual CLI commands, publishing,
-installation, and workflows remain outside this completed slice.
+remain implementation/release validation. All nine attached recipes and the
+Rust-projected chooser catalog are delivered. Free non-Me placement,
+orientation/drag/batch options, templates, raw CDML, publication, installation,
+and broader workflows remain outside this completed `V3-M1` slice. The generic
+attached CLI/protocol route is tracked only as `PARITY-M4.A` in the canonical
+ledger.

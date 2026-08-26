@@ -34,7 +34,7 @@ enum PyCurvedNormalReactionArrowGestureCategoryV1 {
     ForeignSession,
     StaleSnapshot,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     CollapsedSpan,
     ControlTooNearChord,
@@ -115,7 +115,7 @@ impl PyDocumentSession {
         preview_curved_normal_reaction_arrow_gesture_v1(
             &self.session,
             gesture.gesture.as_ref().ok_or_else(|| {
-                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::ReplayedGesture)
+                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::Consumed)
             })?,
             point(end_x, end_y, py)?,
         )
@@ -132,10 +132,10 @@ impl PyDocumentSession {
         resolve_curved_normal_reaction_arrow_gesture_v1(
             &self.session,
             gesture.gesture.take().ok_or_else(|| {
-                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::ReplayedGesture)
+                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::Consumed)
             })?,
             preview.preview.take().ok_or_else(|| {
-                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::ReplayedGesture)
+                normal_error(py, CurvedNormalReactionArrowGestureErrorV1::Consumed)
             })?,
         )
         .map(
@@ -171,8 +171,8 @@ fn normal_error(py: Python<'_>, error: CurvedNormalReactionArrowGestureErrorV1) 
         CurvedNormalReactionArrowGestureCategoryV1::MismatchedPreview => {
             PyCurvedNormalReactionArrowGestureCategoryV1::MismatchedPreview
         }
-        CurvedNormalReactionArrowGestureCategoryV1::ReplayedGesture => {
-            PyCurvedNormalReactionArrowGestureCategoryV1::ReplayedGesture
+        CurvedNormalReactionArrowGestureCategoryV1::Consumed => {
+            PyCurvedNormalReactionArrowGestureCategoryV1::Consumed
         }
         CurvedNormalReactionArrowGestureCategoryV1::InvalidPoint => {
             PyCurvedNormalReactionArrowGestureCategoryV1::InvalidPoint

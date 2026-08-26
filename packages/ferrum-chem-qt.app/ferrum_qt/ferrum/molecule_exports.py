@@ -174,23 +174,20 @@ class FerrumNativeMoleculeExportsMixin:
 		self._molecule_export_relay = _MoleculeExportDeliveryRelay(self)
 
 	#============================================
-	def _build_molecule_export_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add exact Ferrum SMILES and InChI export actions."""
-		menu.addSeparator()
+	def _build_molecule_export_actions(self) -> None:
+		"""Create and register exact Ferrum SMILES and InChI export actions."""
 		self._export_smiles_action = PySide6.QtGui.QAction(
 			self.tr("Export SMILES"), self,
 		)
 		self._export_smiles_action.triggered.connect(
 			self._choose_document_molecule_smiles_export,
 		)
-		menu.addAction(self._export_smiles_action)
 		self._export_smiles_file_action = PySide6.QtGui.QAction(
 			self.tr("Export SMILES File..."), self,
 		)
 		self._export_smiles_file_action.triggered.connect(
 			self._choose_document_molecule_smiles_file_export,
 		)
-		menu.addAction(self._export_smiles_file_action)
 		self._export_standard_inchi_action = PySide6.QtGui.QAction(
 			self.tr("Export Standard InChI"), self,
 		)
@@ -199,7 +196,6 @@ class FerrumNativeMoleculeExportsMixin:
 				engine.InchiModeV1.standard,
 			),
 		)
-		menu.addAction(self._export_standard_inchi_action)
 		self._export_standard_inchi_file_action = PySide6.QtGui.QAction(
 			self.tr("Export Standard InChI File..."), self,
 		)
@@ -208,7 +204,6 @@ class FerrumNativeMoleculeExportsMixin:
 				engine.InchiModeV1.standard,
 			),
 		)
-		menu.addAction(self._export_standard_inchi_file_action)
 		self._export_fixed_h_inchi_action = PySide6.QtGui.QAction(
 			self.tr("Export Fixed-H InChI"), self,
 		)
@@ -217,7 +212,6 @@ class FerrumNativeMoleculeExportsMixin:
 				engine.InchiModeV1.fixed_hydrogen,
 			),
 		)
-		menu.addAction(self._export_fixed_h_inchi_action)
 		self._export_fixed_h_inchi_file_action = PySide6.QtGui.QAction(
 			self.tr("Export Fixed-H InChI File..."), self,
 		)
@@ -226,14 +220,27 @@ class FerrumNativeMoleculeExportsMixin:
 				engine.InchiModeV1.fixed_hydrogen,
 			),
 		)
-		menu.addAction(self._export_fixed_h_inchi_file_action)
 		self._cancel_molecule_export_action = PySide6.QtGui.QAction(
 			self.tr("Cancel Molecule Export"), self,
 		)
 		self._cancel_molecule_export_action.triggered.connect(
 			self._cancel_document_molecule_export,
 		)
-		menu.addAction(self._cancel_molecule_export_action)
+		for action_id, action in (
+			("file.export.smiles", self._export_smiles_action),
+			("file.export.smiles_file", self._export_smiles_file_action),
+			("file.export.inchi.standard", self._export_standard_inchi_action),
+			("file.export.inchi.standard_file", self._export_standard_inchi_file_action),
+			("file.export.inchi.fixed_h", self._export_fixed_h_inchi_action),
+			("file.export.inchi.fixed_h_file", self._export_fixed_h_inchi_file_action),
+			("file.export.cancel", self._cancel_molecule_export_action),
+		):
+			action.setStatusTip(action.text())
+			self._action_registry.register_existing(
+				action_id, action,
+				lifecycle="stateful-cancel" if action_id == "file.export.cancel" else "static",
+				shortcut_exemption_reason="Available by its labelled File menu client.",
+			)
 
 	#============================================
 	def _molecule_export_busy(self) -> bool:

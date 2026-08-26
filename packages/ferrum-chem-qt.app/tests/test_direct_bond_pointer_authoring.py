@@ -71,7 +71,7 @@ def _current_tab(window: ferrum_qt.main_window.MainWindow) -> PySide6.QtWidgets.
 def _action(window: ferrum_qt.main_window.MainWindow,
 		action_id: str) -> PySide6.QtGui.QAction:
 	"""Return one registered visible authoring action by its stable identifier."""
-	action = window.findChild(PySide6.QtGui.QAction, action_id)
+	action = window._action_registry.get_qt_action(action_id)
 	if action is None:
 		raise AssertionError(f"Ferrum action is unavailable: {action_id}")
 	return action
@@ -177,7 +177,7 @@ def test_normal_pointer_direct_hits_create_the_durable_normal_bond(
 		start_id, end_id = _atom_document_object_ids(tab)
 		start = _viewport_point(tab, start_id)
 		end = _viewport_point(tab, end_id)
-		_action(window, "mode.draw").trigger()
+		_action(window, "draw.bond").trigger()
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
 		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end)
@@ -201,7 +201,7 @@ def test_normal_direct_bond_native_no_hit_resolution_reaches_new_endpoints(
 		start_id, end_id = _atom_document_object_ids(tab)
 		start = _nearby_non_hit(tab, start_id)
 		end = _viewport_point(tab, end_id)
-		_action(window, "mode.draw").trigger()
+		_action(window, "draw.bond").trigger()
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
 		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end)
@@ -220,7 +220,7 @@ def test_normal_direct_bond_native_no_hit_resolution_reaches_new_endpoints(
 		blank_tab = _current_tab(blank)
 		start = blank_tab.view.mapFromScene(PySide6.QtCore.QPointF(100.0, 100.0))
 		end = blank_tab.view.mapFromScene(PySide6.QtCore.QPointF(180.0, 100.0))
-		_action(blank, "mode.draw").trigger()
+		_action(blank, "draw.bond").trigger()
 		PySide6.QtTest.QTest.mousePress(blank_tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
 		PySide6.QtTest.QTest.mouseMove(blank_tab.view.viewport(), end)
@@ -241,7 +241,7 @@ def test_normal_direct_bond_ambiguous_scene_evidence_is_non_modal(
 	window, tab = _open_window(qapp, tmp_path, _OVERLAPPING_CDML)
 	try:
 		point = _viewport_point(tab, _atom_document_object_ids(tab)[0])
-		action = _action(window, "mode.draw")
+		action = _action(window, "draw.bond")
 		action.trigger()
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point)
@@ -256,12 +256,12 @@ def test_normal_direct_bond_ambiguous_scene_evidence_is_non_modal(
 def test_normal_direct_bond_escape_unchecks_its_visible_action(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""Escape retires normal authoring while preserving the observed document."""
+	"""Escape cancels normal authoring while preserving the observed document."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
 		start = _viewport_point(tab, _atom_document_object_ids(tab)[0])
 		before = tab.current_document_observation().projection.molecules[0]
-		action = _action(window, "mode.draw")
+		action = _action(window, "draw.bond")
 		action.trigger()
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
@@ -286,7 +286,7 @@ def test_normal_direct_bond_refusal_is_modal_and_actionable(
 		observer = _ModalRefusalObserver(refusal_dialogs)
 		qapp.installEventFilter(observer)
 		try:
-			_action(window, "mode.draw").trigger()
+			_action(window, "draw.bond").trigger()
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
 			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), start)
@@ -302,7 +302,7 @@ def test_normal_direct_bond_refusal_is_modal_and_actionable(
 			"What to do now: Select the required item or change the drawing, then try again.",
 			"document operation rejected",
 		)]
-		assert not _action(window, "mode.draw").isChecked()
+		assert not _action(window, "draw.bond").isChecked()
 		assert not tab.current_document_observation().projection.molecules[0].bonds
 	finally:
 		_close_window(qapp, window)

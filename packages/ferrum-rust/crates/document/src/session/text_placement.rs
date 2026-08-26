@@ -101,7 +101,7 @@ pub(super) fn commit(
     pending: &mut PendingTextPlacementV1,
 ) -> Result<crate::CommittedTextPlacementV1, TextPlacementErrorV1> {
     if pending.transition.is_consumed_v1() {
-        return Err(TextPlacementErrorV1::ReplayedGesture);
+        return Err(TextPlacementErrorV1::Consumed);
     }
     if !pending
         .issuer
@@ -121,7 +121,7 @@ pub(super) fn commit(
             AuthoringCapabilityAccessErrorV1::ForeignSession => {
                 TextPlacementErrorV1::ForeignSession
             }
-            AuthoringCapabilityAccessErrorV1::Replayed => TextPlacementErrorV1::ReplayedGesture,
+            AuthoringCapabilityAccessErrorV1::Consumed => TextPlacementErrorV1::Consumed,
         })?;
     let result = session
         .commit_session_operation_transition_v1(&mut pending.transition)
@@ -143,13 +143,12 @@ fn map_prepare_error(error: super::DocumentSessionError) -> TextPlacementErrorV1
 fn map_commit_error(error: AdmittedSessionTransitionRefusalV1) -> TextPlacementErrorV1 {
     match error {
         AdmittedSessionTransitionRefusalV1::ForeignSession => TextPlacementErrorV1::ForeignSession,
-        AdmittedSessionTransitionRefusalV1::Replayed => TextPlacementErrorV1::ReplayedGesture,
+        AdmittedSessionTransitionRefusalV1::Consumed => TextPlacementErrorV1::Consumed,
         AdmittedSessionTransitionRefusalV1::StaleSnapshot => TextPlacementErrorV1::StaleSnapshot,
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             TextPlacementErrorV1::RenderPreparation
         }
-        AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             TextPlacementErrorV1::SessionConflict
         }
     }

@@ -4,7 +4,7 @@
 //! children lower atom-local depiction and clipped bond geometry independently.
 
 mod atom;
-mod bond;
+pub(crate) mod bond;
 
 use std::collections::{HashMap, HashSet};
 
@@ -163,7 +163,7 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
                     RenderEndpointGeometry {
                         kind: RecordKind::Atom,
                         position: render_point_to_geometry(atom.position)?,
-                        bounds,
+                        clipping: EndpointClipGeometry::OriginContainingGlyphEnvelope(bounds),
                     },
                 );
                 batches.push(batch);
@@ -177,8 +177,10 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
             endpoint.context().record_id().clone(),
             RenderEndpointGeometry {
                 kind: RecordKind::Group,
-                position: render_point_to_geometry(endpoint.position())?,
-                bounds: endpoint.bounds(),
+                position: render_point_to_geometry(endpoint.connection_point())?,
+                clipping: EndpointClipGeometry::FixedConnectionPoint {
+                    label_ink_exclusion: endpoint.label_ink_exclusion(),
+                },
             },
         );
     }
@@ -233,7 +235,15 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
 struct RenderEndpointGeometry {
     kind: RecordKind,
     position: Point2,
-    bounds: GlyphBounds,
+    clipping: EndpointClipGeometry,
+}
+
+#[derive(Clone, Debug)]
+enum EndpointClipGeometry {
+    OriginContainingGlyphEnvelope(GlyphBounds),
+    FixedConnectionPoint {
+        label_ink_exclusion: crate::compact_group::CompactGroupLabelInkEnvelope,
+    },
 }
 
 fn render_point_to_geometry(point: RenderPoint) -> Result<Point2, RenderError> {

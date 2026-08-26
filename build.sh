@@ -21,10 +21,10 @@ readonly LOCAL_PYTHON_ROOT="${CURRENT_PROGRAM}/runtime/python"
 readonly LOCAL_CLI="${CURRENT_PROGRAM}/bin/ferrum"
 readonly LOCAL_GUI="${CURRENT_PROGRAM}/bin/ferrum-qt"
 readonly LOCAL_RUNTIME_RECEIPT="${RUST_ROOT}/local_runtime_receipt.py"
-readonly LEGACY_WHEEL_ROOT="${REPO_ROOT}/output_native_wheel"
-readonly OBSOLETE_BUILD_CARGO_TARGET="${BUILD_ROOT}/cargo-target"
-readonly OBSOLETE_RUST_TARGET="${RUST_ROOT}/target"
-readonly OBSOLETE_PYO3_TARGET="${RUST_ROOT}/crates/api/python/target"
+readonly OWNED_WHEEL_OUTPUT_ROOT="${REPO_ROOT}/output_native_wheel"
+readonly CLEANABLE_BUILD_CARGO_TARGET="${BUILD_ROOT}/cargo-target"
+readonly CLEANABLE_RUST_TARGET="${RUST_ROOT}/target"
+readonly CLEANABLE_PYO3_TARGET="${RUST_ROOT}/crates/api/python/target"
 readonly MAX_CHECKOUT_KIB=$((20 * 1024 * 1024))
 readonly BUILD_LOCK_PATH="${BUILD_ROOT}/.build.lock"
 readonly BUILD_LOCK_OWNER="${$}-${RANDOM}-${RANDOM}"
@@ -69,19 +69,19 @@ cleanup_transient_build_state() {
 
 
 #============================================
-retire_obsolete_owned_build_state() {
-	# These fixed paths are historical compiler or staging outputs owned by the
-	# local build. Retire them while holding the build lock before staging a new
-	# program. A direct build/bin or build/runtime directory predates the sole
-	# current-pointer topology and is disposable local build output.
+clean_noncurrent_owned_build_state() {
+	# These fixed paths are compiler or staging outputs owned by the local build.
+	# Clean them while holding the build lock before staging a new program. A
+	# direct build/bin or build/runtime directory is replaced by the current
+	# program pointer and remains disposable local build output.
 	if [[ ! -L "${STABLE_BIN_ROOT}" ]]; then
 		rm -rf -- "${STABLE_BIN_ROOT}"
 	fi
 	if [[ ! -L "${STABLE_RUNTIME_ROOT}" ]]; then
 		rm -rf -- "${STABLE_RUNTIME_ROOT}"
 	fi
-	rm -rf -- "${LEGACY_WHEEL_ROOT}" "${OBSOLETE_BUILD_CARGO_TARGET}" \
-		"${OBSOLETE_RUST_TARGET}" "${OBSOLETE_PYO3_TARGET}" \
+	rm -rf -- "${OWNED_WHEEL_OUTPUT_ROOT}" "${CLEANABLE_BUILD_CARGO_TARGET}" \
+		"${CLEANABLE_RUST_TARGET}" "${CLEANABLE_PYO3_TARGET}" \
 		"${BUILD_ROOT}"/.cargo-target "${BUILD_ROOT}"/.cargo-target-* \
 		"${BUILD_ROOT}"/.current-next-* \
 		"${BUILD_ROOT}"/.ferrum-local-build-* \
@@ -123,15 +123,15 @@ require_checkout_budget() {
 	if (( size_kib > MAX_CHECKOUT_KIB )); then
 		printf 'build error: checkout exceeds the 20 GiB build budget (%s).\n' \
 			"$(du -sh "${REPO_ROOT}" | awk '{print $1}')" >&2
-		printf 'Largest known build-owned categories after fixed-path retirement:\n' >&2
-		for category in "${BUILD_ROOT}" "${LEGACY_WHEEL_ROOT}" \
-			"${OBSOLETE_RUST_TARGET}" "${OBSOLETE_PYO3_TARGET}"; do
+		printf 'Largest known build-owned categories after fixed-path cleanup:\n' >&2
+		for category in "${BUILD_ROOT}" "${OWNED_WHEEL_OUTPUT_ROOT}" \
+			"${CLEANABLE_RUST_TARGET}" "${CLEANABLE_PYO3_TARGET}"; do
 			if [[ -e "${category}" ]]; then
 				category_kib="$(du -sk "${category}" | awk '{print $1}')"
 				printf '  %s: %s KiB\n' "${category}" "${category_kib}" >&2
 			fi
 		done
-		printf 'The build only retires its fixed owned paths; inspect other checkout content separately.\n' >&2
+		printf 'The build cleans only its fixed owned paths; inspect other checkout content separately.\n' >&2
 		exit 1
 	fi
 }
@@ -194,7 +194,7 @@ EOF
 build_local_program() {
 	local extension_source local_extension
 
-	retire_obsolete_owned_build_state
+	clean_noncurrent_owned_build_state
 	initialize_program_topology
 	cleanup_unreachable_programs
 	cleanup_transient_build_state

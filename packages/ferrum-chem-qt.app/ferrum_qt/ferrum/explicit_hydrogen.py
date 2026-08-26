@@ -20,8 +20,8 @@ class FerrumNativeExplicitHydrogenWindowMixin:
 		self._explicit_hydrogen_action: PySide6.QtGui.QAction | None = None
 
 	#============================================
-	def _build_explicit_hydrogen_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the accessible public Chemistry action."""
+	def _build_explicit_hydrogen_action(self) -> None:
+		"""Create and register the accessible public Chemistry action."""
 		action = PySide6.QtGui.QAction(self.tr("Make Hydrogens Explicit"), self)
 		action.setObjectName("make-hydrogens-explicit-action")
 		action.setIconText(self.tr("Make Hydrogens Explicit"))
@@ -36,8 +36,11 @@ class FerrumNativeExplicitHydrogenWindowMixin:
 			"Ferrum Rust validates chemistry, identifiers, geometry, and rendering.",
 		))
 		action.triggered.connect(self._make_hydrogens_explicit)
-		menu.addAction(action)
 		self._explicit_hydrogen_action = action
+		self._action_registry.register_existing(
+			"chemistry.hydrogens.make_explicit", action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _make_hydrogens_explicit(self) -> bool:

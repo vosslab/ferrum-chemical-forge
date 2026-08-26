@@ -20,7 +20,7 @@ def create_document_tab_from_session(
 	try:
 		tab._refresh_from_current_revision()
 	except Exception:
-		tab._retire_partial_resources()
+		tab._dispose_partial_resources()
 		raise
 	return tab
 
@@ -49,7 +49,7 @@ def create_admitted_local_document_tab(
 		if not tab._install_observation(live_observation):
 			raise error_type("Ferrum tab could not install its admitted render observation")
 	except Exception:
-		tab._retire_partial_resources()
+		tab._dispose_partial_resources()
 		raise
 	return tab
 
@@ -95,6 +95,6 @@ def _construct_tab(tab_class: type, session: object, title: str) -> object:
 		)
 		tab._initialize(title, session, view, controller)
 	except Exception:
-		tab._retire_partial_resources()
+		tab._dispose_partial_resources()
 		raise
 	return tab

@@ -1,4 +1,4 @@
-"""Transient live-document query retirement owned by one Ferrum tab."""
+"""Transient live-document query invalidation owned by one Ferrum tab."""
 
 # Standard Library
 import collections.abc
@@ -18,12 +18,12 @@ class FerrumPublishedRenderPlanV1:
 
 
 #============================================
-class _RetiringDocumentSessionV1:
+class _MutationFencedDocumentSessionV1:
 	"""Forward one Rust session while fencing mutation before it begins.
 
 	This is deliberately a Qt ownership seam, not a second document model.  It
 	knows only which binding method starts a document-changing operation and asks
-	the owning tab to retire its temporary renderer-issued paint first.
+	the owning tab to invalidate its temporary renderer-issued paint first.
 	"""
 
 	_MUTATING_PREFIXES = ("apply_", "commit_", "create_")
@@ -57,9 +57,9 @@ class _RetiringDocumentSessionV1:
 
 	#============================================
 	def _mutation_call(self, method: collections.abc.Callable[..., object]) -> object:
-		"""Return one call which retires before the Rust document can change."""
+		"""Return one call which invalidates before the Rust document can change."""
 		def call(*args: object, **kwargs: object) -> object:
-			return self._tab._retire_then_mutate_document_v1(method, *args, **kwargs)
+			return self._tab._invalidate_then_mutate_document_v1(method, *args, **kwargs)
 		return call
 
 	#============================================
@@ -74,14 +74,14 @@ class _RetiringDocumentSessionV1:
 class FerrumLiveDocumentTransactionMixin:
 	"""Own one disposable live-query overlay and all document transition fences."""
 
-	_FULL_RETIREMENT_REASONS = frozenset((
+	_FULL_INVALIDATION_REASONS = frozenset((
 		"construction_failure",
 		"document_mutation",
 		"document_reprojection",
 		"tab_deactivated",
 		"tab_disposed",
 	))
-	_RECEIPT_RETIREMENT_REASONS = frozenset((
+	_RECEIPT_INVALIDATION_REASONS = frozenset((
 		"dock_rerun",
 		"stale_delivery",
 	))
@@ -94,10 +94,10 @@ class FerrumLiveDocumentTransactionMixin:
 		self._live_smarts_receipt_v1: object | None = None
 		self._live_smarts_run_token_v1 = 0
 		self._live_smarts_active_run_token_v1: int | None = None
-		self._live_smarts_retirement_error_v1: Exception | None = None
-		self._live_smarts_retirement_available_v1 = True
+		self._live_smarts_invalidation_error_v1: Exception | None = None
+		self._live_smarts_invalidation_available_v1 = True
 		self._live_smarts_invalidation_callback_v1: collections.abc.Callable[[], None] | None = None
-		self._session = _RetiringDocumentSessionV1(self, session)
+		self._session = _MutationFencedDocumentSessionV1(self, session)
 
 	#============================================
 	def _bind_live_smarts_invalidation_callback_v1(self,
@@ -109,18 +109,18 @@ class FerrumLiveDocumentTransactionMixin:
 
 	#============================================
 	def _notify_live_smarts_invalidation_v1(self) -> None:
-		"""Clear copied dock state after the tab has retired native query state."""
+		"""Clear copied dock state after the tab has invalidated native query state."""
 		callback = self._live_smarts_invalidation_callback_v1
 		if callback is not None:
 			callback()
 
 	#============================================
 	def _begin_live_smarts_query_run_v1(self) -> None:
-		"""Retire an older installed run before the dock dispatches a new query.
+		"""Clear an older installed run before the dock dispatches a new query.
 
 		This is the only rerun transition.  It belongs before the private bridge
 		issues a new receipt, never in the first-paint installer: native receipts
-		carry independently redeemable result rows, so retiring during that commit
+		carry independently redeemable result rows, so clearing during that commit
 		would invalidate the rows the dock has not shown yet.
 		"""
 		self._require_live()
@@ -130,17 +130,17 @@ class FerrumLiveDocumentTransactionMixin:
 			and self._live_smarts_active_run_token_v1 is None
 		):
 			return
-		self._require_live_smarts_receipt_retirement_v1("dock_rerun")
+		self._require_live_smarts_receipt_invalidation_v1("dock_rerun")
 
 	#============================================
 	def _install_live_smarts_query_overlay_v1(self, item: object, receipt: object) -> int:
-		"""Commit the first paint for a freshly issued run without native retirement."""
+		"""Commit the first paint for a freshly issued run without native invalidation."""
 		if item is None or receipt is None:
 			raise TypeError("Ferrum live SMARTS paint requires an item and opaque receipt")
 		self._require_live()
-		if not self._live_smarts_retirement_available_v1:
+		if not self._live_smarts_invalidation_available_v1:
 			raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
-				"Ferrum live SMARTS retirement is unavailable; refresh before editing.",
+				"Ferrum could not clear the active SMARTS result; refresh before editing.",
 			)
 		if (
 			self._live_smarts_overlay_item_v1 is not None
@@ -150,7 +150,7 @@ class FerrumLiveDocumentTransactionMixin:
 			# A caller skipped the sole pre-dispatch rerun fence.  The candidate has
 			# already been issued natively, so preserve neither it nor the prior run.
 			self._remove_rejected_live_smarts_overlay_item_v1(item)
-			self._require_live_smarts_receipt_retirement_v1("stale_delivery")
+			self._require_live_smarts_receipt_invalidation_v1("stale_delivery")
 			raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
 				"Ferrum cannot install a SMARTS run over an active run. Run the query again.",
 			)
@@ -162,7 +162,7 @@ class FerrumLiveDocumentTransactionMixin:
 
 	#============================================
 	def _replace_live_smarts_query_overlay_v1(self, item: object) -> None:
-		"""Swap transient renderer paint without redeeming or retiring the live run.
+		"""Swap transient renderer paint without redeeming or clearing the live run.
 
 		The caller has already redeemed one unconsumed result row through the
 		private native bridge and built this unattached renderer-issued item. This
@@ -179,9 +179,9 @@ class FerrumLiveDocumentTransactionMixin:
 			raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
 				"Ferrum has no live SMARTS query to show.",
 			)
-		if not self._live_smarts_retirement_available_v1:
+		if not self._live_smarts_invalidation_available_v1:
 			raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
-				"Ferrum live SMARTS retirement is unavailable; refresh before editing.",
+				"Ferrum could not clear the active SMARTS result; refresh before editing.",
 			)
 		if item is None:
 			raise TypeError("Ferrum live SMARTS replacement requires a renderer item")
@@ -216,9 +216,9 @@ class FerrumLiveDocumentTransactionMixin:
 				)
 			if not restored:
 				# The previous paint no longer has an owner. Its receipt must not
-				# outlive that visual, so retire the complete native transaction.
-				# A native retirement failure retains its normal fail-closed state.
-				self._require_live_smarts_receipt_retirement_v1("stale_delivery")
+				# outlive that visual, so invalidate the complete native transaction.
+				# A native invalidation failure retains its normal fail-closed state.
+				self._require_live_smarts_receipt_invalidation_v1("stale_delivery")
 			raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
 				"Ferrum could not show that SMARTS match. Run the query again.",
 			) from exc
@@ -270,46 +270,46 @@ class FerrumLiveDocumentTransactionMixin:
 			return False
 
 	#============================================
-	def _retire_live_smarts_query_v1(self, reason: str) -> bool:
+	def _invalidate_live_smarts_query_v1(self, reason: str) -> bool:
 		"""Synchronously remove current transient paint before a closed transition."""
-		if reason not in self._FULL_RETIREMENT_REASONS:
-			raise ValueError("Ferrum live SMARTS retirement reason is not closed")
-		return self._retire_live_smarts_state_v1(
-			reason, "_retire_live_document_smarts_query_v1",
+		if reason not in self._FULL_INVALIDATION_REASONS:
+			raise ValueError("Ferrum live SMARTS invalidation reason is not closed")
+		return self._invalidate_live_smarts_state_v1(
+			reason, "_clear_live_document_smarts_query_v1",
 		)
 
 	#============================================
-	def _retire_live_smarts_receipts_v1(self, reason: str) -> bool:
+	def _invalidate_live_smarts_receipts_v1(self, reason: str) -> bool:
 		"""Revoke query receipts and paint while retaining the published render plan."""
-		if reason not in self._RECEIPT_RETIREMENT_REASONS:
-			raise ValueError("Ferrum live SMARTS receipt retirement reason is not closed")
-		return self._retire_live_smarts_state_v1(
-			reason, "_retire_live_document_smarts_receipts_v1",
+		if reason not in self._RECEIPT_INVALIDATION_REASONS:
+			raise ValueError("Ferrum live SMARTS receipt invalidation reason is not closed")
+		return self._invalidate_live_smarts_state_v1(
+			reason, "_clear_live_document_smarts_receipts_v1",
 		)
 
 	#============================================
-	def _retire_live_smarts_state_v1(self, reason: str, entry_point: str) -> bool:
-		"""Clear tab-owned transient state after one explicit native retirement call."""
-		if not self._live_smarts_retirement_available_v1:
+	def _invalidate_live_smarts_state_v1(self, reason: str, entry_point: str) -> bool:
+		"""Clear tab-owned transient state after one explicit native invalidation call."""
+		if not self._live_smarts_invalidation_available_v1:
 			return False
 		try:
-			retire = getattr(self._live_document_session_v1,
+			invalidate = getattr(self._live_document_session_v1,
 				entry_point)
 		except AttributeError as exc:
-			self._live_smarts_retirement_error_v1 = exc
-			self._live_smarts_retirement_available_v1 = False
+			self._live_smarts_invalidation_error_v1 = exc
+			self._live_smarts_invalidation_available_v1 = False
 			return False
-		if not callable(retire):
-			self._live_smarts_retirement_error_v1 = TypeError(
-				"Ferrum live SMARTS retirement entry point is not callable",
+		if not callable(invalidate):
+			self._live_smarts_invalidation_error_v1 = TypeError(
+				"Ferrum live SMARTS clear entry point is not callable",
 			)
-			self._live_smarts_retirement_available_v1 = False
+			self._live_smarts_invalidation_available_v1 = False
 			return False
 		try:
-			retire()
+			invalidate()
 		except RuntimeError as exc:
-			self._live_smarts_retirement_error_v1 = exc
-			self._live_smarts_retirement_available_v1 = False
+			self._live_smarts_invalidation_error_v1 = exc
+			self._live_smarts_invalidation_available_v1 = False
 			return False
 		item = self._live_smarts_overlay_item_v1
 		if item is not None:
@@ -319,43 +319,43 @@ class FerrumLiveDocumentTransactionMixin:
 					scene.removeItem(item)
 				item.setParentItem(None)
 			except RuntimeError as exc:
-				# The native receipt is already retired.  Keep every local owner until
+				# The native receipt is already invalidated.  Keep every local owner until
 				# a refresh can reconcile this failed Qt-only detachment.
-				self._live_smarts_retirement_error_v1 = exc
-				self._live_smarts_retirement_available_v1 = False
+				self._live_smarts_invalidation_error_v1 = exc
+				self._live_smarts_invalidation_available_v1 = False
 				return False
 		self._live_smarts_overlay_item_v1 = None
 		self._live_smarts_receipt_v1 = None
 		self._live_smarts_active_run_token_v1 = None
-		self._live_smarts_retirement_error_v1 = None
-		self._live_smarts_retirement_available_v1 = True
+		self._live_smarts_invalidation_error_v1 = None
+		self._live_smarts_invalidation_available_v1 = True
 		return True
 
 	#============================================
-	def retire_live_smarts_query(self, reason: str) -> bool:
-		"""Private Rust callback hook; it receives only a closed retirement reason."""
-		return self._retire_live_smarts_query_v1(reason)
+	def invalidate_live_smarts_query(self, reason: str) -> bool:
+		"""Private Rust callback hook; it receives only a closed invalidation reason."""
+		return self._invalidate_live_smarts_query_v1(reason)
 
 	#============================================
-	def _retire_then_mutate_document_v1(self,
+	def _invalidate_then_mutate_document_v1(self,
 			operation: collections.abc.Callable[..., object],
 			*args: object, **kwargs: object) -> object:
 		"""Fence a Rust mutation before invoking its bound session method."""
-		self._retire_live_document_mutation_v1()
+		self._invalidate_live_document_before_mutation_v1()
 		return operation(*args, **kwargs)
 
 	#============================================
-	def _retire_live_document_mutation_v1(self) -> None:
+	def _invalidate_live_document_before_mutation_v1(self) -> None:
 		"""Fence transient state before one detached live-session mutation."""
-		self._require_live_smarts_retirement_v1("document_mutation")
+		self._require_live_smarts_invalidation_v1("document_mutation")
 		self._notify_live_smarts_invalidation_v1()
 
 	#============================================
-	def _retire_then_reproject_document_v1(self,
+	def _invalidate_then_reproject_document_v1(self,
 			operation: collections.abc.Callable[..., object],
 			*args: object, **kwargs: object) -> object:
 		"""Fence one Rust observation or Qt replacement before it can be displayed."""
-		self._require_live_smarts_retirement_v1("document_reprojection")
+		self._require_live_smarts_invalidation_v1("document_reprojection")
 		self._notify_live_smarts_invalidation_v1()
 		return operation(*args, **kwargs)
 
@@ -363,12 +363,12 @@ class FerrumLiveDocumentTransactionMixin:
 	def _install_published_render_plan_v1(self,
 			operation: collections.abc.Callable[..., object],
 			*args: object, **kwargs: object) -> object:
-		"""Install an already-published plan without retiring its new Rust state.
+		"""Install an already-published plan without clearing its new Rust state.
 
 		The caller must obtain the observation from
-		`_publish_live_render_plan_v1()`.  That transaction has already retired the
+		`_publish_live_render_plan_v1()`.  That transaction has already invalidated the
 		obsolete Qt overlay and Rust receipt before publication.  A second native
-		retirement here would clear the newly committed plan before a live query can
+		invalidation here would clear the newly committed plan before a live query can
 		use it.
 		"""
 		return operation(*args, **kwargs)
@@ -392,7 +392,7 @@ class FerrumLiveDocumentTransactionMixin:
 				"Ferrum live render-plan publication is unavailable; refresh before editing.",
 			)
 		try:
-			return self._retire_then_reproject_document_v1(
+			return self._invalidate_then_reproject_document_v1(
 				lambda: FerrumPublishedRenderPlanV1(
 					observe_render(expected_revision),
 					publish(expected_revision, snapshot.digest),
@@ -406,29 +406,29 @@ class FerrumLiveDocumentTransactionMixin:
 			) from exc
 
 	#============================================
-	def _require_live_smarts_retirement_v1(self, reason: str) -> None:
-		"""Fail closed when native retirement cannot prove its receipt is unusable."""
-		if self._retire_live_smarts_query_v1(reason):
+	def _require_live_smarts_invalidation_v1(self, reason: str) -> None:
+		"""Fail closed when native invalidation cannot prove its receipt is unusable."""
+		if self._invalidate_live_smarts_query_v1(reason):
 			return
 		raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
-			"Ferrum live SMARTS retirement is unavailable; refresh before editing.",
-		) from self._live_smarts_retirement_error_v1
+			"Ferrum could not clear the active SMARTS result; refresh before editing.",
+		) from self._live_smarts_invalidation_error_v1
 
 	#============================================
-	def _require_live_smarts_receipt_retirement_v1(self, reason: str) -> None:
+	def _require_live_smarts_receipt_invalidation_v1(self, reason: str) -> None:
 		"""Fail closed when query cleanup cannot revoke every derived receipt."""
-		if self._retire_live_smarts_receipts_v1(reason):
+		if self._invalidate_live_smarts_receipts_v1(reason):
 			return
 		raise ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError(
-			"Ferrum live SMARTS receipt retirement is unavailable; refresh before editing.",
-		) from self._live_smarts_retirement_error_v1
+			"Ferrum could not clear the active SMARTS result; refresh before editing.",
+		) from self._live_smarts_invalidation_error_v1
 
 	#============================================
-	def _retire_if_current_live_run_v1(self, token: int, reason: str) -> bool:
-		"""Retire only a current asynchronous delivery; stale work is a strict no-op."""
+	def _invalidate_if_current_live_run_v1(self, token: int, reason: str) -> bool:
+		"""Clear only a current asynchronous delivery; stale work is a strict no-op."""
 		if type(token) is not int:
 			raise TypeError("Ferrum live SMARTS run token must be an int")
 		if token != self._live_smarts_active_run_token_v1:
 			return False
-		self._require_live_smarts_receipt_retirement_v1(reason)
+		self._require_live_smarts_receipt_invalidation_v1(reason)
 		return True

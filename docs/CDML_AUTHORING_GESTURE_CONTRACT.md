@@ -91,28 +91,26 @@ separate: generic splines, variable-point-count grammars beyond these two
 tools, path property editing, and association/factory semantics require their
 own contracts.
 
-## Directed stereobond creation V3
+## Directed stereobond creation
 
-`direct_bond.gesture.v3` is the public Rust-owned route for one direct
-covalent bond with a closed drawing presentation. Its lifecycle is
-`begin_direct_bond_gesture_v3`, `admit_direct_bond_candidate_v3`, and
-`commit_direct_bond_admission_v3`. Admission resolves the second pointer probe
-and asks the document session to construct a renderer-admitted pending
-mutation. The renderer validates the complete plan and issues the opaque
-overlay operations; the document retains and later redeems the exact proof.
-Commit consumes that pending mutation once. The visible preview is its retained
-operations; it is not a separate public raw-preview API.
+Direct-bond gesture is the sole current unversioned in-process Rust/PyO3
+pointer capability for one direct covalent bond with a closed drawing
+presentation. Its lifecycle is: begin the direct-bond gesture, resolve the
+endpoint, prepare the generic `PreparedSessionTransitionV1`, then generically
+commit that one-use transition. It is not a serialized or compatibility-bound
+V3 contract. No route-specific public admit or commit facade exists. The
+visible preview is the generic transition's retained operations; it is not a
+separate public raw-preview API.
 
-Qt submits only a frozen `DirectBondPointerProbeV3`: a finite scene point, the
-finite viewport-to-scene mapping captured from that event, and exact scene hit
-evidence of `none`, one unique atom ID, or ambiguity. Qt owns the pointer
-event, scene mapping, and item attribution. Rust owns nearest-target tolerance,
-tie and ambiguity rules, hit-ID validation against the fenced projection,
-snap-or-new choice, all endpoint forms, revision/digest fencing, candidate
-construction, document-owned renderer admission, and the issued operations.
-The V2 gesture lifecycle is retired and its resolved values remain internal
-Rust values; there is no Qt or Python interactive V2 route. V1 document,
-fence, presentation, snap, and commit values remain the V3 commit taxonomy.
+Qt owns pointer events, viewport-to-scene conversion, and scene-item
+attribution. It submits a frozen finite pointer probe with exact `none`, unique,
+or ambiguous hit evidence. `ferrum-document-render` resolves that UI probe and
+the one-use authoring capability. `ferrum-document` owns the durable
+`CreateDirectBondV1` request and generic transition: endpoint forms,
+revision/digest fencing, chemistry, identity, renderer admission, history, and
+the sole commit. V1 remains only on these durable document, fence,
+presentation, snap, and transition values where it is the actual contract
+version.
 Separately, `ferrum-document` exposes native-Rust-only, interaction-neutral
 direct-bond mutation for noninteractive programmatic work. Its input is an
 already-resolved durable atom ID or finite
@@ -131,11 +129,10 @@ vocabulary. Solid and hashed wedges admit only covalent single bonds and write
 end is the `end` base, so the issued overlay, committed projection, and
 renderer share one tip-to-base record.
 
-A malformed V3 probe is a typed `DirectBondPointerProbeErrorV3` with a closed
-category and recovery: correct the input, adjust the endpoint, or refresh and
-restart. Once both probes resolve, a document refusal is instead a typed
-`DirectBondAdmissionRefusalV3`; it preserves the native refusal category and
-selects nonmodal recovery of refresh and restart, adjust endpoint, or change
+A malformed pointer probe has a typed closed category and recovery: correct the
+input, adjust the endpoint, or refresh and restart. Once both probes resolve,
+a document refusal instead preserves the native refusal category and selects
+nonmodal recovery of refresh and restart, adjust endpoint, or change
 presentation. A valid start/end hit on the same existing atom is the latter
 `self_loop` / `adjust_endpoint` refusal, not malformed pointer input. Both
 failure families leave document content and history unchanged.

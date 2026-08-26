@@ -432,8 +432,8 @@ fn vector_error(error: PresentationVectorGestureErrorV1) -> ExecutionFailureV1 {
     let category = match error.category() {
         Category::StaleSnapshot => ProtocolPresentationAuthorCategoryV1::StaleSnapshot,
         Category::ForeignSession => ProtocolPresentationAuthorCategoryV1::ForeignSession,
-        Category::MismatchedPreview | Category::ReplayedGesture => {
-            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+        Category::MismatchedPreview | Category::Consumed => {
+            ProtocolPresentationAuthorCategoryV1::Consumed
         }
         Category::InvalidPoint => ProtocolPresentationAuthorCategoryV1::InvalidPoint,
         Category::DegenerateGeometry => ProtocolPresentationAuthorCategoryV1::DegenerateGeometry,
@@ -460,9 +460,9 @@ fn terminal_error(error: CurvedElectronArrowGestureErrorV1) -> ExecutionFailureV
         ferrum_document_render::CurvedElectronArrowGestureCategoryV1::ForeignSession => {
             ProtocolPresentationAuthorCategoryV1::ForeignSession
         }
-        ferrum_document_render::CurvedElectronArrowGestureCategoryV1::ReplayedGesture
+        ferrum_document_render::CurvedElectronArrowGestureCategoryV1::Consumed
         | ferrum_document_render::CurvedElectronArrowGestureCategoryV1::MismatchedPreview => {
-            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+            ProtocolPresentationAuthorCategoryV1::Consumed
         }
         ferrum_document_render::CurvedElectronArrowGestureCategoryV1::InvalidPoint => {
             ProtocolPresentationAuthorCategoryV1::InvalidPoint
@@ -490,9 +490,9 @@ fn equilibrium_error(error: CurvedEquilibriumArrowGestureErrorV1) -> ExecutionFa
         ferrum_document_render::CurvedEquilibriumArrowGestureCategoryV1::ForeignSession => {
             ProtocolPresentationAuthorCategoryV1::ForeignSession
         }
-        ferrum_document_render::CurvedEquilibriumArrowGestureCategoryV1::ReplayedGesture
+        ferrum_document_render::CurvedEquilibriumArrowGestureCategoryV1::Consumed
         | ferrum_document_render::CurvedEquilibriumArrowGestureCategoryV1::MismatchedPreview => {
-            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+            ProtocolPresentationAuthorCategoryV1::Consumed
         }
         ferrum_document_render::CurvedEquilibriumArrowGestureCategoryV1::InvalidPoint => {
             ProtocolPresentationAuthorCategoryV1::InvalidPoint
@@ -536,8 +536,8 @@ fn path_error(error: PresentationPathRenderErrorV1) -> ExecutionFailureV1 {
             )
         }
         PresentationPathRenderErrorV1::MismatchedPreview
-        | PresentationPathRenderErrorV1::ReplayedGesture => {
-            let category = ProtocolPresentationAuthorCategoryV1::ReplayedGesture;
+        | PresentationPathRenderErrorV1::Consumed => {
+            let category = ProtocolPresentationAuthorCategoryV1::Consumed;
             (
                 category,
                 recovery_for_presentation_author_category(category),
@@ -594,8 +594,8 @@ fn direct_bond_prepare_error(error: DocumentSessionError) -> ExecutionFailureV1 
             TransitionAuthorizationRefusalV1::ForeignSession,
         ) => ProtocolPresentationAuthorCategoryV1::ForeignSession,
         DocumentSessionError::TransitionAuthorization(
-            TransitionAuthorizationRefusalV1::Replayed,
-        ) => ProtocolPresentationAuthorCategoryV1::ReplayedGesture,
+            TransitionAuthorizationRefusalV1::Consumed,
+        ) => ProtocolPresentationAuthorCategoryV1::Consumed,
         _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
     };
     refusal_for_category(PresentationAuthoringKindV1::DirectBond, category, message)
@@ -617,8 +617,8 @@ fn presentation_prepare_error(
             TransitionAuthorizationRefusalV1::ForeignSession,
         ) => ProtocolPresentationAuthorCategoryV1::ForeignSession,
         DocumentSessionError::TransitionAuthorization(
-            TransitionAuthorizationRefusalV1::Replayed,
-        ) => ProtocolPresentationAuthorCategoryV1::ReplayedGesture,
+            TransitionAuthorizationRefusalV1::Consumed,
+        ) => ProtocolPresentationAuthorCategoryV1::Consumed,
         _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
     };
     refusal_for_category(kind, category, message)
@@ -629,8 +629,8 @@ fn direct_bond_commit_error(error: AdmittedSessionTransitionRefusalV1) -> Execut
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             ProtocolPresentationAuthorCategoryV1::ForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed => {
-            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+        AdmittedSessionTransitionRefusalV1::Consumed => {
+            ProtocolPresentationAuthorCategoryV1::Consumed
         }
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             ProtocolPresentationAuthorCategoryV1::RenderPreparation
@@ -638,7 +638,9 @@ fn direct_bond_commit_error(error: AdmittedSessionTransitionRefusalV1) -> Execut
         AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
             ProtocolPresentationAuthorCategoryV1::StaleSnapshot
         }
-        _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            ProtocolPresentationAuthorCategoryV1::SessionConflict
+        }
     };
     refusal_for_category(
         PresentationAuthoringKindV1::DirectBond,
@@ -655,8 +657,8 @@ fn presentation_commit_error(
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             ProtocolPresentationAuthorCategoryV1::ForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed => {
-            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+        AdmittedSessionTransitionRefusalV1::Consumed => {
+            ProtocolPresentationAuthorCategoryV1::Consumed
         }
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             ProtocolPresentationAuthorCategoryV1::RenderPreparation
@@ -664,7 +666,9 @@ fn presentation_commit_error(
         AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
             ProtocolPresentationAuthorCategoryV1::StaleSnapshot
         }
-        _ => ProtocolPresentationAuthorCategoryV1::SessionConflict,
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            ProtocolPresentationAuthorCategoryV1::SessionConflict
+        }
     };
     refusal_for_category(
         kind,
@@ -702,9 +706,7 @@ fn direct_bond_admission_category(
         DirectBondAdmissionRefusalV1::ForeignSession => {
             ProtocolPresentationAuthorCategoryV1::ForeignSession
         }
-        DirectBondAdmissionRefusalV1::ReplayedGesture => {
-            ProtocolPresentationAuthorCategoryV1::ReplayedGesture
-        }
+        DirectBondAdmissionRefusalV1::Consumed => ProtocolPresentationAuthorCategoryV1::Consumed,
         DirectBondAdmissionRefusalV1::UnknownStartAtom
         | DirectBondAdmissionRefusalV1::UnknownEndAtom
         | DirectBondAdmissionRefusalV1::InvalidEndpointInput
@@ -733,7 +735,7 @@ const fn recovery_for_presentation_author_category(
     match category {
         ProtocolPresentationAuthorCategoryV1::StaleSnapshot
         | ProtocolPresentationAuthorCategoryV1::ForeignSession
-        | ProtocolPresentationAuthorCategoryV1::ReplayedGesture
+        | ProtocolPresentationAuthorCategoryV1::Consumed
         | ProtocolPresentationAuthorCategoryV1::SessionConflict => {
             ProtocolPresentationAuthorRecoveryV1::RefreshAndRestart
         }

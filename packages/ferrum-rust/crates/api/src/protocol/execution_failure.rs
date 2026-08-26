@@ -23,7 +23,7 @@ impl ExecutionFailureV1 {
             }
             ProtocolCompactGroupMaterializationCategoryV1::UnknownOrForeignTarget
             | ProtocolCompactGroupMaterializationCategoryV1::IneligibleTarget
-            | ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrReplayedPreparation => {
+            | ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrConsumedPreparation => {
                 OperationProtocolErrorCategoryV1::DocumentInvalid
             }
             ProtocolCompactGroupMaterializationCategoryV1::RendererPreparationRefusal => {
@@ -377,8 +377,8 @@ impl ExecutionFailureV1 {
                     ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
                 )
             }
-            ferrum_document::ReactionAuthoringCommandRefusalV1::Replayed => Self::reaction_failure(
-                ProtocolReactionRefusalCategoryV1::ReplayedGesture,
+            ferrum_document::ReactionAuthoringCommandRefusalV1::Consumed => Self::reaction_failure(
+                ProtocolReactionRefusalCategoryV1::Consumed,
                 ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
             ),
             ferrum_document::ReactionAuthoringCommandRefusalV1::StaleRevision
@@ -469,8 +469,8 @@ impl ExecutionFailureV1 {
                 ProtocolReactionRefusalCategoryV1::ForeignSession,
                 ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
             ),
-            ferrum_document::AdmittedSessionTransitionRefusalV1::Replayed => (
-                ProtocolReactionRefusalCategoryV1::ReplayedGesture,
+            ferrum_document::AdmittedSessionTransitionRefusalV1::Consumed => (
+                ProtocolReactionRefusalCategoryV1::Consumed,
                 ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
             ),
             ferrum_document::AdmittedSessionTransitionRefusalV1::StaleSnapshot => (
@@ -481,12 +481,7 @@ impl ExecutionFailureV1 {
                 ProtocolReactionRefusalCategoryV1::RenderPreparation,
                 ProtocolReactionRefusalRecoveryV1::ChooseRenderableMembers,
             ),
-            ferrum_document::AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-            | ferrum_document::AdmittedSessionTransitionRefusalV1::HistoryCapacity => (
-                ProtocolReactionRefusalCategoryV1::SessionConflict,
-                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
-            ),
-            _ => (
+            ferrum_document::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => (
                 ProtocolReactionRefusalCategoryV1::SessionConflict,
                 ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
             ),
@@ -540,9 +535,7 @@ pub(super) fn catalog_category(
         CatalogPlacementCategoryV1::MismatchedPreview => {
             ProtocolCatalogPlacementCategoryV1::MismatchedPreview
         }
-        CatalogPlacementCategoryV1::ReplayedGesture => {
-            ProtocolCatalogPlacementCategoryV1::ReplayedGesture
-        }
+        CatalogPlacementCategoryV1::Consumed => ProtocolCatalogPlacementCategoryV1::Consumed,
         CatalogPlacementCategoryV1::InvalidPoint => {
             ProtocolCatalogPlacementCategoryV1::InvalidPoint
         }

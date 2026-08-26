@@ -12,7 +12,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.direct_bond_overlay
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 import ferrum_qt.ferrum.engine
@@ -137,7 +137,7 @@ class _AttachCompactGroupCapture(PySide6.QtCore.QObject):
 
 	@PySide6.QtCore.Slot()
 	def _cancel(self) -> None:
-		"""Retire the pending authoring state when Qt destroys the viewport."""
+		"""Cancel pending authoring when Qt destroys the viewport."""
 		if self._owner._compact_group_authoring_intent is self._intent:
 			self._owner._cancel_compact_group_authoring()
 
@@ -239,7 +239,7 @@ class FerrumNativeCompactGroupAuthoringTabMixin:
 		self.selection_changed.emit()
 
 	def cancel_attached_compact_group(self, pending: object) -> None:
-		"""Retire one opaque Rust candidate without mutating the document."""
+		"""Cancel one opaque Rust candidate without mutating the document."""
 		self._session._cancel_attach_compact_group_v1(pending)
 
 
@@ -254,9 +254,8 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		self._compact_group_authoring_intent: _AttachCompactGroupIntent | None = None
 		self._compact_group_authoring_capture: _AttachCompactGroupCapture | None = None
 
-	def _build_compact_group_authoring_action(
-			self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the accessible Rust-owned attached-group Chemistry action."""
+	def _build_compact_group_authoring_action(self) -> None:
+		"""Construct the accessible Rust-owned attached-group Chemistry action."""
 		action = PySide6.QtGui.QAction(self.tr("Attach Compact Group..."), self)
 		action.setObjectName("attach-compact-group-action")
 		action.setIconText(self.tr("Attach Compact Group"))
@@ -272,8 +271,11 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			"the release.",
 		))
 		self._connect_interaction_action_v1(action, self._choose_compact_group_to_attach)
-		self._add_interaction_action_to_menu_v1(menu, action)
 		self._attach_compact_group_action = action
+		self._action_registry.register_existing(
+			"chemistry.compact_group.attach", action,
+			shortcut_exemption_reason="Available by its labelled Draw menu client.",
+		)
 
 	def _refresh_compact_group_authoring_action(self, active: bool, pending: bool,
 			busy_elsewhere: bool) -> None:
@@ -485,7 +487,7 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			))
 			self._refresh_actions()
 			return
-		self._retire_compact_group_capture(clear_status=False)
+		self._dispose_compact_group_capture(clear_status=False)
 		pending = None
 		preview = None
 		succeeded = False
@@ -519,12 +521,12 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 					if not native_failure and sys.exception() is None:
 						raise
 			if preview is not None:
-				scene = ferrum_qt.canvas.graphics_retirement.native_scene_for_item(preview)
+				scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 				if scene is not None:
 					coordinator = (
-						ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
+						ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
 					)
-					coordinator.retire_scene_projection_items(scene, [preview])
+					coordinator.dispose_scene_projection_items(scene, [preview])
 			self._compact_group_authoring_intent = None
 			self._refresh_actions()
 		if succeeded:
@@ -532,7 +534,7 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 				f"Attached {intent.label} to the selected Ferrum atom.",
 			), 5000)
 
-	def _retire_compact_group_capture(self, *, clear_status: bool) -> None:
+	def _dispose_compact_group_capture(self, *, clear_status: bool) -> None:
 		"""Detach only this one viewport filter and release its Qt ownership."""
 		intent = self._compact_group_authoring_intent
 		capture = self._compact_group_authoring_capture
@@ -544,6 +546,6 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			self.statusBar().clearMessage()
 
 	def _cancel_compact_group_authoring(self, clear_status: bool = True) -> None:
-		"""Retire the one-shot release owner without changing Rust chemistry."""
-		self._retire_compact_group_capture(clear_status=clear_status)
+		"""Cancel the one-shot release owner without changing Rust chemistry."""
+		self._dispose_compact_group_capture(clear_status=clear_status)
 		self._compact_group_authoring_intent = None

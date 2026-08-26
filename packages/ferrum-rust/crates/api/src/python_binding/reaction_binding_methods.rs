@@ -133,7 +133,7 @@ impl PyDocumentSession {
         let command = command
             .value
             .take()
-            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Replayed))?;
+            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Consumed))?;
         self.session
             .resolve_create_reaction_command_v1(command)
             .map(PySessionOperationTransitionRequestV1::from_request)
@@ -148,7 +148,7 @@ impl PyDocumentSession {
         let command = command
             .value
             .take()
-            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Replayed))?;
+            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Consumed))?;
         self.session
             .resolve_replace_reaction_members_command_v1(command)
             .map(PySessionOperationTransitionRequestV1::from_request)
@@ -163,7 +163,7 @@ impl PyDocumentSession {
         let command = command
             .value
             .take()
-            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Replayed))?;
+            .ok_or_else(|| command_error(py, ReactionAuthoringCommandRefusalV1::Consumed))?;
         self.session
             .resolve_delete_reaction_command_v1(command)
             .map(PySessionOperationTransitionRequestV1::from_request)

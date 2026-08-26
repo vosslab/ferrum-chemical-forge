@@ -1,4 +1,5 @@
 use super::*;
+use crate::{Coordinates, InterchangeRecordV1, MolAtom, MolBond, MolGraph, Point2};
 
 const CML1: &str = r#"<?xml version="1.0" encoding="UTF-8"?><cml xmlns="http://www.xml-cml.org/schema"><molecule id="m1"><atomArray><atom><builtin builtin="atomId">a1</builtin><builtin builtin="elementType">C</builtin><builtin builtin="x2">1.5</builtin><builtin builtin="y2">-2</builtin></atom><atom><builtin builtin="atomId">a2</builtin><builtin builtin="elementType">O</builtin><builtin builtin="x2">2</builtin><builtin builtin="y2">-2</builtin><builtin builtin="isotopeNumber">18</builtin></atom></atomArray><bondArray><bond><builtin builtin="atomRef">a1</builtin><builtin builtin="atomRef">a2</builtin><builtin builtin="order">D</builtin></bond></bondArray></molecule></cml>"#;
 const CML2: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0" formalCharge="0"/><atom id="a2" elementType="O" x2="1" y2="0" isotopeNumber="18"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="2"/></bondArray></molecule></cml>"#;
@@ -21,6 +22,48 @@ fn cml2_attribute_profile_decodes_without_coordinate_conversion() {
     assert_eq!(record.atoms()[1].isotope(), Some(18));
     assert_eq!((record.atoms()[1].x2(), record.atoms()[1].y2()), (1.0, 0.0));
     assert_eq!(record.bonds()[0].order(), BondOrder::Double);
+}
+
+#[test]
+fn reversed_cml2_bond_endpoints_refuse_as_a_duplicate() {
+    let input = CML2.replace(
+        "</bondArray>",
+        "<bond atomRefs2=\"a2 a1\" order=\"2\"/></bondArray>",
+    );
+
+    assert_eq!(
+        decode_cml_bytes_v1(input.as_bytes())
+            .expect_err("reversed endpoint pairs must remain duplicate bonds")
+            .reason(),
+        CmlRefusalReasonV1::DuplicateBond
+    );
+}
+
+#[test]
+fn high_cardinality_distinct_bonds_preserve_source_order() {
+    const BOND_COUNT: usize = 4_096;
+    let mut input = String::from(
+        "<cml xmlns=\"http://www.xml-cml.org/schema/cml2/core\"><molecule><atomArray>\
+         <atom id=\"center\" elementType=\"C\" x2=\"0\" y2=\"0\"/>",
+    );
+    for index in 0..BOND_COUNT {
+        input.push_str(&format!(
+            "<atom id=\"a{index}\" elementType=\"H\" x2=\"{index}\" y2=\"1\"/>"
+        ));
+    }
+    input.push_str("</atomArray><bondArray>");
+    for index in 0..BOND_COUNT {
+        input.push_str(&format!(
+            "<bond atomRefs2=\"center a{index}\" order=\"1\"/>"
+        ));
+    }
+    input.push_str("</bondArray></molecule></cml>");
+
+    let decoded = decode_cml_bytes_v1(input.as_bytes())
+        .expect("bounded distinct endpoint pairs are admitted");
+    let record = &decoded.records()[0];
+    assert_eq!(record.bonds().len(), BOND_COUNT);
+    assert_eq!(record.bonds()[BOND_COUNT - 1].end(), BOND_COUNT);
 }
 
 #[test]
@@ -115,5 +158,88 @@ fn invalid_utf8_and_input_budget_refuse_before_graph_admission() {
             .expect_err("input budget is enforced")
             .reason(),
         CmlRefusalReasonV1::InputBytesLimit
+    );
+}
+
+#[test]
+fn canonical_cml2_round_trips_two_decoded_records_and_preserves_source_ids() {
+    let input = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule id="first"><atomArray><atom id="carbon" elementType="C" x2="0.3333333333333333" y2="-0.1"/><atom id="oxygen" elementType="O" x2="1.25" y2="-0.1" formalCharge="-1" isotopeNumber="18"/></atomArray><bondArray><bond atomRefs2="carbon oxygen" order="2"/></bondArray></molecule><molecule id="second"><atomArray><atom id="nitrogen" elementType="N" x2="-2.5" y2="4.75"/></atomArray></molecule></cml>"#;
+    let decoded = decode_cml_bytes_v1(input.as_bytes()).expect("input CML2");
+    let encoded = encode_cml_decoded_document_v1(&decoded).expect("canonical CML2 output");
+    let round_tripped = decode_cml_bytes_v1(encoded.as_bytes()).expect("encoded CML2 reimports");
+
+    assert!(encoded.starts_with("<cml xmlns=\"http://www.xml-cml.org/schema/cml2/core\">"));
+    assert_eq!(round_tripped, decoded);
+}
+
+#[test]
+fn generic_records_use_local_ids_and_the_document_coordinate_inverse() {
+    let atoms = vec![
+        MolAtom::new(
+            AtomicNumber::try_from(6).expect("carbon"),
+            None,
+            None,
+            None,
+            false,
+        )
+        .expect("carbon atom"),
+        MolAtom::new(
+            AtomicNumber::try_from(8).expect("oxygen"),
+            Some(-1),
+            Some(18),
+            None,
+            false,
+        )
+        .expect("oxygen atom"),
+    ];
+    let graph = MolGraph::new(
+        atoms,
+        vec![MolBond::new(0, 1, BondOrder::Double, false)],
+        Some(Coordinates::new(vec![
+            Point2::new(10.0, -3.0).expect("finite coordinate"),
+            Point2::new(37.5, 6.0).expect("finite coordinate"),
+        ])),
+    )
+    .expect("complete graph");
+    let records = vec![InterchangeRecordV1::new(graph, None, Vec::new())];
+
+    let output = encode_cml_interchange_records_v1(&records).expect("representable CML2");
+    let decoded = decode_cml_bytes_v1(output.as_bytes()).expect("CML2 output reimports");
+    let atoms = decoded.records()[0].atoms();
+
+    assert_eq!((atoms[0].x2(), atoms[0].y2()), (1.0 / 3.0, 0.1));
+    assert_eq!((atoms[1].x2(), atoms[1].y2()), (1.25, -0.2));
+}
+
+#[test]
+fn generic_cml_refuses_metadata_that_has_no_closed_profile_representation() {
+    let graph = MolGraph::new(
+        vec![
+            MolAtom::new(
+                AtomicNumber::try_from(6).expect("carbon"),
+                None,
+                None,
+                None,
+                false,
+            )
+            .expect("atom"),
+        ],
+        Vec::new(),
+        Some(Coordinates::new(vec![
+            Point2::new(0.0, 0.0).expect("finite coordinate"),
+        ])),
+    )
+    .expect("graph");
+    let titled = vec![InterchangeRecordV1::new(
+        graph,
+        Some("not a CML chemistry fact".to_owned()),
+        Vec::new(),
+    )];
+
+    assert_eq!(
+        encode_cml_interchange_records_v1(&titled)
+            .expect_err("titles are not representable")
+            .reason(),
+        CmlEncoderRefusalReasonV1::TitleUnsupported,
     );
 }

@@ -132,7 +132,7 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 
 	#============================================
 	def hide_keyboard_cursor(self) -> None:
-		"""Retire only the disposable cursor marker, retaining its location."""
+		"""Clear only the disposable cursor marker, retaining its location."""
 		if self._keyboard_cursor_item is not None:
 			self._keyboard_cursor_item.setVisible(False)
 

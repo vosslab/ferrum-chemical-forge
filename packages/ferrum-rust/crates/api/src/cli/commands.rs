@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use ferrum_document::InterchangeFormatV1;
 
-use crate::interchange_import_v1::{InterchangeDecoderKeyV1, InterchangeFormatRegistryV1};
+use crate::InterchangeCapabilityResolverV1;
 use crate::protocol::ProtocolOperationKindV1;
 
 /// Ferrum command-line arguments.
@@ -104,10 +104,25 @@ pub(crate) enum Command {
         /// Source syntax; otherwise inferred from .smi, .inchi, .mol, .sdf, .cdml, or .cml.
         #[arg(long = "from", value_parser = parse_interchange_input_format)]
         input_format: Option<InterchangeInputFormat>,
-        /// Target syntax using one exact closed protocol format name.
-        #[arg(long = "to", value_enum)]
-        output_format: InterchangeFormat,
+        /// Target syntax resolved by Ferrum's conversion-output registry.
+        #[arg(long = "to")]
+        output_format: String,
         /// Emit the complete operation-protocol envelope.
+        #[arg(long)]
+        json: bool,
+    },
+    #[command(after_help = "Example:\n  ferrum inspect-graph molecule.cml --from cml --json")]
+    InspectGraph {
+        input: PathBuf,
+        #[arg(long = "from")]
+        input_format: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// List Ferrum's declared molecular interchange capabilities.
+    #[command(after_help = "Example:\n  ferrum formats --json")]
+    Formats {
+        /// Emit the versioned interchange-capability response as JSON.
         #[arg(long)]
         json: bool,
     },
@@ -188,9 +203,7 @@ pub(crate) enum InterchangeFormat {
 
 /// Closed molecular interchange input vocabulary used by `ferrum convert`.
 ///
-/// CML stays input-only: its accepted aliases are resolved from the API-owned
-/// interchange registry and its records flow through the same lowering bridge
-/// as document import.
+/// Values are presentation types; API-owned capability resolution chooses them.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum InterchangeInputFormat {
     Native(InterchangeFormat),
@@ -206,25 +219,43 @@ impl From<InterchangeInputFormat> for InterchangeFormatV1 {
     }
 }
 
-/// Parse a convert input format, joining CML aliases through the canonical registry.
+/// Parse a convert input format through the API-owned capability resolver.
 pub(crate) fn parse_interchange_input_format(
     value: &str,
 ) -> Result<InterchangeInputFormat, String> {
-    if let Ok(descriptor) = InterchangeFormatRegistryV1::lookup_input_alias(value) {
-        return Ok(interchange_input_format_from_descriptor(descriptor));
-    }
-    InterchangeFormat::from_str(value, false)
-        .map(InterchangeInputFormat::Native)
-        .map_err(|error| error.to_string())
+    InterchangeCapabilityResolverV1::lookup_input_alias(value)
+        .map(|descriptor| {
+            interchange_input_format_from_protocol_format(descriptor.protocol_format())
+        })
+        .map_err(|error| format!("unsupported interchange input format: {error:?}"))
 }
 
-/// Map an API-owned interchange descriptor to its closed convert input profile.
-pub(crate) fn interchange_input_format_from_descriptor(
-    descriptor: &crate::interchange_import_v1::InterchangeFormatDescriptorV1,
+/// Map one API-resolved protocol format to CLI presentation.
+pub(crate) fn interchange_input_format_from_protocol_format(
+    format: InterchangeFormatV1,
 ) -> InterchangeInputFormat {
-    match descriptor.decoder() {
-        InterchangeDecoderKeyV1::CmlSimpleMolecule => InterchangeInputFormat::CmlSimpleMolecule,
-        InterchangeDecoderKeyV1::Sdf => InterchangeInputFormat::Native(InterchangeFormat::SdfV2000),
+    match format {
+        InterchangeFormatV1::CmlSimpleMolecule => InterchangeInputFormat::CmlSimpleMolecule,
+        InterchangeFormatV1::Smiles => InterchangeInputFormat::Native(InterchangeFormat::Smiles),
+        InterchangeFormatV1::InchiStandard => {
+            InterchangeInputFormat::Native(InterchangeFormat::InchiStandard)
+        }
+        InterchangeFormatV1::InchiFixedHydrogen => {
+            InterchangeInputFormat::Native(InterchangeFormat::InchiFixedHydrogen)
+        }
+        InterchangeFormatV1::MolblockV2000 => {
+            InterchangeInputFormat::Native(InterchangeFormat::MolblockV2000)
+        }
+        InterchangeFormatV1::MolblockV3000 => {
+            InterchangeInputFormat::Native(InterchangeFormat::MolblockV3000)
+        }
+        InterchangeFormatV1::SdfV2000 => {
+            InterchangeInputFormat::Native(InterchangeFormat::SdfV2000)
+        }
+        InterchangeFormatV1::SdfV3000 => {
+            InterchangeInputFormat::Native(InterchangeFormat::SdfV3000)
+        }
+        InterchangeFormatV1::Cdml => InterchangeInputFormat::Native(InterchangeFormat::Cdml),
     }
 }
 

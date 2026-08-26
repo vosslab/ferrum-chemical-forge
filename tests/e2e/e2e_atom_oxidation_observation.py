@@ -76,11 +76,24 @@ def _wait_for(predicate: collections.abc.Callable[[], bool], description: str) -
 #============================================
 def _select_structure_action(window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
 		) -> PySide6.QtGui.QAction:
-	"""Return the public Edit -> Select Structure action by its visible label."""
-	for action in window.findChildren(PySide6.QtGui.QAction):
-		if action.text().replace("&", "") == "Select Structure":
-			return action
-	raise AtomOxidationE2eError("main window did not expose Edit -> Select Structure action")
+	"""Return the visible Draw > Selection and arrangement action by label."""
+	menu_bar = window.menuBar()
+	draw_menu_action = next(
+		action for action in menu_bar.actions()
+		if action.text().replace("&", "") == "Draw"
+	)
+	draw_menu = draw_menu_action.menu()
+	if not menu_bar.isVisible() or not draw_menu_action.isVisible() or draw_menu is None:
+		raise AtomOxidationE2eError("main window did not expose the public Draw menu")
+	select_action = next(
+		action for action in draw_menu.actions()
+		if action.text().replace("&", "") == "Select Structure"
+	)
+	if not select_action.isVisible():
+		raise AtomOxidationE2eError(
+			"main window did not expose Draw > Selection and arrangement > Select Structure",
+		)
+	return select_action
 
 
 #============================================
@@ -120,22 +133,63 @@ def _activate_tab(window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
 
 
 #============================================
+def _painted_selectable_viewport_point(tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+		) -> PySide6.QtCore.QPoint:
+	"""Return one viewport point inside the sole visible selectable glyph."""
+	scene = tab.view.scene()
+	selectable = [
+		item for item in scene.items()
+		if item.flags() & PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+		and not item.shape().isEmpty()
+	]
+	if len(selectable) != 1:
+		raise AtomOxidationE2eError(
+			"fixture did not expose exactly one painted selectable glyph: {0}".format(
+				len(selectable),
+			),
+		)
+	item = selectable[0]
+	shape = item.shape()
+	bounds = shape.boundingRect()
+	for vertical in (0.5, 0.25, 0.75, 0.125, 0.875):
+		for horizontal in (0.5, 0.25, 0.75, 0.125, 0.875):
+			local_point = PySide6.QtCore.QPointF(
+				bounds.left() + bounds.width() * horizontal,
+				bounds.top() + bounds.height() * vertical,
+			)
+			if shape.contains(local_point):
+				return tab.view.mapFromScene(item.mapToScene(local_point))
+	raise AtomOxidationE2eError("painted selectable glyph exposed no interior hit point")
+
+
+#============================================
 def _select_atom(tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-		scene_point: PySide6.QtCore.QPointF, select_action: PySide6.QtGui.QAction,
+		scene_point: PySide6.QtCore.QPointF | None, select_action: PySide6.QtGui.QAction,
 		action: PySide6.QtGui.QAction) -> None:
 	"""Select one authored atom through the focused public viewport gesture."""
 	if not select_action.isEnabled():
-		raise AtomOxidationE2eError("Edit -> Select Structure action was disabled")
+		raise AtomOxidationE2eError(
+			"Draw > Selection and arrangement > Select Structure action was disabled",
+		)
 	if not select_action.isCheckable():
-		raise AtomOxidationE2eError("Edit -> Select Structure action did not expose active state")
+		raise AtomOxidationE2eError(
+			"Draw > Selection and arrangement > Select Structure action did not expose active state",
+		)
 	if not select_action.isChecked():
 		select_action.trigger()
-	_wait_for(select_action.isChecked, "Edit -> Select Structure mode to become active")
+	_wait_for(
+		select_action.isChecked,
+		"Draw > Selection and arrangement > Select Structure mode to become active",
+	)
 	viewport = tab.view.viewport()
 	viewport.setFocus()
+	click_point = (
+		_painted_selectable_viewport_point(tab) if scene_point is None
+		else tab.view.mapFromScene(scene_point)
+	)
 	PySide6.QtTest.QTest.mouseClick(
 		viewport, PySide6.QtCore.Qt.MouseButton.LeftButton,
-		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, tab.view.mapFromScene(scene_point),
+		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, click_point,
 	)
 	_wait_for(action.isEnabled, "the Atom Oxidation State action to become available")
 
@@ -143,7 +197,7 @@ def _select_atom(tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 #============================================
 def _visible_result_dialog(window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
 		) -> PySide6.QtWidgets.QDialog | None:
-	"""Return the visible result dialog while retired history dialogs remain children."""
+	"""Return the visible result dialog while closed history dialogs remain children."""
 	for dialog in window.findChildren(PySide6.QtWidgets.QDialog, "atom-oxidation-dialog"):
 		if dialog.isVisible():
 			return dialog
@@ -153,7 +207,7 @@ def _visible_result_dialog(window: ferrum_qt.ferrum.main_window.FerrumNativeMain
 #============================================
 def _observe(window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
 		tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-		scene_point: PySide6.QtCore.QPointF) -> PySide6.QtWidgets.QDialog:
+		scene_point: PySide6.QtCore.QPointF | None) -> PySide6.QtWidgets.QDialog:
 	"""Select one atom and invoke the visible public oxidation QAction."""
 	action = _action(window, "Atom Oxidation State...")
 	_select_action = _select_structure_action(window)
@@ -283,7 +337,7 @@ def main() -> int:
 		)
 		_wait_for(
 			lambda: not refreshed_dialog.isVisible(),
-			"the original source's modeless result dialog to retire",
+			"the original source's modeless result dialog to close",
 		)
 
 		excluded = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
@@ -292,7 +346,7 @@ def main() -> int:
 		window._register_native_tab(excluded, activate=True)
 		app.processEvents()
 		excluded_before = excluded.current_snapshot
-		unavailable_dialog = _observe(window, excluded, PySide6.QtCore.QPointF(0.0, 0.0))
+		unavailable_dialog = _observe(window, excluded, None)
 		unavailable_details = _dialog_details(unavailable_dialog)
 		if "Reason: element_outside_profile" not in unavailable_details:
 			raise AtomOxidationE2eError("excluded element did not expose its closed unavailable reason")

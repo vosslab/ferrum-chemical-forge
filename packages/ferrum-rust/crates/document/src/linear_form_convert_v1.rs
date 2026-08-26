@@ -260,7 +260,7 @@ fn apply(
             indexed.xml.tree.set_attribute(atom, name, "on");
         }
     }
-    super::typed_linear_form_metadata::retire_invalid_generated_linear_forms(
+    super::typed_linear_form_metadata::remove_invalid_generated_linear_forms(
         &mut indexed.xml.tree,
         molecule,
     )?;

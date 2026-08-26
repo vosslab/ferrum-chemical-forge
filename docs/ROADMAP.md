@@ -21,8 +21,9 @@ authoritative milestone tracker and acceptance contract.
   expansion, biomolecule/system catalogs, substructure search, oxidation, generated
   names, and broader chemistry checks are pre-production drops.
 - M16 is complete following independent close review. One ordinary Rust-native window
-  owns supported document routes; CDXML, CML, `.cdsvg`, `.svgz`, and compressed CDML
-  refuse before read, while retired host-only families remain explicit drops.
+  owns supported document routes; valid bounded CML/CML2 File > Open input immediately
+  becomes a clean native CDML tab, while CDXML, `.cdsvg`, `.svgz`, and compressed CDML
+  refuse before read and retired host-only families remain explicit drops.
 
 These are pre-alpha capabilities. Supported document classes and operations are the
 ones stated in the active plan and capability matrix; unsupported historical workflows

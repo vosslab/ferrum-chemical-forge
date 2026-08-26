@@ -110,7 +110,7 @@ pub enum DirectBondGestureErrorV1 {
     #[error("direct bond gesture belongs to a different document session")]
     ForeignSession,
     #[error("direct bond gesture was already redeemed")]
-    ReplayedGesture,
+    Consumed,
     #[error("direct bond gesture start atom is unknown or unsupported")]
     UnknownStartAtom,
     #[error("direct bond gesture end atom is unknown or unsupported")]
@@ -147,7 +147,7 @@ pub enum DirectBondAdmissionRefusalV1 {
     #[error("direct bond gesture belongs to a different document session")]
     ForeignSession,
     #[error("direct bond gesture was already redeemed")]
-    ReplayedGesture,
+    Consumed,
     #[error("direct bond gesture revision is stale")]
     StaleRevision,
     #[error("direct bond gesture digest is stale")]

@@ -8,7 +8,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 from ferrum_qt.dialogs.accessibility import finalize_dialog_accessibility
 
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.haworth
 
 
@@ -86,8 +86,8 @@ class _HaworthIntent:
 class FerrumNativeHaworthToolMixin:
 	"""Own only the Ferrum client lifecycle; Rust owns recipe and durable drawing facts."""
 
-	def _build_line_tool_actions(self, edit_menu: PySide6.QtWidgets.QMenu) -> None:
-		super()._build_line_tool_actions(edit_menu)
+	def _build_line_tool_actions(self) -> None:
+		super()._build_line_tool_actions()
 		self._insert_haworth_ring_action = PySide6.QtGui.QAction(
 			self.tr("Insert Haworth Ring..."), self,
 		)
@@ -97,7 +97,7 @@ class FerrumNativeHaworthToolMixin:
 		self._connect_interaction_action_v1(
 			self._insert_haworth_ring_action, self._choose_haworth_recipe,
 		)
-		edit_menu.addAction(self._insert_haworth_ring_action)
+		self._register_action("draw.ring.haworth.insert", self._insert_haworth_ring_action)
 		self._haworth_intent: _HaworthIntent | None = None
 
 	def _refresh_line_tool_actions(self, enabled: bool) -> None:
@@ -203,7 +203,7 @@ class FerrumNativeHaworthToolMixin:
 			if overlay_contract is None:
 				raise RuntimeError("Ferrum Haworth transition has no precommit overlay")
 			preview = ferrum_qt.ferrum.haworth.create_preview(intent.tab, overlay_contract)
-			self._retire_haworth_preview(preview)
+			self._dispose_haworth_preview(preview)
 			intent.tab.commit_standalone_haworth_transition(prepared)
 		except Exception as exc:
 			self._cancel_haworth_intent(); self._show_edit_refusal(self._unavailable_edit_refusal(str(exc))); return
@@ -211,12 +211,12 @@ class FerrumNativeHaworthToolMixin:
 		self.statusBar().showMessage(self.tr("Inserted {0}; use Undo to remove it.").format(intent.recipe), 4000)
 		self._refresh_actions()
 
-	def _retire_haworth_preview(self, preview: PySide6.QtWidgets.QGraphicsItem) -> None:
-		"""Retire a transient preview through the shared scene-ownership boundary."""
-		scene = ferrum_qt.canvas.graphics_retirement.native_scene_for_item(preview)
+	def _dispose_haworth_preview(self, preview: PySide6.QtWidgets.QGraphicsItem) -> None:
+		"""Dispose a transient preview through the shared scene-ownership boundary."""
+		scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 		if scene is not None:
-			coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
-			coordinator.retire_scene_projection_items(scene, [preview])
+			coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
+			coordinator.dispose_scene_projection_items(scene, [preview])
 
 	def _cancel_haworth_intent(self) -> None:
 		intent = getattr(self, "_haworth_intent", None)

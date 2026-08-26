@@ -34,7 +34,7 @@ enum PyAttachedCyclohexaneCategoryV1 {
     StaleRevision,
     StaleDigest,
     ForeignSession,
-    Retired,
+    Consumed,
     UnknownAnchor,
     IneligibleAnchor,
     InvalidPose,
@@ -116,7 +116,7 @@ impl PyDocumentSession {
         commit(&mut self.session, &mut pending.pending).map_err(|error| attached_error(py, error))
     }
 
-    /// Retire one native-tab preview without exposing candidate state.
+    /// Cancel one pending native-tab preview without exposing candidate state.
     fn _cancel_attach_cyclohexane_v1(
         &mut self,
         py: Python<'_>,
@@ -143,7 +143,7 @@ fn preview(
 ) -> PyResult<PyAttachedCyclohexanePreviewV1> {
     let overlay = pending
         .precommit_overlay_v1()
-        .ok_or_else(|| attached_error(py, AttachedCyclohexaneSessionErrorV1::Retired))?;
+        .ok_or_else(|| attached_error(py, AttachedCyclohexaneSessionErrorV1::Consumed))?;
     let overlay = overlay_from(py, overlay)
         .map_err(|_| attached_error(py, AttachedCyclohexaneSessionErrorV1::RendererAdmission))?;
     Ok(PyAttachedCyclohexanePreviewV1 { overlay })
@@ -165,7 +165,7 @@ fn cancel(
     session: &mut DocumentSession,
     pending: &mut PendingAttachedCyclohexaneV1,
 ) -> Result<(), AttachedCyclohexaneSessionErrorV1> {
-    session.retire_attach_cyclohexane_v1(pending)
+    session.cancel_attach_cyclohexane_v1(pending)
 }
 
 fn category(error: AttachedCyclohexaneSessionErrorV1) -> PyAttachedCyclohexaneCategoryV1 {
@@ -179,7 +179,7 @@ fn category(error: AttachedCyclohexaneSessionErrorV1) -> PyAttachedCyclohexaneCa
         AttachedCyclohexaneSessionErrorV1::ForeignSession => {
             PyAttachedCyclohexaneCategoryV1::ForeignSession
         }
-        AttachedCyclohexaneSessionErrorV1::Retired => PyAttachedCyclohexaneCategoryV1::Retired,
+        AttachedCyclohexaneSessionErrorV1::Consumed => PyAttachedCyclohexaneCategoryV1::Consumed,
         AttachedCyclohexaneSessionErrorV1::UnknownAnchor => {
             PyAttachedCyclohexaneCategoryV1::UnknownAnchor
         }
@@ -306,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn private_bridge_refuses_foreign_retired_replayed_and_stale_handles_before_mutation() {
+    fn private_bridge_refuses_foreign_consumed_and_stale_handles_before_mutation() {
         Python::initialize();
         let mut owner = DocumentSession::load(SOURCE).expect("owner loads");
         let mut foreign = DocumentSession::load(SOURCE).expect("foreign loads");
@@ -330,11 +330,11 @@ mod tests {
         assert_eq!(owner.snapshot().expect("cancel unchanged"), owner_before);
         Python::attach(|py| match preview(py, &pending.pending) {
             Err(error) => assert!(error.is_instance_of::<AttachedCyclohexaneAttachmentError>(py)),
-            Ok(_) => panic!("retired candidate must refuse preview"),
+            Ok(_) => panic!("consumed candidate must refuse preview"),
         });
         assert!(matches!(
             commit(&mut owner, &mut pending.pending),
-            Err(AttachedCyclohexaneSessionErrorV1::Retired)
+            Err(AttachedCyclohexaneSessionErrorV1::Consumed)
         ));
 
         let current_fence = fence(&owner);
@@ -353,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn registered_bridge_refuses_digest_anchor_foreign_stale_and_replayed_receipts() {
+    fn registered_bridge_refuses_digest_anchor_foreign_stale_and_consumed_receipts() {
         Python::initialize();
         Python::attach(|py| {
             let module = PyModule::new(py, "ferrum_chem").expect("extension module");

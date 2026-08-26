@@ -405,11 +405,11 @@ def test_interactive_open_preserves_a_loaded_document_in_a_new_tab(
 
 
 #============================================
-def test_interactive_open_retires_an_armed_bootstrap_canvas_gesture(
+def test_interactive_open_cancels_an_armed_bootstrap_canvas_gesture(
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
 		) -> None:
-	"""Open retires its tool and admits its source into a separate document."""
+	"""Open cancels its tool and admits its source into a separate document."""
 	source = tmp_path / "opened-while-armed.cdml"
 	source.write_text(_EMPTY_CDML, encoding="utf-8")
 	window = _make_window(qapp)

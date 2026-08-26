@@ -453,6 +453,10 @@ fn new_bond(
                 CompactGroupRecipeBondOrderV1::Double,
                 CompactGroupRecipeBondPresentationV1::Normal,
             ) => "n2",
+            (
+                CompactGroupRecipeBondOrderV1::Triple,
+                CompactGroupRecipeBondPresentationV1::Normal,
+            ) => "n3",
         },
     );
     bond
@@ -462,8 +466,27 @@ fn new_bond(
 mod tests {
     use super::*;
 
+    // A half-turn uses trigonometric rotation, which leaves a sub-femtometre
+    // scene-coordinate residue instead of an exact zero in f64 arithmetic.
+    const SCENE_COORDINATE_TOLERANCE: f64 = 1.0e-10;
+
     fn id(value: &str) -> PersistentId {
         PersistentId::new(value.to_owned()).expect("test ID")
+    }
+
+    fn assert_scene_position_close(actual: (f64, f64), expected: (f64, f64)) {
+        assert!(
+            (actual.0 - expected.0).abs() <= SCENE_COORDINATE_TOLERANCE,
+            "scene x coordinate differs: actual={}, expected={}",
+            actual.0,
+            expected.0,
+        );
+        assert!(
+            (actual.1 - expected.1).abs() <= SCENE_COORDINATE_TOLERANCE,
+            "scene y coordinate differs: actual={}, expected={}",
+            actual.1,
+            expected.1,
+        );
     }
 
     #[test]
@@ -507,6 +530,238 @@ mod tests {
             .expect("candidate");
         assert_eq!(result.attachment_focus().as_str(), "nitrogen");
         assert!(result.candidate().core_projection().is_ok());
+    }
+
+    #[test]
+    fn attached_ethyl_preserves_exterior_identity_at_two_orientations() {
+        for (orientation, terminal_x) in [("0", 44.0), ("180", -4.0)] {
+            let source = format!(
+                "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"ethyl\" attachment-index=\"0\" orientation-degrees=\"{orientation}\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\" color=\"blue\"/></molecule></cdml>"
+            );
+            let document = TypedDocument::parse(&source).expect("typed source");
+            let result = document
+                .prepare_compact_group_materialization_v1(
+                    TypedCompactGroupMaterializationRequestV1::new(
+                        id("m"),
+                        id("group"),
+                        vec![id("ethyl-attachment"), id("ethyl-terminal")],
+                        vec![id("ethyl-internal")],
+                    ),
+                )
+                .and_then(|plan| document.materialize_compact_group_v1(&plan))
+                .expect("ethyl materialization");
+            let projected = result
+                .candidate()
+                .core_projection()
+                .expect("materialized candidate projects");
+            let molecule = &projected.molecules()[0];
+            let attachment = molecule
+                .atoms()
+                .iter()
+                .find(|atom| atom.source_id().as_str() == "ethyl-attachment")
+                .expect("ethyl attachment carbon");
+            let terminal = molecule
+                .atoms()
+                .iter()
+                .find(|atom| atom.source_id().as_str() == "ethyl-terminal")
+                .expect("ethyl terminal carbon");
+            let outside = molecule
+                .bonds()
+                .iter()
+                .find(|bond| bond.source_id().as_str() == "outside")
+                .expect("retained exterior bond");
+            let internal = molecule
+                .bonds()
+                .iter()
+                .find(|bond| bond.source_id().as_str() == "ethyl-internal")
+                .expect("ethyl internal bond");
+            assert_eq!(result.attachment_focus().as_str(), "ethyl-attachment");
+            assert!(molecule.groups().is_empty());
+            assert_scene_position_close(
+                (attachment.position().x(), attachment.position().y()),
+                (20.0, 0.0),
+            );
+            assert_scene_position_close(
+                (terminal.position().x(), terminal.position().y()),
+                (terminal_x, 0.0),
+            );
+            assert_eq!(
+                (outside.order(), outside.style()),
+                (
+                    Some(ferrum_core::BondOrder::Single),
+                    Some(&ferrum_core::BondStyle::Normal),
+                )
+            );
+            assert!(matches!(
+                outside.start(),
+                ferrum_core::VertexRef::Atom(id) if id.source_id().as_str() == "anchor"
+            ));
+            assert!(matches!(
+                outside.end(),
+                ferrum_core::VertexRef::Atom(id) if id.source_id().as_str() == "ethyl-attachment"
+            ));
+            assert_eq!(
+                (internal.order(), internal.style()),
+                (
+                    Some(ferrum_core::BondOrder::Single),
+                    Some(&ferrum_core::BondStyle::Normal),
+                )
+            );
+            assert!(matches!(
+                internal.start(),
+                ferrum_core::VertexRef::Atom(id) if id.source_id().as_str() == "ethyl-attachment"
+            ));
+            assert!(matches!(
+                internal.end(),
+                ferrum_core::VertexRef::Atom(id) if id.source_id().as_str() == "ethyl-terminal"
+            ));
+        }
+    }
+
+    #[test]
+    fn direct_root_ethyl_becomes_two_explicit_carbons_with_one_normal_single_bond() {
+        let document = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><compact-group id=\"group\" version=\"1\" catalog-key=\"ethyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group></molecule></cdml>").expect("typed direct root");
+        let result = document
+            .prepare_compact_group_materialization_v1(
+                TypedCompactGroupMaterializationRequestV1::new(
+                    id("m"),
+                    id("group"),
+                    vec![id("ethyl-attachment"), id("ethyl-terminal")],
+                    vec![id("ethyl-internal")],
+                ),
+            )
+            .and_then(|plan| document.materialize_compact_group_v1(&plan))
+            .expect("direct-root ethyl materialization");
+        let xml = result.candidate().to_xml().expect("candidate XML");
+        let projected = TypedDocument::parse(&xml)
+            .expect("materialized XML reparses")
+            .core_projection()
+            .expect("materialized XML projects");
+        let molecule = &projected.molecules()[0];
+        let attachment = molecule
+            .atoms()
+            .iter()
+            .find(|atom| atom.source_id().as_str() == "ethyl-attachment")
+            .expect("ethyl attachment carbon");
+        let terminal = molecule
+            .atoms()
+            .iter()
+            .find(|atom| atom.source_id().as_str() == "ethyl-terminal")
+            .expect("ethyl terminal carbon");
+        let internal = molecule
+            .bonds()
+            .iter()
+            .find(|bond| bond.source_id().as_str() == "ethyl-internal")
+            .expect("ethyl internal bond");
+        assert_eq!(result.attachment_focus().as_str(), "ethyl-attachment");
+        assert_eq!(
+            (attachment.element(), attachment.formal_charge()),
+            (Some("C"), None)
+        );
+        assert_eq!(
+            (terminal.element(), terminal.formal_charge()),
+            (Some("C"), None)
+        );
+        assert_eq!(
+            (internal.order(), internal.style()),
+            (
+                Some(ferrum_core::BondOrder::Single),
+                Some(&ferrum_core::BondStyle::Normal),
+            )
+        );
+        assert!(matches!(
+            internal.start(),
+            ferrum_core::VertexRef::Atom(id) if id.source_id().as_str() == "ethyl-attachment"
+        ));
+        assert!(matches!(
+            internal.end(),
+            ferrum_core::VertexRef::Atom(id) if id.source_id().as_str() == "ethyl-terminal"
+        ));
+        assert!(!xml.contains("<compact-group"));
+        assert!(!xml.contains("charge="));
+    }
+
+    #[test]
+    fn methoxy_materialization_preserves_oxygen_focus_and_exterior_identity() {
+        let attached = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"methoxy\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\"/></molecule></cdml>").expect("typed attached root");
+        let attached_result = attached
+            .prepare_compact_group_materialization_v1(
+                TypedCompactGroupMaterializationRequestV1::new(
+                    id("m"),
+                    id("group"),
+                    vec![id("methoxy-oxygen"), id("methoxy-carbon")],
+                    vec![id("methoxy-internal")],
+                ),
+            )
+            .and_then(|plan| attached.materialize_compact_group_v1(&plan))
+            .expect("attached methoxy materialization");
+        let attached_projection = attached_result
+            .candidate()
+            .core_projection()
+            .expect("materialized attached methoxy projects");
+        let attached_molecule = &attached_projection.molecules()[0];
+        let exterior = attached_molecule
+            .bonds()
+            .iter()
+            .find(|bond| bond.source_id().as_str() == "outside")
+            .expect("retained exterior bond");
+        assert_eq!(
+            attached_result.attachment_focus().as_str(),
+            "methoxy-oxygen"
+        );
+        assert!(attached_molecule.groups().is_empty());
+        assert!(matches!(
+            exterior.end(),
+            ferrum_core::VertexRef::Atom(id) if id.source_id().as_str() == "methoxy-oxygen"
+        ));
+        assert_eq!(
+            (exterior.order(), exterior.style()),
+            (
+                Some(ferrum_core::BondOrder::Single),
+                Some(&ferrum_core::BondStyle::Normal),
+            )
+        );
+
+        let direct_root = TypedDocument::parse("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><compact-group id=\"group\" version=\"1\" catalog-key=\"methoxy\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group></molecule></cdml>").expect("typed direct root");
+        let direct_result = direct_root
+            .prepare_compact_group_materialization_v1(
+                TypedCompactGroupMaterializationRequestV1::new(
+                    id("m"),
+                    id("group"),
+                    vec![id("methoxy-oxygen"), id("methoxy-carbon")],
+                    vec![id("methoxy-internal")],
+                ),
+            )
+            .and_then(|plan| direct_root.materialize_compact_group_v1(&plan))
+            .expect("direct-root methoxy materialization");
+        let direct_projection = direct_result
+            .candidate()
+            .core_projection()
+            .expect("materialized direct-root methoxy projects");
+        let direct_molecule = &direct_projection.molecules()[0];
+        assert_eq!(direct_result.attachment_focus().as_str(), "methoxy-oxygen");
+        assert!(direct_molecule.groups().is_empty());
+        assert_eq!(direct_molecule.atoms().len(), 2);
+        assert_eq!(direct_molecule.bonds().len(), 1);
+        assert!(direct_molecule.atoms().iter().any(|atom| {
+            atom.source_id().as_str() == "methoxy-oxygen"
+                && atom.element() == Some("O")
+                && atom.formal_charge().is_none()
+        }));
+        assert!(direct_molecule.atoms().iter().any(|atom| {
+            atom.source_id().as_str() == "methoxy-carbon"
+                && atom.element() == Some("C")
+                && atom.formal_charge().is_none()
+        }));
+        let internal = &direct_molecule.bonds()[0];
+        assert_eq!(internal.source_id().as_str(), "methoxy-internal");
+        assert_eq!(
+            (internal.order(), internal.style()),
+            (
+                Some(ferrum_core::BondOrder::Single),
+                Some(&ferrum_core::BondStyle::Normal),
+            )
+        );
     }
 
     #[test]
@@ -554,8 +809,8 @@ mod tests {
                 TypedCompactGroupMaterializationRequestV1::new(
                     id("m"),
                     id("group"),
-                    vec![id("methyl-carbon")],
-                    vec![],
+                    vec![id("ethyl-attachment"), id("ethyl-terminal")],
+                    vec![id("ethyl-internal")],
                 ),
             ),
             Err(CompactGroupMaterializationRefusalV1::InvalidTopology)

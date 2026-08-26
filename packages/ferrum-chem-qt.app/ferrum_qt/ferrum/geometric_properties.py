@@ -373,15 +373,17 @@ class FerrumNativeGeometricPropertiesMixin:
 
 
 #============================================
-def install_geometric_properties_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install one Ferrum vector-properties action on the public window."""
+def install_geometric_properties_action(window: object) -> PySide6.QtGui.QAction:
+	"""Create and register one Ferrum vector-properties action on the window."""
 	action = PySide6.QtGui.QAction(window.tr("Edit Vector Properties"), window)
 	action.setToolTip(window.tr(
 		"Edit one selected geometric vector or complete bracket pair through Rust",
 	))
 	action.triggered.connect(lambda _checked=False: _on_edit_geometric_properties(window))
-	edit_menu.addAction(action)
+	window._action_registry.register_existing(
+		"edit.vector.properties", action,
+		shortcut_exemption_reason="Available by its labelled Edit menu client.",
+	)
 	return action
 
 

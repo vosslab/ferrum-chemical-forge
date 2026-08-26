@@ -94,7 +94,7 @@ pub enum TextPlacementErrorCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidAnchor,
     BlankContent,
     UnsupportedStyle,
@@ -121,7 +121,7 @@ pub enum TextPlacementErrorV1 {
     #[error("Text placement preview does not match the gesture")]
     MismatchedPreview,
     #[error("Text placement gesture was already committed")]
-    ReplayedGesture,
+    Consumed,
     #[error("Text placement anchor is not finite")]
     InvalidAnchor,
     #[error("Text content cannot be blank")]
@@ -143,7 +143,7 @@ impl TextPlacementErrorV1 {
             Self::StaleSnapshot => TextPlacementErrorCategoryV1::StaleSnapshot,
             Self::ForeignSession => TextPlacementErrorCategoryV1::ForeignSession,
             Self::MismatchedPreview => TextPlacementErrorCategoryV1::MismatchedPreview,
-            Self::ReplayedGesture => TextPlacementErrorCategoryV1::ReplayedGesture,
+            Self::Consumed => TextPlacementErrorCategoryV1::Consumed,
             Self::InvalidAnchor => TextPlacementErrorCategoryV1::InvalidAnchor,
             Self::BlankContent => TextPlacementErrorCategoryV1::BlankContent,
             Self::UnsupportedStyle => TextPlacementErrorCategoryV1::UnsupportedStyle,
@@ -224,7 +224,7 @@ mod tests {
         );
         assert!(matches!(
             session.commit_text_placement_gesture_v1(&mut preview),
-            Err(TextPlacementErrorV1::ReplayedGesture)
+            Err(TextPlacementErrorV1::Consumed)
         ));
         assert_eq!(session.snapshot().expect("snapshot").revision(), 1);
     }

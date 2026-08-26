@@ -40,8 +40,8 @@ def _window_with_tab(
 
 
 #============================================
-def _retire(window: object, tab: object) -> None:
-	"""Undo test edits and retire the Ferrum window without a dirty close prompt."""
+def _close_window(window: object, tab: object) -> None:
+	"""Undo test edits and close the Ferrum window without a dirty close prompt."""
 	while tab.current_snapshot.is_dirty:
 		tab.undo()
 	window._close_tab_at(window.centralWidget().indexOf(tab))
@@ -116,7 +116,7 @@ def test_catalog_choice_places_only_authored_scale_molecule_at_scene_click(
 			atom_b.position.x - atom_a.position.x,
 		) == pytest.approx((expected_anchor.x(), expected_anchor.y(), 10.0), abs=0.02)
 	finally:
-		_retire(window, tab)
+		_close_window(window, tab)
 		del qapp
 
 
@@ -148,7 +148,7 @@ def test_save_and_refresh_publish_eligible_snapshot_without_saving_document(
 			snapshot.failures[0].source_name in messages[-1],
 		) == (True, True, True)
 	finally:
-		_retire(window, tab)
+		_close_window(window, tab)
 		del qapp
 
 
@@ -197,5 +197,5 @@ def test_escape_and_stale_provenance_cancel_without_a_template_mutation(
 			for _title, accessible_name, text, details in refusals
 		)
 	finally:
-		_retire(window, tab)
+		_close_window(window, tab)
 		del qapp

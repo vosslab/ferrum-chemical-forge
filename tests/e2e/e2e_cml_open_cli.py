@@ -111,7 +111,7 @@ def main() -> None:
 		except json.JSONDecodeError as error:
 			raise CmlOpenE2eError("typed refusal did not emit one JSON envelope") from error
 		if (
-			refused.returncode != 0
+			refused.returncode != 1
 			or refused.stderr
 			or refusal_envelope.get("schema") != "ferrum-operation-error-v1"
 			or refusal_envelope.get("request_id") != "ferrum-cli"

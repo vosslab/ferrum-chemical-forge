@@ -1,8 +1,21 @@
-# M2a CML/CML2 import contract V2
+# M2a CML/CML2 import contract V2 (completed import slice)
+
+## Current disposition
+
+M2a's closed CML/CML2 `new_document` import slice is complete and accepted.
+This document preserves that historical import contract and its acceptance
+evidence; it is not an active implementation authority.
+
+Subsequent, separately scoped capability now provides canonical CML2 CLI
+output through `cml` and `cml2`, keeps CML1 input-only, supports runtime-free
+CML-to-CML and CML-to-CDML conversion, and returns typed refusals whenever a
+target would lose unrepresented facts. Qt File/Open intentionally remains an
+import route that creates a clean native CDML tab. Those capabilities do not
+expand M2a's original acceptance scope or alter its bounded input grammar.
 
 ## Decision
 
-M2a adds one Rust-owned, CML/CML2 **import-only** profile for ordinary 2-D
+M2a added one Rust-owned, CML/CML2 **import-only** profile for ordinary 2-D
 molecule drawings. It admits a closed XML grammar, converts all admitted facts
 into one bounded Ferrum import plan, and commits atomically. It adds neither
 CML export nor generic XML support nor byte-for-byte CML round-tripping.
@@ -26,8 +39,9 @@ the independent acceptance review is
 `/private/tmp/ferrum-m2a3a-final-acceptance-review.md`.
 
 This acceptance does not claim full CML, OASA, or BKChem parity. Append to the
-current document, durable selectors, live PyO3 or Qt import, export or
-conversion, and wider CML semantics remain deferred.
+current document, durable selectors, live PyO3 import, and wider CML semantics
+remain outside this historical M2a scope. Export and conversion were not part
+of that acceptance; their current bounded capability is recorded above.
 
 ## Qt new-document completion
 
@@ -42,8 +56,10 @@ The local-runtime end-to-end receipt is
 `/private/tmp/ferrum-cml-qt-new-document-final-rereview.md`.
 
 This acceptance remains deliberately bounded. CML append or current-tab
-replacement, live receipts, export or conversion, a generic importer, and
-broader CML semantic profiles remain deferred.
+replacement, live receipts, a generic importer, and broader CML semantic
+profiles remain outside this historical M2a scope. Export and conversion were
+not part of the Qt acceptance; their current bounded capability is recorded
+above.
 
 ## Scope and ownership
 
@@ -183,7 +199,7 @@ persistent IDs. 3-D-only, missing-2-D, and invalid inputs are never projected.
 
 ## Cross-layer format registry
 
-M2a introduces `InterchangeFormatRegistryV1`; it does not assume an existing
+M2a introduced `InterchangeFormatRegistryV1`; it did not assume an existing
 `FormatCapabilityV1`. `ferrum-api` owns one closed static registry of
 `InterchangeFormatDescriptorV1`. Chemistry exposes codec/profile IDs; document
 exposes import targets; API validates their exact join at startup and schema
@@ -201,10 +217,12 @@ compression: forbidden
 semantic_loss_policy: reject_unrepresented_semantics
 ```
 
-The descriptor has no `decode_for_convert`, `encode`, `export`, or CML output
-capability. `ferrum formats`, schema discovery, CLI `--format`, and Qt filters
-all derive from it. `convert --to cml`, export, output suffixes, compressed
-input, and unknown aliases are typed refusals.
+This historical import descriptor has no `decode_for_convert`, `encode`,
+`export`, or CML output capability. At M2a acceptance, `ferrum formats`, schema
+discovery, CLI `--format`, and Qt filters derived from it, and `convert --to
+cml`, export, output suffixes, compressed input, and unknown aliases were
+typed refusals. The later output registry and conversion route are separate
+from this descriptor and are summarized in [Current disposition](#current-disposition).
 
 ## Public and live contracts
 
@@ -252,11 +270,11 @@ and Qt actions remain separate later slices. Their contracts must be specified
 against the delivered M2a.3a operation rather than added as optional fields or
 alternate behavior here.
 
-Artifact delivery, if later required, must be a separately named and specified
-conversion/export operation with its own request, output destination, artifact
-budget, and atomic-publication contract. It must not be added as an optional
-field, non-JSON side effect, or alternate response mode of
-`document.molecule.interchange.import.v1`.
+Artifact delivery lay outside M2a and required a separately named conversion or
+export operation with its own request, output destination, artifact budget, and
+atomic-publication contract. The later conversion route follows that separation;
+it is not an optional field, non-JSON side effect, or alternate response mode
+of `document.molecule.interchange.import.v1`.
 
 The document crate exposes no CML types or CML transaction capability. It admits
 only a generic nonempty `MoleculeInsertionV1` batch as one atomic candidate;
@@ -358,8 +376,8 @@ summary (target, imported-record count, revision/digest, profile, and explicit
 output path) and bounded progress/status only; it performs no hidden copy or
 artifact stream. Typed refusal follows the existing exit-status convention and
 emits only the redacted bounded refusal. M2a.3a neither exports CML nor expands
-`convert`; a future artifact-producing conversion route must be separately
-named and specified rather than tunneled through open.
+`convert`; the subsequently delivered artifact-producing conversion route is
+separately named and specified rather than tunneled through `open`.
 
 ## Phase-local proof gates
 
@@ -389,8 +407,9 @@ parser consumer that inline input cannot represent.
    canonical response admission occurs before document/output publication
    through the actual operation rather than a hook.
 5. Append, durable-selector delivery, live PyO3 receipts, and Qt actions each
-   receive a separately scoped later proof gate only when that behavior is
-   implemented. They do not expand M2a.3a's E2E into a fixture matrix.
+   receive a separately scoped proof gate when that behavior is implemented.
+   The later conversion route retains its own proof; neither expands M2a.3a's
+   E2E into a fixture matrix.
 
 Disposable local-runtime provenance belongs in `/private/tmp` and the active
 plan report, not in `devel/`, fixtures, or ordinary tests.

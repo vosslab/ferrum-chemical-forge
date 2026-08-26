@@ -20,8 +20,9 @@ mod sdf;
 
 pub use crate::adapter::{ExplicitAdapterError, load_explicit_adapter};
 pub use crate::cml::{
-    CmlDecodedDocumentV1, CmlDecodedRecordV1, CmlDecoderErrorV1, CmlRefusalReasonV1,
-    CmlSourceAtomV1, CmlSourceBondV1, decode_cml_bytes_v1,
+    CmlDecodedDocumentV1, CmlDecodedRecordV1, CmlDecoderErrorV1, CmlEncoderErrorV1,
+    CmlEncoderRefusalReasonV1, CmlRefusalReasonV1, CmlSourceAtomV1, CmlSourceBondV1,
+    decode_cml_bytes_v1, encode_cml_decoded_document_v1, encode_cml_interchange_records_v1,
 };
 pub use crate::codec::{
     CanonicalSmilesError, INCHI_INSPECTION_SCHEMA_V1, InchiExportError, InchiInspectionError,

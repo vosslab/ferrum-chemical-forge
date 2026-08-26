@@ -14,7 +14,7 @@ use crate::protocol::{
     interchange_import_refusal_envelope_v1, interchange_import_success_envelope_v1,
 };
 
-use super::{VerbCliError, publish_or_write};
+use super::{VerbCliError, classify_emitted_protocol_envelope, publish_or_write};
 
 pub(crate) fn run(
     input: &Path,
@@ -99,12 +99,11 @@ pub(crate) fn run(
         stderr,
     )?;
     if json {
-        write_protocol_envelope(
-            response
-                .as_ref()
-                .expect("JSON response envelope was constructed"),
-            stdout,
-        )
+        let envelope = response
+            .as_ref()
+            .expect("JSON response envelope was constructed");
+        write_protocol_envelope(envelope, stdout)?;
+        classify_emitted_protocol_envelope(envelope)
     } else {
         writeln!(
             stdout,
@@ -131,7 +130,8 @@ fn complete_refusal(
         return Err(VerbCliError::InterchangeImportRefusal(refusal));
     }
     let response = interchange_import_refusal_envelope_v1("ferrum-cli", Some(descriptor), refusal);
-    write_protocol_envelope(&response, stdout)
+    write_protocol_envelope(&response, stdout)?;
+    classify_emitted_protocol_envelope(&response)
 }
 
 fn write_protocol_envelope(

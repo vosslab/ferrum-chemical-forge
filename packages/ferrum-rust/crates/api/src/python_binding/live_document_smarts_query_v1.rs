@@ -302,21 +302,21 @@ impl LiveDocumentSmartsBridgeV1 {
             receipts: HashMap::new(),
         }
     }
-    pub(crate) fn retire(&mut self) {
-        self.retire_receipts();
+    pub(crate) fn clear_published_plan(&mut self) {
+        self.clear_receipts();
         self.readiness = LiveSmartsReadinessV1::Unpublished;
     }
 
-    /// Revoke every derived display capability while retaining the immutable
+    /// Invalidate every derived display capability while retaining the immutable
     /// renderer plan that authoritatively produced them. Query-level UI
     /// cleanup uses this narrower boundary; document lifecycle transitions
-    /// retain `retire` because they also invalidate the plan itself.
-    pub(crate) fn retire_receipts(&mut self) {
+    /// retain `clear_published_plan` because they also invalidate the plan itself.
+    pub(crate) fn clear_receipts(&mut self) {
         self.receipts.clear();
     }
 
     /// Create the only plan from one accepted observation. The generation is
-    /// advanced and old receipts retired before the replacement is attempted.
+    /// advanced and old receipts cleared before the replacement is attempted.
     #[cfg(test)]
     pub(crate) fn publish(
         &mut self,
@@ -337,7 +337,7 @@ impl LiveDocumentSmartsBridgeV1 {
         session: &RenderInteractionSessionV1,
         observation: SessionDocumentObservationV1,
     ) -> PyResult<DocumentRenderObservationV1> {
-        self.retire();
+        self.clear_published_plan();
         self.next_generation = self
             .next_generation
             .checked_add(1)

@@ -76,12 +76,7 @@ pub(super) fn union_bounds(values: &[RenderInteractionBoundsV1]) -> RenderIntera
         })
 }
 
-/// Return a conservative, renderer-issued envelope for a path-only bond.
-///
-/// P0.3 intentionally refuses path depictions rather than collapsing a wedge,
-/// hash, or future filled bond into a fake editable centerline.  The envelope
-/// includes every lowered path command and physical stroke width solely to
-/// route an actual displayed primitive to the typed `DisplayOnly` recovery.
+/// Return the finite renderer-issued bounds for one lowered scene path.
 pub(super) fn path_bounds(path: &PathOpV2) -> RenderInteractionBoundsV1 {
     let mut points = Vec::new();
     for command in path.commands() {

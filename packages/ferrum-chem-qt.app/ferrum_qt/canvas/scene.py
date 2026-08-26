@@ -11,7 +11,7 @@ import ferrum_qt.ferrum.engine as engine
 # local repo modules
 import ferrum_qt.bridge.display_geometry
 import ferrum_qt.bridge.paper_catalog
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.config.geometry_units
 import ferrum_qt.themes.theme_loader
 
@@ -315,24 +315,24 @@ class ChemScene(PySide6.QtWidgets.QGraphicsScene):
 	#============================================
 	def _dispose_grid(
 			self,
-			reaper: ferrum_qt.canvas.graphics_retirement.DetachedGraphicsRetirementReaper | None = None,
+			reaper: ferrum_qt.canvas.graphics_disposal.DetachedGraphicsDisposalReaper | None = None,
 			) -> None:
-		"""Synchronously retire the one disposable grid overlay item."""
+		"""Synchronously dispose the one disposable grid overlay item."""
 		self._require_active_contents("dispose the grid")
 		overlay = self._grid_overlay
 		self._grid_overlay = None
 		if overlay is None:
 			return
-		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
-		coordinator.retire_scene_projection_items(self, [overlay], reaper=reaper)
-		coordinator.raise_if_callback_failed("ChemScene grid retirement failed")
+		coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
+		coordinator.dispose_scene_projection_items(self, [overlay], reaper=reaper)
+		coordinator.raise_if_callback_failed("ChemScene grid disposal failed")
 
 	#============================================
 	def dispose_contents(
 			self,
-			reaper: ferrum_qt.canvas.graphics_retirement.DetachedGraphicsRetirementReaper | None = None,
+			reaper: ferrum_qt.canvas.graphics_disposal.DetachedGraphicsDisposalReaper | None = None,
 			) -> None:
-		"""Retire all graphics through this scene's terminal ownership transition."""
+		"""Dispose all graphics through this scene's terminal ownership transition."""
 		if self._contents_lifecycle == "disposed":
 			return
 		if self._contents_lifecycle == "disposing":
@@ -343,23 +343,23 @@ class ChemScene(PySide6.QtWidgets.QGraphicsScene):
 		paper = self._paper_item
 		overlay = self._grid_overlay
 		# Clear Python sentinels while locals retain their wrappers.  Qt ownership
-		# changes below must never cause assignment to release a retired wrapper.
+		# changes below must never cause assignment to release a disposed wrapper.
 		self._paper_item = None
 		self._grid_overlay = None
 		try:
 			decorations = [item for item in (overlay, paper) if item is not None]
 			if decorations:
 				coordinator = (
-					ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
+					ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
 				)
-				coordinator.retire_scene_projection_items(
+				coordinator.dispose_scene_projection_items(
 					self, decorations, reaper=reaper,
 				)
 			# Named decorations are gone; clear owns every anonymous remaining item.
 			self.clear()
 			if decorations:
 				coordinator.raise_if_callback_failed(
-					"ChemScene decoration retirement failed"
+					"ChemScene decoration disposal failed"
 				)
 		except Exception:
 			self._contents_lifecycle = "failed"

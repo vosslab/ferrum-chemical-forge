@@ -144,9 +144,9 @@ pub(super) fn command_error(py: Python<'_>, error: impl Into<ReactionBindingErro
                 PyReactionCommandRefusalRecoveryV1::RefreshAndRestart,
                 error.to_string(),
             ),
-            ReactionAuthoringCommandRefusalV1::Replayed => command_error_with(
+            ReactionAuthoringCommandRefusalV1::Consumed => command_error_with(
                 py,
-                PyReactionCommandRefusalCategoryV1::ReplayedCommand,
+                PyReactionCommandRefusalCategoryV1::Consumed,
                 PyReactionCommandRefusalRecoveryV1::RefreshAndRestart,
                 error.to_string(),
             ),
@@ -201,7 +201,7 @@ fn command_category(py: Python<'_>, value: PyReactionCommandRefusalCategoryV1) -
     let name = match value {
         PyReactionCommandRefusalCategoryV1::StaleSnapshot => "stale_snapshot",
         PyReactionCommandRefusalCategoryV1::ForeignSession => "foreign_session",
-        PyReactionCommandRefusalCategoryV1::ReplayedCommand => "replayed_command",
+        PyReactionCommandRefusalCategoryV1::Consumed => "consumed",
         PyReactionCommandRefusalCategoryV1::InvalidMembers => "invalid_members",
         PyReactionCommandRefusalCategoryV1::InvalidSelection => "invalid_selection",
         PyReactionCommandRefusalCategoryV1::RendererAdmission => "renderer_admission",

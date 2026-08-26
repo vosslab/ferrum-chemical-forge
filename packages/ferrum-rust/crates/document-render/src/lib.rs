@@ -9,10 +9,10 @@ use ferrum_document::{DocumentFenceV1, DocumentSession};
 
 mod curved_electron_arrow_gesture_v1;
 mod curved_equilibrium_arrow_gesture_v1;
-mod direct_bond_admission_v3;
-mod direct_bond_pointer_v3;
-mod direct_bond_probe_resolution_v3;
-mod direct_bond_v3_lifecycle;
+mod direct_bond_admission;
+mod direct_bond_lifecycle;
+mod direct_bond_pointer;
+mod direct_bond_probe_resolution;
 mod presentation_path_gesture_v1;
 mod presentation_vector_gesture_v1;
 mod render_interaction_v1;
@@ -44,12 +44,12 @@ pub use curved_equilibrium_arrow_gesture_v1::{
     CurvedEquilibriumArrowPreviewV1, begin_curved_equilibrium_arrow_gesture_v1,
     preview_curved_equilibrium_arrow_gesture_v1, resolve_curved_equilibrium_arrow_gesture_v1,
 };
-pub use direct_bond_admission_v3::{begin_direct_bond_gesture_v3, resolve_direct_bond_end_v3};
-pub use direct_bond_pointer_v3::{
-    DirectBondAdmissionCategoryV3, DirectBondAdmissionErrorV3, DirectBondAdmissionRecoveryV3,
-    DirectBondAdmissionRefusalV3, DirectBondGestureV3, DirectBondPointerHitStateV3,
-    DirectBondPointerProbeCategoryV3, DirectBondPointerProbeErrorV3,
-    DirectBondPointerProbeRecoveryV3, DirectBondPointerProbeV3, DirectBondViewportToSceneV3,
+pub use direct_bond_admission::{begin_direct_bond_gesture, resolve_direct_bond_end};
+pub use direct_bond_pointer::{
+    DirectBondAdmissionCategory, DirectBondAdmissionError, DirectBondAdmissionRecovery,
+    DirectBondAdmissionRefusal, DirectBondGesture, DirectBondPointerHitState,
+    DirectBondPointerProbe, DirectBondPointerProbeCategory, DirectBondPointerProbeError,
+    DirectBondPointerProbeRecovery, DirectBondViewportToScene,
 };
 pub use presentation_path_gesture_v1::{
     PresentationPathAppearanceV1, PresentationPathOverlayV1, PresentationPathProgressV1,

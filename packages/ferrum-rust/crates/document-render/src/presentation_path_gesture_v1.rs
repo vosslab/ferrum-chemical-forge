@@ -112,7 +112,7 @@ pub enum PresentationPathRenderCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     Cancelled,
     InvalidGeometry,
     RenderPreparation,
@@ -134,7 +134,7 @@ pub enum PresentationPathRenderErrorV1 {
     #[error("presentation path preview belongs to another gesture")]
     MismatchedPreview,
     #[error("presentation path gesture was already committed")]
-    ReplayedGesture,
+    Consumed,
     #[error("presentation path gesture was cancelled without changing the document")]
     Cancelled,
     #[error("{0}")]
@@ -151,7 +151,7 @@ impl PresentationPathRenderErrorV1 {
             Self::StaleSnapshot => PresentationPathRenderCategoryV1::StaleSnapshot,
             Self::ForeignSession => PresentationPathRenderCategoryV1::ForeignSession,
             Self::MismatchedPreview => PresentationPathRenderCategoryV1::MismatchedPreview,
-            Self::ReplayedGesture => PresentationPathRenderCategoryV1::ReplayedGesture,
+            Self::Consumed => PresentationPathRenderCategoryV1::Consumed,
             Self::Cancelled => PresentationPathRenderCategoryV1::Cancelled,
             Self::InvalidGeometry(_) => PresentationPathRenderCategoryV1::InvalidGeometry,
             Self::RenderPreparation => PresentationPathRenderCategoryV1::RenderPreparation,
@@ -164,7 +164,7 @@ impl PresentationPathRenderErrorV1 {
             Self::StaleSnapshot
             | Self::ForeignSession
             | Self::MismatchedPreview
-            | Self::ReplayedGesture
+            | Self::Consumed
             | Self::SessionConflict => PresentationPathRenderRecoveryV1::RefreshAndRestart,
             Self::Cancelled => PresentationPathRenderRecoveryV1::DocumentUnchanged,
             Self::InvalidGeometry(PresentationPathGestureErrorV1::ResourceExhausted) => {

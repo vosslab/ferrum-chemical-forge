@@ -161,7 +161,7 @@ def test_direct_glycosidic_action_arms_a_real_dialog_and_commits_on_empty_page(
 
 def test_direct_glycosidic_escape_preserves_the_uncommitted_document(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Escape retires the captured receipt instead of creating or redirecting a drawing."""
+	"""Escape cancels the captured receipt instead of creating or redirecting a drawing."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "cancel-direct-haworth.cdml",

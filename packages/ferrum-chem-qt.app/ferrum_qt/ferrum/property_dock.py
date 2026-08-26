@@ -253,12 +253,12 @@ class FerrumNativePropertyDock(PySide6.QtWidgets.QDockWidget):
 def install_native_property_dock(window: PySide6.QtWidgets.QMainWindow,
 		atom_action: PySide6.QtGui.QAction,
 		bond_action: PySide6.QtGui.QAction) -> FerrumNativePropertyDock:
-	"""Install one right-side inspector plus its ordinary View-menu action."""
+	"""Install one right-side inspector and register its View action."""
 	dock = FerrumNativePropertyDock(atom_action, bond_action, window)
 	window.addDockWidget(PySide6.QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
 	toggle = dock.toggleViewAction()
 	toggle.setText(window.tr("Properties"))
 	toggle.setToolTip(window.tr("Show or hide the current document properties"))
-	window._view_menu.addSeparator()
-	window._view_menu.addAction(toggle)
+	window._register_action("view.properties.toggle", toggle,
+		lifecycle="stateful-visibility")
 	return dock

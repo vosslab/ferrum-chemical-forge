@@ -60,7 +60,7 @@ class _PopupTerminalLatch(PySide6.QtCore.QObject):
 
 #============================================
 class _PopupActionContinuation(PySide6.QtCore.QObject):
-	"""Own one action invocation until its transient popup has retired."""
+	"""Own one action invocation until its transient popup has closed."""
 
 	def __init__(self, handoff: "FerrumInteractionActionHandoff", action: PySide6.QtGui.QAction,
 			handler: object, accepts_checked: bool, checked: bool) -> None:
@@ -229,14 +229,14 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 
 	def register_pointer_capture_canceller(self,
 			canceller: collections.abc.Callable[[bool], None]) -> None:
-		"""Register the one capture retired by the window authoring transaction."""
+		"""Register the one capture cancelled by the window authoring transaction."""
 		if not callable(canceller):
 			raise TypeError("Ferrum pointer capture canceller must be callable")
 		self._capture_canceller = canceller
 
 	#============================================
 	def cancel_registered_pointer_capture(self, *, clear_status: bool) -> None:
-		"""Retire the registered capture through its fixed explicit callback contract."""
+		"""Cancel the registered capture through its fixed explicit callback contract."""
 		canceller = self._capture_canceller
 		if canceller is not None:
 			canceller(clear_status)
@@ -267,12 +267,6 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		for associated_object in action.associatedObjects():
 			if isinstance(associated_object, PySide6.QtWidgets.QMenu):
 				self._register_action_menu(action, associated_object)
-
-	def add_registered_action_to_menu(self, menu: PySide6.QtWidgets.QMenu,
-			action: PySide6.QtGui.QAction) -> None:
-		"""Register popup lifecycle before inserting one pointer-owning action."""
-		self._register_action_menu(action, menu)
-		menu.addAction(action)
 
 	def _register_action_menu(self, action: PySide6.QtGui.QAction,
 			menu: PySide6.QtWidgets.QMenu) -> None:
@@ -338,14 +332,14 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 
 	def _before_incoming_action(self, action: PySide6.QtGui.QAction,
 			checked: bool = False) -> None:
-		"""Retire prior pointer ownership while preserving the incoming tool state."""
+		"""Cancel prior pointer ownership while preserving the incoming tool state."""
 		self._uncheck_other_registered_actions(action)
 		self._owner.cancel_active_pointer_authoring(clear_status=False)
 		if checked and action.isCheckable() and action.isEnabled():
 			action.setChecked(True)
 
 	def _uncheck_other_registered_actions(self, incoming: PySide6.QtGui.QAction) -> None:
-		"""Retire checked pointer-tool presentation before the next action owns input."""
+		"""Clear checked pointer-tool presentation before the next action owns input."""
 		for action in tuple(self._actions):
 			if (
 				action is not incoming

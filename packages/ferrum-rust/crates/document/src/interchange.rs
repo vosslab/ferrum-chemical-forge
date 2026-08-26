@@ -237,6 +237,8 @@ pub enum InterchangeCodecErrorV1 {
     #[error("CDML record {record_index} cannot losslessly carry ordered interchange properties")]
     CdmlInterchangePropertiesUnsupported { record_index: usize },
     #[error(transparent)]
+    CmlEncoding(#[from] ferrum_chemistry::CmlEncoderErrorV1),
+    #[error(transparent)]
     Chemistry(#[from] ChemistryError),
     #[error(transparent)]
     SdfRecord(#[from] ferrum_chemistry::SdfError),
@@ -283,6 +285,7 @@ impl From<ChemistryInterchangeCodecErrorV1> for InterchangeCodecErrorV1 {
             ChemistryInterchangeCodecErrorV1::CdmlRequiresDocumentComposition => {
                 unreachable!("CDML dispatch stays in document")
             }
+            ChemistryInterchangeCodecErrorV1::CmlEncoding(error) => Self::CmlEncoding(error),
             ChemistryInterchangeCodecErrorV1::Chemistry(error) => Self::Chemistry(error),
             ChemistryInterchangeCodecErrorV1::SdfRecord(error) => Self::SdfRecord(error),
         }

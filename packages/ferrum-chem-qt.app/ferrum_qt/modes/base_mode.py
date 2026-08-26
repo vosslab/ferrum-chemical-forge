@@ -4,6 +4,9 @@
 import dataclasses
 import enum
 
+# PIP3 modules
+import PySide6.QtCore
+
 
 #============================================
 class ModeId(enum.StrEnum):
@@ -43,6 +46,7 @@ class PointerInput:
 	phase: PointerPhase
 	point: ScenePoint
 	primary_button: bool = True
+	modifiers: PySide6.QtCore.Qt.KeyboardModifiers = PySide6.QtCore.Qt.KeyboardModifier.NoModifier
 
 
 #============================================
@@ -65,6 +69,7 @@ class ModeIntent:
 
 	operation_id: str
 	points: tuple[ScenePoint, ...]
+	modifiers: PySide6.QtCore.Qt.KeyboardModifiers = PySide6.QtCore.Qt.KeyboardModifier.NoModifier
 
 
 #============================================

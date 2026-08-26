@@ -21,7 +21,8 @@ fn assert_authored_close(actual: f64, expected: f64) {
 }
 
 #[test]
-fn selected_atoms_rotate_in_one_history_entry_and_retire_only_invalid_owned_metadata() {
+fn selected_atoms_rotate_in_one_history_entry_and_preserve_valid_generated_and_authored_linear_forms()
+ {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"0\" z=\"2\"/></atom>",

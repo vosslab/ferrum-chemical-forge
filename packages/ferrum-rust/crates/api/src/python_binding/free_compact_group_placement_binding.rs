@@ -37,7 +37,7 @@ enum PyFreeCompactGroupPlacementCategoryV1 {
     StaleRevision,
     StaleDigest,
     ForeignSession,
-    Retired,
+    Consumed,
     UnsupportedCatalogKey,
     CandidateAdmission,
     RendererAdmission,
@@ -117,7 +117,7 @@ impl PyDocumentSession {
         commit(&mut self.session, &mut pending.pending).map_err(|error| placement_error(py, error))
     }
 
-    /// Retire one pending free compact-group placement without a document edit.
+    /// Cancel one pending free compact-group placement without a document edit.
     fn _cancel_place_free_compact_group_v1(
         &mut self,
         py: Python<'_>,
@@ -149,7 +149,7 @@ fn cancel(
     session: &mut DocumentSession,
     pending: &mut PendingPlaceFreeCompactGroupV1,
 ) -> Result<(), FreeCompactGroupPlacementSessionErrorV1> {
-    session.retire_place_free_compact_group_v1(pending)
+    session.cancel_place_free_compact_group_v1(pending)
 }
 
 fn commit_facts(
@@ -183,8 +183,8 @@ fn category(
         FreeCompactGroupPlacementSessionErrorV1::ForeignSession => {
             PyFreeCompactGroupPlacementCategoryV1::ForeignSession
         }
-        FreeCompactGroupPlacementSessionErrorV1::Retired => {
-            PyFreeCompactGroupPlacementCategoryV1::Retired
+        FreeCompactGroupPlacementSessionErrorV1::Consumed => {
+            PyFreeCompactGroupPlacementCategoryV1::Consumed
         }
         FreeCompactGroupPlacementSessionErrorV1::UnsupportedCatalogKey => {
             PyFreeCompactGroupPlacementCategoryV1::UnsupportedCatalogKey

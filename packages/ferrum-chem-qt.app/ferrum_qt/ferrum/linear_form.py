@@ -158,9 +158,8 @@ class FerrumNativeLinearFormWindowMixin:
 	"""Own the synchronous ordinary-native linear-form action."""
 
 	#============================================
-	def _build_linear_form_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the Rust-owned selection conversion to the Chemistry menu."""
-		menu.addSeparator()
+	def _build_linear_form_action(self) -> None:
+		"""Create and register the Rust-owned selection conversion."""
 		self._convert_linear_form_action = PySide6.QtGui.QAction(
 			self.tr("Convert selection to linear form"), self,
 		)
@@ -168,7 +167,10 @@ class FerrumNativeLinearFormWindowMixin:
 			"Lay out one selected atom path and record its linear form through Rust",
 		))
 		self._convert_linear_form_action.triggered.connect(self._on_convert_linear_form)
-		menu.addAction(self._convert_linear_form_action)
+		self._action_registry.register_existing(
+			"chemistry.linear_form.convert", self._convert_linear_form_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _refresh_linear_form_action(self, active: bool, pending: bool,

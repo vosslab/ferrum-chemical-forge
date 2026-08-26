@@ -48,7 +48,7 @@ enum PyPresentationGestureCategoryV1 {
     StaleRevision,
     StaleDigest,
     ForeignSession,
-    ReplayedGesture,
+    Consumed,
     PreviewMismatch,
     NonFinitePoint,
     CollapsedEndpoint,
@@ -260,9 +260,10 @@ impl PyDocumentSession {
             .map_err(|error| presentation_error(py, error))?;
         self.session
             .preview_presentation_creation_gesture_v1(
-                gesture.gesture.as_ref().ok_or_else(|| {
-                    presentation_error(py, PresentationGestureErrorV1::ReplayedGesture)
-                })?,
+                gesture
+                    .gesture
+                    .as_ref()
+                    .ok_or_else(|| presentation_error(py, PresentationGestureErrorV1::Consumed))?,
                 end,
             )
             .map_err(|error| presentation_error(py, error))
@@ -274,15 +275,15 @@ impl PyDocumentSession {
         mut gesture: PyRefMut<'_, PyPresentationCreationGestureV1>,
         preview: PyRef<'_, PyPresentationCreationPreviewV1>,
     ) -> PyResult<PySessionOperationTransitionRequestV1> {
-        let request = self
-            .session
-            .resolve_presentation_creation_gesture_v1(
-                gesture.gesture.as_ref().ok_or_else(|| {
-                    presentation_error(py, PresentationGestureErrorV1::ReplayedGesture)
-                })?,
-                &preview.preview,
-            )
-            .map_err(|error| presentation_error(py, error))?;
+        let request =
+            self.session
+                .resolve_presentation_creation_gesture_v1(
+                    gesture.gesture.as_ref().ok_or_else(|| {
+                        presentation_error(py, PresentationGestureErrorV1::Consumed)
+                    })?,
+                    &preview.preview,
+                )
+                .map_err(|error| presentation_error(py, error))?;
         gesture.gesture = None;
         Ok(PySessionOperationTransitionRequestV1::from_request(request))
     }
@@ -379,8 +380,8 @@ pub(crate) fn presentation_error(py: Python<'_>, error: PresentationGestureError
         ferrum_document::PresentationGestureCategoryV1::ForeignSession => {
             PyPresentationGestureCategoryV1::ForeignSession
         }
-        ferrum_document::PresentationGestureCategoryV1::ReplayedGesture => {
-            PyPresentationGestureCategoryV1::ReplayedGesture
+        ferrum_document::PresentationGestureCategoryV1::Consumed => {
+            PyPresentationGestureCategoryV1::Consumed
         }
         ferrum_document::PresentationGestureCategoryV1::PreviewMismatch => {
             PyPresentationGestureCategoryV1::PreviewMismatch

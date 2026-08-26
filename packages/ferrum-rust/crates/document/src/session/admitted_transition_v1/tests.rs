@@ -236,7 +236,7 @@ fn direct_bond_requires_generic_authorization_and_consumes_it_on_generic_commit(
             )
         ),
         Err(DocumentSessionError::TransitionAuthorization(
-            TransitionAuthorizationRefusalV1::Replayed
+            TransitionAuthorizationRefusalV1::Consumed
         ))
     ));
 
@@ -280,7 +280,7 @@ fn direct_bond_requires_generic_authorization_and_consumes_it_on_generic_commit(
     }
     assert_eq!(
         prepared.presentation_v1(),
-        Err(PreparedSessionTransitionPresentationRefusalV1::Retired)
+        Err(PreparedSessionTransitionPresentationRefusalV1::Consumed)
     );
     assert!(matches!(
         session.prepare_session_operation_transition_v1(
@@ -291,7 +291,7 @@ fn direct_bond_requires_generic_authorization_and_consumes_it_on_generic_commit(
             )
         ),
         Err(DocumentSessionError::TransitionAuthorization(
-            TransitionAuthorizationRefusalV1::Replayed
+            TransitionAuthorizationRefusalV1::Consumed
         ))
     ));
 }
@@ -353,7 +353,7 @@ fn changed_transition_is_renderer_admitted_atomic_and_one_use() {
     assert!(prepared.is_consumed_v1());
     assert_eq!(
         session.commit_session_operation_transition_v1(&mut prepared),
-        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+        Err(AdmittedSessionTransitionRefusalV1::Consumed)
     );
 }
 
@@ -373,7 +373,7 @@ fn no_change_transition_is_history_free_and_one_use() {
     assert_eq!(session.snapshot().expect("snapshot").revision(), 0);
     assert_eq!(
         session.commit_session_operation_transition_v1(&mut prepared),
-        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+        Err(AdmittedSessionTransitionRefusalV1::Consumed)
     );
 }
 
@@ -426,12 +426,12 @@ fn presentation_extraction_keeps_a_live_changed_transition_redeemable() {
         .expect("presentation extraction leaves transition redeemable");
     assert_eq!(
         prepared.presentation_v1(),
-        Err(PreparedSessionTransitionPresentationRefusalV1::Retired)
+        Err(PreparedSessionTransitionPresentationRefusalV1::Consumed)
     );
 }
 
 #[test]
-fn no_change_presentation_has_no_paint_contract_and_retires_with_transition() {
+fn no_change_presentation_has_no_paint_contract_and_is_consumed_when_cancelled() {
     let mut session = DocumentSession::create_empty_document_v1().expect("empty session");
     let mut prepared = session
         .prepare_session_operation_transition_v1(crate::SessionOperationTransitionRequestV1::new(
@@ -446,11 +446,11 @@ fn no_change_presentation_has_no_paint_contract_and_retires_with_transition() {
 
     assert!(presentation.precommit_overlay().is_none());
     session
-        .retire_session_operation_transition_v1(&mut prepared)
-        .expect("transition retires");
+        .cancel_session_operation_transition_v1(&mut prepared)
+        .expect("transition cancels");
     assert_eq!(
         prepared.presentation_v1(),
-        Err(PreparedSessionTransitionPresentationRefusalV1::Retired)
+        Err(PreparedSessionTransitionPresentationRefusalV1::Consumed)
     );
 }
 
@@ -485,14 +485,14 @@ fn prepared_siblings_share_the_history_append_slot_without_mutating_history() {
 }
 
 #[test]
-fn retirement_is_semantic_cancellation_without_history_resource_cleanup() {
+fn cancellation_is_semantic_and_preserves_history_resources() {
     let mut session = DocumentSession::create_empty_document_v1().expect("empty session");
     let before = session.snapshot().expect("snapshot");
     let (identifier, mut prepared) = prepared_generated_id_transition(&mut session, 2.0);
 
     session
-        .retire_session_operation_transition_v1(&mut prepared)
-        .expect("owner retires transition");
+        .cancel_session_operation_transition_v1(&mut prepared)
+        .expect("owner cancels transition");
 
     assert_eq!(session.snapshot().expect("snapshot"), before);
     assert!(session.admitted_history.undo_target().is_none());
@@ -500,7 +500,7 @@ fn retirement_is_semantic_cancellation_without_history_resource_cleanup() {
     assert!(prepared.is_consumed_v1());
     assert_eq!(
         session.commit_session_operation_transition_v1(&mut prepared),
-        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+        Err(AdmittedSessionTransitionRefusalV1::Consumed)
     );
 
     let mut replacement = session
@@ -515,8 +515,8 @@ fn retirement_is_semantic_cancellation_without_history_resource_cleanup() {
         .expect("replacement renderer-admitted transition commits");
     assert_eq!(session.snapshot().expect("snapshot").revision(), 1);
     assert_eq!(
-        session.retire_session_operation_transition_v1(&mut replacement),
-        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+        session.cancel_session_operation_transition_v1(&mut replacement),
+        Err(AdmittedSessionTransitionRefusalV1::Consumed)
     );
 }
 
@@ -540,7 +540,7 @@ fn dropped_preparation_leaves_generated_ids_tentative_until_replacement_commits(
 }
 
 #[test]
-fn foreign_retirement_cannot_invalidate_the_owner_pending_transition() {
+fn foreign_cancellation_cannot_invalidate_the_owner_pending_transition() {
     let mut owner = DocumentSession::create_empty_document_v1().expect("owner session");
     let mut other = DocumentSession::create_empty_document_v1().expect("other session");
     let mut prepared = owner
@@ -552,19 +552,19 @@ fn foreign_retirement_cannot_invalidate_the_owner_pending_transition() {
         .expect("owner transition prepares");
 
     assert_eq!(
-        other.retire_session_operation_transition_v1(&mut prepared),
+        other.cancel_session_operation_transition_v1(&mut prepared),
         Err(AdmittedSessionTransitionRefusalV1::ForeignSession)
     );
     assert!(!prepared.is_consumed_v1());
     owner
         .commit_session_operation_transition_v1(&mut prepared)
-        .expect("foreign retirement refusal leaves owner transition redeemable");
+        .expect("foreign cancellation refusal leaves owner transition committable");
 }
 
 #[test]
-fn retired_transition_cannot_expose_or_bypass_renderer_admission() {
+fn consumed_transition_cannot_expose_or_bypass_renderer_admission() {
     let mut session = DocumentSession::create_empty_document_v1().expect("empty session");
-    let mut retired = session
+    let mut consumed = session
         .prepare_session_operation_transition_v1(crate::SessionOperationTransitionRequestV1::new(
             0,
             changed_operation(2.0),
@@ -572,7 +572,7 @@ fn retired_transition_cannot_expose_or_bypass_renderer_admission() {
         ))
         .expect("renderer-admitted transition prepares");
     assert!(
-        retired
+        consumed
             .presentation_v1()
             .expect("live transition presents inert display facts")
             .precommit_overlay()
@@ -580,11 +580,11 @@ fn retired_transition_cannot_expose_or_bypass_renderer_admission() {
     );
 
     session
-        .retire_session_operation_transition_v1(&mut retired)
-        .expect("transition retires");
+        .cancel_session_operation_transition_v1(&mut consumed)
+        .expect("transition cancels");
     assert_eq!(
-        session.commit_session_operation_transition_v1(&mut retired),
-        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+        session.commit_session_operation_transition_v1(&mut consumed),
+        Err(AdmittedSessionTransitionRefusalV1::Consumed)
     );
 
     let mut replacement = session
@@ -611,7 +611,7 @@ fn generated_ids_install_only_after_successful_renderer_admitted_redemption() {
     assert_eq!(next_reserved_atom_identifier(&session), "ferrum-atom-v1-1");
     assert_eq!(
         session.commit_session_operation_transition_v1(&mut prepared),
-        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+        Err(AdmittedSessionTransitionRefusalV1::Consumed)
     );
     assert_eq!(next_reserved_atom_identifier(&session), "ferrum-atom-v1-1");
 }

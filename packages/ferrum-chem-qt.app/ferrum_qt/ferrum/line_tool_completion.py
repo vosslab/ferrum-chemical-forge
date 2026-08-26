@@ -48,11 +48,11 @@ class FerrumNativeLineToolCompletionMixin:
 			end_probe = intent.tab.direct_bond_pointer_probe_at_viewport_point(viewport_point)
 			request = intent.tab.resolve_direct_bond_end(gesture, end_probe)
 			prepared = intent.tab.prepare_session_operation_transition_v1(request)
-		except engine.DirectBondPointerProbeErrorV3 as exc:
+		except engine.DirectBondPointerProbeError as exc:
 			self._cancel_line_gesture()
 			self._show_direct_bond_refusal(exc)
 			return
-		except engine.DirectBondAdmissionRefusalV3 as exc:
+		except engine.DirectBondAdmissionRefusal as exc:
 			self._cancel_line_gesture()
 			self._show_direct_bond_refusal(exc)
 			return
@@ -86,7 +86,7 @@ class FerrumNativeLineToolCompletionMixin:
 		except Exception:
 			self._cancel_line_gesture()
 			raise
-		self._retire_line_preview(intent.preview)
+		self._dispose_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
 			intent, preview=overlay, direct_bond_gesture=next_gesture,
 			prepared_transition=prepared,
@@ -184,7 +184,7 @@ class FerrumNativeLineToolCompletionMixin:
 			)
 		except Exception as exc:
 			if ferrum_qt.ferrum.terminal_arrow.needs_endpoint(state, exc):
-				self._retire_line_preview(intent.preview)
+				self._dispose_line_preview(intent.preview)
 				self._show_terminal_arrow_point_guidance(state.kind, 2)
 				return
 			self._cancel_line_gesture(clear_status=False)
@@ -192,7 +192,7 @@ class FerrumNativeLineToolCompletionMixin:
 				self._show_edit_refusal(self._terminal_arrow_refusal(state.kind, exc))
 				return
 			raise
-		self._retire_line_preview(intent.preview)
+		self._dispose_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
 			intent, preview=overlay, presentation_preview=preview,
 		)
@@ -288,7 +288,7 @@ class FerrumNativeLineToolCompletionMixin:
 		overlay = ferrum_qt.ferrum.presentation_creation_preview.create_arrow_preview(
 			intent.tab, preview.plan,
 		)
-		self._retire_line_preview(intent.preview)
+		self._dispose_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
 			intent, preview=overlay, presentation_preview=preview,
 		)
@@ -411,13 +411,13 @@ class FerrumNativeLineToolCompletionMixin:
 				intent.tab, preview,
 			)
 		except engine.PresentationPathGestureError as exc:
-			self._retire_line_preview(intent.preview)
+			self._dispose_line_preview(intent.preview)
 			self._line_gesture_intent = dataclasses.replace(
 				intent, preview=None, path_preview=None,
 			)
 			self._show_presentation_path_refusal(exc)
 			return
-		self._retire_line_preview(intent.preview)
+		self._dispose_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
 			intent, preview=overlay, path_preview=preview,
 		)
@@ -536,7 +536,7 @@ class FerrumNativeLineToolCompletionMixin:
 			self._cancel_line_gesture(clear_status=False)
 			self._show_edit_refusal(self._presentation_gesture_refusal(exc, intent.tool))
 			return
-		self._retire_line_preview(intent.preview)
+		self._dispose_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
 			intent, preview=overlay, presentation_preview=preview,
 		)
@@ -629,7 +629,7 @@ class FerrumNativeLineToolCompletionMixin:
 			self._cancel_line_gesture(clear_status=False)
 			self._show_edit_refusal(self._vector_gesture_refusal(exc))
 			return
-		self._retire_line_preview(intent.preview)
+		self._dispose_line_preview(intent.preview)
 		self._line_gesture_intent = dataclasses.replace(
 			intent, preview=overlay, vector_preview=preview,
 		)
@@ -856,7 +856,7 @@ class FerrumNativeLineToolCompletionMixin:
 		elif category in (
 			engine.PresentationVectorGestureCategoryV1.stale_snapshot,
 			engine.PresentationVectorGestureCategoryV1.session_conflict,
-			engine.PresentationVectorGestureCategoryV1.replayed_gesture,
+			engine.PresentationVectorGestureCategoryV1.consumed,
 		):
 			message = "Vector drawing is unchanged. Refresh the Rust view and start the tool again."
 		else:
@@ -868,45 +868,45 @@ class FerrumNativeLineToolCompletionMixin:
 	def _direct_bond_refusal_message(refusal: object) -> str:
 		"""Explain a typed ordinary Rust endpoint refusal without parsing strings."""
 		import ferrum_qt.ferrum.engine as engine
-		if type(refusal) is engine.DirectBondPointerProbeErrorV3:
-			if refusal.recovery == engine.DirectBondPointerProbeRecoveryV3.refresh_and_restart:
+		if type(refusal) is engine.DirectBondPointerProbeError:
+			if refusal.recovery == engine.DirectBondPointerProbeRecovery.refresh_and_restart:
 				return "Refresh the Rust view and start Draw Bond again."
-			if refusal.category == engine.DirectBondPointerProbeCategoryV3.ambiguous_atom:
+			if refusal.category == engine.DirectBondPointerProbeCategory.ambiguous_atom:
 				return "Choose one atom clearly or an empty endpoint, then start Draw Bond again."
-			if refusal.recovery == engine.DirectBondPointerProbeRecoveryV3.adjust_endpoint:
+			if refusal.recovery == engine.DirectBondPointerProbeRecovery.adjust_endpoint:
 				return "Choose a different atom or empty endpoint, then start Draw Bond again."
 			return "Choose a finite pointer position and start Draw Bond again."
-		if type(refusal) is engine.DirectBondAdmissionRefusalV3:
+		if type(refusal) is engine.DirectBondAdmissionRefusal:
 			if (
 				refusal.category in (
-					engine.DirectBondAdmissionCategoryV3.self_loop,
-					engine.DirectBondAdmissionCategoryV3.unknown_start_atom,
-					engine.DirectBondAdmissionCategoryV3.unknown_end_atom,
-					engine.DirectBondAdmissionCategoryV3.invalid_endpoint_input,
-					engine.DirectBondAdmissionCategoryV3.collapsed_endpoint,
-					engine.DirectBondAdmissionCategoryV3.cross_molecule,
-					engine.DirectBondAdmissionCategoryV3.duplicate_bond,
-					engine.DirectBondAdmissionCategoryV3.exceeds_chemistry_capacity,
-					engine.DirectBondAdmissionCategoryV3.unsupported_chemistry_admission,
+					engine.DirectBondAdmissionCategory.self_loop,
+					engine.DirectBondAdmissionCategory.unknown_start_atom,
+					engine.DirectBondAdmissionCategory.unknown_end_atom,
+					engine.DirectBondAdmissionCategory.invalid_endpoint_input,
+					engine.DirectBondAdmissionCategory.collapsed_endpoint,
+					engine.DirectBondAdmissionCategory.cross_molecule,
+					engine.DirectBondAdmissionCategory.duplicate_bond,
+					engine.DirectBondAdmissionCategory.exceeds_chemistry_capacity,
+					engine.DirectBondAdmissionCategory.unsupported_chemistry_admission,
 				)
-				and refusal.recovery == engine.DirectBondAdmissionRecoveryV3.adjust_endpoint
+				and refusal.recovery == engine.DirectBondAdmissionRecovery.adjust_endpoint
 			):
 				return "Choose a different atom or empty endpoint, then start Draw Bond again."
 			if (
 				refusal.category in (
-					engine.DirectBondAdmissionCategoryV3.foreign_session,
-					engine.DirectBondAdmissionCategoryV3.stale_revision,
-					engine.DirectBondAdmissionCategoryV3.stale_digest,
+					engine.DirectBondAdmissionCategory.foreign_session,
+					engine.DirectBondAdmissionCategory.stale_revision,
+					engine.DirectBondAdmissionCategory.stale_digest,
 				)
-				and refusal.recovery == engine.DirectBondAdmissionRecoveryV3.refresh_and_restart
+				and refusal.recovery == engine.DirectBondAdmissionRecovery.refresh_and_restart
 			):
 				return "Refresh the Rust view and start Draw Bond again."
 			if (
 				refusal.category in (
-					engine.DirectBondAdmissionCategoryV3.unsupported_presentation,
-					engine.DirectBondAdmissionCategoryV3.unrenderable_candidate,
+					engine.DirectBondAdmissionCategory.unsupported_presentation,
+					engine.DirectBondAdmissionCategory.unrenderable_candidate,
 				)
-				and refusal.recovery == engine.DirectBondAdmissionRecoveryV3.change_presentation
+				and refusal.recovery == engine.DirectBondAdmissionRecovery.change_presentation
 			):
 				return "Choose a supported bond appearance and start Draw Bond again."
 			raise RuntimeError("Ferrum direct-bond admission refusal has an unknown contract pair")

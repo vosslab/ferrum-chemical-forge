@@ -60,7 +60,7 @@ enum PyPresentationPathGestureCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     Cancelled,
     Incomplete,
     InvalidGeometry,
@@ -167,7 +167,7 @@ impl PyDocumentSession {
         let gesture = gesture
             .gesture
             .as_mut()
-            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?;
+            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::Consumed))?;
         add_api_presentation_path_gesture_point_v1(&self.session, gesture, point)
             .map(progress_to_python)
             .map_err(|error| path_error(py, error))
@@ -185,7 +185,7 @@ impl PyDocumentSession {
         let gesture = gesture
             .gesture
             .as_ref()
-            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?;
+            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::Consumed))?;
         preview_incremental_api_presentation_path_gesture_v1(&self.session, gesture, hover)
             .map(|overlay| overlay_to_python(py, kind, overlay))
             .map_err(|error| path_error(py, error))
@@ -200,10 +200,10 @@ impl PyDocumentSession {
             &self.session,
             gesture
                 .take_gesture()
-                .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?,
+                .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::Consumed))?,
             overlay
                 .take_overlay()
-                .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?,
+                .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::Consumed))?,
         )
         .map(
             super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request,
@@ -218,7 +218,7 @@ impl PyDocumentSession {
         let gesture = gesture
             .gesture
             .as_ref()
-            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::ReplayedGesture))?;
+            .ok_or_else(|| path_error(py, PresentationPathRenderErrorV1::Consumed))?;
         cancel_api_presentation_path_gesture_v1(&self.session, gesture)
             .map_err(|error| path_error(py, error))
     }
@@ -293,8 +293,8 @@ fn path_error(py: Python<'_>, error: PresentationPathRenderErrorV1) -> PyErr {
             PresentationPathRenderCategoryV1::MismatchedPreview => {
                 PyPresentationPathGestureCategoryV1::MismatchedPreview
             }
-            PresentationPathRenderCategoryV1::ReplayedGesture => {
-                PyPresentationPathGestureCategoryV1::ReplayedGesture
+            PresentationPathRenderCategoryV1::Consumed => {
+                PyPresentationPathGestureCategoryV1::Consumed
             }
             PresentationPathRenderCategoryV1::Cancelled => {
                 PyPresentationPathGestureCategoryV1::Cancelled

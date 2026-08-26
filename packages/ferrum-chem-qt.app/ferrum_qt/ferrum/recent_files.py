@@ -57,12 +57,9 @@ class FerrumNativeRecentFiles:
 		self._menu: PySide6.QtWidgets.QMenu | None = None
 
 	#============================================
-	def install_file_menu(
-			self, file_menu: PySide6.QtWidgets.QMenu,
-			) -> PySide6.QtWidgets.QMenu:
-		"""Place the personal submenu between Open and the Ferrum save actions."""
-		# File creates and retains this cascade at the caller's exact menu position.
-		menu = file_menu.addMenu(self._window.tr("Recent Files"))
+	def create_menu(self) -> PySide6.QtWidgets.QMenu:
+		"""Create the dynamic menu; declarative YAML owns its placement."""
+		menu = PySide6.QtWidgets.QMenu(self._window.tr("Recent Files"), self._window)
 		menu.setToolTip(self._window.tr("Open a recently used Ferrum drawing."))
 		menu.setStatusTip(self._window.tr("Open a recently used Ferrum drawing."))
 		menu.aboutToShow.connect(self.rebuild_menu)

@@ -13,9 +13,9 @@ class FerrumNativeGeometryActionsMixin(
 	"""Install and refresh independent Rust-owned geometry action families."""
 
 	#============================================
-	def _build_top_level_transform_actions(self, edit_menu: object) -> None:
+	def _build_top_level_transform_actions(self) -> None:
 		"""Build root transforms and the separate molecule Repair menu."""
-		super()._build_top_level_transform_actions(edit_menu)
+		super()._build_top_level_transform_actions()
 		self._build_geometry_repair_actions()
 
 	#============================================

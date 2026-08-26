@@ -140,7 +140,7 @@ class FerrumNativeFreeCompactGroupPlacementTabMixin:
 		return self._session._commit_place_free_compact_group_v1(pending)
 
 	def cancel_place_free_compact_group(self, pending: object) -> None:
-		"""Retire one opaque free compact-group candidate without mutation."""
+		"""Cancel one opaque free compact-group candidate without mutation."""
 		self._session._cancel_place_free_compact_group_v1(pending)
 
 	def install_place_free_compact_group_result(self, result: object) -> None:
@@ -166,9 +166,8 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 		self._free_compact_group_placement_intent: _FreeCompactGroupPlacementIntent | None = None
 		self._free_compact_group_placement_capture: _FreeCompactGroupPlacementCapture | None = None
 
-	def _build_free_compact_group_placement_action(
-			self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the public checkable Chemistry action through the shared handoff."""
+	def _build_free_compact_group_placement_action(self) -> None:
+		"""Construct the public checkable Chemistry action through the shared handoff."""
 		action = PySide6.QtGui.QAction(self.tr("Place Compact Group..."), self)
 		action.setObjectName("place-compact-group-action")
 		action.setCheckable(True)
@@ -181,8 +180,11 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 		))
 		self._connect_interaction_action_v1(action, self._choose_free_compact_group)
 		action.toggled.connect(self._on_place_free_compact_group_toggled)
-		self._add_interaction_action_to_menu_v1(menu, action)
 		self._place_free_compact_group_action = action
+		self._action_registry.register_existing(
+			"chemistry.compact_group.place", action,
+			shortcut_exemption_reason="Available by its labelled Draw menu client.",
+		)
 
 	def _on_place_free_compact_group_toggled(self, checked: bool) -> None:
 		"""Release this exact owner when the handoff unchecks its action."""
@@ -228,7 +230,7 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 			self._clear_free_compact_group_action()
 			self._refresh_actions()
 			return
-		self._retire_free_compact_group_capture(clear_status=False)
+		self._cancel_free_compact_group_capture(clear_status=False)
 		intent = _FreeCompactGroupPlacementIntent(
 			tab, tab.view.viewport(), revision, digest, _METHYL_CATALOG_KEY,
 		)
@@ -290,7 +292,7 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 			))
 			self._refresh_actions()
 			return
-		self._retire_free_compact_group_capture(clear_status=False)
+		self._cancel_free_compact_group_capture(clear_status=False)
 		pending = None
 		succeeded = False
 		try:
@@ -324,7 +326,7 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 		if succeeded:
 			self.statusBar().showMessage(self.tr("Placed Me on the Ferrum canvas."), 5000)
 
-	def _retire_free_compact_group_capture(self, *, clear_status: bool) -> None:
+	def _cancel_free_compact_group_capture(self, *, clear_status: bool) -> None:
 		"""Detach only this workflow's viewport filter and Qt ownership."""
 		intent = self._free_compact_group_placement_intent
 		capture = self._free_compact_group_placement_capture
@@ -341,7 +343,7 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 		if action is not None and action.isChecked():
 			action.setChecked(False)
 
-	def _retire_free_compact_group_chooser(self) -> None:
+	def _close_free_compact_group_chooser(self) -> None:
 		"""Reject the one live chooser before its action can lose interaction ownership."""
 		dialog = self._free_compact_group_placement_chooser
 		self._free_compact_group_placement_chooser = None
@@ -349,9 +351,9 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 			dialog.reject()
 
 	def _cancel_free_compact_group_placement(self, clear_status: bool = True) -> None:
-		"""Retire chooser/capture state without changing native chemistry."""
-		self._retire_free_compact_group_chooser()
-		self._retire_free_compact_group_capture(clear_status=clear_status)
+		"""Cancel chooser/capture state without changing native chemistry."""
+		self._close_free_compact_group_chooser()
+		self._cancel_free_compact_group_capture(clear_status=clear_status)
 		self._free_compact_group_placement_intent = None
 		self._clear_free_compact_group_action()
 
@@ -376,7 +378,7 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 		))
 
 	def _close_tab_at(self, index: int) -> None:
-		"""Retire this capture for a closing tab before the ordinary lifecycle guard."""
+		"""Cancel this capture for a closing tab before the ordinary lifecycle guard."""
 		page = self._tab_widget.widget(index)
 		tab = self._native_tabs_by_page.get(page)
 		if tab is not None and self._free_compact_group_placement_blocks_tab_close(tab):

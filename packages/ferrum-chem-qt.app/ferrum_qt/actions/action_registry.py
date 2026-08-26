@@ -6,6 +6,7 @@ import re
 
 # PIP3 modules
 import PySide6.QtGui
+import PySide6.QtWidgets
 
 
 #============================================
@@ -42,11 +43,41 @@ class ActionRegistry:
 		"""Create an empty registry."""
 		self._actions: dict[str, MenuAction] = {}
 		self._qt_actions: dict[str, PySide6.QtGui.QAction] = {}
+		self._action_ids_by_identity: dict[int, str] = {}
 		self._dynamic_lifecycles: dict[str, str] = {}
+		self._dynamic_menus: dict[str, PySide6.QtWidgets.QMenu] = {}
+		self._dynamic_menu_ids_by_identity: dict[int, str] = {}
+
+	#============================================
+	def _validate_action_id(self, action_id: str) -> None:
+		"""Require one stable lower-case dotted action or menu identity."""
+		if type(action_id) is not str or not re.fullmatch(
+				r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*", action_id,
+				):
+			raise ValueError(f"Invalid Ferrum action ID: '{action_id}'")
+
+	#============================================
+	def _bind_existing_action(
+			self, action_id: str, qt_action: PySide6.QtGui.QAction,
+			) -> None:
+		"""Bind an existing action without changing any feature-owned Qt state."""
+		if not isinstance(qt_action, PySide6.QtGui.QAction):
+			raise TypeError("Ferrum action registrations require a QAction.")
+		if action_id in self._qt_actions:
+			raise ValueError(f"Duplicate Qt action binding: '{action_id}'")
+		identity = id(qt_action)
+		if identity in self._action_ids_by_identity:
+			existing_id = self._action_ids_by_identity[identity]
+			raise ValueError(
+				f"QAction identity is already registered as '{existing_id}'.",
+			)
+		self._qt_actions[action_id] = qt_action
+		self._action_ids_by_identity[identity] = action_id
 
 	#============================================
 	def register(self, action: MenuAction) -> None:
 		"""Register one declaration, rejecting duplicate action IDs."""
+		self._validate_action_id(action.id)
 		if action.id in self._actions:
 			raise ValueError(f"Duplicate action ID: '{action.id}'")
 		if not action.label.strip() or not action.help_text.strip():
@@ -58,25 +89,47 @@ class ActionRegistry:
 		self._actions[action.id] = action
 
 	#============================================
+	def register_existing(
+			self, action_id: str, qt_action: PySide6.QtGui.QAction, *,
+			lifecycle: str = "static", shortcut_exemption_reason: str | None = None,
+			) -> None:
+		"""Register one feature-owned QAction without replacing its identity or state."""
+		self._validate_action_id(action_id)
+		if action_id in self._actions:
+			raise ValueError(f"Duplicate action ID: '{action_id}'")
+		if not isinstance(qt_action, PySide6.QtGui.QAction):
+			raise TypeError("Ferrum action registrations require a QAction.")
+		label = qt_action.text().replace("&", "").strip()
+		help_text = next(
+			(text.strip() for text in (
+				qt_action.toolTip(), qt_action.statusTip(), qt_action.whatsThis(),
+			) if text.strip()),
+			"",
+		)
+		if not label or not help_text:
+			raise ValueError(
+				f"Ferrum action '{action_id}' needs existing visible text and help text.",
+			)
+		accelerator = qt_action.shortcut().toString()
+		if not accelerator and not shortcut_exemption_reason:
+			raise ValueError(
+				f"Ferrum action '{action_id}' needs a shortcut or exemption reason.",
+			)
+		declaration = MenuAction(
+			action_id, label, help_text, accelerator or None, qt_action.trigger,
+			qt_action.isEnabled, shortcut_exemption_reason, lifecycle,
+		)
+		self._bind_existing_action(action_id, qt_action)
+		self._actions[action_id] = declaration
+
+	#============================================
 	def bind_qt_action(
 			self, action_id: str, qt_action: PySide6.QtGui.QAction,
 			) -> None:
-		"""Bind one declared ID to its existing Rust-backed QAction."""
+		"""Bind a predeclared ID to an existing action without changing Qt state."""
 		if action_id not in self._actions:
 			raise KeyError(action_id)
-		if action_id in self._qt_actions:
-			raise ValueError(f"Duplicate Qt action binding: '{action_id}'")
-		self._qt_actions[action_id] = qt_action
-		qt_action.setObjectName(action_id)
-		declaration = self._actions[action_id]
-		if not qt_action.text().strip():
-			qt_action.setText(declaration.label)
-		if not qt_action.toolTip().strip():
-			qt_action.setToolTip(declaration.help_text)
-		if not qt_action.statusTip().strip():
-			qt_action.setStatusTip(declaration.help_text)
-		if not qt_action.whatsThis().strip():
-			qt_action.setWhatsThis(declaration.help_text)
+		self._bind_existing_action(action_id, qt_action)
 
 	#============================================
 	def declare_dynamic_lifecycle(self, owner_id: str, reason: str) -> None:
@@ -93,9 +146,47 @@ class ActionRegistry:
 		self._dynamic_lifecycles[owner_id] = reason
 
 	#============================================
+	def register_dynamic_menu(
+			self, menu_id: str, menu: PySide6.QtWidgets.QMenu, reason: str,
+			) -> None:
+		"""Register one feature-owned changing submenu at its YAML placement."""
+		self._validate_action_id(menu_id)
+		if not isinstance(menu, PySide6.QtWidgets.QMenu):
+			raise TypeError("Dynamic menu registrations require a QMenu.")
+		if not reason.strip():
+			raise ValueError("Dynamic menu registrations need a lifecycle reason.")
+		if menu_id in self._dynamic_menus:
+			raise ValueError(f"Duplicate dynamic menu ID: '{menu_id}'")
+		existing_reason = self._dynamic_lifecycles.get(menu_id)
+		if existing_reason is not None and existing_reason != reason:
+			raise ValueError(
+				f"Dynamic menu '{menu_id}' has conflicting lifecycle reasons.",
+			)
+		identity = id(menu)
+		if identity in self._dynamic_menu_ids_by_identity:
+			existing_id = self._dynamic_menu_ids_by_identity[identity]
+			raise ValueError(
+				f"QMenu identity is already registered as '{existing_id}'.",
+			)
+		self._dynamic_menus[menu_id] = menu
+		self._dynamic_menu_ids_by_identity[identity] = menu_id
+		if existing_reason is None:
+			self._dynamic_lifecycles[menu_id] = reason
+
+	#============================================
 	def dynamic_lifecycles(self) -> dict[str, str]:
 		"""Return declared lifecycle reasons for ephemeral action families."""
 		return dict(self._dynamic_lifecycles)
+
+	#============================================
+	def dynamic_menu_ids(self) -> frozenset[str]:
+		"""Return registered state-derived menu identities."""
+		return frozenset(self._dynamic_menus)
+
+	#============================================
+	def get_dynamic_menu(self, menu_id: str) -> PySide6.QtWidgets.QMenu | None:
+		"""Return the registered feature-owned changing submenu when available."""
+		return self._dynamic_menus.get(menu_id)
 
 	#============================================
 	def get(self, action_id: str) -> MenuAction:
@@ -126,140 +217,3 @@ class ActionRegistry:
 		if callable(predicate):
 			return bool(predicate())
 		return bool(getattr(context, predicate, False))
-
-
-#============================================
-def _attribute_action_paths(value: object, prefix: str = "") -> dict[int, str]:
-	"""Return bounded attribute paths for QActions held by the window."""
-	paths: dict[int, str] = {}
-	if isinstance(value, PySide6.QtGui.QAction):
-		paths[id(value)] = prefix
-	elif type(value) is dict:
-		for key, item in value.items():
-			if type(key) is str:
-				paths.update(_attribute_action_paths(item, f"{prefix}.{key}"))
-	elif type(value) in {list, tuple}:
-		for index, item in enumerate(value):
-			paths.update(_attribute_action_paths(item, f"{prefix}.{index}"))
-	return paths
-
-
-#============================================
-def _fallback_action_id(attribute_path: str, action: PySide6.QtGui.QAction) -> str:
-	"""Make one deterministic command ID for an already-owned static action."""
-	if attribute_path:
-		source = attribute_path.strip("_").replace("_", "-").replace(".", ".")
-	else:
-		source = action.text().lower().replace("&", "")
-	source = re.sub(r"[^a-z0-9.]+", "-", source).strip("-.")
-	return f"command.{source or 'unnamed'}"
-
-
-#============================================
-def _action_lifecycle(action: PySide6.QtGui.QAction) -> str:
-	"""Classify static actions whose availability follows transient state."""
-	text = action.text().lower()
-	if text.startswith("cancel"):
-		return "stateful-cancel"
-	if text.startswith(("show ", "hide ", "toggle ")):
-		return "stateful-visibility"
-	return "static"
-
-
-#============================================
-def register_main_window_actions(window: object) -> ActionRegistry:
-	"""Declare and bind the shared command IDs supplied by a Ferrum window."""
-	registry = ActionRegistry()
-	declarations = (
-		("file.new", "_action_new", "New", "Create a new Ferrum document"),
-		("file.open", "_open_action", "Open", "Open a CDML document"),
-		("file.save", "_save_action", "Save", "Save the current document"),
-		("file.save_as", "_save_as_action", "Save As", "Save to a new CDML path"),
-		("file.close", "_close_action", "Close Tab", "Close the current document"),
-		("file.quit", "_quit_action", "Quit", "Quit Ferrum"),
-		("edit.undo", "_undo_action", "Undo", "Undo the last document change"),
-		("edit.redo", "_redo_action", "Redo", "Redo the last undone change"),
-		("edit.cut", "_cut_action", "Cut", "Cut the selected document roots"),
-		("edit.copy", "_copy_action", "Copy", "Copy the selected document roots"),
-		("edit.paste", "_paste_action", "Paste", "Paste Ferrum CDML content"),
-		("view.zoom_in", "_zoom_in_action", "Zoom In", "Increase canvas zoom"),
-		("view.zoom_out", "_zoom_out_action", "Zoom Out", "Decrease canvas zoom"),
-		("view.reset_zoom", "_zoom_100_action", "Zoom to 100%", "Reset canvas zoom"),
-		("view.zoom_page", "_zoom_page_action", "Zoom to Page", "Fit the active page"),
-		(
-			"view.zoom_content", "_zoom_content_action", "Zoom to Content",
-			"Fit active document content",
-		),
-		("view.toggle_grid", "_show_hex_grid_action", "Show Hex Grid", "Toggle the grid"),
-		(
-			"view.toggle_grid_snap", "_snap_hex_grid_action", "Snap to Hex Grid",
-			"Toggle grid snapping",
-		),
-		("mode.atom", "_add_atom_action", "Add Atom", "Activate atom drawing"),
-		("mode.draw", "_draw_bond_action", "Draw Bond", "Activate bond drawing"),
-		(
-			"mode.draw_solid_wedge", "_draw_solid_wedge_bond_action",
-			"Draw Solid Wedge Bond", "Activate solid-wedge bond drawing",
-		),
-		(
-			"mode.draw_hashed_wedge", "_draw_hashed_wedge_bond_action",
-			"Draw Hashed Wedge Bond", "Activate hashed-wedge bond drawing",
-		),
-		("mode.bracket", "_draw_bracket_action", "Draw Bracket", "Activate bracket drawing"),
-		("mode.edit", "_move_atom_action", "Move Atom", "Activate atom movement"),
-		(
-			"edit.atom_properties", "_edit_atom_properties_action", "Edit Atom Properties",
-			"Edit the selected atom",
-		),
-		(
-			"edit.bond_properties", "_edit_bond_properties_action", "Edit Bond Properties",
-			"Edit the selected bond",
-		),
-		("tool.cancel", "_cancel_tool_action", "Cancel Tool", "Cancel the active tool"),
-		(
-			"options.preferences", "_preferences_action", "Preferences",
-			"Choose Ferrum settings",
-		),
-		("help.about", "_about_action", "About Ferrum", "Show Ferrum information"),
-	)
-	for action_id, attribute, label, help_text in declarations:
-		qt_action = getattr(window, attribute, None)
-		if not isinstance(qt_action, PySide6.QtGui.QAction):
-			continue
-		declaration = MenuAction(
-			action_id, label, help_text, None, qt_action.trigger, qt_action.isEnabled,
-			"Standard product command without a portable default shortcut.",
-		)
-		registry.register(declaration)
-		registry.bind_qt_action(action_id, qt_action)
-	attribute_paths: dict[int, str] = {}
-	for attribute, value in vars(window).items():
-		attribute_paths.update(_attribute_action_paths(value, attribute))
-	direct_line_tool_actions = {
-		getattr(window, "_attach_cyclohexane_ring_action", None),
-	}
-	for qt_action in window.findChildren(PySide6.QtGui.QAction):
-		if (
-			qt_action.parent() is not window
-			or qt_action in registry._qt_actions.values()
-			or qt_action in direct_line_tool_actions
-		):
-			continue
-		action_id = _fallback_action_id(attribute_paths.get(id(qt_action), ""), qt_action)
-		base_action_id = action_id
-		index = 2
-		while action_id in registry:
-			action_id = f"{base_action_id}.{index}"
-			index += 1
-		label = qt_action.text().replace("&", "").strip() or action_id
-		help_text = qt_action.toolTip().strip() or label
-		registry.register(MenuAction(
-			action_id, label, help_text, None, qt_action.trigger, qt_action.isEnabled,
-			(
-				"No portable default shortcut; this command is available by its "
-				"labelled menu or toolbar client."
-			),
-			_action_lifecycle(qt_action),
-		))
-		registry.bind_qt_action(action_id, qt_action)
-	return registry

@@ -7,11 +7,13 @@ read-only BKChem/OASA reference.  The 2026-08-19 inventories identify 23 absent
 Qt workflows and reopened backend gaps in interchange, graph coverage, editor
 grammar, chemistry operations, reactions, catalogs, and optional integrations.
 
-This is the forward roadmap for a complete usable Ferrum application and
-Rust-first OASA replacement.  It supersedes prior parity-related drops in
-`docs/active_plans/ferrum-plan-v3.md` only for that expanded goal.  It neither
+This is the sole canonical status ledger and forward roadmap for complete usable
+Ferrum and Rust-first OASA/BKChem parity. Its milestones use the `PARITY-M*`
+namespace. [ferrum-plan-v3.md](../ferrum-plan-v3.md) is a subordinate historical
+implementation record; its `V3-M*` milestones retain only their completed local
+scope and must not be used to sequence or close full parity. This ledger neither
 claims parity already exists nor restores Python OASA, a Python document model,
-or reference code as a runtime dependency.  `OTHER_REPOS/` remains read-only.
+or reference code as a runtime dependency. `OTHER_REPOS/` remains read-only.
 
 ## Objectives
 
@@ -60,6 +62,38 @@ new Rust contracts.  P0 begins with a direct normal-bond gesture, then adds
 selected-root operations only after reliable render hit/bounds facts exist;
 history, save, and reopen fence each mutation.  P1/P2 then complete
 presentation, chemistry, interchange, catalogs, and ecosystem parity.
+
+The reported automated Rust, binding, and installed-Qt receipts establish the
+delivered nine-recipe attached Qt/Rust slice. They do not establish the missing
+generic attached CLI/protocol route, full Rust/OASA/BKChem parity, or the
+remaining manual 16:10 screenshot and keyboard/accessibility walkthrough.
+
+## Next bounded parity slice
+
+### PARITY-M4.A: Generic attached compact-group CLI/protocol
+
+**Depends on:** the delivered Rust catalog and `AttachCompactGroupV1` Qt/Rust
+slice. **Parallel-plan ready:** no; one API/document contract must be frozen
+before independent client work can begin.
+
+Deliver one stateless, generic attached compact-group request/response contract
+through the existing Ferrum protocol and named CLI transport. It accepts a
+fenced CDML snapshot, durable selected molecule and anchor selectors, one
+Rust-projected catalog key, and a typed attachment-direction fact. Rust owns
+catalog admission, choice-specific availability, chemistry and geometry
+admission, renderer admission, durable IDs, history, and typed no-mutation
+refusals. The CLI owns only request loading and envelope presentation.
+
+The route is not delivered. Do not add per-recipe commands, a Python/OASA
+compatibility path, Qt-local chemistry, or a second attachment authority.
+
+Done when one generic request covers each delivered key (`Me`, `NO2`, `Et`,
+`OMe`, `CH2OH`, `Carboxyl`, `Cyano`, `AcylChloride`, and `Phenyl`), refuses
+stale, foreign, unavailable, malformed, and unrenderable inputs without
+mutation, and has Rust contract plus public CLI evidence. Keep the existing
+Rust-vs-Qt proof boundary: Rust proves topology and admission; Qt evidence
+proves only the visible Qt workflow. The screenshot/manual accessibility gate
+remains separate evidence and cannot be closed by this slice.
 
 ## Architecture boundaries and ownership
 
@@ -299,26 +333,28 @@ commit, cancellation, refusal, history, and save/reopen, local CLI and Qt
 E2Es, and the current full local suite provide the validation receipt.
 
 M3.P6 is the supported bounded directed stereobond slice. `Draw Solid Wedge
-Bond` and `Draw Hashed Wedge Bond` use the public Rust V3
-`begin_direct_bond_gesture_v3 -> admit_direct_bond_candidate_v3 ->
-commit_direct_bond_admission_v3` lifecycle. Qt submits finite scene points,
-viewport-to-scene mappings, and exact `none`/unique/ambiguous hit evidence;
-Rust resolves every endpoint into `ExistingExisting`, `ExistingNew`,
-`NewExisting`, or `NewNew`. The V2 gesture lifecycle is retired and its
-resolved values are Rust-internal. V1 document, fence, presentation, snap, and
-commit values remain the current V3 commit taxonomy. Separately, `ferrum-document` exposes a
-native-Rust-only, renderer-neutral direct-bond mutation seam for noninteractive
+Bond` and `Draw Hashed Wedge Bond` use the sole current unversioned in-process
+Rust/PyO3 pointer capability: begin a direct-bond gesture, resolve its endpoint,
+prepare the generic `PreparedSessionTransitionV1`, then generically commit it.
+Qt owns finite viewport-to-scene conversion, pointer events, and exact
+`none`/unique/ambiguous hit evidence. `ferrum-document-render` resolves the UI
+probe and one-use authoring capability. `ferrum-document` owns the durable
+`CreateDirectBondV1` request and generic transition, including every
+`ExistingExisting`, `ExistingNew`, `NewExisting`, or `NewNew` endpoint form,
+tolerance, ties, hit-ID validation, snap/new selection, fences, candidate
+construction, direction, IDs, history, complete renderer preflight, immutable
+target-bond operations, durable projection, and rendering. V1 applies only to
+durable document, fence, presentation, snap, and transition values where it is
+the actual contract version. Separately, `ferrum-document` exposes a native-
+Rust-only, renderer-neutral direct-bond mutation seam for noninteractive
 programmatic work. Its public endpoint input is already resolved to a durable
 atom ID or finite new-atom point; it has no Qt/PyO3 route and accepts no pointer
 probe, viewport transform, hit evidence, snap decision, overlay, render plan,
-or issued operation. Rust owns tolerance, ties, hit-ID validation,
-snap/new selection, fences, renderer-neutral candidate construction, direction,
-IDs, history, complete renderer preflight, immutable target-bond operations,
-durable projection, and rendering. Qt paints only admitted Rust operations.
+or issued operation. Qt paints only Rust-issued operations.
 The authoring actions use the bounded Normal, Solid wedge, and Hashed wedge
 vocabulary; solid and hashed actions admit only covalent single `w1` and `h1`
-bonds with pointer start as CDML tip and pointer end as base. A V3 probe error
-and a post-resolution admission refusal have distinct typed nonmodal recovery;
+bonds with pointer start as CDML tip and pointer end as base. A pointer-probe
+error and a post-resolution document refusal have distinct typed nonmodal recovery;
 a valid same-atom attempt is `self_loop` / `adjust_endpoint`.
 `UnrenderableCandidate` is `ChangePresentation`. Escape and every typed refusal
 remain mutation-free. Existing Bond Properties retains its independently
@@ -328,6 +364,28 @@ editor.
 M3.P6 excludes generic stereo/CIP semantics or inference, E/Z semantics,
 arbitrary bond styles or orders, and stereo import/export expansion. A fresh
 local build and `./all_test.sh` provide the current validation receipt.
+
+M3.P6a is the completed bounded directed-wedge reversal slice. Edit > `Reverse
+Selected Wedge Direction` accepts exactly one selected direct `w1` or `h1`
+bond. The renderer observation supplies the durable object ID for selection;
+Qt supplies the current source ID only to construct the closed Rust operation.
+Rust fences and validates that operation, swaps only its ordered endpoints in a
+detached candidate, reparses and admits it, and retains durable identity,
+unordered connectivity, wedge type, selection, history, CDML persistence, and
+atomic typed refusals. A wedge publishes one semantic Bond target whose
+selectable envelope derives from its lowered path and line bounds plus the
+shared pointer tolerance. Structural child `DisplayOnly` state for the same
+bond is removed; unrelated root/reaction exclusion diagnostics remain separate.
+The coalescing native-selection refresh timer is a single-shot child of the
+`QTabWidget` it queries, so teardown cannot leave a callback that reaches an
+invalid tab host.
+
+Permanent evidence is proportionate: deterministic Rust endpoint/history/reopen
+semantics, binding contracts, and compact public Qt
+click/reverse/eligibility/lifecycle coverage. The broader visible
+Undo/Redo/save/reopen workflow is one-time production-shaped evidence, not a
+new permanent E2E. This slice adds no generic stereochemistry, source-ID
+selection route, renderer-path UI API, or compatibility display-only state.
 
 M3.P7 is the supported bounded Polyline/Polygon incremental-authoring slice.
 Its native contract is one opaque Rust-owned point-at-a-time transaction:
@@ -386,6 +444,36 @@ visible Qt action are complete. The action consumes only Rust-issued durable
 target IDs and a current document fence; it does not recover targets from raw
 CDML or source IDs.
 
+Known-group expansion has delivered the reviewed attached `Me`, `NO2`, `Et`,
+`OMe`, `CH2OH`, and `Carboxyl` choices. `Hydroxymethyl` is the fifth attached M4 recipe:
+neutral `R-CH2-OH`, carbon focus, attached-only scope, and generic PyO3/Qt
+transport with key-neutral accessible refusals. The delivery record is
+`docs/active_plans/decisions/m4_attached_hydroxymethyl_v1.md`. The remaining
+catalog keys stay separate M4 selections rather than implied capability.
+`Carboxyl` is the delivered sixth attached M4 recipe: neutral attached
+`R-C(=O)-OH`, carbon focus, and generic Rust-issued key/label transport. Its
+delivered contract is recorded in
+`docs/active_plans/decisions/m4_attached_carboxyl_v1.md`; no candidate-specific
+PyO3 or Qt chemistry branch is introduced. The seventh attached choice, `Cyano`
+(`cyano` / `CN`), is delivered under the bounded normal-triple recipe contract
+recorded at `docs/active_plans/decisions/m4_attached_cyano_v1.md`: neutral
+attached `R-C#N`, carbon focus, and retained exterior identity through generic
+Rust materialization. The eighth attached choice, `AcylChloride`
+(`acyl_chloride` / `COCl`), is delivered under the bounded neutral
+`R-C(=O)-Cl` contract recorded at
+`docs/active_plans/decisions/m4_attached_acyl_chloride_v1.md`: carbon focus,
+normal C=O/C-Cl topology, retained directed exterior identity, and generic
+Rust/binding/Qt transport. The ninth and final attached choice, `Phenyl`
+(`phenyl` / `Ph`), is delivered under
+`docs/active_plans/decisions/m4_attached_phenyl_v1.md`: generic materialization
+creates the neutral six-carbon alternating normal-order Kekule cycle with
+carbon focus and preserved directed exterior identity. Role-addressed native
+lowering and target-addressed renderer proof cover both exterior orientations;
+aromatic-input `kekulize` is not a gate and no aromatic compatibility branch is
+introduced. Its final review, fresh build, installed public Qt workflow,
+installed binding 8/8, and repository-wide validation are complete. This closes
+the compact-group recipe milestone only; M4 remains incomplete.
+
 **Depends on:** M2.  **Parallel-plan ready:** yes; report and query lanes share
 DTO conventions only.
 
@@ -403,9 +491,9 @@ and its aggregate is complete or omitted. Unaddressable source locations remain
 typed report outcomes; the slice adds no mutation, local CLI verb, chemistry
 engine, external corpus, or installation/publishing workflow.
 
-The next selected M4 queue item is the bounded
-[`document.molecule.diagnostics.v1` decision](../decisions/m4_molecule_diagnostics_v1.md).
-It adds deterministic read-only structural findings for a fenced snapshot and
+The delivered bounded
+[`document.molecule.diagnostics.v1` decision](../decisions/m4_molecule_diagnostics_v1.md)
+adds deterministic read-only structural findings for a fenced snapshot and
 selected durable direct roots, with named CLI, typed PyO3, and modeless
 accessible `Check Structure...` delivery. It excludes auto-fix and runtime
 chemistry. The source-only durable-identity migration is a separate
@@ -580,6 +668,26 @@ also not a current patch queue. Their shared public CLI route is now
 `presentation.author.v1`, which accepts a request-owned fenced document and
 typed serializable intent rather than a live receipt.
 
+The C3-C8 detached regular-ring slice is also complete. `Insert Regular
+Ring...` exposes the closed Rust `RegularRingSizeV1` family through one Qt
+chooser, and the retained C6 shortcut invokes that same parameterized action.
+The generic `DocumentOperationV1` transition retains CDML, renderer, history,
+Undo/Redo, and typed refusal ownership; invalid input, Escape, occupied
+placement, stale state, renderer refusal, and session conflict remain
+mutation-free. Permanent Rust, binding, and real-Qt coverage proves C3-C8
+action handoff and topology, Escape disarm without mutation, occupied-click
+nonmutation with an armed retry, and retirement after an accepted mutation
+cannot refresh its presentation. One-time real-Qt evidence demonstrated
+save/reopen and Undo/Redo; the generic persistent-document and history
+contracts remain the permanent evidence for those shared behaviors. The
+unreachable `HistoryCapacity` commit refusal and all stale Python references
+were removed; real history-resource exhaustion remains a preparation-time
+typed refusal. The PyO3 prepared-transition classes register through the
+feature registry, restoring the one generic public receipt lifecycle for the
+ring and other typed authoring operations. This completion does not promote
+ring fusion, non-carbon rings, aromaticity, arbitrary ring geometry, or
+free-form polygon authoring.
+
 The selected read-only `document.atom.oxidation.observe.v1` HCNO V1 operation
 has completed its bounded evidence gate: generic-executor semantic corpus,
 named CLI protocol proof, nonzero source-provenance PyO3 regression, and real
@@ -596,10 +704,29 @@ Typed refusal and recovery remain in the protocol/CLI lane. This preserves the
 bounded HCNO chemistry, generic PyO3 transport, unchanged SMARTS, and no
 known-group expansion. M4 itself remains incomplete.
 
-Continue the M4 chemistry-operation catalog with a separately selected bounded
-contract. Each candidate remains supported only after it has a typed refusal
-and recovery contract, a durable workflow proof, and an explicit statement of
-its limits.
+The selected `Carboxyl` compact-group slice likewise has a completed bounded
+validation record: the fresh local build produced the CLI, Qt application, and installed Python
+runtime; attached bindings passed 8/8; and `all_test.sh` passed 7,637 hygiene
+checks, all named CLI/Qt E2Es, 280 installed binding tests, and 214 Qt tests
+with one skip. One-time installed-Qt evidence proves Rust-issued `carboxyl` /
+`COOH` choice transport, public rendered-group hit selection, and terminal
+materialization `succeeded` / `updated`. Exact recipe topology and exterior
+bond semantics remain the Rust permanent-test responsibility. The raw probe's
+narrow `FAIL` reflects only the absent public Molecule Report topology view;
+the acceptance adjudication is `PASS`, and that view is future parity scope.
+AcylChloride is the delivered eighth attached recipe: approval is `PASS`, a
+fresh build promoted the installed runtime, public Qt evidence proves Attach /
+chooser / materialize and C/O/Cl composition, and `all_test.sh` passed. Exact
+topology and directed exterior identity remain Rust semantic evidence, not a
+claim inferred from the public Molecule Report. `Phenyl` is the delivered ninth
+attached recipe: final review passed; a fresh build promoted the installed
+runtime; public Attach -> chooser -> materialize completed `succeeded` /
+`updated`, reported `C8H10`, and retained a usable scene; the installed binding
+contract passed 8/8; and `all_test.sh` exited 0 with 7,633 hygiene, 280 binding,
+and 220 Qt tests passed with one skip. Exact normal-order Kekule topology,
+carbon focus, both directed exterior orientations, native lowering, and renderer
+semantics remain Rust proof. All nine attached compact-group recipes are
+delivered, but M4 and full Rust/OASA/BKChem parity remain incomplete.
 
 The M0 statement about document-private compact cleanup is superseded for
 materialization by the selected

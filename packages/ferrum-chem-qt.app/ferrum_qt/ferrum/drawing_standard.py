@@ -232,15 +232,14 @@ def changes_from_dialog(changes: tuple[tuple[str, object], ...]) -> tuple[object
 
 
 #============================================
-def install_drawing_standard_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install the renderer-supported drawing-default action."""
+def install_drawing_standard_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct the renderer-supported drawing-default action."""
 	action = PySide6.QtGui.QAction(window.tr("Document Drawing Defaults..."), window)
 	action.setToolTip(window.tr(
 		"Edit document drawing defaults through one revision-bound Rust operation",
 	))
 	action.triggered.connect(lambda _checked=False: _on_edit_drawing_standard(window))
-	edit_menu.addAction(action)
+	window._register_action("draw.document_defaults", action)
 	return action
 
 

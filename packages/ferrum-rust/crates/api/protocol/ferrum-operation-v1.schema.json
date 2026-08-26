@@ -1652,6 +1652,306 @@
       ],
       "type": "object"
     },
+    "InspectGraphFactCoverageStatusV1": {
+      "description": "Declared inspection availability for one source fact category.",
+      "oneOf": [
+        {
+          "const": "known",
+          "description": "The profile always reports this fact.",
+          "type": "string"
+        },
+        {
+          "const": "unknown_when_omitted",
+          "description": "The profile reports this fact only when the source supplies it.",
+          "type": "string"
+        },
+        {
+          "const": "unsupported",
+          "description": "The profile does not inspect this fact.",
+          "type": "string"
+        }
+      ]
+    },
+    "InspectGraphFactCoverageV1": {
+      "additionalProperties": false,
+      "description": "Per-category source-fact coverage declared by the selected inspection profile.",
+      "properties": {
+        "aromaticity": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Aromaticity coverage."
+        },
+        "atom_count": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Per-record atom-count coverage."
+        },
+        "atom_labels_properties": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Atom-label and property coverage."
+        },
+        "atom_source_id": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Atom source-ID coverage."
+        },
+        "bond_count": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Per-record bond-count coverage."
+        },
+        "bond_endpoints": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Bond-endpoint coverage."
+        },
+        "bond_order": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Bond-order coverage."
+        },
+        "bond_source_id": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Bond source-ID coverage."
+        },
+        "bond_stereo_direction": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Bond-stereo-direction coverage."
+        },
+        "coordinates": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Coordinate coverage."
+        },
+        "element": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Element coverage."
+        },
+        "formal_charge": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Formal-charge coverage."
+        },
+        "isotope": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Isotope coverage."
+        },
+        "property_count": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Ordered record-property coverage."
+        },
+        "radicals": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Radical coverage."
+        },
+        "reaction_atom_maps": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Reaction atom-map coverage."
+        },
+        "record_source_id": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Record source-ID coverage."
+        },
+        "record_title": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Record display-title coverage."
+        },
+        "source_molecule_id": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Molecule source-ID coverage."
+        },
+        "source_record_ordering": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Source record ordering coverage."
+        },
+        "stereo": {
+          "$ref": "#/$defs/InspectGraphFactCoverageStatusV1",
+          "description": "Stereo coverage."
+        }
+      },
+      "required": [
+        "source_record_ordering",
+        "atom_count",
+        "bond_count",
+        "atom_source_id",
+        "element",
+        "coordinates",
+        "bond_endpoints",
+        "bond_order",
+        "source_molecule_id",
+        "formal_charge",
+        "isotope",
+        "bond_source_id",
+        "bond_stereo_direction",
+        "radicals",
+        "atom_labels_properties",
+        "reaction_atom_maps",
+        "record_source_id",
+        "record_title",
+        "property_count",
+        "aromaticity",
+        "stereo"
+      ],
+      "type": "object"
+    },
+    "InspectGraphNormalizationV1": {
+      "additionalProperties": false,
+      "description": "Profile-specific normalization disclosure for a decoded semantic graph.",
+      "properties": {
+        "aromaticity": {
+          "description": "Aromaticity interpretation.",
+          "type": "string"
+        },
+        "graph_normalization": {
+          "description": "Graph normalization policy.",
+          "type": "string"
+        },
+        "raw_source_fidelity": {
+          "description": "Whether raw source representation fidelity is claimed.",
+          "type": "string"
+        },
+        "source_coordinate_space": {
+          "description": "Coordinate-space meaning for the decoded graph.",
+          "type": "string"
+        },
+        "stereo": {
+          "description": "Stereo interpretation.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_coordinate_space",
+        "graph_normalization",
+        "aromaticity",
+        "stereo",
+        "raw_source_fidelity"
+      ],
+      "type": "object"
+    },
+    "InspectInterchangeGraphInputV1": {
+      "additionalProperties": false,
+      "description": "Owned source input for declared graph inspection profiles.",
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/InterchangeFormatV1",
+          "description": "Resolved closed interchange format; declared CML and native SDF profiles are admitted."
+        },
+        "text": {
+          "description": "Bounded UTF-8 source text owned by this request, never a path or native handle.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "text"
+      ],
+      "type": "object"
+    },
+    "InspectInterchangeGraphRecordSummaryV1": {
+      "additionalProperties": false,
+      "description": "Bounded graph counts for one source record in source order.",
+      "properties": {
+        "atom_count": {
+          "description": "Exact atom count for this source record.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "bond_count": {
+          "description": "Exact bond count for this source record.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "property_count": {
+          "$ref": "#/$defs/SourceFactV12",
+          "description": "Ordered property count when the selected profile retains properties."
+        },
+        "record_index": {
+          "description": "Zero-based decoded record index, the only cross-format record identity.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "record_source_id": {
+          "$ref": "#/$defs/SourceFactV1",
+          "description": "Source record ID when the selected profile retains one."
+        },
+        "record_title": {
+          "$ref": "#/$defs/SourceFactV1",
+          "description": "Display title when the selected profile retains one; never an identity."
+        }
+      },
+      "required": [
+        "record_index",
+        "record_source_id",
+        "record_title",
+        "property_count",
+        "atom_count",
+        "bond_count"
+      ],
+      "type": "object"
+    },
+    "InspectInterchangeGraphSummaryV1": {
+      "additionalProperties": false,
+      "description": "Bounded decoded-semantic graph summary returned by `interchange.inspect_graph`.",
+      "properties": {
+        "atom_count": {
+          "description": "Checked aggregate atom count across all records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "bond_count": {
+          "description": "Checked aggregate bond count across all records.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "declared_fact_coverage": {
+          "$ref": "#/$defs/InspectGraphFactCoverageV1",
+          "description": "Profile-declared known, unknown-when-omitted, and unsupported fact categories."
+        },
+        "format_id": {
+          "description": "Resolver-owned public format identifier.",
+          "type": "string"
+        },
+        "graph_meaning": {
+          "description": "The semantic interpretation shared by all admitted inspection profiles.",
+          "type": "string"
+        },
+        "normalization": {
+          "$ref": "#/$defs/InspectGraphNormalizationV1",
+          "description": "Profile-declared normalization and source-fidelity boundary."
+        },
+        "profile_id": {
+          "description": "Resolver-owned declared inspection profile identifier.",
+          "type": "string"
+        },
+        "record_count": {
+          "description": "Number of records represented in `records`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "records": {
+          "description": "Per-record summaries in retained zero-based source order.",
+          "items": {
+            "$ref": "#/$defs/InspectInterchangeGraphRecordSummaryV1"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Versioned summary schema identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "format_id",
+        "profile_id",
+        "graph_meaning",
+        "record_count",
+        "atom_count",
+        "bond_count",
+        "records",
+        "declared_fact_coverage",
+        "normalization"
+      ],
+      "type": "object"
+    },
     "InterchangeFormatV1": {
       "description": "Closed syntax vocabulary. `Cdml` is retained as a wire value for callers\nthat dispatch CDML composition outside this crate.",
       "oneOf": [
@@ -1670,7 +1970,7 @@
         },
         {
           "const": "cml_simple_molecule_import_v1",
-          "description": "Closed CML/CML2 simple-molecule import profile. This profile is input-only.",
+          "description": "Closed CML/CML2 simple-molecule profile.",
           "type": "string"
         }
       ]
@@ -2028,6 +2328,25 @@
             "kind",
             "input",
             "output_format"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Request payload for decoded-semantic `interchange.inspect_graph`.\n\nThe request owns already-bounded source text and never carries a path,\nstream, document, or runtime handle. Unsupported resolved formats return a\ntyped refusal rather than a partial graph summary.",
+          "properties": {
+            "input": {
+              "$ref": "#/$defs/InspectInterchangeGraphInputV1",
+              "description": "Closed input format and owned bounded source text to inspect."
+            },
+            "kind": {
+              "const": "interchange.inspect_graph.v1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "input"
           ],
           "type": "object"
         },
@@ -2717,6 +3036,23 @@
             "format",
             "text",
             "record_count"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "interchange.inspect_graph.v1",
+              "type": "string"
+            },
+            "summary": {
+              "$ref": "#/$defs/InspectInterchangeGraphSummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "summary"
           ],
           "type": "object"
         },
@@ -3532,7 +3868,7 @@
         "stale_snapshot",
         "foreign_session",
         "mismatched_preview",
-        "replayed_gesture",
+        "consumed",
         "invalid_point",
         "render_preparation",
         "session_conflict"
@@ -3554,7 +3890,7 @@
         "unknown_or_foreign_target",
         "ineligible_target",
         "renderer_preparation_refusal",
-        "session_conflict_or_replayed_preparation"
+        "session_conflict_or_consumed_preparation"
       ],
       "type": "string"
     },
@@ -3712,6 +4048,7 @@
       "oneOf": [
         {
           "enum": [
+            "interchange.inspect_graph.v1",
             "reaction.create.v1",
             "reaction.list.v1",
             "reaction.observe.v1",
@@ -3808,7 +4145,7 @@
       "enum": [
         "stale_snapshot",
         "foreign_session",
-        "replayed_gesture",
+        "consumed",
         "invalid_point",
         "degenerate_geometry",
         "path_cardinality",
@@ -3871,7 +4208,7 @@
       "enum": [
         "stale_snapshot",
         "foreign_session",
-        "replayed_gesture",
+        "consumed",
         "invalid_request",
         "missing_target",
         "wrong_target_kind",
@@ -4110,6 +4447,104 @@
         "opaque_child_count"
       ],
       "type": "object"
+    },
+    "SourceFactV1": {
+      "description": "Whether a source fact was supplied, omitted, or outside the inspection profile.",
+      "oneOf": [
+        {
+          "description": "The source explicitly supplied this fact.",
+          "properties": {
+            "status": {
+              "const": "known",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The profile can represent this fact but the source omitted it.",
+          "properties": {
+            "status": {
+              "const": "unknown",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The profile does not inspect or preserve this fact.",
+          "properties": {
+            "status": {
+              "const": "unsupported",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SourceFactV12": {
+      "description": "Whether a source fact was supplied, omitted, or outside the inspection profile.",
+      "oneOf": [
+        {
+          "description": "The source explicitly supplied this fact.",
+          "properties": {
+            "status": {
+              "const": "known",
+              "type": "string"
+            },
+            "value": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "status",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The profile can represent this fact but the source omitted it.",
+          "properties": {
+            "status": {
+              "const": "unknown",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The profile does not inspect or preserve this fact.",
+          "properties": {
+            "status": {
+              "const": "unsupported",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

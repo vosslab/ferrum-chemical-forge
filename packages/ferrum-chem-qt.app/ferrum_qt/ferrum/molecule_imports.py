@@ -150,55 +150,62 @@ class FerrumNativeMoleculeImportsMixin:
 		self._molecule_import_relay = _MoleculeImportDeliveryRelay(self)
 
 	#============================================
-	def _build_molecule_import_actions(self,
-			menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add Ferrum molecule import and cancellation actions."""
+	def _build_molecule_import_actions(self) -> None:
+		"""Create and register Ferrum molecule import and cancellation actions."""
 		self._import_smiles_action = PySide6.QtGui.QAction(self.tr("Import SMILES"), self)
 		self._import_smiles_action.triggered.connect(self._on_import_smiles)
-		menu.addAction(self._import_smiles_action)
 		self._import_inchi_action = PySide6.QtGui.QAction(self.tr("Import InChI"), self)
 		self._import_inchi_action.triggered.connect(self._on_import_inchi)
-		menu.addAction(self._import_inchi_action)
 		self._import_molblock_action = PySide6.QtGui.QAction(
 			self.tr("Import V2000/V3000 Molfile"), self,
 		)
 		self._import_molblock_action.triggered.connect(self._on_import_molblock)
-		menu.addAction(self._import_molblock_action)
 		self._import_sdf_action = PySide6.QtGui.QAction(
 			self.tr("Import SDF Records"), self,
 		)
 		self._import_sdf_action.triggered.connect(self._on_import_sdf)
-		menu.addAction(self._import_sdf_action)
 		self._import_peptide_action = PySide6.QtGui.QAction(
 			self.tr("Import Supported Peptide Sequence..."), self,
 		)
 		self._import_peptide_action.triggered.connect(self._on_import_peptide)
-		menu.addAction(self._import_peptide_action)
 		self._cancel_smiles_action = PySide6.QtGui.QAction(
 			self.tr("Cancel SMILES Import"), self,
 		)
 		self._cancel_smiles_action.triggered.connect(self._cancel_smiles_import)
-		menu.addAction(self._cancel_smiles_action)
 		self._cancel_inchi_action = PySide6.QtGui.QAction(
 			self.tr("Cancel InChI Import"), self,
 		)
 		self._cancel_inchi_action.triggered.connect(self._cancel_inchi_import)
-		menu.addAction(self._cancel_inchi_action)
 		self._cancel_molblock_action = PySide6.QtGui.QAction(
 			self.tr("Cancel Molfile Import"), self,
 		)
 		self._cancel_molblock_action.triggered.connect(self._cancel_molblock_import)
-		menu.addAction(self._cancel_molblock_action)
 		self._cancel_sdf_action = PySide6.QtGui.QAction(
 			self.tr("Cancel SDF Import"), self,
 		)
 		self._cancel_sdf_action.triggered.connect(self._cancel_sdf_import)
-		menu.addAction(self._cancel_sdf_action)
 		self._cancel_peptide_action = PySide6.QtGui.QAction(
 			self.tr("Cancel Supported Peptide Sequence Import"), self,
 		)
 		self._cancel_peptide_action.triggered.connect(self._cancel_peptide_import)
-		menu.addAction(self._cancel_peptide_action)
+		for action_id, action in (
+			("file.import.smiles", self._import_smiles_action),
+			("file.import.inchi", self._import_inchi_action),
+			("file.import.molfile", self._import_molblock_action),
+			("file.import.sdf", self._import_sdf_action),
+			("file.import.peptide", self._import_peptide_action),
+			("file.import.smiles.cancel", self._cancel_smiles_action),
+			("file.import.inchi.cancel", self._cancel_inchi_action),
+			("file.import.molfile.cancel", self._cancel_molblock_action),
+			("file.import.sdf.cancel", self._cancel_sdf_action),
+			("file.import.peptide.cancel", self._cancel_peptide_action),
+		):
+			action.setStatusTip(action.text())
+			self._action_registry.register_existing(
+				action_id, action,
+				lifecycle="stateful-cancel" if action_id.endswith(".cancel") else "static",
+				shortcut_exemption_reason="Available by its labelled File menu client.",
+			)
 
 	#============================================
 	def _molecule_import_busy(self) -> bool:

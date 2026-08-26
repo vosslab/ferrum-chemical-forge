@@ -108,7 +108,7 @@ def test_text_placement_binding_uses_renderer_overlay_and_one_commit() -> None:
     assert "<ftext>H&lt;sub&gt;2&lt;/sub&gt;O</ftext>" in commit.result.observation.snapshot.cdml
     with pytest.raises(ferrum_chem.TextPlacementError) as caught:
         session.commit_text_placement_gesture_v1(gesture, preview)
-    assert caught.value.category == ferrum_chem.TextPlacementErrorCategoryV1.replayed_gesture
+    assert caught.value.category == ferrum_chem.TextPlacementErrorCategoryV1.consumed
     assert ferrum_chem.TextPlacementErrorCategoryV1.unrenderable_standard
     assert ferrum_chem.TextPlacementRecoveryV1.repair_drawing_standard
     assert ferrum_chem.TextPlacementErrorCategoryV1.render_preparation
@@ -131,36 +131,80 @@ def test_text_placement_custom_standard_refuses_before_mutation() -> None:
     assert session.snapshot().revision == snapshot.revision
 
 
-def test_structure_path_target_is_display_only_and_cannot_create_a_delete_handle() -> None:
+def test_structure_wedge_target_has_one_semantic_bond_envelope() -> None:
     session = ferrum_chem.DocumentSession.load(
         "<cdml xmlns='urn:ferrum:cdml'><molecule id=\"m\">"
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>"
         "<atom id=\"b\" name=\"O\"><point x=\"30\" y=\"0\"/></atom>"
-        "<bond id=\"ab\" type=\"w1\" start=\"a\" end=\"b\"/>"
+        "<bond id=\"ab\" type=\"w1\" wedge_width=\"12\" start=\"a\" end=\"b\"/>"
         "</molecule></cdml>"
     )
     snapshot = session.snapshot()
     observation = session.observe_structure_interaction_v1(
         snapshot.revision, snapshot.digest
     )
-    target = next(
+    bond = next(
         value
         for value in observation.targets
-        if value.kind == ferrum_chem.StructureTargetKindV1.display_only
+        if value.kind == ferrum_chem.StructureTargetKindV1.bond
     )
-    assert target.kind == ferrum_chem.StructureTargetKindV1.display_only
-    with pytest.raises(ferrum_chem.RenderInteractionError) as caught:
-        session.select_structure_interaction_v1(
-            observation,
-            None,
-            ferrum_chem.StructureInteractionQueryV1.point(
-                (target.bounds.left + target.bounds.right) / 2.0,
-                (target.bounds.top + target.bounds.bottom) / 2.0,
-                ferrum_chem.RenderInteractionModifierV1.replace,
-            ),
+    assert tuple(
+        value for value in observation.targets if value.object_id == bond.object_id
+    ) == (bond,)
+    assert bond.molecule_object_id
+    assert bond.object_id
+    assert all(
+        math.isfinite(value)
+        for value in (bond.bounds.left, bond.bounds.top, bond.bounds.right, bond.bounds.bottom)
+    )
+    assert bond.bounds.left <= bond.bounds.right
+    assert bond.bounds.top <= bond.bounds.bottom
+    assert not hasattr(ferrum_chem.StructureTargetKindV1, "display_only")
+    selected = session.select_structure_interaction_v1(
+        observation,
+        None,
+        ferrum_chem.StructureInteractionQueryV1.point(
+            20.0, 4.0, ferrum_chem.RenderInteractionModifierV1.replace,
+        ),
+    )
+    assert tuple(target.object_id for target in selected.targets) == (bond.object_id,)
+
+
+def test_structure_interaction_targets_expose_typed_durable_addresses() -> None:
+    """Python structure targets retain exact durable-ID and kind DTO contracts."""
+    session = ferrum_chem.DocumentSession.load(
+        "<cdml xmlns='urn:ferrum:cdml'><molecule id='m'>"
+        "<atom id='a' name='C'><point x='0' y='0'/></atom>"
+        "<atom id='b' name='O'><point x='30' y='0'/></atom>"
+        "<bond id='ab' type='w1' start='a' end='b'/>"
+        "</molecule></cdml>"
+    )
+    snapshot = session.snapshot()
+    targets = session.observe_structure_interaction_v1(
+        snapshot.revision, snapshot.digest,
+    ).targets
+    observed = tuple(
+        (
+            type(target).__module__,
+            type(target).__qualname__,
+            type(target.molecule_object_id).__name__,
+            target.molecule_object_id,
+            type(target.object_id).__name__,
+            target.object_id,
+            type(target.kind).__module__,
+            type(target.kind).__qualname__,
+            target.kind,
         )
-    assert caught.value.category == ferrum_chem.RenderInteractionCategoryV1.display_only
-    assert caught.value.recovery == ferrum_chem.RenderInteractionRecoveryV1.change_presentation
+        for target in targets
+    )
+    assert all(
+        type(target.molecule_object_id) is str
+        and target.molecule_object_id
+        and type(target.object_id) is str
+        and target.object_id
+        and type(target.kind) is ferrum_chem.StructureTargetKindV1
+        for target in targets
+    ), observed
 
 
 def test_smiles_input_precedes_native_availability_and_module_replacement() -> None:

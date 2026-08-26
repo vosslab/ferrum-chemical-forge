@@ -161,9 +161,8 @@ class FerrumNativeCoordinateGenerationWindowMixin:
 		self._coordinate_generation_relay = _CoordinateGenerationDeliveryRelay(self)
 
 	#============================================
-	def _build_coordinate_generation_actions(
-			self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add coordinate generation and cancellation to one Chemistry menu."""
+	def _build_coordinate_generation_actions(self) -> None:
+		"""Create and register coordinate generation and cancellation actions."""
 		self._generate_coordinates_action = PySide6.QtGui.QAction(
 			self.tr("Generate Molecule Coordinates"), self,
 		)
@@ -171,12 +170,20 @@ class FerrumNativeCoordinateGenerationWindowMixin:
 			self.tr("Regenerate one durable molecule while retaining its centroid and scale"),
 		)
 		self._generate_coordinates_action.triggered.connect(self._on_generate_coordinates)
-		menu.addAction(self._generate_coordinates_action)
 		self._cancel_coordinates_action = PySide6.QtGui.QAction(
 			self.tr("Cancel Coordinate Generation"), self,
 		)
 		self._cancel_coordinates_action.triggered.connect(self._cancel_coordinate_generation)
-		menu.addAction(self._cancel_coordinates_action)
+		self._action_registry.register_existing(
+			"draw.coordinates.generate", self._generate_coordinates_action,
+			shortcut_exemption_reason="Available by its labelled Draw menu client.",
+		)
+		self._cancel_coordinates_action.setStatusTip(self._cancel_coordinates_action.text())
+		self._action_registry.register_existing(
+			"draw.coordinates.cancel", self._cancel_coordinates_action,
+			lifecycle="stateful-cancel",
+			shortcut_exemption_reason="Available by its labelled Draw menu client.",
+		)
 
 	#============================================
 	def _on_generate_coordinates(self) -> None:

@@ -43,7 +43,7 @@ pub enum CurvedEquilibriumArrowGestureCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     CollapsedSpan,
     ControlTooNearChord,
@@ -68,7 +68,7 @@ pub enum CurvedEquilibriumArrowGestureErrorV1 {
     #[error("curved equilibrium-arrow preview belongs to a different gesture")]
     MismatchedPreview,
     #[error("curved equilibrium-arrow receipt was already consumed")]
-    ReplayedGesture,
+    Consumed,
     #[error("curved equilibrium-arrow point is invalid")]
     InvalidPoint,
     #[error("curved equilibrium-arrow start and end are too close")]
@@ -90,7 +90,7 @@ impl CurvedEquilibriumArrowGestureErrorV1 {
             Self::StaleSnapshot => CurvedEquilibriumArrowGestureCategoryV1::StaleSnapshot,
             Self::ForeignSession => CurvedEquilibriumArrowGestureCategoryV1::ForeignSession,
             Self::MismatchedPreview => CurvedEquilibriumArrowGestureCategoryV1::MismatchedPreview,
-            Self::ReplayedGesture => CurvedEquilibriumArrowGestureCategoryV1::ReplayedGesture,
+            Self::Consumed => CurvedEquilibriumArrowGestureCategoryV1::Consumed,
             Self::InvalidPoint => CurvedEquilibriumArrowGestureCategoryV1::InvalidPoint,
             Self::CollapsedSpan => CurvedEquilibriumArrowGestureCategoryV1::CollapsedSpan,
             Self::ControlTooNearChord => {
@@ -109,7 +109,7 @@ impl CurvedEquilibriumArrowGestureErrorV1 {
             Self::StaleSnapshot
             | Self::ForeignSession
             | Self::MismatchedPreview
-            | Self::ReplayedGesture
+            | Self::Consumed
             | Self::SessionConflict => CurvedEquilibriumArrowGestureRecoveryV1::RefreshAndRestart,
             Self::CollapsedSpan | Self::ControlTooNearChord | Self::ExceedsGeometryLimit => {
                 CurvedEquilibriumArrowGestureRecoveryV1::ChangeGeometry

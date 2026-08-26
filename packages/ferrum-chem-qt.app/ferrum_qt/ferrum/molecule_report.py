@@ -483,7 +483,7 @@ class FerrumNativeMoleculeReportDialog(FerrumAccessibleDialog):
 		self._report = report
 		self._tab = tab
 		self._stale = False
-		self._retired = False
+		self._source_closed = False
 		self.setWindowTitle(self.tr("Molecule Report"))
 		self.setObjectName("molecule-report-dialog")
 		self.setAccessibleName(self.tr("Molecule Report"))
@@ -643,16 +643,16 @@ class FerrumNativeMoleculeReportDialog(FerrumAccessibleDialog):
 	#============================================
 	def set_rerun_availability(self, available: bool, explanation: str) -> None:
 		"""Expose whether the captured source remains the active live rerun target."""
-		self._rerun.setEnabled(available and not self._retired)
+		self._rerun.setEnabled(available and not self._source_closed)
 		self._rerun.setToolTip(explanation)
 		self._rerun.setAccessibleDescription(explanation)
 
 	#============================================
-	def retire_for_closed_source(self) -> None:
-		"""Terminally retire a receipt before its captured source tab is disposed."""
-		if self._retired:
+	def close_for_closed_source(self) -> None:
+		"""Close a receipt before its captured source tab is disposed."""
+		if self._source_closed:
 			return
-		self._retired = True
+		self._source_closed = True
 		self.set_rerun_availability(False, self.tr(
 			"Unavailable: this report's source document was closed.",
 		))
@@ -661,7 +661,7 @@ class FerrumNativeMoleculeReportDialog(FerrumAccessibleDialog):
 	#============================================
 	def _request_rerun(self) -> None:
 		"""Emit only this dialog as the explicit source-bound recapture request."""
-		if not self._retired:
+		if not self._source_closed:
 			self.rerun_requested.emit(self)
 
 	#============================================
@@ -683,9 +683,8 @@ class FerrumNativeMoleculeReportMixin:
 		self._molecule_report_relay = _MoleculeReportDeliveryRelay(self)
 
 	#============================================
-	def _build_molecule_inspection_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Install the one task-oriented report route after chemistry authoring actions."""
-		menu.addSeparator()
+	def _build_molecule_inspection_actions(self) -> None:
+		"""Create and register task-oriented molecule inspection actions."""
 		self._molecule_report_action = PySide6.QtGui.QAction(self.tr("Molecule Report..."), self)
 		self._molecule_report_action.setObjectName("molecule-report-action")
 		self._molecule_report_action.setStatusTip(self.tr(
@@ -699,13 +698,21 @@ class FerrumNativeMoleculeReportMixin:
 			"Select an atom or bond belonging to a complete molecule.",
 		))
 		self._molecule_report_action.triggered.connect(self._start_molecule_report)
-		menu.addAction(self._molecule_report_action)
 		self._cancel_molecule_report_action = PySide6.QtGui.QAction(
 			self.tr("Cancel Molecule Report"), self,
 		)
 		self._cancel_molecule_report_action.setObjectName("cancel-molecule-report-action")
 		self._cancel_molecule_report_action.triggered.connect(self._cancel_molecule_report)
-		menu.addAction(self._cancel_molecule_report_action)
+		self._action_registry.register_existing(
+			"chemistry.report.molecule", self._molecule_report_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
+		self._cancel_molecule_report_action.setStatusTip(self._cancel_molecule_report_action.text())
+		self._action_registry.register_existing(
+			"chemistry.report.cancel", self._cancel_molecule_report_action,
+			lifecycle="stateful-cancel",
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _molecule_inspection_busy(self) -> bool:
@@ -886,7 +893,7 @@ class FerrumNativeMoleculeReportMixin:
 
 	#============================================
 	def _on_document_molecule_report_finished(self, worker: object) -> None:
-		"""Release a retired report worker and restore ordinary action reachability."""
+		"""Release a disposed report worker and restore ordinary action reachability."""
 		intent = self._molecule_report_intent
 		if intent is None or worker is not intent.worker:
 			return
@@ -896,7 +903,7 @@ class FerrumNativeMoleculeReportMixin:
 
 	#============================================
 	def _cancel_molecule_report(self) -> None:
-		"""Suppress late delivery while a detached Rust call retires normally."""
+		"""Suppress late delivery while a detached Rust call stops normally."""
 		intent = self._molecule_report_intent
 		if intent is None or intent.worker.delivery_cancelled:
 			return
@@ -920,7 +927,7 @@ class FerrumNativeMoleculeReportMixin:
 		dialog = self._molecule_report_dialog
 		if dialog is not None:
 			if dialog._tab not in self._native_tabs_by_page:
-				dialog.retire_for_closed_source()
+				dialog.close_for_closed_source()
 				return
 			snapshot = dialog._tab.current_snapshot
 			if (
@@ -957,11 +964,11 @@ class FerrumNativeMoleculeReportMixin:
 		)
 
 	#============================================
-	def _retire_molecule_report_dialog_for_tab(self, tab: object) -> None:
+	def _close_molecule_report_dialog_for_tab(self, tab: object) -> None:
 		"""Remove a modeless report before its source tab loses its live identity."""
 		dialog = self._molecule_report_dialog
 		if dialog is not None and dialog._tab is tab:
-			dialog.retire_for_closed_source()
+			dialog.close_for_closed_source()
 
 	#============================================
 	def _molecule_inspection_blocks_tab_close(self, tab: object) -> bool:

@@ -78,6 +78,17 @@ pub fn resolve_direct_glycosidic_haworth_style_v1(
     })
 }
 
+/// Resolve the renderer facts used to admit one attached compact-group pose.
+pub fn resolve_attached_compact_group_anchor_render_facts_v1(
+    projection: &DocumentProjectionV1,
+    atom: &ferrum_document_projection::AtomProjectionV1,
+    profile: &DepictionProfileV1,
+) -> Result<crate::AttachedCompactGroupAnchorRenderFactsV1, DepictionIssueV1> {
+    super::depiction_profile_resolution::resolve_attached_compact_group_anchor_render_facts_v1(
+        projection, atom, profile,
+    )
+}
+
 impl DepictionProfileV1 {
     /// Return the sole Ferrum V1 product profile.
     #[must_use]

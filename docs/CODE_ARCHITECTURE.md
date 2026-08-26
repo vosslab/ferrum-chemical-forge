@@ -10,12 +10,15 @@ separately licensed components:
 - Ferrum is the AGPL PySide6 desktop application. It has one packaged,
   Rust-native product route and presents Ferrum-owned documents through Qt.
 
-The active migration contract is
-[active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md). Historical
-OASA and BKChem material is retained only as provenance and accepted migration
-reports; the live Python backend comparison workers are retired. It is not part
-of the Ferrum-Chem or Ferrum product runtime, dependency declaration, packaging
-path, or normal test suite. The adopted
+The canonical full-parity ledger is
+[active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
+[active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md) is a subordinate
+historical implementation record whose `V3-M*` milestones do not close parity.
+Historical
+OASA and BKChem material is isolated provenance and accepted migration evidence.
+Ferrum's Rust engine is the only runtime chemistry backend. Provenance material
+is outside the Ferrum-Chem and Ferrum product runtime, dependency declaration,
+packaging path, and normal test suite. The adopted
 historical format and behavior references are
 [CDML_BACKEND_TO_FRONTEND_CONTRACT.md](CDML_BACKEND_TO_FRONTEND_CONTRACT.md) and
 [CDML_FORMAT_SPEC.md](CDML_FORMAT_SPEC.md).
@@ -45,6 +48,23 @@ the edition-2024 workspace. Its crates divide responsibility as follows:
   artifact publication boundary. Its `protocol_v1` module owns the closed,
   stateless operation request/response DTOs, generated schema, and pure
   owned-value executor described in [USAGE.md](USAGE.md#machine-protocol).
+
+### Bounded molecular interchange
+
+CDML is Ferrum's sole document, session, history, and Qt-local format. CML/CML2
+is bounded external interchange, not a document format. `ferrum-chemistry` owns
+the closed Rust CML2 codec used by CLI import/conversion and Qt File > Open
+ingress. The separate API
+`ConversionOutputRegistryV1` owns conversion output aliases, profiles, and
+preferred suffixes; `InterchangeFormatDescriptorV1` remains the distinct
+import and Qt-ingress registry.
+
+The `ferrum convert --to cml|cml2` route emits canonical CML2. `cml1` remains
+input-only. Direct CML/CML2 conversion preserves validated source molecule and
+atom IDs and record order without an engine runtime; conversions from other
+formats refuse any facts that the closed CML2 profile cannot represent
+losslessly. Qt File > Open immediately admits valid CML/CML2 into a clean native
+CDML tab. It does not export CML or adopt CML as an in-memory document format.
 
 Selected-molecule read-only work has two distinct contracts. The existing
 `document.molecule.report.v1` produces its multi-root report receipt. M4
@@ -130,7 +150,8 @@ admission, and history. Qt does not create a typed snap contract, so Rust does
 not claim to prove that an accepted coordinate came from Qt snapping. Qt owns
 two distinct accessible chooser workflows: the direct-root `Place Compact
 Group...` Me-only chooser and the generic attached `Attach Compact Group...`
-chooser for `Me` and `NO2`. Qt also owns one-shot pointer handoffs and
+chooser for all nine delivered keys: `Me`, `NO2`, `Et`, `OMe`, `CH2OH`,
+`Carboxyl`, `Cyano`, `AcylChloride`, and `Phenyl`. Qt also owns one-shot pointer handoffs and
 presentation of committed receipts or typed refusals. The private PyO3 bridge
 is only the local Qt implementation seam; it does not create a public
 attachment contract.
@@ -161,9 +182,8 @@ compact-group counts; document-private `PersistentId` values remain internal.
 Mixed or multi-group selections are refused before preparation, while replay,
 Undo, and Redo use the same Rust session authority.
 
-The old compatibility host, its session and worker layers, legacy action and
-mode families, compatibility codecs, and their menu and mode resources have
-been removed from the packaged application. Unsupported historical file forms
+The packaged application contains one Ferrum-owned Qt route with Rust-backed
+document state and chemistry bindings. Unsupported historical file forms
 are refused at the native file-admission boundary instead of being routed to a
 second host.
 
@@ -175,9 +195,19 @@ and
 [../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_render_plan.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_presentation_render_plan.py).
 Rust supplies the frozen renderer plan as Qt's sole visual scene input. The
 same accepted observation fence publishes both that plan and SMARTS results.
-Qt creates the disposable graphics-scene projection and manages graphics retirement through
-[../packages/ferrum-chem-qt.app/ferrum_qt/canvas/graphics_retirement.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/graphics_retirement.py).
+Qt creates the disposable graphics-scene projection and manages graphics disposal through
+`packages/ferrum-chem-qt.app/ferrum_qt/canvas/graphics_disposal.py`.
 Qt is therefore a presentation client, not a second CDML document model.
+
+The Qt authoring window has one per-window active-tool owner:
+`ferrum.window_mode_sync.FerrumWindowModeSync`. Each feature registers its exact
+registry-owned checkable `QAction`, feature-local normalized mode controller,
+context, activation, dispatch, and cancellation endpoints beside action
+construction. The controller owns checked state, normalized native input, and
+typed active-tool publication; menu and YAML ribbon clients remain passive
+clients of that exact action. Packaged menu and ribbon YAML load through the neutral
+`declarative_resource_loader` leaf and resolve together through the acyclic
+window-resource preflight before either visible surface is assembled.
 
 The renderer-admission target is renderer-mints/document-redeems: `ferrum-render`
 mints an opaque proof for a candidate bound to a `ferrum-document` issuer and
@@ -206,7 +236,7 @@ render plan, candidate, renderer proof, or alternate commit authority.
 The ordinary desktop path is:
 
 ```text
-local CDML or decoded CD-SVG input
+local CDML, decoded CD-SVG, or admitted CML/CML2 input
   -> build/bin/ferrum-qt
   -> app.MainWindow
   -> FerrumNativeMainWindow and FerrumNativeDocumentTab
@@ -230,6 +260,16 @@ one bounded JSON request
   -> protocol_v1 owned-value executor
   -> CDML/document or complete-artifact operation
   -> one JSON success or typed-error envelope
+```
+
+The separate local interchange path is:
+
+```text
+bounded molecular interchange input
+  -> build/bin/ferrum convert
+  -> ConversionOutputRegistryV1
+  -> Rust chemistry codec or typed losslessness refusal
+  -> completed output or one unsuccessful CLI outcome
 ```
 
 The matching `ferrum_chem.execute_operation_v1` binding uses the same owned-value
@@ -260,8 +300,8 @@ boundary, not a performance target.
 - Repository documentation and policy checks live in [../tests/](../tests/).
 - [../tests/e2e/reference/](../tests/e2e/reference/) is an optional Python RDKit
   environment for one-time maintainer measurements. It is not a product or
-  normal test dependency; the retired backend comparison survives only as
-  recorded migration evidence.
+  normal test dependency; backend-comparison evidence remains recorded in the
+  migration reports.
 
 ## Extension points
 
@@ -279,10 +319,11 @@ boundary, not a performance target.
 ## Attached compact-group authoring
 
 Attached compact-group authoring uses one Rust-owned `AttachCompactGroupV1`
-transaction. Rust projects reviewed catalog key-and-derived-label choices; the
-delivered set is `Me` and `NO2`. A current anchor observation establishes only
+transaction. Rust projects supported catalog key-and-derived-label choices; the
+delivered set is `Me`, `NO2`, `Et`, `OMe`, `CH2OH`, `Carboxyl`, `Cyano`,
+`AcylChloride`, and `Phenyl`. A current anchor observation establishes only
 general action readiness; Rust evaluates choice-specific availability after
-chooser selection. Both delivered keys use the reviewed normal-single profile.
+chooser selection. All delivered keys use the supported normal-single profile.
 A future key must receive a row-level chooser availability review before it is
 admitted. Rust owns chemistry and geometry admission, renderer admission,
 durable identity allocation, history, save/reopen, and typed refusals. The
@@ -304,11 +345,11 @@ asserts only the net formal charge.
 ## Known gaps
 
 - Complete the remaining codec, corpus, render-backend, domain, and platform
-  work tracked in [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
+  work tracked in
+  [active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
 - Extend local-runtime validation as native adapter contracts evolve.
-- Add reviewed recipes and attachment profiles for the other seven persisted
-  compact-group keys, expand free placement beyond `Me`, and introduce a public
-  generic attached CLI/protocol command when that command surface is designed.
+- Keep free placement limited to `Me` until its expanded contract is designed,
+  and deliver the planned generic attached compact-group CLI/protocol route.
 ## Free compact-group placement
 
 `PlaceFreeCompactGroupV1` is the Rust-owned direct-root compact-group

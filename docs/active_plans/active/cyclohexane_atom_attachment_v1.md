@@ -141,7 +141,8 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   paint-only preview, cancellation, and accessible status wording.
 - Workstreams: WS-C.
 - Entry criteria: bound opaque receipt methods are accepted.
-- Exit criteria: release attaches, Escape/tab change/refusal retires the overlay, and no Qt-side
+- Exit criteria: release attaches, Escape/tab change/refusal cancels the pending receipt and
+  disposes the overlay, and no Qt-side
   mutable topology exists.
 - Parallel-plan ready: no. It is a thin integration over the approved binding.
 
@@ -246,7 +247,7 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   candidate, and retain the tentative sequences with the pending capability. Prepare issues no
   token and changes no session state. Commit rechecks session origin and the stored revision/digest
   before issuing and consuming its token, then installs the copied sequences and appends one
-  revision/history transition. Retire drops the candidate and tentative sequences without a fence
+  revision/history transition. Cancellation drops the candidate and tentative sequences without a fence
   check, allowing stale previews to be cancelled safely. Successful commit consumes the pending
   capability. Sequential per-atom/per-bond commits, preallocation in live session state, detached
   molecule writers, and a generic prepared-attachment abstraction are explicitly rejected.
@@ -256,7 +257,7 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   molecule count while adding five C and six `n1` bonds, raising anchor incidence by two, and
   making one transition; it proves unknown/non-direct/ineligible targets, stale revision/digest,
   invalid release, and near-exhausted atom or bond allocation leave every snapshot fact unchanged;
-  it proves cancel, foreign commit/retire, stale commit, and replay are nonmutating and leave an
+  it proves cancel, foreign commit/cancel, stale commit, and replay are nonmutating and leave an
   owner receipt committable where applicable.
 - Evidence or review, when useful: run only focused document crate checks and independent review.
 - Obvious follow-ons: expose the exact receipt through WP-B1; defer every other ring shape.
@@ -278,8 +279,8 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   methods can return and consume the Rust-issued opaque object without registration. It exposes no document
   IDs, CDML, raw candidate, topology, fence, or serialization fields. Rust alone retains candidate
   identity, target admission, C6 topology, session origin, revision/digest/anchor fencing, atomic
-  commit, and one-use retirement. Foreign session, stale revision, stale digest, replayed,
-  retired, unknown/ineligible anchor, and invalid-release uses refuse before mutation.
+  commit, and one-use consumption. Foreign session, stale revision, stale digest, consumed,
+  unknown/ineligible anchor, and invalid-release uses refuse before mutation.
 
   Do not add a generic attachment API, Python constructor, module-level
   function, attachment service/protocol, selector, CDML result, generated-ID output, or topology
@@ -319,10 +320,11 @@ installation of Rust observations. Qt neither calculates topology nor writes CDM
   line-tool event filter retains sole pointer ownership; the existing Cyclohexane QAction retains its
   detached empty-page behavior unchanged. In attach mode an eligible atom hit starts the receipt,
   move paints only copied Rust preview facts, and release commits once. Escape, tab transition,
-  document change, empty-page hit, ineligible anchor, and receipt refusal retire preview and
-  preserve state. Status text explicitly identifies attach mode, unavailable target, and retry.
+  document change, empty-page hit, ineligible anchor, and receipt refusal cancel the pending
+  receipt and dispose the preview while preserving state. Status text explicitly identifies attach
+  mode, unavailable target, and retry.
 - Evidence or review, when useful: extend the existing offscreen Qt behavior test with inline CDML;
-  prove tab change, dispose, Escape, refusal, and document change retire the local pending value.
+  prove tab change, disposal, Escape, refusal, and document change cancel the local pending value.
   Add one literal, offline, source-local repository-discipline oracle for exactly
   `_begin_attach_cyclohexane_v1`, `_preview_attach_cyclohexane_v1`,
   `_commit_attach_cyclohexane_v1`, and `_cancel_attach_cyclohexane_v1`: it scans only the Qt
@@ -444,7 +446,7 @@ format: after save/reopen the result is an ordinary connected carbon cycle plus 
 
 The bounded shared-anchor C6 attachment slice is accepted on 2026-08-21. Final autonomous
 evidence is `/private/tmp/ferrum-cyclohexane-final-e2e-receipt.json`. The historical wheel
-checksum below is retained only as chronology: wheel output was retired, so it is not a current
+checksum below is retained only as chronology: wheel output was removed, so it is not a current
 acceptance input. Current reproduction starts with `./build.sh`, which stages the sealed runtime
 used by the local E2E without an operator-selected input root.
 

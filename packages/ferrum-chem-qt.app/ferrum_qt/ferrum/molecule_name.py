@@ -67,9 +67,8 @@ class FerrumNativeMoleculeNameWindowMixin:
 	"""Own the synchronous selected-molecule name action and modal-state fence."""
 
 	#============================================
-	def _build_molecule_name_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the Ferrum name action beside the existing molecule information route."""
-		menu.addSeparator()
+	def _build_molecule_name_action(self) -> None:
+		"""Create and register the Ferrum molecule-name action."""
 		self._set_molecule_name_action = PySide6.QtGui.QAction(
 			self.tr("Set Molecule Name..."), self,
 		)
@@ -77,7 +76,10 @@ class FerrumNativeMoleculeNameWindowMixin:
 			"Replace or clear one selected durable molecule name through Rust",
 		))
 		self._set_molecule_name_action.triggered.connect(self._on_set_molecule_name)
-		menu.addAction(self._set_molecule_name_action)
+		self._action_registry.register_existing(
+			"chemistry.molecule.name", self._set_molecule_name_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _refresh_molecule_name_action(self, active: bool, pending: bool,

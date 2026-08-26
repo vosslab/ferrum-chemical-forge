@@ -95,7 +95,11 @@ fn only_whitespace_unrecognized(record: &TypedRecord) -> bool {
         .all(|child| matches!(child.node(), UnrecognizedNode::Text(text) if text.trim().is_empty()))
 }
 
-pub(crate) fn retire_invalid_generated_linear_forms(
+/// Remove invalid Ferrum-owned generated linear-form records.
+///
+/// Authored linear forms remain part of the document, including forms Ferrum
+/// does not own or understand.
+pub(crate) fn remove_invalid_generated_linear_forms(
     tree: &mut Xot,
     molecule: Node,
 ) -> Result<(), TypedDocumentError> {

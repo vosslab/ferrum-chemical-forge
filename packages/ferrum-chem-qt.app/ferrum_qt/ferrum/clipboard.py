@@ -348,38 +348,42 @@ class FerrumNativeClipboardWindowMixin:
 		self._native_clipboard_data_changed_connected = False
 
 	#============================================
-	def _build_native_clipboard_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add Cut, Copy, Paste, and explicit cancellation to the Ferrum Edit menu."""
+	def _build_native_clipboard_actions(self) -> None:
+		"""Construct Cut, Copy, Paste, and explicit cancellation actions."""
 		self._cut_action = PySide6.QtGui.QAction(self.tr("Cut"), self)
 		self._cut_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Cut)
 		self._cut_action.setToolTip(self.tr(
 			"Copy the exact selection, then remove it through one Rust transaction",
 		))
 		self._cut_action.triggered.connect(self._start_native_clipboard_cut)
-		menu.addAction(self._cut_action)
 		self._copy_action = PySide6.QtGui.QAction(self.tr("Copy"), self)
 		self._copy_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Copy)
 		self._copy_action.setToolTip(self.tr(
 			"Copy the exact selected Rust document objects as Ferrum CDML",
 		))
 		self._copy_action.triggered.connect(self._start_native_clipboard_copy)
-		menu.addAction(self._copy_action)
 		self._paste_action = PySide6.QtGui.QAction(self.tr("Paste"), self)
 		self._paste_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Paste)
 		self._paste_action.setToolTip(self.tr(
 			"Paste Ferrum CDML through the authenticated Rust document session",
 		))
 		self._paste_action.triggered.connect(self._start_native_clipboard_paste)
-		menu.addAction(self._paste_action)
 		self._cancel_copy_action = PySide6.QtGui.QAction(self.tr("Cancel Copy"), self)
 		self._cancel_copy_action.triggered.connect(self._cancel_native_clipboard_copy)
-		menu.addAction(self._cancel_copy_action)
 		self._cancel_cut_action = PySide6.QtGui.QAction(self.tr("Cancel Cut"), self)
 		self._cancel_cut_action.triggered.connect(self._cancel_native_clipboard_cut)
-		menu.addAction(self._cancel_cut_action)
 		self._cancel_paste_action = PySide6.QtGui.QAction(self.tr("Cancel Paste"), self)
 		self._cancel_paste_action.triggered.connect(self._cancel_native_clipboard_paste)
-		menu.addAction(self._cancel_paste_action)
+		for action_id, action in (
+			("edit.cut", self._cut_action), ("edit.copy", self._copy_action),
+			("edit.paste", self._paste_action),
+			("edit.cancel_copy", self._cancel_copy_action),
+			("edit.cancel_cut", self._cancel_cut_action),
+			("edit.cancel_paste", self._cancel_paste_action),
+		):
+			self._register_action(action_id, action, lifecycle=(
+				"stateful-cancel" if action.text().startswith("Cancel") else "static"
+			))
 
 	#============================================
 	def _clipboard_busy(self) -> bool:

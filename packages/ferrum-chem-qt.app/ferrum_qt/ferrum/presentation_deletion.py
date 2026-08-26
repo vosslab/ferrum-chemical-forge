@@ -58,15 +58,14 @@ class FerrumNativePresentationDeletionMixin:
 
 
 #============================================
-def install_presentation_deletion_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install one generic action for renderer-owned durable presentation roots."""
+def install_presentation_deletion_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct one generic action for renderer-owned durable presentation roots."""
 	action = PySide6.QtGui.QAction(window.tr("Delete Selected Presentations"), window)
 	action.setToolTip(window.tr(
 		"Delete the complete selected durable presentation set through Rust",
 	))
 	action.triggered.connect(lambda _checked=False: _on_delete_presentation(window))
-	edit_menu.addAction(action)
+	window._register_action("edit.delete_presentations", action)
 	return action
 
 

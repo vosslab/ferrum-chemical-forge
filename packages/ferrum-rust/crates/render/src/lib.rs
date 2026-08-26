@@ -29,6 +29,7 @@
 //! typography, and schema versions require a new validated grammar revision.
 
 mod atom_bond;
+mod attached_compact_group_pose_v1;
 mod authored_direct_glycosidic_haworth;
 mod bond_style;
 mod compact_group;
@@ -85,6 +86,12 @@ pub use atom_bond::{
     AtomMarkRenderKind, AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, TargetVisibility,
     build_atom_bond_plan,
 };
+/// Renderer-owned placement of attached compact-group labels.
+pub use attached_compact_group_pose_v1::{
+    AttachedCompactGroupAnchorRenderFactsV1, AttachedCompactGroupPlacementDispositionV1,
+    AttachedCompactGroupPoseErrorV1, ResolvedAttachedCompactGroupPoseV1,
+    resolve_attached_compact_group_pose_v1,
+};
 /// In-process-only renderer profile for durable committed direct Haworth facts.
 pub use authored_direct_glycosidic_haworth::{
     AuthoredDirectGlycosidicHaworthRenderPlanV1, AuthoredDirectGlycosidicHaworthRenderRequestV1,
@@ -120,7 +127,8 @@ pub use document::depiction_profile::{
     DEPICTION_PROFILE_SCHEMA_V1, DEPICTION_RESOLUTION_SCHEMA_V1, DepictionError,
     DepictionIssueCodeV1, DepictionIssueV1, DepictionProfileV1, DepictionResolutionV1,
     DepictionSuppressionV1, DirectGlycosidicHaworthStyleV1, MoleculeMemberDepictionIssueV1,
-    render_document_projection_v1, resolve_direct_glycosidic_haworth_style_v1,
+    render_document_projection_v1, resolve_attached_compact_group_anchor_render_facts_v1,
+    resolve_direct_glycosidic_haworth_style_v1,
 };
 pub use document::observation::{
     DocumentMoleculeRenderPlanV2, MoleculeRenderRootV1, RESOLVED_DOCUMENT_RENDER_SCHEMA_V1,

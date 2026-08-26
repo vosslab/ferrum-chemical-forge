@@ -117,7 +117,7 @@ pub struct ReactionRefusalV1 {
 pub enum ProtocolReactionRefusalCategoryV1 {
     StaleSnapshot,
     ForeignSession,
-    ReplayedGesture,
+    Consumed,
     InvalidRequest,
     MissingTarget,
     WrongTargetKind,
@@ -146,7 +146,7 @@ pub enum ProtocolCatalogPlacementCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     RenderPreparation,
     SessionConflict,
@@ -166,7 +166,7 @@ pub enum ProtocolCatalogPlacementRecoveryV1 {
 pub enum ProtocolPresentationAuthorCategoryV1 {
     StaleSnapshot,
     ForeignSession,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     DegenerateGeometry,
     PathCardinality,
@@ -265,6 +265,8 @@ pub enum ProtocolOperationKindV1 {
     /// `chemistry.convert`.
     #[serde(rename = "chemistry.convert")]
     ChemistryConvert,
+    #[serde(rename = "interchange.inspect_graph.v1")]
+    InspectInterchangeGraph,
     /// `document.generate_coordinates`.
     #[serde(rename = "document.generate_coordinates")]
     GenerateCoordinates,

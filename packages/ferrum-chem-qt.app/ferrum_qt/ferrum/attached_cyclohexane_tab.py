@@ -39,5 +39,5 @@ class FerrumNativeAttachedCyclohexaneTabMixin:
 		return result
 
 	def cancel_attached_cyclohexane(self, pending: object) -> None:
-		"""Retire one opaque Rust candidate without mutating the document."""
+		"""Cancel one opaque Rust candidate without mutating the document."""
 		self._session._cancel_attach_cyclohexane_v1(pending)

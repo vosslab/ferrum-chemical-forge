@@ -112,22 +112,29 @@ class FerrumNativeSdfExportMixin:
 		self._sdf_export_relay = _SdfExportDeliveryRelay(self)
 
 	#============================================
-	def _build_sdf_export_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the two explicit SDF Molfile-syntax actions."""
+	def _build_sdf_export_actions(self) -> None:
+		"""Create and register the two explicit SDF Molfile-syntax actions."""
 		self._export_sdf_v2000_action = PySide6.QtGui.QAction(
 			self.tr("Export SDF Record V2000..."), self,
 		)
 		self._export_sdf_v2000_action.triggered.connect(
 			self._choose_document_sdf_v2000_export,
 		)
-		menu.addAction(self._export_sdf_v2000_action)
 		self._export_sdf_v3000_action = PySide6.QtGui.QAction(
 			self.tr("Export SDF Record V3000..."), self,
 		)
 		self._export_sdf_v3000_action.triggered.connect(
 			self._choose_document_sdf_v3000_export,
 		)
-		menu.addAction(self._export_sdf_v3000_action)
+		for action_id, action in (
+			("file.export.sdf.v2000", self._export_sdf_v2000_action),
+			("file.export.sdf.v3000", self._export_sdf_v3000_action),
+		):
+			action.setStatusTip(action.text())
+			self._action_registry.register_existing(
+				action_id, action,
+				shortcut_exemption_reason="Available by its labelled File menu client.",
+			)
 
 	#============================================
 	def _choose_document_sdf_v2000_export(self) -> None:

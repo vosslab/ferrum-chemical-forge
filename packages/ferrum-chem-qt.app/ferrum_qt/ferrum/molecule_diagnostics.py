@@ -201,7 +201,7 @@ class FerrumNativeMoleculeDiagnosticsDialog(FerrumAccessibleDialog):
 		super().__init__(parent)
 		self._receipt = receipt
 		self._tab = tab
-		self._retired = False
+		self._source_closed = False
 		self.setWindowTitle(self.tr("Check Structure"))
 		self.setObjectName("check-structure-dialog")
 		self.setAccessibleName(self.tr("Check Structure"))
@@ -299,14 +299,14 @@ class FerrumNativeMoleculeDiagnosticsDialog(FerrumAccessibleDialog):
 	#============================================
 	def set_rerun_availability(self, available: bool, explanation: str) -> None:
 		"""Expose whether this exact receipt intent can be recaptured now."""
-		self._rerun.setEnabled(available and not self._retired)
+		self._rerun.setEnabled(available and not self._source_closed)
 		self._rerun.setToolTip(explanation)
 		self._rerun.setAccessibleDescription(explanation)
 
 	#============================================
-	def retire_for_closed_source(self) -> None:
+	def close_for_closed_source(self) -> None:
 		"""Withdraw a modeless receipt after its source tab is closed."""
-		self._retired = True
+		self._source_closed = True
 		self._rerun.setEnabled(False)
 		self.close()
 
@@ -323,8 +323,8 @@ class FerrumNativeMoleculeDiagnosticsMixin:
 		self._molecule_diagnostics_relay = _DeliveryRelay(self)
 
 	#============================================
-	def _build_molecule_diagnostics_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Install the explicit registered Chemistry action."""
+	def _build_molecule_diagnostics_action(self) -> None:
+		"""Create and register the explicit Chemistry action."""
 		self._check_structure_action = PySide6.QtGui.QAction(self.tr("Check Structure..."), self)
 		self._check_structure_action.setObjectName("check-structure-action")
 		self._check_structure_action.setStatusTip(self.tr(
@@ -334,7 +334,10 @@ class FerrumNativeMoleculeDiagnosticsMixin:
 			"Select atoms or bonds belonging to exactly one complete molecule.",
 		))
 		self._check_structure_action.triggered.connect(self._start_molecule_diagnostics)
-		menu.addAction(self._check_structure_action)
+		self._action_registry.register_existing(
+			"chemistry.diagnostics.structure", self._check_structure_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _molecule_diagnostics_busy(self) -> bool:
@@ -487,7 +490,7 @@ class FerrumNativeMoleculeDiagnosticsMixin:
 		if dialog is None:
 			return
 		if dialog._tab not in self._native_tabs_by_page:
-			dialog.retire_for_closed_source()
+			dialog.close_for_closed_source()
 			return
 		if not self._molecule_diagnostics_dialog_source_is_current(dialog):
 			dialog.mark_stale()
@@ -518,11 +521,11 @@ class FerrumNativeMoleculeDiagnosticsMixin:
 		)
 
 	#============================================
-	def _retire_molecule_diagnostics_dialog_for_tab(self, tab: object) -> None:
+	def _close_molecule_diagnostics_dialog_for_tab(self, tab: object) -> None:
 		"""Remove a modeless receipt before its source tab is disposed."""
 		dialog = self._molecule_diagnostics_dialog
 		if dialog is not None and dialog._tab is tab:
-			dialog.retire_for_closed_source()
+			dialog.close_for_closed_source()
 
 	#============================================
 	def _molecule_diagnostics_blocks_tab_close(self, tab: object) -> bool:

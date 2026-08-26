@@ -80,6 +80,7 @@ class _UnexpectedModalObserver(PySide6.QtCore.QObject):
 		self._app = app
 		self.observations: list[str] = []
 		self._scheduled: list[PySide6.QtWidgets.QDialog] = []
+		self._expected_accessible_names: set[str] = set()
 		app.installEventFilter(self)
 
 	def close(self) -> None:
@@ -94,6 +95,8 @@ class _UnexpectedModalObserver(PySide6.QtCore.QObject):
 			or not isinstance(watched, PySide6.QtWidgets.QDialog)
 			or not watched.isModal()
 		):
+			return False
+		if watched.accessibleName() in self._expected_accessible_names:
 			return False
 		self.observations.append(
 			f"title={watched.windowTitle()!r}; accessible_name={watched.accessibleName()!r}",
@@ -110,8 +113,13 @@ class _UnexpectedModalObserver(PySide6.QtCore.QObject):
 			f"{phase} opened an unexpected public modal: {self.observations!r}",
 			)
 
+	def expect(self, accessible_name: str) -> None:
+		"""Allow one named public modal to complete its intended user workflow."""
+		self._expected_accessible_names.add(accessible_name)
+
 	def discard_expected(self, accessible_name: str) -> None:
-		"""Retain liveness evidence only for modals outside this expected public step."""
+		"""Resume unexpected-modal detection after one expected public step."""
+		self._expected_accessible_names.discard(accessible_name)
 		self.observations = [description for description in self.observations
 			if f"accessible_name={accessible_name!r}" not in description]
 
@@ -158,14 +166,12 @@ def _click_canvas(canvas: PySide6.QtWidgets.QGraphicsView, point: PySide6.QtCore
 	)
 
 
-def _reaction(tab: object) -> object:
-	"""Return the sole reaction from Ferrum's supported Rust-issued observation."""
-	reactions = tab.observe_reaction_list().reactions
-	if len(reactions) != 1:
-		raise ReactionWorkflowE2eError(
-			f"expected one Rust-issued reaction after authoring, observed {len(reactions)}",
-		)
-	return reactions[0]
+def _reaction(tab: object, member_ids: frozenset[str]) -> object | None:
+	"""Return the authored reaction identified by its durable member roots."""
+	return next((
+		reaction for reaction in tab.observe_reaction_list().reactions
+		if frozenset(member.document_object_id for member in reaction.members) == member_ids
+	), None)
 
 
 #============================================
@@ -182,10 +188,72 @@ def _authoring_state(tab: object) -> str:
 
 
 #============================================
-def _set_checked(list_widget: PySide6.QtWidgets.QListWidget, index: int,
+def _molecule_ids(tab: object) -> frozenset[str]:
+	"""Return Rust-issued durable identities for the current molecule roots."""
+	return frozenset(
+		molecule.document_object_id
+		for molecule in tab.current_document_observation().projection.molecules
+	)
+
+
+#============================================
+def _created_molecule_id(tab: object, previous_ids: frozenset[str], phase: str) -> str:
+	"""Return the one durable molecule identity created by a visible authoring step."""
+	created_ids = _molecule_ids(tab) - previous_ids
+	try:
+		created_id = next(iter(created_ids))
+	except StopIteration as exc:
+		raise ReactionWorkflowE2eError(
+			f"{phase} did not add a durable molecule root",
+		) from exc
+	if any(candidate != created_id for candidate in created_ids):
+		raise ReactionWorkflowE2eError(
+			f"{phase} added multiple durable molecule roots: {sorted(created_ids)!r}",
+		)
+	return created_id
+
+
+#============================================
+def _authored_molecule_point(tab: object, molecule_id: str,
+		authored_point: PySide6.QtCore.QPointF) -> PySide6.QtCore.QPointF:
+	"""Return Rust-issued geometry for the known molecule atom nearest its authoring click."""
+	molecule = next((
+		item for item in tab.current_document_observation().projection.molecules
+		if item.document_object_id == molecule_id
+	), None)
+	if molecule is None:
+		raise ReactionWorkflowE2eError(
+			f"Rust projection no longer contains authored molecule {molecule_id!r}",
+		)
+	try:
+		atom = min(
+			molecule.atoms,
+			key=lambda item: (
+				(item.position.x - authored_point.x()) ** 2
+				+ (item.position.y - authored_point.y()) ** 2,
+				item.document_object_id,
+			),
+		)
+	except ValueError as exc:
+		raise ReactionWorkflowE2eError(
+			f"Rust projection omitted atoms for authored molecule {molecule_id!r}",
+		) from exc
+	return PySide6.QtCore.QPointF(atom.position.x, atom.position.y)
+
+
+#============================================
+def _set_checked(list_widget: PySide6.QtWidgets.QListWidget, document_object_id: str,
 		checked: bool) -> None:
-	"""Set one visible reaction role through its rendered checkbox item."""
-	item = list_widget.item(index)
+	"""Set one visible durable reaction root through its rendered checkbox item."""
+	item = next((
+		candidate for index in range(list_widget.count())
+		for candidate in [list_widget.item(index)]
+		if candidate.data(PySide6.QtCore.Qt.ItemDataRole.UserRole) == document_object_id
+	), None)
+	if item is None:
+		raise ReactionWorkflowE2eError(
+			f"reaction role editor did not expose durable root {document_object_id!r}",
+		)
 	item.setCheckState(
 		PySide6.QtCore.Qt.CheckState.Checked if checked
 		else PySide6.QtCore.Qt.CheckState.Unchecked,
@@ -193,7 +261,8 @@ def _set_checked(list_widget: PySide6.QtWidgets.QListWidget, index: int,
 
 
 #============================================
-def _accept_role_edit(app: PySide6.QtWidgets.QApplication) -> None:
+def _accept_role_edit(app: PySide6.QtWidgets.QApplication, reactant_id: str,
+		product_id: str) -> None:
 	"""Swap the two molecule roles through the accessible Edit Roles dialog."""
 	dialog = app.activeModalWidget()
 	if not isinstance(dialog, PySide6.QtWidgets.QDialog) or dialog.accessibleName() != "Edit Reaction":
@@ -202,10 +271,8 @@ def _accept_role_edit(app: PySide6.QtWidgets.QApplication) -> None:
 		if widget.accessibleName() == "Reactants")
 	products = next(widget for widget in dialog.findChildren(PySide6.QtWidgets.QListWidget)
 		if widget.accessibleName() == "Products")
-	if reactants.count() != 2 or products.count() != 2:
-		raise ReactionWorkflowE2eError("Edit Roles did not expose both authored molecule roots")
-	_set_checked(reactants, 1, True)
-	_set_checked(products, 1, True)
+	_set_checked(reactants, product_id, True)
+	_set_checked(products, reactant_id, True)
 	button_box = next(widget for widget in dialog.findChildren(PySide6.QtWidgets.QDialogButtonBox)
 		if widget.isVisible())
 	button = button_box.button(PySide6.QtWidgets.QDialogButtonBox.StandardButton.Ok)
@@ -247,21 +314,33 @@ def main() -> int:
 		product = PySide6.QtCore.QPointF(200.0, 40.0)
 		arrow_start = PySide6.QtCore.QPointF(70.0, 110.0)
 		arrow_end = PySide6.QtCore.QPointF(170.0, 110.0)
-		_trigger(window, app, "Insert Cyclohexane Ring")
+		molecule_ids_before_reactant = _molecule_ids(tab)
+		_trigger(window, app, "Cyclopentane (C5)")
 		_click_canvas(canvas, reactant)
 		_await(
 			app, observer,
-			lambda: len(tab.current_document_observation().projection.molecules) == 1,
+			lambda: bool(_molecule_ids(tab) - molecule_ids_before_reactant),
 			"inserting the first public molecule",
+		)
+		reactant_id = _created_molecule_id(
+			tab, molecule_ids_before_reactant, "inserting the first public molecule",
 		)
 		PySide6.QtTest.QTest.keyClick(canvas.viewport(), PySide6.QtCore.Qt.Key.Key_Escape)
 		app.processEvents()
+		molecule_ids_before_product = _molecule_ids(tab)
 		_trigger(window, app, "Insert Cyclohexane Ring")
 		_click_canvas(canvas, product)
 		_await(
 			app, observer,
-			lambda: len(tab.current_document_observation().projection.molecules) == 2,
+			lambda: bool(_molecule_ids(tab) - molecule_ids_before_product),
 			"inserting the second public molecule",
+		)
+		product_id = _created_molecule_id(
+			tab, molecule_ids_before_product, "inserting the second public molecule",
+		)
+		root_ids_before_arrow = frozenset(
+			root.document_object_id
+			for root in tab.current_document_observation().projection.direct_roots
 		)
 		_trigger(window, app, "Draw Arrow")
 		PySide6.QtTest.QTest.mousePress(
@@ -277,9 +356,8 @@ def main() -> int:
 			_await(
 				app, observer,
 				lambda: (
-					len(tab.current_document_observation().projection.molecules) == 2
-					and any(
-						root.kind == "arrow"
+					any(
+						root.kind == "arrow" and root.document_object_id not in root_ids_before_arrow
 						for root in tab.current_document_observation().projection.direct_roots
 					)
 				),
@@ -287,15 +365,19 @@ def main() -> int:
 			)
 		except ReactionWorkflowE2eError as exc:
 			raise ReactionWorkflowE2eError(f"{exc}; observed {_authoring_state(tab)}") from exc
+		arrow_id = next(
+			root.document_object_id
+			for root in tab.current_document_observation().projection.direct_roots
+			if root.kind == "arrow" and root.document_object_id not in root_ids_before_arrow
+		)
+		member_ids = frozenset((reactant_id, product_id, arrow_id))
 		_trigger(window, app, "Move Complete Roots")
-		for index, molecule in enumerate(tab.current_document_observation().projection.molecules):
-			atom = molecule.atoms[0]
+		for document_object_id, authored_point, modifier in (
+			(reactant_id, reactant, PySide6.QtCore.Qt.KeyboardModifier.NoModifier),
+			(product_id, product, PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier),
+		):
 			_click_canvas(
-				canvas, PySide6.QtCore.QPointF(atom.position.x, atom.position.y),
-				(
-					PySide6.QtCore.Qt.KeyboardModifier.NoModifier if index == 0
-					else PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
-				),
+				canvas, _authored_molecule_point(tab, document_object_id, authored_point), modifier,
 			)
 		_click_canvas(
 			canvas, PySide6.QtCore.QPointF(120.0, 110.0),
@@ -311,25 +393,20 @@ def main() -> int:
 			if widget.accessibleName() == "Products")
 		arrows = next(widget for widget in composer.findChildren(PySide6.QtWidgets.QListWidget)
 			if widget.accessibleName() == "Arrow")
-		if reactants.count() != 2 or products.count() != 2 or arrows.count() != 1:
-			raise ReactionWorkflowE2eError(
-				"Create Reaction did not expose all selected member roles; observed "
-				f"reactants={reactants.count()}, products={products.count()}, arrows={arrows.count()}",
-			)
-		_set_checked(reactants, 0, True)
-		_set_checked(products, 1, True)
-		_set_checked(arrows, 0, True)
+		_set_checked(reactants, reactant_id, True)
+		_set_checked(products, product_id, True)
+		_set_checked(arrows, arrow_id, True)
 		create = next(widget for widget in composer.findChildren(PySide6.QtWidgets.QPushButton)
 			if widget.accessibleName() == "Create Reaction")
 		if not create.isEnabled():
 			raise ReactionWorkflowE2eError("Create Reaction stayed disabled for complete visible roles")
 		create.click()
-		_await(app, observer, lambda: len(tab.observe_reaction_list().reactions) == 1,
-			"Create Reaction")
-		created = _reaction(tab)
-		if not created.strict or sorted(_roles(created).values()) != ["arrow", "product", "reactant"]:
+		_await(app, observer, lambda: _reaction(tab, member_ids) is not None, "Create Reaction")
+		created = _reaction(tab, member_ids)
+		if created is None or not created.strict or _roles(created) != {
+			reactant_id: "reactant", product_id: "product", arrow_id: "arrow",
+		}:
 			raise ReactionWorkflowE2eError("Create Reaction did not publish a strict typed reaction")
-		member_ids = frozenset(_roles(created))
 		root_ids_before_delete = frozenset(
 			root.document_object_id for root in tab.current_document_observation().projection.direct_roots
 		)
@@ -354,18 +431,31 @@ def main() -> int:
 		edit_roles = next(widget for widget in inspector.findChildren(PySide6.QtWidgets.QPushButton)
 			if widget.accessibleName() == "Edit Roles...")
 		created_roles = _roles(created)
-		PySide6.QtCore.QTimer.singleShot(0, lambda: _accept_role_edit(app))
+		observer.expect("Edit Reaction")
+		PySide6.QtCore.QTimer.singleShot(
+			0, lambda: _accept_role_edit(app, reactant_id, product_id),
+		)
 		edit_roles.click()
 		observer.discard_expected("Edit Reaction")
 		try:
-			_await(app, observer, lambda: _roles(_reaction(tab)) != created_roles, "Edit Roles")
+			_await(
+				app, observer,
+				lambda: (
+					(reaction := _reaction(tab, member_ids)) is not None
+					and _roles(reaction) != created_roles
+				),
+				"Edit Roles",
+			)
 		except ReactionWorkflowE2eError as exc:
+			edited_reaction = _reaction(tab, member_ids)
 			raise ReactionWorkflowE2eError(
-				f"{exc}; role_membership_changed={_roles(_reaction(tab)) != created_roles}; "
+				f"{exc}; role_membership_changed={edited_reaction is not None and _roles(edited_reaction) != created_roles}; "
 				f"status={window.statusBar().currentMessage()!r}",
 			) from exc
-		edited = _reaction(tab)
-		if sorted(_roles(edited).values()) != ["arrow", "product", "reactant"]:
+		edited = _reaction(tab, member_ids)
+		if edited is None or _roles(edited) != {
+			product_id: "reactant", reactant_id: "product", arrow_id: "arrow",
+		}:
 			raise ReactionWorkflowE2eError("Edit Roles did not retain a complete typed reaction")
 		before_nudge_revision = tab.current_document_observation().snapshot.revision
 		nudge_right = next(widget for widget in inspector.findChildren(PySide6.QtWidgets.QPushButton)
@@ -376,11 +466,12 @@ def main() -> int:
 			lambda: tab.current_document_observation().snapshot.revision > before_nudge_revision,
 			"Nudge Right",
 		)
-		nudged = _reaction(tab)
-		if not nudged.strict or frozenset(_roles(nudged)) != member_ids:
+		nudged = _reaction(tab, member_ids)
+		if nudged is None or not nudged.strict or frozenset(_roles(nudged)) != member_ids:
 			raise ReactionWorkflowE2eError("Nudge did not retain the same strict reaction members")
 		delete = next(widget for widget in inspector.findChildren(PySide6.QtWidgets.QPushButton)
 			if widget.accessibleName() == "Delete Definition...")
+		observer.expect("Delete Reaction Definition")
 		PySide6.QtCore.QTimer.singleShot(0, lambda: _confirm_reaction_deletion(app))
 		delete.click()
 		observer.discard_expected("Delete Reaction Definition")

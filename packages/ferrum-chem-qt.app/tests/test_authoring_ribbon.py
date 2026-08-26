@@ -1,237 +1,156 @@
-"""Focused behavior coverage for the compact Ferrum authoring ribbon."""
-
-# Standard Library
-import pathlib
+"""Semantic behavior coverage for Ferrum's grouped labelled authoring ribbon."""
 
 # PIP3 modules
 import PySide6.QtCore
+import PySide6.QtGui
 import PySide6.QtTest
 import PySide6.QtWidgets
+import pytest
 
 # local repo modules
-import ferrum_qt.io.user_template_catalog
-
-
-_USER_TEMPLATE = (
-	'<cdml xmlns="urn:ferrum:cdml" version="26.07"><standard line_width="9"/><paper id="paper"/>\n'
-	'<molecule id="source" name="Ribbon template">\n'
-	' <atom id="a" name="C"><point x="0" y="0"/></atom>\n'
-	' <atom id="b" name="O"><point x="10" y="0"/></atom>\n'
-	' <bond id="ab" start="a" end="b" type="n1"/>\n'
-	'</molecule></cdml>\n'
-)
+import ferrum_qt.actions.action_registry
+import ferrum_qt.declarative_resources
+import ferrum_qt.ferrum.authoring_ribbon_layout
+import ferrum_qt.widgets.ribbon_group
 
 
 #============================================
-def test_authoring_ribbon_uses_two_rows_and_reuses_live_actions(
+def test_authoring_ribbon_uses_named_task_groups_and_live_actions(
 		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Desktop ribbon has two purposeful rows backed by the window actions."""
-	main_window.resize(1280, 800)
+	"""Home presents recognisable task groups backed by the existing registry actions."""
 	main_window.show()
 	qapp.processEvents()
 	ribbon = main_window._authoring_ribbon
-	assert ribbon._content.layout().count() == 2
-	assert ribbon._command_buttons[0].defaultAction() is main_window._action_new
-	assert ribbon._content.layout().count() == 2
-	assert ribbon._command_row.geometry().bottom() < ribbon._tool_row.geometry().top()
-	assert ribbon._drawing_parameters_client.isHidden()
-	assert not ribbon._more_button.isVisible()
-	assert not ribbon._more_tools_button.isVisible()
-	assert _button_for_action(ribbon, main_window._show_hex_grid_action).isVisible()
-	assert _button_for_action(ribbon, main_window._snap_hex_grid_action).isVisible()
-	extension = ribbon.findChild(PySide6.QtWidgets.QToolButton, "qt_toolbar_ext_button")
-	assert extension is None or extension.isHidden()
+	draw_group = _group(ribbon, "home", "draw")
+	assert draw_group.accessibleName()
+	assert draw_group.direct_button_for(main_window._draw_bond_action).defaultAction() is (
+		main_window._draw_bond_action
+	)
+	assert draw_group.direct_button_for(main_window._draw_bond_action).text()
 
 
 #============================================
-def test_authoring_ribbon_checked_tool_changes_context(
+def test_ribbon_layout_resolves_existing_action_identity(qapp: object) -> None:
+	"""Layout declarations resolve the supplied registry QAction without a copy."""
+	parent = PySide6.QtWidgets.QWidget()
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	action = _register_action(registry, parent, "draw.bond")
+	layout = ferrum_qt.ferrum.authoring_ribbon_layout._resolve_layout({"tabs": [{
+		"id": "home", "label_key": "Home", "groups": [{
+			"id": "draw", "label_key": "Draw", "overflow_label_key": "More drawing tools",
+			"entries": [{"action": "draw.bond", "role": "primary", "priority": "required"}],
+		}],
+	}]}, registry)
+	home_tab = next(tab for tab in layout if tab.id == "home")
+	draw_group = next(group for group in home_tab.groups if group.id == "draw")
+	entry = next(entry for entry in draw_group.entries if entry.action_id == "draw.bond")
+	assert entry.action is action
+
+
+#============================================
+def test_ribbon_layout_rejects_unknown_required_action(qapp: object) -> None:
+	"""A bad layout fails before a ribbon widget can mutate the visible window."""
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	with pytest.raises(ferrum_qt.declarative_resources.DeclarativeResourceError,
+			match="unbound QAction 'draw.unknown'"):
+		ferrum_qt.ferrum.authoring_ribbon_layout._resolve_layout({"tabs": [{
+			"id": "home", "label_key": "Home", "groups": [{
+				"id": "draw", "label_key": "Draw", "overflow_label_key": "More drawing tools",
+				"entries": [{"action": "draw.unknown", "role": "primary", "priority": "required"}],
+			}],
+		}]}, registry)
+
+
+#============================================
+def test_group_local_more_reuses_disabled_checked_action(qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A supporting action retains owner state in its direct and More-menu clients."""
+	parent = PySide6.QtWidgets.QWidget()
+	action = PySide6.QtGui.QAction("Supporting command", parent)
+	action.setToolTip("Use the supporting command")
+	action.setCheckable(True)
+	entry = ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+		"draw.supporting", "supporting", "normal", action,
+	)
+	layout = ferrum_qt.ferrum.authoring_ribbon_layout.RibbonGroupLayout(
+		"draw", "Draw", "More drawing tools", (entry,),
+	)
+	group = ferrum_qt.widgets.ribbon_group.RibbonGroup(layout, parent)
+	group.resize(20, 100)
+	parent.show()
+	qapp.processEvents()
+	action.setChecked(True)
+	action.setEnabled(False)
+	qapp.processEvents()
+	button = group.direct_button_for(action)
+	assert button.defaultAction() is action
+	assert not button.isEnabled()
+	assert action in group._more_button.menu().actions()
+
+
+#============================================
+def test_ribbon_rejects_duplicate_same_tab_action_placement(qapp: object) -> None:
+	"""One tab cannot create competing direct clients for the same action."""
+	parent = PySide6.QtWidgets.QWidget()
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	_register_action(registry, parent, "draw.bond")
+	data = {"tabs": [{"id": "home", "label_key": "Home", "groups": [
+		{"id": "one", "label_key": "One", "overflow_label_key": "More one", "entries": [
+			{"action": "draw.bond", "role": "primary", "priority": "required"},
+		]},
+		{"id": "two", "label_key": "Two", "overflow_label_key": "More two", "entries": [
+			{"action": "draw.bond", "role": "supporting", "priority": "normal"},
+		]},
+	]}]}
+	with pytest.raises(ferrum_qt.declarative_resources.DeclarativeResourceError,
+			match="Duplicate ribbon action 'draw.bond'"):
+		ferrum_qt.ferrum.authoring_ribbon_layout._resolve_layout(data, registry)
+	parent.close()
+	parent.deleteLater()
+
+
+#============================================
+def test_bond_survives_tab_switch_then_escape_cancels_owner_tool(
 		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Real action switches leave the incoming bracket gesture armed."""
-	main_window.resize(1280, 800)
+	"""A real ribbon tab switch does not interfere with owner-managed cancellation."""
 	main_window.show()
 	qapp.processEvents()
-	ribbon = main_window._authoring_ribbon
-	main_window._draw_bond_action.trigger()
-	qapp.processEvents()
-	assert main_window._line_gesture_intent is not None
-	assert ribbon._drawing_parameters_client.isVisible()
-	main_window._draw_bracket_action.trigger()
-	qapp.processEvents()
-	assert main_window._draw_bracket_action.isChecked()
-	assert not main_window._draw_bond_action.isChecked()
-	assert main_window._line_gesture_intent is not None
-	PySide6.QtTest.QTest.keyClick(
-		main_window._line_gesture_intent.viewport,
-		PySide6.QtCore.Qt.Key.Key_Escape,
-	)
-	qapp.processEvents()
-	assert main_window._line_gesture_intent is None
-	assert not main_window._draw_bracket_action.isChecked()
-
-
-#============================================
-def test_authoring_ribbon_programmatic_tool_state_is_exclusive(
-		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Programmatic mode synchronization cannot leave conflicting tool clients."""
-	ribbon = main_window._authoring_ribbon
-	main_window._draw_bond_action.setChecked(True)
-	qapp.processEvents()
-	main_window._draw_round_bracket_action.setChecked(True)
-	qapp.processEvents()
-	assert main_window._draw_round_bracket_action.isChecked()
-	assert not main_window._draw_bond_action.isChecked()
-	assert ribbon._tool_action_group.checkedAction() is main_window._draw_round_bracket_action
-	main_window._draw_round_bracket_action.setChecked(False)
-	qapp.processEvents()
-	assert ribbon._tool_action_group.checkedAction() is None
-
-
-#============================================
-def test_authoring_ribbon_has_named_more_route_and_accessible_controls(
-		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Narrow width keeps each compact command and tool reachable by name."""
-	main_window.resize(1024, 800)
-	main_window.show()
+	bond = main_window._draw_bond_action
+	bond.trigger()
 	qapp.processEvents()
 	ribbon = main_window._authoring_ribbon
-	assert ribbon._more_button.isVisible()
-	assert ribbon._more_button.menu() is not None
-	assert ribbon._more_button.menu().actions()[0] is main_window._cut_action
-	assert ribbon._more_button.accessibleName()
-	assert ribbon._more_tools_button.isVisible()
-	assert ribbon._more_tools_button.accessibleName() == "More tools"
-	assert ribbon._more_tools_button.menu() is not None
-	more_tools = ribbon._more_tools_button.menu().actions()
-	assert main_window._select_structure_action in more_tools
-	assert all(action in more_tools for action in main_window._draw_vector_actions.values())
-	assert main_window._place_user_template_action in more_tools
-	assert more_tools[0] is main_window._add_atom_action
-	assert _button_for_action(ribbon, main_window._select_structure_action).isHidden()
-	assert _button_for_action(ribbon, main_window._place_user_template_action).isHidden()
-	assert _button_for_action(ribbon, main_window._show_hex_grid_action).isVisible()
-	assert _button_for_action(ribbon, main_window._snap_hex_grid_action).isVisible()
-	extension = ribbon.findChild(PySide6.QtWidgets.QToolButton, "qt_toolbar_ext_button")
-	assert extension is None or extension.isHidden()
-	assert all(button.accessibleName() for button in ribbon._tool_buttons)
+	structure_group = _group(ribbon, "structure", "rings")
+	ribbon._tabs.setCurrentWidget(structure_group.parentWidget())
+	qapp.processEvents()
+	assert bond.isChecked()
+	PySide6.QtTest.QTest.keyClick(main_window, PySide6.QtCore.Qt.Key.Key_Escape)
+	qapp.processEvents()
+	assert not bond.isChecked()
+	assert main_window._window_mode_sync.active_state.mode_id is None
 
 
 #============================================
-def test_authoring_ribbon_assigns_visible_icons_to_selection_and_vector_actions(
-		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Every direct compact action client retains purposeful Ferrum artwork."""
-	main_window.resize(1280, 800)
-	main_window.show()
-	qapp.processEvents()
-	ribbon = main_window._authoring_ribbon
-	actions = (
-		main_window._select_structure_action,
-		*main_window._draw_vector_actions.values(),
+def test_attached_compact_group_action_uses_declared_draw_and_structure_clients(
+		main_window: object) -> None:
+	"""The public compact-group route reuses its registered action in both clients."""
+	action = main_window._attach_compact_group_action
+	assert (
+		action is main_window._action_registry.get_qt_action("chemistry.compact_group.attach")
+		and action in main_window._draw_menu.actions()
 	)
-	for action in actions:
-		button = _button_for_action(ribbon, action)
-		assert not action.icon().isNull()
-		assert button.defaultAction() is action
-		assert button.accessibleName() == action.text()
-		assert button.toolTip() == action.toolTip()
+	group = _group(main_window._authoring_ribbon, "structure", "groups_templates")
+	assert group.direct_button_for(action).defaultAction() is action
+#============================================
+def _group(ribbon: object, tab_id: str, group_id: str) -> object:
+	"""Return one YAML-identified visible group without a widget-tree snapshot."""
+	return next(group for group in ribbon.groups_for_tab(tab_id)
+		if group.layout_data.id == group_id)
 
 
 #============================================
-def test_authoring_ribbon_uses_compact_accessible_bond_default_instruction(
-		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Narrow contextual defaults preserve their full instruction for assistive UI."""
-	main_window.resize(1024, 800)
-	main_window.show()
-	main_window._draw_bond_action.trigger()
-	qapp.processEvents()
-	instruction = main_window._authoring_ribbon._context_instruction
-	assert instruction.text() == "Next atom/bond defaults."
-	assert instruction.accessibleDescription() == (
-		"Drawing defaults apply to the next atom or bond."
-	)
-	assert instruction.width() >= instruction.fontMetrics().horizontalAdvance(
-		instruction.text(),
-	)
-
-
-#============================================
-def test_authoring_ribbon_more_tools_reuses_the_live_tool_lifecycle(
-		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""A compact-menu action switches the live canvas gesture, not just its mark."""
-	main_window.resize(1024, 800)
-	main_window.show()
-	qapp.processEvents()
-	ribbon = main_window._authoring_ribbon
-	main_window._draw_bond_action.trigger()
-	qapp.processEvents()
-	more_tools = ribbon._more_tools_button.menu()
-	assert more_tools is not None
-	more_tools.actions().index(main_window._draw_bracket_action)
-	main_window._draw_bracket_action.trigger()
-	qapp.processEvents()
-	assert main_window._draw_bracket_action.isChecked()
-	assert main_window._line_gesture_intent is not None
-	PySide6.QtTest.QTest.keyClick(
-		main_window._line_gesture_intent.viewport,
-		PySide6.QtCore.Qt.Key.Key_Escape,
-	)
-	qapp.processEvents()
-	assert main_window._line_gesture_intent is None
-
-
-#============================================
-def test_authoring_ribbon_retires_template_owner_before_direct_and_more_tools(
-		main_window: object, qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path) -> None:
-	"""Template placement cannot consume canvas events after another tool wins."""
-	directory = tmp_path / "templates"
-	directory.mkdir()
-	(directory / "ribbon-template.cdml").write_text(_USER_TEMPLATE, encoding="utf-8")
-	# Keep the interaction test free of the catalog refresh failure dialog while
-	# retaining the production Rust-backed catalog admission path.
-	main_window._user_template_catalog = (
-		ferrum_qt.io.user_template_catalog.scan_user_template_catalog(directory)
-	)
-	entry = main_window.user_template_catalog.entries[0]
-	main_window.resize(1280, 800)
-	main_window.show()
-	qapp.processEvents()
-
-	# A direct Draw Bond selection must terminally retire the template owner.
-	assert main_window.start_user_template_placement(entry.catalog_key)
-	main_window._draw_bond_action.trigger()
-	qapp.processEvents()
-	assert main_window._user_template_placement_intent is None
-	assert main_window._line_gesture_intent is not None
-	PySide6.QtTest.QTest.keyClick(
-		main_window._line_gesture_intent.viewport, PySide6.QtCore.Qt.Key.Key_Escape,
-	)
-	qapp.processEvents()
-	assert main_window._line_gesture_intent is None
-
-	# The shared More Tools QAction must make the same handoff before an Arrow drag.
-	main_window.resize(1024, 800)
-	qapp.processEvents()
-	ribbon = main_window._authoring_ribbon
-	more_tools = ribbon._more_tools_button.menu()
-	assert more_tools is not None
-	assert main_window.start_user_template_placement(entry.catalog_key)
-	more_tools.actions()[more_tools.actions().index(main_window._draw_arrow_action)].trigger()
-	qapp.processEvents()
-	assert main_window._user_template_placement_intent is None
-	intent = main_window._line_gesture_intent
-	assert intent is not None
-	PySide6.QtTest.QTest.keyClick(intent.viewport, PySide6.QtCore.Qt.Key.Key_Escape)
-	qapp.processEvents()
-	assert main_window._line_gesture_intent is None
-	assert main_window._user_template_placement_intent is None
-
-
-#============================================
-def _button_for_action(
-		ribbon: PySide6.QtWidgets.QToolBar, action: PySide6.QtGui.QAction,
-		) -> PySide6.QtWidgets.QToolButton:
-	"""Return the direct ribbon client for one existing live action."""
-	for button in ribbon.findChildren(PySide6.QtWidgets.QToolButton):
-		if button.defaultAction() is action:
-			return button
-	raise AssertionError(f"Ribbon has no direct client for {action.text()!r}")
+def _register_action(registry: object, parent: PySide6.QtWidgets.QWidget,
+		action_id: str) -> PySide6.QtGui.QAction:
+	"""Add one complete live QAction to an isolated ActionRegistry."""
+	action = PySide6.QtGui.QAction(action_id, parent)
+	action.setToolTip(action_id)
+	registry.register_existing(action_id, action, shortcut_exemption_reason="Test action")
+	return action

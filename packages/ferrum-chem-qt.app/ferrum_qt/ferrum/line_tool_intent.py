@@ -6,6 +6,7 @@ import enum
 
 # PIP3 modules
 import PySide6.QtCore
+import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
@@ -42,7 +43,7 @@ class _NativeLineTool(enum.Enum):
 	MOVE_ATOM = "move_atom"
 	ROTATE_ATOMS = "rotate_atoms"
 	TRANSLATE_ROOTS = "translate_roots"
-	INSERT_CYCLOHEXANE_RING = "insert_cyclohexane_ring"
+	INSERT_REGULAR_RING = "insert_regular_ring"
 	ATTACH_CYCLOHEXANE_RING = "attach_cyclohexane_ring"
 
 
@@ -69,6 +70,8 @@ class _LineGestureIntent:
 	last_angle: float | None = None
 	accumulated_angle: float = 0.0
 	regular_ring_center: PySide6.QtCore.QPointF | None = None
+	regular_ring_size: int | None = None
+	regular_ring_action: PySide6.QtGui.QAction | None = None
 	attached_cyclohexane_pending: object | None = None
 	attached_cyclohexane_cancel_blocked: bool = False
 	direct_bond_start_probe: object | None = None

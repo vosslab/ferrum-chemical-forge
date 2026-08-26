@@ -8,9 +8,9 @@ use super::{
     SessionOperationResultV1,
 };
 use crate::{
-    AttachCompactGroupV1, AttachedCompactGroupErrorV1, AttachedCompactGroupReleaseV1,
-    AuthoringCapabilityIssuerV1, CompactGroupCatalogKeyV1, Point3V1,
-    attached_compact_group_v1::attached_compact_group_candidate_v1,
+    AttachCompactGroupV1, AttachedCompactGroupErrorV1, AuthoringCapabilityIssuerV1,
+    CompactGroupCatalogKeyV1, Point3V1,
+    attached_compact_group_v1::attached_compact_group_candidate_from_resolved_pose_v1,
     compact_group_materialization_v1::TypedCompactGroupMaterializationRequestV1,
 };
 use ferrum_chemistry::{
@@ -19,7 +19,10 @@ use ferrum_chemistry::{
 };
 use ferrum_document_model::materialization_recipe_v1;
 use ferrum_render::{
-    AcceptedRenderOverlayRequestV1, AcceptedRenderOverlayTargetV1, DocumentPrecommitOverlayV1,
+    AcceptedRenderOverlayRequestV1, AcceptedRenderOverlayTargetV1, DepictionProfileV1,
+    DocumentPrecommitOverlayV1, FerrumFontEnvironmentV1, RenderPoint,
+    ResolvedAttachedCompactGroupPoseV1, VerifiedTelexGlyphMetrics,
+    resolve_attached_compact_group_anchor_render_facts_v1, resolve_attached_compact_group_pose_v1,
 };
 
 /// Opaque session-affine, one-use pending compact-group attachment.
@@ -77,7 +80,7 @@ impl std::fmt::Debug for PendingAttachedCompactGroupV1 {
         formatter
             .debug_struct("PendingAttachedCompactGroupV1")
             .field("revision", &self.fence.revision())
-            .field("is_resolved", &self.transition.is_consumed_v1())
+            .field("is_consumed", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -98,8 +101,8 @@ pub enum AttachedCompactGroupSessionErrorV1 {
     StaleDigest,
     #[error("compact-group attachment belongs to another session")]
     ForeignSession,
-    #[error("compact-group attachment is retired")]
-    Retired,
+    #[error("compact-group attachment was already consumed")]
+    Consumed,
     #[error("compact-group attachment anchor is unknown or not a direct atom")]
     UnknownAnchor,
     #[error("compact-group attachment pose is invalid")]
@@ -219,9 +222,7 @@ impl DocumentSession {
             AttachedCompactGroupAvailabilityCategoryV1::StaleDigest
         } else if let Ok(observation) = self.document_observation() {
             match resolve_anchor(&observation, &anchor) {
-                Ok(resolved) => {
-                    availability_category(self.current_document_v1(), resolved, catalog_key)
-                }
+                Ok(resolved) => availability_category(resolved, catalog_key),
                 Err(_) => AttachedCompactGroupAvailabilityCategoryV1::UnknownAnchor,
             }
         } else {
@@ -242,8 +243,18 @@ impl DocumentSession {
             .document_observation()
             .map_err(|_| AttachedCompactGroupSessionErrorV1::SessionConflict)?;
         let resolved = resolve_anchor(&observation, &anchor)?;
-        let pose = attached_compact_group_candidate_v1(resolved.position, request)
-            .map_err(map_core_error)?;
+        let renderer_pose = resolve_renderer_admitted_pose(&observation, &resolved, request)?;
+        let pose = attached_compact_group_candidate_from_resolved_pose_v1(
+            request.catalog_key(),
+            Point3V1::new(
+                renderer_pose.anchor().x(),
+                renderer_pose.anchor().y(),
+                resolved.position.z(),
+            )
+            .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?,
+            renderer_pose.orientation_degrees(),
+        )
+        .map_err(map_core_error)?;
         let catalog_key = pose.catalog_key();
         let validation_group_id = validation_identifier(self.current_document_v1(), "group")?;
         let validation_bond_id = validation_identifier(self.current_document_v1(), "bond")?;
@@ -322,7 +333,7 @@ impl DocumentSession {
         pending: &mut PendingAttachedCompactGroupV1,
     ) -> Result<AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1> {
         if pending.transition.is_consumed_v1() {
-            return Err(AttachedCompactGroupSessionErrorV1::Retired);
+            return Err(AttachedCompactGroupSessionErrorV1::Consumed);
         }
         if !pending
             .session_issuer
@@ -340,8 +351,8 @@ impl DocumentSession {
         ))
     }
 
-    /// Retire one pending compact-group attachment without consuming document state or IDs.
-    pub fn retire_attach_compact_group_v1(
+    /// Cancel one pending compact-group attachment without consuming document state or IDs.
+    pub fn cancel_attach_compact_group_v1(
         &mut self,
         pending: &mut PendingAttachedCompactGroupV1,
     ) -> Result<(), AttachedCompactGroupSessionErrorV1> {
@@ -352,65 +363,36 @@ impl DocumentSession {
             return Err(AttachedCompactGroupSessionErrorV1::ForeignSession);
         }
         if pending.transition.is_consumed_v1() {
-            return Err(AttachedCompactGroupSessionErrorV1::Retired);
+            return Err(AttachedCompactGroupSessionErrorV1::Consumed);
         }
-        self.retire_session_operation_transition_v1(&mut pending.transition)
+        self.cancel_session_operation_transition_v1(&mut pending.transition)
             .map_err(map_commit_error)
     }
 }
 
 fn availability_category(
-    document: &crate::TypedDocument,
     resolved: ResolvedAnchorV1,
     catalog_key: CompactGroupCatalogKeyV1,
 ) -> AttachedCompactGroupAvailabilityCategoryV1 {
-    let release = availability_release(resolved.position);
-    let request = AttachCompactGroupV1::new(catalog_key, release);
-    let Ok(candidate) = attached_compact_group_candidate_v1(resolved.position, request) else {
+    if attached_compact_group_chemistry_fact_v1(catalog_key).is_err() {
         return AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission;
-    };
-    let Ok(group_id) = validation_identifier(document, "availability-group") else {
-        return AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission;
-    };
-    let Ok(bond_id) = validation_identifier(document, "availability-bond") else {
-        return AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission;
-    };
-    let Ok(candidate_document) = document.with_attach_compact_group_v1(
-        &resolved.molecule_id,
-        &resolved.anchor_id,
-        &group_id,
-        &bond_id,
-        candidate,
-    ) else {
-        return AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission;
-    };
-    match require_materialized_compact_group_capacity(
-        &candidate_document,
-        &resolved.molecule_id,
-        &group_id,
-        candidate.catalog_key(),
-        &resolved,
-    ) {
+    }
+    match require_direct_anchor_attachment_capacity(&resolved) {
         Ok(()) => AttachedCompactGroupAvailabilityCategoryV1::Available,
         Err(_) => AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission,
     }
 }
 
-fn availability_release(anchor: Point3V1) -> AttachedCompactGroupReleaseV1 {
-    let offset_x = anchor.x() + 1.0;
-    let x = if offset_x.is_finite() && offset_x != anchor.x() {
-        offset_x
-    } else {
-        let next_x = anchor.x().next_up();
-        if next_x.is_finite() {
-            next_x
-        } else {
-            anchor.x().next_down()
-        }
-    };
-    AttachedCompactGroupReleaseV1::new(x, anchor.y()).expect(
-        "a neighboring finite coordinate gives the geometry-independent capacity probe a pose",
-    )
+/// Return the geometry-free chemistry fact required by attached-group availability.
+///
+/// A release point is intentionally absent: renderer admission owns durable compact-group pose.
+fn attached_compact_group_chemistry_fact_v1(
+    catalog_key: CompactGroupCatalogKeyV1,
+) -> Result<(), AttachedCompactGroupSessionErrorV1> {
+    ferrum_document_model::supports_attached_compact_group_authoring_v1(catalog_key)
+        .then_some(())
+        .and_then(|()| materialization_recipe_v1(catalog_key).map(|_| ()))
+        .ok_or(AttachedCompactGroupSessionErrorV1::CandidateAdmission)
 }
 
 fn require_fence(
@@ -451,15 +433,16 @@ fn map_commit_error(
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             AttachedCompactGroupSessionErrorV1::ForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed => AttachedCompactGroupSessionErrorV1::Retired,
+        AdmittedSessionTransitionRefusalV1::Consumed => {
+            AttachedCompactGroupSessionErrorV1::Consumed
+        }
         AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
             AttachedCompactGroupSessionErrorV1::StaleRevision
         }
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             AttachedCompactGroupSessionErrorV1::RendererAdmission
         }
-        AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             AttachedCompactGroupSessionErrorV1::SessionConflict
         }
     }
@@ -503,6 +486,13 @@ fn require_materialized_compact_group_capacity(
     document
         .materialize_compact_group_v1(&plan)
         .map_err(|_| AttachedCompactGroupSessionErrorV1::CandidateAdmission)?;
+    require_direct_anchor_attachment_capacity(resolved)
+}
+
+/// Admit the one exterior normal bond using only direct-anchor chemistry facts.
+fn require_direct_anchor_attachment_capacity(
+    resolved: &ResolvedAnchorV1,
+) -> Result<(), AttachedCompactGroupSessionErrorV1> {
     match admit_ordinary_attachment_capacity_v1(
         OrdinaryAttachmentProfileV1::NormalSingle,
         OrdinaryAttachmentAnchorV1 {
@@ -548,6 +538,32 @@ struct ResolvedAnchorV1 {
     valence: Option<u16>,
     multiplicity: Option<u16>,
     incident_bond_orders: Vec<OrdinaryAttachmentBondOrderV1>,
+    atom: crate::AtomProjectionV1,
+}
+
+/// Resolve the only durable attachment pose from the current fenced render observation.
+///
+/// Persistent identifier allocation deliberately follows this renderer-owned geometry step.
+fn resolve_renderer_admitted_pose(
+    observation: &SessionDocumentObservationV1,
+    resolved: &ResolvedAnchorV1,
+    request: AttachCompactGroupV1,
+) -> Result<ResolvedAttachedCompactGroupPoseV1, AttachedCompactGroupSessionErrorV1> {
+    let profile = DepictionProfileV1::ferrum_default();
+    let facts = resolve_attached_compact_group_anchor_render_facts_v1(
+        observation.projection(),
+        &resolved.atom,
+        &profile,
+    )
+    .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
+    let raw_release = RenderPoint::new(request.release().x(), request.release().y())
+        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
+    let environment = FerrumFontEnvironmentV1::load()
+        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
+    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
+        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
+    resolve_attached_compact_group_pose_v1(&facts, request.catalog_key(), raw_release, &metrics)
+        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)
 }
 
 fn resolve_anchor(
@@ -606,351 +622,18 @@ fn resolve_anchor(
         valence: atom.valence(),
         multiplicity: atom.multiplicity(),
         incident_bond_orders,
+        atom: atom.clone(),
     })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        DocumentCompactGroupMaterializationRequestV1, SessionOperation,
-        SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
-    };
+#[path = "attached_compact_group_tests.rs"]
+mod tests;
 
-    const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+#[cfg(test)]
+#[path = "attached_acyl_chloride_tests.rs"]
+mod acyl_chloride_tests;
 
-    fn fence(session: &DocumentSession) -> DocumentFenceV1 {
-        DocumentFenceV1::new(session.current_revision_v1(), session.current_digest_v1())
-    }
-
-    fn anchor(session: &DocumentSession) -> DocumentObjectIdV1 {
-        session
-            .document_observation()
-            .expect("observation")
-            .projection()
-            .molecules()[0]
-            .atoms()[0]
-            .id()
-            .expect("direct atom selector")
-            .clone()
-    }
-
-    fn attached_request(catalog_key: CompactGroupCatalogKeyV1) -> AttachCompactGroupV1 {
-        AttachCompactGroupV1::new(
-            catalog_key,
-            AttachedCompactGroupReleaseV1::new(20.0, 0.0).expect("release"),
-        )
-    }
-
-    fn commit_attachment_for(
-        session: &mut DocumentSession,
-        catalog_key: CompactGroupCatalogKeyV1,
-    ) -> AttachedCompactGroupCommitResultV1 {
-        let mut pending = session
-            .prepare_attach_compact_group_v1(
-                fence(session),
-                anchor(session),
-                attached_request(catalog_key),
-            )
-            .expect("prepare");
-        session
-            .commit_attach_compact_group_v1(&mut pending)
-            .expect("commit")
-    }
-
-    fn commit_attachment(session: &mut DocumentSession) -> AttachedCompactGroupCommitResultV1 {
-        commit_attachment_for(session, CompactGroupCatalogKeyV1::Methyl)
-    }
-
-    #[test]
-    fn prepare_commit_cancel_and_replay_preserve_the_closed_transaction_contract() {
-        let mut session = DocumentSession::load(SOURCE).expect("source");
-        let before = session.snapshot().expect("before");
-        let mut pending = session
-            .prepare_attach_compact_group_v1(
-                fence(&session),
-                anchor(&session),
-                attached_request(CompactGroupCatalogKeyV1::Methyl),
-            )
-            .expect("prepare");
-        assert_eq!(session.snapshot().expect("prepare is pure"), before);
-        session
-            .retire_attach_compact_group_v1(&mut pending)
-            .expect("cancel");
-        assert_eq!(session.snapshot().expect("cancel is pure"), before);
-        assert_eq!(
-            session.commit_attach_compact_group_v1(&mut pending),
-            Err(AttachedCompactGroupSessionErrorV1::Retired)
-        );
-        let result = commit_attachment(&mut session);
-        let after = result.observation().snapshot();
-        assert_eq!(result.focus_object_id(), &anchor(&session));
-        assert!(!result.compact_group_object_id().as_str().is_empty());
-        assert_ne!(result.compact_group_object_id(), result.focus_object_id());
-        assert_eq!(after.revision(), before.revision() + 1);
-        let authored_molecule = result
-            .observation()
-            .projection()
-            .molecules()
-            .iter()
-            .find(|molecule| {
-                molecule
-                    .compact_groups()
-                    .iter()
-                    .any(|group| group.id() == result.compact_group_object_id())
-            })
-            .expect("returned compact-group identity remains selectable");
-        let materialization = DocumentCompactGroupMaterializationRequestV1::new(
-            after.revision(),
-            *after.digest(),
-            authored_molecule
-                .id()
-                .cloned()
-                .expect("authored molecule remains durable-addressable"),
-            result.compact_group_object_id().clone(),
-        );
-        let mut materialized = session
-            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
-                after.revision(),
-                SessionOperation::V1(SessionOperationV1::MaterializeCompactGroupV1(
-                    materialization,
-                )),
-                TransitionAuthorizationV1::None,
-            ))
-            .expect("existing materialization prepares");
-        session
-            .commit_session_operation_transition_v1(&mut materialized)
-            .expect("existing materialization commits");
-        assert_ne!(session.snapshot().expect("materialized snapshot"), *after);
-    }
-
-    #[test]
-    fn foreign_and_stale_pending_attachments_preserve_the_next_accepted_observation() {
-        let mut owner = DocumentSession::load(SOURCE).expect("owner source");
-        let mut other = DocumentSession::load(SOURCE).expect("other source");
-        let mut foreign = owner
-            .prepare_attach_compact_group_v1(
-                fence(&owner),
-                anchor(&owner),
-                attached_request(CompactGroupCatalogKeyV1::Methyl),
-            )
-            .expect("owner prepare");
-        assert_eq!(
-            other.commit_attach_compact_group_v1(&mut foreign),
-            Err(AttachedCompactGroupSessionErrorV1::ForeignSession)
-        );
-        let committed = owner
-            .commit_attach_compact_group_v1(&mut foreign)
-            .expect("owner commit");
-        let mut fresh_owner = DocumentSession::load(SOURCE).expect("fresh owner source");
-        assert_ne!(
-            committed.compact_group_object_id(),
-            commit_attachment(&mut fresh_owner).compact_group_object_id(),
-        );
-
-        let mut session = DocumentSession::load(SOURCE).expect("source");
-        let mut first = session
-            .prepare_attach_compact_group_v1(
-                fence(&session),
-                anchor(&session),
-                attached_request(CompactGroupCatalogKeyV1::Methyl),
-            )
-            .expect("first prepare");
-        let mut stale = session
-            .prepare_attach_compact_group_v1(
-                fence(&session),
-                anchor(&session),
-                attached_request(CompactGroupCatalogKeyV1::Methyl),
-            )
-            .expect("stale prepare");
-        let first_committed = session
-            .commit_attach_compact_group_v1(&mut first)
-            .expect("first commit");
-        assert_eq!(
-            session.commit_attach_compact_group_v1(&mut stale),
-            Err(AttachedCompactGroupSessionErrorV1::StaleRevision)
-        );
-        let mut fresh_session = DocumentSession::load(SOURCE).expect("fresh source");
-        assert_ne!(
-            first_committed.compact_group_object_id(),
-            commit_attachment(&mut fresh_session).compact_group_object_id(),
-        );
-    }
-
-    #[test]
-    fn refusal_categories_leave_the_next_accepted_observation_unchanged() {
-        let mut selector_session = DocumentSession::load(SOURCE).expect("source");
-        let before = selector_session.snapshot().expect("before");
-        let missing = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
-        assert!(matches!(
-            selector_session.prepare_attach_compact_group_v1(
-                fence(&selector_session),
-                missing,
-                attached_request(CompactGroupCatalogKeyV1::Methyl),
-            ),
-            Err(AttachedCompactGroupSessionErrorV1::UnknownAnchor)
-        ));
-        assert_eq!(selector_session.snapshot().expect("unchanged"), before);
-        let mut fresh_selector = DocumentSession::load(SOURCE).expect("fresh source");
-        assert_ne!(
-            commit_attachment(&mut selector_session).compact_group_object_id(),
-            commit_attachment(&mut fresh_selector).compact_group_object_id(),
-        );
-
-        let mut pose_session = DocumentSession::load(SOURCE).expect("source");
-        let before = pose_session.snapshot().expect("before");
-        assert!(matches!(
-            pose_session.prepare_attach_compact_group_v1(
-                fence(&pose_session),
-                anchor(&pose_session),
-                AttachCompactGroupV1::new(
-                    CompactGroupCatalogKeyV1::Methyl,
-                    AttachedCompactGroupReleaseV1::new(0.0, 0.0).expect("release"),
-                ),
-            ),
-            Err(AttachedCompactGroupSessionErrorV1::InvalidPose)
-        ));
-        assert_eq!(pose_session.snapshot().expect("unchanged"), before);
-        let mut fresh_pose = DocumentSession::load(SOURCE).expect("fresh source");
-        assert_ne!(
-            commit_attachment(&mut pose_session).compact_group_object_id(),
-            commit_attachment(&mut fresh_pose).compact_group_object_id(),
-        );
-
-        let capacity_source = concat!(
-            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
-            "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-            "<atom id=\"h1\" name=\"H\"><point x=\"1\" y=\"0\"/></atom>",
-            "<atom id=\"h2\" name=\"H\"><point x=\"-1\" y=\"0\"/></atom>",
-            "<atom id=\"h3\" name=\"H\"><point x=\"0\" y=\"1\"/></atom>",
-            "<atom id=\"h4\" name=\"H\"><point x=\"0\" y=\"-1\"/></atom>",
-            "<bond id=\"b1\" start=\"a\" end=\"h1\" type=\"n1\"/>",
-            "<bond id=\"b2\" start=\"a\" end=\"h2\" type=\"n1\"/>",
-            "<bond id=\"b3\" start=\"a\" end=\"h3\" type=\"n1\"/>",
-            "<bond id=\"b4\" start=\"a\" end=\"h4\" type=\"n1\"/>",
-            "</molecule></cdml>",
-        );
-        let mut capacity_session = DocumentSession::load(capacity_source).expect("capacity source");
-        let before = capacity_session.snapshot().expect("before");
-        assert!(matches!(
-            capacity_session.prepare_attach_compact_group_v1(
-                fence(&capacity_session),
-                anchor(&capacity_session),
-                attached_request(CompactGroupCatalogKeyV1::Methyl),
-            ),
-            Err(AttachedCompactGroupSessionErrorV1::CandidateAdmission)
-        ));
-        assert_eq!(capacity_session.snapshot().expect("unchanged"), before);
-
-        let mut unsupported_session = DocumentSession::load(SOURCE).expect("source");
-        let before = unsupported_session.snapshot().expect("before");
-        assert!(matches!(
-            unsupported_session.prepare_attach_compact_group_v1(
-                fence(&unsupported_session),
-                anchor(&unsupported_session),
-                attached_request(CompactGroupCatalogKeyV1::Ethyl),
-            ),
-            Err(AttachedCompactGroupSessionErrorV1::UnsupportedAttachmentCatalogKey),
-        ));
-        assert_eq!(
-            unsupported_session.snapshot().expect("unsupported is pure"),
-            before
-        );
-    }
-
-    #[test]
-    fn availability_is_advisory_for_eligible_and_unavailable_anchors() {
-        let session = DocumentSession::load(SOURCE).expect("source");
-        let before = session.snapshot().expect("before");
-        let available = session.observe_attach_compact_group_availability_v1(
-            fence(&session),
-            anchor(&session),
-            CompactGroupCatalogKeyV1::Methyl,
-        );
-        assert!(available.is_available());
-        assert_eq!(
-            available.category(),
-            AttachedCompactGroupAvailabilityCategoryV1::Available
-        );
-        assert_eq!(available.catalog_key(), CompactGroupCatalogKeyV1::Methyl);
-        assert_eq!(available.revision(), before.revision());
-        assert_eq!(available.digest(), before.digest());
-        assert_eq!(session.snapshot().expect("availability is pure"), before);
-
-        let nitro = session.observe_attach_compact_group_availability_v1(
-            fence(&session),
-            anchor(&session),
-            CompactGroupCatalogKeyV1::Nitro,
-        );
-        assert!(nitro.is_available());
-        assert_eq!(nitro.catalog_key(), CompactGroupCatalogKeyV1::Nitro);
-
-        let missing = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
-        let unavailable = session.observe_attach_compact_group_availability_v1(
-            fence(&session),
-            missing,
-            CompactGroupCatalogKeyV1::Methyl,
-        );
-        assert!(!unavailable.is_available());
-        assert_eq!(
-            unavailable.category(),
-            AttachedCompactGroupAvailabilityCategoryV1::UnknownAnchor
-        );
-        let unsupported = session.observe_attach_compact_group_availability_v1(
-            fence(&session),
-            anchor(&session),
-            CompactGroupCatalogKeyV1::Ethyl,
-        );
-        assert_eq!(
-            unsupported.category(),
-            AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission,
-        );
-        assert_eq!(
-            session
-                .snapshot()
-                .expect("unavailable availability is pure"),
-            before
-        );
-    }
-
-    #[test]
-    fn reviewed_choices_and_committed_recipes_remain_projectable_and_persistent() {
-        let choices = crate::attached_compact_group_choices_v1();
-        assert!(choices.iter().any(|choice| {
-            choice.catalog_key() == CompactGroupCatalogKeyV1::Methyl && choice.label() == "Me"
-        }));
-        assert!(choices.iter().any(|choice| {
-            choice.catalog_key() == CompactGroupCatalogKeyV1::Nitro && choice.label() == "NO2"
-        }));
-
-        for catalog_key in [
-            CompactGroupCatalogKeyV1::Methyl,
-            CompactGroupCatalogKeyV1::Nitro,
-        ] {
-            let mut session = DocumentSession::load(SOURCE).expect("source");
-            let result = commit_attachment_for(&mut session, catalog_key);
-            let snapshot = result.observation().snapshot().clone();
-            let group = result
-                .observation()
-                .projection()
-                .molecules()
-                .iter()
-                .flat_map(|molecule| molecule.compact_groups())
-                .find(|group| group.id() == result.compact_group_object_id())
-                .expect("committed compact group remains projected");
-            assert_eq!(group.catalog_key(), catalog_key);
-            let reopened =
-                DocumentSession::load(snapshot.cdml()).expect("reopen serialized compact group");
-            assert!(
-                reopened
-                    .document_observation()
-                    .expect("reopened observation")
-                    .projection()
-                    .molecules()
-                    .iter()
-                    .flat_map(|molecule| molecule.compact_groups())
-                    .any(|group| group.catalog_key() == catalog_key)
-            );
-        }
-    }
-}
+#[cfg(test)]
+#[path = "attached_phenyl_tests.rs"]
+mod phenyl_tests;

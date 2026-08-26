@@ -31,7 +31,7 @@ impl std::fmt::Debug for PendingAttachedCyclohexaneV1 {
         formatter
             .debug_struct("PendingAttachedCyclohexaneV1")
             .field("revision", &self.fence.revision())
-            .field("is_resolved", &self.transition.is_consumed_v1())
+            .field("is_consumed", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -53,8 +53,8 @@ pub enum AttachedCyclohexaneSessionErrorV1 {
     StaleDigest,
     #[error("cyclohexane attachment belongs to another session")]
     ForeignSession,
-    #[error("cyclohexane attachment is retired")]
-    Retired,
+    #[error("cyclohexane attachment was already consumed")]
+    Consumed,
     #[error("cyclohexane attachment anchor is unknown or not a direct atom")]
     UnknownAnchor,
     #[error("cyclohexane attachment anchor is ineligible")]
@@ -168,7 +168,7 @@ impl DocumentSession {
         pending: &mut PendingAttachedCyclohexaneV1,
     ) -> Result<SessionOperationResultV1, AttachedCyclohexaneSessionErrorV1> {
         if pending.transition.is_consumed_v1() {
-            return Err(AttachedCyclohexaneSessionErrorV1::Retired);
+            return Err(AttachedCyclohexaneSessionErrorV1::Consumed);
         }
         if !pending
             .session_issuer
@@ -180,8 +180,8 @@ impl DocumentSession {
             .map_err(map_commit_error)
     }
 
-    /// Retire one preview without requiring that its document is still current.
-    pub fn retire_attach_cyclohexane_v1(
+    /// Cancel one pending preview without requiring that its document is still current.
+    pub fn cancel_attach_cyclohexane_v1(
         &mut self,
         pending: &mut PendingAttachedCyclohexaneV1,
     ) -> Result<(), AttachedCyclohexaneSessionErrorV1> {
@@ -192,9 +192,9 @@ impl DocumentSession {
             return Err(AttachedCyclohexaneSessionErrorV1::ForeignSession);
         }
         if pending.transition.is_consumed_v1() {
-            return Err(AttachedCyclohexaneSessionErrorV1::Retired);
+            return Err(AttachedCyclohexaneSessionErrorV1::Consumed);
         }
-        self.retire_session_operation_transition_v1(&mut pending.transition)
+        self.cancel_session_operation_transition_v1(&mut pending.transition)
             .map_err(map_commit_error)
     }
 }
@@ -215,15 +215,14 @@ fn map_commit_error(
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             AttachedCyclohexaneSessionErrorV1::ForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed => AttachedCyclohexaneSessionErrorV1::Retired,
+        AdmittedSessionTransitionRefusalV1::Consumed => AttachedCyclohexaneSessionErrorV1::Consumed,
         AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
             AttachedCyclohexaneSessionErrorV1::StaleRevision
         }
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             AttachedCyclohexaneSessionErrorV1::RendererAdmission
         }
-        AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             AttachedCyclohexaneSessionErrorV1::SessionConflict
         }
     }
@@ -378,12 +377,12 @@ mod tests {
         );
         assert!(matches!(
             session.commit_attach_cyclohexane_v1(&mut pending),
-            Err(AttachedCyclohexaneSessionErrorV1::Retired)
+            Err(AttachedCyclohexaneSessionErrorV1::Consumed)
         ));
     }
 
     #[test]
-    fn retired_foreign_stale_and_ineligible_capabilities_preserve_authoritative_state() {
+    fn cancelled_foreign_stale_and_ineligible_capabilities_preserve_authoritative_state() {
         let mut owner = DocumentSession::load(SOURCE).expect("source loads");
         let mut foreign = DocumentSession::load(SOURCE).expect("source loads");
         let owner_before = owner.snapshot().expect("snapshot");
@@ -404,12 +403,12 @@ mod tests {
             foreign_before
         );
         owner
-            .retire_attach_cyclohexane_v1(&mut pending)
-            .expect("retire");
+            .cancel_attach_cyclohexane_v1(&mut pending)
+            .expect("cancel");
         assert_eq!(owner.snapshot().expect("owner unchanged"), owner_before);
         assert!(matches!(
             owner.commit_attach_cyclohexane_v1(&mut pending),
-            Err(AttachedCyclohexaneSessionErrorV1::Retired)
+            Err(AttachedCyclohexaneSessionErrorV1::Consumed)
         ));
         assert!(matches!(
             owner.prepare_attach_cyclohexane_v1(

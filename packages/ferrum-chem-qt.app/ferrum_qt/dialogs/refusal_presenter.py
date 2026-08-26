@@ -30,6 +30,10 @@ class RefusalOutcome(enum.Enum):
 	SAVE_DISPLAY_FAILED = "save_display_failed"
 	BUSY_CLOSE = "busy_close"
 	STALE_TOOL = "stale_tool"
+	EDIT_STALE_SNAPSHOT = "edit_stale_snapshot"
+	EDIT_RENDERER_REFUSAL = "edit_renderer_refusal"
+	EDIT_SESSION_CONFLICT = "edit_session_conflict"
+	EDIT_HISTORY_CAPACITY = "edit_history_capacity"
 	UNRENDERABLE_MOLECULE = "unrenderable_molecule"
 	UNAVAILABLE_OPERATION = "unavailable_operation"
 	NO_UNDO = "no_undo"
@@ -92,6 +96,14 @@ def present_refusal(request: RefusalRequest) -> RefusalPresentation:
 		return _busy_close(request)
 	if request.outcome is RefusalOutcome.STALE_TOOL:
 		return _stale_tool(request)
+	if request.outcome is RefusalOutcome.EDIT_STALE_SNAPSHOT:
+		return _edit_stale_snapshot(request)
+	if request.outcome is RefusalOutcome.EDIT_RENDERER_REFUSAL:
+		return _edit_renderer_refusal(request)
+	if request.outcome is RefusalOutcome.EDIT_SESSION_CONFLICT:
+		return _edit_session_conflict(request)
+	if request.outcome is RefusalOutcome.EDIT_HISTORY_CAPACITY:
+		return _edit_history_capacity(request)
 	if request.outcome is RefusalOutcome.UNRENDERABLE_MOLECULE:
 		return _unrenderable_molecule(request)
 	if request.outcome is RefusalOutcome.UNAVAILABLE_OPERATION:
@@ -131,8 +143,10 @@ def _validate_request(request: RefusalRequest) -> None:
 		if request.context is not RefusalTaskContext.USE_TOOL:
 			raise ValueError("stale-tool refusal needs a use-tool context")
 	if request.outcome in (
-			RefusalOutcome.UNRENDERABLE_MOLECULE, RefusalOutcome.UNAVAILABLE_OPERATION,
-			RefusalOutcome.NO_UNDO,
+			RefusalOutcome.EDIT_STALE_SNAPSHOT, RefusalOutcome.EDIT_RENDERER_REFUSAL,
+			RefusalOutcome.EDIT_SESSION_CONFLICT, RefusalOutcome.EDIT_HISTORY_CAPACITY,
+			RefusalOutcome.UNRENDERABLE_MOLECULE,
+			RefusalOutcome.UNAVAILABLE_OPERATION, RefusalOutcome.NO_UNDO,
 		) and request.context is not RefusalTaskContext.EDIT_DOCUMENT:
 		raise ValueError("editing refusal needs an edit-document context")
 
@@ -265,6 +279,54 @@ def _stale_tool(request: RefusalRequest) -> RefusalPresentation:
 		"This tool was prepared for an earlier version of the drawing and was not used.",
 		"The drawing changed before the tool could finish.",
 		"Choose the tool again, then repeat the step.",
+		request.technical_details,
+	)
+
+
+#============================================
+def _edit_stale_snapshot(request: RefusalRequest) -> RefusalPresentation:
+	"""Explain a document edit whose prepared revision is no longer current."""
+	return RefusalPresentation(
+		"Drawing Changed Before This Edit",
+		"Ferrum did not change the drawing.",
+		"The drawing changed after this edit was prepared.",
+		"Choose the tool again, then repeat the edit.",
+		request.technical_details,
+	)
+
+
+#============================================
+def _edit_renderer_refusal(request: RefusalRequest) -> RefusalPresentation:
+	"""Explain an edit whose prospective drawing cannot be admitted for display."""
+	return RefusalPresentation(
+		"Cannot Apply This Edit",
+		"Ferrum did not change the drawing.",
+		"The resulting drawing cannot currently be shown on the Ferrum canvas.",
+		"Choose another edit or correct the drawing, then try again.",
+		request.technical_details,
+	)
+
+
+#============================================
+def _edit_session_conflict(request: RefusalRequest) -> RefusalPresentation:
+	"""Explain a one-use edit receipt that no longer belongs to this live session."""
+	return RefusalPresentation(
+		"Edit Needs to Be Started Again",
+		"Ferrum did not change the drawing.",
+		"This edit belongs to an earlier document session or was already used.",
+		"Refresh the drawing if needed, choose the tool again, then repeat the edit.",
+		request.technical_details,
+	)
+
+
+#============================================
+def _edit_history_capacity(request: RefusalRequest) -> RefusalPresentation:
+	"""Explain an edit refused before bounded undo history can be reserved."""
+	return RefusalPresentation(
+		"Cannot Record This Edit",
+		"Ferrum did not change the drawing.",
+		"Ferrum could not reserve the history needed to make this edit safely.",
+		"Close other drawings or undo earlier changes, then try again.",
 		request.technical_details,
 	)
 

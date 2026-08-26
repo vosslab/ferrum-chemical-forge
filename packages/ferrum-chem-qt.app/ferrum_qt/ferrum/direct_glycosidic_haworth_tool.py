@@ -8,7 +8,7 @@ import PySide6.QtWidgets
 import ferrum_qt.ferrum.engine as engine
 from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.direct_glycosidic_haworth
 from ferrum_qt.ferrum.document_tab_errors import (
 	FerrumNativeDocumentTabMutationPresentationError,
@@ -91,9 +91,11 @@ class _DirectGlycosidicHaworthDialog(FerrumAccessibleDialog):
 class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 	"""Own Qt lifecycle only; Rust owns SMILES, receipt, graph, and history."""
 
-	def _build_direct_glycosidic_haworth_action(self,
-			menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the one scoped ordinary-product Chemistry action."""
+	def _build_direct_glycosidic_haworth_action(self) -> None:
+		"""Create and register the one scoped ordinary-product Chemistry action."""
+		# Registration can synchronously query shared authoring state.  Establish
+		# the cancellation slot before giving the action to either shared owner.
+		self._direct_glycosidic_haworth_intent: _DirectGlycosidicHaworthIntent | None = None
 		self._insert_direct_glycosidic_haworth_action = PySide6.QtGui.QAction(
 			self.tr("Insert Direct-Glycosidic Haworth..."), self,
 		)
@@ -107,12 +109,15 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 			self._insert_direct_glycosidic_haworth_action,
 			self._on_insert_direct_glycosidic_haworth,
 		)
-		menu.addAction(self._insert_direct_glycosidic_haworth_action)
-		self._direct_glycosidic_haworth_intent: _DirectGlycosidicHaworthIntent | None = None
+		self._action_registry.register_existing(
+			"chemistry.haworth.direct_glycosidic.insert",
+			self._insert_direct_glycosidic_haworth_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	def _refresh_direct_glycosidic_haworth_action(self, active: bool,
 			pending: bool, busy: bool) -> None:
-		"""Retire a source-bound request once its Ferrum source is no longer current."""
+		"""Invalidate a source-bound request once its Ferrum source is no longer current."""
 		intent = self._direct_glycosidic_haworth_intent
 		if intent is not None and (
 			not active or pending or busy or self._active_native_tab() is not intent.tab
@@ -227,7 +232,7 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 			preview = ferrum_qt.ferrum.direct_glycosidic_haworth.create_preview(
 				intent.tab, overlay_contract,
 			)
-			self._retire_direct_glycosidic_haworth_preview(preview)
+			self._dispose_direct_glycosidic_haworth_preview(preview)
 		except ValueError:
 			self._cancel_direct_glycosidic_haworth_intent()
 			self._show_edit_refusal(self._unavailable_edit_refusal(self.tr(
@@ -259,13 +264,13 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 		), 4000)
 		self._refresh_actions()
 
-	def _retire_direct_glycosidic_haworth_preview(
+	def _dispose_direct_glycosidic_haworth_preview(
 			self, preview: PySide6.QtWidgets.QGraphicsItem) -> None:
 		"""Release a disposable preview before authoritative scene replacement."""
-		scene = ferrum_qt.canvas.graphics_retirement.native_scene_for_item(preview)
+		scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 		if scene is not None:
-			coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
-			coordinator.retire_scene_projection_items(scene, [preview])
+			coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
+			coordinator.dispose_scene_projection_items(scene, [preview])
 
 	def _direct_glycosidic_haworth_is_current(
 			self, intent: _DirectGlycosidicHaworthIntent) -> bool:

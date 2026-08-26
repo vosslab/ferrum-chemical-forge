@@ -83,12 +83,12 @@ impl DocumentSession {
             .set_current_revision_for_test(revision);
     }
 
-    /// Retire one opaque transition without changing document state or effects.
+    /// Cancel one opaque transition without changing document state or effects.
     ///
-    /// Retirement is issuer-bound and one-use. It invalidates the prospective
+    /// Cancellation is issuer-bound and one-use. It consumes the prospective
     /// state, renderer proof, and deferred effects without installing them.
     /// A foreign session cannot invalidate the owner's pending transition.
-    pub fn retire_session_operation_transition_v1(
+    pub fn cancel_session_operation_transition_v1(
         &mut self,
         prepared: &mut PreparedSessionTransitionV1,
     ) -> Result<(), AdmittedSessionTransitionRefusalV1> {
@@ -99,7 +99,7 @@ impl DocumentSession {
             return Err(AdmittedSessionTransitionRefusalV1::ForeignSession);
         }
         if prepared.is_consumed_v1() {
-            return Err(AdmittedSessionTransitionRefusalV1::Replayed);
+            return Err(AdmittedSessionTransitionRefusalV1::Consumed);
         }
         prepared.consume_terminal_authorization_v1();
         match &mut prepared.kind {
@@ -384,7 +384,7 @@ impl DocumentSession {
         }
     }
 
-    /// Verify and atomically redeem one opaque renderer-admitted session transition.
+    /// Verify and atomically commit one opaque renderer-admitted session transition.
     pub fn commit_session_operation_transition_v1(
         &mut self,
         prepared: &mut PreparedSessionTransitionV1,
@@ -396,7 +396,7 @@ impl DocumentSession {
             return Err(AdmittedSessionTransitionRefusalV1::ForeignSession);
         }
         if prepared.is_consumed_v1() {
-            return Err(AdmittedSessionTransitionRefusalV1::Replayed);
+            return Err(AdmittedSessionTransitionRefusalV1::Consumed);
         }
         if self.admitted_history.current().revision() != prepared.source_revision
             || *self.admitted_history.current().digest() != prepared.source_digest
@@ -767,7 +767,7 @@ impl DocumentSession {
             AdmittedSessionTransitionRefusalV1::ForeignSession => {
                 DocumentSessionError::PreparedOperationForeignSession
             }
-            AdmittedSessionTransitionRefusalV1::Replayed => {
+            AdmittedSessionTransitionRefusalV1::Consumed => {
                 DocumentSessionError::PreparedOperationConsumed
             }
             AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
@@ -782,9 +782,6 @@ impl DocumentSession {
             AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
                 DocumentSessionError::PreparedOperationConsumed
             }
-            AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-                DocumentSessionError::Operation(SessionOperationError::HistoryResourceExhausted)
-            }
         }
     }
 }
@@ -796,7 +793,7 @@ fn map_authorization_access_error_v1(
         AuthoringCapabilityAccessErrorV1::ForeignSession => {
             TransitionAuthorizationRefusalV1::ForeignSession
         }
-        AuthoringCapabilityAccessErrorV1::Replayed => TransitionAuthorizationRefusalV1::Replayed,
+        AuthoringCapabilityAccessErrorV1::Consumed => TransitionAuthorizationRefusalV1::Consumed,
     };
     DocumentSessionError::TransitionAuthorization(refusal)
 }

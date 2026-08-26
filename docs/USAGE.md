@@ -27,6 +27,42 @@ sibling `build/runtime/engine-v1` directory. The local build workflow ends at
 these runnable repository artifacts; it does not install or publish Ferrum
 packages.
 
+## Discover declared interchange formats
+
+Use `formats` to inspect every format already admitted by `convert`, before
+selecting a source or starting the local chemistry runtime:
+
+```bash
+build/bin/ferrum formats
+build/bin/ferrum formats --json
+```
+
+The default prints a concise line-oriented projection for people. `--json`
+writes the versioned `ferrum-interchange-capabilities-v1` catalog for tools.
+Each catalog entry preserves independent input and output canonical/display
+names, format/profile IDs, aliases, suffixes, limits, policy, and runtime
+facts; the outer entry records only their resolver join. The command only
+discovers declared contracts; it does not read a source, execute a conversion,
+construct a document, or load the local chemistry runtime.
+
+`inspect-graph` uses this same catalog to select a declared source decoder
+before it reports a bounded read-only decoded-semantic graph.
+
+## Inspect a decoded graph
+
+Inspect CML or SDF records without creating a document:
+
+```bash
+build/bin/ferrum inspect-graph molecule.cml --from cml
+build/bin/ferrum inspect-graph records.sdf --from sdf --json
+```
+
+The shared summary reports zero-based `record_index`, exact graph counts, and
+format-specific fact coverage and normalization. SDF titles are display facts,
+not identifiers; SDF source IDs are unsupported, while retained title and
+property-count facts are explicit. SDF coordinates, aromaticity, and stereo
+are native-normalized decoded semantics, not raw-molfile fidelity claims.
+
 ## Convert a molecule
 
 The local build launcher supplies its local engine runtime to `convert` and
@@ -38,12 +74,24 @@ build/bin/ferrum convert aspirin.smi --to sdf_v2000 --output aspirin.sdf
 
 `convert` accepts one source file or `-` for standard input. Its exact syntax
 names are `smiles`, `inchi_standard`, `inchi_fixed_h`, `molblock_v2000`,
-`molblock_v3000`, `sdf_v2000`, `sdf_v3000`, and `cdml`. CML is an input-only
-profile: use its registry-owned `cml`, `cml1`, or `cml2` aliases. Ferrum
-infers `.cml` alongside `.smi`/`.smiles`, `.inchi`, `.mol`/`.molblock`, `.sdf`,
-and `.cdml`; use `--from` for standard input or another suffix. CML conversion
-accepts only the documented simple-molecule CML/CML2 profile and returns a
-typed refusal for unsupported XML or molecular features.
+`molblock_v3000`, `sdf_v2000`, `sdf_v3000`, and `cdml`. The bounded CML
+interchange profile accepts `cml`, `cml1`, and `cml2` as input aliases; `cml`
+and `cml2` are also canonical CML2 output aliases, while `cml1` is input-only.
+Ferrum infers `.cml` alongside `.smi`/`.smiles`, `.inchi`, `.mol`/`.molblock`,
+`.sdf`, and `.cdml`; use `--from` for standard input or another suffix.
+
+```bash
+build/bin/ferrum convert molecule.cml --to cml2 --output canonical.cml
+```
+
+Direct CML/CML2-to-CML conversion is pure Rust and retains validated molecule
+and atom IDs and record order. Other source formats emit canonical CML2 only
+when every admitted fact is losslessly representable; unsupported XML,
+molecular facts, titles, properties, or coordinates return a typed refusal
+without partial output. This is bounded external interchange, not a Ferrum
+document format: CDML remains the sole document, session, history, and Qt-local
+format. Qt File > Open immediately admits valid CML/CML2 as a clean native CDML
+tab; the desktop application has no CML export route.
 
 ```bash
 printf 'CCO\n' | build/bin/ferrum convert - --from smiles --to molblock_v2000 > ethanol.mol
@@ -116,12 +164,47 @@ document features or formats are refused with next-step guidance and do not
 alter the active document. See [FILE_FORMATS.md](FILE_FORMATS.md) for admitted
 files and publication rules.
 
+## Insert a regular ring
+
+Choose Edit > `Insert Regular Ring...`, select Cyclopropane through
+Cyclooctane, then release once at an empty canvas location. The existing
+`Insert Cyclohexane Ring` command remains a C6 shortcut to that same action.
+Rust accepts only the closed C3-C8 family and owns the
+`DocumentOperationV1` transaction, ring topology and geometry, durable CDML
+facts, renderer admission, history, and Undo/Redo. Escape, an occupied
+location, or any typed refusal leaves the document unchanged. Escape disarms
+the chooser; an occupied location leaves it ready for a new empty location.
+
 With two or more durable molecules selected, use `Export Selected Molecules as
 SDF V2000...` or `Export Selected Molecules as SDF V3000...`. The dialog chooses
 only the `.sdf` destination; Rust authenticates the selected membership and
 document snapshot, establishes canonical record order, and provides the complete
 file before Qt publishes it atomically. The established one-record SDF actions
 remain available for their existing workflow.
+
+## Reverse a selected wedge direction
+
+Choose Edit > `Reverse Selected Wedge Direction` when exactly one selected
+direct-molecule bond is a solid `w1` or hashed `h1` wedge. The command is
+disabled for no selection, multiple selections, normal bonds, and every other
+bond style. It preserves the selected bond's durable document-object ID,
+unordered connectivity, and wedge type while reversing only the ordered CDML
+endpoints; the same durable bond remains selected after the accepted change.
+
+Selection and mutation use deliberately different identities. The renderer
+issues the durable object ID used to select the bond. Qt passes the current
+projected source ID only to construct the one Rust operation; it does not use a
+source ID to rediscover or select a bond. Rust validates the fenced request,
+swaps the eligible endpoints in its detached candidate, reparses and admits the
+candidate, then owns history, Undo/Redo, CDML persistence, and typed atomic
+refusals.
+
+A visible wedge is selectable across its Rust-derived rendered envelope, not
+only on an invisible bond centerline. The observer publishes one semantic Bond
+target from the lowered wedge bounds, with the shared pointer tolerance; it
+does not retain a structural child `DisplayOnly` target for the same bond. The
+ordinary Qt selection refresh is coalesced by a single-shot timer owned by the
+tab widget it queries, so a queued refresh cannot outlive that tab host.
 
 ## Create and inspect reactions
 
@@ -144,7 +227,7 @@ and the platform Undo shortcut restores an accepted deletion or movement.
 The current compact-group authoring routes are Qt-only and intentionally
 narrow. Free placement and attachment are separate operations:
 
-1. Choose Chemistry > `Place Compact Group...`.
+1. Choose Draw > Compact groups > `Place Compact Group...`.
 2. Select `Me` and release once on the canvas.
 3. Ferrum creates one direct-root compact group. It is initially represented as
    zero atoms and zero bonds.
@@ -152,8 +235,10 @@ narrow. Free placement and attachment are separate operations:
 For an attached group:
 
 1. Select one eligible atom on the canvas.
-2. Choose Chemistry > `Attach Compact Group...`.
-3. Select the Rust-projected `Me` or `NO2` choice, then choose `Attach to Selected Atom`.
+2. Choose Draw > Compact groups > `Attach Compact Group...`.
+3. Select the Rust-projected `Me`, `NO2`, `Et`, `OMe`, `CH2OH`, `Carboxyl`,
+   `Cyano`, `AcylChloride`, or `Phenyl` choice, then choose
+   `Attach to Selected Atom`.
 4. Release once on the canvas to supply the attachment direction.
 5. Explicitly select the resulting compact-group label.
 6. Choose Chemistry > `Materialize Selected Compact Group`.
@@ -165,17 +250,21 @@ the typed `Point3V1` and candidate geometry, then owns the anchor, canonical
 orientation, durable IDs, renderer admission, and history transition. Rust
 cannot establish that a coordinate originated from Qt's view-snapping policy;
 that policy remains a Qt responsibility. The delivered public surface admits
-only `Me` for free placement and `Me` or `NO2` for attached authoring. `NO2`
+only `Me` for free placement and `Me`, `NO2`, `Et`, `OMe`, `CH2OH`, `Carboxyl`,
+`Cyano`, `AcylChloride`, or `Phenyl` for attached authoring. `NO2`
 materializes as `R-[N+](=O)[O-]`; Rust preserves its atom formal charges through
 history and reopen, while Molecule Report exposes the supported net formal
-charge. No CLI or stateless attachment route is part of this slice.
+charge. `Et` materializes as two neutral carbons joined by one normal single
+bond. `OMe` materializes as neutral `R-O-CH3`; the exterior bond and returned
+focus are oxygen. No CLI or stateless attachment route is part of this slice.
 
 Materialization is a separate delivered operation. For a sole direct-root
 compact group with zero atoms and zero bonds, it replaces that group in the
 same molecule with the immutable recipe atoms and bonds; it does not rewrite
 another root or change attached-group topology. Methyl materializes to one
-explicit carbon. The replacement is one history transition and survives Undo,
-Redo, and reopen.
+explicit carbon, and a loaded sole-root Ethyl group materializes to its two
+explicit carbons. The replacement is one history transition and survives
+Undo, Redo, and reopen.
 
 If exactly one selected atom has an exact-current unavailable result for a
 reviewed choice, the existing action can present a label-derived refusal. For `Me`,
@@ -279,8 +368,8 @@ another renderer.
 
 Human diagnostics go to standard error. Exit statuses are:
 
-- `0`: a completed success or typed protocol refusal.
-- `1`: input, processing, or confirmed publication failure.
+- `0`: a completed success.
+- `1`: an input, processing, typed refusal, or confirmed publication failure.
 - `2`: command-line usage error.
 - `3`: a named output may have been published but Ferrum cannot confirm it.
 
@@ -288,6 +377,10 @@ Use `--json` when another program needs a stable discriminator. Test `schema`,
 operation `kind`, and error `category`, not diagnostic text. The complete
 request and response contract is in
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md).
+
+Human-oriented commands emit one standard-error diagnostic for an unsuccessful
+outcome, then exit `1`. A `--json` command emits one protocol envelope and an
+unsuccessful envelope also exits `1`, without a second diagnostic.
 
 ## Fenced document commands
 
@@ -298,7 +391,8 @@ a direct-root molecule from a caller-supplied fenced snapshot. It accepts exactl
 `document { cdml, expected_revision, expected_digest_hex }`, opaque
 `molecule_id`, and opaque `compact_group_id`; Rust parses both as durable
 `DocumentObjectIdV1` selectors, and they are neither labels nor recipes. Only
-typed `Me` and `NO2` groups materialize. The route
+typed `Me`, `NO2`, `Et`, `OMe`, `CH2OH`, `Carboxyl`, `Cyano`, `AcylChloride`,
+and `Phenyl` groups materialize. The route
 accepts no free-form labels or recipes and has no legacy alias.
 
 ```json
@@ -336,8 +430,9 @@ build/bin/ferrum document command document.compact-group.materialize.v1 compact-
 The generic protocol and named CLI route are delivered. They are stateless:
 the request carries durable selectors and the admitted CDML snapshot fence.
 
-In `ferrum-qt`, select one visible `Me` or `NO2` compact-group label and use
-Chemistry > `Materialize Selected Compact Group`. The action becomes available
+In `ferrum-qt`, select one visible `Me`, `NO2`, `Et`, `OMe`, `CH2OH`, `Carboxyl`,
+`Cyano`, `AcylChloride`, or `Phenyl` compact-group label and use Chemistry >
+`Materialize Selected Compact Group`. The action becomes available
 only when the Rust live session reports the selected durable molecule/group
 pair as eligible for the installed revision/digest fence. On success Ferrum
 installs the returned observation and selects Rust's replacement focus atom.
@@ -452,7 +547,9 @@ batch, network, session, Qt, or adapter-discovery capability. The generated
 schema and precise operation envelopes are specified in
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md).
 
-## Current boundaries
+## Inspect decoded CML and SDF graphs
+
+Use `ferrum inspect-graph molecule.cml --from cml` or `ferrum inspect-graph records.sdf --from sdf` to report ordered decoded-semantic record, atom, and bond counts without creating a document. `--from` is required; `cml`, `cml1`, and `cml2` select the runtime-free CML profile, while SDF uses the declared native semantic profile. Add `--json` for the complete versioned protocol envelope. CML coordinates remain CML-decoded; SDF coordinates, aromaticity, stereo, and direction are native-normalized semantics rather than raw-molfile claims.
 
 Ferrum is pre-production. The verified desktop route is a bounded macOS arm64
 CPython 3.12 route; it is not a cross-platform consumer release. The Rust CLI
@@ -461,6 +558,6 @@ for the local workflow and [PROVENANCE.md](PROVENANCE.md) for concise lineage
 and licensing information.
 ## Place a free compact group
 
-Use **Place Compact Group...**, select **Me**, then release once on the canvas. Ferrum creates a new molecule root containing the methyl compact group at the snapped canvas position. This is a direct-root group, so it has no atoms or bonds until a later supported materialization workflow.
+Choose Draw > Compact groups > **Place Compact Group...**, select **Me**, then release once on the canvas. Ferrum creates a new molecule root containing the methyl compact group at the snapped canvas position. This is a direct-root group, so it has no atoms or bonds until a later supported materialization workflow.
 
 The chooser currently offers only `Me`. Attached compact groups, templates, arbitrary orientation, dragging, batch placement, raw CDML authoring, and command-line placement are separate capabilities and are not implied by this action.

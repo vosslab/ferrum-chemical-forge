@@ -68,6 +68,8 @@ run_e2e "Ferrum Qt attached-Me unavailable-anchor recovery E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_unavailable_anchor_recovery.py"
 run_e2e "Ferrum Qt attached-NO2 authoring and materialization E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_attached_no2_materialization.py"
+run_e2e "Ferrum Qt attached-OMe authoring and materialization E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_attached_methoxy_materialization.py"
 run_e2e "Ferrum Qt attached-Me compact-group deletion and Undo E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_delete.py"
 run_e2e "Ferrum Qt free-Me compact-group placement and materialization E2E" \

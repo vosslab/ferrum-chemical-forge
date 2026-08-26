@@ -4,15 +4,13 @@ use thiserror::Error;
 use xot::Xot;
 
 use ferrum_document_model::{
-    is_reviewed_attached_compact_group_key_v1, reviewed_attached_compact_group_keys_v1,
+    attached_compact_group_authoring_keys_v1, supports_attached_compact_group_authoring_v1,
 };
 
 use crate::{
     CDML_NAMESPACE, CompactGroupAttachmentV1, CompactGroupCatalogKeyV1, PersistentId, Point3V1,
     TypedDocument, TypedDocumentError, element_name,
 };
-
-const EPSILON: f64 = 1.0e-10;
 
 /// One finite scene release point for the closed compact-group authoring route.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -54,7 +52,7 @@ impl AttachCompactGroupV1 {
     }
 }
 
-/// One Rust-owned choice exposed by the reviewed attached compact-group route.
+/// One Rust-owned choice exposed by the supported attached compact-group route.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AttachedCompactGroupChoiceV1 {
     catalog_key: CompactGroupCatalogKeyV1,
@@ -78,14 +76,14 @@ impl AttachedCompactGroupChoiceV1 {
     }
 }
 
-/// Return the reviewed closed choices for attached compact-group authoring.
+/// Return the supported closed choices for attached compact-group authoring.
 #[must_use]
-pub const fn attached_compact_group_choices_v1() -> [AttachedCompactGroupChoiceV1; 2] {
-    let [first, second] = reviewed_attached_compact_group_keys_v1();
-    [
-        AttachedCompactGroupChoiceV1::new(first),
-        AttachedCompactGroupChoiceV1::new(second),
-    ]
+pub fn attached_compact_group_choices_v1()
+-> impl ExactSizeIterator<Item = AttachedCompactGroupChoiceV1> + Clone {
+    attached_compact_group_authoring_keys_v1()
+        .iter()
+        .copied()
+        .map(AttachedCompactGroupChoiceV1::new)
 }
 
 impl AttachedCompactGroupReleaseV1 {
@@ -95,6 +93,18 @@ impl AttachedCompactGroupReleaseV1 {
         }
         Ok(Self { x, y })
     }
+
+    /// Return the finite scene x-coordinate supplied by the caller.
+    #[must_use]
+    pub const fn x(self) -> f64 {
+        self.x
+    }
+
+    /// Return the finite scene y-coordinate supplied by the caller.
+    #[must_use]
+    pub const fn y(self) -> f64 {
+        self.y
+    }
 }
 
 /// Closed refusals before durable identity allocation or session mutation.
@@ -102,7 +112,7 @@ impl AttachedCompactGroupReleaseV1 {
 pub enum AttachedCompactGroupErrorV1 {
     #[error("compact-group attachment pose is invalid")]
     InvalidPose,
-    #[error("compact-group attachment catalog key is not reviewed for attachment")]
+    #[error("compact-group attachment catalog key is not supported for attachment")]
     UnsupportedCatalogKey,
 }
 
@@ -127,27 +137,22 @@ impl AttachedCompactGroupCandidateV1 {
     }
 }
 
-/// Derive one reviewed persisted compact-group pose from the direct release vector.
-pub(crate) fn attached_compact_group_candidate_v1(
+/// Build a candidate from renderer-owned durable compact-group geometry.
+pub(crate) fn attached_compact_group_candidate_from_resolved_pose_v1(
+    catalog_key: CompactGroupCatalogKeyV1,
     anchor: Point3V1,
-    request: AttachCompactGroupV1,
+    orientation_degrees: f64,
 ) -> Result<AttachedCompactGroupCandidateV1, AttachedCompactGroupErrorV1> {
-    let catalog_key = request.catalog_key();
-    if !is_reviewed_attached_compact_group_key_v1(catalog_key) {
+    if !supports_attached_compact_group_authoring_v1(catalog_key) {
         return Err(AttachedCompactGroupErrorV1::UnsupportedCatalogKey);
     }
-    let release = request.release();
-    let dx = release.x - anchor.x();
-    let dy = release.y - anchor.y();
-    if !dx.is_finite() || !dy.is_finite() || dx.hypot(dy) <= EPSILON {
+    if !orientation_degrees.is_finite() {
         return Err(AttachedCompactGroupErrorV1::InvalidPose);
     }
-    let group_anchor = Point3V1::new(release.x, release.y, anchor.z())
-        .map_err(|_| AttachedCompactGroupErrorV1::InvalidPose)?;
-    let attachment = CompactGroupAttachmentV1::new(catalog_key, 0, dy.atan2(dx).to_degrees())
+    let attachment = CompactGroupAttachmentV1::new(catalog_key, 0, orientation_degrees)
         .map_err(|_| AttachedCompactGroupErrorV1::InvalidPose)?;
     Ok(AttachedCompactGroupCandidateV1 {
-        anchor: group_anchor,
+        anchor,
         catalog_key,
         attachment,
     })
@@ -261,14 +266,11 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_candidate_derives_a_finite_canonical_pose() {
-        let anchor = Point3V1::new(0.0, 0.0, 0.0).expect("anchor");
-        let candidate = attached_compact_group_candidate_v1(
-            anchor,
-            AttachCompactGroupV1::new(
-                CompactGroupCatalogKeyV1::Methyl,
-                AttachedCompactGroupReleaseV1::new(20.0, 0.0).expect("release"),
-            ),
+    fn renderer_resolved_candidate_preserves_the_admitted_pose() {
+        let candidate = attached_compact_group_candidate_from_resolved_pose_v1(
+            CompactGroupCatalogKeyV1::Methyl,
+            Point3V1::new(20.0, 0.0, 0.0).expect("renderer anchor"),
+            0.0,
         )
         .expect("candidate");
         assert_eq!(
@@ -289,12 +291,10 @@ mod tests {
         ))
         .expect("typed source");
         let group_id = id("anchor");
-        let candidate = attached_compact_group_candidate_v1(
-            Point3V1::new(0.0, 0.0, 0.0).expect("anchor point"),
-            AttachCompactGroupV1::new(
-                CompactGroupCatalogKeyV1::Methyl,
-                AttachedCompactGroupReleaseV1::new(20.0, 0.0).expect("release"),
-            ),
+        let candidate = attached_compact_group_candidate_from_resolved_pose_v1(
+            CompactGroupCatalogKeyV1::Methyl,
+            Point3V1::new(20.0, 0.0, 0.0).expect("renderer anchor"),
+            0.0,
         )
         .expect("candidate");
 

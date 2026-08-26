@@ -130,7 +130,6 @@ pub(super) enum PyStructureTargetKind {
     Atom,
     Bond,
     CompactGroup,
-    DisplayOnly,
 }
 #[pyclass(
     frozen,
@@ -245,7 +244,6 @@ pub(super) fn structure_kind(value: StructureTargetKindV1) -> PyStructureTargetK
         StructureTargetKindV1::Atom => PyStructureTargetKind::Atom,
         StructureTargetKindV1::Bond => PyStructureTargetKind::Bond,
         StructureTargetKindV1::CompactGroup => PyStructureTargetKind::CompactGroup,
-        StructureTargetKindV1::DisplayOnly => PyStructureTargetKind::DisplayOnly,
     }
 }
 pub(super) fn root_kind(value: TopLevelRootKindV1) -> PyRootKind {

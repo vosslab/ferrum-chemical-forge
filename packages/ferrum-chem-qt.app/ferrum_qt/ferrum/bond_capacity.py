@@ -211,8 +211,8 @@ class FerrumNativeBondCapacityMixin:
 		self._bond_capacity_relay = _BondCapacityDeliveryRelay(self)
 
 	#============================================
-	def _build_bond_capacity_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the ordinary Chemistry action and explicit delivery cancellation."""
+	def _build_bond_capacity_actions(self) -> None:
+		"""Create and register the Chemistry action and delivery cancellation."""
 		self._check_bond_capacity_action = PySide6.QtGui.QAction(
 			self.tr("Check Bond Capacity..."), self,
 		)
@@ -220,12 +220,20 @@ class FerrumNativeBondCapacityMixin:
 			"Check selected molecule structures using Ferrum's supported diagnostic rules. This does not change the document.",
 		))
 		self._check_bond_capacity_action.triggered.connect(self._start_bond_capacity_check)
-		menu.addAction(self._check_bond_capacity_action)
 		self._cancel_bond_capacity_action = PySide6.QtGui.QAction(
 			self.tr("Cancel Bond Capacity Check"), self,
 		)
 		self._cancel_bond_capacity_action.triggered.connect(self._cancel_document_bond_capacity)
-		menu.addAction(self._cancel_bond_capacity_action)
+		self._action_registry.register_existing(
+			"chemistry.bond_capacity.check", self._check_bond_capacity_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
+		self._cancel_bond_capacity_action.setStatusTip(self._cancel_bond_capacity_action.text())
+		self._action_registry.register_existing(
+			"chemistry.bond_capacity.cancel", self._cancel_bond_capacity_action,
+			lifecycle="stateful-cancel",
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _bond_capacity_busy(self) -> bool:

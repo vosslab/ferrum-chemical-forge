@@ -119,9 +119,9 @@ class FerrumNativeSelectionSvgWindowMixin:
 		self._selection_svg_relay = _SelectionSvgDeliveryRelay(self)
 
 	#============================================
-	def _build_native_clipboard_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add selected SVG beside the ordinary Ferrum clipboard actions."""
-		super()._build_native_clipboard_actions(menu)
+	def _build_native_clipboard_actions(self) -> None:
+		"""Construct and register selected-SVG clipboard actions."""
+		super()._build_native_clipboard_actions()
 		self._copy_selection_svg_action = PySide6.QtGui.QAction(
 			self.tr("Copy as SVG"), self,
 		)
@@ -131,14 +131,15 @@ class FerrumNativeSelectionSvgWindowMixin:
 		self._copy_selection_svg_action.triggered.connect(
 			self._start_native_selection_svg,
 		)
-		menu.insertAction(self._paste_action, self._copy_selection_svg_action)
 		self._cancel_selection_svg_action = PySide6.QtGui.QAction(
 			self.tr("Cancel Copy as SVG"), self,
 		)
 		self._cancel_selection_svg_action.triggered.connect(
 			self._cancel_native_selection_svg,
 		)
-		menu.insertAction(self._cancel_paste_action, self._cancel_selection_svg_action)
+		self._register_action("edit.copy_svg", self._copy_selection_svg_action)
+		self._register_action("edit.cancel_copy_svg", self._cancel_selection_svg_action,
+			lifecycle="stateful-cancel")
 
 	#============================================
 	def _clipboard_busy(self) -> bool:

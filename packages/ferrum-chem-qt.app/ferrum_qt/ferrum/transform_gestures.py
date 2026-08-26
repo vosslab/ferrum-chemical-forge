@@ -91,7 +91,7 @@ class FerrumNativeTransformGesturesMixin:
 			intent: ferrum_qt.ferrum.line_tool_intent._LineGestureIntent,
 			event: PySide6.QtGui.QMouseEvent,
 			) -> None:
-		"""Retire the local preview, then submit one still-current Rust rotation."""
+		"""Dispose the local preview, then submit one still-current Rust rotation."""
 		if intent.rotation_selection is None or intent.rotation_preview is None:
 			return
 		self._update_rotation_gesture(intent, event)

@@ -14,7 +14,7 @@ import re
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.canvas.ferrum_presentation_render_plan
 import ferrum_qt.canvas.ferrum_presentation_target
 from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
@@ -103,7 +103,7 @@ class FerrumRenderProjection:
 	#============================================
 	def selected_targets(self) -> tuple[RenderTargetKey, ...]:
 		"""Return selected current targets without promoting local keys to IDs."""
-		selected = ferrum_qt.canvas.graphics_retirement.selected_items_from_captured_scene(
+		selected = ferrum_qt.canvas.graphics_disposal.selected_items_from_captured_scene(
 			self.scene,
 		)
 		result = tuple(
@@ -129,12 +129,12 @@ class FerrumRenderProjection:
 
 	#============================================
 	def dispose(self) -> None:
-		"""Terminally retire this projection's graphics and detached scene once."""
+		"""Terminally dispose this projection's graphics and detached scene once."""
 		if self._disposed:
 			return
-		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
-		coordinator.retire_scene_projection_items(self.scene, list(self.roots))
-		coordinator.raise_if_callback_failed("Ferrum render projection retirement failed")
+		coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
+		coordinator.dispose_scene_projection_items(self.scene, list(self.roots))
+		coordinator.raise_if_callback_failed("Ferrum render projection disposal failed")
 		self.scene.deleteLater()
 		self._disposed = True
 
@@ -223,7 +223,7 @@ class FerrumRenderProjectionController:
 
 	#============================================
 	def dispose(self) -> None:
-		"""Invalidate delivery and retire the installed disposable projection once."""
+		"""Invalidate delivery and dispose the installed disposable projection once."""
 		if self._disposed:
 			return
 		self._disposed = True
@@ -457,7 +457,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 		ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItemError,
 		ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItemError,
 	) as exc:
-		_retire_failed_projection(scene, presentation)
+		_dispose_failed_projection(scene, presentation)
 		if isinstance(exc, FerrumRenderProjectionError):
 			raise
 		raise FerrumRenderProjectionError("invalid frozen render observation DTO") from exc
@@ -706,7 +706,7 @@ def _digest(value: object) -> str:
 
 
 #============================================
-def _retire_failed_projection(
+def _dispose_failed_projection(
 		scene: PySide6.QtWidgets.QGraphicsScene,
 		presentation: (
 			ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene
@@ -716,14 +716,14 @@ def _retire_failed_projection(
 	"""Dispose a partially built candidate without touching an installed projection."""
 	detached = [] if presentation is None else [
 		root for root in presentation.roots
-		if ferrum_qt.canvas.graphics_retirement.native_scene_for_item(root) is not scene
+		if ferrum_qt.canvas.graphics_disposal.native_scene_for_item(root) is not scene
 	]
-	coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
+	coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
 	items = list(scene.items())
 	if items:
-		coordinator.retire_scene_projection_items(scene, items)
+		coordinator.dispose_scene_projection_items(scene, items)
 	if detached:
-		coordinator.retire_detached_projection_items(detached)
+		coordinator.dispose_detached_projection_items(detached)
 
 
 #============================================

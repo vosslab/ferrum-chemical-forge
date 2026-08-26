@@ -12,26 +12,25 @@ import ferrum_qt.ferrum.text_properties
 
 
 #============================================
-def install_plus_properties_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install both actions while preserving the host's established Plus handle."""
+def install_plus_properties_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct paired actions while preserving the host's established Plus handle."""
 	plus_action = (
 		ferrum_qt.ferrum.plus_properties.install_plus_properties_action(
-			window, edit_menu,
+			window,
 		)
 	)
 	window._edit_text_properties_action = (
 		ferrum_qt.ferrum.text_properties.install_text_properties_action(
-			window, edit_menu,
+			window,
 		)
 	)
 	window._delete_presentation_action = (
 		ferrum_qt.ferrum.presentation_deletion.
-		install_presentation_deletion_action(window, edit_menu)
+		install_presentation_deletion_action(window)
 	)
 	window._presentation_stack_actions = (
 		ferrum_qt.ferrum.presentation_stack.
-		install_presentation_stack_actions(window, edit_menu)
+		install_presentation_stack_actions(window)
 	)
 	return plus_action
 

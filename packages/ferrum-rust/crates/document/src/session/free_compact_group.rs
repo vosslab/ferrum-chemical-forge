@@ -24,7 +24,7 @@ impl std::fmt::Debug for PendingPlaceFreeCompactGroupV1 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("PendingPlaceFreeCompactGroupV1")
-            .field("is_resolved", &self.transition.is_consumed_v1())
+            .field("is_consumed", &self.transition.is_consumed_v1())
             .finish()
     }
 }
@@ -78,8 +78,8 @@ pub enum FreeCompactGroupPlacementSessionErrorV1 {
     StaleDigest,
     #[error("free compact-group placement belongs to another session")]
     ForeignSession,
-    #[error("free compact-group placement is retired")]
-    Retired,
+    #[error("free compact-group placement was already consumed")]
+    Consumed,
     #[error("free compact-group placement supports the Methyl catalog key only")]
     UnsupportedCatalogKey,
     #[error("free compact-group placement candidate could not be admitted")]
@@ -149,7 +149,7 @@ impl DocumentSession {
     ) -> Result<FreeCompactGroupPlacementCommitResultV1, FreeCompactGroupPlacementSessionErrorV1>
     {
         if pending.transition.is_consumed_v1() {
-            return Err(FreeCompactGroupPlacementSessionErrorV1::Retired);
+            return Err(FreeCompactGroupPlacementSessionErrorV1::Consumed);
         }
         if !pending
             .session_issuer
@@ -167,8 +167,8 @@ impl DocumentSession {
         ))
     }
 
-    /// Retire one pending free compact-group placement without mutating the document.
-    pub fn retire_place_free_compact_group_v1(
+    /// Cancel one pending free compact-group placement without mutating the document.
+    pub fn cancel_place_free_compact_group_v1(
         &mut self,
         pending: &mut PendingPlaceFreeCompactGroupV1,
     ) -> Result<(), FreeCompactGroupPlacementSessionErrorV1> {
@@ -179,9 +179,9 @@ impl DocumentSession {
             return Err(FreeCompactGroupPlacementSessionErrorV1::ForeignSession);
         }
         if pending.transition.is_consumed_v1() {
-            return Err(FreeCompactGroupPlacementSessionErrorV1::Retired);
+            return Err(FreeCompactGroupPlacementSessionErrorV1::Consumed);
         }
-        self.retire_session_operation_transition_v1(&mut pending.transition)
+        self.cancel_session_operation_transition_v1(&mut pending.transition)
             .map_err(map_commit_error)
     }
 }
@@ -225,8 +225,8 @@ fn map_commit_error(
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             FreeCompactGroupPlacementSessionErrorV1::ForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed => {
-            FreeCompactGroupPlacementSessionErrorV1::Retired
+        AdmittedSessionTransitionRefusalV1::Consumed => {
+            FreeCompactGroupPlacementSessionErrorV1::Consumed
         }
         AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
             FreeCompactGroupPlacementSessionErrorV1::StaleRevision
@@ -234,8 +234,7 @@ fn map_commit_error(
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             FreeCompactGroupPlacementSessionErrorV1::RendererAdmission
         }
-        AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             FreeCompactGroupPlacementSessionErrorV1::SessionConflict
         }
     }
@@ -311,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn free_placement_refusals_and_retirement_leave_the_document_unchanged() {
+    fn free_placement_refusals_and_cancellation_leave_the_document_unchanged() {
         let mut session = DocumentSession::create_empty_document_v1().expect("empty document");
         let before = session.snapshot().expect("before");
         let unsupported = PlaceFreeCompactGroupV1::new(
@@ -332,12 +331,12 @@ mod tests {
             .prepare_place_free_compact_group_v1(fence(&session), methyl_request())
             .expect("prepare");
         session
-            .retire_place_free_compact_group_v1(&mut pending)
-            .expect("retire");
-        assert_eq!(session.snapshot().expect("retirement is pure"), before);
+            .cancel_place_free_compact_group_v1(&mut pending)
+            .expect("cancel");
+        assert_eq!(session.snapshot().expect("cancellation is pure"), before);
         assert_eq!(
             session.commit_place_free_compact_group_v1(&mut pending),
-            Err(FreeCompactGroupPlacementSessionErrorV1::Retired),
+            Err(FreeCompactGroupPlacementSessionErrorV1::Consumed),
         );
     }
 }

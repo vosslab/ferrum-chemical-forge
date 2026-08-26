@@ -1,7 +1,6 @@
 """Public Ferrum Qt window for the completed CDML slice."""
 # Standard Library
 import collections.abc
-import dataclasses
 import functools
 import pathlib
 
@@ -11,14 +10,16 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.actions.action_registry
 import ferrum_qt.ferrum.document_save
 import ferrum_qt.bridge.insertion_placement
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.ferrum.atom_properties
+import ferrum_qt.ferrum.atom_mode
 import ferrum_qt.ferrum.atom_element
 import ferrum_qt.ferrum.atom_number
 import ferrum_qt.ferrum.arrow_properties
@@ -32,6 +33,7 @@ import ferrum_qt.ferrum.geometry_actions
 import ferrum_qt.ferrum.line_tools
 import ferrum_qt.ferrum.structure_selection
 import ferrum_qt.ferrum.window_mode_sync
+import ferrum_qt.modes.base_mode
 import ferrum_qt.ferrum.haworth_tool
 import ferrum_qt.ferrum.direct_glycosidic_haworth_tool
 import ferrum_qt.ferrum.linear_form
@@ -45,6 +47,7 @@ import ferrum_qt.ferrum.sdf_export
 import ferrum_qt.ferrum.sdf_multi_export
 import ferrum_qt.ferrum.molecule_report
 import ferrum_qt.ferrum.molecule_diagnostics
+import ferrum_qt.ferrum.bond_capacity
 import ferrum_qt.ferrum.atom_oxidation
 import ferrum_qt.ferrum.explicit_hydrogen
 import ferrum_qt.ferrum.compact_group_materialization
@@ -78,19 +81,9 @@ _ATOM_MARK_ACTIONS = (
 	("pz_orbital", "p Orbital"),
 )
 #============================================
-@dataclasses.dataclass(frozen=True, slots=True)
-class _AtomInsertionIntent:
-	"""One revision-bound Ferrum click request awaiting an exact scene point."""
-
-	tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab
-	viewport: PySide6.QtWidgets.QWidget
-	revision: int
-	digest: str
-	molecule_object_id: str
-	element: str
-
 #============================================
 class FerrumNativeMainWindow(
+		ferrum_qt.ferrum.bond_capacity.FerrumNativeBondCapacityMixin,
 		ferrum_qt.ferrum.molecule_diagnostics.FerrumNativeMoleculeDiagnosticsMixin,
 		ferrum_qt.ferrum.free_compact_group_placement.
 		FerrumNativeFreeCompactGroupPlacementWindowMixin,
@@ -151,6 +144,12 @@ class FerrumNativeMainWindow(
 			) -> None:
 		"""Build the small Ferrum document host and its reachable file actions."""
 		super().__init__(parent)
+		self._action_registry = ferrum_qt.actions.action_registry.ActionRegistry()
+		self._window_mode_sync = ferrum_qt.ferrum.window_mode_sync.FerrumWindowModeSync(
+			self._action_registry,
+		)
+		self._controller_native_viewport = None
+		self._window_mode_sync.set_native_input_host(self)
 		self._interaction_action_handoff = (
 			ferrum_qt.ferrum.interaction_action_handoff.
 			FerrumInteractionActionHandoff(
@@ -159,11 +158,11 @@ class FerrumNativeMainWindow(
 		)
 		getattr(self, "_initialize_native_file_menu_clients", lambda: None)()
 		self._native_tabs_by_page = {}
-		self._native_selection_refresh_queued = False
 		self._drawing_parameters = (
 			ferrum_qt.ferrum.drawing_parameters.
 			FerrumNativeDrawingParameters()
 		)
+		self._atom_mode = ferrum_qt.ferrum.atom_mode.FerrumAtomModeFeature(self)
 		self._initialize_native_user_templates(user_template_directory)
 		self._initialize_catalog_placement()
 		self._local_ingress_registry = (
@@ -172,7 +171,7 @@ class FerrumNativeMainWindow(
 		)
 		self._initialize_local_document_open()
 		self._initialize_view_controls()
-		self._atom_insertion_intent: _AtomInsertionIntent | None = None
+		self._atom_insertion_intent: ferrum_qt.ferrum.atom_mode.AtomInsertionIntent | None = None
 		self._initialize_line_tools()
 		self._initialize_structure_selection()
 		self._initialize_molecule_imports()
@@ -182,6 +181,7 @@ class FerrumNativeMainWindow(
 		self._initialize_molecule_exports()
 		self._initialize_molecule_inspection()
 		self._initialize_molecule_diagnostics()
+		self._initialize_bond_capacity()
 		self._initialize_atom_oxidation()
 		self._initialize_explicit_hydrogen()
 		self._initialize_compact_group_materialization()
@@ -191,6 +191,13 @@ class FerrumNativeMainWindow(
 		self._initialize_coordinate_generation()
 		self._initialize_snapshot_exports()
 		self._tab_widget = PySide6.QtWidgets.QTabWidget(self)
+		self._native_selection_refresh_timer = PySide6.QtCore.QTimer(
+			self._tab_widget,
+		)
+		self._native_selection_refresh_timer.setSingleShot(True)
+		self._native_selection_refresh_timer.timeout.connect(
+			self._refresh_after_native_selection,
+		)
 		self._tab_widget.setTabsClosable(True)
 		self._last_native_tab = None
 		self._tab_widget.currentChanged.connect(self._on_native_tab_changed)
@@ -202,9 +209,7 @@ class FerrumNativeMainWindow(
 		self._smarts_query_controller = (
 			ferrum_qt.ferrum.smarts_query_dock.FerrumSmartsQueryController(self)
 		)
-		self._smarts_query_action = self._smarts_query_controller.install_action(
-			self._chemistry_menu,
-		)
+		self._smarts_query_action = self._smarts_query_controller.install_action()
 		self._native_property_dock = (
 			ferrum_qt.ferrum.property_dock.install_native_property_dock(
 				self, self._edit_atom_properties_action, self._edit_bond_properties_action,
@@ -307,41 +312,36 @@ class FerrumNativeMainWindow(
 
 	def _build_actions(self) -> None:
 		"""Create Ferrum file and bounded Rust edit actions."""
-		menu = self.menuBar().addMenu(self.tr("File"))
-		self._file_menu = menu
 		self._open_action = PySide6.QtGui.QAction(self.tr("Open"), self)
 		self._open_action.triggered.connect(self._on_open)
-		menu.addAction(self._open_action)
-		self._build_open_in_current_tab_action(menu)
-		self._build_local_document_open_action(menu)
-		getattr(self, "_install_native_recent_files_menu", lambda _menu: None)(menu)
+		self._build_open_in_current_tab_action()
+		self._build_local_document_open_action()
+		self._register_action("file.open", self._open_action)
+		getattr(self, "_install_native_recent_files_menu", lambda: None)()
 		self._save_action = PySide6.QtGui.QAction(self.tr("Save"), self)
 		self._save_action.triggered.connect(self._on_save)
-		menu.addAction(self._save_action)
+		self._register_action("file.save", self._save_action)
 		self._save_as_action = PySide6.QtGui.QAction(self.tr("Save As"), self)
 		self._save_as_action.triggered.connect(self._on_save_as)
-		menu.addAction(self._save_as_action)
-		self._build_recovery_export_action(menu)
-		self._build_snapshot_export_actions(menu)
-		self._build_native_user_template_file_actions(menu)
+		self._register_action("file.save_as", self._save_as_action)
+		self._build_recovery_export_action()
+		self._build_snapshot_export_actions()
+		self._build_native_user_template_file_actions()
 		self._close_action = PySide6.QtGui.QAction(self.tr("Close Tab"), self)
 		self._close_action.triggered.connect(self._close_current_tab)
-		menu.addAction(self._close_action)
-		menu.addSeparator()
+		self._register_action("file.close", self._close_action)
 		self._quit_action = PySide6.QtGui.QAction(self.tr("Quit"), self)
 		self._quit_action.triggered.connect(self.close)
-		menu.addAction(self._quit_action)
-		edit_menu = self.menuBar().addMenu(self.tr("Edit"))
-		self._edit_menu = edit_menu
-		self._paper_properties_action = native_paper_properties.install_paper_properties_action(
-			self, edit_menu,
-		)
+		self._register_action("file.quit", self._quit_action)
 		self._drawing_standard_action = native_drawing_standard.install_drawing_standard_action(
-			self, edit_menu,
+			self,
+		)
+		self._paper_properties_action = native_paper_properties.install_paper_properties_action(
+			self,
 		)
 		self._change_element_action = PySide6.QtGui.QAction(self.tr("Change Element"), self)
 		self._change_element_action.triggered.connect(self._on_change_element)
-		edit_menu.addAction(self._change_element_action)
+		self._register_action("edit.atom.change_element", self._change_element_action)
 		self._edit_atom_properties_action = PySide6.QtGui.QAction(
 			self.tr("Edit Atom Properties"), self,
 		)
@@ -349,18 +349,17 @@ class FerrumNativeMainWindow(
 			self.tr("Edit one selected durable atom through one operation"),
 		)
 		self._edit_atom_properties_action.triggered.connect(self._on_edit_atom_properties)
-		edit_menu.addAction(self._edit_atom_properties_action)
+		self._register_action("edit.atom.properties", self._edit_atom_properties_action)
 		self._set_atom_number_action = PySide6.QtGui.QAction(
 			self.tr("Set Atom Number"), self,
 		)
 		self._set_atom_number_action.triggered.connect(self._on_set_atom_number)
-		edit_menu.addAction(self._set_atom_number_action)
+		self._register_action("edit.atom.set_number", self._set_atom_number_action)
 		self._clear_atom_number_action = PySide6.QtGui.QAction(
 			self.tr("Clear Atom Number"), self,
 		)
 		self._clear_atom_number_action.triggered.connect(self._on_clear_atom_number)
-		edit_menu.addAction(self._clear_atom_number_action)
-		mark_menu = edit_menu.addMenu(self.tr("Toggle Atom Mark"))
+		self._register_action("edit.atom.clear_number", self._clear_atom_number_action)
 		self._atom_mark_actions = {}
 		for kind_name, label in _ATOM_MARK_ACTIONS:
 			action = PySide6.QtGui.QAction(self.tr(label), self)
@@ -368,9 +367,8 @@ class FerrumNativeMainWindow(
 				"Add this mark, or remove the first matching mark from the selected atom",
 			))
 			action.triggered.connect(functools.partial(self._on_toggle_atom_mark, kind_name))
-			mark_menu.addAction(action)
 			self._atom_mark_actions[kind_name] = action
-		mark_menu.addSeparator()
+			self._register_action(f"edit.atom_mark.{kind_name}", action)
 		self._remove_atom_mark_action = PySide6.QtGui.QAction(
 			self.tr("Remove Atom Mark..."), self,
 		)
@@ -378,7 +376,7 @@ class FerrumNativeMainWindow(
 			self.tr("Choose one exact mark ordinal from the selected Rust atom"),
 		)
 		self._remove_atom_mark_action.triggered.connect(self._on_remove_atom_mark)
-		mark_menu.addAction(self._remove_atom_mark_action)
+		self._register_action("edit.atom_mark.remove", self._remove_atom_mark_action)
 		self._edit_bond_properties_action = PySide6.QtGui.QAction(
 			self.tr("Edit Bond Properties"), self,
 		)
@@ -386,22 +384,34 @@ class FerrumNativeMainWindow(
 			self.tr("Edit one selected durable bond through one operation"),
 		)
 		self._edit_bond_properties_action.triggered.connect(self._on_edit_bond_properties)
-		edit_menu.addAction(self._edit_bond_properties_action)
+		self._register_action("edit.bond.properties", self._edit_bond_properties_action)
+		self._reverse_selected_wedge_direction_action = PySide6.QtGui.QAction(
+			self.tr("Reverse Selected Wedge Direction"), self,
+		)
+		self._reverse_selected_wedge_direction_action.setToolTip(self.tr(
+			"Swap the tip and base of one selected solid or hashed wedge through Rust",
+		))
+		self._reverse_selected_wedge_direction_action.triggered.connect(
+			self._on_reverse_selected_wedge_direction,
+		)
+		self._register_action(
+			"edit.bond.reverse_wedge", self._reverse_selected_wedge_direction_action,
+		)
 		self._edit_plus_properties_action = (
 			ferrum_qt.ferrum.presentation_properties.install_plus_properties_action(
-				self, edit_menu,
+				self,
 			)
 		)
 		self._edit_arrow_properties_action = (
 			ferrum_qt.ferrum.arrow_properties.install_arrow_properties_action(
-				self, edit_menu,
+				self,
 			)
 		)
 		self._edit_geometric_properties_action = (
-			native_geometric_properties.install_geometric_properties_action(self, edit_menu)
+			native_geometric_properties.install_geometric_properties_action(self)
 		)
 		self._edit_wavy_properties_action = (
-			native_wavy_properties.install_wavy_properties_action(self, edit_menu)
+			native_wavy_properties.install_wavy_properties_action(self)
 		)
 		self._delete_atom_action = PySide6.QtGui.QAction(
 			self.tr("Delete Selected Atom"), self,
@@ -410,7 +420,7 @@ class FerrumNativeMainWindow(
 			self.tr("Delete one atom and every incident bond through Rust"),
 		)
 		self._delete_atom_action.triggered.connect(self._on_delete_selected_atom)
-		edit_menu.addAction(self._delete_atom_action)
+		self._register_action("edit.delete_atom", self._delete_atom_action)
 		self._delete_bond_action = PySide6.QtGui.QAction(
 			self.tr("Delete Selected Bond"), self,
 		)
@@ -418,7 +428,7 @@ class FerrumNativeMainWindow(
 			self.tr("Delete one durable typed bond through Rust"),
 		)
 		self._delete_bond_action.triggered.connect(self._on_delete_selected_bond)
-		edit_menu.addAction(self._delete_bond_action)
+		self._register_action("edit.delete_bond", self._delete_bond_action)
 		self._change_bond_order_action = PySide6.QtGui.QAction(
 			self.tr("Change Selected Bond Order"), self,
 		)
@@ -426,16 +436,21 @@ class FerrumNativeMainWindow(
 			self.tr("Choose single, double, or triple for one durable Rust bond"),
 		)
 		self._change_bond_order_action.triggered.connect(self._on_change_bond_order)
-		edit_menu.addAction(self._change_bond_order_action)
+		self._register_action("edit.bond.change_order", self._change_bond_order_action)
 		self._add_atom_action = PySide6.QtGui.QAction(self.tr("Add Atom at Point"), self)
 		self._add_atom_action.setCheckable(True)
 		self._add_atom_action.setToolTip(
 			self.tr("Use Next atom, then click the canvas once; Esc cancels"),
 		)
-		self._connect_interaction_action_v1(
-			self._add_atom_action, self._on_toggle_add_atom,
+		self._register_action("draw.atom_at_point", self._add_atom_action)
+		self._window_mode_sync.register_tool(
+			ferrum_qt.ferrum.window_mode_sync.FerrumWindowToolBinding(
+				self._add_atom_action, ferrum_qt.modes.base_mode.ModeId.ATOM,
+				self._atom_mode.controller, "Add Atom", True,
+				self._mode_context, self._atom_mode.activate,
+				self._atom_mode.dispatch, self._atom_mode.cancel,
+			),
 		)
-		self._add_interaction_action_to_menu_v1(edit_menu, self._add_atom_action)
 		self._add_single_bond_action = PySide6.QtGui.QAction(
 			self.tr("Add Single Bond Between Selected Atoms"), self,
 		)
@@ -443,44 +458,64 @@ class FerrumNativeMainWindow(
 			self.tr("Select exactly two atoms, then connect them through Rust"),
 		)
 		self._add_single_bond_action.triggered.connect(self._on_add_single_bond)
-		edit_menu.addAction(self._add_single_bond_action)
-		self._build_line_tool_actions(edit_menu)
-		self._build_structure_selection_action(edit_menu)
-		self._build_top_level_transform_actions(edit_menu)
+		self._register_action("draw.bond.connect_selected", self._add_single_bond_action)
+		self._build_line_tool_actions()
+		self._build_structure_selection_action()
+		self._build_top_level_transform_actions()
 		self._undo_action = PySide6.QtGui.QAction(self.tr("Undo"), self)
 		self._undo_action.triggered.connect(self._on_undo)
-		edit_menu.addAction(self._undo_action)
+		self._register_action("edit.undo", self._undo_action)
 		self._redo_action = PySide6.QtGui.QAction(self.tr("Redo"), self)
 		self._redo_action.triggered.connect(self._on_redo)
-		edit_menu.addAction(self._redo_action)
-		self._build_native_clipboard_actions(edit_menu)
-		edit_menu.addSeparator()
+		self._register_action("edit.redo", self._redo_action)
+		self._build_native_clipboard_actions()
 		self._refresh_action = PySide6.QtGui.QAction(self.tr("Refresh Authoritative View"), self)
 		self._refresh_action.triggered.connect(self._on_refresh_authoritative)
-		edit_menu.addAction(self._refresh_action)
-		chemistry_menu = self.menuBar().addMenu(self.tr("Chemistry"))
-		self._chemistry_menu = chemistry_menu
-		self._build_catalog_template_action(chemistry_menu)
-		self._build_native_user_template_place_action(chemistry_menu)
-		self._build_molecule_import_actions(chemistry_menu)
-		self._build_multi_sdf_export_actions(chemistry_menu)
-		self._build_sdf_export_actions(chemistry_menu)
-		self._build_molfile_export_actions(chemistry_menu)
-		self._build_molecule_export_actions(chemistry_menu)
-		self._build_molecule_inspection_actions(chemistry_menu)
-		self._build_molecule_diagnostics_action(chemistry_menu)
-		self._build_atom_oxidation_action(chemistry_menu)
-		self._build_explicit_hydrogen_action(chemistry_menu)
-		self._build_compact_group_materialization_action(chemistry_menu)
-		self._build_compact_group_authoring_action(chemistry_menu)
-		self._build_free_compact_group_placement_action(chemistry_menu)
-		self._build_molecule_name_action(chemistry_menu)
-		self._build_linear_form_action(chemistry_menu)
-		self._build_explicit_fragment_actions(chemistry_menu)
-		self._build_direct_glycosidic_haworth_action(chemistry_menu)
-		self._build_coordinate_generation_actions(chemistry_menu)
+		self._register_action("view.refresh", self._refresh_action)
 		self._build_view_controls_actions()
+		self._build_catalog_template_action()
+		self._build_native_user_template_place_action()
+		self._build_molecule_import_actions()
+		self._build_multi_sdf_export_actions()
+		self._build_sdf_export_actions()
+		self._build_molfile_export_actions()
+		self._build_molecule_export_actions()
+		self._build_molecule_inspection_actions()
+		self._build_molecule_diagnostics_action()
+		self._build_bond_capacity_actions()
+		self._build_atom_oxidation_action()
+		self._build_explicit_hydrogen_action()
+		self._build_compact_group_materialization_action()
+		self._build_compact_group_authoring_action()
+		self._build_free_compact_group_placement_action()
+		self._build_molecule_name_action()
+		self._build_linear_form_action()
+		self._build_explicit_fragment_actions()
+		self._build_direct_glycosidic_haworth_action()
+		self._build_coordinate_generation_actions()
 		self._wire_catalog_tool_replacement()
+
+	#============================================
+	def _register_action(self, action_id: str, action: PySide6.QtGui.QAction,
+			*, lifecycle: str = "static") -> None:
+		"""Bind one already-wired Ferrum command to its stable menu identity."""
+		if not action.toolTip() and not action.statusTip() and not action.whatsThis():
+			action.setToolTip(action.text().replace("&", "").strip())
+		self._action_registry.register_existing(
+			action_id, action, lifecycle=lifecycle,
+			shortcut_exemption_reason=(
+				"This labelled desktop command has no portable default shortcut."
+			),
+		)
+
+	#============================================
+	def _mode_context(self) -> object:
+		"""Provide the live host context without giving modes document ownership."""
+		import ferrum_qt.modes.base_mode
+		tab = self._active_native_tab()
+		return ferrum_qt.modes.base_mode.ModeContext(
+			None, {"window": self, "tab_title": None if tab is None else tab.title},
+		)
 
 	#============================================
 	def _connect_interaction_action_v1(self, action: PySide6.QtGui.QAction,
@@ -488,12 +523,6 @@ class FerrumNativeMainWindow(
 		"""Register one action whose handler takes canvas interaction ownership."""
 		self._interaction_action_handoff.connect(action, handler)
 
-	def _add_interaction_action_to_menu_v1(self, menu: PySide6.QtWidgets.QMenu,
-			action: PySide6.QtGui.QAction) -> None:
-		"""Insert one pointer action only after its popup lifecycle is ready."""
-		self._interaction_action_handoff.add_registered_action_to_menu(menu, action)
-
-	#============================================
 	def _register_pointer_capture_canceller_v1(self,
 			canceller: collections.abc.Callable[[bool], None]) -> None:
 		"""Register the selected-root capture in the window authoring transaction."""
@@ -501,7 +530,7 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def begin_smarts_selected_root_capture(self) -> object:
-		"""Retire other pointer tools and expose one current canvas capture target."""
+		"""Cancel other pointer tools and expose one current canvas capture target."""
 		self.cancel_active_pointer_authoring()
 		tab = self._active_native_tab()
 		contract = ferrum_qt.ferrum.smarts_selected_root_contract
@@ -551,7 +580,7 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def cancel_active_pointer_authoring(self, *, clear_status: bool = True) -> None:
-		"""Retire every transient canvas authoring owner in one fixed order."""
+		"""Cancel every transient canvas authoring owner in one fixed order."""
 		self._interaction_action_handoff.cancel_registered_pointer_capture(
 			clear_status=clear_status,
 		)
@@ -704,6 +733,24 @@ class FerrumNativeMainWindow(
 		"""Delegate the bounded visual form to its focused Ferrum adapter."""
 		ferrum_qt.ferrum.bond_properties.run_bond_properties_dialog(self)
 
+	#============================================
+	def _on_reverse_selected_wedge_direction(self) -> None:
+		"""Reverse one selected solid or hashed wedge through Rust."""
+		tab = self._active_native_tab()
+		if tab is None:
+			return
+		self.cancel_active_pointer_authoring()
+		try:
+			tab.reverse_selected_wedge_direction()
+		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
+			self._refresh_actions()
+			self._show_edit_refusal(self._typed_refusal(
+				"edit_document", "unavailable_operation", str(exc),
+			))
+			return
+		self.statusBar().showMessage(self.tr("Reversed selected wedge direction."), 5000)
+		self._refresh_actions()
+
 	def _on_delete_selected_atom(self) -> None:
 		"""Delete one selected atom through the active Rust document session."""
 		tab = self._active_native_tab()
@@ -769,120 +816,11 @@ class FerrumNativeMainWindow(
 		)
 		self._refresh_actions()
 
-	def _on_toggle_add_atom(self, checked: bool) -> None:
-		"""Capture one chosen element intent, then wait for one scene click."""
-		if not checked:
-			self._cancel_atom_insertion()
-			return
-		self._cancel_line_gesture()
-		tab = self._active_native_tab()
-		if tab is None:
-			self._cancel_atom_insertion()
-			return
-		choices = tab.canvas_authorable_molecule_choices()
-		if not choices:
-			self._cancel_atom_insertion()
-			self._show_edit_refusal(self._typed_refusal(
-				"edit_document", "unrenderable_molecule",
-				"The installed Rust render observation has no canvas-authorable molecule plan.",
-			))
-			# QAction's shortcut toggles its checked state after the triggered slot
-			# returns.  Settle the refused shortcut on the next Qt turn as well, so
-			# the visible tool state cannot disagree with the absent insertion intent.
-			PySide6.QtCore.QTimer.singleShot(0, self._cancel_atom_insertion)
-			return
-		drawing = self._drawing_parameters.snapshot()
-		choice = choices[0]
-		if len(choices) > 1:
-			labels = tuple(item.label for item in choices)
-			selected, accepted = PySide6.QtWidgets.QInputDialog.getItem(
-				self, self.tr("Choose Molecule"), self.tr("Target molecule:"),
-				labels, 0, False,
-			)
-			if not accepted:
-				self._cancel_atom_insertion()
-				return
-			choice = choices[labels.index(selected)]
-		snapshot = tab.current_snapshot
-		viewport = tab.view.viewport()
-		self._atom_insertion_intent = _AtomInsertionIntent(
-			tab, viewport, snapshot.revision, snapshot.digest, choice.object_id,
-			drawing.element,
-		)
-		self._synchronize_mode_state("atom")
-		self._add_atom_action.setToolTip(self.tr(
-			"Add {0} at the next canvas click; Escape cancels."
-		).format(drawing.element))
-		self._refresh_cancel_tool_action()
-		viewport.installEventFilter(self)
-		viewport.setFocus()
-		tab.view.show_keyboard_cursor()
-		self.statusBar().showMessage(
-			self.tr(
-				"Click once or use Arrow keys and Enter to add {0}; Shift+Arrow is fine; "
-				"Esc cancels Add Atom.".format(drawing.element),
-			),
-		)
-
-	def _complete_atom_insertion(self, event: PySide6.QtGui.QMouseEvent) -> None:
-		"""Submit one still-current captured point through the Rust transaction."""
-		intent = self._atom_insertion_intent
-		if intent is None:
-			return
-		tab = intent.tab
-		snapshot = tab.current_snapshot
-		if (
-			self._active_native_tab() is not tab
-			or tab.requires_refresh
-			or snapshot.revision != intent.revision
-			or snapshot.digest != intent.digest
-		):
-			self._cancel_atom_insertion()
-			self._show_edit_refusal(self._typed_refusal(
-				"use_tool", "stale_tool",
-				"The document changed before the click; start Add Atom again.",
-			))
-			return
-		try:
-			point = tab.view.snap_authored_scene_point(
-				tab.view.mapToScene(event.position().toPoint()),
-			)
-			self._cancel_atom_insertion(clear_status=False)
-			tab.add_atom_at(
-				intent.molecule_object_id, intent.element, float(point.x()), float(point.y()),
-			)
-		except Exception as exc:
-			self._cancel_atom_insertion(clear_status=False)
-			self._refresh_actions()
-			self.statusBar().clearMessage()
-			self._show_atom_insertion_refusal(exc)
-			return
-		self.statusBar().showMessage(self.tr("Added one free-standing Rust atom."), 5000)
-		self._refresh_actions()
-
-	#============================================
-	def _show_atom_insertion_refusal(self, exc: Exception) -> None:
-		"""Present the canvas-plan refusal identically for pointer and keyboard use."""
-		outcome = "unrenderable_molecule" if isinstance(
-			exc,
-			ferrum_qt.ferrum.document_tab.
-			FerrumNativeDocumentTabUnrenderableMoleculeError,
-		) else "unavailable_operation"
-		self._show_edit_refusal(self._typed_refusal("edit_document", outcome, str(exc)))
-
-	#============================================
 	def _cancel_atom_insertion(self, clear_status: bool = True) -> None:
-		"""Release the one Ferrum viewport event boundary without changing Rust state."""
-		intent = self._atom_insertion_intent
-		self._atom_insertion_intent = None
-		self._add_atom_action.setChecked(False)
-		if intent is not None:
-			intent.viewport.removeEventFilter(self)
-			intent.tab.view.hide_keyboard_cursor()
-		if clear_status:
-			self.statusBar().clearMessage()
-		self._refresh_cancel_tool_action()
-		self._synchronize_mode_state()
+		"""Release atom mode only through its feature-owned cleanup endpoint."""
+		if self._atom_insertion_intent is not None and self._window_mode_sync.cancel():
+			return
+		self._atom_mode.cancel(self._mode_context(), clear_status=clear_status)
 
 	#============================================
 	def _on_undo(self) -> None:
@@ -911,7 +849,7 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def _run_native_history_action(self, name: str) -> None:
-		"""Retire revision-bound pointer state before one Rust history transition."""
+		"""Cancel revision-bound pointer state before one Rust history transition."""
 		tab = self._active_native_tab()
 		if tab is None:
 			return

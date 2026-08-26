@@ -276,6 +276,13 @@ impl SessionOperation {
                     Ok(Candidate::Changed(Box::new(candidate)))
                 }
             }
+            Self::V1(SessionOperationV1::ReverseDirectedBondEndpointsV1(reverse)) => {
+                let candidate = current.with_reversed_directed_bond_endpoints(reverse)?;
+                let candidate = candidate.ok_or_else(|| {
+                    SessionOperationError::UnknownBond(reverse.source_bond_id().as_str().to_owned())
+                })?;
+                Ok(Candidate::Changed(Box::new(candidate)))
+            }
             Self::V1(SessionOperationV1::SetPlusProperties { patch }) => {
                 let candidate = current.with_plus_properties(patch)?;
                 let candidate = candidate.ok_or_else(|| {

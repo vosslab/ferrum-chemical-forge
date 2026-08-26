@@ -355,7 +355,8 @@ fn alignment_is_semantic_and_a_zero_translation_is_history_free() {
 }
 
 #[test]
-fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
+fn scale_uses_aggregate_center_and_removes_invalid_generated_linear_forms_while_retaining_authored_forms()
+ {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"0\"/></atom>",
@@ -410,7 +411,7 @@ fn scale_uses_aggregate_center_and_retires_only_invalid_owned_metadata() {
 }
 
 #[test]
-fn mirrors_share_one_pivot_and_metadata_retirement_is_semantic() {
+fn mirrors_share_one_pivot_and_preserve_valid_generated_linear_form_metadata() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"5\"/></atom>",
         "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"5\"/></atom>",

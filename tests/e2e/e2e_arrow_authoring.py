@@ -340,7 +340,7 @@ def main() -> int:
 			print(json.dumps({"schema": "ferrum-arrow-authoring-e2e-v1", "status": "ok"}))
 			return 0
 	finally:
-		# Retire test-owned UI directly so an earlier E2E failure cannot open a
+		# Dispose test-owned UI directly so an earlier E2E failure cannot open a
 		# dirty-document refusal dialog and hide its actual exception offscreen.
 		if tab is not None:
 			tab.dispose()

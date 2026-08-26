@@ -80,15 +80,14 @@ def property_changes_from_dialog(
 
 
 #============================================
-def install_arrow_properties_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install one Ferrum Arrow action without adding dialog logic to the host."""
+def install_arrow_properties_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct one Ferrum Arrow action without adding dialog logic to the host."""
 	action = PySide6.QtGui.QAction(window.tr("Edit Arrow Properties"), window)
 	action.setToolTip(window.tr(
 		"Edit one selected normal Arrow through one operation",
 	))
 	action.triggered.connect(lambda _checked=False: _on_edit_arrow_properties(window))
-	edit_menu.addAction(action)
+	window._register_action("edit.arrow.properties", action)
 	return action
 
 

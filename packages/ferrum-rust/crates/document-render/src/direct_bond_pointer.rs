@@ -6,10 +6,10 @@ use ferrum_document::{
 };
 use thiserror::Error;
 
-use crate::direct_bond_v3_lifecycle::DirectBondGesture;
+use crate::direct_bond_lifecycle::DirectBondLifecycleGesture;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DirectBondPointerHitStateV3 {
+pub enum DirectBondPointerHitState {
     None,
     UniqueAtom,
     AmbiguousAtom,
@@ -17,7 +17,7 @@ pub enum DirectBondPointerHitStateV3 {
 
 /// Finite affine mapping from viewport pixels to scene coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DirectBondViewportToSceneV3 {
+pub struct DirectBondViewportToScene {
     m11: f64,
     m12: f64,
     m21: f64,
@@ -26,7 +26,7 @@ pub struct DirectBondViewportToSceneV3 {
     dy: f64,
 }
 
-impl DirectBondViewportToSceneV3 {
+impl DirectBondViewportToScene {
     pub fn new(
         m11: f64,
         m12: f64,
@@ -34,12 +34,12 @@ impl DirectBondViewportToSceneV3 {
         m22: f64,
         dx: f64,
         dy: f64,
-    ) -> Result<Self, DirectBondPointerProbeErrorV3> {
+    ) -> Result<Self, DirectBondPointerProbeError> {
         let values = [m11, m12, m21, m22, dx, dy];
         if values.iter().any(|value| !value.is_finite())
             || (m11 * m22 - m12 * m21).abs() <= f64::EPSILON
         {
-            return Err(DirectBondPointerProbeErrorV3::MalformedTransform);
+            return Err(DirectBondPointerProbeError::MalformedTransform);
         }
         Ok(Self {
             m11,
@@ -54,7 +54,7 @@ impl DirectBondViewportToSceneV3 {
     pub(crate) fn viewport_point_for(
         self,
         point: DirectBondPoint2V1,
-    ) -> Result<DirectBondPoint2V1, DirectBondPointerProbeErrorV3> {
+    ) -> Result<DirectBondPoint2V1, DirectBondPointerProbeError> {
         let determinant = self.m11 * self.m22 - self.m12 * self.m21;
         let translated_x = point.x() - self.dx;
         let translated_y = point.y() - self.dy;
@@ -62,36 +62,34 @@ impl DirectBondViewportToSceneV3 {
             (self.m22 * translated_x - self.m21 * translated_y) / determinant,
             (-self.m12 * translated_x + self.m11 * translated_y) / determinant,
         )
-        .map_err(|_| DirectBondPointerProbeErrorV3::MalformedTransform)
+        .map_err(|_| DirectBondPointerProbeError::MalformedTransform)
     }
 }
 
 /// One frozen pointer observation for a direct-bond endpoint.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DirectBondPointerProbeV3 {
+pub struct DirectBondPointerProbe {
     pub(crate) scene_point: DirectBondPoint2V1,
-    pub(crate) viewport_to_scene: DirectBondViewportToSceneV3,
-    pub(crate) direct_hit_state: DirectBondPointerHitStateV3,
+    pub(crate) viewport_to_scene: DirectBondViewportToScene,
+    pub(crate) direct_hit_state: DirectBondPointerHitState,
     pub(crate) direct_atom_object_id: Option<DocumentObjectIdV1>,
 }
 
-impl DirectBondPointerProbeV3 {
+impl DirectBondPointerProbe {
     pub fn new(
         scene_x: f64,
         scene_y: f64,
-        viewport_to_scene: DirectBondViewportToSceneV3,
-        direct_hit_state: DirectBondPointerHitStateV3,
+        viewport_to_scene: DirectBondViewportToScene,
+        direct_hit_state: DirectBondPointerHitState,
         direct_atom_object_id: Option<DocumentObjectIdV1>,
-    ) -> Result<Self, DirectBondPointerProbeErrorV3> {
+    ) -> Result<Self, DirectBondPointerProbeError> {
         let scene_point = DirectBondPoint2V1::new(scene_x, scene_y)
-            .map_err(|_| DirectBondPointerProbeErrorV3::NonFiniteScenePoint)?;
+            .map_err(|_| DirectBondPointerProbeError::NonFiniteScenePoint)?;
         match (direct_hit_state, direct_atom_object_id.is_some()) {
-            (DirectBondPointerHitStateV3::UniqueAtom, true)
-            | (
-                DirectBondPointerHitStateV3::None | DirectBondPointerHitStateV3::AmbiguousAtom,
-                false,
-            ) => {}
-            _ => return Err(DirectBondPointerProbeErrorV3::InvalidHitEvidence),
+            (DirectBondPointerHitState::UniqueAtom, true)
+            | (DirectBondPointerHitState::None | DirectBondPointerHitState::AmbiguousAtom, false) =>
+                {}
+            _ => return Err(DirectBondPointerProbeError::InvalidHitEvidence),
         }
         Ok(Self {
             scene_point,
@@ -104,7 +102,7 @@ impl DirectBondPointerProbeV3 {
 
 /// Closed direct-bond pointer-probe refusal contract.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-pub enum DirectBondPointerProbeErrorV3 {
+pub enum DirectBondPointerProbeError {
     #[error("direct-bond pointer scene coordinate is not finite")]
     NonFiniteScenePoint,
     #[error("direct-bond viewport-to-scene transform is malformed")]
@@ -122,7 +120,7 @@ pub enum DirectBondPointerProbeErrorV3 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DirectBondPointerProbeCategoryV3 {
+pub enum DirectBondPointerProbeCategory {
     NonFiniteScenePoint,
     MalformedTransform,
     InvalidHitEvidence,
@@ -133,22 +131,22 @@ pub enum DirectBondPointerProbeCategoryV3 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DirectBondPointerProbeRecoveryV3 {
+pub enum DirectBondPointerProbeRecovery {
     CorrectInput,
     AdjustEndpoint,
     RefreshAndRestart,
 }
 
-/// Closed semantic refusal contract after a V3 pointer endpoint has resolved.
+/// Closed semantic refusal contract after a direct-bond pointer endpoint resolves.
 ///
 /// Pointer evidence failures and document-admission failures deliberately remain
 /// separate: a valid pointer can name an endpoint that the document must refuse.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-pub enum DirectBondAdmissionRefusalV3 {
+pub enum DirectBondAdmissionRefusal {
     #[error("direct bond gesture belongs to a different document session")]
     ForeignSession,
     #[error("direct bond gesture was already redeemed")]
-    ReplayedGesture,
+    Consumed,
     #[error("direct bond gesture revision is stale")]
     StaleRevision,
     #[error("direct bond gesture digest is stale")]
@@ -178,9 +176,9 @@ pub enum DirectBondAdmissionRefusalV3 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DirectBondAdmissionCategoryV3 {
+pub enum DirectBondAdmissionCategory {
     ForeignSession,
-    ReplayedGesture,
+    Consumed,
     StaleRevision,
     StaleDigest,
     UnknownStartAtom,
@@ -197,17 +195,17 @@ pub enum DirectBondAdmissionCategoryV3 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DirectBondAdmissionRecoveryV3 {
+pub enum DirectBondAdmissionRecovery {
     RefreshAndRestart,
     AdjustEndpoint,
     ChangePresentation,
 }
 
-impl From<DirectBondAdmissionRefusalV1> for DirectBondAdmissionRefusalV3 {
+impl From<DirectBondAdmissionRefusalV1> for DirectBondAdmissionRefusal {
     fn from(value: DirectBondAdmissionRefusalV1) -> Self {
         match value {
             DirectBondAdmissionRefusalV1::ForeignSession => Self::ForeignSession,
-            DirectBondAdmissionRefusalV1::ReplayedGesture => Self::ReplayedGesture,
+            DirectBondAdmissionRefusalV1::Consumed => Self::Consumed,
             DirectBondAdmissionRefusalV1::StaleRevision => Self::StaleRevision,
             DirectBondAdmissionRefusalV1::StaleDigest => Self::StaleDigest,
             DirectBondAdmissionRefusalV1::UnknownStartAtom => Self::UnknownStartAtom,
@@ -229,41 +227,38 @@ impl From<DirectBondAdmissionRefusalV1> for DirectBondAdmissionRefusalV3 {
     }
 }
 
-impl DirectBondAdmissionRefusalV3 {
+impl DirectBondAdmissionRefusal {
     #[must_use]
-    pub const fn category(self) -> DirectBondAdmissionCategoryV3 {
+    pub const fn category(self) -> DirectBondAdmissionCategory {
         match self {
-            Self::ForeignSession => DirectBondAdmissionCategoryV3::ForeignSession,
-            Self::ReplayedGesture => DirectBondAdmissionCategoryV3::ReplayedGesture,
-            Self::StaleRevision => DirectBondAdmissionCategoryV3::StaleRevision,
-            Self::StaleDigest => DirectBondAdmissionCategoryV3::StaleDigest,
-            Self::UnknownStartAtom => DirectBondAdmissionCategoryV3::UnknownStartAtom,
-            Self::UnknownEndAtom => DirectBondAdmissionCategoryV3::UnknownEndAtom,
-            Self::UnsupportedPresentation => DirectBondAdmissionCategoryV3::UnsupportedPresentation,
-            Self::InvalidEndpointInput => DirectBondAdmissionCategoryV3::InvalidEndpointInput,
-            Self::CollapsedEndpoint => DirectBondAdmissionCategoryV3::CollapsedEndpoint,
-            Self::SelfLoop => DirectBondAdmissionCategoryV3::SelfLoop,
-            Self::CrossMolecule => DirectBondAdmissionCategoryV3::CrossMolecule,
-            Self::DuplicateBond => DirectBondAdmissionCategoryV3::DuplicateBond,
-            Self::ExceedsChemistryCapacity => {
-                DirectBondAdmissionCategoryV3::ExceedsChemistryCapacity
-            }
+            Self::ForeignSession => DirectBondAdmissionCategory::ForeignSession,
+            Self::Consumed => DirectBondAdmissionCategory::Consumed,
+            Self::StaleRevision => DirectBondAdmissionCategory::StaleRevision,
+            Self::StaleDigest => DirectBondAdmissionCategory::StaleDigest,
+            Self::UnknownStartAtom => DirectBondAdmissionCategory::UnknownStartAtom,
+            Self::UnknownEndAtom => DirectBondAdmissionCategory::UnknownEndAtom,
+            Self::UnsupportedPresentation => DirectBondAdmissionCategory::UnsupportedPresentation,
+            Self::InvalidEndpointInput => DirectBondAdmissionCategory::InvalidEndpointInput,
+            Self::CollapsedEndpoint => DirectBondAdmissionCategory::CollapsedEndpoint,
+            Self::SelfLoop => DirectBondAdmissionCategory::SelfLoop,
+            Self::CrossMolecule => DirectBondAdmissionCategory::CrossMolecule,
+            Self::DuplicateBond => DirectBondAdmissionCategory::DuplicateBond,
+            Self::ExceedsChemistryCapacity => DirectBondAdmissionCategory::ExceedsChemistryCapacity,
             Self::UnsupportedChemistryAdmission => {
-                DirectBondAdmissionCategoryV3::UnsupportedChemistryAdmission
+                DirectBondAdmissionCategory::UnsupportedChemistryAdmission
             }
-            Self::UnrenderableCandidate => DirectBondAdmissionCategoryV3::UnrenderableCandidate,
+            Self::UnrenderableCandidate => DirectBondAdmissionCategory::UnrenderableCandidate,
         }
     }
 
     #[must_use]
-    pub const fn recovery(self) -> DirectBondAdmissionRecoveryV3 {
+    pub const fn recovery(self) -> DirectBondAdmissionRecovery {
         match self {
-            Self::ForeignSession
-            | Self::ReplayedGesture
-            | Self::StaleRevision
-            | Self::StaleDigest => DirectBondAdmissionRecoveryV3::RefreshAndRestart,
+            Self::ForeignSession | Self::Consumed | Self::StaleRevision | Self::StaleDigest => {
+                DirectBondAdmissionRecovery::RefreshAndRestart
+            }
             Self::UnsupportedPresentation | Self::UnrenderableCandidate => {
-                DirectBondAdmissionRecoveryV3::ChangePresentation
+                DirectBondAdmissionRecovery::ChangePresentation
             }
             Self::UnknownStartAtom
             | Self::UnknownEndAtom
@@ -273,56 +268,56 @@ impl DirectBondAdmissionRefusalV3 {
             | Self::CrossMolecule
             | Self::DuplicateBond
             | Self::ExceedsChemistryCapacity
-            | Self::UnsupportedChemistryAdmission => DirectBondAdmissionRecoveryV3::AdjustEndpoint,
+            | Self::UnsupportedChemistryAdmission => DirectBondAdmissionRecovery::AdjustEndpoint,
         }
     }
 }
 
-/// V3 admission can fail while resolving pointer evidence or while admitting a
+/// Direct-bond admission can fail while resolving pointer evidence or while admitting a
 /// valid resolved endpoint into the document.
 #[derive(Debug, Error)]
-pub enum DirectBondAdmissionErrorV3 {
+pub enum DirectBondAdmissionError {
     #[error(transparent)]
-    PointerProbe(#[from] DirectBondPointerProbeErrorV3),
+    PointerProbe(#[from] DirectBondPointerProbeError),
     #[error(transparent)]
-    Refusal(#[from] DirectBondAdmissionRefusalV3),
+    Refusal(#[from] DirectBondAdmissionRefusal),
     #[error(transparent)]
     DocumentGesture(DirectBondGestureErrorV1),
 }
 
-impl DirectBondPointerProbeErrorV3 {
+impl DirectBondPointerProbeError {
     #[must_use]
-    pub const fn category(self) -> DirectBondPointerProbeCategoryV3 {
+    pub const fn category(self) -> DirectBondPointerProbeCategory {
         match self {
-            Self::NonFiniteScenePoint => DirectBondPointerProbeCategoryV3::NonFiniteScenePoint,
-            Self::MalformedTransform => DirectBondPointerProbeCategoryV3::MalformedTransform,
-            Self::InvalidHitEvidence => DirectBondPointerProbeCategoryV3::InvalidHitEvidence,
-            Self::UnknownDirectAtom => DirectBondPointerProbeCategoryV3::UnknownDirectAtom,
-            Self::AmbiguousAtom => DirectBondPointerProbeCategoryV3::AmbiguousAtom,
-            Self::StaleRevision => DirectBondPointerProbeCategoryV3::StaleRevision,
-            Self::StaleDigest => DirectBondPointerProbeCategoryV3::StaleDigest,
+            Self::NonFiniteScenePoint => DirectBondPointerProbeCategory::NonFiniteScenePoint,
+            Self::MalformedTransform => DirectBondPointerProbeCategory::MalformedTransform,
+            Self::InvalidHitEvidence => DirectBondPointerProbeCategory::InvalidHitEvidence,
+            Self::UnknownDirectAtom => DirectBondPointerProbeCategory::UnknownDirectAtom,
+            Self::AmbiguousAtom => DirectBondPointerProbeCategory::AmbiguousAtom,
+            Self::StaleRevision => DirectBondPointerProbeCategory::StaleRevision,
+            Self::StaleDigest => DirectBondPointerProbeCategory::StaleDigest,
         }
     }
 
     #[must_use]
-    pub const fn recovery(self) -> DirectBondPointerProbeRecoveryV3 {
+    pub const fn recovery(self) -> DirectBondPointerProbeRecovery {
         match self {
             Self::UnknownDirectAtom | Self::AmbiguousAtom => {
-                DirectBondPointerProbeRecoveryV3::AdjustEndpoint
+                DirectBondPointerProbeRecovery::AdjustEndpoint
             }
             Self::StaleRevision | Self::StaleDigest => {
-                DirectBondPointerProbeRecoveryV3::RefreshAndRestart
+                DirectBondPointerProbeRecovery::RefreshAndRestart
             }
             Self::NonFiniteScenePoint | Self::MalformedTransform | Self::InvalidHitEvidence => {
-                DirectBondPointerProbeRecoveryV3::CorrectInput
+                DirectBondPointerProbeRecovery::CorrectInput
             }
         }
     }
 }
 
-/// Opaque V3 direct-bond gesture retaining the resolved pointer press.
+/// Opaque direct-bond gesture retaining the resolved pointer press.
 #[derive(Debug)]
-pub struct DirectBondGestureV3 {
-    pub(crate) gesture: DirectBondGesture,
+pub struct DirectBondGesture {
+    pub(crate) gesture: DirectBondLifecycleGesture,
     pub(crate) fence: DocumentFenceV1,
 }

@@ -91,7 +91,7 @@ class FerrumNativeAtomOxidationDialog(FerrumAccessibleDialog):
 		self._tab = tab
 		self._source_revision = revision
 		self._source_digest = digest
-		self._retired = False
+		self._source_closed = False
 		self.setWindowTitle(self.tr("Atom Oxidation State"))
 		self.setObjectName("atom-oxidation-dialog")
 		self.setAccessibleName(self.tr("Atom Oxidation State"))
@@ -159,22 +159,22 @@ class FerrumNativeAtomOxidationDialog(FerrumAccessibleDialog):
 	#============================================
 	def set_rerun_availability(self, available: bool, explanation: str) -> None:
 		"""Expose only source-bound current-selection recapture."""
-		self._rerun.setEnabled(available and not self._retired)
+		self._rerun.setEnabled(available and not self._source_closed)
 		self._rerun.setToolTip(explanation)
 		self._rerun.setAccessibleDescription(explanation)
 
 	#============================================
-	def retire_for_closed_source(self) -> None:
+	def close_for_closed_source(self) -> None:
 		"""Close before the captured source tab loses its live identity."""
-		if self._retired:
+		if self._source_closed:
 			return
-		self._retired = True
+		self._source_closed = True
 		self.close()
 
 	#============================================
 	def _request_rerun(self) -> None:
 		"""Ask the owner to recapture only this dialog's source tab."""
-		if not self._retired:
+		if not self._source_closed:
 			self.rerun_requested.emit(self)
 
 
@@ -189,7 +189,7 @@ class FerrumNativeAtomOxidationMixin:
 		self._atom_oxidation_dialog: FerrumNativeAtomOxidationDialog | None = None
 
 	#============================================
-	def _build_atom_oxidation_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
+	def _build_atom_oxidation_action(self) -> None:
 		self._atom_oxidation_action = PySide6.QtGui.QAction(
 			self.tr("Atom Oxidation State..."), self,
 		)
@@ -207,7 +207,10 @@ class FerrumNativeAtomOxidationMixin:
 			"This action does not change the document.",
 		))
 		self._atom_oxidation_action.triggered.connect(self._start_atom_oxidation)
-		menu.addAction(self._atom_oxidation_action)
+		self._action_registry.register_existing(
+			"chemistry.atom.oxidation_state", self._atom_oxidation_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _atom_oxidation_busy(self) -> bool:
@@ -373,7 +376,7 @@ class FerrumNativeAtomOxidationMixin:
 		if dialog is None:
 			return
 		if dialog._tab not in self._native_tabs_by_page:
-			dialog.retire_for_closed_source()
+			dialog.close_for_closed_source()
 			return
 		snapshot = dialog._tab.current_snapshot
 		if snapshot.revision != dialog._source_revision or snapshot.digest != dialog._source_digest:
@@ -409,10 +412,10 @@ class FerrumNativeAtomOxidationMixin:
 		return True
 
 	#============================================
-	def _retire_atom_oxidation_dialog_for_tab(self, tab: object) -> None:
+	def _close_atom_oxidation_dialog_for_tab(self, tab: object) -> None:
 		dialog = self._atom_oxidation_dialog
 		if dialog is not None and dialog._tab is tab:
-			dialog.retire_for_closed_source()
+			dialog.close_for_closed_source()
 
 	#============================================
 	def _atom_oxidation_blocks_tab_close(self, tab: object) -> bool:

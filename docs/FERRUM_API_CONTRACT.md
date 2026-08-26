@@ -39,6 +39,7 @@ The V1 operation set is closed:
 | `document.rewrite` | `document` | structural `document`, `report` |
 | `document.render_artifact` | `document`, `format` | `format`, `media_type`, complete base64 `artifact_base64` |
 | `chemistry.convert` | `input.format`, `input.text`, `output_format` | `format`, converted `text`, `record_count` |
+| `interchange.inspect_graph.v1` | `input.format`, `input.text` | decoded-semantic graph summary with profile, record facts, counts, coverage, and normalization |
 | `document.generate_coordinates` | `document` | structural `document`, `regenerated_molecule_count` |
 | `presentation.author.v1` | `document`, `expected_revision`, `expected_digest_hex`, typed `authoring` | schema-defined committed document and durable root outcome |
 | `catalog.list.v1` | no document input | immutable catalog schema, version, and entry summaries |
@@ -57,6 +58,17 @@ The closed interchange format names are `smiles`, `inchi_standard`, `inchi_fixed
 runtime. Their JSON carries only owned text and closed names: never a filesystem path, library
 handle, session, or adapter locator. The default executor returns `chemistry_unavailable` when that
 capability is absent.
+
+`interchange.inspect_graph.v1` accepts owned CML or SDF text and returns one
+bounded decoded-semantic summary without constructing a document. The CML
+profile is runtime-free; the SDF profile uses the trusted native runtime and
+discloses native normalization rather than raw-source fidelity. The response
+reports exact checked counts, zero-based record order, typed record facts, and
+the profile's complete fact coverage. JSON mode emits one versioned success or
+typed error envelope. Human mode emits the line-oriented summary on success or
+one standard-error diagnostic on refusal. Complete output is admitted before
+publication, so a response-limit refusal cannot append to partial success
+bytes.
 
 `document.inspect` admits one snapshot and returns its canonical
 `document_fence { expected_revision, expected_digest_hex }` with the report. A caller can carry
@@ -212,7 +224,7 @@ pairs are `stale_document_fence` / `refresh_and_retry`,
 `document_unchanged`, and `session_conflict_or_replayed_preparation` /
 `refresh_and_retry`. They expose no source CDML, candidate, or recipe.
 
-Only typed `Me` and `NO2` compact groups materialize in this public route. It
+Only typed `Me`, `NO2`, `Et`, `OMe`, and `CH2OH` compact groups materialize in this public route. It
 does not accept free-form labels, formulas, recipes, or a legacy alias. The
 generic protocol, named CLI command, PyO3 live-session route, and Qt action
 are delivered. Both stateless and live routes use durable
@@ -295,7 +307,7 @@ corresponding requests. The named document commands
 `document command presentation.author.v1`, `document command catalog.insert.v1`, and
 `document command document.compact-group.materialize.v1` accept one
 complete operation JSON object, just as `protocol run` does, so a script can use the fence from
-`document.inspect` without an in-process session. `--json` emits the complete envelope. `ferrum open --json` emits the same `document.molecule.interchange.import.v1` success or typed-refusal envelope as the named protocol operation, with the verb-owned opaque request ID `ferrum-cli`. An admitted CML refusal writes exactly one error envelope to standard output, leaves standard error empty, exits `0`, and publishes no CDML artifact. Without
+`document.inspect` without an in-process session. `--json` emits the complete envelope. `ferrum open --json` emits the same `document.molecule.interchange.import.v1` success or typed-refusal envelope as the named protocol operation, with the verb-owned opaque request ID `ferrum-cli`. An admitted CML refusal writes exactly one error envelope to standard output, leaves standard error empty, exits `1`, and publishes no CDML artifact. Other completed unsuccessful human-oriented verb outcomes likewise exit `1` after exactly one diagnostic or JSON envelope. Named protocol subcommands retain their separate protocol exit contract. Without
 `--json`, inspection and validation print their reports while result-producing commands emit raw
 text or artifact bytes. Named output uses safe publication and cannot replace a retained source or
 observed hard-link alias.
@@ -306,10 +318,12 @@ reads that envelope from standard input. It writes one canonical JSON success or
 envelope and a trailing newline to standard output. An accepted result and a typed domain refusal
 both exit `0`; malformed, unreadable, over-budget, or invalid UTF-8 input is a transport failure.
 
-CLI exit `0` means a completed success or typed refusal. Exit `1` is an input, processing, or
-confirmed publication failure; exit `2` is a usage failure; exit `3` means publication may have
-occurred but cannot be confirmed. The protocol runner also uses safe publication for a named JSON
-response and rejects `--output -`.
+For human-oriented CLI verbs, exit `0` means a completed success; completed unsuccessful outcomes,
+including JSON output, exit `1` after exactly one diagnostic or envelope. Named protocol
+subcommands retain their separate contract: exit `0` covers a completed success or typed refusal;
+exit `1` is an input, processing, or confirmed publication failure; exit `2` is a usage failure;
+exit `3` means publication may have occurred but cannot be confirmed. The protocol runner also uses
+safe publication for a named JSON response and rejects `--output -`.
 
 ## Python boundary
 

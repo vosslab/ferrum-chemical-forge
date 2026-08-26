@@ -42,7 +42,7 @@ impl TypedDocument {
         let mut molecules = HashSet::new();
         for point in candidate_points {
             if molecules.insert(point.molecule) {
-                super::typed_linear_form_metadata::retire_invalid_generated_linear_forms(
+                super::typed_linear_form_metadata::remove_invalid_generated_linear_forms(
                     &mut indexed.xml.tree,
                     point.molecule,
                 )?;

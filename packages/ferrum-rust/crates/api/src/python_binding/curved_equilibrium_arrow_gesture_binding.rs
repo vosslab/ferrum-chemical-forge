@@ -33,7 +33,7 @@ enum PyCurvedEquilibriumArrowGestureCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     CollapsedSpan,
     ControlTooNearChord,
@@ -114,7 +114,7 @@ impl PyDocumentSession {
         preview_curved_equilibrium_arrow_gesture_v1(
             &self.session,
             gesture.gesture.as_ref().ok_or_else(|| {
-                equilibrium_error(py, CurvedEquilibriumArrowGestureErrorV1::ReplayedGesture)
+                equilibrium_error(py, CurvedEquilibriumArrowGestureErrorV1::Consumed)
             })?,
             point(end_x, end_y, py)?,
         )
@@ -131,7 +131,7 @@ impl PyDocumentSession {
         resolve_curved_equilibrium_arrow_gesture_v1(
             &self.session,
             gesture.gesture.take().ok_or_else(|| {
-                equilibrium_error(py, CurvedEquilibriumArrowGestureErrorV1::ReplayedGesture)
+                equilibrium_error(py, CurvedEquilibriumArrowGestureErrorV1::Consumed)
             })?,
             preview.preview.clone(),
         )
@@ -168,8 +168,8 @@ fn equilibrium_error(py: Python<'_>, error: CurvedEquilibriumArrowGestureErrorV1
         CurvedEquilibriumArrowGestureCategoryV1::MismatchedPreview => {
             PyCurvedEquilibriumArrowGestureCategoryV1::MismatchedPreview
         }
-        CurvedEquilibriumArrowGestureCategoryV1::ReplayedGesture => {
-            PyCurvedEquilibriumArrowGestureCategoryV1::ReplayedGesture
+        CurvedEquilibriumArrowGestureCategoryV1::Consumed => {
+            PyCurvedEquilibriumArrowGestureCategoryV1::Consumed
         }
         CurvedEquilibriumArrowGestureCategoryV1::InvalidPoint => {
             PyCurvedEquilibriumArrowGestureCategoryV1::InvalidPoint

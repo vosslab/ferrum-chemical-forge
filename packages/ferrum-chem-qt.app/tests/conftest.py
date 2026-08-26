@@ -25,6 +25,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.themes.theme_manager
 
 
@@ -65,7 +66,14 @@ def main_window(
 	window = ferrum_qt.main_window.MainWindow(theme_manager)
 	yield window
 	while window._tab_widget.count():
-		window._close_tab_at(0)
+		before = window._tab_widget.count()
+		result = window._close_native_tab_at(
+			0, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		if result is not ferrum_qt.ferrum.close_decision.CloseResult.CLOSED:
+			raise RuntimeError("main_window teardown could not close tab: %s" % result.value)
+		if window._tab_widget.count() >= before:
+			raise RuntimeError("main_window teardown close reported success without tab progress")
 	window.close()
 	window.deleteLater()
 	qapp.processEvents()

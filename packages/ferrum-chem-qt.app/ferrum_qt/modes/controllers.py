@@ -39,7 +39,7 @@ class _SingleClickMode(ferrum_qt.modes.base_mode.InteractionMode):
 		if not pointer.primary_button or pointer.phase is not ferrum_qt.modes.base_mode.PointerPhase.RELEASE:
 			return None
 		intent = ferrum_qt.modes.base_mode.ModeIntent(
-			self._operation_id, (pointer.point,),
+			self._operation_id, (pointer.point,), pointer.modifiers,
 		)
 		return intent
 
@@ -83,7 +83,7 @@ class _DragMode(ferrum_qt.modes.base_mode.InteractionMode):
 		if start_point is None:
 			return None
 		intent = ferrum_qt.modes.base_mode.ModeIntent(
-			self.operation_id, (start_point, pointer.point),
+			self.operation_id, (start_point, pointer.point), pointer.modifiers,
 		)
 		return intent
 

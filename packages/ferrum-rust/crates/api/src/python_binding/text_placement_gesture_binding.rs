@@ -31,7 +31,7 @@ enum PyTextPlacementErrorCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidAnchor,
     BlankContent,
     UnsupportedStyle,
@@ -202,8 +202,8 @@ fn text_error(py: Python<'_>, error: TextPlacementErrorV1) -> PyErr {
         ferrum_document::TextPlacementErrorCategoryV1::MismatchedPreview => {
             PyTextPlacementErrorCategoryV1::MismatchedPreview
         }
-        ferrum_document::TextPlacementErrorCategoryV1::ReplayedGesture => {
-            PyTextPlacementErrorCategoryV1::ReplayedGesture
+        ferrum_document::TextPlacementErrorCategoryV1::Consumed => {
+            PyTextPlacementErrorCategoryV1::Consumed
         }
         ferrum_document::TextPlacementErrorCategoryV1::InvalidAnchor => {
             PyTextPlacementErrorCategoryV1::InvalidAnchor

@@ -23,7 +23,7 @@ _REFUSAL_RECOVERY = {
 	"unknown_or_foreign_target": "Refresh and select a current compact group.",
 	"ineligible_target": "Select an eligible compact group.",
 	"renderer_preparation_refused": "Refresh the document, then try again.",
-	"session_conflict_or_replayed_preparation": "Refresh and restart materialization.",
+	"session_conflict_or_consumed_preparation": "Refresh and restart materialization.",
 }
 
 
@@ -143,8 +143,7 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 		self._compact_group_materialization_intent: _CompactGroupMaterializationIntent | None = None
 
 	#============================================
-	def _build_compact_group_materialization_action(
-			self, menu: PySide6.QtWidgets.QMenu) -> None:
+	def _build_compact_group_materialization_action(self) -> None:
 		"""Add the accessible public Chemistry action."""
 		action = PySide6.QtGui.QAction(self.tr("Materialize Selected Compact Group"), self)
 		action.setObjectName("materialize-selected-compact-group-action")
@@ -160,8 +159,11 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 			"Ferrum Rust validates chemistry, identifiers, geometry, and rendering.",
 		))
 		action.triggered.connect(self._materialize_selected_compact_group)
-		menu.addAction(action)
 		self._compact_group_materialization_action = action
+		self._action_registry.register_existing(
+			"chemistry.compact_group.materialize", action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _materialize_selected_compact_group(self) -> bool:

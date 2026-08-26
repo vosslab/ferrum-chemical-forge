@@ -14,7 +14,7 @@ def delete_qobject_and_wait(
 		) -> bool:
 	"""Queue one QObject deletion and prove its destroyed signal was delivered."""
 	if not shiboken6.isValid(target):
-		raise RuntimeError("Cannot retire an already-retired QObject")
+		raise RuntimeError("Cannot dispose an already-disposed QObject")
 	destroyed = []
 
 	#============================================

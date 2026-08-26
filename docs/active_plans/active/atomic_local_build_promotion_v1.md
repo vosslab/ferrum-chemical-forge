@@ -184,7 +184,7 @@ This is a deliberate breaking internal-layout change with preserved developer
 commands.
 
 Under the stable build lock, obsolete direct `build/bin` and `build/runtime`
-directories are retired before candidate staging. They are disposable local
+directories are removed before candidate staging. They are disposable local
 build artifacts, not a launchable program or lease-bearing compatibility root.
 
 ## Verification design

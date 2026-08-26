@@ -16,7 +16,7 @@ pub enum CatalogPlacementCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     RenderPreparation,
     SessionConflict,
@@ -38,7 +38,7 @@ pub enum CatalogPlacementErrorV1 {
     #[error("catalog placement preview belongs to another gesture")]
     MismatchedPreview,
     #[error("catalog placement capability was already used")]
-    ReplayedGesture,
+    Consumed,
     #[error("catalog placement anchor is not finite")]
     InvalidPoint,
     #[error("catalog candidate could not be rendered completely")]
@@ -53,7 +53,7 @@ impl CatalogPlacementErrorV1 {
             Self::StaleSnapshot => CatalogPlacementCategoryV1::StaleSnapshot,
             Self::ForeignSession => CatalogPlacementCategoryV1::ForeignSession,
             Self::MismatchedPreview => CatalogPlacementCategoryV1::MismatchedPreview,
-            Self::ReplayedGesture => CatalogPlacementCategoryV1::ReplayedGesture,
+            Self::Consumed => CatalogPlacementCategoryV1::Consumed,
             Self::InvalidPoint => CatalogPlacementCategoryV1::InvalidPoint,
             Self::RenderPreparation => CatalogPlacementCategoryV1::RenderPreparation,
             Self::SessionConflict => CatalogPlacementCategoryV1::SessionConflict,

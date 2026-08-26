@@ -97,7 +97,7 @@ pub enum PresentationVectorGestureCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     DegenerateGeometry,
     UnsupportedKind,
@@ -125,7 +125,7 @@ pub enum PresentationVectorGestureErrorV1 {
     #[error("presentation vector preview belongs to another gesture")]
     MismatchedPreview,
     #[error("presentation vector gesture was already committed")]
-    ReplayedGesture,
+    Consumed,
     #[error("presentation vector point is not finite")]
     InvalidPoint,
     #[error("presentation vector requires nonzero finite geometry within the V1 extent")]
@@ -148,7 +148,7 @@ impl PresentationVectorGestureErrorV1 {
             Self::StaleSnapshot => PresentationVectorGestureCategoryV1::StaleSnapshot,
             Self::ForeignSession => PresentationVectorGestureCategoryV1::ForeignSession,
             Self::MismatchedPreview => PresentationVectorGestureCategoryV1::MismatchedPreview,
-            Self::ReplayedGesture => PresentationVectorGestureCategoryV1::ReplayedGesture,
+            Self::Consumed => PresentationVectorGestureCategoryV1::Consumed,
             Self::InvalidPoint => PresentationVectorGestureCategoryV1::InvalidPoint,
             Self::DegenerateGeometry => PresentationVectorGestureCategoryV1::DegenerateGeometry,
             Self::UnsupportedKind => PresentationVectorGestureCategoryV1::UnsupportedKind,
@@ -164,7 +164,7 @@ impl PresentationVectorGestureErrorV1 {
             Self::StaleSnapshot
             | Self::ForeignSession
             | Self::MismatchedPreview
-            | Self::ReplayedGesture
+            | Self::Consumed
             | Self::SessionConflict => PresentationVectorGestureRecoveryV1::RefreshAndRestart,
             Self::InvalidPoint | Self::RenderPreparation => {
                 PresentationVectorGestureRecoveryV1::DocumentUnchanged

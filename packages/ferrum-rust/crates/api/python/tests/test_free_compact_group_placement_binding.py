@@ -75,7 +75,7 @@ def test_free_placement_input_refusals_are_typed_and_mutation_free(
 
 #============================================
 def test_free_placement_pending_lifecycle_is_session_affine_one_use_and_fenced() -> None:
-	"""Foreign, retired, and stale candidates preserve the current durable document."""
+	"""Foreign, consumed, and stale candidates preserve the current durable document."""
 	owner = ferrum_chem.DocumentSession.create_empty_document_v1()
 	foreign = ferrum_chem.DocumentSession.create_empty_document_v1()
 	owner_before = _snapshot_facts(owner)
@@ -90,9 +90,9 @@ def test_free_placement_pending_lifecycle_is_session_affine_one_use_and_fenced()
 	assert _snapshot_facts(foreign) == foreign_before
 
 	owner._cancel_place_free_compact_group_v1(pending)
-	with pytest.raises(ferrum_chem.FreeCompactGroupPlacementError) as retired_refusal:
+	with pytest.raises(ferrum_chem.FreeCompactGroupPlacementError) as consumed_refusal:
 		owner._commit_place_free_compact_group_v1(pending)
-	assert retired_refusal.value.category == ferrum_chem.FreeCompactGroupPlacementCategoryV1.retired
+	assert consumed_refusal.value.category == ferrum_chem.FreeCompactGroupPlacementCategoryV1.consumed
 	assert _snapshot_facts(owner) == owner_before
 
 	stale = _begin_methyl(owner)

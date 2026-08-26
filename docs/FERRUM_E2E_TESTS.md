@@ -145,7 +145,7 @@ what that behavior looks like for readers.
 ## Example: free methyl placement
 
 The free-Me E2E is an example of a permanent public GUI contract: it invokes
-**Place Compact Group...**, selects the Me option, releases on the canvas, and
+Draw > Compact groups > **Place Compact Group...**, selects the Me option, releases on the canvas, and
 then verifies the placed durable group through supported UI behavior. Its
 Molecule Report assertion reads `Authored graph: 1 atoms, 0 bonds`, followed by
 `Formula: CH4`; together these distinguish the explicit authored representation
@@ -156,8 +156,8 @@ imposing a fixture catalog or asserting a private representation. See its regist
 ## Example: reviewed NO2 attachment
 
 The public attached-NO2 E2E draws ethane through visible authoring tools,
-selects an eligible carbon, chooses the visible `NO2` option from **Attach
-Compact Group...**, and materializes the result through the supported workflow.
+selects an eligible carbon, chooses the visible `NO2` option from Draw > Compact
+groups > **Attach Compact Group...**, and materializes the result through the supported workflow.
 It verifies editable atom selection and Molecule Report facts `Authored graph:
 5 atoms, 4 bonds`, elements `C2/N1/O2`, `Formula: C2H5NO2`, and `Net formal
 charge: +0`.
@@ -168,6 +168,21 @@ unit and session tests own the individual `+1` nitrogen and `-1` oxygen proof.
 Manual visual orientation review is one-time release evidence; pixel
 comparison, timing thresholds, fixture catalogs, and incidental selection or
 record ordering are not permanent requirements.
+
+## Example: reviewed Methoxy attachment
+
+The public attached-OMe E2E draws its carbon anchor through visible bond
+authoring, selects that anchor, chooses `OMe` from Draw > Compact groups > **Attach Compact Group...**,
+and materializes the result through the existing visible action. Molecule
+Report then observes `C3H8O`, `C: 3, O: 1`, and the corresponding editable
+authored graph. These are user-facing chemistry facts, not a private recipe or
+coordinate assertion.
+
+Rust/session and binding tests own oxygen-first attachment, generic
+renderer-issued pose normalization, history, reopen, and refused no-mutation
+semantics. The E2E remains permanent because it covers the distinct public
+chooser-to-materialization workflow without raw CDML, private IDs, mocks,
+pixel equality, arbitrary waits, or fixture catalogs.
 
 ## Example: Check Structure compact-group recovery
 
@@ -184,3 +199,18 @@ through the public UI and makes no raw-CDML, private-ID, fixture-catalog,
 pixel, arbitrary-delay, or canvas-navigation assertion. Fresh staged-extension
 execution, full-suite execution, and visual review remain one-time validation
 evidence rather than additional permanent tests.
+
+## Example: reaction workflow
+
+The public reaction-workflow E2E creates a reaction through the visible
+**Create Reaction** action, then uses **Reaction Inspector** to replace roles,
+highlight and nudge a member, and delete only the reaction definition. It
+locates the accessible `Reaction details` and `Validation: Strict` surfaces and
+observes the durable semantic result: role replacement changes the reaction,
+while definition-only deletion preserves its member structures.
+
+Expected nested modals are registered before the workflow begins; any
+unexpected modal remains a fail-closed harness failure. The E2E makes no raw
+CDML, private-ID, coordinate, count, timing, pixel, or fixture-catalog
+assertion. It remains permanent because it proves the visible reaction
+authoring contract across the Rust runtime, PyO3 bridge, and Qt application.

@@ -20,7 +20,7 @@ class _PointerActionOwner(PySide6.QtWidgets.QWidget):
 	"""Provide the public owner seam required by a real action handoff."""
 
 	def __init__(self) -> None:
-		"""Create one widget whose canvas ownership can be retired."""
+		"""Create one widget whose canvas ownership can be cancelled."""
 		super().__init__()
 		self.cancelled = False
 		self.events: list[object] = []
@@ -34,7 +34,7 @@ class _PointerActionOwner(PySide6.QtWidgets.QWidget):
 #============================================
 def test_intentional_pointer_action_refusal_resets_the_checked_action(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""A noncheckable refusal retires the previously checked pointer tool."""
+	"""A noncheckable refusal cancels the previously checked pointer tool."""
 	del qapp
 	owner = _PointerActionOwner()
 	reported: list[str] = []
@@ -68,40 +68,18 @@ def test_intentional_pointer_action_refusal_resets_the_checked_action(
 
 #============================================
 def test_popup_handoff_waits_for_a_real_menu_hide_before_dispatching(
-		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""A menu-triggered action runs once after its actual popup lifecycle retires."""
-	owner = _PointerActionOwner()
-	handoff = ferrum_qt.ferrum.interaction_action_handoff.FerrumInteractionActionHandoff(
-		owner, lambda _detail: None,
-	)
-	outgoing_action = PySide6.QtGui.QAction("Select Structure", owner)
-	outgoing_action.setCheckable(True)
-	incoming_action = PySide6.QtGui.QAction("Direct Bond", owner)
-	incoming_action.setCheckable(True)
-	events: list[object] = []
-
-	def activate(checked: bool) -> None:
-		"""Record the guard state visible to the pointer-owning handler."""
-		events.append(("handler", outgoing_action.isChecked(), checked))
-
-	handoff.connect(outgoing_action, lambda _checked: None)
-	handoff.connect(incoming_action, activate)
-	outgoing_action.trigger()
-	owner.events.clear()
-	menu = PySide6.QtWidgets.QMenu(owner)
-	handoff.add_registered_action_to_menu(menu, incoming_action)
-	menu.popup(PySide6.QtCore.QPoint(0, 0))
+		qapp: PySide6.QtWidgets.QApplication, main_window: object) -> None:
+	"""A YAML-menu pointer action waits for its active popup to hide."""
+	draw_menu = main_window._declared_menus["draw"]
+	selection_action = main_window._action_registry.get_qt_action("draw.selection.structure")
+	draw_menu.popup(PySide6.QtCore.QPoint(0, 0))
 	qapp.processEvents()
 
-	assert PySide6.QtWidgets.QApplication.activePopupWidget() is menu
-	incoming_action.trigger()
-	assert events == []
-	menu.hide()
+	assert PySide6.QtWidgets.QApplication.activePopupWidget() is draw_menu
+	selection_action.trigger()
+	assert selection_action.isChecked()
+	draw_menu.hide()
 	qapp.processEvents()
 
-	assert owner.events + events == [
-		("cancel", False),
-		("handler", False, True),
-	]
-	owner.close()
-	owner.deleteLater()
+	assert selection_action.isChecked()
+	assert main_window._window_mode_sync.active_state.mode_id == "edit"

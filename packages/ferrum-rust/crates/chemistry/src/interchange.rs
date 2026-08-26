@@ -18,9 +18,9 @@ pub const INTERCHANGE_MAX_TEXT_BYTES_V1: usize = SDF_MAX_INPUT_BYTES;
 
 /// Exact closed profile identity reserved for the Rust-owned CML/CML2 importer.
 ///
-/// This is a codec capability identifier only.  The decoder is introduced in a
-/// later M2a phase; keeping the identity here lets API registry validation prove
-/// that presentation code cannot invent a second CML profile table.
+/// This is the codec capability identity used by the Rust-owned CML/CML2
+/// decoder. Keeping it in chemistry lets API registry validation prove that
+/// presentation code cannot invent a second CML profile table.
 pub const CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1: &str =
     "ferrum-cml-simple-molecule-import-profile-v1";
 
@@ -44,7 +44,7 @@ pub enum InterchangeFormatV1 {
     SdfV3000,
     #[serde(rename = "cdml")]
     Cdml,
-    /// Closed CML/CML2 simple-molecule import profile. This profile is input-only.
+    /// Closed CML/CML2 simple-molecule profile.
     #[serde(rename = "cml_simple_molecule_import_v1")]
     CmlSimpleMolecule,
 }
@@ -64,7 +64,14 @@ impl InterchangeFormatV1 {
         }
     }
     fn is_single_record(self) -> bool {
-        !matches!(self, Self::SdfV2000 | Self::SdfV3000 | Self::Cdml)
+        matches!(
+            self,
+            Self::Smiles
+                | Self::InchiStandard
+                | Self::InchiFixedHydrogen
+                | Self::MolblockV2000
+                | Self::MolblockV3000
+        )
     }
     fn molblock_version(self) -> Option<MolblockVersion> {
         match self {
@@ -184,9 +191,6 @@ pub fn encode_non_cdml_interchange_v1(
     if format == InterchangeFormatV1::Cdml {
         return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
     }
-    if format == InterchangeFormatV1::CmlSimpleMolecule {
-        return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
-    }
     if records.is_empty() {
         return Err(InterchangeCodecErrorV1::NoMolecularRecords);
     }
@@ -217,7 +221,10 @@ pub fn encode_non_cdml_interchange_v1(
                 records,
             )?
         }
-        InterchangeFormatV1::Cdml | InterchangeFormatV1::CmlSimpleMolecule => {
+        InterchangeFormatV1::CmlSimpleMolecule => {
+            crate::encode_cml_interchange_records_v1(records)?
+        }
+        InterchangeFormatV1::Cdml => {
             unreachable!("checked above")
         }
     };
@@ -292,6 +299,8 @@ pub enum InterchangeCodecErrorV1 {
     NoMolecularRecords,
     #[error("CDML interchange requires document composition")]
     CdmlRequiresDocumentComposition,
+    #[error(transparent)]
+    CmlEncoding(#[from] crate::CmlEncoderErrorV1),
     #[error(transparent)]
     Chemistry(#[from] ChemistryError),
     #[error(transparent)]

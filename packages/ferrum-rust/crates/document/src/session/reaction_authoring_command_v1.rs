@@ -158,7 +158,7 @@ pub enum ReactionAuthoringCommandRefusalV1 {
     ForeignSession,
     /// The authoring receipt was claimed or terminally consumed.
     #[error("reaction authoring command was already redeemed")]
-    Replayed,
+    Consumed,
     /// The session revision no longer matches the command fence.
     #[error("reaction authoring command was prepared at a stale document revision")]
     StaleRevision,
@@ -388,8 +388,8 @@ impl DocumentSession {
                 AuthoringCapabilityAccessErrorV1::ForeignSession => {
                     ReactionAuthoringCommandRefusalV1::ForeignSession
                 }
-                AuthoringCapabilityAccessErrorV1::Replayed => {
-                    ReactionAuthoringCommandRefusalV1::Replayed
+                AuthoringCapabilityAccessErrorV1::Consumed => {
+                    ReactionAuthoringCommandRefusalV1::Consumed
                 }
             })
     }
@@ -678,7 +678,7 @@ mod tests {
         prepare_and_commit(&mut session, request);
         assert!(matches!(
             session.resolve_create_reaction_command_v1(second),
-            Err(ReactionAuthoringCommandRefusalV1::Replayed)
+            Err(ReactionAuthoringCommandRefusalV1::Consumed)
         ));
         assert!(
             session

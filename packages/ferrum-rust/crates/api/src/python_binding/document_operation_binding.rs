@@ -3,8 +3,8 @@
 use ferrum_document::{
     AtomMarkActionV1, AtomPropertiesPatchV1, BondPropertiesPatchV1, CreateAtomV1, CreateBondV1,
     DetachedRegularRingInsertionV1, MoleculeInsertionRequestV1, Point3V1, RegularRingOrientationV1,
-    RegularRingSizeV1, SessionOperation, SessionOperationTransitionRequestV1, SessionOperationV1,
-    TransitionAuthorizationV1,
+    RegularRingSizeV1, ReverseDirectedBondEndpointsV1, SessionOperation,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyInt, PyTuple};
@@ -433,6 +433,18 @@ impl PyDocumentOperationV1 {
     ) -> PyResult<Self> {
         let operation = bond_properties_operation(py, bond_id, changes)?;
         Ok(Self { operation })
+    }
+
+    /// Build one atomic reversal of a directed wedge bond's retained endpoints.
+    #[staticmethod]
+    fn reverse_directed_bond_endpoints(py: Python<'_>, source_bond_id: String) -> PyResult<Self> {
+        let reverse = ReverseDirectedBondEndpointsV1::new(source_bond_id)
+            .map_err(|error| operation_validation_error(py, error.to_string()))?;
+        Ok(Self {
+            operation: SessionOperation::V1(SessionOperationV1::ReverseDirectedBondEndpointsV1(
+                reverse,
+            )),
+        })
     }
 
     /// Build one complete unique-field direct-root Plus properties patch.

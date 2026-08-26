@@ -1,18 +1,18 @@
-//! Typed PyO3 values for the V3 pointer-probe direct-bond lifecycle.
+//! Typed PyO3 values for the pointer-probe direct-bond lifecycle.
 //!
 //! `DirectBondSnapPolicyV1` remains a shared configuration value consumed by
-//! V3. `DirectBondCommitCategoryV1` and `DirectBondCommitRecoveryV1` remain
-//! the V3 commit-result taxonomy; their V1 names are domain versioning, not a
+//! the gesture. `DirectBondCommitCategoryV1` and `DirectBondCommitRecoveryV1` remain
+//! the commit-result taxonomy; their V1 names are domain versioning, not a
 //! separate interaction lifecycle.
 
 use ferrum_document::DirectBondSnapPolicyV1;
 use ferrum_document_render::{
-    DirectBondAdmissionCategoryV3, DirectBondAdmissionErrorV3 as RenderDirectBondAdmissionErrorV3,
-    DirectBondAdmissionRecoveryV3,
-    DirectBondAdmissionRefusalV3 as RenderDirectBondAdmissionRefusalV3, DirectBondGestureV3,
-    DirectBondPointerHitStateV3, DirectBondPointerProbeCategoryV3,
-    DirectBondPointerProbeErrorV3 as RenderDirectBondPointerProbeErrorV3,
-    DirectBondPointerProbeRecoveryV3, DirectBondPointerProbeV3, DirectBondViewportToSceneV3,
+    DirectBondAdmissionCategory, DirectBondAdmissionError as RenderDirectBondAdmissionError,
+    DirectBondAdmissionRecovery, DirectBondAdmissionRefusal as RenderDirectBondAdmissionRefusal,
+    DirectBondGesture, DirectBondPointerHitState, DirectBondPointerProbe,
+    DirectBondPointerProbeCategory,
+    DirectBondPointerProbeError as RenderDirectBondPointerProbeError,
+    DirectBondPointerProbeRecovery, DirectBondViewportToScene,
 };
 use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
@@ -26,12 +26,12 @@ create_exception!(
 );
 create_exception!(
     ferrum_chem,
-    DirectBondAdmissionRefusalV3,
+    DirectBondAdmissionRefusal,
     DirectBondGestureError
 );
 create_exception!(
     ferrum_chem,
-    DirectBondPointerProbeErrorV3,
+    DirectBondPointerProbeError,
     DirectBondGestureError
 );
 
@@ -40,12 +40,12 @@ create_exception!(
     eq,
     hash,
     module = "ferrum_chem",
-    name = "DirectBondPointerProbeCategoryV3",
+    name = "DirectBondPointerProbeCategory",
     rename_all = "snake_case",
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum PyDirectBondPointerProbeCategoryV3 {
+pub(super) enum PyDirectBondPointerProbeCategory {
     NonFiniteScenePoint,
     MalformedTransform,
     InvalidHitEvidence,
@@ -60,12 +60,12 @@ pub(super) enum PyDirectBondPointerProbeCategoryV3 {
     eq,
     hash,
     module = "ferrum_chem",
-    name = "DirectBondPointerProbeRecoveryV3",
+    name = "DirectBondPointerProbeRecovery",
     rename_all = "snake_case",
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum PyDirectBondPointerProbeRecoveryV3 {
+pub(super) enum PyDirectBondPointerProbeRecovery {
     CorrectInput,
     AdjustEndpoint,
     RefreshAndRestart,
@@ -76,14 +76,14 @@ pub(super) enum PyDirectBondPointerProbeRecoveryV3 {
     eq,
     hash,
     module = "ferrum_chem",
-    name = "DirectBondAdmissionCategoryV3",
+    name = "DirectBondAdmissionCategory",
     rename_all = "snake_case",
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum PyDirectBondAdmissionCategoryV3 {
+pub(super) enum PyDirectBondAdmissionCategory {
     ForeignSession,
-    ReplayedGesture,
+    Consumed,
     StaleRevision,
     StaleDigest,
     UnknownStartAtom,
@@ -104,12 +104,12 @@ pub(super) enum PyDirectBondAdmissionCategoryV3 {
     eq,
     hash,
     module = "ferrum_chem",
-    name = "DirectBondAdmissionRecoveryV3",
+    name = "DirectBondAdmissionRecovery",
     rename_all = "snake_case",
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum PyDirectBondAdmissionRecoveryV3 {
+pub(super) enum PyDirectBondAdmissionRecovery {
     RefreshAndRestart,
     AdjustEndpoint,
     ChangePresentation,
@@ -120,12 +120,12 @@ pub(super) enum PyDirectBondAdmissionRecoveryV3 {
     eq,
     hash,
     module = "ferrum_chem",
-    name = "DirectBondPointerHitStateV3",
+    name = "DirectBondPointerHitState",
     rename_all = "snake_case",
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) enum PyDirectBondPointerHitStateV3 {
+pub(super) enum PyDirectBondPointerHitState {
     None,
     UniqueAtom,
     AmbiguousAtom,
@@ -150,12 +150,12 @@ impl PyDirectBondSnapPolicyV1 {
     }
 }
 
-#[pyclass(frozen, module = "ferrum_chem", name = "DirectBondViewportToSceneV3")]
-pub(super) struct PyDirectBondViewportToSceneV3 {
-    transform: DirectBondViewportToSceneV3,
+#[pyclass(frozen, module = "ferrum_chem", name = "DirectBondViewportToScene")]
+pub(super) struct PyDirectBondViewportToScene {
+    transform: DirectBondViewportToScene,
 }
 #[pymethods]
-impl PyDirectBondViewportToSceneV3 {
+impl PyDirectBondViewportToScene {
     #[new]
     fn new(
         py: Python<'_>,
@@ -166,39 +166,37 @@ impl PyDirectBondViewportToSceneV3 {
         dx: f64,
         dy: f64,
     ) -> PyResult<Self> {
-        DirectBondViewportToSceneV3::new(m11, m12, m21, m22, dx, dy)
+        DirectBondViewportToScene::new(m11, m12, m21, m22, dx, dy)
             .map(|transform| Self { transform })
             .map_err(|error| pointer_probe_error(py, error))
     }
 }
 
-#[pyclass(frozen, module = "ferrum_chem", name = "DirectBondPointerProbeV3")]
-pub(super) struct PyDirectBondPointerProbeV3 {
-    pub(super) probe: DirectBondPointerProbeV3,
+#[pyclass(frozen, module = "ferrum_chem", name = "DirectBondPointerProbe")]
+pub(super) struct PyDirectBondPointerProbe {
+    pub(super) probe: DirectBondPointerProbe,
 }
 #[pymethods]
-impl PyDirectBondPointerProbeV3 {
+impl PyDirectBondPointerProbe {
     #[new]
     #[pyo3(signature = (scene_x, scene_y, viewport_to_scene, direct_hit_state, direct_atom_id=None))]
     fn new(
         py: Python<'_>,
         scene_x: f64,
         scene_y: f64,
-        viewport_to_scene: PyRef<'_, PyDirectBondViewportToSceneV3>,
-        direct_hit_state: PyRef<'_, PyDirectBondPointerHitStateV3>,
+        viewport_to_scene: PyRef<'_, PyDirectBondViewportToScene>,
+        direct_hit_state: PyRef<'_, PyDirectBondPointerHitState>,
         direct_atom_id: Option<String>,
     ) -> PyResult<Self> {
         let state = match *direct_hit_state {
-            PyDirectBondPointerHitStateV3::None => DirectBondPointerHitStateV3::None,
-            PyDirectBondPointerHitStateV3::UniqueAtom => DirectBondPointerHitStateV3::UniqueAtom,
-            PyDirectBondPointerHitStateV3::AmbiguousAtom => {
-                DirectBondPointerHitStateV3::AmbiguousAtom
-            }
+            PyDirectBondPointerHitState::None => DirectBondPointerHitState::None,
+            PyDirectBondPointerHitState::UniqueAtom => DirectBondPointerHitState::UniqueAtom,
+            PyDirectBondPointerHitState::AmbiguousAtom => DirectBondPointerHitState::AmbiguousAtom,
         };
         let direct_atom_id = direct_atom_id
             .map(|value| document_object_id(py, value))
             .transpose()?;
-        DirectBondPointerProbeV3::new(
+        DirectBondPointerProbe::new(
             scene_x,
             scene_y,
             viewport_to_scene.transform,
@@ -210,19 +208,19 @@ impl PyDirectBondPointerProbeV3 {
     }
 }
 
-#[pyclass(unsendable, module = "ferrum_chem", name = "DirectBondGestureV3")]
-pub(super) struct PyDirectBondGestureV3 {
-    gesture: Option<DirectBondGestureV3>,
+#[pyclass(unsendable, module = "ferrum_chem", name = "DirectBondGesture")]
+pub(super) struct PyDirectBondGesture {
+    gesture: Option<DirectBondGesture>,
 }
 
-impl PyDirectBondGestureV3 {
-    pub(super) fn from_renderer_gesture(gesture: DirectBondGestureV3) -> Self {
+impl PyDirectBondGesture {
+    pub(super) fn from_renderer_gesture(gesture: DirectBondGesture) -> Self {
         Self {
             gesture: Some(gesture),
         }
     }
 
-    pub(super) fn take_for_resolution(&mut self) -> PyResult<DirectBondGestureV3> {
+    pub(super) fn take_for_resolution(&mut self) -> PyResult<DirectBondGesture> {
         self.gesture.take().ok_or_else(|| {
             DirectBondGestureError::new_err(
                 "direct-bond gesture was already transferred to endpoint resolution",
@@ -233,43 +231,43 @@ impl PyDirectBondGestureV3 {
 
 pub(super) fn pointer_probe_error(
     py: Python<'_>,
-    error: RenderDirectBondPointerProbeErrorV3,
+    error: RenderDirectBondPointerProbeError,
 ) -> PyErr {
     let category = match error.category() {
-        DirectBondPointerProbeCategoryV3::NonFiniteScenePoint => {
-            PyDirectBondPointerProbeCategoryV3::NonFiniteScenePoint
+        DirectBondPointerProbeCategory::NonFiniteScenePoint => {
+            PyDirectBondPointerProbeCategory::NonFiniteScenePoint
         }
-        DirectBondPointerProbeCategoryV3::MalformedTransform => {
-            PyDirectBondPointerProbeCategoryV3::MalformedTransform
+        DirectBondPointerProbeCategory::MalformedTransform => {
+            PyDirectBondPointerProbeCategory::MalformedTransform
         }
-        DirectBondPointerProbeCategoryV3::InvalidHitEvidence => {
-            PyDirectBondPointerProbeCategoryV3::InvalidHitEvidence
+        DirectBondPointerProbeCategory::InvalidHitEvidence => {
+            PyDirectBondPointerProbeCategory::InvalidHitEvidence
         }
-        DirectBondPointerProbeCategoryV3::UnknownDirectAtom => {
-            PyDirectBondPointerProbeCategoryV3::UnknownDirectAtom
+        DirectBondPointerProbeCategory::UnknownDirectAtom => {
+            PyDirectBondPointerProbeCategory::UnknownDirectAtom
         }
-        DirectBondPointerProbeCategoryV3::AmbiguousAtom => {
-            PyDirectBondPointerProbeCategoryV3::AmbiguousAtom
+        DirectBondPointerProbeCategory::AmbiguousAtom => {
+            PyDirectBondPointerProbeCategory::AmbiguousAtom
         }
-        DirectBondPointerProbeCategoryV3::StaleRevision => {
-            PyDirectBondPointerProbeCategoryV3::StaleRevision
+        DirectBondPointerProbeCategory::StaleRevision => {
+            PyDirectBondPointerProbeCategory::StaleRevision
         }
-        DirectBondPointerProbeCategoryV3::StaleDigest => {
-            PyDirectBondPointerProbeCategoryV3::StaleDigest
+        DirectBondPointerProbeCategory::StaleDigest => {
+            PyDirectBondPointerProbeCategory::StaleDigest
         }
     };
     let recovery = match error.recovery() {
-        DirectBondPointerProbeRecoveryV3::CorrectInput => {
-            PyDirectBondPointerProbeRecoveryV3::CorrectInput
+        DirectBondPointerProbeRecovery::CorrectInput => {
+            PyDirectBondPointerProbeRecovery::CorrectInput
         }
-        DirectBondPointerProbeRecoveryV3::AdjustEndpoint => {
-            PyDirectBondPointerProbeRecoveryV3::AdjustEndpoint
+        DirectBondPointerProbeRecovery::AdjustEndpoint => {
+            PyDirectBondPointerProbeRecovery::AdjustEndpoint
         }
-        DirectBondPointerProbeRecoveryV3::RefreshAndRestart => {
-            PyDirectBondPointerProbeRecoveryV3::RefreshAndRestart
+        DirectBondPointerProbeRecovery::RefreshAndRestart => {
+            PyDirectBondPointerProbeRecovery::RefreshAndRestart
         }
     };
-    let exception = DirectBondPointerProbeErrorV3::new_err(error.to_string());
+    let exception = DirectBondPointerProbeError::new_err(error.to_string());
     let value = exception.value(py);
     value
         .setattr("category", Py::new(py, category).expect("closed category"))
@@ -280,72 +278,64 @@ pub(super) fn pointer_probe_error(
     exception
 }
 
-pub(super) fn admission_error(py: Python<'_>, error: RenderDirectBondAdmissionErrorV3) -> PyErr {
+pub(super) fn admission_error(py: Python<'_>, error: RenderDirectBondAdmissionError) -> PyErr {
     match error {
-        RenderDirectBondAdmissionErrorV3::PointerProbe(error) => pointer_probe_error(py, error),
-        RenderDirectBondAdmissionErrorV3::Refusal(error) => admission_refusal_error(py, error),
-        RenderDirectBondAdmissionErrorV3::DocumentGesture(error) => {
+        RenderDirectBondAdmissionError::PointerProbe(error) => pointer_probe_error(py, error),
+        RenderDirectBondAdmissionError::Refusal(error) => admission_refusal_error(py, error),
+        RenderDirectBondAdmissionError::DocumentGesture(error) => {
             DirectBondGestureError::new_err(error.to_string())
         }
     }
 }
 
-fn admission_refusal_error(py: Python<'_>, error: RenderDirectBondAdmissionRefusalV3) -> PyErr {
+fn admission_refusal_error(py: Python<'_>, error: RenderDirectBondAdmissionRefusal) -> PyErr {
     let category = match error.category() {
-        DirectBondAdmissionCategoryV3::ForeignSession => {
-            PyDirectBondAdmissionCategoryV3::ForeignSession
+        DirectBondAdmissionCategory::ForeignSession => {
+            PyDirectBondAdmissionCategory::ForeignSession
         }
-        DirectBondAdmissionCategoryV3::ReplayedGesture => {
-            PyDirectBondAdmissionCategoryV3::ReplayedGesture
+        DirectBondAdmissionCategory::Consumed => PyDirectBondAdmissionCategory::Consumed,
+        DirectBondAdmissionCategory::StaleRevision => PyDirectBondAdmissionCategory::StaleRevision,
+        DirectBondAdmissionCategory::StaleDigest => PyDirectBondAdmissionCategory::StaleDigest,
+        DirectBondAdmissionCategory::UnknownStartAtom => {
+            PyDirectBondAdmissionCategory::UnknownStartAtom
         }
-        DirectBondAdmissionCategoryV3::StaleRevision => {
-            PyDirectBondAdmissionCategoryV3::StaleRevision
+        DirectBondAdmissionCategory::UnknownEndAtom => {
+            PyDirectBondAdmissionCategory::UnknownEndAtom
         }
-        DirectBondAdmissionCategoryV3::StaleDigest => PyDirectBondAdmissionCategoryV3::StaleDigest,
-        DirectBondAdmissionCategoryV3::UnknownStartAtom => {
-            PyDirectBondAdmissionCategoryV3::UnknownStartAtom
+        DirectBondAdmissionCategory::UnsupportedPresentation => {
+            PyDirectBondAdmissionCategory::UnsupportedPresentation
         }
-        DirectBondAdmissionCategoryV3::UnknownEndAtom => {
-            PyDirectBondAdmissionCategoryV3::UnknownEndAtom
+        DirectBondAdmissionCategory::InvalidEndpointInput => {
+            PyDirectBondAdmissionCategory::InvalidEndpointInput
         }
-        DirectBondAdmissionCategoryV3::UnsupportedPresentation => {
-            PyDirectBondAdmissionCategoryV3::UnsupportedPresentation
+        DirectBondAdmissionCategory::CollapsedEndpoint => {
+            PyDirectBondAdmissionCategory::CollapsedEndpoint
         }
-        DirectBondAdmissionCategoryV3::InvalidEndpointInput => {
-            PyDirectBondAdmissionCategoryV3::InvalidEndpointInput
+        DirectBondAdmissionCategory::SelfLoop => PyDirectBondAdmissionCategory::SelfLoop,
+        DirectBondAdmissionCategory::CrossMolecule => PyDirectBondAdmissionCategory::CrossMolecule,
+        DirectBondAdmissionCategory::DuplicateBond => PyDirectBondAdmissionCategory::DuplicateBond,
+        DirectBondAdmissionCategory::ExceedsChemistryCapacity => {
+            PyDirectBondAdmissionCategory::ExceedsChemistryCapacity
         }
-        DirectBondAdmissionCategoryV3::CollapsedEndpoint => {
-            PyDirectBondAdmissionCategoryV3::CollapsedEndpoint
+        DirectBondAdmissionCategory::UnsupportedChemistryAdmission => {
+            PyDirectBondAdmissionCategory::UnsupportedChemistryAdmission
         }
-        DirectBondAdmissionCategoryV3::SelfLoop => PyDirectBondAdmissionCategoryV3::SelfLoop,
-        DirectBondAdmissionCategoryV3::CrossMolecule => {
-            PyDirectBondAdmissionCategoryV3::CrossMolecule
-        }
-        DirectBondAdmissionCategoryV3::DuplicateBond => {
-            PyDirectBondAdmissionCategoryV3::DuplicateBond
-        }
-        DirectBondAdmissionCategoryV3::ExceedsChemistryCapacity => {
-            PyDirectBondAdmissionCategoryV3::ExceedsChemistryCapacity
-        }
-        DirectBondAdmissionCategoryV3::UnsupportedChemistryAdmission => {
-            PyDirectBondAdmissionCategoryV3::UnsupportedChemistryAdmission
-        }
-        DirectBondAdmissionCategoryV3::UnrenderableCandidate => {
-            PyDirectBondAdmissionCategoryV3::UnrenderableCandidate
+        DirectBondAdmissionCategory::UnrenderableCandidate => {
+            PyDirectBondAdmissionCategory::UnrenderableCandidate
         }
     };
     let recovery = match error.recovery() {
-        DirectBondAdmissionRecoveryV3::RefreshAndRestart => {
-            PyDirectBondAdmissionRecoveryV3::RefreshAndRestart
+        DirectBondAdmissionRecovery::RefreshAndRestart => {
+            PyDirectBondAdmissionRecovery::RefreshAndRestart
         }
-        DirectBondAdmissionRecoveryV3::AdjustEndpoint => {
-            PyDirectBondAdmissionRecoveryV3::AdjustEndpoint
+        DirectBondAdmissionRecovery::AdjustEndpoint => {
+            PyDirectBondAdmissionRecovery::AdjustEndpoint
         }
-        DirectBondAdmissionRecoveryV3::ChangePresentation => {
-            PyDirectBondAdmissionRecoveryV3::ChangePresentation
+        DirectBondAdmissionRecovery::ChangePresentation => {
+            PyDirectBondAdmissionRecovery::ChangePresentation
         }
     };
-    let exception = DirectBondAdmissionRefusalV3::new_err(error.to_string());
+    let exception = DirectBondAdmissionRefusal::new_err(error.to_string());
     let value = exception.value(py);
     value
         .setattr(

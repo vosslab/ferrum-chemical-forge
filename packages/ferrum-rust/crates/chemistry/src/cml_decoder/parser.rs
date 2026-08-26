@@ -50,6 +50,7 @@ struct RecordBuilder {
     source_molecule_id: Option<String>,
     atoms: Vec<CmlSourceAtomV1>,
     bonds: Vec<CmlSourceBondV1>,
+    bond_endpoint_pairs: BTreeSet<(usize, usize)>,
     atom_indexes: BTreeMap<String, usize>,
     atom_array_seen: bool,
     bond_array_seen: bool,
@@ -63,6 +64,7 @@ impl RecordBuilder {
             source_molecule_id,
             atoms: Vec::new(),
             bonds: Vec::new(),
+            bond_endpoint_pairs: BTreeSet::new(),
             atom_indexes: BTreeMap::new(),
             atom_array_seen: false,
             bond_array_seen: false,
@@ -164,9 +166,8 @@ impl RecordBuilder {
         if start == end {
             return refused(CmlRefusalReasonV1::SelfBond);
         }
-        if self.bonds.iter().any(|bond| {
-            (bond.start.min(bond.end), bond.start.max(bond.end)) == (start.min(end), start.max(end))
-        }) {
+        let endpoint_pair = (start.min(end), start.max(end));
+        if !self.bond_endpoint_pairs.insert(endpoint_pair) {
             return refused(CmlRefusalReasonV1::DuplicateBond);
         }
         let order = match fields["order"].as_str() {

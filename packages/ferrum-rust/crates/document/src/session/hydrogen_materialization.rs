@@ -182,7 +182,7 @@ fn map_transition_refusal(
         super::AdmittedSessionTransitionRefusalV1::ForeignSession => {
             DocumentSessionError::PreparedOperationForeignSession
         }
-        super::AdmittedSessionTransitionRefusalV1::Replayed
+        super::AdmittedSessionTransitionRefusalV1::Consumed
         | super::AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             DocumentSessionError::PreparedOperationConsumed
         }
@@ -194,9 +194,6 @@ fn map_transition_refusal(
         }
         super::AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             DocumentSessionError::RendererAdmission
-        }
-        super::AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            SessionOperationError::HistoryResourceExhausted.into()
         }
     }
 }
@@ -410,7 +407,7 @@ mod tests {
             .expect("first materialization commit");
         assert_eq!(
             session.commit_session_operation_transition_v1(&mut prepared),
-            Err(crate::AdmittedSessionTransitionRefusalV1::Replayed)
+            Err(crate::AdmittedSessionTransitionRefusalV1::Consumed)
         );
     }
 }

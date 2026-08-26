@@ -170,15 +170,14 @@ def property_changes_from_dialog(
 
 
 #============================================
-def install_paper_properties_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install the document-global Ferrum paper action outside the host class."""
+def install_paper_properties_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct the document-global Ferrum paper action outside the host class."""
 	action = PySide6.QtGui.QAction(window.tr("Document Properties"), window)
 	action.setToolTip(window.tr(
 		"Edit paper properties through one revision-bound Rust operation",
 	))
 	action.triggered.connect(lambda _checked=False: _on_edit_paper_properties(window))
-	edit_menu.addAction(action)
+	window._register_action("draw.document_properties", action)
 	return action
 
 

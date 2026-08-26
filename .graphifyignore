@@ -3,4 +3,15 @@ tests/
 devel/
 tools/
 docs/
+generated/
+dist/
+dist_wasm/
+node_modules/
+target/
+OTHER_REPOS/
+LOCAL_ONLY/
+Cargo.toml
 /packages/ferrum-rust/target/
+build/
+output_native_wheel/
+/packages/ferrum-chem-qt.app/build/

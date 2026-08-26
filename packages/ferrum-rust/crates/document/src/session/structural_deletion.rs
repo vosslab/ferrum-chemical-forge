@@ -200,7 +200,7 @@ fn map_transition_refusal(
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             DocumentSessionError::PreparedOperationForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed
+        AdmittedSessionTransitionRefusalV1::Consumed
         | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             DocumentSessionError::PreparedOperationConsumed
         }
@@ -212,9 +212,6 @@ fn map_transition_refusal(
         }
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             DocumentSessionError::RendererAdmission
-        }
-        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            SessionOperationError::HistoryResourceExhausted.into()
         }
     }
 }

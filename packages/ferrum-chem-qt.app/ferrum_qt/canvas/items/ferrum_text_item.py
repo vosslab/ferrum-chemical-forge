@@ -176,7 +176,7 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 
 	#============================================
 	def dispose(self) -> None:
-		"""Provide the shared graphics-retirement callback contract."""
+		"""Provide the shared graphics-disposal callback contract."""
 
 
 #============================================

@@ -9,6 +9,9 @@ import PySide6.QtWidgets
 import ferrum_qt.ferrum.direct_root_preview
 import ferrum_qt.ferrum.document_tab_errors
 import ferrum_qt.ferrum.engine
+import ferrum_qt.ferrum.structure_selection_mode
+import ferrum_qt.ferrum.window_mode_sync
+import ferrum_qt.modes.base_mode
 
 
 #============================================
@@ -23,101 +26,85 @@ class FerrumNativeStructureSelectionMixin:
 		self._structure_selection_item = None
 		self._structure_marquee = None
 		self._structure_press_scene = None
-		self._structure_viewport = None
 		self._structure_tab = None
 
 	#============================================
-	def _build_structure_selection_action(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the explicit direct-structure selection tool."""
+	def _build_structure_selection_action(self) -> None:
+		"""Construct the explicit direct-structure selection tool."""
 		self._select_structure_action = PySide6.QtGui.QAction(self.tr("Select Structure"), self)
 		self._select_structure_action.setCheckable(True)
 		self._select_structure_action.setToolTip(self.tr(
 			"Select atoms, normal bonds, or compact groups; Shift toggles; Delete removes supported targets through Rust.",
 		))
-		self._connect_interaction_action_v1(
-			self._select_structure_action, self._toggle_structure_selection,
+		self._register_action("draw.selection.structure", self._select_structure_action)
+		binding = ferrum_qt.ferrum.window_mode_sync.FerrumWindowToolBinding(
+			self._select_structure_action, ferrum_qt.modes.base_mode.ModeId.EDIT,
+			ferrum_qt.ferrum.structure_selection_mode.StructureSelectionMode(),
+			self._select_structure_action.text(), False, self._mode_context,
+			lambda _context: self._activate_structure_selection(),
+			self._dispatch_structure_selection_intent,
+			lambda _context: self._cancel_structure_selection(),
 		)
-		menu.addAction(self._select_structure_action)
+		self._window_mode_sync.register_tool(binding)
 
 	#============================================
 	def _refresh_structure_selection_action(self, enabled: bool) -> None:
 		"""Keep the tool available only for a live mutable tab."""
-		if self._structure_viewport is not None and (
+		if self._structure_tab is not None and (
 			not enabled or self._active_native_tab() is not self._structure_tab
 		):
 			self._cancel_structure_selection()
 		self._select_structure_action.setEnabled(enabled)
 
 	#============================================
-	def _toggle_structure_selection(self, checked: bool) -> None:
-		"""Install or retire the structural interaction event boundary."""
+	def _activate_structure_selection(self) -> bool:
+		"""Acquire Rust-backed structural selection after shared input selects this tool."""
 		cancel_capture = getattr(self, "_cancel_live_smarts_selected_root_capture_v1", None)
 		if callable(cancel_capture):
 			cancel_capture("Molecule choice cancelled because Select Structure was selected.")
-		if not checked:
-			self._cancel_structure_selection()
-			return
 		self._cancel_catalog_placement()
 		self._cancel_atom_insertion()
 		self._cancel_line_gesture(clear_status=False)
 		tab = self._active_native_tab()
 		if tab is None or tab.requires_refresh:
 			self._cancel_structure_selection()
-			return
-		self._structure_viewport = tab.view.viewport()
+			return False
 		self._structure_tab = tab
-		self._structure_viewport.installEventFilter(self)
-		self._structure_viewport.setFocus()
+		tab.view.viewport().setFocus()
 		self.statusBar().showMessage(self.tr(
 			"Select atoms, normal bonds, or compact groups; Shift toggles; Delete removes supported targets through Rust.",
 		), 5000)
+		return True
 
 	#============================================
-	def eventFilter(self, watched: PySide6.QtCore.QObject,
-			event: PySide6.QtCore.QEvent) -> bool:
-		"""Handle the structural mode before unrelated pointer tools."""
-		if watched is not self._structure_viewport:
-			return super().eventFilter(watched, event)
-		if event.type() == PySide6.QtCore.QEvent.Type.FocusOut:
-			self._cancel_structure_selection()
-			return False
-		if event.type() == PySide6.QtCore.QEvent.Type.ShortcutOverride:
-			if event.key() in (
-				PySide6.QtCore.Qt.Key.Key_Delete,
-				PySide6.QtCore.Qt.Key.Key_Backspace,
-			):
-				event.accept()
-				return True
-			return False
-		if event.type() == PySide6.QtCore.QEvent.Type.KeyPress:
-			key = event.key()
-			if key == PySide6.QtCore.Qt.Key.Key_Escape:
-				self._cancel_structure_selection()
-				return True
-			if key in (PySide6.QtCore.Qt.Key.Key_Delete, PySide6.QtCore.Qt.Key.Key_Backspace):
-				PySide6.QtCore.QTimer.singleShot(0, self._commit_structure_deletion)
-				return True
-			return False
-		if event.type() == PySide6.QtCore.QEvent.Type.MouseButtonPress:
-			if event.button() == PySide6.QtCore.Qt.MouseButton.LeftButton:
-				self._select_structure_at(event.position().toPoint(), event.modifiers())
-				return True
-			return False
-		if event.type() == PySide6.QtCore.QEvent.Type.MouseMove:
-			if self._structure_marquee is not None:
-				self._structure_marquee.setRect(self._structure_rect(event.position().toPoint()))
-				return True
-			return False
-		if event.type() == PySide6.QtCore.QEvent.Type.MouseButtonRelease:
-			if event.button() == PySide6.QtCore.Qt.MouseButton.LeftButton and self._structure_marquee is not None:
-				self._finish_structure_marquee(event.position().toPoint(), event.modifiers())
-				return True
-		return False
+	def _dispatch_structure_selection_intent(self,
+			context: ferrum_qt.modes.base_mode.ModeContext,
+			intent: ferrum_qt.modes.base_mode.ModeIntent) -> None:
+		"""Resolve feature-local normalized intents through one Rust selection seam."""
+		dispatch_context = context.dispatch_context
+		if type(dispatch_context) is not dict or dispatch_context["window"] is not self:
+			raise RuntimeError("Ferrum structural selection received another window context.")
+		if intent.operation_id == "selection.press" and len(intent.points) == 1:
+			self._select_structure_at(intent.points[0], intent.modifiers)
+			return
+		if intent.operation_id == "selection.move" and len(intent.points) == 1:
+			self._update_structure_marquee(intent.points[0])
+			return
+		if intent.operation_id == "selection.release" and len(intent.points) == 1:
+			self._dispose_structure_marquee()
+			return
+		if intent.operation_id == "selection.marquee" and len(intent.points) == 2:
+			self._finish_structure_marquee(intent.points[1], intent.modifiers)
+			return
+		if intent.operation_id == "selection.delete" and not intent.points:
+			PySide6.QtCore.QTimer.singleShot(0, self._commit_structure_deletion)
+			return
+		raise RuntimeError("Ferrum structural selection received an unsupported mode intent.")
 
 	#============================================
-	def _select_structure_at(self, point: PySide6.QtCore.QPoint,
+	def _select_structure_at(self, point: ferrum_qt.modes.base_mode.ScenePoint,
 			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
-		"""Ask Rust to resolve one atom/bond hit or start a visual marquee."""
+		"""Ask Rust to resolve one normalized atom, bond, or compact-group hit."""
 		try:
 			tab = self._active_native_tab()
 			if tab is None:
@@ -126,11 +113,10 @@ class FerrumNativeStructureSelectionMixin:
 			modifier = ferrum_qt.ferrum.engine.RenderInteractionModifierV1.toggle if (
 				modifiers & PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
 			) else ferrum_qt.ferrum.engine.RenderInteractionModifierV1.replace
-			scene = tab.view.mapToScene(point)
 			selection = tab.select_structure_interaction(
 				observation, self._structure_selection,
 				ferrum_qt.ferrum.engine.StructureInteractionQueryV1.point(
-					float(scene.x()), float(scene.y()), modifier,
+					point.x, point.y, modifier,
 				),
 			)
 		except (
@@ -143,13 +129,20 @@ class FerrumNativeStructureSelectionMixin:
 		self._structure_observation = observation
 		self._replace_structure_selection(selection, tab)
 		if not selection.targets:
-			self._structure_press_scene = scene
-			self._structure_marquee = self._new_structure_marquee(tab, scene)
+			self._structure_press_scene = PySide6.QtCore.QPointF(point.x, point.y)
+			self._structure_marquee = self._new_structure_marquee(tab, self._structure_press_scene)
 
 	#============================================
-	def _finish_structure_marquee(self, point: PySide6.QtCore.QPoint,
+	def _update_structure_marquee(self, point: ferrum_qt.modes.base_mode.ScenePoint) -> None:
+		"""Update the one Qt-only marquee issued by an empty Rust press selection."""
+		if self._structure_marquee is None:
+			return
+		self._structure_marquee.setRect(self._structure_rect(point))
+
+	#============================================
+	def _finish_structure_marquee(self, point: ferrum_qt.modes.base_mode.ScenePoint,
 			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
-		"""Resolve full containment through Rust after one visual-only rectangle."""
+		"""Resolve full containment through Rust after one shared-controller drag."""
 		try:
 			tab = self._active_native_tab()
 			if tab is None or self._structure_observation is None:
@@ -173,7 +166,7 @@ class FerrumNativeStructureSelectionMixin:
 			self._show_edit_refusal(self._structure_refusal(exc))
 			return
 		finally:
-			self._retire_structure_marquee()
+			self._dispose_structure_marquee()
 		self._replace_structure_selection(selection, tab)
 
 	#============================================
@@ -255,7 +248,7 @@ class FerrumNativeStructureSelectionMixin:
 					raise RuntimeError("Ferrum structure selection has no durable object identity")
 				generic_targets.append(("document_object", target.object_id))
 		tab._require_projection().select_durable(tuple(generic_targets))
-		self._retire_line_preview(self._structure_selection_item)
+		self._dispose_line_preview(self._structure_selection_item)
 		self._structure_selection = selection
 		self._structure_selection_item = None if selection is None else (
 			ferrum_qt.ferrum.direct_root_preview.create_direct_root_bounds_preview(
@@ -264,9 +257,16 @@ class FerrumNativeStructureSelectionMixin:
 		)
 
 	#============================================
+	def _dispose_structure_marquee(self) -> None:
+		"""Discard the temporary Qt-only marquee without mutating Rust."""
+		self._dispose_line_preview(self._structure_marquee)
+		self._structure_marquee = None
+		self._structure_press_scene = None
+
+	#============================================
 	def _new_structure_marquee(self, tab: object,
 			start: PySide6.QtCore.QPointF) -> PySide6.QtWidgets.QGraphicsRectItem:
-		"""Create a noninteractive rectangle with no selection authority."""
+		"""Create one noninteractive selection rectangle with no selection authority."""
 		scene = tab.view.scene()
 		if scene is None:
 			raise RuntimeError("Ferrum document has no current scene")
@@ -278,35 +278,21 @@ class FerrumNativeStructureSelectionMixin:
 		return item
 
 	#============================================
-	def _structure_rect(self, point: PySide6.QtCore.QPoint) -> PySide6.QtCore.QRectF:
-		"""Return a visual viewport-converted rectangle for Rust containment."""
+	def _structure_rect(self, point: ferrum_qt.modes.base_mode.ScenePoint) -> PySide6.QtCore.QRectF:
+		"""Return the Rust scene-coordinate marquee rectangle for one mode intent."""
 		press_scene = self._structure_press_scene
 		if press_scene is None:
 			raise RuntimeError("Ferrum structure marquee has no press position")
-		tab = self._active_native_tab()
-		if tab is None:
-			raise RuntimeError("Ferrum structure marquee has no active document tab")
-		end = tab.view.mapToScene(point)
-		return PySide6.QtCore.QRectF(press_scene, end).normalized()
-
-	#============================================
-	def _retire_structure_marquee(self) -> None:
-		"""Retire the temporary Qt-only marquee."""
-		self._retire_line_preview(self._structure_marquee)
-		self._structure_marquee = None
-		self._structure_press_scene = None
+		end = PySide6.QtCore.QPointF(point.x, point.y)
+		rectangle = PySide6.QtCore.QRectF(press_scene, end).normalized()
+		return rectangle
 
 	#============================================
 	def _cancel_structure_selection(self) -> None:
-		"""Release structural event capture and overlays without mutating Rust."""
-		if hasattr(self, "_select_structure_action"):
-			self._select_structure_action.setChecked(False)
-		if self._structure_viewport is not None:
-			self._structure_viewport.removeEventFilter(self)
-		self._structure_viewport = None
+		"""Release structural transient state without mutating Rust."""
 		self._structure_tab = None
-		self._retire_structure_marquee()
-		self._retire_line_preview(self._structure_selection_item)
+		self._dispose_structure_marquee()
+		self._dispose_line_preview(self._structure_selection_item)
 		self._structure_selection_item = None
 		self._structure_selection = None
 		self._structure_observation = None

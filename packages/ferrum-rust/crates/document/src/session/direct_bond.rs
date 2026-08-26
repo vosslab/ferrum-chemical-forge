@@ -6,7 +6,7 @@ use crate::direct_bond_mutation::DirectBondEndpointIntent;
 use crate::session_operation::CreateDirectBondV1;
 
 #[derive(Clone, Debug, PartialEq)]
-struct DirectBondGestureV2 {
+struct DirectBondGesture {
     fence: DocumentFenceV1,
     start: DirectBondEndpointIntent,
     presentation: DocumentBondPresentationV1,
@@ -15,7 +15,7 @@ struct DirectBondGestureV2 {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum DirectBondCandidateV2 {
+enum DirectBondCandidate {
     ExistingExisting {
         start: DocumentObjectIdV1,
         end: DocumentObjectIdV1,
@@ -45,7 +45,7 @@ enum DirectBondCandidateV2 {
 
 #[derive(Clone, Debug, PartialEq)]
 struct DirectBondSemanticCandidateV1 {
-    candidate: DirectBondCandidateV2,
+    candidate: DirectBondCandidate,
     start: DirectBondPoint2V1,
     end: DirectBondPoint2V1,
 }
@@ -75,7 +75,7 @@ impl DocumentSession {
                 request.snap(),
             )
             .map_err(map_gesture_refusal)?;
-        let admitted = self.admit_direct_bond_candidate_v2(&gesture, request.end().clone())?;
+        let admitted = self.admit_direct_bond_candidate(&gesture, request.end().clone())?;
         let source_digest = self.current_digest_v1();
         let built = self.build_direct_bond_candidate(&admitted.candidate)?;
         let mut transition = self
@@ -109,7 +109,7 @@ impl DocumentSession {
 
     fn build_direct_bond_candidate(
         &self,
-        candidate: &DirectBondCandidateV2,
+        candidate: &DirectBondCandidate,
     ) -> Result<BuiltDirectBondCandidateV1, DirectBondAdmissionRefusalV1> {
         let revision = self
             .current_state_v1()
@@ -117,7 +117,7 @@ impl DocumentSession {
             .ok_or(DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
         let document = self.current_document_v1();
         match candidate {
-            DirectBondCandidateV2::ExistingExisting {
+            DirectBondCandidate::ExistingExisting {
                 start,
                 end,
                 presentation,
@@ -152,14 +152,14 @@ impl DocumentSession {
                     },
                 )?)
             }
-            DirectBondCandidateV2::ExistingNew {
+            DirectBondCandidate::ExistingNew {
                 existing,
                 point,
                 element,
                 presentation,
                 new_atom_is_start,
             }
-            | DirectBondCandidateV2::NewExisting {
+            | DirectBondCandidate::NewExisting {
                 existing,
                 point,
                 element,
@@ -190,7 +190,7 @@ impl DocumentSession {
                         ),
                     )
                     .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
-                let end_atom = if matches!(candidate, DirectBondCandidateV2::NewExisting { .. }) {
+                let end_atom = if matches!(candidate, DirectBondCandidate::NewExisting { .. }) {
                     existing_id
                 } else {
                     identities.atom.clone()
@@ -211,7 +211,7 @@ impl DocumentSession {
                     },
                 )?)
             }
-            DirectBondCandidateV2::NewNew {
+            DirectBondCandidate::NewNew {
                 start,
                 end,
                 element,
@@ -276,9 +276,9 @@ impl DocumentSession {
         presentation: DocumentBondPresentationV1,
         new_atom_element: String,
         snap: DirectBondSnapPolicyV1,
-    ) -> Result<DirectBondGestureV2, DirectBondGestureErrorV1> {
+    ) -> Result<DirectBondGesture, DirectBondGestureErrorV1> {
         self.require_fence(fence)?;
-        Ok(DirectBondGestureV2 {
+        Ok(DirectBondGesture {
             fence,
             start,
             presentation,
@@ -287,9 +287,9 @@ impl DocumentSession {
         })
     }
 
-    fn admit_direct_bond_candidate_v2(
+    fn admit_direct_bond_candidate(
         &self,
-        gesture: &DirectBondGestureV2,
+        gesture: &DirectBondGesture,
         end: DirectBondEndpointIntent,
     ) -> Result<DirectBondSemanticCandidateV1, DirectBondAdmissionRefusalV1> {
         self.require_direct_bond_admission_fence(gesture.fence)?;
@@ -336,7 +336,7 @@ impl DocumentSession {
                     &end_id,
                     gesture.presentation,
                 )?;
-                DirectBondCandidateV2::ExistingExisting {
+                DirectBondCandidate::ExistingExisting {
                     start: start.clone(),
                     end: end.clone(),
                     presentation: gesture.presentation,
@@ -357,7 +357,7 @@ impl DocumentSession {
                     gesture.presentation,
                     false,
                 )?;
-                DirectBondCandidateV2::ExistingNew {
+                DirectBondCandidate::ExistingNew {
                     existing: atom.clone(),
                     point: finish,
                     element: gesture.new_atom_element.clone(),
@@ -380,7 +380,7 @@ impl DocumentSession {
                     gesture.presentation,
                     true,
                 )?;
-                DirectBondCandidateV2::NewExisting {
+                DirectBondCandidate::NewExisting {
                     existing: atom.clone(),
                     point: start,
                     element: gesture.new_atom_element.clone(),
@@ -398,7 +398,7 @@ impl DocumentSession {
                     finish,
                     gesture.presentation,
                 )?;
-                DirectBondCandidateV2::NewNew {
+                DirectBondCandidate::NewNew {
                     start,
                     end: finish,
                     element: gesture.new_atom_element.clone(),

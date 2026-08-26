@@ -51,22 +51,25 @@ class FerrumNativePresentationStackMixin:
 
 
 #============================================
-def install_presentation_stack_actions(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> tuple[PySide6.QtGui.QAction, ...]:
-	"""Install the three closed presentation ordering actions."""
+def install_presentation_stack_actions(
+		window: object) -> tuple[PySide6.QtGui.QAction, ...]:
+	"""Construct the three closed presentation ordering actions."""
 	actions = []
-	for label, tooltip, mode_name in (
+	for action_id, label, tooltip, mode_name in (
 		(
+			"edit.presentation_stack.bring_to_front",
 			"Bring Presentation to Front",
 			"Move selected durable presentation roots to the front",
 			"bring_to_front",
 		),
 		(
+			"edit.presentation_stack.send_to_back",
 			"Send Presentation to Back",
 			"Move selected durable presentation roots to the back",
 			"send_to_back",
 		),
 		(
+			"edit.presentation_stack.reverse_slots",
 			"Reverse Presentation Slots",
 			"Reverse at least two selected durable presentation slots",
 			"reverse_selected_slots",
@@ -77,7 +80,7 @@ def install_presentation_stack_actions(window: object,
 		action.triggered.connect(
 			lambda _checked=False, name=mode_name: _on_reorder_presentation(window, name)
 		)
-		edit_menu.addAction(action)
+		window._register_action(action_id, action)
 		actions.append(action)
 	return tuple(actions)
 

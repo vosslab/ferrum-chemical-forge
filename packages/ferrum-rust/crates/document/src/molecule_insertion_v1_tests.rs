@@ -117,15 +117,15 @@ fn generic_molecule_transition_refusals_leave_state_and_id_allocation_unchanged(
         baseline
     );
     owner
-        .retire_session_operation_transition_v1(&mut prepared)
-        .expect("transition retires");
+        .cancel_session_operation_transition_v1(&mut prepared)
+        .expect("transition cancels");
     assert_eq!(
         owner.commit_session_operation_transition_v1(&mut prepared),
-        Err(AdmittedSessionTransitionRefusalV1::Replayed)
+        Err(AdmittedSessionTransitionRefusalV1::Consumed)
     );
     let mut fresh = owner
         .prepare_session_operation_transition_v1(request(0, carbonyl()))
-        .expect("equivalent request prepares after retirement");
+        .expect("equivalent request prepares after cancellation");
     let accepted = owner
         .commit_session_operation_transition_v1(&mut fresh)
         .expect("fresh transition commits");

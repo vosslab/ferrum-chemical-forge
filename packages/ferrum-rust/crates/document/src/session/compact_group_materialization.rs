@@ -281,6 +281,10 @@ mod tests {
         DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"nitro\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\"/></molecule></cdml>").expect("typed nitro compact-group session")
     }
 
+    fn ethyl_session() -> DocumentSession {
+        DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"ethyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\"/></molecule></cdml>").expect("typed ethyl compact-group session")
+    }
+
     fn two_molecule_session() -> DocumentSession {
         DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m-a\"><atom id=\"anchor-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group-a\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside-a\" start=\"anchor-a\" end=\"group-a\" type=\"n1\"/></molecule><molecule id=\"m-b\"><atom id=\"anchor-b\" name=\"C\"><point x=\"40\" y=\"0\"/></atom><compact-group id=\"group-b\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"60\" y=\"0\"/></compact-group><bond id=\"outside-b\" start=\"anchor-b\" end=\"group-b\" type=\"n1\"/></molecule></cdml>").expect("two typed compact-group molecules")
     }
@@ -293,6 +297,49 @@ mod tests {
             object(session, "m"),
             object(session, "group"),
         )
+    }
+
+    fn assert_ethyl_materialization(
+        molecule: &crate::MoleculeProjectionV1,
+        attachment_source_id: &str,
+    ) {
+        use ferrum_core::{BondOrder, BondStyle};
+
+        let attachment = molecule
+            .atoms()
+            .iter()
+            .find(|atom| atom.source_id() == Some(attachment_source_id))
+            .expect("ethyl attachment carbon");
+        let internal = molecule
+            .bonds()
+            .iter()
+            .find(|bond| bond.start().source_id() == Some(attachment_source_id))
+            .expect("ethyl internal bond");
+        let terminal = molecule
+            .atoms()
+            .iter()
+            .find(|atom| atom.source_id() == internal.end().source_id())
+            .expect("ethyl terminal carbon");
+        assert_eq!(
+            (attachment.element(), attachment.formal_charge()),
+            (Some("C"), None)
+        );
+        assert_eq!(
+            (terminal.element(), terminal.formal_charge()),
+            (Some("C"), None)
+        );
+        assert_eq!(
+            (
+                internal.order(),
+                internal.style(),
+                internal.start().source_id(),
+            ),
+            (
+                Some(BondOrder::Single),
+                Some(&BondStyle::Normal),
+                Some(attachment_source_id),
+            )
+        );
     }
 
     #[test]
@@ -362,7 +409,7 @@ mod tests {
         assert!(!after.cdml().contains("<compact-group"));
         assert_eq!(
             session.commit_session_operation_transition_v1(&mut prepared),
-            Err(crate::AdmittedSessionTransitionRefusalV1::Replayed)
+            Err(crate::AdmittedSessionTransitionRefusalV1::Consumed)
         );
         let undone = session
             .undo(after.revision())
@@ -489,6 +536,67 @@ mod tests {
                 .map(|atom| atom.formal_charge())
                 .collect::<Vec<_>>(),
             vec![None, Some(-1)]
+        );
+    }
+
+    #[test]
+    fn attached_ethyl_materialization_preserves_typed_topology_through_history_and_reopen() {
+        let mut session = ethyl_session();
+        let before = session.snapshot().expect("ethyl compact source");
+        let request = request(&session);
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                request.expected_revision(),
+                SessionOperation::V1(SessionOperationV1::MaterializeCompactGroupV1(request)),
+                TransitionAuthorizationV1::None,
+            ))
+            .expect("ethyl materialization prepares");
+        let result = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("ethyl materialization commits");
+        let SessionOperationOutcomeV1::CompactGroupMaterializedV1(outcome) = result.outcome()
+        else {
+            panic!("ethyl materialization returns a focused outcome");
+        };
+        let after = result.observation().snapshot().clone();
+        let attachment_source_id = result.observation().projection().molecules()[0]
+            .atoms()
+            .iter()
+            .find(|atom| atom.id() == Some(outcome.focus_atom_id()))
+            .and_then(|atom| atom.source_id())
+            .expect("accepted focus has a durable source ID")
+            .to_owned();
+        assert_eq!(after.revision(), before.revision() + 1);
+        assert_ethyl_materialization(
+            &result.observation().projection().molecules()[0],
+            &attachment_source_id,
+        );
+
+        let undone = session
+            .undo(after.revision())
+            .expect("ethyl materialization undoes");
+        assert_eq!(
+            undone.observation().projection().molecules()[0].compact_groups()[0]
+                .catalog_key()
+                .as_str(),
+            "ethyl"
+        );
+
+        let redone = session
+            .redo(undone.observation().snapshot().revision())
+            .expect("ethyl materialization redoes");
+        assert_ethyl_materialization(
+            &redone.observation().projection().molecules()[0],
+            &attachment_source_id,
+        );
+
+        let reopened = DocumentSession::load(after.cdml()).expect("ethyl document reopens");
+        let reopened_observation = reopened
+            .document_observation()
+            .expect("reopened ethyl observation");
+        assert_ethyl_materialization(
+            &reopened_observation.projection().molecules()[0],
+            &attachment_source_id,
         );
     }
 

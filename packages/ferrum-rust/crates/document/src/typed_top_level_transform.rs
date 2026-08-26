@@ -95,7 +95,7 @@ impl TypedDocument {
                 .iter()
                 .filter(|geometry| geometry.is_molecule)
             {
-                super::typed_linear_form_metadata::retire_invalid_generated_linear_forms(
+                super::typed_linear_form_metadata::remove_invalid_generated_linear_forms(
                     &mut indexed.xml.tree,
                     geometry.node,
                 )?;

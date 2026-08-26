@@ -19,6 +19,12 @@ pub enum CliError {
 }
 
 impl CliError {
+    /// Whether this error's complete user-facing outcome was already emitted.
+    #[must_use]
+    pub const fn was_emitted_to_stream(&self) -> bool {
+        matches!(self, Self::Verb(error) if error.was_emitted_to_stream())
+    }
+
     /// Return the documented process status for this CLI failure.
     #[must_use]
     pub const fn exit_status(&self) -> u8 {

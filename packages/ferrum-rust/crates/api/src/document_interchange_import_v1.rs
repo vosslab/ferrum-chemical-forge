@@ -219,6 +219,37 @@ pub(crate) fn prepare_interchange_new_document_v1<R: ChemistryRuntimeV1>(
     }
 }
 
+/// Convert CML/CML2 through the same native document-admission transaction as local ingress.
+///
+/// This keeps CML decoding, record lowering, durable identity allocation, and canonical CDML
+/// serialization in their established owners without acquiring a chemistry runtime.
+pub(crate) fn convert_cml_simple_molecule_to_cdml_v1(
+    source: &[u8],
+) -> Result<(String, usize), InterchangeImportRefusalV1> {
+    let descriptor = crate::InterchangeFormatRegistryV1::lookup_input_alias("cml")?;
+    let source =
+        admit_interchange_source_v1(descriptor, InterchangeSourceInputV1::RequestText(source))?;
+    let provenance = DocumentInterchangeProvenanceV1 {
+        format_id: descriptor.format_id().to_owned(),
+        profile_id: descriptor.profile_id().to_owned(),
+        source_kind: source.source_kind(),
+    };
+    let prepared = prepare_interchange_new_document_v1(
+        descriptor,
+        &source,
+        &crate::protocol::runtime::NoChemistryRuntimeV1,
+        provenance,
+    )?;
+    let (session, summary) = prepared.commit_and_take_session()?;
+    let snapshot = session.snapshot().map_err(|_| {
+        InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
+    })?;
+    Ok((
+        snapshot.cdml().to_owned(),
+        summary.imported_record_count as usize,
+    ))
+}
+
 /// Admit and prepare one regular local interchange file through a
 /// descriptor-owned decoder and capability policy.
 ///
@@ -263,13 +294,18 @@ pub(crate) fn prepare_local_interchange_new_document_v1<R: LocalInterchangeRunti
 ///
 /// Document import and chemistry conversion share this bridge so atom, bond,
 /// and coordinate lowering cannot diverge between their two public surfaces.
+pub(crate) fn decode_cml_simple_molecule_document_v1(
+    source: &[u8],
+) -> Result<ferrum_chemistry::CmlDecodedDocumentV1, InterchangeImportRefusalV1> {
+    decode_cml_bytes_v1(source).map_err(|error| {
+        InterchangeImportRefusalV1::for_reason(map_cml_decoder_reason(error.reason()))
+    })
+}
+
 pub(crate) fn decode_cml_simple_molecule_records_v1(
     source: &[u8],
 ) -> Result<Vec<InterchangeRecordV1>, InterchangeImportRefusalV1> {
-    decode_cml_bytes_v1(source)
-        .map_err(|error| {
-            InterchangeImportRefusalV1::for_reason(map_cml_decoder_reason(error.reason()))
-        })?
+    decode_cml_simple_molecule_document_v1(source)?
         .records()
         .iter()
         .map(convert_cml_record)

@@ -1,112 +1,144 @@
-"""Tests for Ferrum's static menu and drawing-tool declarations."""
+"""Tests for Ferrum's YAML-authoritative menu declaration schema."""
 
 # PIP3 modules
-import PySide6.QtGui
-import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.actions.action_registry
 import ferrum_qt.declarative_resources
 
 
-_ACTION_ATTRIBUTES = (
-	"_action_new", "_open_action", "_save_action", "_save_as_action",
-	"_close_action", "_quit_action", "_undo_action", "_redo_action",
-	"_cut_action", "_copy_action", "_paste_action", "_zoom_in_action",
-	"_zoom_out_action", "_zoom_100_action", "_show_hex_grid_action",
-	"_snap_hex_grid_action", "_add_atom_action", "_draw_bond_action",
-	"_cancel_tool_action", "_preferences_action", "_about_action",
-)
-
-
 #============================================
-def _registry() -> tuple[
-		PySide6.QtWidgets.QMainWindow,
-		ferrum_qt.actions.action_registry.ActionRegistry,
-		]:
-	"""Return a registry populated with the window's existing QActions."""
-	window = PySide6.QtWidgets.QMainWindow()
-	for attribute in _ACTION_ATTRIBUTES:
-		setattr(window, attribute, PySide6.QtGui.QAction(attribute, window))
-	return window, ferrum_qt.actions.action_registry.register_main_window_actions(window)
-
-
-#============================================
-def test_declarative_resources_resolve_to_current_action_vocabulary(
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""Every shipped nonoptional declaration names a current Ferrum action."""
-	del qapp
-	window, registry = _registry()
-	ferrum_qt.declarative_resources.preflight_declarative_resources(registry)
-	window.deleteLater()
-
-
-#============================================
-def test_menu_preflight_rejects_duplicate_menu_ids() -> None:
-	"""Menu IDs are unique even before menu construction is wired."""
-	data = {
-		"menus": [
-			{
-				"name": "file", "label_key": "File", "help_key": "Files",
-				"side": "left", "items": [{"action": "file.new"}],
-			},
-			{
-				"name": "file", "label_key": "File", "help_key": "Files",
-				"side": "left", "items": [{"action": "file.open"}],
-			},
-		],
+def _menu(items: list[dict]) -> dict:
+	"""Return the smallest valid top-level menu around test nodes."""
+	menu = {
+		"id": "draw",
+		"label_key": "Draw",
+		"help_key": "Canvas authoring commands",
+		"items": items,
 	}
+	return {"menus": [menu]}
+
+
+#============================================
+@pytest.mark.parametrize(("item", "message"), [
+	({"action": "draw.bond", "separator": True}, "node form"),
+	({"section": {"id": "bonds", "items": []}}, "items must be a nonempty list"),
+	(
+		{"submenu": {"id": "rings", "label_key": "Rings", "items": []}},
+		"help_key",
+	),
+])
+def test_recursive_menu_schema_rejects_malformed_nodes(
+		item: dict, message: str,
+		) -> None:
+	"""Every recursive menu node has one complete, valid declaration form."""
 	with pytest.raises(
 			ferrum_qt.declarative_resources.DeclarativeResourceError,
-			match="Duplicate menu ID",
+			match=message,
 		):
 		ferrum_qt.declarative_resources._validate_menu_declarations(
-			data, frozenset({"file.new", "file.open"}),
+			_menu([item]), frozenset({"draw.bond"}),
 		)
 
 
 #============================================
-def test_menu_preflight_rejects_duplicate_action_ids() -> None:
-	"""A static command appears once in the declarative menu hierarchy."""
-	data = {
-		"menus": [
-			{
-				"name": "file", "label_key": "File", "help_key": "Files",
-				"side": "left", "items": [{"action": "file.new"}],
-			},
-			{
-				"name": "tools", "label_key": "Tools", "help_key": "Tools",
-				"side": "left", "items": [{"action": "file.new"}],
-			},
-		],
-	}
+def test_recursive_menu_schema_rejects_duplicate_nested_placements() -> None:
+	"""A static command cannot silently acquire two canonical menu clients."""
+	data = _menu([
+		{"section": {"id": "bonds", "items": [{"action": "draw.bond"}]}},
+		{"submenu": {
+			"id": "ring_tools",
+			"label_key": "Rings",
+			"help_key": "Insert ring structures",
+			"items": [{"action": "draw.bond"}],
+		}},
+	])
 	with pytest.raises(
 			ferrum_qt.declarative_resources.DeclarativeResourceError,
 			match="Duplicate declared menu action ID",
 		):
 		ferrum_qt.declarative_resources._validate_menu_declarations(
-			data, frozenset({"file.new"}),
+			data, frozenset({"draw.bond"}),
 		)
 
 
 #============================================
-def test_mode_preflight_rejects_unsupported_tool_action() -> None:
-	"""Mode declarations cannot promise a tool absent from Ferrum's vocabulary."""
-	data = {
-		"toolbar_order": ["atom"],
-		"modes": {
-			"atom": {
-				"label_key": "Atom", "help_key": "Draw atoms",
-				"action": "mode.unavailable",
-			},
-		},
-	}
+def test_recursive_menu_schema_rejects_unresolved_static_action() -> None:
+	"""A missing feature binding is a construction failure, never an omission."""
+	data = _menu([{"section": {
+		"id": "bonds",
+		"items": [{"action": "draw.unbound"}],
+	}}])
 	with pytest.raises(
 			ferrum_qt.declarative_resources.DeclarativeResourceError,
-			match="unsupported tool action",
+			match="action",
 		):
-		ferrum_qt.declarative_resources._validate_mode_declarations(
-			data, frozenset({"mode.unavailable"}),
+		ferrum_qt.declarative_resources._validate_menu_declarations(
+			data, frozenset(),
+		)
+
+
+#============================================
+def test_recursive_menu_schema_rejects_unregistered_dynamic_menu() -> None:
+	"""A dynamic collection has an explicit owner before YAML can place it."""
+	data = _menu([{"dynamic_menu": "file.recent"}])
+	with pytest.raises(
+			ferrum_qt.declarative_resources.DeclarativeResourceError,
+			match="dynamic menu",
+		):
+		ferrum_qt.declarative_resources._validate_menu_declarations(
+			data, frozenset(), dynamic_menu_ids=frozenset(),
+		)
+
+
+#============================================
+@pytest.mark.parametrize("section", [
+	{"id": "bonds"},
+	{"items": [{"action": "draw.bond"}]},
+])
+def test_recursive_menu_schema_reports_missing_section_required_keys(
+		section: dict,
+		) -> None:
+	"""Incomplete sections fail at the resource boundary with a useful error."""
+	with pytest.raises(
+			ferrum_qt.declarative_resources.DeclarativeResourceError,
+			match="section must contain id, items",
+		):
+		ferrum_qt.declarative_resources._validate_menu_declarations(
+			_menu([{"section": section}]), frozenset({"draw.bond"}),
+		)
+
+
+#============================================
+def test_recursive_menu_schema_rejects_duplicate_sibling_dynamic_menu_placements() -> None:
+	"""Sibling entries cannot assign one changing menu two client positions."""
+	data = _menu([
+		{"dynamic_menu": "file.recent"},
+		{"dynamic_menu": "file.recent"},
+	])
+	with pytest.raises(
+			ferrum_qt.declarative_resources.DeclarativeResourceError,
+			match="Duplicate declared dynamic menu ID",
+		):
+		ferrum_qt.declarative_resources._validate_menu_declarations(
+			data, frozenset(), dynamic_menu_ids=frozenset({"file.recent"}),
+		)
+
+
+#============================================
+def test_recursive_menu_schema_rejects_duplicate_nested_dynamic_menu_placements() -> None:
+	"""Nested entries share the changing menu's one YAML insertion point."""
+	data = _menu([
+		{"dynamic_menu": "file.recent"},
+		{"submenu": {
+			"id": "history", "label_key": "History", "help_key": "Prior files",
+			"items": [{"dynamic_menu": "file.recent"}],
+		}},
+	])
+	with pytest.raises(
+			ferrum_qt.declarative_resources.DeclarativeResourceError,
+			match="Duplicate declared dynamic menu ID",
+		):
+		ferrum_qt.declarative_resources._validate_menu_declarations(
+			data, frozenset(), dynamic_menu_ids=frozenset({"file.recent"}),
 		)

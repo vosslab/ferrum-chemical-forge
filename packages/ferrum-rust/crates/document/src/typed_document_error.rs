@@ -299,6 +299,9 @@ pub enum TypedDocumentError {
     /// A bond type cannot safely compose one closed V1 order/style edit.
     #[error("typed bond has an unsupported V1 type: {0}")]
     UnsupportedBondType(PersistentId),
+    /// A direct bond cannot reverse endpoint direction unless it is exactly `w1` or `h1`.
+    #[error("typed bond does not support directed endpoint reversal: {0}")]
+    UnsupportedDirectedBondEndpointReversal(PersistentId),
     /// A closed bond style and order cannot be composed into an authored V1 type.
     #[error("typed bond has an unsupported V1 style/order combination: {0}")]
     UnsupportedBondStyleOrder(PersistentId),

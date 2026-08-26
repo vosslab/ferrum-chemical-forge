@@ -7,92 +7,88 @@ use ferrum_document::{
     DocumentSession, SessionOperationTransitionRequestV1,
 };
 
-use crate::direct_bond_pointer_v3::{
-    DirectBondAdmissionErrorV3, DirectBondAdmissionRefusalV3, DirectBondGestureV3,
-    DirectBondPointerProbeErrorV3, DirectBondPointerProbeV3,
+use crate::direct_bond_lifecycle::{
+    begin_direct_bond_lifecycle, resolve_direct_bond_lifecycle_end,
 };
-use crate::direct_bond_probe_resolution_v3::resolve_probe;
-use crate::direct_bond_v3_lifecycle::{begin_direct_bond_v3_lifecycle, resolve_direct_bond_end};
+use crate::direct_bond_pointer::{
+    DirectBondAdmissionError, DirectBondAdmissionRefusal, DirectBondGesture,
+    DirectBondPointerProbe, DirectBondPointerProbeError,
+};
+use crate::direct_bond_probe_resolution::resolve_probe;
 
-pub fn begin_direct_bond_gesture_v3(
+pub fn begin_direct_bond_gesture(
     session: &DocumentSession,
     fence: DocumentFenceV1,
-    start: DirectBondPointerProbeV3,
+    start: DirectBondPointerProbe,
     presentation: DocumentBondPresentationV1,
     new_atom_element: String,
     snap: DirectBondSnapPolicyV1,
-) -> Result<DirectBondGestureV3, DirectBondAdmissionErrorV3> {
+) -> Result<DirectBondGesture, DirectBondAdmissionError> {
     let intent = resolve_probe(session, fence, &start)?;
-    begin_direct_bond_v3_lifecycle(session, fence, intent, presentation, new_atom_element, snap)
-        .map(|gesture| DirectBondGestureV3 { gesture, fence })
-        .map_err(begin_direct_bond_error_v3)
+    begin_direct_bond_lifecycle(session, fence, intent, presentation, new_atom_element, snap)
+        .map(|gesture| DirectBondGesture { gesture, fence })
+        .map_err(begin_direct_bond_error)
 }
 
-fn begin_direct_bond_error_v3(error: DirectBondGestureErrorV1) -> DirectBondAdmissionErrorV3 {
+fn begin_direct_bond_error(error: DirectBondGestureErrorV1) -> DirectBondAdmissionError {
     match error {
         DirectBondGestureErrorV1::StaleRevision => {
-            DirectBondPointerProbeErrorV3::StaleRevision.into()
+            DirectBondPointerProbeError::StaleRevision.into()
         }
-        DirectBondGestureErrorV1::StaleDigest => DirectBondPointerProbeErrorV3::StaleDigest.into(),
+        DirectBondGestureErrorV1::StaleDigest => DirectBondPointerProbeError::StaleDigest.into(),
         DirectBondGestureErrorV1::ForeignSession => {
-            DirectBondAdmissionRefusalV3::ForeignSession.into()
+            DirectBondAdmissionRefusal::ForeignSession.into()
         }
-        DirectBondGestureErrorV1::ReplayedGesture => {
-            DirectBondAdmissionRefusalV3::ReplayedGesture.into()
-        }
+        DirectBondGestureErrorV1::Consumed => DirectBondAdmissionRefusal::Consumed.into(),
         DirectBondGestureErrorV1::UnknownStartAtom => {
-            DirectBondAdmissionRefusalV3::UnknownStartAtom.into()
+            DirectBondAdmissionRefusal::UnknownStartAtom.into()
         }
         DirectBondGestureErrorV1::UnknownEndAtom => {
-            DirectBondAdmissionRefusalV3::UnknownEndAtom.into()
+            DirectBondAdmissionRefusal::UnknownEndAtom.into()
         }
         DirectBondGestureErrorV1::UnsupportedPresentation => {
-            DirectBondAdmissionRefusalV3::UnsupportedPresentation.into()
+            DirectBondAdmissionRefusal::UnsupportedPresentation.into()
         }
-        DirectBondGestureErrorV1::SelfLoop => DirectBondAdmissionRefusalV3::SelfLoop.into(),
-        DirectBondGestureErrorV1::CrossMolecule => {
-            DirectBondAdmissionRefusalV3::CrossMolecule.into()
-        }
-        DirectBondGestureErrorV1::DuplicateBond => {
-            DirectBondAdmissionRefusalV3::DuplicateBond.into()
-        }
+        DirectBondGestureErrorV1::SelfLoop => DirectBondAdmissionRefusal::SelfLoop.into(),
+        DirectBondGestureErrorV1::CrossMolecule => DirectBondAdmissionRefusal::CrossMolecule.into(),
+        DirectBondGestureErrorV1::DuplicateBond => DirectBondAdmissionRefusal::DuplicateBond.into(),
         DirectBondGestureErrorV1::NonFinitePoint | DirectBondGestureErrorV1::InvalidSnapPolicy => {
-            DirectBondAdmissionRefusalV3::InvalidEndpointInput.into()
+            DirectBondAdmissionRefusal::InvalidEndpointInput.into()
         }
         DirectBondGestureErrorV1::CollapsedEndpoint => {
-            DirectBondAdmissionRefusalV3::CollapsedEndpoint.into()
+            DirectBondAdmissionRefusal::CollapsedEndpoint.into()
         }
         DirectBondGestureErrorV1::UnrenderableCandidate => {
-            DirectBondAdmissionRefusalV3::UnrenderableCandidate.into()
+            DirectBondAdmissionRefusal::UnrenderableCandidate.into()
         }
         DirectBondGestureErrorV1::ExceedsChemistryCapacity => {
-            DirectBondAdmissionRefusalV3::ExceedsChemistryCapacity.into()
+            DirectBondAdmissionRefusal::ExceedsChemistryCapacity.into()
         }
         DirectBondGestureErrorV1::UnsupportedChemistryAdmission => {
-            DirectBondAdmissionRefusalV3::UnsupportedChemistryAdmission.into()
+            DirectBondAdmissionRefusal::UnsupportedChemistryAdmission.into()
         }
         DirectBondGestureErrorV1::SessionConflict => {
-            DirectBondAdmissionErrorV3::DocumentGesture(DirectBondGestureErrorV1::SessionConflict)
+            DirectBondAdmissionError::DocumentGesture(DirectBondGestureErrorV1::SessionConflict)
         }
     }
 }
 
-pub fn resolve_direct_bond_end_v3(
+pub fn resolve_direct_bond_end(
     session: &DocumentSession,
-    gesture: DirectBondGestureV3,
-    end: DirectBondPointerProbeV3,
-) -> Result<SessionOperationTransitionRequestV1, DirectBondAdmissionErrorV3> {
-    let DirectBondGestureV3 { gesture, fence } = gesture;
+    gesture: DirectBondGesture,
+    end: DirectBondPointerProbe,
+) -> Result<SessionOperationTransitionRequestV1, DirectBondAdmissionError> {
+    let DirectBondGesture { gesture, fence } = gesture;
     let intent = resolve_probe(session, fence, &end)?;
-    resolve_direct_bond_end(gesture, intent)
-        .map_err(DirectBondAdmissionRefusalV3::from)
-        .map_err(DirectBondAdmissionErrorV3::from)
+    resolve_direct_bond_lifecycle_end(gesture, intent)
+        .map_err(DirectBondAdmissionRefusal::from)
+        .map_err(DirectBondAdmissionError::from)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::direct_bond_pointer_v3::{DirectBondPointerHitStateV3, DirectBondViewportToSceneV3};
+    use crate::direct_bond_pointer::{DirectBondPointerHitState, DirectBondViewportToScene};
     use ferrum_document::DocumentBondOrderV1;
 
     const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"atom-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"atom-c\" name=\"C\"><point x=\"40\" y=\"0\"/></atom></molecule></cdml>";
@@ -102,16 +98,16 @@ mod tests {
         DocumentFenceV1::new(snapshot.revision(), *snapshot.digest())
     }
 
-    fn frame() -> DirectBondViewportToSceneV3 {
-        DirectBondViewportToSceneV3::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0).expect("identity frame")
+    fn frame() -> DirectBondViewportToScene {
+        DirectBondViewportToScene::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0).expect("identity frame")
     }
 
-    fn no_hit(x: f64, y: f64) -> DirectBondPointerProbeV3 {
-        DirectBondPointerProbeV3::new(x, y, frame(), DirectBondPointerHitStateV3::None, None)
+    fn no_hit(x: f64, y: f64) -> DirectBondPointerProbe {
+        DirectBondPointerProbe::new(x, y, frame(), DirectBondPointerHitState::None, None)
             .expect("finite empty probe")
     }
 
-    fn direct_atom(session: &DocumentSession, atom_index: usize) -> DirectBondPointerProbeV3 {
+    fn direct_atom(session: &DocumentSession, atom_index: usize) -> DirectBondPointerProbe {
         let snapshot = session.snapshot().expect("snapshot");
         let atom_object_id = session
             .observe(snapshot.revision())
@@ -122,11 +118,11 @@ mod tests {
             .id()
             .expect("source atom has durable identity")
             .clone();
-        DirectBondPointerProbeV3::new(
+        DirectBondPointerProbe::new(
             0.0,
             0.0,
             frame(),
-            DirectBondPointerHitStateV3::UniqueAtom,
+            DirectBondPointerHitState::UniqueAtom,
             Some(atom_object_id),
         )
         .expect("direct atom probe")
@@ -146,21 +142,19 @@ mod tests {
 
     fn resolve_and_prepare(
         session: &mut DocumentSession,
-        gesture: DirectBondGestureV3,
-        end: DirectBondPointerProbeV3,
-    ) -> Result<PreparedSessionTransitionV1, DirectBondAdmissionErrorV3> {
-        let request = resolve_direct_bond_end_v3(session, gesture, end)?;
+        gesture: DirectBondGesture,
+        end: DirectBondPointerProbe,
+    ) -> Result<PreparedSessionTransitionV1, DirectBondAdmissionError> {
+        let request = resolve_direct_bond_end(session, gesture, end)?;
         session
             .prepare_session_operation_transition_v1(request)
             .map_err(|_| {
-                DirectBondAdmissionErrorV3::Refusal(
-                    DirectBondAdmissionRefusalV3::UnrenderableCandidate,
-                )
+                DirectBondAdmissionError::Refusal(DirectBondAdmissionRefusal::UnrenderableCandidate)
             })
     }
 
     #[test]
-    fn pointer_probe_v3_preserves_every_endpoint_form() {
+    fn pointer_probe_preserves_every_endpoint_form() {
         for (name, start_existing, end_existing) in [
             ("existing_existing", true, true),
             ("existing_new", true, false),
@@ -178,7 +172,7 @@ mod tests {
             } else {
                 no_hit(80.0, 0.0)
             };
-            let gesture = begin_direct_bond_gesture_v3(
+            let gesture = begin_direct_bond_gesture(
                 &session,
                 fence(&session),
                 start,
@@ -204,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn pointer_probe_v3_preserves_same_atom_admission_refusals() {
+    fn pointer_probe_preserves_same_atom_admission_refusals() {
         for presentation in [
             DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
             DocumentBondPresentationV1::SolidWedge,
@@ -212,7 +206,7 @@ mod tests {
         ] {
             let mut session = DocumentSession::load(SOURCE).expect("session");
             let before = session.snapshot().expect("before snapshot");
-            let gesture = begin_direct_bond_gesture_v3(
+            let gesture = begin_direct_bond_gesture(
                 &session,
                 fence(&session),
                 direct_atom(&session, 0),
@@ -222,7 +216,7 @@ mod tests {
             )
             .expect("gesture begins");
             let end = direct_atom(&session, 0);
-            let request = resolve_direct_bond_end_v3(&session, gesture, end)
+            let request = resolve_direct_bond_end(&session, gesture, end)
                 .expect("pointer evidence resolves into a generic request");
             let refusal = session
                 .prepare_session_operation_transition_v1(request)
@@ -240,10 +234,10 @@ mod tests {
     }
 
     #[test]
-    fn pointer_probe_v3_uses_native_nearest_tie_transform_and_grid_policy() {
+    fn pointer_probe_uses_native_nearest_tie_transform_and_grid_policy() {
         let mut session = DocumentSession::load(SOURCE).expect("session");
         let near = no_hit(43.0, 0.0);
-        let gesture = begin_direct_bond_gesture_v3(
+        let gesture = begin_direct_bond_gesture(
             &session,
             fence(&session),
             near,
@@ -254,7 +248,7 @@ mod tests {
         .expect("near point resolves to atom");
         let admission =
             resolve_and_prepare(&mut session, gesture, no_hit(80.0, 0.0)).expect("candidate");
-        let exact_gesture = begin_direct_bond_gesture_v3(
+        let exact_gesture = begin_direct_bond_gesture(
             &session,
             fence(&session),
             no_hit(40.0, 0.0),
@@ -270,16 +264,16 @@ mod tests {
             preview_primitives(&exact_admission)
         );
 
-        let tied = DirectBondPointerProbeV3::new(
+        let tied = DirectBondPointerProbe::new(
             20.0,
             0.0,
             frame(),
-            DirectBondPointerHitStateV3::AmbiguousAtom,
+            DirectBondPointerHitState::AmbiguousAtom,
             None,
         )
         .expect("ambiguous evidence");
         assert!(matches!(
-            begin_direct_bond_gesture_v3(
+            begin_direct_bond_gesture(
                 &session,
                 fence(&session),
                 tied,
@@ -287,18 +281,18 @@ mod tests {
                 "C".to_owned(),
                 DirectBondSnapPolicyV1::free()
             ),
-            Err(DirectBondAdmissionErrorV3::PointerProbe(
-                DirectBondPointerProbeErrorV3::AmbiguousAtom
+            Err(DirectBondAdmissionError::PointerProbe(
+                DirectBondPointerProbeError::AmbiguousAtom
             ))
         ));
 
         let zoom =
-            DirectBondViewportToSceneV3::new(0.5, 0.0, 0.0, 0.5, 0.0, 0.0).expect("two x zoom");
+            DirectBondViewportToScene::new(0.5, 0.0, 0.0, 0.5, 0.0, 0.0).expect("two x zoom");
         let zoom_probe =
-            DirectBondPointerProbeV3::new(80.0, 0.0, zoom, DirectBondPointerHitStateV3::None, None)
+            DirectBondPointerProbe::new(80.0, 0.0, zoom, DirectBondPointerHitState::None, None)
                 .expect("zoom probe");
         let identity_probe = no_hit(80.0, 0.0);
-        let zoom_gesture = begin_direct_bond_gesture_v3(
+        let zoom_gesture = begin_direct_bond_gesture(
             &session,
             fence(&session),
             direct_atom(&session, 0),
@@ -307,7 +301,7 @@ mod tests {
             DirectBondSnapPolicyV1::free(),
         )
         .expect("zoom begin");
-        let identity_gesture = begin_direct_bond_gesture_v3(
+        let identity_gesture = begin_direct_bond_gesture(
             &session,
             fence(&session),
             direct_atom(&session, 0),
@@ -329,7 +323,7 @@ mod tests {
         let mut grid_session =
             DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"/>")
                 .expect("empty session");
-        let grid_gesture = begin_direct_bond_gesture_v3(
+        let grid_gesture = begin_direct_bond_gesture(
             &grid_session,
             fence(&grid_session),
             no_hit(0.0, 0.0),
@@ -341,7 +335,7 @@ mod tests {
         let mut grid_transition =
             resolve_and_prepare(&mut grid_session, grid_gesture, no_hit(14.0, 6.0))
                 .expect("grid admission");
-        let exact_grid_gesture = begin_direct_bond_gesture_v3(
+        let exact_grid_gesture = begin_direct_bond_gesture(
             &grid_session,
             fence(&grid_session),
             no_hit(0.0, 0.0),
@@ -363,24 +357,24 @@ mod tests {
     }
 
     #[test]
-    fn pointer_probe_v3_refuses_malformed_unknown_and_stale_inputs() {
+    fn pointer_probe_refuses_malformed_unknown_and_stale_inputs() {
         assert_eq!(
-            DirectBondViewportToSceneV3::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-            Err(DirectBondPointerProbeErrorV3::MalformedTransform)
+            DirectBondViewportToScene::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            Err(DirectBondPointerProbeError::MalformedTransform)
         );
         let session = DocumentSession::load(SOURCE).expect("session");
-        let unknown = DirectBondPointerProbeV3::new(
+        let unknown = DirectBondPointerProbe::new(
             0.0,
             0.0,
             frame(),
-            DirectBondPointerHitStateV3::UniqueAtom,
+            DirectBondPointerHitState::UniqueAtom,
             Some(ferrum_document::DocumentObjectIdV1::from_entropy_bytes(
                 [0xff; 16],
             )),
         )
         .expect("probe");
         assert!(matches!(
-            begin_direct_bond_gesture_v3(
+            begin_direct_bond_gesture(
                 &session,
                 fence(&session),
                 unknown,
@@ -388,13 +382,13 @@ mod tests {
                 "C".to_owned(),
                 DirectBondSnapPolicyV1::free()
             ),
-            Err(DirectBondAdmissionErrorV3::PointerProbe(
-                DirectBondPointerProbeErrorV3::UnknownDirectAtom
+            Err(DirectBondAdmissionError::PointerProbe(
+                DirectBondPointerProbeError::UnknownDirectAtom
             ))
         ));
         let stale = DocumentFenceV1::new(1, fence(&session).digest());
         assert!(matches!(
-            begin_direct_bond_gesture_v3(
+            begin_direct_bond_gesture(
                 &session,
                 stale,
                 no_hit(80.0, 0.0),
@@ -402,8 +396,8 @@ mod tests {
                 "C".to_owned(),
                 DirectBondSnapPolicyV1::free()
             ),
-            Err(DirectBondAdmissionErrorV3::PointerProbe(
-                DirectBondPointerProbeErrorV3::StaleRevision
+            Err(DirectBondAdmissionError::PointerProbe(
+                DirectBondPointerProbeError::StaleRevision
             ))
         ));
     }

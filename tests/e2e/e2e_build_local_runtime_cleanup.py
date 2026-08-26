@@ -18,13 +18,13 @@ class BuildCleanupE2eError(RuntimeError):
 
 #============================================
 def main() -> int:
-	"""Prove local builds retire obsolete outputs and preserve current leased programs."""
+	"""Prove local builds clean superseded outputs and preserve current leased programs."""
 	with tempfile.TemporaryDirectory(prefix="ferrum-local-build-cleanup-") as directory:
 		repository = _write_fake_repository(Path(directory))
-		_write_obsolete_direct_layout(repository)
-		_write_obsolete_build_owned_outputs(repository)
+		_write_direct_layout_without_program_pointer(repository)
+		_write_owned_build_outputs_to_clean(repository)
 		_verify_build_lock_recovery(repository)
-		_require_obsolete_direct_layout_retired(repository)
+		_require_direct_layout_replaced_by_current_program(repository)
 		_require_selected_local_program(repository)
 		_require_gui_launcher_handoff(repository)
 		_require_cli_launcher_argv_handoff(repository)
@@ -32,11 +32,11 @@ def main() -> int:
 		immutable_native_temp = _write_immutable_native_engine_temp(repository)
 		malformed_programs = _write_malformed_noncurrent_programs(repository)
 		unrelated_programs_content = _write_unrelated_programs_content(repository)
-		failed_candidate = _run_fake_build(repository, "candidate-failure")
-		if failed_candidate.returncode == 0:
-			raise BuildCleanupE2eError("a rejected candidate reported local-build success")
+		failed_staging = _run_fake_build(repository, "staging-failure")
+		if failed_staging.returncode == 0:
+			raise BuildCleanupE2eError("a rejected staging build reported local-build success")
 		if (repository / "build/current").resolve() != selected_before_rejection:
-			raise BuildCleanupE2eError("a rejected candidate changed the selected leased program")
+			raise BuildCleanupE2eError("a rejected staging build changed the selected leased program")
 		if any(program.exists() for program in malformed_programs):
 			raise BuildCleanupE2eError("a malformed non-current local program survived cleanup")
 		if not immutable_native_temp.is_file():
@@ -47,11 +47,11 @@ def main() -> int:
 
 		old_program = (repository / "build/current").resolve()
 		lease_holder = _start_runtime_lease_holder(repository, old_program / "bin/ferrum")
-		successful_candidate = _run_fake_build(repository, "success")
-		if successful_candidate.returncode != 0:
+		successful_staging = _run_fake_build(repository, "success")
+		if successful_staging.returncode != 0:
 			_release_runtime_lease_holder(lease_holder)
 			raise BuildCleanupE2eError(
-				f"the selected local build failed: {successful_candidate.stderr.strip()}"
+				f"the selected local build failed: {successful_staging.stderr.strip()}"
 		)
 		_require_selected_local_program(repository)
 		_require_no_owned_transients(repository)
@@ -59,10 +59,10 @@ def main() -> int:
 			_release_runtime_lease_holder(lease_holder)
 			raise BuildCleanupE2eError("a lease-held superseded local program was removed")
 		_release_runtime_lease_holder(lease_holder)
-		cleanup_candidate = _run_fake_build(repository, "success")
-		if cleanup_candidate.returncode != 0:
+		cleanup_staging = _run_fake_build(repository, "success")
+		if cleanup_staging.returncode != 0:
 			raise BuildCleanupE2eError(
-				f"the inactive-program cleanup build failed: {cleanup_candidate.stderr.strip()}"
+				f"the inactive-program cleanup build failed: {cleanup_staging.stderr.strip()}"
 			)
 		if old_program.exists():
 			raise BuildCleanupE2eError("an inactive superseded local program survived cleanup")
@@ -130,9 +130,9 @@ def _current_program_recovers_after_promoted_root_kill(repository: Path) -> None
 	if not orphans:
 		raise BuildCleanupE2eError("SIGKILL did not leave a promoted-root orphan")
 
-	recovery = _run_fake_build(repository, "candidate-failure")
+	recovery = _run_fake_build(repository, "staging-failure")
 	if recovery.returncode == 0:
-		raise BuildCleanupE2eError("crash recovery unexpectedly promoted a rejected candidate")
+		raise BuildCleanupE2eError("crash recovery unexpectedly promoted rejected staging output")
 	if (repository / "build/current").resolve() != current_before_kill:
 		raise BuildCleanupE2eError("crash recovery changed the prior selected local program")
 	if any(program.exists() for program in orphans):
@@ -203,7 +203,7 @@ def _lock_metadata_is_diagnostic_only(repository: Path) -> None:
 
 #============================================
 def _require_no_owned_transients(repository: Path) -> None:
-	"""Require compiler, candidate, retired, and stale owned work to be absent."""
+	"""Require compiler, staging, and unreachable owned work to be absent."""
 	build_root = repository / "build"
 	owned_paths = (
 		repository / "output_native_wheel",
@@ -320,7 +320,7 @@ def _write_malformed_noncurrent_programs(repository: Path) -> tuple[Path, ...]:
 	unreadable_lease = programs_root / "program-unreadable-lease"
 	for program in (missing_lease, nonregular_lease, unreadable_lease):
 		(program / "bin").mkdir(parents=True)
-		(program / "bin/ferrum.program").write_text("legacy payload\n", encoding="utf-8")
+		(program / "bin/ferrum.program").write_text("current program payload\n", encoding="utf-8")
 	(nonregular_lease / ".ferrum-runtime.lease").mkdir()
 	lease = unreadable_lease / ".ferrum-runtime.lease"
 	lease.touch()
@@ -350,8 +350,8 @@ def _write_unrelated_programs_content(repository: Path) -> Path:
 
 
 #============================================
-def _write_obsolete_build_owned_outputs(repository: Path) -> None:
-	"""Seed interrupted compiler and staging outputs owned by the local build."""
+def _write_owned_build_outputs_to_clean(repository: Path) -> None:
+	"""Seed compiler and staging outputs that the local build owns and cleans."""
 	build_root = repository / "build"
 	for path in (
 		repository / "output_native_wheel",
@@ -360,31 +360,31 @@ def _write_obsolete_build_owned_outputs(repository: Path) -> None:
 		repository / "packages/ferrum-rust/target",
 	):
 		path.mkdir(parents=True)
-		(path / "stale").write_text("obsolete build output\n", encoding="utf-8")
+		(path / "stale").write_text("owned build output\n", encoding="utf-8")
 
 
 #============================================
-def _write_obsolete_direct_layout(repository: Path) -> None:
-	"""Seed disposable pre-current local build artifacts without a runtime lease."""
-	legacy_runtime = repository / "build/runtime/python/known-good"
-	legacy_runtime.parent.mkdir(parents=True, exist_ok=True)
-	legacy_runtime.write_text("obsolete direct runtime\n", encoding="utf-8")
-	legacy_cli = repository / "build/bin/ferrum"
-	legacy_cli.parent.mkdir(exist_ok=True)
-	legacy_cli.write_text("obsolete direct CLI launcher\n", encoding="utf-8")
-	legacy_gui = repository / "build/bin/ferrum-qt"
-	legacy_gui.write_text("obsolete direct GUI launcher\n", encoding="utf-8")
+def _write_direct_layout_without_program_pointer(repository: Path) -> None:
+	"""Seed direct outputs that the current program-pointer topology replaces."""
+	direct_runtime = repository / "build/runtime/python/known-good"
+	direct_runtime.parent.mkdir(parents=True, exist_ok=True)
+	direct_runtime.write_text("direct runtime without program pointer\n", encoding="utf-8")
+	direct_cli = repository / "build/bin/ferrum"
+	direct_cli.parent.mkdir(exist_ok=True)
+	direct_cli.write_text("direct CLI without program pointer\n", encoding="utf-8")
+	direct_gui = repository / "build/bin/ferrum-qt"
+	direct_gui.write_text("direct GUI without program pointer\n", encoding="utf-8")
 
 
 #============================================
-def _require_obsolete_direct_layout_retired(repository: Path) -> None:
-	"""Require obsolete direct outputs to be replaced by a fresh leased program."""
+def _require_direct_layout_replaced_by_current_program(repository: Path) -> None:
+	"""Require direct outputs to resolve through a fresh leased current program."""
 	build_root = repository / "build"
 	if (build_root / "runtime/python/known-good").exists():
-		raise BuildCleanupE2eError("obsolete direct runtime survived local-build staging")
+		raise BuildCleanupE2eError("direct runtime bypassed the current program pointer")
 	for launcher in (build_root / "bin/ferrum", build_root / "bin/ferrum-qt"):
-		if "obsolete direct" in launcher.read_text(encoding="utf-8"):
-			raise BuildCleanupE2eError("obsolete direct launcher survived local-build staging")
+		if "without program pointer" in launcher.read_text(encoding="utf-8"):
+			raise BuildCleanupE2eError("direct launcher bypassed the current program pointer")
 	selected_root = (build_root / "current").resolve()
 	if not (selected_root / ".ferrum-runtime.lease").is_file():
 		raise BuildCleanupE2eError("fresh local program lacks its runtime lease")
@@ -467,7 +467,7 @@ def _write_fake_repository(root: Path) -> Path:
 		"parser = argparse.ArgumentParser()\nparser.add_argument('--runtime-root', type=Path, required=True)\n"
 		"root = local_runtime.runtime_root_path(str(parser.parse_args().runtime_root))\n"
 		"(root / '.dylibs').mkdir(parents=True)\n"
-		"(root / '.dylibs/libferrum_chem.dylib').write_bytes(b'candidate adapter')\n"
+		"(root / '.dylibs/libferrum_chem.dylib').write_bytes(b'staging adapter')\n"
 		"bundle = root.parent / 'engine-v1'\nbundle.mkdir()\n"
 		"(bundle / 'ferrum-engine-bundle-v1.json').write_text('{}', encoding='utf-8')\n",
 		encoding="utf-8",
@@ -480,8 +480,8 @@ def _write_fake_repository(root: Path) -> Path:
 		"elif args.command == 'validate':\n"
 		"    if os.environ.get('FERRUM_FAKE_SOURCE_ME_READY') != '1': raise SystemExit(2)\n"
 		"    mode = os.environ['FERRUM_FAKE_RECEIPT_MODE']\n"
-		"    candidate = '/.staging-' in str(args.runtime_root)\n"
-		"    if mode == 'candidate-failure' and candidate: raise SystemExit(1)\n",
+		"    is_staging = '/.staging-' in str(args.runtime_root)\n"
+		"    if mode == 'staging-failure' and is_staging: raise SystemExit(1)\n",
 		encoding="utf-8",
 	)
 	fake_bin = repository / "fake-bin"

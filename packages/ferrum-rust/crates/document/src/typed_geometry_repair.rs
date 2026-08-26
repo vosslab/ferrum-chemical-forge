@@ -86,7 +86,7 @@ impl TypedDocument {
                     -replacement.replacement.y(),
                 );
             }
-            super::typed_linear_form_metadata::retire_invalid_generated_linear_forms(
+            super::typed_linear_form_metadata::remove_invalid_generated_linear_forms(
                 &mut indexed.xml.tree,
                 molecule,
             )?;
@@ -151,7 +151,7 @@ impl TypedDocument {
                     -replacement.y(),
                 );
             }
-            super::typed_linear_form_metadata::retire_invalid_generated_linear_forms(
+            super::typed_linear_form_metadata::remove_invalid_generated_linear_forms(
                 &mut indexed.xml.tree,
                 molecule,
             )?;

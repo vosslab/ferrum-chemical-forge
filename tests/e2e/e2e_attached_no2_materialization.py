@@ -68,11 +68,11 @@ def _trigger_action(window: PySide6.QtWidgets.QMainWindow,
 #============================================
 def _activate_tool(window: PySide6.QtWidgets.QMainWindow,
 		app: PySide6.QtWidgets.QApplication, action_label: str) -> None:
-	"""Ensure one visible checkable canvas tool owns the next public gesture."""
-	action = _exposed_action(window, "Edit", action_label)
+	"""Ensure one visible Draw > Atoms and bonds tool owns the next gesture."""
+	action = _exposed_action(window, "Draw", action_label)
 	if not action.isCheckable():
 		raise AttachedNo2MaterializationE2eError(
-			f"Edit -> {action_label} was not a canvas tool",
+			f"Draw > Atoms and bonds > {action_label} was not a canvas tool",
 		)
 	if not action.isChecked():
 		action.trigger()
@@ -98,7 +98,7 @@ def _set_next_atom(app: PySide6.QtWidgets.QApplication) -> None:
 		or dialog.accessibleName() != "Next Drawing"
 	):
 		raise AttachedNo2MaterializationE2eError(
-			"Edit -> Next Drawing did not open its visible public dialog",
+			"Draw > Drawing setup > Next Drawing did not open its visible public dialog",
 		)
 	combo = next(
 		widget for widget in dialog.findChildren(PySide6.QtWidgets.QComboBox)
@@ -134,9 +134,9 @@ def _set_next_atom(app: PySide6.QtWidgets.QApplication) -> None:
 #============================================
 def _choose_next_atom_carbon(window: PySide6.QtWidgets.QMainWindow,
 		app: PySide6.QtWidgets.QApplication) -> None:
-	"""Choose C through the public Edit -> Next Drawing workflow."""
+	"""Choose C through the public Draw > Drawing setup > Next Drawing workflow."""
 	PySide6.QtCore.QTimer.singleShot(0, lambda: _set_next_atom(app))
-	_trigger_action(window, app, "Edit", "Next Drawing...")
+	_trigger_action(window, app, "Draw", "Next Drawing...")
 
 
 #============================================
@@ -342,7 +342,7 @@ def main() -> int:
 		_activate_tool(window, app, "Draw Bond")
 		_draw_single_bond(canvas, app, first_carbon, second_carbon)
 		_select_scene_point(window, app, canvas, first_carbon)
-		_trigger_action(window, app, "Chemistry", "Attach Compact Group...")
+		_trigger_action(window, app, "Draw", "Attach Compact Group...")
 		_choose_no2(app)
 		PySide6.QtTest.QTest.mouseRelease(
 			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,

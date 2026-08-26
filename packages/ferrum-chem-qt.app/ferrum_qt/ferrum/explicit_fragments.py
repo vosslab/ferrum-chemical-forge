@@ -178,9 +178,8 @@ class FerrumNativeExplicitFragmentsWindowMixin:
 	"""Own normal Chemistry actions and modal lifecycle around Rust receipts."""
 
 	#============================================
-	def _build_explicit_fragment_actions(self, menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add explicit-only Create and read-only View actions."""
-		menu.addSeparator()
+	def _build_explicit_fragment_actions(self) -> None:
+		"""Create and register explicit-only Create and read-only View actions."""
 		self._create_explicit_fragment_action = PySide6.QtGui.QAction(
 			self.tr("Create Fragment..."), self,
 		)
@@ -191,18 +190,27 @@ class FerrumNativeExplicitFragmentsWindowMixin:
 			"Name the selected part of one molecule for this drawing.",
 		))
 		self._create_explicit_fragment_action.triggered.connect(self._on_create_explicit_fragment)
-		menu.addAction(self._create_explicit_fragment_action)
 		self._view_explicit_fragments_action = PySide6.QtGui.QAction(
 			self.tr("View Fragments..."), self,
 		)
 		self._view_explicit_fragments_action.triggered.connect(self._on_view_explicit_fragments)
-		menu.addAction(self._view_explicit_fragments_action)
+		self._view_explicit_fragments_action.setStatusTip(
+			self._view_explicit_fragments_action.text(),
+		)
+		for action_id, action in (
+			("chemistry.fragments.create", self._create_explicit_fragment_action),
+			("chemistry.fragments.view", self._view_explicit_fragments_action),
+		):
+			self._action_registry.register_existing(
+				action_id, action,
+				shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+			)
 
 	#============================================
 	def _refresh_explicit_fragment_actions(self, active: bool, pending: bool,
 			busy: bool) -> None:
 		"""Expose Create only for an exact single-root durable selection."""
-		self._retire_stale_explicit_fragment_view(active, pending, busy)
+		self._close_stale_explicit_fragment_view(active, pending, busy)
 		capture = self._explicit_fragment_capture() if active and not pending else None
 		self._create_explicit_fragment_action.setEnabled(
 			active and not pending and not busy and capture is not None,
@@ -297,7 +305,7 @@ class FerrumNativeExplicitFragmentsWindowMixin:
 		return True
 
 	#============================================
-	def _retire_stale_explicit_fragment_view(self, active: bool, pending: bool,
+	def _close_stale_explicit_fragment_view(self, active: bool, pending: bool,
 			busy: bool) -> None:
 		"""Close a View dialog once its captured source is no longer authoritative."""
 		view = getattr(self, "_explicit_fragment_view", None)

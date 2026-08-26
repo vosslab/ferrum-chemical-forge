@@ -1,12 +1,14 @@
 //! Python transport for the generic prepared session-transition lifecycle.
 //!
 //! A prepared transition is an opaque, one-use document receipt. Python may
-//! copy its presentation before redemption, then redeem it only through the
+//! copy its presentation before redemption, then commit it only through the
 //! owning document session's generic commit operation.
 
 use super::binding::{
-    OperationValidationError, PreparedOperationConsumedError, PreparedOperationForeignSessionError,
-    PyDocumentSession, PySessionOperationResultV1, document_result,
+    PreparedOperationConsumedError, PreparedOperationForeignSessionError,
+    PreparedOperationProvisionalCapabilityError, PreparedOperationRendererAdmissionError,
+    PreparedOperationStaleSnapshotError, PyDocumentSession, PySessionOperationResultV1,
+    document_result,
 };
 use super::render_binding::{PyRenderOperationV2, PyRenderPointV1, operation_from};
 use ferrum_document::{
@@ -156,7 +158,7 @@ impl PyDocumentSession {
         .map(PyPreparedSessionTransitionV1::from_transition)
     }
 
-    /// Redeem one renderer-admitted transition through the generic authority.
+    /// Commit one renderer-admitted transition through the generic authority.
     fn commit_session_operation_transition_v1(
         &mut self,
         mut prepared: PyRefMut<'_, PyPreparedSessionTransitionV1>,
@@ -219,9 +221,9 @@ fn paint_primitive_from(
 
 fn presentation_refusal_error(error: PreparedSessionTransitionPresentationRefusalV1) -> PyErr {
     match error {
-        PreparedSessionTransitionPresentationRefusalV1::Retired => {
+        PreparedSessionTransitionPresentationRefusalV1::Consumed => {
             PreparedOperationConsumedError::new_err(
-                "prepared session transition was already retired",
+                "prepared session transition was already consumed",
             )
         }
     }
@@ -234,16 +236,56 @@ fn commit_refusal_error(error: AdmittedSessionTransitionRefusalV1) -> PyErr {
                 "prepared session transition belongs to another session",
             )
         }
-        AdmittedSessionTransitionRefusalV1::Replayed => PreparedOperationConsumedError::new_err(
-            "prepared session transition was already redeemed or retired",
+        AdmittedSessionTransitionRefusalV1::Consumed => PreparedOperationConsumedError::new_err(
+            "prepared session transition was already consumed",
         ),
-        AdmittedSessionTransitionRefusalV1::StaleSnapshot
-        | AdmittedSessionTransitionRefusalV1::RendererAdmission
-        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            OperationValidationError::new_err("prepared session transition could not be redeemed")
+        AdmittedSessionTransitionRefusalV1::StaleSnapshot => {
+            PreparedOperationStaleSnapshotError::new_err(
+                "prepared session transition no longer matches the current document",
+            )
         }
-        _ => OperationValidationError::new_err("prepared session transition could not be redeemed"),
+        AdmittedSessionTransitionRefusalV1::RendererAdmission => {
+            PreparedOperationRendererAdmissionError::new_err(
+                "prepared session transition is no longer accepted by the renderer",
+            )
+        }
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            PreparedOperationProvisionalCapabilityError::new_err(
+                "prepared session transition no longer has its provisional authorization",
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_closed_transition_refusal_maps_to_its_typed_python_exception() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert!(
+                commit_refusal_error(AdmittedSessionTransitionRefusalV1::ForeignSession)
+                    .is_instance_of::<PreparedOperationForeignSessionError>(py)
+            );
+            assert!(
+                commit_refusal_error(AdmittedSessionTransitionRefusalV1::Consumed)
+                    .is_instance_of::<PreparedOperationConsumedError>(py)
+            );
+            assert!(
+                commit_refusal_error(AdmittedSessionTransitionRefusalV1::StaleSnapshot)
+                    .is_instance_of::<PreparedOperationStaleSnapshotError>(py)
+            );
+            assert!(
+                commit_refusal_error(AdmittedSessionTransitionRefusalV1::RendererAdmission)
+                    .is_instance_of::<PreparedOperationRendererAdmissionError>(py)
+            );
+            assert!(
+                commit_refusal_error(AdmittedSessionTransitionRefusalV1::ProvisionalCapability)
+                    .is_instance_of::<PreparedOperationProvisionalCapabilityError>(py)
+            );
+        });
     }
 }
 

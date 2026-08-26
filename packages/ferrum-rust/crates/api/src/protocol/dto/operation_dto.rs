@@ -98,6 +98,8 @@ pub enum OperationProtocolOperationV1 {
     /// Convert bounded molecular interchange through an injected chemistry runtime.
     #[serde(rename = "chemistry.convert")]
     ChemistryConvert(ChemistryConvertRequestV1),
+    #[serde(rename = "interchange.inspect_graph.v1")]
+    InspectInterchangeGraph(InspectInterchangeGraphRequestV1),
     /// Regenerate all direct typed molecule coordinates as one document transition.
     #[serde(rename = "document.generate_coordinates")]
     GenerateCoordinates(DocumentGenerateCoordinatesRequestV1),
@@ -210,6 +212,10 @@ pub enum OperationProtocolOutcomeV1 {
         text: String,
         /// Number of preserved molecular records.
         record_count: usize,
+    },
+    #[serde(rename = "interchange.inspect_graph.v1")]
+    InspectInterchangeGraph {
+        summary: InspectInterchangeGraphSummaryV1,
     },
     /// Structural CDML after atomic coordinate regeneration.
     #[serde(rename = "document.generate_coordinates")]
@@ -399,6 +405,7 @@ impl OperationProtocolOperationV1 {
             Self::Rewrite(_) => ProtocolOperationKindV1::Rewrite,
             Self::RenderArtifact(_) => ProtocolOperationKindV1::RenderArtifact,
             Self::ChemistryConvert(_) => ProtocolOperationKindV1::ChemistryConvert,
+            Self::InspectInterchangeGraph(_) => ProtocolOperationKindV1::InspectInterchangeGraph,
             Self::GenerateCoordinates(_) => ProtocolOperationKindV1::GenerateCoordinates,
             Self::PresentationAuthor(_) => ProtocolOperationKindV1::PresentationAuthor,
             Self::CatalogList(_) => ProtocolOperationKindV1::CatalogList,

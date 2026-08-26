@@ -64,7 +64,7 @@ enum PyPresentationVectorGestureCategoryV1 {
     StaleSnapshot,
     ForeignSession,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     DegenerateGeometry,
     UnsupportedKind,
@@ -173,7 +173,7 @@ impl PyDocumentSession {
         let gesture = gesture
             .gesture
             .as_ref()
-            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::ReplayedGesture))?;
+            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::Consumed))?;
         preview_api_presentation_vector_gesture_v1(&self.session, gesture, point)
             .map(|preview| preview_to_python(py, preview))
             .map_err(|error| vector_error(py, error))
@@ -188,11 +188,11 @@ impl PyDocumentSession {
         let gesture = gesture
             .gesture
             .take()
-            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::ReplayedGesture))?;
+            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::Consumed))?;
         let preview = preview
             .preview
             .take()
-            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::ReplayedGesture))?;
+            .ok_or_else(|| vector_error(py, PresentationVectorGestureErrorV1::Consumed))?;
         resolve_api_presentation_vector_gesture_v1(&self.session, gesture, preview)
             .map(super::prepared_transition_binding::PySessionOperationTransitionRequestV1::from_request)
             .map_err(|error| vector_error(py, error))
@@ -287,8 +287,8 @@ fn vector_error(py: Python<'_>, error: PresentationVectorGestureErrorV1) -> PyEr
         PresentationVectorGestureCategoryV1::MismatchedPreview => {
             PyPresentationVectorGestureCategoryV1::MismatchedPreview
         }
-        PresentationVectorGestureCategoryV1::ReplayedGesture => {
-            PyPresentationVectorGestureCategoryV1::ReplayedGesture
+        PresentationVectorGestureCategoryV1::Consumed => {
+            PyPresentationVectorGestureCategoryV1::Consumed
         }
         PresentationVectorGestureCategoryV1::InvalidPoint => {
             PyPresentationVectorGestureCategoryV1::InvalidPoint

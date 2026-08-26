@@ -6,6 +6,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.atom_element
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.paper_properties as native_paper_properties
@@ -53,56 +54,97 @@ class FerrumNativeMainWindowLifecycleMixin:
 	#============================================
 	@PySide6.QtCore.Slot(int)
 	def _close_tab_at(self, index: int) -> None:
-		"""Dispose one clean Ferrum tab, retaining dirty tabs for an explicit save."""
+		"""Acquire an ordinary user close decision, then apply it once."""
+		page = self._tab_widget.widget(index)
+		tab = self._native_tabs_by_page.get(page)
+		result = self._close_tab_at_with_decision(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.KEEP_OPEN,
+		)
+		if result is ferrum_qt.ferrum.close_decision.CloseResult.DIRTY_REQUIRES_DECISION:
+			if tab is not None:
+				result = self._close_tab_at_with_decision(
+					index, self._acquire_close_decision(tab),
+				)
+		if result not in (
+				ferrum_qt.ferrum.close_decision.CloseResult.CLOSED,
+				ferrum_qt.ferrum.close_decision.CloseResult.NO_TAB,
+				ferrum_qt.ferrum.close_decision.CloseResult.DIRTY_REQUIRES_DECISION,
+				ferrum_qt.ferrum.close_decision.CloseResult.SAVE_FAILED,
+			):
+			self._present_close_result_refusal(result)
+
+	#============================================
+	def _acquire_close_decision(self,
+			tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+			) -> ferrum_qt.ferrum.close_decision.CloseDecision:
+		"""Ask an ordinary author how to resolve one unsaved Ferrum tab."""
+		choice = PySide6.QtWidgets.QMessageBox.warning(
+			self, self.tr("Unsaved Drawing"),
+			self.tr("Save changes to %s before closing?") % tab.title,
+			PySide6.QtWidgets.QMessageBox.StandardButton.Save
+			| PySide6.QtWidgets.QMessageBox.StandardButton.Discard
+			| PySide6.QtWidgets.QMessageBox.StandardButton.Cancel,
+			PySide6.QtWidgets.QMessageBox.StandardButton.Cancel,
+		)
+		if choice is PySide6.QtWidgets.QMessageBox.StandardButton.Save:
+			return ferrum_qt.ferrum.close_decision.CloseDecision.SAVE
+		if choice is PySide6.QtWidgets.QMessageBox.StandardButton.Discard:
+			return ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD
+		return ferrum_qt.ferrum.close_decision.CloseDecision.KEEP_OPEN
+
+	#============================================
+	def _close_tab_at_with_decision(self, index: int,
+			decision: ferrum_qt.ferrum.close_decision.CloseDecision,
+			) -> ferrum_qt.ferrum.close_decision.CloseResult:
+		"""Apply one explicit decision through every ordinary close lifecycle guard."""
+		if type(decision) is not ferrum_qt.ferrum.close_decision.CloseDecision:
+			raise TypeError("Ferrum tab close requires an exact CloseDecision")
 		page = self._tab_widget.widget(index)
 		tab = self._native_tabs_by_page.get(page)
 		if tab is None:
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.NO_TAB
 		if self._cancel_explicit_replacement_for_target_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.REPLACEMENT_CANCELLED
 		if self._molecule_import_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.MOLECULE_IMPORT_BLOCKED
 		if self._molecule_export_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.MOLECULE_EXPORT_BLOCKED
 		if self._snapshot_export_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.SNAPSHOT_EXPORT_BLOCKED
 		if self._molecule_inspection_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.MOLECULE_INSPECTION_BLOCKED
 		if self._molecule_diagnostics_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.MOLECULE_DIAGNOSTICS_BLOCKED
 		if self._atom_oxidation_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.ATOM_OXIDATION_BLOCKED
 		if self._clipboard_operation_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.CLIPBOARD_OPERATION_BLOCKED
 		if self._coordinate_generation_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.COORDINATE_GENERATION_BLOCKED
 		if self._user_template_placement_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.USER_TEMPLATE_PLACEMENT_BLOCKED
 		if self._catalog_placement_blocks_tab_close(tab):
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.CATALOG_PLACEMENT_BLOCKED
 		if tab.requires_refresh:
-			self._show_edit_refusal(self._typed_refusal(
-				"close_document", "busy_close",
-				"Refresh the authoritative Rust view before closing this tab.",
-			))
-			return
+			return ferrum_qt.ferrum.close_decision.CloseResult.REFRESH_REQUIRED
 		if tab.is_dirty:
-			self._show_edit_refusal(self._typed_refusal(
-				"close_document", "busy_close",
-				"Save or discard the Ferrum document before closing this tab.",
-			))
-			return
+			if decision is ferrum_qt.ferrum.close_decision.CloseDecision.KEEP_OPEN:
+				return ferrum_qt.ferrum.close_decision.CloseResult.DIRTY_REQUIRES_DECISION
+			if decision is ferrum_qt.ferrum.close_decision.CloseDecision.SAVE:
+				self._tab_widget.setCurrentIndex(index)
+				if not self._on_save() or tab.is_dirty:
+					return ferrum_qt.ferrum.close_decision.CloseResult.SAVE_FAILED
+			if decision is not ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD and tab.is_dirty:
+				return ferrum_qt.ferrum.close_decision.CloseResult.DIRTY_REQUIRES_DECISION
 		if self._atom_insertion_intent is not None and self._atom_insertion_intent.tab is tab:
 			self._cancel_atom_insertion()
 		if self._line_gesture_intent is not None and self._line_gesture_intent.tab is tab:
 			if not self._cancel_line_gesture():
-				self._show_edit_refusal(self._typed_refusal(
-					"close_document", "busy_close",
-					"Ferrum could not retire the pending cyclohexane attachment; retry cancellation before closing.",
-				))
-				return
+				return ferrum_qt.ferrum.close_decision.CloseResult.LINE_GESTURE_CANCELLATION_FAILED
 		if getattr(self, "_structure_tab", None) is tab:
 			self._cancel_structure_selection()
+		if self._active_native_tab() is tab:
+			self._window_mode_sync.cancel()
 		if (
 			self._direct_glycosidic_haworth_intent is not None
 			and self._direct_glycosidic_haworth_intent.tab is tab
@@ -111,20 +153,36 @@ class FerrumNativeMainWindowLifecycleMixin:
 		try:
 			tab.dispose()
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError:
-			self._show_edit_refusal(self._typed_refusal(
-				"close_document", "busy_close",
-				"Ferrum could not retire the live SMARTS result; refresh before closing this tab.",
-			))
-			return
-		self._retire_molecule_report_dialog_for_tab(tab)
-		self._retire_molecule_diagnostics_dialog_for_tab(tab)
-		self._retire_atom_oxidation_dialog_for_tab(tab)
+			return ferrum_qt.ferrum.close_decision.CloseResult.DISPOSAL_FAILED
+		self._close_molecule_report_dialog_for_tab(tab)
+		self._close_molecule_diagnostics_dialog_for_tab(tab)
+		self._close_atom_oxidation_dialog_for_tab(tab)
 		self._cancel_native_view_controls_for_tab(tab)
-		self._retire_closed_native_tab(tab, index)
+		self._dispose_closed_native_tab(tab, index)
 		self._refresh_actions()
+		return ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
 
 	#============================================
-	def _retire_closed_native_tab(self,
+	def _present_close_result_refusal(self,
+			result: ferrum_qt.ferrum.close_decision.CloseResult,
+			) -> None:
+		"""Present one ordinary UI refusal after typed close application declines."""
+		if type(result) is not ferrum_qt.ferrum.close_decision.CloseResult:
+			raise TypeError("Ferrum close refusal requires an exact CloseResult")
+		messages = {
+			ferrum_qt.ferrum.close_decision.CloseResult.REFRESH_REQUIRED:
+				"Refresh the authoritative Rust view before closing this tab.",
+			ferrum_qt.ferrum.close_decision.CloseResult.LINE_GESTURE_CANCELLATION_FAILED:
+				"Ferrum could not cancel the pending cyclohexane attachment; retry cancellation before closing.",
+			ferrum_qt.ferrum.close_decision.CloseResult.DISPOSAL_FAILED:
+				"Ferrum could not clear the active SMARTS result; refresh before closing this tab.",
+		}
+		message = messages.get(result)
+		if message is not None:
+			self._show_edit_refusal(self._typed_refusal("close_document", "busy_close", message))
+
+	#============================================
+	def _dispose_closed_native_tab(self,
 			tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 			index: int,
 			) -> None:
@@ -145,24 +203,26 @@ class FerrumNativeMainWindowLifecycleMixin:
 	#============================================
 	@PySide6.QtCore.Slot(int)
 	def _on_native_tab_changed(self, _index: int) -> None:
-		"""Retire one outgoing SMARTS plan, then bind the incoming tab once."""
+		"""Invalidate one outgoing SMARTS plan, then bind the incoming tab once."""
 		controller = getattr(self, "_smarts_query_controller", None)
 		if hasattr(self, "_native_tabs_by_page"):
 			previous = self._last_native_tab
 			current = self._active_native_tab()
 			if previous is not None and previous is not current:
-				retirement_succeeded = True
+				self._window_mode_sync.cancel()
+				invalidation_succeeded = True
 				try:
-					previous._require_live_smarts_retirement_v1("tab_deactivated")
+					previous._require_live_smarts_invalidation_v1("tab_deactivated")
 				except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError:
-					retirement_succeeded = False
+					invalidation_succeeded = False
 					self._show_edit_refusal(self._typed_refusal(
 						"close_document", "busy_close",
-						"Ferrum could not retire the live SMARTS result; refresh before editing this tab.",
+						"Ferrum could not clear the active SMARTS result; refresh before editing this tab.",
 					))
 				if controller is not None:
-					controller._deactivate_after_tab_retirement_v1(retirement_succeeded)
+					controller._deactivate_after_tab_invalidation_v1(invalidation_succeeded)
 			self._last_native_tab = current
+			self._window_mode_sync.synchronize_native_input_viewport()
 			if controller is not None:
 				# A first registration has no outgoing tab, so it only binds its
 				# already-published incoming plan and leaves the modeless dock alone.
@@ -174,21 +234,15 @@ class FerrumNativeMainWindowLifecycleMixin:
 	@PySide6.QtCore.Slot()
 	def _on_native_selection_changed(self) -> None:
 		"""Queue one settled action refresh after scene selection changes."""
-		if (
-			not hasattr(self, "_native_tabs_by_page")
-			or self._native_selection_refresh_queued
-		):
+		if self._native_selection_refresh_timer.isActive():
 			return
-		self._native_selection_refresh_queued = True
-		PySide6.QtCore.QTimer.singleShot(0, self._refresh_after_native_selection)
+		self._native_selection_refresh_timer.start(0)
 
 	#============================================
 	@PySide6.QtCore.Slot()
 	def _refresh_after_native_selection(self) -> None:
 		"""Refresh actions after a synchronous projection transition settles."""
-		self._native_selection_refresh_queued = False
-		if hasattr(self, "_native_tabs_by_page"):
-			self._refresh_actions()
+		self._refresh_actions()
 
 	#============================================
 	def _refresh_actions(self, *_unused: object) -> None:
@@ -224,7 +278,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 		)
 		# A template placement is itself a terminal authoring intent.  Keep ordinary
 		# document commands protected, but leave the exclusive authoring actions
-		# reachable so selecting one can retire the template owner before it arms.
+		# reachable so selecting one can cancel the template owner before it arms.
 		authoring_busy = (
 			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard
 			or busy_coordinates or busy_snapshot_export
@@ -273,6 +327,12 @@ class FerrumNativeMainWindowLifecycleMixin:
 		)
 		self._edit_bond_properties_action.setEnabled(
 			active and not pending and not busy and tab.has_one_selected_bond(),
+		)
+		self._reverse_selected_wedge_direction_action.setEnabled(
+			active
+			and not pending
+			and not busy
+			and tab.can_reverse_selected_wedge_direction(),
 		)
 		native_paper_properties.refresh_paper_properties_action(
 			self._paper_properties_action, active, pending, busy,
@@ -408,11 +468,12 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._cancel_catalog_placement()
 		self._cancel_direct_glycosidic_haworth_intent()
 		self._cancel_atom_insertion()
+		self._window_mode_sync.cancel()
 		if not self._cancel_line_gesture():
 			event.ignore()
 			self._show_edit_refusal(self._typed_refusal(
 				"close_document", "busy_close",
-				"Ferrum could not retire the pending cyclohexane attachment; retry cancellation before closing.",
+				"Ferrum could not cancel the pending cyclohexane attachment; retry cancellation before closing.",
 			))
 			return
 		if self._cancel_local_document_open_for_close():
@@ -470,10 +531,10 @@ class FerrumNativeMainWindowLifecycleMixin:
 				event.ignore()
 				self._show_edit_refusal(self._typed_refusal(
 					"close_document", "busy_close",
-					"Ferrum could not retire the live SMARTS result; refresh before closing Ferrum.",
+					"Ferrum could not clear the active SMARTS result; refresh before closing Ferrum.",
 				))
 				return
 			index = self._tab_widget.indexOf(tab)
 			if index >= 0:
-				self._retire_closed_native_tab(tab, index)
+				self._dispose_closed_native_tab(tab, index)
 		event.accept()

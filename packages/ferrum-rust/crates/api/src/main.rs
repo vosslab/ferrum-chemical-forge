@@ -12,8 +12,10 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             let exit_status = error.exit_status();
-            drop(stderr);
-            eprintln!("ferrum: {error}");
+            if !error.was_emitted_to_stream() {
+                drop(stderr);
+                eprintln!("ferrum: {error}");
+            }
             ExitCode::from(exit_status)
         }
     }

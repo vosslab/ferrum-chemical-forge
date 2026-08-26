@@ -33,7 +33,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._receipt: object | None = None
 		self._row_ordinals: dict[int, int] = {}
 		self._overlay_visible = False
-		self._retirement_blocked = False
+		self._invalidation_blocked = False
 		self._busy = False
 		self._run_token = 0
 		self._action: PySide6.QtGui.QAction | None = None
@@ -69,10 +69,9 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		return self._dock
 
 	#============================================
-	def install_action(self, menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-		"""Install or rehome the one canonical Chemistry menu command."""
+	def install_action(self) -> PySide6.QtGui.QAction:
+		"""Construct the one canonical Chemistry menu command."""
 		if self._action is not None:
-			menu.addAction(self._action)
 			return self._action
 		action = PySide6.QtGui.QAction(self.tr("SMARTS Query..."), self._window)
 		action.setObjectName("smarts-query-action")
@@ -84,14 +83,14 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		action.setShortcut(PySide6.QtGui.QKeySequence("Ctrl+Shift+F"))
 		action.setShortcutContext(PySide6.QtCore.Qt.ShortcutContext.WindowShortcut)
 		action.triggered.connect(self.open)
-		menu.addAction(action)
+		self._window._register_action("chemistry.smarts.query", action)
 		self._action = action
 		return action
 
 	#============================================
 	def open(self) -> None:
 		"""Show the dock without moving an intentional canvas capture away from it."""
-		if not self._retirement_blocked:
+		if not self._invalidation_blocked:
 			self._activate_current_tab()
 		self._dock.show()
 		self._dock.raise_()
@@ -104,14 +103,14 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 
 	#============================================
 	def on_tab_changed(self) -> None:
-		"""Activate the current tab without taking native retirement ownership."""
+		"""Activate the current tab without taking native invalidation ownership."""
 		self._activate_after_tab_switch_v1()
 
 	#============================================
-	def _deactivate_after_tab_retirement_v1(self, retirement_succeeded: bool) -> None:
-		"""Release local state only after the window's native retirement succeeds."""
-		if not retirement_succeeded:
-			self._block_receipt_retirement_v1(self.tr(
+	def _deactivate_after_tab_invalidation_v1(self, invalidation_succeeded: bool) -> None:
+		"""Release local state only after the window's native invalidation succeeds."""
+		if not invalidation_succeeded:
+			self._block_receipt_invalidation_v1(self.tr(
 				"SMARTS results remain live in the previous drawing. Open this panel and choose "
 				"Clear results to retry, or refresh that drawing before editing.",
 			))
@@ -121,7 +120,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._busy = False
 		self._cancel_selected_capture_v1(None)
 		self._clear_selected_query_token_v1()
-		self._finish_receipt_retirement_v1()
+		self._finish_receipt_invalidation_v1()
 		self._update_controls(terminal_status=self.tr(
 			"The active drawing changed. Run the query again.",
 		))
@@ -131,12 +130,12 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def _activate_after_tab_switch_v1(self) -> None:
 		"""Bind the incoming tab after the native window completed its switch fence."""
-		if not self._retirement_blocked:
+		if not self._invalidation_blocked:
 			self._activate_current_tab()
 
 	#============================================
 	def close(self) -> None:
-		"""Retire a document-local receipt before the window begins disposal."""
+		"""Clear a document-local receipt before the window begins disposal."""
 		self._cancel_selected_capture_v1(None)
 		self._clear_selected_query_token_v1()
 		if not self._clear_results("tab_disposed", status=None):
@@ -272,7 +271,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _bind_active_tab_invalidation(self) -> None:
-		"""Let only the active tab retire this dock's copied presentation state."""
+		"""Let only the active tab invalidate this dock's copied presentation state."""
 		if self._bound_tab is self._tab:
 			return
 		if self._bound_tab is not None:
@@ -285,7 +284,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _on_live_smarts_query_invalidated_v1(self) -> None:
-		"""Retire only copied dock facts after a tab transition already succeeded."""
+		"""Clear only copied dock facts after a tab transition already succeeded."""
 		self._run_token += 1
 		self._busy = False
 		self._receipt = None
@@ -294,7 +293,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		self._overlay_visible = False
 		self._row_ordinals.clear()
 		self._results.clear()
-		self._retirement_blocked = False
+		self._invalidation_blocked = False
 		self._update_controls(
 			terminal_status=self.tr("The drawing changed. Run the query again."),
 		)
@@ -318,7 +317,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def _begin_run(self) -> None:
 		"""Fence an older run before a deferred, non-reentrant native dispatch."""
-		if self._busy or self._tab is None or self._retirement_blocked:
+		if self._busy or self._tab is None or self._invalidation_blocked:
 			return
 		query: str | None = None
 		selected_mode = not self._raw_source.isChecked()
@@ -462,18 +461,18 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _recover_reveal_projection_failure_v1(self) -> None:
-		"""Release a failed local reveal only after native receipt retirement succeeds."""
+		"""Release a failed local reveal only after native receipt invalidation succeeds."""
 		self._run_token += 1
 		self._busy = False
 		if self._receipt is not None and self._tab is not None:
-			retired = self._tab._retire_live_smarts_receipts_v1("dock_rerun")
-			if not retired:
-				self._block_receipt_retirement_v1(self.tr(
+			invalidated = self._tab._invalidate_live_smarts_receipts_v1("dock_rerun")
+			if not invalidated:
+				self._block_receipt_invalidation_v1(self.tr(
 					"SMARTS match display could not recover. Choose Clear results to retry, or "
 					"refresh the drawing before searching again.",
 				))
 				return
-		self._finish_receipt_retirement_v1()
+		self._finish_receipt_invalidation_v1()
 		self._update_controls(terminal_status=self.tr(
 			"SMARTS match display could not recover. Run the query again.",
 		))
@@ -590,14 +589,14 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _clear_only_overlay(self) -> bool:
-		"""Honor first Escape in a result leaf without retiring its query receipt."""
+		"""Honor first Escape in a result leaf without clearing its query receipt."""
 		if self._tab is None:
 			return False
 		if not self._tab._clear_live_smarts_query_overlay_v1():
 			self._set_status(self.tr(
 				"SMARTS highlight cannot be cleared. Refresh the drawing before searching again.",
 			))
-			self._retirement_blocked = True
+			self._invalidation_blocked = True
 			self._update_controls()
 			return False
 		self._overlay_visible = False
@@ -609,41 +608,41 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _clear_results(self, reason: str, *, status: str | None) -> bool:
-		"""Retire query output while preserving a still-current render plan."""
+		"""Clear query output while preserving a still-current render plan."""
 		self._run_token += 1
 		self._busy = False
 		tab = self._tab
 		if self._receipt is not None and tab is not None:
 			if reason in ("tab_deactivated", "tab_disposed"):
-				retired = tab._retire_live_smarts_query_v1(reason)
+				invalidated = tab._invalidate_live_smarts_query_v1(reason)
 			else:
-				retired = tab._retire_live_smarts_receipts_v1(reason)
-			if not retired:
-				self._block_receipt_retirement_v1(self.tr(
+				invalidated = tab._invalidate_live_smarts_receipts_v1(reason)
+			if not invalidated:
+				self._block_receipt_invalidation_v1(self.tr(
 					"SMARTS results cannot be cleared. Choose Clear results to retry, or refresh "
 					"the drawing before searching again.",
 				))
 				return False
-		self._finish_receipt_retirement_v1()
+		self._finish_receipt_invalidation_v1()
 		self._update_controls(terminal_status=status)
 		return True
 
 	#============================================
-	def _block_receipt_retirement_v1(self, message: str) -> None:
+	def _block_receipt_invalidation_v1(self, message: str) -> None:
 		"""Preserve live receipt ownership until a deliberate native retry succeeds."""
 		self._busy = False
-		self._retirement_blocked = True
+		self._invalidation_blocked = True
 		self._set_status(message)
 		self._update_controls()
 
 	#============================================
-	def _finish_receipt_retirement_v1(self) -> None:
-		"""Forget copied query state only after native retirement proved it unavailable."""
+	def _finish_receipt_invalidation_v1(self) -> None:
+		"""Forget copied query state only after native invalidation proved it unavailable."""
 		self._receipt = None
 		self._overlay_visible = False
 		self._row_ordinals.clear()
 		self._results.clear()
-		self._retirement_blocked = False
+		self._invalidation_blocked = False
 		self._tab = None
 		self._bind_active_tab_invalidation()
 		self._activate_current_tab()
@@ -651,7 +650,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def _on_visibility_changed(self, visible: bool) -> None:
 		"""Closing or hiding the dock cannot leave a receipt or overlay live."""
-		if not visible and not self._retirement_blocked:
+		if not visible and not self._invalidation_blocked:
 			self._clear_results("dock_rerun", status=None)
 
 	#============================================
@@ -663,7 +662,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def _update_controls(self, *, terminal_status: str | None = None) -> None:
 		"""Refresh eligibility, then preserve an explicit action outcome when supplied."""
-		ready = self._tab is not None and not self._busy and not self._retirement_blocked
+		ready = self._tab is not None and not self._busy and not self._invalidation_blocked
 		raw = self._raw_source.isChecked()
 		availability = self._selected_availability()
 		selected_recovery = self._selected_recovery_guidance(availability)
@@ -677,9 +676,9 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 		)
 		self._clear_button.setEnabled(not self._busy and self._receipt is not None)
 		self._results.setEnabled(
-			not self._busy and not self._retirement_blocked and self._receipt is not None,
+			not self._busy and not self._invalidation_blocked and self._receipt is not None,
 		)
-		if not raw and not availability.available and not self._busy and not self._retirement_blocked:
+		if not raw and not availability.available and not self._busy and not self._invalidation_blocked:
 			self._set_status(selected_recovery)
 		if terminal_status is not None:
 			self._set_status(terminal_status)
@@ -713,7 +712,7 @@ class FerrumSmartsQueryController(PySide6.QtCore.QObject):
 	#============================================
 	def _begin_selected_capture_v1(self) -> None:
 		"""Begin one point capture without retaining generic selection data."""
-		if self._tab is None or self._busy or self._retirement_blocked:
+		if self._tab is None or self._busy or self._invalidation_blocked:
 			return
 		self._clear_selected_query_token_v1()
 		self._selected_capture.begin()

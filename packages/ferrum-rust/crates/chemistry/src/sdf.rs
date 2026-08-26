@@ -128,16 +128,25 @@ pub struct ImportedSdfRecord {
 }
 
 impl ImportedSdfRecord {
-    pub(crate) fn from_native(
-        molecule: SmilesMolecule,
-        title: String,
-        properties: Vec<SdfProperty>,
-    ) -> Self {
+    /// Construct one owned parsed SDF record while retaining duplicate properties.
+    ///
+    /// Native adapters use this after validating FSI1 data; deterministic
+    /// injected engines may use it to supply the same owned boundary values.
+    #[must_use]
+    pub fn new(molecule: SmilesMolecule, title: String, properties: Vec<SdfProperty>) -> Self {
         Self {
             molecule,
             title,
             properties,
         }
+    }
+
+    pub(crate) fn from_native(
+        molecule: SmilesMolecule,
+        title: String,
+        properties: Vec<SdfProperty>,
+    ) -> Self {
+        Self::new(molecule, title, properties)
     }
 
     /// Return the complete owned molecule and canonical SMILES.

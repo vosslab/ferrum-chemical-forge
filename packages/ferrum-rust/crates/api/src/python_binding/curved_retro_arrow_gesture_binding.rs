@@ -33,7 +33,7 @@ enum PyCurvedRetroArrowGestureCategoryV1 {
     ForeignSession,
     StaleSnapshot,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     CollapsedSpan,
     ControlTooNearChord,
@@ -108,7 +108,7 @@ impl PyDocumentSession {
             gesture
                 .gesture
                 .as_ref()
-                .ok_or_else(|| retro_error(py, CurvedRetroArrowGestureErrorV1::ReplayedGesture))?,
+                .ok_or_else(|| retro_error(py, CurvedRetroArrowGestureErrorV1::Consumed))?,
             point(end_x, end_y, py)?,
         )
         .map(|preview| preview_to_python(py, preview))
@@ -126,7 +126,7 @@ impl PyDocumentSession {
             gesture
                 .gesture
                 .take()
-                .ok_or_else(|| retro_error(py, CurvedRetroArrowGestureErrorV1::ReplayedGesture))?,
+                .ok_or_else(|| retro_error(py, CurvedRetroArrowGestureErrorV1::Consumed))?,
             preview.preview.clone(),
         )
         .map(
@@ -162,8 +162,8 @@ fn retro_error(py: Python<'_>, error: CurvedRetroArrowGestureErrorV1) -> PyErr {
         CurvedRetroArrowGestureCategoryV1::MismatchedPreview => {
             PyCurvedRetroArrowGestureCategoryV1::MismatchedPreview
         }
-        CurvedRetroArrowGestureCategoryV1::ReplayedGesture => {
-            PyCurvedRetroArrowGestureCategoryV1::ReplayedGesture
+        CurvedRetroArrowGestureCategoryV1::Consumed => {
+            PyCurvedRetroArrowGestureCategoryV1::Consumed
         }
         CurvedRetroArrowGestureCategoryV1::InvalidPoint => {
             PyCurvedRetroArrowGestureCategoryV1::InvalidPoint

@@ -72,10 +72,10 @@ mismatched keys fail the whole run as `unsupported_document`; no second
 projection, source-order join, or fallback traversal is allowed.
 
 `PyDocumentSession` is the authentic render-plan replacement owner. Its private
-`publish_live_render_plan_v1` transaction first retires all active SMARTS
-receipts and visual output, then increments `LiveSmartsPlanGenerationV1`, then
+`publish_live_render_plan_v1` transaction first clears all active Rust SMARTS
+receipts and its published plan, then increments `LiveSmartsPlanGenerationV1`, then
 derives and publishes the new plan from the accepted observation. The increment
-and retirement occur before every successful plan publication or reprojection,
+and clear occur before every successful plan publication or reprojection,
 including initial publication, document mutation, viewport/layout or display
 projection replacement, tab activation/deactivation, tab switch, rerun, close,
 and disposal. The session ledger records that generation in each run; redemption
@@ -92,7 +92,8 @@ row vector, generated SMARTS, receipt internals, origin, or fence.
 
 `_run_live_document_smarts_query_v1`,
 `_show_live_document_smarts_match_v1`, and
-`_retire_live_document_smarts_query_v1` are private, undocumented PyO3 bridge
+`_clear_live_document_smarts_query_v1`, and
+`_clear_live_document_smarts_receipts_v1` are private, undocumented PyO3 bridge
 operations on the existing `PyDocumentSession`. Show accepts an opaque receipt
 and display-row ordinal only. The receipt key is non-forgeable and names no
 borrowed renderer or copied liveness flag. A foreign receipt is refused before
@@ -107,14 +108,15 @@ reservation remains consumed and is never restored; neither success nor a
 post-lookup refusal can replay. Concurrent/reentrant show attempts contend for
 the same atomic reserve, so exactly one can proceed. The synchronous bridge
 holds the `PyDocumentSession` lease through validation and issuance, while
-retirement and plan replacement take the same gate and cannot interleave a
+clearing and plan replacement take the same gate and cannot interleave a
 redemption. A paint instruction is not itself one-use: it is a finite
 identity-free copied value whose *issuance* is one-use and fenced; Qt may retain
-it only until the next mandatory visual retirement. Rerun, mutation,
-reprojection, deactivation, tab close, and disposal retire the receipt.
+it only until the next mandatory source invalidation. Rerun, mutation,
+reprojection, deactivation, tab close, and disposal invalidate Qt's source-bound
+receipt state and clear the Rust-held receipt.
 Snapshot checks remain mandatory if a frontend lifecycle call is missed.
 
-### Mandatory retirement of old proof surfaces
+### Removal of superseded proof surfaces
 
 Delete rather than re-export the renderer and document-render SMARTS proof
 surface: `smarts_target_proof_v1`, `RenderObservationV1::prepare_smarts_targets_v1`,
@@ -139,7 +141,7 @@ redeemable selector.
 ### Proof obligations
 
 Rustdoc-JSON public-surface oracles with hidden items must prove that the three
-crates expose none of the retired proof/redeem names, including through macros,
+crates expose none of the removed proof/redeem names, including through macros,
 aliases, globs, or re-exports. External fixtures must be unable to import,
 construct, debug, clone, serialize, dereference, or redeem any SMARTS renderer
 operation. Positive PyO3/API tests prove that only copied summary fields and
@@ -191,7 +193,7 @@ not an independent chemistry operation and is not a CLI workflow.
    plan/anchor joins, an API-owned monotonic plan-publication generation,
    atomic one-use receipt reservation, and redemption. Qt consumes only
    Rust-issued summary facts and finite identity-free paint instructions.
-6. Patch 2 first retires the `ferrum-chemistry-sys` package. Its generated
+6. Patch 2 first removes the `ferrum-chemistry-sys` package. Its generated
    ABI constants, raw dynamic loading, foreign-buffer ownership, and
    ABI/capability admission belong privately to
    `ferrum_chemistry::native_engine::adapter_boundary`. The existing public
@@ -268,7 +270,7 @@ DocumentTab live Rust document/render-interaction session
 ferrum-api PyO3 attachment: LiveDocumentSmartsQueryBridgeV1
               - one PyDocumentSession / one RenderInteractionSessionV1
               - private exact plan/anchor join, receipt ledger, and redemption
-              - session-owned plan-publication generation and retirement gate
+              - session-owned plan-publication generation and clear gate
                          |
                          v
                     renderer-issued overlay primitives/bounds
@@ -284,12 +286,13 @@ receipt and derives identity-free paint bounds from the same live observation.
 `LiveDocumentSmartsQueryBridgeV1` is implemented in the private
 `ferrum_api::python_binding::live_document_smarts_query_v1` module as methods
 on the existing `PyDocumentSession`. It calls neither renderer SMARTS methods
-nor document-render SMARTS methods because those surfaces are retired. There is
+nor document-render SMARTS methods because those surfaces are removed. There is
 no callback, borrowed session lease, unsafe pointer, second `PyDocumentSession`,
 raw CDML reload, or duplicate runtime. `ferrum-api` owns sealed-runtime
 admission, observation-derived snapshots, the private ledger, and the one-use
-receipt. Qt receives only closed summaries, paint instructions, and a
-retirement hook; none is reexported through public Rust, protocol, or PyO3
+receipt. Qt receives only closed summaries and paint instructions; it
+invalidates source-bound local state before requesting the Rust clear operation.
+None is reexported through public Rust, protocol, or PyO3
 facades.
 
 ## SMARTS profile
@@ -323,7 +326,7 @@ target, resource limit, and zero matches.
 Patch 2 is a single chemistry-boundary change before protocol, CLI, PyO3, or
 Qt query delivery work. It deliberately takes advantage of Ferrum's
 pre-production state: the sole production consumer of `ferrum-chemistry-sys`
-is `ferrum-chemistry`, so the raw facade can be retired rather than preserved
+is `ferrum-chemistry`, so the raw facade can be removed rather than preserved
 as a compatibility package.
 
 ### Work package 2.1: close the adapter boundary
@@ -331,7 +334,7 @@ as a compatibility package.
 Move the generated ABI constants required by the loader, plus `Library`, ABI
 function pointers, ABI/capability admission, foreign owned-buffer release, and
 `!Send + !Sync` enforcement, into private
-`ferrum_chemistry::native_engine::adapter_boundary` ownership. Retire the
+`ferrum_chemistry::native_engine::adapter_boundary` ownership. Remove the
 `ferrum-chemistry-sys` workspace package, source tree, and dependency entirely.
 The existing public
 `NativeChemEngine::load` explicit-adapter path remains a typed
@@ -369,7 +372,7 @@ operations, including `ChemEngine::smarts_match`, but cannot obtain a raw
 loader, buffer, FCQ1/FQM1/FCG1 value, native index, or native detail. It also
 cannot import private document-query core/prepared types, the API sealed
 runtime, runtime-aware execution, live receipt/reveal authority, or
-Python-binding internals. A direct dependency on the retired
+Python-binding internals. A direct dependency on the removed
 `ferrum-chemistry-sys` package must fail because no workspace package or path
 remains.
 
@@ -509,7 +512,7 @@ the source molecule, in source order. A selected-source projection or lowering
 refusal is `unsupported_document` / `selected_source_not_matchable`; a target
 projection refusal is `unsupported_document` / `target_not_matchable`.
 
-`DocumentSmartsQuerySummaryV1` exposes no query text. Retire
+`DocumentSmartsQuerySummaryV1` exposes no query text. Remove
 `query_display` entirely rather than redacting or repurposing it. Its only
 query-origin fact is the closed, identity-free discriminator
 `query_origin: "raw_smarts" | "selected_molecule"`. It conveys which request
@@ -585,9 +588,10 @@ graph-index -> durable atom -> composed `AtomLocal` join from the render
 observation. It uses the sealed runtime only after every target is admitted.
 The API-owned receipt validates origin, revision/digest, generation, liveness,
 row bounds, and one-use state before it copies identity-free finite paint
-bounds. Qt holds only that issued instruction and retires its opaque receipt
-before every mutation, observation replacement, reprojection, rerun, tab
-switch, or disposal. No ordinary `DocumentSession` facade method, public
+bounds. Qt holds only that issued instruction and invalidates its source-bound
+local activation before every mutation, observation replacement, reprojection,
+rerun, tab switch, or disposal; Rust clears the matching receipt. No ordinary
+`DocumentSession` facade method, public
 receipt/paint class, Rust-to-Qt callback, JSON route, CLI route, or raw
 position projection is permitted.
 
@@ -627,7 +631,7 @@ its live query/reveal path and never receives JSON capabilities.
 A row activates only through its current Rust-held typed receipt. A run is
 disabled while pending. Cancellation is enabled only before dispatch. Tab
 switch, source close, stale document, new query, or renderer-plan replacement
-retires activation; the dock does not edit the document. Keyboard, empty,
+invalidates activation; the dock does not edit the document. Keyboard, empty,
 zero-match, invalid, unavailable, stale, capped, and reveal-refused states are
 all explicit.
 
@@ -648,12 +652,12 @@ all explicit.
 4. **Document/protocol core:** fenced request schema, selected-root resolver and
    private `molecule_to_smarts` lowering, public-bound admission, source-order
    traversal/cap allocation, private atom projection, and truthful public DTO.
-5. **Live bridge:** retire all renderer/document-render SMARTS proof exports;
+5. **Live bridge:** remove all renderer/document-render SMARTS proof exports;
    add feature-neutral API `document_smarts_snapshot_v1` and the private PyO3
    module beside `PyDocumentSession`. The sole snapshot constructor performs
    one-pass graph-position-to-`RecordId` lowering. Add exact same-observation
    plan/anchor joins, the session-owned `publish_live_render_plan_v1`
-   retirement-plus-monotonic-generation transaction, a ledger with atomic
+   clear-plus-monotonic-generation transaction, a ledger with atomic
    reserve-before-validation receipt consumption, and one-use-issued
    identity-free Qt paint instructions.
 6. **CLI and PyO3:** one named stateless query executor through the existing
@@ -709,7 +713,7 @@ all explicit.
    geometry. A post-lookup refusal must prove its row was consumed before
    renderer validation, and a source-derived lifecycle oracle must reject any
    direct plan publication that bypasses the session transaction. Rustdoc-JSON
-   and external fixture tests prove retired renderer and
+   and external fixture tests prove removed renderer and
    document-render SMARTS proof/redeem surfaces cannot be reached through a
    module, macro, glob, alias, or re-export; positive API/PyO3 tests expose
    only copied summaries and issued identity-free paint bounds. A direct
@@ -720,7 +724,7 @@ all explicit.
    redacted.
 7. Qt tests prove no local chemistry/geometry or authorization, pending/
    pre-dispatch cancellation, all display states, typed-receipt-only activation, and lifecycle
-   retirement. A fresh isolated Python 3.12 proof pairs sealed ABI-5 native
+   invalidation. A fresh isolated Python 3.12 proof pairs sealed ABI-5 native
    and Qt wheels and exercises CLI, PyO3, and real Qt interaction.
 
 ## Non-goals
@@ -742,7 +746,7 @@ all explicit.
 | --- | --- |
 | Expensive subgraph matching. | Bounded inputs/results, worker responsiveness, no-hard-timeout boundary; later process isolation if needed. |
 | Cap semantics misrepresented. | Tagged per-molecule and traversal completeness with multi-molecule boundary tests. |
-| Receipt misuse. | API-private one-use receipt, full reauthentication, identical-CDML cross-tab tests, identity-free paint issuance, and retirement tests. |
+| Receipt misuse. | API-private one-use receipt, full reauthentication, identical-CDML cross-tab tests, identity-free paint issuance, and invalidation tests. |
 | ABI/wheel drift. | Exact status matrix and retained-link tests plus fresh artifacts. |
 | SMARTS loader or native diagnostics leak through direct typed errors. | Every new `smarts_match` failure uses the closed detail-free `SmartsMatchUnavailable` branch; hostile direct-library fixtures assert that absolute paths and adapter/FCQ1/FQM1/native-detail tokens are absent from `Display`, `Debug`, and public fields. API, CLI, and PyO3 retain broader redaction gates. Legacy chemistry operations are explicitly deferred to the broader redaction redesign. |
 | Typed explicit adapters remain public. | Keep their scope to owned typed general chemistry; prove raw loader/buffer/wire and private document-query/runtime/reveal authority are unreachable. Consolidate whole-program runtime ownership later. |

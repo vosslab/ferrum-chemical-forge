@@ -3,9 +3,11 @@
 pub(crate) mod convert;
 pub(crate) mod coords;
 pub(crate) mod document_export_sdf;
+pub(crate) mod formats;
 pub(crate) mod haworth;
 mod input;
 pub(crate) mod inspect;
+pub(crate) mod inspect_graph;
 pub(crate) mod open;
 pub(crate) mod render;
 pub(crate) mod rewrite;
@@ -21,6 +23,7 @@ use ferrum_document::artifact_publication_v1::{
 use ferrum_document::{DocumentIngressErrorV1, DocumentSessionError};
 use thiserror::Error;
 
+use crate::InterchangeCapabilityResolverV1;
 use crate::cli::engine_bundle;
 use crate::protocol::{
     OperationProtocolEnvelopeV1, OperationProtocolInputErrorV1, OperationProtocolOperationV1,
@@ -69,12 +72,77 @@ pub(crate) fn execute_with_runtime_for_test<R: crate::protocol::runtime::Chemist
 }
 
 fn operation_requires_chemistry(operation: &OperationProtocolOperationV1) -> bool {
-    matches!(
-        operation,
-        OperationProtocolOperationV1::ChemistryConvert(_)
-            | OperationProtocolOperationV1::GenerateCoordinates(_)
-            | OperationProtocolOperationV1::DocumentMoleculeReport(_)
-    )
+    match operation {
+        OperationProtocolOperationV1::ChemistryConvert(request) => {
+            let input = InterchangeCapabilityResolverV1::lookup_input_format(request.input.format);
+            let output =
+                InterchangeCapabilityResolverV1::lookup_output_format(request.output_format);
+            input.zip(output).is_none_or(|(input, output)| {
+                InterchangeCapabilityResolverV1::resolve_execution_profile(input, output)
+                    .requires_chemistry_runtime()
+            })
+        }
+        OperationProtocolOperationV1::InspectInterchangeGraph(request) => {
+            match InterchangeCapabilityResolverV1::lookup_input_format(request.input.format)
+                .and_then(|capability| capability.graph_inspection_profile())
+            {
+                Some(crate::InterchangeGraphInspectionProfileV1::CmlSimpleMolecule) | None => false,
+                Some(crate::InterchangeGraphInspectionProfileV1::SdfNativeSemantic) => true,
+            }
+        }
+        OperationProtocolOperationV1::GenerateCoordinates(_)
+        | OperationProtocolOperationV1::DocumentMoleculeReport(_) => true,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ferrum_document::InterchangeFormatV1;
+
+    use super::operation_requires_chemistry;
+    use crate::protocol::{
+        ChemistryConvertInputV1, ChemistryConvertRequestV1, InspectInterchangeGraphInputV1,
+        InspectInterchangeGraphRequestV1, OperationProtocolOperationV1,
+    };
+
+    fn conversion_operation(
+        input_format: InterchangeFormatV1,
+        output_format: InterchangeFormatV1,
+    ) -> OperationProtocolOperationV1 {
+        OperationProtocolOperationV1::ChemistryConvert(ChemistryConvertRequestV1 {
+            input: ChemistryConvertInputV1 {
+                format: input_format,
+                text: String::new(),
+            },
+            output_format,
+        })
+    }
+
+    #[test]
+    fn conversion_runtime_routing_uses_the_capability_join() {
+        assert!(!operation_requires_chemistry(&conversion_operation(
+            InterchangeFormatV1::CmlSimpleMolecule,
+            InterchangeFormatV1::CmlSimpleMolecule,
+        )));
+        assert!(operation_requires_chemistry(&conversion_operation(
+            InterchangeFormatV1::CmlSimpleMolecule,
+            InterchangeFormatV1::Smiles,
+        )));
+    }
+
+    #[test]
+    fn cml_graph_inspection_explicitly_uses_the_runtime_free_route() {
+        let operation = OperationProtocolOperationV1::InspectInterchangeGraph(
+            InspectInterchangeGraphRequestV1 {
+                input: InspectInterchangeGraphInputV1 {
+                    format: InterchangeFormatV1::CmlSimpleMolecule,
+                    text: String::new(),
+                },
+            },
+        );
+        assert!(!operation_requires_chemistry(&operation));
+    }
 }
 
 pub(crate) fn write_json(
@@ -83,7 +151,21 @@ pub(crate) fn write_json(
 ) -> Result<(), VerbCliError> {
     let mut bytes = serde_json::to_vec(envelope)?;
     bytes.push(b'\n');
-    write_stdout(&bytes, stdout)
+    write_stdout(&bytes, stdout)?;
+    classify_emitted_protocol_envelope(envelope)
+}
+
+/// Return the process outcome after a complete protocol envelope reaches stdout.
+///
+/// Canonical and human-oriented writers share this boundary so an emitted typed
+/// refusal remains the sole payload while still producing a nonzero process status.
+pub(crate) fn classify_emitted_protocol_envelope(
+    envelope: &OperationProtocolEnvelopeV1,
+) -> Result<(), VerbCliError> {
+    if matches!(envelope, OperationProtocolEnvelopeV1::Error(_)) {
+        return Err(VerbCliError::CompletedUnsuccessfulOutcome);
+    }
+    Ok(())
 }
 
 pub(crate) fn write_pretty<T: serde::Serialize>(
@@ -102,7 +184,8 @@ pub(crate) fn write_refusal(message: &str, stderr: &mut dyn Write) -> Result<(),
         .map_err(|source| VerbCliError::Write {
             output: "standard error".to_owned(),
             source,
-        })
+        })?;
+    Err(VerbCliError::CompletedUnsuccessfulOutcome)
 }
 
 pub(crate) fn publish_or_write(
@@ -134,7 +217,7 @@ pub(crate) fn publish_or_write(
     }
 }
 
-fn write_stdout(bytes: &[u8], stdout: &mut dyn Write) -> Result<(), VerbCliError> {
+pub(crate) fn write_stdout(bytes: &[u8], stdout: &mut dyn Write) -> Result<(), VerbCliError> {
     stdout
         .write_all(bytes)
         .map_err(|source| VerbCliError::Write {
@@ -197,12 +280,21 @@ pub enum VerbCliError {
         "usage: choose --from one of the documented closed formats when input has no known extension"
     )]
     MissingInterchangeInputFormat,
+    /// The conversion-output registry has no descriptor for the requested alias.
+    #[error("usage: unsupported conversion output format: {0}")]
+    UnsupportedConversionOutput(String),
+    /// The API-owned interchange capability catalog was internally inconsistent.
+    #[error("configuration: {0}")]
+    InterchangeCapabilityCatalog(#[from] crate::InterchangeCapabilityCatalogErrorV1),
     /// The descriptor-dispatched interchange import completed with a typed refusal.
     #[error("input: interchange import refused: {0:?}")]
     InterchangeImportRefusal(crate::InterchangeImportRefusalV1),
     /// The protocol returned a different successful operation than the verb requested.
     #[error("processing: protocol returned an unexpected operation result")]
     UnexpectedOutcome,
+    /// A typed unsuccessful protocol outcome was already emitted to its documented stream.
+    #[error("processing: completed operation reported an unsuccessful typed outcome")]
+    CompletedUnsuccessfulOutcome,
     /// An internal render completion was not valid standard base64.
     #[error("processing: protocol returned invalid artifact encoding: {0}")]
     ArtifactEncoding(#[from] base64::DecodeError),
@@ -227,6 +319,12 @@ pub enum VerbCliError {
 }
 
 impl VerbCliError {
+    /// Whether this error's complete user-facing outcome was already emitted.
+    #[must_use]
+    pub const fn was_emitted_to_stream(&self) -> bool {
+        matches!(self, Self::CompletedUnsuccessfulOutcome)
+    }
+
     #[must_use]
     pub const fn exit_status(&self) -> u8 {
         match self {
@@ -242,8 +340,11 @@ impl VerbCliError {
             | Self::ProtocolInput(_)
             | Self::MissingArtifactFormat
             | Self::MissingInterchangeInputFormat
+            | Self::UnsupportedConversionOutput(_)
+            | Self::InterchangeCapabilityCatalog(_)
             | Self::InterchangeImportRefusal(_)
             | Self::UnexpectedOutcome
+            | Self::CompletedUnsuccessfulOutcome
             | Self::ArtifactEncoding(_)
             | Self::Write { .. }
             | Self::Publication(_)

@@ -21,7 +21,7 @@ def _enum_token(value: object) -> str:
 
 #============================================
 def _reaction_validation_label(strict: bool) -> str:
-	"""Present the current Rust reaction-validation fact without a retired enum."""
+	"""Present the current Rust reaction-validation fact without a cancelled_by_owner enum."""
 	return "Strict" if strict else "Display only"
 
 
@@ -227,16 +227,17 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		self._observation: object | None = None
 		self._reaction_document_object_id: str | None = None
 		self._owned_dialog: PySide6.QtWidgets.QDialog | None = None
+		self._owned_dialog_cancelled_by_owner = False
 		self._window.installEventFilter(self)
 
 	#============================================
-	def install_action(self, menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-		"""Install the ordinary menu and ribbon command route."""
+	def install_action(self) -> PySide6.QtGui.QAction:
+		"""Construct the ordinary menu and ribbon command route."""
 		action = PySide6.QtGui.QAction(self.tr("Reaction Inspector"), self._window)
 		action.setObjectName("reaction-inspector-action")
 		action.setToolTip(self.tr("Inspect and edit Rust-owned reaction definitions"))
 		action.triggered.connect(self.open)
-		menu.addAction(action)
+		self._window._register_action("chemistry.reaction.inspect", action)
 		return action
 
 	#============================================
@@ -300,9 +301,19 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 
 	#============================================
 	def close(self) -> None:
-		"""Retire only Qt observation state and return canvas focus when possible."""
+		"""Close this inspector and cancel any modal action that it owns.
+
+		An accepted owned dialog is actionable only while this controller still owns
+		a live tab, observation, and selection.  Closing the inspector therefore
+		rejects the modal before releasing that state, so nested modal event loops
+		cannot resume an edit or deletion against a cancelled_by_owner tab.
+		"""
 		dock = self._dock
 		tab = self._tab
+		owned_dialog = self._owned_dialog
+		if owned_dialog is not None:
+			self._owned_dialog_cancelled_by_owner = True
+			owned_dialog.reject()
 		self._dock = None
 		self._list = None
 		self._detail = None
@@ -318,9 +329,9 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 	#============================================
 	def eventFilter(self, watched: PySide6.QtCore.QObject,
 			event: PySide6.QtCore.QEvent) -> bool:
-		"""Retire on hide, close, or external deactivation of this modeless tool."""
+		"""Close on hide, close, or external deactivation of this modeless tool."""
 		if watched is self._window and event.type() == PySide6.QtCore.QEvent.Type.WindowDeactivate:
-			if self._has_foreground_owned_modal():
+			if self._owned_dialog is not None:
 				return super().eventFilter(watched, event)
 			self.close()
 		elif watched is self._window and event.type() in (
@@ -328,15 +339,6 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		):
 			self.close()
 		return super().eventFilter(watched, event)
-
-	#============================================
-	def _has_foreground_owned_modal(self) -> bool:
-		"""Return whether the inspector's modal owns the application's foreground focus."""
-		dialog = self._owned_dialog
-		if dialog is None or not dialog.isVisible():
-			return False
-		application = PySide6.QtWidgets.QApplication.instance()
-		return application.activeModalWidget() is dialog and dialog.isActiveWindow()
 
 	#============================================
 	def _on_visibility_changed(self, visible: bool) -> None:
@@ -354,7 +356,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 			self._observation = self._tab.observe_reaction_list()
 		except (
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
-			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.ReactionCommandError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
 		) as exc:
 			self._recover(exc)
@@ -504,7 +506,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		except (
 			_ReactionInspectorMembershipChangedError,
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
-			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.ReactionCommandError,
 			ferrum_qt.ferrum.engine.OperationValidationError,
 			ferrum_qt.ferrum.engine.PreparedOperationError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
@@ -536,7 +538,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		except (
 			_ReactionInspectorMembershipChangedError,
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
-			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.ReactionCommandError,
 			ferrum_qt.ferrum.engine.OperationValidationError,
 			ferrum_qt.ferrum.engine.PreparedOperationError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
@@ -571,7 +573,7 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 		except (
 			_ReactionInspectorMembershipChangedError,
 			ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabError,
-			ferrum_qt.ferrum.engine.ReactionGestureError,
+			ferrum_qt.ferrum.engine.ReactionCommandError,
 			ferrum_qt.ferrum.engine.OperationValidationError,
 			ferrum_qt.ferrum.engine.PreparedOperationError,
 			ferrum_qt.ferrum.engine.RevisionConflictError,
@@ -583,12 +585,17 @@ class ReactionInspectorController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _run_owned_dialog(self, dialog: PySide6.QtWidgets.QDialog) -> int:
-		"""Run one inspector-owned modal without treating its parent deactivation as loss."""
+		"""Run one modal while preserving the inspector's ownership invariant."""
 		self._owned_dialog = dialog
+		self._owned_dialog_cancelled_by_owner = False
 		try:
 			result = dialog.exec()
 		finally:
+			cancelled_by_owner = self._owned_dialog_cancelled_by_owner
 			self._owned_dialog = None
+			self._owned_dialog_cancelled_by_owner = False
+		if cancelled_by_owner:
+			return PySide6.QtWidgets.QDialog.DialogCode.Rejected
 		return result
 
 	#============================================

@@ -68,8 +68,7 @@ def _scene_receives_carrier_geometry(
 		carrier_point: PySide6.QtCore.QPointF,
 		) -> bool:
 	"""Require the visible scene to hit-test the exact Rust-issued mark midpoint."""
-	viewport_point = tab.view.mapFromScene(carrier_point)
-	for item in tab.view.items(viewport_point):
+	for item in tab.view.scene().items(carrier_point):
 		if isinstance(item, ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem):
 			local_point = item.mapFromScene(carrier_point)
 			if item.shape().contains(local_point):

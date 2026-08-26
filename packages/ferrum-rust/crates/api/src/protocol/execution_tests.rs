@@ -468,6 +468,69 @@ mod tests {
     }
 
     #[test]
+    fn cml_to_cdml_conversion_admits_a_native_document_without_a_runtime() {
+        let source = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule id="first"><atomArray><atom id="carbon" elementType="C" x2="0" y2="0"/></atomArray></molecule><molecule id="second"><atomArray><atom id="oxygen" elementType="O" x2="1" y2="2"/></atomArray></molecule></cml>"#;
+        let request = serde_json::json!({
+            "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+            "request_id": "cml-cdml-no-runtime",
+            "operation": {
+                "kind": "chemistry.convert",
+                "input": {"format": "cml_simple_molecule_import_v1", "text": source},
+                "output_format": "cdml",
+            },
+        });
+        let response = execute_operation_v1(&request.to_string()).expect("JSON input");
+        let OperationProtocolEnvelopeV1::Success(response) = response else {
+            panic!("CML to CDML must not acquire a runtime: {response:?}");
+        };
+        let OperationProtocolOutcomeV1::ChemistryConvert {
+            text, record_count, ..
+        } = response.outcome
+        else {
+            panic!("CML to CDML conversion outcome expected");
+        };
+        ferrum_document::TypedDocument::parse(&text)
+            .expect("runtime-free conversion must emit a valid native CDML document");
+        assert_eq!(record_count, 2);
+    }
+
+    #[test]
+    fn malformed_cml_has_one_protocol_refusal_category_across_conversion_targets() {
+        let malformed_cml = "<!DOCTYPE cml><cml xmlns=\"http://www.xml-cml.org/schema\"/>";
+        let response_for = |output_format| {
+            let request = serde_json::json!({
+                "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+                "request_id": "malformed-cml",
+                "operation": {
+                    "kind": "chemistry.convert",
+                    "input": {"format": "cml_simple_molecule_import_v1", "text": malformed_cml},
+                    "output_format": output_format,
+                },
+            });
+            execute_operation_v1(&request.to_string()).expect("JSON input")
+        };
+
+        let cml_response = response_for("cml_simple_molecule_import_v1");
+        let cdml_response = response_for("cdml");
+        let smiles_response = response_for("smiles");
+        let OperationProtocolEnvelopeV1::Error(cml_error) = cml_response else {
+            panic!("malformed CML must refuse canonical CML output");
+        };
+        let OperationProtocolEnvelopeV1::Error(cdml_error) = cdml_response else {
+            panic!("malformed CML must refuse canonical CDML output");
+        };
+        let OperationProtocolEnvelopeV1::Error(smiles_error) = smiles_response else {
+            panic!("malformed CML must refuse SMILES output");
+        };
+        assert_eq!(cml_error.error.category, cdml_error.error.category);
+        assert_eq!(cml_error.error.category, smiles_error.error.category);
+        assert_eq!(
+            cml_error.error.category,
+            OperationProtocolErrorCategoryV1::ConversionUnsupported
+        );
+    }
+
+    #[test]
     fn convert_refuses_opaque_nested_cdml_instead_of_rebuilding_it_without_data() {
         let request = serde_json::json!({
             "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,

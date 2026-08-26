@@ -33,7 +33,7 @@ enum PyCurvedElectronArrowGestureCategoryV1 {
     ForeignSession,
     StaleSnapshot,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     CollapsedSpan,
     ControlTooNearChord,
@@ -110,9 +110,10 @@ impl PyDocumentSession {
     ) -> PyResult<PyCurvedElectronArrowPreviewV1> {
         preview_curved_electron_arrow_gesture_v1(
             &self.session,
-            gesture.gesture.as_ref().ok_or_else(|| {
-                electron_error(py, CurvedElectronArrowGestureErrorV1::ReplayedGesture)
-            })?,
+            gesture
+                .gesture
+                .as_ref()
+                .ok_or_else(|| electron_error(py, CurvedElectronArrowGestureErrorV1::Consumed))?,
             point(end_x, end_y, py)?,
         )
         .map(|preview| preview_to_python(py, preview))
@@ -127,9 +128,10 @@ impl PyDocumentSession {
     ) -> PyResult<super::prepared_transition_binding::PySessionOperationTransitionRequestV1> {
         resolve_curved_electron_arrow_gesture_v1(
             &self.session,
-            gesture.gesture.take().ok_or_else(|| {
-                electron_error(py, CurvedElectronArrowGestureErrorV1::ReplayedGesture)
-            })?,
+            gesture
+                .gesture
+                .take()
+                .ok_or_else(|| electron_error(py, CurvedElectronArrowGestureErrorV1::Consumed))?,
             preview.preview.clone(),
         )
         .map(
@@ -165,8 +167,8 @@ fn electron_error(py: Python<'_>, error: CurvedElectronArrowGestureErrorV1) -> P
         CurvedElectronArrowGestureCategoryV1::MismatchedPreview => {
             PyCurvedElectronArrowGestureCategoryV1::MismatchedPreview
         }
-        CurvedElectronArrowGestureCategoryV1::ReplayedGesture => {
-            PyCurvedElectronArrowGestureCategoryV1::ReplayedGesture
+        CurvedElectronArrowGestureCategoryV1::Consumed => {
+            PyCurvedElectronArrowGestureCategoryV1::Consumed
         }
         CurvedElectronArrowGestureCategoryV1::InvalidPoint => {
             PyCurvedElectronArrowGestureCategoryV1::InvalidPoint

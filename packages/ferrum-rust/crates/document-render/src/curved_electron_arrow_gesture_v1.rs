@@ -45,7 +45,7 @@ pub enum CurvedElectronArrowGestureCategoryV1 {
     ForeignSession,
     StaleSnapshot,
     MismatchedPreview,
-    ReplayedGesture,
+    Consumed,
     InvalidPoint,
     CollapsedSpan,
     ControlTooNearChord,
@@ -70,7 +70,7 @@ pub enum CurvedElectronArrowGestureErrorV1 {
     #[error("curved terminal-arrow preview belongs to a different gesture")]
     MismatchedPreview,
     #[error("curved terminal-arrow receipt was already consumed")]
-    ReplayedGesture,
+    Consumed,
     #[error("curved terminal-arrow point is invalid")]
     InvalidPoint,
     #[error("curved terminal-arrow start and end are too close")]
@@ -92,7 +92,7 @@ impl CurvedElectronArrowGestureErrorV1 {
             Self::ForeignSession => CurvedElectronArrowGestureCategoryV1::ForeignSession,
             Self::StaleSnapshot => CurvedElectronArrowGestureCategoryV1::StaleSnapshot,
             Self::MismatchedPreview => CurvedElectronArrowGestureCategoryV1::MismatchedPreview,
-            Self::ReplayedGesture => CurvedElectronArrowGestureCategoryV1::ReplayedGesture,
+            Self::Consumed => CurvedElectronArrowGestureCategoryV1::Consumed,
             Self::InvalidPoint => CurvedElectronArrowGestureCategoryV1::InvalidPoint,
             Self::CollapsedSpan => CurvedElectronArrowGestureCategoryV1::CollapsedSpan,
             Self::ControlTooNearChord => CurvedElectronArrowGestureCategoryV1::ControlTooNearChord,
@@ -109,7 +109,7 @@ impl CurvedElectronArrowGestureErrorV1 {
             Self::ForeignSession
             | Self::StaleSnapshot
             | Self::MismatchedPreview
-            | Self::ReplayedGesture
+            | Self::Consumed
             | Self::SessionConflict => CurvedElectronArrowGestureRecoveryV1::RefreshAndRestart,
             Self::CollapsedSpan | Self::ControlTooNearChord | Self::ExceedsGeometryLimit => {
                 CurvedElectronArrowGestureRecoveryV1::ChangeGeometry

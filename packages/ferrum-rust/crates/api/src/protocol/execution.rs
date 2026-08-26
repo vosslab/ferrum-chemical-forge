@@ -40,6 +40,8 @@ mod execution_failure;
 mod execution_placement;
 #[path = "execution_presentation_author.rs"]
 mod execution_presentation_author;
+#[path = "inspect_interchange_graph_v1.rs"]
+mod inspect_interchange_graph_v1;
 use execution_presentation_author::execute_presentation_author;
 #[path = "execution_reaction.rs"]
 mod execution_reaction;
@@ -247,6 +249,8 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
         OperationProtocolOperationV1::ChemistryConvert(request) => {
             execute_chemistry_convert(request, runtime)
         }
+        OperationProtocolOperationV1::InspectInterchangeGraph(request) =>
+            inspect_interchange_graph_v1::execute_inspect_interchange_graph(request, runtime),
         OperationProtocolOperationV1::GenerateCoordinates(request) => {
             execute_generate_coordinates(&request.document, runtime)
         }
@@ -342,6 +346,7 @@ const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> b
             | ProtocolOperationKindV1::DocumentAtomOxidationObserve
             | ProtocolOperationKindV1::DocumentMoleculeHydrogenMaterialize
             | ProtocolOperationKindV1::DocumentCompactGroupMaterialize
+            | ProtocolOperationKindV1::InspectInterchangeGraph
     )
 }
 
@@ -349,6 +354,24 @@ pub(crate) fn canonical_protocol_envelope_json_v1(
     envelope: &OperationProtocolEnvelopeV1,
 ) -> Result<Vec<u8>, serde_json::Error> {
     serde_json::to_vec(envelope)
+}
+
+/// Smallest accepted cap for the closed response-size refusal envelope.
+///
+/// Inspection profiles must reserve this allowance so an oversized successful
+/// response can always be replaced by one complete typed refusal without
+/// recursive output-limit handling.
+pub(crate) const MINIMUM_RESPONSE_SIZE_EXCEEDED_ENVELOPE_BYTES_V1: usize = 512;
+
+pub(crate) fn response_size_exceeded_envelope_v1(
+    envelope: &OperationProtocolEnvelopeV1,
+    operation: ProtocolOperationKindV1,
+) -> OperationProtocolEnvelopeV1 {
+    let request_id = match envelope {
+        OperationProtocolEnvelopeV1::Success(response) => Some(response.request_id.clone()),
+        OperationProtocolEnvelopeV1::Error(response) => response.request_id.clone(),
+    };
+    response_size_exceeded_error(request_id, operation)
 }
 
 fn response_size_exceeded_error(

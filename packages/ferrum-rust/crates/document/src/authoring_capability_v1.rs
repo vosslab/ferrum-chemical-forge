@@ -41,7 +41,7 @@ pub(crate) enum AuthoringCapabilityAccessErrorV1 {
     /// The receipt was issued by a distinct live document session.
     ForeignSession,
     /// The receipt is claimed or was already terminally consumed.
-    Replayed,
+    Consumed,
 }
 
 /// Admission failure while pairing one authoring gesture with its preview.
@@ -56,7 +56,7 @@ pub(crate) enum AuthoringGesturePairAccessErrorV1 {
     /// The receipts are local but do not describe one gesture/preview pair.
     PreviewMismatch,
     /// The shared one-shot receipt was already claimed or consumed.
-    Replayed,
+    Consumed,
 }
 
 /// RAII reservation for a capability-backed document mutation.
@@ -119,8 +119,8 @@ impl AuthoringCapabilityIssuerV1 {
                 AuthoringCapabilityAccessErrorV1::ForeignSession => {
                     AuthoringGesturePairAccessErrorV1::ForeignSession
                 }
-                AuthoringCapabilityAccessErrorV1::Replayed => {
-                    AuthoringGesturePairAccessErrorV1::Replayed
+                AuthoringCapabilityAccessErrorV1::Consumed => {
+                    AuthoringGesturePairAccessErrorV1::Consumed
                 }
             })
     }
@@ -153,7 +153,7 @@ impl AuthoringCapabilityV1 {
             .lock()
             .expect("authoring capability disposition lock is not poisoned");
         if *disposition != AuthoringCapabilityDispositionV1::Available {
-            return Err(AuthoringCapabilityAccessErrorV1::Replayed);
+            return Err(AuthoringCapabilityAccessErrorV1::Consumed);
         }
         *disposition = AuthoringCapabilityDispositionV1::Claimed;
         Ok(AuthoringCapabilityClaimV1 {
@@ -229,7 +229,7 @@ mod tests {
             .consume();
         assert!(matches!(
             committed.claim_for_commit(&issuer),
-            Err(AuthoringCapabilityAccessErrorV1::Replayed)
+            Err(AuthoringCapabilityAccessErrorV1::Consumed)
         ));
     }
 
@@ -253,7 +253,7 @@ mod tests {
         gesture.claim_for_commit(&owner).expect("claim").consume();
         assert!(matches!(
             owner.validate_gesture_pair_for_prepare_v1(&gesture, &gesture, true),
-            Err(AuthoringGesturePairAccessErrorV1::Replayed)
+            Err(AuthoringGesturePairAccessErrorV1::Consumed)
         ));
     }
 }

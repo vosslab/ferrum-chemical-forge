@@ -6,7 +6,7 @@ use crate::{
 
 use super::{
     AdmittedSessionTransitionRefusalV1, DocumentSession, DocumentSessionError, RevisionState,
-    SessionOperationError, SessionOperationResultV1,
+    SessionOperationResultV1,
 };
 
 /// Exact authoritative outcome of one accepted native Paste.
@@ -97,7 +97,7 @@ fn map_transition_refusal(
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             DocumentSessionError::PreparedOperationForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed
+        AdmittedSessionTransitionRefusalV1::Consumed
         | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             DocumentSessionError::PreparedOperationConsumed
         }
@@ -109,9 +109,6 @@ fn map_transition_refusal(
         }
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             DocumentSessionError::RendererAdmission
-        }
-        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            SessionOperationError::HistoryResourceExhausted.into()
         }
     }
 }

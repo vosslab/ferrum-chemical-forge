@@ -283,22 +283,22 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		self._digest: str | None = None
 		self._poller = PySide6.QtCore.QTimer(self)
 		self._poller.setInterval(200)
-		self._poller.timeout.connect(self._retire_if_stale)
+		self._poller.timeout.connect(self._close_if_stale)
 		self._window.installEventFilter(self)
 		application = PySide6.QtWidgets.QApplication.instance()
 		if application is not None:
 			application.focusChanged.connect(self._on_application_focus_changed)
 
 	#============================================
-	def install_action(self, menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-		"""Install the one ordinary non-tool entry route."""
+	def install_action(self) -> PySide6.QtGui.QAction:
+		"""Construct the one ordinary non-tool entry route."""
 		action = PySide6.QtGui.QAction(self.tr("Create Reaction..."), self._window)
 		action.setObjectName("create-reaction-action")
 		action.setToolTip(self.tr(
 			"Classify selected complete roots as reactants, products, arrow, pluses, or condition text through Rust.",
 		))
 		action.triggered.connect(self.open)
-		menu.addAction(action)
+		self._window._register_action("chemistry.reaction.create", action)
 		return action
 
 	#============================================
@@ -309,7 +309,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 
 	#============================================
 	def open(self) -> None:
-		"""Freeze current Rust choices after terminally retiring pointer authoring."""
+		"""Freeze current Rust choices after cancelling pointer authoring."""
 		self.close()
 		self._window.cancel_active_pointer_authoring()
 		tab = self._window._active_native_tab()
@@ -364,7 +364,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _on_visibility_changed(self, visible: bool) -> None:
-		"""Retire invisible modeless state without changing CDML."""
+		"""Close invisible modeless state without changing CDML."""
 		if not visible:
 			self.close()
 
@@ -389,7 +389,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 	#============================================
 	def eventFilter(self, watched: PySide6.QtCore.QObject,
 			event: PySide6.QtCore.QEvent) -> bool:
-		"""Retire a modeless composer when its owning Ferrum window deactivates."""
+		"""Close a modeless composer when its owning Ferrum window deactivates."""
 		if (
 			watched is self._window
 			and event.type() in (
@@ -397,21 +397,21 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 				PySide6.QtCore.QEvent.Type.Hide,
 			)
 		):
-			self._retire_for_focus_loss()
+			self._cancel_for_focus_loss()
 		return super().eventFilter(watched, event)
 
 	#============================================
 	def _on_application_focus_changed(self, _previous: PySide6.QtWidgets.QWidget | None,
 			current: PySide6.QtWidgets.QWidget | None) -> None:
-		"""Keep canvas and dock focus transitions live, but retire another window's form."""
+		"""Keep canvas and dock focus transitions live, but close another window's form."""
 		if self._tab is None or current is None:
 			return
 		if current is self._window or self._window.isAncestorOf(current):
 			return
-		self._retire_for_focus_loss()
+		self._cancel_for_focus_loss()
 
 	#============================================
-	def _retire_for_focus_loss(self) -> None:
+	def _cancel_for_focus_loss(self) -> None:
 		"""Terminally clear disposable authoring state after leaving this document context."""
 		tab = self._tab
 		if tab is None:
@@ -437,7 +437,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		tab.view.setFocus(PySide6.QtCore.Qt.FocusReason.OtherFocusReason)
 
 	#============================================
-	def _retire_if_stale(self) -> None:
+	def _close_if_stale(self) -> None:
 		"""Close rather than submit after tab switch, disposal, or accepted mutation."""
 		if self._tab is None:
 			return
@@ -461,7 +461,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		choices = self._choices
 		if panel is None or tab is None or choices is None:
 			return
-		self._retire_if_stale()
+		self._close_if_stale()
 		if self._panel is None:
 			return
 		reactants, products, arrow, conditions, pluses = panel.request()
@@ -554,7 +554,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 
 	#============================================
 	def _restart_after_typed_refusal(self) -> None:
-		"""Retire only a Rust-declared invalid authoring observation."""
+		"""Close after a Rust-declared invalid authoring observation."""
 		tab = self._tab
 		self.close()
 		if tab is not None:
@@ -570,7 +570,7 @@ class ReactionComposerController(PySide6.QtCore.QObject):
 		if category in {
 			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.stale_snapshot,
 			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.foreign_session,
-			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.replayed_gesture,
+			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.consumed,
 			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.session_conflict,
 			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.missing_reaction,
 			ferrum_qt.ferrum.engine.ReactionRefusalCategoryV1.membership_changed,

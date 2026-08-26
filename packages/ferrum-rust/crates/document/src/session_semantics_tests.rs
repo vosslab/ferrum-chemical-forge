@@ -12,6 +12,7 @@ mod atom_rotation;
 mod bond_mutation;
 mod bond_properties;
 mod bracket_creation;
+mod directed_bond_endpoint_reverse;
 mod drawing_standard;
 mod explicit_fragment;
 mod geometric_properties;

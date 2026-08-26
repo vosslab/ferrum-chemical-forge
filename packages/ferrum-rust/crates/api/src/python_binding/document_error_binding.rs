@@ -49,6 +49,21 @@ create_exception!(
     PreparedOperationConsumedError,
     PreparedOperationError
 );
+create_exception!(
+    ferrum_chem,
+    PreparedOperationStaleSnapshotError,
+    PreparedOperationError
+);
+create_exception!(
+    ferrum_chem,
+    PreparedOperationRendererAdmissionError,
+    PreparedOperationError
+);
+create_exception!(
+    ferrum_chem,
+    PreparedOperationProvisionalCapabilityError,
+    PreparedOperationError
+);
 create_exception!(ferrum_chem, PublicationError, FerrumError);
 create_exception!(ferrum_chem, InvalidDestinationError, PublicationError);
 create_exception!(ferrum_chem, PublicationNotStartedError, PublicationError);

@@ -88,8 +88,9 @@ def test_text_click_commits_exact_runs_selects_and_remains_movable(
 		assert "<font" not in created
 		assert window._render_interaction_selection is not None
 		window._translate_roots_action.trigger()
+		selected_at = _point(tab, 72.0, 36.0)
 		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
-			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, created_at)
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, selected_at)
 		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), _point(tab, 92.0, 54.0))
 		PySide6.QtTest.QTest.mouseRelease(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, _point(tab, 92.0, 54.0))
@@ -104,7 +105,7 @@ def test_text_click_commits_exact_runs_selects_and_remains_movable(
 
 def test_text_cancel_and_preview_failure_leave_cdml_unchanged(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
-	"""Dialog cancellation and any backend failure retire transient state only."""
+	"""Dialog cancellation and any backend failure cancel transient state only."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-cancel.cdml")
 	try:
@@ -137,7 +138,7 @@ def test_text_cancel_and_preview_failure_leave_cdml_unchanged(
 
 def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Escape, settled focus loss, and tool changes retire visible Text state."""
+	"""Escape, settled focus loss, and tool changes cancel visible Text state."""
 	window = ferrum_qt.main_window.MainWindow(object())
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-lifecycle.cdml")
 	try:

@@ -82,7 +82,7 @@ def _select_next_atom_carbon(app: PySide6.QtWidgets.QApplication) -> None:
 		or dialog.accessibleName() != "Next Drawing"
 	):
 		raise CompactGroupAuthorToMaterializeE2eError(
-			"Edit -> Next Drawing did not open its visible public dialog",
+			"Draw -> Drawing setup -> Next Drawing did not open its visible public dialog",
 		)
 	combo = next(
 		widget for widget in dialog.findChildren(PySide6.QtWidgets.QComboBox)
@@ -121,9 +121,9 @@ def _select_next_atom_carbon(app: PySide6.QtWidgets.QApplication) -> None:
 #============================================
 def _choose_next_atom_carbon(window: PySide6.QtWidgets.QMainWindow,
 		app: PySide6.QtWidgets.QApplication) -> None:
-	"""Set C through the public Edit -> Next Drawing workflow."""
+	"""Set C through the public Draw -> Drawing setup -> Next Drawing workflow."""
 	PySide6.QtCore.QTimer.singleShot(0, lambda: _select_next_atom_carbon(app))
-	_trigger_exposed_menu_action(window, app, "Edit", "Next Drawing...")
+	_trigger_exposed_menu_action(window, app, "Draw", "Next Drawing...")
 
 
 #============================================
@@ -273,7 +273,7 @@ def main() -> int:
 		first_carbon = PySide6.QtCore.QPointF(40.0, 40.0)
 		second_carbon = PySide6.QtCore.QPointF(100.0, 40.0)
 		group_anchor = PySide6.QtCore.QPointF(40.0, 125.0)
-		_trigger_exposed_menu_action(window, app, "Edit", "Draw Bond")
+		_trigger_exposed_menu_action(window, app, "Draw", "Draw Bond")
 		PySide6.QtTest.QTest.mousePress(
 			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
@@ -288,14 +288,14 @@ def main() -> int:
 			canvas.mapFromScene(second_carbon),
 		)
 		app.processEvents()
-		_trigger_exposed_menu_action(window, app, "Edit", "Select Structure")
+		_trigger_exposed_menu_action(window, app, "Draw", "Select Structure")
 		PySide6.QtTest.QTest.mouseClick(
 			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
 			canvas.mapFromScene(first_carbon),
 		)
 		app.processEvents()
-		_trigger_exposed_menu_action(window, app, "Chemistry", "Attach Compact Group...")
+		_trigger_exposed_menu_action(window, app, "Draw", "Attach Compact Group...")
 		_choose_me(app)
 		PySide6.QtTest.QTest.mouseRelease(
 			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
@@ -303,7 +303,7 @@ def main() -> int:
 			canvas.mapFromScene(group_anchor),
 		)
 		app.processEvents()
-		_trigger_exposed_menu_action(window, app, "Edit", "Select Structure")
+		_trigger_exposed_menu_action(window, app, "Draw", "Select Structure")
 		PySide6.QtTest.QTest.mouseClick(
 			canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,

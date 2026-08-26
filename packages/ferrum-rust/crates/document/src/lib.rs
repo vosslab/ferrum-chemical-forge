@@ -37,12 +37,16 @@ mod compact_group_projection_v1;
 mod compact_group_v1;
 #[cfg(test)]
 mod compact_group_v1_tests;
+
+#[cfg(test)]
+mod compact_group_phenyl_materialization_tests;
 mod core_projection;
 mod direct_bond_mutation;
 mod direct_bond_primitives_v1;
 mod direct_cdml_semantic_index_v1;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
+mod directed_bond_endpoint_reverse_v1;
 mod document_compact_group_materialization_v1;
 mod document_direct_root_index_v1;
 mod document_explicit_fragment_api_v1;
@@ -221,6 +225,9 @@ pub use direct_haworth_insertion_v1::{
 };
 pub use direct_haworth_reobservation_v1::{
     DirectHaworthReobservationErrorV1, ReobservedDirectHaworthBondFactV1, ReobservedDirectHaworthV1,
+};
+pub use directed_bond_endpoint_reverse_v1::{
+    ReverseDirectedBondEndpointsV1, ReverseDirectedBondEndpointsV1Error,
 };
 pub use document_compact_group_materialization_v1::{
     DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,

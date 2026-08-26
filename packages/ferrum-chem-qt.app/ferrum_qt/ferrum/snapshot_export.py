@@ -137,22 +137,25 @@ class FerrumNativeSnapshotExportWindowMixin:
 		self._snapshot_export_relay = _SnapshotExportDeliveryRelay(self)
 
 	#============================================
-	def _build_snapshot_export_actions(self, file_menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Add the ordinary whole-document artifact commands."""
-		menu = file_menu.addMenu(self.tr("Export..."))
+	def _build_snapshot_export_actions(self) -> None:
+		"""Create and register ordinary whole-document artifact commands."""
 		self._snapshot_export_actions = {}
-		for export_format, label in (
-			(FerrumNativeSnapshotFormat.SVG, "Export SVG..."),
-			(FerrumNativeSnapshotFormat.PDF, "Export PDF..."),
-			(FerrumNativeSnapshotFormat.PNG, "Export PNG (1 pixel per point)..."),
+		for export_format, action_id, label in (
+			(FerrumNativeSnapshotFormat.SVG, "file.export.snapshot.svg", "Export SVG..."),
+			(FerrumNativeSnapshotFormat.PDF, "file.export.snapshot.pdf", "Export PDF..."),
+			(FerrumNativeSnapshotFormat.PNG, "file.export.snapshot.png", "Export PNG (1 pixel per point)..."),
 		):
 			action = PySide6.QtGui.QAction(self.tr(label), self)
+			action.setStatusTip(self.tr("Export the current Ferrum drawing as an artifact."))
 			action.triggered.connect(
 				lambda _checked=False, selected=export_format:
 				self._choose_snapshot_export(selected),
 			)
-			menu.addAction(action)
 			self._snapshot_export_actions[export_format] = action
+			self._action_registry.register_existing(
+				action_id, action,
+				shortcut_exemption_reason="Available by its labelled File menu client.",
+			)
 
 	#============================================
 	def _snapshot_export_busy(self) -> bool:

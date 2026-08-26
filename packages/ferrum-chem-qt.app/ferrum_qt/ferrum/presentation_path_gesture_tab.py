@@ -36,7 +36,7 @@ class FerrumNativePresentationPathGestureTabMixin:
 
 	#============================================
 	def cancel_presentation_path_gesture(self, gesture: object) -> None:
-		"""Retire one opaque Rust path capability without changing the document."""
+		"""Cancel one opaque Rust path capability without changing the document."""
 		self._session.cancel_presentation_path_gesture_v1(gesture)
 
 	#============================================

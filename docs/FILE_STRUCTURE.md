@@ -65,9 +65,9 @@ ferrum-chemical-forge/
 - [../packages/ferrum-chem-qt.app/tests/](../packages/ferrum-chem-qt.app/tests/)
   contains focused application behavior tests and native route E2E tests.
 
-The removed compatibility host, session and worker layers, action and mode
-families, compatibility codecs, and legacy menu and mode resources have no
-replacement subtree. The ordinary package is the supported application route.
+The application tree contains Ferrum-owned Qt presentation, Rust-backed
+chemistry bindings, and their current tests and resources. The ordinary package
+is the supported application route.
 
 ### `tests/` and `docs/`
 

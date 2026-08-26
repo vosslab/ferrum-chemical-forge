@@ -111,11 +111,13 @@ fn catalog_commit_error(error: AdmittedSessionTransitionRefusalV1) -> CatalogPla
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             CatalogPlacementErrorV1::ForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed => CatalogPlacementErrorV1::ReplayedGesture,
+        AdmittedSessionTransitionRefusalV1::Consumed => CatalogPlacementErrorV1::Consumed,
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             CatalogPlacementErrorV1::RenderPreparation
         }
-        _ => CatalogPlacementErrorV1::SessionConflict,
+        AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
+            CatalogPlacementErrorV1::SessionConflict
+        }
     }
 }
 

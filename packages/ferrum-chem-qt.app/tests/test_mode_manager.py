@@ -56,7 +56,7 @@ def test_draw_mode_dispatches_one_completed_bond_gesture() -> None:
 
 
 #============================================
-def test_switching_modes_retires_partial_bracket_gesture() -> None:
+def test_switching_modes_cancels_partial_bracket_gesture() -> None:
 	"""A prior mode cannot commit stale local geometry after a mode switch."""
 	recorder = _DispatchRecorder([])
 	manager = ferrum_qt.modes.mode_manager.ModeManager(recorder)
@@ -94,4 +94,3 @@ def test_arrow_mode_dispatches_the_existing_selected_arrow_seam() -> None:
 		_pointer(ferrum_qt.modes.base_mode.PointerPhase.RELEASE, 3.0, 5.0), context,
 	)
 	assert recorder.intents[-1].operation_id == "arrow.edit_selected"
-

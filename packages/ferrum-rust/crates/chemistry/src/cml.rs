@@ -1,4 +1,4 @@
-//! Closed, non-retaining CML1/CML2 molecule decoder.
+//! Closed, non-retaining CML1/CML2 molecule codec.
 //!
 //! The decoder owns only source chemistry facts.  In particular, CML's y-down
 //! coordinates remain source coordinates here; document admission owns the
@@ -98,6 +98,34 @@ pub struct CmlDecodedDocumentV1 {
     records: Vec<CmlDecodedRecordV1>,
 }
 
+/// Closed reasons why a chemistry record cannot be represented as canonical CML2.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CmlEncoderRefusalReasonV1 {
+    EmptyDocument,
+    TitleUnsupported,
+    PropertiesUnsupported,
+    CoordinatesRequired,
+    CoordinateOutOfRange,
+    AtomChemistryUnsupported,
+    BondChemistryUnsupported,
+    OutputBytesLimit,
+    GeneratedDocumentRejected,
+}
+
+/// Redacted refusal from the closed canonical CML2 encoder.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[error("CML output refused: {reason:?}")]
+pub struct CmlEncoderErrorV1 {
+    reason: CmlEncoderRefusalReasonV1,
+}
+
+impl CmlEncoderErrorV1 {
+    #[must_use]
+    pub const fn reason(self) -> CmlEncoderRefusalReasonV1 {
+        self.reason
+    }
+}
+
 impl CmlDecodedDocumentV1 {
     #[must_use]
     pub fn records(&self) -> &[CmlDecodedRecordV1] {
@@ -176,6 +204,10 @@ fn refused<T>(reason: CmlRefusalReasonV1) -> Result<T> {
 #[path = "cml_decoder.rs"]
 mod cml_decoder;
 pub use cml_decoder::decode_cml_bytes_v1;
+
+#[path = "cml_encoder.rs"]
+mod cml_encoder;
+pub use cml_encoder::{encode_cml_decoded_document_v1, encode_cml_interchange_records_v1};
 
 #[cfg(test)]
 #[path = "cml_tests.rs"]

@@ -42,6 +42,7 @@ pub struct CompactGroupRecipeBondV1 {
 pub enum CompactGroupRecipeBondOrderV1 {
     Single,
     Double,
+    Triple,
 }
 
 /// Bond presentations admitted in immutable compact-materialization recipes.
@@ -68,6 +69,264 @@ const METHYL_ATOMS: [CompactGroupRecipeAtomV1; 1] = [CompactGroupRecipeAtomV1 {
     x: 0.0,
     y: 0.0,
 }];
+
+const ETHYL_ATOMS: [CompactGroupRecipeAtomV1; 2] = [
+    CompactGroupRecipeAtomV1 {
+        role: "attachment_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 0.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "terminal_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 24.0,
+        y: 0.0,
+    },
+];
+
+const ETHYL_BONDS: [CompactGroupRecipeBondV1; 1] = [CompactGroupRecipeBondV1 {
+    start_role: "attachment_carbon",
+    end_role: "terminal_carbon",
+    order: CompactGroupRecipeBondOrderV1::Single,
+    presentation: CompactGroupRecipeBondPresentationV1::Normal,
+}];
+
+const METHOXY_ATOMS: [CompactGroupRecipeAtomV1; 2] = [
+    CompactGroupRecipeAtomV1 {
+        role: "attachment_oxygen",
+        element: "O",
+        formal_charge: None,
+        x: 0.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "methyl_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 24.0,
+        y: 0.0,
+    },
+];
+
+const METHOXY_BONDS: [CompactGroupRecipeBondV1; 1] = [CompactGroupRecipeBondV1 {
+    start_role: "attachment_oxygen",
+    end_role: "methyl_carbon",
+    order: CompactGroupRecipeBondOrderV1::Single,
+    presentation: CompactGroupRecipeBondPresentationV1::Normal,
+}];
+
+const HYDROXYMETHYL_ATOMS: [CompactGroupRecipeAtomV1; 2] = [
+    CompactGroupRecipeAtomV1 {
+        role: "attachment_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 0.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "hydroxyl_oxygen",
+        element: "O",
+        formal_charge: None,
+        x: 24.0,
+        y: 0.0,
+    },
+];
+
+const HYDROXYMETHYL_BONDS: [CompactGroupRecipeBondV1; 1] = [CompactGroupRecipeBondV1 {
+    start_role: "attachment_carbon",
+    end_role: "hydroxyl_oxygen",
+    order: CompactGroupRecipeBondOrderV1::Single,
+    presentation: CompactGroupRecipeBondPresentationV1::Normal,
+}];
+
+const CARBOXYL_ATOMS: [CompactGroupRecipeAtomV1; 3] = [
+    CompactGroupRecipeAtomV1 {
+        role: "attachment_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 0.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "carbonyl_oxygen",
+        element: "O",
+        formal_charge: None,
+        x: 24.0,
+        y: 18.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "hydroxyl_oxygen",
+        element: "O",
+        formal_charge: None,
+        x: 24.0,
+        y: -18.0,
+    },
+];
+
+const CARBOXYL_BONDS: [CompactGroupRecipeBondV1; 2] = [
+    CompactGroupRecipeBondV1 {
+        start_role: "attachment_carbon",
+        end_role: "carbonyl_oxygen",
+        order: CompactGroupRecipeBondOrderV1::Double,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+    CompactGroupRecipeBondV1 {
+        start_role: "attachment_carbon",
+        end_role: "hydroxyl_oxygen",
+        order: CompactGroupRecipeBondOrderV1::Single,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+];
+
+const ACYL_CHLORIDE_ATOMS: [CompactGroupRecipeAtomV1; 3] = [
+    CompactGroupRecipeAtomV1 {
+        role: "attachment_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 0.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "carbonyl_oxygen",
+        element: "O",
+        formal_charge: None,
+        x: 24.0,
+        y: 18.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "chlorine",
+        element: "Cl",
+        formal_charge: None,
+        x: 24.0,
+        y: -18.0,
+    },
+];
+
+const ACYL_CHLORIDE_BONDS: [CompactGroupRecipeBondV1; 2] = [
+    CompactGroupRecipeBondV1 {
+        start_role: "attachment_carbon",
+        end_role: "carbonyl_oxygen",
+        order: CompactGroupRecipeBondOrderV1::Double,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+    CompactGroupRecipeBondV1 {
+        start_role: "attachment_carbon",
+        end_role: "chlorine",
+        order: CompactGroupRecipeBondOrderV1::Single,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+];
+
+const CYANO_ATOMS: [CompactGroupRecipeAtomV1; 2] = [
+    CompactGroupRecipeAtomV1 {
+        role: "attachment_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 0.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "terminal_nitrogen",
+        element: "N",
+        formal_charge: None,
+        x: 24.0,
+        y: 0.0,
+    },
+];
+
+const CYANO_BONDS: [CompactGroupRecipeBondV1; 1] = [CompactGroupRecipeBondV1 {
+    start_role: "attachment_carbon",
+    end_role: "terminal_nitrogen",
+    order: CompactGroupRecipeBondOrderV1::Triple,
+    presentation: CompactGroupRecipeBondPresentationV1::Normal,
+}];
+
+const PHENYL_ATOMS: [CompactGroupRecipeAtomV1; 6] = [
+    CompactGroupRecipeAtomV1 {
+        role: "attachment_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 0.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "ortho_upper_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 12.0,
+        y: -20.784609690826528,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "meta_upper_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 36.0,
+        y: -20.784609690826528,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "para_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 48.0,
+        y: 0.0,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "meta_lower_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 36.0,
+        y: 20.784609690826528,
+    },
+    CompactGroupRecipeAtomV1 {
+        role: "ortho_lower_carbon",
+        element: "C",
+        formal_charge: None,
+        x: 12.0,
+        y: 20.784609690826528,
+    },
+];
+
+const PHENYL_BONDS: [CompactGroupRecipeBondV1; 6] = [
+    CompactGroupRecipeBondV1 {
+        start_role: "attachment_carbon",
+        end_role: "ortho_upper_carbon",
+        order: CompactGroupRecipeBondOrderV1::Double,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+    CompactGroupRecipeBondV1 {
+        start_role: "ortho_upper_carbon",
+        end_role: "meta_upper_carbon",
+        order: CompactGroupRecipeBondOrderV1::Single,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+    CompactGroupRecipeBondV1 {
+        start_role: "meta_upper_carbon",
+        end_role: "para_carbon",
+        order: CompactGroupRecipeBondOrderV1::Double,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+    CompactGroupRecipeBondV1 {
+        start_role: "para_carbon",
+        end_role: "meta_lower_carbon",
+        order: CompactGroupRecipeBondOrderV1::Single,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+    CompactGroupRecipeBondV1 {
+        start_role: "meta_lower_carbon",
+        end_role: "ortho_lower_carbon",
+        order: CompactGroupRecipeBondOrderV1::Double,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+    CompactGroupRecipeBondV1 {
+        start_role: "ortho_lower_carbon",
+        end_role: "attachment_carbon",
+        order: CompactGroupRecipeBondOrderV1::Single,
+        presentation: CompactGroupRecipeBondPresentationV1::Normal,
+    },
+];
 
 const NITRO_ATOMS: [CompactGroupRecipeAtomV1; 3] = [
     CompactGroupRecipeAtomV1 {
@@ -114,6 +373,50 @@ const METHYL_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMateriali
     attachment_atom_role: "attachment_carbon",
 };
 
+const ETHYL_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMaterializationRecipeV1 {
+    atoms: &ETHYL_ATOMS,
+    bonds: &ETHYL_BONDS,
+    attachment_atom_role: "attachment_carbon",
+};
+
+const METHOXY_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMaterializationRecipeV1 {
+    atoms: &METHOXY_ATOMS,
+    bonds: &METHOXY_BONDS,
+    attachment_atom_role: "attachment_oxygen",
+};
+
+const HYDROXYMETHYL_RECIPE: CompactGroupMaterializationRecipeV1 =
+    CompactGroupMaterializationRecipeV1 {
+        atoms: &HYDROXYMETHYL_ATOMS,
+        bonds: &HYDROXYMETHYL_BONDS,
+        attachment_atom_role: "attachment_carbon",
+    };
+
+const CARBOXYL_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMaterializationRecipeV1 {
+    atoms: &CARBOXYL_ATOMS,
+    bonds: &CARBOXYL_BONDS,
+    attachment_atom_role: "attachment_carbon",
+};
+
+const ACYL_CHLORIDE_RECIPE: CompactGroupMaterializationRecipeV1 =
+    CompactGroupMaterializationRecipeV1 {
+        atoms: &ACYL_CHLORIDE_ATOMS,
+        bonds: &ACYL_CHLORIDE_BONDS,
+        attachment_atom_role: "attachment_carbon",
+    };
+
+const CYANO_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMaterializationRecipeV1 {
+    atoms: &CYANO_ATOMS,
+    bonds: &CYANO_BONDS,
+    attachment_atom_role: "attachment_carbon",
+};
+
+const PHENYL_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMaterializationRecipeV1 {
+    atoms: &PHENYL_ATOMS,
+    bonds: &PHENYL_BONDS,
+    attachment_atom_role: "attachment_carbon",
+};
+
 const NITRO_RECIPE: CompactGroupMaterializationRecipeV1 = CompactGroupMaterializationRecipeV1 {
     // Nitro materializes canonically as R-[N+](=O)[O-]. This closed recipe
     // owns one resonance form so materialization remains deterministic.
@@ -137,24 +440,31 @@ pub enum CompactGroupCatalogKeyV1 {
     Hydroxymethyl,
 }
 
-const REVIEWED_ATTACHED_COMPACT_GROUP_KEYS_V1: [CompactGroupCatalogKeyV1; 2] = [
+const ATTACHED_COMPACT_GROUP_AUTHORING_KEYS_V1: &[CompactGroupCatalogKeyV1] = &[
     CompactGroupCatalogKeyV1::Methyl,
     CompactGroupCatalogKeyV1::Nitro,
+    CompactGroupCatalogKeyV1::Ethyl,
+    CompactGroupCatalogKeyV1::Methoxy,
+    CompactGroupCatalogKeyV1::Hydroxymethyl,
+    CompactGroupCatalogKeyV1::Carboxyl,
+    CompactGroupCatalogKeyV1::Cyano,
+    CompactGroupCatalogKeyV1::AcylChloride,
+    CompactGroupCatalogKeyV1::Phenyl,
 ];
 
-/// Return the closed catalog keys reviewed for attached compact-group authoring.
+/// Return the closed catalog keys supported by attached compact-group authoring.
 ///
 /// Persisted catalog support and materialization support are intentionally broader
 /// and separate from this authoring capability.
 #[must_use]
-pub const fn reviewed_attached_compact_group_keys_v1() -> [CompactGroupCatalogKeyV1; 2] {
-    REVIEWED_ATTACHED_COMPACT_GROUP_KEYS_V1
+pub const fn attached_compact_group_authoring_keys_v1() -> &'static [CompactGroupCatalogKeyV1] {
+    ATTACHED_COMPACT_GROUP_AUTHORING_KEYS_V1
 }
 
-/// Return whether one persisted key is reviewed for attached compact-group authoring.
+/// Return whether attached compact-group authoring supports one persisted key.
 #[must_use]
-pub fn is_reviewed_attached_compact_group_key_v1(key: CompactGroupCatalogKeyV1) -> bool {
-    reviewed_attached_compact_group_keys_v1().contains(&key)
+pub fn supports_attached_compact_group_authoring_v1(key: CompactGroupCatalogKeyV1) -> bool {
+    attached_compact_group_authoring_keys_v1().contains(&key)
 }
 
 impl CompactGroupCatalogKeyV1 {
@@ -242,14 +552,14 @@ pub const fn materialization_recipe_v1(
 ) -> Option<CompactGroupMaterializationRecipeV1> {
     match key {
         CompactGroupCatalogKeyV1::Methyl => Some(METHYL_RECIPE),
+        CompactGroupCatalogKeyV1::Ethyl => Some(ETHYL_RECIPE),
+        CompactGroupCatalogKeyV1::Methoxy => Some(METHOXY_RECIPE),
         CompactGroupCatalogKeyV1::Nitro => Some(NITRO_RECIPE),
-        CompactGroupCatalogKeyV1::Ethyl
-        | CompactGroupCatalogKeyV1::Phenyl
-        | CompactGroupCatalogKeyV1::Methoxy
-        | CompactGroupCatalogKeyV1::Cyano
-        | CompactGroupCatalogKeyV1::Carboxyl
-        | CompactGroupCatalogKeyV1::AcylChloride
-        | CompactGroupCatalogKeyV1::Hydroxymethyl => None,
+        CompactGroupCatalogKeyV1::Hydroxymethyl => Some(HYDROXYMETHYL_RECIPE),
+        CompactGroupCatalogKeyV1::Carboxyl => Some(CARBOXYL_RECIPE),
+        CompactGroupCatalogKeyV1::Cyano => Some(CYANO_RECIPE),
+        CompactGroupCatalogKeyV1::AcylChloride => Some(ACYL_CHLORIDE_RECIPE),
+        CompactGroupCatalogKeyV1::Phenyl => Some(PHENYL_RECIPE),
     }
 }
 
@@ -266,59 +576,5 @@ pub fn is_admitted_atom_symbol_v1(value: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{CompactGroupCatalogKeyV1, is_admitted_atom_symbol_v1, materialization_recipe_v1};
-
-    #[test]
-    fn catalog_identity_binds_label_and_attachment_sites() {
-        let methyl = CompactGroupCatalogKeyV1::parse("methyl").expect("known key");
-        assert_eq!(methyl.label(), "Me");
-        assert_eq!(CompactGroupCatalogKeyV1::from_label("Me"), Some(methyl));
-        assert!(methyl.supports_attachment_index(0));
-        assert!(!methyl.supports_attachment_index(1));
-        assert_eq!(CompactGroupCatalogKeyV1::from_label("C"), None);
-    }
-
-    #[test]
-    fn atom_symbol_grammar_has_exact_ascii_boundaries() {
-        for symbol in ["C", "Cl", "Uuo"] {
-            assert!(is_admitted_atom_symbol_v1(symbol), "{symbol}");
-        }
-        for symbol in ["", "c", "ABC", "abc", "Clll", "C1"] {
-            assert!(!is_admitted_atom_symbol_v1(symbol), "{symbol}");
-        }
-    }
-
-    #[test]
-    fn closed_materialization_recipes_do_not_interpret_labels() {
-        let methyl =
-            materialization_recipe_v1(CompactGroupCatalogKeyV1::Methyl).expect("methyl recipe");
-        assert_eq!(methyl.attachment_atom_role, "attachment_carbon");
-        let nitro =
-            materialization_recipe_v1(CompactGroupCatalogKeyV1::Nitro).expect("nitro recipe");
-        assert_eq!(nitro.attachment_atom_role, "attachment_nitrogen");
-        assert!(materialization_recipe_v1(CompactGroupCatalogKeyV1::Ethyl).is_none());
-    }
-
-    #[test]
-    fn nitro_recipe_encodes_its_closed_formal_charge_topology() {
-        let nitro =
-            materialization_recipe_v1(CompactGroupCatalogKeyV1::Nitro).expect("nitro recipe");
-        assert_eq!(nitro.atoms.len(), 3);
-        assert_eq!(nitro.atoms[0].role, "attachment_nitrogen");
-        assert_eq!(nitro.atoms[0].formal_charge, Some(1));
-        assert_eq!(nitro.atoms[1].role, "double_oxygen");
-        assert_eq!(nitro.atoms[1].formal_charge, None);
-        assert_eq!(nitro.atoms[2].role, "single_oxygen");
-        assert_eq!(nitro.atoms[2].formal_charge, Some(-1));
-        assert_eq!(nitro.bonds.len(), 2);
-        assert_eq!(
-            nitro.bonds[0].order,
-            super::CompactGroupRecipeBondOrderV1::Double
-        );
-        assert_eq!(
-            nitro.bonds[1].order,
-            super::CompactGroupRecipeBondOrderV1::Single
-        );
-    }
-}
+#[path = "compact_group_catalog_v1_tests.rs"]
+mod tests;

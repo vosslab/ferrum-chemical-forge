@@ -647,21 +647,21 @@ base. Ferrum-Chem preserves the serialized order; it does not rederive it from
 X/Y geometry. This is the same order consumed by the filled and hashed wedge
 renderers, not an additional stereo record.
 
-The public V3 direct-bond authoring route,
-`begin_direct_bond_gesture_v3` -> `admit_direct_bond_candidate_v3` ->
-`commit_direct_bond_admission_v3`, writes its pointer start as `start` and its
-pointer end as `end` for both `w1` and `h1`. Thus `Draw Solid Wedge Bond` and
-`Draw Hashed Wedge Bond` always author from tip to base. This direction is a
-durable CDML depiction fact shared by admitted Rust operations, committed
-projection, and rendering; it is not inferred from a later stereochemical
-analysis. V2 gesture values and lifecycle remain internal Rust implementation
-details. The separate `ferrum-document` neutral mutation seam is native-Rust-
-only programmatic document work with already-resolved durable atom IDs or finite
-new-atom points; it is not an interactive gesture route and has no Qt/PyO3 API.
+The unversioned in-process direct-bond gesture begins, resolves its endpoint,
+prepares a generic `PreparedSessionTransitionV1`, and generically commits the
+one-use transition. For both `w1` and `h1`, it writes the pointer start as
+`start` and the pointer end as `end`. Thus `Draw Solid Wedge Bond` and `Draw
+Hashed Wedge Bond` always author from tip to base. This direction is a durable
+CDML depiction fact shared by `CreateDirectBondV1`, committed projection, and
+rendering; it is not inferred from a later stereochemical analysis. The gesture
+capability itself is not serialized or compatibility-bound. The separate
+`ferrum-document` neutral mutation seam is native-Rust-only programmatic
+document work with already-resolved durable atom IDs or finite new-atom points;
+it is not an interactive gesture route and has no Qt/PyO3 API.
 
 `q1` Haworth front edges and `n*` ordinary bonds retain their existing ordered
 endpoint references but have no new wide/narrow interpretation. Every `q1`,
-`w1`, `h1`, and `n1` remains chemical order one. Authored V3 wedges require
+`w1`, `h1`, and `n1` remains chemical order one. Authored wedges require
 the ordered tip-to-base endpoint contract; the route has no directionless input
 form or automatic endpoint reordering. Imported compatible CDML retains its
 serialized endpoint order. A repair for a historical producer that did not

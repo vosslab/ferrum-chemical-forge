@@ -29,29 +29,20 @@ class FerrumNativeViewControlsMixin:
 
 	#============================================
 	def _build_view_controls_actions(self) -> None:
-		"""Install the compact Ferrum View menu."""
-		menu = self.menuBar().addMenu(self.tr("View"))
-		self._view_menu = menu
+		"""Construct the compact Ferrum View actions for declarative placement."""
 		self._zoom_in_action = PySide6.QtGui.QAction(self.tr("Zoom In"), self)
 		self._zoom_in_action.setShortcut(PySide6.QtGui.QKeySequence(self.tr("Ctrl++")))
 		self._zoom_in_action.triggered.connect(self._zoom_in_active_view)
-		menu.addAction(self._zoom_in_action)
 		self._zoom_out_action = PySide6.QtGui.QAction(self.tr("Zoom Out"), self)
 		self._zoom_out_action.setShortcut(PySide6.QtGui.QKeySequence(self.tr("Ctrl+-")))
 		self._zoom_out_action.triggered.connect(self._zoom_out_active_view)
-		menu.addAction(self._zoom_out_action)
 		self._zoom_100_action = PySide6.QtGui.QAction(self.tr("Zoom to 100%"), self)
 		self._zoom_100_action.setShortcut(PySide6.QtGui.QKeySequence(self.tr("Ctrl+0")))
 		self._zoom_100_action.triggered.connect(self._reset_active_view_zoom)
-		menu.addAction(self._zoom_100_action)
-		menu.addSeparator()
 		self._zoom_page_action = PySide6.QtGui.QAction(self.tr("Zoom to Page"), self)
 		self._zoom_page_action.triggered.connect(self._fit_active_view_to_page)
-		menu.addAction(self._zoom_page_action)
 		self._zoom_content_action = PySide6.QtGui.QAction(self.tr("Zoom to Content"), self)
 		self._zoom_content_action.triggered.connect(self._fit_active_view_to_content)
-		menu.addAction(self._zoom_content_action)
-		menu.addSeparator()
 		self._show_hex_grid_action = PySide6.QtGui.QAction(
 			self.tr("Show Hex Grid"), self,
 		)
@@ -63,7 +54,6 @@ class FerrumNativeViewControlsMixin:
 		self._show_hex_grid_action.triggered.connect(
 			self._on_native_hex_grid_visibility_changed,
 		)
-		menu.addAction(self._show_hex_grid_action)
 		self._snap_hex_grid_action = PySide6.QtGui.QAction(
 			self.tr("Snap New and Moved Points to Hex Grid"), self,
 		)
@@ -84,7 +74,16 @@ class FerrumNativeViewControlsMixin:
 		self._snap_hex_grid_action.triggered.connect(
 			self._on_native_hex_grid_snap_changed,
 		)
-		menu.addAction(self._snap_hex_grid_action)
+		for action_id, action, lifecycle in (
+			("view.zoom_in", self._zoom_in_action, "static"),
+			("view.zoom_out", self._zoom_out_action, "static"),
+			("view.zoom_100", self._zoom_100_action, "static"),
+			("view.zoom_page", self._zoom_page_action, "static"),
+			("view.zoom_content", self._zoom_content_action, "static"),
+			("view.grid.visible", self._show_hex_grid_action, "stateful-visibility"),
+			("view.grid.snap", self._snap_hex_grid_action, "stateful-visibility"),
+		):
+			self._register_action(action_id, action, lifecycle=lifecycle)
 
 	#============================================
 	def _install_native_view_status_controls(self) -> None:
@@ -319,7 +318,7 @@ class FerrumNativeViewControlsMixin:
 
 	#============================================
 	def _cancel_native_view_controls_for_tab(self, tab: object) -> None:
-		"""Forget queued and completed framing ownership before a tab is retired."""
+		"""Clear queued and completed framing state before a tab closes."""
 		self._initial_view_frame_requested.discard(tab)
 		self._initial_view_frame_completed.discard(tab)
 

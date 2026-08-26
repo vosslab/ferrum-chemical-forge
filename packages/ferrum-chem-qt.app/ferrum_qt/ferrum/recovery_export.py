@@ -31,15 +31,18 @@ class FerrumNativeRecoveryExportWindowMixin:
 	"""Own only the Ferrum Recovery Export action and its provenance fence."""
 
 	#============================================
-	def _build_recovery_export_action(self, file_menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Install the explicit backend-copy action in the Ferrum File menu."""
+	def _build_recovery_export_action(self) -> None:
+		"""Create and register the explicit backend-copy action."""
 		action = PySide6.QtGui.QAction(self.tr("Recovery Export CDML..."), self)
 		action.setToolTip(self.tr(
 			"Copy the current CDML without changing this document's saved file or unsaved state",
 		))
 		action.triggered.connect(self._on_native_recovery_export)
-		file_menu.addAction(action)
 		self._recovery_export_action = action
+		self._action_registry.register_existing(
+			"file.export.recovery_cdml", action,
+			shortcut_exemption_reason="Available by its labelled File menu client.",
+		)
 
 	#============================================
 	def _refresh_recovery_export_action(

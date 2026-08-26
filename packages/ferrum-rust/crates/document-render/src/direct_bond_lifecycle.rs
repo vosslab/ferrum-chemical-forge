@@ -8,7 +8,7 @@ use ferrum_document::{
 };
 
 #[derive(Debug)]
-pub(crate) struct DirectBondGesture {
+pub(crate) struct DirectBondLifecycleGesture {
     pub(crate) capability: AuthoringCapabilityV1,
     fence: DocumentFenceV1,
     start: DirectBondEndpointIntent,
@@ -17,15 +17,15 @@ pub(crate) struct DirectBondGesture {
     snap: DirectBondSnapPolicyV1,
 }
 
-pub(crate) fn begin_direct_bond_v3_lifecycle(
+pub(crate) fn begin_direct_bond_lifecycle(
     session: &DocumentSession,
     fence: DocumentFenceV1,
     start: DirectBondEndpointIntent,
     presentation: DocumentBondPresentationV1,
     new_atom_element: String,
     snap: DirectBondSnapPolicyV1,
-) -> Result<DirectBondGesture, DirectBondGestureErrorV1> {
-    Ok(DirectBondGesture {
+) -> Result<DirectBondLifecycleGesture, DirectBondGestureErrorV1> {
+    Ok(DirectBondLifecycleGesture {
         capability: session.issue_authoring_capability_v1(),
         fence,
         start,
@@ -35,11 +35,11 @@ pub(crate) fn begin_direct_bond_v3_lifecycle(
     })
 }
 
-pub(crate) fn resolve_direct_bond_end(
-    gesture: DirectBondGesture,
+pub(crate) fn resolve_direct_bond_lifecycle_end(
+    gesture: DirectBondLifecycleGesture,
     end: DirectBondEndpointIntent,
 ) -> Result<SessionOperationTransitionRequestV1, DirectBondAdmissionRefusalV1> {
-    let DirectBondGesture {
+    let DirectBondLifecycleGesture {
         capability,
         fence,
         start,

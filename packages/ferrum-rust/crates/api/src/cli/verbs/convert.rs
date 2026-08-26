@@ -3,21 +3,20 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::cli::{InterchangeFormat, InterchangeInputFormat};
+use super::{VerbCliError, execute, publish_or_write, read_text, write_json, write_refusal};
+use crate::InterchangeCapabilityResolverV1;
+use crate::cli::{InterchangeInputFormat, interchange_input_format_from_protocol_format};
 use crate::protocol::{
     ChemistryConvertInputV1, ChemistryConvertRequestV1, OperationProtocolEnvelopeV1,
     OperationProtocolOperationV1, OperationProtocolOutcomeV1,
 };
-use ferrum_document::INTERCHANGE_MAX_TEXT_BYTES_V1;
-
-use super::{VerbCliError, execute, publish_or_write, read_text, write_json, write_refusal};
 
 /// Accepted presentation arguments for one conversion request.
 pub(crate) struct ConvertOptions {
     pub(crate) input: PathBuf,
     pub(crate) output: Option<PathBuf>,
     pub(crate) input_format: Option<InterchangeInputFormat>,
-    pub(crate) output_format: InterchangeFormat,
+    pub(crate) output_format: String,
     pub(crate) json: bool,
 }
 
@@ -31,7 +30,21 @@ pub(crate) fn run(
         .input_format
         .or_else(|| infer_input_format(&options.input))
         .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
-    run_with_executor(options, input_format, stdin, stdout, stderr, execute)
+    let input = InterchangeCapabilityResolverV1::lookup_input_format(input_format.into())
+        .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
+    let output = output_format(&options.output_format)?;
+    let execution_profile =
+        InterchangeCapabilityResolverV1::resolve_execution_profile(input, output);
+    run_with_executor(
+        options,
+        input_format,
+        output.target().protocol_format(),
+        execution_profile,
+        stdin,
+        stdout,
+        stderr,
+        execute,
+    )
 }
 
 #[cfg(test)]
@@ -46,14 +59,28 @@ pub(crate) fn run_with_runtime_for_test<R: crate::protocol::runtime::ChemistryRu
         .input_format
         .or_else(|| infer_input_format(&options.input))
         .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
-    run_with_executor(options, input_format, stdin, stdout, stderr, |operation| {
-        super::execute_with_runtime_for_test(operation, runtime)
-    })
+    let input = InterchangeCapabilityResolverV1::lookup_input_format(input_format.into())
+        .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
+    let output = output_format(&options.output_format)?;
+    let execution_profile =
+        InterchangeCapabilityResolverV1::resolve_execution_profile(input, output);
+    run_with_executor(
+        options,
+        input_format,
+        output.target().protocol_format(),
+        execution_profile,
+        stdin,
+        stdout,
+        stderr,
+        |operation| super::execute_with_runtime_for_test(operation, runtime),
+    )
 }
 
 fn run_with_executor(
     options: ConvertOptions,
     input_format: InterchangeInputFormat,
+    output_format: ferrum_document::InterchangeFormatV1,
+    execution_profile: crate::ConversionExecutionProfileV1,
     stdin: &mut dyn Read,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -61,14 +88,14 @@ fn run_with_executor(
         OperationProtocolOperationV1,
     ) -> Result<OperationProtocolEnvelopeV1, VerbCliError>,
 ) -> Result<(), VerbCliError> {
-    let source = read_text(&options.input, stdin, input_limit(input_format))?;
+    let source = read_text(&options.input, stdin, execution_profile.max_source_bytes())?;
     let envelope = executor(OperationProtocolOperationV1::ChemistryConvert(
         ChemistryConvertRequestV1 {
             input: ChemistryConvertInputV1 {
                 format: input_format.into(),
                 text: source.text,
             },
-            output_format: options.output_format.into(),
+            output_format,
         },
     ))?;
     if options.json {
@@ -91,16 +118,11 @@ fn run_with_executor(
     }
 }
 
-fn input_limit(format: InterchangeInputFormat) -> usize {
-    match format {
-        InterchangeInputFormat::CmlSimpleMolecule => {
-            crate::interchange_import_v1::InterchangeFormatRegistryV1::lookup_input_alias("cml")
-                .expect("CML conversion alias is registry-owned")
-                .limits()
-                .max_source_bytes()
-        }
-        InterchangeInputFormat::Native(_) => INTERCHANGE_MAX_TEXT_BYTES_V1,
-    }
+fn output_format(
+    alias: &str,
+) -> Result<&'static crate::ConversionOutputDescriptorV1, VerbCliError> {
+    InterchangeCapabilityResolverV1::lookup_output_alias(alias)
+        .ok_or_else(|| VerbCliError::UnsupportedConversionOutput(alias.to_owned()))
 }
 
 fn infer_input_format(input: &Path) -> Option<InterchangeInputFormat> {
@@ -108,35 +130,20 @@ fn infer_input_format(input: &Path) -> Option<InterchangeInputFormat> {
         return None;
     }
     let extension = input.extension()?.to_str()?.to_ascii_lowercase();
-    let registry_suffix = format!(".{extension}");
-    if let Ok(descriptor) =
-        crate::interchange_import_v1::InterchangeFormatRegistryV1::lookup_input_suffix(
-            &registry_suffix,
-        )
-    {
-        return Some(crate::cli::interchange_input_format_from_descriptor(
-            descriptor,
-        ));
-    }
-    match extension.as_str() {
-        "cdml" => Some(InterchangeInputFormat::Native(InterchangeFormat::Cdml)),
-        "smi" | "smiles" => Some(InterchangeInputFormat::Native(InterchangeFormat::Smiles)),
-        "inchi" => Some(InterchangeInputFormat::Native(
-            InterchangeFormat::InchiStandard,
-        )),
-        "mol" | "molblock" => Some(InterchangeInputFormat::Native(
-            InterchangeFormat::MolblockV2000,
-        )),
-        "sdf" => Some(InterchangeInputFormat::Native(InterchangeFormat::SdfV2000)),
-        _ => None,
-    }
+    let suffix = format!(".{extension}");
+    InterchangeCapabilityResolverV1::lookup_input_suffix(&suffix)
+        .ok()
+        .map(|descriptor| {
+            interchange_input_format_from_protocol_format(descriptor.protocol_format())
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
-    use crate::cli::{InterchangeFormat, InterchangeInputFormat};
+    use crate::cli::InterchangeInputFormat;
+    use crate::cli::commands::InterchangeFormat;
 
     use super::infer_input_format;
 

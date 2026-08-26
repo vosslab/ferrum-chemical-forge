@@ -37,18 +37,19 @@ class CompactGroupUnavailableAnchorRecoveryE2eError(RuntimeError):
 
 
 #============================================
-def _exposed_menu_action(window: PySide6.QtWidgets.QMainWindow, menu_label: str,
-		action_label: str) -> PySide6.QtGui.QAction:
-	"""Return one visible public menu action by its displayed labels."""
+def _exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
+		menu_path: tuple[str, ...], action_label: str) -> PySide6.QtGui.QAction:
+	"""Return one visible public action by its displayed menu path and text."""
 	menu_bar = window.menuBar()
+	menu_path_text = " > ".join(menu_path)
 	menu_action = next(
 		action for action in menu_bar.actions()
-		if action.text().replace("&", "") == menu_label
+		if action.text().replace("&", "") == menu_path[0]
 	)
 	menu = menu_action.menu()
 	if not menu_bar.isVisible() or not menu_action.isVisible() or menu is None:
 		raise CompactGroupUnavailableAnchorRecoveryE2eError(
-			"Ferrum did not publicly expose the {0} menu".format(menu_label),
+			"Ferrum did not publicly expose the {0} menu".format(menu_path[0]),
 		)
 	action = next(
 		candidate for candidate in menu.actions()
@@ -56,19 +57,21 @@ def _exposed_menu_action(window: PySide6.QtWidgets.QMainWindow, menu_label: str,
 	)
 	if not action.isVisible():
 		raise CompactGroupUnavailableAnchorRecoveryE2eError(
-			"{0} -> {1} was not visibly exposed".format(menu_label, action_label),
+			"{0} -> {1} was not visibly exposed".format(menu_path_text, action_label),
 		)
 	return action
 
 
 #============================================
 def _trigger_exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
-			app: PySide6.QtWidgets.QApplication, menu_label: str, action_label: str) -> None:
+			app: PySide6.QtWidgets.QApplication, menu_path: tuple[str, ...],
+			action_label: str) -> None:
 	"""Trigger one visible enabled public menu action by its displayed text."""
-	action = _exposed_menu_action(window, menu_label, action_label)
+	menu_path_text = " > ".join(menu_path)
+	action = _exposed_menu_action(window, menu_path, action_label)
 	if not action.isEnabled():
 		raise CompactGroupUnavailableAnchorRecoveryE2eError(
-			"{0} -> {1} was not publicly available".format(menu_label, action_label),
+			"{0} -> {1} was not publicly available".format(menu_path_text, action_label),
 		)
 	action.trigger()
 	app.processEvents()
@@ -76,12 +79,14 @@ def _trigger_exposed_menu_action(window: PySide6.QtWidgets.QMainWindow,
 
 #============================================
 def _activate_exposed_tool_action(window: PySide6.QtWidgets.QMainWindow,
-			app: PySide6.QtWidgets.QApplication, menu_label: str, action_label: str) -> None:
+			app: PySide6.QtWidgets.QApplication, menu_path: tuple[str, ...],
+			action_label: str) -> None:
 	"""Ensure one visible checkable canvas tool owns the next public gesture."""
-	action = _exposed_menu_action(window, menu_label, action_label)
+	menu_path_text = " > ".join(menu_path)
+	action = _exposed_menu_action(window, menu_path, action_label)
 	if not action.isEnabled() or not action.isCheckable():
 		raise CompactGroupUnavailableAnchorRecoveryE2eError(
-			"{0} -> {1} was not an available canvas tool".format(menu_label, action_label),
+			"{0} -> {1} was not an available canvas tool".format(menu_path_text, action_label),
 		)
 	if not action.isChecked():
 		action.trigger()
@@ -107,7 +112,7 @@ def _set_next_atom(app: PySide6.QtWidgets.QApplication, element: str) -> None:
 		or dialog.accessibleName() != "Next Drawing"
 	):
 		raise CompactGroupUnavailableAnchorRecoveryE2eError(
-			"Edit -> Next Drawing did not open its visible public dialog",
+			"Draw > Drawing setup > Next Drawing did not open its visible public dialog",
 		)
 	combo = next(
 		widget for widget in dialog.findChildren(PySide6.QtWidgets.QComboBox)
@@ -145,9 +150,9 @@ def _set_next_atom(app: PySide6.QtWidgets.QApplication, element: str) -> None:
 #============================================
 def _choose_next_atom(window: PySide6.QtWidgets.QMainWindow,
 		app: PySide6.QtWidgets.QApplication, element: str) -> None:
-	"""Set one atom through the public Edit -> Next Drawing workflow."""
+	"""Set one atom through the public Draw menu workflow."""
 	PySide6.QtCore.QTimer.singleShot(0, lambda: _set_next_atom(app, element))
-	_trigger_exposed_menu_action(window, app, "Edit", "Next Drawing...")
+	_trigger_exposed_menu_action(window, app, ("Draw",), "Next Drawing...")
 
 
 #============================================
@@ -171,8 +176,10 @@ def _draw_single_bond(canvas: PySide6.QtWidgets.QGraphicsView,
 def _select_scene_point(window: PySide6.QtWidgets.QMainWindow,
 				app: PySide6.QtWidgets.QApplication, canvas: PySide6.QtWidgets.QGraphicsView,
 				point: PySide6.QtCore.QPointF) -> None:
-	"""Select one visible canvas target through Edit -> Select Structure."""
-	_activate_exposed_tool_action(window, app, "Edit", "Select Structure")
+	"""Select one visible canvas target through the public Draw menu."""
+	_activate_exposed_tool_action(
+		window, app, ("Draw",), "Select Structure",
+	)
 	PySide6.QtTest.QTest.mouseClick(
 		canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, canvas.mapFromScene(point),
@@ -470,7 +477,9 @@ def _molecule_report(window: PySide6.QtWidgets.QMainWindow,
 	"""Open Molecule Report and return its visible semantic details."""
 	observer = _MoleculeReportObserver(app)
 	try:
-		_trigger_exposed_menu_action(window, app, "Chemistry", "Molecule Report...")
+		_trigger_exposed_menu_action(
+			window, app, ("Chemistry",), "Molecule Report...",
+		)
 		return observer.await_completed_details()
 	finally:
 		observer.close()
@@ -485,7 +494,7 @@ def main() -> int:
 	try:
 		window.show()
 		app.processEvents()
-		_trigger_exposed_menu_action(window, app, "File", "New")
+		_trigger_exposed_menu_action(window, app, ("File",), "New")
 		canvas = _canvas(window)
 		methane_center = PySide6.QtCore.QPointF(90.0, 90.0)
 		temporary_carbon = PySide6.QtCore.QPointF(155.0, 90.0)
@@ -500,21 +509,23 @@ def main() -> int:
 		group_anchor = PySide6.QtCore.QPointF(210.0, 140.0)
 
 		_choose_next_atom(window, app, "C")
-		_activate_exposed_tool_action(window, app, "Edit", "Draw Bond")
+		_activate_exposed_tool_action(window, app, ("Draw",), "Draw Bond")
 		_draw_single_bond(canvas, app, methane_center, temporary_carbon)
 		_select_scene_point(window, app, canvas, temporary_carbon)
 		PySide6.QtTest.QTest.keyClick(canvas.viewport(), PySide6.QtCore.Qt.Key.Key_Delete)
 		app.processEvents()
 		_choose_next_atom(window, app, "H")
-		_activate_exposed_tool_action(window, app, "Edit", "Draw Bond")
+		_activate_exposed_tool_action(window, app, ("Draw",), "Draw Bond")
 		for hydrogen in hydrogen_points:
 			_draw_single_bond(canvas, app, methane_center, hydrogen)
 		_choose_next_atom(window, app, "C")
-		_activate_exposed_tool_action(window, app, "Edit", "Draw Bond")
+		_activate_exposed_tool_action(window, app, ("Draw",), "Draw Bond")
 		_draw_single_bond(canvas, app, eligible_first_carbon, eligible_second_carbon)
 
 		_select_scene_point(window, app, canvas, methane_center)
-		attach_action = _exposed_menu_action(window, "Chemistry", "Attach Compact Group...")
+		attach_action = _exposed_menu_action(
+			window, ("Draw",), "Attach Compact Group...",
+		)
 		if not attach_action.isEnabled():
 			raise CompactGroupUnavailableAnchorRecoveryE2eError(
 				"Attach Compact Group was not enabled for the selected saturated carbon",
@@ -525,7 +536,9 @@ def main() -> int:
 		refusal_observer.require_refusal()
 		refusal_observer.close()
 		_select_scene_point(window, app, canvas, eligible_first_carbon)
-		attach_action = _exposed_menu_action(window, "Chemistry", "Attach Compact Group...")
+		attach_action = _exposed_menu_action(
+			window, ("Draw",), "Attach Compact Group...",
+		)
 		if not attach_action.isEnabled():
 			raise CompactGroupUnavailableAnchorRecoveryE2eError(
 				"Attach Compact Group did not recover for the selected eligible atom: {0}".format(
@@ -548,7 +561,7 @@ def main() -> int:
 		app.processEvents()
 		_select_scene_point(window, app, canvas, group_anchor)
 		_trigger_exposed_menu_action(
-			window, app, "Chemistry", "Materialize Selected Compact Group",
+			window, app, ("Chemistry",), "Materialize Selected Compact Group",
 		)
 		propane_details = _molecule_report(window, app)
 		if "Formula: C3H8" not in propane_details:

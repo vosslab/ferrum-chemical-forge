@@ -4,8 +4,9 @@ use super::depiction_profile::{DepictionIssueCodeV1, DepictionIssueV1, Depiction
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts, AtomMarkRenderKind,
-    AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, BondStyle, FontFace, Paint,
-    PositiveFinite, RenderPoint, RenderTarget, Rgb24, TargetVisibility,
+    AtomNumberLabelFacts, AtomRenderTarget, AttachedCompactGroupAnchorRenderFactsV1,
+    BondRenderTarget, BondStyle, FontFace, Paint, PositiveFinite, RenderPoint, RenderTarget, Rgb24,
+    TargetVisibility,
 };
 use ferrum_core::{BondOrder, BondStyle as DocumentBondStyle, Identifier, RecordId, RecordKind};
 use ferrum_document_projection::{
@@ -87,13 +88,6 @@ pub(super) fn resolve_atom(
 ) -> Result<(AtomRenderTarget, RecordId), DepictionIssueV1> {
     let context = atom_context(atom, owner_molecule_object_id)?;
     let record_id = context.record_id().clone();
-    if atom.label_text().is_some() {
-        return Err(issue(
-            DepictionIssueCodeV1::UnsupportedRichLabel,
-            atom.projection_key().as_str(),
-            "V1 supports structured element, hydrogen, and charge labels only",
-        ));
-    }
     let font = resolved_font(
         projection,
         profile,
@@ -104,45 +98,7 @@ pub(super) fn resolve_atom(
                 .and_then(|standard| standard.area_color())
         }),
     )?;
-    let element = atom.element().ok_or_else(|| {
-        issue(
-            DepictionIssueCodeV1::UnsupportedFeature,
-            atom.projection_key().as_str(),
-            "atom element is absent",
-        )
-    })?;
-    let charge = atom
-        .formal_charge()
-        .unwrap_or_default()
-        .try_into()
-        .map_err(|_| {
-            issue(
-                DepictionIssueCodeV1::UnsupportedFeature,
-                atom.projection_key().as_str(),
-                "formal charge is outside V1 label range",
-            )
-        })?;
-    let hydrogens = if effective_hydrogens(atom.hydrogens(), projection) {
-        atom.explicit_hydrogens()
-            .unwrap_or_default()
-            .try_into()
-            .map_err(|_| {
-                issue(
-                    DepictionIssueCodeV1::UnrenderableExplicitHydrogenCount,
-                    atom.projection_key().as_str(),
-                    "explicit hydrogen count is outside V1 label range",
-                )
-            })?
-    } else {
-        0
-    };
-    let label = AtomLabelFacts::new(element, charge, hydrogens).map_err(|error| {
-        issue(
-            DepictionIssueCodeV1::UnsupportedFeature,
-            atom.projection_key().as_str(),
-            error.to_string(),
-        )
-    })?;
+    let label = resolved_atom_label(atom, projection)?;
     let visibility = match atom.show() {
         Some(VisibilityV1::Disabled) => TargetVisibility::Hidden {
             reason: "author explicitly hid atom".to_owned(),
@@ -226,6 +182,87 @@ pub(super) fn resolve_atom(
         None => target,
     };
     Ok((target, record_id))
+}
+
+pub(super) fn resolve_attached_compact_group_anchor_render_facts_v1(
+    projection: &DocumentProjectionV1,
+    atom: &AtomProjectionV1,
+    profile: &DepictionProfileV1,
+) -> Result<AttachedCompactGroupAnchorRenderFactsV1, DepictionIssueV1> {
+    let font = resolved_font(
+        projection,
+        profile,
+        atom.label_font(),
+        atom.background_color().or_else(|| {
+            projection
+                .drawing_standard()
+                .and_then(|standard| standard.area_color())
+        }),
+    )?;
+    Ok(AttachedCompactGroupAnchorRenderFactsV1::new(
+        RenderPoint::new(atom.position().x(), atom.position().y()).map_err(|error| {
+            issue(
+                DepictionIssueCodeV1::UnsupportedFeature,
+                atom.projection_key().as_str(),
+                error.to_string(),
+            )
+        })?,
+        resolved_atom_label(atom, projection)?,
+        font,
+        resolved_line_paint(projection, profile)?,
+    ))
+}
+
+fn resolved_atom_label(
+    atom: &AtomProjectionV1,
+    projection: &DocumentProjectionV1,
+) -> Result<AtomLabelFacts, DepictionIssueV1> {
+    if atom.label_text().is_some() {
+        return Err(issue(
+            DepictionIssueCodeV1::UnsupportedRichLabel,
+            atom.projection_key().as_str(),
+            "V1 supports structured element, hydrogen, and charge labels only",
+        ));
+    }
+    let element = atom.element().ok_or_else(|| {
+        issue(
+            DepictionIssueCodeV1::UnsupportedFeature,
+            atom.projection_key().as_str(),
+            "atom element is absent",
+        )
+    })?;
+    let charge = atom
+        .formal_charge()
+        .unwrap_or_default()
+        .try_into()
+        .map_err(|_| {
+            issue(
+                DepictionIssueCodeV1::UnsupportedFeature,
+                atom.projection_key().as_str(),
+                "formal charge is outside V1 label range",
+            )
+        })?;
+    let hydrogens = if effective_hydrogens(atom.hydrogens(), projection) {
+        atom.explicit_hydrogens()
+            .unwrap_or_default()
+            .try_into()
+            .map_err(|_| {
+                issue(
+                    DepictionIssueCodeV1::UnrenderableExplicitHydrogenCount,
+                    atom.projection_key().as_str(),
+                    "explicit hydrogen count is outside V1 label range",
+                )
+            })?
+    } else {
+        0
+    };
+    AtomLabelFacts::new(element, charge, hydrogens).map_err(|error| {
+        issue(
+            DepictionIssueCodeV1::UnsupportedFeature,
+            atom.projection_key().as_str(),
+            error.to_string(),
+        )
+    })
 }
 
 fn render_mark_kind(kind: AtomMarkKindV1) -> AtomMarkRenderKind {

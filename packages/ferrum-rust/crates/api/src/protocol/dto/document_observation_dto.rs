@@ -97,7 +97,7 @@ pub enum ProtocolCompactGroupMaterializationCategoryV1 {
     UnknownOrForeignTarget,
     IneligibleTarget,
     RendererPreparationRefusal,
-    SessionConflictOrReplayedPreparation,
+    SessionConflictOrConsumedPreparation,
 }
 
 /// Stable client recovery instructions for compact-group materialization.

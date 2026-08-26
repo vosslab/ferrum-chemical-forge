@@ -64,10 +64,10 @@ build/bin/ferrum-qt
 
 The local build and Qt suites are the permanent developer validation boundary.
 
-The live Python comparison harness used during the backend migration is retired;
-its accepted evidence remains in `docs/active_plans/reports/`. The optional
+Ferrum's Rust engine is the local runtime chemistry backend. Accepted migration
+evidence remains in `docs/active_plans/reports/`. The optional
 `tests/e2e/reference/` environment contains only Python RDKit for one-time
-maintainer measurements. Do not add that dependency to the product or normal
+maintainer measurements. Keep that dependency outside the product and normal
 developer environment.
 
 ## Check documentation

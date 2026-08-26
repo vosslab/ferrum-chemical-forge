@@ -12,10 +12,12 @@ pub(crate) use super::document_error_binding::{
     DocumentError, DocumentInputError, DocumentLoadError, DocumentSerializationError, FerrumError,
     HistoryUnavailableError, InvalidAtomElementError, InvalidDestinationError,
     InvalidDocumentObjectIdError, OperationValidationError, PreparedOperationConsumedError,
-    PreparedOperationError, PreparedOperationForeignSessionError, ProjectionError,
-    PublicationError, PublicationNotStartedError, PublicationPossiblyCompletedError,
-    RevisionConflictError, RevisionExhaustedError, UnknownDocumentObjectError, document_result,
-    map_document_error, projection_error,
+    PreparedOperationError, PreparedOperationForeignSessionError,
+    PreparedOperationProvisionalCapabilityError, PreparedOperationRendererAdmissionError,
+    PreparedOperationStaleSnapshotError, ProjectionError, PublicationError,
+    PublicationNotStartedError, PublicationPossiblyCompletedError, RevisionConflictError,
+    RevisionExhaustedError, UnknownDocumentObjectError, document_result, map_document_error,
+    projection_error,
 };
 use super::document_operation_binding::PyDocumentOperationV1;
 pub(crate) use super::document_session_binding::*;
@@ -97,6 +99,24 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add(
         "PreparedOperationConsumedError",
         module.py().get_type::<PreparedOperationConsumedError>(),
+    )?;
+    module.add(
+        "PreparedOperationStaleSnapshotError",
+        module
+            .py()
+            .get_type::<PreparedOperationStaleSnapshotError>(),
+    )?;
+    module.add(
+        "PreparedOperationRendererAdmissionError",
+        module
+            .py()
+            .get_type::<PreparedOperationRendererAdmissionError>(),
+    )?;
+    module.add(
+        "PreparedOperationProvisionalCapabilityError",
+        module
+            .py()
+            .get_type::<PreparedOperationProvisionalCapabilityError>(),
     )?;
     module.add(
         "PublicationError",

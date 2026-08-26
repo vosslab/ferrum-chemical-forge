@@ -24,11 +24,11 @@ STANDARD_KEYBINDINGS = {
 DEFAULT_KEYBINDINGS = {
 	"view.zoom_in": "Ctrl++",
 	"view.zoom_out": "Ctrl+-",
-	"view.reset_zoom": "Ctrl+0",
-	"view.toggle_grid": "Ctrl+G",
-	"view.toggle_grid_snap": "Ctrl+Shift+G",
-	"mode.atom": "Ctrl+8",
-	"mode.draw": "Ctrl+2",
+	"view.zoom_100": "Ctrl+0",
+	"view.grid.visible": "Ctrl+G",
+	"view.grid.snap": "Ctrl+Shift+G",
+	"draw.atom_at_point": "Ctrl+8",
+	"draw.bond": "Ctrl+2",
 	"tool.cancel": "Esc",
 }
 

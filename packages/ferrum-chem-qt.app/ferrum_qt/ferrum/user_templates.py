@@ -101,9 +101,8 @@ class FerrumNativeUserTemplateWindowMixin:
 		)
 
 	#============================================
-	def _build_native_user_template_file_actions(
-			self, file_menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Expose template publication and explicit catalog refresh in File."""
+	def _build_native_user_template_file_actions(self) -> None:
+		"""Create and register template publication and catalog refresh actions."""
 		self._save_as_user_template_action = PySide6.QtGui.QAction(
 			self.tr("Save As User Template..."), self,
 		)
@@ -113,19 +112,27 @@ class FerrumNativeUserTemplateWindowMixin:
 		self._save_as_user_template_action.triggered.connect(
 			self._on_save_as_user_template,
 		)
-		file_menu.addAction(self._save_as_user_template_action)
 		self._refresh_user_templates_action = PySide6.QtGui.QAction(
 			self.tr("Refresh User Templates"), self,
 		)
 		self._refresh_user_templates_action.triggered.connect(
 			self._on_refresh_native_user_templates,
 		)
-		file_menu.addAction(self._refresh_user_templates_action)
+		self._refresh_user_templates_action.setStatusTip(
+			self._refresh_user_templates_action.text(),
+		)
+		for action_id, action in (
+			("file.template.save_as", self._save_as_user_template_action),
+			("file.template.refresh", self._refresh_user_templates_action),
+		):
+			self._action_registry.register_existing(
+				action_id, action,
+				shortcut_exemption_reason="Available by its labelled File menu client.",
+			)
 
 	#============================================
-	def _build_native_user_template_place_action(
-			self, chemistry_menu: PySide6.QtWidgets.QMenu) -> None:
-		"""Expose one checked placement action with an explicit catalog choice."""
+	def _build_native_user_template_place_action(self) -> None:
+		"""Create and register one checked placement action with a catalog choice."""
 		self._place_user_template_action = PySide6.QtGui.QAction(
 			self.tr("Place User Template..."), self,
 		)
@@ -139,7 +146,10 @@ class FerrumNativeUserTemplateWindowMixin:
 		self._place_user_template_action.toggled.connect(
 			self._on_place_user_template_toggled,
 		)
-		chemistry_menu.addAction(self._place_user_template_action)
+		self._action_registry.register_existing(
+			"chemistry.template.place", self._place_user_template_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	#============================================
 	def _on_place_user_template_toggled(self, checked: bool) -> None:

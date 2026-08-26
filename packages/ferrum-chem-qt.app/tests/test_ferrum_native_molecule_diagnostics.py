@@ -38,7 +38,7 @@ def _receipt(tab: object, molecule_id: str) -> object:
 
 
 #============================================
-def _retire(window: object, tab: object) -> None:
+def _dispose_window_and_tab(window: object, tab: object) -> None:
 	"""Dispose one clean tab and its owned window after a widget behavior test."""
 	window._close_tab_at(window.centralWidget().indexOf(tab))
 	window.deleteLater()
@@ -58,7 +58,7 @@ def test_check_structure_action_and_no_issues_dialog_use_real_selected_root(
 			dialog._no_issues.isVisible(), dialog._no_issues.accessibleName(),
 		) == (True, True, True, "No structure issues found")
 	finally:
-		_retire(window, tab)
+		_dispose_window_and_tab(window, tab)
 		del qapp
 
 
@@ -84,7 +84,7 @@ def test_check_structure_dialog_recovers_when_the_original_selection_returns(
 			True, False, True,
 		)
 	finally:
-		_retire(window, tab)
+		_dispose_window_and_tab(window, tab)
 		del qapp
 
 

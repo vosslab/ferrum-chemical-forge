@@ -1,68 +1,346 @@
-# Ferrum's static menu declarations.
+# Ferrum's complete declarative menu hierarchy.
 #
-# This file describes hierarchy and presentation only.  QAction construction
-# and document mutation remain owned by the Ferrum window and Rust backend.
+# Feature owners construct, connect, and register QActions. This resource owns
+# their canonical menu client, task grouping, and explicit menu boundaries.
 
 menus:
-  - name: file
+  - id: file
     label_key: "File"
-    help_key: "Create, open, save, and close Ferrum documents"
-    side: left
+    help_key: "Create, open, save, import, export, and close Ferrum documents"
     items:
-      - action: file.new
-      - action: file.open
-      - separator: true
-      - action: file.save
-      - action: file.save_as
-      - separator: true
-      - action: file.close
+      - section:
+          id: file_document
+          label_key: "Document"
+          items:
+            - action: file.new
+            - section:
+                id: file_open_lifecycle
+                label_key: "Open"
+                items:
+                  - action: file.open
+                  - action: file.open_current
+                  - action: file.open.cancel
+            - dynamic_menu: file.recent
+            - action: file.save
+            - action: file.save_as
+            - action: file.close
+      - section:
+          id: file_templates
+          label_key: "Templates"
+          items:
+            - action: file.template.save_as
+            - action: file.template.refresh
+      - section:
+          id: file_import
+          label_key: "Import"
+          items:
+            - action: file.import.smiles
+            - action: file.import.inchi
+            - action: file.import.molfile
+            - action: file.import.sdf
+            - action: file.import.peptide
+            - separator: true
+            - action: file.import.smiles.cancel
+            - action: file.import.inchi.cancel
+            - action: file.import.molfile.cancel
+            - action: file.import.sdf.cancel
+            - action: file.import.peptide.cancel
+      - section:
+          id: file_export
+          label_key: "Export"
+          items:
+            - action: file.export.snapshot.svg
+            - action: file.export.snapshot.pdf
+            - action: file.export.snapshot.png
+            - action: file.export.smiles
+            - action: file.export.smiles_file
+            - action: file.export.inchi.standard
+            - action: file.export.inchi.standard_file
+            - action: file.export.inchi.fixed_h
+            - action: file.export.inchi.fixed_h_file
+            - action: file.export.molfile.v2000
+            - action: file.export.molfile.v3000
+            - action: file.export.sdf.v2000
+            - action: file.export.sdf.v3000
+            - action: file.export.sdf.selected.v2000
+            - action: file.export.sdf.selected.v3000
+            - action: file.export.recovery_cdml
+            - action: file.export.cancel
       - separator: true
       - action: file.quit
 
-  - name: edit
+  - id: edit
     label_key: "Edit"
-    help_key: "Undo and clipboard commands"
-    side: left
+    help_key: "Undo, clipboard, and selected-object editing commands"
     items:
-      - action: edit.undo
-      - action: edit.redo
-      - separator: true
-      - action: edit.cut
-      - action: edit.copy
-      - action: edit.paste
+      - section:
+          id: edit_history
+          label_key: "History"
+          items:
+            - action: edit.undo
+            - action: edit.redo
+      - section:
+          id: edit_clipboard
+          label_key: "Clipboard"
+          items:
+            - action: edit.cut
+            - action: edit.copy
+            - action: edit.paste
+            - action: edit.copy_svg
+      - section:
+          id: edit_clipboard_work
+          label_key: "Clipboard work"
+          items:
+            - action: edit.cancel_copy
+            - action: edit.cancel_cut
+            - action: edit.cancel_paste
+            - action: edit.cancel_copy_svg
+      - section:
+          id: edit_atom
+          label_key: "Selected atom"
+          items:
+            - action: edit.atom.change_element
+            - action: edit.atom.properties
+            - action: edit.atom.set_number
+            - action: edit.atom.clear_number
+            - submenu:
+                id: edit_atom_mark
+                label_key: "Toggle Atom Mark"
+                help_key: "Add, remove, or change an atom mark"
+                items:
+                  - action: edit.atom_mark.plus
+                  - action: edit.atom_mark.minus
+                  - action: edit.atom_mark.radical
+                  - action: edit.atom_mark.biradical
+                  - action: edit.atom_mark.electronpair
+                  - action: edit.atom_mark.dotted_electronpair
+                  - action: edit.atom_mark.pz_orbital
+                  - separator: true
+                  - action: edit.atom_mark.remove
+      - section:
+          id: edit_bond
+          label_key: "Selected bond"
+          items:
+            - action: edit.bond.properties
+            - action: edit.bond.reverse_wedge
+            - action: edit.bond.change_order
+      - section:
+          id: edit_presentation
+          label_key: "Selected presentation"
+          items:
+            - action: edit.plus.properties
+            - action: edit.arrow.properties
+            - action: edit.vector.properties
+            - action: edit.wavy.properties
+            - action: edit.text.properties
+      - section:
+          id: edit_delete
+          label_key: "Delete selection"
+          items:
+            - action: edit.delete_atom
+            - action: edit.delete_bond
+            - action: edit.delete_presentations
+      - section:
+          id: edit_presentation_order
+          label_key: "Presentation order"
+          items:
+            - action: edit.presentation_stack.bring_to_front
+            - action: edit.presentation_stack.send_to_back
+            - action: edit.presentation_stack.reverse_slots
 
-  - name: view
+  - id: draw
+    label_key: "Draw"
+    help_key: "Canvas authoring, geometry, and arrangement commands"
+    items:
+      - section:
+          id: draw_setup
+          label_key: "Drawing setup"
+          items:
+            - action: draw.next_drawing
+            - action: draw.document_defaults
+            - action: draw.document_properties
+      - section:
+          id: draw_atoms_bonds
+          label_key: "Atoms and bonds"
+          items:
+            - action: draw.atom_at_point
+            - action: draw.bond
+            - action: draw.bond.solid_wedge
+            - action: draw.bond.hashed_wedge
+            - action: draw.bond.connect_selected
+      - section:
+          id: draw_rings_structures
+          label_key: "Rings and structures"
+          items:
+            - submenu:
+                id: draw_regular_ring
+                label_key: "Insert Regular Ring..."
+                help_key: "Insert a regular carbon ring"
+                items:
+                  - action: draw.ring.regular.c3
+                  - action: draw.ring.regular.c4
+                  - action: draw.ring.regular.c5
+                  - action: draw.ring.regular.c6
+                  - action: draw.ring.regular.c7
+                  - action: draw.ring.regular.c8
+            - action: draw.ring.cyclohexane.insert
+            - action: draw.ring.cyclohexane.attach
+            - action: draw.ring.haworth.insert
+      - section:
+          id: draw_reaction_notation
+          label_key: "Reaction notation"
+          items:
+            - action: draw.arrow
+            - action: draw.arrow.equilibrium
+            - action: draw.arrow.curved_electron
+            - action: draw.arrow.curved_retro
+            - action: draw.arrow.curved_reaction
+            - action: draw.arrow.curved_equilibrium
+            - action: draw.plus
+      - section:
+          id: draw_compact_groups
+          label_key: "Compact groups"
+          items:
+            - action: chemistry.compact_group.place
+            - action: chemistry.compact_group.attach
+      - section:
+          id: draw_annotation
+          label_key: "Annotation"
+          items:
+            - action: draw.text
+            - action: draw.wavy
+            - action: draw.bracket.rectangular
+            - action: draw.bracket.round
+      - section:
+          id: draw_shapes
+          label_key: "Shapes"
+          items:
+            - action: draw.vector.line
+            - action: draw.vector.rectangle
+            - action: draw.vector.square
+            - action: draw.vector.oval
+            - action: draw.vector.circle
+            - action: draw.path.polyline
+            - action: draw.path.polygon
+      - section:
+          id: draw_coordinates
+          label_key: "Coordinate generation"
+          items:
+            - action: draw.coordinates.generate
+            - action: draw.coordinates.cancel
+      - section:
+          id: draw_geometry_repair
+          label_key: "Geometry repair"
+          items:
+            - action: draw.geometry.clean
+            - action: draw.geometry.normalize_bond_lengths
+            - action: draw.geometry.normalize_bond_angles
+            - action: draw.geometry.normalize_rings
+            - action: draw.geometry.snap_hex_grid
+            - action: draw.geometry.straighten_terminal_bonds
+      - section:
+          id: draw_arrange
+          label_key: "Selection and arrangement"
+          items:
+            - action: draw.selection.structure
+            - action: draw.arrange.move_atom
+            - action: draw.arrange.rotate_selected_atoms
+            - action: draw.arrange.move_complete_roots
+            - submenu:
+                id: draw_transform_complete_roots
+                label_key: "Transform Complete Roots"
+                help_key: "Transform complete selected roots"
+                items:
+                  - action: draw.transform.roots.scale
+                  - action: draw.transform.roots.mirror_vertical
+                  - action: draw.transform.roots.mirror_horizontal
+                  - separator: true
+                  - action: draw.transform.roots.align_top
+                  - action: draw.transform.roots.align_bottom
+                  - action: draw.transform.roots.align_left
+                  - action: draw.transform.roots.align_right
+                  - action: draw.transform.roots.align_center_x
+                  - action: draw.transform.roots.align_center_y
+      - section:
+          id: draw_active_tool
+          label_key: "Active tool"
+          items:
+            - action: tool.cancel
+
+  - id: view
     label_key: "View"
-    help_key: "Canvas zoom and grid controls"
-    side: left
+    help_key: "Canvas zoom, grid, and projection controls"
     items:
-      - action: view.zoom_in
-      - action: view.zoom_out
-      - action: view.reset_zoom
+      - section:
+          id: view_zoom
+          label_key: "Zoom"
+          items:
+            - action: view.zoom_in
+            - action: view.zoom_out
+            - action: view.zoom_100
+            - action: view.zoom_page
+            - action: view.zoom_content
+      - section:
+          id: view_grid
+          label_key: "Grid"
+          items:
+            - action: view.grid.visible
+            - action: view.grid.snap
+      - section:
+          id: view_panels
+          label_key: "Panels"
+          items:
+            - action: view.properties.toggle
       - separator: true
-      - action: view.toggle_grid
-      - action: view.toggle_grid_snap
+      - action: view.refresh
 
-  - name: tools
-    label_key: "Tools"
-    help_key: "Choose or cancel the active Ferrum drawing tool"
-    side: left
+  - id: chemistry
+    label_key: "Chemistry"
+    help_key: "Chemical structure, reaction, and analysis commands"
     items:
-      - action: mode.atom
-      - action: mode.draw
-      - separator: true
-      - action: tool.cancel
+      - section:
+          id: chemistry_reactions
+          label_key: "Reactions"
+          items:
+            - action: chemistry.reaction.create
+            - action: chemistry.reaction.inspect
+            - action: chemistry.smarts.query
+      - section:
+          id: chemistry_structure
+          label_key: "Structure"
+          items:
+            - action: chemistry.molecule.name
+            - action: chemistry.hydrogens.make_explicit
+            - action: chemistry.compact_group.materialize
+            - action: chemistry.linear_form.convert
+            - action: chemistry.template.insert
+            - action: chemistry.template.place
+            - action: chemistry.haworth.direct_glycosidic.insert
+      - section:
+          id: chemistry_fragments
+          label_key: "Fragments"
+          items:
+            - action: chemistry.fragments.create
+            - action: chemistry.fragments.view
+      - section:
+          id: chemistry_analysis
+          label_key: "Analysis"
+          items:
+            - action: chemistry.diagnostics.structure
+            - action: chemistry.bond_capacity.check
+            - action: chemistry.bond_capacity.cancel
+            - action: chemistry.atom.oxidation_state
+            - action: chemistry.report.molecule
+            - action: chemistry.report.cancel
 
-  - name: options
+  - id: options
     label_key: "Options"
     help_key: "Ferrum settings"
-    side: left
     items:
       - action: options.preferences
 
-  - name: help
+  - id: help
     label_key: "Help"
     help_key: "Ferrum information"
-    side: right
     items:
       - action: help.about

@@ -225,8 +225,7 @@ def main() -> int:
 		app.processEvents()
 		_trigger_action(window, app, "File", "New")
 		canvas = _canvas(window)
-		_exposed_action(window, "Chemistry", "Place Compact Group...").trigger()
-		app.processEvents()
+		_trigger_action(window, app, "Draw", "Place Compact Group...")
 		_choose_free_me(app)
 		placement_point = PySide6.QtCore.QPointF(80.0, 80.0)
 		PySide6.QtTest.QTest.mouseRelease(

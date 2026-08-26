@@ -130,21 +130,24 @@ class FerrumNativeCatalogPlacementWindowMixin:
 	def _initialize_catalog_placement(self) -> None:
 		self._catalog_placement_intent: _Intent | None = None
 
-	def _build_catalog_template_action(self, chemistry_menu: PySide6.QtWidgets.QMenu) -> None:
+	def _build_catalog_template_action(self) -> None:
 		self._insert_catalog_template_action = PySide6.QtGui.QAction(self.tr("Insert Template..."), self)
 		self._insert_catalog_template_action.setToolTip(self.tr("Browse Rust-owned templates, then place one on the canvas"))
 		self._connect_interaction_action_v1(
 			self._insert_catalog_template_action, self._on_insert_catalog_template,
 		)
-		chemistry_menu.addAction(self._insert_catalog_template_action)
+		self._action_registry.register_existing(
+			"chemistry.template.insert", self._insert_catalog_template_action,
+			shortcut_exemption_reason="Available by its labelled Chemistry menu client.",
+		)
 
 	def _wire_catalog_tool_replacement(self) -> None:
-		"""Retire catalog capture before a replacement tool installs its filter.
+		"""Cancel catalog capture before a replacement tool installs its filter.
 
 		A checkable QAction emits ``toggled(True)`` before its ``triggered(True)``
 		handlers run.  The catalog owns the same window event-filter object as the
 		line and selection tools, so cancelling from ``triggered`` could remove a
-		filter the incoming tool had just installed.  Retire the outgoing catalog
+		filter the incoming tool had just installed.  Cancel the outgoing catalog
 		owner during the earlier state transition instead.
 		"""
 		actions = (
@@ -161,12 +164,12 @@ class FerrumNativeCatalogPlacementWindowMixin:
 		for action in actions:
 			action.toggled.connect(
 				lambda checked, changed_action=action:
-				self._retire_catalog_before_authoring_activation(
+				self._cancel_catalog_capture_before_authoring_activation(
 					changed_action, checked,
 				),
 			)
 
-	def _retire_catalog_before_authoring_activation(
+	def _cancel_catalog_capture_before_authoring_activation(
 			self, action: PySide6.QtGui.QAction, checked: bool,
 			) -> None:
 		"""Release catalog capture at the checked transition of one shared tool."""
@@ -203,7 +206,7 @@ class FerrumNativeCatalogPlacementWindowMixin:
 		return True
 
 	def _replace_authoring_owner_with_catalog(self) -> None:
-		"""Retire every competing authoring owner before catalog pointer capture."""
+		"""Cancel every competing authoring owner before catalog pointer capture."""
 		self._cancel_atom_insertion()
 		self._cancel_structure_selection()
 		self._cancel_line_gesture()

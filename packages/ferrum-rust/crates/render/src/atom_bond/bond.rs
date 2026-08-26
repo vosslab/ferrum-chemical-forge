@@ -14,7 +14,9 @@ use crate::{
     Paint, PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderTarget,
 };
 
-use super::{RenderEndpointGeometry, TargetVisibility, geometry_to_render_point};
+use super::{
+    EndpointClipGeometry, RenderEndpointGeometry, TargetVisibility, geometry_to_render_point,
+};
 
 /// A bond with explicit endpoint atom identities and source style facts.
 #[derive(Clone, Debug, PartialEq)]
@@ -310,10 +312,9 @@ fn build_bond_line(
         reason: format!("bond line offset is not representable: {error}"),
     })?;
     let reverse = negated(context.direction)?;
-    let first_clip = clip_distance(context.first.bounds, context.direction, local_offset)?;
-    let second_clip = clip_distance(context.second.bounds, reverse, local_offset)?;
-    let remaining_length = context.length - first_clip - second_clip;
-    if !remaining_length.is_finite() || remaining_length <= 0.0 {
+    let first_clip = endpoint_clip_distance(context.first, context.direction, local_offset)?;
+    let second_clip = endpoint_clip_distance(context.second, reverse, local_offset)?;
+    if !normal_bond_has_positive_visible_segment(context.length, first_clip, second_clip) {
         return Err(RenderIssueKind::UnrenderableTarget {
             reason: "label clipping leaves no positive visible bond segment".to_owned(),
         });
@@ -346,7 +347,63 @@ fn build_bond_line(
     })
 }
 
-fn clip_distance(
+/// Return the zero-offset forward exit from an atom label's clipping envelope.
+///
+/// Attached compact-group admission shares this calculation with final bond
+/// lowering so its resolved pose cannot rely on a separate label-clearance rule.
+pub(crate) fn atom_label_forward_exit_distance(
+    bounds: GlyphBounds,
+    direction: Vector2,
+) -> Result<f64, RenderIssueKind> {
+    clip_glyph_distance(
+        bounds,
+        direction,
+        Vector2::new(0.0, 0.0).map_err(|error| RenderIssueKind::UnrenderableTarget {
+            reason: format!("atom label clipping origin is not representable: {error}"),
+        })?,
+    )
+}
+
+/// Return whether a normal bond retains a strictly positive visible segment.
+pub(crate) fn normal_bond_has_positive_visible_segment(
+    center_distance: f64,
+    first_clip: f64,
+    second_clip: f64,
+) -> bool {
+    let remaining_length = center_distance - first_clip - second_clip;
+    remaining_length.is_finite() && remaining_length > 0.0
+}
+
+fn endpoint_clip_distance(
+    endpoint: &RenderEndpointGeometry,
+    direction: Vector2,
+    local_offset: Vector2,
+) -> Result<f64, RenderIssueKind> {
+    match endpoint.clipping {
+        EndpointClipGeometry::OriginContainingGlyphEnvelope(bounds) => {
+            clip_glyph_distance(bounds, direction, local_offset)
+        }
+        EndpointClipGeometry::FixedConnectionPoint {
+            label_ink_exclusion,
+        } => {
+            let origin = ferrum_geometry::Point2::new(
+                endpoint.position.x() + local_offset.x(),
+                endpoint.position.y() + local_offset.y(),
+            )
+            .map_err(|error| RenderIssueKind::UnrenderableTarget {
+                reason: format!("compact-group endpoint offset is not representable: {error}"),
+            })?;
+            if label_ink_exclusion.ray_enters_interior(origin, direction) {
+                return Err(RenderIssueKind::UnrenderableTarget {
+                    reason: "compact-group exterior bond approaches through label ink".to_owned(),
+                });
+            }
+            Ok(0.0)
+        }
+    }
+}
+
+fn clip_glyph_distance(
     bounds: GlyphBounds,
     direction: Vector2,
     origin: Vector2,

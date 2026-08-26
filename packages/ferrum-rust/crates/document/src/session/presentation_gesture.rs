@@ -106,7 +106,7 @@ fn map_pair_error(error: AuthoringGesturePairAccessErrorV1) -> PresentationGestu
         AuthoringGesturePairAccessErrorV1::PreviewMismatch => {
             PresentationGestureErrorV1::PreviewMismatch
         }
-        AuthoringGesturePairAccessErrorV1::Replayed => PresentationGestureErrorV1::ReplayedGesture,
+        AuthoringGesturePairAccessErrorV1::Consumed => PresentationGestureErrorV1::Consumed,
     }
 }
 

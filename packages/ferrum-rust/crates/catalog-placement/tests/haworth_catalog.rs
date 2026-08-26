@@ -3,7 +3,7 @@
 use ferrum_catalog_placement::resolve_catalog_molecule_placement_v1;
 use ferrum_document::{
     DocumentSession, PresentationGesturePoint2V1, SessionOperation, SessionOperationOutcomeV1,
-    SessionOperationV1, TransitionAuthorizationV1,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
 
 const KEY: &str = "biomolecules/carbohydrates/d-glucose/alpha-d-glucopyranose";
@@ -15,11 +15,11 @@ fn haworth_catalog_operation_preserves_key_anchor_and_directed_stereo() {
     let anchor = PresentationGesturePoint2V1::new(100.0, -25.0).expect("anchor");
     let request = resolve_catalog_molecule_placement_v1(KEY, anchor).expect("closed catalog key");
     let mut prepared = session
-        .prepare_session_operation_transition_v1(
+        .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
             0,
             SessionOperation::V1(SessionOperationV1::PlaceCatalogMoleculeV1(request)),
             TransitionAuthorizationV1::None,
-        )
+        ))
         .expect("generic transition");
     let result = session
         .commit_session_operation_transition_v1(&mut prepared)

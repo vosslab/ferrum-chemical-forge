@@ -67,6 +67,6 @@ def test_private_regular_ring_refusal_preserves_current_snapshot() -> None:
 		.transition_request_v1(0))
 	session.commit_session_operation_transition_v1(accepted)
 	before_refusal = session.snapshot()
-	with pytest.raises(ferrum_chem.OperationValidationError):
+	with pytest.raises(ferrum_chem.PreparedOperationStaleSnapshotError):
 		session.commit_session_operation_transition_v1(stale)
 	assert _snapshot_facts(session.snapshot()) == _snapshot_facts(before_refusal)

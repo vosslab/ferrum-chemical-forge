@@ -8,6 +8,7 @@ mod document_compact_group_materialization_v1;
 mod document_hydrogen_materialization_v1;
 pub(crate) mod document_smarts_snapshot_v1;
 mod dto;
+pub use dto::InspectGraphNormalizationV1;
 mod execution;
 mod frozen_document_snapshot_v1;
 #[cfg(feature = "python-binding")]
@@ -57,26 +58,28 @@ pub use dto::{
     DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,
     DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
     DocumentSmartsQueryTraversalSummaryV1, DocumentSnapshotRequestV1, DocumentValidateRequestV1,
-    MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_ERROR_SCHEMA_V1,
-    OPERATION_PROTOCOL_REQUEST_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1,
-    OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1, OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
-    OperationProtocolEnvelopeV1, OperationProtocolErrorCategoryV1,
-    OperationProtocolErrorResponseV1, OperationProtocolErrorV1, OperationProtocolInputErrorV1,
-    OperationProtocolOperationV1, OperationProtocolOutcomeV1, OperationProtocolRequestV1,
-    OperationProtocolResponseV1, PresentationAuthorDirectBondOutcomeV1, PresentationAuthorPointV1,
-    PresentationAuthorRefusalV1, PresentationAuthorRequestV1, PresentationAuthoringKindV1,
-    PresentationAuthoringRequestV1, ProtocolArtifactFormatV1, ProtocolCatalogFamilyV1,
-    ProtocolCatalogPlacementCategoryV1, ProtocolCatalogPlacementRecoveryV1,
-    ProtocolCompactGroupMaterializationCategoryV1, ProtocolCompactGroupMaterializationRecoveryV1,
-    ProtocolCurvedTerminalArrowKindV1, ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1,
-    ProtocolDirectBondPresentationV1, ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1,
-    ProtocolOperationKindV1, ProtocolPresentationAuthorCategoryV1,
-    ProtocolPresentationAuthorRecoveryV1, ProtocolPresentationPathKindV1,
-    ProtocolPresentationVectorAppearancePolicyV1, ProtocolPresentationVectorKindV1,
-    ProtocolReactionDefinitionDispositionV1, ProtocolRequestSchemaV1,
-    ProtocolResourceLimitReasonV1, ProtocolResponseSchemaV1, ProtocolValidationLevelV1,
-    ReactionMemberSummaryV1, ReactionObservationRequestV1, ReactionObservationSummaryV1,
-    ReactionObserveRequestV1,
+    InspectGraphFactCoverageStatusV1, InspectGraphFactCoverageV1, InspectInterchangeGraphInputV1,
+    InspectInterchangeGraphRecordSummaryV1, InspectInterchangeGraphRequestV1,
+    InspectInterchangeGraphSummaryV1, MAX_REQUEST_ID_UTF8_BYTES_V1,
+    OPERATION_PROTOCOL_ERROR_SCHEMA_V1, OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+    OPERATION_PROTOCOL_REQUEST_UTF8_BYTES_V1, OPERATION_PROTOCOL_RESPONSE_SCHEMA_V1,
+    OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1, OperationProtocolEnvelopeV1,
+    OperationProtocolErrorCategoryV1, OperationProtocolErrorResponseV1, OperationProtocolErrorV1,
+    OperationProtocolInputErrorV1, OperationProtocolOperationV1, OperationProtocolOutcomeV1,
+    OperationProtocolRequestV1, OperationProtocolResponseV1, PresentationAuthorDirectBondOutcomeV1,
+    PresentationAuthorPointV1, PresentationAuthorRefusalV1, PresentationAuthorRequestV1,
+    PresentationAuthoringKindV1, PresentationAuthoringRequestV1, ProtocolArtifactFormatV1,
+    ProtocolCatalogFamilyV1, ProtocolCatalogPlacementCategoryV1,
+    ProtocolCatalogPlacementRecoveryV1, ProtocolCompactGroupMaterializationCategoryV1,
+    ProtocolCompactGroupMaterializationRecoveryV1, ProtocolCurvedTerminalArrowKindV1,
+    ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1, ProtocolDirectBondPresentationV1,
+    ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1, ProtocolOperationKindV1,
+    ProtocolPresentationAuthorCategoryV1, ProtocolPresentationAuthorRecoveryV1,
+    ProtocolPresentationPathKindV1, ProtocolPresentationVectorAppearancePolicyV1,
+    ProtocolPresentationVectorKindV1, ProtocolReactionDefinitionDispositionV1,
+    ProtocolRequestSchemaV1, ProtocolResourceLimitReasonV1, ProtocolResponseSchemaV1,
+    ProtocolValidationLevelV1, ReactionMemberSummaryV1, ReactionObservationRequestV1,
+    ReactionObservationSummaryV1, ReactionObserveRequestV1, SourceFactV1,
 };
 #[cfg(feature = "python-binding")]
 pub(crate) use execution::execute_admitted_operation_v1;
@@ -84,7 +87,8 @@ pub use execution::execute_operation_v1;
 #[cfg(test)]
 pub(crate) use execution::execute_operation_with_runtime_and_smarts_response_limit_for_test;
 pub(crate) use execution::{
-    canonical_protocol_envelope_json_v1, execute_operation_with_runtime_v1,
-    interchange_import_refusal_envelope_v1, interchange_import_success_envelope_v1,
+    MINIMUM_RESPONSE_SIZE_EXCEEDED_ENVELOPE_BYTES_V1, canonical_protocol_envelope_json_v1,
+    execute_operation_with_runtime_v1, interchange_import_refusal_envelope_v1,
+    interchange_import_success_envelope_v1, response_size_exceeded_envelope_v1,
 };
 pub use schema::{generated_operation_protocol_schema_v1, operation_protocol_schema_v1};

@@ -1,5 +1,9 @@
 use super::*;
 use ferrum_document::PresentationRootProjectionV1;
+
+#[path = "render_interaction_tests_v1/directed_wedge_envelope.rs"]
+mod directed_wedge_envelope;
+
 const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m1\"><atom id=\"a1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"a2\" name=\"O\"><point x=\"20\" y=\"0\"/></atom><bond id=\"b1\" start=\"a1\" end=\"a2\" type=\"n1\"/></molecule><molecule id=\"m2\"><atom id=\"a3\" name=\"N\"><point x=\"60\" y=\"0\"/></atom></molecule></cdml>";
 const MIXED_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"molecule\"><atom id=\"atom\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><plus id=\"plus\"><point x=\"40\" y=\"0\"/></plus></cdml>";
 fn fence(session: &RenderInteractionSessionV1) -> DocumentFenceV1 {
@@ -101,40 +105,6 @@ fn structural_line_hit_and_marquee_follow_the_rendered_stroke_not_its_box() {
             .iter()
             .any(|target| target.kind() == StructureTargetKindV1::Bond)
     );
-}
-
-#[test]
-fn structural_path_bond_is_a_typed_display_only_target() {
-    let source = concat!(
-        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
-        "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "<atom id=\"b\" name=\"O\"><point x=\"30\" y=\"0\"/></atom>",
-        "<bond id=\"ab\" type=\"w1\" start=\"a\" end=\"b\"/>",
-        "</molecule></cdml>",
-    );
-    let session = RenderInteractionSessionV1::new(DocumentSession::load(source).expect("load"));
-    let observation = session
-        .observe_structure_interaction_v1(fence(&session))
-        .expect("observe");
-    let display = observation
-        .targets()
-        .iter()
-        .find(|target| target.kind() == StructureTargetKindV1::DisplayOnly)
-        .expect("wedge target remains visible to the interaction facade");
-    assert_eq!(display.kind(), StructureTargetKindV1::DisplayOnly);
-    let bounds = display.bounds();
-    assert!(matches!(
-        session.select_structure_interaction_v1(
-            &observation,
-            None,
-            StructureInteractionQueryV1::Point {
-                x: (bounds.left() + bounds.right()) / 2.0,
-                y: (bounds.top() + bounds.bottom()) / 2.0,
-                modifier: RenderInteractionModifierV1::Replace,
-            },
-        ),
-        Err(RenderInteractionErrorV1::DisplayOnly)
-    ));
 }
 
 #[test]
@@ -252,8 +222,8 @@ fn typed_compact_group_exterior_bond_reaches_the_complete_document_render_plan()
         .expect("normal exterior line");
     assert!(
         [
-            endpoint.position().x(),
-            endpoint.position().y(),
+            endpoint.connection_point().x(),
+            endpoint.connection_point().y(),
             line.start().x(),
             line.start().y(),
             line.end().x(),

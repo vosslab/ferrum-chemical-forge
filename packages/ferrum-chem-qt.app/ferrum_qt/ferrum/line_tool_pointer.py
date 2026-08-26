@@ -23,6 +23,9 @@ import ferrum_qt.ferrum.terminal_arrow
 import ferrum_qt.ferrum.text_placement
 import ferrum_qt.ferrum.text_placement_preview
 import ferrum_qt.ferrum.molecule_plan_overlay
+import ferrum_qt.ferrum.native_mode_input
+import ferrum_qt.ferrum.document_tab_errors
+import ferrum_qt.modes.base_mode
 from ferrum_qt.ferrum.line_tool_interaction import _normalized_rect
 
 _NativeLineTool = ferrum_qt.ferrum.line_tool_intent._NativeLineTool
@@ -31,9 +34,13 @@ _LineGestureIntent = ferrum_qt.ferrum.line_tool_intent._LineGestureIntent
 
 class FerrumNativeLineToolPointerMixin:
 	"""Own pointer capture and primary gesture state transitions."""
+	_dispatch_native_mode_input = ferrum_qt.ferrum.native_mode_input.dispatch_native_mode_input
+	_dispatch_line_mode_intent = ferrum_qt.ferrum.native_mode_input.dispatch_line_mode_intent
 	def eventFilter(self, watched: PySide6.QtCore.QObject,
 			event: PySide6.QtCore.QEvent) -> bool:
 		"""Capture Ferrum pointer intent for native creation and Rust-issued overlays."""
+		if self._dispatch_native_mode_input(watched, event):
+			return True
 		line_intent = self._line_gesture_intent
 		if line_intent is not None and watched is line_intent.viewport:
 			return self._line_gesture_event(event)
@@ -171,14 +178,14 @@ class FerrumNativeLineToolPointerMixin:
 
 	#============================================
 	def _cancel_line_tool_after_focus_handoff(self, intent: _LineGestureIntent) -> None:
-		"""Defer focus-loss retirement so a popup-to-canvas handoff can settle."""
+		"""Defer focus-loss cancellation so a popup-to-canvas handoff can settle."""
 		PySide6.QtCore.QTimer.singleShot(
 			0, lambda: self._cancel_line_tool_if_still_unfocused(intent),
 		)
 
 	#============================================
 	def _cancel_line_tool_if_still_unfocused(self, intent: _LineGestureIntent) -> None:
-		"""Retire only the exact intent that still owns an unfocused viewport."""
+		"""Cancel only the exact intent that still owns an unfocused viewport."""
 		if self._line_gesture_intent is intent and not intent.viewport.hasFocus():
 			self._cancel_line_gesture()
 
@@ -362,7 +369,7 @@ class FerrumNativeLineToolPointerMixin:
 			)
 			self._complete_text_placement_gesture()
 			return
-		if intent.tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
+		if intent.tool is _NativeLineTool.INSERT_REGULAR_RING:
 			center = intent.tab.view.snap_authored_scene_point(press_scene)
 			if (
 				intent.tab.durable_atom_at_viewport_point(point) is not None
@@ -400,7 +407,7 @@ class FerrumNativeLineToolPointerMixin:
 		if intent.tool is _NativeLineTool.DRAW_BOND:
 			try:
 				start_probe = intent.tab.direct_bond_pointer_probe_at_viewport_point(point)
-				# Freeze the current shared next-drawing choice with the V3 probe.
+				# Freeze the current shared next-drawing choice with the  probe.
 				drawing = self._drawing_parameters.snapshot()
 				gesture = intent.tab.begin_direct_bond_gesture(
 					start_probe,
@@ -440,7 +447,7 @@ class FerrumNativeLineToolPointerMixin:
 			self._start_rotation_gesture(intent, press_scene)
 			return
 		if intent.tool is _NativeLineTool.TRANSLATE_ROOTS:
-			self._start_translation_gesture(intent, press_scene)
+			self._start_translation_gesture(intent, press_scene, event.modifiers())
 			return
 		if intent.tool in (
 			_NativeLineTool.CREATE_WAVY,
@@ -489,11 +496,11 @@ class FerrumNativeLineToolPointerMixin:
 	#============================================
 	@staticmethod
 	def _is_direct_bond_begin_refusal(error: Exception) -> bool:
-		"""Accept only typed V3 failures with a closed nonmodal recovery."""
+		"""Accept only typed  failures with a closed nonmodal recovery."""
 		import ferrum_qt.ferrum.engine as engine
 		return type(error) in (
-			engine.DirectBondPointerProbeErrorV3,
-			engine.DirectBondAdmissionRefusalV3,
+			engine.DirectBondPointerProbeError,
+			engine.DirectBondAdmissionRefusal,
 		)
 
 	#============================================
@@ -663,7 +670,7 @@ class FerrumNativeLineToolPointerMixin:
 			):
 				self._update_direct_bond_gesture(intent, event.position().toPoint())
 			return
-		if intent.tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
+		if intent.tool is _NativeLineTool.INSERT_REGULAR_RING:
 			return
 		if intent.tool is _NativeLineTool.DRAW_BOND and intent.direct_bond_gesture is not None:
 			self._update_direct_bond_gesture(intent, event.position().toPoint())
@@ -674,7 +681,7 @@ class FerrumNativeLineToolPointerMixin:
 				"The document changed during the gesture; no operation was accepted.",
 			))
 			return
-		if not ferrum_qt.canvas.graphics_retirement.is_valid_native_wrapper(intent.preview):
+		if not ferrum_qt.canvas.graphics_disposal.is_valid_native_wrapper(intent.preview):
 			self._cancel_line_gesture()
 			return
 		current = self._line_gesture_preview_target(intent, event.position().toPoint())
@@ -793,16 +800,17 @@ class FerrumNativeLineToolPointerMixin:
 					_NativeLineTool.CREATE_WAVY,
 					_NativeLineTool.CREATE_RECTANGULAR_BRACKET,
 					_NativeLineTool.CREATE_ROUND_BRACKET,
-					_NativeLineTool.INSERT_CYCLOHEXANE_RING,
+					_NativeLineTool.INSERT_REGULAR_RING,
 					_NativeLineTool.ATTACH_CYCLOHEXANE_RING,
 				)
 				and intent.start_atom_id is None
 			)
 		):
 			return
-		if intent.tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
+		if intent.tool is _NativeLineTool.INSERT_REGULAR_RING:
 			center = intent.regular_ring_center
-			if center is None:
+			size = intent.regular_ring_size
+			if center is None or size is None:
 				return
 			if not self._line_gesture_is_current(intent):
 				self._cancel_line_gesture()
@@ -810,15 +818,44 @@ class FerrumNativeLineToolPointerMixin:
 				return
 			self._reset_line_gesture_start()
 			try:
-				ferrum_qt.ferrum.regular_ring.insert_cyclohexane(intent.tab, center)
-			except Exception as exc:
+				ferrum_qt.ferrum.regular_ring.insert_regular_ring(intent.tab, size, center)
+			except ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError:
+				recovered = intent.tab.refresh_authoritative()
+				if not recovered:
+					self._cancel_line_gesture()
+					self._refresh_actions()
+					self._show_edit_refusal(self._unavailable_edit_refusal(
+						"The regular ring was inserted, but its authoritative display still needs "
+						"recovery; refresh before saving or editing.",
+					))
+					return
+				self._finish_line_gesture(intent, self.tr(
+					"Inserted one Ferrum {0}; the display was refreshed after installation recovery.",
+				).format(ferrum_qt.ferrum.regular_ring.display_name(size)))
+				return
+			except (
+				ferrum_qt.ferrum.engine.RevisionConflictError,
+				ferrum_qt.ferrum.engine.PreparedOperationStaleSnapshotError,
+				ferrum_qt.ferrum.engine.PreparedOperationRendererAdmissionError,
+				ferrum_qt.ferrum.engine.PreparedOperationForeignSessionError,
+				ferrum_qt.ferrum.engine.PreparedOperationConsumedError,
+				ferrum_qt.ferrum.engine.PreparedOperationProvisionalCapabilityError,
+			) as exc:
+				self._cancel_line_gesture()
+				self._refresh_actions()
+				refusal = self._admitted_session_transition_refusal(exc)
+				if refusal is None:
+					raise RuntimeError("Ferrum could not classify a generic transition refusal")
+				self._show_edit_refusal(refusal)
+				return
+			except (ValueError, ferrum_qt.ferrum.engine.OperationValidationError) as exc:
 				self._cancel_line_gesture()
 				self._refresh_actions()
 				self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 				return
 			self._finish_line_gesture(intent, self.tr(
-				"Inserted one Ferrum cyclohexane ring; click again or press Esc.",
-			))
+				"Inserted one Ferrum {0} ring; click again or press Esc.",
+			).format(ferrum_qt.ferrum.regular_ring.display_name(size)))
 			return
 		if intent.tool is _NativeLineTool.ATTACH_CYCLOHEXANE_RING:
 			pending = intent.attached_cyclohexane_pending

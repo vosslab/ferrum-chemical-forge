@@ -129,5 +129,5 @@ def test_prepared_molfile_cannot_commit_to_a_newer_revision(tmp_path: pathlib.Pa
 		.transition_request_v1(0))
 	session.commit_session_operation_transition_v1(other_pending)
 
-	with pytest.raises(ferrum_chem.OperationValidationError):
+	with pytest.raises(ferrum_chem.PreparedOperationStaleSnapshotError):
 		session.commit_session_operation_transition_v1(pending)

@@ -128,7 +128,7 @@ pub(crate) fn map_prepare_error(error: DocumentSessionError) -> ExecutionFailure
             ProtocolCompactGroupMaterializationRecoveryV1::DocumentUnchanged,
         ),
         _ => compact_refusal(
-            ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrReplayedPreparation,
+            ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrConsumedPreparation,
             ProtocolCompactGroupMaterializationRecoveryV1::RefreshAndRetry,
         ),
     }
@@ -145,14 +145,9 @@ fn map_commit_refusal(refusal: AdmittedSessionTransitionRefusalV1) -> ExecutionF
             ProtocolCompactGroupMaterializationRecoveryV1::DocumentUnchanged,
         ),
         AdmittedSessionTransitionRefusalV1::ForeignSession
-        | AdmittedSessionTransitionRefusalV1::Replayed
-        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability
-        | AdmittedSessionTransitionRefusalV1::HistoryCapacity => (
-            ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrReplayedPreparation,
-            ProtocolCompactGroupMaterializationRecoveryV1::RefreshAndRetry,
-        ),
-        _ => (
-            ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrReplayedPreparation,
+        | AdmittedSessionTransitionRefusalV1::Consumed
+        | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => (
+            ProtocolCompactGroupMaterializationCategoryV1::SessionConflictOrConsumedPreparation,
             ProtocolCompactGroupMaterializationRecoveryV1::RefreshAndRetry,
         ),
     };

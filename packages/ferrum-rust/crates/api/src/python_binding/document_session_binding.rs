@@ -215,7 +215,7 @@ impl PyDocumentSession {
             match super::presentation_render_plan_binding::plan_from_observation(&observation) {
                 Ok(plan) => plan,
                 Err(error) => {
-                    self.live_smarts.retire();
+                    self.live_smarts.clear_published_plan();
                     self.published_presentation_plan = None;
                     return Err(error);
                 }
@@ -380,16 +380,16 @@ impl PyDocumentSession {
     }
 
     /// Invalidate all live SMARTS receipts before a view lifecycle transition.
-    fn _retire_live_document_smarts_query_v1(&mut self) {
-        self.live_smarts.retire();
+    fn _clear_live_document_smarts_query_v1(&mut self) {
+        self.live_smarts.clear_published_plan();
         self.published_presentation_plan = None;
     }
 
     /// Invalidate only derived live SMARTS receipts after query-level UI
     /// cleanup. The private render plan remains owned by the authoritative
     /// projection transaction and is not republished here.
-    fn _retire_live_document_smarts_receipts_v1(&mut self) {
-        self.live_smarts.retire_receipts();
+    fn _clear_live_document_smarts_receipts_v1(&mut self) {
+        self.live_smarts.clear_receipts();
     }
 
     /// Private Qt publication seam: the returned render observation and the

@@ -108,8 +108,7 @@ class FerrumNativeGeometryRepairWindowMixin:
 
 	#============================================
 	def _build_geometry_repair_actions(self) -> None:
-		"""Add only geometry kinds implemented by the Rust document boundary."""
-		menu = self.menuBar().addMenu(self.tr("Repair"))
+		"""Create and register geometry kinds implemented by the Rust boundary."""
 		self._clean_geometry_action = PySide6.QtGui.QAction(
 			self.tr("Clean Geometry..."), self,
 		)
@@ -117,7 +116,6 @@ class FerrumNativeGeometryRepairWindowMixin:
 			"Regenerate selected molecules through Ferrum chemistry at an explicit spacing",
 		))
 		self._clean_geometry_action.triggered.connect(self._on_clean_geometry)
-		menu.addAction(self._clean_geometry_action)
 		self._normalize_bond_lengths_action = PySide6.QtGui.QAction(
 			self.tr("Normalize Bond Lengths..."), self,
 		)
@@ -127,7 +125,6 @@ class FerrumNativeGeometryRepairWindowMixin:
 		self._normalize_bond_lengths_action.triggered.connect(
 			self._on_normalize_bond_lengths,
 		)
-		menu.addAction(self._normalize_bond_lengths_action)
 		self._normalize_bond_angles_action = PySide6.QtGui.QAction(
 			self.tr("Normalize Bond Angles..."), self,
 		)
@@ -137,7 +134,6 @@ class FerrumNativeGeometryRepairWindowMixin:
 		self._normalize_bond_angles_action.triggered.connect(
 			self._on_normalize_bond_angles,
 		)
-		menu.addAction(self._normalize_bond_angles_action)
 		self._normalize_rings_action = PySide6.QtGui.QAction(
 			self.tr("Normalize Ring Geometry..."), self,
 		)
@@ -145,7 +141,6 @@ class FerrumNativeGeometryRepairWindowMixin:
 			"Enter a target side length for one simple ring per molecule",
 		))
 		self._normalize_rings_action.triggered.connect(self._on_normalize_rings)
-		menu.addAction(self._normalize_rings_action)
 		self._snap_to_hex_grid_action = PySide6.QtGui.QAction(
 			self.tr("Snap Molecules to Hex Grid..."), self,
 		)
@@ -153,7 +148,6 @@ class FerrumNativeGeometryRepairWindowMixin:
 			"Enter an explicit scene-point spacing; Rust owns the complete repair",
 		))
 		self._snap_to_hex_grid_action.triggered.connect(self._on_snap_to_hex_grid)
-		menu.addAction(self._snap_to_hex_grid_action)
 		self._straighten_bonds_action = PySide6.QtGui.QAction(
 			self.tr("Straighten Terminal Bonds"), self,
 		)
@@ -161,7 +155,18 @@ class FerrumNativeGeometryRepairWindowMixin:
 			"Snap only degree-one bond endpoints through the Rust document session",
 		))
 		self._straighten_bonds_action.triggered.connect(self._on_straighten_bonds)
-		menu.addAction(self._straighten_bonds_action)
+		for action_id, action in (
+			("draw.geometry.clean", self._clean_geometry_action),
+			("draw.geometry.normalize_bond_lengths", self._normalize_bond_lengths_action),
+			("draw.geometry.normalize_bond_angles", self._normalize_bond_angles_action),
+			("draw.geometry.normalize_rings", self._normalize_rings_action),
+			("draw.geometry.snap_hex_grid", self._snap_to_hex_grid_action),
+			("draw.geometry.straighten_terminal_bonds", self._straighten_bonds_action),
+		):
+			self._action_registry.register_existing(
+				action_id, action,
+				shortcut_exemption_reason="Available by its labelled Draw menu client.",
+			)
 
 	#============================================
 	def _on_clean_geometry(self, _checked: bool = False) -> None:

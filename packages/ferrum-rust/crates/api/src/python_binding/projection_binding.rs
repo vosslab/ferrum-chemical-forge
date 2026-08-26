@@ -215,6 +215,8 @@ pub(crate) struct PyBondProjectionV1 {
     #[pyo3(get)]
     pub(crate) document_object_id: String,
     #[pyo3(get)]
+    pub(crate) source_id: Option<String>,
+    #[pyo3(get)]
     pub(crate) start: PyBondEndpointV1,
     #[pyo3(get)]
     pub(crate) end: PyBondEndpointV1,
@@ -242,6 +244,7 @@ impl From<&BondProjectionV1> for PyBondProjectionV1 {
     fn from(value: &BondProjectionV1) -> Self {
         Self {
             document_object_id: value.document_object_id().as_str().to_owned(),
+            source_id: value.source_id().map(str::to_owned),
             start: value.start().into(),
             end: value.end().into(),
             source_type: value.source_type().map(str::to_owned),

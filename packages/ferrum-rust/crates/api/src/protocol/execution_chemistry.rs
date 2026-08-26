@@ -6,6 +6,16 @@ pub(super) fn execute_chemistry_convert<R: ChemistryRuntimeV1>(
     request: ChemistryConvertRequestV1,
     runtime: &R,
 ) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
+    if request.input.format == InterchangeFormatV1::CmlSimpleMolecule
+        && request.output_format == InterchangeFormatV1::CmlSimpleMolecule
+    {
+        return execute_cml_to_cml_conversion(request);
+    }
+    if request.input.format == InterchangeFormatV1::CmlSimpleMolecule
+        && request.output_format == InterchangeFormatV1::Cdml
+    {
+        return execute_cml_to_cdml_conversion(request);
+    }
     if request.input.format == InterchangeFormatV1::Cdml
         && request.output_format == InterchangeFormatV1::Cdml
     {
@@ -44,6 +54,48 @@ pub(super) fn execute_chemistry_convert<R: ChemistryRuntimeV1>(
             }))
         })
         .map_err(map_runtime_conversion_error)?
+}
+
+/// Canonical CML2 re-encoding without crossing the generic interchange bridge.
+///
+/// The parser-validated decoded document remains the sole authority for CML
+/// source molecule and atom identifiers, so this pure conversion preserves the
+/// declared CML record order without acquiring a native chemistry capability.
+fn execute_cml_to_cml_conversion(
+    request: ChemistryConvertRequestV1,
+) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
+    let document = crate::document_interchange_import_v1::decode_cml_simple_molecule_document_v1(
+        request.input.text.as_bytes(),
+    )
+    .map_err(ExecutionFailureV1::interchange_import_refusal)?;
+    let record_count = document.records().len();
+    let text = ferrum_chemistry::encode_cml_decoded_document_v1(&document)
+        .map_err(|error| ExecutionFailureV1::conversion_unsupported(error.to_string()))?;
+    Ok(OperationProtocolOutcomeV1::ChemistryConvert {
+        format: InterchangeFormatV1::CmlSimpleMolecule,
+        text,
+        record_count,
+    })
+}
+
+/// Canonical CDML admission from CML/CML2 without acquiring a chemistry runtime.
+///
+/// The local-document ingress transaction owns CML lowering, durable document
+/// construction, and native serialization, so this conversion cannot diverge
+/// from the Qt File > Open path.
+fn execute_cml_to_cdml_conversion(
+    request: ChemistryConvertRequestV1,
+) -> Result<OperationProtocolOutcomeV1, ExecutionFailureV1> {
+    let (text, record_count) =
+        crate::document_interchange_import_v1::convert_cml_simple_molecule_to_cdml_v1(
+            request.input.text.as_bytes(),
+        )
+        .map_err(ExecutionFailureV1::interchange_import_refusal)?;
+    Ok(OperationProtocolOutcomeV1::ChemistryConvert {
+        format: InterchangeFormatV1::Cdml,
+        text,
+        record_count,
+    })
 }
 
 /// Complete CDML-to-CDML projection without acquiring a chemistry runtime.

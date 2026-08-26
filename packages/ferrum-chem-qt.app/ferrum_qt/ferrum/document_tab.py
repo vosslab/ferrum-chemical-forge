@@ -173,7 +173,7 @@ class FerrumNativeDocumentTab(
 			self._initialize(title, session, view, controller)
 			self._refresh_from_current_revision()
 		except Exception:
-				self._retire_partial_resources()
+				self._dispose_partial_resources()
 				raise
 
 	#============================================
@@ -210,7 +210,7 @@ class FerrumNativeDocumentTab(
 			tab._initialize(title, session, view, controller)
 			tab._refresh_from_current_revision()
 		except Exception:
-			tab._retire_partial_resources()
+			tab._dispose_partial_resources()
 			raise
 		return tab
 	#============================================
@@ -273,7 +273,7 @@ class FerrumNativeDocumentTab(
 	#============================================
 	@property
 	def is_disposed(self) -> bool:
-		"""Return whether this tab has terminally retired its projection boundary."""
+		"""Return whether this tab has terminally disposed its projection boundary."""
 		return self._disposed
 	#============================================
 	@property
@@ -666,10 +666,10 @@ class FerrumNativeDocumentTab(
 		return True
 	#============================================
 	def dispose(self) -> None:
-		"""Terminally invalidate render delivery before retiring the graphics view."""
+		"""Invalidate render delivery before disposing the graphics view."""
 		if self._disposed:
 			return
-		self._require_live_smarts_retirement_v1("tab_disposed")
+		self._require_live_smarts_invalidation_v1("tab_disposed")
 		self._disposed = True
 		self._controller.dispose()
 		self._view.setScene(None)
@@ -920,10 +920,10 @@ class FerrumNativeDocumentTab(
 		if self._disposed:
 			raise FerrumNativeDocumentTabError("Ferrum document tab has been disposed")
 	#============================================
-	def _retire_partial_resources(self) -> None:
+	def _dispose_partial_resources(self) -> None:
 		"""Dispose partial projection resources after construction failure."""
 		if getattr(self, "_session", None) is not None:
-			self._retire_live_smarts_query_v1("construction_failure")
+			self._invalidate_live_smarts_query_v1("construction_failure")
 		controller = getattr(self, "_controller", None)
 		if controller is not None:
 			controller.dispose()

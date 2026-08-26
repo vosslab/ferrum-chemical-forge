@@ -128,9 +128,9 @@ one persisted root kind, its durable semantics, why no primitive is intended,
 and why it remains valid; it then adds one explicit allowlist reason and a
 permanent behavior test.
 
-## Public-surface retirement
+## Public-surface removal
 
-Retire or make crate-private, with no deprecated forwarding shims:
+Remove or make crate-private, with no deprecated forwarding shims:
 
 - Contract exports of `AcceptedCompleteRenderV1` and equivalent accepted
   receipt/proof wrappers, including every
@@ -157,7 +157,7 @@ results, never raw candidate, proof, or receipt authority.
 1. Add contract types, pure renderer profile, document-private retention, exact
    revalidation, and generic-core tests.
 2. Migrate complete-CDML mutation and reaction lifecycle, gesture, and
-   translation; make authoring compilers private adapters and retire public raw
+   translation; make authoring compilers private adapters and remove public raw
    CDML prepare/commit.
 3. Migrate direct bond and catalog placement; retain only immutable
    renderer-issued preview DTOs.
@@ -172,7 +172,7 @@ or API documentation gains unimplemented compact-group symbols during M0.
 
 ## Admitted insertion amendment
 
-This approved amendment governed the M0 retirement of admitted
+This approved amendment governed the M0 removal of admitted
 molecule/interchange insertion and materializer bridges. The generic migration
 is implemented for those routes and explicit-hydrogen materialization; M0
 remains open for its remaining migration tranches and final exit evidence.
@@ -196,7 +196,7 @@ remains open for its remaining migration tranches and final exit evidence.
   return their typed failure. They do not become a no-change success or expose
   deferred identifiers.
 
-Retire without aliases, forwarding methods, compatibility wrappers, or
+Remove without aliases, forwarding methods, compatibility wrappers, or
 re-exports: admitted molecule/interchange pending values, their document
 prepare/commit methods, PyO3 pending bindings and pre-commit accessors, and
 API import holders retaining those pending values. Adapters retain only the
@@ -207,7 +207,7 @@ Explicit-hydrogen materialization migrates to the same generic boundary with a
 closed request and post-commit outcome using `TransitionAuthorizationV1::None`.
 Its stable stateless/live protocol vocabulary may remain as request/result
 data; route-specific document and renderer pending, prepared, and commit
-wrappers retire.
+wrappers are removed.
 
 Compact-group materialization is M0 internal cleanup only. Document-private
 callers may use generic complete-render transition machinery, but M0 adds no
@@ -238,12 +238,12 @@ implementation result, not M0 exit evidence.
   `SessionOperationTransitionRequestV1` values. The generic document
   prepare/commit path owns preparation and the sole redemption authority.
 - Route-specific reaction prepared/committed receipts and prepare/commit
-  exports are retired. `PreparedSessionTransitionV1` remains the only public
+  exports are removed. `PreparedSessionTransitionV1` remains the only public
   post-preparation capability.
 - Reaction translation uses the existing `TransformTopLevelRoots` operation;
   no reaction-specific translation operation was added.
 - The raw complete-CDML adapter and public
-  `PendingCompleteCdmlMutationV1` prepare/commit path are retired without
+  `PendingCompleteCdmlMutationV1` prepare/commit path are removed without
   forwarding shims. Raw CDML candidate parsing and lowering remain private
   document implementation details.
 - Successful generic results publish durable reaction IDs only after the
@@ -266,9 +266,9 @@ evidence predates the later canonical atomic-operation API change and is not a
 claim of current assembled-build, binding-runtime, Qt-runtime, aggregate-suite,
 or M0-exit validation.
 
-M0 remains incomplete pending the admitted molecule/interchange insertion and
-explicit-hydrogen/compact-group materialization authority retirements, their
-required evidence, and M0 exit validation.
+Before closure, M0 awaited removal of admitted molecule/interchange insertion
+and explicit-hydrogen/compact-group materialization authority, its required
+evidence, and M0 exit validation. Those scopes are now complete.
 
 ## Permanent evidence
 
@@ -309,7 +309,7 @@ implementation result, not M0 exit or cross-crate completion.
   semantic request. It no longer owns a gesture, pending receipt, capability,
   preview, or commit authority.
 - Route-specific V1/V2 catalog document-render and API authority, including the
-  PyO3 V2 handle binding, is retired without aliases or forwarding wrappers.
+  PyO3 V2 handle binding, is removed without aliases or forwarding wrappers.
   The stateless protocol resolves the closed request and prepares and commits
   through the generic transition; it preserves its caller-digest comparison and
   maps renderer refusal distinctly.
@@ -325,11 +325,11 @@ Two shared-M0 feature-test blockers remain outside catalog ownership:
 
 - `attached_cyclohexane_binding.rs` passes an immutable session to its
   now-mutable `cancel` helper.
-- `live_document_smarts_query_v1/tests.rs` still calls the retired raw
+- `live_document_smarts_query_v1/tests.rs` still calls the removed raw
   `commit_complete_cdml_transaction_v1` mutation surface.
 
 Their owners must migrate those adapters/tests to generic transition authority;
-catalog placement must not restore a retired surface to make either test pass.
+catalog placement must not restore a removed surface to make either test pass.
 
 One-time differential evidence compares the current `Me`/`NO2` placement and
 materialization experiment, attached and free, with the new profile. CDML, IDs,
@@ -343,14 +343,14 @@ plan, renderer-admission architecture, and this decision record. This record
 uses the approved architecture authority at
 `/private/tmp/ferrum_m0_complete_render_architecture.md` as amended by
 `/private/tmp/ferrum_m0_visibility_amendment.md`. The decision found no
-architectural blocker; implementation and staged evidence remain outstanding,
-so M0 is not complete.
+architectural blocker. Its approved generic render-admission scope is complete;
+later product work uses that closed authority rather than reopening M0.
 
 ## Transition presentation metadata
 
 The approved generic metadata seam is document-owned and returns only a copied,
 immutable display DTO while a prepared transition remains redeemable. Access after
-commit, cancellation, or retirement returns the closed `Retired` refusal; a
+commit or cancellation returns the closed `Consumed` refusal; a
 copied DTO remains inert display data and never renews transition authority.
 
 Commit remains opaque document authority. The DTO exposes neither a raw render
@@ -360,10 +360,10 @@ capability. Direct-bond route results stay route-private, and catalog preview
 leases remain UI-local renderer lifecycle state rather than generic transition
 metadata.
 
-This decision authorizes only the M0 metadata seam and the direct-bond/catalog
-migrations that depend on it. It does not authorize materialization work, new
+This decision records the M0 metadata seam and the direct-bond/catalog
+migrations that depend on it. It does not expand later product work into new
 renderer semantics, generic route-result serialization, or broader product/API
-changes. M0 remains incomplete pending implementation and its required evidence.
+changes.
 
 ## Direct-bond M0 amendments
 
@@ -420,7 +420,7 @@ route-specific wrapper.
 Generic preparation alone validates the requirement and issuer, claims a valid
 capability, and privately retains only `AuthoringCapabilityClaimV1` in
 `PreparedSessionTransitionV1`. Generic commit alone consumes that claim during
-the sole atomic redemption. Generic terminal retirement/cancellation and
+the sole atomic redemption. Generic terminal cancellation and consumption and
 incomplete-preparation cleanup own the remaining lifecycle through one
 document-private helper: a nonterminal refusal leaves the opaque prepared
 transition available for its valid generic retry, while terminal paths consume
@@ -449,7 +449,7 @@ only: it confirms the intended generic preparation/execution seam and the
 current direct-bond lifecycle seam, but does not prove implementation or
 migration. Required permanent evidence includes `None` for a representative
 existing operation; typed direct-bond refusal for `None`, foreign, and consumed
-capabilities before mutation; generic claim/commit/retry/retirement ownership;
+capabilities before mutation; generic claim/commit/retry/consumption ownership;
 all four V3 endpoint forms through generic prepare and commit. This approval
 text records the then-pending implementation state;
 the post-audit corrective amendment below supersedes it for implementation
@@ -502,8 +502,8 @@ For an authorized changed transition, all fallible validation occurs while the
 prepared transition and private claim remain live. A nonterminal owner refusal
 leaves both redeemable for retry; a foreign attempt leaves them untouched. At
 the sole private redemption point, generic commit consumes the claim before the
-infallible, already-preflighted history/effect finalization and retirement.
-Explicit retirement and `Drop` use one private terminal helper that consumes a
+infallible, already-preflighted history/effect finalization and consumption.
+Explicit cancellation and `Drop` use one private terminal helper that consumes a
 retained claim exactly once; only cleanup of preparation that fails before
 return restores local availability.
 

@@ -116,17 +116,15 @@ class FerrumNativeLocalDocumentOpenMixin:
 		self._local_document_open_relay = _LocalDocumentOpenRelay(self)
 
 	#============================================
-	def _build_local_document_open_action(
-			self, menu: PySide6.QtWidgets.QMenu,
-			) -> PySide6.QtGui.QAction:
-		"""Add explicit cancellation next to the host-owned Open action."""
+	def _build_local_document_open_action(self) -> PySide6.QtGui.QAction:
+		"""Construct explicit cancellation next to the host-owned Open action."""
 		self._open_action.setToolTip(self.tr(
 			"Open a local CDML drawing or SVG containing embedded CDML",
 		))
 		action = PySide6.QtGui.QAction(self.tr("Cancel Open"), self)
 		action.triggered.connect(self._cancel_local_document_open)
-		menu.addAction(action)
 		self._cancel_open_action = action
+		self._register_action("file.open.cancel", action, lifecycle="stateful-cancel")
 		return action
 
 	#============================================
@@ -151,17 +149,15 @@ class FerrumNativeLocalDocumentOpenMixin:
 		return ";;".join(filters)
 
 	#============================================
-	def _build_open_in_current_tab_action(
-			self, menu: PySide6.QtWidgets.QMenu,
-			) -> PySide6.QtGui.QAction:
-		"""Add the deliberate populated-tab replacement command."""
+	def _build_open_in_current_tab_action(self) -> PySide6.QtGui.QAction:
+		"""Construct the deliberate populated-tab replacement command."""
 		action = PySide6.QtGui.QAction(self.tr("Open in Current Tab..."), self)
 		action.setShortcut(PySide6.QtGui.QKeySequence("Ctrl+Shift+O"))
 		action.setStatusTip(self.tr("Open a Ferrum drawing in place of the current tab."))
 		action.setToolTip(self.tr("Open a Ferrum drawing in place of the current tab."))
 		action.triggered.connect(self._on_open_in_current_tab)
-		menu.addAction(action)
 		self._open_in_current_tab_action = action
+		self._register_action("file.open_current", action)
 		return action
 
 	#============================================
@@ -285,7 +281,7 @@ class FerrumNativeLocalDocumentOpenMixin:
 			and self._tab_has_active_native_canvas_interaction(focus_target)
 		)
 		# File/Open is a terminal document command.  Capture the pre-cancellation
-		# activity only to preserve its NewTab/focus policy, then retire its
+		# activity only to preserve its NewTab/focus policy, then close its
 		# transient pointer owners before detached Rust admission can change tabs.
 		if focus_busy:
 			self.cancel_active_pointer_authoring()
@@ -731,7 +727,7 @@ class FerrumNativeLocalDocumentOpenMixin:
 
 	#============================================
 	def _on_local_document_open_finished(self, worker: object) -> None:
-		"""Retire one exact stopped worker and restore Open reachability."""
+		"""Dispose one exact stopped worker and restore Open reachability."""
 		intent = self._local_document_open_intent
 		if intent is None or worker is not intent.worker:
 			return
@@ -783,7 +779,7 @@ class FerrumNativeLocalDocumentOpenMixin:
 
 	#============================================
 	def _cancel_explicit_replacement_for_target_close(self, tab: object) -> bool:
-		"""Invalidate a prepared explicit destination before that tab can retire."""
+		"""Invalidate a prepared explicit destination before that tab closes."""
 		intent = self._local_document_open_intent
 		if intent is None or intent.replacement_fence is None:
 			return False

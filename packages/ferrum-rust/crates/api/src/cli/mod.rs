@@ -2,7 +2,8 @@ use std::io::{Read, Write};
 
 use crate::cli::protocol::{run_named_document_protocol, run_protocol, write_protocol_schema};
 use crate::cli::verbs::{
-    convert, coords, document_export_sdf, haworth, inspect, open, render, rewrite, validate,
+    convert, coords, document_export_sdf, formats, haworth, inspect, inspect_graph, open, render,
+    rewrite, validate,
 };
 use crate::interchange_import_v1::{InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1};
 use crate::transport::errors::CliError;
@@ -17,8 +18,8 @@ pub(crate) mod verbs;
 
 pub use commands::Cli;
 pub(crate) use commands::{
-    ArtifactOutputFormat, Command, DocumentCommand, InterchangeFormat, InterchangeInputFormat,
-    ProtocolCommand, SdfVersion, ValidationLevel, interchange_input_format_from_descriptor,
+    ArtifactOutputFormat, Command, DocumentCommand, InterchangeInputFormat, ProtocolCommand,
+    SdfVersion, ValidationLevel, interchange_input_format_from_protocol_format,
 };
 
 /// Execute accepted CLI arguments with caller-owned standard streams.
@@ -95,6 +96,19 @@ pub fn run(
             stdout,
             stderr,
         )?),
+        Command::InspectGraph {
+            input,
+            input_format,
+            json,
+        } => Ok(inspect_graph::run(
+            &input,
+            &input_format,
+            json,
+            stdin,
+            stdout,
+            stderr,
+        )?),
+        Command::Formats { json } => Ok(formats::run(json, stdout)?),
         Command::Coords {
             document,
             output,
@@ -276,14 +290,16 @@ mod tests {
 
     use clap::{CommandFactory, Parser};
     use ferrum_chemistry::{
-        ChemEngine, ChemistryError, Coordinates, KekulizeOptions, MolGraph, SmartsMatchOptions,
-        SmartsMatchResult, SmilesMolecule,
+        AtomicNumber, BondOrder, ChemEngine, ChemistryError, Coordinates, KekulizeOptions, MolAtom,
+        MolBond, MolGraph, Point2, SmartsMatchOptions, SmartsMatchResult, SmilesMolecule,
+        decode_cml_bytes_v1,
     };
 
     use super::{Cli, interchange_open_descriptor_for_input, run};
 
     const CDML: &str = "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:f=\"urn:ferrum:document-object:v1\"><molecule id=\"m\" f:id=\"ferrum-document-object-v1/00112233445566778899aabbccddeeff\"><atom id=\"a\" name=\"C\" f:id=\"ferrum-document-object-v1/ffeeddccbbaa99887766554433221100\"><point x=\"10\" y=\"20\"/></atom></molecule></cdml>";
     const CML2: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0"/><atom id="a2" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="1"/></bondArray></molecule></cml>"#;
+    const CML2_TWO_RECORDS: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule id="first"><atomArray><atom id="carbon" elementType="C" x2="0" y2="0"/></atomArray></molecule><molecule id="second"><atomArray><atom id="oxygen" elementType="O" x2="1" y2="2"/></atomArray></molecule></cml>"#;
 
     #[test]
     fn interchange_open_resolves_every_registered_alias_and_suffix() {
@@ -361,6 +377,71 @@ mod tests {
     }
 
     #[test]
+    fn formats_json_routes_through_production_without_runtime_or_input() {
+        let cli =
+            Cli::try_parse_from(["ferrum", "formats", "--json"]).expect("formats arguments parse");
+        let mut stdin = [].as_slice();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        run(cli, &mut stdin, &mut stdout, &mut stderr).expect("formats completes");
+        let catalog: serde_json::Value =
+            serde_json::from_slice(&stdout).expect("formats output is JSON");
+        assert_eq!(catalog["schema"], "ferrum-interchange-capabilities-v1");
+        for (alias, runtime_requirement) in [
+            ("smiles", "runtime_required"),
+            ("cml", "runtime_free"),
+            ("sdf", "runtime_required"),
+        ] {
+            let capability = catalog["capabilities"]
+                .as_array()
+                .expect("catalog capabilities")
+                .iter()
+                .find(|candidate| {
+                    candidate["input"]["aliases"]
+                        .as_array()
+                        .is_some_and(|aliases| aliases.iter().any(|value| value == alias))
+                })
+                .expect("representative capability");
+            assert_eq!(
+                capability["input"]["runtime_requirement"],
+                runtime_requirement
+            );
+        }
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn formats_default_text_projects_the_catalog_for_humans() {
+        let (json_stdout, json_stderr) = run_from_stdin(&["ferrum", "formats", "--json"]);
+        let (text_stdout, text_stderr) = run_from_stdin(&["ferrum", "formats"]);
+        let json_catalog: serde_json::Value =
+            serde_json::from_slice(&json_stdout).expect("JSON catalog");
+        let text = String::from_utf8(text_stdout).expect("human-readable text");
+        assert!(text.lines().any(|line| {
+            line.contains("input canonical=cml")
+                && line.contains("output canonical=cml")
+                && line.contains("runtime=runtime_free")
+        }));
+        assert!(text.lines().any(|line| {
+            line.contains("input canonical=sdf")
+                && line.contains("output canonical=sdf_v2000")
+                && line.contains("runtime=runtime_required")
+        }));
+        assert!(
+            json_catalog["capabilities"]
+                .as_array()
+                .is_some_and(|capabilities| {
+                    capabilities.iter().any(|capability| {
+                        capability["input"]["canonical_name"] == "cml"
+                            && capability["output"]["canonical_name"] == "cml"
+                    })
+                })
+        );
+        assert!(json_stderr.is_empty());
+        assert!(text_stderr.is_empty());
+    }
+
+    #[test]
     fn validate_exposes_the_typed_protocol_operation() {
         let (stdout, stderr) = run_from_stdin(&["ferrum", "validate", "-", "--level", "typed"]);
         let report: serde_json::Value =
@@ -385,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn engine_verbs_complete_through_the_protocol_envelope() {
+    fn engine_verbs_emit_typed_unsuccessful_envelopes_as_nonzero_outcomes() {
         for arguments in [
             vec![
                 "ferrum", "convert", "-", "--from", "smiles", "--to", "smiles", "--json",
@@ -396,8 +477,10 @@ mod tests {
             let mut stdin = CDML.as_bytes();
             let mut stdout = Vec::new();
             let mut stderr = Vec::new();
-            run(cli, &mut stdin, &mut stdout, &mut stderr)
-                .expect("typed refusal should complete the CLI operation");
+            let error = run(cli, &mut stdin, &mut stdout, &mut stderr)
+                .expect_err("typed refusal should produce a nonzero CLI outcome");
+            assert_eq!(error.exit_status(), 1);
+            assert!(error.was_emitted_to_stream());
             let envelope: serde_json::Value =
                 serde_json::from_slice(&stdout).expect("engine verb should return an envelope");
             assert!(
@@ -411,8 +494,39 @@ mod tests {
     struct CmlConvertEngine;
 
     impl ChemEngine for CmlConvertEngine {
-        fn smiles_to_molecule(&self, _: &str) -> Result<SmilesMolecule, ChemistryError> {
-            Err(ChemistryError::OperationUnavailable {
+        fn smiles_to_molecule(&self, smiles: &str) -> Result<SmilesMolecule, ChemistryError> {
+            if smiles != "CO" {
+                return Err(ChemistryError::OperationUnavailable {
+                    operation: "smiles_to_molecule",
+                });
+            }
+            let graph = MolGraph::new(
+                vec![
+                    MolAtom::new(
+                        AtomicNumber::try_from(6).expect("carbon"),
+                        None,
+                        None,
+                        None,
+                        false,
+                    )
+                    .expect("carbon atom"),
+                    MolAtom::new(
+                        AtomicNumber::try_from(8).expect("oxygen"),
+                        None,
+                        None,
+                        None,
+                        false,
+                    )
+                    .expect("oxygen atom"),
+                ],
+                vec![MolBond::new(0, 1, BondOrder::Single, false)],
+                Some(Coordinates::new(vec![
+                    Point2::new(0.0, 0.0).expect("first point"),
+                    Point2::new(30.0, 0.0).expect("second point"),
+                ])),
+            )
+            .expect("complete graph");
+            SmilesMolecule::new("CO", graph).map_err(|_| ChemistryError::OperationUnavailable {
                 operation: "smiles_to_molecule",
             })
         }
@@ -471,16 +585,31 @@ mod tests {
     }
 
     #[test]
-    fn convert_refuses_unsupported_cml_before_loading_or_using_the_engine() {
-        let cli = Cli::try_parse_from([
-            "ferrum", "convert", "-", "--from", "cml", "--to", "smiles", "--json",
-        ])
-        .expect("CML alias should parse through the registry");
-        let mut stdin =
-            b"<!DOCTYPE cml><cml xmlns=\"http://www.xml-cml.org/schema/cml2/core\"></cml>"
-                .as_slice();
+    fn convert_cml2_to_canonical_cml2_preserves_source_ids_and_record_order_without_runtime() {
+        let cli = Cli::try_parse_from(["ferrum", "convert", "-", "--from", "cml2", "--to", "cml"])
+            .expect("CML output alias should parse");
+        let mut stdin = CML2_TWO_RECORDS.as_bytes();
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
+
+        run(cli, &mut stdin, &mut stdout, &mut stderr)
+            .expect("pure CML conversion should not require a runtime");
+
+        let expected = decode_cml_bytes_v1(CML2_TWO_RECORDS.as_bytes()).expect("source CML2");
+        let output = decode_cml_bytes_v1(&stdout).expect("canonical CML2 output");
+        assert_eq!(output, expected);
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn convert_generic_smiles_record_to_cml2_redecodes_through_the_registry_target() {
+        let cli =
+            Cli::try_parse_from(["ferrum", "convert", "-", "--from", "smiles", "--to", "cml2"])
+                .expect("CML2 output alias should parse");
+        let mut stdin = b"CO".as_slice();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
         super::run_with_runtime_for_test(
             cli,
             &mut stdin,
@@ -488,15 +617,68 @@ mod tests {
             &mut stderr,
             &CmlConvertRuntime(CmlConvertEngine),
         )
-        .expect("typed CML refusal should complete");
-        let envelope: serde_json::Value =
-            serde_json::from_slice(&stdout).expect("CML refusal is JSON");
-        assert_eq!(envelope["error"]["category"], "conversion_unsupported");
-        assert_eq!(
-            envelope["error"]["message"],
-            "interchange_import_refused:DtdForbidden"
-        );
+        .expect("generic conversion should encode CML2");
+
+        let output = decode_cml_bytes_v1(&stdout).expect("CML2 output re-decodes");
+        assert_eq!(output.records()[0].atoms()[0].element().symbol(), "C");
+        assert_eq!(output.records()[0].atoms()[1].element().symbol(), "O");
         assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn convert_refuses_unregistered_cml1_output_through_the_shared_cli_error_contract() {
+        let cli = Cli::try_parse_from(["ferrum", "convert", "-", "--from", "cml", "--to", "cml1"])
+            .expect("output aliases are resolved by the runtime registry boundary");
+        let mut stdin = CML2.as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        let error = run(cli, &mut stdin, &mut stdout, &mut stderr)
+            .expect_err("CML1 has no output registry capability");
+        assert_eq!(error.exit_status(), 1);
+        assert!(!error.was_emitted_to_stream());
+        assert!(stdout.is_empty());
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn convert_refusal_has_one_typed_output_and_a_nonzero_outcome_in_each_mode() {
+        for json in [false, true] {
+            let mut arguments = vec!["ferrum", "convert", "-", "--from", "cml", "--to", "smiles"];
+            if json {
+                arguments.push("--json");
+            }
+            let cli = Cli::try_parse_from(arguments)
+                .expect("CML alias should parse through the registry");
+            let mut stdin =
+                b"<!DOCTYPE cml><cml xmlns=\"http://www.xml-cml.org/schema/cml2/core\"></cml>"
+                    .as_slice();
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            let error = super::run_with_runtime_for_test(
+                cli,
+                &mut stdin,
+                &mut stdout,
+                &mut stderr,
+                &CmlConvertRuntime(CmlConvertEngine),
+            )
+            .expect_err("typed CML refusal should produce a nonzero CLI outcome");
+            assert_eq!(error.exit_status(), 1);
+            assert!(error.was_emitted_to_stream());
+            if json {
+                let envelope: serde_json::Value =
+                    serde_json::from_slice(&stdout).expect("CML refusal is JSON");
+                assert_eq!(envelope["error"]["category"], "conversion_unsupported");
+                assert!(stderr.is_empty());
+            } else {
+                assert!(stdout.is_empty());
+                assert!(
+                    String::from_utf8(stderr)
+                        .expect("text refusal is UTF-8")
+                        .starts_with("ferrum: ")
+                );
+            }
+        }
     }
 
     #[test]
@@ -785,6 +967,7 @@ mod tests {
                 "convert",
                 "ferrum convert aspirin.smi --to sdf_v2000 -o aspirin.sdf",
             ),
+            ("formats", "ferrum formats --json"),
             ("coords", "ferrum coords drawing.cdml -o laid-out.cdml"),
         ] {
             let help = command

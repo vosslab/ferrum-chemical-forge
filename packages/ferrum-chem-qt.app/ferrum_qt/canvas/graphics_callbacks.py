@@ -6,7 +6,7 @@ import PySide6.QtWidgets
 
 #============================================
 def dispose_item_callbacks(item: PySide6.QtWidgets.QGraphicsItem) -> None:
-	"""Release one item's projection and Ferrum callbacks before retirement."""
+	"""Release one item's projection and Ferrum callbacks before disposal."""
 	first_error = None
 	binding = getattr(item, "_projection_binding", None)
 	if binding is not None:

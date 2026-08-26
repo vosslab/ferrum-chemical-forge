@@ -160,15 +160,14 @@ class FerrumNativeWavyPropertiesMixin:
 
 
 #============================================
-def install_wavy_properties_action(window: object,
-		edit_menu: PySide6.QtWidgets.QMenu) -> PySide6.QtGui.QAction:
-	"""Install one Ferrum Wavy-properties action on the public window."""
+def install_wavy_properties_action(window: object) -> PySide6.QtGui.QAction:
+	"""Construct one Ferrum Wavy-properties action on the public window."""
 	action = PySide6.QtGui.QAction(window.tr("Edit Wavy Properties"), window)
 	action.setToolTip(window.tr(
 		"Edit one selected Wavy line through one operation",
 	))
 	action.triggered.connect(lambda _checked=False: _on_edit_wavy_properties(window))
-	edit_menu.addAction(action)
+	window._register_action("edit.wavy.properties", action)
 	return action
 
 

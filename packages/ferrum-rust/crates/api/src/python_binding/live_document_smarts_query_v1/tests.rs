@@ -311,7 +311,7 @@ fn selected_readiness_reports_a_stale_token() {
 }
 
 #[test]
-fn receipt_only_retirement_retains_the_plan_for_raw_and_selected_reruns() {
+fn receipt_only_clearing_retains_the_plan_for_raw_and_selected_reruns() {
     pyo3::Python::initialize();
     pyo3::Python::attach(|py| {
         let session = session();
@@ -351,12 +351,12 @@ fn receipt_only_retirement_retains_the_plan_for_raw_and_selected_reruns() {
             selection,
         };
 
-        bridge.retire_receipts();
-        let retired = bridge
+        bridge.clear_receipts();
+        let cleared = bridge
             .show(py, &session, old_receipt.bind(py).borrow(), 0)
-            .expect_err("receipt-only retirement revokes the old opaque receipt");
+            .expect_err("receipt-only clearing revokes the old opaque receipt");
         assert_eq!(
-            reason(py, retired),
+            reason(py, cleared),
             PyLiveDocumentSmartsReasonV1::ReceiptUnavailable
         );
 
@@ -369,21 +369,21 @@ fn receipt_only_retirement_retains_the_plan_for_raw_and_selected_reruns() {
 
         let live = bridge
             .run(py, &session, &engine, "C".to_owned(), 1, 1)
-            .expect("fresh receipt exists before full retirement");
+            .expect("fresh receipt exists before full clearing");
         let live_receipt = live.bind(py).borrow().receipt.clone_ref(py);
-        bridge.retire();
-        let retired_receipt = bridge
+        bridge.clear_published_plan();
+        let cleared_receipt = bridge
             .show(py, &session, live_receipt.bind(py).borrow(), 0)
-            .expect_err("full retirement revokes the opaque receipt before plan lookup");
+            .expect_err("full clearing revokes the opaque receipt before plan lookup");
         assert_eq!(
-            reason(py, retired_receipt),
+            reason(py, cleared_receipt),
             PyLiveDocumentSmartsReasonV1::ReceiptUnavailable
         );
-        let retired_plan = bridge
+        let cleared_plan = bridge
             .validate_raw_request(&session, "C", 1, 1)
-            .expect_err("full retirement revokes the published plan");
+            .expect_err("full clearing revokes the published plan");
         assert_eq!(
-            reason(py, retired_plan),
+            reason(py, cleared_plan),
             PyLiveDocumentSmartsReasonV1::PlanNotPublished
         );
     });

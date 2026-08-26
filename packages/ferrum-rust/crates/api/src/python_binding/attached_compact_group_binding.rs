@@ -39,7 +39,7 @@ enum PyAttachedCompactGroupCategoryV1 {
     StaleRevision,
     StaleDigest,
     ForeignSession,
-    Retired,
+    Consumed,
     UnknownAnchor,
     InvalidPose,
     UnsupportedAttachmentCatalogKey,
@@ -223,7 +223,7 @@ impl PyDocumentSession {
         commit(&mut self.session, &mut pending.pending).map_err(|error| attached_error(py, error))
     }
 
-    /// Retire one native-tab preview without exposing candidate state.
+    /// Cancel one pending native-tab preview without exposing candidate state.
     fn _cancel_attach_compact_group_v1(
         &mut self,
         py: Python<'_>,
@@ -250,7 +250,7 @@ fn preview(
 ) -> PyResult<PyAttachedCompactGroupPreviewV1> {
     let overlay = pending
         .precommit_overlay_v1()
-        .ok_or_else(|| attached_error(py, AttachedCompactGroupSessionErrorV1::Retired))?;
+        .ok_or_else(|| attached_error(py, AttachedCompactGroupSessionErrorV1::Consumed))?;
     let overlay = overlay_from(py, overlay)
         .map_err(|_| attached_error(py, AttachedCompactGroupSessionErrorV1::RendererAdmission))?;
     Ok(PyAttachedCompactGroupPreviewV1 { overlay })
@@ -269,7 +269,7 @@ fn cancel(
     session: &mut DocumentSession,
     pending: &mut PendingAttachedCompactGroupV1,
 ) -> Result<(), AttachedCompactGroupSessionErrorV1> {
-    session.retire_attach_compact_group_v1(pending)
+    session.cancel_attach_compact_group_v1(pending)
 }
 
 fn commit_facts(result: AttachedCompactGroupCommitResultV1) -> PyAttachedCompactGroupCommitFactsV1 {
@@ -340,7 +340,7 @@ fn category(error: AttachedCompactGroupSessionErrorV1) -> PyAttachedCompactGroup
         AttachedCompactGroupSessionErrorV1::ForeignSession => {
             PyAttachedCompactGroupCategoryV1::ForeignSession
         }
-        AttachedCompactGroupSessionErrorV1::Retired => PyAttachedCompactGroupCategoryV1::Retired,
+        AttachedCompactGroupSessionErrorV1::Consumed => PyAttachedCompactGroupCategoryV1::Consumed,
         AttachedCompactGroupSessionErrorV1::UnknownAnchor => {
             PyAttachedCompactGroupCategoryV1::UnknownAnchor
         }

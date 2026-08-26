@@ -60,13 +60,63 @@ def _materialize(session: object, molecule_object_id: str, compact_group_object_
 	return session.apply_live_document_operation_v1(request)
 
 
-def test_attached_compact_group_choices_are_rust_owned_public_facts() -> None:
-	"""The private seam exposes reviewed catalog facts without a Python choice table."""
+def test_generic_methoxy_attachment_materializes_to_neutral_oxygen_first_topology() -> None:
+	"""The Rust-issued Methoxy choice preserves its neutral oxygen-first chemistry."""
 	session = _session()
-	choices = {(choice.catalog_key, choice.label) for choice in session._attached_compact_group_choices_v1()}
+	anchor = _anchor_id(session)
+	methoxy = next(
+		choice for choice in session._attached_compact_group_choices_v1()
+		if choice.catalog_key == "methoxy")
+	committed = session._commit_attach_compact_group_v1(_begin(session, methoxy.catalog_key))
+	molecule = session.observe(committed.revision).projection.molecules[0]
+	group = next(
+		group for group in molecule.compact_groups
+		if group.document_object_id == committed.compact_group_object_id)
+	materialized = _materialize(session, molecule.document_object_id, group.document_object_id)
+	materialized_molecule = materialized.mutation_result.observation.projection.molecules[0]
+	atoms_by_id = {
+		atom.document_object_id: atom
+		for atom in materialized_molecule.atoms
+	}
+	anchor_bond = next(
+		bond for bond in materialized_molecule.bonds
+		if anchor in (bond.start.document_object_id, bond.end.document_object_id))
+	oxygen_id = next(
+		atom_id for atom_id in (
+			anchor_bond.start.document_object_id,
+			anchor_bond.end.document_object_id,
+		)
+		if atom_id != anchor)
+	oxygen_bond = next(
+		bond for bond in materialized_molecule.bonds
+		if oxygen_id in (bond.start.document_object_id, bond.end.document_object_id)
+		and anchor not in (bond.start.document_object_id, bond.end.document_object_id))
+	carbon_id = next(
+		atom_id for atom_id in (
+			oxygen_bond.start.document_object_id,
+			oxygen_bond.end.document_object_id,
+		)
+		if atom_id != oxygen_id)
 
-	assert ("methyl", "Me") in choices
-	assert ("nitro", "NO2") in choices
+	assert (
+		atoms_by_id[oxygen_id].element,
+		atoms_by_id[oxygen_id].formal_charge,
+		anchor_bond.order,
+		anchor_bond.style,
+		atoms_by_id[carbon_id].element,
+		atoms_by_id[carbon_id].formal_charge,
+		oxygen_bond.order,
+		oxygen_bond.style,
+	) == (
+		"O",
+		None,
+		ferrum_chem.DocumentBondOrderV1.single,
+		ferrum_chem.DocumentBondStyleV1.normal,
+		"C",
+		None,
+		ferrum_chem.DocumentBondOrderV1.single,
+		ferrum_chem.DocumentBondStyleV1.normal,
+	)
 
 
 def test_attached_compact_group_availability_echoes_the_selected_choice() -> None:
@@ -82,24 +132,41 @@ def test_attached_compact_group_availability_echoes_the_selected_choice() -> Non
 	assert _snapshot_facts(session) == before
 
 
-@pytest.mark.parametrize("catalog_key, category", [
-	("unknown", ferrum_chem.AttachedCompactGroupCategoryV1.invalid_catalog_key),
-	("ethyl", ferrum_chem.AttachedCompactGroupCategoryV1.unsupported_attachment_catalog_key),
-])
-def test_attached_compact_group_refuses_unapproved_keys_without_mutation(
-		catalog_key: str, category: object) -> None:
-	"""The boundary distinguishes unrecognized keys from known unreviewed choices."""
+def test_attached_compact_group_refuses_unknown_key_without_mutation() -> None:
+	"""An unknown catalog key is refused without changing the document."""
 	session = _session()
 	before = _snapshot_facts(session)
 
 	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as refused:
-		_begin(session, catalog_key)
-	assert refused.value.category == category
+		_begin(session, "unknown")
+	assert refused.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.invalid_catalog_key
 	assert _snapshot_facts(session) == before
 
 
-def test_generic_methyl_attachment_previews_commits_and_retires_once() -> None:
-	"""A generic reviewed request retains the opaque one-use lifecycle."""
+def test_generic_phenyl_attachment_materializes_with_typed_focus_receipt() -> None:
+	"""Phenyl uses the same typed generic attach-and-materialize contract."""
+	session = _session()
+	committed = session._commit_attach_compact_group_v1(_begin(session, "phenyl"))
+	molecule = session.observe(committed.revision).projection.molecules[0]
+	group = next(
+		group for group in molecule.compact_groups
+		if group.document_object_id == committed.compact_group_object_id)
+	materialized = _materialize(session, molecule.document_object_id, group.document_object_id)
+	result = materialized.mutation_result
+
+	assert isinstance(result, ferrum_chem.SessionOperationResultV1)
+	outcome = result.outcome.compact_group_materialized
+	assert result.outcome.kind == "compact_group_materialized_v1"
+	assert outcome is not None
+	post_molecule = result.observation.projection.molecules[0]
+	assert outcome.replacement_focus_atom_identifier in {
+		atom.document_object_id for atom in post_molecule.atoms
+	}
+	assert not post_molecule.compact_groups
+
+
+def test_generic_methyl_attachment_previews_commits_and_consumes_once() -> None:
+	"""A generic reviewed request keeps an opaque one-use lifecycle."""
 	session = _session()
 	before = session.snapshot()
 	anchor = _anchor_id(session)
@@ -113,9 +180,56 @@ def test_generic_methyl_attachment_previews_commits_and_retires_once() -> None:
 	assert committed.focus_object_id == anchor
 	assert committed.compact_group_object_id
 
-	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as replayed:
+	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as consumed:
 		session._commit_attach_compact_group_v1(pending)
-	assert replayed.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.retired
+	assert consumed.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.consumed
+
+
+def test_generic_ethyl_attachment_materializes_to_neutral_carbon_topology() -> None:
+	"""One reviewed ethyl group materializes through the generic public lifecycle."""
+	session = _session()
+	anchor = _anchor_id(session)
+	pending = _begin(session, "ethyl")
+
+	assert session._preview_attach_compact_group_v1(pending).overlay is not None
+	committed = session._commit_attach_compact_group_v1(pending)
+	attached = session.observe(committed.revision)
+	molecule = attached.projection.molecules[0]
+	group = next(
+		group for group in molecule.compact_groups
+		if group.document_object_id == committed.compact_group_object_id)
+	materialized = _materialize(session, molecule.document_object_id, group.document_object_id)
+	result = materialized.mutation_result
+
+	assert result is not None
+	assert (materialized.source_revision, materialized.source_digest) == (
+		committed.revision, bytes.fromhex(committed.digest))
+	outcome = result.outcome.compact_group_materialized
+	assert outcome is not None
+	assert outcome.replacement_focus_atom_identifier
+	post = result.observation
+	assert session.observe(post.snapshot.revision).snapshot.digest == post.snapshot.digest
+	materialized_molecule = post.projection.molecules[0]
+	assert not materialized_molecule.compact_groups
+	internal_bonds = [
+		bond for bond in materialized_molecule.bonds
+		if bond.start.document_object_id != anchor and bond.end.document_object_id != anchor]
+	assert len(internal_bonds) == 1
+	internal_bond = internal_bonds[0]
+	assert (internal_bond.order, internal_bond.style) == (
+		ferrum_chem.DocumentBondOrderV1.single,
+		ferrum_chem.DocumentBondStyleV1.normal,
+	)
+	internal_atom_ids = {
+		internal_bond.start.document_object_id,
+		internal_bond.end.document_object_id,
+	}
+	materialized_atoms = [
+		atom for atom in materialized_molecule.atoms
+		if atom.document_object_id in internal_atom_ids]
+	assert [(atom.element, atom.formal_charge) for atom in materialized_atoms] == [
+		("C", None), ("C", None),
+	]
 
 
 def test_generic_nitro_attachment_preserves_projected_and_materialized_charge_chemistry() -> None:
@@ -134,7 +248,7 @@ def test_generic_nitro_attachment_preserves_projected_and_materialized_charge_ch
 
 
 def test_generic_attachment_rejects_foreign_cancelled_and_stale_pending_handles() -> None:
-	"""Session affinity, retirement, and stale commits preserve durable state."""
+	"""Session affinity, cancellation, and stale commits preserve durable state."""
 	owner = _session()
 	foreign = _session()
 	before_owner = _snapshot_facts(owner)
@@ -148,9 +262,9 @@ def test_generic_attachment_rejects_foreign_cancelled_and_stale_pending_handles(
 	assert _snapshot_facts(foreign) == before_foreign
 
 	owner._cancel_attach_compact_group_v1(pending)
-	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as retired:
+	with pytest.raises(ferrum_chem.AttachedCompactGroupAttachmentError) as consumed:
 		owner._preview_attach_compact_group_v1(pending)
-	assert retired.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.retired
+	assert consumed.value.category == ferrum_chem.AttachedCompactGroupCategoryV1.consumed
 
 	stale = _begin(owner, "methyl")
 	owner._commit_attach_compact_group_v1(_begin(owner, "methyl", 30.0))

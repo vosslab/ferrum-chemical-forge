@@ -5,8 +5,8 @@ use ferrum_document::{
     DocumentSession,
 };
 
-use crate::direct_bond_pointer_v3::{
-    DirectBondPointerHitStateV3, DirectBondPointerProbeErrorV3, DirectBondPointerProbeV3,
+use crate::direct_bond_pointer::{
+    DirectBondPointerHitState, DirectBondPointerProbe, DirectBondPointerProbeError,
 };
 
 const POINTER_PICK_TOLERANCE_PX_V1: f64 = 6.0;
@@ -15,15 +15,15 @@ const TIE_EPSILON_PX_SQUARED_V1: f64 = 1.0e-9;
 fn require_fence(
     session: &DocumentSession,
     fence: DocumentFenceV1,
-) -> Result<(), DirectBondPointerProbeErrorV3> {
+) -> Result<(), DirectBondPointerProbeError> {
     let snapshot = session
         .snapshot()
-        .map_err(|_| DirectBondPointerProbeErrorV3::StaleRevision)?;
+        .map_err(|_| DirectBondPointerProbeError::StaleRevision)?;
     if snapshot.revision() != fence.revision() {
-        return Err(DirectBondPointerProbeErrorV3::StaleRevision);
+        return Err(DirectBondPointerProbeError::StaleRevision);
     }
     if *snapshot.digest() != fence.digest() {
-        return Err(DirectBondPointerProbeErrorV3::StaleDigest);
+        return Err(DirectBondPointerProbeError::StaleDigest);
     }
     Ok(())
 }
@@ -31,39 +31,37 @@ fn require_fence(
 pub(crate) fn resolve_probe(
     session: &DocumentSession,
     fence: DocumentFenceV1,
-    probe: &DirectBondPointerProbeV3,
-) -> Result<DirectBondEndpointIntent, DirectBondPointerProbeErrorV3> {
+    probe: &DirectBondPointerProbe,
+) -> Result<DirectBondEndpointIntent, DirectBondPointerProbeError> {
     require_fence(session, fence)?;
     let observation = session
         .observe(fence.revision())
-        .map_err(|_| DirectBondPointerProbeErrorV3::StaleRevision)?;
+        .map_err(|_| DirectBondPointerProbeError::StaleRevision)?;
     let atoms = observation
         .projection()
         .molecules()
         .iter()
         .flat_map(|molecule| molecule.atoms());
     match probe.direct_hit_state {
-        DirectBondPointerHitStateV3::AmbiguousAtom => {
-            Err(DirectBondPointerProbeErrorV3::AmbiguousAtom)
-        }
-        DirectBondPointerHitStateV3::UniqueAtom => {
+        DirectBondPointerHitState::AmbiguousAtom => Err(DirectBondPointerProbeError::AmbiguousAtom),
+        DirectBondPointerHitState::UniqueAtom => {
             let direct_object_id = probe
                 .direct_atom_object_id
                 .as_ref()
                 .expect("validated at construction");
             let mut matching_atoms = atoms.filter(|atom| atom.id() == Some(direct_object_id));
             let Some(atom) = matching_atoms.next() else {
-                return Err(DirectBondPointerProbeErrorV3::UnknownDirectAtom);
+                return Err(DirectBondPointerProbeError::UnknownDirectAtom);
             };
             if matching_atoms.next().is_some() {
-                return Err(DirectBondPointerProbeErrorV3::AmbiguousAtom);
+                return Err(DirectBondPointerProbeError::AmbiguousAtom);
             }
             let Some(atom) = atom.id() else {
-                return Err(DirectBondPointerProbeErrorV3::UnknownDirectAtom);
+                return Err(DirectBondPointerProbeError::UnknownDirectAtom);
             };
             Ok(DirectBondEndpointIntent::ExistingAtom { atom: atom.clone() })
         }
-        DirectBondPointerHitStateV3::None => {
+        DirectBondPointerHitState::None => {
             let pointer_viewport = probe
                 .viewport_to_scene
                 .viewport_point_for(probe.scene_point)?;
@@ -73,7 +71,7 @@ pub(crate) fn resolve_probe(
                 let Some(atom_id) = atom.id() else { continue };
                 let position = atom.position();
                 let atom_point = DirectBondPoint2V1::new(position.x(), position.y())
-                    .map_err(|_| DirectBondPointerProbeErrorV3::UnknownDirectAtom)?;
+                    .map_err(|_| DirectBondPointerProbeError::UnknownDirectAtom)?;
                 let viewport = probe.viewport_to_scene.viewport_point_for(atom_point)?;
                 let distance = (viewport.x() - pointer_viewport.x()).powi(2)
                     + (viewport.y() - pointer_viewport.y()).powi(2);
@@ -94,7 +92,7 @@ pub(crate) fn resolve_probe(
                 }
             }
             if tied {
-                return Err(DirectBondPointerProbeErrorV3::AmbiguousAtom);
+                return Err(DirectBondPointerProbeError::AmbiguousAtom);
             }
             Ok(match closest {
                 Some((_, atom)) => DirectBondEndpointIntent::ExistingAtom { atom },

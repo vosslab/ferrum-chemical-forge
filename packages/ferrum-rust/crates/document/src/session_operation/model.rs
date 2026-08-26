@@ -3,6 +3,7 @@ use crate::{
     DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
     DocumentMoleculeHydrogenMaterializationRefusalV1,
     DocumentMoleculeHydrogenMaterializationRequestV1, InterchangeRecordBatchInsertionV1,
+    ReverseDirectedBondEndpointsV1,
 };
 
 /// Versioned session operation staging the initial supported document mutation.
@@ -155,6 +156,8 @@ pub enum SessionOperationV1 {
         /// Complete validated source-ID-targeted property intent.
         patch: BondPropertiesPatchV1,
     },
+    /// Reverse the retained endpoint direction of one directed wedge bond.
+    ReverseDirectedBondEndpointsV1(ReverseDirectedBondEndpointsV1),
     /// Apply one validated unique-field direct-root Plus properties patch atomically.
     SetPlusProperties {
         /// Complete validated source-ID-targeted property intent.

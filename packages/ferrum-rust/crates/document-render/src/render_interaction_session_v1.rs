@@ -1,4 +1,5 @@
 use super::*;
+use ferrum_core::BondStyle;
 
 impl RenderInteractionSessionV1 {
     /// Validate that a root selection was issued by this live session and still
@@ -259,8 +260,7 @@ impl RenderInteractionSessionV1 {
                     .find(|batch| batch.target().document_object_id() == bond_object_id)
                     .ok_or(RenderInteractionErrorV1::Observation)?;
                 let mut segments = Vec::new();
-                let mut primitive_bounds = Vec::new();
-                let mut has_path = false;
+                let mut path_primitive_bounds = Vec::new();
                 for operation in batch.operations() {
                     match operation {
                         RenderOp::Line(line) => {
@@ -271,12 +271,10 @@ impl RenderInteractionSessionV1 {
                                 end_y: line.end().y(),
                                 stroke_radius: line.width().get() / 2.0,
                             };
-                            primitive_bounds.push(segment_bounds(std::slice::from_ref(&segment)));
                             segments.push(segment);
                         }
                         RenderOp::Path(path) => {
-                            has_path = true;
-                            primitive_bounds.push(path_bounds(path));
+                            path_primitive_bounds.push(path_bounds(path));
                         }
                         RenderOp::Text(_)
                         | RenderOp::Mask(_)
@@ -284,24 +282,38 @@ impl RenderInteractionSessionV1 {
                         | RenderOp::DoubleBondCarrierMark(_) => {}
                     }
                 }
-                if primitive_bounds.is_empty() {
+                if segments.is_empty() && path_primitive_bounds.is_empty() {
                     continue;
                 }
+                let directed_stereo =
+                    matches!(bond.style(), Some(BondStyle::Wedge | BondStyle::Hashed));
+                let has_path_primitive = !path_primitive_bounds.is_empty();
+                let primitive_bounds = path_primitive_bounds
+                    .into_iter()
+                    .chain((!segments.is_empty()).then(|| segment_bounds(&segments)))
+                    .collect::<Vec<_>>();
+                let uses_envelope = directed_stereo || has_path_primitive;
+                let (bounds, geometry) = if uses_envelope {
+                    (
+                        union_bounds(&primitive_bounds),
+                        StructureInteractionGeometryV1::DirectedStereoBondEnvelope,
+                    )
+                } else {
+                    (
+                        segment_bounds(&segments),
+                        StructureInteractionGeometryV1::Bond {
+                            segments,
+                            hit_slop: HIT_SLOP_PT_V1,
+                        },
+                    )
+                };
                 targets.push(StructureInteractionTargetV1 {
                     molecule_object_id: molecule_object_id.clone(),
                     object_id: bond_object_id.clone(),
                     source_order: batch.paint_order(),
-                    kind: if has_path {
-                        StructureTargetKindV1::DisplayOnly
-                    } else {
-                        StructureTargetKindV1::Bond
-                    },
-                    bounds: union_bounds(&primitive_bounds),
-                    geometry: if has_path {
-                        StructureInteractionGeometryV1::DisplayOnly
-                    } else {
-                        StructureInteractionGeometryV1::Bond { segments }
-                    },
+                    kind: StructureTargetKindV1::Bond,
+                    bounds,
+                    geometry,
                 });
             }
         }
@@ -343,22 +355,14 @@ impl RenderInteractionSessionV1 {
                     .cloned()
                     .collect::<Vec<_>>();
                 let values = if atom_or_group.is_empty() {
-                    let bonds = observation
+                    observation
                         .targets
                         .iter()
                         .filter(|target| {
                             target.kind == StructureTargetKindV1::Bond && target.hit(x, y)
                         })
                         .cloned()
-                        .collect::<Vec<_>>();
-                    if bonds.is_empty()
-                        && observation.targets.iter().any(|target| {
-                            target.kind == StructureTargetKindV1::DisplayOnly && target.hit(x, y)
-                        })
-                    {
-                        return Err(RenderInteractionErrorV1::DisplayOnly);
-                    }
-                    bonds
+                        .collect::<Vec<_>>()
                 } else {
                     atom_or_group
                 };
@@ -389,18 +393,9 @@ impl RenderInteractionSessionV1 {
                 let candidates = observation
                     .targets
                     .iter()
-                    .filter(|target| {
-                        target.kind != StructureTargetKindV1::DisplayOnly
-                            && target.fully_contained_by(rectangle)
-                    })
+                    .filter(|target| target.fully_contained_by(rectangle))
                     .cloned()
                     .collect::<Vec<_>>();
-                if observation.targets.iter().any(|target| {
-                    target.kind == StructureTargetKindV1::DisplayOnly
-                        && target.fully_contained_by(rectangle)
-                }) {
-                    return Err(RenderInteractionErrorV1::DisplayOnly);
-                }
                 (candidates, modifier == RenderInteractionModifierV1::Toggle)
             }
         };
@@ -446,13 +441,6 @@ impl RenderInteractionSessionV1 {
             .any(|target| target.molecule_object_id != molecule_object_id)
         {
             return Err(RenderInteractionErrorV1::CrossMoleculeSelection);
-        }
-        if selection
-            .targets
-            .iter()
-            .any(|target| target.kind == StructureTargetKindV1::DisplayOnly)
-        {
-            return Err(RenderInteractionErrorV1::DisplayOnly);
         }
         let compact_groups = selection
             .targets

@@ -218,6 +218,88 @@ pub enum InterchangeDecoderKeyV1 {
     Sdf,
 }
 
+/// Whether a closed interchange capability needs the native chemistry runtime.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InterchangeRuntimeRequirementV1 {
+    RuntimeFree,
+    RuntimeRequired,
+}
+
+impl InterchangeRuntimeRequirementV1 {
+    #[must_use]
+    pub const fn requires_chemistry_runtime(self) -> bool {
+        matches!(self, Self::RuntimeRequired)
+    }
+}
+
+/// Conversion facts selected by one closed input capability.
+#[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
+pub struct ConversionInputProfileV1 {
+    max_source_bytes: usize,
+    runtime_requirement: InterchangeRuntimeRequirementV1,
+}
+
+impl ConversionInputProfileV1 {
+    #[must_use]
+    pub const fn new(
+        max_source_bytes: usize,
+        runtime_requirement: InterchangeRuntimeRequirementV1,
+    ) -> Self {
+        Self {
+            max_source_bytes,
+            runtime_requirement,
+        }
+    }
+
+    #[must_use]
+    pub const fn max_source_bytes(self) -> usize {
+        self.max_source_bytes
+    }
+
+    #[must_use]
+    pub const fn runtime_requirement(self) -> InterchangeRuntimeRequirementV1 {
+        self.runtime_requirement
+    }
+}
+
+/// Resolved execution facts for one conversion request.
+#[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
+pub struct ConversionExecutionProfileV1 {
+    max_source_bytes: usize,
+    runtime_requirement: InterchangeRuntimeRequirementV1,
+}
+
+impl ConversionExecutionProfileV1 {
+    #[must_use]
+    pub const fn join(
+        input: ConversionInputProfileV1,
+        output_requirement: InterchangeRuntimeRequirementV1,
+    ) -> Self {
+        let runtime_requirement = match (input.runtime_requirement(), output_requirement) {
+            (
+                InterchangeRuntimeRequirementV1::RuntimeFree,
+                InterchangeRuntimeRequirementV1::RuntimeFree,
+            ) => InterchangeRuntimeRequirementV1::RuntimeFree,
+            _ => InterchangeRuntimeRequirementV1::RuntimeRequired,
+        };
+        Self {
+            max_source_bytes: input.max_source_bytes(),
+            runtime_requirement,
+        }
+    }
+
+    #[must_use]
+    pub const fn max_source_bytes(self) -> usize {
+        self.max_source_bytes
+    }
+
+    #[must_use]
+    pub const fn requires_chemistry_runtime(self) -> bool {
+        self.runtime_requirement.requires_chemistry_runtime()
+    }
+}
+
 /// Source and final-response bounds selected by an interchange descriptor.
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
 pub struct InterchangeImportLimitsV1 {
@@ -248,6 +330,7 @@ impl InterchangeImportLimitsV1 {
 /// One static, import-only descriptor consumed by future CLI and Qt surfaces.
 #[derive(Debug, JsonSchema, Serialize)]
 pub struct InterchangeFormatDescriptorV1 {
+    canonical_name: &'static str,
     display_name: &'static str,
     format_id: &'static str,
     profile_id: &'static str,
@@ -258,10 +341,19 @@ pub struct InterchangeFormatDescriptorV1 {
     compression: InterchangeCompressionPolicyV1,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1,
     decoder: InterchangeDecoderKeyV1,
+    #[serde(skip)]
+    #[schemars(skip)]
+    graph_inspection_profile: Option<crate::InterchangeGraphInspectionProfileV1>,
     limits: InterchangeImportLimitsV1,
+    conversion_profile: ConversionInputProfileV1,
 }
 
 impl InterchangeFormatDescriptorV1 {
+    #[must_use]
+    pub const fn canonical_name(&self) -> &'static str {
+        self.canonical_name
+    }
+
     #[must_use]
     pub const fn display_name(&self) -> &'static str {
         self.display_name
@@ -302,9 +394,20 @@ impl InterchangeFormatDescriptorV1 {
     pub const fn decoder(&self) -> InterchangeDecoderKeyV1 {
         self.decoder
     }
+    /// Return the explicitly admitted decoded-graph inspection profile.
+    #[must_use]
+    pub const fn graph_inspection_profile(
+        &self,
+    ) -> Option<crate::InterchangeGraphInspectionProfileV1> {
+        self.graph_inspection_profile
+    }
     #[must_use]
     pub const fn limits(&self) -> InterchangeImportLimitsV1 {
         self.limits
+    }
+    #[must_use]
+    pub const fn conversion_profile(&self) -> ConversionInputProfileV1 {
+        self.conversion_profile
     }
 }
 
@@ -313,6 +416,7 @@ const CML_EXPECTED_INPUT_SUFFIXES_V1: [&str; 1] = [".cml"];
 const CML_EXPECTED_OUTPUT_SUFFIXES_V1: [&str; 0] = [];
 const CML_DIRECTIONS_V1: [InterchangeDirectionV1; 1] = [InterchangeDirectionV1::DocumentImportNew];
 const CML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescriptorV1 {
+    canonical_name: "cml",
     display_name: "Chemical Markup Language (CML/CML2)",
     format_id: CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
     profile_id: CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
@@ -323,14 +427,20 @@ const CML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescri
     compression: InterchangeCompressionPolicyV1::Forbidden,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics,
     decoder: InterchangeDecoderKeyV1::CmlSimpleMolecule,
+    graph_inspection_profile: Some(crate::InterchangeGraphInspectionProfileV1::CmlSimpleMolecule),
     limits: InterchangeImportLimitsV1::new(
         CML_IMPORT_MAX_SOURCE_BYTES_V1,
         INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1,
+    ),
+    conversion_profile: ConversionInputProfileV1::new(
+        CML_IMPORT_MAX_SOURCE_BYTES_V1,
+        InterchangeRuntimeRequirementV1::RuntimeFree,
     ),
 };
 const SDF_EXPECTED_INPUT_ALIASES_V1: [&str; 2] = ["sdf", "sd"];
 const SDF_EXPECTED_INPUT_SUFFIXES_V1: [&str; 2] = [".sdf", ".sd"];
 const SDF_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescriptorV1 {
+    canonical_name: "sdf",
     display_name: "Structure Data File (SDF)",
     format_id: SDF_IMPORT_FORMAT_V1,
     profile_id: SDF_IMPORT_PROFILE_V1,
@@ -341,9 +451,14 @@ const SDF_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescri
     compression: InterchangeCompressionPolicyV1::Forbidden,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics,
     decoder: InterchangeDecoderKeyV1::Sdf,
+    graph_inspection_profile: Some(crate::InterchangeGraphInspectionProfileV1::SdfNativeSemantic),
     limits: InterchangeImportLimitsV1::new(
         SDF_MAX_INPUT_BYTES,
         INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1,
+    ),
+    conversion_profile: ConversionInputProfileV1::new(
+        SDF_MAX_INPUT_BYTES,
+        InterchangeRuntimeRequirementV1::RuntimeRequired,
     ),
 };
 
@@ -409,12 +524,24 @@ impl InterchangeFormatRegistryV1 {
                 == InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics
             && CML_DESCRIPTOR_V1.decoder == InterchangeDecoderKeyV1::CmlSimpleMolecule
             && SDF_DESCRIPTOR_V1.decoder == InterchangeDecoderKeyV1::Sdf
+            && CML_DESCRIPTOR_V1.graph_inspection_profile
+                == Some(crate::InterchangeGraphInspectionProfileV1::CmlSimpleMolecule)
+            && SDF_DESCRIPTOR_V1.graph_inspection_profile
+                == Some(crate::InterchangeGraphInspectionProfileV1::SdfNativeSemantic)
             && CML_DESCRIPTOR_V1.limits.max_source_bytes == CML_IMPORT_MAX_SOURCE_BYTES_V1
             && SDF_DESCRIPTOR_V1.limits.max_source_bytes == SDF_MAX_INPUT_BYTES
             && CML_DESCRIPTOR_V1.limits.max_response_bytes
                 == INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1
             && SDF_DESCRIPTOR_V1.limits.max_response_bytes
                 == INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1
+            && CML_DESCRIPTOR_V1.conversion_profile.max_source_bytes
+                == CML_DESCRIPTOR_V1.limits.max_source_bytes
+            && CML_DESCRIPTOR_V1.conversion_profile.runtime_requirement
+                == InterchangeRuntimeRequirementV1::RuntimeFree
+            && SDF_DESCRIPTOR_V1.conversion_profile.max_source_bytes
+                == SDF_DESCRIPTOR_V1.limits.max_source_bytes
+            && SDF_DESCRIPTOR_V1.conversion_profile.runtime_requirement
+                == InterchangeRuntimeRequirementV1::RuntimeRequired
         {
             Ok(())
         } else {

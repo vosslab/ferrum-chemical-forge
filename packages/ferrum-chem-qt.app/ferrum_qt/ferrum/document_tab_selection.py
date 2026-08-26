@@ -217,6 +217,24 @@ class FerrumNativeDocumentSelectionMixin:
 		return self._has_one_selected_structure_target("bond")
 
 	#============================================
+	def can_reverse_selected_wedge_direction(self) -> bool:
+		"""Return whether one current selected Rust bond has directed wedge endpoints."""
+		if not self.has_one_selected_bond():
+			return False
+		try:
+			bond = self.selected_bond_projection()
+			source_type = bond.source_type
+			source_id = bond.source_id
+		except FerrumNativeDocumentTabError:
+			return False
+		return (
+			type(source_type) is str
+			and source_type in ("w1", "h1")
+			and type(source_id) is str
+			and bool(source_id)
+		)
+
+	#============================================
 	def has_one_selected_plus(self) -> bool:
 		"""Return whether the current selection names one rendered Plus."""
 		if self._disposed or self.requires_refresh:
@@ -363,6 +381,23 @@ class FerrumNativeDocumentSelectionMixin:
 		operation = engine.DocumentOperationV1.set_bond_order(selected, order)
 		result = self._apply_current_selection_operation_v1(operation)
 		self._install_mutation_result(result, (selected,))
+		return result
+
+	#============================================
+	def reverse_selected_wedge_direction(self) -> object:
+		"""Reverse one selected directed wedge through the generic fenced session path."""
+		self._require_mutable()
+		address = self.selected_molecule_bond_address()
+		bond = self.selected_bond_projection()
+		source_bond_id = bond.source_id
+		if type(source_bond_id) is not str or not source_bond_id:
+			raise FerrumNativeDocumentTabError(
+				"selected Rust bond has no durable source identifier",
+			)
+		import ferrum_qt.ferrum.engine as engine
+		operation = engine.DocumentOperationV1.reverse_directed_bond_endpoints(source_bond_id)
+		result = self._apply_current_selection_operation_v1(operation)
+		self._install_mutation_result(result, (address.bond_id,))
 		return result
 
 	#============================================
@@ -558,12 +593,15 @@ class FerrumNativeDocumentSelectionMixin:
 				raise FerrumNativeDocumentTabError(
 					"Rust structure interaction returned an invalid target DTO",
 				)
+			if type(target.kind) is not engine.StructureTargetKindV1:
+				raise FerrumNativeDocumentTabError(
+					"Rust structure observation returned an invalid durable target address",
+				)
 			if (
 				type(target.molecule_object_id) is not str
 				or not target.molecule_object_id
 				or type(target.object_id) is not str
 				or not target.object_id
-				or type(target.kind) is not engine.StructureTargetKindV1
 				or target.kind not in valid_kinds
 			):
 				raise FerrumNativeDocumentTabError(

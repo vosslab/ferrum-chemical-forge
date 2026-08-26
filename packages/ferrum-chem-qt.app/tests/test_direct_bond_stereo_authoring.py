@@ -69,7 +69,7 @@ def _current_tab(window: ferrum_qt.main_window.MainWindow) -> PySide6.QtWidgets.
 def _action(window: ferrum_qt.main_window.MainWindow,
 		action_id: str) -> PySide6.QtGui.QAction:
 	"""Return one registered visible authoring action by its stable identifier."""
-	action = window.findChild(PySide6.QtGui.QAction, action_id)
+	action = window._action_registry.get_qt_action(action_id)
 	if action is None:
 		raise AssertionError(f"Ferrum action is unavailable: {action_id}")
 	return action
@@ -83,6 +83,34 @@ def _viewport_point(tab: object, document_object_id: str) -> PySide6.QtCore.QPoi
 		for atom in molecule.atoms if atom.document_object_id == document_object_id
 	)
 	return tab.view.mapFromScene(PySide6.QtCore.QPointF(atom.position.x, atom.position.y))
+
+
+#============================================
+def _viewport_bond_base_shoulder_point(tab: object,
+		bond_document_object_id: str) -> PySide6.QtCore.QPoint:
+	"""Map a visibly interior base shoulder from Rust's opaque wedge envelope."""
+	observation = tab.observe_structure_interaction()
+	target = next(
+		target for target in observation.targets
+		if target.object_id == bond_document_object_id
+	)
+	bounds = target.bounds
+	return tab.view.mapFromScene(PySide6.QtCore.QPointF(
+		bounds.left + ((bounds.right - bounds.left) * 0.85),
+		bounds.top + ((bounds.bottom - bounds.top) * 0.25),
+	))
+
+
+#============================================
+def _select_bond_through_canvas(window: ferrum_qt.main_window.MainWindow,
+		tab: object, bond_document_object_id: str) -> None:
+	"""Use visible selection mode to select one authored bond by its Rust target."""
+	window._select_structure_action.trigger()
+	PySide6.QtTest.QTest.mouseClick(
+		tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+		PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+		_viewport_bond_base_shoulder_point(tab, bond_document_object_id),
+	)
 
 
 #============================================
@@ -160,8 +188,8 @@ def test_stereo_actions_create_directed_bonds(
 		) -> None:
 	"""Both wedge actions preserve the public durable tip-to-base bond order."""
 	for action_id, source_type in (
-		("mode.draw_solid_wedge", "w1"),
-		("mode.draw_hashed_wedge", "h1"),
+		("draw.bond.solid_wedge", "w1"),
+		("draw.bond.hashed_wedge", "h1"),
 	):
 		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 		try:
@@ -183,13 +211,144 @@ def test_stereo_actions_create_directed_bonds(
 
 
 #============================================
+def test_wedge_envelope_selects_the_durable_bond_through_the_canvas(
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
+		) -> None:
+	"""Visible wedge shoulders select the authored durable bond in public selection mode."""
+	for action_id in ("draw.bond.solid_wedge", "draw.bond.hashed_wedge"):
+		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
+		try:
+			atom_ids = _atom_document_object_ids(tab)
+			_action(window, action_id).trigger()
+			PySide6.QtTest.QTest.mousePress(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+				_viewport_point(tab, atom_ids[0]),
+			)
+			PySide6.QtTest.QTest.mouseMove(
+				tab.view.viewport(), _viewport_point(tab, atom_ids[1]),
+			)
+			PySide6.QtTest.QTest.mouseRelease(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+				_viewport_point(tab, atom_ids[1]),
+			)
+			qapp.processEvents()
+			bond = tab.current_document_observation().projection.molecules[0].bonds[0]
+			_select_bond_through_canvas(window, tab, bond.document_object_id)
+			qapp.processEvents()
+			assert tab.has_one_selected_bond()
+			assert tab.selected_bond_projection().document_object_id == bond.document_object_id
+		finally:
+			_close_window(qapp, window)
+
+
+#============================================
+def test_reverse_selected_wedge_direction_action_matches_current_bond_selection(
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
+		) -> None:
+	"""The Edit command is available only for one current solid or hashed wedge."""
+	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
+	try:
+		reverse = _action(window, "edit.bond.reverse_wedge")
+		assert not reverse.isEnabled()
+		tab.select_atoms((_atom_document_object_ids(tab)[0],))
+		qapp.processEvents()
+		assert not reverse.isEnabled()
+	finally:
+		_close_window(qapp, window)
+	for action_id, expected_enabled in (
+		("draw.bond.solid_wedge", True),
+		("draw.bond.hashed_wedge", True),
+		("draw.bond", False),
+	):
+		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
+		try:
+			reverse = _action(window, "edit.bond.reverse_wedge")
+			assert not reverse.isEnabled()
+			atom_ids = _atom_document_object_ids(tab)
+			start = _viewport_point(tab, atom_ids[0])
+			end = _viewport_point(tab, atom_ids[1])
+			_action(window, action_id).trigger()
+			PySide6.QtTest.QTest.mousePress(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
+			)
+			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end)
+			PySide6.QtTest.QTest.mouseRelease(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
+			)
+			qapp.processEvents()
+			bond_id = tab.current_document_observation().projection.molecules[0].bonds[0].document_object_id
+			_select_bond_through_canvas(window, tab, bond_id)
+			qapp.processEvents()
+			assert reverse.isEnabled() is expected_enabled
+		finally:
+			_close_window(qapp, window)
+
+
+#============================================
+def test_reverse_selected_wedge_direction_keeps_the_bond_selected(
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
+		) -> None:
+	"""The public Edit command reverses one wedge in one revision without losing selection."""
+	for action_id in (
+		"draw.bond.solid_wedge",
+		"draw.bond.hashed_wedge",
+	):
+		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
+		try:
+			atom_ids = _atom_document_object_ids(tab)
+			start = _viewport_point(tab, atom_ids[0])
+			end = _viewport_point(tab, atom_ids[1])
+			_action(window, action_id).trigger()
+			PySide6.QtTest.QTest.mousePress(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start,
+			)
+			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end)
+			PySide6.QtTest.QTest.mouseRelease(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
+			)
+			qapp.processEvents()
+			bond = tab.current_document_observation().projection.molecules[0].bonds[0]
+			_select_bond_through_canvas(window, tab, bond.document_object_id)
+			qapp.processEvents()
+			reverse = _action(window, "edit.bond.reverse_wedge")
+			assert reverse.isEnabled()
+			before_revision = tab.current_snapshot.revision
+			before_document_object_id = bond.document_object_id
+			before_source_id = bond.source_id
+			before_source_type = bond.source_type
+			before_endpoints = (bond.start.document_object_id, bond.end.document_object_id)
+			reverse.trigger()
+			qapp.processEvents()
+			after = tab.selected_bond_projection()
+			assert tab.has_one_selected_bond()
+			assert after.document_object_id == before_document_object_id
+			assert (after.source_id, after.source_type) == (before_source_id, before_source_type)
+			assert (after.start.document_object_id, after.end.document_object_id) == (
+				before_endpoints[1], before_endpoints[0],
+			)
+			assert {
+				after.start.document_object_id, after.end.document_object_id,
+			} == set(before_endpoints)
+			assert tab.current_snapshot.revision == before_revision + 1
+			assert window.statusBar().currentMessage() == "Reversed selected wedge direction."
+		finally:
+			_close_window(qapp, window)
+
+
+#============================================
 def test_stereo_actions_direct_existing_new_bonds_from_tip_to_blank_base(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""Both wedge actions retain the clicked tip when their base is new."""
 	for action_id, source_type in (
-		("mode.draw_solid_wedge", "w1"),
-		("mode.draw_hashed_wedge", "h1"),
+		("draw.bond.solid_wedge", "w1"),
+		("draw.bond.hashed_wedge", "h1"),
 	):
 		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 		try:
@@ -217,8 +376,8 @@ def test_stereo_actions_support_new_existing_and_new_new_endpoints(
 		) -> None:
 	"""Public stereo actions forward both missing endpoint forms to Rust unchanged."""
 	for action_id, source_type in (
-		("mode.draw_solid_wedge", "w1"),
-		("mode.draw_hashed_wedge", "h1"),
+		("draw.bond.solid_wedge", "w1"),
+		("draw.bond.hashed_wedge", "h1"),
 	):
 		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 		try:
@@ -262,12 +421,12 @@ def test_stereo_actions_support_new_existing_and_new_new_endpoints(
 def test_stereo_escape_unchecks_every_direct_bond_action(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
-	"""Escape and action handoff retire every visible normal or wedge tool state."""
+	"""Escape and action handoff cancel every visible normal or wedge tool state."""
 	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 	try:
 		start = _viewport_point(tab, _atom_document_object_ids(tab)[0])
 		actions = tuple(_action(window, action_id) for action_id in (
-			"mode.draw", "mode.draw_solid_wedge", "mode.draw_hashed_wedge",
+			"draw.bond", "draw.bond.solid_wedge", "draw.bond.hashed_wedge",
 		))
 		for action in actions:
 			action.trigger()
@@ -292,7 +451,7 @@ def test_stereo_refusal_is_modal_and_actionable(
 		observer = _ModalRefusalObserver(refusal_dialogs)
 		qapp.installEventFilter(observer)
 		try:
-			_action(window, "mode.draw_hashed_wedge").trigger()
+			_action(window, "draw.bond.hashed_wedge").trigger()
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
 			PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), start)
@@ -308,7 +467,7 @@ def test_stereo_refusal_is_modal_and_actionable(
 			"What to do now: Select the required item or change the drawing, then try again.",
 			"document operation rejected",
 		)]
-		assert not _action(window, "mode.draw_hashed_wedge").isChecked()
+		assert not _action(window, "draw.bond.hashed_wedge").isChecked()
 		assert not tab.current_document_observation().projection.molecules[0].bonds
 	finally:
 		_close_window(qapp, window)

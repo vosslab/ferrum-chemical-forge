@@ -29,11 +29,24 @@ class PeptideSequenceImportE2eError(RuntimeError):
 
 #============================================
 def _peptide_import_action(window: PySide6.QtWidgets.QMainWindow) -> PySide6.QtGui.QAction:
-	"""Return the visible Chemistry action for native peptide import."""
-	for action in window.findChildren(PySide6.QtGui.QAction):
-		if action.text() == window.tr("Import Supported Peptide Sequence..."):
-			return action
-	raise PeptideSequenceImportE2eError("Ferrum did not expose peptide import in Chemistry")
+	"""Return the visible File > Import action for native peptide import."""
+	menu_bar = window.menuBar()
+	file_menu_action = next(
+		action for action in menu_bar.actions()
+		if action.text().replace("&", "") == "File"
+	)
+	file_menu = file_menu_action.menu()
+	if not menu_bar.isVisible() or not file_menu_action.isVisible() or file_menu is None:
+		raise PeptideSequenceImportE2eError("Ferrum did not expose the public File menu")
+	peptide_import_action = next(
+		action for action in file_menu.actions()
+		if action.text() == window.tr("Import Supported Peptide Sequence...")
+	)
+	if not peptide_import_action.isVisible() or not peptide_import_action.isEnabled():
+		raise PeptideSequenceImportE2eError(
+			"Ferrum did not expose File > Import > Import Supported Peptide Sequence...",
+		)
+	return peptide_import_action
 
 
 #============================================

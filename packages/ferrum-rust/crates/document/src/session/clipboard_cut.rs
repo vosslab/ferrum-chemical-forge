@@ -4,7 +4,7 @@ use crate::{DocumentClipboardCutErrorV1, DocumentClipboardCutPlanV1};
 
 use super::{
     AdmittedSessionTransitionRefusalV1, DocumentSession, DocumentSessionError, RevisionState,
-    SessionOperationError, SessionOperationResultV1, SessionTransitionEffectsV1,
+    SessionOperationResultV1, SessionTransitionEffectsV1,
 };
 
 impl DocumentSession {
@@ -55,7 +55,7 @@ fn map_transition_refusal(
         AdmittedSessionTransitionRefusalV1::ForeignSession => {
             DocumentSessionError::PreparedOperationForeignSession
         }
-        AdmittedSessionTransitionRefusalV1::Replayed
+        AdmittedSessionTransitionRefusalV1::Consumed
         | AdmittedSessionTransitionRefusalV1::ProvisionalCapability => {
             DocumentSessionError::PreparedOperationConsumed
         }
@@ -67,9 +67,6 @@ fn map_transition_refusal(
         }
         AdmittedSessionTransitionRefusalV1::RendererAdmission => {
             DocumentSessionError::RendererAdmission
-        }
-        AdmittedSessionTransitionRefusalV1::HistoryCapacity => {
-            SessionOperationError::HistoryResourceExhausted.into()
         }
     }
 }

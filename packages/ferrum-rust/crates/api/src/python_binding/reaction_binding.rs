@@ -32,7 +32,7 @@ mod reaction_binding_support;
 enum PyReactionCommandRefusalCategoryV1 {
     StaleSnapshot,
     ForeignSession,
-    ReplayedCommand,
+    Consumed,
     InvalidMembers,
     InvalidSelection,
     RendererAdmission,

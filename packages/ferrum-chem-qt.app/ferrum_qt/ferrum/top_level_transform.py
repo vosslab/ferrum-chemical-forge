@@ -239,17 +239,12 @@ class FerrumNativeTopLevelTransformMixin:
 	"""Install complete-root transforms without persistent Qt geometry."""
 
 	#============================================
-	def _build_top_level_transform_actions(self, edit_menu: object) -> None:
-		"""Add closed transform actions for complete durable root selection."""
-		menu = edit_menu.addMenu(self.tr("Transform Complete Roots"))
-		menu.setToolTip(self.tr(
-			"Select presentation roots or every atom of each molecule to transform",
-		))
+	def _build_top_level_transform_actions(self) -> None:
+		"""Create closed transform actions for complete durable root selection."""
 		self._top_level_scale_action = PySide6.QtGui.QAction(
 			self.tr("Scale..."), self,
 		)
 		self._top_level_scale_action.triggered.connect(self._on_scale_top_level_roots)
-		menu.addAction(self._top_level_scale_action)
 		self._top_level_mirror_actions = {}
 		for name, label in (
 			("vertical", "Mirror Across Vertical Axis"),
@@ -259,15 +254,17 @@ class FerrumNativeTopLevelTransformMixin:
 			action.triggered.connect(
 				functools.partial(self._on_mirror_top_level_roots, name),
 			)
-			menu.addAction(action)
 			self._top_level_mirror_actions[name] = action
-		menu.addSeparator()
 		self._top_level_alignment_actions = {}
 		for name, label in _ALIGNMENTS:
 			action = PySide6.QtGui.QAction(self.tr(label), self)
 			action.triggered.connect(functools.partial(self._on_align_top_level_roots, name))
-			menu.addAction(action)
 			self._top_level_alignment_actions[name] = action
+		self._register_action("draw.transform.roots.scale", self._top_level_scale_action)
+		for name, action in self._top_level_mirror_actions.items():
+			self._register_action(f"draw.transform.roots.mirror_{name}", action)
+		for name, action in self._top_level_alignment_actions.items():
+			self._register_action(f"draw.transform.roots.align_{name}", action)
 
 	#============================================
 	def _on_align_top_level_roots(self, name: str, _checked: bool = False) -> None:

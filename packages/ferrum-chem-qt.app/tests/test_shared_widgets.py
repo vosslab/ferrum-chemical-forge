@@ -11,7 +11,6 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.actions.action_registry
-import ferrum_qt.widgets.mode_toolbar
 import ferrum_qt.widgets.periodic_table
 import ferrum_qt.widgets.property_dock
 import ferrum_qt.widgets.status_bar
@@ -23,9 +22,9 @@ def _registry(parent: PySide6.QtWidgets.QWidget) -> object:
 	"""Return live action clients sufficient for isolated widget testing."""
 	registry = ferrum_qt.actions.action_registry.ActionRegistry()
 	for action_id in (
-			"mode.atom", "mode.draw", "view.zoom_in", "view.zoom_out",
+		"view.zoom_in", "view.zoom_out",
 			"view.reset_zoom", "view.zoom_page", "view.zoom_content",
-			"edit.atom_properties", "edit.bond_properties",
+			"edit.atom.properties", "edit.bond.properties",
 		):
 		action = PySide6.QtGui.QAction(action_id, parent)
 		registry.register(ferrum_qt.actions.action_registry.MenuAction(
@@ -69,27 +68,6 @@ def test_zoom_controls_reuse_actions_and_project_observed_zoom(qapp: object) -> 
 
 
 #============================================
-def test_mode_toolbar_uses_one_action_in_full_and_compact_presentations(qapp: object) -> None:
-	"""Responsive compaction retains mode action identity and checked state."""
-	parent = PySide6.QtWidgets.QMainWindow()
-	registry = _registry(parent)
-	toolbar = ferrum_qt.widgets.mode_toolbar.ModeToolbar(registry, parent, compact_breakpoint=2000)
-	toolbar.add_mode("atom", "mode.atom")
-	toolbar.add_mode("draw", "mode.draw")
-	toolbar.add_compact_chooser()
-	parent.addToolBar(toolbar)
-	parent.resize(500, 300)
-	parent.show()
-	qapp.processEvents()
-	selected: list[str] = []
-	toolbar.mode_selected.connect(selected.append)
-	registry.get_qt_action("mode.atom").trigger()
-	assert selected == ["atom"]
-	assert toolbar.findChild(PySide6.QtWidgets.QToolButton, "mode-chooser").isVisible()
-	parent.close()
-
-
-#============================================
 def test_property_dock_projects_only_observation_dto(qapp: object) -> None:
 	"""Selection display uses projection fields without holding a tab object."""
 	del qapp
@@ -105,7 +83,7 @@ def test_property_dock_projects_only_observation_dto(qapp: object) -> None:
 	dock.refresh(observation)
 	assert "Element: O" in dock.summary_text
 	atom_button = next(button for button in dock.findChildren(PySide6.QtWidgets.QToolButton)
-		if button.defaultAction() is registry.get_qt_action("edit.atom_properties"))
+		if button.defaultAction() is registry.get_qt_action("edit.atom.properties"))
 	assert not atom_button.isHidden()
 
 

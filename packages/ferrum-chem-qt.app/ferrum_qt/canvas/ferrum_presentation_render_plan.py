@@ -13,7 +13,7 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.ferrum_telex
 import ferrum_qt.canvas.ferrum_presentation_target
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.canvas.items.ferrum_plus_item
 import ferrum_qt.canvas.items.ferrum_text_item
 from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
@@ -47,7 +47,7 @@ class FerrumPresentationScene:
 			self, scene: PySide6.QtWidgets.QGraphicsScene | None,
 			) -> tuple[RenderTargetKey, ...]:
 		"""Return selected plan targets without promoting local keys to IDs."""
-		selected = ferrum_qt.canvas.graphics_retirement.selected_items_from_captured_scene(scene)
+		selected = ferrum_qt.canvas.graphics_disposal.selected_items_from_captured_scene(scene)
 		return tuple(item.target for item in self.items if item in selected and item.isSelected())
 
 	#============================================
@@ -63,8 +63,8 @@ class FerrumPresentationScene:
 	#============================================
 	def dispose_detached(self) -> None:
 		"""Release a never-installed renderer-plan scene through the shared reaper."""
-		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
-		coordinator.retire_detached_projection_items(list(self.roots))
+		coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
+		coordinator.dispose_detached_projection_items(list(self.roots))
 		coordinator.raise_if_callback_failed("Ferrum presentation-scene disposal failed")
 
 
@@ -77,8 +77,8 @@ class FerrumPresentationPreviewScene:
 	#============================================
 	def dispose_detached(self) -> None:
 		"""Release never-installed preview roots through the shared reaper."""
-		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
-		coordinator.retire_detached_projection_items(list(self.roots))
+		coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
+		coordinator.dispose_detached_projection_items(list(self.roots))
 		coordinator.raise_if_callback_failed("Ferrum presentation-preview disposal failed")
 
 
@@ -138,7 +138,7 @@ class RendererPlanRootItem(PySide6.QtWidgets.QGraphicsItem):
 
 	#============================================
 	def dispose(self) -> None:
-		"""Provide the established projection-retirement callback contract."""
+		"""Provide the established projection-disposal callback contract."""
 
 
 #============================================
@@ -179,7 +179,7 @@ class RendererPreviewRootItem(PySide6.QtWidgets.QGraphicsItem):
 
 	#============================================
 	def dispose(self) -> None:
-		"""Provide the established projection-retirement callback contract."""
+		"""Provide the established projection-disposal callback contract."""
 
 
 #============================================
@@ -244,7 +244,7 @@ class RendererPreviewPlusItem(PySide6.QtWidgets.QGraphicsItem):
 
 	#============================================
 	def dispose(self) -> None:
-		"""Provide the established projection-retirement callback contract."""
+		"""Provide the established projection-disposal callback contract."""
 
 
 #============================================

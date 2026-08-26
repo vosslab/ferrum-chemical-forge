@@ -52,7 +52,7 @@ def _load_application_icon(
 #============================================
 @dataclasses.dataclass
 class _SmokeTimerDelivery:
-	"""Retain controlled-smoke timer delivery until the event loop has retired."""
+	"""Retain controlled-smoke timer delivery until the event loop has exited."""
 
 	timer_fired: bool = False
 	launch_files_completed: bool = True
@@ -69,7 +69,7 @@ def _advance_controlled_smoke_exit(
 	A startup path can run a nested modal event loop.  When the controlled timer
 	fires during that work, closing only the currently visible dialog is not
 	enough: a later launch path can present another one.  Keep the smoke fence
-	alive until the complete launch callback returns, then retire the application
+	alive until the complete launch callback returns, then close the application
 	through its normal event-loop boundary.
 	"""
 	if not delivery.timer_fired:
@@ -96,7 +96,7 @@ def _schedule_controlled_smoke_exit(
 		) -> None:
 	"""Schedule controlled exit after recording timer delivery evidence."""
 	def finish_controlled_smoke() -> None:
-		"""Begin controlled modal retirement only after the timer fires."""
+		"""Begin controlled modal closure only after the timer fires."""
 		delivery.timer_fired = True
 		_advance_controlled_smoke_exit(app, delivery)
 
@@ -180,10 +180,10 @@ def _finalize_event_loop_exit(
 		window: ferrum_qt.main_window.MainWindow | None,
 		exit_code: int,
 		) -> int | None:
-	"""Retire one MainWindow after the QApplication event loop returns.
+	"""Close one MainWindow after the QApplication event loop returns.
 
 	Returns:
-		The event-loop exit code after controlled retirement, or None when the
+		The event-loop exit code after controlled closure, or None when the
 		user keeps the window live through the normal Save/Discard/Cancel path.
 	"""
 	if window is None:
@@ -348,7 +348,7 @@ def main(
 
 	# A programmatic QApplication.quit() ends app.exec() without sending this
 	# top-level window a close event.  Route that return through the same
-	# approval and coordinator-backed retirement boundary as an ordinary close.
+	# approval and coordinator-backed closure boundary as an ordinary close.
 	while True:
 		exit_code = app.exec()
 		completed_exit = _complete_event_loop_exit(

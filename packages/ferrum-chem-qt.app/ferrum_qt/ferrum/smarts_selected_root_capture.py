@@ -52,7 +52,7 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 
 	#============================================
 	def cancel(self, message: str | None) -> None:
-		"""Retire the event capture without retaining a renderer selection."""
+		"""Cancel the event capture without retaining a renderer selection."""
 		if self._viewport is not None:
 			self._viewport.removeEventFilter(self)
 		self._viewport = None
@@ -147,7 +147,7 @@ class FerrumSmartsSelectedRootCaptureController(PySide6.QtCore.QObject):
 
 	#============================================
 	def cancel_for_pointer_authoring(self, clear_status: bool) -> None:
-		"""Retire this one capture through the window's explicit handoff contract."""
+		"""Cancel this one capture through the window's explicit handoff contract."""
 		self.cancel(None)
 		if clear_status:
 			self._window.statusBar().clearMessage()

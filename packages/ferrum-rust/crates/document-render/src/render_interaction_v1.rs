@@ -364,10 +364,6 @@ pub enum StructureTargetKindV1 {
     Bond,
     /// A first-class compact-group label derived by the Rust renderer.
     CompactGroup,
-    /// The renderer produced a non-line bond primitive that P0.3 must not
-    /// reinterpret as an editable centerline.  It remains a durable,
-    /// render-derived hit target so the caller receives a typed refusal.
-    DisplayOnly,
 }
 
 /// One exact child hit envelope derived by Rust from the fenced document projection.
@@ -382,10 +378,17 @@ pub struct StructureInteractionTargetV1 {
 }
 #[derive(Clone, Debug, PartialEq)]
 enum StructureInteractionGeometryV1 {
-    Atom { x: f64, y: f64 },
-    Bond { segments: Vec<StructureSegmentV1> },
+    Atom {
+        x: f64,
+        y: f64,
+    },
+    Bond {
+        segments: Vec<StructureSegmentV1>,
+        hit_slop: f64,
+    },
+    /// Bounds of one directed stereo primitive lowered by the Rust renderer.
+    DirectedStereoBondEnvelope,
     CompactGroup,
-    DisplayOnly,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct StructureSegmentV1 {
@@ -420,11 +423,15 @@ impl StructureInteractionTargetV1 {
             StructureInteractionGeometryV1::Atom { x: ax, y: ay } => {
                 (x - ax).hypot(y - ay) <= HIT_SLOP_PT_V1
             }
-            StructureInteractionGeometryV1::Bond { segments } => segments.iter().any(|segment| {
-                segment_distance(x, y, *segment) <= HIT_SLOP_PT_V1.max(segment.stroke_radius)
-            }),
+            StructureInteractionGeometryV1::Bond { segments, hit_slop } => {
+                segments.iter().any(|segment| {
+                    segment_distance(x, y, *segment) <= hit_slop.max(segment.stroke_radius)
+                })
+            }
+            StructureInteractionGeometryV1::DirectedStereoBondEnvelope => {
+                self.bounds.contains_point(x, y)
+            }
             StructureInteractionGeometryV1::CompactGroup => self.bounds.contains_point(x, y),
-            StructureInteractionGeometryV1::DisplayOnly => self.bounds.contains_point(x, y),
         }
     }
     fn fully_contained_by(&self, rectangle: RenderInteractionBoundsV1) -> bool {
@@ -435,18 +442,22 @@ impl StructureInteractionTargetV1 {
                     && rectangle.top <= *y
                     && *y <= rectangle.bottom
             }
-            StructureInteractionGeometryV1::Bond { segments } => segments.iter().all(|segment| {
-                rectangle.left + segment.stroke_radius <= segment.start_x
-                    && segment.start_x <= rectangle.right - segment.stroke_radius
-                    && rectangle.top + segment.stroke_radius <= segment.start_y
-                    && segment.start_y <= rectangle.bottom - segment.stroke_radius
-                    && rectangle.left + segment.stroke_radius <= segment.end_x
-                    && segment.end_x <= rectangle.right - segment.stroke_radius
-                    && rectangle.top + segment.stroke_radius <= segment.end_y
-                    && segment.end_y <= rectangle.bottom - segment.stroke_radius
-            }),
+            StructureInteractionGeometryV1::Bond { segments, .. } => {
+                segments.iter().all(|segment| {
+                    rectangle.left + segment.stroke_radius <= segment.start_x
+                        && segment.start_x <= rectangle.right - segment.stroke_radius
+                        && rectangle.top + segment.stroke_radius <= segment.start_y
+                        && segment.start_y <= rectangle.bottom - segment.stroke_radius
+                        && rectangle.left + segment.stroke_radius <= segment.end_x
+                        && segment.end_x <= rectangle.right - segment.stroke_radius
+                        && rectangle.top + segment.stroke_radius <= segment.end_y
+                        && segment.end_y <= rectangle.bottom - segment.stroke_radius
+                })
+            }
+            StructureInteractionGeometryV1::DirectedStereoBondEnvelope => {
+                self.bounds.contained_by(rectangle)
+            }
             StructureInteractionGeometryV1::CompactGroup => self.bounds.contained_by(rectangle),
-            StructureInteractionGeometryV1::DisplayOnly => self.bounds.contained_by(rectangle),
         }
     }
 }

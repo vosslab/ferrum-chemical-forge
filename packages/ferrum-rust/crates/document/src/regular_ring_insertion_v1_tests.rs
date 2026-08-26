@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::{
     DetachedRegularRingInsertionV1, DocumentSession, Point3V1, RegularRingOrientationV1,
@@ -42,7 +42,64 @@ fn is_carbon_single_cycle(molecule: &super::MoleculeProjectionV1) -> bool {
         *degrees.get_mut(start).expect("known start") += 1;
         *degrees.get_mut(end).expect("known end") += 1;
     }
-    molecule.bonds().len() == molecule.atoms().len() && degrees.values().all(|degree| *degree == 2)
+    if molecule.bonds().len() != molecule.atoms().len()
+        || !degrees.values().all(|degree| *degree == 2)
+    {
+        return false;
+    }
+
+    let first = molecule
+        .atoms()
+        .first()
+        .and_then(|atom| atom.source_id())
+        .expect("nonempty molecule has an atom ID");
+    let mut connected = HashSet::from([first]);
+    let mut frontier = vec![first];
+    while let Some(current) = frontier.pop() {
+        for bond in molecule.bonds() {
+            let start = bond.start().source_id().expect("bond start");
+            let end = bond.end().source_id().expect("bond end");
+            let neighbor = if start == current {
+                Some(end)
+            } else if end == current {
+                Some(start)
+            } else {
+                None
+            };
+            if let Some(neighbor) = neighbor
+                && connected.insert(neighbor)
+            {
+                frontier.push(neighbor);
+            }
+        }
+    }
+    connected.len() == molecule.atoms().len()
+}
+
+#[test]
+fn every_admitted_regular_ring_size_lowers_to_one_detached_saturated_carbon_cycle() {
+    for (size, expected_atoms) in [(3_u8, 3_usize), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8)] {
+        let ring = ring(size, Point3V1::new(13.0, -7.0, 2.0).expect("finite centre"));
+        let mut session = DocumentSession::create_empty_document_v1().expect("session creates");
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
+                0,
+                SessionOperation::V1(SessionOperationV1::InsertMoleculeV1(
+                    ring.molecule().expect("ring molecule").into(),
+                )),
+                TransitionAuthorizationV1::None,
+            ))
+            .expect("generic ring transition prepares");
+        let accepted = session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("ring commits");
+        let observation = accepted.observation();
+        assert_eq!(observation.projection().molecules().len(), 1);
+        let molecule = &observation.projection().molecules()[0];
+        assert_eq!(molecule.atoms().len(), expected_atoms);
+        assert_eq!(molecule.bonds().len(), expected_atoms);
+        assert!(is_carbon_single_cycle(molecule));
+    }
 }
 
 #[test]

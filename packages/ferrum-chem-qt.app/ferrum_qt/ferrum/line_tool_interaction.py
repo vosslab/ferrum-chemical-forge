@@ -9,7 +9,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.canvas.graphics_retirement
+import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.direct_root_preview
 import ferrum_qt.ferrum.line_tool_intent
 
@@ -20,7 +20,8 @@ _LineGestureIntent = ferrum_qt.ferrum.line_tool_intent._LineGestureIntent
 class FerrumNativeLineToolInteractionMixin:
 	"""Own root interaction selection and shared line-tool lifecycle helpers."""
 	def _start_translation_gesture(self, intent: _LineGestureIntent,
-			press_scene: PySide6.QtCore.QPointF) -> None:
+			press_scene: PySide6.QtCore.QPointF,
+			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
 		"""Select or drag complete roots only through Rust-issued interaction facts."""
 		try:
 			import ferrum_qt.ferrum.engine as engine
@@ -39,8 +40,7 @@ class FerrumNativeLineToolInteractionMixin:
 			else:
 				modifier = (
 					engine.RenderInteractionModifierV1.toggle
-					if PySide6.QtWidgets.QApplication.keyboardModifiers()
-					& PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
+					if modifiers & PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier
 					else engine.RenderInteractionModifierV1.replace
 				)
 				query = engine.RenderInteractionQueryV1.point(
@@ -101,7 +101,7 @@ class FerrumNativeLineToolInteractionMixin:
 			self._cancel_line_gesture()
 			self._show_edit_refusal(self._render_interaction_refusal(exc))
 			return
-		self._retire_line_preview(intent.direct_root_preview_item)
+		self._dispose_line_preview(intent.direct_root_preview_item)
 		preview_item = ferrum_qt.ferrum.direct_root_preview.create_direct_root_bounds_preview(
 			intent.tab, preview.bounds,
 		)
@@ -136,7 +136,7 @@ class FerrumNativeLineToolInteractionMixin:
 				self._cancel_line_gesture()
 				self._show_edit_refusal(self._render_interaction_refusal(exc))
 				return
-			self._retire_line_preview(intent.direct_root_marquee)
+			self._dispose_line_preview(intent.direct_root_marquee)
 			self._replace_render_interaction_selection(selection, intent.tab)
 			self._line_gesture_intent = dataclasses.replace(
 				intent, direct_root_selection=selection, direct_root_marquee=None,
@@ -182,7 +182,7 @@ class FerrumNativeLineToolInteractionMixin:
 	def _replace_render_interaction_selection(self, selection: object | None,
 			tab: object) -> None:
 		"""Retain only the opaque Rust selection and its issued visual bounds."""
-		self._retire_line_preview(self._render_interaction_selection_item)
+		self._dispose_line_preview(self._render_interaction_selection_item)
 		self._render_interaction_selection = selection
 		self._render_interaction_selection_item = (
 			None if selection is None else
@@ -383,16 +383,16 @@ class FerrumNativeLineToolInteractionMixin:
 
 	#============================================
 	def _reset_line_gesture_start(self) -> None:
-		"""Retire one preview while keeping the checked pointer tool active."""
+		"""Dispose one preview while keeping the checked pointer tool active."""
 		intent = self._line_gesture_intent
 		if intent is None:
 			return
-		self._retire_line_preview(intent.preview)
-		self._retire_line_preview(
+		self._dispose_line_preview(intent.preview)
+		self._dispose_line_preview(
 			None if intent.rotation_preview is None else intent.rotation_preview.root,
 		)
-		self._retire_line_preview(intent.direct_root_preview_item)
-		self._retire_line_preview(intent.direct_root_marquee)
+		self._dispose_line_preview(intent.direct_root_preview_item)
+		self._dispose_line_preview(intent.direct_root_marquee)
 		self._line_gesture_intent = dataclasses.replace(
 			intent,
 			drawing=None,
@@ -429,13 +429,13 @@ class FerrumNativeLineToolInteractionMixin:
 
 	#============================================
 	def _cancel_line_gesture(self, clear_status: bool = True) -> bool:
-		"""Retire a gesture, retaining a failed C6 cancellation for safe retry."""
+		"""Cancel a gesture, retaining a failed C6 cancellation for safe retry."""
 		intent = self._line_gesture_intent
 		if intent is not None and intent.attached_cyclohexane_pending is not None:
 			try:
 				intent.tab.cancel_attached_cyclohexane(intent.attached_cyclohexane_pending)
 			except Exception:
-				self._retire_line_preview(intent.preview)
+				self._dispose_line_preview(intent.preview)
 				self._line_gesture_intent = dataclasses.replace(
 					intent,
 					start_atom_id=None,
@@ -446,7 +446,7 @@ class FerrumNativeLineToolInteractionMixin:
 				)
 				if clear_status:
 					self.statusBar().showMessage(self.tr(
-						"Ferrum could not retire the pending cyclohexane attachment; "
+						"Ferrum could not cancel the pending cyclohexane attachment; "
 						"the gesture is blocked until cancellation succeeds.",
 					), 5000)
 				self._refresh_cancel_tool_action()
@@ -468,6 +468,8 @@ class FerrumNativeLineToolInteractionMixin:
 		for action in self._draw_path_actions.values():
 			action.setChecked(False)
 		self._insert_text_action.setChecked(False)
+		for action in self._regular_ring_actions.values():
+			action.setChecked(False)
 		self._insert_cyclohexane_ring_action.setChecked(False)
 		self._attach_cyclohexane_ring_action.setChecked(False)
 		self._draw_wavy_action.setChecked(False)
@@ -477,17 +479,16 @@ class FerrumNativeLineToolInteractionMixin:
 		self._rotate_atoms_action.setChecked(False)
 		self._translate_roots_action.setChecked(False)
 		if intent is not None:
-			intent.viewport.removeEventFilter(self)
 			intent.tab.view.hide_keyboard_cursor()
-			self._retire_line_preview(intent.preview)
-			self._retire_line_preview(
+			self._dispose_line_preview(intent.preview)
+			self._dispose_line_preview(
 				None if intent.rotation_preview is None else intent.rotation_preview.root,
 			)
-			self._retire_line_preview(
+			self._dispose_line_preview(
 				None
 			)
-			self._retire_line_preview(intent.direct_root_preview_item)
-			self._retire_line_preview(intent.direct_root_marquee)
+			self._dispose_line_preview(intent.direct_root_preview_item)
+			self._dispose_line_preview(intent.direct_root_marquee)
 		if clear_status:
 			self.statusBar().clearMessage()
 		self._refresh_cancel_tool_action()
@@ -514,8 +515,8 @@ class FerrumNativeLineToolInteractionMixin:
 			return "Rotate Atoms Stale"
 		if tool is _NativeLineTool.TRANSLATE_ROOTS:
 			return "Move Complete Roots Stale"
-		if tool is _NativeLineTool.INSERT_CYCLOHEXANE_RING:
-			return "Cyclohexane Ring Stale"
+		if tool is _NativeLineTool.INSERT_REGULAR_RING:
+			return "Regular Ring Stale"
 		if tool is _NativeLineTool.ATTACH_CYCLOHEXANE_RING:
 			return "Attach Cyclohexane Ring Stale"
 		return "Move Atom Stale"
@@ -529,14 +530,14 @@ class FerrumNativeLineToolInteractionMixin:
 		return "Draw Bracket Error"
 
 	#============================================
-	def _retire_line_preview(self,
+	def _dispose_line_preview(self,
 			preview: PySide6.QtWidgets.QGraphicsItem | None) -> None:
-		"""Retire a preview through the shared explicit graphics owner boundary."""
-		scene = ferrum_qt.canvas.graphics_retirement.native_scene_for_item(preview)
+		"""Dispose a preview through the shared explicit graphics owner boundary."""
+		scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 		if scene is None:
 			return
-		coordinator = ferrum_qt.canvas.graphics_retirement.GraphicsRetirementCoordinator()
-		coordinator.retire_scene_projection_items(scene, [preview])
+		coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()
+		coordinator.dispose_scene_projection_items(scene, [preview])
 
 	#============================================
 	def _line_gesture_is_current(self, intent: _LineGestureIntent) -> bool:

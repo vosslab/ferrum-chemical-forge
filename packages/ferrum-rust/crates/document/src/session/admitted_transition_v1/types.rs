@@ -8,20 +8,17 @@ use super::*;
 ///
 /// The pending value remains owned by its source session after every refusal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[non_exhaustive]
 pub enum AdmittedSessionTransitionRefusalV1 {
     /// The opaque transition was prepared by another live session.
     ForeignSession,
-    /// The opaque transition was already redeemed or retired.
-    Replayed,
+    /// The opaque transition was already consumed.
+    Consumed,
     /// The source revision or digest no longer identifies the current state.
     StaleSnapshot,
     /// The renderer no longer accepts the exact prospective observation.
     RendererAdmission,
-    /// A deferred session capability can no longer be redeemed.
+    /// A deferred session capability can no longer be committed.
     ProvisionalCapability,
-    /// The session could not reserve bounded history storage for this transition.
-    HistoryCapacity,
 }
 
 /// Closed authorization supplied beside one semantic session operation.
@@ -84,15 +81,15 @@ pub enum TransitionAuthorizationRefusalV1 {
     /// The supplied capability belongs to another live document session.
     ForeignSession,
     /// The supplied capability is already claimed or terminally consumed.
-    Replayed,
+    Consumed,
 }
 
 /// Opaque prepared session transition.
 ///
 /// It deliberately exposes neither candidate CDML, mutable state, renderer proof,
-/// pending identity, nor deferred session effects. Callers can only redeem it through
-/// [`DocumentSession::commit_session_operation_transition_v1`] or retire it through
-/// [`DocumentSession::retire_session_operation_transition_v1`].
+/// pending identity, nor deferred session effects. Callers can only commit it through
+/// [`DocumentSession::commit_session_operation_transition_v1`] or cancel it through
+/// [`DocumentSession::cancel_session_operation_transition_v1`].
 pub struct PreparedSessionTransitionV1 {
     pub(super) issuer: AuthoringCapabilityIssuerV1,
     pub(super) source_revision: u64,
@@ -117,7 +114,7 @@ impl fmt::Debug for PreparedSessionTransitionV1 {
 /// Immutable display facts copied from one live prepared session transition.
 ///
 /// This value is deliberately detached from the transition that produced it.
-/// It carries only inert precommit paint content. It cannot redeem, retire,
+/// It carries only inert precommit paint content. It cannot commit, cancel,
 /// expose prospective document identifiers, or otherwise affect the source
 /// transition.
 #[derive(Clone, Debug, PartialEq)]
@@ -136,8 +133,8 @@ impl PreparedSessionTransitionPresentationV1 {
 /// Refusal from extracting a display value from a prepared transition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PreparedSessionTransitionPresentationRefusalV1 {
-    /// The source transition was already redeemed or explicitly retired.
-    Retired,
+    /// The source transition was already consumed.
+    Consumed,
 }
 
 #[derive(Debug)]
@@ -177,7 +174,7 @@ impl ChangedSessionTransitionRequestV1 {
     }
 }
 
-/// Commit-only facts redeemed atomically with one fenced changed candidate.
+/// Commit-only facts applied atomically with one fenced changed candidate.
 #[derive(Debug)]
 pub(in crate::session) struct ChangedSessionTransitionCommitRequestV1 {
     pub(super) commit: ChangedTransitionCommitV1,
@@ -276,7 +273,7 @@ pub(in crate::session) enum HistoryNavigationDirectionV1 {
     Redo,
 }
 
-/// Deferred document-owned effects redeemed with one changed transition.
+/// Deferred document-owned effects applied with one changed transition.
 ///
 /// Routes add effects here instead of mutating the live document during preparation.
 #[derive(Debug, Default)]
@@ -377,7 +374,7 @@ impl SessionTransitionEffectsV1 {
 }
 
 impl PreparedSessionTransitionV1 {
-    /// Return whether this prepared transition was already redeemed or retired.
+    /// Return whether this prepared transition was already consumed.
     #[must_use]
     pub fn is_consumed_v1(&self) -> bool {
         match &self.kind {
@@ -404,7 +401,7 @@ impl PreparedSessionTransitionV1 {
             {
                 changed.precommit_overlay.as_ref()
             }
-            _ => return Err(PreparedSessionTransitionPresentationRefusalV1::Retired),
+            _ => return Err(PreparedSessionTransitionPresentationRefusalV1::Consumed),
         };
         Ok(PreparedSessionTransitionPresentationV1 {
             precommit_overlay: precommit_overlay.cloned(),
@@ -416,10 +413,10 @@ impl PreparedSessionTransitionV1 {
         overlay: ferrum_render::DocumentPrecommitOverlayV1,
     ) -> Result<(), PreparedSessionTransitionPresentationRefusalV1> {
         let PreparedSessionTransitionKindV1::Changed(changed) = &mut self.kind else {
-            return Err(PreparedSessionTransitionPresentationRefusalV1::Retired);
+            return Err(PreparedSessionTransitionPresentationRefusalV1::Consumed);
         };
         if changed.state.is_none() || changed.result.is_none() {
-            return Err(PreparedSessionTransitionPresentationRefusalV1::Retired);
+            return Err(PreparedSessionTransitionPresentationRefusalV1::Consumed);
         }
         changed.precommit_overlay = Some(overlay);
         Ok(())
@@ -433,15 +430,15 @@ impl PreparedSessionTransitionV1 {
         PreparedSessionTransitionPresentationRefusalV1,
     > {
         let PreparedSessionTransitionKindV1::Changed(changed) = &self.kind else {
-            return Err(PreparedSessionTransitionPresentationRefusalV1::Retired);
+            return Err(PreparedSessionTransitionPresentationRefusalV1::Consumed);
         };
         if changed.state.is_none() || changed.result.is_none() {
-            return Err(PreparedSessionTransitionPresentationRefusalV1::Retired);
+            return Err(PreparedSessionTransitionPresentationRefusalV1::Consumed);
         }
         changed
             .renderer_admission
             .precommit_overlay_v1(request)
-            .map_err(|_| PreparedSessionTransitionPresentationRefusalV1::Retired)
+            .map_err(|_| PreparedSessionTransitionPresentationRefusalV1::Consumed)
     }
 }
 

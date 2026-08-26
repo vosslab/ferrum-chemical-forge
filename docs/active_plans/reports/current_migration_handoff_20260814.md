@@ -210,7 +210,8 @@ walkthrough checks are E2E or disposable evidence, not timing/count/byte/pixel/n
   snap policy, and transform exclusions remain their current owners. Cancel Tool composes
   established cancellation boundaries and
   preserves document and selection. This ports the useful BKChem-Qt discoverability pattern while
-  keeping legacy ModeToolbar/SubModeRibbon/EditRibbon/ModeManager/mode YAML as interface evidence.
+  retaining only the useful historical interface concepts as evidence, not a
+  legacy toolbar, mode-schema, or mode-manager product route.
   Permanent semantic tests cover one toolbar bond gesture, Escape preservation, Cancel Tool
   preservation, and remembered user-hidden state. Wide/narrow visual, overflow, icon/grouping/
   accessibility walkthrough, workspace-byte, timing, count, pixel, and installed-wheel UI checks are
