@@ -357,7 +357,13 @@ def main() -> int:
 		PySide6.QtCore.QTimer.singleShot(0, lambda: _accept_role_edit(app))
 		edit_roles.click()
 		observer.discard_expected("Edit Reaction")
-		_await(app, observer, lambda: _roles(_reaction(tab)) != created_roles, "Edit Roles")
+		try:
+			_await(app, observer, lambda: _roles(_reaction(tab)) != created_roles, "Edit Roles")
+		except ReactionWorkflowE2eError as exc:
+			raise ReactionWorkflowE2eError(
+				f"{exc}; role_membership_changed={_roles(_reaction(tab)) != created_roles}; "
+				f"status={window.statusBar().currentMessage()!r}",
+			) from exc
 		edited = _reaction(tab)
 		if sorted(_roles(edited).values()) != ["arrow", "product", "reactant"]:
 			raise ReactionWorkflowE2eError("Edit Roles did not retain a complete typed reaction")
